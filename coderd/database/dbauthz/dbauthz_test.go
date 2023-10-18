@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"reflect"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -62,7 +63,7 @@ func TestAsNoActor(t *testing.T) {
 func TestPing(t *testing.T) {
 	t.Parallel()
 
-	q := dbauthz.New(dbfake.New(), &coderdtest.RecordingAuthorizer{}, slog.Make())
+	q := dbauthz.New(dbfake.New(), &coderdtest.RecordingAuthorizer{}, slog.Make(), accessControlStorePointer())
 	_, err := q.Ping(context.Background())
 	require.NoError(t, err, "must not error")
 }
@@ -74,7 +75,7 @@ func TestInTX(t *testing.T) {
 	db := dbfake.New()
 	q := dbauthz.New(db, &coderdtest.RecordingAuthorizer{
 		Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: xerrors.New("custom error")},
-	}, slog.Make())
+	}, slog.Make(), accessControlStorePointer())
 	actor := rbac.Subject{
 		ID:     uuid.NewString(),
 		Roles:  rbac.RoleNames{rbac.RoleOwner()},
@@ -110,8 +111,8 @@ func TestNew(t *testing.T) {
 
 	// Double wrap should not cause an actual double wrap. So only 1 rbac call
 	// should be made.
-	az := dbauthz.New(db, rec, slog.Make())
-	az = dbauthz.New(az, rec, slog.Make())
+	az := dbauthz.New(db, rec, slog.Make(), accessControlStorePointer())
+	az = dbauthz.New(az, rec, slog.Make(), accessControlStorePointer())
 
 	w, err := az.GetWorkspaceByID(ctx, exp.ID)
 	require.NoError(t, err, "must not error")
@@ -128,7 +129,7 @@ func TestDBAuthzRecursive(t *testing.T) {
 	t.Parallel()
 	q := dbauthz.New(dbfake.New(), &coderdtest.RecordingAuthorizer{
 		Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: nil},
-	}, slog.Make())
+	}, slog.Make(), accessControlStorePointer())
 	actor := rbac.Subject{
 		ID:     uuid.NewString(),
 		Roles:  rbac.RoleNames{rbac.RoleOwner()},
@@ -1228,7 +1229,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		t := dbgen.Template(s.T(), db, database.Template{})
 
 		ctx := testutil.Context(s.T(), testutil.WaitShort)
-		err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+		err := db.UpdateTemplateAccessControlByID(ctx, database.UpdateTemplateAccessControlByIDParams{
 			ID:                   t.ID,
 			RequireActiveVersion: true,
 		})
@@ -1257,7 +1258,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		})
 
 		ctx := testutil.Context(s.T(), testutil.WaitShort)
-		err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+		err := db.UpdateTemplateAccessControlByID(ctx, database.UpdateTemplateAccessControlByIDParams{
 			ID:                   t.ID,
 			RequireActiveVersion: true,
 		})
@@ -1669,4 +1670,11 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Transition: database.WorkspaceTransitionStart,
 		}).Asserts(rbac.ResourceSystem, rbac.ActionCreate)
 	}))
+}
+
+func accessControlStorePointer() *atomic.Pointer[dbauthz.AccessControlStore] {
+	acs := &atomic.Pointer[dbauthz.AccessControlStore]{}
+	var tacs dbauthz.AccessControlStore = dbauthz.EnterpriseTemplateAccessControlStore{}
+	acs.Store(&tacs)
+	return acs
 }

@@ -50,6 +50,7 @@ const (
 	FeatureExternalTokenEncryption     FeatureName = "external_token_encryption"
 	FeatureTemplateAutostopRequirement FeatureName = "template_autostop_requirement"
 	FeatureWorkspaceBatchActions       FeatureName = "workspace_batch_actions"
+	FeatureAccessControl               FeatureName = "access_control"
 )
 
 // FeatureNames must be kept in-sync with the Feature enum above.
@@ -70,6 +71,7 @@ var FeatureNames = []FeatureName{
 	FeatureExternalTokenEncryption,
 	FeatureTemplateAutostopRequirement,
 	FeatureWorkspaceBatchActions,
+	FeatureAccessControl,
 }
 
 // Humanize returns the feature name in a human-readable format.

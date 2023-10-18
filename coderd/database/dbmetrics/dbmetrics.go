@@ -1523,6 +1523,13 @@ func (m metricsStore) UpdateTemplateACLByID(ctx context.Context, arg database.Up
 	return err
 }
 
+func (m metricsStore) UpdateTemplateAccessControlByID(ctx context.Context, arg database.UpdateTemplateAccessControlByIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateTemplateAccessControlByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateTemplateAccessControlByID").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) UpdateTemplateActiveVersionByID(ctx context.Context, arg database.UpdateTemplateActiveVersionByIDParams) error {
 	start := time.Now()
 	err := m.s.UpdateTemplateActiveVersionByID(ctx, arg)

@@ -233,7 +233,6 @@ func (*agplTemplateScheduleStore) Set(ctx context.Context, db database.Store, tp
 			FailureTTL:                    tpl.FailureTTL,
 			TimeTilDormant:                tpl.TimeTilDormant,
 			TimeTilDormantAutoDelete:      tpl.TimeTilDormantAutoDelete,
-			RequireActiveVersion:          tpl.RequireActiveVersion,
 		})
 		if err != nil {
 			return xerrors.Errorf("update template schedule: %w", err)

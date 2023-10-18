@@ -59,7 +59,7 @@ func (s *MethodTestSuite) SetupSuite() {
 	mockStore := dbmock.NewMockStore(ctrl)
 	// We intentionally set no expectations apart from this.
 	mockStore.EXPECT().Wrappers().Return([]string{}).AnyTimes()
-	az := dbauthz.New(mockStore, nil, slog.Make())
+	az := dbauthz.New(mockStore, nil, slog.Make(), accessControlStorePointer())
 	// Take the underlying type of the interface.
 	azt := reflect.TypeOf(az).Elem()
 	s.methodAccounting = make(map[string]int)
@@ -110,7 +110,7 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 		rec := &coderdtest.RecordingAuthorizer{
 			Wrapped: fakeAuthorizer,
 		}
-		az := dbauthz.New(db, rec, slog.Make())
+		az := dbauthz.New(db, rec, slog.Make(), accessControlStorePointer())
 		actor := rbac.Subject{
 			ID:     uuid.NewString(),
 			Roles:  rbac.RoleNames{rbac.RoleOwner()},

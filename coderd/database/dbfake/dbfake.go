@@ -5642,6 +5642,26 @@ func (q *FakeQuerier) UpdateTemplateACLByID(_ context.Context, arg database.Upda
 	return sql.ErrNoRows
 }
 
+func (q *FakeQuerier) UpdateTemplateAccessControlByID(ctx context.Context, arg database.UpdateTemplateAccessControlByIDParams) error {
+	if err := validateDatabaseType(arg); err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for idx, tpl := range q.templates {
+		if tpl.ID != arg.ID {
+			continue
+		}
+		tpl.RequireActiveVersion = arg.RequireActiveVersion
+		q.templates[idx] = tpl
+		return nil
+	}
+
+	return sql.ErrNoRows
+}
+
 func (q *FakeQuerier) UpdateTemplateActiveVersionByID(_ context.Context, arg database.UpdateTemplateActiveVersionByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
@@ -5729,7 +5749,6 @@ func (q *FakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database
 		tpl.FailureTTL = arg.FailureTTL
 		tpl.TimeTilDormant = arg.TimeTilDormant
 		tpl.TimeTilDormantAutoDelete = arg.TimeTilDormantAutoDelete
-		tpl.RequireActiveVersion = arg.RequireActiveVersion
 		q.templates[idx] = tpl
 		return nil
 	}

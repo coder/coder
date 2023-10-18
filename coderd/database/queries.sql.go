@@ -5058,6 +5058,25 @@ func (q *sqlQuerier) UpdateTemplateACLByID(ctx context.Context, arg UpdateTempla
 	return err
 }
 
+const updateTemplateAccessControlByID = `-- name: UpdateTemplateAccessControlByID :exec
+UPDATE
+	templates
+SET
+	require_active_version = $2
+WHERE
+	id = $1
+`
+
+type UpdateTemplateAccessControlByIDParams struct {
+	ID                   uuid.UUID `db:"id" json:"id"`
+	RequireActiveVersion bool      `db:"require_active_version" json:"require_active_version"`
+}
+
+func (q *sqlQuerier) UpdateTemplateAccessControlByID(ctx context.Context, arg UpdateTemplateAccessControlByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateTemplateAccessControlByID, arg.ID, arg.RequireActiveVersion)
+	return err
+}
+
 const updateTemplateActiveVersionByID = `-- name: UpdateTemplateActiveVersionByID :exec
 UPDATE
 	templates
@@ -5151,8 +5170,7 @@ SET
 	autostart_block_days_of_week = $9,
 	failure_ttl = $10,
 	time_til_dormant = $11,
-	time_til_dormant_autodelete = $12,
-	require_active_version = $13
+	time_til_dormant_autodelete = $12
 WHERE
 	id = $1
 `
@@ -5170,7 +5188,6 @@ type UpdateTemplateScheduleByIDParams struct {
 	FailureTTL                    int64     `db:"failure_ttl" json:"failure_ttl"`
 	TimeTilDormant                int64     `db:"time_til_dormant" json:"time_til_dormant"`
 	TimeTilDormantAutoDelete      int64     `db:"time_til_dormant_autodelete" json:"time_til_dormant_autodelete"`
-	RequireActiveVersion          bool      `db:"require_active_version" json:"require_active_version"`
 }
 
 func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateTemplateScheduleByIDParams) error {
@@ -5187,7 +5204,6 @@ func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateT
 		arg.FailureTTL,
 		arg.TimeTilDormant,
 		arg.TimeTilDormantAutoDelete,
-		arg.RequireActiveVersion,
 	)
 	return err
 }

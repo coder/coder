@@ -208,11 +208,17 @@ func New(options *Options) *API {
 	if options.Authorizer == nil {
 		options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
 	}
+
+	acs := &atomic.Pointer[dbauthz.AccessControlStore]{}
+	var tacs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
+	acs.Store(&tacs)
 	options.Database = dbauthz.New(
 		options.Database,
 		options.Authorizer,
 		options.Logger.Named("authz_querier"),
+		acs,
 	)
+
 	experiments := ReadExperiments(
 		options.Logger, options.DeploymentValues.Experiments.Value(),
 	)
@@ -1007,6 +1013,9 @@ type API struct {
 	UserQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
 	// DERPMapper mutates the DERPMap to include workspace proxies.
 	DERPMapper atomic.Pointer[func(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap]
+	// AccessControlStore is a pointer to an atomic pointer since it is
+	// passed to dbauthz.
+	AccessControlStore *atomic.Pointer[dbauthz.AccessControlStore]
 
 	HTTPAuth *HTTPAuthorizer
 

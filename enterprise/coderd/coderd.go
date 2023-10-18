@@ -482,6 +482,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureTemplateAutostopRequirement: api.AGPL.Experiments.Enabled(codersdk.ExperimentTemplateAutostopRequirement) && api.DefaultQuietHoursSchedule != "",
 			codersdk.FeatureWorkspaceProxy:              true,
 			codersdk.FeatureUserRoleManagement:          true,
+			codersdk.FeatureAccessControl:               true,
 		})
 	if err != nil {
 		return err
@@ -652,6 +653,14 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		} else {
 			api.AGPL.DERPMapper.Store(nil)
 		}
+	}
+
+	if initial, changed, enabled := featureChanged(codersdk.FeatureAccessControl); shouldUpdate(initial, changed, enabled) {
+		var acs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
+		if enabled {
+			acs = dbauthz.EnterpriseTemplateAccessControlStore{}
+		}
+		api.AGPL.AccessControlStore.Store(&acs)
 	}
 
 	// External token encryption is soft-enforced
