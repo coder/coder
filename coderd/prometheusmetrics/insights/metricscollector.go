@@ -67,14 +67,12 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 		startTime := now.Add(-mc.timeWindow)
 		endTime := now
 
-		// TODO collect iteration time
-
-		var templateInsights []database.GetTemplateInsightsByTemplateRow
-
 		// Phase 1: Fetch insights from database
 		// FIXME errorGroup will be used to fetch insights for apps and parameters
 		eg, egCtx := errgroup.WithContext(ctx)
 		eg.SetLimit(1)
+
+		var templateInsights []database.GetTemplateInsightsByTemplateRow
 
 		eg.Go(func() error {
 			var err error
