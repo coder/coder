@@ -18,9 +18,10 @@ import (
 var templatesActiveUsersDesc = prometheus.NewDesc("coderd_insights_templates_active_users", "The number of active users of the template.", []string{"template_name"}, nil)
 
 type MetricsCollector struct {
-	database database.Store
-	logger   slog.Logger
-	duration time.Duration
+	database     database.Store
+	logger       slog.Logger
+	timeWindow   time.Duration
+	tickInterval time.Duration
 
 	data atomic.Pointer[insightsData]
 }
@@ -33,18 +34,22 @@ type insightsData struct {
 
 var _ prometheus.Collector = new(MetricsCollector)
 
-func NewMetricsCollector(db database.Store, logger slog.Logger, duration time.Duration) (*MetricsCollector, error) {
-	if duration == 0 {
-		duration = 5 * time.Minute
+func NewMetricsCollector(db database.Store, logger slog.Logger, timeWindow time.Duration, tickInterval time.Duration) (*MetricsCollector, error) {
+	if timeWindow == 0 {
+		timeWindow = 5 * time.Minute
 	}
-	if duration < 5*time.Minute {
-		return nil, xerrors.Errorf("refresh interval must be at least 5 mins")
+	if timeWindow < 5*time.Minute {
+		return nil, xerrors.Errorf("time window must be at least 5 mins")
+	}
+	if tickInterval == 0 {
+		tickInterval = timeWindow
 	}
 
 	return &MetricsCollector{
-		database: db,
-		logger:   logger.Named("insights_metrics_collector"),
-		duration: duration,
+		database:     db,
+		logger:       logger.Named("insights_metrics_collector"),
+		timeWindow:   timeWindow,
+		tickInterval: tickInterval,
 	}, nil
 }
 
@@ -56,10 +61,10 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 	// correct duration after executing once.
 	ticker := time.NewTicker(time.Nanosecond)
 	doTick := func() {
-		defer ticker.Reset(mc.duration)
+		defer ticker.Reset(mc.tickInterval)
 
 		now := time.Now()
-		startTime := now.Add(-mc.duration)
+		startTime := now.Add(-mc.timeWindow)
 		endTime := now
 
 		// TODO collect iteration time
@@ -89,20 +94,22 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 
 		// Phase 2: Collect template IDs, and fetch relevant details
 		templateIDs := uniqueTemplateIDs(templateInsights)
-		templates, err := mc.database.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
-			IDs: templateIDs,
-		})
-		if err != nil {
-			mc.logger.Error(ctx, "unable to fetch template details from database", slog.Error(err))
-			return
-		}
 
-		templateNames := onlyTemplateNames(templates)
+		templateNames := map[uuid.UUID]string{}
+		if len(templateIDs) > 0 {
+			templates, err := mc.database.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
+				IDs: templateIDs,
+			})
+			if err != nil {
+				mc.logger.Error(ctx, "unable to fetch template details from database", slog.Error(err))
+				return
+			}
+			templateNames = onlyTemplateNames(templates)
+		}
 
 		// Refresh the collector state
 		mc.data.Store(&insightsData{
-			templates: templateInsights,
-
+			templates:     templateInsights,
 			templateNames: templateNames,
 		})
 	}
