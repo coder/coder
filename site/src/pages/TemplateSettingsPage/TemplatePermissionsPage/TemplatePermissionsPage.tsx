@@ -13,6 +13,8 @@ import { templateACLMachine } from "xServices/template/templateACLXService";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView";
 import { docs } from "utils/docs";
+import { useQuery } from "react-query";
+import { templateACL } from "api/queries/templates";
 
 export const TemplatePermissionsPage: FC<
   React.PropsWithChildren<unknown>
@@ -23,7 +25,13 @@ export const TemplatePermissionsPage: FC<
   const [state, send] = useMachine(templateACLMachine, {
     context: { templateId: template.id },
   });
-  const { templateACL, userToBeUpdated, groupToBeUpdated } = state.context;
+  const { userToBeUpdated, groupToBeUpdated } = state.context;
+  const templateACLQuery = useQuery({
+    ...templateACL(template.id),
+    onSuccess: (data) => {
+      send({ type: "LOAD", data });
+    },
+  });
 
   return (
     <>
@@ -58,7 +66,7 @@ export const TemplatePermissionsPage: FC<
         <TemplatePermissionsPageView
           organizationId={organizationId}
           templateID={template.id}
-          templateACL={templateACL}
+          templateACL={templateACLQuery.data}
           canUpdatePermissions={Boolean(permissions?.canUpdateTemplate)}
           onAddUser={(user, role, reset) => {
             send("ADD_USER", { user, role, onDone: reset });

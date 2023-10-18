@@ -1,4 +1,4 @@
-import { getTemplateACL, updateTemplateACL } from "api/api";
+import { updateTemplateACL } from "api/api";
 import {
   TemplateACL,
   TemplateGroup,
@@ -44,6 +44,10 @@ export const templateACLMachine = createMachine(
       },
       events: {} as  // User
         | {
+            type: "LOAD";
+            data: TemplateACL;
+          }
+        | {
             type: "ADD_USER";
             user: TemplateUser;
             role: TemplateRole;
@@ -80,9 +84,8 @@ export const templateACLMachine = createMachine(
     initial: "loading",
     states: {
       loading: {
-        invoke: {
-          src: "loadTemplateACL",
-          onDone: {
+        on: {
+          LOAD: {
             actions: ["assignTemplateACL"],
             target: "idle",
           },
@@ -183,7 +186,6 @@ export const templateACLMachine = createMachine(
   },
   {
     services: {
-      loadTemplateACL: ({ templateId }) => getTemplateACL(templateId),
       // User
       addUser: ({ templateId }, { user, role }) =>
         updateTemplateACL(templateId, {

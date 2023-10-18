@@ -36,6 +36,13 @@ export const templates = (orgId: string) => {
   };
 };
 
+export const templateACL = (templateId: string) => {
+  return {
+    queryKey: ["templateAcl", templateId],
+    queryFn: () => API.getTemplateACL(templateId),
+  };
+};
+
 export const templateExamples = (orgId: string) => {
   return {
     queryKey: [...getTemplatesQueryKey(orgId), "examples"],
