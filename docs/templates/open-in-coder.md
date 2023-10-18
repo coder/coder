@@ -15,9 +15,8 @@ approach for "Open in Coder" flows.
 
 ### 1. Set up git authentication
 
-See
-[Git Authentication](../admin/git-providers.md#require-git-authentication-in-templates)
-in your Coder deployment
+See [External Authentication](../admin/external-auth.md) to set up git
+authentication in your Coder deployment.
 
 ### 2. Modify your template to auto-clone repos
 
@@ -115,7 +114,7 @@ specified in your template in the `disable_params` search params list
 [![Open in Coder](https://YOUR_ACCESS_URL/open-in-coder.svg)](https://YOUR_ACCESS_URL/templates/YOUR_TEMPLATE/workspace?disable_params=first_parameter,second_parameter)
 ```
 
-## Example: Kubernetes
+### Example: Kubernetes
 
 For a full example of the Open in Coder flow in Kubernetes, check out
 [this example template](https://github.com/bpmct/coder-templates/tree/main/kubernetes-open-in-coder).

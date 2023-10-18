@@ -236,11 +236,6 @@
           "path": "./templates/troubleshooting.md"
         },
         {
-          "title": "Terraform Modules",
-          "description": "Reuse code across Coder templates",
-          "path": "./templates/modules.md"
-        },
-        {
           "title": "Process Logging",
           "description": "Audit commands in workspaces with exectrace",
           "path": "./templates/process-logging.md",

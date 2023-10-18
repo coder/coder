@@ -34,12 +34,13 @@ const meta: Meta<typeof GeneralSettingsPageView> = {
         description:
           "Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.",
         flag: "experiments",
-        value: ["*", "moons", "single_tailnet", "deployment_health_page"],
+        value: ["single_tailnet"],
         flag_shorthand: "",
         hidden: false,
       },
     ],
     deploymentDAUs: MockDeploymentDAUResponse,
+    safeExperiments: ["single_tailnet", "deployment_health_page"],
   },
 };
 
@@ -67,5 +68,40 @@ export const DAUError: Story = {
     deploymentDAUsError: mockApiError({
       message: "Error fetching DAUs.",
     }),
+  },
+};
+
+export const allExperimentsEnabled: Story = {
+  args: {
+    deploymentOptions: [
+      {
+        name: "Access URL",
+        description:
+          "The URL that users will use to access the Coder deployment.",
+        flag: "access-url",
+        flag_shorthand: "",
+        value: "https://dev.coder.com",
+        hidden: false,
+      },
+      {
+        name: "Wildcard Access URL",
+        description:
+          'Specifies the wildcard hostname to use for workspace applications in the form "*.example.com".',
+        flag: "wildcard-access-url",
+        flag_shorthand: "",
+        value: "*--apps.dev.coder.com",
+        hidden: false,
+      },
+      {
+        name: "Experiments",
+        description:
+          "Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.",
+        flag: "experiments",
+        value: ["*"],
+        flag_shorthand: "",
+        hidden: false,
+      },
+    ],
+    safeExperiments: ["single_tailnet", "deployment_health_page"],
   },
 };

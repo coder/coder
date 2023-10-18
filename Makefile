@@ -419,7 +419,6 @@ lint: lint/shellcheck lint/go lint/ts lint/helm lint/site-icons
 
 lint/site-icons:
 	./scripts/check_site_icons.sh
-
 .PHONY: lint/site-icons
 
 lint/ts:
@@ -517,6 +516,8 @@ coderd/database/dump.sql: coderd/database/gen/dump/main.go $(wildcard coderd/dat
 	go run ./coderd/database/gen/dump/main.go
 
 # Generates Go code for querying the database.
+# coderd/database/queries.sql.go
+# coderd/database/models.go
 coderd/database/querier.go: coderd/database/sqlc.yaml coderd/database/dump.sql $(wildcard coderd/database/queries/*.sql)
 	./coderd/database/generate.sh
 
@@ -539,19 +540,18 @@ provisionerd/proto/provisionerd.pb.go: provisionerd/proto/provisionerd.proto
 		--go-drpc_opt=paths=source_relative \
 		./provisionerd/proto/provisionerd.proto
 
-site/src/api/typesGenerated.ts: scripts/apitypings/main.go $(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go')
-	go run ./scripts/apitypings/ > site/src/api/typesGenerated.ts
-	cd site
-	pnpm run format:types ./src/api/typesGenerated.ts
+site/src/api/typesGenerated.ts: $(wildcard scripts/apitypings/*) $(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go')
+	go run ./scripts/apitypings/ > $@
+	pnpm run format:write:only "$@"
 
 site/e2e/provisionerGenerated.ts: provisionerd/proto/provisionerd.pb.go provisionersdk/proto/provisioner.pb.go
 	cd site
 	../scripts/pnpm_install.sh
 	pnpm run gen:provisioner
 
-site/src/theme/icons.json: $(wildcard site/static/icon/*)
-	go run ./scripts/gensite/ -icons $@
-	pnpm run format:write:only $@
+site/src/theme/icons.json: $(wildcard scripts/gensite/*) $(wildcard site/static/icon/*)
+	go run ./scripts/gensite/ -icons "$@"
+	pnpm run format:write:only "$@"
 
 examples/examples.gen.json: scripts/examplegen/main.go examples/examples.go $(shell find ./examples/templates)
 	go run ./scripts/examplegen/main.go > examples/examples.gen.json

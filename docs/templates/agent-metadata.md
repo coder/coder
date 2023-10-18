@@ -90,9 +90,9 @@ resource "coder_agent" "main" {
 
 You can also show agent metadata for information about the workspace's host.
 
-[top](https://linux.die.net/man/1/top) is available in most Linux distributions
-and provides virtual memory, CPU and IO statistics. Running `top` produces
-output that looks like:
+[top](https://manpages.ubuntu.com/manpages/jammy/en/man1/top.1.html) is
+available in most Linux distributions and provides virtual memory, CPU and IO
+statistics. Running `top` produces output that looks like:
 
 ```text
 %Cpu(s): 65.8 us,  4.4 sy,  0.0 ni, 29.3 id,  0.3 wa,  0.0 hi,  0.2 si,  0.0 st
@@ -100,9 +100,9 @@ MiB Mem :  16009.0 total,    493.7 free,   4624.8 used,  10890.5 buff/cache
 MiB Swap:      0.0 total,      0.0 free,      0.0 used.  11021.3 avail Mem
 ```
 
-[vmstat](https://linux.die.net/man/8/vmstat) is available in most Linux
-distributions and provides virtual memory, CPU and IO statistics. Running
-`vmstat` produces output that looks like:
+[vmstat](https://manpages.ubuntu.com/manpages/jammy/en/man8/vmstat.8.html) is
+available in most Linux distributions and provides virtual memory, CPU and IO
+statistics. Running `vmstat` produces output that looks like:
 
 ```text
 procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----
@@ -110,10 +110,10 @@ r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st
 0  0  19580 4781680 12133692 217646944    0    2     4    32    1    0  1  1 98  0  0
 ```
 
-[dstat](https://linux.die.net/man/1/dstat) is considerably more parseable than
-`vmstat` but often not included in base images. It is easily installed by most
-package managers under the name `dstat`. The output of running `dstat 1 1` looks
-like:
+[dstat](https://manpages.ubuntu.com/manpages/jammy/man1/dstat.1.html) is
+considerably more parseable than `vmstat` but often not included in base images.
+It is easily installed by most package managers under the name `dstat`. The
+output of running `dstat 1 1` looks like:
 
 ```text
 --total-cpu-usage-- -dsk/total- -net/total- ---paging-- ---system--
@@ -141,3 +141,8 @@ You can expect `(10 * 6 * 2) / 4`, or 30 writes per second.
 
 One of the writes is to the `UNLOGGED` `workspace_agent_metadata` table and the
 other to the `NOTIFY` query that enables live stats streaming in the UI.
+
+## Next Steps
+
+- [Resource metadata](./resource-metadata.md)
+- [Parameters](./parameters.md)
