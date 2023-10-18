@@ -1,7 +1,6 @@
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import ArrowRightAltOutlined from "@mui/icons-material/ArrowRightAltOutlined";
-import { useMachine } from "@xstate/react";
 import { Paywall } from "components/Paywall/Paywall";
 import { Stack } from "components/Stack/Stack";
 import { useFeatureVisibility } from "hooks/useFeatureVisibility";
@@ -9,12 +8,11 @@ import { useOrganizationId } from "hooks/useOrganizationId";
 import { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
-import { templateACLMachine } from "xServices/template/templateACLXService";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView";
 import { docs } from "utils/docs";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { setUserRole, templateACL } from "api/queries/templates";
+import { setGroupRole, setUserRole, templateACL } from "api/queries/templates";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 
 export const TemplatePermissionsPage: FC<
@@ -23,20 +21,16 @@ export const TemplatePermissionsPage: FC<
   const organizationId = useOrganizationId();
   const { template, permissions } = useTemplateSettings();
   const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility();
-  const [state, send] = useMachine(templateACLMachine, {
-    context: { templateId: template.id },
-  });
-  const { groupToBeUpdated } = state.context;
-  const templateACLQuery = useQuery({
-    ...templateACL(template.id),
-    onSuccess: (data) => {
-      send({ type: "LOAD", data });
-    },
-  });
+  const templateACLQuery = useQuery(templateACL(template.id));
   const queryClient = useQueryClient();
+
   const addUserMutation = useMutation(setUserRole(queryClient));
   const updateUserMutation = useMutation(setUserRole(queryClient));
   const removeUserMutation = useMutation(setUserRole(queryClient));
+
+  const addGroupMutation = useMutation(setGroupRole(queryClient));
+  const updateGroupMutation = useMutation(setGroupRole(queryClient));
+  const removeGroupMutation = useMutation(setGroupRole(queryClient));
 
   return (
     <>
@@ -103,16 +97,35 @@ export const TemplatePermissionsPage: FC<
             });
             displaySuccess("User removed successfully!");
           }}
-          onAddGroup={(group, role, reset) => {
-            send("ADD_GROUP", { group, role, onDone: reset });
+          onAddGroup={async (group, role, reset) => {
+            await addGroupMutation.mutateAsync({
+              templateId: template.id,
+              groupId: group.id,
+              role,
+            });
+            reset();
           }}
-          isAddingGroup={state.matches("addingGroup")}
-          onUpdateGroup={(group, role) => {
-            send("UPDATE_GROUP_ROLE", { group, role });
+          isAddingGroup={addGroupMutation.isLoading}
+          onUpdateGroup={async (group, role) => {
+            await updateGroupMutation.mutateAsync({
+              templateId: template.id,
+              groupId: group.id,
+              role,
+            });
+            displaySuccess("Group role updated successfully!");
           }}
-          updatingGroup={groupToBeUpdated}
-          onRemoveGroup={(group) => {
-            send("REMOVE_GROUP", { group });
+          updatingGroupId={
+            updateGroupMutation.isLoading
+              ? updateGroupMutation.variables?.groupId
+              : undefined
+          }
+          onRemoveGroup={async (group) => {
+            await removeGroupMutation.mutateAsync({
+              groupId: group.id,
+              templateId: template.id,
+              role: "",
+            });
+            displaySuccess("Group removed successfully!");
           }}
         />
       )}

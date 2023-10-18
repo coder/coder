@@ -62,7 +62,27 @@ export const setUserRole = (
           [userId]: role,
         },
       }),
-    onSuccess: async (templateAcl, { templateId }) => {
+    onSuccess: async (_res, { templateId }) => {
+      await queryClient.invalidateQueries(["templateAcl", templateId]);
+    },
+  };
+};
+
+export const setGroupRole = (
+  queryClient: QueryClient,
+): MutationOptions<
+  Awaited<ReturnType<typeof API.updateTemplateACL>>,
+  unknown,
+  { templateId: string; groupId: string; role: TemplateRole }
+> => {
+  return {
+    mutationFn: ({ templateId, groupId, role }) =>
+      API.updateTemplateACL(templateId, {
+        group_perms: {
+          [groupId]: role,
+        },
+      }),
+    onSuccess: async (_res, { templateId }) => {
       await queryClient.invalidateQueries(["templateAcl", templateId]);
     },
   };

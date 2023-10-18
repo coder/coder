@@ -171,7 +171,7 @@ export interface TemplatePermissionsPageViewProps {
   ) => void;
   isAddingGroup: boolean;
   onUpdateGroup: (group: TemplateGroup, role: TemplateRole) => void;
-  updatingGroup: TemplateGroup | undefined;
+  updatingGroupId?: TemplateGroup["id"] | undefined;
   onRemoveGroup: (group: Group) => void;
 }
 
@@ -191,7 +191,7 @@ export const TemplatePermissionsPageView: FC<
   // Group
   onAddGroup,
   isAddingGroup,
-  updatingGroup,
+  updatingGroupId,
   onUpdateGroup,
   onRemoveGroup,
 }) => {
@@ -265,9 +265,7 @@ export const TemplatePermissionsPageView: FC<
                           <Cond condition={canUpdatePermissions}>
                             <RoleSelect
                               value={group.role}
-                              disabled={
-                                updatingGroup && updatingGroup.id === group.id
-                              }
+                              disabled={updatingGroupId === group.id}
                               onChange={(event) => {
                                 onUpdateGroup(
                                   group,
