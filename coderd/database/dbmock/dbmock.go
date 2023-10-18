@@ -3213,6 +3213,20 @@ func (mr *MockStoreMockRecorder) UpdateTemplateACLByID(arg0, arg1 interface{}) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTemplateACLByID", reflect.TypeOf((*MockStore)(nil).UpdateTemplateACLByID), arg0, arg1)
 }
 
+// UpdateTemplateAccessControlByID mocks base method.
+func (m *MockStore) UpdateTemplateAccessControlByID(arg0 context.Context, arg1 database.UpdateTemplateAccessControlByIDParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateTemplateAccessControlByID", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateTemplateAccessControlByID indicates an expected call of UpdateTemplateAccessControlByID.
+func (mr *MockStoreMockRecorder) UpdateTemplateAccessControlByID(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTemplateAccessControlByID", reflect.TypeOf((*MockStore)(nil).UpdateTemplateAccessControlByID), arg0, arg1)
+}
+
 // UpdateTemplateActiveVersionByID mocks base method.
 func (m *MockStore) UpdateTemplateActiveVersionByID(arg0 context.Context, arg1 database.UpdateTemplateActiveVersionByIDParams) error {
 	m.ctrl.T.Helper()
