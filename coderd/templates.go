@@ -347,11 +347,6 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			return xerrors.Errorf("insert template: %s", err)
 		}
 
-		dbTemplate, err = tx.GetTemplateByID(ctx, id)
-		if err != nil {
-			return xerrors.Errorf("get template by id: %s", err)
-		}
-
 		if createTemplate.RequireActiveVersion {
 			err = (*api.AccessControlStore.Load()).SetTemplateAccessControl(ctx, tx, id, dbauthz.TemplateAccessControl{
 				RequireActiveVersion: createTemplate.RequireActiveVersion,
@@ -359,6 +354,11 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			if err != nil {
 				return xerrors.Errorf("set template access control: %w", err)
 			}
+		}
+
+		dbTemplate, err = tx.GetTemplateByID(ctx, id)
+		if err != nil {
+			return xerrors.Errorf("get template by id: %s", err)
 		}
 
 		dbTemplate, err = (*api.TemplateScheduleStore.Load()).Set(ctx, tx, dbTemplate, schedule.TemplateScheduleOptions{
@@ -379,7 +379,6 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			FailureTTL:               failureTTL,
 			TimeTilDormant:           dormantTTL,
 			TimeTilDormantAutoDelete: dormantAutoDeletionTTL,
-			RequireActiveVersion:     createTemplate.RequireActiveVersion,
 		})
 		if err != nil {
 			return xerrors.Errorf("set template schedule options: %s", err)
@@ -661,6 +660,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				return xerrors.Errorf("set template access control: %w", err)
 			}
+			updated.RequireActiveVersion = req.RequireActiveVersion
 		}
 
 		defaultTTL := time.Duration(req.DefaultTTLMillis) * time.Millisecond
@@ -700,7 +700,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 				TimeTilDormantAutoDelete:  timeTilDormantAutoDelete,
 				UpdateWorkspaceLastUsedAt: req.UpdateWorkspaceLastUsedAt,
 				UpdateWorkspaceDormantAt:  req.UpdateWorkspaceDormantAt,
-				RequireActiveVersion:      req.RequireActiveVersion,
 			})
 			if err != nil {
 				return xerrors.Errorf("set template schedule options: %w", err)

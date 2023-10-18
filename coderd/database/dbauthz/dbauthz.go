@@ -2222,10 +2222,7 @@ func (q *querier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertW
 			return xerrors.Errorf("get template by id: %w", err)
 		}
 
-		accessControl, err := (*q.acs.Load()).GetTemplateAccessControl(t)
-		if err != nil {
-			return xerrors.Errorf("get template access control by id: %w", err)
-		}
+		accessControl := (*q.acs.Load()).GetTemplateAccessControl(t)
 
 		// If the template requires the active version we need to check if
 		// the user is a template admin. If they aren't and are attempting

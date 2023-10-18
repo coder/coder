@@ -409,10 +409,10 @@ func accessControlStorePointer() *atomic.Pointer[dbauthz.AccessControlStore] {
 
 type fakeAccessControlStore struct{}
 
-func (fakeAccessControlStore) GetTemplateAccessControl(t database.Template) (dbauthz.TemplateAccessControl, error) {
+func (fakeAccessControlStore) GetTemplateAccessControl(t database.Template) dbauthz.TemplateAccessControl {
 	return dbauthz.TemplateAccessControl{
 		RequireActiveVersion: t.RequireActiveVersion,
-	}, nil
+	}
 }
 
 func (fakeAccessControlStore) SetTemplateAccessControl(context.Context, database.Store, uuid.UUID, dbauthz.TemplateAccessControl) error {

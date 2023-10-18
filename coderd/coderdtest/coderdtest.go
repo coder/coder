@@ -259,6 +259,10 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		t.Cleanup(closeBatcher)
 	}
 
+	var accessControlStore = &atomic.Pointer[dbauthz.AccessControlStore]{}
+	var acs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
+	accessControlStore.Store(&acs)
+
 	var templateScheduleStore atomic.Pointer[schedule.TemplateScheduleStore]
 	if options.TemplateScheduleStore == nil {
 		options.TemplateScheduleStore = schedule.NewAGPLTemplateScheduleStore()
@@ -278,6 +282,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.Pubsub,
 		&templateScheduleStore,
 		&auditor,
+		accessControlStore,
 		*options.Logger,
 		options.AutobuildTicker,
 	).WithStatsChannel(options.AutobuildStats)
@@ -415,6 +420,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			Authorizer:                         options.Authorizer,
 			Telemetry:                          telemetry.NewNoop(),
 			TemplateScheduleStore:              &templateScheduleStore,
+			AccessControlStore:                 accessControlStore,
 			TLSCertificates:                    options.TLSCertificates,
 			TrialGenerator:                     options.TrialGenerator,
 			TailnetCoordinator:                 options.Coordinator,

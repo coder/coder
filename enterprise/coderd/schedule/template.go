@@ -92,7 +92,6 @@ func (s *EnterpriseTemplateScheduleStore) Get(ctx context.Context, db database.S
 		FailureTTL:               time.Duration(tpl.FailureTTL),
 		TimeTilDormant:           time.Duration(tpl.TimeTilDormant),
 		TimeTilDormantAutoDelete: time.Duration(tpl.TimeTilDormantAutoDelete),
-		RequireActiveVersion:     tpl.RequireActiveVersion,
 	}, nil
 }
 
@@ -117,8 +116,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 		int64(opts.TimeTilDormant) == tpl.TimeTilDormant &&
 		int64(opts.TimeTilDormantAutoDelete) == tpl.TimeTilDormantAutoDelete &&
 		opts.UserAutostartEnabled == tpl.AllowUserAutostart &&
-		opts.UserAutostopEnabled == tpl.AllowUserAutostop &&
-		opts.RequireActiveVersion == tpl.RequireActiveVersion {
+		opts.UserAutostopEnabled == tpl.AllowUserAutostop {
 		// Avoid updating the UpdatedAt timestamp if nothing will be changed.
 		return tpl, nil
 	}

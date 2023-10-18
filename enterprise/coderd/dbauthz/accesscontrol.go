@@ -12,10 +12,10 @@ import (
 
 type EnterpriseTemplateAccessControlStore struct{}
 
-func (EnterpriseTemplateAccessControlStore) GetTemplateAccessControl(t database.Template) (agpldbz.TemplateAccessControl, error) {
+func (EnterpriseTemplateAccessControlStore) GetTemplateAccessControl(t database.Template) agpldbz.TemplateAccessControl {
 	return agpldbz.TemplateAccessControl{
 		RequireActiveVersion: t.RequireActiveVersion,
-	}, nil
+	}
 }
 
 func (EnterpriseTemplateAccessControlStore) SetTemplateAccessControl(ctx context.Context, store database.Store, id uuid.UUID, opts agpldbz.TemplateAccessControl) error {

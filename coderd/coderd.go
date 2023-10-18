@@ -131,6 +131,7 @@ type Options struct {
 	SetUserSiteRoles            func(ctx context.Context, logger slog.Logger, tx database.Store, userID uuid.UUID, roles []string) error
 	TemplateScheduleStore       *atomic.Pointer[schedule.TemplateScheduleStore]
 	UserQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
+	AccessControlStore          *atomic.Pointer[dbauthz.AccessControlStore]
 	// AppSecurityKey is the crypto key used to sign and encrypt tokens related to
 	// workspace applications. It consists of both a signing and encryption key.
 	AppSecurityKey     workspaceapps.SecurityKey
@@ -209,15 +210,17 @@ func New(options *Options) *API {
 		options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
 	}
 
-	acs := &atomic.Pointer[dbauthz.AccessControlStore]{}
-	var tacs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
-	acs.Store(&tacs)
+	if options.AccessControlStore == nil {
+		options.AccessControlStore = &atomic.Pointer[dbauthz.AccessControlStore]{}
+		var tacs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
+		options.AccessControlStore.Store(&tacs)
+	}
 
 	options.Database = dbauthz.New(
 		options.Database,
 		options.Authorizer,
 		options.Logger.Named("authz_querier"),
-		acs,
+		options.AccessControlStore,
 	)
 
 	experiments := ReadExperiments(
@@ -376,7 +379,7 @@ func New(options *Options) *API {
 		Auditor:                     atomic.Pointer[audit.Auditor]{},
 		TemplateScheduleStore:       options.TemplateScheduleStore,
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
-		AccessControlStore:          acs,
+		AccessControlStore:          options.AccessControlStore,
 		Experiments:                 experiments,
 		healthCheckGroup:            &singleflight.Group[string, *healthcheck.Report]{},
 		Acquirer: provisionerdserver.NewAcquirer(

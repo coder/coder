@@ -12,7 +12,7 @@ import (
 // that is used when determining whether an actor is authorized
 // to interact with an RBAC object.
 type AccessControlStore interface {
-	GetTemplateAccessControl(t database.Template) (TemplateAccessControl, error)
+	GetTemplateAccessControl(t database.Template) TemplateAccessControl
 	SetTemplateAccessControl(ctx context.Context, store database.Store, id uuid.UUID, opts TemplateAccessControl) error
 }
 
@@ -26,10 +26,10 @@ type AGPLTemplateAccessControlStore struct{}
 
 var _ AccessControlStore = AGPLTemplateAccessControlStore{}
 
-func (AGPLTemplateAccessControlStore) GetTemplateAccessControl(database.Template) (TemplateAccessControl, error) {
+func (AGPLTemplateAccessControlStore) GetTemplateAccessControl(database.Template) TemplateAccessControl {
 	return TemplateAccessControl{
 		RequireActiveVersion: false,
-	}, nil
+	}
 }
 
 func (AGPLTemplateAccessControlStore) SetTemplateAccessControl(context.Context, database.Store, uuid.UUID, TemplateAccessControl) error {
