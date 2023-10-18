@@ -8,9 +8,8 @@ import TableCell from "@mui/material/TableCell";
 import Button from "@mui/material/Button";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
-import ListItemText from "@mui/material/ListItemText";
-import ListItemAvatar from "@mui/material/ListItemAvatar";
 import Popover from "@mui/material/Popover";
+import { OverflowY } from "components/OverflowY/OverflowY";
 
 type GroupsCellProps = {
   userGroups: readonly Group[] | undefined;
@@ -78,25 +77,55 @@ export function GroupsCell({ userGroups }: GroupsCellProps) {
             anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
             transformOrigin={{ vertical: 16, horizontal: 0 }}
           >
-            <List
-              component="ul"
-              css={{
-                padding: theme.spacing(2),
+            <OverflowY
+              maxHeight={400}
+              sx={{
+                maxWidth: "360px",
+                overflowX: "hidden",
               }}
             >
-              {userGroups.map((group) => {
-                const groupText = group.display_name || group.name;
-                return (
-                  <ListItem key={group.id}>
-                    <ListItemAvatar>
-                      <Avatar src={group.avatar_url} alt={groupText} />
-                    </ListItemAvatar>
+              <List
+                component="ul"
+                css={{
+                  display: "flex",
+                  flexFlow: "column nowrap",
+                  fontSize: theme.typography.body2.fontSize,
+                  padding: theme.spacing(2, 1),
+                  gap: theme.spacing(0),
+                }}
+              >
+                {userGroups.map((group) => {
+                  const groupText = group.display_name || group.name;
+                  return (
+                    <ListItem
+                      key={group.id}
+                      css={{
+                        columnGap: theme.spacing(1.5),
+                        alignItems: "center",
+                      }}
+                    >
+                      <Avatar size="sm" src={group.avatar_url} alt={groupText}>
+                        {groupText}
+                      </Avatar>
 
-                    <ListItemText>{groupText}</ListItemText>
-                  </ListItem>
-                );
-              })}
-            </List>
+                      <p
+                        css={{
+                          height: "min-content",
+                          whiteSpace: "nowrap",
+                          textOverflow: "ellipsis",
+                          lineHeight: 0,
+                          margin: 0,
+                        }}
+                      >
+                        {/* {groupText} */}
+                        So this is some really, really long text, so uh Good
+                        luck making this look good
+                      </p>
+                    </ListItem>
+                  );
+                })}
+              </List>
+            </OverflowY>
           </Popover>
         </>
       )}
