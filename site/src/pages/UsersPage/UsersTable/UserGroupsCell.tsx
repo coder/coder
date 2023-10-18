@@ -79,6 +79,7 @@ export function UserGroupsCell({ userGroups }: GroupsCellProps) {
           </Button>
 
           <Popover
+            disableScrollLock
             id={popoverId}
             anchorEl={anchorEl}
             open={anchorEl !== null}
