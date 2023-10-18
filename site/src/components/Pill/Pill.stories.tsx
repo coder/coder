@@ -57,6 +57,13 @@ export const Default: Story = {
   },
 };
 
+export const DefaultLight: Story = {
+  args: {
+    text: "Default",
+    lightBorder: true,
+  },
+};
+
 export const WarningLight: Story = {
   args: {
     text: "Warning",

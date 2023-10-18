@@ -1,6 +1,7 @@
-import { colors } from "./colors";
 import { createTheme, type ThemeOptions } from "@mui/material/styles";
+import { colors } from "./colors";
 import { BODY_FONT_FAMILY, borderRadius } from "./constants";
+import tw from "./tailwind";
 
 // MUI does not have aligned heights for buttons and inputs so we have to "hack" it a little bit
 export const BUTTON_LG_HEIGHT = 40;
@@ -35,13 +36,13 @@ export let dark = createTheme({
     },
     background: {
       default: colors.gray[17],
-      paper: colors.gray[16],
-      paperLight: colors.gray[15],
+      paper: colors.gray[16], // 900
+      paperLight: tw.zinc[875],
     },
     text: {
       primary: colors.gray[1],
-      secondary: colors.gray[5],
-      disabled: colors.gray[7],
+      secondary: colors.gray[4],
+      disabled: colors.gray[6],
     },
     divider: colors.gray[13],
     warning: {
@@ -169,7 +170,7 @@ dark = createTheme(dark, {
         },
         outlined: {
           ":hover": {
-            border: `1px solid ${colors.gray[10]}`,
+            border: `1px solid ${colors.gray[9]}`,
           },
         },
         outlinedNeutral: {
@@ -211,7 +212,7 @@ dark = createTheme(dark, {
         root: {
           ">button:hover+button": {
             // The !important is unfortunate, but necessary for the border.
-            borderLeftColor: `${colors.gray[10]} !important`,
+            borderLeftColor: `${colors.gray[9]} !important`,
           },
         },
       },
@@ -391,7 +392,7 @@ dark = createTheme(dark, {
           // The default outlined input color is white, which seemed jarring.
           "&:hover:not(.Mui-error):not(.Mui-focused) .MuiOutlinedInput-notchedOutline":
             {
-              borderColor: colors.gray[10],
+              borderColor: colors.gray[9],
             },
         },
       },

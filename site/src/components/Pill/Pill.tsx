@@ -31,7 +31,7 @@ const themeOverrides = {
   }),
   neutral: (lightBorder) => ({
     backgroundColor: colors.gray[13],
-    borderColor: lightBorder ? colors.gray[6] : colors.gray[8],
+    borderColor: lightBorder ? colors.gray[6] : colors.gray[9],
   }),
 } satisfies Record<string, (lightBorder?: boolean) => Interpolation<Theme>>;
 

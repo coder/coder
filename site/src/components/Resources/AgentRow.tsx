@@ -19,7 +19,7 @@ import {
 } from "components/WorkspaceBuildLogs/Logs";
 import { useProxy } from "contexts/ProxyContext";
 import {
-  FC,
+  type FC,
   useCallback,
   useEffect,
   useLayoutEffect,
