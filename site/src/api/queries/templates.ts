@@ -6,8 +6,13 @@ import {
   type TemplateVersion,
   CreateTemplateRequest,
   ProvisionerJob,
+  TemplateRole,
 } from "api/typesGenerated";
-import { type QueryClient, type QueryOptions } from "react-query";
+import {
+  MutationOptions,
+  type QueryClient,
+  type QueryOptions,
+} from "react-query";
 import { delay } from "utils/delay";
 
 export const templateByNameKey = (orgId: string, name: string) => [
@@ -40,6 +45,26 @@ export const templateACL = (templateId: string) => {
   return {
     queryKey: ["templateAcl", templateId],
     queryFn: () => API.getTemplateACL(templateId),
+  };
+};
+
+export const addUserToTemplateACL = (
+  queryClient: QueryClient,
+): MutationOptions<
+  Awaited<ReturnType<typeof API.updateTemplateACL>>,
+  unknown,
+  { templateId: string; userId: string; role: TemplateRole }
+> => {
+  return {
+    mutationFn: ({ templateId, userId, role }) =>
+      API.updateTemplateACL(templateId, {
+        user_perms: {
+          [userId]: role,
+        },
+      }),
+    onSuccess: async (templateAcl, { templateId }) => {
+      await queryClient.invalidateQueries(["templateAcl", templateId]);
+    },
   };
 };
 

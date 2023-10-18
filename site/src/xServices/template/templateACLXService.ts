@@ -15,7 +15,6 @@ export const templateACLMachine = createMachine(
         templateId: string;
         templateACL?: TemplateACL;
         // User
-        userToBeAdded?: TemplateUser;
         userToBeUpdated?: TemplateUser;
         addUserCallback?: () => void;
         // Group
@@ -28,9 +27,6 @@ export const templateACLMachine = createMachine(
           data: TemplateACL;
         };
         // User
-        addUser: {
-          data: unknown;
-        };
         updateUser: {
           data: unknown;
         };
@@ -46,12 +42,6 @@ export const templateACLMachine = createMachine(
         | {
             type: "LOAD";
             data: TemplateACL;
-          }
-        | {
-            type: "ADD_USER";
-            user: TemplateUser;
-            role: TemplateRole;
-            onDone: () => void;
           }
         | {
             type: "UPDATE_USER_ROLE";
@@ -94,7 +84,6 @@ export const templateACLMachine = createMachine(
       idle: {
         on: {
           // User
-          ADD_USER: { target: "addingUser", actions: ["assignUserToBeAdded"] },
           UPDATE_USER_ROLE: {
             target: "updatingUser",
             actions: ["assignUserToBeUpdated"],
@@ -119,15 +108,6 @@ export const templateACLMachine = createMachine(
         },
       },
       // User
-      addingUser: {
-        invoke: {
-          src: "addUser",
-          onDone: {
-            target: "idle",
-            actions: ["addUserToTemplateACL", "runAddUserCallback"],
-          },
-        },
-      },
       updatingUser: {
         invoke: {
           src: "updateUser",
@@ -187,12 +167,6 @@ export const templateACLMachine = createMachine(
   {
     services: {
       // User
-      addUser: ({ templateId }, { user, role }) =>
-        updateTemplateACL(templateId, {
-          user_perms: {
-            [user.id]: role,
-          },
-        }),
       updateUser: ({ templateId }, { user, role }) =>
         updateTemplateACL(templateId, {
           user_perms: {
@@ -230,29 +204,6 @@ export const templateACLMachine = createMachine(
         templateACL: (_, { data }) => data,
       }),
       // User
-      assignUserToBeAdded: assign({
-        userToBeAdded: (_, { user, role }) => ({ ...user, role }),
-        addUserCallback: (_, { onDone }) => onDone,
-      }),
-      addUserToTemplateACL: assign({
-        templateACL: ({ templateACL, userToBeAdded }) => {
-          if (!userToBeAdded) {
-            throw new Error("No user to be added");
-          }
-          if (!templateACL) {
-            throw new Error("Template ACL is not loaded yet");
-          }
-          return {
-            ...templateACL,
-            users: [...templateACL.users, userToBeAdded],
-          };
-        },
-      }),
-      runAddUserCallback: ({ addUserCallback }) => {
-        if (addUserCallback) {
-          addUserCallback();
-        }
-      },
       assignUserToBeUpdated: assign({
         userToBeUpdated: (_, { user, role }) => ({ ...user, role }),
       }),

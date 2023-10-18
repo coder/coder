@@ -13,8 +13,8 @@ import { templateACLMachine } from "xServices/template/templateACLXService";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView";
 import { docs } from "utils/docs";
-import { useQuery } from "react-query";
-import { templateACL } from "api/queries/templates";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { addUserToTemplateACL, templateACL } from "api/queries/templates";
 
 export const TemplatePermissionsPage: FC<
   React.PropsWithChildren<unknown>
@@ -32,6 +32,8 @@ export const TemplatePermissionsPage: FC<
       send({ type: "LOAD", data });
     },
   });
+  const queryClient = useQueryClient();
+  const addUserMutation = useMutation(addUserToTemplateACL(queryClient));
 
   return (
     <>
@@ -68,10 +70,15 @@ export const TemplatePermissionsPage: FC<
           templateID={template.id}
           templateACL={templateACLQuery.data}
           canUpdatePermissions={Boolean(permissions?.canUpdateTemplate)}
-          onAddUser={(user, role, reset) => {
-            send("ADD_USER", { user, role, onDone: reset });
+          onAddUser={async (user, role, reset) => {
+            await addUserMutation.mutateAsync({
+              templateId: template.id,
+              userId: user.id,
+              role,
+            });
+            reset();
           }}
-          isAddingUser={state.matches("addingUser")}
+          isAddingUser={addUserMutation.isLoading}
           onUpdateUser={(user, role) => {
             send("UPDATE_USER_ROLE", { user, role });
           }}
