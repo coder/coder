@@ -36,8 +36,8 @@ export let dark = createTheme({
     },
     background: {
       default: colors.gray[17],
-      paper: colors.gray[16], // 900
-      paperLight: tw.zinc[875],
+      paper: colors.gray[16],
+      paperLight: colors.gray[14],
     },
     text: {
       primary: colors.gray[1],
@@ -210,7 +210,7 @@ dark = createTheme(dark, {
     MuiButtonGroup: {
       styleOverrides: {
         root: {
-          ">button:hover+button": {
+          "> button:hover + button": {
             // The !important is unfortunate, but necessary for the border.
             borderLeftColor: `${colors.gray[9]} !important`,
           },
