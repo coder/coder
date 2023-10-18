@@ -26,7 +26,7 @@ import (
 func TestCollect_TemplateInsights(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	db, ps := dbtestutil.NewDB(t)
 
 	options := &coderdtest.Options{
@@ -39,7 +39,7 @@ func TestCollect_TemplateInsights(t *testing.T) {
 
 	// Given
 	// Initialize metrics collector
-	mc, err := insights.NewMetricsCollector(db, logger.Named("metrics_collector"), 0, time.Millisecond)
+	mc, err := insights.NewMetricsCollector(db, logger, 0, time.Second)
 	require.NoError(t, err)
 
 	registry := prometheus.NewRegistry()
@@ -72,7 +72,7 @@ func TestCollect_TemplateInsights(t *testing.T) {
 	// Run metrics collector
 	closeFunc, err := mc.Run(ctx)
 	require.NoError(t, err)
-	t.Cleanup(closeFunc)
+	defer closeFunc()
 
 	// Connect to the agent to generate usage/latency stats.
 	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
