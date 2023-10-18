@@ -1324,6 +1324,10 @@ func (q *querier) GetTemplateInsightsByInterval(ctx context.Context, arg databas
 	return q.db.GetTemplateInsightsByInterval(ctx, arg)
 }
 
+func (q *querier) GetTemplateInsightsByTemplate(ctx context.Context, arg database.GetTemplateInsightsByTemplateParams) ([]database.GetTemplateInsightsByTemplateRow, error) {
+	panic("not implemented")
+}
+
 func (q *querier) GetTemplateParameterInsights(ctx context.Context, arg database.GetTemplateParameterInsightsParams) ([]database.GetTemplateParameterInsightsRow, error) {
 	for _, templateID := range arg.TemplateIDs {
 		template, err := q.db.GetTemplateByID(ctx, templateID)

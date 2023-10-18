@@ -116,7 +116,8 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 			return
 		}
 
-		templateNames := onlyTemplateNames(templates)
+		/*templateNames := */
+		onlyTemplateNames(templates)
 	}
 
 	go func() {
