@@ -150,7 +150,7 @@ export const UsersTableBody: FC<
 
             <UserRoleCell
               canEditUsers={canEditUsers}
-              roles={roles}
+              allAvailableRoles={roles}
               user={user}
               oidcRoleSyncEnabled={oidcRoleSyncEnabled}
               isLoading={Boolean(isUpdatingUserRoles)}
