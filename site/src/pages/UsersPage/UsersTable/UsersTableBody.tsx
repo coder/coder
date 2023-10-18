@@ -23,7 +23,7 @@ import GitHub from "@mui/icons-material/GitHub";
 import PasswordOutlined from "@mui/icons-material/PasswordOutlined";
 import ShieldOutlined from "@mui/icons-material/ShieldOutlined";
 import { UserRoleCell } from "./UserRoleCell";
-import { GroupsByUserId } from "api/queries/groups";
+import { type GroupsByUserId } from "api/queries/groups";
 import { UserGroupsCell } from "./UserGroupsCell";
 
 dayjs.extend(relativeTime);
