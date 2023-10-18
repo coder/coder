@@ -16,29 +16,31 @@ import { UseTabResult } from "hooks/useTab";
 import { type FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { createDayString } from "utils/createDayString";
-import { TemplateVersionMachineContext } from "xServices/templateVersion/templateVersionXService";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { TemplateVersion } from "api/typesGenerated";
+import { TemplateVersionFiles } from "utils/templateVersion";
 
 export interface TemplateVersionPageViewProps {
-  /**
-   * Used to display the version name before loading the version in the API
-   */
   versionName: string;
   templateName: string;
   tab: UseTabResult;
-  context: TemplateVersionMachineContext;
   createWorkspaceUrl?: string;
+  error: unknown;
+  currentVersion: TemplateVersion | undefined;
+  currentFiles: TemplateVersionFiles | undefined;
+  previousFiles: TemplateVersionFiles | undefined;
 }
 
 export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
-  context,
   tab,
   versionName,
   templateName,
   createWorkspaceUrl,
+  currentVersion,
+  currentFiles,
+  previousFiles,
+  error,
 }) => {
-  const { currentFiles, error, currentVersion, previousFiles } = context;
-
   return (
     <Margins>
       <PageHeader
