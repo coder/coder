@@ -3,7 +3,7 @@
   "name": "coder",
   "version": "0.0.0",
   "scripts": {
-    "format:write:only": "pnpm exec prettier --write"
+    "format:write:only": "prettier --cache --write"
   },
   "devDependencies": {
     "prettier": "3.0.0"

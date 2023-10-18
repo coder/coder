@@ -19,7 +19,8 @@ import { optionValue } from "./optionValue";
 
 const OptionsTable: FC<{
   options: ClibaseOption[];
-}> = ({ options }) => {
+  additionalValues?: string[];
+}> = ({ options, additionalValues }) => {
   if (options.length === 0) {
     return <p>No options to configure</p>;
   }
@@ -95,7 +96,9 @@ const OptionsTable: FC<{
                 </TableCell>
 
                 <TableCell>
-                  <OptionValue>{optionValue(option)}</OptionValue>
+                  <OptionValue>
+                    {optionValue(option, additionalValues)}
+                  </OptionValue>
                 </TableCell>
               </TableRow>
             );

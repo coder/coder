@@ -864,6 +864,19 @@ export const getExperiments = async (): Promise<TypesGen.Experiment[]> => {
   }
 };
 
+export const getAvailableExperiments =
+  async (): Promise<TypesGen.AvailableExperiments> => {
+    try {
+      const response = await axios.get("/api/v2/experiments/available");
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 404) {
+        return { safe: [] };
+      }
+      throw error;
+    }
+  };
+
 export const getExternalAuthProvider = async (
   provider: string,
 ): Promise<TypesGen.ExternalAuth> => {
