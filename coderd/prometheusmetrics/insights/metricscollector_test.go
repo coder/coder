@@ -38,19 +38,12 @@ func TestCollect_TemplateInsights(t *testing.T) {
 	client := coderdtest.New(t, options)
 
 	// Given
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-
 	// Initialize metrics collector
 	mc, err := insights.NewMetricsCollector(db, logger.Named("metrics_collector"), 0, time.Millisecond)
 	require.NoError(t, err)
 
 	registry := prometheus.NewRegistry()
 	registry.Register(mc)
-
-	closeFunc, err := mc.Run(ctx)
-	require.NoError(t, err)
-	t.Cleanup(closeFunc)
 
 	// Create two users, one that will appear in the report and another that
 	// won't (due to not having/using a workspace).
@@ -72,6 +65,14 @@ func TestCollect_TemplateInsights(t *testing.T) {
 	// Start an agent so that we can generate stats.
 	_ = agenttest.New(t, client.URL, authToken)
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	// Run metrics collector
+	closeFunc, err := mc.Run(ctx)
+	require.NoError(t, err)
+	t.Cleanup(closeFunc)
 
 	// Connect to the agent to generate usage/latency stats.
 	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
