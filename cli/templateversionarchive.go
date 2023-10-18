@@ -8,8 +8,6 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/pretty"
-
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"

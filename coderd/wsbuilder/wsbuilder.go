@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/lib/pq"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
@@ -216,28 +215,18 @@ func (b *Builder) Build(
 	// RepeatableRead isolation ensures that we get a consistent view of the database while
 	// computing the new build.  This simplifies the logic so that we do not need to worry if
 	// later reads are consistent with earlier ones.
-	for retries := 0; retries < 5; retries++ {
-		var workspaceBuild *database.WorkspaceBuild
-		var provisionerJob *database.ProvisionerJob
-		err := store.InTx(func(store database.Store) error {
-			b.store = store
-			workspaceBuild, provisionerJob, err = b.buildTx(authFunc)
-			return err
-		}, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
-		var pqe *pq.Error
-		if xerrors.As(err, &pqe) {
-			if pqe.Code == "40001" {
-				// serialization error, retry
-				continue
-			}
-		}
-		if err != nil {
-			// Other (hard) error
-			return nil, nil, err
-		}
-		return workspaceBuild, provisionerJob, nil
+	var workspaceBuild *database.WorkspaceBuild
+	var provisionerJob *database.ProvisionerJob
+	err = database.ReadModifyUpdate(store, func(tx database.Store) error {
+		var err error
+		b.store = tx
+		workspaceBuild, provisionerJob, err = b.buildTx(authFunc)
+		return err
+	})
+	if err != nil {
+		return nil, nil, xerrors.Errorf("build tx: %w", err)
 	}
-	return nil, nil, xerrors.Errorf("too many errors; last error: %w", err)
+	return workspaceBuild, provisionerJob, nil
 }
 
 // buildTx contains the business logic of computing a new build.  Attributes of the new database objects are computed
@@ -360,7 +349,11 @@ func (b *Builder) buildTx(authFunc func(action rbac.Action, object rbac.Objecter
 			MaxDeadline:       time.Time{}, // set by provisioner upon completion
 		})
 		if err != nil {
-			return BuildError{http.StatusInternalServerError, "insert workspace build", err}
+			code := http.StatusInternalServerError
+			if rbac.IsUnauthorizedError(err) {
+				code = http.StatusUnauthorized
+			}
+			return BuildError{code, "insert workspace build", err}
 		}
 
 		names, values, err := b.getParameters()

@@ -32,6 +32,7 @@ type Executor struct {
 	db                    database.Store
 	ps                    pubsub.Pubsub
 	templateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
+	accessControlStore    *atomic.Pointer[dbauthz.AccessControlStore]
 	auditor               *atomic.Pointer[audit.Auditor]
 	log                   slog.Logger
 	tick                  <-chan time.Time
@@ -46,7 +47,7 @@ type Stats struct {
 }
 
 // New returns a new wsactions executor.
-func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], log slog.Logger, tick <-chan time.Time) *Executor {
+func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], log slog.Logger, tick <-chan time.Time) *Executor {
 	le := &Executor{
 		//nolint:gocritic // Autostart has a limited set of permissions.
 		ctx:                   dbauthz.AsAutostart(ctx),
@@ -56,6 +57,7 @@ func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, tss *
 		tick:                  tick,
 		log:                   log.Named("autobuild"),
 		auditor:               auditor,
+		accessControlStore:    acs,
 	}
 	return le
 }
@@ -159,6 +161,12 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					return nil
 				}
 
+				template, err := tx.GetTemplateByID(e.ctx, ws.TemplateID)
+				if err != nil {
+					log.Warn(e.ctx, "get template by id", slog.Error(err))
+				}
+				accessControl := (*(e.accessControlStore.Load())).GetTemplateAccessControl(template)
+
 				latestJob, err := tx.GetProvisionerJobByID(e.ctx, latestBuild.JobID)
 				if err != nil {
 					log.Warn(e.ctx, "get last provisioner job for workspace %q: %w", slog.Error(err))
@@ -179,7 +187,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						Reason(reason)
 					log.Debug(e.ctx, "auto building workspace", slog.F("transition", nextTransition))
 					if nextTransition == database.WorkspaceTransitionStart &&
-						ws.AutomaticUpdates == database.AutomaticUpdatesAlways {
+						useActiveVersion(accessControl, ws) {
 						log.Debug(e.ctx, "autostarting with active version")
 						builder = builder.ActiveVersion()
 					}
@@ -469,4 +477,8 @@ func auditBuild(ctx context.Context, log slog.Logger, auditor audit.Auditor, par
 		Status:           status,
 		AdditionalFields: raw,
 	})
+}
+
+func useActiveVersion(opts dbauthz.TemplateAccessControl, ws database.Workspace) bool {
+	return opts.RequireActiveVersion || ws.AutomaticUpdates == database.AutomaticUpdatesAlways
 }

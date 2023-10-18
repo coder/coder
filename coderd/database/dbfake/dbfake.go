@@ -5643,6 +5643,25 @@ func (q *FakeQuerier) UpdateTemplateACLByID(_ context.Context, arg database.Upda
 	return sql.ErrNoRows
 }
 
+func (q *FakeQuerier) UpdateTemplateAccessControlByID(_ context.Context, arg database.UpdateTemplateAccessControlByIDParams) error {
+	if err := validateDatabaseType(arg); err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for idx, tpl := range q.templates {
+		if tpl.ID != arg.ID {
+			continue
+		}
+		q.templates[idx].RequireActiveVersion = arg.RequireActiveVersion
+		return nil
+	}
+
+	return sql.ErrNoRows
+}
+
 func (q *FakeQuerier) UpdateTemplateActiveVersionByID(_ context.Context, arg database.UpdateTemplateActiveVersionByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err

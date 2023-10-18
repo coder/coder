@@ -61,6 +61,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "name": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "provisioner": "terraform",
+    "require_active_version": true,
     "time_til_dormant_autodelete_ms": 0,
     "time_til_dormant_ms": 0,
     "updated_at": "2019-08-24T14:15:22Z"
@@ -109,6 +110,7 @@ Status Code **200**
 | `» name`                                                                              | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» organization_id`                                                                   | string(uuid)                                                                             | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» provisioner`                                                                       | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» require_active_version`                                                            | boolean                                                                                  | false    |              | Require active version mandates that workspaces are built with the active template version.                                                                                                                                                                                                                    |
 | `» time_til_dormant_autodelete_ms`                                                    | integer                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» time_til_dormant_ms`                                                               | integer                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» updated_at`                                                                        | string(date-time)                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                |
@@ -159,6 +161,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "icon": "string",
   "max_ttl_ms": 0,
   "name": "string",
+  "require_active_version": true,
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1"
 }
 ```
@@ -211,6 +214,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "provisioner": "terraform",
+  "require_active_version": true,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
@@ -346,6 +350,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "provisioner": "terraform",
+  "require_active_version": true,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
@@ -657,6 +662,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "provisioner": "terraform",
+  "require_active_version": true,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
@@ -775,6 +781,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "provisioner": "terraform",
+  "require_active_version": true,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
