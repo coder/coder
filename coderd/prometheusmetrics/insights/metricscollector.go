@@ -16,9 +16,7 @@ import (
 )
 
 var (
-	activeUsersDesc              = prometheus.NewDesc("coderd_insights_active_users", "The number of active users of the template.", []string{"template_name"}, nil)
-	applicationsUsageSecondsDesc = prometheus.NewDesc("coderd_insights_applications_usage_seconds", "The application usage per template.", []string{"application_name", "template_name"}, nil)
-	parametersDesc               = prometheus.NewDesc("coderd_insights_parameters", "The parameter usage per template.", []string{"template_name", "name", "value"}, nil)
+	activeUsersDesc = prometheus.NewDesc("coderd_insights_active_users", "The number of active users of the template.", []string{"template_name"}, nil)
 )
 
 type MetricsCollector struct {
@@ -30,9 +28,7 @@ type MetricsCollector struct {
 }
 
 type insightsData struct {
-	templates  []database.GetTemplateInsightsByTemplateRow
-	apps       []database.GetTemplateAppInsightsRow
-	parameters []database.GetTemplateParameterInsightsRow
+	templates []database.GetTemplateInsightsByTemplateRow
 
 	templateNames map[uuid.UUID]string
 }
@@ -71,12 +67,11 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 		// TODO collect iteration time
 
 		var templateInsights []database.GetTemplateInsightsByTemplateRow
-		var appInsights []database.GetTemplateAppInsightsRow
-		var parameterInsights []database.GetTemplateParameterInsightsRow
 
-		// Phase I: Fetch insights from database
+		// Phase 1: Fetch insights from database
+		// FIXME errorGroup will be used to fetch insights for apps and parameters
 		eg, egCtx := errgroup.WithContext(ctx)
-		eg.SetLimit(3)
+		eg.SetLimit(1)
 
 		eg.Go(func() error {
 			var err error
@@ -89,36 +84,13 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 			}
 			return err
 		})
-		eg.Go(func() error {
-			var err error
-			appInsights, err = mc.database.GetTemplateAppInsights(ctx, database.GetTemplateAppInsightsParams{
-				StartTime: startTime,
-				EndTime:   endTime,
-			})
-			if err != nil {
-				mc.logger.Error(ctx, "unable to fetch app insights from database", slog.Error(err))
-			}
-			return err
-		})
-		eg.Go(func() error {
-			var err error
-			parameterInsights, err = mc.database.GetTemplateParameterInsights(ctx, database.GetTemplateParameterInsightsParams{
-				StartTime: startTime,
-				EndTime:   endTime,
-			})
-			if err != nil {
-				mc.logger.Error(ctx, "unable to fetch parameter insights from database", slog.Error(err))
-			}
-			return err
-		})
-
 		err := eg.Wait()
 		if err != nil {
 			return
 		}
 
 		// Phase 2: Collect template IDs, and fetch relevant details
-		templateIDs := uniqueTemplateIDs(templateInsights, appInsights, parameterInsights)
+		templateIDs := uniqueTemplateIDs(templateInsights)
 		templates, err := mc.database.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
 			IDs: templateIDs,
 		})
@@ -130,9 +102,7 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 		templateNames := onlyTemplateNames(templates)
 
 		mc.data.Store(&insightsData{
-			templates:  templateInsights,
-			apps:       appInsights,
-			parameters: parameterInsights,
+			templates: templateInsights,
 
 			templateNames: templateNames,
 		})
@@ -158,8 +128,6 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 
 func (*MetricsCollector) Describe(descCh chan<- *prometheus.Desc) {
 	descCh <- activeUsersDesc
-	descCh <- applicationsUsageSecondsDesc
-	descCh <- parametersDesc
 }
 
 func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
@@ -172,29 +140,15 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 
 	for _, templateRow := range data.templates {
 		metricsCh <- prometheus.MustNewConstMetric(activeUsersDesc, prometheus.GaugeValue, float64(templateRow.ActiveUsers), data.templateNames[templateRow.TemplateID])
-
-		// TODO applicationsUsageSeconds, parameters
 	}
 }
 
 // Helper functions below.
 
-func uniqueTemplateIDs(templateInsights []database.GetTemplateInsightsByTemplateRow, appInsights []database.GetTemplateAppInsightsRow, parameterInsights []database.GetTemplateParameterInsightsRow) []uuid.UUID {
+func uniqueTemplateIDs(templateInsights []database.GetTemplateInsightsByTemplateRow) []uuid.UUID {
 	tids := map[uuid.UUID]bool{}
 	for _, t := range templateInsights {
 		tids[t.TemplateID] = true
-	}
-
-	for _, a := range appInsights {
-		for _, tid := range a.TemplateIDs {
-			tids[tid] = true
-		}
-	}
-
-	for _, p := range parameterInsights {
-		for _, tid := range p.TemplateIDs {
-			tids[tid] = true
-		}
 	}
 
 	uniqueUUIDs := make([]uuid.UUID, len(tids))
