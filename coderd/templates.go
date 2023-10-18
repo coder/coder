@@ -648,19 +648,18 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("update template metadata: %w", err)
 		}
 
-		updated, err = tx.GetTemplateByID(ctx, template.ID)
-		if err != nil {
-			return xerrors.Errorf("fetch updated template metadata: %w", err)
-		}
-
-		if updated.RequireActiveVersion != req.RequireActiveVersion {
+		if template.RequireActiveVersion != req.RequireActiveVersion {
 			err = (*api.AccessControlStore.Load()).SetTemplateAccessControl(ctx, tx, template.ID, dbauthz.TemplateAccessControl{
 				RequireActiveVersion: req.RequireActiveVersion,
 			})
 			if err != nil {
 				return xerrors.Errorf("set template access control: %w", err)
 			}
-			updated.RequireActiveVersion = req.RequireActiveVersion
+		}
+
+		updated, err = tx.GetTemplateByID(ctx, template.ID)
+		if err != nil {
+			return xerrors.Errorf("fetch updated template metadata: %w", err)
 		}
 
 		defaultTTL := time.Duration(req.DefaultTTLMillis) * time.Millisecond
