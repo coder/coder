@@ -46,8 +46,8 @@ export const TemplateVersionPage: FC = () => {
       <TemplateVersionPageView
         error={templateVersionQuery.error || templateFilesError}
         currentVersion={templateVersionQuery.data}
-        currentFiles={{ data: templateFiles }.data?.currentFiles}
-        previousFiles={{ data: templateFiles }.data?.previousFiles}
+        currentFiles={templateFiles?.currentFiles}
+        previousFiles={templateFiles?.previousFiles}
         versionName={versionName}
         templateName={templateName}
         tab={tab}
