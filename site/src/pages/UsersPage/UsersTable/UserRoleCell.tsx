@@ -13,6 +13,7 @@
  * went with a simpler design. If we decide we really do need to display the
  * users like that, though, know that it will be painful
  */
+import { useState } from "react";
 import { useTheme } from "@emotion/react";
 import { type User, type Role } from "api/typesGenerated";
 
@@ -20,6 +21,7 @@ import { EditRolesButton } from "./EditRolesButton";
 import { Pill } from "components/Pill/Pill";
 import TableCell from "@mui/material/TableCell";
 import Stack from "@mui/material/Stack";
+import Popover from "@mui/material/Popover";
 
 type UserRoleCellProps = {
   canEditUsers: boolean;
@@ -90,14 +92,54 @@ type OverflowRolePillProps = {
 function OverflowRolePill({ roles }: OverflowRolePillProps) {
   const theme = useTheme();
 
+  // 2023-10-18 - Temp code - Delete once new Popover component is ready
+  const [anchorEl, setAnchorEl] = useState<HTMLDivElement | null>(null);
+
   return (
-    <Pill
-      text={`+${roles.length} more`}
-      css={{
-        backgroundColor: theme.palette.background.paperLight,
-        borderColor: theme.palette.divider,
-      }}
-    />
+    <>
+      <div
+        onPointerEnter={(event) => setAnchorEl(event.currentTarget)}
+        onPointerLeave={() => setAnchorEl(null)}
+      >
+        <Pill
+          text={`+${roles.length} more`}
+          css={{
+            backgroundColor: theme.palette.background.paperLight,
+            borderColor: theme.palette.divider,
+          }}
+        />
+      </div>
+
+      <Popover
+        aria-haspopup
+        anchorEl={anchorEl}
+        open={anchorEl !== null}
+        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+        css={{ pointerEvents: "none" }}
+      >
+        <div
+          css={{
+            display: "flex",
+            flexFlow: "row wrap",
+            columnGap: theme.spacing(1),
+            rowGap: theme.spacing(1.5),
+            padding: theme.spacing(1.5, 2),
+            alignContent: "space-around",
+          }}
+        >
+          {roles.map((role) => (
+            <Pill
+              key={role.name}
+              text={role.display_name || role.name}
+              css={{
+                backgroundColor: theme.palette.background.paperLight,
+                borderColor: theme.palette.divider,
+              }}
+            />
+          ))}
+        </div>
+      </Popover>
+    </>
   );
 }
 
