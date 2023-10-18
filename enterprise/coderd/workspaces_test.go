@@ -752,7 +752,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore()),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
+				Features: license.Features{codersdk.FeatureAccessControl: 1},
 			},
 		})
 

@@ -212,6 +212,7 @@ func New(options *Options) *API {
 	acs := &atomic.Pointer[dbauthz.AccessControlStore]{}
 	var tacs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
 	acs.Store(&tacs)
+
 	options.Database = dbauthz.New(
 		options.Database,
 		options.Authorizer,
@@ -375,6 +376,7 @@ func New(options *Options) *API {
 		Auditor:                     atomic.Pointer[audit.Auditor]{},
 		TemplateScheduleStore:       options.TemplateScheduleStore,
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
+		AccessControlStore:          acs,
 		Experiments:                 experiments,
 		healthCheckGroup:            &singleflight.Group[string, *healthcheck.Report]{},
 		Acquirer: provisionerdserver.NewAcquirer(

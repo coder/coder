@@ -582,7 +582,7 @@ func TestTemplates(t *testing.T) {
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
-					codersdk.FeatureAdvancedTemplateScheduling: 1,
+					codersdk.FeatureAccessControl: 1,
 				},
 			},
 		})

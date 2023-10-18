@@ -11,7 +11,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
-	"github.com/coder/coder/v2/enterprise/coderd/schedule"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -24,12 +23,12 @@ func TestWorkspaceBuild(t *testing.T) {
 		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
-				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore()),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
-					codersdk.FeatureAdvancedTemplateScheduling: 1,
+					codersdk.FeatureAccessControl:              1,
 					codersdk.FeatureTemplateRBAC:               1,
+					codersdk.FeatureAdvancedTemplateScheduling: 1,
 				},
 			},
 		})
@@ -45,6 +44,7 @@ func TestWorkspaceBuild(t *testing.T) {
 			RequireActiveVersion: true,
 		})
 		require.NoError(t, err)
+		require.True(t, template.RequireActiveVersion)
 
 		// Create a new version that we will promote.
 		activeVersion := coderdtest.CreateTemplateVersion(t, ownerClient, owner.OrganizationID, nil, func(ctvr *codersdk.CreateTemplateVersionRequest) {

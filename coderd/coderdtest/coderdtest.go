@@ -218,12 +218,6 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 
 	if options.Database == nil {
 		options.Database, options.Pubsub = dbtestutil.NewDB(t)
-
-		acs := &atomic.Pointer[dbauthz.AccessControlStore]{}
-		var tacs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
-		acs.Store(&tacs)
-
-		options.Database = dbauthz.New(options.Database, options.Authorizer, options.Logger.Leveled(slog.LevelDebug), acs)
 	}
 
 	// Some routes expect a deployment ID, so just make sure one exists.

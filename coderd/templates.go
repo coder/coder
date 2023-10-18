@@ -352,6 +352,15 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			return xerrors.Errorf("get template by id: %s", err)
 		}
 
+		if createTemplate.RequireActiveVersion {
+			err = (*api.AccessControlStore.Load()).SetTemplateAccessControl(ctx, tx, id, dbauthz.TemplateAccessControl{
+				RequireActiveVersion: createTemplate.RequireActiveVersion,
+			})
+			if err != nil {
+				return xerrors.Errorf("set template access control: %w", err)
+			}
+		}
+
 		dbTemplate, err = (*api.TemplateScheduleStore.Load()).Set(ctx, tx, dbTemplate, schedule.TemplateScheduleOptions{
 			UserAutostartEnabled: allowUserAutostart,
 			UserAutostopEnabled:  allowUserAutostop,
@@ -643,6 +652,15 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		updated, err = tx.GetTemplateByID(ctx, template.ID)
 		if err != nil {
 			return xerrors.Errorf("fetch updated template metadata: %w", err)
+		}
+
+		if updated.RequireActiveVersion != req.RequireActiveVersion {
+			err = (*api.AccessControlStore.Load()).SetTemplateAccessControl(ctx, tx, template.ID, dbauthz.TemplateAccessControl{
+				RequireActiveVersion: req.RequireActiveVersion,
+			})
+			if err != nil {
+				return xerrors.Errorf("set template access control: %w", err)
+			}
 		}
 
 		defaultTTL := time.Duration(req.DefaultTTLMillis) * time.Millisecond
