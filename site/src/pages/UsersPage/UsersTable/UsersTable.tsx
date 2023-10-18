@@ -9,9 +9,8 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import { Stack } from "components/Stack/Stack";
-import { UserRoleHelpTooltip } from "./UserRoleHelpTooltip";
+import { TableColumnHelpTooltip } from "./TableColumnHelpTooltip";
 import { UsersTableBody } from "./UsersTableBody";
-import { GroupsHelpTooltip } from "./GroupsHelpTooltip";
 
 export const Language = {
   usernameLabel: "User",
@@ -76,14 +75,14 @@ export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
             <TableCell width="29%">
               <Stack direction="row" spacing={1} alignItems="center">
                 <span>{Language.rolesLabel}</span>
-                <UserRoleHelpTooltip />
+                <TableColumnHelpTooltip variant="roles" />
               </Stack>
             </TableCell>
 
             <TableCell width="14%">
               <Stack direction="row" spacing={1} alignItems="center">
                 <span>{Language.groupsLabel}</span>
-                <GroupsHelpTooltip />
+                <TableColumnHelpTooltip variant="groups" />
               </Stack>
             </TableCell>
 
