@@ -48,15 +48,13 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
     display: flex;
     align-items: center;
     padding: ${theme.spacing(1.5)};
-    background-color: ${type === "error"
-      ? colors.red[12]
-      : theme.palette.warning.main};
+    background-color: ${type === "error" ? colors.red[12] : colors.orange[12]};
   `;
 
   if (messages.length === 1) {
     return (
       <div css={containerStyles}>
-        <Pill text={Language.licenseIssue} type={type} lightBorder />
+        <Pill text={Language.licenseIssue} type={type} />
         <div css={styles.leftContent}>
           <span>{messages[0]}</span>
           &nbsp;

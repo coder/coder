@@ -5,7 +5,7 @@ import {
   DisabledBadge,
   EnterpriseBadge,
   EntitledBadge,
-} from "components/DeploySettingsLayout/Badges";
+} from "components/Badges/Badges";
 import InputAdornment from "@mui/material/InputAdornment";
 import { Fieldset } from "components/DeploySettingsLayout/Fieldset";
 import { getFormHelpers } from "utils/formUtils";
@@ -15,13 +15,12 @@ import { BlockPicker } from "react-color";
 import makeStyles from "@mui/styles/makeStyles";
 import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
-import { UpdateAppearanceConfig } from "api/typesGenerated";
-import { Stack } from "components/Stack/Stack";
 import { useFormik } from "formik";
 import { useTheme } from "@mui/styles";
 import Link from "@mui/material/Link";
+import { UpdateAppearanceConfig } from "api/typesGenerated";
+import { Stack } from "components/Stack/Stack";
 import { colors } from "theme/colors";
-import { hslToHex } from "utils/colors";
 
 export type AppearanceSettingsPageViewProps = {
   appearance: UpdateAppearanceConfig;
@@ -32,7 +31,7 @@ export type AppearanceSettingsPageViewProps = {
   ) => void;
 };
 
-const fallbackBgColor = hslToHex(colors.blue[7]);
+const fallbackBgColor = colors.blue[7];
 
 export const AppearanceSettingsPageView = ({
   appearance,

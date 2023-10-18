@@ -1,7 +1,6 @@
 import { useTheme } from "@mui/styles";
 import { useMonaco } from "@monaco-editor/react";
 import { useEffect, useState } from "react";
-import { hslToHex } from "utils/colors";
 import { editor } from "monaco-editor";
 import { Theme } from "@mui/material/styles";
 
@@ -208,12 +207,11 @@ export const coderTheme = (theme: Theme): editor.IStandaloneThemeData => ({
     },
   ],
   colors: {
-    "editor.foreground": hslToHex(theme.palette.text.primary),
-    "editor.background": hslToHex(theme.palette.background.paper),
-    "editor.selectionBackground": hslToHex(theme.palette.action.hover),
-    "editor.lineHighlightBackground": hslToHex(
-      theme.palette.background.paperLight,
-    ),
+    "editor.foreground": theme.palette.text.primary,
+    "editor.background": theme.palette.background.paper,
+    "editor.selectionBackground": theme.palette.action.hover,
+    "editor.lineHighlightBackground": theme.palette.background.paperLight,
+
     "editorCursor.foreground": "#f8f8f0",
     "editorWhitespace.foreground": "#3B3A32",
     "editorIndentGuide.activeBackground": "#9D550FB0",

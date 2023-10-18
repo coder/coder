@@ -2,14 +2,7 @@ import { type FC, type ReactNode, useMemo, forwardRef } from "react";
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import { colors } from "theme/colors";
 
-export type PillType =
-  | "primary"
-  | "secondary"
-  | "error"
-  | "warning"
-  | "info"
-  | "success"
-  | "neutral";
+export type PillType = "error" | "warning" | "info" | "success" | "neutral";
 
 export interface PillProps {
   className?: string;
@@ -21,14 +14,6 @@ export interface PillProps {
 }
 
 const themeOverrides = {
-  primary: (lightBorder) => ({
-    backgroundColor: colors.blue[13],
-    borderColor: lightBorder ? colors.blue[5] : colors.blue[7],
-  }),
-  secondary: (lightBorder) => ({
-    backgroundColor: colors.indigo[13],
-    borderColor: lightBorder ? colors.indigo[6] : colors.indigo[8],
-  }),
   neutral: (lightBorder) => ({
     backgroundColor: colors.gray[13],
     borderColor: lightBorder ? colors.gray[6] : colors.gray[9],

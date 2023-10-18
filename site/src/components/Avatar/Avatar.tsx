@@ -1,7 +1,9 @@
 // This is the only place MuiAvatar can be used
 // eslint-disable-next-line no-restricted-imports -- Read above
-import MuiAvatar, { AvatarProps as MuiAvatarProps } from "@mui/material/Avatar";
-import { FC } from "react";
+import MuiAvatar, {
+  type AvatarProps as MuiAvatarProps,
+} from "@mui/material/Avatar";
+import type { FC } from "react";
 import { css, type Interpolation, type Theme } from "@emotion/react";
 
 export type AvatarProps = MuiAvatarProps & {

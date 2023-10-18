@@ -1,9 +1,9 @@
 import type { PropsWithChildren, FC } from "react";
-import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import Box, { BoxProps } from "@mui/material/Box";
 import { useTheme } from "@mui/system";
-import { DisabledBadge, EnabledBadge } from "./Badges";
 import { css } from "@emotion/react";
+import { DisabledBadge, EnabledBadge } from "components/Badges/Badges";
+import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 
 export const OptionName: FC<PropsWithChildren> = (props) => {
@@ -137,16 +137,16 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 };
 
 interface OptionConfigProps extends BoxProps {
+  /**
+   * Indicates if this configuration method is the source of the configured value
+   */
   source?: boolean;
 }
 
-// OptionalConfig takes a source bool to indicate if the Option is the source of the configured value.
 export const OptionConfig = (props: OptionConfigProps) => {
   const { source, sx, ...attrs } = props;
   const theme = useTheme();
-  const borderColor = source
-    ? theme.palette.primary.main
-    : theme.palette.divider;
+  const borderColor = source ? theme.palette.info.main : theme.palette.divider;
 
   return (
     <Box
@@ -156,9 +156,7 @@ export const OptionConfig = (props: OptionConfigProps) => {
         fontFamily: MONOSPACE_FONT_FAMILY,
         fontWeight: 600,
         backgroundColor: (theme) =>
-          source
-            ? theme.palette.primary.dark
-            : theme.palette.background.paperLight,
+          source ? theme.palette.info.dark : "transparent",
         display: "inline-flex",
         alignItems: "center",
         borderRadius: 0.25,

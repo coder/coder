@@ -43,7 +43,6 @@ export const VersionRow: React.FC<VersionRowProps> = ({
       className={combineClasses({
         [clickableProps.className]: true,
         [styles.row]: true,
-        [styles.active]: isActive,
       })}
     >
       <TableCell className={styles.versionCell}>
@@ -146,10 +145,6 @@ const useStyles = makeStyles((theme) => ({
 
   versionWrapper: {
     padding: theme.spacing(2, 4),
-  },
-
-  active: {
-    backgroundColor: theme.palette.background.paperLight,
   },
 
   versionCell: {

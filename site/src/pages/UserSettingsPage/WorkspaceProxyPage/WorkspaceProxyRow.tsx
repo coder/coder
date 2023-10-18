@@ -9,7 +9,7 @@ import {
   NotHealthyBadge,
   NotReachableBadge,
   NotRegisteredBadge,
-} from "components/DeploySettingsLayout/Badges";
+} from "components/Badges/Badges";
 import { ProxyLatencyReport } from "contexts/useProxyLatency";
 import { getLatencyColor } from "utils/latency";
 import Box from "@mui/material/Box";

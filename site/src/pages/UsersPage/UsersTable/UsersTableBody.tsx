@@ -18,7 +18,7 @@ import {
 } from "components/TableLoader/TableLoader";
 import { TableRowMenu } from "components/TableRowMenu/TableRowMenu";
 import { Stack } from "components/Stack/Stack";
-import { EnterpriseBadge } from "components/DeploySettingsLayout/Badges";
+import { EnterpriseBadge } from "components/Badges/Badges";
 import { EditRolesButton } from "./EditRolesButton";
 import HideSourceOutlined from "@mui/icons-material/HideSourceOutlined";
 import KeyOutlined from "@mui/icons-material/KeyOutlined";

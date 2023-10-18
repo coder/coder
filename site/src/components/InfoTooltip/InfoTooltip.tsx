@@ -22,7 +22,7 @@ export const InfoTooltip: FC<InfoTooltipProps> = (props) => {
       size="small"
       icon={InfoIcon}
       iconClassName={css`
-        color: ${type === "info" ? colors.blue[5] : colors.yellow[5]};
+        color: ${type === "info" ? colors.blue[3] : colors.yellow[5]};
       `}
       buttonClassName={css`
         opacity: 1;

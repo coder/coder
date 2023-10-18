@@ -9,20 +9,6 @@ const meta: Meta<typeof Pill> = {
 export default meta;
 type Story = StoryObj<typeof Pill>;
 
-export const Primary: Story = {
-  args: {
-    text: "Primary",
-    type: "primary",
-  },
-};
-
-export const Secondary: Story = {
-  args: {
-    text: "Secondary",
-    type: "secondary",
-  },
-};
-
 export const Success: Story = {
   args: {
     text: "Success",
@@ -34,6 +20,14 @@ export const Info: Story = {
   args: {
     text: "Information",
     type: "info",
+  },
+};
+
+export const InfoLight: Story = {
+  args: {
+    text: "Information",
+    type: "info",
+    lightBorder: true,
   },
 };
 

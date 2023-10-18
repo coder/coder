@@ -3,7 +3,6 @@ import Editor, { loader } from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
 import { FC, useLayoutEffect, useMemo, useState } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
-import { hslToHex } from "utils/colors";
 import type { editor } from "monaco-editor";
 
 loader.config({ monaco });
@@ -124,8 +123,8 @@ export const MonacoEditor: FC<{
             },
           ],
           colors: {
-            "editor.foreground": hslToHex(theme.palette.text.primary),
-            "editor.background": hslToHex(theme.palette.background.default),
+            "editor.foreground": theme.palette.text.primary,
+            "editor.background": theme.palette.background.default,
           },
         });
         editor.updateOptions({

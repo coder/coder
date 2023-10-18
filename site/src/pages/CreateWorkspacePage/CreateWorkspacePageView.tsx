@@ -31,6 +31,7 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Stack } from "components/Stack/Stack";
 import { type ExternalAuthPollingState } from "./CreateWorkspacePage";
 import { useSearchParams } from "react-router-dom";
+import colors from "theme/tailwind";
 import { CreateWSPermissions } from "./permissions";
 
 export interface CreateWorkspacePageViewProps {
@@ -291,7 +292,7 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.warning.light,
   },
   warningSection: {
-    border: `1px solid ${theme.palette.warning.light}`,
+    border: `1px solid ${colors.orange[500]}`,
     borderRadius: 8,
     backgroundColor: theme.palette.background.paper,
     padding: theme.spacing(10),

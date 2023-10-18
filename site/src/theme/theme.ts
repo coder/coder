@@ -24,15 +24,15 @@ export let dark = createTheme({
   palette: {
     mode: "dark",
     primary: {
-      main: colors.blue[7],
-      contrastText: colors.blue[1],
       light: colors.blue[6],
+      main: colors.blue[7],
       dark: colors.blue[9],
+      contrastText: colors.blue[1],
     },
     secondary: {
       main: colors.gray[11],
       contrastText: colors.gray[4],
-      dark: colors.indigo[7],
+      dark: tw.sky[800], // "#f00", // colors.indigo[1], //
     },
     background: {
       default: colors.gray[17],
@@ -121,7 +121,7 @@ dark = createTheme(dark, {
           },
         },
         colorDefault: {
-          backgroundColor: colors.gray[6],
+          backgroundColor: colors.blue[3],
         },
       },
     },

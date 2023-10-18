@@ -254,6 +254,7 @@ const styles = {
     display: "flex",
     alignItems: "center",
     ...(theme.typography.body2 as CSSObject),
+    color: theme.palette.text.primary,
   }),
 
   linkIcon: (theme) => ({

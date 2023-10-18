@@ -9,7 +9,7 @@ import { FC, memo } from "react";
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import gfm from "remark-gfm";
-import { colors } from "theme/colors";
+import colors from "theme/tailwind";
 import { darcula } from "react-syntax-highlighter/dist/cjs/styles/prism";
 import { type Interpolation, type Theme } from "@emotion/react";
 
@@ -161,7 +161,7 @@ const markdownStyles: Interpolation<Theme> = (theme: Theme) => ({
     },
 
     "& .key, & .property, & .inserted, .keyword": {
-      color: colors.turquoise[7],
+      color: colors.teal[300],
     },
 
     "& .deleted": {

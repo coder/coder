@@ -43,11 +43,6 @@ const styles = {
       fontSize: 14,
     },
   }),
-  labelImmutable: (theme) => ({
-    marginTop: theme.spacing(0.5),
-    marginBottom: theme.spacing(0.5),
-    color: colors.yellow[7],
-  }),
   textField: {
     ".small & .MuiInputBase-root": {
       height: 36,
