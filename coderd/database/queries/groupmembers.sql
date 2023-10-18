@@ -21,8 +21,6 @@ WHERE
          OR
      organization_members.organization_id = @group_id)
 AND
-	users.status = 'active'
-AND
 	users.deleted = 'false';
 
 -- InsertUserGroupsByName adds a user to all provided groups, if they exist.

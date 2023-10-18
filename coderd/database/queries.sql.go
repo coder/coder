@@ -1277,8 +1277,6 @@ WHERE
          OR
      organization_members.organization_id = $1)
 AND
-	users.status = 'active'
-AND
 	users.deleted = 'false'
 `
 

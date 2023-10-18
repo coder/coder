@@ -1709,7 +1709,7 @@ func (q *FakeQuerier) GetGroupMembers(_ context.Context, id uuid.UUID) ([]databa
 
 	for _, member := range members {
 		for _, user := range q.users {
-			if user.ID == member.UserID && user.Status == database.UserStatusActive && !user.Deleted {
+			if user.ID == member.UserID && !user.Deleted {
 				users = append(users, user)
 				break
 			}
