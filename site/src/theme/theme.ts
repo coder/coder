@@ -1,4 +1,4 @@
-import { colors, experimentalTheme } from "./colors";
+import { colors } from "./colors";
 import { createTheme, type ThemeOptions } from "@mui/material/styles";
 import { BODY_FONT_FAMILY, borderRadius } from "./constants";
 
@@ -45,8 +45,8 @@ export let dark = createTheme({
     },
     divider: colors.gray[13],
     warning: {
-      light: experimentalTheme ? colors.orange[9] : colors.orange[7],
-      main: experimentalTheme ? colors.orange[11] : colors.orange[9],
+      light: colors.orange[7],
+      main: colors.orange[9],
       dark: colors.orange[15],
     },
     success: {
