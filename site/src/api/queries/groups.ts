@@ -31,9 +31,21 @@ export function groupsByUserId(organizationId: string) {
   return {
     ...groups(organizationId),
     select: (allGroups) => {
-      const userIdMapper = new Map<string, Group[]>();
+      // Sorting here means that nothing has to be sorted for the individual
+      // user arrays later
+      const sorted = [...allGroups].sort((g1, g2) => {
+        const key =
+          g1.display_name && g2.display_name ? "display_name" : "name";
 
-      for (const group of allGroups) {
+        if (g1[key] === g2[key]) {
+          return 0;
+        }
+
+        return g1[key] < g2[key] ? -1 : 1;
+      });
+
+      const userIdMapper = new Map<string, Group[]>();
+      for (const group of sorted) {
         for (const user of group.members) {
           let groupsForUser = userIdMapper.get(user.id);
           if (groupsForUser === undefined) {
@@ -43,23 +55,6 @@ export function groupsByUserId(organizationId: string) {
 
           groupsForUser.push(group);
         }
-      }
-
-      // Defined outside the loop because it can be reused by all group arrays,
-      // and doesn't need to be rebuilt from scratch on each iteration
-      const orderGroupsByName = (g1: Group, g2: Group) => {
-        const key =
-          g1.display_name && g2.display_name ? "display_name" : "name";
-
-        if (g1[key] === g2[key]) {
-          return 0;
-        }
-
-        return g1[key] < g2[key] ? -1 : 1;
-      };
-
-      for (const groupsList of userIdMapper.values()) {
-        groupsList.sort(orderGroupsByName);
       }
 
       return userIdMapper as GroupsByUserId;
