@@ -90,6 +90,6 @@ func TestTemplateCreate(t *testing.T) {
 
 		err := inv.Run()
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "your license is not entitled to use template access control, so you cannot set --require-active-version")
+		require.Contains(t, err.Error(), "your license is not entitled to use enterprise access control, so you cannot set --require-active-version")
 	})
 }
