@@ -13,10 +13,6 @@ import { useDebouncedFunction } from "hooks/debounce";
 
 export type UserOrGroupAutocompleteValue = User | Group | null;
 
-const isGroup = (value: UserOrGroupAutocompleteValue): value is Group => {
-  return value !== null && "members" in value;
-};
-
 export type UserOrGroupAutocompleteProps = {
   value: UserOrGroupAutocompleteValue;
   onChange: (value: UserOrGroupAutocompleteValue) => void;
@@ -24,18 +20,6 @@ export type UserOrGroupAutocompleteProps = {
   templateID?: string;
   exclude: UserOrGroupAutocompleteValue[];
 };
-
-const autoCompleteStyles = css`
-  width: 300px;
-
-  & .MuiFormControl-root {
-    width: 100%;
-  }
-
-  & .MuiInputBase-root {
-    width: 100%;
-  }
-`;
 
 export const UserOrGroupAutocomplete: React.FC<
   UserOrGroupAutocompleteProps
@@ -129,3 +113,19 @@ export const UserOrGroupAutocomplete: React.FC<
     />
   );
 };
+
+const isGroup = (value: UserOrGroupAutocompleteValue): value is Group => {
+  return value !== null && "members" in value;
+};
+
+const autoCompleteStyles = css`
+  width: 300px;
+
+  & .MuiFormControl-root {
+    width: 100%;
+  }
+
+  & .MuiInputBase-root {
+    width: 100%;
+  }
+`;

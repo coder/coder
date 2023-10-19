@@ -25,7 +25,7 @@ import { TableRowMenu } from "components/TableRowMenu/TableRowMenu";
 import {
   UserOrGroupAutocomplete,
   UserOrGroupAutocompleteValue,
-} from "components/UserOrGroupAutocomplete/UserOrGroupAutocomplete";
+} from "./UserOrGroupAutocomplete";
 import { type FC, useState } from "react";
 import { GroupAvatar } from "components/GroupAvatar/GroupAvatar";
 import { getGroupSubtitle } from "utils/groups";
