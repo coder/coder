@@ -62,10 +62,7 @@ export const usePopover = () => {
   return context;
 };
 
-export const PopoverTrigger = (props: {
-  children: TriggerElement;
-  hover?: boolean;
-}) => {
+export const PopoverTrigger = (props: { children: TriggerElement }) => {
   const popover = usePopover();
 
   const clickProps = {
@@ -118,10 +115,10 @@ export const PopoverContent = (
     <MuiPopover
       disablePortal
       css={(theme) => ({
-        // When it is on hover mode, and the moude is moving from the trigger to
+        // When it is on hover mode, and the mode is moving from the trigger to
         // the popover, if there is any space, the popover will be closed. I
         // found this is a limitation on how MUI structured the component. It is
-        // not a big issue for now but we can reavaluate it in the future.
+        // not a big issue for now but we can re-evaluate it in the future.
         marginTop: hoverMode ? undefined : theme.spacing(1),
         pointerEvents: hoverMode ? "none" : undefined,
         "& .MuiPaper-root": {
