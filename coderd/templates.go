@@ -347,6 +347,15 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			return xerrors.Errorf("insert template: %s", err)
 		}
 
+		if createTemplate.RequireActiveVersion {
+			err = (*api.AccessControlStore.Load()).SetTemplateAccessControl(ctx, tx, id, dbauthz.TemplateAccessControl{
+				RequireActiveVersion: createTemplate.RequireActiveVersion,
+			})
+			if err != nil {
+				return xerrors.Errorf("set template access control: %w", err)
+			}
+		}
+
 		dbTemplate, err = tx.GetTemplateByID(ctx, id)
 		if err != nil {
 			return xerrors.Errorf("get template by id: %s", err)
@@ -614,7 +623,8 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.AutostopRequirement.Weeks == scheduleOpts.AutostopRequirement.Weeks &&
 			req.FailureTTLMillis == time.Duration(template.FailureTTL).Milliseconds() &&
 			req.TimeTilDormantMillis == time.Duration(template.TimeTilDormant).Milliseconds() &&
-			req.TimeTilDormantAutoDeleteMillis == time.Duration(template.TimeTilDormantAutoDelete).Milliseconds() {
+			req.TimeTilDormantAutoDeleteMillis == time.Duration(template.TimeTilDormantAutoDelete).Milliseconds() &&
+			req.RequireActiveVersion == template.RequireActiveVersion {
 			return nil
 		}
 
@@ -636,6 +646,15 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			return xerrors.Errorf("update template metadata: %w", err)
+		}
+
+		if template.RequireActiveVersion != req.RequireActiveVersion {
+			err = (*api.AccessControlStore.Load()).SetTemplateAccessControl(ctx, tx, template.ID, dbauthz.TemplateAccessControl{
+				RequireActiveVersion: req.RequireActiveVersion,
+			})
+			if err != nil {
+				return xerrors.Errorf("set template access control: %w", err)
+			}
 		}
 
 		updated, err = tx.GetTemplateByID(ctx, template.ID)
@@ -824,5 +843,6 @@ func (api *API) convertTemplate(
 		AutostartRequirement: codersdk.TemplateAutostartRequirement{
 			DaysOfWeek: codersdk.BitmapToWeekdays(template.AutostartAllowedDays()),
 		},
+		RequireActiveVersion: template.RequireActiveVersion,
 	}
 }

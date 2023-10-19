@@ -20,7 +20,6 @@ import Box from "@mui/material/Box";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
 import { Region } from "api/typesGenerated";
 import { getLatencyColor } from "utils/latency";
-import Popover from "@mui/material/Popover";
 import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency";
 import { portForwardURL } from "utils/portForward";
 import {
@@ -31,6 +30,11 @@ import {
 } from "./TerminalAlerts";
 import { useQuery } from "react-query";
 import { deploymentConfig } from "api/queries/deployment";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "components/Popover/Popover";
 
 export const Language = {
   workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
@@ -332,13 +336,11 @@ const TerminalPage: FC = () => {
 const BottomBar = ({ proxy, latency }: { proxy: Region; latency?: number }) => {
   const theme = useTheme();
   const color = getLatencyColor(theme, latency);
-  const anchorRef = useRef<HTMLButtonElement>(null);
-  const [isOpen, setIsOpen] = useState(false);
 
   return (
     <Box
       sx={{
-        padding: (theme) => theme.spacing(1, 2),
+        padding: theme.spacing(0, 2),
         background: (theme) => theme.palette.background.paper,
         display: "flex",
         alignItems: "center",
@@ -347,82 +349,80 @@ const BottomBar = ({ proxy, latency }: { proxy: Region; latency?: number }) => {
         borderTop: (theme) => `1px solid ${theme.palette.divider}`,
       }}
     >
-      <Box
-        ref={anchorRef}
-        component="button"
-        aria-label="Terminal latency"
-        aria-haspopup="true"
-        onMouseEnter={() => setIsOpen(true)}
-        onMouseLeave={() => setIsOpen(false)}
-        sx={{
-          background: "none",
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          gap: 1,
-          border: 0,
-        }}
-      >
-        <Box
-          sx={{
-            height: 6,
-            width: 6,
-            backgroundColor: color,
-            border: 0,
-            borderRadius: 9999,
-          }}
-        />
-        <ProxyStatusLatency latency={latency} />
-      </Box>
-      <Popover
-        id="latency-popover"
-        disableRestoreFocus
-        anchorEl={anchorRef.current}
-        open={isOpen}
-        onClose={() => setIsOpen(false)}
-        sx={{
-          pointerEvents: "none",
-          "& .MuiPaper-root": {
-            padding: (theme) => theme.spacing(1, 2),
-            marginTop: -1,
-          },
-        }}
-        anchorOrigin={{
-          vertical: "top",
-          horizontal: "right",
-        }}
-        transformOrigin={{
-          vertical: "bottom",
-          horizontal: "right",
-        }}
-      >
-        <Box
-          sx={{
-            fontSize: 13,
-            color: (theme) => theme.palette.text.secondary,
-            fontWeight: 500,
-          }}
-        >
-          Selected proxy
-        </Box>
-        <Box
-          sx={{ fontSize: 14, display: "flex", gap: 3, alignItems: "center" }}
-        >
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Box width={12} height={12} lineHeight={0}>
-              <Box
-                component="img"
-                src={proxy.icon_url}
-                alt=""
-                sx={{ objectFit: "contain" }}
-                width="100%"
-                height="100%"
-              />
-            </Box>
-            {proxy.display_name}
+      <Popover mode="hover">
+        <PopoverTrigger>
+          <Box
+            component="button"
+            aria-label="Terminal latency"
+            aria-haspopup="true"
+            sx={{
+              background: "none",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+              border: 0,
+              padding: theme.spacing(1),
+            }}
+          >
+            <Box
+              sx={{
+                height: 6,
+                width: 6,
+                backgroundColor: color,
+                border: 0,
+                borderRadius: 9999,
+              }}
+            />
+            <ProxyStatusLatency latency={latency} />
           </Box>
-          <ProxyStatusLatency latency={latency} />
-        </Box>
+        </PopoverTrigger>
+        <PopoverContent
+          id="latency-popover"
+          disableRestoreFocus
+          sx={{
+            pointerEvents: "none",
+            "& .MuiPaper-root": {
+              padding: (theme) => theme.spacing(1, 2),
+            },
+          }}
+          anchorOrigin={{
+            vertical: "top",
+            horizontal: "right",
+          }}
+          transformOrigin={{
+            vertical: "bottom",
+            horizontal: "right",
+          }}
+        >
+          <Box
+            sx={{
+              fontSize: 13,
+              color: (theme) => theme.palette.text.secondary,
+              fontWeight: 500,
+            }}
+          >
+            Selected proxy
+          </Box>
+          <Box
+            sx={{ fontSize: 14, display: "flex", gap: 3, alignItems: "center" }}
+          >
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Box width={12} height={12} lineHeight={0}>
+                <Box
+                  component="img"
+                  src={proxy.icon_url}
+                  alt=""
+                  sx={{ objectFit: "contain" }}
+                  width="100%"
+                  height="100%"
+                />
+              </Box>
+              {proxy.display_name}
+            </Box>
+            <ProxyStatusLatency latency={latency} />
+          </Box>
+        </PopoverContent>
       </Popover>
     </Box>
   );

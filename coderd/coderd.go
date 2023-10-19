@@ -131,6 +131,7 @@ type Options struct {
 	SetUserSiteRoles            func(ctx context.Context, logger slog.Logger, tx database.Store, userID uuid.UUID, roles []string) error
 	TemplateScheduleStore       *atomic.Pointer[schedule.TemplateScheduleStore]
 	UserQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
+	AccessControlStore          *atomic.Pointer[dbauthz.AccessControlStore]
 	// AppSecurityKey is the crypto key used to sign and encrypt tokens related to
 	// workspace applications. It consists of both a signing and encryption key.
 	AppSecurityKey     workspaceapps.SecurityKey
@@ -208,11 +209,20 @@ func New(options *Options) *API {
 	if options.Authorizer == nil {
 		options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
 	}
+
+	if options.AccessControlStore == nil {
+		options.AccessControlStore = &atomic.Pointer[dbauthz.AccessControlStore]{}
+		var tacs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
+		options.AccessControlStore.Store(&tacs)
+	}
+
 	options.Database = dbauthz.New(
 		options.Database,
 		options.Authorizer,
 		options.Logger.Named("authz_querier"),
+		options.AccessControlStore,
 	)
+
 	experiments := ReadExperiments(
 		options.Logger, options.DeploymentValues.Experiments.Value(),
 	)
@@ -369,6 +379,7 @@ func New(options *Options) *API {
 		Auditor:                     atomic.Pointer[audit.Auditor]{},
 		TemplateScheduleStore:       options.TemplateScheduleStore,
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
+		AccessControlStore:          options.AccessControlStore,
 		Experiments:                 experiments,
 		healthCheckGroup:            &singleflight.Group[string, *healthcheck.Report]{},
 		Acquirer: provisionerdserver.NewAcquirer(
@@ -1008,6 +1019,9 @@ type API struct {
 	UserQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
 	// DERPMapper mutates the DERPMap to include workspace proxies.
 	DERPMapper atomic.Pointer[func(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap]
+	// AccessControlStore is a pointer to an atomic pointer since it is
+	// passed to dbauthz.
+	AccessControlStore *atomic.Pointer[dbauthz.AccessControlStore]
 
 	HTTPAuth *HTTPAuthorizer
 

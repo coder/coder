@@ -1,9 +1,4 @@
-import {
-  type PropsWithChildren,
-  type ReactNode,
-  useState,
-  useRef,
-} from "react";
+import { type PropsWithChildren, type ReactNode, useState } from "react";
 import { type Template } from "api/typesGenerated";
 import { type UseQueryResult } from "react-query";
 import {
@@ -20,7 +15,11 @@ import { OverflowY } from "components/OverflowY/OverflowY";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Avatar } from "components/Avatar/Avatar";
 import { SearchBox } from "./WorkspacesSearchBox";
-import Popover from "@mui/material/Popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "components/Popover/Popover";
 
 const ICON_SIZE = 18;
 const COLUMN_GAP = 1.5;
@@ -42,9 +41,6 @@ export function WorkspacesButton({
   const [searchTerm, setSearchTerm] = useState("");
   const processed = sortTemplatesByUsersDesc(templates ?? [], searchTerm);
 
-  const anchorRef = useRef<HTMLButtonElement>(null);
-  const [isOpen, setIsOpen] = useState(false);
-
   let emptyState: ReactNode = undefined;
   if (templates?.length === 0) {
     emptyState = (
@@ -62,37 +58,13 @@ export function WorkspacesButton({
   }
 
   return (
-    <>
-      <Button
-        startIcon={<AddIcon />}
-        variant="contained"
-        ref={anchorRef}
-        onClick={() => {
-          setIsOpen(true);
-        }}
-      >
-        {children}
-      </Button>
-      <Popover
-        disablePortal
-        open={isOpen}
-        onClose={() => setIsOpen(false)}
-        anchorEl={anchorRef.current}
-        anchorOrigin={{
-          vertical: "bottom",
-          horizontal: "right",
-        }}
-        transformOrigin={{
-          vertical: "top",
-          horizontal: "right",
-        }}
-        css={(theme) => ({
-          marginTop: theme.spacing(1),
-          "& .MuiPaper-root": {
-            width: theme.spacing(40),
-          },
-        })}
-      >
+    <Popover>
+      <PopoverTrigger>
+        <Button startIcon={<AddIcon />} variant="contained">
+          {children}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent horizontal="right">
         <SearchBox
           value={searchTerm}
           onValueChange={(newValue) => setSearchTerm(newValue)}
@@ -142,8 +114,8 @@ export function WorkspacesButton({
             <span>See all templates</span>
           </PopoverLink>
         </Box>
-      </Popover>
-    </>
+      </PopoverContent>
+    </Popover>
   );
 }
 

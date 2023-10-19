@@ -10,7 +10,7 @@ const meta: Meta<typeof EditRolesButton> = {
   title: "pages/UsersPage/EditRolesButton",
   component: EditRolesButton,
   args: {
-    defaultIsOpen: true,
+    isDefaultOpen: true,
   },
 };
 
