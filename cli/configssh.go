@@ -252,7 +252,7 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 			escapedHeaderCommand := ""
 
 			if r.headerCommand != "" {
-				headerCommand, err := sshConfigExecEscape(coderBinary, forceUnixSeparators)
+				headerCommand, err := sshConfigExecEscape(r.headerCommand, forceUnixSeparators)
 				if err != nil {
 					return xerrors.Errorf("escape header command for ssh failed: %w", err)
 				}
