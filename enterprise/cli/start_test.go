@@ -143,7 +143,7 @@ func TestStart(t *testing.T) {
 
 						// Instantiate a new context for each subtest since
 						// they can potentially be lengthy.
-						ctx = testutil.Context(t, testutil.WaitMedium)
+						ctx := testutil.Context(t, testutil.WaitMedium)
 						// Create the workspace using the admin since we want
 						// to force the old version.
 						ws, err := ownerClient.CreateWorkspace(ctx, owner.OrganizationID, c.WorkspaceOwner.String(), codersdk.CreateWorkspaceRequest{
