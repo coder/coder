@@ -8541,7 +8541,8 @@ const docTemplate = `{
                 "single_tailnet",
                 "template_autostop_requirement",
                 "deployment_health_page",
-                "dashboard_theme"
+                "dashboard_theme",
+                "template_update_policies"
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
@@ -8549,7 +8550,8 @@ const docTemplate = `{
                 "ExperimentSingleTailnet",
                 "ExperimentTemplateAutostopRequirement",
                 "ExperimentDeploymentHealthPage",
-                "ExperimentDashboardTheme"
+                "ExperimentDashboardTheme",
+                "ExperimentTemplateUpdatePolicies"
             ]
         },
         "codersdk.ExternalAuth": {

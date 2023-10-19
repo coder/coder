@@ -24,11 +24,12 @@ import (
 
 func (r *RootCmd) templateCreate() *clibase.Cmd {
 	var (
-		provisioner     string
-		provisionerTags []string
-		variablesFile   string
-		variables       []string
-		disableEveryone bool
+		provisioner          string
+		provisionerTags      []string
+		variablesFile        string
+		variables            []string
+		disableEveryone      bool
+		requireActiveVersion bool
 
 		defaultTTL    time.Duration
 		failureTTL    time.Duration
@@ -46,17 +47,35 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
-			if failureTTL != 0 || inactivityTTL != 0 || maxTTL != 0 {
+			isTemplateSchedulingOptionsSet := failureTTL != 0 || inactivityTTL != 0 || maxTTL != 0
+
+			if isTemplateSchedulingOptionsSet || requireActiveVersion {
 				entitlements, err := client.Entitlements(inv.Context())
-				var sdkErr *codersdk.Error
-				if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
-					return xerrors.Errorf("your deployment appears to be an AGPL deployment, so you cannot set --failure-ttl or --inactivityTTL")
+				if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusNotFound {
+					return xerrors.Errorf("your deployment appears to be an AGPL deployment, so you cannot set enterprise-only flags")
 				} else if err != nil {
 					return xerrors.Errorf("get entitlements: %w", err)
 				}
 
-				if !entitlements.Features[codersdk.FeatureAdvancedTemplateScheduling].Enabled {
-					return xerrors.Errorf("your license is not entitled to use advanced template scheduling, so you cannot set --failure-ttl or --inactivityTTL")
+				if isTemplateSchedulingOptionsSet {
+					if !entitlements.Features[codersdk.FeatureAdvancedTemplateScheduling].Enabled {
+						return xerrors.Errorf("your license is not entitled to use advanced template scheduling, so you cannot set --failure-ttl or --inactivityTTL")
+					}
+				}
+
+				if requireActiveVersion {
+					if !entitlements.Features[codersdk.FeatureAccessControl].Enabled {
+						return xerrors.Errorf("your license is not entitled to use enterprise access control, so you cannot set --require-active-version")
+					}
+
+					experiments, exErr := client.Experiments(inv.Context())
+					if exErr != nil {
+						return xerrors.Errorf("get experiments: %w", exErr)
+					}
+
+					if !experiments.Enabled(codersdk.ExperimentTemplateUpdatePolicies) {
+						return xerrors.Errorf("--require-active-version is an experimental feature, contact an administrator to enable the 'template_update_policies' experiment on your Coder server")
+					}
 				}
 			}
 
@@ -129,6 +148,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 				MaxTTLMillis:               ptr.Ref(maxTTL.Milliseconds()),
 				TimeTilDormantMillis:       ptr.Ref(inactivityTTL.Milliseconds()),
 				DisableEveryoneGroupAccess: disableEveryone,
+				RequireActiveVersion:       requireActiveVersion,
 			}
 
 			_, err = client.CreateTemplate(inv.Context(), organization.ID, createReq)
@@ -205,6 +225,13 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 			Value:       clibase.StringOf(&provisioner),
 			Hidden:      true,
 		},
+		{
+			Flag:        "require-active-version",
+			Description: "Requires workspace builds to use the active template version. This setting does not apply to template admins. This is an enterprise-only feature.",
+			Value:       clibase.BoolOf(&requireActiveVersion),
+			Default:     "false",
+		},
+
 		cliui.SkipPromptOption(),
 	}
 	cmd.Options = append(cmd.Options, uploadFlags.options()...)
