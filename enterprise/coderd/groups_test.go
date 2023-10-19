@@ -695,7 +695,7 @@ func TestGroup(t *testing.T) {
 		// Ensure that new user has dormant account
 		require.Equal(t, codersdk.UserStatusDormant, anotherUser.Status)
 
-		group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+		group, _ = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
 			AddUsers: []string{anotherUser.ID.String()},
 		})
 
