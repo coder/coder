@@ -10,7 +10,7 @@ import (
 // If no matches are found, an empty slice is returned.
 func Matches(needle string, maxDistance int, haystack ...string) (matches []string) {
 	for _, hay := range haystack {
-		if Distance(needle, hay) <= maxDistance {
+		if d, err := Distance(needle, hay); err == nil && d <= maxDistance {
 			matches = append(matches, hay)
 		}
 	}
@@ -21,19 +21,22 @@ func Matches(needle string, maxDistance int, haystack ...string) (matches []stri
 // Distance returns the edit distance between a and b using the
 // Wagner-Fischer algorithm.
 // A and B must be less than 255 characters long.
-func Distance(a, b string) int {
-	if len(a) > 255 || len(b) > 255 {
-		panic(xerrors.Errorf("levenshtein: strings too long: %q, %q", a, b))
+func Distance(a, b string) (int, error) {
+	if len(a) > 255 {
+		return 0, xerrors.Errorf("levenshtein: a must be less than 255 characters long")
+	}
+	if len(b) > 255 {
+		return 0, xerrors.Errorf("levenshtein: b must be less than 255 characters long")
 	}
 	m := uint8(len(a))
 	n := uint8(len(b))
 
 	// Special cases for empty strings
 	if m == 0 {
-		return int(n)
+		return int(n), nil
 	}
 	if n == 0 {
-		return int(m)
+		return int(m), nil
 	}
 
 	// Allocate a matrix of size m+1 * n+1
@@ -71,7 +74,7 @@ func Distance(a, b string) int {
 		}
 	}
 
-	return int(d[m][n])
+	return int(d[m][n]), nil
 }
 
 func min[T constraints.Ordered](ts ...T) T {

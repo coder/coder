@@ -158,7 +158,8 @@ func Test_Levenshtein_Distance(t *testing.T) {
 		tt := tt
 		t.Run(tt.Name, func(t *testing.T) {
 			t.Parallel()
-			actual := levenshtein.Distance(tt.A, tt.B)
+			actual, err := levenshtein.Distance(tt.A, tt.B)
+			require.NoError(t, err)
 			require.Equal(t, tt.Expected, actual)
 		})
 	}
