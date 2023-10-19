@@ -77,10 +77,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 					}
 
 					if !experiments.Enabled(codersdk.ExperimentTemplateUpdatePolicies) {
-						return xerrors.Errorf("--require-active-version is an experimental feature, pass 'template_update_policies' to the CODER_EXPERIMENTS env var to use this option")
-					}
-					if !entitlements.Features[codersdk.FeatureAccessControl].Enabled {
-						return xerrors.Errorf("your license is not entitled to use template access control, so you cannot set --require-active-version")
+						return xerrors.Errorf("--require-active-version is an experimental feature, contact an administrator to enable the 'template_update_policies' experiment on your Coder server")
 					}
 				}
 			}

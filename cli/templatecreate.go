@@ -74,7 +74,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 					}
 
 					if !experiments.Enabled(codersdk.ExperimentTemplateUpdatePolicies) {
-						return xerrors.Errorf("--require-active-version is an experimental feature, pass 'template_update_policies' to the CODER_EXPERIMENTS env var to use this option")
+						return xerrors.Errorf("--require-active-version is an experimental feature, contact an administrator to enable the 'template_update_policies' experiment on your Coder server")
 					}
 				}
 			}

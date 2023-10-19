@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"net/http"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -37,36 +38,6 @@ func (r *RootCmd) start() *clibase.Cmd {
 				return err
 			}
 
-			template, err := client.Template(inv.Context(), workspace.TemplateID)
-			if err != nil {
-				return xerrors.Errorf("get template: %w", err)
-			}
-
-			versionID := workspace.LatestBuild.TemplateVersionID
-			if template.RequireActiveVersion {
-				key := "template"
-				resp, err := client.AuthCheck(inv.Context(), codersdk.AuthorizationRequest{
-					Checks: map[string]codersdk.AuthorizationCheck{
-						key: {
-							Object: codersdk.AuthorizationObject{
-								ResourceType:   codersdk.ResourceTemplate,
-								OwnerID:        workspace.OwnerID.String(),
-								OrganizationID: workspace.OrganizationID.String(),
-								ResourceID:     template.ID.String(),
-							},
-							Action: "update",
-						},
-					},
-				})
-				if err != nil {
-					return xerrors.Errorf("auth check: %w", err)
-				}
-				// We don't have template admin privileges.
-				if !resp[key] {
-					versionID = template.ActiveVersionID
-				}
-			}
-
 			buildOptions, err := asWorkspaceBuildParameters(parameterFlags.buildOptions)
 			if err != nil {
 				return xerrors.Errorf("unable to parse build options: %w", err)
@@ -74,7 +45,7 @@ func (r *RootCmd) start() *clibase.Cmd {
 
 			buildParameters, err := prepStartWorkspace(inv, client, prepStartWorkspaceArgs{
 				Action:            WorkspaceStart,
-				TemplateVersionID: versionID,
+				TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
 
 				LastBuildParameters: lastBuildParameters,
 
@@ -85,12 +56,41 @@ func (r *RootCmd) start() *clibase.Cmd {
 				return err
 			}
 
-			build, err := client.CreateWorkspaceBuild(inv.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			req := codersdk.CreateWorkspaceBuildRequest{
 				Transition:          codersdk.WorkspaceTransitionStart,
 				RichParameterValues: buildParameters,
-				TemplateVersionID:   versionID,
-			})
-			if err != nil {
+				TemplateVersionID:   workspace.LatestBuild.TemplateVersionID,
+			}
+
+			build, err := client.CreateWorkspaceBuild(inv.Context(), workspace.ID, req)
+			// It's possible for a workspace build to fail due to the template requiring starting
+			// workspaces with the active version.
+			if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusUnauthorized {
+				template, err := client.Template(inv.Context(), workspace.TemplateID)
+				if err != nil {
+					return xerrors.Errorf("get template: %w", err)
+				}
+
+				buildParameters, err = prepStartWorkspace(inv, client, prepStartWorkspaceArgs{
+					Action:            WorkspaceStart,
+					TemplateVersionID: template.ActiveVersionID,
+
+					LastBuildParameters: lastBuildParameters,
+
+					PromptBuildOptions: parameterFlags.promptBuildOptions,
+					BuildOptions:       buildOptions,
+				})
+				if err != nil {
+					return err
+				}
+
+				req.RichParameterValues = buildParameters
+				req.TemplateVersionID = template.ActiveVersionID
+				build, err = client.CreateWorkspaceBuild(inv.Context(), workspace.ID, req)
+				if err != nil {
+					return err
+				}
+			} else if err != nil {
 				return err
 			}
 
