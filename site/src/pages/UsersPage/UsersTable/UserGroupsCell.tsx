@@ -1,4 +1,3 @@
-import { type PointerEvent, useId, useState } from "react";
 import { useTheme } from "@emotion/react";
 import { type Group } from "api/typesGenerated";
 
@@ -10,6 +9,7 @@ import TableCell from "@mui/material/TableCell";
 import Button from "@mui/material/Button";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
+import GroupIcon from "@mui/icons-material/Group";
 
 import {
   Popover,
@@ -22,21 +22,7 @@ type GroupsCellProps = {
 };
 
 export function UserGroupsCell({ userGroups }: GroupsCellProps) {
-  const hookId = useId();
   const theme = useTheme();
-
-  // 2023-10-18 - Temporary code - waiting for Bruno to finish the refactoring
-  // of PopoverContainer. Popover code should all be torn out and replaced with
-  // PopoverContainer once the new API is ready
-  const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
-
-  const closePopover = () => setAnchorEl(null);
-  const openPopover = (event: PointerEvent<HTMLButtonElement>) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const isPopoverOpen = anchorEl !== null;
-  const popoverId = `${hookId}-popover`;
 
   return (
     <TableCell>
@@ -49,10 +35,6 @@ export function UserGroupsCell({ userGroups }: GroupsCellProps) {
         <Popover mode="hover">
           <PopoverTrigger>
             <Button
-              aria-haspopup
-              aria-owns={isPopoverOpen ? popoverId : undefined}
-              onPointerEnter={openPopover}
-              onPointerLeave={closePopover}
               css={{
                 justifyContent: "flex-start",
                 fontSize: theme.typography.body1.fontSize,
@@ -66,27 +48,25 @@ export function UserGroupsCell({ userGroups }: GroupsCellProps) {
                 },
               }}
             >
-              <Stack spacing={0}>
+              <Stack
+                spacing={0}
+                direction="row"
+                css={{ columnGap: theme.spacing(1), alignItems: "center" }}
+              >
+                {userGroups.length > 0 && (
+                  <GroupIcon
+                    sx={{ width: "16px", height: "16px", opacity: 0.8 }}
+                  />
+                )}
                 <span>
                   {userGroups.length} Group{userGroups.length !== 1 && "s"}
-                </span>
-
-                <span
-                  css={{
-                    fontSize: "0.75rem",
-                    color: theme.palette.text.secondary,
-                    textDecoration: isPopoverOpen ? "none" : "underline",
-                    textUnderlineOffset: "0.2em",
-                  }}
-                >
-                  See details
                 </span>
               </Stack>
             </Button>
           </PopoverTrigger>
 
           <PopoverContent disableScrollLock disableRestoreFocus>
-            <OverflowY maxHeight={400} sx={{ maxWidth: "320px" }}>
+            <OverflowY maxHeight={400}>
               <List
                 component="ul"
                 css={{
