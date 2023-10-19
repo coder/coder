@@ -224,7 +224,7 @@ const AddTimeContent = (props: {
           const formData = new FormData(e.currentTarget);
           const hours = Number(formData.get("hours"));
           props.onDeadlinePlus(hours);
-          popover.setOpen(false);
+          popover.setIsOpen(false);
         }}
       >
         <TextField
@@ -275,7 +275,7 @@ export const DecreaseTimeContent = (props: {
           const formData = new FormData(e.currentTarget);
           const hours = Number(formData.get("hours"));
           props.onDeadlineMinus(hours);
-          popover.setOpen(false);
+          popover.setIsOpen(false);
         }}
       >
         <TextField

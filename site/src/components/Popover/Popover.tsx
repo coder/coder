@@ -23,8 +23,8 @@ type TriggerElement = ReactElement<{
 }>;
 
 type PopoverContextValue = {
-  open: boolean;
-  setOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  isOpen: boolean;
+  setIsOpen: React.Dispatch<React.SetStateAction<boolean>>;
   triggerRef: TriggerRef;
   mode: TriggerMode;
 };
@@ -38,9 +38,9 @@ export const Popover = (props: {
   mode?: TriggerMode;
   defaultOpen?: boolean;
 }) => {
-  const [open, setOpen] = useState(props.defaultOpen ?? false);
+  const [isOpen, setIsOpen] = useState(props.defaultOpen ?? false);
   const triggerRef = useRef<HTMLElement>(null);
-  const value = { open, setOpen, triggerRef, mode: props.mode ?? "click" };
+  const value = { isOpen, setIsOpen, triggerRef, mode: props.mode ?? "click" };
 
   return (
     <PopoverContext.Provider value={value}>
@@ -69,16 +69,16 @@ export const PopoverTrigger = (props: {
 
   const clickProps = {
     onClick: () => {
-      popover.setOpen((open) => !open);
+      popover.setIsOpen((isOpen) => !isOpen);
     },
   };
 
   const hoverProps = {
     onPointerEnter: () => {
-      popover.setOpen(true);
+      popover.setIsOpen(true);
     },
     onPointerLeave: () => {
-      popover.setOpen(false);
+      popover.setIsOpen(false);
     },
   };
 
@@ -118,8 +118,8 @@ export const PopoverContent = (
       {...horizontalProps(horizontal)}
       {...modeProps(popover)}
       {...props}
-      open={popover.open}
-      onClose={() => popover.setOpen(false)}
+      open={popover.isOpen}
+      onClose={() => popover.setIsOpen(false)}
       anchorEl={popover.triggerRef.current}
     />
   );
@@ -129,10 +129,10 @@ const modeProps = (popover: PopoverContextValue) => {
   if (popover.mode === "hover") {
     return {
       onMouseEnter: () => {
-        popover.setOpen(true);
+        popover.setIsOpen(true);
       },
       onMouseLeave: () => {
-        popover.setOpen(false);
+        popover.setIsOpen(false);
       },
     };
   }

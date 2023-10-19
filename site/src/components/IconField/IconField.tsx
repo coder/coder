@@ -93,7 +93,7 @@ const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
                 onEmojiSelect={(emoji) => {
                   const value = emoji.src ?? urlFromUnifiedCode(emoji.unified);
                   onPickEmoji(value);
-                  popover.setOpen(false);
+                  popover.setIsOpen(false);
                 }}
               />
             </PopoverContent>

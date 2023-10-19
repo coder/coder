@@ -95,7 +95,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
   const popover = usePopover();
 
   const onPopoverClose = () => {
-    popover.setOpen(false);
+    popover.setIsOpen(false);
   };
 
   return (

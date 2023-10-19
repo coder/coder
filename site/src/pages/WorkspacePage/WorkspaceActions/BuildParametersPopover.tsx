@@ -73,7 +73,7 @@ const BuildParametersPopoverContent = ({
   const { data: parameters } = useQuery({
     queryKey: ["workspace", workspace.id, "parameters"],
     queryFn: () => getWorkspaceParameters(workspace),
-    enabled: popover.open,
+    enabled: popover.isOpen,
   });
   const ephemeralParameters = parameters
     ? parameters.templateVersionRichParameters.filter((p) => p.ephemeral)
@@ -100,7 +100,7 @@ const BuildParametersPopoverContent = ({
               <Form
                 onSubmit={(buildParameters) => {
                   onSubmit(buildParameters);
-                  popover.setOpen(false);
+                  popover.setIsOpen(false);
                 }}
                 ephemeralParameters={ephemeralParameters}
                 buildParameters={parameters.buildParameters}

@@ -91,7 +91,7 @@ export const DateRange = ({
                     ? startOfHour(addHours(now, 1))
                     : startOfDay(addDays(endDate, 1)),
                 });
-                popover.setOpen(false);
+                popover.setIsOpen(false);
               }}
               moveRangeOnFirstSelection={false}
               months={2}
