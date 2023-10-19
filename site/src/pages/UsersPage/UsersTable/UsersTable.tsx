@@ -1,30 +1,34 @@
+import { type FC } from "react";
+import type * as TypesGen from "api/typesGenerated";
+import { type GroupsByUserId } from "api/queries/groups";
+
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import { FC } from "react";
-import * as TypesGen from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
-import { UserRoleHelpTooltip } from "./UserRoleHelpTooltip";
+import { TableColumnHelpTooltip } from "./TableColumnHelpTooltip";
 import { UsersTableBody } from "./UsersTableBody";
 
 export const Language = {
   usernameLabel: "User",
   rolesLabel: "Roles",
+  groupsLabel: "Groups",
   statusLabel: "Status",
   lastSeenLabel: "Last Seen",
   loginTypeLabel: "Login Type",
-};
+} as const;
 
 export interface UsersTableProps {
-  users?: TypesGen.User[];
-  roles?: TypesGen.AssignableRoles[];
+  users: TypesGen.User[] | undefined;
+  roles: TypesGen.AssignableRoles[] | undefined;
+  groupsByUserId: GroupsByUserId | undefined;
   isUpdatingUserRoles?: boolean;
-  canEditUsers?: boolean;
+  canEditUsers: boolean;
   canViewActivity?: boolean;
-  isLoading?: boolean;
+  isLoading: boolean;
   onSuspendUser: (user: TypesGen.User) => void;
   onActivateUser: (user: TypesGen.User) => void;
   onDeleteUser: (user: TypesGen.User) => void;
@@ -59,29 +63,42 @@ export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
   actorID,
   oidcRoleSyncEnabled,
   authMethods,
+  groupsByUserId,
 }) => {
   return (
     <TableContainer>
       <Table>
         <TableHead>
           <TableRow>
-            <TableCell width="30%">{Language.usernameLabel}</TableCell>
-            <TableCell width="40%">
+            <TableCell width="29%">{Language.usernameLabel}</TableCell>
+
+            <TableCell width="29%">
               <Stack direction="row" spacing={1} alignItems="center">
                 <span>{Language.rolesLabel}</span>
-                <UserRoleHelpTooltip />
+                <TableColumnHelpTooltip variant="roles" />
               </Stack>
             </TableCell>
-            <TableCell width="15%">{Language.loginTypeLabel}</TableCell>
-            <TableCell width="15%">{Language.statusLabel}</TableCell>
+
+            <TableCell width="14%">
+              <Stack direction="row" spacing={1} alignItems="center">
+                <span>{Language.groupsLabel}</span>
+                <TableColumnHelpTooltip variant="groups" />
+              </Stack>
+            </TableCell>
+
+            <TableCell width="14%">{Language.loginTypeLabel}</TableCell>
+            <TableCell width="14%">{Language.statusLabel}</TableCell>
+
             {/* 1% is a trick to make the table cell width fit the content */}
             {canEditUsers && <TableCell width="1%" />}
           </TableRow>
         </TableHead>
+
         <TableBody>
           <UsersTableBody
             users={users}
             roles={roles}
+            groupsByUserId={groupsByUserId}
             isLoading={isLoading}
             canEditUsers={canEditUsers}
             canViewActivity={canViewActivity}

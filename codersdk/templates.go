@@ -52,6 +52,10 @@ type Template struct {
 	FailureTTLMillis               int64 `json:"failure_ttl_ms"`
 	TimeTilDormantMillis           int64 `json:"time_til_dormant_ms"`
 	TimeTilDormantAutoDeleteMillis int64 `json:"time_til_dormant_autodelete_ms"`
+
+	// RequireActiveVersion mandates that workspaces are built with the active
+	// template version.
+	RequireActiveVersion bool `json:"require_active_version"`
 }
 
 // WeekdaysToBitmap converts a list of weekdays to a bitmap in accordance with
@@ -221,6 +225,10 @@ type UpdateTemplateMeta struct {
 	// from the template. This is useful for preventing dormant workspaces being immediately
 	// deleted when updating the dormant_ttl field to a new, shorter value.
 	UpdateWorkspaceDormantAt bool `json:"update_workspace_dormant_at"`
+	// RequireActiveVersion mandates workspaces built using this template
+	// use the active version of the template. This option has no
+	// effect on template admins.
+	RequireActiveVersion bool `json:"require_active_version"`
 }
 
 type TemplateExample struct {

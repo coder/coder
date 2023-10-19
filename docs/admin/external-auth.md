@@ -158,8 +158,8 @@ The following example will require users authenticate via GitHub and auto-clone
 a repo into the `~/coder` directory.
 
 ```hcl
-data "coder_git_auth" "github" {
-  # Matches the ID of the git auth provider in Coder.
+data "coder_external_auth" "github" {
+  # Matches the ID of the external auth provider in Coder.
   id = "github"
 }
 
@@ -168,7 +168,7 @@ resource "coder_agent" "dev" {
   arch = "amd64"
   dir  = "~/coder"
   env = {
-    GITHUB_TOKEN : data.coder_git_auth.github.access_token
+    GITHUB_TOKEN : data.coder_external_auth.github.access_token
   }
   startup_script = <<EOF
 if [ ! -d ~/coder ]; then

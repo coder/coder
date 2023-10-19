@@ -16,6 +16,7 @@ import {
   type Interpolation,
   type Theme,
 } from "@emotion/react";
+import { usePopover } from "components/Popover/Popover";
 
 export const Language = {
   accountLabel: "Account",
@@ -82,7 +83,6 @@ export interface UserDropdownContentProps {
   user: TypesGen.User;
   buildInfo?: TypesGen.BuildInfoResponse;
   supportLinks?: TypesGen.LinkConfig[];
-  onPopoverClose: () => void;
   onSignOut: () => void;
 }
 
@@ -90,9 +90,14 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
   buildInfo,
   user,
   supportLinks,
-  onPopoverClose,
   onSignOut,
 }) => {
+  const popover = usePopover();
+
+  const onPopoverClose = () => {
+    popover.setIsOpen(false);
+  };
+
   return (
     <div>
       <Stack css={styles.info} spacing={0}>

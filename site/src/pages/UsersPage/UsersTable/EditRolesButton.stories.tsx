@@ -10,17 +10,19 @@ const meta: Meta<typeof EditRolesButton> = {
   title: "pages/UsersPage/EditRolesButton",
   component: EditRolesButton,
   args: {
-    defaultIsOpen: true,
+    isDefaultOpen: true,
   },
 };
 
 export default meta;
 type Story = StoryObj<typeof EditRolesButton>;
 
+const selectedRoleNames = new Set([MockUserAdminRole.name, MockOwnerRole.name]);
+
 export const Open: Story = {
   args: {
+    selectedRoleNames,
     roles: MockSiteRoles,
-    selectedRoles: [MockUserAdminRole, MockOwnerRole],
   },
   parameters: {
     chromatic: { delay: 300 },
@@ -30,8 +32,8 @@ export const Open: Story = {
 export const Loading: Story = {
   args: {
     isLoading: true,
+    selectedRoleNames,
     roles: MockSiteRoles,
-    selectedRoles: [MockUserAdminRole, MockOwnerRole],
     userLoginType: "password",
     oidcRoleSync: false,
   },

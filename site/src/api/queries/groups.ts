@@ -1,4 +1,4 @@
-import { QueryClient } from "react-query";
+import { QueryClient, UseQueryOptions } from "react-query";
 import * as API from "api/api";
 import { checkAuthorization } from "api/api";
 import {
@@ -24,6 +24,43 @@ export const group = (groupId: string) => {
     queryFn: () => API.getGroup(groupId),
   };
 };
+
+export type GroupsByUserId = Readonly<Map<string, readonly Group[]>>;
+
+export function groupsByUserId(organizationId: string) {
+  return {
+    ...groups(organizationId),
+    select: (allGroups) => {
+      // Sorting here means that nothing has to be sorted for the individual
+      // user arrays later
+      const sorted = [...allGroups].sort((g1, g2) => {
+        const key =
+          g1.display_name && g2.display_name ? "display_name" : "name";
+
+        if (g1[key] === g2[key]) {
+          return 0;
+        }
+
+        return g1[key] < g2[key] ? -1 : 1;
+      });
+
+      const userIdMapper = new Map<string, Group[]>();
+      for (const group of sorted) {
+        for (const user of group.members) {
+          let groupsForUser = userIdMapper.get(user.id);
+          if (groupsForUser === undefined) {
+            groupsForUser = [];
+            userIdMapper.set(user.id, groupsForUser);
+          }
+
+          groupsForUser.push(group);
+        }
+      }
+
+      return userIdMapper as GroupsByUserId;
+    },
+  } satisfies UseQueryOptions<Group[], unknown, GroupsByUserId>;
+}
 
 export const groupPermissions = (groupId: string) => {
   return {

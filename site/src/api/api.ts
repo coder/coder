@@ -947,7 +947,7 @@ export const getTemplateACL = async (
 export const updateTemplateACL = async (
   templateId: string,
   data: TypesGen.UpdateTemplateACL,
-): Promise<TypesGen.TemplateACL> => {
+): Promise<{ message: string }> => {
   const response = await axios.patch(
     `/api/v2/templates/${templateId}/acl`,
     data,

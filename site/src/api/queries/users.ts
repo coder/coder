@@ -5,11 +5,11 @@ import {
   GetUsersResponse,
   UpdateUserPasswordRequest,
   UpdateUserProfileRequest,
-  User,
   UsersRequest,
+  User,
 } from "api/typesGenerated";
-import { getMetadataAsJSON } from "utils/metadata";
 import { getAuthorizationKey } from "./authCheck";
+import { getMetadataAsJSON } from "utils/metadata";
 
 export const users = (req: UsersRequest): UseQueryOptions<GetUsersResponse> => {
   return {
@@ -89,21 +89,14 @@ export const authMethods = () => {
   };
 };
 
-const initialMeData = getMetadataAsJSON<User>("user");
-const meKey = ["me"] as const;
+const initialUserData = getMetadataAsJSON<User>("user");
 
-export const me = (queryClient: QueryClient) => {
+export const me = () => {
   return {
-    queryKey: meKey,
-    queryFn: async () => {
-      const cachedData = queryClient.getQueryData(meKey);
-      if (cachedData === undefined && initialMeData !== undefined) {
-        return initialMeData;
-      }
-
-      return API.getAuthenticatedUser();
-    },
-  } satisfies UseQueryOptions<User>;
+    queryKey: ["me"],
+    initialData: initialUserData,
+    queryFn: API.getAuthenticatedUser,
+  };
 };
 
 export const hasFirstUser = () => {

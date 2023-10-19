@@ -912,12 +912,15 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 					s.Logger.Error(ctx, "marshal workspace resource info for failed job", slog.Error(err))
 				}
 
+				bag := audit.BaggageFromContext(ctx)
+
 				audit.WorkspaceBuildAudit(ctx, &audit.BuildAuditParams[database.WorkspaceBuild]{
 					Audit:            *auditor,
 					Log:              s.Logger,
 					UserID:           job.InitiatorID,
 					OrganizationID:   workspace.OrganizationID,
 					JobID:            job.ID,
+					IP:               bag.IP,
 					Action:           auditAction,
 					Old:              previousBuild,
 					New:              build,
@@ -1259,12 +1262,15 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 				s.Logger.Error(ctx, "marshal resource info for successful job", slog.Error(err))
 			}
 
+			bag := audit.BaggageFromContext(ctx)
+
 			audit.WorkspaceBuildAudit(ctx, &audit.BuildAuditParams[database.WorkspaceBuild]{
 				Audit:            *auditor,
 				Log:              s.Logger,
 				UserID:           job.InitiatorID,
 				OrganizationID:   workspace.OrganizationID,
 				JobID:            job.ID,
+				IP:               bag.IP,
 				Action:           auditAction,
 				Old:              previousBuild,
 				New:              workspaceBuild,

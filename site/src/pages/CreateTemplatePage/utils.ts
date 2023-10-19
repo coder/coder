@@ -37,6 +37,7 @@ export const newTemplate = (formData: CreateTemplateData) => {
     autostart_requirement: {
       days_of_week: autostart_requirement_days_of_week,
     },
+    require_active_version: false,
   };
 };
 

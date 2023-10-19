@@ -1,15 +1,19 @@
 import Button from "@mui/material/Button";
 import InputAdornment from "@mui/material/InputAdornment";
-import Popover from "@mui/material/Popover";
 import TextField, { TextFieldProps } from "@mui/material/TextField";
 import { makeStyles } from "@mui/styles";
 import Picker from "@emoji-mart/react";
-import { useRef, FC, useState } from "react";
+import { FC } from "react";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Stack } from "components/Stack/Stack";
 import { colors } from "theme/colors";
 import data from "@emoji-mart/data/sets/14/twitter.json";
 import icons from "theme/icons.json";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "components/Popover/Popover";
 
 // See: https://github.com/missive/emoji-mart/issues/51#issuecomment-287353222
 const urlFromUnifiedCode = (unified: string) =>
@@ -45,8 +49,6 @@ const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
   }
 
   const styles = useStyles();
-  const emojiButtonRef = useRef<HTMLButtonElement>(null);
-  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
   const hasIcon = textFieldProps.value && textFieldProps.value !== "";
 
   return (
@@ -71,36 +73,32 @@ const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
         }}
       />
 
-      <Button
-        fullWidth
-        ref={emojiButtonRef}
-        endIcon={<DropdownArrow />}
-        onClick={() => {
-          setIsEmojiPickerOpen((v) => !v);
-        }}
-      >
-        Select emoji
-      </Button>
-
-      <Popover
-        id="emoji"
-        open={isEmojiPickerOpen}
-        anchorEl={emojiButtonRef.current}
-        onClose={() => {
-          setIsEmojiPickerOpen(false);
-        }}
-      >
-        <Picker
-          set="twitter"
-          theme="dark"
-          data={data}
-          custom={custom}
-          onEmojiSelect={(emoji) => {
-            const value = emoji.src ?? urlFromUnifiedCode(emoji.unified);
-            onPickEmoji(value);
-            setIsEmojiPickerOpen(false);
-          }}
-        />
+      <Popover>
+        {(popover) => (
+          <>
+            <PopoverTrigger>
+              <Button fullWidth endIcon={<DropdownArrow />}>
+                Select emoji
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              id="emoji"
+              css={{ marginTop: 0, ".MuiPaper-root": { width: "auto" } }}
+            >
+              <Picker
+                set="twitter"
+                theme="dark"
+                data={data}
+                custom={custom}
+                onEmojiSelect={(emoji) => {
+                  const value = emoji.src ?? urlFromUnifiedCode(emoji.unified);
+                  onPickEmoji(value);
+                  popover.setIsOpen(false);
+                }}
+              />
+            </PopoverContent>
+          </>
+        )}
       </Popover>
     </Stack>
   );
