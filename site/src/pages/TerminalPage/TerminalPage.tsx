@@ -99,6 +99,10 @@ const TerminalPage: FC = () => {
     },
     [workspaceAgent, workspace.data, username, proxy.preferredWildcardHostname],
   );
+  const handleWebLinkRef = useRef(handleWebLink);
+  useEffect(() => {
+    handleWebLinkRef.current = handleWebLink;
+  }, [handleWebLink]);
 
   // Create the terminal!
   useEffect(() => {
@@ -127,7 +131,7 @@ const TerminalPage: FC = () => {
     terminal.unicode.activeVersion = "11";
     terminal.loadAddon(
       new WebLinksAddon((_, uri) => {
-        handleWebLink(uri);
+        handleWebLinkRef.current(uri);
       }),
     );
     setTerminal(terminal);
@@ -141,7 +145,7 @@ const TerminalPage: FC = () => {
       window.removeEventListener("resize", listener);
       terminal.dispose();
     };
-  }, [renderer, config.isLoading, xtermRef, handleWebLink]);
+  }, [renderer, config.isLoading, xtermRef, handleWebLinkRef]);
 
   // Updates the reconnection token into the URL if necessary.
   useEffect(() => {
