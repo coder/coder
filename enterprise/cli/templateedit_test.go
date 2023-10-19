@@ -3,19 +3,17 @@ package cli_test
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
-	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/stretchr/testify/require"
 )
 
-func TestTemplateCreate(t *testing.T) {
+func TestTemplateEdit(t *testing.T) {
 	t.Parallel()
 
 	t.Run("OK", func(t *testing.T) {
@@ -26,7 +24,7 @@ func TestTemplateCreate(t *testing.T) {
 			string(codersdk.ExperimentTemplateUpdatePolicies),
 		}
 
-		client, user := coderdenttest.New(t, &coderdenttest.Options{
+		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureAccessControl: 1,
@@ -38,26 +36,25 @@ func TestTemplateCreate(t *testing.T) {
 			},
 		})
 
-		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
-			Parse:          echo.ParseComplete,
-			ProvisionApply: echo.ApplyComplete,
-		})
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, templateAdmin, owner.OrganizationID, nil)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, version.ID)
+		template := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, version.ID)
+		require.False(t, template.RequireActiveVersion)
 
 		inv, conf := newCLI(t, "templates",
-			"create", "new",
-			"--directory", source,
-			"--test.provisioner", string(database.ProvisionerTypeEcho),
+			"edit", template.Name,
 			"--require-active-version",
 			"-y",
 		)
 
-		clitest.SetupConfig(t, client, conf)
+		clitest.SetupConfig(t, templateAdmin, conf)
 
 		err := inv.Run()
 		require.NoError(t, err)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		template, err := client.TemplateByName(ctx, user.OrganizationID, "new")
+		template, err = templateAdmin.Template(ctx, template.ID)
 		require.NoError(t, err)
 		require.True(t, template.RequireActiveVersion)
 	})
@@ -70,7 +67,7 @@ func TestTemplateCreate(t *testing.T) {
 			string(codersdk.ExperimentTemplateUpdatePolicies),
 		}
 
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+		client, owner := coderdenttest.New(t, &coderdenttest.Options{
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{},
 			},
@@ -80,8 +77,13 @@ func TestTemplateCreate(t *testing.T) {
 			},
 		})
 
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+		require.False(t, template.RequireActiveVersion)
+
 		inv, conf := newCLI(t, "templates",
-			"create", "new",
+			"edit", template.Name,
 			"--require-active-version",
 			"-y",
 		)

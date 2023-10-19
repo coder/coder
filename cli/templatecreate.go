@@ -64,6 +64,10 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 				}
 
 				if requireActiveVersion {
+					if !entitlements.Features[codersdk.FeatureAccessControl].Enabled {
+						return xerrors.Errorf("your license is not entitled to use template access control, so you cannot set --require-active-version")
+					}
+
 					experiments, exErr := client.Experiments(inv.Context())
 					if exErr != nil {
 						return xerrors.Errorf("get experiments: %w", exErr)
@@ -71,10 +75,6 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 
 					if !experiments.Enabled(codersdk.ExperimentTemplateUpdatePolicies) {
 						return xerrors.Errorf("--require-active-version is an experimental feature, pass 'template_update_policies' to the CODER_EXPERIMENTS env var to use this option")
-					}
-
-					if !entitlements.Features[codersdk.FeatureAccessControl].Enabled {
-						return xerrors.Errorf("your license is not entitled to use template access control, so you cannot set --require-active-version")
 					}
 				}
 			}
@@ -229,6 +229,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 			Flag:        "require-active-version",
 			Description: "Requires workspace builds to use the active template version. This setting does not apply to template admins. This is an enterprise-only feature.",
 			Value:       clibase.BoolOf(&requireActiveVersion),
+			Default:     "false",
 		},
 
 		cliui.SkipPromptOption(),
