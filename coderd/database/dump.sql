@@ -925,6 +925,7 @@ CREATE TABLE workspace_agents (
     ready_at timestamp with time zone,
     subsystems workspace_agent_subsystem[] DEFAULT '{}'::workspace_agent_subsystem[],
     display_apps display_app[] DEFAULT '{vscode,vscode_insiders,web_terminal,ssh_helper,port_forwarding_helper}'::display_app[],
+    api_version text DEFAULT ''::text NOT NULL,
     CONSTRAINT max_logs_length CHECK ((logs_length <= 1048576)),
     CONSTRAINT subsystems_not_none CHECK ((NOT ('none'::workspace_agent_subsystem = ANY (subsystems))))
 );
