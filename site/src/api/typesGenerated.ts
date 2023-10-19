@@ -1351,6 +1351,7 @@ export interface Workspace {
   readonly template_icon: string;
   readonly template_allow_user_cancel_workspace_jobs: boolean;
   readonly template_active_version_id: string;
+  readonly template_require_active_version: boolean;
   readonly latest_build: WorkspaceBuild;
   readonly outdated: boolean;
   readonly name: string;
