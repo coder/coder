@@ -37,7 +37,7 @@ export function UserGroupsCell({ userGroups }: GroupsCellProps) {
             <Button
               css={{
                 justifyContent: "flex-start",
-                fontSize: theme.typography.body1.fontSize,
+                fontSize: theme.typography.body2.fontSize,
                 lineHeight: theme.typography.body2.lineHeight,
                 fontWeight: 400,
                 border: "none",
@@ -53,11 +53,14 @@ export function UserGroupsCell({ userGroups }: GroupsCellProps) {
                 direction="row"
                 css={{ columnGap: theme.spacing(1), alignItems: "center" }}
               >
-                {userGroups.length > 0 && (
-                  <GroupIcon
-                    sx={{ width: "16px", height: "16px", opacity: 0.8 }}
-                  />
-                )}
+                <GroupIcon
+                  sx={{
+                    width: "1rem",
+                    height: "1rem",
+                    opacity: userGroups.length > 0 ? 0.8 : 0.5,
+                  }}
+                />
+
                 <span>
                   {userGroups.length} Group{userGroups.length !== 1 && "s"}
                 </span>
