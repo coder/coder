@@ -249,6 +249,17 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 				return xerrors.Errorf("escape coder binary for ssh failed: %w", err)
 			}
 
+			escapedHeaderCommand := ""
+
+			if r.headerCommand != "" {
+				headerCommand, err := sshConfigExecEscape(coderBinary, forceUnixSeparators)
+				if err != nil {
+					return xerrors.Errorf("escape header command for ssh failed: %w", err)
+				}
+
+				escapedHeaderCommand = headerCommand
+			}
+
 			root := r.createConfig()
 			escapedGlobalConfig, err := sshConfigExecEscape(string(root), forceUnixSeparators)
 			if err != nil {
@@ -389,8 +400,8 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 
 					if !skipProxyCommand {
 						rootFlags := fmt.Sprintf("--global-config %s", escapedGlobalConfig)
-						if r.headerCommand != "" {
-							rootFlags += fmt.Sprintf(" --header-command %s", r.headerCommand)
+						if escapedHeaderCommand != "" {
+							rootFlags += fmt.Sprintf(" --header-command %s", escapedHeaderCommand)
 						}
 
 						flags := ""
