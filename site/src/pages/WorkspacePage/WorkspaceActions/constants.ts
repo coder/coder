@@ -33,6 +33,7 @@ interface WorkspaceAbilities {
 export const actionsByWorkspaceStatus = (
   workspace: Workspace,
   status: WorkspaceStatus,
+  canChangeVersions: boolean,
 ): WorkspaceAbilities => {
   if (workspace.dormant_at) {
     return {
@@ -40,6 +41,26 @@ export const actionsByWorkspaceStatus = (
       canCancel: false,
       canAcceptJobs: false,
     };
+  }
+  if (
+    workspace.template_require_active_version &&
+    workspace.outdated &&
+    !canChangeVersions
+  ) {
+    if (status === "running") {
+      return {
+        actions: [ButtonTypesEnum.stop],
+        canCancel: false,
+        canAcceptJobs: true,
+      };
+    }
+    if (status === "stopped") {
+      return {
+        actions: [],
+        canCancel: false,
+        canAcceptJobs: true,
+      };
+    }
   }
   return statusToActions[status];
 };
