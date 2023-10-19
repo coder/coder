@@ -5,7 +5,7 @@ import { useQuery } from "react-query";
 type UpdateCheckState = "show" | "hide";
 
 export const useUpdateCheck = (enabled: boolean) => {
-  const [dimissedVersion, setDismissedVersion] = useState(() =>
+  const [dismissedVersion, setDismissedVersion] = useState(() =>
     getDismissedVersionOnLocal(),
   );
   const updateCheckQuery = useQuery({
@@ -18,10 +18,10 @@ export const useUpdateCheck = (enabled: boolean) => {
       return "hide";
     }
 
-    const isNotDismissed = dimissedVersion !== updateCheckQuery.data.version;
+    const isNotDismissed = dismissedVersion !== updateCheckQuery.data.version;
     const isOutdated = !updateCheckQuery.data.current;
     return isNotDismissed && isOutdated ? "show" : "hide";
-  }, [dimissedVersion, updateCheckQuery.data]);
+  }, [dismissedVersion, updateCheckQuery.data]);
 
   const dismiss = () => {
     if (!updateCheckQuery.data) {
