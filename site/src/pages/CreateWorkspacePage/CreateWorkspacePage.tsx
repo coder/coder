@@ -317,18 +317,13 @@ export function useWorkspaceDuplication(workspace: Workspace) {
   } as const;
 }
 
-export const orderedTemplateParameters = (
-  templateParameters?: TemplateVersionParameter[],
-): TemplateVersionParameter[] => {
-  if (!templateParameters) {
-    return [];
-  }
-
-  const immutables = templateParameters.filter(
-    (parameter) => !parameter.mutable,
-  );
-  const mutables = templateParameters.filter((parameter) => parameter.mutable);
-  return [...immutables, ...mutables];
+export const orderTemplateParameters = (
+  templateParameters?: readonly TemplateVersionParameter[],
+) => {
+  return {
+    mutable: templateParameters?.filter((p) => p.mutable) ?? [],
+    immutable: templateParameters?.filter((p) => !p.mutable) ?? [],
+  } as const;
 };
 
 const generateUniqueName = () => {
