@@ -19,7 +19,7 @@ import { useDashboard } from "components/Dashboard/DashboardProvider";
 import { Region } from "api/typesGenerated";
 import { getLatencyColor } from "utils/latency";
 import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency";
-import { portForwardURL } from "utils/portForward";
+import { openMaybePortForwardedURL } from "utils/portForward";
 import { terminalWebsocketUrl } from "utils/terminal";
 import { getMatchingAgentOrFirst } from "utils/workspace";
 import {
@@ -89,49 +89,13 @@ const TerminalPage: FC = () => {
   // handleWebLink handles opening of URLs in the terminal!
   const handleWebLink = useCallback(
     (uri: string) => {
-      if (
-        !workspaceAgent ||
-        !workspace.data ||
-        !username ||
-        !proxy.preferredWildcardHostname
-      ) {
-        return;
-      }
-
-      const open = (uri: string) => {
-        // Copied from: https://github.com/xtermjs/xterm.js/blob/master/addons/xterm-addon-web-links/src/WebLinksAddon.ts#L23
-        const newWindow = window.open();
-        if (newWindow) {
-          try {
-            newWindow.opener = null;
-          } catch {
-            // no-op, Electron can throw
-          }
-          newWindow.location.href = uri;
-        } else {
-          console.warn("Opening link blocked as opener could not be cleared");
-        }
-      };
-
-      try {
-        const url = new URL(uri);
-        const localHosts = ["0.0.0.0", "127.0.0.1", "localhost"];
-        if (!localHosts.includes(url.hostname)) {
-          open(uri);
-          return;
-        }
-        open(
-          portForwardURL(
-            proxy.preferredWildcardHostname,
-            parseInt(url.port),
-            workspaceAgent.name,
-            workspace.data.name,
-            username,
-          ) + url.pathname,
-        );
-      } catch (ex) {
-        open(uri);
-      }
+      openMaybePortForwardedURL(
+        uri,
+        proxy.preferredWildcardHostname,
+        workspaceAgent?.name,
+        workspace.data?.name,
+        username,
+      );
     },
     [workspaceAgent, workspace.data, username, proxy.preferredWildcardHostname],
   );
