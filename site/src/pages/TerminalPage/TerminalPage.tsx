@@ -84,6 +84,7 @@ const TerminalPage: FC = () => {
   }, [lifecycleState]);
 
   const config = useQuery(deploymentConfig());
+  const renderer = config.data?.config.web_terminal_renderer;
 
   // handleWebLink handles opening of URLs in the terminal!
   const handleWebLink = useCallback(
@@ -150,9 +151,9 @@ const TerminalPage: FC = () => {
         background: colors.gray[16],
       },
     });
-    if (config.data?.config.web_terminal_renderer === "webgl") {
+    if (renderer === "webgl") {
       terminal.loadAddon(new WebglAddon());
-    } else if (config.data?.config.web_terminal_renderer === "canvas") {
+    } else if (renderer === "canvas") {
       terminal.loadAddon(new CanvasAddon());
     }
     const fitAddon = new FitAddon();
@@ -176,7 +177,7 @@ const TerminalPage: FC = () => {
       window.removeEventListener("resize", listener);
       terminal.dispose();
     };
-  }, [config.data, config.isLoading, xtermRef, handleWebLink]);
+  }, [renderer, config.isLoading, xtermRef, handleWebLink]);
 
   // Updates the reconnection token into the URL if necessary.
   useEffect(() => {
