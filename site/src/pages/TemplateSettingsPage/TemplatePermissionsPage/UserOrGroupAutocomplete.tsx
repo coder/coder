@@ -6,7 +6,7 @@ import { type ChangeEvent, useState } from "react";
 import { css } from "@emotion/react";
 import type { Group, User } from "api/typesGenerated";
 import { AvatarData } from "components/AvatarData/AvatarData";
-import { getGroupSubtitle } from "utils/groups";
+import { everyOneGroup, getGroupSubtitle } from "utils/groups";
 import { useDebouncedFunction } from "hooks/debounce";
 import { useQuery } from "react-query";
 import { templaceACLAvailable } from "api/queries/templates";
@@ -24,7 +24,7 @@ export type UserOrGroupAutocompleteProps = {
 
 export const UserOrGroupAutocomplete: React.FC<
   UserOrGroupAutocompleteProps
-> = ({ value, onChange, templateID, exclude }) => {
+> = ({ value, onChange, templateID, organizationId, exclude }) => {
   const [autoComplete, setAutoComplete] = useState<{
     value: string;
     open: boolean;
@@ -42,6 +42,7 @@ export const UserOrGroupAutocomplete: React.FC<
   });
   const options = aclAvailableQuery.data
     ? [
+        everyOneGroup(organizationId),
         ...aclAvailableQuery.data.groups,
         ...aclAvailableQuery.data.users,
       ].filter((result) => {
