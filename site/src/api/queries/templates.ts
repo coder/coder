@@ -6,6 +6,7 @@ import {
   type TemplateVersion,
   CreateTemplateRequest,
   ProvisionerJob,
+  UsersRequest,
 } from "api/typesGenerated";
 import { type QueryClient, type QueryOptions } from "react-query";
 import { delay } from "utils/delay";
@@ -101,6 +102,16 @@ export const updateActiveTemplateVersion = (
         templateByNameKey(template.organization_id, template.name),
       );
     },
+  };
+};
+
+export const templaceACLAvailable = (
+  templateId: string,
+  options: UsersRequest,
+) => {
+  return {
+    queryKey: ["template", templateId, "aclAvailable", options],
+    queryFn: () => API.getTemplateACLAvailable(templateId, options),
   };
 };
 
