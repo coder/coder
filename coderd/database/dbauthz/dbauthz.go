@@ -1265,6 +1265,10 @@ func (q *querier) GetTemplateAppInsights(ctx context.Context, arg database.GetTe
 	return q.db.GetTemplateAppInsights(ctx, arg)
 }
 
+func (q *querier) GetTemplateAppInsightsByTemplate(ctx context.Context, arg database.GetTemplateAppInsightsByTemplateParams) ([]database.GetTemplateAppInsightsByTemplateRow, error) {
+	panic("not implemented")
+}
+
 // Only used by metrics cache.
 func (q *querier) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (database.GetTemplateAverageBuildTimeRow, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {

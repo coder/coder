@@ -1328,6 +1328,21 @@ func (mr *MockStoreMockRecorder) GetTemplateAppInsights(arg0, arg1 interface{}) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateAppInsights", reflect.TypeOf((*MockStore)(nil).GetTemplateAppInsights), arg0, arg1)
 }
 
+// GetTemplateAppInsightsByTemplate mocks base method.
+func (m *MockStore) GetTemplateAppInsightsByTemplate(arg0 context.Context, arg1 database.GetTemplateAppInsightsByTemplateParams) ([]database.GetTemplateAppInsightsByTemplateRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTemplateAppInsightsByTemplate", arg0, arg1)
+	ret0, _ := ret[0].([]database.GetTemplateAppInsightsByTemplateRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTemplateAppInsightsByTemplate indicates an expected call of GetTemplateAppInsightsByTemplate.
+func (mr *MockStoreMockRecorder) GetTemplateAppInsightsByTemplate(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateAppInsightsByTemplate", reflect.TypeOf((*MockStore)(nil).GetTemplateAppInsightsByTemplate), arg0, arg1)
+}
+
 // GetTemplateAverageBuildTime mocks base method.
 func (m *MockStore) GetTemplateAverageBuildTime(arg0 context.Context, arg1 database.GetTemplateAverageBuildTimeParams) (database.GetTemplateAverageBuildTimeRow, error) {
 	m.ctrl.T.Helper()
