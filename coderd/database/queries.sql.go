@@ -1937,6 +1937,79 @@ func (q *sqlQuerier) GetTemplateInsightsByInterval(ctx context.Context, arg GetT
 	return items, nil
 }
 
+const getTemplateInsightsByTemplate = `-- name: GetTemplateInsightsByTemplate :many
+WITH agent_stats_by_interval_and_user AS (
+	SELECT
+		date_trunc('minute', was.created_at) AS created_at_trunc,
+		was.template_id,
+		was.user_id,
+		CASE WHEN SUM(was.session_count_vscode) > 0 THEN 60 ELSE 0 END AS usage_vscode_seconds,
+		CASE WHEN SUM(was.session_count_jetbrains) > 0 THEN 60 ELSE 0 END AS usage_jetbrains_seconds,
+		CASE WHEN SUM(was.session_count_reconnecting_pty) > 0 THEN 60 ELSE 0 END AS usage_reconnecting_pty_seconds,
+		CASE WHEN SUM(was.session_count_ssh) > 0 THEN 60 ELSE 0 END AS usage_ssh_seconds
+	FROM workspace_agent_stats was
+	WHERE
+		was.created_at >= $1::timestamptz
+		AND was.created_at < $2::timestamptz
+		AND was.connection_count > 0
+	GROUP BY created_at_trunc, was.template_id, was.user_id
+)
+
+SELECT
+	template_id,
+	COALESCE(COUNT(DISTINCT user_id))::bigint AS active_users,
+	COALESCE(SUM(usage_vscode_seconds), 0)::bigint AS usage_vscode_seconds,
+	COALESCE(SUM(usage_jetbrains_seconds), 0)::bigint AS usage_jetbrains_seconds,
+	COALESCE(SUM(usage_reconnecting_pty_seconds), 0)::bigint AS usage_reconnecting_pty_seconds,
+	COALESCE(SUM(usage_ssh_seconds), 0)::bigint AS usage_ssh_seconds
+FROM agent_stats_by_interval_and_user
+GROUP BY template_id
+`
+
+type GetTemplateInsightsByTemplateParams struct {
+	StartTime time.Time `db:"start_time" json:"start_time"`
+	EndTime   time.Time `db:"end_time" json:"end_time"`
+}
+
+type GetTemplateInsightsByTemplateRow struct {
+	TemplateID                  uuid.UUID `db:"template_id" json:"template_id"`
+	ActiveUsers                 int64     `db:"active_users" json:"active_users"`
+	UsageVscodeSeconds          int64     `db:"usage_vscode_seconds" json:"usage_vscode_seconds"`
+	UsageJetbrainsSeconds       int64     `db:"usage_jetbrains_seconds" json:"usage_jetbrains_seconds"`
+	UsageReconnectingPtySeconds int64     `db:"usage_reconnecting_pty_seconds" json:"usage_reconnecting_pty_seconds"`
+	UsageSshSeconds             int64     `db:"usage_ssh_seconds" json:"usage_ssh_seconds"`
+}
+
+func (q *sqlQuerier) GetTemplateInsightsByTemplate(ctx context.Context, arg GetTemplateInsightsByTemplateParams) ([]GetTemplateInsightsByTemplateRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplateInsightsByTemplate, arg.StartTime, arg.EndTime)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTemplateInsightsByTemplateRow
+	for rows.Next() {
+		var i GetTemplateInsightsByTemplateRow
+		if err := rows.Scan(
+			&i.TemplateID,
+			&i.ActiveUsers,
+			&i.UsageVscodeSeconds,
+			&i.UsageJetbrainsSeconds,
+			&i.UsageReconnectingPtySeconds,
+			&i.UsageSshSeconds,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getTemplateParameterInsights = `-- name: GetTemplateParameterInsights :many
 WITH latest_workspace_builds AS (
 	SELECT

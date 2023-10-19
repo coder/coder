@@ -2500,6 +2500,10 @@ func (q *FakeQuerier) GetTemplateInsights(_ context.Context, arg database.GetTem
 
 	templateIDSet := make(map[uuid.UUID]struct{})
 	appUsageIntervalsByUser := make(map[uuid.UUID]map[time.Time]*database.GetTemplateInsightsRow)
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
 	for _, s := range q.workspaceAgentStats {
 		if s.CreatedAt.Before(arg.StartTime) || s.CreatedAt.Equal(arg.EndTime) || s.CreatedAt.After(arg.EndTime) {
 			continue
@@ -2644,6 +2648,101 @@ func (q *FakeQuerier) GetTemplateInsightsByInterval(ctx context.Context, arg dat
 			TemplateIDs: templateIDs,
 			ActiveUsers: int64(len(ds.userSet)),
 		})
+	}
+	return result, nil
+}
+
+func (q *FakeQuerier) GetTemplateInsightsByTemplate(_ context.Context, arg database.GetTemplateInsightsByTemplateParams) ([]database.GetTemplateInsightsByTemplateRow, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	// map time.Time x TemplateID x UserID x <usage>
+	appUsageByTemplateAndUser := map[time.Time]map[uuid.UUID]map[uuid.UUID]database.GetTemplateInsightsByTemplateRow{}
+
+	// Review agent stats in terms of usage
+	templateIDSet := make(map[uuid.UUID]struct{})
+
+	for _, s := range q.workspaceAgentStats {
+		if s.CreatedAt.Before(arg.StartTime) || s.CreatedAt.Equal(arg.EndTime) || s.CreatedAt.After(arg.EndTime) {
+			continue
+		}
+		if s.ConnectionCount == 0 {
+			continue
+		}
+
+		t := s.CreatedAt.Truncate(time.Minute)
+		templateIDSet[s.TemplateID] = struct{}{}
+
+		if _, ok := appUsageByTemplateAndUser[t]; !ok {
+			appUsageByTemplateAndUser[t] = make(map[uuid.UUID]map[uuid.UUID]database.GetTemplateInsightsByTemplateRow)
+		}
+
+		if _, ok := appUsageByTemplateAndUser[t][s.TemplateID]; !ok {
+			appUsageByTemplateAndUser[t][s.TemplateID] = make(map[uuid.UUID]database.GetTemplateInsightsByTemplateRow)
+		}
+
+		if _, ok := appUsageByTemplateAndUser[t][s.TemplateID][s.UserID]; !ok {
+			appUsageByTemplateAndUser[t][s.TemplateID][s.UserID] = database.GetTemplateInsightsByTemplateRow{}
+		}
+
+		u := appUsageByTemplateAndUser[t][s.TemplateID][s.UserID]
+		if s.SessionCountJetBrains > 0 {
+			u.UsageJetbrainsSeconds = 60
+		}
+		if s.SessionCountVSCode > 0 {
+			u.UsageVscodeSeconds = 60
+		}
+		if s.SessionCountReconnectingPTY > 0 {
+			u.UsageReconnectingPtySeconds = 60
+		}
+		if s.SessionCountSSH > 0 {
+			u.UsageSshSeconds = 60
+		}
+		appUsageByTemplateAndUser[t][s.TemplateID][s.UserID] = u
+	}
+
+	// Sort used templates
+	templateIDs := make([]uuid.UUID, 0, len(templateIDSet))
+	for templateID := range templateIDSet {
+		templateIDs = append(templateIDs, templateID)
+	}
+	slices.SortFunc(templateIDs, func(a, b uuid.UUID) int {
+		return slice.Ascending(a.String(), b.String())
+	})
+
+	// Build result
+	var result []database.GetTemplateInsightsByTemplateRow
+	for _, templateID := range templateIDs {
+		r := database.GetTemplateInsightsByTemplateRow{
+			TemplateID: templateID,
+		}
+
+		uniqueUsers := map[uuid.UUID]struct{}{}
+
+		for _, mTemplateUserUsage := range appUsageByTemplateAndUser {
+			mUserUsage, ok := mTemplateUserUsage[templateID]
+			if !ok {
+				continue // template was not used in this time window
+			}
+
+			for userID, usage := range mUserUsage {
+				uniqueUsers[userID] = struct{}{}
+
+				r.UsageJetbrainsSeconds += usage.UsageJetbrainsSeconds
+				r.UsageVscodeSeconds += usage.UsageVscodeSeconds
+				r.UsageReconnectingPtySeconds += usage.UsageReconnectingPtySeconds
+				r.UsageSshSeconds += usage.UsageSshSeconds
+			}
+		}
+
+		r.ActiveUsers = int64(len(uniqueUsers))
+
+		result = append(result, r)
 	}
 	return result, nil
 }

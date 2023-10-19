@@ -704,6 +704,13 @@ func (m metricsStore) GetTemplateInsightsByInterval(ctx context.Context, arg dat
 	return r0, r1
 }
 
+func (m metricsStore) GetTemplateInsightsByTemplate(ctx context.Context, arg database.GetTemplateInsightsByTemplateParams) ([]database.GetTemplateInsightsByTemplateRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateInsightsByTemplate(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetTemplateInsightsByTemplate").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetTemplateParameterInsights(ctx context.Context, arg database.GetTemplateParameterInsightsParams) ([]database.GetTemplateParameterInsightsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetTemplateParameterInsights(ctx, arg)

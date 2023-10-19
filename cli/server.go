@@ -80,6 +80,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/oauthpki"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
+	"github.com/coder/coder/v2/coderd/prometheusmetrics/insights"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -199,6 +200,21 @@ func enablePrometheus(
 		return nil, xerrors.Errorf("register workspaces prometheus metric: %w", err)
 	}
 	afterCtx(ctx, closeWorkspacesFunc)
+
+	insightsMetricsCollector, err := insights.NewMetricsCollector(options.Database, options.Logger, 0, 0)
+	if err != nil {
+		return nil, xerrors.Errorf("unable to initialize insights metrics collector: %w", err)
+	}
+	err = options.PrometheusRegistry.Register(insightsMetricsCollector)
+	if err != nil {
+		return nil, xerrors.Errorf("unable to register insights metrics collector: %w", err)
+	}
+
+	closeInsightsMetricsCollector, err := insightsMetricsCollector.Run(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("unable to run insights metrics collector: %w", err)
+	}
+	afterCtx(ctx, closeInsightsMetricsCollector)
 
 	if vals.Prometheus.CollectAgentStats {
 		closeAgentStatsFunc, err := prometheusmetrics.AgentStats(ctx, logger, options.PrometheusRegistry, options.Database, time.Now(), 0)
