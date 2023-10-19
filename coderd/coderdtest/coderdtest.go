@@ -218,7 +218,6 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 
 	if options.Database == nil {
 		options.Database, options.Pubsub = dbtestutil.NewDB(t)
-		options.Database = dbauthz.New(options.Database, options.Authorizer, options.Logger.Leveled(slog.LevelDebug))
 	}
 
 	// Some routes expect a deployment ID, so just make sure one exists.
@@ -260,6 +259,10 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		t.Cleanup(closeBatcher)
 	}
 
+	accessControlStore := &atomic.Pointer[dbauthz.AccessControlStore]{}
+	var acs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
+	accessControlStore.Store(&acs)
+
 	var templateScheduleStore atomic.Pointer[schedule.TemplateScheduleStore]
 	if options.TemplateScheduleStore == nil {
 		options.TemplateScheduleStore = schedule.NewAGPLTemplateScheduleStore()
@@ -279,6 +282,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.Pubsub,
 		&templateScheduleStore,
 		&auditor,
+		accessControlStore,
 		*options.Logger,
 		options.AutobuildTicker,
 	).WithStatsChannel(options.AutobuildStats)
@@ -416,6 +420,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			Authorizer:                         options.Authorizer,
 			Telemetry:                          telemetry.NewNoop(),
 			TemplateScheduleStore:              &templateScheduleStore,
+			AccessControlStore:                 accessControlStore,
 			TLSCertificates:                    options.TLSCertificates,
 			TrialGenerator:                     options.TrialGenerator,
 			TailnetCoordinator:                 options.Coordinator,
@@ -915,7 +920,7 @@ func CreateWorkspace(t testing.TB, client *codersdk.Client, organization uuid.UU
 }
 
 // TransitionWorkspace is a convenience method for transitioning a workspace from one state to another.
-func MustTransitionWorkspace(t testing.TB, client *codersdk.Client, workspaceID uuid.UUID, from, to database.WorkspaceTransition) codersdk.Workspace {
+func MustTransitionWorkspace(t testing.TB, client *codersdk.Client, workspaceID uuid.UUID, from, to database.WorkspaceTransition, muts ...func(req *codersdk.CreateWorkspaceBuildRequest)) codersdk.Workspace {
 	t.Helper()
 	ctx := context.Background()
 	workspace, err := client.Workspace(ctx, workspaceID)
@@ -925,10 +930,16 @@ func MustTransitionWorkspace(t testing.TB, client *codersdk.Client, workspaceID 
 	template, err := client.Template(ctx, workspace.TemplateID)
 	require.NoError(t, err, "fetch workspace template")
 
-	build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+	req := codersdk.CreateWorkspaceBuildRequest{
 		TemplateVersionID: template.ActiveVersionID,
 		Transition:        codersdk.WorkspaceTransition(to),
-	})
+	}
+
+	for _, mut := range muts {
+		mut(&req)
+	}
+
+	build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, req)
 	require.NoError(t, err, "unexpected error transitioning workspace to %s", to)
 
 	_ = AwaitWorkspaceBuildJobCompleted(t, client, build.ID)

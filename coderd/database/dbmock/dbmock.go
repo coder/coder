@@ -1433,6 +1433,21 @@ func (mr *MockStoreMockRecorder) GetTemplateInsightsByInterval(arg0, arg1 interf
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateInsightsByInterval", reflect.TypeOf((*MockStore)(nil).GetTemplateInsightsByInterval), arg0, arg1)
 }
 
+// GetTemplateInsightsByTemplate mocks base method.
+func (m *MockStore) GetTemplateInsightsByTemplate(arg0 context.Context, arg1 database.GetTemplateInsightsByTemplateParams) ([]database.GetTemplateInsightsByTemplateRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTemplateInsightsByTemplate", arg0, arg1)
+	ret0, _ := ret[0].([]database.GetTemplateInsightsByTemplateRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTemplateInsightsByTemplate indicates an expected call of GetTemplateInsightsByTemplate.
+func (mr *MockStoreMockRecorder) GetTemplateInsightsByTemplate(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateInsightsByTemplate", reflect.TypeOf((*MockStore)(nil).GetTemplateInsightsByTemplate), arg0, arg1)
+}
+
 // GetTemplateParameterInsights mocks base method.
 func (m *MockStore) GetTemplateParameterInsights(arg0 context.Context, arg1 database.GetTemplateParameterInsightsParams) ([]database.GetTemplateParameterInsightsRow, error) {
 	m.ctrl.T.Helper()
@@ -3211,6 +3226,20 @@ func (m *MockStore) UpdateTemplateACLByID(arg0 context.Context, arg1 database.Up
 func (mr *MockStoreMockRecorder) UpdateTemplateACLByID(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTemplateACLByID", reflect.TypeOf((*MockStore)(nil).UpdateTemplateACLByID), arg0, arg1)
+}
+
+// UpdateTemplateAccessControlByID mocks base method.
+func (m *MockStore) UpdateTemplateAccessControlByID(arg0 context.Context, arg1 database.UpdateTemplateAccessControlByIDParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateTemplateAccessControlByID", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateTemplateAccessControlByID indicates an expected call of UpdateTemplateAccessControlByID.
+func (mr *MockStoreMockRecorder) UpdateTemplateAccessControlByID(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTemplateAccessControlByID", reflect.TypeOf((*MockStore)(nil).UpdateTemplateAccessControlByID), arg0, arg1)
 }
 
 // UpdateTemplateActiveVersionByID mocks base method.

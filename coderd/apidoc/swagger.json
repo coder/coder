@@ -6969,6 +6969,10 @@
           "description": "Name is the name of the template.",
           "type": "string"
         },
+        "require_active_version": {
+          "description": "RequireActiveVersion mandates that workspaces are built with the active\ntemplate version.",
+          "type": "boolean"
+        },
         "template_version_id": {
           "description": "VersionID is an in-progress or completed job to use as an initial version\nof the template.\n\nThis is required on creation to enable a user-flow of validating a\ntemplate works. There is no reason the data-model cannot support empty\ntemplates, but it doesn't make sense for users.",
           "type": "string",
@@ -9027,6 +9031,10 @@
         "provisioner": {
           "type": "string",
           "enum": ["terraform"]
+        },
+        "require_active_version": {
+          "description": "RequireActiveVersion mandates that workspaces are built with the active\ntemplate version.",
+          "type": "boolean"
         },
         "time_til_dormant_autodelete_ms": {
           "type": "integer"
