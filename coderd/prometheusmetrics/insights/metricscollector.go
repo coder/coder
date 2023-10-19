@@ -120,6 +120,7 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				ticker.Stop()
 				doTick()
 			}
 		}
