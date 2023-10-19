@@ -40,19 +40,44 @@ func (r *RootCmd) restart() *clibase.Cmd {
 				return err
 			}
 
-			template, err := client.Template(inv.Context(), workspace.TemplateID)
-			if err != nil {
-				return err
-			}
-
 			buildOptions, err := asWorkspaceBuildParameters(parameterFlags.buildOptions)
 			if err != nil {
 				return xerrors.Errorf("can't parse build options: %w", err)
 			}
 
+			template, err := client.Template(inv.Context(), workspace.TemplateID)
+			if err != nil {
+				return xerrors.Errorf("get template: %w", err)
+			}
+
+			versionID := workspace.LatestBuild.TemplateVersionID
+			if template.RequireActiveVersion {
+				key := "template"
+				resp, err := client.AuthCheck(inv.Context(), codersdk.AuthorizationRequest{
+					Checks: map[string]codersdk.AuthorizationCheck{
+						key: {
+							Object: codersdk.AuthorizationObject{
+								ResourceType:   codersdk.ResourceTemplate,
+								OwnerID:        workspace.OwnerID.String(),
+								OrganizationID: workspace.OrganizationID.String(),
+								ResourceID:     template.ID.String(),
+							},
+							Action: "update",
+						},
+					},
+				})
+				if err != nil {
+					return xerrors.Errorf("auth check: %w", err)
+				}
+				// We don't have template admin privileges.
+				if !resp[key] {
+					versionID = template.ActiveVersionID
+				}
+			}
+
 			buildParameters, err := prepStartWorkspace(inv, client, prepStartWorkspaceArgs{
-				Action:   WorkspaceRestart,
-				Template: template,
+				Action:            WorkspaceRestart,
+				TemplateVersionID: versionID,
 
 				LastBuildParameters: lastBuildParameters,
 

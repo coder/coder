@@ -6,6 +6,8 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/google/uuid"
+
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
@@ -37,7 +39,32 @@ func (r *RootCmd) start() *clibase.Cmd {
 
 			template, err := client.Template(inv.Context(), workspace.TemplateID)
 			if err != nil {
-				return err
+				return xerrors.Errorf("get template: %w", err)
+			}
+
+			versionID := workspace.LatestBuild.TemplateVersionID
+			if template.RequireActiveVersion {
+				key := "template"
+				resp, err := client.AuthCheck(inv.Context(), codersdk.AuthorizationRequest{
+					Checks: map[string]codersdk.AuthorizationCheck{
+						key: {
+							Object: codersdk.AuthorizationObject{
+								ResourceType:   codersdk.ResourceTemplate,
+								OwnerID:        workspace.OwnerID.String(),
+								OrganizationID: workspace.OrganizationID.String(),
+								ResourceID:     template.ID.String(),
+							},
+							Action: "update",
+						},
+					},
+				})
+				if err != nil {
+					return xerrors.Errorf("auth check: %w", err)
+				}
+				// We don't have template admin privileges.
+				if !resp[key] {
+					versionID = template.ActiveVersionID
+				}
 			}
 
 			buildOptions, err := asWorkspaceBuildParameters(parameterFlags.buildOptions)
@@ -46,8 +73,8 @@ func (r *RootCmd) start() *clibase.Cmd {
 			}
 
 			buildParameters, err := prepStartWorkspace(inv, client, prepStartWorkspaceArgs{
-				Action:   WorkspaceStart,
-				Template: template,
+				Action:            WorkspaceStart,
+				TemplateVersionID: versionID,
 
 				LastBuildParameters: lastBuildParameters,
 
@@ -61,6 +88,7 @@ func (r *RootCmd) start() *clibase.Cmd {
 			build, err := client.CreateWorkspaceBuild(inv.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 				Transition:          codersdk.WorkspaceTransitionStart,
 				RichParameterValues: buildParameters,
+				TemplateVersionID:   versionID,
 			})
 			if err != nil {
 				return err
@@ -82,8 +110,8 @@ func (r *RootCmd) start() *clibase.Cmd {
 }
 
 type prepStartWorkspaceArgs struct {
-	Action   WorkspaceCLIAction
-	Template codersdk.Template
+	Action            WorkspaceCLIAction
+	TemplateVersionID uuid.UUID
 
 	LastBuildParameters []codersdk.WorkspaceBuildParameter
 
@@ -94,7 +122,7 @@ type prepStartWorkspaceArgs struct {
 func prepStartWorkspace(inv *clibase.Invocation, client *codersdk.Client, args prepStartWorkspaceArgs) ([]codersdk.WorkspaceBuildParameter, error) {
 	ctx := inv.Context()
 
-	templateVersion, err := client.TemplateVersion(ctx, args.Template.ActiveVersionID)
+	templateVersion, err := client.TemplateVersion(ctx, args.TemplateVersionID)
 	if err != nil {
 		return nil, xerrors.Errorf("get template version: %w", err)
 	}
