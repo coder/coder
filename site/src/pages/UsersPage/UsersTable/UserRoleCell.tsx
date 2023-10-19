@@ -97,45 +97,43 @@ function OverflowRolePill({ roles }: OverflowRolePillProps) {
   const theme = useTheme();
 
   return (
-    <>
-      <Popover mode="hover">
-        <PopoverTrigger>
+    <Popover mode="hover">
+      <PopoverTrigger>
+        <Pill
+          text={`+${roles.length} more`}
+          css={{
+            backgroundColor: theme.palette.background.paperLight,
+            borderColor: theme.palette.divider,
+          }}
+        />
+      </PopoverTrigger>
+
+      <PopoverContent
+        disableRestoreFocus
+        disableScrollLock
+        css={{
+          ".MuiPaper-root": {
+            display: "flex",
+            flexFlow: "row wrap",
+            columnGap: theme.spacing(1),
+            rowGap: theme.spacing(1.5),
+            padding: theme.spacing(1.5, 2),
+            alignContent: "space-around",
+          },
+        }}
+      >
+        {roles.map((role) => (
           <Pill
-            text={`+${roles.length} more`}
+            key={role.name}
+            text={role.display_name || role.name}
             css={{
               backgroundColor: theme.palette.background.paperLight,
               borderColor: theme.palette.divider,
             }}
           />
-        </PopoverTrigger>
-
-        <PopoverContent
-          disableRestoreFocus
-          disableScrollLock
-          css={{
-            ".MuiPaper-root": {
-              display: "flex",
-              flexFlow: "row wrap",
-              columnGap: theme.spacing(1),
-              rowGap: theme.spacing(1.5),
-              padding: theme.spacing(1.5, 2),
-              alignContent: "space-around",
-            },
-          }}
-        >
-          {roles.map((role) => (
-            <Pill
-              key={role.name}
-              text={role.display_name || role.name}
-              css={{
-                backgroundColor: theme.palette.background.paperLight,
-                borderColor: theme.palette.divider,
-              }}
-            />
-          ))}
-        </PopoverContent>
-      </Popover>
-    </>
+        ))}
+      </PopoverContent>
+    </Popover>
   );
 }
 
