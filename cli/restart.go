@@ -110,6 +110,7 @@ func (r *RootCmd) restart() *clibase.Cmd {
 			build, err = client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 				Transition:          codersdk.WorkspaceTransitionStart,
 				RichParameterValues: buildParameters,
+				TemplateVersionID:   versionID,
 			})
 			if err != nil {
 				return err

@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+// TestStart also tests restart since the tests are virtually identical.
 func TestStart(t *testing.T) {
 	t.Parallel()
 
@@ -131,34 +132,45 @@ func TestStart(t *testing.T) {
 			},
 		}
 
-		for _, c := range cases {
-			t.Run(c.Name, func(t *testing.T) {
-				// Instantiate a new context for each subtest since
-				// they can potentially be lengthy.
-				ctx = testutil.Context(t, testutil.WaitMedium)
-				// Create the workspace using the admin since we want
-				// to force the old version.
-				ws, err := ownerClient.CreateWorkspace(ctx, owner.OrganizationID, c.WorkspaceOwner.String(), codersdk.CreateWorkspaceRequest{
-					TemplateVersionID: oldVersion.ID,
-					Name:              "abc123",
-					AutomaticUpdates:  codersdk.AutomaticUpdatesNever,
-				})
-				require.NoError(t, err)
-				coderdtest.AwaitWorkspaceBuildJobCompleted(t, c.Client, ws.LatestBuild.ID)
-				// Stop the workspace so that we can start it.
-				coderdtest.MustTransitionWorkspace(t, c.Client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop, func(req *codersdk.CreateWorkspaceBuildRequest) {
-					req.TemplateVersionID = oldVersion.ID
-				})
+		for _, cmd := range []string{"start", "restart"} {
+			cmd := cmd
+			t.Run(cmd, func(t *testing.T) {
+				t.Parallel()
+				for _, c := range cases {
+					c := c
+					t.Run(c.Name, func(t *testing.T) {
+						t.Parallel()
 
-				// Start the workspace. Every test permutation should
-				// pass.
-				inv, conf := newCLI(t, "start", ws.Name)
-				clitest.SetupConfig(t, c.Client, conf)
-				err = inv.Run()
-				require.NoError(t, err)
+						// Instantiate a new context for each subtest since
+						// they can potentially be lengthy.
+						ctx = testutil.Context(t, testutil.WaitMedium)
+						// Create the workspace using the admin since we want
+						// to force the old version.
+						ws, err := ownerClient.CreateWorkspace(ctx, owner.OrganizationID, c.WorkspaceOwner.String(), codersdk.CreateWorkspaceRequest{
+							TemplateVersionID: oldVersion.ID,
+							Name:              coderdtest.RandomUsername(t),
+							AutomaticUpdates:  codersdk.AutomaticUpdatesNever,
+						})
+						require.NoError(t, err)
+						coderdtest.AwaitWorkspaceBuildJobCompleted(t, c.Client, ws.LatestBuild.ID)
 
-				ws = coderdtest.MustWorkspace(t, c.Client, ws.ID)
-				require.Equal(t, c.ExpectedVersion, ws.LatestBuild.TemplateVersionID)
+						if cmd == "start" {
+							// Stop the workspace so that we can start it.
+							coderdtest.MustTransitionWorkspace(t, c.Client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop, func(req *codersdk.CreateWorkspaceBuildRequest) {
+								req.TemplateVersionID = oldVersion.ID
+							})
+						}
+						// Start the workspace. Every test permutation should
+						// pass.
+						inv, conf := newCLI(t, cmd, ws.Name, "-y")
+						clitest.SetupConfig(t, c.Client, conf)
+						err = inv.Run()
+						require.NoError(t, err)
+
+						ws = coderdtest.MustWorkspace(t, c.Client, ws.ID)
+						require.Equal(t, c.ExpectedVersion, ws.LatestBuild.TemplateVersionID)
+					})
+				}
 			})
 		}
 	})
