@@ -782,6 +782,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					return xerrors.Errorf("create telemetry reporter: %w", err)
 				}
 				defer options.Telemetry.Close()
+			} else {
+				logger.Warn(ctx, `telemetry disabled, unable to notify of security issues. Read more: https://coder.com/docs/v2/latest/admin/telemetry`)
 			}
 
 			// This prevents the pprof import from being accidentally deleted.
