@@ -93,7 +93,7 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 		// Phase 2: Collect template IDs, and fetch relevant details
 		templateIDs := uniqueTemplateIDs(templateInsights)
 
-		templateNames := map[uuid.UUID]string{}
+		templateNames := make(map[uuid.UUID]string, len(templateIDs))
 		if len(templateIDs) > 0 {
 			templates, err := mc.database.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
 				IDs: templateIDs,
