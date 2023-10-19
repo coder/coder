@@ -1266,7 +1266,10 @@ func (q *querier) GetTemplateAppInsights(ctx context.Context, arg database.GetTe
 }
 
 func (q *querier) GetTemplateAppInsightsByTemplate(ctx context.Context, arg database.GetTemplateAppInsightsByTemplateParams) ([]database.GetTemplateAppInsightsByTemplateRow, error) {
-	panic("not implemented")
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
+		return nil, err
+	}
+	return q.db.GetTemplateAppInsightsByTemplate(ctx, arg)
 }
 
 // Only used by metrics cache.
