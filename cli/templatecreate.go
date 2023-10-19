@@ -65,7 +65,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 
 				if requireActiveVersion {
 					if !entitlements.Features[codersdk.FeatureAccessControl].Enabled {
-						return xerrors.Errorf("your license is not entitled to use template access control, so you cannot set --require-active-version")
+						return xerrors.Errorf("your license is not entitled to use enterprise access control, so you cannot set --require-active-version")
 					}
 
 					experiments, exErr := client.Experiments(inv.Context())

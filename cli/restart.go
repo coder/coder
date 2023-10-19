@@ -7,11 +7,10 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/pretty"
-
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/pretty"
 )
 
 func (r *RootCmd) restart() *clibase.Cmd {
@@ -88,29 +87,14 @@ func (r *RootCmd) restart() *clibase.Cmd {
 			// It's possible for a workspace build to fail due to the template requiring starting
 			// workspaces with the active version.
 			if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusUnauthorized {
-				template, err := client.Template(inv.Context(), workspace.TemplateID)
-				if err != nil {
-					return xerrors.Errorf("get template: %w", err)
-				}
-
-				buildParameters, err := prepStartWorkspace(inv, client, prepStartWorkspaceArgs{
-					Action:            WorkspaceStart,
-					TemplateVersionID: template.ActiveVersionID,
-
+				build, err = startWorkspaceActiveVersion(inv, client, startWorkspaceActiveVersionArgs{
+					BuildOptions:        buildOptions,
 					LastBuildParameters: lastBuildParameters,
-
-					PromptBuildOptions: parameterFlags.promptBuildOptions,
-					BuildOptions:       buildOptions,
+					PromptBuildOptions:  parameterFlags.promptBuildOptions,
+					Workspace:           workspace,
 				})
 				if err != nil {
-					return err
-				}
-
-				req.RichParameterValues = buildParameters
-				req.TemplateVersionID = template.ActiveVersionID
-				build, err = client.CreateWorkspaceBuild(inv.Context(), workspace.ID, req)
-				if err != nil {
-					return err
+					return xerrors.Errorf("start workspace with active template version: %w", err)
 				}
 			} else if err != nil {
 				return err
