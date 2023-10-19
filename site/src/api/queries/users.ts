@@ -89,10 +89,12 @@ export const authMethods = () => {
   };
 };
 
+const initialUserData = getMetadataAsJSON<User>("user");
+
 export const me = () => {
   return {
     queryKey: ["me"],
-    initialData: getMetadataAsJSON<User>("user"),
+    initialData: initialUserData,
     queryFn: API.getAuthenticatedUser,
   };
 };
