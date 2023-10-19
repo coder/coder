@@ -137,7 +137,7 @@ FROM agent_stats_by_interval_and_user;
 -- name: GetTemplateInsightsByTemplate :many
 WITH agent_stats_by_interval_and_user AS (
 	SELECT
-		date_trunc('minute', was.created_at),
+		date_trunc('minute', was.created_at) AS created_at_trunc,
 		was.template_id,
 		was.user_id,
 		CASE WHEN SUM(was.session_count_vscode) > 0 THEN 60 ELSE 0 END AS usage_vscode_seconds,
@@ -149,7 +149,7 @@ WITH agent_stats_by_interval_and_user AS (
 		was.created_at >= @start_time::timestamptz
 		AND was.created_at < @end_time::timestamptz
 		AND was.connection_count > 0
-	GROUP BY date_trunc('minute', was.created_at), was.template_id, was.user_id
+	GROUP BY created_at_trunc, was.template_id, was.user_id
 )
 
 SELECT
