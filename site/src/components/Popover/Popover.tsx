@@ -74,10 +74,10 @@ export const PopoverTrigger = (props: {
   };
 
   const hoverProps = {
-    onMouseEnter: () => {
+    onPointerEnter: () => {
       popover.setOpen(true);
     },
-    onMouseLeave: () => {
+    onPointerLeave: () => {
       popover.setOpen(false);
     },
   };
