@@ -10,7 +10,12 @@ import TableCell from "@mui/material/TableCell";
 import Button from "@mui/material/Button";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
-import Popover from "@mui/material/Popover";
+
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "components/Popover/Popover";
 
 type GroupsCellProps = {
   userGroups: readonly Group[] | undefined;
@@ -41,53 +46,46 @@ export function UserGroupsCell({ userGroups }: GroupsCellProps) {
         // the table UI
         <em css={{ fontStyle: "normal" }}>N/A</em>
       ) : (
-        <>
-          <Button
-            aria-haspopup
-            aria-owns={isPopoverOpen ? popoverId : undefined}
-            onPointerEnter={openPopover}
-            onPointerLeave={closePopover}
-            css={{
-              justifyContent: "flex-start",
-              fontSize: theme.typography.body1.fontSize,
-              lineHeight: theme.typography.body2.lineHeight,
-              fontWeight: 400,
-              border: "none",
-              padding: 0,
-              "&:hover": {
+        <Popover mode="hover">
+          <PopoverTrigger>
+            <Button
+              aria-haspopup
+              aria-owns={isPopoverOpen ? popoverId : undefined}
+              onPointerEnter={openPopover}
+              onPointerLeave={closePopover}
+              css={{
+                justifyContent: "flex-start",
+                fontSize: theme.typography.body1.fontSize,
+                lineHeight: theme.typography.body2.lineHeight,
+                fontWeight: 400,
                 border: "none",
-                backgroundColor: "transparent",
-              },
-            }}
-          >
-            <Stack spacing={0}>
-              <span>
-                {userGroups.length} Group{userGroups.length !== 1 && "s"}
-              </span>
+                padding: 0,
+                "&:hover": {
+                  border: "none",
+                  backgroundColor: "transparent",
+                },
+              }}
+            >
+              <Stack spacing={0}>
+                <span>
+                  {userGroups.length} Group{userGroups.length !== 1 && "s"}
+                </span>
 
-              <span
-                css={{
-                  fontSize: "0.75rem",
-                  color: theme.palette.text.secondary,
-                  textDecoration: isPopoverOpen ? "none" : "underline",
-                  textUnderlineOffset: "0.2em",
-                }}
-              >
-                See details
-              </span>
-            </Stack>
-          </Button>
+                <span
+                  css={{
+                    fontSize: "0.75rem",
+                    color: theme.palette.text.secondary,
+                    textDecoration: isPopoverOpen ? "none" : "underline",
+                    textUnderlineOffset: "0.2em",
+                  }}
+                >
+                  See details
+                </span>
+              </Stack>
+            </Button>
+          </PopoverTrigger>
 
-          <Popover
-            id={popoverId}
-            anchorEl={anchorEl}
-            open={anchorEl !== null}
-            onClose={closePopover}
-            anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-            disablePortal
-            disableScrollLock
-            css={{ pointerEvents: "none" }}
-          >
+          <PopoverContent disableScrollLock disableRestoreFocus>
             <OverflowY maxHeight={400} sx={{ maxWidth: "320px" }}>
               <List
                 component="ul"
@@ -129,8 +127,8 @@ export function UserGroupsCell({ userGroups }: GroupsCellProps) {
                 })}
               </List>
             </OverflowY>
-          </Popover>
-        </>
+          </PopoverContent>
+        </Popover>
       )}
     </TableCell>
   );
