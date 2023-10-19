@@ -6,8 +6,10 @@ import {
   UpdateUserPasswordRequest,
   UpdateUserProfileRequest,
   UsersRequest,
+  User,
 } from "api/typesGenerated";
 import { getAuthorizationKey } from "./authCheck";
+import { getMetadataAsJSON } from "utils/metadata";
 
 export const users = (req: UsersRequest): UseQueryOptions<GetUsersResponse> => {
   return {
@@ -90,7 +92,8 @@ export const authMethods = () => {
 export const me = () => {
   return {
     queryKey: ["me"],
-    queryFn: async () => API.getAuthenticatedUser(),
+    initialData: getMetadataAsJSON<User>("user"),
+    queryFn: API.getAuthenticatedUser,
   };
 };
 
