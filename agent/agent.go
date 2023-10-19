@@ -1087,6 +1087,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 			a.reconnectingPTYs.Delete(msg.ID)
 		}); err != nil {
 			rpty.Close(err)
+			cleanup()
 			return xerrors.Errorf("start routine: %w", err)
 		}
 
