@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -59,7 +60,7 @@ func (s *MethodTestSuite) SetupSuite() {
 	mockStore := dbmock.NewMockStore(ctrl)
 	// We intentionally set no expectations apart from this.
 	mockStore.EXPECT().Wrappers().Return([]string{}).AnyTimes()
-	az := dbauthz.New(mockStore, nil, slog.Make())
+	az := dbauthz.New(mockStore, nil, slog.Make(), accessControlStorePointer())
 	// Take the underlying type of the interface.
 	azt := reflect.TypeOf(az).Elem()
 	s.methodAccounting = make(map[string]int)
@@ -110,7 +111,7 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 		rec := &coderdtest.RecordingAuthorizer{
 			Wrapped: fakeAuthorizer,
 		}
-		az := dbauthz.New(db, rec, slog.Make())
+		az := dbauthz.New(db, rec, slog.Make(), accessControlStorePointer())
 		actor := rbac.Subject{
 			ID:     uuid.NewString(),
 			Roles:  rbac.RoleNames{rbac.RoleOwner()},
@@ -397,4 +398,23 @@ type emptyPreparedAuthorized struct{}
 func (emptyPreparedAuthorized) Authorize(_ context.Context, _ rbac.Object) error { return nil }
 func (emptyPreparedAuthorized) CompileToSQL(_ context.Context, _ regosql.ConvertConfig) (string, error) {
 	return "", nil
+}
+
+func accessControlStorePointer() *atomic.Pointer[dbauthz.AccessControlStore] {
+	acs := &atomic.Pointer[dbauthz.AccessControlStore]{}
+	var tacs dbauthz.AccessControlStore = fakeAccessControlStore{}
+	acs.Store(&tacs)
+	return acs
+}
+
+type fakeAccessControlStore struct{}
+
+func (fakeAccessControlStore) GetTemplateAccessControl(t database.Template) dbauthz.TemplateAccessControl {
+	return dbauthz.TemplateAccessControl{
+		RequireActiveVersion: t.RequireActiveVersion,
+	}
+}
+
+func (fakeAccessControlStore) SetTemplateAccessControl(context.Context, database.Store, uuid.UUID, dbauthz.TemplateAccessControl) error {
+	panic("not implemented")
 }

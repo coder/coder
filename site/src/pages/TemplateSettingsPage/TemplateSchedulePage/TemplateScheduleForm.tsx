@@ -9,7 +9,10 @@ import { FC, ChangeEvent, useState, useEffect } from "react";
 import { Template, UpdateTemplateMeta } from "api/typesGenerated";
 import { getFormHelpers } from "utils/formUtils";
 import { docs } from "utils/docs";
-import { calculateAutostopRequirementDaysValue } from "utils/schedule";
+import {
+  TemplateAutostartRequirementDaysValue,
+  calculateAutostopRequirementDaysValue,
+} from "utils/schedule";
 import {
   FormSection,
   HorizontalForm,
@@ -36,6 +39,7 @@ import {
   convertAutostopRequirementDaysValue,
 } from "./AutostopRequirementHelperText";
 import { useTheme } from "@emotion/react";
+import { TemplateScheduleAutostart } from "components/TemplateScheduleAutostart/TemplateScheduleAutostart";
 
 const MS_HOUR_CONVERSION = 3600000;
 const MS_DAY_CONVERSION = 86400000;
@@ -95,6 +99,8 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
           ? template.autostop_requirement.weeks
           : 1
         : 1,
+      autostart_requirement_days_of_week: template.autostart_requirement
+        .days_of_week as TemplateAutostartRequirementDaysValue[],
 
       allow_user_autostart: template.allow_user_autostart,
       allow_user_autostop: template.allow_user_autostop,
@@ -107,6 +113,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         Boolean(template.time_til_dormant_autodelete_ms),
       update_workspace_last_used_at: false,
       update_workspace_dormant_at: false,
+      require_active_version: false,
     },
     validationSchema,
     onSubmit: () => {
@@ -215,11 +222,15 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         ),
         weeks: autostop_requirement_weeks,
       },
+      autostart_requirement: {
+        days_of_week: form.values.autostart_requirement_days_of_week,
+      },
 
       allow_user_autostart: form.values.allow_user_autostart,
       allow_user_autostop: form.values.allow_user_autostop,
       update_workspace_last_used_at: form.values.update_workspace_last_used_at,
       update_workspace_dormant_at: form.values.update_workspace_dormant_at,
+      require_active_version: false,
     });
   };
 
@@ -430,6 +441,24 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
               </strong>
             </Stack>
           </Stack>
+          {allowAdvancedScheduling && (
+            <TemplateScheduleAutostart
+              allow_user_autostart={form.values.allow_user_autostart}
+              autostart_requirement_days_of_week={
+                form.values.autostart_requirement_days_of_week
+              }
+              isSubmitting={isSubmitting}
+              onChange={async (
+                newDaysOfWeek: TemplateAutostartRequirementDaysValue[],
+              ) => {
+                await form.setFieldValue(
+                  "autostart_requirement_days_of_week",
+                  newDaysOfWeek,
+                );
+              }}
+            />
+          )}
+
           <Stack direction="row" alignItems="center">
             <Checkbox
               id="allow-user-autostop"
@@ -622,5 +651,8 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 const styles = {
   ttlFields: {
     width: "100%",
+  },
+  dayButtons: {
+    borderRadius: "0px",
   },
 };

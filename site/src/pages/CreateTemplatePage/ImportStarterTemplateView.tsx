@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "react-query";
-import { templateVersionLogs } from "api/queries/templateVersions";
 import {
+  templateVersionLogs,
   JobError,
   createTemplate,
   templateExamples,

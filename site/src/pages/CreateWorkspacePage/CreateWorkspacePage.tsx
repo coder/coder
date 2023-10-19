@@ -22,6 +22,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
   templateByName,
   templateVersionExternalAuth,
+  richParameters,
 } from "api/queries/templates";
 import {
   AutoCreateWorkspaceOptions,
@@ -30,7 +31,6 @@ import {
 } from "api/queries/workspaces";
 import { checkAuthorization } from "api/queries/authCheck";
 import { CreateWSPermissions, createWorkspaceChecks } from "./permissions";
-import { richParameters } from "api/queries/templateVersions";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { workspaceBuildParameters } from "api/queries/workspaceBuilds";
 

@@ -21,7 +21,8 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 	sqlc generate
 
 	first=true
-	for fi in queries/*.sql.go; do
+	files=$(find ./queries/ -type f -name "*.sql.go" | LC_ALL=C sort)
+	for fi in $files; do
 		# Find the last line from the imports section and add 1. We have to
 		# disable pipefail temporarily to avoid ERRPIPE errors when piping into
 		# `head -n1`.
@@ -56,7 +57,7 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 	go mod download
 	go run golang.org/x/tools/cmd/goimports@latest -w queries.sql.go
 
-	go run ../../scripts/dbgen/main.go
+	go run ../../scripts/dbgen
 	# This will error if a view is broken.
 	go test -run=TestViewSubset
 )

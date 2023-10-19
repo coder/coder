@@ -1,6 +1,6 @@
 import Link from "@mui/material/Link";
 import { WorkspaceOutdatedTooltip } from "components/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
-import { FC, useRef, useState } from "react";
+import { FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { createDayString } from "utils/createDayString";
 import {
@@ -16,11 +16,16 @@ import IconButton from "@mui/material/IconButton";
 import RemoveIcon from "@mui/icons-material/RemoveOutlined";
 import { makeStyles } from "@mui/styles";
 import AddIcon from "@mui/icons-material/AddOutlined";
-import Popover from "@mui/material/Popover";
 import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
 import { WorkspaceStatusText } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge";
 import { DormantDeletionStat } from "components/WorkspaceDeletion";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  usePopover,
+} from "components/Popover/Popover";
 
 const Language = {
   workspaceDetails: "Workspace Details",
@@ -62,10 +67,6 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
   const styles = useStyles();
   const deadlinePlusEnabled = maxDeadlineIncrease >= 1;
   const deadlineMinusEnabled = maxDeadlineDecrease >= 1;
-  const addButtonRef = useRef<HTMLButtonElement>(null);
-  const subButtonRef = useRef<HTMLButtonElement>(null);
-  const [isAddingTime, setIsAddingTime] = useState(false);
-  const [isSubTime, setIsSubTime] = useState(false);
 
   return (
     <>
@@ -138,26 +139,50 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
                 </Link>
                 {canUpdateWorkspace && canEditDeadline(workspace) && (
                   <span className={styles.scheduleControls}>
-                    <IconButton
-                      disabled={!deadlineMinusEnabled}
-                      size="small"
-                      title="Subtract hours from deadline"
-                      className={styles.scheduleButton}
-                      ref={subButtonRef}
-                      onClick={() => setIsSubTime(true)}
-                    >
-                      <RemoveIcon />
-                    </IconButton>
-                    <IconButton
-                      disabled={!deadlinePlusEnabled}
-                      size="small"
-                      title="Add hours to deadline"
-                      className={styles.scheduleButton}
-                      ref={addButtonRef}
-                      onClick={() => setIsAddingTime(true)}
-                    >
-                      <AddIcon />
-                    </IconButton>
+                    <Popover>
+                      <PopoverTrigger>
+                        <IconButton
+                          disabled={!deadlineMinusEnabled}
+                          size="small"
+                          title="Subtract hours from deadline"
+                          className={styles.scheduleButton}
+                        >
+                          <RemoveIcon />
+                        </IconButton>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        id="schedule-sub"
+                        classes={{ paper: styles.timePopoverPaper }}
+                        horizontal="right"
+                      >
+                        <DecreaseTimeContent
+                          maxDeadlineDecrease={maxDeadlineDecrease}
+                          onDeadlineMinus={onDeadlineMinus}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <Popover>
+                      <PopoverTrigger>
+                        <IconButton
+                          disabled={!deadlinePlusEnabled}
+                          size="small"
+                          title="Add hours to deadline"
+                          className={styles.scheduleButton}
+                        >
+                          <AddIcon />
+                        </IconButton>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        id="schedule-add"
+                        classes={{ paper: styles.timePopoverPaper }}
+                        horizontal="right"
+                      >
+                        <AddTimeContent
+                          maxDeadlineIncrease={maxDeadlineIncrease}
+                          onDeadlinePlus={onDeadlinePlus}
+                        />
+                      </PopoverContent>
+                    </Popover>
                   </span>
                 )}
               </span>
@@ -174,118 +199,106 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
           />
         )}
       </Stats>
+    </>
+  );
+};
 
-      <Popover
-        id="schedule-add"
-        classes={{ paper: styles.timePopoverPaper }}
-        open={isAddingTime}
-        anchorEl={addButtonRef.current}
-        onClose={() => setIsAddingTime(false)}
-        anchorOrigin={{
-          vertical: "bottom",
-          horizontal: "right",
-        }}
-        transformOrigin={{
-          vertical: "top",
-          horizontal: "right",
-        }}
-      >
-        <span className={styles.timePopoverTitle}>Add hours to deadline</span>
-        <span className={styles.timePopoverDescription}>
-          Delay the shutdown of this workspace for a few more hours. This is
-          only applied once.
-        </span>
-        <form
-          className={styles.timePopoverForm}
-          onSubmit={(e) => {
-            e.preventDefault();
-            const formData = new FormData(e.currentTarget);
-            const hours = Number(formData.get("hours"));
-            onDeadlinePlus(hours);
-            setIsAddingTime(false);
-          }}
-        >
-          <TextField
-            name="hours"
-            type="number"
-            size="small"
-            fullWidth
-            className={styles.timePopoverField}
-            InputProps={{ className: styles.timePopoverFieldInput }}
-            inputProps={{
-              min: 0,
-              max: maxDeadlineIncrease,
-              step: 1,
-              defaultValue: 1,
-            }}
-          />
+const AddTimeContent = (props: {
+  maxDeadlineIncrease: number;
+  onDeadlinePlus: (value: number) => void;
+}) => {
+  const styles = useStyles();
+  const popover = usePopover();
 
-          <Button
-            size="small"
-            className={styles.timePopoverButton}
-            type="submit"
-          >
-            Apply
-          </Button>
-        </form>
-      </Popover>
-
-      <Popover
-        id="schedule-sub"
-        classes={{ paper: styles.timePopoverPaper }}
-        open={isSubTime}
-        anchorEl={subButtonRef.current}
-        onClose={() => setIsSubTime(false)}
-        anchorOrigin={{
-          vertical: "bottom",
-          horizontal: "right",
-        }}
-        transformOrigin={{
-          vertical: "top",
-          horizontal: "right",
+  return (
+    <>
+      <span className={styles.timePopoverTitle}>Add hours to deadline</span>
+      <span className={styles.timePopoverDescription}>
+        Delay the shutdown of this workspace for a few more hours. This is only
+        applied once.
+      </span>
+      <form
+        className={styles.timePopoverForm}
+        onSubmit={(e) => {
+          e.preventDefault();
+          const formData = new FormData(e.currentTarget);
+          const hours = Number(formData.get("hours"));
+          props.onDeadlinePlus(hours);
+          popover.setIsOpen(false);
         }}
       >
-        <span className={styles.timePopoverTitle}>
-          Subtract hours to deadline
-        </span>
-        <span className={styles.timePopoverDescription}>
-          Anticipate the shutdown of this workspace for a few more hours. This
-          is only applied once.
-        </span>
-        <form
-          className={styles.timePopoverForm}
-          onSubmit={(e) => {
-            e.preventDefault();
-            const formData = new FormData(e.currentTarget);
-            const hours = Number(formData.get("hours"));
-            onDeadlineMinus(hours);
-            setIsSubTime(false);
+        <TextField
+          name="hours"
+          type="number"
+          size="small"
+          fullWidth
+          className={styles.timePopoverField}
+          InputProps={{
+            className: styles.timePopoverFieldInput,
           }}
-        >
-          <TextField
-            name="hours"
-            type="number"
-            size="small"
-            fullWidth
-            className={styles.timePopoverField}
-            InputProps={{ className: styles.timePopoverFieldInput }}
-            inputProps={{
-              min: 0,
-              max: maxDeadlineDecrease,
-              step: 1,
-              defaultValue: 1,
-            }}
-          />
+          inputProps={{
+            min: 0,
+            max: props.maxDeadlineIncrease,
+            step: 1,
+            defaultValue: 1,
+          }}
+        />
 
-          <Button
-            size="small"
-            className={styles.timePopoverButton}
-            type="submit"
-          >
-            Apply
-          </Button>
-        </form>
-      </Popover>
+        <Button className={styles.timePopoverButton} type="submit">
+          Apply
+        </Button>
+      </form>
+    </>
+  );
+};
+
+export const DecreaseTimeContent = (props: {
+  onDeadlineMinus: (hours: number) => void;
+  maxDeadlineDecrease: number;
+}) => {
+  const styles = useStyles();
+  const popover = usePopover();
+
+  return (
+    <>
+      <span className={styles.timePopoverTitle}>
+        Subtract hours to deadline
+      </span>
+      <span className={styles.timePopoverDescription}>
+        Anticipate the shutdown of this workspace for a few more hours. This is
+        only applied once.
+      </span>
+      <form
+        className={styles.timePopoverForm}
+        onSubmit={(e) => {
+          e.preventDefault();
+          const formData = new FormData(e.currentTarget);
+          const hours = Number(formData.get("hours"));
+          props.onDeadlineMinus(hours);
+          popover.setIsOpen(false);
+        }}
+      >
+        <TextField
+          name="hours"
+          type="number"
+          size="small"
+          fullWidth
+          className={styles.timePopoverField}
+          InputProps={{
+            className: styles.timePopoverFieldInput,
+          }}
+          inputProps={{
+            min: 0,
+            max: props.maxDeadlineDecrease,
+            step: 1,
+            defaultValue: 1,
+          }}
+        />
+
+        <Button className={styles.timePopoverButton} type="submit">
+          Apply
+        </Button>
+      </form>
     </>
   );
 };

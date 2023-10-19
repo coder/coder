@@ -1,5 +1,10 @@
 import Box from "@mui/material/Box";
-import { ClibaseOption, DAUsResponse, Entitlements } from "api/typesGenerated";
+import {
+  ClibaseOption,
+  DAUsResponse,
+  Entitlements,
+  Experiments,
+} from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import {
   ActiveUserChart,
@@ -17,12 +22,14 @@ export type GeneralSettingsPageViewProps = {
   deploymentDAUs?: DAUsResponse;
   deploymentDAUsError: unknown;
   entitlements: Entitlements | undefined;
+  safeExperiments: Experiments | undefined;
 };
 export const GeneralSettingsPageView = ({
   deploymentOptions,
   deploymentDAUs,
   deploymentDAUsError,
   entitlements,
+  safeExperiments,
 }: GeneralSettingsPageViewProps): JSX.Element => {
   return (
     <>
@@ -57,6 +64,7 @@ export const GeneralSettingsPageView = ({
             "Wildcard Access URL",
             "Experiments",
           )}
+          additionalValues={safeExperiments}
         />
       </Stack>
     </>

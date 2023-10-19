@@ -2,7 +2,6 @@ import { action } from "@storybook/addon-actions";
 import { UseTabResult } from "hooks/useTab";
 import {
   mockApiError,
-  MockOrganization,
   MockTemplate,
   MockTemplateVersion,
 } from "testHelpers/entities";
@@ -32,18 +31,15 @@ const defaultArgs: TemplateVersionPageViewProps = {
   tab,
   templateName: MockTemplate.name,
   versionName: MockTemplateVersion.name,
-  context: {
-    templateName: MockTemplate.name,
-    orgId: MockOrganization.id,
-    versionName: MockTemplateVersion.name,
-    currentVersion: MockTemplateVersion,
-    currentFiles: {
-      "README.md": readmeContent,
-      "main.tf": `{}`,
-      "some.tpl": `{{.Name}}`,
-      "some.sh": `echo "Hello world"`,
-    },
+  currentVersion: MockTemplateVersion,
+  currentFiles: {
+    "README.md": readmeContent,
+    "main.tf": `{}`,
+    "some.tpl": `{{.Name}}`,
+    "some.sh": `echo "Hello world"`,
   },
+  previousFiles: undefined,
+  error: undefined,
 };
 
 const meta: Meta<typeof TemplateVersionPageView> = {
@@ -59,13 +55,11 @@ export const Default: Story = {};
 
 export const Error: Story = {
   args: {
-    context: {
-      ...defaultArgs.context,
-      currentVersion: undefined,
-      currentFiles: undefined,
-      error: mockApiError({
-        message: "Error on loading the template version",
-      }),
-    },
+    ...defaultArgs,
+    currentVersion: undefined,
+    currentFiles: undefined,
+    error: mockApiError({
+      message: "Error on loading the template version",
+    }),
   },
 };

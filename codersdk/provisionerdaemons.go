@@ -174,6 +174,8 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 // ServeProvisionerDaemonRequest are the parameters to call ServeProvisionerDaemon with
 // @typescript-ignore ServeProvisionerDaemonRequest
 type ServeProvisionerDaemonRequest struct {
+	// ID is a unique ID for a provisioner daemon.
+	ID uuid.UUID `json:"id" format:"uuid"`
 	// Organization is the organization for the URL.  At present provisioner daemons ARE NOT scoped to organizations
 	// and so the organization ID is optional.
 	Organization uuid.UUID `json:"organization" format:"uuid"`
@@ -194,6 +196,7 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
 	query := serverURL.Query()
+	query.Add("id", req.ID.String())
 	for _, provisioner := range req.Provisioners {
 		query.Add("provisioner", string(provisioner))
 	}

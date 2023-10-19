@@ -42,7 +42,14 @@ import {
   AutostopRequirementWeeksHelperText,
 } from "pages/TemplateSettingsPage/TemplateSchedulePage/AutostopRequirementHelperText";
 import MenuItem from "@mui/material/MenuItem";
-import { TemplateAutostopRequirementDaysValue } from "utils/schedule";
+import {
+  TemplateAutostartRequirementDaysValue,
+  TemplateAutostopRequirementDaysValue,
+} from "utils/schedule";
+import {
+  TemplateScheduleAutostart,
+  sortedDays,
+} from "components/TemplateScheduleAutostart/TemplateScheduleAutostart";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 const MAX_TTL_DAYS = 30;
@@ -54,6 +61,7 @@ export interface CreateTemplateData {
   icon: string;
   default_ttl_hours: number;
   max_ttl_hours: number;
+  autostart_requirement_days_of_week: TemplateAutostartRequirementDaysValue[];
   autostop_requirement_days_of_week: TemplateAutostopRequirementDaysValue;
   autostop_requirement_weeks: number;
   allow_user_autostart: boolean;
@@ -88,6 +96,7 @@ const validationSchema = Yup.object({
     ),
   autostop_requirement_days_of_week: Yup.string().required(),
   autostop_requirement_weeks: Yup.number().required().min(1).max(16),
+  autostart_requirement_days_of_week: Yup.array().of(Yup.string()).required(),
 });
 
 const defaultInitialValues: CreateTemplateData = {
@@ -110,6 +119,7 @@ const defaultInitialValues: CreateTemplateData = {
   // user's timezone.
   autostop_requirement_days_of_week: "sunday",
   autostop_requirement_weeks: 1,
+  autostart_requirement_days_of_week: sortedDays,
   allow_user_cancel_workspace_jobs: false,
   allow_user_autostart: false,
   allow_user_autostop: false,
@@ -434,6 +444,25 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
                 </strong>
               </Stack>
             </Stack>
+
+            {allowAdvancedScheduling && (
+              <TemplateScheduleAutostart
+                allow_user_autostart={form.values.allow_user_autostart}
+                autostart_requirement_days_of_week={
+                  form.values.autostart_requirement_days_of_week
+                }
+                isSubmitting={isSubmitting}
+                onChange={async (
+                  newDaysOfWeek: TemplateAutostartRequirementDaysValue[],
+                ) => {
+                  await form.setFieldValue(
+                    "autostart_requirement_days_of_week",
+                    newDaysOfWeek,
+                  );
+                }}
+              />
+            )}
+
             <Stack direction="row" alignItems="center">
               <Checkbox
                 id="allow-user-autostop"

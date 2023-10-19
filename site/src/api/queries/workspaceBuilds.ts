@@ -34,6 +34,9 @@ export const infiniteWorkspaceBuilds = (
   return {
     queryKey: ["workspaceBuilds", workspaceId, req],
     getNextPageParam: (lastPage, pages) => {
+      if (lastPage.length < limit) {
+        return undefined;
+      }
       return pages.length + 1;
     },
     queryFn: ({ pageParam = 0 }) => {

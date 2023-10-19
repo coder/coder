@@ -127,6 +127,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
       <FullPageHorizontalForm title="New workspace" onCancel={onCancel}>
         <HorizontalForm onSubmit={form.handleSubmit}>
           {Boolean(error) && <ErrorAlert error={error} />}
+
           {/* General info */}
           <FormSection
             title="General"
@@ -149,7 +150,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
               )}
               <TextField
                 {...getFieldHelpers("name")}
-                disabled={form.isSubmitting}
+                disabled={creatingWorkspace}
                 onChange={onChangeTrimmed(form)}
                 autoFocus
                 fullWidth
@@ -223,6 +224,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                   };
                 }}
               />
+
               <ImmutableTemplateParametersSection
                 templateParameters={parameters}
                 classes={{ root: styles.warningSection }}

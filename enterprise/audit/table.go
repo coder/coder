@@ -85,6 +85,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"failure_ttl":                       ActionTrack,
 		"time_til_dormant":                  ActionTrack,
 		"time_til_dormant_autodelete":       ActionTrack,
+		"require_active_version":            ActionTrack,
 	},
 	&database.TemplateVersion{}: {
 		"id":                      ActionTrack,

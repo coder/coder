@@ -467,6 +467,7 @@ export const MockTemplate: TypesGen.Template = {
   time_til_dormant_autodelete_ms: 0,
   allow_user_autostart: true,
   allow_user_autostop: true,
+  require_active_version: false,
 };
 
 export const MockTemplateVersionFiles: TemplateVersionFiles = {

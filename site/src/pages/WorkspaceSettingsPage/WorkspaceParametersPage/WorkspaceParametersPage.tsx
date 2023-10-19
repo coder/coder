@@ -17,6 +17,10 @@ import {
   updateWorkspaceParameters,
   workspaceParameters,
 } from "api/queries/workspaces";
+import { EmptyState } from "components/EmptyState/EmptyState";
+import Button from "@mui/material/Button";
+import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
+import { docs } from "utils/docs";
 
 const WorkspaceParametersPage = () => {
   const workspace = useWorkspaceSettings();
@@ -85,14 +89,36 @@ export const WorkspaceParametersPageView: FC<
       )}
 
       {data ? (
-        <WorkspaceParametersForm
-          buildParameters={data.buildParameters}
-          templateVersionRichParameters={data.templateVersionRichParameters}
-          error={submitError}
-          isSubmitting={isSubmitting}
-          onSubmit={onSubmit}
-          onCancel={onCancel}
-        />
+        data.templateVersionRichParameters.length > 0 ? (
+          <WorkspaceParametersForm
+            buildParameters={data.buildParameters}
+            templateVersionRichParameters={data.templateVersionRichParameters}
+            error={submitError}
+            isSubmitting={isSubmitting}
+            onSubmit={onSubmit}
+            onCancel={onCancel}
+          />
+        ) : (
+          <EmptyState
+            message="This workspace has no parameters"
+            cta={
+              <Button
+                component="a"
+                href={docs("/templates/parameters")}
+                startIcon={<OpenInNewOutlined />}
+                variant="contained"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Learn more about parameters
+              </Button>
+            }
+            css={(theme) => ({
+              border: `1px solid ${theme.palette.divider}`,
+              borderRadius: theme.shape.borderRadius,
+            })}
+          />
+        )
       ) : (
         <Loader />
       )}

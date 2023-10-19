@@ -1,27 +1,26 @@
-import { makeStyles } from "@mui/styles";
 import TableCell from "@mui/material/TableCell";
-import TableRow, { TableRowProps } from "@mui/material/TableRow";
-import { FC, ReactNode, cloneElement, isValidElement } from "react";
+import TableRow, { type TableRowProps } from "@mui/material/TableRow";
+import { type FC, type ReactNode, cloneElement, isValidElement } from "react";
+import { useTheme } from "@emotion/react";
 import { Loader } from "../Loader/Loader";
 
 export const TableLoader: FC = () => {
-  const styles = useStyles();
+  const theme = useTheme();
 
   return (
     <TableRow>
-      <TableCell colSpan={999} className={styles.cell}>
+      <TableCell
+        colSpan={999}
+        css={{
+          textAlign: "center",
+          height: theme.spacing(20),
+        }}
+      >
         <Loader />
       </TableCell>
     </TableRow>
   );
 };
-
-const useStyles = makeStyles((theme) => ({
-  cell: {
-    textAlign: "center",
-    height: theme.spacing(20),
-  },
-}));
 
 export const TableLoaderSkeleton = ({
   rows = 4,

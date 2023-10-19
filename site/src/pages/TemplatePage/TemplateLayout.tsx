@@ -1,20 +1,19 @@
-import { makeStyles } from "@mui/styles";
-import { useOrganizationId } from "hooks/useOrganizationId";
-import { createContext, FC, Suspense, useContext } from "react";
-import { NavLink, Outlet, useNavigate, useParams } from "react-router-dom";
-import { combineClasses } from "utils/combineClasses";
-import { Margins } from "components/Margins/Margins";
-import { Stack } from "components/Stack/Stack";
-import { Loader } from "components/Loader/Loader";
-import { TemplatePageHeader } from "./TemplatePageHeader";
+import { useTheme } from "@emotion/react";
+import { createContext, type FC, Suspense, useContext } from "react";
+import { useQuery } from "react-query";
+import { Outlet, useNavigate, useParams } from "react-router-dom";
+import type { AuthorizationRequest } from "api/typesGenerated";
 import {
   checkAuthorization,
   getTemplateByName,
   getTemplateVersion,
 } from "api/api";
-import { useQuery } from "react-query";
-import { AuthorizationRequest } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Margins } from "components/Margins/Margins";
+import { Loader } from "components/Loader/Loader";
+import { useOrganizationId } from "hooks/useOrganizationId";
+import { TemplatePageHeader } from "./TemplatePageHeader";
+import { TabLink, Tabs } from "components/Tabs/Tabs";
 
 const templatePermissions = (
   templateId: string,
@@ -63,8 +62,8 @@ export const useTemplateLayoutContext = (): TemplateLayoutContextValue => {
 export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
   children = <Outlet />,
 }) => {
+  const theme = useTheme();
   const navigate = useNavigate();
-  const styles = useStyles();
   const orgId = useOrganizationId();
   const { template: templateName } = useParams() as { template: string };
   const { data, error, isLoading } = useQuery({
@@ -75,7 +74,7 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
 
   if (error) {
     return (
-      <div className={styles.error}>
+      <div css={{ margin: theme.spacing(2) }}>
         <ErrorAlert error={error} />
       </div>
     );
@@ -96,84 +95,20 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
         }}
       />
 
-      <div className={styles.tabs}>
-        <Margins>
-          <Stack direction="row" spacing={0.25}>
-            <NavLink
-              end
-              to={`/templates/${templateName}`}
-              className={({ isActive }) =>
-                combineClasses([
-                  styles.tabItem,
-                  isActive ? styles.tabItemActive : undefined,
-                ])
-              }
-            >
-              Summary
-            </NavLink>
-            <NavLink
-              end
-              to={`/templates/${templateName}/docs`}
-              className={({ isActive }) =>
-                combineClasses([
-                  styles.tabItem,
-                  isActive ? styles.tabItemActive : undefined,
-                ])
-              }
-            >
-              Docs
-            </NavLink>
-            {data.permissions.canUpdateTemplate && (
-              <NavLink
-                to={`/templates/${templateName}/files`}
-                className={({ isActive }) =>
-                  combineClasses([
-                    styles.tabItem,
-                    isActive ? styles.tabItemActive : undefined,
-                  ])
-                }
-              >
-                Source Code
-              </NavLink>
-            )}
-            <NavLink
-              to={`/templates/${templateName}/versions`}
-              className={({ isActive }) =>
-                combineClasses([
-                  styles.tabItem,
-                  isActive ? styles.tabItemActive : undefined,
-                ])
-              }
-            >
-              Versions
-            </NavLink>
-            <NavLink
-              to={`/templates/${templateName}/embed`}
-              className={({ isActive }) =>
-                combineClasses([
-                  styles.tabItem,
-                  isActive ? styles.tabItemActive : undefined,
-                ])
-              }
-            >
-              Embed
-            </NavLink>
-            {shouldShowInsights && (
-              <NavLink
-                to={`/templates/${templateName}/insights`}
-                className={({ isActive }) =>
-                  combineClasses([
-                    styles.tabItem,
-                    isActive ? styles.tabItemActive : undefined,
-                  ])
-                }
-              >
-                Insights
-              </NavLink>
-            )}
-          </Stack>
-        </Margins>
-      </div>
+      <Tabs>
+        <TabLink end to={`/templates/${templateName}`}>
+          Summary
+        </TabLink>
+        <TabLink to={`/templates/${templateName}/docs`}>Docs</TabLink>
+        {data.permissions.canUpdateTemplate && (
+          <TabLink to={`/templates/${templateName}/files`}>Source Code</TabLink>
+        )}
+        <TabLink to={`/templates/${templateName}/versions`}>Versions</TabLink>
+        <TabLink to={`/templates/${templateName}/embed`}>Embed</TabLink>
+        {shouldShowInsights && (
+          <TabLink to={`/templates/${templateName}/insights`}>Insights</TabLink>
+        )}
+      </Tabs>
 
       <Margins>
         <TemplateLayoutContext.Provider value={data}>
@@ -183,42 +118,3 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
     </>
   );
 };
-
-export const useStyles = makeStyles((theme) => {
-  return {
-    error: {
-      margin: theme.spacing(2),
-    },
-    tabs: {
-      borderBottom: `1px solid ${theme.palette.divider}`,
-      marginBottom: theme.spacing(5),
-    },
-
-    tabItem: {
-      textDecoration: "none",
-      color: theme.palette.text.secondary,
-      fontSize: 14,
-      display: "block",
-      padding: theme.spacing(0, 2, 2),
-
-      "&:hover": {
-        color: theme.palette.text.primary,
-      },
-    },
-
-    tabItemActive: {
-      color: theme.palette.text.primary,
-      position: "relative",
-
-      "&:before": {
-        content: `""`,
-        left: 0,
-        bottom: 0,
-        height: 2,
-        width: "100%",
-        background: theme.palette.secondary.dark,
-        position: "absolute",
-      },
-    },
-  };
-});

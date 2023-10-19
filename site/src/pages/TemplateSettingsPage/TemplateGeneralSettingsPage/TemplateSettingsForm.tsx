@@ -69,6 +69,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
           template.allow_user_cancel_workspace_jobs,
         update_workspace_last_used_at: false,
         update_workspace_dormant_at: false,
+        require_active_version: false,
       },
       validationSchema,
       onSubmit,

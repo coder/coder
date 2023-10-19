@@ -68,7 +68,7 @@ const TemplateHelpTooltip: React.FC = () => {
       <HelpTooltipTitle>{Language.templateTooltipTitle}</HelpTooltipTitle>
       <HelpTooltipText>{Language.templateTooltipText}</HelpTooltipText>
       <HelpTooltipLinksGroup>
-        <HelpTooltipLink href={docs("/templates#manage-templates")}>
+        <HelpTooltipLink href={docs("/templates")}>
           {Language.templateTooltipLink}
         </HelpTooltipLink>
       </HelpTooltipLinksGroup>
