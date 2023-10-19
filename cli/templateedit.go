@@ -81,7 +81,6 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 					}
 					if !entitlements.Features[codersdk.FeatureAccessControl].Enabled {
 						return xerrors.Errorf("your license is not entitled to use template access control, so you cannot set --require-active-version")
-
 					}
 				}
 			}

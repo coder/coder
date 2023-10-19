@@ -89,6 +89,15 @@ Disable the default behavior of granting template access to the 'everyone' group
 
 Specify a set of tags to target provisioner daemons.
 
+### --require-active-version
+
+|         |                    |
+| ------- | ------------------ |
+| Type    | <code>bool</code>  |
+| Default | <code>false</code> |
+
+Requires workspace builds to use the active template version. This setting does not apply to template admins. This is an enterprise-only feature.
+
 ### --var
 
 |      |                           |

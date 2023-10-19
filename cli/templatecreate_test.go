@@ -424,7 +424,6 @@ func TestTemplateCreate(t *testing.T) {
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "your deployment appears to be an AGPL deployment, so you cannot set enterprise-only flags")
 	})
-
 }
 
 // Need this for Windows because of a known issue with Go:
