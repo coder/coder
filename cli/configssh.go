@@ -388,13 +388,18 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 					}
 
 					if !skipProxyCommand {
+						rootFlags := fmt.Sprintf("--global-config %s", escapedGlobalConfig)
+						if r.headerCommand != "" {
+							rootFlags += fmt.Sprintf(" --header-command %s", r.headerCommand)
+						}
+
 						flags := ""
 						if sshConfigOpts.waitEnum != "auto" {
 							flags += " --wait=" + sshConfigOpts.waitEnum
 						}
 						defaultOptions = append(defaultOptions, fmt.Sprintf(
-							"ProxyCommand %s --global-config %s ssh --stdio%s %s",
-							escapedCoderBinary, escapedGlobalConfig, flags, workspaceHostname,
+							"ProxyCommand %s %s ssh --stdio%s %s",
+							escapedCoderBinary, rootFlags, flags, workspaceHostname,
 						))
 					}
 

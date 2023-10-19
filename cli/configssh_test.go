@@ -585,6 +585,20 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				regexMatch: "ProxyCommand /foo/bar/coder",
 			},
 		},
+		{
+			name: "Header command",
+			args: []string{
+				"--header-command", "/foo/bar/coder",
+			},
+			wantErr: false,
+			echoResponse: &echo.Responses{
+				Parse:          echo.ParseComplete,
+				ProvisionApply: echo.ProvisionApplyWithAgent(""),
+			},
+			wantConfig: wantConfig{
+				regexMatch: "--header-command /foo/bar/coder ssh",
+			},
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
