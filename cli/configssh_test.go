@@ -588,43 +588,46 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 		{
 			name: "Header command",
 			args: []string{
-				"--header-command", "/foo/bar/coder",
+				"--yes",
+				"--header-command", "printf h1=v1",
 			},
-			wantErr: false,
 			echoResponse: &echo.Responses{
 				Parse:          echo.ParseComplete,
 				ProvisionApply: echo.ProvisionApplyWithAgent(""),
 			},
+			wantErr: false,
 			wantConfig: wantConfig{
-				regexMatch: "--header-command \"/foo/bar/coder\" ssh",
+				regexMatch: "--header-command \"printf h1=v1\" ssh",
 			},
 		},
 		{
 			name: "Header command with double quotes",
 			args: []string{
-				"--header-command", "/foo/bar/coder arg1 arg2=\"quoted value\"",
+				"--yes",
+				"--header-command", "printf h1=v1 h2=\"v2\"",
 			},
-			wantErr: false,
 			echoResponse: &echo.Responses{
 				Parse:          echo.ParseComplete,
 				ProvisionApply: echo.ProvisionApplyWithAgent(""),
 			},
+			wantErr: false,
 			wantConfig: wantConfig{
-				regexMatch: "--header-command \"/foo/bar/coder arg1 arg2=\\\"quoted value\\\"\" ssh",
+				regexMatch: "--header-command \"printf h1=v1 h2=\\\\\"v2\\\\\"\" ssh",
 			},
 		},
 		{
 			name: "Header command with single quotes",
 			args: []string{
-				"--header-command", "/foo/bar/coder arg1 arg2='quoted value'",
+				"--yes",
+				"--header-command", "printf h1=v1 h2='v2'",
 			},
-			wantErr: false,
 			echoResponse: &echo.Responses{
 				Parse:          echo.ParseComplete,
 				ProvisionApply: echo.ProvisionApplyWithAgent(""),
 			},
+			wantErr: false,
 			wantConfig: wantConfig{
-				regexMatch: "--header-command \"/foo/bar/coder arg1 arg2='quoted value'\" ssh",
+				regexMatch: "--header-command \"printf h1=v1 h2='v2'\" ssh",
 			},
 		},
 	}
