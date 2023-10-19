@@ -1,11 +1,9 @@
 import Box from "@mui/material/Box";
 import Link from "@mui/material/Link";
-import Popover from "@mui/material/Popover";
 import CircularProgress from "@mui/material/CircularProgress";
 import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 import { css } from "@emotion/css";
 import { useTheme } from "@emotion/react";
-import { useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { colors } from "theme/colors";
 import {
@@ -22,6 +20,11 @@ import type {
   WorkspaceAgentListeningPort,
 } from "api/typesGenerated";
 import { portForwardURL } from "utils/portForward";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "components/Popover/Popover";
 
 export interface PortForwardButtonProps {
   host: string;
@@ -32,9 +35,6 @@ export interface PortForwardButtonProps {
 
 export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
   const theme = useTheme();
-  const anchorRef = useRef<HTMLButtonElement>(null);
-  const [isOpen, setIsOpen] = useState(false);
-  const id = isOpen ? "schedule-popover" : undefined;
   const portsQuery = useQuery({
     queryKey: ["portForward", props.agent.id],
     queryFn: () => getAgentListeningPorts(props.agent.id),
@@ -42,43 +42,36 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
     refetchInterval: 5_000,
   });
 
-  const onClose = () => {
-    setIsOpen(false);
-  };
-
   return (
-    <>
-      <SecondaryAgentButton
-        disabled={!portsQuery.data}
-        ref={anchorRef}
-        onClick={() => {
-          setIsOpen(true);
-        }}
-      >
-        Ports
-        {portsQuery.data ? (
-          <Box
-            sx={{
-              fontSize: 12,
-              fontWeight: 500,
-              height: 20,
-              minWidth: 20,
-              padding: (theme) => theme.spacing(0, 0.5),
-              borderRadius: "50%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: colors.gray[11],
-              ml: 1,
-            }}
-          >
-            {portsQuery.data.ports.length}
-          </Box>
-        ) : (
-          <CircularProgress size={10} sx={{ ml: 1 }} />
-        )}
-      </SecondaryAgentButton>
-      <Popover
+    <Popover>
+      <PopoverTrigger>
+        <SecondaryAgentButton disabled={!portsQuery.data}>
+          Ports
+          {portsQuery.data ? (
+            <Box
+              sx={{
+                fontSize: 12,
+                fontWeight: 500,
+                height: 20,
+                minWidth: 20,
+                padding: (theme) => theme.spacing(0, 0.5),
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: colors.gray[11],
+                ml: 1,
+              }}
+            >
+              {portsQuery.data.ports.length}
+            </Box>
+          ) : (
+            <CircularProgress size={10} sx={{ ml: 1 }} />
+          )}
+        </SecondaryAgentButton>
+      </PopoverTrigger>
+      <PopoverContent
+        horizontal="right"
         classes={{
           paper: css`
             padding: 0;
@@ -87,22 +80,10 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
             margin-top: ${theme.spacing(0.5)};
           `,
         }}
-        id={id}
-        open={isOpen}
-        anchorEl={anchorRef.current}
-        onClose={onClose}
-        anchorOrigin={{
-          vertical: "bottom",
-          horizontal: "right",
-        }}
-        transformOrigin={{
-          vertical: "top",
-          horizontal: "right",
-        }}
       >
         <PortForwardPopoverView {...props} ports={portsQuery.data?.ports} />
-      </Popover>
-    </>
+      </PopoverContent>
+    </Popover>
   );
 };
 

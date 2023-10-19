@@ -1,8 +1,7 @@
 import IconButton from "@mui/material/IconButton";
 import { EditSquare } from "components/Icons/EditSquare";
-import { useRef, useState, FC } from "react";
+import { FC } from "react";
 import { makeStyles } from "@mui/styles";
-import Popover from "@mui/material/Popover";
 import { Stack } from "components/Stack/Stack";
 import Checkbox from "@mui/material/Checkbox";
 import UserIcon from "@mui/icons-material/PersonOutline";
@@ -12,6 +11,11 @@ import {
   HelpTooltipText,
   HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "components/Popover/Popover";
 
 const roleDescriptions: Record<string, string> = {
   owner:
@@ -59,7 +63,7 @@ export interface EditRolesButtonProps {
   roles: Role[];
   selectedRoles: Role[];
   onChange: (roles: Role["name"][]) => void;
-  defaultIsOpen?: boolean;
+  isDefaultOpen?: boolean;
   oidcRoleSync: boolean;
   userLoginType: string;
 }
@@ -69,14 +73,11 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
   selectedRoles,
   onChange,
   isLoading,
-  defaultIsOpen = false,
+  isDefaultOpen = false,
   userLoginType,
   oidcRoleSync,
 }) => {
   const styles = useStyles();
-  const anchorRef = useRef<HTMLButtonElement>(null);
-  const [isOpen, setIsOpen] = useState(defaultIsOpen);
-  const id = isOpen ? "edit-roles-popover" : undefined;
   const selectedRoleNames = selectedRoles.map((role) => role.name);
 
   const handleChange = (roleName: string) => {
@@ -91,42 +92,30 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
   const canSetRoles =
     userLoginType !== "oidc" || (userLoginType === "oidc" && !oidcRoleSync);
 
+  if (!canSetRoles) {
+    return (
+      <HelpTooltip size="small">
+        <HelpTooltipTitle>Externally controlled</HelpTooltipTitle>
+        <HelpTooltipText>
+          Roles for this user are controlled by the OIDC identity provider.
+        </HelpTooltipText>
+      </HelpTooltip>
+    );
+  }
+
   return (
-    <>
-      {canSetRoles ? (
+    <Popover isDefaultOpen={isDefaultOpen}>
+      <PopoverTrigger>
         <IconButton
-          ref={anchorRef}
           size="small"
           className={styles.editButton}
           title="Edit user roles"
-          onClick={() => setIsOpen(true)}
         >
           <EditSquare />
         </IconButton>
-      ) : (
-        <HelpTooltip size="small">
-          <HelpTooltipTitle>Externally controlled</HelpTooltipTitle>
-          <HelpTooltipText>
-            Roles for this user are controlled by the OIDC identity provider.
-          </HelpTooltipText>
-        </HelpTooltip>
-      )}
+      </PopoverTrigger>
 
-      <Popover
-        id={id}
-        open={isOpen}
-        anchorEl={anchorRef.current}
-        onClose={() => setIsOpen(false)}
-        anchorOrigin={{
-          vertical: "bottom",
-          horizontal: "left",
-        }}
-        transformOrigin={{
-          vertical: "top",
-          horizontal: "left",
-        }}
-        classes={{ paper: styles.popoverPaper }}
-      >
+      <PopoverContent classes={{ paper: styles.popoverPaper }}>
         <fieldset
           className={styles.fieldset}
           disabled={isLoading}
@@ -156,8 +145,8 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
             </Stack>
           </Stack>
         </div>
-      </Popover>
-    </>
+      </PopoverContent>
+    </Popover>
   );
 };
 
