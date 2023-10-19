@@ -8,7 +8,7 @@ import { BorderedMenu } from "./BorderedMenu";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { UserDropdownContent } from "./UserDropdownContent";
-import { BUTTON_SM_HEIGHT } from "theme/theme";
+import { BUTTON_SM_HEIGHT } from "theme/mui";
 import { css } from "@emotion/react";
 
 export interface UserDropdownProps {

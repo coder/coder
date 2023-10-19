@@ -34,7 +34,7 @@ export const ConfirmDeleteDialog: FC<ConfirmDeleteDialogProps> = ({
 
   return (
     <ConfirmDialog
-      type="delete"
+      type="danger"
       title="Delete Token"
       description={
         <>

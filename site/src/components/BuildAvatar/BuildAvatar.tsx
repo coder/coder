@@ -4,7 +4,7 @@ import { FC } from "react";
 import { WorkspaceBuild } from "api/typesGenerated";
 import { getDisplayWorkspaceBuildStatus } from "utils/workspace";
 import { Avatar, AvatarProps } from "components/Avatar/Avatar";
-import { PaletteIndex } from "theme/theme";
+import type { PaletteIndex } from "theme/mui";
 import { Theme } from "@mui/material/styles";
 import { BuildIcon } from "components/BuildIcon/BuildIcon";
 

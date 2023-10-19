@@ -95,7 +95,7 @@ export const DeleteFileDialog: FC<{
 }> = ({ onClose, onConfirm, open, filename }) => {
   return (
     <ConfirmDialog
-      type="delete"
+      type="danger"
       onClose={onClose}
       open={open}
       onConfirm={onConfirm}

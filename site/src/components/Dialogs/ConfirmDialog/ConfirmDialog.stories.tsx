@@ -20,7 +20,7 @@ export const Example: Story = {
   args: {
     description: "Do you really want to delete me?",
     hideCancel: false,
-    type: "delete",
+    type: "danger",
   },
 };
 

@@ -14,7 +14,7 @@ import {
   HelpTooltipText,
   HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
-import { colors } from "theme/colors";
+import { dark } from "theme/theme";
 
 export const Language = {
   outdatedLabel: "Outdated",
@@ -43,7 +43,7 @@ export const WorkspaceOutdatedTooltip: FC<TooltipProps> = ({
       size="small"
       icon={InfoIcon}
       iconClassName={css`
-        color: ${colors.yellow[5]};
+        color: ${dark.roles.notice.outline};
       `}
       buttonClassName={css`
         opacity: 1;

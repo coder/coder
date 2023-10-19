@@ -7,6 +7,7 @@ import {
 } from "../LoadingButton/LoadingButton";
 import { ConfirmDialogType } from "./types";
 import { type Interpolation, type Theme } from "@emotion/react";
+import { dark } from "theme/theme";
 
 export interface DialogActionButtonsProps {
   /** Text to display in the cancel button */
@@ -27,7 +28,7 @@ export interface DialogActionButtonsProps {
 }
 
 const typeToColor = (type: ConfirmDialogType): LoadingButtonProps["color"] => {
-  if (type === "delete") {
+  if (type === "danger") {
     return "secondary";
   }
   return "primary";
@@ -63,7 +64,7 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
           disabled={disabled}
           type="submit"
           css={[
-            type === "delete" && styles.errorButton,
+            type === "danger" && styles.dangerButton,
             type === "success" && styles.successButton,
           ]}
         >
@@ -75,43 +76,64 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
 };
 
 const styles = {
-  errorButton: (theme) => ({
+  dangerButton: (theme) => ({
     "&.MuiButton-contained": {
-      backgroundColor: colors.red[10],
-      borderColor: colors.red[9],
-      color: theme.palette.text.primary,
+      backgroundColor: dark.roles.danger.fill,
+      borderColor: dark.roles.danger.outline,
+      color: dark.roles.danger.text,
 
       "&:hover:not(:disabled)": {
-        backgroundColor: colors.red[9],
-        borderColor: colors.red[9],
+        backgroundColor: dark.roles.danger.hover.fill,
+        borderColor: dark.roles.danger.hover.outline,
+        color: dark.roles.danger.hover.text,
       },
 
       "&.Mui-disabled": {
-        backgroundColor: colors.red[15],
-        borderColor: colors.red[15],
-        color: colors.red[9],
+        backgroundColor: dark.roles.danger.disabled.fill,
+        borderColor: dark.roles.danger.disabled.outline,
+        color: dark.roles.danger.disabled.text,
       },
     },
   }),
   successButton: (theme) => ({
     "&.MuiButton-contained": {
-      backgroundColor: theme.palette.success.main,
-      color: theme.palette.primary.contrastText,
-      "&:hover": {
-        backgroundColor: theme.palette.success.dark,
-        "@media (hover: none)": {
-          backgroundColor: "transparent",
-        },
-        "&.Mui-disabled": {
-          backgroundColor: "transparent",
-        },
+      backgroundColor: dark.roles.success.fill,
+      borderColor: dark.roles.success.outline,
+      color: dark.roles.success.text,
+
+      "&:hover:not(:disabled)": {
+        backgroundColor: dark.roles.success.hover.fill,
+        borderColor: dark.roles.success.hover.outline,
+        color: dark.roles.success.hover.text,
       },
+
       "&.Mui-disabled": {
-        backgroundColor: theme.palette.action.disabledBackground,
-        color: theme.palette.text.secondary,
+        backgroundColor: dark.roles.success.disabled.fill,
+        borderColor: dark.roles.success.disabled.outline,
+        color: dark.roles.success.disabled.text,
       },
     },
 
+    // I wanna use the version about instead. bit cleaner, and matches the danger mode.
+    // "&.MuiButton-contained": {
+    //   backgroundColor: theme.palette.success.main,
+    //   color: theme.palette.primary.contrastText,
+    //   "&:hover": {
+    //     backgroundColor: theme.palette.success.dark,
+    //     "@media (hover: none)": {
+    //       backgroundColor: "transparent",
+    //     },
+    //     "&.Mui-disabled": {
+    //       backgroundColor: "transparent",
+    //     },
+    //   },
+    //   "&.Mui-disabled": {
+    //     backgroundColor: theme.palette.action.disabledBackground,
+    //     color: theme.palette.text.secondary,
+    //   },
+    // },
+
+    // TODO: do we need this?
     "&.MuiButton-outlined": {
       color: theme.palette.success.main,
       borderColor: theme.palette.success.main,
@@ -130,6 +152,7 @@ const styles = {
       },
     },
 
+    // TODO: do we need this?
     "&.MuiButton-text": {
       color: theme.palette.success.main,
       "&:hover": {

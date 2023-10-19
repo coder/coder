@@ -1,66 +1,66 @@
-import { Pill } from "./Pill";
+import { Callout } from "./Callout";
 import type { Meta, StoryObj } from "@storybook/react";
 
-const meta: Meta<typeof Pill> = {
-  title: "components/Pill",
-  component: Pill,
+const meta: Meta<typeof Callout> = {
+  title: "components/Callout",
+  component: Callout,
 };
 
 export default meta;
-type Story = StoryObj<typeof Pill>;
+type Story = StoryObj<typeof Callout>;
 
 export const Danger: Story = {
   args: {
-    text: "Danger",
+    children: "Danger",
     type: "danger",
   },
 };
 
 export const Error: Story = {
   args: {
-    text: "Error",
+    children: "Error",
     type: "error",
   },
 };
 
 export const Warning: Story = {
   args: {
-    text: "Warning",
+    children: "Warning",
     type: "warning",
   },
 };
 
 export const Notice: Story = {
   args: {
-    text: "Notice",
+    children: "Notice",
     type: "notice",
   },
 };
 
 export const Info: Story = {
   args: {
-    text: "Information",
+    children: "Information",
     type: "info",
   },
 };
 
 export const Success: Story = {
   args: {
-    text: "Success",
+    children: "Success",
     type: "success",
   },
 };
 
 export const Active: Story = {
   args: {
-    text: "Active",
+    children: "Active",
     type: "active",
   },
 };
 
 // export const InfoLight: Story = {
 //   args: {
-//     text: "Information",
+//     children: "Information",
 //     type: "info",
 //     lightBorder: true,
 //   },
@@ -68,20 +68,19 @@ export const Active: Story = {
 
 export const Default: Story = {
   args: {
-    text: "Neutral/default",
+    children: "Neutral/default",
   },
 };
 
 export const DefaultLight: Story = {
   args: {
-    text: "Neutral/default",
-    lightBorder: true,
+    children: "Neutral/default",
   },
 };
 
 // export const WarningLight: Story = {
 //   args: {
-//     text: "Warning",
+//     children: "Warning",
 //     type: "warning",
 //     lightBorder: true,
 //   },

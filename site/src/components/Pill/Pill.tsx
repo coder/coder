@@ -1,8 +1,18 @@
 import { type FC, type ReactNode, useMemo, forwardRef } from "react";
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import { colors } from "theme/colors";
+import { dark } from "theme/theme";
 
-export type PillType = "error" | "warning" | "info" | "success" | "neutral";
+// TODO: use a `ThemeRole` type or something
+export type PillType =
+  | "danger"
+  | "error"
+  | "warning"
+  | "notice"
+  | "info"
+  | "success"
+  | "active"
+  | "neutral";
 
 export interface PillProps {
   className?: string;
@@ -21,11 +31,13 @@ const themeOverrides = {
 } satisfies Record<string, (lightBorder?: boolean) => Interpolation<Theme>>;
 
 const themeStyles =
-  (type: PillType, lightBorder?: boolean) => (theme: Theme) => {
-    const palette = theme.palette[type];
+  (type: Exclude<PillType, "neutral">, lightBorder?: boolean) =>
+  (theme: Theme) => {
+    const palette = dark.roles[type];
     return {
-      backgroundColor: palette.dark,
-      borderColor: lightBorder ? palette.light : palette.main,
+      backgroundColor: palette.background,
+      borderColor: palette.outline,
+      color: palette.text,
     };
   };
 
@@ -44,7 +56,8 @@ export const Pill: FC<PillProps> = forwardRef<HTMLDivElement, PillProps>(
       if (type in themeOverrides) {
         return themeOverrides[type as keyof typeof themeOverrides](lightBorder);
       }
-      return themeStyles(type, lightBorder);
+      // TODO: hack
+      return themeStyles(type as any, lightBorder);
     }, [type, lightBorder]);
 
     return (

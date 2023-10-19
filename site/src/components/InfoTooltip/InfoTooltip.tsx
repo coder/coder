@@ -6,13 +6,20 @@ import {
 } from "components/HelpTooltip/HelpTooltip";
 import InfoIcon from "@mui/icons-material/InfoOutlined";
 import { css } from "@emotion/css";
-import { colors } from "theme/colors";
+import { dark } from "theme/theme";
 
 interface InfoTooltipProps {
-  type?: "warning" | "info";
+  // TODO: use a `ThemeRole` type or something
+  type?: "warning" | "notice" | "info";
   title: ReactNode;
   message: ReactNode;
 }
+
+const iconColor = {
+  warning: dark.roles.warning.outline,
+  notice: dark.roles.notice.outline,
+  info: dark.roles.info.outline,
+};
 
 export const InfoTooltip: FC<InfoTooltipProps> = (props) => {
   const { title, message, type = "info" } = props;
@@ -22,7 +29,7 @@ export const InfoTooltip: FC<InfoTooltipProps> = (props) => {
       size="small"
       icon={InfoIcon}
       iconClassName={css`
-        color: ${type === "info" ? colors.blue[3] : colors.yellow[5]};
+        color: ${iconColor[type]};
       `}
       buttonClassName={css`
         opacity: 1;

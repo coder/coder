@@ -15,7 +15,7 @@ export const Alert: FC<AlertProps> = ({
   children,
   actions,
   dismissible,
-  severity,
+  severity = "info",
   onDismiss,
   ...alertProps
 }) => {

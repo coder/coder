@@ -1,5 +1,5 @@
 import Link from "@mui/material/Link";
-import Popover, { PopoverProps } from "@mui/material/Popover";
+import Popover, { type PopoverProps } from "@mui/material/Popover";
 import HelpIcon from "@mui/icons-material/HelpOutline";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import {
@@ -7,11 +7,11 @@ import {
   useContext,
   useRef,
   useState,
-  FC,
-  PropsWithChildren,
+  type FC,
+  type PropsWithChildren,
 } from "react";
 import { Stack } from "components/Stack/Stack";
-import Box, { BoxProps } from "@mui/material/Box";
+import Box, { type BoxProps } from "@mui/material/Box";
 import { type CSSObject, css as className } from "@emotion/css";
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 

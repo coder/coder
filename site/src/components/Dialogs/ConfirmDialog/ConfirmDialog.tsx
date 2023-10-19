@@ -17,8 +17,8 @@ const CONFIRM_DIALOG_DEFAULTS: Record<
   ConfirmDialogType,
   ConfirmDialogTypeConfig
 > = {
-  delete: {
-    confirmText: "Delete",
+  danger: {
+    confirmText: "Delete", // TODO: this feels gross given the rename of delete -> danger
     hideCancel: false,
   },
   info: {

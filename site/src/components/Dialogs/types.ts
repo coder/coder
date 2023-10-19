@@ -1,1 +1,1 @@
-export type ConfirmDialogType = "delete" | "info" | "success";
+export type ConfirmDialogType = "danger" | "info" | "success";

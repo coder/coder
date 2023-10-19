@@ -5,10 +5,11 @@ import {
   useId,
   useState,
 } from "react";
-
 import { useTheme } from "@emotion/react";
 import TextField from "@mui/material/TextField";
+import { dark } from "theme/theme";
 import { ConfirmDialog } from "../ConfirmDialog/ConfirmDialog";
+import { Callout } from "../../Callout/Callout";
 
 export interface DeleteDialogProps {
   isOpen: boolean;
@@ -49,7 +50,7 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
 
   return (
     <ConfirmDialog
-      type="delete"
+      type="danger"
       hideCancel={false}
       open={isOpen}
       title={`Delete ${entity}`}
@@ -61,14 +62,12 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
         <>
           <p>Deleting this {entity} is irreversible!</p>
 
-          {Boolean(info) && (
-            <p css={{ color: theme.palette.warning.light }}>{info}</p>
-          )}
+          {Boolean(info) && <Callout type="danger">{info}</Callout>}
 
           <p>Are you sure you want to proceed?</p>
 
           <p>
-            Type &ldquo;<strong>{name}</strong>&rdquo; below to confirm.
+            Type <strong>{name}</strong> below to confirm.
           </p>
 
           <form onSubmit={onSubmit}>

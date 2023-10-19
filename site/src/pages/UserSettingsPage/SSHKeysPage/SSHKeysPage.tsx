@@ -40,7 +40,7 @@ export const SSHKeysPage: FC<PropsWithChildren<unknown>> = () => {
       </Section>
 
       <ConfirmDialog
-        type="delete"
+        type="danger"
         hideCancel={false}
         open={isConfirmingRegeneration}
         confirmLoading={regenerateSSHKeyMutation.isLoading}

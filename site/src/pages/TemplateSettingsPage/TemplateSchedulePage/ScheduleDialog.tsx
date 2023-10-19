@@ -124,7 +124,7 @@ export const ScheduleDialog: FC<PropsWithChildren<ScheduleDialogProps>> = ({
           disabled={disabled}
           onCancel={!hideCancel ? onClose : undefined}
           onConfirm={onConfirm || onClose}
-          type="delete"
+          type="danger"
         />
       </DialogActions>
     </Dialog>

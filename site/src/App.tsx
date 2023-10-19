@@ -6,7 +6,7 @@ import { HelmetProvider } from "react-helmet-async";
 import { AppRouter } from "./AppRouter";
 import { ErrorBoundary } from "./components/ErrorBoundary/ErrorBoundary";
 import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar";
-import { dark } from "./theme";
+import { dark } from "./theme/mui";
 import "./theme/globalFonts";
 import {
   StyledEngineProvider,
