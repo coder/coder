@@ -596,7 +596,35 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				ProvisionApply: echo.ProvisionApplyWithAgent(""),
 			},
 			wantConfig: wantConfig{
-				regexMatch: "--header-command /foo/bar/coder ssh",
+				regexMatch: "--header-command \"/foo/bar/coder\" ssh",
+			},
+		},
+		{
+			name: "Header command with double quotes",
+			args: []string{
+				"--header-command", "/foo/bar/coder arg1 arg2=\"quoted value\"",
+			},
+			wantErr: false,
+			echoResponse: &echo.Responses{
+				Parse:          echo.ParseComplete,
+				ProvisionApply: echo.ProvisionApplyWithAgent(""),
+			},
+			wantConfig: wantConfig{
+				regexMatch: "--header-command \"/foo/bar/coder arg1 arg2=\\\"quoted value\\\"\" ssh",
+			},
+		},
+		{
+			name: "Header command with single quotes",
+			args: []string{
+				"--header-command", "/foo/bar/coder arg1 arg2='quoted value'",
+			},
+			wantErr: false,
+			echoResponse: &echo.Responses{
+				Parse:          echo.ParseComplete,
+				ProvisionApply: echo.ProvisionApplyWithAgent(""),
+			},
+			wantConfig: wantConfig{
+				regexMatch: "--header-command \"/foo/bar/coder arg1 arg2='quoted value'\" ssh",
 			},
 		},
 	}
