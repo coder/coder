@@ -31,60 +31,65 @@ export const UserDropdown: FC<PropsWithChildren<UserDropdownProps>> = ({
 }: UserDropdownProps) => {
   return (
     <Popover isDefaultOpen={isDefaultOpen}>
-      <PopoverTrigger>
-        <button
-          css={(theme) => css`
-            background: none;
-            border: 0;
-            height: ${navHeight}px;
-            padding: ${theme.spacing(1.5, 0)};
+      {(popover) => (
+        <>
+          <PopoverTrigger>
+            <button
+              css={(theme) => css`
+                background: none;
+                border: 0;
+                cursor: pointer;
+                height: ${navHeight}px;
+                padding: ${theme.spacing(1.5, 0)};
 
-            &:hover {
-              background-color: transparent;
-            }
-          `}
-          data-testid="user-dropdown-trigger"
-        >
-          <div
-            css={{
-              display: "flex",
-              alignItems: "center",
-              minWidth: 0,
-              maxWidth: 300,
-            }}
-          >
-            <Badge overlap="circular">
-              <UserAvatar
-                sx={{
-                  width: BUTTON_SM_HEIGHT,
-                  height: BUTTON_SM_HEIGHT,
-                  fontSize: 16,
+                &:hover {
+                  background-color: transparent;
+                }
+              `}
+              data-testid="user-dropdown-trigger"
+            >
+              <div
+                css={{
+                  display: "flex",
+                  alignItems: "center",
+                  minWidth: 0,
+                  maxWidth: 300,
                 }}
-                username={user.username}
-                avatarURL={user.avatar_url}
-              />
-            </Badge>
-            <DropdownArrow color={colors.gray[6]} />
-          </div>
-        </button>
-      </PopoverTrigger>
+              >
+                <Badge overlap="circular">
+                  <UserAvatar
+                    sx={{
+                      width: BUTTON_SM_HEIGHT,
+                      height: BUTTON_SM_HEIGHT,
+                      fontSize: 16,
+                    }}
+                    username={user.username}
+                    avatarURL={user.avatar_url}
+                  />
+                </Badge>
+                <DropdownArrow color={colors.gray[6]} close={popover.isOpen} />
+              </div>
+            </button>
+          </PopoverTrigger>
 
-      <PopoverContent
-        horizontal="right"
-        css={(theme) => ({
-          ".MuiPaper-root": {
-            width: 260,
-            boxShadow: theme.shadows[6],
-          },
-        })}
-      >
-        <UserDropdownContent
-          user={user}
-          buildInfo={buildInfo}
-          supportLinks={supportLinks}
-          onSignOut={onSignOut}
-        />
-      </PopoverContent>
+          <PopoverContent
+            horizontal="right"
+            css={(theme) => ({
+              ".MuiPaper-root": {
+                width: 260,
+                boxShadow: theme.shadows[6],
+              },
+            })}
+          >
+            <UserDropdownContent
+              user={user}
+              buildInfo={buildInfo}
+              supportLinks={supportLinks}
+              onSignOut={onSignOut}
+            />
+          </PopoverContent>
+        </>
+      )}
     </Popover>
   );
 };
