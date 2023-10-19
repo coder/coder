@@ -5,6 +5,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useId,
   useRef,
   useState,
 } from "react";
@@ -19,11 +20,14 @@ type TriggerMode = "hover" | "click";
 type TriggerRef = React.RefObject<HTMLElement>;
 
 type TriggerElement = ReactElement<{
-  onClick?: () => void;
   ref: TriggerRef;
+  onClick?: () => void;
+  "aria-haspopup"?: boolean;
+  "aria-owns"?: string | undefined;
 }>;
 
 type PopoverContextValue = {
+  id: string;
   isOpen: boolean;
   setIsOpen: React.Dispatch<React.SetStateAction<boolean>>;
   triggerRef: TriggerRef;
@@ -39,9 +43,17 @@ export const Popover = (props: {
   mode?: TriggerMode;
   isDefaultOpen?: boolean;
 }) => {
+  const hookId = useId();
   const [isOpen, setIsOpen] = useState(props.isDefaultOpen ?? false);
   const triggerRef = useRef<HTMLElement>(null);
-  const value = { isOpen, setIsOpen, triggerRef, mode: props.mode ?? "click" };
+
+  const value: PopoverContextValue = {
+    isOpen,
+    setIsOpen,
+    triggerRef,
+    id: `${hookId}-popover`,
+    mode: props.mode ?? "click",
+  };
 
   return (
     <PopoverContext.Provider value={value}>
@@ -62,10 +74,7 @@ export const usePopover = () => {
   return context;
 };
 
-export const PopoverTrigger = (props: {
-  children: TriggerElement;
-  hover?: boolean;
-}) => {
+export const PopoverTrigger = (props: { children: TriggerElement }) => {
   const popover = usePopover();
 
   const clickProps = {
@@ -85,6 +94,8 @@ export const PopoverTrigger = (props: {
 
   return cloneElement(props.children, {
     ...(popover.mode === "click" ? clickProps : hoverProps),
+    "aria-haspopup": true,
+    "aria-owns": popover.isOpen ? popover.id : undefined,
     ref: popover.triggerRef,
   });
 };
@@ -118,10 +129,10 @@ export const PopoverContent = (
     <MuiPopover
       disablePortal
       css={(theme) => ({
-        // When it is on hover mode, and the moude is moving from the trigger to
+        // When it is on hover mode, and the mode is moving from the trigger to
         // the popover, if there is any space, the popover will be closed. I
         // found this is a limitation on how MUI structured the component. It is
-        // not a big issue for now but we can reavaluate it in the future.
+        // not a big issue for now but we can re-evaluate it in the future.
         marginTop: hoverMode ? undefined : theme.spacing(1),
         pointerEvents: hoverMode ? "none" : undefined,
         "& .MuiPaper-root": {
@@ -133,6 +144,7 @@ export const PopoverContent = (
       {...horizontalProps(horizontal)}
       {...modeProps(popover)}
       {...props}
+      id={popover.id}
       open={popover.isOpen}
       onClose={() => popover.setIsOpen(false)}
       anchorEl={popover.triggerRef.current}
@@ -143,10 +155,10 @@ export const PopoverContent = (
 const modeProps = (popover: PopoverContextValue) => {
   if (popover.mode === "hover") {
     return {
-      onMouseEnter: () => {
+      onPointerEnter: () => {
         popover.setIsOpen(true);
       },
-      onMouseLeave: () => {
+      onPointerLeave: () => {
         popover.setIsOpen(false);
       },
     };

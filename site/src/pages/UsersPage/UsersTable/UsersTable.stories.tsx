@@ -3,9 +3,15 @@ import {
   MockUser2,
   MockAssignableSiteRoles,
   MockAuthMethods,
+  MockGroup,
 } from "testHelpers/entities";
 import { UsersTable } from "./UsersTable";
 import type { Meta, StoryObj } from "@storybook/react";
+
+const mockGroupsByUserId = new Map([
+  [MockUser.id, [MockGroup]],
+  [MockUser2.id, [MockGroup]],
+]);
 
 const meta: Meta<typeof UsersTable> = {
   title: "pages/UsersPage/UsersTable",
@@ -24,6 +30,7 @@ export const Example: Story = {
     users: [MockUser, MockUser2],
     roles: MockAssignableSiteRoles,
     canEditUsers: false,
+    groupsByUserId: mockGroupsByUserId,
   },
 };
 
@@ -58,6 +65,7 @@ export const Editable: Story = {
     roles: MockAssignableSiteRoles,
     canEditUsers: true,
     canViewActivity: true,
+    groupsByUserId: mockGroupsByUserId,
   },
 };
 

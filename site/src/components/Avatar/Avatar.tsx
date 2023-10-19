@@ -5,16 +5,23 @@ import { FC } from "react";
 import { css, type Interpolation, type Theme } from "@emotion/react";
 
 export type AvatarProps = MuiAvatarProps & {
-  size?: "sm" | "md" | "xl";
+  size?: "xs" | "sm" | "md" | "xl";
   colorScheme?: "light" | "darken";
   fitImage?: boolean;
 };
 
 const sizeStyles = {
+  xs: (theme) => ({
+    width: theme.spacing(2),
+    height: theme.spacing(2),
+    fontSize: theme.spacing(1),
+    fontWeight: 700,
+  }),
   sm: (theme) => ({
     width: theme.spacing(3),
     height: theme.spacing(3),
     fontSize: theme.spacing(1.5),
+    fontWeight: 600,
   }),
   md: {},
   xl: (theme) => ({
