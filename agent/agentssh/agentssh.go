@@ -544,7 +544,7 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string)
 			args = []string{}
 		}
 		scriptSha := sha256.Sum256([]byte(script))
-		tempFile, err := os.CreateTemp("", fmt.Sprintf("coder-script-%x", scriptSha))
+		tempFile, err := os.CreateTemp("", fmt.Sprintf("coder-script-%x.*", scriptSha))
 		if err != nil {
 			return nil, nil, xerrors.Errorf("create temp file: %w", err)
 		}
