@@ -4,6 +4,7 @@ import {
   cloneElement,
   createContext,
   useContext,
+  useEffect,
   useRef,
   useState,
 } from "react";
@@ -36,9 +37,9 @@ const PopoverContext = createContext<PopoverContextValue | undefined>(
 export const Popover = (props: {
   children: ReactNode | ((popover: PopoverContextValue) => ReactNode); // Allows inline usage
   mode?: TriggerMode;
-  defaultOpen?: boolean;
+  isDefaultOpen?: boolean;
 }) => {
-  const [isOpen, setIsOpen] = useState(props.defaultOpen ?? false);
+  const [isOpen, setIsOpen] = useState(props.isDefaultOpen ?? false);
   const triggerRef = useRef<HTMLElement>(null);
   const value = { isOpen, setIsOpen, triggerRef, mode: props.mode ?? "click" };
 
@@ -96,8 +97,22 @@ export const PopoverContent = (
   },
 ) => {
   const popover = usePopover();
+  const [isReady, setIsReady] = useState(false);
   const horizontal = props.horizontal ?? "left";
   const hoverMode = popover.mode === "hover";
+
+  // This is a hack to make sure the popover is not rendered until the trigger
+  // is ready. This is a limitation on MUI that does not support defaultIsOpen
+  // on Popover but we need it to storybook the component.
+  useEffect(() => {
+    if (!isReady && popover.triggerRef.current !== null) {
+      setIsReady(true);
+    }
+  }, [isReady, popover.triggerRef]);
+
+  if (!popover.triggerRef.current) {
+    return null;
+  }
 
   return (
     <MuiPopover

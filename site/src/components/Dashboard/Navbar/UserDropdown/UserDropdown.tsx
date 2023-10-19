@@ -1,5 +1,4 @@
 import Badge from "@mui/material/Badge";
-import MenuItem from "@mui/material/MenuItem";
 import { FC, PropsWithChildren } from "react";
 import { colors } from "theme/colors";
 import * as TypesGen from "api/typesGenerated";
@@ -20,6 +19,7 @@ export interface UserDropdownProps {
   buildInfo?: TypesGen.BuildInfoResponse;
   supportLinks?: TypesGen.LinkConfig[];
   onSignOut: () => void;
+  isDefaultOpen?: boolean;
 }
 
 export const UserDropdown: FC<PropsWithChildren<UserDropdownProps>> = ({
@@ -27,12 +27,15 @@ export const UserDropdown: FC<PropsWithChildren<UserDropdownProps>> = ({
   user,
   supportLinks,
   onSignOut,
+  isDefaultOpen,
 }: UserDropdownProps) => {
   return (
-    <Popover>
+    <Popover isDefaultOpen={isDefaultOpen}>
       <PopoverTrigger>
-        <MenuItem
+        <button
           css={(theme) => css`
+            background: none;
+            border: 0;
             height: ${navHeight}px;
             padding: ${theme.spacing(1.5, 0)};
 
@@ -63,7 +66,7 @@ export const UserDropdown: FC<PropsWithChildren<UserDropdownProps>> = ({
             </Badge>
             <DropdownArrow color={colors.gray[6]} />
           </div>
-        </MenuItem>
+        </button>
       </PopoverTrigger>
 
       <PopoverContent

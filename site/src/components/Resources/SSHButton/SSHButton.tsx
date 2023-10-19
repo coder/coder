@@ -19,20 +19,20 @@ import {
 export interface SSHButtonProps {
   workspaceName: string;
   agentName: string;
-  defaultIsOpen?: boolean;
+  isDefaultOpen?: boolean;
   sshPrefix?: string;
 }
 
 export const SSHButton: FC<PropsWithChildren<SSHButtonProps>> = ({
   workspaceName,
   agentName,
-  defaultIsOpen = false,
+  isDefaultOpen = false,
   sshPrefix,
 }) => {
   const theme = useTheme();
 
   return (
-    <Popover defaultOpen={defaultIsOpen}>
+    <Popover isDefaultOpen={isDefaultOpen}>
       <PopoverTrigger>
         <SecondaryAgentButton>SSH</SecondaryAgentButton>
       </PopoverTrigger>
