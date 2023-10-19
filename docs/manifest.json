@@ -139,55 +139,86 @@
     },
     {
       "title": "Templates",
-      "description": "Learn about templates, which define the infrastructure underlying workspaces",
+      "description": "Templates define the infrastructure for workspaces",
       "path": "./templates/index.md",
       "icon_path": "./images/icons/picture.svg",
       "children": [
         {
-          "title": "Resource Persistence",
-          "description": "Learn how resource persistence works in Coder",
-          "path": "./templates/resource-persistence.md",
-          "icon_path": "./images/icons/infinity.svg"
+          "title": "Working with templates",
+          "description": "Creating, editing, and updating templates",
+          "path": "./templates/creating.md"
         },
         {
-          "title": "Provider Authentication",
-          "description": "Learn how to authenticate the provisioner",
-          "path": "./templates/authentication.md",
-          "icon_path": "./images/icons/key.svg"
+          "title": "Your first template",
+          "description": "A tutorial for creating and editing your first template",
+          "path": "./templates/tutorial.md"
         },
         {
-          "title": "Change Management",
-          "description": "Learn how to source-control templates with git and CI",
-          "path": "./templates/change-management.md",
-          "icon_path": "./images/icons/git.svg"
+          "title": "Guided tour",
+          "description": "Create a template from scratch",
+          "path": "./templates/tour.md"
         },
         {
-          "title": "Resource Metadata",
-          "description": "Learn how to expose resource data to users",
-          "path": "./templates/resource-metadata.md",
-          "icon_path": "./images/icons/table-rows.svg"
+          "title": "Setting up templates",
+          "description": "Best practices for writing templates",
+          "path": "./templates/best-practices.md",
+          "children": [
+            {
+              "title": "Change management",
+              "description": "Versioning templates with git and CI",
+              "path": "./templates/change-management.md",
+              "icon_path": "./images/icons/git.svg"
+            },
+            {
+              "title": "Provider authentication",
+              "description": "Authenticate the provisioner",
+              "path": "./templates/authentication.md",
+              "icon_path": "./images/icons/key.svg"
+            },
+            {
+              "title": "Resource persistence",
+              "description": "How resource persistence works in Coder",
+              "path": "./templates/resource-persistence.md",
+              "icon_path": "./images/icons/infinity.svg"
+            },
+            {
+              "title": "Terraform modules",
+              "description": "Reuse code across Coder templates",
+              "path": "./templates/modules.md"
+            }
+          ]
         },
         {
-          "title": "Agent Metadata",
-          "description": "Learn how to expose live agent information to users",
-          "path": "./templates/agent-metadata.md",
-          "icon_path": "./images/icons/table-rows.svg"
-        },
-        {
-          "title": "Parameters",
-          "description": "Use parameters to customize templates",
-          "path": "./templates/parameters.md",
-          "icon_path": "./images/icons/code.svg"
+          "title": "Customizing templates",
+          "description": "Give information and options to workspace users",
+          "path": "./templates/customizing.md",
+          "children": [
+            {
+              "title": "Agent metadata",
+              "description": "Show operational metrics in the workspace",
+              "path": "./templates/agent-metadata.md"
+            },
+            {
+              "title": "Resource metadata",
+              "description": "Show information in the workspace about template resources",
+              "path": "./templates/resource-metadata.md"
+            },
+            {
+              "title": "Parameters",
+              "description": "Prompt the user for additional information about a workspace",
+              "path": "./templates/parameters.md"
+            }
+          ]
         },
         {
           "title": "Open in Coder",
-          "description": "Learn how to add an \"Open in Coder\" button to your repos",
+          "description": "Add an \"Open in Coder\" button to your repos",
           "path": "./templates/open-in-coder.md",
           "icon_path": "./images/icons/key.svg"
         },
         {
-          "title": "Docker in Workspaces",
-          "description": "Use docker inside containerized templates",
+          "title": "Docker in workspaces",
+          "description": "Use Docker inside containerized templates",
           "path": "./templates/docker-in-workspaces.md",
           "icon_path": "./images/icons/docker.svg"
         },
@@ -198,9 +229,9 @@
           "state": "alpha"
         },
         {
-          "title": "Terraform Modules",
-          "description": "Reuse code across Coder templates",
-          "path": "./templates/modules.md"
+          "title": "Troubleshooting templates",
+          "description": "Fix common template problems",
+          "path": "./templates/troubleshooting.md"
         },
         {
           "title": "Process Logging",
@@ -337,7 +368,7 @@
           "icon_path": "./images/icons/scale.svg"
         },
         {
-          "title": "Provisioners",
+          "title": "External Provisioners",
           "description": "Run provisioners isolated from the Coder server",
           "path": "./admin/provisioners.md",
           "icon_path": "./images/icons/queue.svg",

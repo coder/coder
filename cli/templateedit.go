@@ -31,6 +31,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 		allowUserCancelWorkspaceJobs   bool
 		allowUserAutostart             bool
 		allowUserAutostop              bool
+		requireActiveVersion           bool
 	)
 	client := new(codersdk.Client)
 
@@ -43,7 +44,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 		Short: "Edit the metadata of a template by name.",
 		Handler: func(inv *clibase.Invocation) error {
 			unsetAutostopRequirementDaysOfWeek := len(autostopRequirementDaysOfWeek) == 1 && autostopRequirementDaysOfWeek[0] == "none"
-			requiresEntitlement := (len(autostopRequirementDaysOfWeek) > 0 && !unsetAutostopRequirementDaysOfWeek) ||
+			requiresScheduling := (len(autostopRequirementDaysOfWeek) > 0 && !unsetAutostopRequirementDaysOfWeek) ||
 				autostopRequirementWeeks > 0 ||
 				!allowUserAutostart ||
 				!allowUserAutostop ||
@@ -52,17 +53,32 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				inactivityTTL != 0 ||
 				len(autostartRequirementDaysOfWeek) > 0
 
+			requiresEntitlement := requiresScheduling || requireActiveVersion
 			if requiresEntitlement {
 				entitlements, err := client.Entitlements(inv.Context())
-				var sdkErr *codersdk.Error
-				if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
-					return xerrors.Errorf("your deployment appears to be an AGPL deployment, so you cannot set --max-ttl, --failure-ttl, --inactivityTTL, --allow-user-autostart=false or --allow-user-autostop=false")
+				if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusNotFound {
+					return xerrors.Errorf("your deployment appears to be an AGPL deployment, so you cannot set enterprise-only flags")
 				} else if err != nil {
 					return xerrors.Errorf("get entitlements: %w", err)
 				}
 
-				if !entitlements.Features[codersdk.FeatureAdvancedTemplateScheduling].Enabled {
+				if requiresScheduling && !entitlements.Features[codersdk.FeatureAdvancedTemplateScheduling].Enabled {
 					return xerrors.Errorf("your license is not entitled to use advanced template scheduling, so you cannot set --max-ttl, --failure-ttl, --inactivityTTL, --allow-user-autostart=false or --allow-user-autostop=false")
+				}
+
+				if requireActiveVersion {
+					if !entitlements.Features[codersdk.FeatureAccessControl].Enabled {
+						return xerrors.Errorf("your license is not entitled to use enterprise access control, so you cannot set --require-active-version")
+					}
+
+					experiments, exErr := client.Experiments(inv.Context())
+					if exErr != nil {
+						return xerrors.Errorf("get experiments: %w", exErr)
+					}
+
+					if !experiments.Enabled(codersdk.ExperimentTemplateUpdatePolicies) {
+						return xerrors.Errorf("--require-active-version is an experimental feature, contact an administrator to enable the 'template_update_policies' experiment on your Coder server")
+					}
 				}
 			}
 
@@ -110,6 +126,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				AllowUserCancelWorkspaceJobs: allowUserCancelWorkspaceJobs,
 				AllowUserAutostart:           allowUserAutostart,
 				AllowUserAutostop:            allowUserAutostop,
+				RequireActiveVersion:         requireActiveVersion,
 			}
 
 			_, err = client.UpdateTemplateMeta(inv.Context(), template.ID, req)
@@ -221,6 +238,12 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 			Description: "Allow users to customize the autostop TTL for workspaces on this template. This can only be disabled in enterprise.",
 			Default:     "true",
 			Value:       clibase.BoolOf(&allowUserAutostop),
+		},
+		{
+			Flag:        "require-active-version",
+			Description: "Requires workspace builds to use the active template version. This setting does not apply to template admins. This is an enterprise-only feature.",
+			Value:       clibase.BoolOf(&requireActiveVersion),
+			Default:     "false",
 		},
 		cliui.SkipPromptOption(),
 	}

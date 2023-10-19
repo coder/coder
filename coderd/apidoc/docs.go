@@ -587,8 +587,36 @@ const docTemplate = `{
                 "tags": [
                     "General"
                 ],
-                "summary": "Get experiments",
-                "operationId": "get-experiments",
+                "summary": "Get enabled experiments",
+                "operationId": "get-enabled-experiments",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.Experiment"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/experiments/available": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Get safe experiments",
+                "operationId": "get-safe-experiments",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -7788,6 +7816,10 @@ const docTemplate = `{
                     "description": "Name is the name of the template.",
                     "type": "string"
                 },
+                "require_active_version": {
+                    "description": "RequireActiveVersion mandates that workspaces are built with the active\ntemplate version.",
+                    "type": "boolean"
+                },
                 "template_version_id": {
                     "description": "VersionID is an in-progress or completed job to use as an initial version\nof the template.\n\nThis is required on creation to enable a user-flow of validating a\ntemplate works. There is no reason the data-model cannot support empty\ntemplates, but it doesn't make sense for users.",
                     "type": "string",
@@ -8509,7 +8541,8 @@ const docTemplate = `{
                 "single_tailnet",
                 "template_autostop_requirement",
                 "deployment_health_page",
-                "dashboard_theme"
+                "dashboard_theme",
+                "template_update_policies"
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
@@ -8517,7 +8550,8 @@ const docTemplate = `{
                 "ExperimentSingleTailnet",
                 "ExperimentTemplateAutostopRequirement",
                 "ExperimentDeploymentHealthPage",
-                "ExperimentDashboardTheme"
+                "ExperimentDashboardTheme",
+                "ExperimentTemplateUpdatePolicies"
             ]
         },
         "codersdk.ExternalAuth": {
@@ -9965,6 +9999,10 @@ const docTemplate = `{
                     "enum": [
                         "terraform"
                     ]
+                },
+                "require_active_version": {
+                    "description": "RequireActiveVersion mandates that workspaces are built with the active\ntemplate version.",
+                    "type": "boolean"
                 },
                 "time_til_dormant_autodelete_ms": {
                     "type": "integer"

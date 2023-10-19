@@ -43,6 +43,7 @@ const validFormValues: FormValues = {
   time_til_dormant_autodelete_ms: 0,
   update_workspace_last_used_at: false,
   update_workspace_dormant_at: false,
+  require_active_version: false,
 };
 
 const renderTemplateSettingsPage = async () => {

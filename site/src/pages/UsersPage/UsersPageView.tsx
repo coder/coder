@@ -1,5 +1,7 @@
-import { ComponentProps, FC } from "react";
-import * as TypesGen from "api/typesGenerated";
+import { type ComponentProps, type FC } from "react";
+import type * as TypesGen from "api/typesGenerated";
+import { type GroupsByUserId } from "api/queries/groups";
+
 import { UsersTable } from "./UsersTable/UsersTable";
 import { UsersFilter } from "./UsersFilter";
 import {
@@ -12,10 +14,10 @@ export interface UsersPageViewProps {
   users?: TypesGen.User[];
   roles?: TypesGen.AssignableRoles[];
   isUpdatingUserRoles?: boolean;
-  canEditUsers?: boolean;
+  canEditUsers: boolean;
   oidcRoleSyncEnabled: boolean;
   canViewActivity?: boolean;
-  isLoading?: boolean;
+  isLoading: boolean;
   authMethods?: TypesGen.AuthMethods;
   onSuspendUser: (user: TypesGen.User) => void;
   onDeleteUser: (user: TypesGen.User) => void;
@@ -30,6 +32,8 @@ export interface UsersPageViewProps {
   filterProps: ComponentProps<typeof UsersFilter>;
   isNonInitialPage: boolean;
   actorID: string;
+  groupsByUserId: GroupsByUserId | undefined;
+
   // Pagination
   count?: number;
   page: number;
@@ -60,6 +64,7 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
   limit,
   onPageChange,
   page,
+  groupsByUserId,
 }) => {
   return (
     <>
@@ -77,6 +82,7 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
       <UsersTable
         users={users}
         roles={roles}
+        groupsByUserId={groupsByUserId}
         onSuspendUser={onSuspendUser}
         onDeleteUser={onDeleteUser}
         onListWorkspaces={onListWorkspaces}

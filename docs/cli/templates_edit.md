@@ -113,6 +113,15 @@ Edit the template maximum time before shutdown - workspaces created from this te
 
 Edit the template name.
 
+### --require-active-version
+
+|         |                    |
+| ------- | ------------------ |
+| Type    | <code>bool</code>  |
+| Default | <code>false</code> |
+
+Requires workspace builds to use the active template version. This setting does not apply to template admins. This is an enterprise-only feature.
+
 ### -y, --yes
 
 |      |                   |

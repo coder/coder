@@ -6,7 +6,8 @@ import { getMetadataAsJSON } from "utils/metadata";
 // so you can just set this to true.
 export const experimentalTheme =
   typeof document !== "undefined" &&
-  getMetadataAsJSON("experiments")?.includes("dashboard_theme");
+  (getMetadataAsJSON<string[]>("experiments")?.includes("dashboard_theme") ??
+    false);
 
 export const colors = {
   white: "hsl(0, 0%, 100%)",

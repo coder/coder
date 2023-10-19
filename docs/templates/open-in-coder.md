@@ -1,7 +1,7 @@
 # Open in Coder
 
-An "Open in Coder" button can be embedded into your git repos or internal wikis
-to allow developers to quickly launch a new workspace.
+You can embed an "Open in Coder" button into your git repos or internal wikis to
+let developers quickly launch a new workspace.
 
 <video autoplay playsinline loop>
   <source src="https://github.com/coder/coder/blob/main/docs/images/templates/open-in-coder.mp4?raw=true" type="video/mp4">
@@ -13,112 +13,108 @@ Your browser does not support the video tag.
 To support any infrastructure and software stack, Coder provides a generic
 approach for "Open in Coder" flows.
 
-1. Set up
-   [Git Authentication](../admin/external-auth.md#require-git-authentication-in-templates)
-   in your Coder deployment
+### 1. Set up git authentication
 
-1. Modify your template to auto-clone repos:
+See [External Authentication](../admin/external-auth.md) to set up git
+authentication in your Coder deployment.
 
-> The id in the template's `coder_git_auth` data source must match the
-> `CODER_GITAUTH_0_ID` in the Coder deployment configuration.
+### 2. Modify your template to auto-clone repos
 
-- If you want the template to clone a specific git repo
+The id in the template's `coder_git_auth` data source must match the
+`CODER_GITAUTH_0_ID` in the Coder deployment configuration.
 
-  ```hcl
-  # Require git authentication to use this template
-  data "coder_git_auth" "github" {
-      id = "primary-github"
-  }
+If you want the template to clone a specific git repo:
 
-  resource "coder_agent" "dev" {
-      # ...
-      dir = "~/coder"
-      startup_script =<<EOF
+```hcl
+# Require git authentication to use this template
+data "coder_git_auth" "github" {
+    id = "primary-github"
+}
 
-      # Clone repo from GitHub
-      if [ ! -d "coder" ]
-      then
-          git clone https://github.com/coder/coder
-      fi
+resource "coder_agent" "dev" {
+    # ...
+    dir = "~/coder"
+    startup_script =<<EOF
 
-      EOF
-  }
-  ```
+    # Clone repo from GitHub
+    if [ ! -d "coder" ]
+    then
+        git clone https://github.com/coder/coder
+    fi
 
-  > Note: The `dir` attribute can be set in multiple ways, for example:
-  >
-  > - `~/coder`
-  > - `/home/coder/coder`
-  > - `coder` (relative to the home directory)
+    EOF
+}
+```
 
-- If you want the template to support any repository via
-  [parameters](./parameters.md)
+> Note: The `dir` attribute can be set in multiple ways, for example:
+>
+> - `~/coder`
+> - `/home/coder/coder`
+> - `coder` (relative to the home directory)
 
-  ```hcl
-  # Require git authentication to use this template
-  data "coder_git_auth" "github" {
-      id = "primary-github"
-  }
+If you want the template to support any repository via
+[parameters](./parameters.md)
 
-  # Prompt the user for the git repo URL
-  data "coder_parameter" "git_repo" {
-      name          = "git_repo"
-      display_name  = "Git repository"
-      default       = "https://github.com/coder/coder"
-  }
+```hcl
+# Require git authentication to use this template
+data "coder_git_auth" "github" {
+    id = "primary-github"
+}
 
-  locals {
-      folder_name = try(element(split("/", data.coder_parameter.git_repo.value), length(split("/", data.coder_parameter.git_repo.value)) - 1), "")
-  }
+# Prompt the user for the git repo URL
+data "coder_parameter" "git_repo" {
+    name          = "git_repo"
+    display_name  = "Git repository"
+    default       = "https://github.com/coder/coder"
+}
 
-  resource "coder_agent" "dev" {
-      # ...
-      dir = "~/${local.folder_name}"
-      startup_script =<<EOF
+locals {
+    folder_name = try(element(split("/", data.coder_parameter.git_repo.value), length(split("/", data.coder_parameter.git_repo.value)) - 1), "")
+}
 
-      # Clone repo from GitHub
-      if [ ! -d "${local.folder_name}" ]
-      then
-          git clone ${data.coder_parameter.git_repo.value}
-      fi
+resource "coder_agent" "dev" {
+    # ...
+    dir = "~/${local.folder_name}"
+    startup_script =<<EOF
 
-      EOF
-  }
-  ```
+    # Clone repo from GitHub
+    if [ ! -d "${local.folder_name}" ]
+    then
+        git clone ${data.coder_parameter.git_repo.value}
+    fi
 
-1. Embed the "Open in Coder" button with Markdown
+    EOF
+}
+```
 
-   ```md
-   [![Open in Coder](https://YOUR_ACCESS_URL/open-in-coder.svg)](https://YOUR_ACCESS_URL/templates/YOUR_TEMPLATE/workspace)
-   ```
+### 3. Embed the "Open in Coder" button with Markdown
 
-   > Be sure to replace `YOUR_ACCESS_URL` with your Coder access url (e.g.
-   > https://coder.example.com) and `YOUR_TEMPLATE` with the name of your
-   > template.
+```md
+[![Open in Coder](https://YOUR_ACCESS_URL/open-in-coder.svg)](https://YOUR_ACCESS_URL/templates/YOUR_TEMPLATE/workspace)
+```
 
-1. Optional: pre-fill parameter values in the "Create Workspace" page
+Be sure to replace `YOUR_ACCESS_URL` with your Coder access url (e.g.
+<https://coder.example.com>) and `YOUR_TEMPLATE` with the name of your template.
 
-   This can be used to pre-fill the git repo URL, disk size, image, etc.
+### 4. Optional: pre-fill parameter values in the "Create Workspace" page
 
-   ```md
-   [![Open in Coder](https://YOUR_ACCESS_URL/open-in-coder.svg)](https://YOUR_ACCESS_URL/templates/YOUR_TEMPLATE/workspace?param.git_repo=https://github.com/coder/slog&param.home_disk_size%20%28GB%29=20)
-   ```
+This can be used to pre-fill the git repo URL, disk size, image, etc.
 
-   ![Pre-filled parameters](../images/templates/pre-filled-parameters.png)
+```md
+[![Open in Coder](https://YOUR_ACCESS_URL/open-in-coder.svg)](https://YOUR_ACCESS_URL/templates/YOUR_TEMPLATE/workspace?param.git_repo=https://github.com/coder/slog&param.home_disk_size%20%28GB%29=20)
+```
 
-1. Optional: disable specific parameter fields by including their names as
-   specified in your template in the `disable_params` search params list
+![Pre-filled parameters](../images/templates/pre-filled-parameters.png)
 
-   ```md
-   [![Open in Coder](https://YOUR_ACCESS_URL/open-in-coder.svg)](https://YOUR_ACCESS_URL/templates/YOUR_TEMPLATE/workspace?disable_params=first_parameter,second_parameter)
-   ```
+### 5. Optional: disable specific parameter fields by including their names as
 
-## Example: Kubernetes
+specified in your template in the `disable_params` search params list
+
+```md
+[![Open in Coder](https://YOUR_ACCESS_URL/open-in-coder.svg)](https://YOUR_ACCESS_URL/templates/YOUR_TEMPLATE/workspace?disable_params=first_parameter,second_parameter)
+```
+
+### Example: Kubernetes
 
 For a full example of the Open in Coder flow in Kubernetes, check out
 [this example template](https://github.com/bpmct/coder-templates/tree/main/kubernetes-open-in-coder).
-
-## Devcontainer support
-
-Devcontainer support is on the roadmap.
-[Follow along here](https://github.com/coder/coder/issues/5559)

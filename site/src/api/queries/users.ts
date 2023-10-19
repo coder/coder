@@ -1,17 +1,17 @@
-import { QueryClient, QueryOptions } from "react-query";
+import { QueryClient, type UseQueryOptions } from "react-query";
 import * as API from "api/api";
 import {
   AuthorizationRequest,
   GetUsersResponse,
   UpdateUserPasswordRequest,
   UpdateUserProfileRequest,
-  User,
   UsersRequest,
+  User,
 } from "api/typesGenerated";
-import { getMetadataAsJSON } from "utils/metadata";
 import { getAuthorizationKey } from "./authCheck";
+import { getMetadataAsJSON } from "utils/metadata";
 
-export const users = (req: UsersRequest): QueryOptions<GetUsersResponse> => {
+export const users = (req: UsersRequest): UseQueryOptions<GetUsersResponse> => {
   return {
     queryKey: ["users", req],
     queryFn: ({ signal }) => API.getUsers(req, signal),
@@ -89,11 +89,13 @@ export const authMethods = () => {
   };
 };
 
+const initialUserData = getMetadataAsJSON<User>("user");
+
 export const me = () => {
   return {
     queryKey: ["me"],
-    queryFn: async () =>
-      getMetadataAsJSON<User>("user") ?? API.getAuthenticatedUser(),
+    initialData: initialUserData,
+    queryFn: API.getAuthenticatedUser,
   };
 };
 

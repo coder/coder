@@ -291,14 +291,9 @@ jobs:
           gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" \
             --packages="./..." -- $PARALLEL_FLAG -short -failfast $COVERAGE_FLAGS
 
-      - name: Print test stats
-        if: success() || failure()
-        run: |
-          # Artifacts are not available after rerunning a job,
-          # so we need to print the test stats to the log.
-          go run ./scripts/ci-report/main.go gotests.json | tee gotests_stats.json
-
       - name: Upload test stats to Datadog
+        timeout-minutes: 1
+        continue-on-error: true
         uses: ./.github/actions/upload-datadog
         if: success() || failure()
         with:
@@ -343,14 +338,9 @@ jobs:
           export TS_DEBUG_DISCO=true
           make test-postgres
 
-      - name: Print test stats
-        if: success() || failure()
-        run: |
-          # Artifacts are not available after rerunning a job,
-          # so we need to print the test stats to the log.
-          go run ./scripts/ci-report/main.go gotests.json | tee gotests_stats.json
-
       - name: Upload test stats to Datadog
+        timeout-minutes: 1
+        continue-on-error: true
         uses: ./.github/actions/upload-datadog
         if: success() || failure()
         with:
@@ -391,6 +381,8 @@ jobs:
           gotestsum --junitfile="gotests.xml" -- -race ./...
 
       - name: Upload test stats to Datadog
+        timeout-minutes: 1
+        continue-on-error: true
         uses: ./.github/actions/upload-datadog
         if: always()
         with:
