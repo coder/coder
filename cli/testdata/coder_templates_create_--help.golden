@@ -49,6 +49,11 @@ OPTIONS:
       --provisioner-tag string-array
           Specify a set of tags to target provisioner daemons.
 
+      --require-active-version bool (default: false)
+          Requires workspace builds to use the active template version. This
+          setting does not apply to template admins. This is an enterprise-only
+          feature.
+
       --var string-array
           Alias of --variable.
 
