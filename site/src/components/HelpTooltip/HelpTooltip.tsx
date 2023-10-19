@@ -88,7 +88,7 @@ export const HelpPopover: FC<
 
 export const HelpTooltip: FC<PropsWithChildren<HelpTooltipProps>> = ({
   children,
-  open,
+  open = false,
   size = "medium",
   icon: Icon = HelpIcon,
   iconClassName,
@@ -96,7 +96,7 @@ export const HelpTooltip: FC<PropsWithChildren<HelpTooltipProps>> = ({
 }) => {
   const theme = useTheme();
   const anchorRef = useRef<HTMLButtonElement>(null);
-  const [isOpen, setIsOpen] = useState(Boolean(open));
+  const [isOpen, setIsOpen] = useState(open);
   const id = isOpen ? "help-popover" : undefined;
 
   const onClose = () => {

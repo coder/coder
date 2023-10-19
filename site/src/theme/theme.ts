@@ -74,13 +74,15 @@ export let dark = createTheme({
   },
   typography: {
     fontFamily: BODY_FONT_FAMILY,
+
     body1: {
-      fontSize: 16,
-      lineHeight: "24px",
+      fontSize: "1rem" /* 16px at default scaling */,
+      lineHeight: "1.5rem" /* 24px at default scaling */,
     },
+
     body2: {
-      fontSize: 14,
-      lineHeight: "20px",
+      fontSize: "0.875rem" /* 14px at default scaling */,
+      lineHeight: "1.25rem" /* 20px at default scaling */,
     },
   },
   shape: {

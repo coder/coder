@@ -61,7 +61,7 @@ const Option: React.FC<{
 export interface EditRolesButtonProps {
   isLoading: boolean;
   roles: Role[];
-  selectedRoles: Role[];
+  selectedRoleNames: Set<string>;
   onChange: (roles: Role["name"][]) => void;
   isDefaultOpen?: boolean;
   oidcRoleSync: boolean;
@@ -70,7 +70,7 @@ export interface EditRolesButtonProps {
 
 export const EditRolesButton: FC<EditRolesButtonProps> = ({
   roles,
-  selectedRoles,
+  selectedRoleNames,
   onChange,
   isLoading,
   isDefaultOpen = false,
@@ -78,11 +78,11 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
   oidcRoleSync,
 }) => {
   const styles = useStyles();
-  const selectedRoleNames = selectedRoles.map((role) => role.name);
 
   const handleChange = (roleName: string) => {
-    if (selectedRoleNames.includes(roleName)) {
-      onChange(selectedRoleNames.filter((role) => role !== roleName));
+    if (selectedRoleNames.has(roleName)) {
+      const serialized = [...selectedRoleNames];
+      onChange(serialized.filter((role) => role !== roleName));
       return;
     }
 
@@ -126,7 +126,7 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
               <Option
                 key={role.name}
                 onChange={handleChange}
-                isChecked={selectedRoleNames.includes(role.name)}
+                isChecked={selectedRoleNames.has(role.name)}
                 value={role.name}
                 name={role.display_name}
                 description={roleDescriptions[role.name] ?? ""}
