@@ -2,8 +2,6 @@ import { updateCheck } from "api/queries/updateCheck";
 import { useMemo, useState } from "react";
 import { useQuery } from "react-query";
 
-type UpdateCheckState = "show" | "hide";
-
 export const useUpdateCheck = (enabled: boolean) => {
   const [dismissedVersion, setDismissedVersion] = useState(() =>
     getDismissedVersionOnLocal(),
@@ -13,14 +11,14 @@ export const useUpdateCheck = (enabled: boolean) => {
     enabled,
   });
 
-  const state: UpdateCheckState = useMemo(() => {
+  const isVisible: boolean = useMemo(() => {
     if (!updateCheckQuery.data) {
-      return "hide";
+      return false;
     }
 
     const isNotDismissed = dismissedVersion !== updateCheckQuery.data.version;
     const isOutdated = !updateCheckQuery.data.current;
-    return isNotDismissed && isOutdated ? "show" : "hide";
+    return isNotDismissed && isOutdated ? true : false;
   }, [dismissedVersion, updateCheckQuery.data]);
 
   const dismiss = () => {
@@ -34,7 +32,7 @@ export const useUpdateCheck = (enabled: boolean) => {
   };
 
   return {
-    state,
+    isVisible,
     dismiss,
     data: updateCheckQuery.data,
   };

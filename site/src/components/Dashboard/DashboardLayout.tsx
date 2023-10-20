@@ -51,7 +51,7 @@ export const DashboardLayout: FC = () => {
 
         <Snackbar
           data-testid="update-check-snackbar"
-          open={updateCheck.state === "show"}
+          open={updateCheck.isVisible}
           anchorOrigin={{
             vertical: "bottom",
             horizontal: "right",

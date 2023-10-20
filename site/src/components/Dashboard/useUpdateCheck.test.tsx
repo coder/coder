@@ -21,7 +21,7 @@ it("is dismissed when does not have permission to see it", () => {
   const { result } = renderHook(() => useUpdateCheck(false), {
     wrapper: createWrapper(),
   });
-  expect(result.current.state).toBe("hide");
+  expect(result.current.isVisible).toBeFalsy();
 });
 
 it("is dismissed when it is already using current version", async () => {
@@ -41,7 +41,7 @@ it("is dismissed when it is already using current version", async () => {
   });
 
   await waitFor(() => {
-    expect(result.current.state).toBe("hide");
+    expect(result.current.isVisible).toBeFalsy();
   });
 });
 
@@ -63,7 +63,7 @@ it("is dismissed when it was dismissed previously", async () => {
   });
 
   await waitFor(() => {
-    expect(result.current.state).toBe("hide");
+    expect(result.current.isVisible).toBeFalsy();
   });
 });
 
@@ -84,7 +84,7 @@ it("shows when has permission and is outdated", async () => {
   });
 
   await waitFor(() => {
-    expect(result.current.state).toBe("show");
+    expect(result.current.isVisible).toBeTruthy();
   });
 });
 
@@ -105,7 +105,7 @@ it("shows when has permission and is outdated", async () => {
   });
 
   await waitFor(() => {
-    expect(result.current.state).toBe("show");
+    expect(result.current.isVisible).toBeTruthy();
   });
 
   act(() => {
@@ -113,7 +113,7 @@ it("shows when has permission and is outdated", async () => {
   });
 
   await waitFor(() => {
-    expect(result.current.state).toBe("hide");
+    expect(result.current.isVisible).toBeFalsy();
   });
   expect(localStorage.getItem("dismissedVersion")).toEqual(
     MockUpdateCheck.version,
