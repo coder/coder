@@ -23,9 +23,7 @@ export const useUpdateCheck = (enabled: boolean) => {
 
   const dismiss = () => {
     if (!updateCheckQuery.data) {
-      throw new Error(
-        "Cannot dismiss update check when there is no update check data",
-      );
+      return;
     }
     setDismissedVersion(updateCheckQuery.data.version);
     saveDismissedVersionOnLocal(updateCheckQuery.data.version);
