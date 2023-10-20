@@ -1708,7 +1708,8 @@ export type Experiment =
   | "single_tailnet"
   | "tailnet_pg_coordinator"
   | "template_autostop_requirement"
-  | "template_update_policies";
+  | "template_update_policies"
+  | "workspace_actions";
 export const Experiments: Experiment[] = [
   "dashboard_theme",
   "deployment_health_page",
@@ -1717,6 +1718,7 @@ export const Experiments: Experiment[] = [
   "tailnet_pg_coordinator",
   "template_autostop_requirement",
   "template_update_policies",
+  "workspace_actions",
 ];
 
 // From codersdk/deployment.go

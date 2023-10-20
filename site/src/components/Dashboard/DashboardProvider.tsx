@@ -112,3 +112,13 @@ export const useDashboard = (): DashboardProviderValue => {
 
   return context;
 };
+
+export const useIsWorkspaceActionsEnabled = (): boolean => {
+  const { entitlements, experiments } = useDashboard();
+  const allowAdvancedScheduling =
+    entitlements.features["advanced_template_scheduling"].enabled;
+  // This check can be removed when https://github.com/coder/coder/milestone/19
+  // is merged up
+  const allowWorkspaceActions = experiments.includes("workspace_actions");
+  return allowWorkspaceActions && allowAdvancedScheduling;
+};

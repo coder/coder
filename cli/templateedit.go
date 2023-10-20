@@ -43,6 +43,18 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 		),
 		Short: "Edit the metadata of a template by name.",
 		Handler: func(inv *clibase.Invocation) error {
+			// This clause can be removed when workspace_actions is no longer experimental
+			if failureTTL != 0 || inactivityTTL != 0 {
+				experiments, exErr := client.Experiments(inv.Context())
+				if exErr != nil {
+					return xerrors.Errorf("get experiments: %w", exErr)
+				}
+
+				if !experiments.Enabled(codersdk.ExperimentWorkspaceActions) {
+					return xerrors.Errorf("--failure-ttl and --inactivity-ttl are experimental features. Use the workspace_actions CODER_EXPERIMENTS flag to set these configuration values.")
+				}
+			}
+
 			unsetAutostopRequirementDaysOfWeek := len(autostopRequirementDaysOfWeek) == 1 && autostopRequirementDaysOfWeek[0] == "none"
 			requiresScheduling := (len(autostopRequirementDaysOfWeek) > 0 && !unsetAutostopRequirementDaysOfWeek) ||
 				autostopRequirementWeeks > 0 ||

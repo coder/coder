@@ -1,5 +1,5 @@
 import { Workspace } from "api/typesGenerated";
-import { useDashboard } from "components/Dashboard/DashboardProvider";
+import { useIsWorkspaceActionsEnabled } from "components/Dashboard/DashboardProvider";
 import { Alert } from "components/Alert/Alert";
 import { formatDistanceToNow } from "date-fns";
 import Link from "@mui/material/Link";
@@ -21,9 +21,7 @@ export const DormantWorkspaceBanner = ({
   shouldRedisplayBanner: boolean;
   count?: Count;
 }): JSX.Element | null => {
-  const { entitlements } = useDashboard();
-  const schedulingEnabled =
-    entitlements.features["advanced_template_scheduling"].enabled;
+  const experimentEnabled = useIsWorkspaceActionsEnabled();
 
   if (!workspaces) {
     return null;
@@ -39,7 +37,7 @@ export const DormantWorkspaceBanner = ({
 
   if (
     // Only show this if the experiment is included.
-    !schedulingEnabled ||
+    !experimentEnabled ||
     !hasDormantWorkspaces ||
     // Banners should be redisplayed after dismissal when additional workspaces are newly scheduled for deletion
     !shouldRedisplayBanner
