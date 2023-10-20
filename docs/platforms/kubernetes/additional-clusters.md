@@ -109,7 +109,8 @@ kubectl apply -n coder-workspaces -f - <<EOF
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: coder
+  # Must be different than the Coder control plane service account, so prevent duplicates.
+  name: coder-2
 ---
 apiVersion: v1
 kind: Secret
@@ -122,7 +123,8 @@ type: kubernetes.io/service-account-token
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: coder
+  # Must be different than the Coder control plane service account, so prevent duplicates.
+  name: coder-2
 rules:
   - apiGroups: ["", "apps", "networking.k8s.io"] # "" indicates the core API group
     resources: ["persistentvolumeclaims", "pods", "deployments", "services", "secrets", "pods/exec","pods/log", "events", "networkpolicies", "serviceaccounts"]
@@ -134,7 +136,8 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: coder
+  # Must be different than the Coder control plane service account, so prevent duplicates.
+  name: coder-2
 subjects:
   - kind: ServiceAccount
     name: coder
