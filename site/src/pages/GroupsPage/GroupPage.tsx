@@ -13,7 +13,6 @@ import { AvatarData } from "components/AvatarData/AvatarData";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Loader } from "components/Loader/Loader";
-import { LoadingButton } from "components/LoadingButton/LoadingButton";
 import { Margins } from "components/Margins/Margins";
 import {
   PageHeader,
@@ -44,6 +43,7 @@ import {
 } from "api/queries/groups";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { getErrorMessage } from "api/errors";
+import LoadingButton from "@mui/lab/LoadingButton";
 
 export const GroupPage: FC = () => {
   const { groupId } = useParams() as { groupId: string };
@@ -235,6 +235,7 @@ const AddGroupMember: React.FC<{
         />
 
         <LoadingButton
+          loadingPosition="start"
           disabled={!selectedUser}
           type="submit"
           startIcon={<PersonAdd />}

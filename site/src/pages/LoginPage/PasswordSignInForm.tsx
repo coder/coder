@@ -1,12 +1,12 @@
 import { Stack } from "components/Stack/Stack";
 import TextField from "@mui/material/TextField";
 import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
-import { LoadingButton } from "components/LoadingButton/LoadingButton";
 import { Language } from "./SignInForm";
 import { FormikContextType, FormikTouched, useFormik } from "formik";
 import * as Yup from "yup";
 import { FC } from "react";
 import { BuiltInAuthFormValues } from "./SignInForm.types";
+import LoadingButton from "@mui/lab/LoadingButton";
 
 type PasswordSignInFormProps = {
   onSubmit: (credentials: { email: string; password: string }) => void;
@@ -66,7 +66,7 @@ export const PasswordSignInForm: FC<PasswordSignInFormProps> = ({
             fullWidth
             type="submit"
           >
-            {isSigningIn ? "" : Language.passwordSignIn}
+            {Language.passwordSignIn}
           </LoadingButton>
         </div>
       </Stack>
