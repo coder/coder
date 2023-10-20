@@ -15,6 +15,7 @@ coder server [flags]
 | Name                                                                      | Purpose                                                                                                |
 | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | [<code>create-admin-user</code>](./server_create-admin-user.md)           | Create a new admin user with the given username, email and password and adds it to every organization. |
+| [<code>dbcrypt</code>](./server_dbcrypt.md)                               | Manage database encryption.                                                                            |
 | [<code>postgres-builtin-serve</code>](./server_postgres-builtin-serve.md) | Run the built-in PostgreSQL deployment.                                                                |
 | [<code>postgres-builtin-url</code>](./server_postgres-builtin-url.md)     | Output the connection URL for the built-in PostgreSQL deployment.                                      |
 
@@ -272,6 +273,15 @@ Expose the swagger endpoint via /swagger.
 | YAML        | <code>experiments</code>        |
 
 Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '\*' to opt-in to all available experiments.
+
+### --external-token-encryption-keys
+
+|             |                                                    |
+| ----------- | -------------------------------------------------- |
+| Type        | <code>string-array</code>                          |
+| Environment | <code>$CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS</code> |
+
+Encrypt OIDC and Git authentication tokens with AES-256-GCM in the database. The value must be a comma-separated list of base64-encoded keys. Each key, when base64-decoded, must be exactly 32 bytes in length. The first key will be used to encrypt new values. Subsequent keys will be used as a fallback when decrypting. During normal operation it is recommended to only set one key unless you are in the process of rotating keys with the `coder server dbcrypt rotate` command.
 
 ### --provisioner-force-cancel-interval
 
@@ -623,7 +633,7 @@ The text to show on the OpenID Connect sign in button.
 | Environment | <code>$CODER_OIDC_ICON_URL</code> |
 | YAML        | <code>oidc.iconURL</code>         |
 
-URL pointing to the icon to use on the OepnID Connect login button.
+URL pointing to the icon to use on the OpenID Connect login button.
 
 ### --provisioner-daemon-poll-interval
 
@@ -634,7 +644,7 @@ URL pointing to the icon to use on the OepnID Connect login button.
 | YAML        | <code>provisioning.daemonPollInterval</code>         |
 | Default     | <code>1s</code>                                      |
 
-Time to wait before polling for a new job.
+Deprecated and ignored.
 
 ### --provisioner-daemon-poll-jitter
 
@@ -645,7 +655,7 @@ Time to wait before polling for a new job.
 | YAML        | <code>provisioning.daemonPollJitter</code>         |
 | Default     | <code>100ms</code>                                 |
 
-Random jitter added to the poll interval.
+Deprecated and ignored.
 
 ### --postgres-url
 
@@ -957,17 +967,6 @@ Minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" 
 
 Whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.
 
-### --telemetry-trace
-
-|             |                                     |
-| ----------- | ----------------------------------- |
-| Type        | <code>bool</code>                   |
-| Environment | <code>$CODER_TELEMETRY_TRACE</code> |
-| YAML        | <code>telemetry.trace</code>        |
-| Default     | <code>true</code>                   |
-
-Whether Opentelemetry traces are sent to Coder. Coder collects anonymized application tracing to help improve our product. Disabling telemetry also disables this option.
-
 ### --trace
 
 |             |                                           |
@@ -997,6 +996,17 @@ Enables trace exporting to Honeycomb.io using the provided API Key.
 | Default     | <code>false</code>               |
 
 Periodically check for new releases of Coder and inform the owner. The check is performed once per day.
+
+### --web-terminal-renderer
+
+|             |                                           |
+| ----------- | ----------------------------------------- |
+| Type        | <code>string</code>                       |
+| Environment | <code>$CODER_WEB_TERMINAL_RENDERER</code> |
+| YAML        | <code>client.webTerminalRenderer</code>   |
+| Default     | <code>canvas</code>                       |
+
+The renderer to use when opening a web terminal. Valid values are 'canvas', 'webgl', or 'dom'.
 
 ### --wildcard-access-url
 

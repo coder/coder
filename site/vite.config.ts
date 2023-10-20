@@ -1,22 +1,22 @@
-import react from "@vitejs/plugin-react"
-import path from "path"
-import { defineConfig, PluginOption } from "vite"
-import { visualizer } from "rollup-plugin-visualizer"
-import checker from "vite-plugin-checker"
+import react from "@vitejs/plugin-react";
+import path from "path";
+import { defineConfig, PluginOption } from "vite";
+import { visualizer } from "rollup-plugin-visualizer";
+import checker from "vite-plugin-checker";
 
 const plugins: PluginOption[] = [
   react(),
   checker({
     typescript: true,
   }),
-]
+];
 
 if (process.env.STATS !== undefined) {
   plugins.push(
     visualizer({
       filename: "./stats/index.html",
     }),
-  )
+  );
 }
 
 export default defineConfig({
@@ -53,13 +53,13 @@ export default defineConfig({
               proxyReq.setHeader(
                 "origin",
                 process.env.CODER_HOST || "http://localhost:3000",
-              )
+              );
             }
 
             socket.on("error", (error) => {
-              console.error(error)
-            })
-          })
+              console.error(error);
+            });
+          });
         },
       },
       "/swagger": {
@@ -82,4 +82,4 @@ export default defineConfig({
       xServices: path.resolve(__dirname, "./src/xServices"),
     },
   },
-})
+});

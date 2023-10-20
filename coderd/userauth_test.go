@@ -37,7 +37,7 @@ func TestOIDCOauthLoginWithExisting(t *testing.T) {
 	t.Parallel()
 
 	fake := oidctest.NewFakeIDP(t,
-		oidctest.WithRefreshHook(func(_ string) error {
+		oidctest.WithRefresh(func(_ string) error {
 			return xerrors.New("refreshing token should never occur")
 		}),
 		oidctest.WithServing(),
@@ -797,7 +797,7 @@ func TestUserOIDC(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			fake := oidctest.NewFakeIDP(t,
-				oidctest.WithRefreshHook(func(_ string) error {
+				oidctest.WithRefresh(func(_ string) error {
 					return xerrors.New("refreshing token should never occur")
 				}),
 				oidctest.WithServing(),
@@ -851,7 +851,7 @@ func TestUserOIDC(t *testing.T) {
 
 		auditor := audit.NewMock()
 		fake := oidctest.NewFakeIDP(t,
-			oidctest.WithRefreshHook(func(_ string) error {
+			oidctest.WithRefresh(func(_ string) error {
 				return xerrors.New("refreshing token should never occur")
 			}),
 			oidctest.WithServing(),
@@ -898,7 +898,7 @@ func TestUserOIDC(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
 		fake := oidctest.NewFakeIDP(t,
-			oidctest.WithRefreshHook(func(_ string) error {
+			oidctest.WithRefresh(func(_ string) error {
 				return xerrors.New("refreshing token should never occur")
 			}),
 			oidctest.WithServing(),
@@ -959,7 +959,7 @@ func TestUserOIDC(t *testing.T) {
 	t.Run("NoIDToken", func(t *testing.T) {
 		t.Parallel()
 		fake := oidctest.NewFakeIDP(t,
-			oidctest.WithRefreshHook(func(_ string) error {
+			oidctest.WithRefresh(func(_ string) error {
 				return xerrors.New("refreshing token should never occur")
 			}),
 			oidctest.WithServing(),
@@ -984,7 +984,7 @@ func TestUserOIDC(t *testing.T) {
 		badProvider := &oidc.Provider{}
 
 		fake := oidctest.NewFakeIDP(t,
-			oidctest.WithRefreshHook(func(_ string) error {
+			oidctest.WithRefresh(func(_ string) error {
 				return xerrors.New("refreshing token should never occur")
 			}),
 			oidctest.WithServing(),

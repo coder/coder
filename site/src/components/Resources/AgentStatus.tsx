@@ -1,17 +1,16 @@
-import Tooltip from "@mui/material/Tooltip"
-import { makeStyles } from "@mui/styles"
-import { combineClasses } from "utils/combineClasses"
-import { WorkspaceAgent } from "api/typesGenerated"
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
-import { useTranslation } from "react-i18next"
-import WarningRounded from "@mui/icons-material/WarningRounded"
+import Tooltip from "@mui/material/Tooltip";
+import { makeStyles } from "@mui/styles";
+import { combineClasses } from "utils/combineClasses";
+import { WorkspaceAgent } from "api/typesGenerated";
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
+import WarningRounded from "@mui/icons-material/WarningRounded";
 import {
   HelpPopover,
   HelpTooltipText,
   HelpTooltipTitle,
-} from "components/Tooltips/HelpTooltip"
-import { useRef, useState } from "react"
-import Link from "@mui/material/Link"
+} from "components/HelpTooltip/HelpTooltip";
+import { useRef, useState } from "react";
+import Link from "@mui/material/Link";
 
 // If we think in the agent status and lifecycle into a single enum/state I’d
 // say we would have: connecting, timeout, disconnected, connected:created,
@@ -20,21 +19,20 @@ import Link from "@mui/material/Link"
 // connected:shutdown_error, connected:off.
 
 const ReadyLifecycle = () => {
-  const styles = useStyles()
-  const { t } = useTranslation("workspacePage")
+  const styles = useStyles();
 
   return (
     <div
       role="status"
       data-testid="agent-status-ready"
-      aria-label={t("agentStatus.connected.ready") || "Ready"}
+      aria-label="Ready"
       className={combineClasses([styles.status, styles.connected])}
     />
-  )
-}
+  );
+};
 
 const StartingLifecycle: React.FC = () => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <Tooltip title="Starting...">
@@ -44,17 +42,16 @@ const StartingLifecycle: React.FC = () => {
         className={combineClasses([styles.status, styles.connecting])}
       />
     </Tooltip>
-  )
-}
+  );
+};
 
 const StartTimeoutLifecycle: React.FC<{
-  agent: WorkspaceAgent
+  agent: WorkspaceAgent;
 }> = ({ agent }) => {
-  const { t } = useTranslation("agent")
-  const styles = useStyles()
-  const anchorRef = useRef<SVGSVGElement>(null)
-  const [isOpen, setIsOpen] = useState(false)
-  const id = isOpen ? "timeout-popover" : undefined
+  const styles = useStyles();
+  const anchorRef = useRef<SVGSVGElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const id = isOpen ? "timeout-popover" : undefined;
 
   return (
     <>
@@ -63,7 +60,7 @@ const StartTimeoutLifecycle: React.FC<{
         onMouseEnter={() => setIsOpen(true)}
         onMouseLeave={() => setIsOpen(false)}
         role="status"
-        aria-label={t("status.startTimeout")}
+        aria-label="Start timeout"
         className={styles.timeoutWarning}
       />
       <HelpPopover
@@ -73,31 +70,30 @@ const StartTimeoutLifecycle: React.FC<{
         onOpen={() => setIsOpen(true)}
         onClose={() => setIsOpen(false)}
       >
-        <HelpTooltipTitle>{t("startTimeoutTooltip.title")}</HelpTooltipTitle>
+        <HelpTooltipTitle>Agent is taking too long to start</HelpTooltipTitle>
         <HelpTooltipText>
-          {t("startTimeoutTooltip.message")}{" "}
+          We noticed this agent is taking longer than expected to start.{" "}
           <Link
             target="_blank"
             rel="noreferrer"
             href={agent.troubleshooting_url}
           >
-            {t("startTimeoutTooltip.link")}
+            Troubleshoot
           </Link>
           .
         </HelpTooltipText>
       </HelpPopover>
     </>
-  )
-}
+  );
+};
 
 const StartErrorLifecycle: React.FC<{
-  agent: WorkspaceAgent
+  agent: WorkspaceAgent;
 }> = ({ agent }) => {
-  const { t } = useTranslation("agent")
-  const styles = useStyles()
-  const anchorRef = useRef<SVGSVGElement>(null)
-  const [isOpen, setIsOpen] = useState(false)
-  const id = isOpen ? "timeout-popover" : undefined
+  const styles = useStyles();
+  const anchorRef = useRef<SVGSVGElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const id = isOpen ? "timeout-popover" : undefined;
 
   return (
     <>
@@ -106,7 +102,7 @@ const StartErrorLifecycle: React.FC<{
         onMouseEnter={() => setIsOpen(true)}
         onMouseLeave={() => setIsOpen(false)}
         role="status"
-        aria-label={t("status.error")}
+        aria-label="Start error"
         className={styles.errorWarning}
       />
       <HelpPopover
@@ -116,25 +112,25 @@ const StartErrorLifecycle: React.FC<{
         onOpen={() => setIsOpen(true)}
         onClose={() => setIsOpen(false)}
       >
-        <HelpTooltipTitle>{t("startErrorTooltip.title")}</HelpTooltipTitle>
+        <HelpTooltipTitle>Error starting the agent</HelpTooltipTitle>
         <HelpTooltipText>
-          {t("startErrorTooltip.message")}{" "}
+          Something went wrong during the agent startup.{" "}
           <Link
             target="_blank"
             rel="noreferrer"
             href={agent.troubleshooting_url}
           >
-            {t("startErrorTooltip.link")}
+            Troubleshoot
           </Link>
           .
         </HelpTooltipText>
       </HelpPopover>
     </>
-  )
-}
+  );
+};
 
 const ShuttingDownLifecycle: React.FC = () => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <Tooltip title="Stopping...">
@@ -144,17 +140,16 @@ const ShuttingDownLifecycle: React.FC = () => {
         className={combineClasses([styles.status, styles.connecting])}
       />
     </Tooltip>
-  )
-}
+  );
+};
 
 const ShutdownTimeoutLifecycle: React.FC<{
-  agent: WorkspaceAgent
+  agent: WorkspaceAgent;
 }> = ({ agent }) => {
-  const { t } = useTranslation("agent")
-  const styles = useStyles()
-  const anchorRef = useRef<SVGSVGElement>(null)
-  const [isOpen, setIsOpen] = useState(false)
-  const id = isOpen ? "timeout-popover" : undefined
+  const styles = useStyles();
+  const anchorRef = useRef<SVGSVGElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const id = isOpen ? "timeout-popover" : undefined;
 
   return (
     <>
@@ -163,7 +158,7 @@ const ShutdownTimeoutLifecycle: React.FC<{
         onMouseEnter={() => setIsOpen(true)}
         onMouseLeave={() => setIsOpen(false)}
         role="status"
-        aria-label={t("status.shutdownTimeout")}
+        aria-label="Stop timeout"
         className={styles.timeoutWarning}
       />
       <HelpPopover
@@ -173,31 +168,30 @@ const ShutdownTimeoutLifecycle: React.FC<{
         onOpen={() => setIsOpen(true)}
         onClose={() => setIsOpen(false)}
       >
-        <HelpTooltipTitle>{t("shutdownTimeoutTooltip.title")}</HelpTooltipTitle>
+        <HelpTooltipTitle>Agent is taking too long to stop</HelpTooltipTitle>
         <HelpTooltipText>
-          {t("shutdownTimeoutTooltip.message")}{" "}
+          We noticed this agent is taking longer than expected to stop.{" "}
           <Link
             target="_blank"
             rel="noreferrer"
             href={agent.troubleshooting_url}
           >
-            {t("shutdownTimeoutTooltip.link")}
+            Troubleshoot
           </Link>
           .
         </HelpTooltipText>
       </HelpPopover>
     </>
-  )
-}
+  );
+};
 
 const ShutdownErrorLifecycle: React.FC<{
-  agent: WorkspaceAgent
+  agent: WorkspaceAgent;
 }> = ({ agent }) => {
-  const { t } = useTranslation("agent")
-  const styles = useStyles()
-  const anchorRef = useRef<SVGSVGElement>(null)
-  const [isOpen, setIsOpen] = useState(false)
-  const id = isOpen ? "timeout-popover" : undefined
+  const styles = useStyles();
+  const anchorRef = useRef<SVGSVGElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const id = isOpen ? "timeout-popover" : undefined;
 
   return (
     <>
@@ -206,7 +200,7 @@ const ShutdownErrorLifecycle: React.FC<{
         onMouseEnter={() => setIsOpen(true)}
         onMouseLeave={() => setIsOpen(false)}
         role="status"
-        aria-label={t("status.error")}
+        aria-label="Stop error"
         className={styles.errorWarning}
       />
       <HelpPopover
@@ -216,25 +210,25 @@ const ShutdownErrorLifecycle: React.FC<{
         onOpen={() => setIsOpen(true)}
         onClose={() => setIsOpen(false)}
       >
-        <HelpTooltipTitle>{t("shutdownErrorTooltip.title")}</HelpTooltipTitle>
+        <HelpTooltipTitle>Error stopping the agent</HelpTooltipTitle>
         <HelpTooltipText>
-          {t("shutdownErrorTooltip.message")}{" "}
+          Something went wrong while trying to stop the agent.{" "}
           <Link
             target="_blank"
             rel="noreferrer"
             href={agent.troubleshooting_url}
           >
-            {t("shutdownErrorTooltip.link")}
+            Troubleshoot
           </Link>
           .
         </HelpTooltipText>
       </HelpPopover>
     </>
-  )
-}
+  );
+};
 
 const OffLifecycle: React.FC = () => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <Tooltip title="Stopped">
@@ -244,49 +238,49 @@ const OffLifecycle: React.FC = () => {
         className={combineClasses([styles.status, styles.disconnected])}
       />
     </Tooltip>
-  )
-}
+  );
+};
 
 const ConnectedStatus: React.FC<{
-  agent: WorkspaceAgent
+  agent: WorkspaceAgent;
 }> = ({ agent }) => {
-  switch (agent.startup_script_behavior) {
-    case "non-blocking":
-      return <ReadyLifecycle />
-    case "blocking":
-      return (
-        <ChooseOne>
-          <Cond condition={agent.lifecycle_state === "ready"}>
-            <ReadyLifecycle />
-          </Cond>
-          <Cond condition={agent.lifecycle_state === "start_timeout"}>
-            <StartTimeoutLifecycle agent={agent} />
-          </Cond>
-          <Cond condition={agent.lifecycle_state === "start_error"}>
-            <StartErrorLifecycle agent={agent} />
-          </Cond>
-          <Cond condition={agent.lifecycle_state === "shutting_down"}>
-            <ShuttingDownLifecycle />
-          </Cond>
-          <Cond condition={agent.lifecycle_state === "shutdown_timeout"}>
-            <ShutdownTimeoutLifecycle agent={agent} />
-          </Cond>
-          <Cond condition={agent.lifecycle_state === "shutdown_error"}>
-            <ShutdownErrorLifecycle agent={agent} />
-          </Cond>
-          <Cond condition={agent.lifecycle_state === "off"}>
-            <OffLifecycle />
-          </Cond>
-          <Cond>
-            <StartingLifecycle />
-          </Cond>
-        </ChooseOne>
-      )
+  // This is to support legacy agents that do not support
+  // reporting the lifecycle_state field.
+  if (agent.scripts.length === 0) {
+    return <ReadyLifecycle />;
   }
-}
+  return (
+    <ChooseOne>
+      <Cond condition={agent.lifecycle_state === "ready"}>
+        <ReadyLifecycle />
+      </Cond>
+      <Cond condition={agent.lifecycle_state === "start_timeout"}>
+        <StartTimeoutLifecycle agent={agent} />
+      </Cond>
+      <Cond condition={agent.lifecycle_state === "start_error"}>
+        <StartErrorLifecycle agent={agent} />
+      </Cond>
+      <Cond condition={agent.lifecycle_state === "shutting_down"}>
+        <ShuttingDownLifecycle />
+      </Cond>
+      <Cond condition={agent.lifecycle_state === "shutdown_timeout"}>
+        <ShutdownTimeoutLifecycle agent={agent} />
+      </Cond>
+      <Cond condition={agent.lifecycle_state === "shutdown_error"}>
+        <ShutdownErrorLifecycle agent={agent} />
+      </Cond>
+      <Cond condition={agent.lifecycle_state === "off"}>
+        <OffLifecycle />
+      </Cond>
+      <Cond>
+        <StartingLifecycle />
+      </Cond>
+    </ChooseOne>
+  );
+};
 
 const DisconnectedStatus: React.FC = () => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <Tooltip title="Disconnected">
@@ -296,11 +290,11 @@ const DisconnectedStatus: React.FC = () => {
         className={combineClasses([styles.status, styles.disconnected])}
       />
     </Tooltip>
-  )
-}
+  );
+};
 
 const ConnectingStatus: React.FC = () => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <Tooltip title="Connecting...">
@@ -310,17 +304,16 @@ const ConnectingStatus: React.FC = () => {
         className={combineClasses([styles.status, styles.connecting])}
       />
     </Tooltip>
-  )
-}
+  );
+};
 
 const TimeoutStatus: React.FC<{
-  agent: WorkspaceAgent
+  agent: WorkspaceAgent;
 }> = ({ agent }) => {
-  const { t } = useTranslation("agent")
-  const styles = useStyles()
-  const anchorRef = useRef<SVGSVGElement>(null)
-  const [isOpen, setIsOpen] = useState(false)
-  const id = isOpen ? "timeout-popover" : undefined
+  const styles = useStyles();
+  const anchorRef = useRef<SVGSVGElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const id = isOpen ? "timeout-popover" : undefined;
 
   return (
     <>
@@ -329,7 +322,7 @@ const TimeoutStatus: React.FC<{
         onMouseEnter={() => setIsOpen(true)}
         onMouseLeave={() => setIsOpen(false)}
         role="status"
-        aria-label={t("status.timeout")}
+        aria-label="Timeout"
         className={styles.timeoutWarning}
       />
       <HelpPopover
@@ -339,25 +332,25 @@ const TimeoutStatus: React.FC<{
         onOpen={() => setIsOpen(true)}
         onClose={() => setIsOpen(false)}
       >
-        <HelpTooltipTitle>{t("timeoutTooltip.title")}</HelpTooltipTitle>
+        <HelpTooltipTitle>Agent is taking too long to connect</HelpTooltipTitle>
         <HelpTooltipText>
-          {t("timeoutTooltip.message")}{" "}
+          We noticed this agent is taking longer than expected to connect.{" "}
           <Link
             target="_blank"
             rel="noreferrer"
             href={agent.troubleshooting_url}
           >
-            {t("timeoutTooltip.link")}
+            Troubleshoot
           </Link>
           .
         </HelpTooltipText>
       </HelpPopover>
     </>
-  )
-}
+  );
+};
 
 export const AgentStatus: React.FC<{
-  agent: WorkspaceAgent
+  agent: WorkspaceAgent;
 }> = ({ agent }) => {
   return (
     <ChooseOne>
@@ -374,8 +367,8 @@ export const AgentStatus: React.FC<{
         <ConnectingStatus />
       </Cond>
     </ChooseOne>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   status: {
@@ -424,4 +417,4 @@ const useStyles = makeStyles((theme) => ({
     height: theme.spacing(2),
     position: "relative",
   },
-}))
+}));

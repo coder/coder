@@ -1,104 +1,96 @@
-import Link from "@mui/material/Link"
-import Popover from "@mui/material/Popover"
-import { makeStyles } from "@mui/styles"
-import { useRef, useState } from "react"
-import { colors } from "theme/colors"
+import Box from "@mui/material/Box";
+import Link from "@mui/material/Link";
+import CircularProgress from "@mui/material/CircularProgress";
+import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
+import { css } from "@emotion/css";
+import { useTheme } from "@emotion/react";
+import { useQuery } from "react-query";
+import { colors } from "theme/colors";
 import {
   HelpTooltipLink,
   HelpTooltipLinksGroup,
   HelpTooltipText,
   HelpTooltipTitle,
-} from "../Tooltips/HelpTooltip"
-import { SecondaryAgentButton } from "components/Resources/AgentButton"
-import { docs } from "utils/docs"
-import Box from "@mui/material/Box"
-import { useQuery } from "@tanstack/react-query"
-import { getAgentListeningPorts } from "api/api"
-import { WorkspaceAgent, WorkspaceAgentListeningPort } from "api/typesGenerated"
-import CircularProgress from "@mui/material/CircularProgress"
-import { portForwardURL } from "utils/portForward"
-import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined"
+} from "components/HelpTooltip/HelpTooltip";
+import { SecondaryAgentButton } from "components/Resources/AgentButton";
+import { docs } from "utils/docs";
+import { getAgentListeningPorts } from "api/api";
+import type {
+  WorkspaceAgent,
+  WorkspaceAgentListeningPort,
+} from "api/typesGenerated";
+import { portForwardURL } from "utils/portForward";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "components/Popover/Popover";
 
 export interface PortForwardButtonProps {
-  host: string
-  username: string
-  workspaceName: string
-  agent: WorkspaceAgent
+  host: string;
+  username: string;
+  workspaceName: string;
+  agent: WorkspaceAgent;
 }
 
 export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
-  const anchorRef = useRef<HTMLButtonElement>(null)
-  const [isOpen, setIsOpen] = useState(false)
-  const id = isOpen ? "schedule-popover" : undefined
-  const styles = useStyles()
+  const theme = useTheme();
   const portsQuery = useQuery({
     queryKey: ["portForward", props.agent.id],
     queryFn: () => getAgentListeningPorts(props.agent.id),
     enabled: props.agent.status === "connected",
     refetchInterval: 5_000,
-  })
-
-  const onClose = () => {
-    setIsOpen(false)
-  }
+  });
 
   return (
-    <>
-      <SecondaryAgentButton
-        disabled={!portsQuery.data}
-        ref={anchorRef}
-        onClick={() => {
-          setIsOpen(true)
-        }}
-      >
-        Ports
-        {portsQuery.data ? (
-          <Box
-            sx={{
-              fontSize: 12,
-              fontWeight: 500,
-              height: 20,
-              minWidth: 20,
-              padding: (theme) => theme.spacing(0, 0.5),
-              borderRadius: "50%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: colors.gray[11],
-              ml: 1,
-            }}
-          >
-            {portsQuery.data.ports.length}
-          </Box>
-        ) : (
-          <CircularProgress size={10} sx={{ ml: 1 }} />
-        )}
-      </SecondaryAgentButton>
-      <Popover
-        classes={{ paper: styles.popoverPaper }}
-        id={id}
-        open={isOpen}
-        anchorEl={anchorRef.current}
-        onClose={onClose}
-        anchorOrigin={{
-          vertical: "bottom",
-          horizontal: "right",
-        }}
-        transformOrigin={{
-          vertical: "top",
-          horizontal: "right",
+    <Popover>
+      <PopoverTrigger>
+        <SecondaryAgentButton disabled={!portsQuery.data}>
+          Ports
+          {portsQuery.data ? (
+            <Box
+              sx={{
+                fontSize: 12,
+                fontWeight: 500,
+                height: 20,
+                minWidth: 20,
+                padding: (theme) => theme.spacing(0, 0.5),
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: colors.gray[11],
+                ml: 1,
+              }}
+            >
+              {portsQuery.data.ports.length}
+            </Box>
+          ) : (
+            <CircularProgress size={10} sx={{ ml: 1 }} />
+          )}
+        </SecondaryAgentButton>
+      </PopoverTrigger>
+      <PopoverContent
+        horizontal="right"
+        classes={{
+          paper: css`
+            padding: 0;
+            width: ${theme.spacing(38)};
+            color: ${theme.palette.text.secondary};
+            margin-top: ${theme.spacing(0.5)};
+          `,
         }}
       >
         <PortForwardPopoverView {...props} ports={portsQuery.data?.ports} />
-      </Popover>
-    </>
-  )
-}
+      </PopoverContent>
+    </Popover>
+  );
+};
 
 export const PortForwardPopoverView: React.FC<
   PortForwardButtonProps & { ports?: WorkspaceAgentListeningPort[] }
 > = (props) => {
-  const { host, workspaceName, agent, username, ports } = props
+  const { host, workspaceName, agent, username, ports } = props;
 
   return (
     <>
@@ -124,8 +116,8 @@ export const PortForwardPopoverView: React.FC<
               agent.name,
               workspaceName,
               username,
-            )
-            const label = p.process_name !== "" ? p.process_name : p.port
+            );
+            const label = p.process_name !== "" ? p.process_name : p.port;
             return (
               <Link
                 underline="none"
@@ -157,7 +149,7 @@ export const PortForwardPopoverView: React.FC<
                   {p.port}
                 </Box>
               </Link>
-            )
+            );
           })}
         </Box>
       </Box>
@@ -187,17 +179,17 @@ export const PortForwardPopoverView: React.FC<
             },
           }}
           onSubmit={(e) => {
-            e.preventDefault()
-            const formData = new FormData(e.currentTarget)
-            const port = Number(formData.get("portNumber"))
+            e.preventDefault();
+            const formData = new FormData(e.currentTarget);
+            const port = Number(formData.get("portNumber"));
             const url = portForwardURL(
               host,
               port,
               agent.name,
               workspaceName,
               username,
-            )
-            window.open(url, "_blank")
+            );
+            window.open(url, "_blank");
           }}
         >
           <Box
@@ -240,33 +232,5 @@ export const PortForwardPopoverView: React.FC<
         </HelpTooltipLinksGroup>
       </Box>
     </>
-  )
-}
-
-const useStyles = makeStyles((theme) => ({
-  popoverPaper: {
-    padding: 0,
-    width: theme.spacing(38),
-    color: theme.palette.text.secondary,
-    marginTop: theme.spacing(0.5),
-  },
-
-  openUrlButton: {
-    flexShrink: 0,
-  },
-
-  portField: {
-    // The default border don't contrast well with the popover
-    "& .MuiOutlinedInput-root .MuiOutlinedInput-notchedOutline": {
-      borderColor: colors.gray[10],
-    },
-  },
-
-  code: {
-    margin: theme.spacing(2, 0),
-  },
-
-  form: {
-    margin: theme.spacing(2, 0),
-  },
-}))
+  );
+};

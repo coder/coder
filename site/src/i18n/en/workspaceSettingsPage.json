@@ -1,9 +1,0 @@
-{
-  "title": "Workspace Settings",
-  "defaultErrorMessage": "Error on update workspace settings",
-  "nameLabel": "Name",
-  "generalInfo": "General info",
-  "generalInfoDescription": "The name of your new workspace.",
-  "parameters": "Parameters",
-  "parametersDescription": "Those values are provided by your template's Terraform configuration. Values can be changed after creating the workspace."
-}

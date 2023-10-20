@@ -15,6 +15,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/pretty"
 )
 
 func WorkspaceBuild(ctx context.Context, writer io.Writer, client *codersdk.Client, build uuid.UUID) error {
@@ -54,7 +55,7 @@ func (err *ProvisionerJobError) Error() string {
 }
 
 // ProvisionerJob renders a provisioner job with interactive cancellation.
-func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOptions) error {
+func ProvisionerJob(ctx context.Context, wr io.Writer, opts ProvisionerJobOptions) error {
 	if opts.FetchInterval == 0 {
 		opts.FetchInterval = time.Second
 	}
@@ -70,7 +71,7 @@ func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOp
 		jobMutex sync.Mutex
 	)
 
-	sw := &stageWriter{w: writer, verbose: opts.Verbose, silentLogs: opts.Silent}
+	sw := &stageWriter{w: wr, verbose: opts.Verbose, silentLogs: opts.Silent}
 
 	printStage := func() {
 		sw.Start(currentStage)
@@ -127,7 +128,11 @@ func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOp
 					return
 				}
 			}
-			_, _ = fmt.Fprintf(writer, DefaultStyles.FocusedPrompt.String()+DefaultStyles.Bold.Render("Gracefully canceling...")+"\n\n")
+			pretty.Fprintf(
+				wr,
+				DefaultStyles.FocusedPrompt.With(BoldFmt()),
+				"Gracefully canceling...\n\n",
+			)
 			err := opts.Cancel()
 			if err != nil {
 				errChan <- xerrors.Errorf("cancel: %w", err)
@@ -236,7 +241,7 @@ func (s *stageWriter) Log(createdAt time.Time, level codersdk.LogLevel, line str
 		w = &s.logBuf
 	}
 
-	render := func(s ...string) string { return strings.Join(s, " ") }
+	var style pretty.Style
 
 	var lines []string
 	if !createdAt.IsZero() {
@@ -249,14 +254,14 @@ func (s *stageWriter) Log(createdAt time.Time, level codersdk.LogLevel, line str
 		if !s.verbose {
 			return
 		}
-		render = DefaultStyles.Placeholder.Render
+		style = DefaultStyles.Placeholder
 	case codersdk.LogLevelError:
-		render = DefaultStyles.Error.Render
+		style = DefaultStyles.Error
 	case codersdk.LogLevelWarn:
-		render = DefaultStyles.Warn.Render
+		style = DefaultStyles.Warn
 	case codersdk.LogLevelInfo:
 	}
-	_, _ = fmt.Fprintf(w, "%s\n", render(lines...))
+	pretty.Fprintf(w, style, "%s\n", strings.Join(lines, " "))
 }
 
 func (s *stageWriter) flushLogs() {

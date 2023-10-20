@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
@@ -82,7 +83,7 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 		ID:        id,
 		Hash:      hash,
 		CreatedBy: apiKey.UserID,
-		CreatedAt: database.Now(),
+		CreatedAt: dbtime.Now(),
 		Mimetype:  contentType,
 		Data:      data,
 	})

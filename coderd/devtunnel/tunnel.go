@@ -17,6 +17,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/pretty"
 	"github.com/coder/wgtunnel/tunnelsdk"
 )
 
@@ -114,8 +115,8 @@ func readOrGenerateConfig(customTunnelHost string) (Config, error) {
 
 	if cfg.Version == 0 {
 		_, _ = fmt.Println()
-		_, _ = fmt.Println(cliui.DefaultStyles.Error.Render("You're running a deprecated tunnel version!"))
-		_, _ = fmt.Println(cliui.DefaultStyles.Error.Render("Upgrading you to the new version now. You will need to rebuild running workspaces."))
+		pretty.Printf(cliui.DefaultStyles.Error, "You're running a deprecated tunnel version.\n")
+		pretty.Printf(cliui.DefaultStyles.Error, "Upgrading you to the new version now. You will need to rebuild running workspaces.")
 		_, _ = fmt.Println()
 
 		cfg, err := GenerateConfig(customTunnelHost)
@@ -172,8 +173,8 @@ func GenerateConfig(customTunnelHost string) (Config, error) {
 
 	spin.Stop()
 	_, _ = fmt.Printf("Using tunnel in %s with latency %s.\n",
-		cliui.DefaultStyles.Keyword.Render(locationName),
-		cliui.DefaultStyles.Code.Render(node.AvgLatency.String()),
+		cliui.Keyword(locationName),
+		cliui.Code(node.AvgLatency.String()),
 	)
 
 	return Config{

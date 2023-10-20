@@ -346,9 +346,9 @@ curl -X GET http://coder-server:8080/api/v2/users/{user} \
 
 ### Parameters
 
-| Name   | In   | Type   | Required | Description          |
-| ------ | ---- | ------ | -------- | -------------------- |
-| `user` | path | string | true     | User ID, name, or me |
+| Name   | In   | Type   | Required | Description              |
+| ------ | ---- | ------ | -------- | ------------------------ |
+| `user` | path | string | true     | User ID, username, or me |
 
 ### Example responses
 

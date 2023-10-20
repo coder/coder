@@ -10,6 +10,9 @@ linters-settings:
     include:
       # Gradually extend to cover more of the codebase.
       - 'httpmw\.\w+'
+      # We want to enforce all values are specified when inserting or updating
+      # a database row. Ref: #9936
+      - 'github.com/coder/coder/v2/coderd/database\.[^G][^e][^t]\w+Params'
   gocognit:
     min-complexity: 300
 
@@ -131,7 +134,8 @@ linters-settings:
       - trialer
 
   nestif:
-    min-complexity: 4 # Min complexity of if statements (def 5, goal 4)
+    # goal: 10
+    min-complexity: 20
 
   revive:
     # see https://github.com/mgechev/revive#available-rules for details.
@@ -237,6 +241,7 @@ linters:
     # create a good culture around cognitive complexity.
     # - gocyclo
     - gocognit
+    - nestif
     - goimports
     - gomodguard
     - gosec

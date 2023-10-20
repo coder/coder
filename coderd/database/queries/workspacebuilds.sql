@@ -125,17 +125,6 @@ INSERT INTO
 VALUES
 	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13);
 
--- name: UpdateWorkspaceBuildByID :exec
-UPDATE
-	workspace_builds
-SET
-	updated_at = $2,
-	provisioner_state = $3,
-	deadline = $4,
-	max_deadline = $5
-WHERE
-	id = $1;
-
 -- name: UpdateWorkspaceBuildCostByID :exec
 UPDATE
 	workspace_builds
@@ -143,6 +132,23 @@ SET
 	daily_cost = $2
 WHERE
 	id = $1;
+
+-- name: UpdateWorkspaceBuildDeadlineByID :exec
+UPDATE
+	workspace_builds
+SET
+	deadline = @deadline::timestamptz,
+	max_deadline = @max_deadline::timestamptz,
+	updated_at = @updated_at::timestamptz
+WHERE id = @id::uuid;
+
+-- name: UpdateWorkspaceBuildProvisionerStateByID :exec
+UPDATE
+	workspace_builds
+SET
+	provisioner_state = @provisioner_state::bytea,
+	updated_at = @updated_at::timestamptz
+WHERE id = @id::uuid;
 
 -- name: GetActiveWorkspaceBuildsByTemplateID :many
 SELECT wb.*
@@ -166,5 +172,10 @@ FROM (
 JOIN
 	workspace_build_with_user AS wb
 	ON m.workspace_id = wb.workspace_id AND m.max_build_number = wb.build_number
+JOIN
+	provisioner_jobs AS pj
+	ON wb.job_id = pj.id
 WHERE
-	wb.transition = 'start'::workspace_transition;
+	wb.transition = 'start'::workspace_transition
+AND
+	pj.completed_at IS NOT NULL;

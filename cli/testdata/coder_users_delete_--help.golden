@@ -1,0 +1,11 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder users delete <username|user_id>
+
+  Delete a user by username or user_id.
+
+  Aliases: rm
+
+———
+Run `coder --help` for a list of global options.

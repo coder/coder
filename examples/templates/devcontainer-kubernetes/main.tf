@@ -1,12 +1,10 @@
 terraform {
   required_providers {
     coder = {
-      source  = "coder/coder"
-      version = "0.11.0"
+      source = "coder/coder"
     }
     kubernetes = {
-      source  = "hashicorp/kubernetes"
-      version = "~> 2.3.2"
+      source = "hashicorp/kubernetes"
     }
   }
 }
@@ -178,6 +176,9 @@ resource "kubernetes_deployment" "workspace" {
       match_labels = {
         "coder.workspace_id" = data.coder_workspace.me.id
       }
+    }
+    strategy {
+      type = "Recreate"
     }
     template {
       metadata {

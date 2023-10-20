@@ -20,6 +20,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -29,7 +30,7 @@ import (
 func TestConvertProvisionerJob_Unit(t *testing.T) {
 	t.Parallel()
 	validNullTimeMock := sql.NullTime{
-		Time:  database.Now(),
+		Time:  dbtime.Now(),
 		Valid: true,
 	}
 	invalidNullTimeMock := sql.NullTime{}
@@ -43,8 +44,10 @@ func TestConvertProvisionerJob_Unit(t *testing.T) {
 		expected codersdk.ProvisionerJob
 	}{
 		{
-			name:  "empty",
-			input: database.ProvisionerJob{},
+			name: "empty",
+			input: database.ProvisionerJob{
+				JobStatus: database.ProvisionerJobStatusPending,
+			},
 			expected: codersdk.ProvisionerJob{
 				Status: codersdk.ProvisionerJobPending,
 			},
@@ -54,6 +57,7 @@ func TestConvertProvisionerJob_Unit(t *testing.T) {
 			input: database.ProvisionerJob{
 				CanceledAt:  validNullTimeMock,
 				CompletedAt: invalidNullTimeMock,
+				JobStatus:   database.ProvisionerJobStatusCanceling,
 			},
 			expected: codersdk.ProvisionerJob{
 				CanceledAt: &validNullTimeMock.Time,
@@ -66,6 +70,7 @@ func TestConvertProvisionerJob_Unit(t *testing.T) {
 				CanceledAt:  validNullTimeMock,
 				CompletedAt: validNullTimeMock,
 				Error:       errorMock,
+				JobStatus:   database.ProvisionerJobStatusFailed,
 			},
 			expected: codersdk.ProvisionerJob{
 				CanceledAt:  &validNullTimeMock.Time,
@@ -79,6 +84,7 @@ func TestConvertProvisionerJob_Unit(t *testing.T) {
 			input: database.ProvisionerJob{
 				CanceledAt:  validNullTimeMock,
 				CompletedAt: validNullTimeMock,
+				JobStatus:   database.ProvisionerJobStatusCanceled,
 			},
 			expected: codersdk.ProvisionerJob{
 				CanceledAt:  &validNullTimeMock.Time,
@@ -90,6 +96,7 @@ func TestConvertProvisionerJob_Unit(t *testing.T) {
 			name: "job pending",
 			input: database.ProvisionerJob{
 				StartedAt: invalidNullTimeMock,
+				JobStatus: database.ProvisionerJobStatusPending,
 			},
 			expected: codersdk.ProvisionerJob{
 				Status: codersdk.ProvisionerJobPending,
@@ -101,6 +108,7 @@ func TestConvertProvisionerJob_Unit(t *testing.T) {
 				CompletedAt: validNullTimeMock,
 				StartedAt:   validNullTimeMock,
 				Error:       errorMock,
+				JobStatus:   database.ProvisionerJobStatusFailed,
 			},
 			expected: codersdk.ProvisionerJob{
 				CompletedAt: &validNullTimeMock.Time,
@@ -114,6 +122,7 @@ func TestConvertProvisionerJob_Unit(t *testing.T) {
 			input: database.ProvisionerJob{
 				CompletedAt: validNullTimeMock,
 				StartedAt:   validNullTimeMock,
+				JobStatus:   database.ProvisionerJobStatusSucceeded,
 			},
 			expected: codersdk.ProvisionerJob{
 				CompletedAt: &validNullTimeMock.Time,
@@ -142,7 +151,7 @@ func Test_logFollower_completeBeforeFollow(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mDB := dbmock.NewMockStore(ctrl)
 	ps := pubsub.NewInMemory()
-	now := database.Now()
+	now := dbtime.Now()
 	job := database.ProvisionerJob{
 		ID:        uuid.New(),
 		CreatedAt: now.Add(-10 * time.Second),
@@ -155,7 +164,8 @@ func Test_logFollower_completeBeforeFollow(t *testing.T) {
 			Time:  now.Add(-time.Second),
 			Valid: true,
 		},
-		Error: sql.NullString{},
+		Error:     sql.NullString{},
+		JobStatus: database.ProvisionerJobStatusSucceeded,
 	}
 
 	// we need an HTTP server to get a websocket
@@ -204,7 +214,7 @@ func Test_logFollower_completeBeforeSubscribe(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mDB := dbmock.NewMockStore(ctrl)
 	ps := pubsub.NewInMemory()
-	now := database.Now()
+	now := dbtime.Now()
 	job := database.ProvisionerJob{
 		ID:        uuid.New(),
 		CreatedAt: now.Add(-10 * time.Second),
@@ -216,6 +226,7 @@ func Test_logFollower_completeBeforeSubscribe(t *testing.T) {
 		CanceledAt:  sql.NullTime{},
 		CompletedAt: sql.NullTime{},
 		Error:       sql.NullString{},
+		JobStatus:   database.ProvisionerJobStatusRunning,
 	}
 
 	// we need an HTTP server to get a websocket
@@ -237,6 +248,7 @@ func Test_logFollower_completeBeforeSubscribe(t *testing.T) {
 				Time:  now.Add(-time.Millisecond),
 				Valid: true,
 			},
+			JobStatus: database.ProvisionerJobStatusSucceeded,
 		},
 		nil,
 	)
@@ -280,7 +292,7 @@ func Test_logFollower_EndOfLogs(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mDB := dbmock.NewMockStore(ctrl)
 	ps := pubsub.NewInMemory()
-	now := database.Now()
+	now := dbtime.Now()
 	job := database.ProvisionerJob{
 		ID:        uuid.New(),
 		CreatedAt: now.Add(-10 * time.Second),
@@ -292,6 +304,7 @@ func Test_logFollower_EndOfLogs(t *testing.T) {
 		CanceledAt:  sql.NullTime{},
 		CompletedAt: sql.NullTime{},
 		Error:       sql.NullString{},
+		JobStatus:   database.ProvisionerJobStatusRunning,
 	}
 
 	// we need an HTTP server to get a websocket

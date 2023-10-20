@@ -59,7 +59,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
-	"github.com/coder/coder/v2/coderd/gitauth"
+	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -105,7 +105,7 @@ type Options struct {
 	AutobuildStats        chan<- autobuild.Stats
 	Auditor               audit.Auditor
 	TLSCertificates       []tls.Certificate
-	GitAuthConfigs        []*gitauth.Config
+	ExternalAuthConfigs   []*externalauth.Config
 	TrialGenerator        func(context.Context, string) error
 	TemplateScheduleStore schedule.TemplateScheduleStore
 	Coordinator           tailnet.Coordinator
@@ -155,7 +155,7 @@ func New(t testing.TB, options *Options) *codersdk.Client {
 // the provisioner. This is a temporary function while work is done to
 // standardize how provisioners are registered with coderd. The option
 // to include a provisioner is set to true for convenience.
-func NewWithProvisionerCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer) {
+func NewWithProvisionerCloser(t testing.TB, options *Options) (*codersdk.Client, io.Closer) {
 	if options == nil {
 		options = &Options{}
 	}
@@ -181,6 +181,10 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 
 	if options == nil {
 		options = &Options{}
+	}
+	if options.Logger == nil {
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		options.Logger = &logger
 	}
 	if options.GoogleTokenValidator == nil {
 		ctx, cancelFunc := context.WithCancel(context.Background())
@@ -214,7 +218,6 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 
 	if options.Database == nil {
 		options.Database, options.Pubsub = dbtestutil.NewDB(t)
-		options.Database = dbauthz.New(options.Database, options.Authorizer, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
 	}
 
 	// Some routes expect a deployment ID, so just make sure one exists.
@@ -256,25 +259,38 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		t.Cleanup(closeBatcher)
 	}
 
+	accessControlStore := &atomic.Pointer[dbauthz.AccessControlStore]{}
+	var acs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
+	accessControlStore.Store(&acs)
+
 	var templateScheduleStore atomic.Pointer[schedule.TemplateScheduleStore]
 	if options.TemplateScheduleStore == nil {
 		options.TemplateScheduleStore = schedule.NewAGPLTemplateScheduleStore()
 	}
 	templateScheduleStore.Store(&options.TemplateScheduleStore)
 
+	var auditor atomic.Pointer[audit.Auditor]
+	if options.Auditor == nil {
+		options.Auditor = audit.NewNop()
+	}
+	auditor.Store(&options.Auditor)
+
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	lifecycleExecutor := autobuild.NewExecutor(
 		ctx,
 		options.Database,
+		options.Pubsub,
 		&templateScheduleStore,
-		slogtest.Make(t, nil).Named("autobuild.executor").Leveled(slog.LevelDebug),
+		&auditor,
+		accessControlStore,
+		*options.Logger,
 		options.AutobuildTicker,
 	).WithStatsChannel(options.AutobuildStats)
 	lifecycleExecutor.Run()
 
 	hangDetectorTicker := time.NewTicker(options.DeploymentValues.JobHangDetectorInterval.Value())
 	defer hangDetectorTicker.Stop()
-	hangDetector := unhanger.New(ctx, options.Database, options.Pubsub, slogtest.Make(t, nil).Named("unhanger.detector"), hangDetectorTicker.C)
+	hangDetector := unhanger.New(ctx, options.Database, options.Pubsub, options.Logger.Named("unhanger.detector"), hangDetectorTicker.C)
 	hangDetector.Start()
 	t.Cleanup(hangDetector.Close)
 
@@ -333,7 +349,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		stunAddresses = options.DeploymentValues.DERP.Server.STUNAddresses.Value()
 	}
 
-	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(slogtest.Make(t, nil).Named("derp").Leveled(slog.LevelDebug)))
+	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger.Named("derp").Leveled(slog.LevelDebug)))
 	derpServer.SetMeshKey("test-key")
 
 	// match default with cli default
@@ -348,10 +364,6 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		require.NoError(t, err)
 	}
 
-	if options.Logger == nil {
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		options.Logger = &logger
-	}
 	region := &tailcfg.DERPRegion{
 		EmbeddedRelay: true,
 		RegionID:      int(options.DeploymentValues.DERP.Server.RegionID.Value()),
@@ -391,7 +403,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			CacheDir:                       t.TempDir(),
 			Database:                       options.Database,
 			Pubsub:                         options.Pubsub,
-			GitAuthConfigs:                 options.GitAuthConfigs,
+			ExternalAuthConfigs:            options.ExternalAuthConfigs,
 
 			Auditor:                            options.Auditor,
 			AWSCertificates:                    options.AWSCertificates,
@@ -408,6 +420,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			Authorizer:                         options.Authorizer,
 			Telemetry:                          telemetry.NewNoop(),
 			TemplateScheduleStore:              &templateScheduleStore,
+			AccessControlStore:                 accessControlStore,
 			TLSCertificates:                    options.TLSCertificates,
 			TrialGenerator:                     options.TrialGenerator,
 			TailnetCoordinator:                 options.Coordinator,
@@ -416,6 +429,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			MetricsCacheRefreshInterval:        options.MetricsCacheRefreshInterval,
 			AgentStatsRefreshInterval:          options.AgentStatsRefreshInterval,
 			DeploymentValues:                   options.DeploymentValues,
+			DeploymentOptions:                  codersdk.DeploymentOptionsWithoutSecrets(options.DeploymentValues.Options()),
 			UpdateCheckOptions:                 options.UpdateCheckOptions,
 			SwaggerEndpoint:                    options.SwaggerEndpoint,
 			AppSecurityKey:                     AppSecurityKey,
@@ -453,11 +467,41 @@ func NewWithAPI(t testing.TB, options *Options) (*codersdk.Client, io.Closer, *c
 	return client, provisionerCloser, coderAPI
 }
 
+// provisionerdCloser wraps a provisioner daemon as an io.Closer that can be called multiple times
+type provisionerdCloser struct {
+	mu     sync.Mutex
+	closed bool
+	d      *provisionerd.Server
+}
+
+func (c *provisionerdCloser) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return nil
+	}
+	c.closed = true
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+	shutdownErr := c.d.Shutdown(ctx)
+	closeErr := c.d.Close()
+	if shutdownErr != nil {
+		return shutdownErr
+	}
+	return closeErr
+}
+
 // NewProvisionerDaemon launches a provisionerd instance configured to work
 // well with coderd testing. It registers the "echo" provisioner for
 // quick testing.
 func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
 	t.Helper()
+
+	// t.Cleanup runs in last added, first called order. t.TempDir() will delete
+	// the directory on cleanup, so we want to make sure the echoServer is closed
+	// before we go ahead an attempt to delete it's work directory.
+	// seems t.TempDir() is not safe to call from a different goroutine
+	workDir := t.TempDir()
 
 	echoClient, echoServer := provisionersdk.MemTransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
@@ -466,8 +510,7 @@ func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
 		_ = echoServer.Close()
 		cancelFunc()
 	})
-	// seems t.TempDir() is not safe to call from a different goroutine
-	workDir := t.TempDir()
+
 	go func() {
 		err := echo.Serve(ctx, &provisionersdk.ServeOptions{
 			Listener:      echoServer,
@@ -477,24 +520,24 @@ func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
 		assert.NoError(t, err)
 	}()
 
-	closer := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
-		return coderAPI.CreateInMemoryProvisionerDaemon(ctx, 0)
+	daemon := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
+		return coderAPI.CreateInMemoryProvisionerDaemon(ctx)
 	}, &provisionerd.Options{
 		Logger:              coderAPI.Logger.Named("provisionerd").Leveled(slog.LevelDebug),
-		JobPollInterval:     50 * time.Millisecond,
 		UpdateInterval:      250 * time.Millisecond,
-		ForceCancelInterval: time.Second,
-		Provisioners: provisionerd.Provisioners{
+		ForceCancelInterval: 5 * time.Second,
+		Connector: provisionerd.LocalProvisioners{
 			string(database.ProvisionerTypeEcho): sdkproto.NewDRPCProvisionerClient(echoClient),
 		},
 	})
+	closer := &provisionerdCloser{d: daemon}
 	t.Cleanup(func() {
 		_ = closer.Close()
 	})
 	return closer
 }
 
-func NewExternalProvisionerDaemon(t *testing.T, client *codersdk.Client, org uuid.UUID, tags map[string]string) io.Closer {
+func NewExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uuid.UUID, tags map[string]string) io.Closer {
 	echoClient, echoServer := provisionersdk.MemTransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	serveDone := make(chan struct{})
@@ -513,7 +556,7 @@ func NewExternalProvisionerDaemon(t *testing.T, client *codersdk.Client, org uui
 		assert.NoError(t, err)
 	}()
 
-	closer := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
+	daemon := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
 		return client.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
 			Organization: org,
 			Provisioners: []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho},
@@ -521,13 +564,13 @@ func NewExternalProvisionerDaemon(t *testing.T, client *codersdk.Client, org uui
 		})
 	}, &provisionerd.Options{
 		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
-		JobPollInterval:     50 * time.Millisecond,
 		UpdateInterval:      250 * time.Millisecond,
-		ForceCancelInterval: time.Second,
-		Provisioners: provisionerd.Provisioners{
+		ForceCancelInterval: 5 * time.Second,
+		Connector: provisionerd.LocalProvisioners{
 			string(database.ProvisionerTypeEcho): sdkproto.NewDRPCProvisionerClient(echoClient),
 		},
 	})
+	closer := &provisionerdCloser{d: daemon}
 	t.Cleanup(func() {
 		_ = closer.Close()
 	})
@@ -556,18 +599,18 @@ func CreateFirstUser(t testing.TB, client *codersdk.Client) codersdk.CreateFirst
 }
 
 // CreateAnotherUser creates and authenticates a new user.
-func CreateAnotherUser(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, roles ...string) (*codersdk.Client, codersdk.User) {
+func CreateAnotherUser(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, roles ...string) (*codersdk.Client, codersdk.User) {
 	return createAnotherUserRetry(t, client, organizationID, 5, roles)
 }
 
-func CreateAnotherUserMutators(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, roles []string, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
+func CreateAnotherUserMutators(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, roles []string, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
 	return createAnotherUserRetry(t, client, organizationID, 5, roles, mutators...)
 }
 
-func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, retries int, roles []string, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
+func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, retries int, roles []string, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
 	req := codersdk.CreateUserRequest{
 		Email:          namesgenerator.GetRandomName(10) + "@coder.com",
-		Username:       randomUsername(t),
+		Username:       RandomUsername(t),
 		Password:       "SomeSecurePassword!",
 		OrganizationID: organizationID,
 	}
@@ -657,7 +700,7 @@ func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationI
 // CreateTemplateVersion creates a template import provisioner job
 // with the responses provided. It uses the "echo" provisioner for compatibility
 // with testing.
-func CreateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses, mutators ...func(*codersdk.CreateTemplateVersionRequest)) codersdk.TemplateVersion {
+func CreateTemplateVersion(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses, mutators ...func(*codersdk.CreateTemplateVersionRequest)) codersdk.TemplateVersion {
 	t.Helper()
 	data, err := echo.Tar(res)
 	require.NoError(t, err)
@@ -699,9 +742,9 @@ func CreateWorkspaceBuild(
 
 // CreateTemplate creates a template with the "echo" provisioner for
 // compatibility with testing. The name assigned is randomly generated.
-func CreateTemplate(t *testing.T, client *codersdk.Client, organization uuid.UUID, version uuid.UUID, mutators ...func(*codersdk.CreateTemplateRequest)) codersdk.Template {
+func CreateTemplate(t testing.TB, client *codersdk.Client, organization uuid.UUID, version uuid.UUID, mutators ...func(*codersdk.CreateTemplateRequest)) codersdk.Template {
 	req := codersdk.CreateTemplateRequest{
-		Name:      randomUsername(t),
+		Name:      RandomUsername(t),
 		VersionID: version,
 	}
 	for _, mut := range mutators {
@@ -714,12 +757,13 @@ func CreateTemplate(t *testing.T, client *codersdk.Client, organization uuid.UUI
 
 // UpdateTemplateVersion creates a new template version with the "echo" provisioner
 // and associates it with the given templateID.
-func UpdateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses, templateID uuid.UUID) codersdk.TemplateVersion {
+func UpdateTemplateVersion(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses, templateID uuid.UUID) codersdk.TemplateVersion {
+	ctx := context.Background()
 	data, err := echo.Tar(res)
 	require.NoError(t, err)
-	file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, bytes.NewReader(data))
+	file, err := client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader(data))
 	require.NoError(t, err)
-	templateVersion, err := client.CreateTemplateVersion(context.Background(), organizationID, codersdk.CreateTemplateVersionRequest{
+	templateVersion, err := client.CreateTemplateVersion(ctx, organizationID, codersdk.CreateTemplateVersionRequest{
 		TemplateID:    templateID,
 		FileID:        file.ID,
 		StorageMethod: codersdk.ProvisionerStorageMethodFile,
@@ -729,26 +773,65 @@ func UpdateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID
 	return templateVersion
 }
 
-// AwaitTemplateImportJob awaits for an import job to reach completed status.
-func AwaitTemplateVersionJob(t *testing.T, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
+func UpdateActiveTemplateVersion(t testing.TB, client *codersdk.Client, templateID, versionID uuid.UUID) {
+	err := client.UpdateActiveTemplateVersion(context.Background(), templateID, codersdk.UpdateActiveTemplateVersion{
+		ID: versionID,
+	})
+	require.NoError(t, err)
+}
+
+// AwaitTemplateVersionJobRunning waits for the build to be picked up by a provisioner.
+func AwaitTemplateVersionJobRunning(t testing.TB, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 
-	t.Logf("waiting for template version job %s", version)
+	t.Logf("waiting for template version %s build job to start", version)
 	var templateVersion codersdk.TemplateVersion
 	require.Eventually(t, func() bool {
 		var err error
 		templateVersion, err = client.TemplateVersion(ctx, version)
-		return assert.NoError(t, err) && templateVersion.Job.CompletedAt != nil
-	}, testutil.WaitMedium, testutil.IntervalFast)
-	t.Logf("got template version job %s", version)
+		if err != nil {
+			return false
+		}
+		t.Logf("template version job status: %s", templateVersion.Job.Status)
+		switch templateVersion.Job.Status {
+		case codersdk.ProvisionerJobPending:
+			return false
+		case codersdk.ProvisionerJobRunning:
+			return true
+		default:
+			t.FailNow()
+			return false
+		}
+	}, testutil.WaitShort, testutil.IntervalFast, "make sure you set `IncludeProvisionerDaemon`!")
+	t.Logf("template version %s job has started", version)
 	return templateVersion
 }
 
-// AwaitWorkspaceBuildJob waits for a workspace provision job to reach completed status.
-func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UUID) codersdk.WorkspaceBuild {
+// AwaitTemplateVersionJobCompleted waits for the build to be completed. This may result
+// from cancelation, an error, or from completing successfully.
+func AwaitTemplateVersionJobCompleted(t testing.TB, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	t.Logf("waiting for template version %s build job to complete", version)
+	var templateVersion codersdk.TemplateVersion
+	require.Eventually(t, func() bool {
+		var err error
+		templateVersion, err = client.TemplateVersion(ctx, version)
+		t.Logf("template version job status: %s", templateVersion.Job.Status)
+		return assert.NoError(t, err) && templateVersion.Job.CompletedAt != nil
+	}, testutil.WaitLong, testutil.IntervalMedium, "make sure you set `IncludeProvisionerDaemon`!")
+	t.Logf("template version %s job has completed", version)
+	return templateVersion
+}
+
+// AwaitWorkspaceBuildJobCompleted waits for a workspace provision job to reach completed status.
+func AwaitWorkspaceBuildJobCompleted(t testing.TB, client *codersdk.Client, build uuid.UUID) codersdk.WorkspaceBuild {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -760,7 +843,7 @@ func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UU
 		var err error
 		workspaceBuild, err = client.WorkspaceBuild(ctx, build)
 		return assert.NoError(t, err) && workspaceBuild.Job.CompletedAt != nil
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.WaitMedium, testutil.IntervalMedium)
 	t.Logf("got workspace build job %s", build)
 	return workspaceBuild
 }
@@ -768,7 +851,7 @@ func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UU
 // AwaitWorkspaceAgents waits for all resources with agents to be connected. If
 // specific agents are provided, it will wait for those agents to be connected
 // but will not fail if other agents are not connected.
-func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID, agentNames ...string) []codersdk.WorkspaceResource {
+func AwaitWorkspaceAgents(t testing.TB, client *codersdk.Client, workspaceID uuid.UUID, agentNames ...string) []codersdk.WorkspaceResource {
 	t.Helper()
 
 	agentNamesMap := make(map[string]struct{}, len(agentNames))
@@ -785,6 +868,9 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, workspaceID uui
 		var err error
 		workspace, err := client.Workspace(ctx, workspaceID)
 		if !assert.NoError(t, err) {
+			return false
+		}
+		if workspace.LatestBuild.Job.CompletedAt == nil {
 			return false
 		}
 		if workspace.LatestBuild.Job.CompletedAt.IsZero() {
@@ -808,7 +894,7 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, workspaceID uui
 		resources = workspace.LatestBuild.Resources
 
 		return true
-	}, testutil.WaitLong, testutil.IntervalFast)
+	}, testutil.WaitLong, testutil.IntervalMedium)
 	t.Logf("got workspace agents (workspace %s)", workspaceID)
 	return resources
 }
@@ -816,13 +902,14 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, workspaceID uui
 // CreateWorkspace creates a workspace for the user and template provided.
 // A random name is generated for it.
 // To customize the defaults, pass a mutator func.
-func CreateWorkspace(t *testing.T, client *codersdk.Client, organization uuid.UUID, templateID uuid.UUID, mutators ...func(*codersdk.CreateWorkspaceRequest)) codersdk.Workspace {
+func CreateWorkspace(t testing.TB, client *codersdk.Client, organization uuid.UUID, templateID uuid.UUID, mutators ...func(*codersdk.CreateWorkspaceRequest)) codersdk.Workspace {
 	t.Helper()
 	req := codersdk.CreateWorkspaceRequest{
 		TemplateID:        templateID,
-		Name:              randomUsername(t),
+		Name:              RandomUsername(t),
 		AutostartSchedule: ptr.Ref("CRON_TZ=US/Central 30 9 * * 1-5"),
 		TTLMillis:         ptr.Ref((8 * time.Hour).Milliseconds()),
+		AutomaticUpdates:  codersdk.AutomaticUpdatesNever,
 	}
 	for _, mutator := range mutators {
 		mutator(&req)
@@ -833,7 +920,7 @@ func CreateWorkspace(t *testing.T, client *codersdk.Client, organization uuid.UU
 }
 
 // TransitionWorkspace is a convenience method for transitioning a workspace from one state to another.
-func MustTransitionWorkspace(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID, from, to database.WorkspaceTransition) codersdk.Workspace {
+func MustTransitionWorkspace(t testing.TB, client *codersdk.Client, workspaceID uuid.UUID, from, to database.WorkspaceTransition, muts ...func(req *codersdk.CreateWorkspaceBuildRequest)) codersdk.Workspace {
 	t.Helper()
 	ctx := context.Background()
 	workspace, err := client.Workspace(ctx, workspaceID)
@@ -843,13 +930,19 @@ func MustTransitionWorkspace(t *testing.T, client *codersdk.Client, workspaceID 
 	template, err := client.Template(ctx, workspace.TemplateID)
 	require.NoError(t, err, "fetch workspace template")
 
-	build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+	req := codersdk.CreateWorkspaceBuildRequest{
 		TemplateVersionID: template.ActiveVersionID,
 		Transition:        codersdk.WorkspaceTransition(to),
-	})
+	}
+
+	for _, mut := range muts {
+		mut(&req)
+	}
+
+	build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, req)
 	require.NoError(t, err, "unexpected error transitioning workspace to %s", to)
 
-	_ = AwaitWorkspaceBuildJob(t, client, build.ID)
+	_ = AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
 
 	updated := MustWorkspace(t, client, workspace.ID)
 	require.Equal(t, codersdk.WorkspaceTransition(to), updated.LatestBuild.Transition, "expected workspace to be in state %s but got %s", to, updated.LatestBuild.Transition)
@@ -857,7 +950,7 @@ func MustTransitionWorkspace(t *testing.T, client *codersdk.Client, workspaceID 
 }
 
 // MustWorkspace is a convenience method for fetching a workspace that should exist.
-func MustWorkspace(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID) codersdk.Workspace {
+func MustWorkspace(t testing.TB, client *codersdk.Client, workspaceID uuid.UUID) codersdk.Workspace {
 	t.Helper()
 	ctx := context.Background()
 	ws, err := client.Workspace(ctx, workspaceID)
@@ -868,14 +961,14 @@ func MustWorkspace(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID)
 	return ws
 }
 
-// RequestGitAuthCallback makes a request with the proper OAuth2 state cookie
-// to the git auth callback endpoint.
-func RequestGitAuthCallback(t *testing.T, providerID string, client *codersdk.Client) *http.Response {
+// RequestExternalAuthCallback makes a request with the proper OAuth2 state cookie
+// to the external auth callback endpoint.
+func RequestExternalAuthCallback(t testing.TB, providerID string, client *codersdk.Client) *http.Response {
 	client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
 	state := "somestate"
-	oauthURL, err := client.URL.Parse(fmt.Sprintf("/gitauth/%s/callback?code=asd&state=%s", providerID, state))
+	oauthURL, err := client.URL.Parse(fmt.Sprintf("/external-auth/%s/callback?code=asd&state=%s", providerID, state))
 	require.NoError(t, err)
 	req, err := http.NewRequestWithContext(context.Background(), "GET", oauthURL.String(), nil)
 	require.NoError(t, err)
@@ -898,7 +991,7 @@ func RequestGitAuthCallback(t *testing.T, providerID string, client *codersdk.Cl
 // NewGoogleInstanceIdentity returns a metadata client and ID token validator for faking
 // instance authentication for Google Cloud.
 // nolint:revive
-func NewGoogleInstanceIdentity(t *testing.T, instanceID string, expired bool) (*idtoken.Validator, *metadata.Client) {
+func NewGoogleInstanceIdentity(t testing.TB, instanceID string, expired bool) (*idtoken.Validator, *metadata.Client) {
 	keyID, err := cryptorand.String(12)
 	require.NoError(t, err)
 	claims := jwt.MapClaims{
@@ -960,7 +1053,7 @@ func NewGoogleInstanceIdentity(t *testing.T, instanceID string, expired bool) (*
 
 // NewAWSInstanceIdentity returns a metadata client and ID token validator for faking
 // instance authentication for AWS.
-func NewAWSInstanceIdentity(t *testing.T, instanceID string) (awsidentity.Certificates, *http.Client) {
+func NewAWSInstanceIdentity(t testing.TB, instanceID string) (awsidentity.Certificates, *http.Client) {
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 
@@ -1020,7 +1113,7 @@ func NewAWSInstanceIdentity(t *testing.T, instanceID string) (awsidentity.Certif
 
 // NewAzureInstanceIdentity returns a metadata client and ID token validator for faking
 // instance authentication for Azure.
-func NewAzureInstanceIdentity(t *testing.T, instanceID string) (x509.VerifyOptions, *http.Client) {
+func NewAzureInstanceIdentity(t testing.TB, instanceID string) (x509.VerifyOptions, *http.Client) {
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 
@@ -1077,7 +1170,7 @@ func NewAzureInstanceIdentity(t *testing.T, instanceID string) (x509.VerifyOptio
 		}
 }
 
-func randomUsername(t testing.TB) string {
+func RandomUsername(t testing.TB) string {
 	suffix, err := cryptorand.String(3)
 	require.NoError(t, err)
 	suffix = "-" + suffix
@@ -1100,7 +1193,7 @@ type nopcloser struct{}
 func (nopcloser) Close() error { return nil }
 
 // SDKError coerces err into an SDK error.
-func SDKError(t *testing.T, err error) *codersdk.Error {
+func SDKError(t testing.TB, err error) *codersdk.Error {
 	var cerr *codersdk.Error
 	require.True(t, errors.As(err, &cerr))
 	return cerr

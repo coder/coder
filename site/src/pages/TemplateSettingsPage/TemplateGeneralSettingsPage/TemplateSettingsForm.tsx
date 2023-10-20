@@ -1,57 +1,54 @@
-import TextField from "@mui/material/TextField"
-import { Template, UpdateTemplateMeta } from "api/typesGenerated"
-import { FormikContextType, FormikTouched, useFormik } from "formik"
-import { FC } from "react"
+import TextField from "@mui/material/TextField";
+import { Template, UpdateTemplateMeta } from "api/typesGenerated";
+import { FormikContextType, FormikTouched, useFormik } from "formik";
+import { FC } from "react";
 import {
   getFormHelpers,
   nameValidator,
   templateDisplayNameValidator,
   onChangeTrimmed,
   iconValidator,
-} from "utils/formUtils"
-import * as Yup from "yup"
-import i18next from "i18next"
-import { useTranslation } from "react-i18next"
-import { LazyIconField } from "components/IconField/LazyIconField"
+} from "utils/formUtils";
+import * as Yup from "yup";
+import { LazyIconField } from "components/IconField/LazyIconField";
 import {
   FormFields,
   FormSection,
   HorizontalForm,
   FormFooter,
-} from "components/Form/Form"
-import { Stack } from "components/Stack/Stack"
-import Checkbox from "@mui/material/Checkbox"
-import { HelpTooltip, HelpTooltipText } from "components/Tooltips/HelpTooltip"
-import { makeStyles } from "@mui/styles"
+} from "components/Form/Form";
+import { Stack } from "components/Stack/Stack";
+import Checkbox from "@mui/material/Checkbox";
+import {
+  HelpTooltip,
+  HelpTooltipText,
+} from "components/HelpTooltip/HelpTooltip";
+import { makeStyles } from "@mui/styles";
 
-const MAX_DESCRIPTION_CHAR_LIMIT = 128
+const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 
 export const getValidationSchema = (): Yup.AnyObjectSchema =>
   Yup.object({
-    name: nameValidator(i18next.t("nameLabel", { ns: "templateSettingsPage" })),
-    display_name: templateDisplayNameValidator(
-      i18next.t("displayNameLabel", {
-        ns: "templateSettingsPage",
-      }),
-    ),
+    name: nameValidator("Name"),
+    display_name: templateDisplayNameValidator("Display name"),
     description: Yup.string().max(
       MAX_DESCRIPTION_CHAR_LIMIT,
-      i18next
-        .t("descriptionMaxError", { ns: "templateSettingsPage" })
-        .toString(),
+      "Please enter a description that is less than or equal to 128 characters.",
     ),
     allow_user_cancel_workspace_jobs: Yup.boolean(),
     icon: iconValidator,
-  })
+    require_active_version: Yup.boolean(),
+  });
 
 export interface TemplateSettingsForm {
-  template: Template
-  onSubmit: (data: UpdateTemplateMeta) => void
-  onCancel: () => void
-  isSubmitting: boolean
-  error?: unknown
+  template: Template;
+  onSubmit: (data: UpdateTemplateMeta) => void;
+  onCancel: () => void;
+  isSubmitting: boolean;
+  error?: unknown;
   // Helpful to show field errors on Storybook
-  initialTouched?: FormikTouched<UpdateTemplateMeta>
+  initialTouched?: FormikTouched<UpdateTemplateMeta>;
+  accessControlEnabled: boolean;
 }
 
 export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
@@ -61,8 +58,9 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
   error,
   isSubmitting,
   initialTouched,
+  accessControlEnabled,
 }) => {
-  const validationSchema = getValidationSchema()
+  const validationSchema = getValidationSchema();
   const form: FormikContextType<UpdateTemplateMeta> =
     useFormik<UpdateTemplateMeta>({
       initialValues: {
@@ -74,23 +72,23 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
           template.allow_user_cancel_workspace_jobs,
         update_workspace_last_used_at: false,
         update_workspace_dormant_at: false,
+        require_active_version: template.require_active_version,
       },
       validationSchema,
       onSubmit,
       initialTouched,
-    })
-  const getFieldHelpers = getFormHelpers(form, error)
-  const { t } = useTranslation("templateSettingsPage")
-  const styles = useStyles()
+    });
+  const getFieldHelpers = getFormHelpers(form, error);
+  const styles = useStyles();
 
   return (
     <HorizontalForm
       onSubmit={form.handleSubmit}
-      aria-label={t("formAriaLabel").toString()}
+      aria-label="Template settings form"
     >
       <FormSection
-        title={t("generalInfo.title").toString()}
-        description={t("generalInfo.description").toString()}
+        title="General info"
+        description="The name is used to identify the template in URLs and the API."
       >
         <FormFields>
           <TextField
@@ -99,21 +97,21 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
             onChange={onChangeTrimmed(form)}
             autoFocus
             fullWidth
-            label={t("nameLabel")}
+            label="Name"
           />
         </FormFields>
       </FormSection>
 
       <FormSection
-        title={t("displayInfo.title").toString()}
-        description={t("displayInfo.description").toString()}
+        title="Display info"
+        description="A friendly name, description, and icon to help developers identify your template."
       >
         <FormFields>
           <TextField
             {...getFieldHelpers("display_name")}
             disabled={isSubmitting}
             fullWidth
-            label={t("displayNameLabel")}
+            label="Display name"
           />
 
           <TextField
@@ -121,7 +119,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
             multiline
             disabled={isSubmitting}
             fullWidth
-            label={t("descriptionLabel")}
+            label="Description"
             rows={2}
           />
 
@@ -130,53 +128,88 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
             disabled={isSubmitting}
             onChange={onChangeTrimmed(form)}
             fullWidth
-            label={t("iconLabel")}
+            label="Icon"
             onPickEmoji={(value) => form.setFieldValue("icon", value)}
           />
         </FormFields>
       </FormSection>
 
       <FormSection
-        title={t("operations.title").toString()}
-        description={t("operations.description").toString()}
+        title="Operations"
+        description="Regulate actions allowed on workspaces created from this template."
       >
-        <label htmlFor="allow_user_cancel_workspace_jobs">
-          <Stack direction="row" spacing={1}>
-            <Checkbox
-              id="allow_user_cancel_workspace_jobs"
-              name="allow_user_cancel_workspace_jobs"
-              disabled={isSubmitting}
-              checked={form.values.allow_user_cancel_workspace_jobs}
-              onChange={form.handleChange}
-            />
+        <Stack direction="column" spacing={5}>
+          <label htmlFor="allow_user_cancel_workspace_jobs">
+            <Stack direction="row" spacing={1}>
+              <Checkbox
+                id="allow_user_cancel_workspace_jobs"
+                name="allow_user_cancel_workspace_jobs"
+                disabled={isSubmitting}
+                checked={form.values.allow_user_cancel_workspace_jobs}
+                onChange={form.handleChange}
+              />
 
-            <Stack direction="column" spacing={0.5}>
-              <Stack
-                direction="row"
-                alignItems="center"
-                spacing={0.5}
-                className={styles.optionText}
-              >
-                {t("allowUserCancelWorkspaceJobsLabel")}
-
-                <HelpTooltip>
-                  <HelpTooltipText>
-                    {t("allowUserCancelWorkspaceJobsNotice")}
-                  </HelpTooltipText>
-                </HelpTooltip>
+              <Stack direction="column" spacing={0.5}>
+                <Stack
+                  direction="row"
+                  alignItems="center"
+                  spacing={0.5}
+                  className={styles.optionText}
+                >
+                  Allow users to cancel in-progress workspace jobs.
+                  <HelpTooltip>
+                    <HelpTooltipText>
+                      If checked, users may be able to corrupt their workspace.
+                    </HelpTooltipText>
+                  </HelpTooltip>
+                </Stack>
+                <span className={styles.optionHelperText}>
+                  Depending on your template, canceling builds may leave
+                  workspaces in an unhealthy state. This option isn&apos;t
+                  recommended for most use cases.
+                </span>
               </Stack>
-              <span className={styles.optionHelperText}>
-                {t("allowUsersCancelHelperText")}
-              </span>
             </Stack>
-          </Stack>
-        </label>
+          </label>
+          {accessControlEnabled && (
+            <label htmlFor="require_active_version">
+              <Stack direction="row" spacing={1}>
+                <Checkbox
+                  id="require_active_version"
+                  name="require_active_version"
+                  checked={form.values.require_active_version}
+                  onChange={form.handleChange}
+                />
+
+                <Stack direction="column" spacing={0.5}>
+                  <Stack
+                    direction="row"
+                    alignItems="center"
+                    spacing={0.5}
+                    className={styles.optionText}
+                  >
+                    Require the active template version for workspace builds.
+                    <HelpTooltip>
+                      <HelpTooltipText>
+                        This setting is not enforced for template admins.
+                      </HelpTooltipText>
+                    </HelpTooltip>
+                  </Stack>
+                  <span className={styles.optionHelperText}>
+                    Workspaces that are manually started or auto-started will
+                    use the promoted template version.
+                  </span>
+                </Stack>
+              </Stack>
+            </label>
+          )}
+        </Stack>
       </FormSection>
 
       <FormFooter onCancel={onCancel} isLoading={isSubmitting} />
     </HorizontalForm>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   optionText: {
@@ -188,4 +221,4 @@ const useStyles = makeStyles((theme) => ({
     fontSize: theme.spacing(1.5),
     color: theme.palette.text.secondary,
   },
-}))
+}));

@@ -60,6 +60,26 @@ var testCases = []testCase{
 		name:          "provisionerd_psk",
 		expectedError: "",
 	},
+	{
+		name:          "auto_access_url_1",
+		expectedError: "",
+	},
+	{
+		name:          "auto_access_url_2",
+		expectedError: "",
+	},
+	{
+		name:          "auto_access_url_3",
+		expectedError: "",
+	},
+	{
+		name:          "env_from",
+		expectedError: "",
+	},
+	{
+		name:          "extra_templates",
+		expectedError: "",
+	},
 }
 
 type testCase struct {

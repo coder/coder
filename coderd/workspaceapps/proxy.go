@@ -19,7 +19,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/agent/agentssh"
-	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -256,8 +256,8 @@ func (s *Server) handleAPIKeySmuggling(rw http.ResponseWriter, r *http.Request, 
 func (s *Server) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) {
 	if s.DisablePathApps {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-			Status:       http.StatusUnauthorized,
-			Title:        "Unauthorized",
+			Status:       http.StatusForbidden,
+			Title:        "Forbidden",
 			Description:  "Path-based applications are disabled on this Coder deployment by the administrator.",
 			RetryEnabled: false,
 			DashboardURL: s.DashboardURL.String(),
@@ -301,6 +301,7 @@ func (s *Server) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request)
 		AppRequest: Request{
 			AccessMethod:      AccessMethodPath,
 			BasePath:          basePath,
+			Prefix:            "", // Prefix doesn't exist for path apps
 			UsernameOrID:      chi.URLParam(r, "user"),
 			WorkspaceAndAgent: chi.URLParam(r, "workspace_and_agent"),
 			// We don't support port proxying on paths. The ResolveRequest method
@@ -405,6 +406,7 @@ func (s *Server) HandleSubdomain(middlewares ...func(http.Handler) http.Handler)
 					AppRequest: Request{
 						AccessMethod:      AccessMethodSubdomain,
 						BasePath:          "/",
+						Prefix:            app.Prefix,
 						UsernameOrID:      app.Username,
 						WorkspaceNameOrID: app.WorkspaceName,
 						AgentNameOrID:     app.AgentName,
@@ -600,7 +602,7 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 	s.collectStats(report)
 	defer func() {
 		// We must use defer here because ServeHTTP may panic.
-		report.SessionEndedAt = database.Now()
+		report.SessionEndedAt = dbtime.Now()
 		s.collectStats(report)
 	}()
 
@@ -700,7 +702,7 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	report := newStatsReportFromSignedToken(*appToken)
 	s.collectStats(report)
 	defer func() {
-		report.SessionEndedAt = database.Now()
+		report.SessionEndedAt = dbtime.Now()
 		s.collectStats(report)
 	}()
 

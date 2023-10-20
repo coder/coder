@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -356,8 +357,8 @@ func (api *API) postWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 		DerpEnabled: true,
 		// Disabled by default, but blah blah blah.
 		DerpOnly:  false,
-		CreatedAt: database.Now(),
-		UpdatedAt: database.Now(),
+		CreatedAt: dbtime.Now(),
+		UpdatedAt: dbtime.Now(),
 	})
 	if database.IsUniqueViolation(err, database.UniqueWorkspaceProxiesLowerNameIndex) {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
@@ -571,9 +572,9 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	// Version check should be forced in non-dev builds and when running in
-	// tests.
+	// tests. Only Major + minor versions are checked.
 	shouldForceVersion := !buildinfo.IsDev() || flag.Lookup("test.v") != nil
-	if shouldForceVersion && req.Version != buildinfo.Version() {
+	if shouldForceVersion && !buildinfo.VersionsMatch(req.Version, buildinfo.Version()) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Version mismatch.",
 			Detail:  fmt.Sprintf("Proxy version %q does not match primary server version %q", req.Version, buildinfo.Version()),

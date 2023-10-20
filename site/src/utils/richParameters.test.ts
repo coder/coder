@@ -1,7 +1,7 @@
-import { TemplateVersionParameter } from "api/typesGenerated"
-import { selectInitialRichParametersValues } from "./richParameters"
+import { TemplateVersionParameter } from "api/typesGenerated";
+import { getInitialRichParameterValues } from "./richParameters";
 
-test("selectInitialRichParametersValues return default value when default build parameter is not valid", () => {
+test("getInitialRichParameterValues return default value when default build parameter is not valid", () => {
   const templateParameters: TemplateVersionParameter[] = [
     {
       name: "cpu",
@@ -41,13 +41,13 @@ test("selectInitialRichParametersValues return default value when default build 
       required: false,
       ephemeral: false,
     },
-  ]
+  ];
 
-  const cpuParameter = templateParameters[0]
-  const [cpuParameterInitialValue] = selectInitialRichParametersValues(
+  const cpuParameter = templateParameters[0];
+  const [cpuParameterInitialValue] = getInitialRichParameterValues(
     templateParameters,
     [{ name: cpuParameter.name, value: "100" }],
-  )
+  );
 
-  expect(cpuParameterInitialValue.value).toBe(cpuParameter.default_value)
-})
+  expect(cpuParameterInitialValue.value).toBe(cpuParameter.default_value);
+});

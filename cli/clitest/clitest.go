@@ -29,7 +29,7 @@ import (
 
 // New creates a CLI instance with a configuration pointed to a
 // temporary testing directory.
-func New(t *testing.T, args ...string) (*clibase.Invocation, config.Root) {
+func New(t testing.TB, args ...string) (*clibase.Invocation, config.Root) {
 	var root cli.RootCmd
 
 	cmd, err := root.Command(root.AGPL())
@@ -56,7 +56,7 @@ func (l *logWriter) Write(p []byte) (n int, err error) {
 }
 
 func NewWithCommand(
-	t *testing.T, cmd *clibase.Cmd, args ...string,
+	t testing.TB, cmd *clibase.Cmd, args ...string,
 ) (*clibase.Invocation, config.Root) {
 	configDir := config.Root(t.TempDir())
 	logger := slogtest.Make(t, nil)

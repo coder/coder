@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
@@ -152,6 +153,34 @@ func TestAPIKey(t *testing.T) {
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
 	})
 
+	t.Run("UserLinkNotFound", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db   = dbfake.New()
+			r    = httptest.NewRequest("GET", "/", nil)
+			rw   = httptest.NewRecorder()
+			user = dbgen.User(t, db, database.User{
+				LoginType: database.LoginTypeGithub,
+			})
+			// Intentionally not inserting any user link
+			_, token = dbgen.APIKey(t, db, database.APIKey{
+				UserID:    user.ID,
+				LoginType: user.LoginType,
+			})
+		)
+		r.Header.Set(codersdk.SessionTokenHeader, token)
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: false,
+		})(successHandler).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+		var resp codersdk.Response
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
+		require.Equal(t, resp.Message, httpmw.SignedOutErrorMessage)
+	})
+
 	t.Run("InvalidSecret", func(t *testing.T) {
 		t.Parallel()
 		var (
@@ -213,7 +242,7 @@ func TestAPIKey(t *testing.T) {
 			user              = dbgen.User(t, db, database.User{})
 			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID:    user.ID,
-				ExpiresAt: database.Now().AddDate(0, 0, 1),
+				ExpiresAt: dbtime.Now().AddDate(0, 0, 1),
 			})
 
 			r  = httptest.NewRequest("GET", "/", nil)
@@ -248,7 +277,7 @@ func TestAPIKey(t *testing.T) {
 			user     = dbgen.User(t, db, database.User{})
 			_, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID:    user.ID,
-				ExpiresAt: database.Now().AddDate(0, 0, 1),
+				ExpiresAt: dbtime.Now().AddDate(0, 0, 1),
 				Scope:     database.APIKeyScopeApplicationConnect,
 			})
 
@@ -285,7 +314,7 @@ func TestAPIKey(t *testing.T) {
 			user     = dbgen.User(t, db, database.User{})
 			_, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID:    user.ID,
-				ExpiresAt: database.Now().AddDate(0, 0, 1),
+				ExpiresAt: dbtime.Now().AddDate(0, 0, 1),
 			})
 
 			r  = httptest.NewRequest("GET", "/", nil)
@@ -317,8 +346,8 @@ func TestAPIKey(t *testing.T) {
 			user              = dbgen.User(t, db, database.User{})
 			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID:    user.ID,
-				LastUsed:  database.Now().AddDate(0, 0, -1),
-				ExpiresAt: database.Now().AddDate(0, 0, 1),
+				LastUsed:  dbtime.Now().AddDate(0, 0, -1),
+				ExpiresAt: dbtime.Now().AddDate(0, 0, 1),
 			})
 
 			r  = httptest.NewRequest("GET", "/", nil)
@@ -348,8 +377,8 @@ func TestAPIKey(t *testing.T) {
 			user              = dbgen.User(t, db, database.User{})
 			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID:    user.ID,
-				LastUsed:  database.Now(),
-				ExpiresAt: database.Now().Add(time.Minute),
+				LastUsed:  dbtime.Now(),
+				ExpiresAt: dbtime.Now().Add(time.Minute),
 			})
 
 			r  = httptest.NewRequest("GET", "/", nil)
@@ -379,8 +408,8 @@ func TestAPIKey(t *testing.T) {
 			user              = dbgen.User(t, db, database.User{})
 			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID:    user.ID,
-				LastUsed:  database.Now().AddDate(0, 0, -1),
-				ExpiresAt: database.Now().AddDate(0, 0, 1),
+				LastUsed:  dbtime.Now().AddDate(0, 0, -1),
+				ExpiresAt: dbtime.Now().AddDate(0, 0, 1),
 			})
 
 			r  = httptest.NewRequest("GET", "/", nil)
@@ -411,8 +440,8 @@ func TestAPIKey(t *testing.T) {
 			user              = dbgen.User(t, db, database.User{})
 			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID:    user.ID,
-				LastUsed:  database.Now(),
-				ExpiresAt: database.Now().AddDate(0, 0, 1),
+				LastUsed:  dbtime.Now(),
+				ExpiresAt: dbtime.Now().AddDate(0, 0, 1),
 				LoginType: database.LoginTypeGithub,
 			})
 			_ = dbgen.UserLink(t, db, database.UserLink{
@@ -447,15 +476,15 @@ func TestAPIKey(t *testing.T) {
 			user              = dbgen.User(t, db, database.User{})
 			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID:    user.ID,
-				LastUsed:  database.Now(),
-				ExpiresAt: database.Now().AddDate(0, 0, 1),
+				LastUsed:  dbtime.Now(),
+				ExpiresAt: dbtime.Now().AddDate(0, 0, 1),
 				LoginType: database.LoginTypeGithub,
 			})
 			_ = dbgen.UserLink(t, db, database.UserLink{
 				UserID:            user.ID,
 				LoginType:         database.LoginTypeGithub,
 				OAuthRefreshToken: "hello",
-				OAuthExpiry:       database.Now().AddDate(0, 0, -1),
+				OAuthExpiry:       dbtime.Now().AddDate(0, 0, -1),
 			})
 
 			r  = httptest.NewRequest("GET", "/", nil)
@@ -466,7 +495,7 @@ func TestAPIKey(t *testing.T) {
 		oauthToken := &oauth2.Token{
 			AccessToken:  "wow",
 			RefreshToken: "moo",
-			Expiry:       database.Now().AddDate(0, 0, 1),
+			Expiry:       dbtime.Now().AddDate(0, 0, 1),
 		}
 		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB: db,
@@ -495,8 +524,8 @@ func TestAPIKey(t *testing.T) {
 			user              = dbgen.User(t, db, database.User{})
 			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID:    user.ID,
-				LastUsed:  database.Now().AddDate(0, 0, -1),
-				ExpiresAt: database.Now().AddDate(0, 0, 1),
+				LastUsed:  dbtime.Now().AddDate(0, 0, -1),
+				ExpiresAt: dbtime.Now().AddDate(0, 0, 1),
 			})
 
 			r  = httptest.NewRequest("GET", "/", nil)
@@ -578,8 +607,8 @@ func TestAPIKey(t *testing.T) {
 			user              = dbgen.User(t, db, database.User{})
 			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID:    user.ID,
-				LastUsed:  database.Now(),
-				ExpiresAt: database.Now().AddDate(0, 0, 1),
+				LastUsed:  dbtime.Now(),
+				ExpiresAt: dbtime.Now().AddDate(0, 0, 1),
 				LoginType: database.LoginTypeToken,
 			})
 
@@ -611,8 +640,8 @@ func TestAPIKey(t *testing.T) {
 			user     = dbgen.User(t, db, database.User{})
 			_, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID:    user.ID,
-				LastUsed:  database.Now(),
-				ExpiresAt: database.Now().AddDate(0, 0, 1),
+				LastUsed:  dbtime.Now(),
+				ExpiresAt: dbtime.Now().AddDate(0, 0, 1),
 				LoginType: database.LoginTypeOIDC,
 			})
 			_ = dbgen.UserLink(t, db, database.UserLink{

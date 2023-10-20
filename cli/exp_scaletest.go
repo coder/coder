@@ -1,3 +1,5 @@
+//go:build !slim
+
 package cli
 
 import (
@@ -5,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"os"
 	"strconv"
@@ -105,7 +108,6 @@ func (s *scaletestTracingFlags) provider(ctx context.Context) (trace.TracerProvi
 
 	tracerProvider, closeTracing, err := tracing.TracerProvider(ctx, scaletestTracerName, tracing.TracerOpts{
 		Default:   s.traceEnable,
-		Coder:     s.traceCoder,
 		Honeycomb: s.traceHoneycombAPIKey,
 	})
 	if err != nil {
@@ -501,7 +503,6 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 		count    int64
 		template string
 
-		noPlan    bool
 		noCleanup bool
 		// TODO: implement this flag
 		// noCleanupFailures bool
@@ -522,6 +523,8 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 		connectTimeout  time.Duration
 
 		useHostUser bool
+
+		parameterFlags workspaceParameterFlags
 
 		tracingFlags    = &scaletestTracingFlags{}
 		strategy        = &scaletestStrategyFlags{}
@@ -590,37 +593,22 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 			if tpl.ID == uuid.Nil {
 				return xerrors.Errorf("could not find template %q in any organization", template)
 			}
-			templateVersion, err := client.TemplateVersion(ctx, tpl.ActiveVersionID)
+
+			cliRichParameters, err := asWorkspaceBuildParameters(parameterFlags.richParameters)
 			if err != nil {
-				return xerrors.Errorf("get template version %q: %w", tpl.ActiveVersionID, err)
+				return xerrors.Errorf("can't parse given parameter values: %w", err)
 			}
 
-			// Do a dry-run to ensure the template and parameters are valid
-			// before we start creating users and workspaces.
-			if !noPlan {
-				dryRun, err := client.CreateTemplateVersionDryRun(ctx, templateVersion.ID, codersdk.CreateTemplateVersionDryRunRequest{
-					WorkspaceName: "scaletest",
-				})
-				if err != nil {
-					return xerrors.Errorf("start dry run workspace creation: %w", err)
-				}
-				_, _ = fmt.Fprintln(inv.Stdout, "Planning workspace...")
-				err = cliui.ProvisionerJob(inv.Context(), inv.Stdout, cliui.ProvisionerJobOptions{
-					Fetch: func() (codersdk.ProvisionerJob, error) {
-						return client.TemplateVersionDryRun(inv.Context(), templateVersion.ID, dryRun.ID)
-					},
-					Cancel: func() error {
-						return client.CancelTemplateVersionDryRun(inv.Context(), templateVersion.ID, dryRun.ID)
-					},
-					Logs: func() (<-chan codersdk.ProvisionerJobLog, io.Closer, error) {
-						return client.TemplateVersionDryRunLogsAfter(inv.Context(), templateVersion.ID, dryRun.ID, 0)
-					},
-					// Don't show log output for the dry-run unless there's an error.
-					Silent: true,
-				})
-				if err != nil {
-					return xerrors.Errorf("dry-run workspace: %w", err)
-				}
+			richParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
+				Action:           WorkspaceCreate,
+				Template:         tpl,
+				NewWorkspaceName: "scaletest-N", // TODO: the scaletest runner will pass in a different name here. Does this matter?
+
+				RichParameterFile: parameterFlags.richParameterFile,
+				RichParameters:    cliRichParameters,
+			})
+			if err != nil {
+				return xerrors.Errorf("prepare build: %w", err)
 			}
 
 			tracerProvider, closeTracing, tracingEnabled, err := tracingFlags.provider(ctx)
@@ -651,7 +639,8 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 						OrganizationID: me.OrganizationIDs[0],
 						// UserID is set by the test automatically.
 						Request: codersdk.CreateWorkspaceRequest{
-							TemplateID: tpl.ID,
+							TemplateID:          tpl.ID,
+							RichParameterValues: richParameters,
 						},
 						NoWaitForAgents: noWaitForAgents,
 					},
@@ -771,12 +760,6 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 			Value:         clibase.StringOf(&template),
 		},
 		{
-			Flag:        "no-plan",
-			Env:         "CODER_SCALETEST_NO_PLAN",
-			Description: `Skip the dry-run step to plan the workspace creation. This step ensures that the given parameters are valid for the given template.`,
-			Value:       clibase.BoolOf(&noPlan),
-		},
-		{
 			Flag:        "no-cleanup",
 			Env:         "CODER_SCALETEST_NO_CLEANUP",
 			Description: "Do not clean up resources after the test completes. You can cleanup manually using coder scaletest cleanup.",
@@ -858,11 +841,12 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 			Flag:        "use-host-login",
 			Env:         "CODER_SCALETEST_USE_HOST_LOGIN",
 			Default:     "false",
-			Description: "Use the use logged in on the host machine, instead of creating users.",
+			Description: "Use the user logged in on the host machine, instead of creating users.",
 			Value:       clibase.BoolOf(&useHostUser),
 		},
 	}
 
+	cmd.Options = append(cmd.Options, parameterFlags.cliParameters()...)
 	tracingFlags.attach(&cmd.Options)
 	strategy.attach(&cmd.Options)
 	cleanupStrategy.attach(&cmd.Options)
@@ -1047,9 +1031,10 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 
 func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 	var (
-		count   int64
-		minWait time.Duration
-		maxWait time.Duration
+		interval time.Duration
+		jitter   time.Duration
+		headless bool
+		randSeed int64
 
 		client          = &codersdk.Client{}
 		tracingFlags    = &scaletestTracingFlags{}
@@ -1066,8 +1051,17 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
+			if !(interval > 0) {
+				return xerrors.Errorf("--interval must be greater than zero")
+			}
+			if !(jitter < interval) {
+				return xerrors.Errorf("--jitter must be less than --interval")
+			}
 			ctx := inv.Context()
 			logger := slog.Make(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelInfo)
+			if r.verbose {
+				logger = logger.Leveled(slog.LevelDebug)
+			}
 			tracerProvider, closeTracing, tracingEnabled, err := tracingFlags.provider(ctx)
 			if err != nil {
 				return xerrors.Errorf("create tracer provider: %w", err)
@@ -1095,19 +1089,47 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 
 			th := harness.NewTestHarness(strategy.toStrategy(), cleanupStrategy.toStrategy())
 
-			for i := int64(0); i < count; i++ {
-				name := fmt.Sprintf("dashboard-%d", i)
-				config := dashboard.Config{
-					MinWait:   minWait,
-					MaxWait:   maxWait,
-					Trace:     tracingEnabled,
-					Logger:    logger.Named(name),
-					RollTable: dashboard.DefaultActions,
+			users, err := getScaletestUsers(ctx, client)
+			if err != nil {
+				return xerrors.Errorf("get scaletest users")
+			}
+
+			for _, usr := range users {
+				//nolint:gosec // not used for cryptographic purposes
+				rndGen := rand.New(rand.NewSource(randSeed))
+				name := fmt.Sprintf("dashboard-%s", usr.Username)
+				userTokResp, err := client.CreateToken(ctx, usr.ID.String(), codersdk.CreateTokenRequest{
+					Lifetime:  30 * 24 * time.Hour,
+					Scope:     "",
+					TokenName: fmt.Sprintf("scaletest-%d", time.Now().Unix()),
+				})
+				if err != nil {
+					return xerrors.Errorf("create token for user: %w", err)
 				}
+
+				userClient := codersdk.New(client.URL)
+				userClient.SetSessionToken(userTokResp.Key)
+
+				config := dashboard.Config{
+					Interval: interval,
+					Jitter:   jitter,
+					Trace:    tracingEnabled,
+					Logger:   logger.Named(name),
+					Headless: headless,
+					RandIntn: rndGen.Intn,
+				}
+				// Only take a screenshot if we're in verbose mode.
+				// This could be useful for debugging, but it will blow up the disk.
+				if r.verbose {
+					config.Screenshot = dashboard.Screenshot
+				}
+				//nolint:gocritic
+				logger.Info(ctx, "runner config", slog.F("interval", interval), slog.F("jitter", jitter), slog.F("headless", headless), slog.F("trace", tracingEnabled))
 				if err := config.Validate(); err != nil {
+					logger.Fatal(ctx, "validate config", slog.Error(err))
 					return err
 				}
-				var runner harness.Runnable = dashboard.NewRunner(client, metrics, config)
+				var runner harness.Runnable = dashboard.NewRunner(userClient, metrics, config)
 				if tracingEnabled {
 					runner = &runnableTraceWrapper{
 						tracer:   tracer,
@@ -1144,25 +1166,32 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 
 	cmd.Options = []clibase.Option{
 		{
-			Flag:        "count",
-			Env:         "CODER_SCALETEST_DASHBOARD_COUNT",
-			Default:     "1",
-			Description: "Number of concurrent workers.",
-			Value:       clibase.Int64Of(&count),
+			Flag:        "interval",
+			Env:         "CODER_SCALETEST_DASHBOARD_INTERVAL",
+			Default:     "10s",
+			Description: "Interval between actions.",
+			Value:       clibase.DurationOf(&interval),
 		},
 		{
-			Flag:        "min-wait",
-			Env:         "CODER_SCALETEST_DASHBOARD_MIN_WAIT",
-			Default:     "100ms",
-			Description: "Minimum wait between fetches.",
-			Value:       clibase.DurationOf(&minWait),
+			Flag:        "jitter",
+			Env:         "CODER_SCALETEST_DASHBOARD_JITTER",
+			Default:     "5s",
+			Description: "Jitter between actions.",
+			Value:       clibase.DurationOf(&jitter),
 		},
 		{
-			Flag:        "max-wait",
-			Env:         "CODER_SCALETEST_DASHBOARD_MAX_WAIT",
-			Default:     "1s",
-			Description: "Maximum wait between fetches.",
-			Value:       clibase.DurationOf(&maxWait),
+			Flag:        "headless",
+			Env:         "CODER_SCALETEST_DASHBOARD_HEADLESS",
+			Default:     "true",
+			Description: "Controls headless mode. Setting to false is useful for debugging.",
+			Value:       clibase.BoolOf(&headless),
+		},
+		{
+			Flag:        "rand-seed",
+			Env:         "CODER_SCALETEST_DASHBOARD_RAND_SEED",
+			Default:     "0",
+			Description: "Seed for the random number generator.",
+			Value:       clibase.Int64Of(&randSeed),
 		},
 	}
 
@@ -1212,7 +1241,7 @@ func (r *runnableTraceWrapper) Run(ctx context.Context, id string, logs io.Write
 	return r.runner.Run(ctx2, id, logs)
 }
 
-func (r *runnableTraceWrapper) Cleanup(ctx context.Context, id string) error {
+func (r *runnableTraceWrapper) Cleanup(ctx context.Context, id string, logs io.Writer) error {
 	c, ok := r.runner.(harness.Cleanable)
 	if !ok {
 		return nil
@@ -1224,7 +1253,7 @@ func (r *runnableTraceWrapper) Cleanup(ctx context.Context, id string) error {
 	ctx, span := r.tracer.Start(ctx, r.spanName+" cleanup")
 	defer span.End()
 
-	return c.Cleanup(ctx, id)
+	return c.Cleanup(ctx, id, logs)
 }
 
 // newScaleTestUser returns a random username and email address that can be used

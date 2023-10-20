@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -42,8 +43,8 @@ func TestWorkspaceParam(t *testing.T) {
 			Email:          "testaccount@coder.com",
 			HashedPassword: hashed[:],
 			Username:       username,
-			CreatedAt:      database.Now(),
-			UpdatedAt:      database.Now(),
+			CreatedAt:      dbtime.Now(),
+			UpdatedAt:      dbtime.Now(),
 			LoginType:      database.LoginTypePassword,
 		})
 		require.NoError(t, err)
@@ -51,7 +52,7 @@ func TestWorkspaceParam(t *testing.T) {
 		user, err = db.UpdateUserStatus(context.Background(), database.UpdateUserStatusParams{
 			ID:        user.ID,
 			Status:    database.UserStatusActive,
-			UpdatedAt: database.Now(),
+			UpdatedAt: dbtime.Now(),
 		})
 		require.NoError(t, err)
 
@@ -59,8 +60,8 @@ func TestWorkspaceParam(t *testing.T) {
 			ID:           id,
 			UserID:       user.ID,
 			HashedSecret: hashed[:],
-			LastUsed:     database.Now(),
-			ExpiresAt:    database.Now().Add(time.Minute),
+			LastUsed:     dbtime.Now(),
+			ExpiresAt:    dbtime.Now().Add(time.Minute),
 			LoginType:    database.LoginTypePassword,
 			Scope:        database.APIKeyScopeAll,
 		})
@@ -120,9 +121,10 @@ func TestWorkspaceParam(t *testing.T) {
 		})
 		r, user := setup(db)
 		workspace, err := db.InsertWorkspace(context.Background(), database.InsertWorkspaceParams{
-			ID:      uuid.New(),
-			OwnerID: user.ID,
-			Name:    "hello",
+			ID:               uuid.New(),
+			OwnerID:          user.ID,
+			Name:             "hello",
+			AutomaticUpdates: database.AutomaticUpdatesNever,
 		})
 		require.NoError(t, err)
 		chi.RouteContext(r.Context()).URLParams.Add("workspace", workspace.ID.String())
@@ -313,7 +315,7 @@ func TestWorkspaceAgentByNameParam(t *testing.T) {
 					DB:              db,
 					RedirectToLogin: true,
 				}),
-				httpmw.ExtractUserParam(db, false),
+				httpmw.ExtractUserParam(db),
 				httpmw.ExtractWorkspaceAndAgentParam(db),
 			)
 			rtr.Get("/", func(w http.ResponseWriter, r *http.Request) {
@@ -362,7 +364,7 @@ func setupWorkspaceWithAgents(t testing.TB, cfg setupConfig) (database.Store, *h
 			Transition:  database.WorkspaceTransitionStart,
 			Reason:      database.BuildReasonInitiator,
 		})
-		job = dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+		job = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 			ID:            build.JobID,
 			Type:          database.ProvisionerJobTypeWorkspaceBuild,
 			Provisioner:   database.ProvisionerTypeEcho,

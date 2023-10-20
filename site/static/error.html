@@ -38,7 +38,7 @@ running). */}}
         text-align: center;
       }
 
-      svg {
+      .coder-svg {
         width: 80px;
         margin-bottom: 24px;
       }
@@ -49,9 +49,16 @@ running). */}}
         margin-bottom: 8px;
       }
 
-      p {
+      p,
+      li {
         color: #b2bfd7;
         line-height: 140%;
+      }
+
+      .warning li {
+        text-align: left;
+        padding-top: 10px;
+        margin-left: 30px;
       }
 
       .button-group {
@@ -83,11 +90,41 @@ running). */}}
       .button-group button:hover {
         border-color: hsl(222, 31%, 40%);
       }
+
+      .warning {
+        margin-top: 24px;
+        border: 1px solid rgb(243, 140, 89);
+        background: rgb(13, 19, 33);
+        width: calc(520px + var(--side-padding) * 2);
+        /* Recenter */
+        margin-left: calc(-1 * (100px + var(--side-padding)));
+        padding: 10px;
+      }
+
+      .warning-title {
+        display: inline-flex;
+        align-self: center;
+        align-items: center;
+      }
+
+      .svg-icon svg {
+        height: 1em;
+        width: 1em;
+      }
+
+      .warning-title h3 {
+        margin-left: 10px;
+      }
     </style>
   </head>
   <body>
     <div class="container">
-      <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <svg
+        class="coder-svg"
+        viewBox="0 0 36 36"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
         <g clip-path="url(#clip0_1094_2915)">
           <path
             d="M32.9812 15.9039C32.326 15.9039 31.8894 15.5197 31.8894 14.7311V10.202C31.8894 7.31059 30.6982 5.71326 27.6211 5.71326H26.1917V8.76638H26.6285C27.8394 8.76638 28.4152 9.43363 28.4152 10.6266V14.63C28.4152 16.3689 28.9313 17.0766 30.0629 17.4405C28.9313 17.7843 28.4152 18.5122 28.4152 20.251C28.4152 21.2418 28.4152 22.2325 28.4152 23.2233C28.4152 24.0523 28.4152 24.8611 28.1968 25.69C27.9784 26.4584 27.6211 27.1863 27.1248 27.8131C26.8468 28.1771 26.5292 28.4803 26.1719 28.7635V29.1678H27.6012C30.6784 29.1678 31.8696 27.5705 31.8696 24.6791V20.1499C31.8696 19.3411 32.2863 18.9772 32.9614 18.9772H33.7754V15.924H32.9812V15.9039Z"
@@ -131,6 +168,30 @@ running). */}}
         .Error.Title }}
       </h1>
       <p>{{ .Error.Description }}</p>
+      {{- if .Error.Warnings }}
+      <div class="warning">
+        <div class="warning-title">
+          <svg
+            height="1em"
+            width="auto"
+            focusable="false"
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+          >
+            <path
+              fill="#e66828"
+              d="M12 5.99L19.53 19H4.47L12 5.99M12 2L1 21h22L12 2zm1 14h-2v2h2v-2zm0-6h-2v4h2v-4z"
+            ></path>
+          </svg>
+          <h3>Warnings</h3>
+        </div>
+        <ul>
+          {{ range $i, $v := .Error.Warnings }}
+          <li>{{ $v }}</li>
+          {{ end }}
+        </ul>
+      </div>
+      {{ end }}
       <div class="button-group">
         {{- if .Error.RetryEnabled }}
         <button onclick="window.location.reload()">Retry</button>

@@ -11,8 +11,8 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	agpl "github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
@@ -31,7 +31,7 @@ type EnterpriseTemplateScheduleStore struct {
 	// update.
 	UserQuietHoursScheduleStore *atomic.Pointer[agpl.UserQuietHoursScheduleStore]
 
-	// Custom time.Now() function to use in tests. Defaults to database.Now().
+	// Custom time.Now() function to use in tests. Defaults to dbtime.Now().
 	TimeNowFn func() time.Time
 }
 
@@ -47,7 +47,7 @@ func (s *EnterpriseTemplateScheduleStore) now() time.Time {
 	if s.TimeNowFn != nil {
 		return s.TimeNowFn()
 	}
-	return database.Now()
+	return dbtime.Now()
 }
 
 // Get implements agpl.TemplateScheduleStore.
@@ -68,6 +68,9 @@ func (s *EnterpriseTemplateScheduleStore) Get(ctx context.Context, db database.S
 	if tpl.AutostopRequirementDaysOfWeek > 0b11111111 {
 		return agpl.TemplateScheduleOptions{}, xerrors.New("invalid autostop requirement days, too large")
 	}
+	if tpl.AutostopRequirementWeeks == 0 {
+		tpl.AutostopRequirementWeeks = 1
+	}
 	err = agpl.VerifyTemplateAutostopRequirement(uint8(tpl.AutostopRequirementDaysOfWeek), tpl.AutostopRequirementWeeks)
 	if err != nil {
 		return agpl.TemplateScheduleOptions{}, err
@@ -83,6 +86,9 @@ func (s *EnterpriseTemplateScheduleStore) Get(ctx context.Context, db database.S
 			DaysOfWeek: uint8(tpl.AutostopRequirementDaysOfWeek),
 			Weeks:      tpl.AutostopRequirementWeeks,
 		},
+		AutostartRequirement: agpl.TemplateAutostartRequirement{
+			DaysOfWeek: tpl.AutostartAllowedDays(),
+		},
 		FailureTTL:               time.Duration(tpl.FailureTTL),
 		TimeTilDormant:           time.Duration(tpl.TimeTilDormant),
 		TimeTilDormantAutoDelete: time.Duration(tpl.TimeTilDormantAutoDelete),
@@ -94,9 +100,17 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
+	if opts.AutostopRequirement.Weeks <= 0 {
+		opts.AutostopRequirement.Weeks = 1
+	}
+	if tpl.AutostopRequirementWeeks <= 0 {
+		tpl.AutostopRequirementWeeks = 1
+	}
+
 	if int64(opts.DefaultTTL) == tpl.DefaultTTL &&
 		int64(opts.MaxTTL) == tpl.MaxTTL &&
 		int16(opts.AutostopRequirement.DaysOfWeek) == tpl.AutostopRequirementDaysOfWeek &&
+		opts.AutostartRequirement.DaysOfWeek == tpl.AutostartAllowedDays() &&
 		opts.AutostopRequirement.Weeks == tpl.AutostopRequirementWeeks &&
 		int64(opts.FailureTTL) == tpl.FailureTTL &&
 		int64(opts.TimeTilDormant) == tpl.TimeTilDormant &&
@@ -109,7 +123,12 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 
 	err := agpl.VerifyTemplateAutostopRequirement(opts.AutostopRequirement.DaysOfWeek, opts.AutostopRequirement.Weeks)
 	if err != nil {
-		return database.Template{}, err
+		return database.Template{}, xerrors.Errorf("verify autostop requirement: %w", err)
+	}
+
+	err = agpl.VerifyTemplateAutostartRequirement(opts.AutostartRequirement.DaysOfWeek)
+	if err != nil {
+		return database.Template{}, xerrors.Errorf("verify autostart requirement: %w", err)
 	}
 
 	var template database.Template
@@ -126,9 +145,12 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 			MaxTTL:                        int64(opts.MaxTTL),
 			AutostopRequirementDaysOfWeek: int16(opts.AutostopRequirement.DaysOfWeek),
 			AutostopRequirementWeeks:      opts.AutostopRequirement.Weeks,
-			FailureTTL:                    int64(opts.FailureTTL),
-			TimeTilDormant:                int64(opts.TimeTilDormant),
-			TimeTilDormantAutoDelete:      int64(opts.TimeTilDormantAutoDelete),
+			// Database stores the inverse of the allowed days of the week.
+			// Make sure the 8th bit is always zeroed out, as there is no 8th day of the week.
+			AutostartBlockDaysOfWeek: int16(^opts.AutostartRequirement.DaysOfWeek & 0b01111111),
+			FailureTTL:               int64(opts.FailureTTL),
+			TimeTilDormant:           int64(opts.TimeTilDormant),
+			TimeTilDormantAutoDelete: int64(opts.TimeTilDormantAutoDelete),
 		})
 		if err != nil {
 			return xerrors.Errorf("update template schedule: %w", err)
@@ -136,7 +158,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 
 		var dormantAt time.Time
 		if opts.UpdateWorkspaceDormantAt {
-			dormantAt = database.Now()
+			dormantAt = dbtime.Now()
 		}
 
 		// If we updated the time_til_dormant_autodelete we need to update all the workspaces deleting_at
@@ -155,7 +177,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 		if opts.UpdateWorkspaceLastUsedAt {
 			err = tx.UpdateTemplateWorkspacesLastUsedAt(ctx, database.UpdateTemplateWorkspacesLastUsedAtParams{
 				TemplateID: tpl.ID,
-				LastUsedAt: database.Now(),
+				LastUsedAt: dbtime.Now(),
 			})
 			if err != nil {
 				return xerrors.Errorf("update template workspaces last_used_at: %w", err)
@@ -231,7 +253,7 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Conte
 	if err != nil {
 		return xerrors.Errorf("get provisioner job %q: %w", build.JobID, err)
 	}
-	if db2sdk.ProvisionerJobStatus(job) != codersdk.ProvisionerJobSucceeded {
+	if codersdk.ProvisionerJobStatus(job.JobStatus) != codersdk.ProvisionerJobSucceeded {
 		// Only touch builds that are completed.
 		return nil
 	}
@@ -267,8 +289,8 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Conte
 		autostop.Deadline = autostop.MaxDeadline
 	}
 
-	// Update the workspace build.
-	err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+	// Update the workspace build deadline.
+	err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
 		ID:          build.ID,
 		UpdatedAt:   now,
 		Deadline:    autostop.Deadline,

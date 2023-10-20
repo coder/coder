@@ -1,146 +1,147 @@
-import Box from "@mui/material/Box"
-import { styled } from "@mui/material/styles"
-import { ComponentProps, useRef, useState } from "react"
-import "react-date-range/dist/styles.css"
-import "react-date-range/dist/theme/default.css"
-import Button from "@mui/material/Button"
-import ArrowRightAltOutlined from "@mui/icons-material/ArrowRightAltOutlined"
-import Popover from "@mui/material/Popover"
-import { DateRangePicker, createStaticRanges } from "react-date-range"
-import { format, subDays } from "date-fns"
+import Box from "@mui/material/Box";
+import { styled } from "@mui/material/styles";
+import { ComponentProps, useRef, useState } from "react";
+import "react-date-range/dist/styles.css";
+import "react-date-range/dist/theme/default.css";
+import Button from "@mui/material/Button";
+import ArrowRightAltOutlined from "@mui/icons-material/ArrowRightAltOutlined";
+import { DateRangePicker, createStaticRanges } from "react-date-range";
+import {
+  addDays,
+  addHours,
+  format,
+  isToday,
+  startOfDay,
+  startOfHour,
+  subDays,
+} from "date-fns";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "components/Popover/Popover";
 
 // The type definition from @types is wrong
 declare module "react-date-range" {
   export function createStaticRanges(
     ranges: Omit<StaticRange, "isSelected">[],
-  ): StaticRange[]
+  ): StaticRange[];
 }
 
 export type DateRangeValue = {
-  startDate: Date
-  endDate: Date
-}
+  startDate: Date;
+  endDate: Date;
+};
 
-type RangesState = NonNullable<ComponentProps<typeof DateRangePicker>["ranges"]>
+type RangesState = NonNullable<
+  ComponentProps<typeof DateRangePicker>["ranges"]
+>;
 
 export const DateRange = ({
   value,
   onChange,
 }: {
-  value: DateRangeValue
-  onChange: (value: DateRangeValue) => void
+  value: DateRangeValue;
+  onChange: (value: DateRangeValue) => void;
 }) => {
-  const selectionStatusRef = useRef<"idle" | "selecting">("idle")
-  const anchorRef = useRef<HTMLButtonElement>(null)
-  const [isOpen, setIsOpen] = useState(false)
+  const selectionStatusRef = useRef<"idle" | "selecting">("idle");
   const [ranges, setRanges] = useState<RangesState>([
     {
       ...value,
       key: "selection",
     },
-  ])
+  ]);
   const currentRange = {
     startDate: ranges[0].startDate as Date,
     endDate: ranges[0].endDate as Date,
-  }
-  const handleClose = () => {
-    onChange({
-      startDate: currentRange.startDate,
-      endDate: currentRange.endDate,
-    })
-    setIsOpen(false)
-  }
+  };
 
   return (
-    <>
-      <Button ref={anchorRef} onClick={() => setIsOpen(true)}>
-        <span>{format(currentRange.startDate, "MMM d, Y")}</span>
-        <ArrowRightAltOutlined sx={{ width: 16, height: 16, mx: 1 }} />
-        <span>{format(currentRange.endDate, "MMM d, Y")}</span>
-      </Button>
-      <Popover
-        anchorEl={anchorRef.current}
-        open={isOpen}
-        onClose={handleClose}
-        anchorOrigin={{
-          vertical: "bottom",
-          horizontal: "left",
-        }}
-        sx={{
-          "& .MuiPaper-root": {
-            marginTop: 1,
-          },
-        }}
-      >
-        <DateRangePickerWrapper
-          component={DateRangePicker}
-          onChange={(item) => {
-            const range = item.selection
-            setRanges([range])
+    <Popover>
+      {(popover) => (
+        <>
+          <PopoverTrigger>
+            <Button>
+              <span>{format(currentRange.startDate, "MMM d, Y")}</span>
+              <ArrowRightAltOutlined sx={{ width: 16, height: 16, mx: 1 }} />
+              <span>{format(currentRange.endDate, "MMM d, Y")}</span>
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent>
+            <DateRangePickerWrapper
+              component={DateRangePicker}
+              onChange={(item) => {
+                const range = item.selection;
+                setRanges([range]);
 
-            // When it is the first selection, we don't want to close the popover
-            // We have to do that ourselves because the library doesn't provide a way to do it
-            if (selectionStatusRef.current === "idle") {
-              selectionStatusRef.current = "selecting"
-              return
-            }
+                // When it is the first selection, we don't want to close the popover
+                // We have to do that ourselves because the library doesn't provide a way to do it
+                if (selectionStatusRef.current === "idle") {
+                  selectionStatusRef.current = "selecting";
+                  return;
+                }
 
-            selectionStatusRef.current = "idle"
-            const startDate = range.startDate as Date
-            const endDate = range.endDate as Date
-            onChange({
-              startDate,
-              endDate,
-            })
-            setIsOpen(false)
-          }}
-          moveRangeOnFirstSelection={false}
-          months={2}
-          ranges={ranges}
-          maxDate={new Date()}
-          direction="horizontal"
-          staticRanges={createStaticRanges([
-            {
-              label: "Today",
-              range: () => ({
-                startDate: new Date(),
-                endDate: new Date(),
-              }),
-            },
-            {
-              label: "Yesterday",
-              range: () => ({
-                startDate: subDays(new Date(), 1),
-                endDate: subDays(new Date(), 1),
-              }),
-            },
-            {
-              label: "Last 7 days",
-              range: () => ({
-                startDate: subDays(new Date(), 6),
-                endDate: new Date(),
-              }),
-            },
-            {
-              label: "Last 14 days",
-              range: () => ({
-                startDate: subDays(new Date(), 13),
-                endDate: new Date(),
-              }),
-            },
-            {
-              label: "Last 30 days",
-              range: () => ({
-                startDate: subDays(new Date(), 29),
-                endDate: new Date(),
-              }),
-            },
-          ])}
-        />
-      </Popover>
-    </>
-  )
-}
+                selectionStatusRef.current = "idle";
+                const startDate = range.startDate as Date;
+                const endDate = range.endDate as Date;
+                const now = new Date();
+                onChange({
+                  startDate: startOfDay(startDate),
+                  endDate: isToday(endDate)
+                    ? startOfHour(addHours(now, 1))
+                    : startOfDay(addDays(endDate, 1)),
+                });
+                popover.setIsOpen(false);
+              }}
+              moveRangeOnFirstSelection={false}
+              months={2}
+              ranges={ranges}
+              maxDate={new Date()}
+              direction="horizontal"
+              staticRanges={createStaticRanges([
+                {
+                  label: "Today",
+                  range: () => ({
+                    startDate: new Date(),
+                    endDate: new Date(),
+                  }),
+                },
+                {
+                  label: "Yesterday",
+                  range: () => ({
+                    startDate: subDays(new Date(), 1),
+                    endDate: subDays(new Date(), 1),
+                  }),
+                },
+                {
+                  label: "Last 7 days",
+                  range: () => ({
+                    startDate: subDays(new Date(), 6),
+                    endDate: new Date(),
+                  }),
+                },
+                {
+                  label: "Last 14 days",
+                  range: () => ({
+                    startDate: subDays(new Date(), 13),
+                    endDate: new Date(),
+                  }),
+                },
+                {
+                  label: "Last 30 days",
+                  range: () => ({
+                    startDate: subDays(new Date(), 29),
+                    endDate: new Date(),
+                  }),
+                },
+              ])}
+            />
+          </PopoverContent>
+        </>
+      )}
+    </Popover>
+  );
+};
 
 const DateRangePickerWrapper: typeof Box = styled(Box)(({ theme }) => ({
   "& .rdrDefinedRangesWrapper": {
@@ -231,4 +232,4 @@ const DateRangePickerWrapper: typeof Box = styled(Box)(({ theme }) => ({
       color: theme.palette.text.disabled,
     },
   },
-}))
+}));

@@ -1,19 +1,19 @@
-import { makeStyles } from "@mui/styles"
-import { TemplateExample } from "api/typesGenerated"
-import { FC } from "react"
-import { Link } from "react-router-dom"
-import { combineClasses } from "utils/combineClasses"
+import { makeStyles } from "@mui/styles";
+import { TemplateExample } from "api/typesGenerated";
+import { FC } from "react";
+import { Link } from "react-router-dom";
+import { combineClasses } from "utils/combineClasses";
 
 export interface TemplateExampleCardProps {
-  example: TemplateExample
-  className?: string
+  example: TemplateExample;
+  className?: string;
 }
 
 export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
   example,
   className,
 }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <Link
@@ -31,8 +31,8 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
         </span>
       </div>
     </Link>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   template: {
@@ -87,4 +87,4 @@ const useStyles = makeStyles((theme) => ({
     overflow: "hidden",
     whiteSpace: "nowrap",
   },
-}))
+}));

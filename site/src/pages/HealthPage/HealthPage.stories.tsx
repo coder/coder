@@ -1,9 +1,9 @@
-import { Meta, StoryObj } from "@storybook/react"
-import { HealthPageView } from "./HealthPage"
-import { MockHealth } from "testHelpers/entities"
+import { Meta, StoryObj } from "@storybook/react";
+import { HealthPageView } from "./HealthPage";
+import { MockHealth } from "testHelpers/entities";
 
 const meta: Meta<typeof HealthPageView> = {
-  title: "pages/HealthPageView",
+  title: "pages/HealthPage",
   component: HealthPageView,
   args: {
     tab: {
@@ -12,14 +12,14 @@ const meta: Meta<typeof HealthPageView> = {
     },
     healthStatus: MockHealth,
   },
-}
+};
 
-export default meta
-type Story = StoryObj<typeof HealthPageView>
+export default meta;
+type Story = StoryObj<typeof HealthPageView>;
 
-export const HealthPage: Story = {}
+export const Example: Story = {};
 
-export const UnhealthPage: Story = {
+export const UnhealthyDERP: Story = {
   args: {
     healthStatus: {
       ...MockHealth,
@@ -30,4 +30,4 @@ export const UnhealthPage: Story = {
       },
     },
   },
-}
+};

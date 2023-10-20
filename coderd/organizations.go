@@ -10,6 +10,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -67,10 +68,11 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 	var organization database.Organization
 	err = api.Database.InTx(func(tx database.Store) error {
 		organization, err = tx.InsertOrganization(ctx, database.InsertOrganizationParams{
-			ID:        uuid.New(),
-			Name:      req.Name,
-			CreatedAt: database.Now(),
-			UpdatedAt: database.Now(),
+			ID:          uuid.New(),
+			Name:        req.Name,
+			CreatedAt:   dbtime.Now(),
+			UpdatedAt:   dbtime.Now(),
+			Description: "",
 		})
 		if err != nil {
 			return xerrors.Errorf("create organization: %w", err)
@@ -78,8 +80,8 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 		_, err = tx.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
 			OrganizationID: organization.ID,
 			UserID:         apiKey.UserID,
-			CreatedAt:      database.Now(),
-			UpdatedAt:      database.Now(),
+			CreatedAt:      dbtime.Now(),
+			UpdatedAt:      dbtime.Now(),
 			Roles: []string{
 				// TODO: When organizations are allowed to be created, we should
 				// come back to determining the default role of the person who

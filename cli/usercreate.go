@@ -7,6 +7,8 @@ import (
 	"github.com/go-playground/validator/v10"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/pretty"
+
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
@@ -88,7 +90,7 @@ func (r *RootCmd) userCreate() *clibase.Cmd {
 			authenticationMethod := ""
 			switch codersdk.LoginType(strings.ToLower(string(userLoginType))) {
 			case codersdk.LoginTypePassword:
-				authenticationMethod = `Your password is: ` + cliui.DefaultStyles.Field.Render(password)
+				authenticationMethod = `Your password is: ` + pretty.Sprint(cliui.DefaultStyles.Field, password)
 			case codersdk.LoginTypeNone:
 				authenticationMethod = "Login has been disabled for this user. Contact your administrator to authenticate."
 			case codersdk.LoginTypeGithub:
@@ -99,16 +101,16 @@ func (r *RootCmd) userCreate() *clibase.Cmd {
 
 			_, _ = fmt.Fprintln(inv.Stderr, `A new user has been created!
 Share the instructions below to get them started.
-`+cliui.DefaultStyles.Placeholder.Render("—————————————————————————————————————————————————")+`
+`+pretty.Sprint(cliui.DefaultStyles.Placeholder, "—————————————————————————————————————————————————")+`
 Download the Coder command line for your operating system:
 https://github.com/coder/coder/releases
 
-Run `+cliui.DefaultStyles.Code.Render("coder login "+client.URL.String())+` to authenticate.
+Run `+pretty.Sprint(cliui.DefaultStyles.Code, "coder login "+client.URL.String())+` to authenticate.
 
-Your email is: `+cliui.DefaultStyles.Field.Render(email)+`
+Your email is: `+pretty.Sprint(cliui.DefaultStyles.Field, email)+`
 `+authenticationMethod+`
 
-Create a workspace  `+cliui.DefaultStyles.Code.Render("coder create")+`!`)
+Create a workspace  `+pretty.Sprint(cliui.DefaultStyles.Code, "coder create")+`!`)
 			return nil
 		},
 	}

@@ -7,6 +7,8 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/pretty"
+
 	agpl "github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
@@ -77,7 +79,7 @@ func (r *RootCmd) groupEdit() *clibase.Cmd {
 				return xerrors.Errorf("patch group: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(inv.Stdout, "Successfully patched group %s!\n", cliui.DefaultStyles.Keyword.Render(group.Name))
+			_, _ = fmt.Fprintf(inv.Stdout, "Successfully patched group %s!\n", pretty.Sprint(cliui.DefaultStyles.Keyword, group.Name))
 			return nil
 		},
 	}

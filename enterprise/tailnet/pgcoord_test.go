@@ -438,7 +438,7 @@ func TestPGCoordinatorDual_Mainline(t *testing.T) {
 	assertEventuallyNoClientsForAgent(ctx, t, store, agent2.id)
 }
 
-// TestPGCoordinator_MultiAgent tests when a single agent connects to multiple coordinators.
+// TestPGCoordinator_MultiCoordinatorAgent tests when a single agent connects to multiple coordinators.
 // We use two agent connections, but they share the same AgentID.  This could happen due to a reconnection,
 // or an infrastructure problem where an old workspace is not fully cleaned up before a new one started.
 //
@@ -451,7 +451,7 @@ func TestPGCoordinatorDual_Mainline(t *testing.T) {
 //	            +---------+
 //	            | coord3  | <--- client
 //	            +---------+
-func TestPGCoordinator_MultiAgent(t *testing.T) {
+func TestPGCoordinator_MultiCoordinatorAgent(t *testing.T) {
 	t.Parallel()
 	if !dbtestutil.WillUsePostgres() {
 		t.Skip("test only with postgres")
@@ -645,12 +645,20 @@ func (c *testConn) recvNodes(ctx context.Context, t *testing.T) []*agpl.Node {
 
 func (c *testConn) recvErr(ctx context.Context, t *testing.T) error {
 	t.Helper()
-	select {
-	case <-ctx.Done():
-		t.Fatal("timeout receiving error")
-		return ctx.Err()
-	case err := <-c.errChan:
-		return err
+	// pgCoord works on eventual consistency, so it sometimes sends extra node
+	// updates, and these block errors if not read from the nodes channel.
+	for {
+		select {
+		case nodes := <-c.nodeChan:
+			t.Logf("ignoring nodes update while waiting for error; id=%s, nodes=%+v",
+				c.id.String(), nodes)
+			continue
+		case <-ctx.Done():
+			t.Fatal("timeout receiving error")
+			return ctx.Err()
+		case err := <-c.errChan:
+			return err
+		}
 	}
 }
 
@@ -693,8 +701,79 @@ func assertEventuallyHasDERPs(ctx context.Context, t *testing.T, c *testConn, ex
 				t.Logf("expected DERP %d to be in %v", e, derps)
 				continue
 			}
+			return
 		}
-		return
+	}
+}
+
+func assertNeverHasDERPs(ctx context.Context, t *testing.T, c *testConn, expected ...int) {
+	t.Helper()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case nodes := <-c.nodeChan:
+			derps := make([]int, 0, len(nodes))
+			for _, n := range nodes {
+				derps = append(derps, n.PreferredDERP)
+			}
+			for _, e := range expected {
+				if slices.Contains(derps, e) {
+					t.Fatalf("expected not to get DERP %d, but received it", e)
+					return
+				}
+			}
+		}
+	}
+}
+
+func assertMultiAgentEventuallyHasDERPs(ctx context.Context, t *testing.T, ma agpl.MultiAgentConn, expected ...int) {
+	t.Helper()
+	for {
+		nodes, ok := ma.NextUpdate(ctx)
+		require.True(t, ok)
+		if len(nodes) != len(expected) {
+			t.Logf("expected %d, got %d nodes", len(expected), len(nodes))
+			continue
+		}
+
+		derps := make([]int, 0, len(nodes))
+		for _, n := range nodes {
+			derps = append(derps, n.PreferredDERP)
+		}
+		for _, e := range expected {
+			if !slices.Contains(derps, e) {
+				t.Logf("expected DERP %d to be in %v", e, derps)
+				continue
+			}
+			return
+		}
+	}
+}
+
+func assertMultiAgentNeverHasDERPs(ctx context.Context, t *testing.T, ma agpl.MultiAgentConn, expected ...int) {
+	t.Helper()
+	for {
+		nodes, ok := ma.NextUpdate(ctx)
+		if !ok {
+			return
+		}
+		if len(nodes) != len(expected) {
+			t.Logf("expected %d, got %d nodes", len(expected), len(nodes))
+			continue
+		}
+
+		derps := make([]int, 0, len(nodes))
+		for _, n := range nodes {
+			derps = append(derps, n.PreferredDERP)
+		}
+		for _, e := range expected {
+			if !slices.Contains(derps, e) {
+				t.Logf("expected DERP %d to be in %v", e, derps)
+				continue
+			}
+			return
+		}
 	}
 }
 
@@ -712,6 +791,7 @@ func assertEventuallyNoAgents(ctx context.Context, t *testing.T, store database.
 }
 
 func assertEventuallyNoClientsForAgent(ctx context.Context, t *testing.T, store database.Store, agentID uuid.UUID) {
+	t.Helper()
 	assert.Eventually(t, func() bool {
 		clients, err := store.GetTailnetClientsForAgent(ctx, agentID)
 		if xerrors.Is(err, sql.ErrNoRows) {

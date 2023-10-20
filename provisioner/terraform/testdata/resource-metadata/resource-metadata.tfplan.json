@@ -1,6 +1,6 @@
 {
-  "format_version": "1.1",
-  "terraform_version": "1.3.7",
+  "format_version": "1.2",
+  "terraform_version": "1.5.5",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -246,7 +246,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.7.0-rc0"
+        "version_constraint": "0.7.0"
       },
       "null": {
         "name": "null",
@@ -370,5 +370,6 @@
         "id"
       ]
     }
-  ]
+  ],
+  "timestamp": "2023-08-30T19:25:25Z"
 }

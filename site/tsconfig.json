@@ -1,22 +1,22 @@
 {
   "compilerOptions": {
-    "downlevelIteration": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "incremental": true,
     "isolatedModules": true,
     "jsx": "react-jsx",
+    "jsxImportSource": "@emotion/react",
     "lib": ["dom", "dom.iterable", "esnext"],
-    "module": "commonjs",
+    "module": "esnext",
     "moduleResolution": "node",
-    "outDir": "./dist/",
+    "outDir": "build/",
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "strict": true,
     "target": "es2020",
-    "baseUrl": "./src"
+    "baseUrl": "src/"
   },
   "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules", "_jest"],
-  "types": ["node", "jest", "@testing-library/jest-dom"]
+  "exclude": ["node_modules/", "_jest"],
+  "types": ["@emotion/react", "@testing-library/jest-dom", "jest", "node"]
 }

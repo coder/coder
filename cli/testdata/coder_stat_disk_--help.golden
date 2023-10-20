@@ -1,8 +1,11 @@
-Usage: coder stat disk [flags]
+coder v0.0.0-devel
 
-Show disk usage, in gigabytes.
+USAGE:
+  coder stat disk [flags]
 
-[1mOptions[0m
+  Show disk usage, in gigabytes.
+
+OPTIONS:
   -o, --output string (default: text)
           Output format. Available formats: text, json.
 
@@ -12,5 +15,5 @@ Show disk usage, in gigabytes.
       --prefix Ki|Mi|Gi|Ti (default: Gi)
           SI Prefix for disk measurement.
 
----
+———
 Run `coder --help` for a list of global options.

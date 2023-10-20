@@ -9,6 +9,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	agpl "github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/tracing"
 )
 
@@ -49,7 +50,7 @@ func (s *enterpriseUserQuietHoursScheduleStore) parseSchedule(ctx context.Contex
 		rawSchedule = s.defaultSchedule
 	}
 
-	sched, err := agpl.Daily(rawSchedule)
+	sched, err := cron.Daily(rawSchedule)
 	if err != nil {
 		// This shouldn't get hit during Gets, only Sets.
 		return agpl.UserQuietHoursScheduleOptions{}, xerrors.Errorf("parse daily schedule %q: %w", rawSchedule, err)

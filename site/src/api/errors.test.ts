@@ -1,9 +1,10 @@
-import { mockApiError } from "testHelpers/entities"
+import { mockApiError } from "testHelpers/entities";
 import {
   getValidationErrorMessage,
   isApiError,
   mapApiErrorToFieldErrors,
-} from "./errors"
+  getErrorMessage,
+} from "./errors";
 
 describe("isApiError", () => {
   it("returns true when the object is an API Error", () => {
@@ -16,17 +17,17 @@ describe("isApiError", () => {
           ],
         }),
       ),
-    ).toBe(true)
-  })
+    ).toBe(true);
+  });
 
   it("returns false when the object is Error", () => {
-    expect(isApiError(new Error())).toBe(false)
-  })
+    expect(isApiError(new Error())).toBe(false);
+  });
 
   it("returns false when the object is undefined", () => {
-    expect(isApiError(undefined)).toBe(false)
-  })
-})
+    expect(isApiError(undefined)).toBe(false);
+  });
+});
 
 describe("mapApiErrorToFieldErrors", () => {
   it("returns correct field errors", () => {
@@ -39,9 +40,9 @@ describe("mapApiErrorToFieldErrors", () => {
       }),
     ).toEqual({
       username: "Username is already in use",
-    })
-  })
-})
+    });
+  });
+});
 
 describe("getValidationErrorMessage", () => {
   it("returns multiple validation messages", () => {
@@ -63,14 +64,14 @@ describe("getValidationErrorMessage", () => {
       ),
     ).toEqual(
       `Query param "status" has invalid value: "inactive" is not a valid user status\nQuery element "role:a:e" can only contain 1 ':'`,
-    )
-  })
+    );
+  });
 
   it("non-API error returns empty validation message", () => {
     expect(
       getValidationErrorMessage(new Error("Invalid user search query.")),
-    ).toEqual("")
-  })
+    ).toEqual("");
+  });
 
   it("no validations field returns empty validation message", () => {
     expect(
@@ -80,6 +81,23 @@ describe("getValidationErrorMessage", () => {
           detail: `Query element "role:a:e" can only contain 1 ':'`,
         }),
       ),
-    ).toEqual("")
-  })
-})
+    ).toEqual("");
+  });
+
+  it("returns default message for error that is empty string", () => {
+    expect(getErrorMessage("", "Something went wrong.")).toBe(
+      "Something went wrong.",
+    );
+  });
+
+  it("returns default message for 404 API response", () => {
+    expect(
+      getErrorMessage(
+        mockApiError({
+          message: "",
+        }),
+        "Something went wrong.",
+      ),
+    ).toBe("Something went wrong.");
+  });
+});

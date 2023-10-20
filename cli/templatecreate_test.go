@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/pty/ptytest"
@@ -392,6 +393,36 @@ func TestTemplateCreate(t *testing.T) {
 				pty.WriteLine(m.write)
 			}
 		}
+	})
+
+	t.Run("RequireActiveVersionInvalid", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{
+			string(codersdk.ExperimentTemplateUpdatePolicies),
+		}
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			DeploymentValues:         dv,
+		})
+		coderdtest.CreateFirstUser(t, client)
+		source := clitest.CreateTemplateVersionSource(t, completeWithAgent())
+		args := []string{
+			"templates",
+			"create",
+			"my-template",
+			"--directory", source,
+			"--test.provisioner", string(database.ProvisionerTypeEcho),
+			"--require-active-version",
+		}
+		inv, root := clitest.New(t, args...)
+		clitest.SetupConfig(t, client, root)
+
+		err := inv.Run()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "your deployment appears to be an AGPL deployment, so you cannot set enterprise-only flags")
 	})
 }
 

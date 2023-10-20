@@ -9,7 +9,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/clibase"
-	"github.com/coder/coder/v2/coderd/healthcheck"
+	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -33,8 +33,8 @@ func (r *RootCmd) netcheck() *clibase.Cmd {
 
 			_, _ = fmt.Fprint(inv.Stderr, "Gathering a network report. This may take a few seconds...\n\n")
 
-			var report healthcheck.DERPReport
-			report.Run(ctx, &healthcheck.DERPReportOptions{
+			var report derphealth.Report
+			report.Run(ctx, &derphealth.ReportOptions{
 				DERPMap: connInfo.DERPMap,
 			})
 

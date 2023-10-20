@@ -1,17 +1,14 @@
-import { Story } from "@storybook/react"
-import {
-  CreateGroupPageView,
-  CreateGroupPageViewProps,
-} from "./CreateGroupPageView"
+import { CreateGroupPageView } from "./CreateGroupPageView";
+import type { Meta, StoryObj } from "@storybook/react";
 
-export default {
-  title: "pages/CreateGroupPageView",
+const meta: Meta<typeof CreateGroupPageView> = {
+  title: "pages/GroupsPage/CreateGroupPageView",
   component: CreateGroupPageView,
-}
+};
 
-const Template: Story<CreateGroupPageViewProps> = (
-  args: CreateGroupPageViewProps,
-) => <CreateGroupPageView {...args} />
+export default meta;
+type Story = StoryObj<typeof CreateGroupPageView>;
 
-export const Example = Template.bind({})
-Example.args = {}
+const Example: Story = {};
+
+export { Example as CreateGroupPageView };

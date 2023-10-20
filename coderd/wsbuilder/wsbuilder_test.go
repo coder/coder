@@ -12,9 +12,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
@@ -87,7 +91,7 @@ func TestBuilder_NoOptions(t *testing.T) {
 
 	ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
 	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart)
-	_, _, err := uut.Build(ctx, mDB, nil)
+	_, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
 	req.NoError(err)
 }
 
@@ -122,7 +126,48 @@ func TestBuilder_Initiator(t *testing.T) {
 
 	ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
 	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).Initiator(otherUserID)
-	_, _, err := uut.Build(ctx, mDB, nil)
+	_, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+	req.NoError(err)
+}
+
+func TestBuilder_Baggage(t *testing.T) {
+	t.Parallel()
+	req := require.New(t)
+	asrt := assert.New(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	otel.SetTextMapPropagator(
+		propagation.NewCompositeTextMapPropagator(
+			propagation.TraceContext{},
+			propagation.Baggage{},
+		),
+	)
+
+	mDB := expectDB(t,
+		// Inputs
+		withTemplate,
+		withInactiveVersion(nil),
+		withLastBuildFound,
+		withRichParameters(nil),
+		withParameterSchemas(inactiveJobID, nil),
+
+		// Outputs
+		expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
+			asrt.Contains(string(job.TraceMetadata.RawMessage), "ip=127.0.0.1")
+		}),
+		withInTx,
+		expectBuild(func(bld database.InsertWorkspaceBuildParams) {
+		}),
+		expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {
+		}),
+		withBuild,
+	)
+
+	ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
+	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).Initiator(otherUserID)
+	_, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{IP: "127.0.0.1"})
 	req.NoError(err)
 }
 
@@ -156,7 +201,7 @@ func TestBuilder_Reason(t *testing.T) {
 
 	ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
 	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).Reason(database.BuildReasonAutostart)
-	_, _, err := uut.Build(ctx, mDB, nil)
+	_, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
 	req.NoError(err)
 }
 
@@ -195,7 +240,7 @@ func TestBuilder_ActiveVersion(t *testing.T) {
 
 	ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
 	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).ActiveVersion()
-	_, _, err := uut.Build(ctx, mDB, nil)
+	_, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
 	req.NoError(err)
 }
 
@@ -273,7 +318,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 
 		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
 		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).RichParameterValues(nextBuildParameters)
-		_, _, err := uut.Build(ctx, mDB, nil)
+		_, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
 		req.NoError(err)
 	})
 	t.Run("UsePreviousParameterValues", func(t *testing.T) {
@@ -316,7 +361,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 
 		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
 		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).RichParameterValues(nextBuildParameters)
-		_, _, err := uut.Build(ctx, mDB, nil)
+		_, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
 		req.NoError(err)
 	})
 
@@ -356,7 +401,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 
 		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
 		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart)
-		_, _, err := uut.Build(ctx, mDB, nil)
+		_, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
 		bldErr := wsbuilder.BuildError{}
 		req.ErrorAs(err, &bldErr)
 		asrt.Equal(http.StatusBadRequest, bldErr.Status)
@@ -393,7 +438,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 
 		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
 		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).RichParameterValues(nextBuildParameters)
-		_, _, err := uut.Build(ctx, mDB, nil)
+		_, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
 		bldErr := wsbuilder.BuildError{}
 		req.ErrorAs(err, &bldErr)
 		asrt.Equal(http.StatusBadRequest, bldErr.Status)
@@ -455,7 +500,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).
 			RichParameterValues(nextBuildParameters).
 			VersionID(activeVersionID)
-		_, _, err := uut.Build(ctx, mDB, nil)
+		_, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
 		req.NoError(err)
 	})
 
@@ -515,7 +560,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).
 			RichParameterValues(nextBuildParameters).
 			VersionID(activeVersionID)
-		_, _, err := uut.Build(ctx, mDB, nil)
+		_, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
 		req.NoError(err)
 	})
 
@@ -573,7 +618,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).
 			RichParameterValues(nextBuildParameters).
 			VersionID(activeVersionID)
-		_, _, err := uut.Build(ctx, mDB, nil)
+		_, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
 		req.NoError(err)
 	})
 }
@@ -649,9 +694,9 @@ func withActiveVersion(params []database.TemplateVersionParameter) func(mTx *dbm
 				provisionerdserver.TagScope: provisionerdserver.ScopeUser,
 			},
 			FileID:      activeFileID,
-			StartedAt:   sql.NullTime{Time: database.Now(), Valid: true},
+			StartedAt:   sql.NullTime{Time: dbtime.Now(), Valid: true},
 			UpdatedAt:   time.Now(),
-			CompletedAt: sql.NullTime{Time: database.Now(), Valid: true},
+			CompletedAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
 		}, nil)
 		paramsCall := mTx.EXPECT().GetTemplateVersionParameters(gomock.Any(), activeVersionID).
 			Times(1)
@@ -689,9 +734,9 @@ func withInactiveVersion(params []database.TemplateVersionParameter) func(mTx *d
 				provisionerdserver.TagScope: provisionerdserver.ScopeUser,
 			},
 			FileID:      inactiveFileID,
-			StartedAt:   sql.NullTime{Time: database.Now(), Valid: true},
+			StartedAt:   sql.NullTime{Time: dbtime.Now(), Valid: true},
 			UpdatedAt:   time.Now(),
-			CompletedAt: sql.NullTime{Time: database.Now(), Valid: true},
+			CompletedAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
 		}, nil)
 		paramsCall := mTx.EXPECT().GetTemplateVersionParameters(gomock.Any(), inactiveVersionID).
 			Times(1)
@@ -728,9 +773,9 @@ func withLastBuildFound(mTx *dbmock.MockStore) {
 			StorageMethod:  database.ProvisionerStorageMethodFile,
 			FileID:         inactiveFileID,
 			Type:           database.ProvisionerJobTypeWorkspaceBuild,
-			StartedAt:      sql.NullTime{Time: database.Now(), Valid: true},
+			StartedAt:      sql.NullTime{Time: dbtime.Now(), Valid: true},
 			UpdatedAt:      time.Now(),
-			CompletedAt:    sql.NullTime{Time: database.Now(), Valid: true},
+			CompletedAt:    sql.NullTime{Time: dbtime.Now(), Valid: true},
 		}, nil)
 }
 

@@ -1,11 +1,11 @@
-import { useDeploySettings } from "components/DeploySettingsLayout/DeploySettingsLayout"
-import { FC } from "react"
-import { Helmet } from "react-helmet-async"
-import { pageTitle } from "utils/page"
-import { UserAuthSettingsPageView } from "./UserAuthSettingsPageView"
+import { useDeploySettings } from "components/DeploySettingsLayout/DeploySettingsLayout";
+import { FC } from "react";
+import { Helmet } from "react-helmet-async";
+import { pageTitle } from "utils/page";
+import { UserAuthSettingsPageView } from "./UserAuthSettingsPageView";
 
 const UserAuthSettingsPage: FC = () => {
-  const { deploymentValues: deploymentValues } = useDeploySettings()
+  const { deploymentValues: deploymentValues } = useDeploySettings();
 
   return (
     <>
@@ -15,7 +15,7 @@ const UserAuthSettingsPage: FC = () => {
 
       <UserAuthSettingsPageView options={deploymentValues.options} />
     </>
-  )
-}
+  );
+};
 
-export default UserAuthSettingsPage
+export default UserAuthSettingsPage;

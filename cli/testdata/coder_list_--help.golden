@@ -1,10 +1,13 @@
-Usage: coder list [flags]
+coder v0.0.0-devel
 
-List workspaces
+USAGE:
+  coder list [flags]
 
-Aliases: ls
+  List workspaces
 
-[1mOptions[0m
+  Aliases: ls
+
+OPTIONS:
   -a, --all bool
           Specifies whether all workspaces will be listed or not.
 
@@ -19,5 +22,5 @@ Aliases: ls
       --search string (default: owner:me)
           Search for a workspace with a query.
 
----
+———
 Run `coder --help` for a list of global options.

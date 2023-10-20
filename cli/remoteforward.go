@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"regexp"
 	"strconv"
 
@@ -23,15 +24,24 @@ type cookieAddr struct {
 
 // Format:
 // remote_port:local_address:local_port
-var remoteForwardRegex = regexp.MustCompile(`^(\d+):(.+):(\d+)$`)
+var remoteForwardRegexTCP = regexp.MustCompile(`^(\d+):(.+):(\d+)$`)
 
-func validateRemoteForward(flag string) bool {
-	return remoteForwardRegex.MatchString(flag)
+// remote_socket_path:local_socket_path (both absolute paths)
+var remoteForwardRegexUnixSocket = regexp.MustCompile(`^(\/.+):(\/.+)$`)
+
+func isRemoteForwardTCP(flag string) bool {
+	return remoteForwardRegexTCP.MatchString(flag)
 }
 
-func parseRemoteForward(flag string) (net.Addr, net.Addr, error) {
-	matches := remoteForwardRegex.FindStringSubmatch(flag)
+func isRemoteForwardUnixSocket(flag string) bool {
+	return remoteForwardRegexUnixSocket.MatchString(flag)
+}
 
+func validateRemoteForward(flag string) bool {
+	return isRemoteForwardTCP(flag) || isRemoteForwardUnixSocket(flag)
+}
+
+func parseRemoteForwardTCP(matches []string) (net.Addr, net.Addr, error) {
 	remotePort, err := strconv.Atoi(matches[1])
 	if err != nil {
 		return nil, nil, xerrors.Errorf("remote port is invalid: %w", err)
@@ -55,6 +65,46 @@ func parseRemoteForward(flag string) (net.Addr, net.Addr, error) {
 		Port: remotePort,
 	}
 	return localAddr, remoteAddr, nil
+}
+
+func parseRemoteForwardUnixSocket(matches []string) (net.Addr, net.Addr, error) {
+	remoteSocket := matches[1]
+	localSocket := matches[2]
+
+	fileInfo, err := os.Stat(localSocket)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if fileInfo.Mode()&os.ModeSocket == 0 {
+		return nil, nil, xerrors.New("File is not a Unix domain socket file")
+	}
+
+	remoteAddr := &net.UnixAddr{
+		Name: remoteSocket,
+		Net:  "unix",
+	}
+
+	localAddr := &net.UnixAddr{
+		Name: localSocket,
+		Net:  "unix",
+	}
+	return localAddr, remoteAddr, nil
+}
+
+func parseRemoteForward(flag string) (net.Addr, net.Addr, error) {
+	tcpMatches := remoteForwardRegexTCP.FindStringSubmatch(flag)
+
+	if len(tcpMatches) > 0 {
+		return parseRemoteForwardTCP(tcpMatches)
+	}
+
+	unixSocketMatches := remoteForwardRegexUnixSocket.FindStringSubmatch(flag)
+	if len(unixSocketMatches) > 0 {
+		return parseRemoteForwardUnixSocket(unixSocketMatches)
+	}
+
+	return nil, nil, xerrors.New("Could not match forward arguments")
 }
 
 // sshRemoteForward starts forwarding connections from a remote listener to a

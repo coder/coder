@@ -6,6 +6,8 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/coder/pretty"
+
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
@@ -26,7 +28,6 @@ func (r *RootCmd) createUserStatusCommand(sdkStatus codersdk.UserStatus) *clibas
 	case codersdk.UserStatusSuspended:
 		verb = "suspend"
 		pastVerb = "suspended"
-		aliases = []string{"rm", "delete"}
 		short = "Update a user's status to 'suspended'. A suspended user cannot log into the platform"
 	default:
 		panic(fmt.Sprintf("%s is not supported", sdkStatus))
@@ -89,7 +90,7 @@ func (r *RootCmd) createUserStatusCommand(sdkStatus codersdk.UserStatus) *clibas
 				return xerrors.Errorf("%s user: %w", verb, err)
 			}
 
-			_, _ = fmt.Fprintf(inv.Stdout, "\nUser %s has been %s!\n", cliui.DefaultStyles.Keyword.Render(user.Username), pastVerb)
+			_, _ = fmt.Fprintf(inv.Stdout, "\nUser %s has been %s!\n", pretty.Sprint(cliui.DefaultStyles.Keyword, user.Username), pastVerb)
 			return nil
 		},
 	}

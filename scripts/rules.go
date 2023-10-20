@@ -43,6 +43,28 @@ func dbauthzAuthorizationContext(m dsl.Matcher) {
 		Report("Using '$f' is dangerous and should be accompanied by a comment explaining why it's ok and a nolint.")
 }
 
+// testingWithOwnerUser is a lint rule that detects potential permission bugs.
+// Calling clitest.SetupConfig with a client authenticated as the Owner user
+// can be a problem, since the CLI will be operating as that user and we may
+// miss permission bugs.
+//
+//nolint:unused,deadcode,varnamelen
+func testingWithOwnerUser(m dsl.Matcher) {
+	m.Import("testing")
+	m.Import("github.com/coder/coder/v2/cli/clitest")
+
+	m.Match(`
+	$_ := coderdtest.CreateFirstUser($t, $client)
+	$*_
+	clitest.$SetupConfig($t, $client, $_)
+	`).
+		Where(m["t"].Type.Implements("testing.TB") &&
+			m["SetupConfig"].Text.Matches("^SetupConfig$") &&
+			m.File().Name.Matches(`_test\.go$`)).
+		At(m["SetupConfig"]).
+		Report(`The CLI will be operating as the owner user, which has unrestricted permissions. Consider creating a different user.`)
+}
+
 // Use xerrors everywhere! It provides additional stacktrace info!
 //
 //nolint:unused,deadcode,varnamelen
@@ -394,4 +416,17 @@ func slogError(m dsl.Matcher) {
 	).
 		Where(m["name"].Const && m["value"].Type.Is("error") && !m["name"].Text.Matches(`^"internal_error"$`)).
 		Report(`Error should be logged using "slog.Error" instead.`)
+}
+
+// withTimezoneUTC ensures that we don't just sprinkle dbtestutil.WithTimezone("UTC") about
+// to work around real timezone bugs in our code.
+//
+//nolint:unused,deadcode,varnamelen
+func withTimezoneUTC(m dsl.Matcher) {
+	m.Match(
+		`dbtestutil.WithTimezone($tz)`,
+	).Where(
+		m["tz"].Text.Matches(`[uU][tT][cC]"$`),
+	).Report(`Setting database timezone to UTC may mask timezone-related bugs.`).
+		At(m["tz"])
 }

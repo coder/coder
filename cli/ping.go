@@ -10,6 +10,8 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 
+	"github.com/coder/pretty"
+
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
@@ -104,14 +106,14 @@ func (r *RootCmd) ping() *clibase.Cmd {
 				if p2p {
 					if !didP2p {
 						_, _ = fmt.Fprintln(inv.Stdout, "p2p connection established in",
-							cliui.DefaultStyles.DateTimeStamp.Render(time.Since(start).Round(time.Millisecond).String()),
+							pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, time.Since(start).Round(time.Millisecond).String()),
 						)
 					}
 					didP2p = true
 
 					via = fmt.Sprintf("%s via %s",
-						cliui.DefaultStyles.Fuchsia.Render("p2p"),
-						cliui.DefaultStyles.Code.Render(pong.Endpoint),
+						pretty.Sprint(cliui.DefaultStyles.Fuchsia, "p2p"),
+						pretty.Sprint(cliui.DefaultStyles.Code, pong.Endpoint),
 					)
 				} else {
 					derpName := "unknown"
@@ -120,15 +122,15 @@ func (r *RootCmd) ping() *clibase.Cmd {
 						derpName = derpRegion.RegionName
 					}
 					via = fmt.Sprintf("%s via %s",
-						cliui.DefaultStyles.Fuchsia.Render("proxied"),
-						cliui.DefaultStyles.Code.Render(fmt.Sprintf("DERP(%s)", derpName)),
+						pretty.Sprint(cliui.DefaultStyles.Fuchsia, "proxied"),
+						pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("DERP(%s)", derpName)),
 					)
 				}
 
 				_, _ = fmt.Fprintf(inv.Stdout, "pong from %s %s in %s\n",
-					cliui.DefaultStyles.Keyword.Render(workspaceName),
+					pretty.Sprint(cliui.DefaultStyles.Keyword, workspaceName),
 					via,
-					cliui.DefaultStyles.DateTimeStamp.Render(dur.String()),
+					pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, dur.String()),
 				)
 
 				if n == int(pingNum) {

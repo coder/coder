@@ -1,6 +1,8 @@
 package agentssh
 
 import (
+	"strings"
+
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -78,5 +80,6 @@ func magicTypeMetricLabel(magicType string) string {
 	default:
 		magicType = "unknown"
 	}
-	return magicType
+	// Always be case insensitive
+	return strings.ToLower(magicType)
 }

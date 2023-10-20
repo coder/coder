@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"net/http"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -9,6 +10,7 @@ import (
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/pretty"
 )
 
 func (r *RootCmd) restart() *clibase.Cmd {
@@ -38,19 +40,14 @@ func (r *RootCmd) restart() *clibase.Cmd {
 				return err
 			}
 
-			template, err := client.Template(inv.Context(), workspace.TemplateID)
-			if err != nil {
-				return err
-			}
-
 			buildOptions, err := asWorkspaceBuildParameters(parameterFlags.buildOptions)
 			if err != nil {
 				return xerrors.Errorf("can't parse build options: %w", err)
 			}
 
 			buildParameters, err := prepStartWorkspace(inv, client, prepStartWorkspaceArgs{
-				Action:   WorkspaceRestart,
-				Template: template,
+				Action:            WorkspaceRestart,
+				TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
 
 				LastBuildParameters: lastBuildParameters,
 
@@ -80,19 +77,38 @@ func (r *RootCmd) restart() *clibase.Cmd {
 				return err
 			}
 
-			build, err = client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			req := codersdk.CreateWorkspaceBuildRequest{
 				Transition:          codersdk.WorkspaceTransitionStart,
 				RichParameterValues: buildParameters,
-			})
-			if err != nil {
+				TemplateVersionID:   workspace.LatestBuild.TemplateVersionID,
+			}
+
+			build, err = client.CreateWorkspaceBuild(ctx, workspace.ID, req)
+			// It's possible for a workspace build to fail due to the template requiring starting
+			// workspaces with the active version.
+			if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusUnauthorized {
+				build, err = startWorkspaceActiveVersion(inv, client, startWorkspaceActiveVersionArgs{
+					BuildOptions:        buildOptions,
+					LastBuildParameters: lastBuildParameters,
+					PromptBuildOptions:  parameterFlags.promptBuildOptions,
+					Workspace:           workspace,
+				})
+				if err != nil {
+					return xerrors.Errorf("start workspace with active template version: %w", err)
+				}
+			} else if err != nil {
 				return err
 			}
+
 			err = cliui.WorkspaceBuild(ctx, out, client, build.ID)
 			if err != nil {
 				return err
 			}
 
-			_, _ = fmt.Fprintf(out, "\nThe %s workspace has been restarted at %s!\n", cliui.DefaultStyles.Keyword.Render(workspace.Name), cliui.DefaultStyles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
+			_, _ = fmt.Fprintf(out,
+				"\nThe %s workspace has been restarted at %s!\n",
+				pretty.Sprint(cliui.DefaultStyles.Keyword, workspace.Name), cliui.Timestamp(time.Now()),
+			)
 			return nil
 		},
 	}

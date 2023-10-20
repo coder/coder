@@ -1,9 +1,9 @@
-import { FC } from "react"
-import { Navigate } from "react-router-dom"
+import { FC } from "react";
+import { Navigate } from "react-router-dom";
 
 export interface RequirePermissionProps {
-  children: JSX.Element
-  isFeatureVisible: boolean
+  children: JSX.Element;
+  isFeatureVisible: boolean;
 }
 
 /**
@@ -14,8 +14,8 @@ export const RequirePermission: FC<RequirePermissionProps> = ({
   isFeatureVisible,
 }) => {
   if (!isFeatureVisible) {
-    return <Navigate to="/workspaces" />
+    return <Navigate to="/workspaces" />;
   } else {
-    return children
+    return children;
   }
-}
+};

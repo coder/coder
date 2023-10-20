@@ -16,6 +16,7 @@ import (
 
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/pretty"
 )
 
 func (r *RootCmd) gitssh() *clibase.Cmd {
@@ -90,12 +91,15 @@ func (r *RootCmd) gitssh() *clibase.Cmd {
 				exitErr := &exec.ExitError{}
 				if xerrors.As(err, &exitErr) && exitErr.ExitCode() == 255 {
 					_, _ = fmt.Fprintln(inv.Stderr,
-						"\n"+cliui.DefaultStyles.Wrap.Render("Coder authenticates with "+cliui.DefaultStyles.Field.Render("git")+
-							" using the public key below. All clones with SSH are authenticated automatically 🪄.")+"\n")
-					_, _ = fmt.Fprintln(inv.Stderr, cliui.DefaultStyles.Code.Render(strings.TrimSpace(key.PublicKey))+"\n")
+						"\n"+pretty.Sprintf(
+							cliui.DefaultStyles.Wrap,
+							"Coder authenticates with "+pretty.Sprint(cliui.DefaultStyles.Field, "git")+
+								" using the public key below. All clones with SSH are authenticated automatically 🪄.")+"\n",
+					)
+					_, _ = fmt.Fprintln(inv.Stderr, pretty.Sprint(cliui.DefaultStyles.Code, strings.TrimSpace(key.PublicKey))+"\n")
 					_, _ = fmt.Fprintln(inv.Stderr, "Add to GitHub and GitLab:")
-					_, _ = fmt.Fprintln(inv.Stderr, cliui.DefaultStyles.Prompt.String()+"https://github.com/settings/ssh/new")
-					_, _ = fmt.Fprintln(inv.Stderr, cliui.DefaultStyles.Prompt.String()+"https://gitlab.com/-/profile/keys")
+					pretty.Fprintf(inv.Stderr, cliui.DefaultStyles.Prompt, "%s", "https://github.com/settings/ssh/new\n\n")
+					pretty.Fprintf(inv.Stderr, cliui.DefaultStyles.Prompt, "%s", "https://gitlab.com/-/profile/keys\n\n")
 					_, _ = fmt.Fprintln(inv.Stderr)
 					return err
 				}

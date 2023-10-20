@@ -23,6 +23,13 @@ import (
 	"github.com/coder/retry"
 )
 
+// ExternalLogSourceID is the statically-defined ID of a log-source that
+// appears as "External" in the dashboard.
+//
+// This is to support legacy API-consumers that do not create their own
+// log-source. This should be removed in the future.
+var ExternalLogSourceID = uuid.MustParse("3b579bf4-1ed8-4b99-87a8-e9a1e3410410")
+
 // New returns a client that is used to interact with the
 // Coder API from a workspace agent.
 func New(serverURL *url.URL) *Client {
@@ -62,12 +69,21 @@ func (c *Client) GitSSHKey(ctx context.Context) (GitSSHKey, error) {
 	return gitSSHKey, json.NewDecoder(res.Body).Decode(&gitSSHKey)
 }
 
+type Metadata struct {
+	Key string `json:"key"`
+	codersdk.WorkspaceAgentMetadataResult
+}
+
+type PostMetadataRequest struct {
+	Metadata []Metadata `json:"metadata"`
+}
+
 // In the future, we may want to support sending back multiple values for
 // performance.
-type PostMetadataRequest = codersdk.WorkspaceAgentMetadataResult
+type PostMetadataRequestDeprecated = codersdk.WorkspaceAgentMetadataResult
 
-func (c *Client) PostMetadata(ctx context.Context, key string, req PostMetadataRequest) error {
-	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/metadata/"+key, req)
+func (c *Client) PostMetadata(ctx context.Context, req PostMetadataRequest) error {
+	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/metadata", req)
 	if err != nil {
 		return xerrors.Errorf("execute request: %w", err)
 	}
@@ -91,14 +107,21 @@ type Manifest struct {
 	DERPMap                  *tailcfg.DERPMap                             `json:"derpmap"`
 	DERPForceWebSockets      bool                                         `json:"derp_force_websockets"`
 	EnvironmentVariables     map[string]string                            `json:"environment_variables"`
-	StartupScript            string                                       `json:"startup_script"`
-	StartupScriptTimeout     time.Duration                                `json:"startup_script_timeout"`
 	Directory                string                                       `json:"directory"`
 	MOTDFile                 string                                       `json:"motd_file"`
-	ShutdownScript           string                                       `json:"shutdown_script"`
-	ShutdownScriptTimeout    time.Duration                                `json:"shutdown_script_timeout"`
 	DisableDirectConnections bool                                         `json:"disable_direct_connections"`
 	Metadata                 []codersdk.WorkspaceAgentMetadataDescription `json:"metadata"`
+	Scripts                  []codersdk.WorkspaceAgentScript              `json:"scripts"`
+}
+
+type LogSource struct {
+	ID          uuid.UUID `json:"id"`
+	DisplayName string    `json:"display_name"`
+	Icon        string    `json:"icon"`
+}
+
+type Script struct {
+	Script string `json:"script"`
 }
 
 // Manifest fetches manifest for the currently authenticated workspace agent.
@@ -631,14 +654,14 @@ func (c *Client) PostStartup(ctx context.Context, req PostStartupRequest) error 
 }
 
 type Log struct {
-	CreatedAt time.Time                        `json:"created_at"`
-	Output    string                           `json:"output"`
-	Level     codersdk.LogLevel                `json:"level"`
-	Source    codersdk.WorkspaceAgentLogSource `json:"source"`
+	CreatedAt time.Time         `json:"created_at"`
+	Output    string            `json:"output"`
+	Level     codersdk.LogLevel `json:"level"`
 }
 
 type PatchLogs struct {
-	Logs []Log `json:"logs"`
+	LogSourceID uuid.UUID `json:"log_source_id"`
+	Logs        []Log     `json:"logs"`
 }
 
 // PatchLogs writes log messages to the agent startup script.
@@ -653,6 +676,29 @@ func (c *Client) PatchLogs(ctx context.Context, req PatchLogs) error {
 		return codersdk.ReadBodyAsError(res)
 	}
 	return nil
+}
+
+type PostLogSource struct {
+	// ID is a unique identifier for the log source.
+	// It is scoped to a workspace agent, and can be statically
+	// defined inside code to prevent duplicate sources from being
+	// created for the same agent.
+	ID          uuid.UUID `json:"id"`
+	DisplayName string    `json:"display_name"`
+	Icon        string    `json:"icon"`
+}
+
+func (c *Client) PostLogSource(ctx context.Context, req PostLogSource) (codersdk.WorkspaceAgentLogSource, error) {
+	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/log-source", req)
+	if err != nil {
+		return codersdk.WorkspaceAgentLogSource{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return codersdk.WorkspaceAgentLogSource{}, codersdk.ReadBodyAsError(res)
+	}
+	var logSource codersdk.WorkspaceAgentLogSource
+	return logSource, json.NewDecoder(res.Body).Decode(&logSource)
 }
 
 // GetServiceBanner relays the service banner config.
@@ -673,30 +719,52 @@ func (c *Client) GetServiceBanner(ctx context.Context) (codersdk.ServiceBannerCo
 	return cfg.ServiceBanner, json.NewDecoder(res.Body).Decode(&cfg)
 }
 
-type GitAuthResponse struct {
+type ExternalAuthResponse struct {
+	AccessToken string                 `json:"access_token"`
+	TokenExtra  map[string]interface{} `json:"token_extra"`
+	URL         string                 `json:"url"`
+	Type        string                 `json:"type"`
+
+	// Deprecated: Only supported on `/workspaceagents/me/gitauth`
+	// for backwards compatibility.
 	Username string `json:"username"`
 	Password string `json:"password"`
-	URL      string `json:"url"`
 }
 
-// GitAuth submits a URL to fetch a GIT_ASKPASS username and password for.
+// ExternalAuthRequest is used to request an access token for a provider.
+// Either ID or Match must be specified, but not both.
+type ExternalAuthRequest struct {
+	// ID is the ID of a provider to request authentication for.
+	ID string
+	// Match is an arbitrary string matched against the regex of the provider.
+	Match string
+	// Listen indicates that the request should be long-lived and listen for
+	// a new token to be requested.
+	Listen bool
+}
+
+// ExternalAuth submits a URL or provider ID to fetch an access token for.
 // nolint:revive
-func (c *Client) GitAuth(ctx context.Context, gitURL string, listen bool) (GitAuthResponse, error) {
-	reqURL := "/api/v2/workspaceagents/me/gitauth?url=" + url.QueryEscape(gitURL)
-	if listen {
-		reqURL += "&listen"
+func (c *Client) ExternalAuth(ctx context.Context, req ExternalAuthRequest) (ExternalAuthResponse, error) {
+	q := url.Values{
+		"id":    []string{req.ID},
+		"match": []string{req.Match},
 	}
+	if req.Listen {
+		q.Set("listen", "true")
+	}
+	reqURL := "/api/v2/workspaceagents/me/external-auth?" + q.Encode()
 	res, err := c.SDK.Request(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
-		return GitAuthResponse{}, xerrors.Errorf("execute request: %w", err)
+		return ExternalAuthResponse{}, xerrors.Errorf("execute request: %w", err)
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return GitAuthResponse{}, codersdk.ReadBodyAsError(res)
+		return ExternalAuthResponse{}, codersdk.ReadBodyAsError(res)
 	}
 
-	var authResp GitAuthResponse
+	var authResp ExternalAuthResponse
 	return authResp, json.NewDecoder(res.Body).Decode(&authResp)
 }
 

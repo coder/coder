@@ -1,25 +1,26 @@
-import { makeStyles } from "@mui/styles"
-import Typography from "@mui/material/Typography"
-import { FC, ReactNode, PropsWithChildren } from "react"
-import { SectionAction } from "../SectionAction/SectionAction"
+import { useTheme } from "@emotion/react";
+import Typography from "@mui/material/Typography";
+import { type FC, type ReactNode, type PropsWithChildren } from "react";
+import { SectionAction } from "./SectionAction";
+import { type Interpolation, type Theme } from "@emotion/react";
 
-type SectionLayout = "fixed" | "fluid"
+type SectionLayout = "fixed" | "fluid";
 
 export interface SectionProps {
   // Useful for testing
-  id?: string
-  title?: ReactNode | string
-  description?: ReactNode
-  toolbar?: ReactNode
-  alert?: ReactNode
-  layout?: SectionLayout
-  className?: string
-  children?: ReactNode
+  id?: string;
+  title?: ReactNode | string;
+  description?: ReactNode;
+  toolbar?: ReactNode;
+  alert?: ReactNode;
+  layout?: SectionLayout;
+  className?: string;
+  children?: ReactNode;
 }
 
 type SectionFC = FC<PropsWithChildren<SectionProps>> & {
-  Action: typeof SectionAction
-}
+  Action: typeof SectionAction;
+};
 
 export const Section: SectionFC = ({
   id,
@@ -31,12 +32,13 @@ export const Section: SectionFC = ({
   children,
   layout = "fixed",
 }) => {
-  const styles = useStyles({ layout })
+  const theme = useTheme();
+
   return (
     <section className={className} id={id} data-testid={id}>
-      <div className={styles.inner}>
+      <div css={{ maxWidth: layout === "fluid" ? "100%" : 500 }}>
         {(title || description) && (
-          <div className={styles.header}>
+          <div css={styles.header}>
             <div>
               {title && (
                 <Typography variant="h4" sx={{ fontSize: 24 }}>
@@ -44,44 +46,36 @@ export const Section: SectionFC = ({
                 </Typography>
               )}
               {description && typeof description === "string" && (
-                <Typography className={styles.description}>
-                  {description}
-                </Typography>
+                <Typography css={styles.description}>{description}</Typography>
               )}
               {description && typeof description !== "string" && (
-                <div className={styles.description}>{description}</div>
+                <div css={styles.description}>{description}</div>
               )}
             </div>
             {toolbar && <div>{toolbar}</div>}
           </div>
         )}
-        {alert && <div className={styles.alert}>{alert}</div>}
+        {alert && <div css={{ marginBottom: theme.spacing(1) }}>{alert}</div>}
         {children}
       </div>
     </section>
-  )
-}
+  );
+};
 
 // Sub-components
-Section.Action = SectionAction
+Section.Action = SectionAction;
 
-const useStyles = makeStyles((theme) => ({
-  inner: ({ layout }: { layout: SectionLayout }) => ({
-    maxWidth: layout === "fluid" ? "100%" : 500,
-  }),
-  alert: {
-    marginBottom: theme.spacing(1),
-  },
-  header: {
+const styles = {
+  header: (theme) => ({
     marginBottom: theme.spacing(3),
     display: "flex",
     flexDirection: "row",
     justifyContent: "space-between",
-  },
-  description: {
+  }),
+  description: (theme) => ({
     color: theme.palette.text.secondary,
     fontSize: 16,
     marginTop: theme.spacing(0.5),
     lineHeight: "140%",
-  },
-}))
+  }),
+} satisfies Record<string, Interpolation<Theme>>;

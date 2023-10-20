@@ -1,8 +1,11 @@
-Usage: coder templates edit [flags] <template>
+coder v0.0.0-devel
 
-Edit the metadata of a template by name.
+USAGE:
+  coder templates edit [flags] <template>
 
-[1mOptions[0m
+  Edit the metadata of a template by name.
+
+OPTIONS:
       --allow-user-autostart bool (default: true)
           Allow users to configure autostart for workspaces on this template.
           This can only be disabled in enterprise.
@@ -13,6 +16,12 @@ Edit the metadata of a template by name.
 
       --allow-user-cancel-workspace-jobs bool (default: true)
           Allow users to cancel in-progress workspace jobs.
+
+      --autostart-requirement-weekdays string-array
+          Edit the template autostart requirement weekdays - workspaces created
+          from this template can only autostart on the given weekdays. To unset
+          this value for the template (and allow autostart on all days), pass
+          'all'.
 
       --default-ttl duration
           Edit the template default time before shutdown - workspaces created
@@ -50,8 +59,13 @@ Edit the metadata of a template by name.
       --name string
           Edit the template name.
 
+      --require-active-version bool (default: false)
+          Requires workspace builds to use the active template version. This
+          setting does not apply to template admins. This is an enterprise-only
+          feature.
+
   -y, --yes bool
           Bypass prompts.
 
----
+———
 Run `coder --help` for a list of global options.

@@ -1,11 +1,11 @@
-import set from "lodash/set"
-import has from "lodash/has"
-import unset from "lodash/unset"
-import get from "lodash/get"
+import set from "lodash/set";
+import has from "lodash/has";
+import unset from "lodash/unset";
+import get from "lodash/get";
 
 export type FileTree = {
-  [key: string]: FileTree | string
-}
+  [key: string]: FileTree | string;
+};
 
 export const createFile = (
   path: string,
@@ -13,71 +13,71 @@ export const createFile = (
   value: string,
 ): FileTree => {
   if (existsFile(path, fileTree)) {
-    throw new Error(`File ${path} already exists`)
+    throw new Error(`File ${path} already exists`);
   }
-  const pathError = validatePath(path, fileTree)
+  const pathError = validatePath(path, fileTree);
   if (pathError) {
-    throw new Error(pathError)
+    throw new Error(pathError);
   }
 
-  return set(fileTree, path.split("/"), value)
-}
+  return set(fileTree, path.split("/"), value);
+};
 
 export const validatePath = (
   path: string,
   fileTree: FileTree,
 ): string | undefined => {
-  const paths = path.split("/")
-  paths.pop() // The last item is the filename
+  const paths = path.split("/");
+  paths.pop(); // The last item is the filename
   for (let i = 0; i <= paths.length; i++) {
-    const path = paths.slice(0, i + 1)
-    const pathStr = path.join("/")
+    const path = paths.slice(0, i + 1);
+    const pathStr = path.join("/");
     if (existsFile(pathStr, fileTree) && !isFolder(pathStr, fileTree)) {
-      return `Invalid path. The path ${path} is not a folder`
+      return `Invalid path. The path ${path} is not a folder`;
     }
   }
-}
+};
 
 export const updateFile = (
   path: string,
   content: FileTree | string,
   fileTree: FileTree,
 ): FileTree => {
-  return set(fileTree, path.split("/"), content)
-}
+  return set(fileTree, path.split("/"), content);
+};
 
 export const existsFile = (path: string, fileTree: FileTree) => {
-  return has(fileTree, path.split("/"))
-}
+  return has(fileTree, path.split("/"));
+};
 
 export const removeFile = (path: string, fileTree: FileTree) => {
-  const updatedFileTree = { ...fileTree }
-  unset(updatedFileTree, path.split("/"))
-  return updatedFileTree
-}
+  const updatedFileTree = { ...fileTree };
+  unset(updatedFileTree, path.split("/"));
+  return updatedFileTree;
+};
 
 export const moveFile = (
   currentPath: string,
   newPath: string,
   fileTree: FileTree,
 ) => {
-  const content = getFileContent(currentPath, fileTree)
+  const content = getFileContent(currentPath, fileTree);
   if (typeof content !== "string") {
-    throw new Error("Move folders is not allowed")
+    throw new Error("Move folders is not allowed");
   }
-  fileTree = removeFile(currentPath, fileTree)
-  fileTree = createFile(newPath, fileTree, content)
-  return fileTree
-}
+  fileTree = removeFile(currentPath, fileTree);
+  fileTree = createFile(newPath, fileTree, content);
+  return fileTree;
+};
 
 export const getFileContent = (path: string, fileTree: FileTree) => {
-  return get(fileTree, path.split("/")) as string | FileTree
-}
+  return get(fileTree, path.split("/")) as string | FileTree;
+};
 
 export const isFolder = (path: string, fileTree: FileTree) => {
-  const content = getFileContent(path, fileTree)
-  return typeof content === "object"
-}
+  const content = getFileContent(path, fileTree);
+  return typeof content === "object";
+};
 
 export const traverse = (
   fileTree: FileTree,
@@ -89,11 +89,11 @@ export const traverse = (
   parent?: string,
 ) => {
   Object.keys(fileTree).forEach((filename) => {
-    const fullPath = parent ? `${parent}/${filename}` : filename
-    const content = fileTree[filename]
-    callback(content, filename, fullPath)
+    const fullPath = parent ? `${parent}/${filename}` : filename;
+    const content = fileTree[filename];
+    callback(content, filename, fullPath);
     if (typeof content === "object") {
-      traverse(content, callback, fullPath)
+      traverse(content, callback, fullPath);
     }
-  })
-}
+  });
+};

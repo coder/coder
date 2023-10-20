@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"math/rand"
@@ -24,26 +23,26 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-isatty"
 	"github.com/mitchellh/go-wordwrap"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/pretty"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/config"
-	"github.com/coder/coder/v2/coderd"
-	"github.com/coder/coder/v2/coderd/gitauth"
-	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/cli/gitauth"
+	"github.com/coder/coder/v2/cli/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
 var (
-	Caret = cliui.DefaultStyles.Prompt.String()
+	Caret = pretty.Sprint(cliui.DefaultStyles.Prompt, "")
 
 	// Applied as annotations to workspace commands
 	// so they display in a separated "help" section.
@@ -56,6 +55,7 @@ const (
 	varURL              = "url"
 	varToken            = "token"
 	varAgentToken       = "agent-token"
+	varAgentTokenFile   = "agent-token-file"
 	varAgentURL         = "agent-url"
 	varHeader           = "header"
 	varHeaderCommand    = "header-command"
@@ -72,7 +72,9 @@ const (
 	envSessionToken     = "CODER_SESSION_TOKEN"
 	//nolint:gosec
 	envAgentToken = "CODER_AGENT_TOKEN"
-	envURL        = "CODER_URL"
+	//nolint:gosec
+	envAgentTokenFile = "CODER_AGENT_TOKEN_FILE"
+	envURL            = "CODER_URL"
 )
 
 var errUnauthenticated = xerrors.New(notLoggedInMessage)
@@ -81,6 +83,7 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 	// Please re-sort this list alphabetically if you change it!
 	return []*clibase.Cmd{
 		r.dotfiles(),
+		r.externalAuth(),
 		r.login(),
 		r.logout(),
 		r.netcheck(),
@@ -119,10 +122,7 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 }
 
 func (r *RootCmd) AGPL() []*clibase.Cmd {
-	all := append(r.Core(), r.Server(func(_ context.Context, o *coderd.Options) (*coderd.API, io.Closer, error) {
-		api := coderd.New(o)
-		return api, api, nil
-	}))
+	all := append(r.Core(), r.Server( /* Do not import coderd here. */ nil))
 	return all
 }
 
@@ -134,14 +134,13 @@ func (r *RootCmd) RunMain(subcommands []*clibase.Cmd) {
 	if err != nil {
 		panic(err)
 	}
-
 	err = cmd.Invoke().WithOS().Run()
 	if err != nil {
 		if errors.Is(err, cliui.Canceled) {
 			//nolint:revive
 			os.Exit(1)
 		}
-		f := prettyErrorFormatter{w: os.Stderr}
+		f := prettyErrorFormatter{w: os.Stderr, verbose: r.verbose}
 		f.format(err)
 		//nolint:revive
 		os.Exit(1)
@@ -164,7 +163,9 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 			},
 		),
 		Handler: func(i *clibase.Invocation) error {
-			// fmt.Fprintf(i.Stderr, "env debug: %+v", i.Environ)
+			if r.versionFlag {
+				return r.version(defaultVersionInfo).Handler(i)
+			}
 			// The GIT_ASKPASS environment variable must point at
 			// a binary with no arguments. To prevent writing
 			// cross-platform scripts to invoke the Coder binary
@@ -332,6 +333,14 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 			Group:       globalGroup,
 		},
 		{
+			Flag:        varAgentTokenFile,
+			Env:         envAgentTokenFile,
+			Description: "A file containing an agent authentication token.",
+			Value:       clibase.StringOf(&r.agentTokenFile),
+			Hidden:      true,
+			Group:       globalGroup,
+		},
+		{
 			Flag:        varAgentURL,
 			Env:         "CODER_AGENT_URL",
 			Description: "URL for an agent to access your deployment.",
@@ -413,6 +422,15 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 			Value:       clibase.StringOf(&r.globalConfig),
 			Group:       globalGroup,
 		},
+		{
+			Flag: "version",
+			// This was requested by a customer to assist with their migration.
+			// They have two Coder CLIs, and want to tell the difference by running
+			// the same base command.
+			Description: "Run the version command. Useful for v1 customers migrating to v2.",
+			Value:       clibase.BoolOf(&r.versionFlag),
+			Hidden:      true,
+		},
 	}
 
 	err := cmd.PrepareAll()
@@ -438,24 +456,22 @@ func LoggerFromContext(ctx context.Context) (slog.Logger, bool) {
 	return l, ok
 }
 
-func isTest() bool {
-	return flag.Lookup("test.v") != nil
-}
-
 // RootCmd contains parameters and helpers useful to all commands.
 type RootCmd struct {
-	clientURL     *url.URL
-	token         string
-	globalConfig  string
-	header        []string
-	headerCommand string
-	agentToken    string
-	agentURL      *url.URL
-	forceTTY      bool
-	noOpen        bool
-	verbose       bool
-	disableDirect bool
-	debugHTTP     bool
+	clientURL      *url.URL
+	token          string
+	globalConfig   string
+	header         []string
+	headerCommand  string
+	agentToken     string
+	agentTokenFile string
+	agentURL       *url.URL
+	forceTTY       bool
+	noOpen         bool
+	verbose        bool
+	versionFlag    bool
+	disableDirect  bool
+	debugHTTP      bool
 
 	noVersionCheck   bool
 	noFeatureWarning bool
@@ -471,17 +487,17 @@ func addTelemetryHeader(client *codersdk.Client, inv *clibase.Invocation) {
 		client.HTTPClient.Transport = transport
 	}
 
-	var topts []telemetry.CLIOption
+	var topts []telemetry.Option
 	for _, opt := range inv.Command.FullOptions() {
 		if opt.ValueSource == clibase.ValueSourceNone || opt.ValueSource == clibase.ValueSourceDefault {
 			continue
 		}
-		topts = append(topts, telemetry.CLIOption{
+		topts = append(topts, telemetry.Option{
 			Name:        opt.Name,
 			ValueSource: string(opt.ValueSource),
 		})
 	}
-	ti := telemetry.CLIInvocation{
+	ti := telemetry.Invocation{
 		Command:   inv.Command.FullName(),
 		Options:   topts,
 		InvokedAt: time.Now(),
@@ -585,15 +601,13 @@ func (r *RootCmd) initClientInternal(client *codersdk.Client, allowTokenMissing 
 			if err = <-versionErr; err != nil {
 				// Just log the error here. We never want to fail a command
 				// due to a pre-run.
-				_, _ = fmt.Fprintf(inv.Stderr,
-					cliui.DefaultStyles.Warn.Render("check versions error: %s"), err)
+				pretty.Fprintf(inv.Stderr, cliui.DefaultStyles.Warn, "check versions error: %s", err)
 				_, _ = fmt.Fprintln(inv.Stderr)
 			}
 
 			if err = <-warningErr; err != nil {
 				// Same as above
-				_, _ = fmt.Fprintf(inv.Stderr,
-					cliui.DefaultStyles.Warn.Render("check entitlement warnings error: %s"), err)
+				pretty.Fprintf(inv.Stderr, cliui.DefaultStyles.Warn, "check entitlement warnings error: %s", err)
 				_, _ = fmt.Fprintln(inv.Stderr)
 			}
 
@@ -757,18 +771,18 @@ type example struct {
 func formatExamples(examples ...example) string {
 	var sb strings.Builder
 
-	padStyle := cliui.DefaultStyles.Wrap.Copy().PaddingLeft(4)
+	padStyle := cliui.DefaultStyles.Wrap.With(pretty.XPad(4, 0))
 	for i, e := range examples {
 		if len(e.Description) > 0 {
 			wordwrap.WrapString(e.Description, 80)
 			_, _ = sb.WriteString(
-				"  - " + padStyle.Render(e.Description + ":")[4:] + "\n\n    ",
+				"  - " + pretty.Sprint(padStyle, e.Description+":")[4:] + "\n\n    ",
 			)
 		}
 		// We add 1 space here because `cliui.DefaultStyles.Code` adds an extra
 		// space. This makes the code block align at an even 2 or 6
 		// spaces for symmetry.
-		_, _ = sb.WriteString(" " + cliui.DefaultStyles.Code.Render(fmt.Sprintf("$ %s", e.Command)))
+		_, _ = sb.WriteString(" " + pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("$ %s", e.Command)))
 		if i < len(examples)-1 {
 			_, _ = sb.WriteString("\n\n")
 		}
@@ -806,8 +820,8 @@ func (r *RootCmd) checkVersions(i *clibase.Invocation, client *codersdk.Client) 
 	}
 
 	if !buildinfo.VersionsMatch(clientVersion, info.Version) {
-		warn := cliui.DefaultStyles.Warn.Copy().Align(lipgloss.Left)
-		_, _ = fmt.Fprintf(i.Stderr, warn.Render(fmtWarningText), clientVersion, info.Version, strings.TrimPrefix(info.CanonicalVersion(), "v"))
+		warn := cliui.DefaultStyles.Warn
+		_, _ = fmt.Fprintf(i.Stderr, pretty.Sprint(warn, fmtWarningText), clientVersion, info.Version, strings.TrimPrefix(info.CanonicalVersion(), "v"))
 		_, _ = fmt.Fprintln(i.Stderr)
 	}
 
@@ -822,10 +836,18 @@ func (r *RootCmd) checkWarnings(i *clibase.Invocation, client *codersdk.Client) 
 	ctx, cancel := context.WithTimeout(i.Context(), 10*time.Second)
 	defer cancel()
 
+	user, err := client.User(ctx, codersdk.Me)
+	if err != nil {
+		return xerrors.Errorf("get user me: %w", err)
+	}
+
 	entitlements, err := client.Entitlements(ctx)
 	if err == nil {
-		for _, w := range entitlements.Warnings {
-			_, _ = fmt.Fprintln(i.Stderr, cliui.DefaultStyles.Warn.Render(w))
+		// Don't show warning to regular users.
+		if len(user.Roles) > 0 {
+			for _, w := range entitlements.Warnings {
+				_, _ = fmt.Fprintln(i.Stderr, pretty.Sprint(cliui.DefaultStyles.Warn, w))
+			}
 		}
 	}
 	return nil
@@ -961,65 +983,157 @@ func isConnectionError(err error) bool {
 
 type prettyErrorFormatter struct {
 	w io.Writer
+	// verbose turns on more detailed error logs, such as stack traces.
+	verbose bool
 }
 
+// format formats the error to the console. This error should be human
+// readable.
 func (p *prettyErrorFormatter) format(err error) {
-	errTail := errors.Unwrap(err)
+	output := cliHumanFormatError(err, &formatOpts{
+		Verbose: p.verbose,
+	})
+	// always trail with a newline
+	_, _ = p.w.Write([]byte(output + "\n"))
+}
+
+type formatOpts struct {
+	Verbose bool
+}
+
+const indent = "    "
+
+// cliHumanFormatError formats an error for the CLI. Newlines and styling are
+// included.
+func cliHumanFormatError(err error, opts *formatOpts) string {
+	if opts == nil {
+		opts = &formatOpts{}
+	}
 
 	//nolint:errorlint
-	if _, ok := err.(*clibase.RunCommandError); ok && errTail != nil {
-		// Avoid extra nesting.
-		p.format(errTail)
-		return
+	if multi, ok := err.(interface{ Unwrap() []error }); ok {
+		multiErrors := multi.Unwrap()
+		if len(multiErrors) == 1 {
+			// Format as a single error
+			return cliHumanFormatError(multiErrors[0], opts)
+		}
+		return formatMultiError(multiErrors, opts)
 	}
 
-	var headErr string
-	if errTail != nil {
-		headErr = strings.TrimSuffix(err.Error(), ": "+errTail.Error())
-	} else {
-		headErr = err.Error()
-	}
-
-	var msg string
+	// First check for sentinel errors that we want to handle specially.
+	// Order does matter! We want to check for the most specific errors first.
 	var sdkError *codersdk.Error
 	if errors.As(err, &sdkError) {
-		// We don't want to repeat the same error message twice, so we
-		// only show the SDK error on the top of the stack.
-		msg = sdkError.Message
-		if sdkError.Helper != "" {
-			msg = msg + "\n" + sdkError.Helper
-		} else if sdkError.Detail != "" {
-			msg = msg + "\n" + sdkError.Detail
-		}
-		// The SDK error is usually good enough, and we don't want to overwhelm
-		// the user with output.
-		errTail = nil
-	} else {
-		msg = headErr
+		return formatCoderSDKError(sdkError, opts)
 	}
 
-	headStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#D16644"))
-	p.printf(
-		headStyle,
-		"%s",
-		msg,
-	)
-
-	tailStyle := headStyle.Copy().Foreground(lipgloss.Color("#969696"))
-
-	if errTail != nil {
-		p.printf(headStyle, ": ")
-		// Grey out the less important, deep errors.
-		p.printf(tailStyle, "%s", errTail.Error())
+	var cmdErr *clibase.RunCommandError
+	if errors.As(err, &cmdErr) {
+		return formatRunCommandError(cmdErr, opts)
 	}
-	p.printf(tailStyle, "\n")
+
+	// Default just printing the error. Use +v for verbose to handle stack
+	// traces of xerrors.
+	if opts.Verbose {
+		return pretty.Sprint(headLineStyle(), fmt.Sprintf("%+v", err))
+	}
+
+	return pretty.Sprint(headLineStyle(), fmt.Sprintf("%v", err))
 }
 
-func (p *prettyErrorFormatter) printf(style lipgloss.Style, format string, a ...interface{}) {
-	s := style.Render(fmt.Sprintf(format, a...))
-	_, _ = p.w.Write(
-		[]byte(
-			s,
-		),
-	)
+// formatMultiError formats a multi-error. It formats it as a list of errors.
+//
+//	Multiple Errors:
+//	<# errors encountered>:
+//		1. <heading error message>
+//		   <verbose error message>
+//		2. <heading error message>
+//		   <verbose error message>
+func formatMultiError(multi []error, opts *formatOpts) string {
+	var errorStrings []string
+	for _, err := range multi {
+		errorStrings = append(errorStrings, cliHumanFormatError(err, opts))
+	}
+
+	// Write errors out
+	var str strings.Builder
+	_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("%d errors encountered:", len(multi))))
+	for i, errStr := range errorStrings {
+		// Indent each error
+		errStr = strings.ReplaceAll(errStr, "\n", "\n"+indent)
+		// Error now looks like
+		// |  <line>
+		// |  <line>
+		prefix := fmt.Sprintf("%d. ", i+1)
+		if len(prefix) < len(indent) {
+			// Indent the prefix to match the indent
+			prefix = prefix + strings.Repeat(" ", len(indent)-len(prefix))
+		}
+		errStr = prefix + errStr
+		// Now looks like
+		// |1.<line>
+		// |  <line>
+		_, _ = str.WriteString("\n" + errStr)
+	}
+	return str.String()
+}
+
+// formatRunCommandError are cli command errors. This kind of error is very
+// broad, as it contains all errors that occur when running a command.
+// If you know the error is something else, like a codersdk.Error, make a new
+// formatter and add it to cliHumanFormatError function.
+func formatRunCommandError(err *clibase.RunCommandError, opts *formatOpts) string {
+	var str strings.Builder
+	_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("Encountered an error running %q", err.Cmd.FullName())))
+
+	msgString := fmt.Sprintf("%v", err.Err)
+	if opts.Verbose {
+		// '%+v' includes stack traces
+		msgString = fmt.Sprintf("%+v", err.Err)
+	}
+	_, _ = str.WriteString("\n")
+	_, _ = str.WriteString(pretty.Sprint(tailLineStyle(), msgString))
+	return str.String()
+}
+
+// formatCoderSDKError come from API requests. In verbose mode, add the
+// request debug information.
+func formatCoderSDKError(err *codersdk.Error, opts *formatOpts) string {
+	var str strings.Builder
+	if opts.Verbose {
+		_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("API request error to \"%s:%s\". Status code %d", err.Method(), err.URL(), err.StatusCode())))
+		_, _ = str.WriteString("\n")
+	}
+
+	_, _ = str.WriteString(pretty.Sprint(headLineStyle(), err.Message))
+	if err.Helper != "" {
+		_, _ = str.WriteString("\n")
+		_, _ = str.WriteString(pretty.Sprint(tailLineStyle(), err.Helper))
+	}
+	// By default we do not show the Detail with the helper.
+	if opts.Verbose || (err.Helper == "" && err.Detail != "") {
+		_, _ = str.WriteString("\n")
+		_, _ = str.WriteString(pretty.Sprint(tailLineStyle(), err.Detail))
+	}
+	return str.String()
+}
+
+// These styles are arbitrary.
+func headLineStyle() pretty.Style {
+	return cliui.DefaultStyles.Error
+}
+
+func tailLineStyle() pretty.Style {
+	return pretty.Style{pretty.Nop}
+}
+
+//nolint:unused
+func SlimUnsupported(w io.Writer, cmd string) {
+	_, _ = fmt.Fprintf(w, "You are using a 'slim' build of Coder, which does not support the %s subcommand.\n", pretty.Sprint(cliui.DefaultStyles.Code, cmd))
+	_, _ = fmt.Fprintln(w, "")
+	_, _ = fmt.Fprintln(w, "Please use a build of Coder from GitHub releases:")
+	_, _ = fmt.Fprintln(w, "  https://github.com/coder/coder/releases")
+
+	//nolint:revive
+	os.Exit(1)
 }

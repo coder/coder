@@ -8,6 +8,8 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/coder/pretty"
+
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
@@ -15,19 +17,21 @@ import (
 
 func (r *RootCmd) templateEdit() *clibase.Cmd {
 	var (
-		name                          string
-		displayName                   string
-		description                   string
-		icon                          string
-		defaultTTL                    time.Duration
-		maxTTL                        time.Duration
-		autostopRequirementDaysOfWeek []string
-		autostopRequirementWeeks      int64
-		failureTTL                    time.Duration
-		inactivityTTL                 time.Duration
-		allowUserCancelWorkspaceJobs  bool
-		allowUserAutostart            bool
-		allowUserAutostop             bool
+		name                           string
+		displayName                    string
+		description                    string
+		icon                           string
+		defaultTTL                     time.Duration
+		maxTTL                         time.Duration
+		autostopRequirementDaysOfWeek  []string
+		autostopRequirementWeeks       int64
+		autostartRequirementDaysOfWeek []string
+		failureTTL                     time.Duration
+		inactivityTTL                  time.Duration
+		allowUserCancelWorkspaceJobs   bool
+		allowUserAutostart             bool
+		allowUserAutostop              bool
+		requireActiveVersion           bool
 	)
 	client := new(codersdk.Client)
 
@@ -39,37 +43,42 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 		),
 		Short: "Edit the metadata of a template by name.",
 		Handler: func(inv *clibase.Invocation) error {
-			// This clause can be removed when workspace_actions is no longer experimental
-			if failureTTL != 0 || inactivityTTL != 0 {
-				experiments, exErr := client.Experiments(inv.Context())
-				if exErr != nil {
-					return xerrors.Errorf("get experiments: %w", exErr)
-				}
-
-				if !experiments.Enabled(codersdk.ExperimentWorkspaceActions) {
-					return xerrors.Errorf("--failure-ttl and --inactivityTTL are experimental features. Use the workspace_actions CODER_EXPERIMENTS flag to set these configuration values.")
-				}
-			}
-
 			unsetAutostopRequirementDaysOfWeek := len(autostopRequirementDaysOfWeek) == 1 && autostopRequirementDaysOfWeek[0] == "none"
-			requiresEntitlement := (len(autostopRequirementDaysOfWeek) > 0 && !unsetAutostopRequirementDaysOfWeek) ||
+			requiresScheduling := (len(autostopRequirementDaysOfWeek) > 0 && !unsetAutostopRequirementDaysOfWeek) ||
 				autostopRequirementWeeks > 0 ||
 				!allowUserAutostart ||
 				!allowUserAutostop ||
 				maxTTL != 0 ||
 				failureTTL != 0 ||
-				inactivityTTL != 0
+				inactivityTTL != 0 ||
+				len(autostartRequirementDaysOfWeek) > 0
+
+			requiresEntitlement := requiresScheduling || requireActiveVersion
 			if requiresEntitlement {
 				entitlements, err := client.Entitlements(inv.Context())
-				var sdkErr *codersdk.Error
-				if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
-					return xerrors.Errorf("your deployment appears to be an AGPL deployment, so you cannot set --max-ttl, --failure-ttl, --inactivityTTL, --allow-user-autostart=false or --allow-user-autostop=false")
+				if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusNotFound {
+					return xerrors.Errorf("your deployment appears to be an AGPL deployment, so you cannot set enterprise-only flags")
 				} else if err != nil {
 					return xerrors.Errorf("get entitlements: %w", err)
 				}
 
-				if !entitlements.Features[codersdk.FeatureAdvancedTemplateScheduling].Enabled {
+				if requiresScheduling && !entitlements.Features[codersdk.FeatureAdvancedTemplateScheduling].Enabled {
 					return xerrors.Errorf("your license is not entitled to use advanced template scheduling, so you cannot set --max-ttl, --failure-ttl, --inactivityTTL, --allow-user-autostart=false or --allow-user-autostop=false")
+				}
+
+				if requireActiveVersion {
+					if !entitlements.Features[codersdk.FeatureAccessControl].Enabled {
+						return xerrors.Errorf("your license is not entitled to use enterprise access control, so you cannot set --require-active-version")
+					}
+
+					experiments, exErr := client.Experiments(inv.Context())
+					if exErr != nil {
+						return xerrors.Errorf("get experiments: %w", exErr)
+					}
+
+					if !experiments.Enabled(codersdk.ExperimentTemplateUpdatePolicies) {
+						return xerrors.Errorf("--require-active-version is an experimental feature, contact an administrator to enable the 'template_update_policies' experiment on your Coder server")
+					}
 				}
 			}
 
@@ -87,6 +96,12 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 			if len(autostopRequirementDaysOfWeek) == 0 {
 				autostopRequirementDaysOfWeek = template.AutostopRequirement.DaysOfWeek
 			}
+			if len(autostartRequirementDaysOfWeek) == 1 && autostartRequirementDaysOfWeek[0] == "all" {
+				// Set it to every day of the week
+				autostartRequirementDaysOfWeek = []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
+			} else if len(autostartRequirementDaysOfWeek) == 0 {
+				autostartRequirementDaysOfWeek = template.AutostartRequirement.DaysOfWeek
+			}
 			if unsetAutostopRequirementDaysOfWeek {
 				autostopRequirementDaysOfWeek = []string{}
 			}
@@ -103,18 +118,22 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 					DaysOfWeek: autostopRequirementDaysOfWeek,
 					Weeks:      autostopRequirementWeeks,
 				},
+				AutostartRequirement: &codersdk.TemplateAutostartRequirement{
+					DaysOfWeek: autostartRequirementDaysOfWeek,
+				},
 				FailureTTLMillis:             failureTTL.Milliseconds(),
 				TimeTilDormantMillis:         inactivityTTL.Milliseconds(),
 				AllowUserCancelWorkspaceJobs: allowUserCancelWorkspaceJobs,
 				AllowUserAutostart:           allowUserAutostart,
 				AllowUserAutostop:            allowUserAutostop,
+				RequireActiveVersion:         requireActiveVersion,
 			}
 
 			_, err = client.UpdateTemplateMeta(inv.Context(), template.ID, req)
 			if err != nil {
 				return xerrors.Errorf("update template metadata: %w", err)
 			}
-			_, _ = fmt.Fprintf(inv.Stdout, "Updated template metadata at %s!\n", cliui.DefaultStyles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
+			_, _ = fmt.Fprintf(inv.Stdout, "Updated template metadata at %s!\n", pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, time.Now().Format(time.Stamp)))
 			return nil
 		},
 	}
@@ -149,6 +168,22 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 			Flag:        "max-ttl",
 			Description: "Edit the template maximum time before shutdown - workspaces created from this template must shutdown within the given duration after starting, regardless of user activity. This is an enterprise-only feature. Maps to \"Max lifetime\" in the UI.",
 			Value:       clibase.DurationOf(&maxTTL),
+		},
+		{
+			Flag: "autostart-requirement-weekdays",
+			// workspaces created from this template must be restarted on the given weekdays. To unset this value for the template (and disable the autostop requirement for the template), pass 'none'.
+			Description: "Edit the template autostart requirement weekdays - workspaces created from this template can only autostart on the given weekdays. To unset this value for the template (and allow autostart on all days), pass 'all'.",
+			Value: clibase.Validate(clibase.StringArrayOf(&autostartRequirementDaysOfWeek), func(value *clibase.StringArray) error {
+				v := value.GetSlice()
+				if len(v) == 1 && v[0] == "all" {
+					return nil
+				}
+				_, err := codersdk.WeekdaysToBitmap(v)
+				if err != nil {
+					return xerrors.Errorf("invalid autostart requirement days of week %q: %w", strings.Join(v, ","), err)
+				}
+				return nil
+			}),
 		},
 		{
 			Flag:        "autostop-requirement-weekdays",
@@ -203,6 +238,12 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 			Description: "Allow users to customize the autostop TTL for workspaces on this template. This can only be disabled in enterprise.",
 			Default:     "true",
 			Value:       clibase.BoolOf(&allowUserAutostop),
+		},
+		{
+			Flag:        "require-active-version",
+			Description: "Requires workspace builds to use the active template version. This setting does not apply to template admins. This is an enterprise-only feature.",
+			Value:       clibase.BoolOf(&requireActiveVersion),
+			Default:     "false",
 		},
 		cliui.SkipPromptOption(),
 	}

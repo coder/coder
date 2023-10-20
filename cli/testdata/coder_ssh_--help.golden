@@ -1,8 +1,11 @@
-Usage: coder ssh [flags] <workspace>
+coder v0.0.0-devel
 
-Start a shell into a workspace
+USAGE:
+  coder ssh [flags] <workspace>
 
-[1mOptions[0m
+  Start a shell into a workspace
+
+OPTIONS:
   -A, --forward-agent bool, $CODER_SSH_FORWARD_AGENT
           Specifies whether to forward the SSH agent specified in
           $SSH_AUTH_SOCK.
@@ -41,5 +44,5 @@ Start a shell into a workspace
       --workspace-poll-interval duration, $CODER_WORKSPACE_POLL_INTERVAL (default: 1m)
           Specifies how often to poll for workspace automated shutdown.
 
----
+———
 Run `coder --help` for a list of global options.

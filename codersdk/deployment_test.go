@@ -57,14 +57,17 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 		"SCIM API Key": {
 			yaml: true,
 		},
+		"External Token Encryption Keys": {
+			yaml: true,
+		},
 		// These complex objects should be configured through YAML.
 		"Support Links": {
 			flag: true,
 			env:  true,
 		},
-		"Git Auth Providers": {
-			// Technically Git Auth Providers can be provided through the env,
-			// but bypassing clibase. See cli.ReadGitAuthProvidersFromEnv.
+		"External Auth Providers": {
+			// Technically External Auth Providers can be provided through the env,
+			// but bypassing clibase. See cli.ReadExternalAuthProvidersFromEnv.
 			flag: true,
 			env:  true,
 		},

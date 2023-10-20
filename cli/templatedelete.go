@@ -7,6 +7,8 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/coder/pretty"
+
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
@@ -46,38 +48,18 @@ func (r *RootCmd) templateDelete() *clibase.Cmd {
 					templates = append(templates, template)
 				}
 			} else {
-				allTemplates, err := client.TemplatesByOrganization(ctx, organization.ID)
+				template, err := selectTemplate(inv, client, organization)
 				if err != nil {
-					return xerrors.Errorf("get templates by organization: %w", err)
+					return err
 				}
 
-				if len(allTemplates) == 0 {
-					return xerrors.Errorf("no templates exist in the current organization %q", organization.Name)
-				}
-
-				opts := make([]string, 0, len(allTemplates))
-				for _, template := range allTemplates {
-					opts = append(opts, template.Name)
-				}
-
-				selection, err := cliui.Select(inv, cliui.SelectOptions{
-					Options: opts,
-				})
-				if err != nil {
-					return xerrors.Errorf("select template: %w", err)
-				}
-
-				for _, template := range allTemplates {
-					if template.Name == selection {
-						templates = append(templates, template)
-						templateNames = append(templateNames, template.Name)
-					}
-				}
+				templates = append(templates, template)
+				templateNames = append(templateNames, template.Name)
 			}
 
 			// Confirm deletion of the template.
 			_, err = cliui.Prompt(inv, cliui.PromptOptions{
-				Text:      fmt.Sprintf("Delete these templates: %s?", cliui.DefaultStyles.Code.Render(strings.Join(templateNames, ", "))),
+				Text:      fmt.Sprintf("Delete these templates: %s?", pretty.Sprint(cliui.DefaultStyles.Code, strings.Join(templateNames, ", "))),
 				IsConfirm: true,
 				Default:   cliui.ConfirmNo,
 			})
@@ -91,7 +73,9 @@ func (r *RootCmd) templateDelete() *clibase.Cmd {
 					return xerrors.Errorf("delete template %q: %w", template.Name, err)
 				}
 
-				_, _ = fmt.Fprintln(inv.Stdout, "Deleted template "+cliui.DefaultStyles.Code.Render(template.Name)+" at "+cliui.DefaultStyles.DateTimeStamp.Render(time.Now().Format(time.Stamp))+"!")
+				_, _ = fmt.Fprintln(
+					inv.Stdout, "Deleted template "+pretty.Sprint(cliui.DefaultStyles.Keyword, template.Name)+" at "+cliui.Timestamp(time.Now()),
+				)
 			}
 
 			return nil

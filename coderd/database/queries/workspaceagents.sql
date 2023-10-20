@@ -40,20 +40,16 @@ INSERT INTO
 		architecture,
 		environment_variables,
 		operating_system,
-		startup_script,
 		directory,
 		instance_metadata,
 		resource_metadata,
 		connection_timeout_seconds,
 		troubleshooting_url,
 		motd_file,
-		startup_script_behavior,
-		startup_script_timeout_seconds,
-		shutdown_script,
-		shutdown_script_timeout_seconds
+		display_apps
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING *;
 
 -- name: UpdateWorkspaceAgentConnectionByID :exec
 UPDATE
@@ -112,15 +108,24 @@ VALUES
 	($1, $2, $3, $4, $5, $6);
 
 -- name: UpdateWorkspaceAgentMetadata :exec
+WITH metadata AS (
+	SELECT
+		unnest(sqlc.arg('key')::text[]) AS key,
+		unnest(sqlc.arg('value')::text[]) AS value,
+		unnest(sqlc.arg('error')::text[]) AS error,
+		unnest(sqlc.arg('collected_at')::timestamptz[]) AS collected_at
+)
 UPDATE
-	workspace_agent_metadata
+	workspace_agent_metadata wam
 SET
-	value = $3,
-	error = $4,
-	collected_at = $5
+	value = m.value,
+	error = m.error,
+	collected_at = m.collected_at
+FROM
+	metadata m
 WHERE
-	workspace_agent_id = $1
-	AND key = $2;
+	wam.workspace_agent_id = $1
+	AND wam.key = m.key;
 
 -- name: GetWorkspaceAgentMetadata :many
 SELECT
@@ -128,7 +133,8 @@ SELECT
 FROM
 	workspace_agent_metadata
 WHERE
-	workspace_agent_id = $1;
+	workspace_agent_id = $1
+	AND CASE WHEN COALESCE(array_length(sqlc.arg('keys')::text[], 1), 0) > 0 THEN key = ANY(sqlc.arg('keys')::text[]) ELSE TRUE END;
 
 -- name: UpdateWorkspaceAgentLogOverflowByID :exec
 UPDATE
@@ -155,14 +161,28 @@ WITH new_length AS (
 	logs_length = logs_length + @output_length WHERE workspace_agents.id = @agent_id
 )
 INSERT INTO
-		workspace_agent_logs (agent_id, created_at, output, level, source)
+		workspace_agent_logs (agent_id, created_at, output, level, log_source_id)
 	SELECT
 		@agent_id :: uuid AS agent_id,
-		unnest(@created_at :: timestamptz [ ]) AS created_at,
+		@created_at :: timestamptz AS created_at,
 		unnest(@output :: VARCHAR(1024) [ ]) AS output,
 		unnest(@level :: log_level [ ]) AS level,
-		unnest(@source :: workspace_agent_log_source [ ]) AS source
+		@log_source_id :: uuid AS log_source_id
 	RETURNING workspace_agent_logs.*;
+
+-- name: InsertWorkspaceAgentLogSources :many
+INSERT INTO
+		workspace_agent_log_sources (workspace_agent_id, created_at, id, display_name, icon)
+	SELECT
+		@workspace_agent_id :: uuid AS workspace_agent_id,
+		@created_at :: timestamptz AS created_at,
+		unnest(@id :: uuid [ ]) AS id,
+		unnest(@display_name :: VARCHAR(127) [ ]) AS display_name,
+		unnest(@icon :: text [ ]) AS icon
+	RETURNING workspace_agent_log_sources.*;
+
+-- name: GetWorkspaceAgentLogSourcesByAgentIDs :many
+SELECT * FROM workspace_agent_log_sources WHERE workspace_agent_id = ANY(@ids :: uuid [ ]);
 
 -- If an agent hasn't connected in the last 7 days, we purge it's logs.
 -- Logs can take up a lot of space, so it's important we clean up frequently.

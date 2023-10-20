@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
@@ -83,7 +84,7 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rawClaims, err := license.ParseRaw(addLicense.License, api.Keys)
+	rawClaims, err := license.ParseRaw(addLicense.License, api.LicenseKeys)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid license",
@@ -101,7 +102,7 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 	}
 	expTime := time.Unix(int64(exp), 0)
 
-	claims, err := license.ParseClaims(addLicense.License, api.Keys)
+	claims, err := license.ParseClaims(addLicense.License, api.LicenseKeys)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid license",
@@ -120,7 +121,7 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 		id = uuid.New()
 	}
 	dl, err := api.Database.InsertLicense(ctx, database.InsertLicenseParams{
-		UploadedAt: database.Now(),
+		UploadedAt: dbtime.Now(),
 		JWT:        addLicense.License,
 		Exp:        expTime,
 		UUID:       id,

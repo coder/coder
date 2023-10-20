@@ -1,99 +1,114 @@
-import { useMachine } from "@xstate/react"
+import { useQuery, useQueryClient } from "react-query";
+import { buildInfo } from "api/queries/buildInfo";
+import { experiments } from "api/queries/experiments";
+import { entitlements } from "api/queries/entitlements";
 import {
   AppearanceConfig,
   BuildInfoResponse,
   Entitlements,
   Experiments,
-} from "api/typesGenerated"
-import { FullScreenLoader } from "components/Loader/FullScreenLoader"
-import { createContext, FC, PropsWithChildren, useContext } from "react"
-import { appearanceMachine } from "xServices/appearance/appearanceXService"
-import { buildInfoMachine } from "xServices/buildInfo/buildInfoXService"
-import { entitlementsMachine } from "xServices/entitlements/entitlementsXService"
-import { experimentsMachine } from "xServices/experiments/experimentsMachine"
+} from "api/typesGenerated";
+import { FullScreenLoader } from "components/Loader/FullScreenLoader";
+import {
+  type FC,
+  type PropsWithChildren,
+  createContext,
+  useCallback,
+  useContext,
+  useState,
+} from "react";
+import { appearance } from "api/queries/appearance";
+import { hslToHex, isHexColor, isHslColor } from "utils/colors";
+import { displayError } from "components/GlobalSnackbar/utils";
 
 interface Appearance {
-  config: AppearanceConfig
-  preview: boolean
-  setPreview: (config: AppearanceConfig) => void
-  save: (config: AppearanceConfig) => void
+  config: AppearanceConfig;
+  isPreview: boolean;
+  setPreview: (config: AppearanceConfig) => void;
 }
 
 interface DashboardProviderValue {
-  buildInfo: BuildInfoResponse
-  entitlements: Entitlements
-  appearance: Appearance
-  experiments: Experiments
+  buildInfo: BuildInfoResponse;
+  entitlements: Entitlements;
+  experiments: Experiments;
+  appearance: Appearance;
 }
 
 export const DashboardProviderContext = createContext<
   DashboardProviderValue | undefined
->(undefined)
+>(undefined);
 
 export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
-  const [buildInfoState] = useMachine(buildInfoMachine)
-  const [entitlementsState] = useMachine(entitlementsMachine)
-  const [appearanceState, appearanceSend] = useMachine(appearanceMachine)
-  const [experimentsState] = useMachine(experimentsMachine)
-  const { buildInfo } = buildInfoState.context
-  const { entitlements } = entitlementsState.context
-  const { appearance, preview } = appearanceState.context
-  const { experiments } = experimentsState.context
-  const isLoading = !buildInfo || !entitlements || !appearance || !experiments
+  const queryClient = useQueryClient();
+  const buildInfoQuery = useQuery(buildInfo(queryClient));
+  const entitlementsQuery = useQuery(entitlements());
+  const experimentsQuery = useQuery(experiments(queryClient));
+  const appearanceQuery = useQuery(appearance(queryClient));
 
-  const setAppearancePreview = (config: AppearanceConfig) => {
-    appearanceSend({
-      type: "SET_PREVIEW_APPEARANCE",
-      appearance: config,
-    })
-  }
+  const isLoading =
+    !buildInfoQuery.data ||
+    !entitlementsQuery.data ||
+    !appearanceQuery.data ||
+    !experimentsQuery.data;
 
-  const saveAppearance = (config: AppearanceConfig) => {
-    appearanceSend({
-      type: "SAVE_APPEARANCE",
-      appearance: config,
-    })
-  }
+  const [configPreview, setConfigPreview] = useState<AppearanceConfig>();
+
+  // Centralizing the logic for catching malformed configs in one spot, just to
+  // be on the safe side; don't want to expose raw setConfigPreview outside
+  // the provider
+  const setPreview = useCallback((newConfig: AppearanceConfig) => {
+    // Have runtime safety nets in place, just because so much of the codebase
+    // relies on HSL for formatting, but server expects hex values. Can't catch
+    // color format mismatches at the type level
+    const incomingBg = newConfig.service_banner.background_color;
+    let configForDispatch = newConfig;
+
+    if (typeof incomingBg === "string" && isHslColor(incomingBg)) {
+      configForDispatch = {
+        ...newConfig,
+        service_banner: {
+          ...newConfig.service_banner,
+          background_color: hslToHex(incomingBg),
+        },
+      };
+    } else if (typeof incomingBg === "string" && !isHexColor(incomingBg)) {
+      displayError(`The value ${incomingBg} is not a valid hex string`);
+      return;
+    }
+
+    setConfigPreview(configForDispatch);
+  }, []);
 
   if (isLoading) {
-    return <FullScreenLoader />
+    return <FullScreenLoader />;
   }
 
   return (
     <DashboardProviderContext.Provider
       value={{
-        buildInfo,
-        entitlements,
-        experiments,
+        buildInfo: buildInfoQuery.data,
+        entitlements: entitlementsQuery.data,
+        experiments: experimentsQuery.data,
         appearance: {
-          preview,
-          config: appearance,
-          setPreview: setAppearancePreview,
-          save: saveAppearance,
+          config: configPreview ?? appearanceQuery.data,
+          setPreview: setPreview,
+          isPreview: configPreview !== undefined,
         },
       }}
     >
       {children}
     </DashboardProviderContext.Provider>
-  )
-}
+  );
+};
 
 export const useDashboard = (): DashboardProviderValue => {
-  const context = useContext(DashboardProviderContext)
+  const context = useContext(DashboardProviderContext);
 
   if (!context) {
-    throw new Error("useDashboard only can be used inside of DashboardProvider")
+    throw new Error(
+      "useDashboard only can be used inside of DashboardProvider",
+    );
   }
 
-  return context
-}
-
-export const useIsWorkspaceActionsEnabled = (): boolean => {
-  const { entitlements, experiments } = useDashboard()
-  const allowAdvancedScheduling =
-    entitlements.features["advanced_template_scheduling"].enabled
-  // This check can be removed when https://github.com/coder/coder/milestone/19
-  // is merged up
-  const allowWorkspaceActions = experiments.includes("workspace_actions")
-  return allowWorkspaceActions && allowAdvancedScheduling
-}
+  return context;
+};

@@ -34,10 +34,13 @@ import (
 	"go.uber.org/goleak"
 	"gopkg.in/yaml.v3"
 
+	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/postgres"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
@@ -46,11 +49,50 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+func TestReadExternalAuthProvidersFromEnv(t *testing.T) {
+	t.Parallel()
+	t.Run("Valid", func(t *testing.T) {
+		t.Parallel()
+		providers, err := cli.ReadExternalAuthProvidersFromEnv([]string{
+			"CODER_EXTERNAL_AUTH_0_ID=1",
+			"CODER_EXTERNAL_AUTH_0_TYPE=gitlab",
+			"CODER_EXTERNAL_AUTH_1_ID=2",
+			"CODER_EXTERNAL_AUTH_1_CLIENT_ID=sid",
+			"CODER_EXTERNAL_AUTH_1_CLIENT_SECRET=hunter12",
+			"CODER_EXTERNAL_AUTH_1_TOKEN_URL=google.com",
+			"CODER_EXTERNAL_AUTH_1_VALIDATE_URL=bing.com",
+			"CODER_EXTERNAL_AUTH_1_SCOPES=repo:read repo:write",
+			"CODER_EXTERNAL_AUTH_1_NO_REFRESH=true",
+			"CODER_EXTERNAL_AUTH_1_DISPLAY_NAME=Google",
+			"CODER_EXTERNAL_AUTH_1_DISPLAY_ICON=/icon/google.svg",
+		})
+		require.NoError(t, err)
+		require.Len(t, providers, 2)
+
+		// Validate the first provider.
+		assert.Equal(t, "1", providers[0].ID)
+		assert.Equal(t, "gitlab", providers[0].Type)
+
+		// Validate the second provider.
+		assert.Equal(t, "2", providers[1].ID)
+		assert.Equal(t, "sid", providers[1].ClientID)
+		assert.Equal(t, "hunter12", providers[1].ClientSecret)
+		assert.Equal(t, "google.com", providers[1].TokenURL)
+		assert.Equal(t, "bing.com", providers[1].ValidateURL)
+		assert.Equal(t, []string{"repo:read", "repo:write"}, providers[1].Scopes)
+		assert.Equal(t, true, providers[1].NoRefresh)
+		assert.Equal(t, "Google", providers[1].DisplayName)
+		assert.Equal(t, "/icon/google.svg", providers[1].DisplayIcon)
+	})
+}
+
+// TestReadGitAuthProvidersFromEnv ensures that the deprecated `CODER_GITAUTH_`
+// environment variables are still supported.
 func TestReadGitAuthProvidersFromEnv(t *testing.T) {
 	t.Parallel()
 	t.Run("Empty", func(t *testing.T) {
 		t.Parallel()
-		providers, err := cli.ReadGitAuthProvidersFromEnv([]string{
+		providers, err := cli.ReadExternalAuthProvidersFromEnv([]string{
 			"HOME=/home/frodo",
 		})
 		require.NoError(t, err)
@@ -58,7 +100,7 @@ func TestReadGitAuthProvidersFromEnv(t *testing.T) {
 	})
 	t.Run("InvalidKey", func(t *testing.T) {
 		t.Parallel()
-		providers, err := cli.ReadGitAuthProvidersFromEnv([]string{
+		providers, err := cli.ReadExternalAuthProvidersFromEnv([]string{
 			"CODER_GITAUTH_XXX=invalid",
 		})
 		require.Error(t, err, "providers: %+v", providers)
@@ -66,7 +108,7 @@ func TestReadGitAuthProvidersFromEnv(t *testing.T) {
 	})
 	t.Run("SkipKey", func(t *testing.T) {
 		t.Parallel()
-		providers, err := cli.ReadGitAuthProvidersFromEnv([]string{
+		providers, err := cli.ReadExternalAuthProvidersFromEnv([]string{
 			"CODER_GITAUTH_0_ID=invalid",
 			"CODER_GITAUTH_2_ID=invalid",
 		})
@@ -75,7 +117,7 @@ func TestReadGitAuthProvidersFromEnv(t *testing.T) {
 	})
 	t.Run("Valid", func(t *testing.T) {
 		t.Parallel()
-		providers, err := cli.ReadGitAuthProvidersFromEnv([]string{
+		providers, err := cli.ReadExternalAuthProvidersFromEnv([]string{
 			"CODER_GITAUTH_0_ID=1",
 			"CODER_GITAUTH_0_TYPE=gitlab",
 			"CODER_GITAUTH_1_ID=2",
@@ -1185,6 +1227,22 @@ func TestServer(t *testing.T) {
 			require.Equal(t, map[string]string{"serious_business_unit": "serious_business_unit"}, deploymentConfig.Values.OIDC.GroupMapping.Value)
 			require.Equal(t, "Sign In With Coder", deploymentConfig.Values.OIDC.SignInText.Value())
 			require.Equal(t, "https://example.com/icon.png", deploymentConfig.Values.OIDC.IconURL.Value().String())
+
+			// Verify the option values
+			for _, opt := range deploymentConfig.Options {
+				switch opt.Flag {
+				case "access-url":
+					require.Equal(t, "http://example.com", opt.Value.String())
+				case "oidc-icon-url":
+					require.Equal(t, "https://example.com/icon.png", opt.Value.String())
+				case "oidc-sign-in-text":
+					require.Equal(t, "Sign In With Coder", opt.Value.String())
+				case "redirect-to-access-url":
+					require.Equal(t, "false", opt.Value.String())
+				case "derp-server-region-id":
+					require.Equal(t, "999", opt.Value.String())
+				}
+			}
 		})
 	})
 
@@ -1485,6 +1543,9 @@ func TestServer(t *testing.T) {
 			gotConfig.Options.ByName("Config Path").Value.Set("")
 			// We check the options individually for better error messages.
 			for i := range wantConfig.Options {
+				// ValueSource is not going to be correct on the `want`, so just
+				// match that field.
+				wantConfig.Options[i].ValueSource = gotConfig.Options[i].ValueSource
 				assert.Equal(
 					t, wantConfig.Options[i],
 					gotConfig.Options[i],
@@ -1559,6 +1620,20 @@ func TestServer_Shutdown(t *testing.T) {
 	// has already exited, which could cause the test to fail due to interrupt.
 	err = <-serverErr
 	require.NoError(t, err)
+}
+
+func BenchmarkServerHelp(b *testing.B) {
+	// server --help is a good proxy for measuring the
+	// constant overhead of each command.
+
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		inv, _ := clitest.New(b, "server", "--help")
+		inv.Stdout = io.Discard
+		inv.Stderr = io.Discard
+		err := inv.Run()
+		require.NoError(b, err)
+	}
 }
 
 func generateTLSCertificate(t testing.TB, commonName ...string) (certPath, keyPath string) {
@@ -1656,4 +1731,27 @@ func TestServerYAMLConfig(t *testing.T) {
 	got = clitest.NormalizeGoldenFile(t, got)
 
 	require.Equal(t, string(wantByt), string(got))
+}
+
+func TestConnectToPostgres(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("this test does not make sense without postgres")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	t.Cleanup(cancel)
+
+	log := slogtest.Make(t, nil)
+
+	dbURL, closeFunc, err := postgres.Open()
+	require.NoError(t, err)
+	t.Cleanup(closeFunc)
+
+	sqlDB, err := cli.ConnectToPostgres(ctx, log, "postgres", dbURL)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = sqlDB.Close()
+	})
+	require.NoError(t, sqlDB.PingContext(ctx))
 }

@@ -17,6 +17,9 @@ fi
 if [[ ${1:-} == wsproxy ]] && [[ ${2:-} == server ]]; then
 	BINARY_TYPE=coder
 fi
+if [[ ${1:-} == exp ]] && [[ ${2:-} == scaletest ]]; then
+	BINARY_TYPE=coder
+fi
 RELATIVE_BINARY_PATH="build/${BINARY_TYPE}_${GOOS}_${GOARCH}"
 
 # To preserve the CWD when running the binary, we need to use pushd and popd to

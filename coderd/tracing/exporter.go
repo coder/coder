@@ -8,7 +8,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -26,9 +25,6 @@ type TracerOpts struct {
 	// Default exports to a backend configured by environment variables. See:
 	// https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md
 	Default bool
-	// Coder exports traces to Coder's public tracing ingest service and is used
-	// to improve the product. It is disabled when opting out of telemetry.
-	Coder bool
 	// DataDog exports traces and profiles to the local DataDog daemon.
 	DataDog bool
 	// Exports traces to Honeycomb.io with the provided API key.
@@ -88,14 +84,6 @@ func TracerProvider(ctx context.Context, service string, opts TracerOpts) (*sdkt
 		closers = append(closers, exporter.Shutdown)
 		tracerOpts = append(tracerOpts, sdktrace.WithBatcher(exporter))
 	}
-	if opts.Coder {
-		exporter, err := CoderExporter(ctx)
-		if err != nil {
-			return nil, nil, xerrors.Errorf("coder exporter: %w", err)
-		}
-		closers = append(closers, exporter.Shutdown)
-		tracerOpts = append(tracerOpts, sdktrace.WithBatcher(exporter))
-	}
 	if opts.Honeycomb != "" {
 		exporter, err := HoneycombExporter(ctx, opts.Honeycomb)
 		if err != nil {
@@ -140,20 +128,6 @@ func TracerProvider(ctx context.Context, service string, opts TracerOpts) (*sdkt
 
 func DefaultExporter(ctx context.Context) (*otlptrace.Exporter, error) {
 	exporter, err := otlptrace.New(ctx, otlptracegrpc.NewClient(otlptracegrpc.WithInsecure()))
-	if err != nil {
-		return nil, xerrors.Errorf("create otlp exporter: %w", err)
-	}
-
-	return exporter, nil
-}
-
-func CoderExporter(ctx context.Context) (*otlptrace.Exporter, error) {
-	opts := []otlptracehttp.Option{
-		otlptracehttp.WithEndpoint("oss-otel-ingest-http.coder.app:443"),
-		otlptracehttp.WithCompression(otlptracehttp.GzipCompression),
-	}
-
-	exporter, err := otlptrace.New(ctx, otlptracehttp.NewClient(opts...))
 	if err != nil {
 		return nil, xerrors.Errorf("create otlp exporter: %w", err)
 	}

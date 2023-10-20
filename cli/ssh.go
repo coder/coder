@@ -143,13 +143,11 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			case "no":
 				wait = false
 			case "auto":
-				switch workspaceAgent.StartupScriptBehavior {
-				case codersdk.WorkspaceAgentStartupScriptBehaviorBlocking:
-					wait = true
-				case codersdk.WorkspaceAgentStartupScriptBehaviorNonBlocking:
-					wait = false
-				default:
-					return xerrors.Errorf("unknown startup script behavior %q", workspaceAgent.StartupScriptBehavior)
+				for _, script := range workspaceAgent.Scripts {
+					if script.StartBlocksLogin {
+						wait = true
+						break
+					}
 				}
 			default:
 				return xerrors.Errorf("unknown wait value %q", waitEnum)

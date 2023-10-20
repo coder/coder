@@ -9,13 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/sloggers/slogtest"
-
-	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -29,16 +26,8 @@ func TestVSCodeSSH(t *testing.T) {
 	user, err := client.User(ctx, codersdk.Me)
 	require.NoError(t, err)
 
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(agentToken)
-	agentCloser := agent.New(agent.Options{
-		Client: agentClient,
-		Logger: slogtest.Make(t, nil).Named("agent"),
-	})
-	defer func() {
-		_ = agentCloser.Close()
-	}()
-	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+	_ = agenttest.New(t, client.URL, agentToken)
+	_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 	fs := afero.NewMemMapFs()
 	err = afero.WriteFile(fs, "/url", []byte(client.URL.String()), 0o600)

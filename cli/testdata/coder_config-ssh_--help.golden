@@ -1,17 +1,21 @@
-Usage: coder config-ssh [flags]
+coder v0.0.0-devel
 
-Add an SSH Host entry for your workspaces "ssh coder.workspace"
+USAGE:
+  coder config-ssh [flags]
 
-- You can use -o (or --ssh-option) so set SSH options to be used for all your 
-    workspaces:                                                                 
+  Add an SSH Host entry for your workspaces "ssh coder.workspace"
 
-     [40m [0m[91;40m$ coder config-ssh -o ForwardAgent=yes[0m[40m [0m
+    - You can use -o (or --ssh-option) so set SSH options to be used for all
+  your
+  workspaces:
+  
+       $ coder config-ssh -o ForwardAgent=yes
+  
+    - You can use --dry-run (or -n) to see the changes that would be made:
+  
+       $ coder config-ssh --dry-run
 
-  - You can use --dry-run (or -n) to see the changes that would be made:        
-
-     [40m [0m[91;40m$ coder config-ssh --dry-run[0m[40m [0m
-
-[1mOptions[0m
+OPTIONS:
       --coder-binary-path string, $CODER_SSH_CONFIG_BINARY_PATH
           Optionally specify the absolute path to the coder binary used in
           ProxyCommand. By default, the binary invoking this command ('config
@@ -47,5 +51,5 @@ Add an SSH Host entry for your workspaces "ssh coder.workspace"
   -y, --yes bool
           Bypass prompts.
 
----
+———
 Run `coder --help` for a list of global options.

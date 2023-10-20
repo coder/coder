@@ -262,3 +262,8 @@ WHERE
     last_seen_at < @last_seen_after :: timestamp
     AND status = 'active'::user_status
 RETURNING id, email, last_seen_at;
+
+-- AllUserIDs returns all UserIDs regardless of user status or deletion.
+-- name: AllUserIDs :many
+SELECT DISTINCT id FROM USERS;
+

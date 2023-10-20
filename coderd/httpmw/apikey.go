@@ -20,6 +20,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
@@ -236,7 +237,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 
 	var (
 		link database.UserLink
-		now  = database.Now()
+		now  = dbtime.Now()
 		// Tracks if the API key has properties updated
 		changed = false
 	)
@@ -247,6 +248,12 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 			UserID:    key.UserID,
 			LoginType: key.LoginType,
 		})
+		if errors.Is(err, sql.ErrNoRows) {
+			return optionalWrite(http.StatusUnauthorized, codersdk.Response{
+				Message: SignedOutErrorMessage,
+				Detail:  "You must re-authenticate with the login provider.",
+			})
+		}
 		if err != nil {
 			return write(http.StatusInternalServerError, codersdk.Response{
 				Message: "A database error occurred",
@@ -296,7 +303,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 			}).Token()
 			if err != nil {
 				return write(http.StatusUnauthorized, codersdk.Response{
-					Message: "Could not refresh expired Oauth token.",
+					Message: "Could not refresh expired Oauth token. Try re-authenticating to resolve this issue.",
 					Detail:  err.Error(),
 				})
 			}
@@ -362,13 +369,15 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		// If the API Key is associated with a user_link (e.g. Github/OIDC)
 		// then we want to update the relevant oauth fields.
 		if link.UserID != uuid.Nil {
-			// nolint:gocritic
+			//nolint:gocritic // system needs to update user link
 			link, err = cfg.DB.UpdateUserLink(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLinkParams{
-				UserID:            link.UserID,
-				LoginType:         link.LoginType,
-				OAuthAccessToken:  link.OAuthAccessToken,
-				OAuthRefreshToken: link.OAuthRefreshToken,
-				OAuthExpiry:       link.OAuthExpiry,
+				UserID:                 link.UserID,
+				LoginType:              link.LoginType,
+				OAuthAccessToken:       link.OAuthAccessToken,
+				OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will update as required
+				OAuthRefreshToken:      link.OAuthRefreshToken,
+				OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
+				OAuthExpiry:            link.OAuthExpiry,
 			})
 			if err != nil {
 				return write(http.StatusInternalServerError, codersdk.Response{
@@ -381,11 +390,11 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		// We only want to update this occasionally to reduce DB write
 		// load. We update alongside the UserLink and APIKey since it's
 		// easier on the DB to colocate writes.
-		// nolint:gocritic
+		//nolint:gocritic // system needs to update user last seen at
 		_, err = cfg.DB.UpdateUserLastSeenAt(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLastSeenAtParams{
 			ID:         key.UserID,
-			LastSeenAt: database.Now(),
-			UpdatedAt:  database.Now(),
+			LastSeenAt: dbtime.Now(),
+			UpdatedAt:  dbtime.Now(),
 		})
 		if err != nil {
 			return write(http.StatusInternalServerError, codersdk.Response{
@@ -398,7 +407,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 	// If the key is valid, we also fetch the user roles and status.
 	// The roles are used for RBAC authorize checks, and the status
 	// is to block 'suspended' users from accessing the platform.
-	// nolint:gocritic
+	//nolint:gocritic // system needs to update user roles
 	roles, err := cfg.DB.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), key.UserID)
 	if err != nil {
 		return write(http.StatusUnauthorized, codersdk.Response{
@@ -413,7 +422,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		u, err := cfg.DB.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
 			ID:        key.UserID,
 			Status:    database.UserStatusActive,
-			UpdatedAt: database.Now(),
+			UpdatedAt: dbtime.Now(),
 		})
 		if err != nil {
 			return write(http.StatusInternalServerError, codersdk.Response{

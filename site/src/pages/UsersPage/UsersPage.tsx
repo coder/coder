@@ -1,95 +1,75 @@
-import { useMachine } from "@xstate/react"
-import { User } from "api/typesGenerated"
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog"
+import { type FC, type ReactNode, useState } from "react";
+
+import { type User } from "api/typesGenerated";
+import { roles } from "api/queries/roles";
+import { groupsByUserId } from "api/queries/groups";
+import { getErrorMessage } from "api/errors";
+import { deploymentConfig } from "api/queries/deployment";
 import {
-  getPaginationContext,
-  nonInitialPage,
-} from "components/PaginationWidget/utils"
-import { useMe } from "hooks/useMe"
-import { usePermissions } from "hooks/usePermissions"
-import { FC, ReactNode, useEffect } from "react"
-import { Helmet } from "react-helmet-async"
-import { useSearchParams, useNavigate } from "react-router-dom"
-import { siteRolesMachine } from "xServices/roles/siteRolesXService"
-import { usersMachine } from "xServices/users/usersXService"
-import { ConfirmDialog } from "../../components/Dialogs/ConfirmDialog/ConfirmDialog"
-import { ResetPasswordDialog } from "../../components/Dialogs/ResetPasswordDialog/ResetPasswordDialog"
-import { pageTitle } from "../../utils/page"
-import { UsersPageView } from "./UsersPageView"
-import { useStatusFilterMenu } from "./UsersFilter"
-import { useFilter } from "components/Filter/filter"
-import { useDashboard } from "components/Dashboard/DashboardProvider"
-import { deploymentConfigMachine } from "xServices/deploymentConfig/deploymentConfigMachine"
-import { useQuery } from "@tanstack/react-query"
-import { getAuthMethods } from "api/api"
+  users,
+  suspendUser,
+  activateUser,
+  deleteUser,
+  updatePassword,
+  updateRoles,
+  authMethods,
+} from "api/queries/users";
 
-export const Language = {
-  suspendDialogTitle: "Suspend user",
-  suspendDialogAction: "Suspend",
-  suspendDialogMessagePrefix: "Do you want to suspend the user",
-  activateDialogTitle: "Activate user",
-  activateDialogAction: "Activate",
-  activateDialogMessagePrefix: "Do you want to activate the user",
-}
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { useOrganizationId, usePagination } from "hooks";
+import { useMe } from "hooks/useMe";
+import { usePermissions } from "hooks/usePermissions";
+import { useStatusFilterMenu } from "./UsersFilter";
+import { useFilter } from "components/Filter/filter";
+import { useDashboard } from "components/Dashboard/DashboardProvider";
+import { generateRandomString } from "utils/random";
+import { prepareQuery } from "utils/filters";
 
-const getSelectedUser = (id: string, users?: User[]) =>
-  users?.find((u) => u.id === id)
+import { Helmet } from "react-helmet-async";
+import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
+import { nonInitialPage } from "components/PaginationWidget/utils";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ResetPasswordDialog } from "./ResetPasswordDialog";
+import { pageTitle } from "utils/page";
+import { UsersPageView } from "./UsersPageView";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 
 export const UsersPage: FC<{ children?: ReactNode }> = () => {
-  const navigate = useNavigate()
-  const searchParamsResult = useSearchParams()
-  const { entitlements } = useDashboard()
-  const [searchParams, setSearchParams] = searchParamsResult
-  const filter = searchParams.get("filter") ?? ""
-  const [usersState, usersSend] = useMachine(usersMachine, {
-    context: {
-      filter,
-      paginationContext: getPaginationContext(searchParams),
-    },
-    actions: {
-      updateURL: (context, event) =>
-        setSearchParams({ page: event.page, filter: context.filter }),
-    },
-  })
-  const {
-    users,
-    getUsersError,
-    usernameToDelete,
-    usernameToSuspend,
-    usernameToActivate,
-    userIdToResetPassword,
-    newUserPassword,
-    paginationRef,
-    count,
-  } = usersState.context
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
-  const { updateUsers: canEditUsers, viewDeploymentValues } = usePermissions()
-  const [rolesState] = useMachine(siteRolesMachine, {
-    context: {
-      hasPermission: canEditUsers,
-    },
-  })
-  const { roles } = rolesState.context
+  const searchParamsResult = useSearchParams();
+  const { entitlements } = useDashboard();
+  const [searchParams] = searchParamsResult;
 
-  // Ideally this only runs if 'canViewDeployment' is true.
-  // TODO: Prevent api call if the user does not have the perms.
-  const [state] = useMachine(deploymentConfigMachine)
-  const { deploymentValues } = state.context
-  // Indicates if oidc roles are synced from the oidc idp.
-  // Assign 'false' if unknown.
-  const oidcRoleSyncEnabled =
-    viewDeploymentValues &&
-    deploymentValues?.config.oidc?.user_role_field !== ""
-  const me = useMe()
+  const pagination = usePagination({ searchParamsResult });
+  const usersQuery = useQuery(
+    users({
+      q: prepareQuery(searchParams.get("filter") ?? ""),
+      limit: pagination.limit,
+      offset: pagination.offset,
+    }),
+  );
+
+  const organizationId = useOrganizationId();
+  const groupsByUserIdQuery = useQuery(groupsByUserId(organizationId));
+  const authMethodsQuery = useQuery(authMethods());
+
+  const { updateUsers: canEditUsers, viewDeploymentValues } = usePermissions();
+  const rolesQuery = useQuery(roles());
+  const { data: deploymentValues } = useQuery({
+    ...deploymentConfig(),
+    enabled: viewDeploymentValues,
+  });
+
+  const me = useMe();
   const useFilterResult = useFilter({
     searchParamsResult,
     onUpdate: () => {
-      usersSend({ type: "UPDATE_PAGE", page: "1" })
+      pagination.goToPage(1);
     },
-  })
-  useEffect(() => {
-    usersSend({ type: "UPDATE_FILTER", query: useFilterResult.query })
-  }, [useFilterResult.query, usersSend])
+  });
   const statusMenu = useStatusFilterMenu({
     value: useFilterResult.values.status,
     onChange: (option) =>
@@ -97,128 +77,138 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         ...useFilterResult.values,
         status: option?.value,
       }),
-  })
-  const authMethods = useQuery({
-    queryKey: ["authMethods"],
-    queryFn: () => {
-      return getAuthMethods()
-    },
-  })
-  // Is loading if
-  // - users are loading or
-  // - the user can edit the users but the roles are loading
+  });
+
+  const [userToSuspend, setUserToSuspend] = useState<User>();
+  const suspendUserMutation = useMutation(suspendUser(queryClient));
+
+  const [userToActivate, setUserToActivate] = useState<User>();
+  const activateUserMutation = useMutation(activateUser(queryClient));
+
+  const [userToDelete, setUserToDelete] = useState<User>();
+  const deleteUserMutation = useMutation(deleteUser(queryClient));
+
+  const [confirmResetPassword, setConfirmResetPassword] = useState<{
+    user: User;
+    newPassword: string;
+  }>();
+
+  const updatePasswordMutation = useMutation(updatePassword());
+  const updateRolesMutation = useMutation(updateRoles(queryClient));
+
+  // Indicates if oidc roles are synced from the oidc idp.
+  // Assign 'false' if unknown.
+  const oidcRoleSyncEnabled =
+    viewDeploymentValues &&
+    deploymentValues?.config.oidc?.user_role_field !== "";
+
   const isLoading =
-    usersState.matches("gettingUsers") ||
-    (canEditUsers && rolesState.matches("gettingRoles")) ||
-    authMethods.isLoading
+    usersQuery.isLoading ||
+    rolesQuery.isLoading ||
+    authMethodsQuery.isLoading ||
+    groupsByUserIdQuery.isLoading;
 
   return (
     <>
       <Helmet>
         <title>{pageTitle("Users")}</title>
       </Helmet>
+
       <UsersPageView
         oidcRoleSyncEnabled={oidcRoleSyncEnabled}
-        roles={roles}
-        users={users}
-        authMethods={authMethods.data}
-        count={count}
+        roles={rolesQuery.data}
+        users={usersQuery.data?.users}
+        groupsByUserId={groupsByUserIdQuery.data}
+        authMethods={authMethodsQuery.data}
         onListWorkspaces={(user) => {
           navigate(
             "/workspaces?filter=" +
               encodeURIComponent(`owner:${user.username}`),
-          )
+          );
         }}
         onViewActivity={(user) => {
           navigate(
             "/audit?filter=" + encodeURIComponent(`username:${user.username}`),
-          )
+          );
         }}
-        onDeleteUser={(user) => {
-          usersSend({
-            type: "DELETE_USER",
-            userId: user.id,
-            username: user.username,
-          })
-        }}
-        onSuspendUser={(user) => {
-          usersSend({
-            type: "SUSPEND_USER",
-            userId: user.id,
-            username: user.username,
-          })
-        }}
-        onActivateUser={(user) => {
-          usersSend({
-            type: "ACTIVATE_USER",
-            userId: user.id,
-            username: user.username,
-          })
-        }}
+        onDeleteUser={setUserToDelete}
+        onSuspendUser={setUserToSuspend}
+        onActivateUser={setUserToActivate}
         onResetUserPassword={(user) => {
-          usersSend({ type: "RESET_USER_PASSWORD", userId: user.id })
+          setConfirmResetPassword({
+            user,
+            newPassword: generateRandomString(12),
+          });
         }}
-        onUpdateUserRoles={(user, roles) => {
-          usersSend({
-            type: "UPDATE_USER_ROLES",
-            userId: user.id,
-            roles,
-          })
+        onUpdateUserRoles={async (user, roles) => {
+          try {
+            await updateRolesMutation.mutateAsync({
+              userId: user.id,
+              roles,
+            });
+            displaySuccess("Successfully updated the user roles.");
+          } catch (e) {
+            displayError(
+              getErrorMessage(e, "Error on updating the user roles."),
+            );
+          }
         }}
-        isUpdatingUserRoles={usersState.matches("updatingUserRoles")}
+        isUpdatingUserRoles={updateRolesMutation.isLoading}
         isLoading={isLoading}
         canEditUsers={canEditUsers}
         canViewActivity={entitlements.features.audit_log.enabled}
-        paginationRef={paginationRef}
         isNonInitialPage={nonInitialPage(searchParams)}
         actorID={me.id}
         filterProps={{
           filter: useFilterResult,
-          error: getUsersError,
-          menus: {
-            status: statusMenu,
-          },
+          error: usersQuery.error,
+          menus: { status: statusMenu },
         }}
+        count={usersQuery.data?.count}
+        page={pagination.page}
+        limit={pagination.limit}
+        onPageChange={pagination.goToPage}
       />
 
       <DeleteDialog
-        key={usernameToDelete}
-        isOpen={
-          usersState.matches("confirmUserDeletion") ||
-          usersState.matches("deletingUser")
-        }
-        confirmLoading={usersState.matches("deletingUser")}
-        name={usernameToDelete ?? ""}
+        key={userToDelete?.username}
+        isOpen={userToDelete !== undefined}
+        confirmLoading={deleteUserMutation.isLoading}
+        name={userToDelete?.username ?? ""}
         entity="user"
-        onConfirm={() => {
-          usersSend("CONFIRM_USER_DELETE")
-        }}
-        onCancel={() => {
-          usersSend("CANCEL_USER_DELETE")
+        onCancel={() => setUserToDelete(undefined)}
+        onConfirm={async () => {
+          try {
+            await deleteUserMutation.mutateAsync(userToDelete!.id);
+            setUserToDelete(undefined);
+            displaySuccess("Successfully deleted the user.");
+          } catch (e) {
+            displayError(getErrorMessage(e, "Error deleting user."));
+          }
         }}
       />
 
       <ConfirmDialog
         type="delete"
         hideCancel={false}
-        open={
-          usersState.matches("confirmUserSuspension") ||
-          usersState.matches("suspendingUser")
-        }
-        confirmLoading={usersState.matches("suspendingUser")}
-        title={Language.suspendDialogTitle}
-        confirmText={Language.suspendDialogAction}
-        onConfirm={() => {
-          usersSend("CONFIRM_USER_SUSPENSION")
-        }}
-        onClose={() => {
-          usersSend("CANCEL_USER_SUSPENSION")
+        open={userToSuspend !== undefined}
+        confirmLoading={suspendUserMutation.isLoading}
+        title="Suspend user"
+        confirmText="Suspend"
+        onClose={() => setUserToSuspend(undefined)}
+        onConfirm={async () => {
+          try {
+            await suspendUserMutation.mutateAsync(userToSuspend!.id);
+            setUserToSuspend(undefined);
+            displaySuccess("Successfully suspended the user.");
+          } catch (e) {
+            displayError(getErrorMessage(e, "Error suspending user."));
+          }
         }}
         description={
           <>
-            {Language.suspendDialogMessagePrefix}
-            {usernameToSuspend && " "}
-            <strong>{usernameToSuspend ?? ""}</strong>?
+            Do you want to suspend the user{" "}
+            <strong>{userToSuspend?.username ?? ""}</strong>?
           </>
         }
       />
@@ -226,47 +216,55 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
       <ConfirmDialog
         type="success"
         hideCancel={false}
-        open={
-          usersState.matches("confirmUserActivation") ||
-          usersState.matches("activatingUser")
-        }
-        confirmLoading={usersState.matches("activatingUser")}
-        title={Language.activateDialogTitle}
-        confirmText={Language.activateDialogAction}
-        onConfirm={() => {
-          usersSend("CONFIRM_USER_ACTIVATION")
-        }}
-        onClose={() => {
-          usersSend("CANCEL_USER_ACTIVATION")
+        open={userToActivate !== undefined}
+        confirmLoading={activateUserMutation.isLoading}
+        title="Activate user"
+        confirmText="Activate"
+        onClose={() => setUserToActivate(undefined)}
+        onConfirm={async () => {
+          try {
+            await activateUserMutation.mutateAsync(userToActivate!.id);
+            setUserToActivate(undefined);
+            displaySuccess("Successfully activated the user.");
+          } catch (e) {
+            displayError(getErrorMessage(e, "Error activating user."));
+          }
         }}
         description={
           <>
-            {Language.activateDialogMessagePrefix}
-            {usernameToActivate && " "}
-            <strong>{usernameToActivate ?? ""}</strong>?
+            Do you want to activate{" "}
+            <strong>{userToActivate?.username ?? ""}</strong>?
           </>
         }
       />
 
-      {userIdToResetPassword && (
-        <ResetPasswordDialog
-          open={
-            usersState.matches("confirmUserPasswordReset") ||
-            usersState.matches("resettingUserPassword")
+      <ResetPasswordDialog
+        key={confirmResetPassword?.user.username}
+        open={confirmResetPassword !== undefined}
+        loading={updatePasswordMutation.isLoading}
+        user={confirmResetPassword?.user}
+        newPassword={confirmResetPassword?.newPassword}
+        onClose={() => {
+          setConfirmResetPassword(undefined);
+        }}
+        onConfirm={async () => {
+          try {
+            await updatePasswordMutation.mutateAsync({
+              userId: confirmResetPassword!.user.id,
+              password: confirmResetPassword!.newPassword,
+              old_password: "",
+            });
+            setConfirmResetPassword(undefined);
+            displaySuccess("Successfully updated the user password.");
+          } catch (e) {
+            displayError(
+              getErrorMessage(e, "Error on resetting the user password."),
+            );
           }
-          loading={usersState.matches("resettingUserPassword")}
-          user={getSelectedUser(userIdToResetPassword, users)}
-          newPassword={newUserPassword}
-          onClose={() => {
-            usersSend("CANCEL_USER_PASSWORD_RESET")
-          }}
-          onConfirm={() => {
-            usersSend("CONFIRM_USER_PASSWORD_RESET")
-          }}
-        />
-      )}
+        }}
+      />
     </>
-  )
-}
+  );
+};
 
-export default UsersPage
+export default UsersPage;

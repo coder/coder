@@ -53,7 +53,7 @@
 
 		const countUppercase = words[0].length - words[0].replace(/[A-Z]/g, '').length;
 		if (countUppercase > 1) {
-			let displayName = p.displayName.replace(/» \*\*additionalProperties\*\*/g, "It").replace("» ", "");
+			let displayName = p.displayName.replace(/» \*\*additionalProperties\*\*/g, "It").replace("» ", "").replace(/»/g, "");
 			displayName = displayName.charAt(0).toUpperCase() + displayName.replace(/_/g, " ").toLowerCase().slice(1);
 			description = displayName + " " + words.slice(1).join(' ');
 		}

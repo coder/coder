@@ -16,6 +16,7 @@ module.exports = {
               transform: {
                 react: {
                   runtime: "automatic",
+                  importSource: "@emotion/react",
                 },
               },
               experimental: {
@@ -67,4 +68,4 @@ module.exports = {
     "!<rootDir>/out/**/*.*",
     "!<rootDir>/storybook-static/**/*.*",
   ],
-}
+};

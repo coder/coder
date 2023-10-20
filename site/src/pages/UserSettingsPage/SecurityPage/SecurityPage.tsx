@@ -1,41 +1,30 @@
-import { useMachine } from "@xstate/react"
-import { useMe } from "hooks/useMe"
-import { ComponentProps, FC } from "react"
-import { userSecuritySettingsMachine } from "xServices/userSecuritySettings/userSecuritySettingsXService"
-import { Section } from "../../../components/SettingsLayout/Section"
-import { SecurityForm } from "../../../components/SettingsSecurityForm/SettingsSecurityForm"
-import { useQuery } from "@tanstack/react-query"
-import { getAuthMethods, getUserLoginType } from "api/api"
+import { useMe } from "hooks/useMe";
+import { ComponentProps, FC } from "react";
+import { Section } from "components/SettingsLayout/Section";
+import { SecurityForm } from "./SettingsSecurityForm";
+import { useMutation, useQuery } from "react-query";
+import { getUserLoginType } from "api/api";
 import {
   SingleSignOnSection,
   useSingleSignOnSection,
-} from "./SingleSignOnSection"
-import { Loader } from "components/Loader/Loader"
-import { Stack } from "components/Stack/Stack"
+} from "./SingleSignOnSection";
+import { Loader } from "components/Loader/Loader";
+import { Stack } from "components/Stack/Stack";
+import { authMethods, updatePassword } from "api/queries/users";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
 
 export const SecurityPage: FC = () => {
-  const me = useMe()
-  const [securityState, securitySend] = useMachine(
-    userSecuritySettingsMachine,
-    {
-      context: {
-        userId: me.id,
-      },
-    },
-  )
-  const { error } = securityState.context
-  const { data: authMethods } = useQuery({
-    queryKey: ["authMethods"],
-    queryFn: getAuthMethods,
-  })
+  const me = useMe();
+  const updatePasswordMutation = useMutation(updatePassword());
+  const authMethodsQuery = useQuery(authMethods());
   const { data: userLoginType } = useQuery({
     queryKey: ["loginType"],
     queryFn: getUserLoginType,
-  })
-  const singleSignOnSection = useSingleSignOnSection()
+  });
+  const singleSignOnSection = useSingleSignOnSection();
 
-  if (!authMethods || !userLoginType) {
-    return <Loader />
+  if (!authMethodsQuery.data || !userLoginType) {
+    return <Loader />;
   }
 
   return (
@@ -43,37 +32,41 @@ export const SecurityPage: FC = () => {
       security={{
         form: {
           disabled: userLoginType.login_type !== "password",
-          error,
-          isLoading: securityState.matches("updatingSecurity"),
-          onSubmit: (data) => {
-            securitySend({
-              type: "UPDATE_SECURITY",
-              data,
-            })
+          error: updatePasswordMutation.error,
+          isLoading: updatePasswordMutation.isLoading,
+          onSubmit: async (data) => {
+            await updatePasswordMutation.mutateAsync({
+              userId: me.id,
+              ...data,
+            });
+            displaySuccess("Updated password.");
+            // Refresh the browser session. We need to improve the AuthProvider
+            // to include better API to handle these scenarios
+            window.location.href = location.origin;
           },
         },
       }}
       oidc={{
         section: {
-          authMethods,
+          authMethods: authMethodsQuery.data,
           userLoginType,
           ...singleSignOnSection,
         },
       }}
     />
-  )
-}
+  );
+};
 
 export const SecurityPageView = ({
   security,
   oidc,
 }: {
   security: {
-    form: ComponentProps<typeof SecurityForm>
-  }
+    form: ComponentProps<typeof SecurityForm>;
+  };
   oidc?: {
-    section: ComponentProps<typeof SingleSignOnSection>
-  }
+    section: ComponentProps<typeof SingleSignOnSection>;
+  };
 }) => {
   return (
     <Stack spacing={6}>
@@ -82,7 +75,7 @@ export const SecurityPageView = ({
       </Section>
       {oidc && <SingleSignOnSection {...oidc.section} />}
     </Stack>
-  )
-}
+  );
+};
 
-export default SecurityPage
+export default SecurityPage;

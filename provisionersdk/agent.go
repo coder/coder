@@ -4,6 +4,8 @@ import (
 	_ "embed"
 	"fmt"
 	"strings"
+
+	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 var (
@@ -49,4 +51,16 @@ func AgentScriptEnv() map[string]string {
 		}
 	}
 	return env
+}
+
+// DefaultDisplayApps returns the default display applications to enable
+// if none are specified in a template.
+func DefaultDisplayApps() *proto.DisplayApps {
+	return &proto.DisplayApps{
+		Vscode:               true,
+		VscodeInsiders:       false,
+		WebTerminal:          true,
+		PortForwardingHelper: true,
+		SshHelper:            true,
+	}
 }

@@ -1,13 +1,13 @@
-import Button from "@mui/material/Button"
-import { makeStyles } from "@mui/styles"
+import Button from "@mui/material/Button";
+import { css, useTheme } from "@emotion/react";
 
 interface PageButtonProps {
-  activePage?: number
-  page?: number
-  placeholder?: string
-  numPages?: number
-  onPageClick?: (page: number) => void
-  disabled?: boolean
+  activePage?: number;
+  page?: number;
+  placeholder?: string;
+  numPages?: number;
+  onPageClick?: (page: number) => void;
+  disabled?: boolean;
 }
 
 export const PageButton = ({
@@ -18,14 +18,20 @@ export const PageButton = ({
   onPageClick,
   disabled = false,
 }: PageButtonProps): JSX.Element => {
-  const styles = useStyles()
+  const theme = useTheme();
   return (
     <Button
-      className={
-        activePage === page
-          ? `${styles.pageButton} ${styles.activePageButton}`
-          : styles.pageButton
-      }
+      css={[
+        css`
+          &:not(:last-of-type) {
+            margin-right: ${theme.spacing(0.5)};
+          }
+        `,
+        activePage === page && {
+          borderColor: `${theme.palette.info.main}`,
+          backgroundColor: `${theme.palette.info.dark}`,
+        },
+      ]}
       aria-label={`${page === activePage ? "Current Page" : ""} ${
         page === numPages ? "Last Page" : ""
       } Page${page}`}
@@ -35,18 +41,5 @@ export const PageButton = ({
     >
       <div>{page ?? placeholder}</div>
     </Button>
-  )
-}
-
-const useStyles = makeStyles((theme) => ({
-  pageButton: {
-    "&:not(:last-of-type)": {
-      marginRight: theme.spacing(0.5),
-    },
-  },
-
-  activePageButton: {
-    borderColor: `${theme.palette.info.main}`,
-    backgroundColor: `${theme.palette.info.dark}`,
-  },
-}))
+  );
+};

@@ -12,6 +12,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -32,7 +33,7 @@ func TestObtainOIDCAccessToken(t *testing.T) {
 		dbgen.UserLink(t, db, database.UserLink{
 			UserID:      user.ID,
 			LoginType:   database.LoginTypeOIDC,
-			OAuthExpiry: database.Now().Add(-time.Hour),
+			OAuthExpiry: dbtime.Now().Add(-time.Hour),
 		})
 		_, err := obtainOIDCAccessToken(ctx, db, &oauth2.Config{}, user.ID)
 		require.NoError(t, err)
@@ -44,7 +45,7 @@ func TestObtainOIDCAccessToken(t *testing.T) {
 		dbgen.UserLink(t, db, database.UserLink{
 			UserID:      user.ID,
 			LoginType:   database.LoginTypeOIDC,
-			OAuthExpiry: database.Now().Add(-time.Hour),
+			OAuthExpiry: dbtime.Now().Add(-time.Hour),
 		})
 		_, err := obtainOIDCAccessToken(ctx, db, &testutil.OAuth2Config{
 			Token: &oauth2.Token{

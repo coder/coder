@@ -16,8 +16,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/httpapi/httpapiconstraints"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -90,7 +89,13 @@ func Is404Error(err error) bool {
 	if err == nil {
 		return false
 	}
-	return xerrors.Is(err, sql.ErrNoRows) || dbauthz.IsNotAuthorizedError(err) || rbac.IsUnauthorizedError(err)
+
+	// This tests for dbauthz.IsNotAuthorizedError and rbac.IsUnauthorizedError.
+	var unauthorized httpapiconstraints.IsUnauthorizedError
+	if errors.As(err, &unauthorized) && unauthorized.IsUnauthorized() {
+		return true
+	}
+	return xerrors.Is(err, sql.ErrNoRows)
 }
 
 // Convenience error functions don't take contexts since their responses are

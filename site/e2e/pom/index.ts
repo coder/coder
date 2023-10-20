@@ -1,2 +1,2 @@
-export * from "./SignInPage"
-export * from "./WorkspacesPage"
+export * from "./SignInPage";
+export * from "./WorkspacesPage";

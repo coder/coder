@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/gliderlabs/ssh"
+	"github.com/kballard/go-shellquote"
 	"github.com/pkg/sftp"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/afero"
@@ -254,11 +255,13 @@ func (s *Server) sessionStart(session ssh.Session, extraEnv []string) (retErr er
 		magicType = strings.TrimPrefix(kv, MagicSessionTypeEnvironmentVariable+"=")
 		env = append(env[:index], env[index+1:]...)
 	}
-	switch magicType {
-	case MagicSessionTypeVSCode:
+
+	// Always force lowercase checking to be case-insensitive.
+	switch strings.ToLower(magicType) {
+	case strings.ToLower(MagicSessionTypeVSCode):
 		s.connCountVSCode.Add(1)
 		defer s.connCountVSCode.Add(-1)
-	case MagicSessionTypeJetBrains:
+	case strings.ToLower(MagicSessionTypeJetBrains):
 		s.connCountJetBrains.Add(1)
 		defer s.connCountJetBrains.Add(-1)
 	case "":
@@ -513,7 +516,31 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string)
 	if runtime.GOOS == "windows" {
 		caller = "/c"
 	}
+	name := shell
 	args := []string{caller, script}
+
+	// A preceding space is generally not idiomatic for a shebang,
+	// but in Terraform it's quite standard to use <<EOF for a multi-line
+	// string which would indent with spaces, so we accept it for user-ease.
+	if strings.HasPrefix(strings.TrimSpace(script), "#!") {
+		// If the script starts with a shebang, we should
+		// execute it directly. This is useful for running
+		// scripts that aren't executable.
+		shebang := strings.SplitN(strings.TrimSpace(script), "\n", 2)[0]
+		shebang = strings.TrimSpace(shebang)
+		shebang = strings.TrimPrefix(shebang, "#!")
+		words, err := shellquote.Split(shebang)
+		if err != nil {
+			return nil, xerrors.Errorf("split shebang: %w", err)
+		}
+		name = words[0]
+		if len(words) > 1 {
+			args = words[1:]
+		} else {
+			args = []string{}
+		}
+		args = append(args, caller, script)
+	}
 
 	// gliderlabs/ssh returns a command slice of zero
 	// when a shell is requested.
@@ -526,7 +553,7 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string)
 		}
 	}
 
-	cmd := pty.CommandContext(ctx, shell, args...)
+	cmd := pty.CommandContext(ctx, name, args...)
 	cmd.Dir = manifest.Directory
 
 	// If the metadata directory doesn't exist, we run the command

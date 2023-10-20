@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -500,7 +501,7 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Users
-// @Param user path string true "User ID, name, or me"
+// @Param user path string true "User ID, username, or me"
 // @Success 200 {object} codersdk.User
 // @Router /users/{user} [get]
 func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
@@ -610,7 +611,7 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 		Email:     user.Email,
 		AvatarURL: user.AvatarURL,
 		Username:  params.Username,
-		UpdatedAt: database.Now(),
+		UpdatedAt: dbtime.Now(),
 	})
 	aReq.New = updatedUserProfile
 
@@ -698,7 +699,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 		suspendedUser, err := api.Database.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
 			ID:        user.ID,
 			Status:    status,
-			UpdatedAt: database.Now(),
+			UpdatedAt: dbtime.Now(),
 		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1078,10 +1079,11 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			}
 
 			organization, err := tx.InsertOrganization(ctx, database.InsertOrganizationParams{
-				ID:        uuid.New(),
-				Name:      req.Username,
-				CreatedAt: database.Now(),
-				UpdatedAt: database.Now(),
+				ID:          uuid.New(),
+				Name:        req.Username,
+				CreatedAt:   dbtime.Now(),
+				UpdatedAt:   dbtime.Now(),
+				Description: "",
 			})
 			if err != nil {
 				return xerrors.Errorf("create organization: %w", err)
@@ -1100,11 +1102,12 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		}
 
 		params := database.InsertUserParams{
-			ID:        uuid.New(),
-			Email:     req.Email,
-			Username:  req.Username,
-			CreatedAt: database.Now(),
-			UpdatedAt: database.Now(),
+			ID:             uuid.New(),
+			Email:          req.Email,
+			Username:       req.Username,
+			CreatedAt:      dbtime.Now(),
+			UpdatedAt:      dbtime.Now(),
+			HashedPassword: []byte{},
 			// All new users are defaulted to members of the site.
 			RBACRoles: []string{},
 			LoginType: req.LoginType,
@@ -1130,8 +1133,8 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		}
 		_, err = tx.InsertGitSSHKey(ctx, database.InsertGitSSHKeyParams{
 			UserID:     user.ID,
-			CreatedAt:  database.Now(),
-			UpdatedAt:  database.Now(),
+			CreatedAt:  dbtime.Now(),
+			UpdatedAt:  dbtime.Now(),
 			PrivateKey: privateKey,
 			PublicKey:  publicKey,
 		})
@@ -1141,8 +1144,8 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		_, err = tx.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
 			OrganizationID: req.OrganizationID,
 			UserID:         user.ID,
-			CreatedAt:      database.Now(),
-			UpdatedAt:      database.Now(),
+			CreatedAt:      dbtime.Now(),
+			UpdatedAt:      dbtime.Now(),
 			// By default give them membership to the organization.
 			Roles: orgRoles,
 		})
@@ -1164,23 +1167,23 @@ func convertUsers(users []database.User, organizationIDsByUserID map[uuid.UUID][
 
 func userOrganizationIDs(ctx context.Context, api *API, user database.User) ([]uuid.UUID, error) {
 	organizationIDsByMemberIDsRows, err := api.Database.GetOrganizationIDsByMemberIDs(ctx, []uuid.UUID{user.ID})
-	if errors.Is(err, sql.ErrNoRows) || len(organizationIDsByMemberIDsRows) == 0 {
-		return []uuid.UUID{}, nil
-	}
 	if err != nil {
 		return []uuid.UUID{}, err
+	}
+	if len(organizationIDsByMemberIDsRows) == 0 {
+		return []uuid.UUID{}, xerrors.Errorf("user %q must be a member of at least one organization", user.Email)
 	}
 	member := organizationIDsByMemberIDsRows[0]
 	return member.OrganizationIDs, nil
 }
 
-func findUser(id uuid.UUID, users []database.User) *database.User {
-	for _, u := range users {
-		if u.ID == id {
-			return &u
+func usernameWithID(id uuid.UUID, users []database.User) (string, bool) {
+	for _, user := range users {
+		if id == user.ID {
+			return user.Username, true
 		}
 	}
-	return nil
+	return "", false
 }
 
 func convertAPIKey(k database.APIKey) codersdk.APIKey {

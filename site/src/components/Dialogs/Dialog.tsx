@@ -1,38 +1,37 @@
-import MuiDialog, { DialogProps as MuiDialogProps } from "@mui/material/Dialog"
-import { makeStyles } from "@mui/styles"
-import * as React from "react"
-import { colors } from "theme/colors"
-import { combineClasses } from "../../utils/combineClasses"
+import MuiDialog, { DialogProps as MuiDialogProps } from "@mui/material/Dialog";
+import { type ReactNode } from "react";
+import { colors } from "theme/colors";
 import {
   LoadingButton,
   LoadingButtonProps,
-} from "../LoadingButton/LoadingButton"
-import { ConfirmDialogType } from "./types"
+} from "../LoadingButton/LoadingButton";
+import { ConfirmDialogType } from "./types";
+import { type Interpolation, type Theme } from "@emotion/react";
 
 export interface DialogActionButtonsProps {
   /** Text to display in the cancel button */
-  cancelText?: string
+  cancelText?: string;
   /** Text to display in the confirm button */
-  confirmText?: React.ReactNode
+  confirmText?: ReactNode;
   /** Whether or not confirm is loading, also disables cancel when true */
-  confirmLoading?: boolean
+  confirmLoading?: boolean;
   /** Whether or not this is a confirm dialog */
-  confirmDialog?: boolean
+  confirmDialog?: boolean;
   /** Whether or not the submit button is disabled */
-  disabled?: boolean
+  disabled?: boolean;
   /** Called when cancel is clicked */
-  onCancel?: () => void
+  onCancel?: () => void;
   /** Called when confirm is clicked */
-  onConfirm?: () => void
-  type?: ConfirmDialogType
+  onConfirm?: () => void;
+  type?: ConfirmDialogType;
 }
 
 const typeToColor = (type: ConfirmDialogType): LoadingButtonProps["color"] => {
   if (type === "delete") {
-    return "secondary"
+    return "secondary";
   }
-  return "primary"
-}
+  return "primary";
+};
 
 /**
  * Quickly handles most modals actions, some combination of a cancel and confirm button
@@ -46,8 +45,6 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
   onConfirm,
   type = "info",
 }) => {
-  const styles = useButtonStyles({ type })
-
   return (
     <>
       {onCancel && (
@@ -65,20 +62,20 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
           loading={confirmLoading}
           disabled={disabled}
           type="submit"
-          className={combineClasses({
-            [styles.errorButton]: type === "delete",
-            [styles.successButton]: type === "success",
-          })}
+          css={[
+            type === "delete" && styles.errorButton,
+            type === "success" && styles.successButton,
+          ]}
         >
           {confirmText}
         </LoadingButton>
       )}
     </>
-  )
-}
+  );
+};
 
-const useButtonStyles = makeStyles((theme) => ({
-  errorButton: {
+const styles = {
+  errorButton: (theme) => ({
     "&.MuiButton-contained": {
       backgroundColor: colors.red[10],
       borderColor: colors.red[9],
@@ -95,8 +92,8 @@ const useButtonStyles = makeStyles((theme) => ({
         color: colors.red[9],
       },
     },
-  },
-  successButton: {
+  }),
+  successButton: (theme) => ({
     "&.MuiButton-contained": {
       backgroundColor: theme.palette.success.main,
       color: theme.palette.primary.contrastText,
@@ -145,10 +142,10 @@ const useButtonStyles = makeStyles((theme) => ({
         color: theme.palette.text.secondary,
       },
     },
-  },
-}))
+  }),
+} satisfies Record<string, Interpolation<Theme>>;
 
-export type DialogProps = MuiDialogProps
+export type DialogProps = MuiDialogProps;
 
 /**
  * Wrapper around Material UI's Dialog component. Conveniently exports all of
@@ -159,5 +156,5 @@ export type DialogProps = MuiDialogProps
  */
 export const Dialog: React.FC<DialogProps> = (props) => {
   // Wrapped so we can add custom attributes below
-  return <MuiDialog {...props} />
-}
+  return <MuiDialog {...props} />;
+};

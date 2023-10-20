@@ -1,57 +1,51 @@
-import { makeStyles } from "@mui/styles"
-import Dialog from "@mui/material/Dialog"
-import DialogContent from "@mui/material/DialogContent"
-import DialogContentText from "@mui/material/DialogContentText"
-import DialogTitle from "@mui/material/DialogTitle"
-import { DialogProps } from "components/Dialogs/Dialog"
-import { FC } from "react"
-import { getFormHelpers } from "utils/formUtils"
-import { FormFields, VerticalForm } from "components/Form/Form"
-import {
+import Dialog from "@mui/material/Dialog";
+import DialogContent from "@mui/material/DialogContent";
+import DialogContentText from "@mui/material/DialogContentText";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogActions from "@mui/material/DialogActions";
+import Button from "@mui/material/Button";
+import { useFormik } from "formik";
+import * as Yup from "yup";
+import { type FC } from "react";
+import { css } from "@emotion/css";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { getFormHelpers } from "utils/formUtils";
+import type { DialogProps } from "components/Dialogs/Dialog";
+import { FormFields, VerticalForm } from "components/Form/Form";
+import type {
   TemplateVersionParameter,
   WorkspaceBuildParameter,
-} from "api/typesGenerated"
-import { RichParameterInput } from "components/RichParameterInput/RichParameterInput"
-import { useFormik } from "formik"
+} from "api/typesGenerated";
+import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
 import {
-  selectInitialRichParametersValues,
+  getInitialRichParameterValues,
   useValidationSchemaForRichParameters,
-  workspaceBuildParameterValue,
-} from "utils/richParameters"
-import * as Yup from "yup"
-import DialogActions from "@mui/material/DialogActions"
-import Button from "@mui/material/Button"
-import { useTranslation } from "react-i18next"
+} from "utils/richParameters";
 
 export type UpdateBuildParametersDialogProps = DialogProps & {
-  onClose: () => void
-  onUpdate: (buildParameters: WorkspaceBuildParameter[]) => void
-  missedParameters?: TemplateVersionParameter[]
-}
+  onClose: () => void;
+  onUpdate: (buildParameters: WorkspaceBuildParameter[]) => void;
+  missedParameters: TemplateVersionParameter[];
+};
 
 export const UpdateBuildParametersDialog: FC<
   UpdateBuildParametersDialogProps
 > = ({ missedParameters, onUpdate, ...dialogProps }) => {
-  const styles = useStyles()
-  const initialRichParameterValues =
-    selectInitialRichParametersValues(missedParameters)
+  const theme = useTheme();
   const form = useFormik({
     initialValues: {
-      rich_parameter_values: initialRichParameterValues,
+      rich_parameter_values: getInitialRichParameterValues(missedParameters),
     },
     validationSchema: Yup.object({
-      rich_parameter_values: useValidationSchemaForRichParameters(
-        "createWorkspacePage",
-        missedParameters,
-      ),
+      rich_parameter_values:
+        useValidationSchemaForRichParameters(missedParameters),
     }),
     onSubmit: (values) => {
-      onUpdate(values.rich_parameter_values)
+      onUpdate(values.rich_parameter_values);
     },
     enableReinitialize: true,
-  })
-  const getFieldHelpers = getFormHelpers(form)
-  const { t } = useTranslation("workspacePage")
+  });
+  const getFieldHelpers = getFormHelpers(form);
 
   return (
     <Dialog
@@ -63,16 +57,26 @@ export const UpdateBuildParametersDialog: FC<
     >
       <DialogTitle
         id="update-build-parameters-title"
-        classes={{ root: styles.title }}
+        classes={{
+          root: css`
+            padding: ${theme.spacing(3, 5)};
+
+            & h2 {
+              font-size: ${theme.spacing(2.5)};
+              font-weight: 400;
+            }
+          `,
+        }}
       >
         Workspace parameters
       </DialogTitle>
-      <DialogContent className={styles.content}>
-        <DialogContentText className={styles.info}>
-          {t("askParametersDialog.message")}
+      <DialogContent css={styles.content}>
+        <DialogContentText css={{ margin: 0 }}>
+          This template has new parameters that must be configured to complete
+          the update
         </DialogContentText>
         <VerticalForm
-          className={styles.form}
+          css={styles.form}
           onSubmit={form.handleSubmit}
           id="updateParameters"
         >
@@ -84,13 +88,8 @@ export const UpdateBuildParametersDialog: FC<
                     {...getFieldHelpers(
                       "rich_parameter_values[" + index + "].value",
                     )}
-                    initialValue={workspaceBuildParameterValue(
-                      initialRichParameterValues,
-                      parameter,
-                    )}
                     key={parameter.name}
                     parameter={parameter}
-                    index={index}
                     onChange={async (value) => {
                       await form.setFieldValue(
                         "rich_parameter_values." + index,
@@ -98,16 +97,16 @@ export const UpdateBuildParametersDialog: FC<
                           name: parameter.name,
                           value: value,
                         },
-                      )
+                      );
                     }}
                   />
-                )
+                );
               })}
             </FormFields>
           )}
         </VerticalForm>
       </DialogContent>
-      <DialogActions disableSpacing className={styles.dialogActions}>
+      <DialogActions disableSpacing css={styles.dialogActions}>
         <Button fullWidth type="button" onClick={dialogProps.onClose}>
           Cancel
         </Button>
@@ -122,51 +121,21 @@ export const UpdateBuildParametersDialog: FC<
         </Button>
       </DialogActions>
     </Dialog>
-  )
-}
+  );
+};
 
-const useStyles = makeStyles((theme) => ({
-  title: {
-    padding: theme.spacing(3, 5),
-
-    "& h2": {
-      fontSize: theme.spacing(2.5),
-      fontWeight: 400,
-    },
-  },
-
-  content: {
+const styles = {
+  content: (theme) => ({
     padding: theme.spacing(0, 5, 0, 5),
-  },
+  }),
 
-  info: {
-    margin: 0,
-  },
-
-  form: {
+  form: (theme) => ({
     paddingTop: theme.spacing(4),
-  },
+  }),
 
-  infoTitle: {
-    fontSize: theme.spacing(2),
-    fontWeight: 600,
-    display: "flex",
-    alignItems: "center",
-    gap: theme.spacing(1),
-  },
-
-  warningIcon: {
-    color: theme.palette.warning.light,
-    fontSize: theme.spacing(1.5),
-  },
-
-  formFooter: {
-    flexDirection: "column",
-  },
-
-  dialogActions: {
+  dialogActions: (theme) => ({
     padding: theme.spacing(5),
     flexDirection: "column",
     gap: theme.spacing(1),
-  },
-}))
+  }),
+} satisfies Record<string, Interpolation<Theme>>;

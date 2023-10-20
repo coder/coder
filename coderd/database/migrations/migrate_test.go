@@ -259,13 +259,14 @@ func TestMigrateUpWithFixtures(t *testing.T) {
 	// but we should eventually add fixtures for them.
 	ignoredTablesForStats := []string{
 		"audit_logs",
-		"git_auth_links",
+		"external_auth_links",
 		"group_members",
 		"licenses",
 		"replicas",
 		"template_version_parameters",
 		"workspace_build_parameters",
 		"template_version_variables",
+		"dbcrypt_keys", // having zero rows is a valid state for this table
 	}
 	s := &tableStats{s: make(map[string]int)}
 

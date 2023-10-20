@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/coderd/database/postgres"
 )
@@ -68,8 +69,8 @@ func TestNestedInTx(t *testing.T) {
 				Email:          "coder@coder.com",
 				Username:       "coder",
 				HashedPassword: []byte{},
-				CreatedAt:      database.Now(),
-				UpdatedAt:      database.Now(),
+				CreatedAt:      dbtime.Now(),
+				UpdatedAt:      dbtime.Now(),
 				RBACRoles:      []string{},
 				LoginType:      database.LoginTypeGithub,
 			})

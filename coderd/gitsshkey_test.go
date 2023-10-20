@@ -112,9 +112,9 @@ func TestAgentGitSSHKey(t *testing.T) {
 		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
 	})
 	project := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
-	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 	agentClient := agentsdk.New(client.URL)
 	agentClient.SetSessionToken(authToken)

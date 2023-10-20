@@ -1,27 +1,23 @@
-import CircularProgress from "@mui/material/CircularProgress"
-import { makeStyles } from "@mui/styles"
-import { FC } from "react"
-
-export const useStyles = makeStyles((theme) => ({
-  root: {
-    position: "absolute",
-    top: "0",
-    left: "0",
-    right: "0",
-    bottom: "0",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    background: theme.palette.background.default,
-  },
-}))
+import CircularProgress from "@mui/material/CircularProgress";
+import type { FC } from "react";
 
 export const FullScreenLoader: FC = () => {
-  const styles = useStyles()
-
   return (
-    <div className={styles.root} data-testid="loader">
+    <div
+      css={(theme) => ({
+        position: "absolute",
+        top: "0",
+        left: "0",
+        right: "0",
+        bottom: "0",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        background: theme.palette.background.default,
+      })}
+      data-testid="loader"
+    >
       <CircularProgress />
     </div>
-  )
-}
+  );
+};

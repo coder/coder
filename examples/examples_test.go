@@ -16,7 +16,7 @@ import (
 func TestTemplate(t *testing.T) {
 	t.Parallel()
 	list, err := examples.List()
-	require.NoError(t, err)
+	require.NoError(t, err, "error listing examples, run \"make gen\" to ensure examples are up to date")
 	require.NotEmpty(t, list)
 	for _, eg := range list {
 		eg := eg

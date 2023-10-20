@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/schedule/cron"
 )
 
 type UserQuietHoursScheduleOptions struct {
@@ -17,7 +18,7 @@ type UserQuietHoursScheduleOptions struct {
 	// schedule (and UserSet will be false). If quiet hours schedules are not
 	// entitled or disabled instance-wide, this value will be nil to denote that
 	// quiet hours windows should not be used.
-	Schedule *Schedule
+	Schedule *cron.Schedule
 	UserSet  bool
 }
 

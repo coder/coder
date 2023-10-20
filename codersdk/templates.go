@@ -31,11 +31,13 @@ type Template struct {
 	DefaultTTLMillis int64                  `json:"default_ttl_ms"`
 	// TODO(@dean): remove max_ttl once autostop_requirement is matured
 	MaxTTLMillis int64 `json:"max_ttl_ms"`
-	// AutostopRequirement is an enterprise feature. Its value is only used if
-	// your license is entitled to use the advanced template scheduling feature.
-	AutostopRequirement TemplateAutostopRequirement `json:"autostop_requirement"`
-	CreatedByID         uuid.UUID                   `json:"created_by_id" format:"uuid"`
-	CreatedByName       string                      `json:"created_by_name"`
+	// AutostopRequirement and AutostartRequirement are enterprise features. Its
+	// value is only used if your license is entitled to use the advanced template
+	// scheduling feature.
+	AutostopRequirement  TemplateAutostopRequirement  `json:"autostop_requirement"`
+	AutostartRequirement TemplateAutostartRequirement `json:"autostart_requirement"`
+	CreatedByID          uuid.UUID                    `json:"created_by_id" format:"uuid"`
+	CreatedByName        string                       `json:"created_by_name"`
 
 	// AllowUserAutostart and AllowUserAutostop are enterprise-only. Their
 	// values are only used if your license is entitled to use the advanced
@@ -50,6 +52,10 @@ type Template struct {
 	FailureTTLMillis               int64 `json:"failure_ttl_ms"`
 	TimeTilDormantMillis           int64 `json:"time_til_dormant_ms"`
 	TimeTilDormantAutoDeleteMillis int64 `json:"time_til_dormant_autodelete_ms"`
+
+	// RequireActiveVersion mandates that workspaces are built with the active
+	// template version.
+	RequireActiveVersion bool `json:"require_active_version"`
 }
 
 // WeekdaysToBitmap converts a list of weekdays to a bitmap in accordance with
@@ -83,7 +89,7 @@ func WeekdaysToBitmap(days []string) (uint8, error) {
 // BitmapToWeekdays converts a bitmap to a list of weekdays in accordance with
 // the schedule package's rules (see above).
 func BitmapToWeekdays(bitmap uint8) []string {
-	var days []string
+	days := []string{}
 	for i := 0; i < 7; i++ {
 		if bitmap&(1<<i) != 0 {
 			switch i {
@@ -105,6 +111,12 @@ func BitmapToWeekdays(bitmap uint8) []string {
 		}
 	}
 	return days
+}
+
+type TemplateAutostartRequirement struct {
+	// DaysOfWeek is a list of days of the week in which autostart is allowed
+	// to happen. If no days are specified, autostart is not allowed.
+	DaysOfWeek []string `json:"days_of_week" enums:"monday,tuesday,wednesday,thursday,friday,saturday,sunday"`
 }
 
 type TemplateAutostopRequirement struct {
@@ -135,6 +147,17 @@ type (
 		ID uuid.UUID `json:"id" validate:"required" format:"uuid"`
 	}
 )
+
+type ArchiveTemplateVersionsRequest struct {
+	// By default, only failed versions are archived. Set this to true
+	// to archive all unused versions regardless of job status.
+	All bool `json:"all"`
+}
+
+type ArchiveTemplateVersionsResponse struct {
+	TemplateID  uuid.UUID   `json:"template_id" format:"uuid"`
+	ArchivedIDs []uuid.UUID `json:"archived_ids"`
+}
 
 type TemplateRole string
 
@@ -182,16 +205,17 @@ type UpdateTemplateMeta struct {
 	DefaultTTLMillis int64  `json:"default_ttl_ms,omitempty"`
 	// TODO(@dean): remove max_ttl once autostop_requirement is matured
 	MaxTTLMillis int64 `json:"max_ttl_ms,omitempty"`
-	// AutostopRequirement can only be set if your license includes the advanced
-	// template scheduling feature. If you attempt to set this value while
-	// unlicensed, it will be ignored.
-	AutostopRequirement            *TemplateAutostopRequirement `json:"autostop_requirement,omitempty"`
-	AllowUserAutostart             bool                         `json:"allow_user_autostart,omitempty"`
-	AllowUserAutostop              bool                         `json:"allow_user_autostop,omitempty"`
-	AllowUserCancelWorkspaceJobs   bool                         `json:"allow_user_cancel_workspace_jobs,omitempty"`
-	FailureTTLMillis               int64                        `json:"failure_ttl_ms,omitempty"`
-	TimeTilDormantMillis           int64                        `json:"time_til_dormant_ms,omitempty"`
-	TimeTilDormantAutoDeleteMillis int64                        `json:"time_til_dormant_autodelete_ms,omitempty"`
+	// AutostopRequirement and AutostartRequirement can only be set if your license
+	// includes the advanced template scheduling feature. If you attempt to set this
+	// value while unlicensed, it will be ignored.
+	AutostopRequirement            *TemplateAutostopRequirement  `json:"autostop_requirement,omitempty"`
+	AutostartRequirement           *TemplateAutostartRequirement `json:"autostart_requirement,omitempty"`
+	AllowUserAutostart             bool                          `json:"allow_user_autostart,omitempty"`
+	AllowUserAutostop              bool                          `json:"allow_user_autostop,omitempty"`
+	AllowUserCancelWorkspaceJobs   bool                          `json:"allow_user_cancel_workspace_jobs,omitempty"`
+	FailureTTLMillis               int64                         `json:"failure_ttl_ms,omitempty"`
+	TimeTilDormantMillis           int64                         `json:"time_til_dormant_ms,omitempty"`
+	TimeTilDormantAutoDeleteMillis int64                         `json:"time_til_dormant_autodelete_ms,omitempty"`
 	// UpdateWorkspaceLastUsedAt updates the last_used_at field of workspaces
 	// spawned from the template. This is useful for preventing workspaces being
 	// immediately locked when updating the inactivity_ttl field to a new, shorter
@@ -201,6 +225,10 @@ type UpdateTemplateMeta struct {
 	// from the template. This is useful for preventing dormant workspaces being immediately
 	// deleted when updating the dormant_ttl field to a new, shorter value.
 	UpdateWorkspaceDormantAt bool `json:"update_workspace_dormant_at"`
+	// RequireActiveVersion mandates workspaces built using this template
+	// use the active version of the template. This option has no
+	// effect on template admins.
+	RequireActiveVersion bool `json:"require_active_version"`
 }
 
 type TemplateExample struct {
@@ -225,6 +253,44 @@ func (c *Client) Template(ctx context.Context, template uuid.UUID) (Template, er
 	}
 	var resp Template
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+func (c *Client) ArchiveTemplateVersions(ctx context.Context, template uuid.UUID, all bool) (ArchiveTemplateVersionsResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost,
+		fmt.Sprintf("/api/v2/templates/%s/versions/archive", template),
+		ArchiveTemplateVersionsRequest{
+			All: all,
+		},
+	)
+	if err != nil {
+		return ArchiveTemplateVersionsResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ArchiveTemplateVersionsResponse{}, ReadBodyAsError(res)
+	}
+	var resp ArchiveTemplateVersionsResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+//nolint:revive
+func (c *Client) SetArchiveTemplateVersion(ctx context.Context, templateVersion uuid.UUID, archive bool) error {
+	u := fmt.Sprintf("/api/v2/templateversions/%s", templateVersion.String())
+	if archive {
+		u += "/archive"
+	} else {
+		u += "/unarchive"
+	}
+	res, err := c.Request(ctx, http.MethodPost, u, nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ReadBodyAsError(res)
+	}
+
+	return nil
 }
 
 func (c *Client) DeleteTemplate(ctx context.Context, template uuid.UUID) error {
@@ -311,13 +377,18 @@ func (c *Client) UpdateActiveTemplateVersion(ctx context.Context, template uuid.
 // TemplateVersionsByTemplateRequest defines the request parameters for
 // TemplateVersionsByTemplate.
 type TemplateVersionsByTemplateRequest struct {
-	TemplateID uuid.UUID `json:"template_id" validate:"required" format:"uuid"`
+	TemplateID      uuid.UUID `json:"template_id" validate:"required" format:"uuid"`
+	IncludeArchived bool      `json:"include_archived"`
 	Pagination
 }
 
 // TemplateVersionsByTemplate lists versions associated with a template.
 func (c *Client) TemplateVersionsByTemplate(ctx context.Context, req TemplateVersionsByTemplateRequest) ([]TemplateVersion, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s/versions", req.TemplateID), nil, req.Pagination.asRequestOption())
+	u := fmt.Sprintf("/api/v2/templates/%s/versions", req.TemplateID)
+	if req.IncludeArchived {
+		u += "?include_archived=true"
+	}
+	res, err := c.Request(ctx, http.MethodGet, u, nil, req.Pagination.asRequestOption())
 	if err != nil {
 		return nil, err
 	}

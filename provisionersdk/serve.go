@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/yamux"
 	"github.com/valyala/fasthttp/fasthttputil"
 	"golang.org/x/xerrors"
+	"storj.io/drpc"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 
@@ -21,8 +22,10 @@ import (
 
 // ServeOptions are configurations to serve a provisioner.
 type ServeOptions struct {
-	// Conn specifies a custom transport to serve the dRPC connection.
-	Listener      net.Listener
+	// Listener serves multiple connections. Cannot be combined with Conn.
+	Listener net.Listener
+	// Conn is a single connection to serve. Cannot be combined with Listener.
+	Conn          drpc.Transport
 	Logger        slog.Logger
 	WorkDirectory string
 }
@@ -38,8 +41,11 @@ func Serve(ctx context.Context, server Server, options *ServeOptions) error {
 	if options == nil {
 		options = &ServeOptions{}
 	}
-	// Default to using stdio.
-	if options.Listener == nil {
+	if options.Listener != nil && options.Conn != nil {
+		return xerrors.New("specify Listener or Conn, not both")
+	}
+	// Default to using stdio with yamux as a Listener
+	if options.Listener == nil && options.Conn == nil {
 		config := yamux.DefaultConfig()
 		config.LogOutput = io.Discard
 		stdio, err := yamux.Server(&readWriteCloser{
@@ -75,10 +81,12 @@ func Serve(ctx context.Context, server Server, options *ServeOptions) error {
 		return xerrors.Errorf("register provisioner: %w", err)
 	}
 	srv := drpcserver.New(&tracing.DRPCHandler{Handler: mux})
-	// Only serve a single connection on the transport.
-	// Transports are not multiplexed, and provisioners are
-	// short-lived processes that can be executed concurrently.
-	err = srv.Serve(ctx, options.Listener)
+
+	if options.Listener != nil {
+		err = srv.Serve(ctx, options.Listener)
+	} else if options.Conn != nil {
+		err = srv.ServeOne(ctx, options.Conn)
+	}
 	if err != nil {
 		if errors.Is(err, io.EOF) ||
 			errors.Is(err, context.Canceled) ||

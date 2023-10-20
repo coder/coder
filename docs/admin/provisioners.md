@@ -1,4 +1,4 @@
-# Provisioners
+# External provisioners
 
 By default, the Coder server runs
 [built-in provisioner daemons](../cli/server.md#provisioner-daemons), which
@@ -78,9 +78,9 @@ the [Helm example](#example-running-an-external-provisioner-with-helm) below.
   > [subject to change](https://github.com/coder/coder/issues/6442).
 
 - **User provisioners** can only pick up jobs from user-tagged templates. Unlike
-  the other provisioner types, any Coder can run user provisioners, but they
-  have no impact unless there is at least one template with the `scope=user`
-  provisioner tag.
+  the other provisioner types, any Coder user can run user provisioners, but
+  they have no impact unless there is at least one template with the
+  `scope=user` provisioner tag.
 
   ```shell
   coder provisionerd start \
@@ -101,7 +101,7 @@ will use in concert with the Helm chart for deploying the Coder server.
    secret
 
    ```shell
-   kubectl create secret generic coder-provisioner-psk --from-literal=psk=`head /dev/urandom | tr -dc A-Za-z0-9 | head -c 26`
+   kubectl create secret generic coder-provisioner-psk --from-literal=psk=`head /dev/urandom | base64 | tr -dc A-Za-z0-9 | head -c 26`
    ```
 
 1. Modify your Coder `values.yaml` to include

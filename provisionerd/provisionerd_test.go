@@ -60,7 +60,7 @@ func TestProvisionerd(t *testing.T) {
 		})
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{}), nil
-		}, provisionerd.Provisioners{})
+		}, provisionerd.LocalProvisioners{})
 		require.NoError(t, closer.Close())
 	})
 
@@ -74,34 +74,7 @@ func TestProvisionerd(t *testing.T) {
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			defer close(completeChan)
 			return nil, xerrors.New("an error")
-		}, provisionerd.Provisioners{})
-		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
-		require.NoError(t, closer.Close())
-	})
-
-	t.Run("AcquireEmptyJob", func(t *testing.T) {
-		// The provisioner daemon is supposed to skip the job acquire if
-		// the job provided is empty. This is to show it successfully
-		// tried to get a job, but none were available.
-		t.Parallel()
-		done := make(chan struct{})
-		t.Cleanup(func() {
-			close(done)
-		})
-		completeChan := make(chan struct{})
-		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
-			acquireJobAttempt := 0
-			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
-				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
-					if acquireJobAttempt == 1 {
-						close(completeChan)
-					}
-					acquireJobAttempt++
-					return &proto.AcquiredJob{}, nil
-				},
-				updateJob: noopUpdateJob,
-			}), nil
-		}, provisionerd.Provisioners{})
+		}, provisionerd.LocalProvisioners{})
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		require.NoError(t, closer.Close())
 	})
@@ -119,8 +92,8 @@ func TestProvisionerd(t *testing.T) {
 		closerMutex.Lock()
 		closer = createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
-				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
-					return &proto.AcquiredJob{
+				acquireJobWithCancel: func(stream proto.DRPCProvisionerDaemon_AcquireJobWithCancelStream) error {
+					err := stream.Send(&proto.AcquiredJob{
 						JobId:       "test",
 						Provisioner: "someprovisioner",
 						TemplateSourceArchive: createTar(t, map[string]string{
@@ -131,7 +104,9 @@ func TestProvisionerd(t *testing.T) {
 								Metadata: &sdkproto.Metadata{},
 							},
 						},
-					}, nil
+					})
+					assert.NoError(t, err)
+					return nil
 				},
 				updateJob: noopUpdateJob,
 				failJob: func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error) {
@@ -141,7 +116,7 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.Empty{}, nil
 				},
 			}), nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
 				parse: func(_ *provisionersdk.Session, _ *sdkproto.ParseRequest, _ <-chan struct{}) *sdkproto.ParseComplete {
 					closerMutex.Lock()
@@ -171,31 +146,30 @@ func TestProvisionerd(t *testing.T) {
 		var (
 			completeChan = make(chan struct{})
 			completeOnce sync.Once
+			acq          = newAcquireOne(t, &proto.AcquiredJob{
+				JobId:       "test",
+				Provisioner: "someprovisioner",
+				TemplateSourceArchive: createTar(t, map[string]string{
+					"../../../etc/passwd": "content",
+				}),
+				Type: &proto.AcquiredJob_TemplateImport_{
+					TemplateImport: &proto.AcquiredJob_TemplateImport{
+						Metadata: &sdkproto.Metadata{},
+					},
+				},
+			})
 		)
 
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
-				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
-					return &proto.AcquiredJob{
-						JobId:       "test",
-						Provisioner: "someprovisioner",
-						TemplateSourceArchive: createTar(t, map[string]string{
-							"../../../etc/passwd": "content",
-						}),
-						Type: &proto.AcquiredJob_TemplateImport_{
-							TemplateImport: &proto.AcquiredJob_TemplateImport{
-								Metadata: &sdkproto.Metadata{},
-							},
-						},
-					}, nil
-				},
-				updateJob: noopUpdateJob,
+				acquireJobWithCancel: acq.acquireWithCancel,
+				updateJob:            noopUpdateJob,
 				failJob: func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error) {
 					completeOnce.Do(func() { close(completeChan) })
 					return &proto.Empty{}, nil
 				},
 			}), nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{}),
 		})
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
@@ -215,8 +189,8 @@ func TestProvisionerd(t *testing.T) {
 
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
-				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
-					return &proto.AcquiredJob{
+				acquireJobWithCancel: func(stream proto.DRPCProvisionerDaemon_AcquireJobWithCancelStream) error {
+					err := stream.Send(&proto.AcquiredJob{
 						JobId:       "test",
 						Provisioner: "someprovisioner",
 						TemplateSourceArchive: createTar(t, map[string]string{
@@ -227,7 +201,9 @@ func TestProvisionerd(t *testing.T) {
 								Metadata: &sdkproto.Metadata{},
 							},
 						},
-					}, nil
+					})
+					assert.NoError(t, err)
+					return nil
 				},
 				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
 					completeOnce.Do(func() { close(completeChan) })
@@ -237,7 +213,7 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.Empty{}, nil
 				},
 			}), nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
 				parse: func(
 					_ *provisionersdk.Session,
@@ -260,36 +236,27 @@ func TestProvisionerd(t *testing.T) {
 			close(done)
 		})
 		var (
-			didComplete   atomic.Bool
-			didLog        atomic.Bool
-			didAcquireJob atomic.Bool
-			didReadme     atomic.Bool
-			completeChan  = make(chan struct{})
-			completeOnce  sync.Once
+			didComplete atomic.Bool
+			didLog      atomic.Bool
+			didReadme   atomic.Bool
+			acq         = newAcquireOne(t, &proto.AcquiredJob{
+				JobId:       "test",
+				Provisioner: "someprovisioner",
+				TemplateSourceArchive: createTar(t, map[string]string{
+					"test.txt":                "content",
+					provisionersdk.ReadmeFile: "# A cool template 😎\n",
+				}),
+				Type: &proto.AcquiredJob_TemplateImport_{
+					TemplateImport: &proto.AcquiredJob_TemplateImport{
+						Metadata: &sdkproto.Metadata{},
+					},
+				},
+			})
 		)
 
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
-				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
-					if !didAcquireJob.CAS(false, true) {
-						completeOnce.Do(func() { close(completeChan) })
-						return &proto.AcquiredJob{}, nil
-					}
-
-					return &proto.AcquiredJob{
-						JobId:       "test",
-						Provisioner: "someprovisioner",
-						TemplateSourceArchive: createTar(t, map[string]string{
-							"test.txt":                "content",
-							provisionersdk.ReadmeFile: "# A cool template 😎\n",
-						}),
-						Type: &proto.AcquiredJob_TemplateImport_{
-							TemplateImport: &proto.AcquiredJob_TemplateImport{
-								Metadata: &sdkproto.Metadata{},
-							},
-						},
-					}, nil
-				},
+				acquireJobWithCancel: acq.acquireWithCancel,
 				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
 					if len(update.Logs) > 0 {
 						didLog.Store(true)
@@ -304,7 +271,7 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.Empty{}, nil
 				},
 			}), nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
 				parse: func(
 					s *provisionersdk.Session,
@@ -338,7 +305,7 @@ func TestProvisionerd(t *testing.T) {
 			}),
 		})
 
-		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
+		require.Condition(t, closedWithin(acq.complete, testutil.WaitShort))
 		require.NoError(t, closer.Close())
 		assert.True(t, didLog.Load(), "should log some updates")
 		assert.True(t, didComplete.Load(), "should complete the job")
@@ -351,36 +318,26 @@ func TestProvisionerd(t *testing.T) {
 			close(done)
 		})
 		var (
-			didComplete   atomic.Bool
-			didLog        atomic.Bool
-			didAcquireJob atomic.Bool
-			completeChan  = make(chan struct{})
-			completeOnce  sync.Once
-
-			metadata = &sdkproto.Metadata{}
+			didComplete atomic.Bool
+			didLog      atomic.Bool
+			metadata    = &sdkproto.Metadata{}
+			acq         = newAcquireOne(t, &proto.AcquiredJob{
+				JobId:       "test",
+				Provisioner: "someprovisioner",
+				TemplateSourceArchive: createTar(t, map[string]string{
+					"test.txt": "content",
+				}),
+				Type: &proto.AcquiredJob_TemplateDryRun_{
+					TemplateDryRun: &proto.AcquiredJob_TemplateDryRun{
+						Metadata: metadata,
+					},
+				},
+			})
 		)
 
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
-				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
-					if !didAcquireJob.CAS(false, true) {
-						completeOnce.Do(func() { close(completeChan) })
-						return &proto.AcquiredJob{}, nil
-					}
-
-					return &proto.AcquiredJob{
-						JobId:       "test",
-						Provisioner: "someprovisioner",
-						TemplateSourceArchive: createTar(t, map[string]string{
-							"test.txt": "content",
-						}),
-						Type: &proto.AcquiredJob_TemplateDryRun_{
-							TemplateDryRun: &proto.AcquiredJob_TemplateDryRun{
-								Metadata: metadata,
-							},
-						},
-					}, nil
-				},
+				acquireJobWithCancel: acq.acquireWithCancel,
 				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
 					if len(update.Logs) == 0 {
 						t.Log("provisionerDaemonTestServer: no log messages")
@@ -398,7 +355,7 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.Empty{}, nil
 				},
 			}), nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
 				plan: func(
 					_ *provisionersdk.Session,
@@ -420,7 +377,7 @@ func TestProvisionerd(t *testing.T) {
 			}),
 		})
 
-		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
+		require.Condition(t, closedWithin(acq.complete, testutil.WaitShort))
 		require.NoError(t, closer.Close())
 		assert.True(t, didLog.Load(), "should log some updates")
 		assert.True(t, didComplete.Load(), "should complete the job")
@@ -433,34 +390,25 @@ func TestProvisionerd(t *testing.T) {
 			close(done)
 		})
 		var (
-			didComplete   atomic.Bool
-			didLog        atomic.Bool
-			didAcquireJob atomic.Bool
-			completeChan  = make(chan struct{})
-			completeOnce  sync.Once
+			didComplete atomic.Bool
+			didLog      atomic.Bool
+			acq         = newAcquireOne(t, &proto.AcquiredJob{
+				JobId:       "test",
+				Provisioner: "someprovisioner",
+				TemplateSourceArchive: createTar(t, map[string]string{
+					"test.txt": "content",
+				}),
+				Type: &proto.AcquiredJob_WorkspaceBuild_{
+					WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
+						Metadata: &sdkproto.Metadata{},
+					},
+				},
+			})
 		)
 
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
-				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
-					if !didAcquireJob.CAS(false, true) {
-						completeOnce.Do(func() { close(completeChan) })
-						return &proto.AcquiredJob{}, nil
-					}
-
-					return &proto.AcquiredJob{
-						JobId:       "test",
-						Provisioner: "someprovisioner",
-						TemplateSourceArchive: createTar(t, map[string]string{
-							"test.txt": "content",
-						}),
-						Type: &proto.AcquiredJob_WorkspaceBuild_{
-							WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
-								Metadata: &sdkproto.Metadata{},
-							},
-						},
-					}, nil
-				},
+				acquireJobWithCancel: acq.acquireWithCancel,
 				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
 					if len(update.Logs) != 0 {
 						didLog.Store(true)
@@ -472,7 +420,7 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.Empty{}, nil
 				},
 			}), nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
 				plan: func(
 					s *provisionersdk.Session,
@@ -491,7 +439,7 @@ func TestProvisionerd(t *testing.T) {
 				},
 			}),
 		})
-		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
+		require.Condition(t, closedWithin(acq.complete, testutil.WaitShort))
 		require.NoError(t, closer.Close())
 		assert.True(t, didLog.Load(), "should log some updates")
 		assert.True(t, didComplete.Load(), "should complete the job")
@@ -504,35 +452,26 @@ func TestProvisionerd(t *testing.T) {
 			close(done)
 		})
 		var (
-			didComplete   atomic.Bool
-			didLog        atomic.Bool
-			didAcquireJob atomic.Bool
-			didFail       atomic.Bool
-			completeChan  = make(chan struct{})
-			completeOnce  sync.Once
+			didComplete atomic.Bool
+			didLog      atomic.Bool
+			didFail     atomic.Bool
+			acq         = newAcquireOne(t, &proto.AcquiredJob{
+				JobId:       "test",
+				Provisioner: "someprovisioner",
+				TemplateSourceArchive: createTar(t, map[string]string{
+					"test.txt": "content",
+				}),
+				Type: &proto.AcquiredJob_WorkspaceBuild_{
+					WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
+						Metadata: &sdkproto.Metadata{},
+					},
+				},
+			})
 		)
 
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
-				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
-					if !didAcquireJob.CAS(false, true) {
-						completeOnce.Do(func() { close(completeChan) })
-						return &proto.AcquiredJob{}, nil
-					}
-
-					return &proto.AcquiredJob{
-						JobId:       "test",
-						Provisioner: "someprovisioner",
-						TemplateSourceArchive: createTar(t, map[string]string{
-							"test.txt": "content",
-						}),
-						Type: &proto.AcquiredJob_WorkspaceBuild_{
-							WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
-								Metadata: &sdkproto.Metadata{},
-							},
-						},
-					}, nil
-				},
+				acquireJobWithCancel: acq.acquireWithCancel,
 				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
 					if len(update.Logs) != 0 {
 						didLog.Store(true)
@@ -553,7 +492,7 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.Empty{}, nil
 				},
 			}), nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
 				plan: func(
 					s *provisionersdk.Session,
@@ -591,7 +530,7 @@ func TestProvisionerd(t *testing.T) {
 				},
 			}),
 		})
-		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
+		require.Condition(t, closedWithin(acq.complete, testutil.WaitShort))
 		require.NoError(t, closer.Close())
 		assert.True(t, didLog.Load(), "should log some updates")
 		assert.False(t, didComplete.Load(), "should not complete the job")
@@ -605,40 +544,31 @@ func TestProvisionerd(t *testing.T) {
 			close(done)
 		})
 		var (
-			didFail       atomic.Bool
-			didAcquireJob atomic.Bool
-			completeChan  = make(chan struct{})
-			completeOnce  sync.Once
+			didFail atomic.Bool
+			acq     = newAcquireOne(t, &proto.AcquiredJob{
+				JobId:       "test",
+				Provisioner: "someprovisioner",
+				TemplateSourceArchive: createTar(t, map[string]string{
+					"test.txt": "content",
+				}),
+				Type: &proto.AcquiredJob_WorkspaceBuild_{
+					WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
+						Metadata: &sdkproto.Metadata{},
+					},
+				},
+			})
 		)
 
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
-				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
-					if !didAcquireJob.CAS(false, true) {
-						completeOnce.Do(func() { close(completeChan) })
-						return &proto.AcquiredJob{}, nil
-					}
-
-					return &proto.AcquiredJob{
-						JobId:       "test",
-						Provisioner: "someprovisioner",
-						TemplateSourceArchive: createTar(t, map[string]string{
-							"test.txt": "content",
-						}),
-						Type: &proto.AcquiredJob_WorkspaceBuild_{
-							WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
-								Metadata: &sdkproto.Metadata{},
-							},
-						},
-					}, nil
-				},
-				updateJob: noopUpdateJob,
+				acquireJobWithCancel: acq.acquireWithCancel,
+				updateJob:            noopUpdateJob,
 				failJob: func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error) {
 					didFail.Store(true)
 					return &proto.Empty{}, nil
 				},
 			}), nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
 				plan: func(
 					s *provisionersdk.Session,
@@ -661,7 +591,7 @@ func TestProvisionerd(t *testing.T) {
 				},
 			}),
 		})
-		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
+		require.Condition(t, closedWithin(acq.complete, testutil.WaitShort))
 		require.NoError(t, closer.Close())
 		assert.True(t, didFail.Load(), "should fail the job")
 	})
@@ -678,8 +608,8 @@ func TestProvisionerd(t *testing.T) {
 		completeChan := make(chan struct{})
 		server := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
-				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
-					return &proto.AcquiredJob{
+				acquireJobWithCancel: func(stream proto.DRPCProvisionerDaemon_AcquireJobWithCancelStream) error {
+					err := stream.Send(&proto.AcquiredJob{
 						JobId:       "test",
 						Provisioner: "someprovisioner",
 						TemplateSourceArchive: createTar(t, map[string]string{
@@ -690,7 +620,9 @@ func TestProvisionerd(t *testing.T) {
 								Metadata: &sdkproto.Metadata{},
 							},
 						},
-					}, nil
+					})
+					assert.NoError(t, err)
+					return nil
 				},
 				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
 					if len(update.Logs) > 0 {
@@ -714,7 +646,7 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.Empty{}, nil
 				},
 			}), nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
 				plan: func(
 					s *provisionersdk.Session,
@@ -756,8 +688,8 @@ func TestProvisionerd(t *testing.T) {
 		completeChan := make(chan struct{})
 		server := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
-				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
-					return &proto.AcquiredJob{
+				acquireJobWithCancel: func(stream proto.DRPCProvisionerDaemon_AcquireJobWithCancelStream) error {
+					err := stream.Send(&proto.AcquiredJob{
 						JobId:       "test",
 						Provisioner: "someprovisioner",
 						TemplateSourceArchive: createTar(t, map[string]string{
@@ -768,7 +700,9 @@ func TestProvisionerd(t *testing.T) {
 								Metadata: &sdkproto.Metadata{},
 							},
 						},
-					}, nil
+					})
+					assert.NoError(t, err)
+					return nil
 				},
 				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
 					resp := &proto.UpdateJobResponse{}
@@ -800,7 +734,7 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.Empty{}, nil
 				},
 			}), nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
 				plan: func(
 					s *provisionersdk.Session,
@@ -825,6 +759,9 @@ func TestProvisionerd(t *testing.T) {
 		})
 		require.Condition(t, closedWithin(updateChan, testutil.WaitShort))
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+		require.NoError(t, server.Shutdown(ctx))
 		require.NoError(t, server.Close())
 	})
 
@@ -845,11 +782,8 @@ func TestProvisionerd(t *testing.T) {
 		)
 		server := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			client := createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
-				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
-					if second.Load() {
-						return &proto.AcquiredJob{}, nil
-					}
-					return &proto.AcquiredJob{
+				acquireJobWithCancel: func(stream proto.DRPCProvisionerDaemon_AcquireJobWithCancelStream) error {
+					job := &proto.AcquiredJob{
 						JobId:       "test",
 						Provisioner: "someprovisioner",
 						TemplateSourceArchive: createTar(t, map[string]string{
@@ -860,7 +794,15 @@ func TestProvisionerd(t *testing.T) {
 								Metadata: &sdkproto.Metadata{},
 							},
 						},
-					}, nil
+					}
+					if second.Load() {
+						job = &proto.AcquiredJob{}
+						_, err := stream.Recv()
+						assert.NoError(t, err)
+					}
+					err := stream.Send(job)
+					assert.NoError(t, err)
+					return nil
 				},
 				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
 					return &proto.UpdateJobResponse{}, nil
@@ -886,7 +828,7 @@ func TestProvisionerd(t *testing.T) {
 				}()
 			}
 			return client, nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
 				plan: func(
 					_ *provisionersdk.Session,
@@ -908,6 +850,9 @@ func TestProvisionerd(t *testing.T) {
 			}),
 		})
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+		require.NoError(t, server.Shutdown(ctx))
 		require.NoError(t, server.Close())
 	})
 
@@ -928,12 +873,14 @@ func TestProvisionerd(t *testing.T) {
 		)
 		server := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			client := createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
-				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
+				acquireJobWithCancel: func(stream proto.DRPCProvisionerDaemon_AcquireJobWithCancelStream) error {
 					if second.Load() {
 						completeOnce.Do(func() { close(completeChan) })
-						return &proto.AcquiredJob{}, nil
+						_, err := stream.Recv()
+						assert.NoError(t, err)
+						return nil
 					}
-					return &proto.AcquiredJob{
+					job := &proto.AcquiredJob{
 						JobId:       "test",
 						Provisioner: "someprovisioner",
 						TemplateSourceArchive: createTar(t, map[string]string{
@@ -944,7 +891,10 @@ func TestProvisionerd(t *testing.T) {
 								Metadata: &sdkproto.Metadata{},
 							},
 						},
-					}, nil
+					}
+					err := stream.Send(job)
+					assert.NoError(t, err)
+					return nil
 				},
 				failJob: func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error) {
 					return nil, yamux.ErrSessionShutdown
@@ -971,7 +921,7 @@ func TestProvisionerd(t *testing.T) {
 				}()
 			}
 			return client, nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
 				plan: func(
 					_ *provisionersdk.Session,
@@ -990,6 +940,10 @@ func TestProvisionerd(t *testing.T) {
 			}),
 		})
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
+		t.Log("completeChan closed")
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+		require.NoError(t, server.Shutdown(ctx))
 		require.NoError(t, server.Close())
 	})
 
@@ -1007,16 +961,20 @@ func TestProvisionerd(t *testing.T) {
 
 		server := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
-				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
+				acquireJobWithCancel: func(stream proto.DRPCProvisionerDaemon_AcquireJobWithCancelStream) error {
 					m.Lock()
 					defer m.Unlock()
 					logger.Info(ctx, "provisioner stage: AcquiredJob")
 					if len(ops) > 0 {
-						return &proto.AcquiredJob{}, nil
+						_, err := stream.Recv()
+						assert.NoError(t, err)
+						err = stream.Send(&proto.AcquiredJob{})
+						assert.NoError(t, err)
+						return nil
 					}
 					ops = append(ops, "AcquireJob")
 
-					return &proto.AcquiredJob{
+					err := stream.Send(&proto.AcquiredJob{
 						JobId:       "test",
 						Provisioner: "someprovisioner",
 						TemplateSourceArchive: createTar(t, map[string]string{
@@ -1027,7 +985,9 @@ func TestProvisionerd(t *testing.T) {
 								Metadata: &sdkproto.Metadata{},
 							},
 						},
-					}, nil
+					})
+					assert.NoError(t, err)
+					return nil
 				},
 				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
 					m.Lock()
@@ -1055,7 +1015,7 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.Empty{}, nil
 				},
 			}), nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
 				plan: func(
 					s *provisionersdk.Session,
@@ -1076,6 +1036,9 @@ func TestProvisionerd(t *testing.T) {
 			}),
 		})
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+		require.NoError(t, server.Shutdown(ctx))
 		require.NoError(t, server.Close())
 		assert.Equal(t, ops[len(ops)-1], "CompleteJob")
 		assert.Contains(t, ops[0:len(ops)-1], "Log: Cleaning Up | ")
@@ -1103,14 +1066,16 @@ func createTar(t *testing.T, files map[string]string) []byte {
 }
 
 // Creates a provisionerd implementation with the provided dialer and provisioners.
-func createProvisionerd(t *testing.T, dialer provisionerd.Dialer, provisioners provisionerd.Provisioners) *provisionerd.Server {
+func createProvisionerd(t *testing.T, dialer provisionerd.Dialer, connector provisionerd.LocalProvisioners) *provisionerd.Server {
 	server := provisionerd.New(dialer, &provisionerd.Options{
-		Logger:          slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("provisionerd").Leveled(slog.LevelDebug),
-		JobPollInterval: 50 * time.Millisecond,
-		UpdateInterval:  50 * time.Millisecond,
-		Provisioners:    provisioners,
+		Logger:         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("provisionerd").Leveled(slog.LevelDebug),
+		UpdateInterval: 50 * time.Millisecond,
+		Connector:      connector,
 	})
 	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+		_ = server.Shutdown(ctx)
 		_ = server.Close()
 	})
 	return server
@@ -1217,15 +1182,25 @@ func (p *provisionerTestServer) Apply(s *provisionersdk.Session, r *sdkproto.App
 // Fulfills the protobuf interface for a ProvisionerDaemon with
 // passable functions for dynamic functionality.
 type provisionerDaemonTestServer struct {
-	acquireJob  func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error)
-	commitQuota func(ctx context.Context, com *proto.CommitQuotaRequest) (*proto.CommitQuotaResponse, error)
-	updateJob   func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error)
-	failJob     func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error)
-	completeJob func(ctx context.Context, job *proto.CompletedJob) (*proto.Empty, error)
+	acquireJobWithCancel func(stream proto.DRPCProvisionerDaemon_AcquireJobWithCancelStream) error
+	commitQuota          func(ctx context.Context, com *proto.CommitQuotaRequest) (*proto.CommitQuotaResponse, error)
+	updateJob            func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error)
+	failJob              func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error)
+	completeJob          func(ctx context.Context, job *proto.CompletedJob) (*proto.Empty, error)
 }
 
-func (p *provisionerDaemonTestServer) AcquireJob(ctx context.Context, empty *proto.Empty) (*proto.AcquiredJob, error) {
-	return p.acquireJob(ctx, empty)
+func (*provisionerDaemonTestServer) AcquireJob(context.Context, *proto.Empty) (*proto.AcquiredJob, error) {
+	return nil, xerrors.New("deprecated!")
+}
+
+func (p *provisionerDaemonTestServer) AcquireJobWithCancel(stream proto.DRPCProvisionerDaemon_AcquireJobWithCancelStream) error {
+	if p.acquireJobWithCancel != nil {
+		return p.acquireJobWithCancel(stream)
+	}
+	// default behavior is to wait for cancel
+	_, _ = stream.Recv()
+	_ = stream.Send(&proto.AcquiredJob{})
+	return nil
 }
 
 func (p *provisionerDaemonTestServer) CommitQuota(ctx context.Context, com *proto.CommitQuotaRequest) (*proto.CommitQuotaResponse, error) {
@@ -1247,4 +1222,39 @@ func (p *provisionerDaemonTestServer) FailJob(ctx context.Context, job *proto.Fa
 
 func (p *provisionerDaemonTestServer) CompleteJob(ctx context.Context, job *proto.CompletedJob) (*proto.Empty, error) {
 	return p.completeJob(ctx, job)
+}
+
+// acquireOne provides a function that returns a single provisioner job, then subsequent calls block until canceled.
+// The complete channel is closed on the 2nd call.
+type acquireOne struct {
+	t        *testing.T
+	mu       sync.Mutex
+	job      *proto.AcquiredJob
+	called   int
+	complete chan struct{}
+}
+
+func newAcquireOne(t *testing.T, job *proto.AcquiredJob) *acquireOne {
+	return &acquireOne{
+		t:        t,
+		job:      job,
+		complete: make(chan struct{}),
+	}
+}
+
+func (a *acquireOne) acquireWithCancel(stream proto.DRPCProvisionerDaemon_AcquireJobWithCancelStream) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.called++
+	if a.called == 2 {
+		close(a.complete)
+	}
+	if a.called > 1 {
+		_, _ = stream.Recv()
+		_ = stream.Send(&proto.AcquiredJob{})
+		return nil
+	}
+	err := stream.Send(a.job)
+	assert.NoError(a.t, err)
+	return nil
 }

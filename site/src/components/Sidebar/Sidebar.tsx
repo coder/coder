@@ -1,6 +1,6 @@
-import Box, { BoxProps } from "@mui/material/Box"
-import { styled } from "@mui/styles"
-import { colors } from "theme/colors"
+import Box, { BoxProps } from "@mui/material/Box";
+import { styled } from "@mui/styles";
+import { colors } from "theme/colors";
 
 export const Sidebar = styled((props: BoxProps) => (
   <Box {...props} component="nav" />
@@ -10,7 +10,7 @@ export const Sidebar = styled((props: BoxProps) => (
   borderRight: `1px solid ${theme.palette.divider}`,
   height: "100%",
   overflowY: "auto",
-}))
+}));
 
 export const SidebarItem = styled(
   ({ active, ...props }: BoxProps & { active?: boolean }) => (
@@ -32,7 +32,7 @@ export const SidebarItem = styled(
   },
   paddingTop: theme.spacing(1.25),
   paddingBottom: theme.spacing(1.25),
-}))
+}));
 
 export const SidebarCaption = styled(Box)(({ theme }) => ({
   fontSize: 10,
@@ -41,4 +41,4 @@ export const SidebarCaption = styled(Box)(({ theme }) => ({
   color: theme.palette.text.secondary,
   padding: theme.spacing(1.5, 3),
   letterSpacing: "0.5px",
-}))
+}));

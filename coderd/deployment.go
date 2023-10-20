@@ -33,7 +33,7 @@ func (api *API) deploymentValues(rw http.ResponseWriter, r *http.Request) {
 		r.Context(), rw, http.StatusOK,
 		codersdk.DeploymentConfig{
 			Values:  values,
-			Options: values.Options(),
+			Options: api.DeploymentOptions,
 		},
 	)
 }

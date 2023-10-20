@@ -1,27 +1,27 @@
-import Box from "@mui/material/Box"
-import { ProvisionerJobLog } from "api/typesGenerated"
-import { Loader } from "components/Loader/Loader"
-import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
-import { useRef, useEffect } from "react"
+import Box from "@mui/material/Box";
+import { ProvisionerJobLog } from "api/typesGenerated";
+import { Loader } from "components/Loader/Loader";
+import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs";
+import { useRef, useEffect } from "react";
 
 export const WorkspaceBuildLogsSection = ({
   logs,
 }: {
-  logs: ProvisionerJobLog[] | undefined
+  logs: ProvisionerJobLog[] | undefined;
 }) => {
-  const scrollRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     // Auto scrolling makes hard to snapshot test using Chromatic
     if (process.env.STORYBOOK === "true") {
-      return
+      return;
     }
 
-    const scrollEl = scrollRef.current
+    const scrollEl = scrollRef.current;
     if (scrollEl) {
-      scrollEl.scrollTop = scrollEl.scrollHeight
+      scrollEl.scrollTop = scrollEl.scrollHeight;
     }
-  }, [logs])
+  }, [logs]);
 
   return (
     <Box
@@ -72,5 +72,5 @@ export const WorkspaceBuildLogsSection = ({
         )}
       </Box>
     </Box>
-  )
-}
+  );
+};

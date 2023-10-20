@@ -13,6 +13,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -25,11 +27,11 @@ func TestBatchStats(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	store, _ := dbtestutil.NewDB(t)
+	store, ps := dbtestutil.NewDB(t)
 
 	// Set up some test dependencies.
-	deps1 := setupDeps(t, store)
-	deps2 := setupDeps(t, store)
+	deps1 := setupDeps(t, store, ps)
+	deps2 := setupDeps(t, store, ps)
 	tick := make(chan time.Time)
 	flushed := make(chan int, 1)
 
@@ -46,7 +48,7 @@ func TestBatchStats(t *testing.T) {
 
 	// Given: no data points are added for workspace
 	// When: it becomes time to report stats
-	t1 := database.Now()
+	t1 := dbtime.Now()
 	// Signal a tick and wait for a flush to complete.
 	tick <- t1
 	f := <-flushed
@@ -167,7 +169,7 @@ type deps struct {
 // It creates an organization, user, template, workspace, and agent
 // along with all the other miscellaneous plumbing required to link
 // them together.
-func setupDeps(t *testing.T, store database.Store) deps {
+func setupDeps(t *testing.T, store database.Store, ps pubsub.Pubsub) deps {
 	t.Helper()
 
 	org := dbgen.Organization(t, store, database.Organization{})
@@ -193,7 +195,7 @@ func setupDeps(t *testing.T, store database.Store) deps {
 		OrganizationID: org.ID,
 		LastUsedAt:     time.Now().Add(-time.Hour),
 	})
-	pj := dbgen.ProvisionerJob(t, store, database.ProvisionerJob{
+	pj := dbgen.ProvisionerJob(t, store, ps, database.ProvisionerJob{
 		InitiatorID:    user.ID,
 		OrganizationID: org.ID,
 	})

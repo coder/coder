@@ -11,9 +11,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
+	"go.opentelemetry.io/otel/baggage"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/tracing"
 )
@@ -33,12 +36,14 @@ type Request[T Auditable] struct {
 	Old T
 	New T
 
-	// This optional field can be passed in when the userID cannot be determined from the API Key
-	// such as in the case of login, when the audit log is created prior the API Key's existence.
+	// UserID is an optional field can be passed in when the userID cannot be
+	// determined from the API Key such as in the case of login, when the audit
+	// log is created prior the API Key's existence.
 	UserID uuid.UUID
 
-	// This optional field can be passed in if the AuditAction must be overridden
-	// such as in the case of new user authentication when the Audit Action is 'register', not 'login'.
+	// Action is an optional field can be passed in if the AuditAction must be
+	// overridden such as in the case of new user authentication when the Audit
+	// Action is 'register', not 'login'.
 	Action database.AuditAction
 }
 
@@ -50,6 +55,8 @@ type BuildAuditParams[T Auditable] struct {
 	JobID            uuid.UUID
 	Status           int
 	Action           database.AuditAction
+	OrganizationID   uuid.UUID
+	IP               string
 	AdditionalFields json.RawMessage
 
 	New T
@@ -217,7 +224,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 		ip := parseIP(p.Request.RemoteAddr)
 		auditLog := database.AuditLog{
 			ID:               uuid.New(),
-			Time:             database.Now(),
+			Time:             dbtime.Now(),
 			UserID:           userID,
 			Ip:               ip,
 			UserAgent:        sql.NullString{String: p.Request.UserAgent(), Valid: true},
@@ -241,12 +248,10 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 	}
 }
 
-// BuildAudit creates an audit log for a workspace build.
+// WorkspaceBuildAudit creates an audit log for a workspace build.
 // The audit log is committed upon invocation.
-func BuildAudit[T Auditable](ctx context.Context, p *BuildAuditParams[T]) {
-	// As the audit request has not been initiated directly by a user, we omit
-	// certain user details.
-	ip := parseIP("")
+func WorkspaceBuildAudit[T Auditable](ctx context.Context, p *BuildAuditParams[T]) {
+	ip := parseIP(p.IP)
 
 	diff := Diff(p.Audit, p.Old, p.New)
 	var err error
@@ -262,8 +267,9 @@ func BuildAudit[T Auditable](ctx context.Context, p *BuildAuditParams[T]) {
 
 	auditLog := database.AuditLog{
 		ID:               uuid.New(),
-		Time:             database.Now(),
+		Time:             dbtime.Now(),
 		UserID:           p.UserID,
+		OrganizationID:   p.OrganizationID,
 		Ip:               ip,
 		UserAgent:        sql.NullString{},
 		ResourceType:     either(p.Old, p.New, ResourceType[T], p.Action),
@@ -275,14 +281,68 @@ func BuildAudit[T Auditable](ctx context.Context, p *BuildAuditParams[T]) {
 		RequestID:        p.JobID,
 		AdditionalFields: p.AdditionalFields,
 	}
-	exportErr := p.Audit.Export(ctx, auditLog)
-	if exportErr != nil {
+	err = p.Audit.Export(ctx, auditLog)
+	if err != nil {
 		p.Log.Error(ctx, "export audit log",
 			slog.F("audit_log", auditLog),
 			slog.Error(err),
 		)
-		return
 	}
+}
+
+type WorkspaceBuildBaggage struct {
+	IP string
+}
+
+func (b WorkspaceBuildBaggage) Props() ([]baggage.Property, error) {
+	ipProp, err := baggage.NewKeyValueProperty("ip", b.IP)
+	if err != nil {
+		return nil, xerrors.Errorf("create ip kv property: %w", err)
+	}
+
+	return []baggage.Property{ipProp}, nil
+}
+
+func WorkspaceBuildBaggageFromRequest(r *http.Request) WorkspaceBuildBaggage {
+	return WorkspaceBuildBaggage{IP: r.RemoteAddr}
+}
+
+type Baggage interface {
+	Props() ([]baggage.Property, error)
+}
+
+func BaggageToContext(ctx context.Context, d Baggage) (context.Context, error) {
+	props, err := d.Props()
+	if err != nil {
+		return ctx, xerrors.Errorf("create baggage properties: %w", err)
+	}
+
+	m, err := baggage.NewMember("audit", "baggage", props...)
+	if err != nil {
+		return ctx, xerrors.Errorf("create new baggage member: %w", err)
+	}
+
+	b, err := baggage.New(m)
+	if err != nil {
+		return ctx, xerrors.Errorf("create new baggage carrier: %w", err)
+	}
+
+	return baggage.ContextWithBaggage(ctx, b), nil
+}
+
+func BaggageFromContext(ctx context.Context) WorkspaceBuildBaggage {
+	d := WorkspaceBuildBaggage{}
+	b := baggage.FromContext(ctx)
+	props := b.Member("audit").Properties()
+	for _, prop := range props {
+		switch prop.Key() {
+		case "ip":
+			d.IP, _ = prop.Value()
+		default:
+		}
+	}
+
+	return d
 }
 
 func either[T Auditable, R any](old, new T, fn func(T) R, auditAction database.AuditAction) R {

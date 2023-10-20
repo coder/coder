@@ -12,14 +12,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -262,7 +262,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 
 						err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 							ID:                            template.ID,
-							UpdatedAt:                     database.Now(),
+							UpdatedAt:                     dbtime.Now(),
 							AllowUserAutostart:            options.UserAutostartEnabled,
 							AllowUserAutostop:             options.UserAutostopEnabled,
 							DefaultTTL:                    int64(options.DefaultTTL),
@@ -296,7 +296,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 
 			require.EqualValues(t, 1, atomic.LoadInt64(&setCalled))
 			require.Empty(t, got.AutostopRequirement.DaysOfWeek)
-			require.Zero(t, got.AutostopRequirement.Weeks)
+			require.EqualValues(t, 1, got.AutostopRequirement.Weeks)
 		})
 
 		t.Run("OK", func(t *testing.T) {
@@ -312,7 +312,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 
 						err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 							ID:                            template.ID,
-							UpdatedAt:                     database.Now(),
+							UpdatedAt:                     dbtime.Now(),
 							AllowUserAutostart:            options.UserAutostartEnabled,
 							AllowUserAutostop:             options.UserAutostopEnabled,
 							DefaultTTL:                    int64(options.DefaultTTL),
@@ -379,7 +379,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 			require.NoError(t, err)
 			// ignored and use AGPL defaults
 			require.Empty(t, got.AutostopRequirement.DaysOfWeek)
-			require.Zero(t, got.AutostopRequirement.Weeks)
+			require.EqualValues(t, 1, got.AutostopRequirement.Weeks)
 		})
 	})
 }
@@ -474,6 +474,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
 		req := codersdk.UpdateTemplateMeta{
 			Name:                         "new-template-name",
 			DisplayName:                  "Displayed Name 456",
@@ -590,7 +592,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 
 						err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 							ID:                            template.ID,
-							UpdatedAt:                     database.Now(),
+							UpdatedAt:                     dbtime.Now(),
 							AllowUserAutostart:            options.UserAutostartEnabled,
 							AllowUserAutostop:             options.UserAutostopEnabled,
 							DefaultTTL:                    int64(options.DefaultTTL),
@@ -981,7 +983,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 
 						err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 							ID:                            template.ID,
-							UpdatedAt:                     database.Now(),
+							UpdatedAt:                     dbtime.Now(),
 							AllowUserAutostart:            options.UserAutostartEnabled,
 							AllowUserAutostop:             options.UserAutostopEnabled,
 							DefaultTTL:                    int64(options.DefaultTTL),
@@ -1006,7 +1008,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 			require.EqualValues(t, 1, atomic.LoadInt64(&setCalled))
 			require.Empty(t, template.AutostopRequirement.DaysOfWeek)
-			require.Zero(t, template.AutostopRequirement.Weeks)
+			require.EqualValues(t, 1, template.AutostopRequirement.Weeks)
 			req := codersdk.UpdateTemplateMeta{
 				Name:                         template.Name,
 				DisplayName:                  template.DisplayName,
@@ -1045,12 +1047,12 @@ func TestPatchTemplateMeta(t *testing.T) {
 					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
 						if atomic.AddInt64(&setCalled, 1) == 2 {
 							assert.EqualValues(t, 0, options.AutostopRequirement.DaysOfWeek)
-							assert.EqualValues(t, 0, options.AutostopRequirement.Weeks)
+							assert.EqualValues(t, 1, options.AutostopRequirement.Weeks)
 						}
 
 						err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 							ID:                            template.ID,
-							UpdatedAt:                     database.Now(),
+							UpdatedAt:                     dbtime.Now(),
 							AllowUserAutostart:            options.UserAutostartEnabled,
 							AllowUserAutostop:             options.UserAutostopEnabled,
 							DefaultTTL:                    int64(options.DefaultTTL),
@@ -1102,12 +1104,12 @@ func TestPatchTemplateMeta(t *testing.T) {
 			require.NoError(t, err)
 			require.EqualValues(t, 2, atomic.LoadInt64(&setCalled))
 			require.Empty(t, updated.AutostopRequirement.DaysOfWeek)
-			require.EqualValues(t, 0, updated.AutostopRequirement.Weeks)
+			require.EqualValues(t, 1, updated.AutostopRequirement.Weeks)
 
 			template, err = client.Template(ctx, template.ID)
 			require.NoError(t, err)
 			require.Empty(t, template.AutostopRequirement.DaysOfWeek)
-			require.EqualValues(t, 0, template.AutostopRequirement.Weeks)
+			require.EqualValues(t, 1, template.AutostopRequirement.Weeks)
 		})
 
 		t.Run("EnterpriseOnly", func(t *testing.T) {
@@ -1118,7 +1120,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 			require.Empty(t, template.AutostopRequirement.DaysOfWeek)
-			require.Zero(t, template.AutostopRequirement.Weeks)
+			require.EqualValues(t, 1, template.AutostopRequirement.Weeks)
 			req := codersdk.UpdateTemplateMeta{
 				Name:                         template.Name,
 				DisplayName:                  template.DisplayName,
@@ -1138,12 +1140,12 @@ func TestPatchTemplateMeta(t *testing.T) {
 			updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 			require.NoError(t, err)
 			require.Empty(t, updated.AutostopRequirement.DaysOfWeek)
-			require.Zero(t, updated.AutostopRequirement.Weeks)
+			require.EqualValues(t, 1, updated.AutostopRequirement.Weeks)
 
 			template, err = client.Template(ctx, template.ID)
 			require.NoError(t, err)
 			require.Empty(t, template.AutostopRequirement.DaysOfWeek)
-			require.Zero(t, template.AutostopRequirement.Weeks)
+			require.EqualValues(t, 1, template.AutostopRequirement.Weeks)
 		})
 	})
 }
@@ -1158,6 +1160,7 @@ func TestDeleteTemplate(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -1175,7 +1178,7 @@ func TestDeleteTemplate(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -1210,19 +1213,11 @@ func TestTemplateMetrics(t *testing.T) {
 	require.Equal(t, -1, template.ActiveUserCount)
 	require.Empty(t, template.BuildTimeStats[codersdk.WorkspaceTransitionStart])
 
-	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(authToken)
-	agentCloser := agent.New(agent.Options{
-		Logger: slogtest.Make(t, nil),
-		Client: agentClient,
-	})
-	defer func() {
-		_ = agentCloser.Close()
-	}()
+	_ = agenttest.New(t, client.URL, authToken)
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -1288,6 +1283,6 @@ func TestTemplateMetrics(t *testing.T) {
 	res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
 	assert.WithinDuration(t,
-		database.Now(), res.Workspaces[0].LastUsedAt, time.Minute,
+		dbtime.Now(), res.Workspaces[0].LastUsedAt, time.Minute,
 	)
 }

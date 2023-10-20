@@ -1,17 +1,18 @@
-import { Template, UpdateTemplateMeta } from "api/typesGenerated"
-import { ComponentProps, FC } from "react"
-import { TemplateSettingsForm } from "./TemplateSettingsForm"
-import { useTranslation } from "react-i18next"
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
-import { makeStyles } from "@mui/styles"
+import { type ComponentProps, type FC } from "react";
+import type { Template, UpdateTemplateMeta } from "api/typesGenerated";
+import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
+import { TemplateSettingsForm } from "./TemplateSettingsForm";
 
 export interface TemplateSettingsPageViewProps {
-  template: Template
-  onSubmit: (data: UpdateTemplateMeta) => void
-  onCancel: () => void
-  isSubmitting: boolean
-  submitError?: unknown
-  initialTouched?: ComponentProps<typeof TemplateSettingsForm>["initialTouched"]
+  template: Template;
+  onSubmit: (data: UpdateTemplateMeta) => void;
+  onCancel: () => void;
+  isSubmitting: boolean;
+  submitError?: unknown;
+  initialTouched?: ComponentProps<
+    typeof TemplateSettingsForm
+  >["initialTouched"];
+  accessControlEnabled: boolean;
 }
 
 export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
@@ -21,14 +22,12 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
   isSubmitting,
   submitError,
   initialTouched,
+  accessControlEnabled,
 }) => {
-  const { t } = useTranslation("templateSettingsPage")
-  const styles = useStyles()
-
   return (
     <>
-      <PageHeader className={styles.pageHeader}>
-        <PageHeaderTitle>{t("title")}</PageHeaderTitle>
+      <PageHeader css={{ paddingTop: 0 }}>
+        <PageHeaderTitle>General Settings</PageHeaderTitle>
       </PageHeader>
 
       <TemplateSettingsForm
@@ -38,13 +37,8 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
         onSubmit={onSubmit}
         onCancel={onCancel}
         error={submitError}
+        accessControlEnabled={accessControlEnabled}
       />
     </>
-  )
-}
-
-const useStyles = makeStyles(() => ({
-  pageHeader: {
-    paddingTop: 0,
-  },
-}))
+  );
+};

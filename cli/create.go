@@ -10,6 +10,8 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/pretty"
+
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -25,6 +27,7 @@ func (r *RootCmd) create() *clibase.Cmd {
 		workspaceName string
 
 		parameterFlags workspaceParameterFlags
+		autoUpdates    string
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -75,7 +78,7 @@ func (r *RootCmd) create() *clibase.Cmd {
 
 			var template codersdk.Template
 			if templateName == "" {
-				_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Wrap.Render("Select a template below to preview the provisioned infrastructure:"))
+				_, _ = fmt.Fprintln(inv.Stdout, pretty.Sprint(cliui.DefaultStyles.Wrap, "Select a template below to preview the provisioned infrastructure:"))
 
 				templates, err := client.TemplatesByOrganization(inv.Context(), organization.ID)
 				if err != nil {
@@ -93,7 +96,7 @@ func (r *RootCmd) create() *clibase.Cmd {
 					templateName := template.Name
 
 					if template.ActiveUserCount > 0 {
-						templateName += cliui.DefaultStyles.Placeholder.Render(
+						templateName += cliui.Placeholder(
 							fmt.Sprintf(
 								" (used by %s)",
 								formatActiveDevelopers(template.ActiveUserCount),
@@ -167,6 +170,7 @@ func (r *RootCmd) create() *clibase.Cmd {
 				AutostartSchedule:   schedSpec,
 				TTLMillis:           ttlMillis,
 				RichParameterValues: richParameters,
+				AutomaticUpdates:    codersdk.AutomaticUpdates(autoUpdates),
 			})
 			if err != nil {
 				return xerrors.Errorf("create workspace: %w", err)
@@ -177,7 +181,12 @@ func (r *RootCmd) create() *clibase.Cmd {
 				return xerrors.Errorf("watch build: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(inv.Stdout, "\nThe %s workspace has been created at %s!\n", cliui.DefaultStyles.Keyword.Render(workspace.Name), cliui.DefaultStyles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
+			_, _ = fmt.Fprintf(
+				inv.Stdout,
+				"\nThe %s workspace has been created at %s!\n",
+				cliui.Keyword(workspace.Name),
+				cliui.Timestamp(time.Now()),
+			)
 			return nil
 		},
 	}
@@ -200,6 +209,13 @@ func (r *RootCmd) create() *clibase.Cmd {
 			Env:         "CODER_WORKSPACE_STOP_AFTER",
 			Description: "Specify a duration after which the workspace should shut down (e.g. 8h).",
 			Value:       clibase.DurationOf(&stopAfter),
+		},
+		clibase.Option{
+			Flag:        "automatic-updates",
+			Env:         "CODER_WORKSPACE_AUTOMATIC_UPDATES",
+			Description: "Specify automatic updates setting for the workspace (accepts 'always' or 'never').",
+			Default:     string(codersdk.AutomaticUpdatesNever),
+			Value:       clibase.StringOf(&autoUpdates),
 		},
 		cliui.SkipPromptOption(),
 	)
@@ -258,9 +274,9 @@ func prepWorkspaceBuild(inv *clibase.Invocation, client *codersdk.Client, args p
 		return nil, err
 	}
 
-	err = cliui.GitAuth(ctx, inv.Stdout, cliui.GitAuthOptions{
-		Fetch: func(ctx context.Context) ([]codersdk.TemplateVersionGitAuth, error) {
-			return client.TemplateVersionGitAuth(ctx, templateVersion.ID)
+	err = cliui.ExternalAuth(ctx, inv.Stdout, cliui.ExternalAuthOptions{
+		Fetch: func(ctx context.Context) ([]codersdk.TemplateVersionExternalAuth, error) {
+			return client.TemplateVersionExternalAuth(ctx, templateVersion.ID)
 		},
 	})
 	if err != nil {

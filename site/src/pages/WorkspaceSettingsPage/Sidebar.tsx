@@ -1,18 +1,18 @@
-import { makeStyles } from "@mui/styles"
-import ScheduleIcon from "@mui/icons-material/TimerOutlined"
-import { Workspace } from "api/typesGenerated"
-import { Stack } from "components/Stack/Stack"
-import { FC, ElementType, PropsWithChildren, ReactNode } from "react"
-import { Link, NavLink } from "react-router-dom"
-import { combineClasses } from "utils/combineClasses"
-import GeneralIcon from "@mui/icons-material/SettingsOutlined"
-import ParameterIcon from "@mui/icons-material/CodeOutlined"
-import { Avatar } from "components/Avatar/Avatar"
+import { makeStyles } from "@mui/styles";
+import ScheduleIcon from "@mui/icons-material/TimerOutlined";
+import { Workspace } from "api/typesGenerated";
+import { Stack } from "components/Stack/Stack";
+import { FC, ElementType, PropsWithChildren, ReactNode } from "react";
+import { Link, NavLink } from "react-router-dom";
+import { combineClasses } from "utils/combineClasses";
+import GeneralIcon from "@mui/icons-material/SettingsOutlined";
+import ParameterIcon from "@mui/icons-material/CodeOutlined";
+import { Avatar } from "components/Avatar/Avatar";
 
 const SidebarNavItem: FC<
   PropsWithChildren<{ href: string; icon: ReactNode }>
 > = ({ children, href, icon }) => {
-  const styles = useStyles()
+  const styles = useStyles();
   return (
     <NavLink
       end
@@ -29,21 +29,21 @@ const SidebarNavItem: FC<
         {children}
       </Stack>
     </NavLink>
-  )
-}
+  );
+};
 
 const SidebarNavItemIcon: React.FC<{ icon: ElementType }> = ({
   icon: Icon,
 }) => {
-  const styles = useStyles()
-  return <Icon className={styles.sidebarNavItemIcon} />
-}
+  const styles = useStyles();
+  return <Icon className={styles.sidebarNavItemIcon} />;
+};
 
 export const Sidebar: React.FC<{ username: string; workspace: Workspace }> = ({
   username,
   workspace,
 }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <nav className={styles.sidebar}>
@@ -79,8 +79,8 @@ export const Sidebar: React.FC<{ username: string; workspace: Workspace }> = ({
         Schedule
       </SidebarNavItem>
     </nav>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   sidebar: {
@@ -143,4 +143,4 @@ const useStyles = makeStyles((theme) => ({
     overflow: "hidden",
     textOverflow: "ellipsis",
   },
-}))
+}));

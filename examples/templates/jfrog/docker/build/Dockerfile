@@ -11,7 +11,7 @@ RUN apt-get update \
 	npm \
 	&& rm -rf /var/lib/apt/lists/*
 
-ARG GO_VERSION=1.20.7
+ARG GO_VERSION=1.20.8
 RUN mkdir --parents /usr/local/go && curl --silent --show-error --location \
 	"https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" -o /usr/local/go.tar.gz && \
 	tar --extract --gzip --directory=/usr/local/go --file=/usr/local/go.tar.gz --strip-components=1

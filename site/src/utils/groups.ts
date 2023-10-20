@@ -1,4 +1,4 @@
-import { Group } from "api/typesGenerated"
+import { Group } from "api/typesGenerated";
 
 export const everyOneGroup = (organizationId: string): Group => ({
   id: organizationId,
@@ -9,7 +9,7 @@ export const everyOneGroup = (organizationId: string): Group => ({
   avatar_url: "",
   quota_allowance: 0,
   source: "user",
-})
+});
 
 /**
  * Returns true if the provided group is the 'Everyone' group.
@@ -21,21 +21,21 @@ export const everyOneGroup = (organizationId: string): Group => ({
  * organization ID.
  */
 export const isEveryoneGroup = (group: Group): boolean =>
-  group.id === group.organization_id
+  group.id === group.organization_id;
 
 export const getGroupSubtitle = (group: Group): string => {
   // It is the everyone group when a group id is the same of the org id
   if (group.id === group.organization_id) {
-    return `All users`
+    return `All users`;
   }
 
   if (!group.members) {
-    return `0 members`
+    return `0 members`;
   }
 
   if (group.members.length === 1) {
-    return `1 member`
+    return `1 member`;
   }
 
-  return `${group.members.length} members`
-}
+  return `${group.members.length} members`;
+};

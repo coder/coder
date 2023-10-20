@@ -22,7 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/tailnet"
+	agpl "github.com/coder/coder/v2/tailnet"
 )
 
 // Client is a HTTP client for a subset of Coder API routes that external
@@ -422,14 +422,14 @@ const (
 type CoordinateMessage struct {
 	Type    CoordinateMessageType `json:"type"`
 	AgentID uuid.UUID             `json:"agent_id"`
-	Node    *tailnet.Node         `json:"node"`
+	Node    *agpl.Node            `json:"node"`
 }
 
 type CoordinateNodes struct {
-	Nodes []*tailnet.Node
+	Nodes []*agpl.Node
 }
 
-func (c *Client) DialCoordinator(ctx context.Context) (tailnet.MultiAgentConn, error) {
+func (c *Client) DialCoordinator(ctx context.Context) (agpl.MultiAgentConn, error) {
 	ctx, cancel := context.WithCancel(ctx)
 
 	coordinateURL, err := c.SDKClient.URL.Parse("/api/v2/workspaceproxies/me/coordinate")
@@ -463,13 +463,13 @@ func (c *Client) DialCoordinator(ctx context.Context) (tailnet.MultiAgentConn, e
 		legacyAgentCache: map[uuid.UUID]bool{},
 	}
 
-	ma := (&tailnet.MultiAgent{
+	ma := (&agpl.MultiAgent{
 		ID:                uuid.New(),
 		AgentIsLegacyFunc: rma.AgentIsLegacy,
 		OnSubscribe:       rma.OnSubscribe,
 		OnUnsubscribe:     rma.OnUnsubscribe,
 		OnNodeUpdate:      rma.OnNodeUpdate,
-		OnRemove:          func(uuid.UUID) { conn.Close(websocket.StatusGoingAway, "closed") },
+		OnRemove:          func(agpl.Queue) { conn.Close(websocket.StatusGoingAway, "closed") },
 	}).Init()
 
 	go func() {
@@ -515,7 +515,7 @@ func (a *remoteMultiAgentHandler) writeJSON(v interface{}) error {
 
 	// Set a deadline so that hung connections don't put back pressure on the system.
 	// Node updates are tiny, so even the dinkiest connection can handle them if it's not hung.
-	err = a.nc.SetWriteDeadline(time.Now().Add(tailnet.WriteTimeout))
+	err = a.nc.SetWriteDeadline(time.Now().Add(agpl.WriteTimeout))
 	if err != nil {
 		return xerrors.Errorf("set write deadline: %w", err)
 	}
@@ -537,21 +537,21 @@ func (a *remoteMultiAgentHandler) writeJSON(v interface{}) error {
 	return nil
 }
 
-func (a *remoteMultiAgentHandler) OnNodeUpdate(_ uuid.UUID, node *tailnet.Node) error {
+func (a *remoteMultiAgentHandler) OnNodeUpdate(_ uuid.UUID, node *agpl.Node) error {
 	return a.writeJSON(CoordinateMessage{
 		Type: CoordinateMessageTypeNodeUpdate,
 		Node: node,
 	})
 }
 
-func (a *remoteMultiAgentHandler) OnSubscribe(_ tailnet.Queue, agentID uuid.UUID) (*tailnet.Node, error) {
+func (a *remoteMultiAgentHandler) OnSubscribe(_ agpl.Queue, agentID uuid.UUID) (*agpl.Node, error) {
 	return nil, a.writeJSON(CoordinateMessage{
 		Type:    CoordinateMessageTypeSubscribe,
 		AgentID: agentID,
 	})
 }
 
-func (a *remoteMultiAgentHandler) OnUnsubscribe(_ tailnet.Queue, agentID uuid.UUID) error {
+func (a *remoteMultiAgentHandler) OnUnsubscribe(_ agpl.Queue, agentID uuid.UUID) error {
 	return a.writeJSON(CoordinateMessage{
 		Type:    CoordinateMessageTypeUnsubscribe,
 		AgentID: agentID,

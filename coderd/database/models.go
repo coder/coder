@@ -211,6 +211,64 @@ func AllAuditActionValues() []AuditAction {
 	}
 }
 
+type AutomaticUpdates string
+
+const (
+	AutomaticUpdatesAlways AutomaticUpdates = "always"
+	AutomaticUpdatesNever  AutomaticUpdates = "never"
+)
+
+func (e *AutomaticUpdates) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AutomaticUpdates(s)
+	case string:
+		*e = AutomaticUpdates(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AutomaticUpdates: %T", src)
+	}
+	return nil
+}
+
+type NullAutomaticUpdates struct {
+	AutomaticUpdates AutomaticUpdates `json:"automatic_updates"`
+	Valid            bool             `json:"valid"` // Valid is true if AutomaticUpdates is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAutomaticUpdates) Scan(value interface{}) error {
+	if value == nil {
+		ns.AutomaticUpdates, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AutomaticUpdates.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAutomaticUpdates) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AutomaticUpdates), nil
+}
+
+func (e AutomaticUpdates) Valid() bool {
+	switch e {
+	case AutomaticUpdatesAlways,
+		AutomaticUpdatesNever:
+		return true
+	}
+	return false
+}
+
+func AllAutomaticUpdatesValues() []AutomaticUpdates {
+	return []AutomaticUpdates{
+		AutomaticUpdatesAlways,
+		AutomaticUpdatesNever,
+	}
+}
+
 type BuildReason string
 
 const (
@@ -278,6 +336,73 @@ func AllBuildReasonValues() []BuildReason {
 		BuildReasonAutolock,
 		BuildReasonFailedstop,
 		BuildReasonAutodelete,
+	}
+}
+
+type DisplayApp string
+
+const (
+	DisplayAppVscode               DisplayApp = "vscode"
+	DisplayAppVscodeInsiders       DisplayApp = "vscode_insiders"
+	DisplayAppWebTerminal          DisplayApp = "web_terminal"
+	DisplayAppSSHHelper            DisplayApp = "ssh_helper"
+	DisplayAppPortForwardingHelper DisplayApp = "port_forwarding_helper"
+)
+
+func (e *DisplayApp) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = DisplayApp(s)
+	case string:
+		*e = DisplayApp(s)
+	default:
+		return fmt.Errorf("unsupported scan type for DisplayApp: %T", src)
+	}
+	return nil
+}
+
+type NullDisplayApp struct {
+	DisplayApp DisplayApp `json:"display_app"`
+	Valid      bool       `json:"valid"` // Valid is true if DisplayApp is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullDisplayApp) Scan(value interface{}) error {
+	if value == nil {
+		ns.DisplayApp, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.DisplayApp.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullDisplayApp) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.DisplayApp), nil
+}
+
+func (e DisplayApp) Valid() bool {
+	switch e {
+	case DisplayAppVscode,
+		DisplayAppVscodeInsiders,
+		DisplayAppWebTerminal,
+		DisplayAppSSHHelper,
+		DisplayAppPortForwardingHelper:
+		return true
+	}
+	return false
+}
+
+func AllDisplayAppValues() []DisplayApp {
+	return []DisplayApp{
+		DisplayAppVscode,
+		DisplayAppVscodeInsiders,
+		DisplayAppWebTerminal,
+		DisplayAppSSHHelper,
+		DisplayAppPortForwardingHelper,
 	}
 }
 
@@ -770,6 +895,80 @@ func AllParameterTypeSystemValues() []ParameterTypeSystem {
 	}
 }
 
+// Computed status of a provisioner job. Jobs could be stuck in a hung state, these states do not guarantee any transition to another state.
+type ProvisionerJobStatus string
+
+const (
+	ProvisionerJobStatusPending   ProvisionerJobStatus = "pending"
+	ProvisionerJobStatusRunning   ProvisionerJobStatus = "running"
+	ProvisionerJobStatusSucceeded ProvisionerJobStatus = "succeeded"
+	ProvisionerJobStatusCanceling ProvisionerJobStatus = "canceling"
+	ProvisionerJobStatusCanceled  ProvisionerJobStatus = "canceled"
+	ProvisionerJobStatusFailed    ProvisionerJobStatus = "failed"
+	ProvisionerJobStatusUnknown   ProvisionerJobStatus = "unknown"
+)
+
+func (e *ProvisionerJobStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ProvisionerJobStatus(s)
+	case string:
+		*e = ProvisionerJobStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ProvisionerJobStatus: %T", src)
+	}
+	return nil
+}
+
+type NullProvisionerJobStatus struct {
+	ProvisionerJobStatus ProvisionerJobStatus `json:"provisioner_job_status"`
+	Valid                bool                 `json:"valid"` // Valid is true if ProvisionerJobStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullProvisionerJobStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.ProvisionerJobStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ProvisionerJobStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullProvisionerJobStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ProvisionerJobStatus), nil
+}
+
+func (e ProvisionerJobStatus) Valid() bool {
+	switch e {
+	case ProvisionerJobStatusPending,
+		ProvisionerJobStatusRunning,
+		ProvisionerJobStatusSucceeded,
+		ProvisionerJobStatusCanceling,
+		ProvisionerJobStatusCanceled,
+		ProvisionerJobStatusFailed,
+		ProvisionerJobStatusUnknown:
+		return true
+	}
+	return false
+}
+
+func AllProvisionerJobStatusValues() []ProvisionerJobStatus {
+	return []ProvisionerJobStatus{
+		ProvisionerJobStatusPending,
+		ProvisionerJobStatusRunning,
+		ProvisionerJobStatusSucceeded,
+		ProvisionerJobStatusCanceling,
+		ProvisionerJobStatusCanceled,
+		ProvisionerJobStatusFailed,
+		ProvisionerJobStatusUnknown,
+	}
+}
+
 type ProvisionerJobType string
 
 const (
@@ -1231,76 +1430,6 @@ func AllWorkspaceAgentLifecycleStateValues() []WorkspaceAgentLifecycleState {
 	}
 }
 
-type WorkspaceAgentLogSource string
-
-const (
-	WorkspaceAgentLogSourceStartupScript  WorkspaceAgentLogSource = "startup_script"
-	WorkspaceAgentLogSourceShutdownScript WorkspaceAgentLogSource = "shutdown_script"
-	WorkspaceAgentLogSourceKubernetesLogs WorkspaceAgentLogSource = "kubernetes_logs"
-	WorkspaceAgentLogSourceEnvbox         WorkspaceAgentLogSource = "envbox"
-	WorkspaceAgentLogSourceEnvbuilder     WorkspaceAgentLogSource = "envbuilder"
-	WorkspaceAgentLogSourceExternal       WorkspaceAgentLogSource = "external"
-)
-
-func (e *WorkspaceAgentLogSource) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = WorkspaceAgentLogSource(s)
-	case string:
-		*e = WorkspaceAgentLogSource(s)
-	default:
-		return fmt.Errorf("unsupported scan type for WorkspaceAgentLogSource: %T", src)
-	}
-	return nil
-}
-
-type NullWorkspaceAgentLogSource struct {
-	WorkspaceAgentLogSource WorkspaceAgentLogSource `json:"workspace_agent_log_source"`
-	Valid                   bool                    `json:"valid"` // Valid is true if WorkspaceAgentLogSource is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullWorkspaceAgentLogSource) Scan(value interface{}) error {
-	if value == nil {
-		ns.WorkspaceAgentLogSource, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.WorkspaceAgentLogSource.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullWorkspaceAgentLogSource) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.WorkspaceAgentLogSource), nil
-}
-
-func (e WorkspaceAgentLogSource) Valid() bool {
-	switch e {
-	case WorkspaceAgentLogSourceStartupScript,
-		WorkspaceAgentLogSourceShutdownScript,
-		WorkspaceAgentLogSourceKubernetesLogs,
-		WorkspaceAgentLogSourceEnvbox,
-		WorkspaceAgentLogSourceEnvbuilder,
-		WorkspaceAgentLogSourceExternal:
-		return true
-	}
-	return false
-}
-
-func AllWorkspaceAgentLogSourceValues() []WorkspaceAgentLogSource {
-	return []WorkspaceAgentLogSource{
-		WorkspaceAgentLogSourceStartupScript,
-		WorkspaceAgentLogSourceShutdownScript,
-		WorkspaceAgentLogSourceKubernetesLogs,
-		WorkspaceAgentLogSourceEnvbox,
-		WorkspaceAgentLogSourceEnvbuilder,
-		WorkspaceAgentLogSourceExternal,
-	}
-}
-
 type WorkspaceAgentSubsystem string
 
 const (
@@ -1524,16 +1653,23 @@ type AuditLog struct {
 	ResourceIcon     string          `db:"resource_icon" json:"resource_icon"`
 }
 
-type File struct {
-	Hash      string    `db:"hash" json:"hash"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
-	CreatedBy uuid.UUID `db:"created_by" json:"created_by"`
-	Mimetype  string    `db:"mimetype" json:"mimetype"`
-	Data      []byte    `db:"data" json:"data"`
-	ID        uuid.UUID `db:"id" json:"id"`
+// A table used to store the keys used to encrypt the database.
+type DBCryptKey struct {
+	// An integer used to identify the key.
+	Number int32 `db:"number" json:"number"`
+	// If the key is active, the digest of the active key.
+	ActiveKeyDigest sql.NullString `db:"active_key_digest" json:"active_key_digest"`
+	// If the key has been revoked, the digest of the revoked key.
+	RevokedKeyDigest sql.NullString `db:"revoked_key_digest" json:"revoked_key_digest"`
+	// The time at which the key was created.
+	CreatedAt sql.NullTime `db:"created_at" json:"created_at"`
+	// The time at which the key was revoked.
+	RevokedAt sql.NullTime `db:"revoked_at" json:"revoked_at"`
+	// A column used to test the encryption.
+	Test string `db:"test" json:"test"`
 }
 
-type GitAuthLink struct {
+type ExternalAuthLink struct {
 	ProviderID        string    `db:"provider_id" json:"provider_id"`
 	UserID            uuid.UUID `db:"user_id" json:"user_id"`
 	CreatedAt         time.Time `db:"created_at" json:"created_at"`
@@ -1541,6 +1677,20 @@ type GitAuthLink struct {
 	OAuthAccessToken  string    `db:"oauth_access_token" json:"oauth_access_token"`
 	OAuthRefreshToken string    `db:"oauth_refresh_token" json:"oauth_refresh_token"`
 	OAuthExpiry       time.Time `db:"oauth_expiry" json:"oauth_expiry"`
+	// The ID of the key used to encrypt the OAuth access token. If this is NULL, the access token is not encrypted
+	OAuthAccessTokenKeyID sql.NullString `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
+	// The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted
+	OAuthRefreshTokenKeyID sql.NullString        `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
+	OAuthExtra             pqtype.NullRawMessage `db:"oauth_extra" json:"oauth_extra"`
+}
+
+type File struct {
+	Hash      string    `db:"hash" json:"hash"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	CreatedBy uuid.UUID `db:"created_by" json:"created_by"`
+	Mimetype  string    `db:"mimetype" json:"mimetype"`
+	Data      []byte    `db:"data" json:"data"`
+	ID        uuid.UUID `db:"id" json:"id"`
 }
 
 type GitSSHKey struct {
@@ -1654,6 +1804,8 @@ type ProvisionerJob struct {
 	Tags           StringMap                `db:"tags" json:"tags"`
 	ErrorCode      sql.NullString           `db:"error_code" json:"error_code"`
 	TraceMetadata  pqtype.NullRawMessage    `db:"trace_metadata" json:"trace_metadata"`
+	// Computed column to track the status of the job.
+	JobStatus ProvisionerJobStatus `db:"job_status" json:"job_status"`
 }
 
 type ProvisionerJobLog struct {
@@ -1696,9 +1848,15 @@ type TailnetAgent struct {
 type TailnetClient struct {
 	ID            uuid.UUID       `db:"id" json:"id"`
 	CoordinatorID uuid.UUID       `db:"coordinator_id" json:"coordinator_id"`
-	AgentID       uuid.UUID       `db:"agent_id" json:"agent_id"`
 	UpdatedAt     time.Time       `db:"updated_at" json:"updated_at"`
 	Node          json.RawMessage `db:"node" json:"node"`
+}
+
+type TailnetClientSubscription struct {
+	ClientID      uuid.UUID `db:"client_id" json:"client_id"`
+	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
+	AgentID       uuid.UUID `db:"agent_id" json:"agent_id"`
+	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
 }
 
 // We keep this separate from replicas in case we need to break the coordinator out into its own service
@@ -1733,6 +1891,8 @@ type Template struct {
 	TimeTilDormantAutoDelete      int64           `db:"time_til_dormant_autodelete" json:"time_til_dormant_autodelete"`
 	AutostopRequirementDaysOfWeek int16           `db:"autostop_requirement_days_of_week" json:"autostop_requirement_days_of_week"`
 	AutostopRequirementWeeks      int64           `db:"autostop_requirement_weeks" json:"autostop_requirement_weeks"`
+	AutostartBlockDaysOfWeek      int16           `db:"autostart_block_days_of_week" json:"autostart_block_days_of_week"`
+	RequireActiveVersion          bool            `db:"require_active_version" json:"require_active_version"`
 	CreatedByAvatarURL            sql.NullString  `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 }
@@ -1769,23 +1929,27 @@ type TemplateTable struct {
 	AutostopRequirementDaysOfWeek int16 `db:"autostop_requirement_days_of_week" json:"autostop_requirement_days_of_week"`
 	// The number of weeks between restarts. 0 or 1 weeks means "every week", 2 week means "every second week", etc. Weeks are counted from January 2, 2023, which is the first Monday of 2023. This is to ensure workspaces are started consistently for all customers on the same n-week cycles.
 	AutostopRequirementWeeks int64 `db:"autostop_requirement_weeks" json:"autostop_requirement_weeks"`
+	// A bitmap of days of week that autostart of a workspace is not allowed. Default allows all days. This is intended as a cost savings measure to prevent auto start on weekends (for example).
+	AutostartBlockDaysOfWeek int16 `db:"autostart_block_days_of_week" json:"autostart_block_days_of_week"`
+	RequireActiveVersion     bool  `db:"require_active_version" json:"require_active_version"`
 }
 
 // Joins in the username + avatar url of the created by user.
 type TemplateVersion struct {
-	ID                 uuid.UUID      `db:"id" json:"id"`
-	TemplateID         uuid.NullUUID  `db:"template_id" json:"template_id"`
-	OrganizationID     uuid.UUID      `db:"organization_id" json:"organization_id"`
-	CreatedAt          time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt          time.Time      `db:"updated_at" json:"updated_at"`
-	Name               string         `db:"name" json:"name"`
-	Readme             string         `db:"readme" json:"readme"`
-	JobID              uuid.UUID      `db:"job_id" json:"job_id"`
-	CreatedBy          uuid.UUID      `db:"created_by" json:"created_by"`
-	GitAuthProviders   []string       `db:"git_auth_providers" json:"git_auth_providers"`
-	Message            string         `db:"message" json:"message"`
-	CreatedByAvatarURL sql.NullString `db:"created_by_avatar_url" json:"created_by_avatar_url"`
-	CreatedByUsername  string         `db:"created_by_username" json:"created_by_username"`
+	ID                    uuid.UUID      `db:"id" json:"id"`
+	TemplateID            uuid.NullUUID  `db:"template_id" json:"template_id"`
+	OrganizationID        uuid.UUID      `db:"organization_id" json:"organization_id"`
+	CreatedAt             time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt             time.Time      `db:"updated_at" json:"updated_at"`
+	Name                  string         `db:"name" json:"name"`
+	Readme                string         `db:"readme" json:"readme"`
+	JobID                 uuid.UUID      `db:"job_id" json:"job_id"`
+	CreatedBy             uuid.UUID      `db:"created_by" json:"created_by"`
+	ExternalAuthProviders []string       `db:"external_auth_providers" json:"external_auth_providers"`
+	Message               string         `db:"message" json:"message"`
+	Archived              bool           `db:"archived" json:"archived"`
+	CreatedByAvatarURL    sql.NullString `db:"created_by_avatar_url" json:"created_by_avatar_url"`
+	CreatedByUsername     string         `db:"created_by_username" json:"created_by_username"`
 }
 
 type TemplateVersionParameter struct {
@@ -1834,10 +1998,11 @@ type TemplateVersionTable struct {
 	Readme         string        `db:"readme" json:"readme"`
 	JobID          uuid.UUID     `db:"job_id" json:"job_id"`
 	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
-	// IDs of Git auth providers for a specific template version
-	GitAuthProviders []string `db:"git_auth_providers" json:"git_auth_providers"`
+	// IDs of External auth providers for a specific template version
+	ExternalAuthProviders []string `db:"external_auth_providers" json:"external_auth_providers"`
 	// Message describing the changes in this version of the template, similar to a Git commit message. Like a commit message, this should be a short, high-level description of the changes in this version of the template. This message is immutable and should not be updated after the fact.
-	Message string `db:"message" json:"message"`
+	Message  string `db:"message" json:"message"`
+	Archived bool   `db:"archived" json:"archived"`
 }
 
 type TemplateVersionVariable struct {
@@ -1882,6 +2047,10 @@ type UserLink struct {
 	OAuthAccessToken  string    `db:"oauth_access_token" json:"oauth_access_token"`
 	OAuthRefreshToken string    `db:"oauth_refresh_token" json:"oauth_refresh_token"`
 	OAuthExpiry       time.Time `db:"oauth_expiry" json:"oauth_expiry"`
+	// The ID of the key used to encrypt the OAuth access token. If this is NULL, the access token is not encrypted
+	OAuthAccessTokenKeyID sql.NullString `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
+	// The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted
+	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
 }
 
 // Visible fields of users are allowed to be joined with other tables for including context of other resources.
@@ -1892,19 +2061,20 @@ type VisibleUser struct {
 }
 
 type Workspace struct {
-	ID                uuid.UUID      `db:"id" json:"id"`
-	CreatedAt         time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
-	OwnerID           uuid.UUID      `db:"owner_id" json:"owner_id"`
-	OrganizationID    uuid.UUID      `db:"organization_id" json:"organization_id"`
-	TemplateID        uuid.UUID      `db:"template_id" json:"template_id"`
-	Deleted           bool           `db:"deleted" json:"deleted"`
-	Name              string         `db:"name" json:"name"`
-	AutostartSchedule sql.NullString `db:"autostart_schedule" json:"autostart_schedule"`
-	Ttl               sql.NullInt64  `db:"ttl" json:"ttl"`
-	LastUsedAt        time.Time      `db:"last_used_at" json:"last_used_at"`
-	DormantAt         sql.NullTime   `db:"dormant_at" json:"dormant_at"`
-	DeletingAt        sql.NullTime   `db:"deleting_at" json:"deleting_at"`
+	ID                uuid.UUID        `db:"id" json:"id"`
+	CreatedAt         time.Time        `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time        `db:"updated_at" json:"updated_at"`
+	OwnerID           uuid.UUID        `db:"owner_id" json:"owner_id"`
+	OrganizationID    uuid.UUID        `db:"organization_id" json:"organization_id"`
+	TemplateID        uuid.UUID        `db:"template_id" json:"template_id"`
+	Deleted           bool             `db:"deleted" json:"deleted"`
+	Name              string           `db:"name" json:"name"`
+	AutostartSchedule sql.NullString   `db:"autostart_schedule" json:"autostart_schedule"`
+	Ttl               sql.NullInt64    `db:"ttl" json:"ttl"`
+	LastUsedAt        time.Time        `db:"last_used_at" json:"last_used_at"`
+	DormantAt         sql.NullTime     `db:"dormant_at" json:"dormant_at"`
+	DeletingAt        sql.NullTime     `db:"deleting_at" json:"deleting_at"`
+	AutomaticUpdates  AutomaticUpdates `db:"automatic_updates" json:"automatic_updates"`
 }
 
 type WorkspaceAgent struct {
@@ -1921,7 +2091,6 @@ type WorkspaceAgent struct {
 	Architecture         string                `db:"architecture" json:"architecture"`
 	EnvironmentVariables pqtype.NullRawMessage `db:"environment_variables" json:"environment_variables"`
 	OperatingSystem      string                `db:"operating_system" json:"operating_system"`
-	StartupScript        sql.NullString        `db:"startup_script" json:"startup_script"`
 	InstanceMetadata     pqtype.NullRawMessage `db:"instance_metadata" json:"instance_metadata"`
 	ResourceMetadata     pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
 	Directory            string                `db:"directory" json:"directory"`
@@ -1936,34 +2105,35 @@ type WorkspaceAgent struct {
 	MOTDFile string `db:"motd_file" json:"motd_file"`
 	// The current lifecycle state reported by the workspace agent.
 	LifecycleState WorkspaceAgentLifecycleState `db:"lifecycle_state" json:"lifecycle_state"`
-	// The number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.
-	StartupScriptTimeoutSeconds int32 `db:"startup_script_timeout_seconds" json:"startup_script_timeout_seconds"`
 	// The resolved path of a user-specified directory. e.g. ~/coder -> /home/coder/coder
 	ExpandedDirectory string `db:"expanded_directory" json:"expanded_directory"`
-	// Script that is executed before the agent is stopped.
-	ShutdownScript sql.NullString `db:"shutdown_script" json:"shutdown_script"`
-	// The number of seconds to wait for the shutdown script to complete. If the script does not complete within this time, the agent lifecycle will be marked as shutdown_timeout.
-	ShutdownScriptTimeoutSeconds int32 `db:"shutdown_script_timeout_seconds" json:"shutdown_script_timeout_seconds"`
 	// Total length of startup logs
 	LogsLength int32 `db:"logs_length" json:"logs_length"`
 	// Whether the startup logs overflowed in length
 	LogsOverflowed bool `db:"logs_overflowed" json:"logs_overflowed"`
-	// When startup script behavior is non-blocking, the workspace will be ready and accessible upon agent connection, when it is blocking, workspace will wait for the startup script to complete before becoming ready and accessible.
-	StartupScriptBehavior StartupScriptBehavior `db:"startup_script_behavior" json:"startup_script_behavior"`
 	// The time the agent entered the starting lifecycle state
 	StartedAt sql.NullTime `db:"started_at" json:"started_at"`
 	// The time the agent entered the ready or start_error lifecycle state
-	ReadyAt    sql.NullTime              `db:"ready_at" json:"ready_at"`
-	Subsystems []WorkspaceAgentSubsystem `db:"subsystems" json:"subsystems"`
+	ReadyAt     sql.NullTime              `db:"ready_at" json:"ready_at"`
+	Subsystems  []WorkspaceAgentSubsystem `db:"subsystems" json:"subsystems"`
+	DisplayApps []DisplayApp              `db:"display_apps" json:"display_apps"`
 }
 
 type WorkspaceAgentLog struct {
-	AgentID   uuid.UUID               `db:"agent_id" json:"agent_id"`
-	CreatedAt time.Time               `db:"created_at" json:"created_at"`
-	Output    string                  `db:"output" json:"output"`
-	ID        int64                   `db:"id" json:"id"`
-	Level     LogLevel                `db:"level" json:"level"`
-	Source    WorkspaceAgentLogSource `db:"source" json:"source"`
+	AgentID     uuid.UUID `db:"agent_id" json:"agent_id"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	Output      string    `db:"output" json:"output"`
+	ID          int64     `db:"id" json:"id"`
+	Level       LogLevel  `db:"level" json:"level"`
+	LogSourceID uuid.UUID `db:"log_source_id" json:"log_source_id"`
+}
+
+type WorkspaceAgentLogSource struct {
+	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	ID               uuid.UUID `db:"id" json:"id"`
+	CreatedAt        time.Time `db:"created_at" json:"created_at"`
+	DisplayName      string    `db:"display_name" json:"display_name"`
+	Icon             string    `db:"icon" json:"icon"`
 }
 
 type WorkspaceAgentMetadatum struct {
@@ -1976,6 +2146,19 @@ type WorkspaceAgentMetadatum struct {
 	Timeout          int64     `db:"timeout" json:"timeout"`
 	Interval         int64     `db:"interval" json:"interval"`
 	CollectedAt      time.Time `db:"collected_at" json:"collected_at"`
+}
+
+type WorkspaceAgentScript struct {
+	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	LogSourceID      uuid.UUID `db:"log_source_id" json:"log_source_id"`
+	LogPath          string    `db:"log_path" json:"log_path"`
+	CreatedAt        time.Time `db:"created_at" json:"created_at"`
+	Script           string    `db:"script" json:"script"`
+	Cron             string    `db:"cron" json:"cron"`
+	StartBlocksLogin bool      `db:"start_blocks_login" json:"start_blocks_login"`
+	RunOnStart       bool      `db:"run_on_start" json:"run_on_start"`
+	RunOnStop        bool      `db:"run_on_stop" json:"run_on_stop"`
+	TimeoutSeconds   int32     `db:"timeout_seconds" json:"timeout_seconds"`
 }
 
 type WorkspaceAgentStat struct {

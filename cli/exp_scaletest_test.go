@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/pty/ptytest"
@@ -21,7 +23,12 @@ func TestScaleTestCreateWorkspaces(t *testing.T) {
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancelFunc()
 
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	client := coderdtest.New(t, &coderdtest.Options{
+		// We are not including any provisioner daemons because we do not actually
+		// build any workspaces here.
+		Logger: &log,
+	})
 	_ = coderdtest.CreateFirstUser(t, client)
 
 	// Write a parameters file.
@@ -41,6 +48,8 @@ func TestScaleTestCreateWorkspaces(t *testing.T) {
 		"--cleanup-job-timeout", "15s",
 		"--output", "text",
 		"--output", "json:"+outputFile,
+		"--parameter", "foo=baz",
+		"--rich-parameter-file", "/path/to/some/parameter/file.ext",
 	)
 	clitest.SetupConfig(t, client, root)
 	pty := ptytest.New(t)
@@ -59,7 +68,10 @@ func TestScaleTestWorkspaceTraffic(t *testing.T) {
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancelFunc()
 
-	client := coderdtest.New(t, nil)
+	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	client := coderdtest.New(t, &coderdtest.Options{
+		Logger: &log,
+	})
 	_ = coderdtest.CreateFirstUser(t, client)
 
 	inv, root := clitest.New(t, "exp", "scaletest", "workspace-traffic",
@@ -82,29 +94,78 @@ func TestScaleTestWorkspaceTraffic(t *testing.T) {
 // This test just validates that the CLI command accepts its known arguments.
 func TestScaleTestDashboard(t *testing.T) {
 	t.Parallel()
-	if testutil.RaceEnabled() {
-		t.Skip("Flakes under race detector, see https://github.com/coder/coder/issues/9168")
-	}
+	t.Run("MinWait", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancelFunc()
 
-	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitMedium)
-	defer cancelFunc()
+		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		client := coderdtest.New(t, &coderdtest.Options{
+			Logger: &log,
+		})
+		_ = coderdtest.CreateFirstUser(t, client)
 
-	client := coderdtest.New(t, nil)
-	_ = coderdtest.CreateFirstUser(t, client)
+		inv, root := clitest.New(t, "exp", "scaletest", "dashboard",
+			"--interval", "0s",
+		)
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t)
+		inv.Stdout = pty.Output()
+		inv.Stderr = pty.Output()
 
-	inv, root := clitest.New(t, "exp", "scaletest", "dashboard",
-		"--count", "1",
-		"--min-wait", "100ms",
-		"--max-wait", "1s",
-		"--timeout", "1s",
-		"--scaletest-prometheus-address", "127.0.0.1:0",
-		"--scaletest-prometheus-wait", "0s",
-	)
-	clitest.SetupConfig(t, client, root)
-	pty := ptytest.New(t)
-	inv.Stdout = pty.Output()
-	inv.Stderr = pty.Output()
+		err := inv.WithContext(ctx).Run()
+		require.ErrorContains(t, err, "--interval must be greater than zero")
+	})
 
-	err := inv.WithContext(ctx).Run()
-	require.NoError(t, err, "")
+	t.Run("MaxWait", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancelFunc()
+
+		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		client := coderdtest.New(t, &coderdtest.Options{
+			Logger: &log,
+		})
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		inv, root := clitest.New(t, "exp", "scaletest", "dashboard",
+			"--interval", "1s",
+			"--jitter", "1s",
+		)
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t)
+		inv.Stdout = pty.Output()
+		inv.Stderr = pty.Output()
+
+		err := inv.WithContext(ctx).Run()
+		require.ErrorContains(t, err, "--jitter must be less than --interval")
+	})
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		defer cancelFunc()
+
+		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		client := coderdtest.New(t, &coderdtest.Options{
+			Logger: &log,
+		})
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		inv, root := clitest.New(t, "exp", "scaletest", "dashboard",
+			"--interval", "1s",
+			"--jitter", "500ms",
+			"--timeout", "5s",
+			"--scaletest-prometheus-address", "127.0.0.1:0",
+			"--scaletest-prometheus-wait", "0s",
+			"--rand-seed", "1234567890",
+		)
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t)
+		inv.Stdout = pty.Output()
+		inv.Stderr = pty.Output()
+
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err, "")
+	})
 }

@@ -8,14 +8,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
-	"github.com/lib/pq"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -199,38 +201,32 @@ func (b *Builder) Build(
 	ctx context.Context,
 	store database.Store,
 	authFunc func(action rbac.Action, object rbac.Objecter) bool,
+	auditBaggage audit.WorkspaceBuildBaggage,
 ) (
 	*database.WorkspaceBuild, *database.ProvisionerJob, error,
 ) {
-	b.ctx = ctx
+	var err error
+	b.ctx, err = audit.BaggageToContext(ctx, auditBaggage)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("create audit baggage: %w", err)
+	}
 
 	// Run the build in a transaction with RepeatableRead isolation, and retries.
 	// RepeatableRead isolation ensures that we get a consistent view of the database while
 	// computing the new build.  This simplifies the logic so that we do not need to worry if
 	// later reads are consistent with earlier ones.
-	var err error
-	for retries := 0; retries < 5; retries++ {
-		var workspaceBuild *database.WorkspaceBuild
-		var provisionerJob *database.ProvisionerJob
-		err := store.InTx(func(store database.Store) error {
-			b.store = store
-			workspaceBuild, provisionerJob, err = b.buildTx(authFunc)
-			return err
-		}, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
-		var pqe *pq.Error
-		if xerrors.As(err, &pqe) {
-			if pqe.Code == "40001" {
-				// serialization error, retry
-				continue
-			}
-		}
-		if err != nil {
-			// Other (hard) error
-			return nil, nil, err
-		}
-		return workspaceBuild, provisionerJob, nil
+	var workspaceBuild *database.WorkspaceBuild
+	var provisionerJob *database.ProvisionerJob
+	err = database.ReadModifyUpdate(store, func(tx database.Store) error {
+		var err error
+		b.store = tx
+		workspaceBuild, provisionerJob, err = b.buildTx(authFunc)
+		return err
+	})
+	if err != nil {
+		return nil, nil, xerrors.Errorf("build tx: %w", err)
 	}
-	return nil, nil, xerrors.Errorf("too many errors; last error: %w", err)
+	return workspaceBuild, provisionerJob, nil
 }
 
 // buildTx contains the business logic of computing a new build.  Attributes of the new database objects are computed
@@ -300,7 +296,7 @@ func (b *Builder) buildTx(authFunc func(action rbac.Action, object rbac.Objecter
 	}
 	tags := provisionerdserver.MutateTags(b.workspace.OwnerID, templateVersionJob.Tags)
 
-	now := database.Now()
+	now := dbtime.Now()
 	provisionerJob, err := b.store.InsertProvisionerJob(b.ctx, database.InsertProvisionerJobParams{
 		ID:             uuid.New(),
 		CreatedAt:      now,
@@ -349,9 +345,15 @@ func (b *Builder) buildTx(authFunc func(action rbac.Action, object rbac.Objecter
 			Transition:        b.trans,
 			JobID:             provisionerJob.ID,
 			Reason:            b.reason,
+			Deadline:          time.Time{}, // set by provisioner upon completion
+			MaxDeadline:       time.Time{}, // set by provisioner upon completion
 		})
 		if err != nil {
-			return BuildError{http.StatusInternalServerError, "insert workspace build", err}
+			code := http.StatusInternalServerError
+			if rbac.IsUnauthorizedError(err) {
+				code = http.StatusUnauthorized
+			}
+			return BuildError{code, "insert workspace build", err}
 		}
 
 		names, values, err := b.getParameters()
@@ -714,7 +716,7 @@ func (b *Builder) checkTemplateJobStatus() error {
 		}
 	}
 
-	templateVersionJobStatus := db2sdk.ProvisionerJobStatus(*templateVersionJob)
+	templateVersionJobStatus := codersdk.ProvisionerJobStatus(templateVersionJob.JobStatus)
 	switch templateVersionJobStatus {
 	case codersdk.ProvisionerJobPending, codersdk.ProvisionerJobRunning:
 		msg := fmt.Sprintf("The provided template version is %s. Wait for it to complete importing!", templateVersionJobStatus)
@@ -751,7 +753,7 @@ func (b *Builder) checkRunningBuild() error {
 	if err != nil {
 		return BuildError{http.StatusInternalServerError, "failed to fetch prior build", err}
 	}
-	if db2sdk.ProvisionerJobStatus(*job).Active() {
+	if codersdk.ProvisionerJobStatus(job.JobStatus).Active() {
 		msg := "A workspace build is already active."
 		return BuildError{
 			http.StatusConflict,

@@ -1,6 +1,9 @@
-Usage: coder users create [flags]
+coder v0.0.0-devel
 
-[1mOptions[0m
+USAGE:
+  coder users create [flags]
+
+OPTIONS:
   -e, --email string
           Specifies an email address for the new user.
 
@@ -16,5 +19,5 @@ Usage: coder users create [flags]
   -u, --username string
           Specifies a username for the new user.
 
----
+———
 Run `coder --help` for a list of global options.

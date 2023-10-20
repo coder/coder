@@ -17,6 +17,7 @@ import (
 	"nhooyr.io/websocket"
 
 	"github.com/coder/coder/v2/provisionerd/proto"
+	"github.com/coder/coder/v2/provisionerd/runner"
 	"github.com/coder/coder/v2/provisionersdk"
 )
 
@@ -63,6 +64,7 @@ const (
 	ProvisionerJobCanceling ProvisionerJobStatus = "canceling"
 	ProvisionerJobCanceled  ProvisionerJobStatus = "canceled"
 	ProvisionerJobFailed    ProvisionerJobStatus = "failed"
+	ProvisionerJobUnknown   ProvisionerJobStatus = "unknown"
 )
 
 // JobErrorCode defines the error code returned by job runner.
@@ -71,6 +73,12 @@ type JobErrorCode string
 const (
 	RequiredTemplateVariables JobErrorCode = "REQUIRED_TEMPLATE_VARIABLES"
 )
+
+// JobIsMissingParameterErrorCode returns whether the error is a missing parameter error.
+// This can indicate to consumers that they should check parameters.
+func JobIsMissingParameterErrorCode(code JobErrorCode) bool {
+	return string(code) == runner.MissingParameterErrorCode
+}
 
 // ProvisionerJob describes the job executed by the provisioning daemon.
 type ProvisionerJob struct {
@@ -166,6 +174,8 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 // ServeProvisionerDaemonRequest are the parameters to call ServeProvisionerDaemon with
 // @typescript-ignore ServeProvisionerDaemonRequest
 type ServeProvisionerDaemonRequest struct {
+	// ID is a unique ID for a provisioner daemon.
+	ID uuid.UUID `json:"id" format:"uuid"`
 	// Organization is the organization for the URL.  At present provisioner daemons ARE NOT scoped to organizations
 	// and so the organization ID is optional.
 	Organization uuid.UUID `json:"organization" format:"uuid"`
@@ -186,6 +196,7 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
 	query := serverURL.Query()
+	query.Add("id", req.ID.String())
 	for _, provisioner := range req.Provisioners {
 		query.Add("provisioner", string(provisioner))
 	}

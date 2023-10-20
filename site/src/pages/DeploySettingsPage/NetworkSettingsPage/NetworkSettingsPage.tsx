@@ -1,11 +1,11 @@
-import { useDeploySettings } from "components/DeploySettingsLayout/DeploySettingsLayout"
-import { FC } from "react"
-import { Helmet } from "react-helmet-async"
-import { pageTitle } from "utils/page"
-import { NetworkSettingsPageView } from "./NetworkSettingsPageView"
+import { useDeploySettings } from "components/DeploySettingsLayout/DeploySettingsLayout";
+import { FC } from "react";
+import { Helmet } from "react-helmet-async";
+import { pageTitle } from "utils/page";
+import { NetworkSettingsPageView } from "./NetworkSettingsPageView";
 
 const NetworkSettingsPage: FC = () => {
-  const { deploymentValues: deploymentValues } = useDeploySettings()
+  const { deploymentValues: deploymentValues } = useDeploySettings();
 
   return (
     <>
@@ -15,7 +15,7 @@ const NetworkSettingsPage: FC = () => {
 
       <NetworkSettingsPageView options={deploymentValues.options} />
     </>
-  )
-}
+  );
+};
 
-export default NetworkSettingsPage
+export default NetworkSettingsPage;

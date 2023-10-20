@@ -39,6 +39,14 @@ Allow users to customize the autostop TTL for workspaces on this template. This 
 
 Allow users to cancel in-progress workspace jobs.
 
+### --autostart-requirement-weekdays
+
+|      |                           |
+| ---- | ------------------------- |
+| Type | <code>string-array</code> |
+
+Edit the template autostart requirement weekdays - workspaces created from this template can only autostart on the given weekdays. To unset this value for the template (and allow autostart on all days), pass 'all'.
+
 ### --default-ttl
 
 |      |                       |
@@ -104,6 +112,15 @@ Edit the template maximum time before shutdown - workspaces created from this te
 | Type | <code>string</code> |
 
 Edit the template name.
+
+### --require-active-version
+
+|         |                    |
+| ------- | ------------------ |
+| Type    | <code>bool</code>  |
+| Default | <code>false</code> |
+
+Requires workspace builds to use the active template version. This setting does not apply to template admins. This is an enterprise-only feature.
 
 ### -y, --yes
 

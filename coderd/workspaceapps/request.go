@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -61,8 +62,15 @@ func (r IssueTokenRequest) AppBaseURL() (*url.URL, error) {
 		if r.AppHostname == "" {
 			return nil, xerrors.New("subdomain app hostname is required to generate subdomain app URL")
 		}
-		appHost := fmt.Sprintf("%s--%s--%s--%s", r.AppRequest.AppSlugOrPort, r.AppRequest.AgentNameOrID, r.AppRequest.WorkspaceNameOrID, r.AppRequest.UsernameOrID)
-		u.Host = strings.Replace(r.AppHostname, "*", appHost, 1)
+
+		appHost := httpapi.ApplicationURL{
+			Prefix:        r.AppRequest.Prefix,
+			AppSlugOrPort: r.AppRequest.AppSlugOrPort,
+			AgentName:     r.AppRequest.AgentNameOrID,
+			WorkspaceName: r.AppRequest.WorkspaceNameOrID,
+			Username:      r.AppRequest.UsernameOrID,
+		}
+		u.Host = strings.Replace(r.AppHostname, "*", appHost.String(), 1)
 		u.Path = r.AppRequest.BasePath
 		return u, nil
 	default:
@@ -76,6 +84,9 @@ type Request struct {
 	// for this particular app. For subdomain apps, this should be "/". This is
 	// used for setting the cookie path.
 	BasePath string `json:"base_path"`
+	// Prefix is the prefix of the subdomain app URL. Prefix should have a
+	// trailing "---" if set.
+	Prefix string `json:"app_prefix"`
 
 	// For the following fields, if the AccessMethod is AccessMethodTerminal,
 	// then only AgentNameOrID may be set and it must be a UUID. The other
@@ -161,6 +172,13 @@ func (r Request) Validate() error {
 	}
 	if r.AppSlugOrPort == "" {
 		return xerrors.New("app slug or port is required")
+	}
+
+	if r.Prefix != "" && r.AccessMethod != AccessMethodSubdomain {
+		return xerrors.New("prefix is only valid for subdomain apps")
+	}
+	if r.Prefix != "" && !strings.HasSuffix(r.Prefix, "---") {
+		return xerrors.New("prefix must have a trailing '---'")
 	}
 
 	return nil

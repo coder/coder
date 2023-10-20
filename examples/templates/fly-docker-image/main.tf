@@ -1,12 +1,10 @@
 terraform {
   required_providers {
     fly = {
-      source  = "fly-apps/fly"
-      version = "~>0.0.23"
+      source = "fly-apps/fly"
     }
     coder = {
-      source  = "coder/coder"
-      version = "~>0.7.0"
+      source = "coder/coder"
     }
   }
 }
@@ -19,13 +17,13 @@ provider "coder" {
 }
 
 resource "fly_app" "workspace" {
-  name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
+  name = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
   org  = var.fly_org
 }
 
 resource "fly_volume" "home-volume" {
   app    = fly_app.workspace.name
-  name   = "coder_${data.coder_workspace.me.owner}_${lower(replace(data.coder_workspace.me.name, "-", "_"))}_home"
+  name   = "coder_${lower(data.coder_workspace.me.owner)}_${lower(replace(data.coder_workspace.me.name, "-", "_"))}_home"
   size   = data.coder_parameter.volume-size.value
   region = data.coder_parameter.region.value
 }

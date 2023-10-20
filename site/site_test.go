@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/site"
@@ -81,15 +82,15 @@ func TestInjectionFailureProducesCleanHTML(t *testing.T) {
 	user := dbgen.User(t, db, database.User{})
 	_, token := dbgen.APIKey(t, db, database.APIKey{
 		UserID:    user.ID,
-		LastUsed:  database.Now().Add(-time.Hour),
-		ExpiresAt: database.Now().Add(-time.Second),
+		LastUsed:  dbtime.Now().Add(-time.Hour),
+		ExpiresAt: dbtime.Now().Add(-time.Second),
 		LoginType: database.LoginTypeGithub,
 	})
 	_ = dbgen.UserLink(t, db, database.UserLink{
 		UserID:            user.ID,
 		LoginType:         database.LoginTypeGithub,
 		OAuthRefreshToken: "hello",
-		OAuthExpiry:       database.Now().Add(-time.Second),
+		OAuthExpiry:       dbtime.Now().Add(-time.Second),
 	})
 
 	binFs := http.FS(fstest.MapFS{})

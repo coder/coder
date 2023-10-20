@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -50,6 +50,7 @@ func (t SignedToken) MatchesRequest(req Request) bool {
 
 	return t.AccessMethod == req.AccessMethod &&
 		tokenBasePath == reqBasePath &&
+		t.Prefix == req.Prefix &&
 		t.UsernameOrID == req.UsernameOrID &&
 		t.WorkspaceNameOrID == req.WorkspaceNameOrID &&
 		t.AgentNameOrID == req.AgentNameOrID &&
@@ -168,7 +169,7 @@ func (k SecurityKey) EncryptAPIKey(payload EncryptedAPIKeyPayload) (string, erro
 	if payload.ExpiresAt.IsZero() {
 		// Very short expiry as these keys are only used once as part of an
 		// automatic redirection flow.
-		payload.ExpiresAt = database.Now().Add(time.Minute)
+		payload.ExpiresAt = dbtime.Now().Add(time.Minute)
 	}
 
 	payloadBytes, err := json.Marshal(payload)
@@ -227,7 +228,7 @@ func (k SecurityKey) DecryptAPIKey(encryptedAPIKey string) (string, error) {
 	}
 
 	// Validate expiry.
-	if payload.ExpiresAt.Before(database.Now()) {
+	if payload.ExpiresAt.Before(dbtime.Now()) {
 		return "", xerrors.New("encrypted API key expired")
 	}
 

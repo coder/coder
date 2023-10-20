@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty/ptytest"
 )
@@ -44,7 +44,7 @@ func TestWorkspaceResources(t *testing.T) {
 	t.Run("MultipleStates", func(t *testing.T) {
 		t.Parallel()
 		ptty := ptytest.New(t)
-		disconnected := database.Now().Add(-4 * time.Second)
+		disconnected := dbtime.Now().Add(-4 * time.Second)
 		done := make(chan struct{})
 		go func() {
 			err := cliui.WorkspaceResources(ptty.Output(), []codersdk.WorkspaceResource{{
@@ -60,7 +60,7 @@ func TestWorkspaceResources(t *testing.T) {
 				Type:       "google_compute_instance",
 				Name:       "dev",
 				Agents: []codersdk.WorkspaceAgent{{
-					CreatedAt:       database.Now().Add(-10 * time.Second),
+					CreatedAt:       dbtime.Now().Add(-10 * time.Second),
 					Status:          codersdk.WorkspaceAgentConnecting,
 					LifecycleState:  codersdk.WorkspaceAgentLifecycleCreated,
 					Name:            "dev",

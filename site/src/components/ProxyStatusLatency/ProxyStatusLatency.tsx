@@ -1,17 +1,17 @@
-import { useTheme } from "@mui/material/styles"
-import HelpOutline from "@mui/icons-material/HelpOutline"
-import Box from "@mui/material/Box"
-import Tooltip from "@mui/material/Tooltip"
-import { FC } from "react"
-import { getLatencyColor } from "utils/latency"
-import CircularProgress from "@mui/material/CircularProgress"
+import { useTheme } from "@mui/material/styles";
+import HelpOutline from "@mui/icons-material/HelpOutline";
+import Box from "@mui/material/Box";
+import Tooltip from "@mui/material/Tooltip";
+import { FC } from "react";
+import { getLatencyColor } from "utils/latency";
+import CircularProgress from "@mui/material/CircularProgress";
 
 export const ProxyStatusLatency: FC<{
-  latency?: number
-  isLoading?: boolean
+  latency?: number;
+  isLoading?: boolean;
 }> = ({ latency, isLoading }) => {
-  const theme = useTheme()
-  const color = getLatencyColor(theme, latency)
+  const theme = useTheme();
+  const color = getLatencyColor(theme, latency);
 
   if (isLoading) {
     return (
@@ -25,7 +25,7 @@ export const ProxyStatusLatency: FC<{
           }}
         />
       </Tooltip>
-    )
+    );
   }
 
   if (!latency) {
@@ -39,12 +39,12 @@ export const ProxyStatusLatency: FC<{
           }}
         />
       </Tooltip>
-    )
+    );
   }
 
   return (
     <Box sx={{ color, fontSize: 13, marginLeft: "auto" }}>
       {latency.toFixed(0)}ms
     </Box>
-  )
-}
+  );
+};

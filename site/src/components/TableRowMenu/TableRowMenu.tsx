@@ -1,31 +1,31 @@
-import IconButton from "@mui/material/IconButton"
-import Menu, { MenuProps } from "@mui/material/Menu"
-import MenuItem from "@mui/material/MenuItem"
-import MoreVertIcon from "@mui/icons-material/MoreVert"
-import { MouseEvent, useState } from "react"
+import IconButton from "@mui/material/IconButton";
+import Menu, { MenuProps } from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
+import { MouseEvent, useState } from "react";
 
 export interface TableRowMenuProps<TData> {
-  data: TData
+  data: TData;
   menuItems: Array<{
-    label: React.ReactNode
-    disabled: boolean
-    onClick: (data: TData) => void
-  }>
+    label: React.ReactNode;
+    disabled: boolean;
+    onClick: (data: TData) => void;
+  }>;
 }
 
 export const TableRowMenu = <T,>({
   data,
   menuItems,
 }: TableRowMenuProps<T>): JSX.Element => {
-  const [anchorEl, setAnchorEl] = useState<MenuProps["anchorEl"]>(null)
+  const [anchorEl, setAnchorEl] = useState<MenuProps["anchorEl"]>(null);
 
   const handleClick = (event: MouseEvent) => {
-    setAnchorEl(event.currentTarget)
-  }
+    setAnchorEl(event.currentTarget);
+  };
 
   const handleClose = () => {
-    setAnchorEl(null)
-  }
+    setAnchorEl(null);
+  };
 
   return (
     <>
@@ -50,8 +50,8 @@ export const TableRowMenu = <T,>({
             key={index}
             disabled={item.disabled}
             onClick={() => {
-              handleClose()
-              item.onClick(data)
+              handleClose();
+              item.onClick(data);
             }}
           >
             {item.label}
@@ -59,5 +59,5 @@ export const TableRowMenu = <T,>({
         ))}
       </Menu>
     </>
-  )
-}
+  );
+};

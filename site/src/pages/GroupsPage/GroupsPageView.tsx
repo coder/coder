@@ -1,44 +1,50 @@
-import Button from "@mui/material/Button"
-import Link from "@mui/material/Link"
-import { makeStyles } from "@mui/styles"
-import Table from "@mui/material/Table"
-import TableBody from "@mui/material/TableBody"
-import TableCell from "@mui/material/TableCell"
-import TableContainer from "@mui/material/TableContainer"
-import TableHead from "@mui/material/TableHead"
-import TableRow from "@mui/material/TableRow"
-import ArrowRightAltOutlined from "@mui/icons-material/ArrowRightAltOutlined"
-import AddOutlined from "@mui/icons-material/AddOutlined"
-import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight"
-import AvatarGroup from "@mui/material/AvatarGroup"
-import { AvatarData } from "components/AvatarData/AvatarData"
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
-import { EmptyState } from "components/EmptyState/EmptyState"
-import { Stack } from "components/Stack/Stack"
-import { TableLoaderSkeleton } from "components/TableLoader/TableLoader"
-import { UserAvatar } from "components/UserAvatar/UserAvatar"
-import { FC } from "react"
-import { Link as RouterLink, useNavigate } from "react-router-dom"
-import { Paywall } from "components/Paywall/Paywall"
-import { Group } from "api/typesGenerated"
-import { GroupAvatar } from "components/GroupAvatar/GroupAvatar"
-import { docs } from "utils/docs"
+import Button from "@mui/material/Button";
+import Link from "@mui/material/Link";
+import { makeStyles } from "@mui/styles";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import ArrowRightAltOutlined from "@mui/icons-material/ArrowRightAltOutlined";
+import AddOutlined from "@mui/icons-material/AddOutlined";
+import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
+import AvatarGroup from "@mui/material/AvatarGroup";
+import { AvatarData } from "components/AvatarData/AvatarData";
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
+import { EmptyState } from "components/EmptyState/EmptyState";
+import { Stack } from "components/Stack/Stack";
+import {
+  TableLoaderSkeleton,
+  TableRowSkeleton,
+} from "components/TableLoader/TableLoader";
+import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { FC } from "react";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { Paywall } from "components/Paywall/Paywall";
+import { Group } from "api/typesGenerated";
+import { GroupAvatar } from "components/GroupAvatar/GroupAvatar";
+import { docs } from "utils/docs";
+import Skeleton from "@mui/material/Skeleton";
+import { Box } from "@mui/system";
+import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
 
 export type GroupsPageViewProps = {
-  groups: Group[] | undefined
-  canCreateGroup: boolean
-  isTemplateRBACEnabled: boolean
-}
+  groups: Group[] | undefined;
+  canCreateGroup: boolean;
+  isTemplateRBACEnabled: boolean;
+};
 
 export const GroupsPageView: FC<GroupsPageViewProps> = ({
   groups,
   canCreateGroup,
   isTemplateRBACEnabled,
 }) => {
-  const isLoading = Boolean(groups === undefined)
-  const isEmpty = Boolean(groups && groups.length === 0)
-  const navigate = useNavigate()
-  const styles = useStyles()
+  const isLoading = Boolean(groups === undefined);
+  const isEmpty = Boolean(groups && groups.length === 0);
+  const navigate = useNavigate();
+  const styles = useStyles();
 
   return (
     <>
@@ -83,7 +89,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
               <TableBody>
                 <ChooseOne>
                   <Cond condition={isLoading}>
-                    <TableLoaderSkeleton columns={3} useAvatarData />
+                    <TableLoader />
                   </Cond>
 
                   <Cond condition={isEmpty}>
@@ -115,7 +121,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 
                   <Cond>
                     {groups?.map((group) => {
-                      const groupPageLink = `/groups/${group.id}`
+                      const groupPageLink = `/groups/${group.id}`;
 
                       return (
                         <TableRow
@@ -124,11 +130,11 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
                           data-testid={`group-${group.id}`}
                           tabIndex={0}
                           onClick={() => {
-                            navigate(groupPageLink)
+                            navigate(groupPageLink);
                           }}
                           onKeyDown={(event) => {
                             if (event.key === "Enter") {
-                              navigate(groupPageLink)
+                              navigate(groupPageLink);
                             }
                           }}
                           className={styles.clickableTableRow}
@@ -171,7 +177,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
                             </div>
                           </TableCell>
                         </TableRow>
-                      )
+                      );
                     })}
                   </Cond>
                 </ChooseOne>
@@ -181,8 +187,28 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
         </Cond>
       </ChooseOne>
     </>
-  )
-}
+  );
+};
+
+const TableLoader = () => {
+  return (
+    <TableLoaderSkeleton>
+      <TableRowSkeleton>
+        <TableCell>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <AvatarDataSkeleton />
+          </Box>
+        </TableCell>
+        <TableCell>
+          <Skeleton variant="text" width="25%" />
+        </TableCell>
+        <TableCell>
+          <Skeleton variant="text" width="25%" />
+        </TableCell>
+      </TableRowSkeleton>
+    </TableLoaderSkeleton>
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   clickableTableRow: {
@@ -208,6 +234,6 @@ const useStyles = makeStyles((theme) => ({
   arrowCell: {
     display: "flex",
   },
-}))
+}));
 
-export default GroupsPageView
+export default GroupsPageView;

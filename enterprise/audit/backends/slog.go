@@ -24,7 +24,7 @@ func (*slogBackend) Decision() audit.FilterDecision {
 	return audit.FilterDecisionExport
 }
 
-func (b *slogBackend) Export(ctx context.Context, alog database.AuditLog) error {
+func (b *slogBackend) Export(ctx context.Context, alog database.AuditLog, details audit.BackendDetails) error {
 	// We don't use structs.Map because we don't want to recursively convert
 	// fields into maps. When we keep the type information, slog can more
 	// pleasantly format the output. For example, the clean result of
@@ -33,6 +33,10 @@ func (b *slogBackend) Export(ctx context.Context, alog database.AuditLog) error 
 	var fields []any
 	for _, sf := range sfs {
 		fields = append(fields, b.fieldToSlog(sf))
+	}
+
+	if details.Actor != nil {
+		fields = append(fields, slog.F("actor", details.Actor))
 	}
 
 	b.log.Info(ctx, "audit_log", fields...)

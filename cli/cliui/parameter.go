@@ -7,6 +7,7 @@ import (
 
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/pretty"
 )
 
 func RichParameter(inv *clibase.Invocation, templateVersionParameter codersdk.TemplateVersionParameter) (string, error) {
@@ -16,10 +17,10 @@ func RichParameter(inv *clibase.Invocation, templateVersionParameter codersdk.Te
 	}
 
 	if templateVersionParameter.Ephemeral {
-		label += DefaultStyles.Warn.Render(" (build option)")
+		label += pretty.Sprint(DefaultStyles.Warn, " (build option)")
 	}
 
-	_, _ = fmt.Fprintln(inv.Stdout, DefaultStyles.Bold.Render(label))
+	_, _ = fmt.Fprintln(inv.Stdout, Bold(label))
 
 	if templateVersionParameter.DescriptionPlaintext != "" {
 		_, _ = fmt.Fprintln(inv.Stdout, "  "+strings.TrimSpace(strings.Join(strings.Split(templateVersionParameter.DescriptionPlaintext, "\n"), "\n  "))+"\n")
@@ -45,7 +46,10 @@ func RichParameter(inv *clibase.Invocation, templateVersionParameter codersdk.Te
 			}
 
 			_, _ = fmt.Fprintln(inv.Stdout)
-			_, _ = fmt.Fprintln(inv.Stdout, "  "+DefaultStyles.Prompt.String()+DefaultStyles.Field.Render(strings.Join(values, ", ")))
+			pretty.Fprintf(
+				inv.Stdout,
+				DefaultStyles.Prompt, "%s\n", strings.Join(values, ", "),
+			)
 			value = string(v)
 		}
 	} else if len(templateVersionParameter.Options) > 0 {
@@ -59,7 +63,7 @@ func RichParameter(inv *clibase.Invocation, templateVersionParameter codersdk.Te
 		})
 		if err == nil {
 			_, _ = fmt.Fprintln(inv.Stdout)
-			_, _ = fmt.Fprintln(inv.Stdout, "  "+DefaultStyles.Prompt.String()+DefaultStyles.Field.Render(richParameterOption.Name))
+			pretty.Fprintf(inv.Stdout, DefaultStyles.Prompt, "%s\n", richParameterOption.Name)
 			value = richParameterOption.Value
 		}
 	} else {
@@ -70,7 +74,7 @@ func RichParameter(inv *clibase.Invocation, templateVersionParameter codersdk.Te
 		text += ":"
 
 		value, err = Prompt(inv, PromptOptions{
-			Text: DefaultStyles.Bold.Render(text),
+			Text: Bold(text),
 			Validate: func(value string) error {
 				return validateRichPrompt(value, templateVersionParameter)
 			},

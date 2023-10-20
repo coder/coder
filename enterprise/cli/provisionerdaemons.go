@@ -1,3 +1,5 @@
+//go:build !slim
+
 package cli
 
 import (
@@ -7,6 +9,7 @@ import (
 	"os/signal"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -15,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/terraform"
 	"github.com/coder/coder/v2/provisionerd"
@@ -65,6 +69,23 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 				return err
 			}
 
+			logger := slog.Make(sloghuman.Sink(inv.Stderr))
+			if ok, _ := inv.ParsedFlags().GetBool("verbose"); ok {
+				logger = logger.Leveled(slog.LevelDebug)
+			}
+
+			if len(tags) != 0 {
+				logger.Info(ctx, "note: tagged provisioners can currently pick up jobs from untagged templates")
+				logger.Info(ctx, "see https://github.com/coder/coder/issues/6442 for details")
+			}
+
+			// When authorizing with a PSK, we automatically scope the provisionerd
+			// to organization. Scoping to user with PSK auth is not a valid configuration.
+			if preSharedKey != "" {
+				logger.Info(ctx, "psk auth automatically sets tag "+provisionerdserver.TagScope+"="+provisionerdserver.ScopeOrganization)
+				tags[provisionerdserver.TagScope] = provisionerdserver.ScopeOrganization
+			}
+
 			err = os.MkdirAll(cacheDir, 0o700)
 			if err != nil {
 				return xerrors.Errorf("mkdir %q: %w", cacheDir, err)
@@ -82,7 +103,6 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 				_ = terraformServer.Close()
 			}()
 
-			logger := slog.Make(sloghuman.Sink(inv.Stderr))
 			errCh := make(chan error, 1)
 			go func() {
 				defer cancel()
@@ -105,11 +125,13 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 
 			logger.Info(ctx, "starting provisioner daemon", slog.F("tags", tags))
 
-			provisioners := provisionerd.Provisioners{
+			connector := provisionerd.LocalProvisioners{
 				string(database.ProvisionerTypeTerraform): proto.NewDRPCProvisionerClient(terraformClient),
 			}
+			id := uuid.New()
 			srv := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
 				return client.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+					ID: id,
 					Provisioners: []codersdk.ProvisionerType{
 						codersdk.ProvisionerTypeTerraform,
 					},
@@ -117,18 +139,16 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 					PreSharedKey: preSharedKey,
 				})
 			}, &provisionerd.Options{
-				Logger:          logger,
-				JobPollInterval: pollInterval,
-				JobPollJitter:   pollJitter,
-				UpdateInterval:  500 * time.Millisecond,
-				Provisioners:    provisioners,
+				Logger:         logger,
+				UpdateInterval: 500 * time.Millisecond,
+				Connector:      connector,
 			})
 
 			var exitErr error
 			select {
 			case <-notifyCtx.Done():
 				exitErr = notifyCtx.Err()
-				_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Bold.Render(
+				_, _ = fmt.Fprintln(inv.Stdout, cliui.Bold(
 					"Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit",
 				))
 			case exitErr = <-errCh:
@@ -170,13 +190,13 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 			Flag:        "poll-interval",
 			Env:         "CODER_PROVISIONERD_POLL_INTERVAL",
 			Default:     time.Second.String(),
-			Description: "How often to poll for provisioner jobs.",
+			Description: "Deprecated and ignored.",
 			Value:       clibase.DurationOf(&pollInterval),
 		},
 		{
 			Flag:        "poll-jitter",
 			Env:         "CODER_PROVISIONERD_POLL_JITTER",
-			Description: "How much to jitter the poll interval by.",
+			Description: "Deprecated and ignored.",
 			Default:     (100 * time.Millisecond).String(),
 			Value:       clibase.DurationOf(&pollJitter),
 		},

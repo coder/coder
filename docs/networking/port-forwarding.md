@@ -10,7 +10,11 @@ There are three ways to forward ports in Coder:
 - Dashboard
 - SSH
 
-The `coder port-forward` command is generally more performant.
+The `coder port-forward` command is generally more performant than:
+
+1. The Dashboard which proxies traffic through the Coder control plane versus
+   peer-to-peer which is possible with the Coder CLI
+1. `sshd` which does double encryption of traffic with both Wireguard and SSH
 
 ## The `coder port-forward` command
 

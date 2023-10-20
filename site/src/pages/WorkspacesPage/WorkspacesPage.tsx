@@ -1,83 +1,107 @@
-import { usePagination } from "hooks/usePagination"
-import { Workspace } from "api/typesGenerated"
-import {
-  useDashboard,
-  useIsWorkspaceActionsEnabled,
-} from "components/Dashboard/DashboardProvider"
-import { FC, useEffect, useState } from "react"
-import { Helmet } from "react-helmet-async"
-import { pageTitle } from "utils/page"
-import { useWorkspacesData, useWorkspaceUpdate } from "./data"
-import { WorkspacesPageView } from "./WorkspacesPageView"
-import { useOrganizationId, usePermissions } from "hooks"
-import { useTemplateFilterMenu, useStatusFilterMenu } from "./filter/menus"
-import { useSearchParams } from "react-router-dom"
-import { useFilter } from "components/Filter/filter"
-import { useUserFilterMenu } from "components/Filter/UserFilter"
-import { deleteWorkspace, getWorkspaces } from "api/api"
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
-import Box from "@mui/material/Box"
-import { MONOSPACE_FONT_FAMILY } from "theme/constants"
-import TextField from "@mui/material/TextField"
-import { displayError } from "components/GlobalSnackbar/utils"
-import { getErrorMessage } from "api/errors"
+import { usePagination } from "hooks/usePagination";
+import { Workspace } from "api/typesGenerated";
+import { useDashboard } from "components/Dashboard/DashboardProvider";
+import { type FC, useEffect, useState } from "react";
+import { Helmet } from "react-helmet-async";
+import { pageTitle } from "utils/page";
+import { useWorkspacesData, useWorkspaceUpdate } from "./data";
+import { WorkspacesPageView } from "./WorkspacesPageView";
+import { useOrganizationId, usePermissions } from "hooks";
+import { useTemplateFilterMenu, useStatusFilterMenu } from "./filter/menus";
+import { useSearchParams } from "react-router-dom";
+import { useFilter } from "components/Filter/filter";
+import { useUserFilterMenu } from "components/Filter/UserFilter";
+import { deleteWorkspace, getWorkspaces } from "api/api";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import Box from "@mui/material/Box";
+import { MONOSPACE_FONT_FAMILY } from "theme/constants";
+import TextField from "@mui/material/TextField";
+import { displayError } from "components/GlobalSnackbar/utils";
+import { getErrorMessage } from "api/errors";
+import { useEffectEvent } from "hooks/hookPolyfills";
+import { useQuery } from "react-query";
+import { templates } from "api/queries/templates";
+
+function useSafeSearchParams() {
+  // Have to wrap setSearchParams because React Router doesn't make sure that
+  // the function's memory reference stays stable on each render, even though
+  // its logic never changes, and even though it has function update support
+  const [searchParams, setSearchParams] = useSearchParams();
+  const stableSetSearchParams = useEffectEvent(setSearchParams);
+
+  // Need this to be a tuple type, but can't use "as const", because that would
+  // make the whole array readonly and cause type mismatches downstream
+  return [searchParams, stableSetSearchParams] as ReturnType<
+    typeof useSearchParams
+  >;
+}
 
 const WorkspacesPage: FC = () => {
-  const [dormantWorkspaces, setDormantWorkspaces] = useState<Workspace[]>([])
+  const [dormantWorkspaces, setDormantWorkspaces] = useState<Workspace[]>([]);
   // If we use a useSearchParams for each hook, the values will not be in sync.
   // So we have to use a single one, centralizing the values, and pass it to
   // each hook.
-  const searchParamsResult = useSearchParams()
-  const pagination = usePagination({ searchParamsResult })
-  const filterProps = useWorkspacesFilter({ searchParamsResult, pagination })
+  const searchParamsResult = useSafeSearchParams();
+  const pagination = usePagination({ searchParamsResult });
+
+  const organizationId = useOrganizationId();
+  const templatesQuery = useQuery(templates(organizationId));
+
+  const filterProps = useWorkspacesFilter({
+    searchParamsResult,
+    organizationId,
+    onFilterChange: () => pagination.goToPage(1),
+  });
+
   const { data, error, queryKey, refetch } = useWorkspacesData({
     ...pagination,
     query: filterProps.filter.query,
-  })
+  });
 
-  const experimentEnabled = useIsWorkspaceActionsEnabled()
+  const { entitlements } = useDashboard();
+  const schedulingEnabled =
+    entitlements.features["advanced_template_scheduling"].enabled;
+
   // If workspace actions are enabled we need to fetch the dormant
   // workspaces as well. This lets us determine whether we should
   // show a banner to the user indicating that some of their workspaces
   // are at risk of being deleted.
   useEffect(() => {
-    if (experimentEnabled) {
-      const includesDormant = filterProps.filter.query.includes("dormant_at")
+    if (schedulingEnabled) {
+      const includesDormant = filterProps.filter.query.includes("is-dormant");
       const dormantQuery = includesDormant
         ? filterProps.filter.query
-        : filterProps.filter.query + " dormant_at:1970-01-01"
+        : filterProps.filter.query + " is-dormant:true";
 
       if (includesDormant && data) {
-        setDormantWorkspaces(data.workspaces)
+        setDormantWorkspaces(data.workspaces);
       } else {
         getWorkspaces({ q: dormantQuery })
           .then((resp) => {
-            setDormantWorkspaces(resp.workspaces)
+            setDormantWorkspaces(resp.workspaces);
           })
           .catch(() => {
             // TODO
-          })
+          });
       }
     } else {
       // If the experiment isn't included then we'll pretend
       // like dormant workspaces don't exist.
-      setDormantWorkspaces([])
+      setDormantWorkspaces([]);
     }
-  }, [experimentEnabled, data, filterProps.filter.query])
-  const updateWorkspace = useWorkspaceUpdate(queryKey)
-  const [checkedWorkspaces, setCheckedWorkspaces] = useState<Workspace[]>([])
-  const [isDeletingAll, setIsDeletingAll] = useState(false)
-  const [urlSearchParams] = searchParamsResult
-  const dashboard = useDashboard()
-  const isWorkspaceBatchActionsEnabled =
-    dashboard.experiments.includes("workspaces_batch_actions") ||
-    process.env.NODE_ENV === "development"
+  }, [schedulingEnabled, data, filterProps.filter.query]);
+  const updateWorkspace = useWorkspaceUpdate(queryKey);
+  const [checkedWorkspaces, setCheckedWorkspaces] = useState<Workspace[]>([]);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
+  const [urlSearchParams] = searchParamsResult;
+  const canCheckWorkspaces =
+    entitlements.features["workspace_batch_actions"].enabled;
 
   // We want to uncheck the selected workspaces always when the url changes
   // because of filtering or pagination
   useEffect(() => {
-    setCheckedWorkspaces([])
-  }, [urlSearchParams])
+    setCheckedWorkspaces([]);
+  }, [urlSearchParams]);
 
   return (
     <>
@@ -86,9 +110,11 @@ const WorkspacesPage: FC = () => {
       </Helmet>
 
       <WorkspacesPageView
-        isWorkspaceBatchActionsEnabled={isWorkspaceBatchActionsEnabled}
         checkedWorkspaces={checkedWorkspaces}
         onCheckChange={setCheckedWorkspaces}
+        canCheckWorkspaces={canCheckWorkspaces}
+        templates={templatesQuery.data}
+        templatesFetchStatus={templatesQuery.status}
         workspaces={data?.workspaces}
         dormantWorkspaces={dormantWorkspaces}
         error={error}
@@ -98,10 +124,10 @@ const WorkspacesPage: FC = () => {
         onPageChange={pagination.goToPage}
         filterProps={filterProps}
         onUpdateWorkspace={(workspace) => {
-          updateWorkspace.mutate(workspace)
+          updateWorkspace.mutate(workspace);
         }}
         onDeleteAll={() => {
-          setIsDeletingAll(true)
+          setIsDeletingAll(true);
         }}
       />
 
@@ -109,55 +135,57 @@ const WorkspacesPage: FC = () => {
         checkedWorkspaces={checkedWorkspaces}
         open={isDeletingAll}
         onClose={() => {
-          setIsDeletingAll(false)
+          setIsDeletingAll(false);
         }}
         onDelete={async () => {
-          await refetch()
-          setCheckedWorkspaces([])
+          await refetch();
+          setCheckedWorkspaces([]);
         }}
       />
     </>
-  )
-}
+  );
+};
 
-export default WorkspacesPage
+export default WorkspacesPage;
 
 type UseWorkspacesFilterOptions = {
-  searchParamsResult: ReturnType<typeof useSearchParams>
-  pagination: ReturnType<typeof usePagination>
-}
+  searchParamsResult: ReturnType<typeof useSearchParams>;
+  onFilterChange: () => void;
+  organizationId: string;
+};
 
 const useWorkspacesFilter = ({
   searchParamsResult,
-  pagination,
+  onFilterChange,
+  organizationId,
 }: UseWorkspacesFilterOptions) => {
-  const orgId = useOrganizationId()
   const filter = useFilter({
-    initialValue: `owner:me`,
+    fallbackFilter: "owner:me",
     searchParamsResult,
-    onUpdate: () => {
-      pagination.goToPage(1)
-    },
-  })
-  const permissions = usePermissions()
-  const canFilterByUser = permissions.viewDeploymentValues
+    onUpdate: onFilterChange,
+  });
+
+  const permissions = usePermissions();
+  const canFilterByUser = permissions.viewDeploymentValues;
   const userMenu = useUserFilterMenu({
     value: filter.values.owner,
     onChange: (option) =>
       filter.update({ ...filter.values, owner: option?.value }),
     enabled: canFilterByUser,
-  })
+  });
+
   const templateMenu = useTemplateFilterMenu({
-    orgId,
+    orgId: organizationId,
     value: filter.values.template,
     onChange: (option) =>
       filter.update({ ...filter.values, template: option?.value }),
-  })
+  });
+
   const statusMenu = useStatusFilterMenu({
     value: filter.values.status,
     onChange: (option) =>
       filter.update({ ...filter.values, status: option?.value }),
-  })
+  });
 
   return {
     filter,
@@ -166,8 +194,8 @@ const useWorkspacesFilter = ({
       template: templateMenu,
       status: statusMenu,
     },
-  }
-}
+  };
+};
 
 const BatchDeleteConfirmation = ({
   checkedWorkspaces,
@@ -175,47 +203,47 @@ const BatchDeleteConfirmation = ({
   onClose,
   onDelete,
 }: {
-  checkedWorkspaces: Workspace[]
-  open: boolean
-  onClose: () => void
-  onDelete: () => void
+  checkedWorkspaces: Workspace[];
+  open: boolean;
+  onClose: () => void;
+  onDelete: () => void;
 }) => {
-  const [confirmValue, setConfirmValue] = useState("")
-  const [confirmError, setConfirmError] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
+  const [confirmValue, setConfirmValue] = useState("");
+  const [confirmError, setConfirmError] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const close = () => {
     if (isDeleting) {
-      return
+      return;
     }
 
-    onClose()
-    setConfirmValue("")
-    setConfirmError(false)
-    setIsDeleting(false)
-  }
+    onClose();
+    setConfirmValue("");
+    setConfirmError(false);
+    setIsDeleting(false);
+  };
 
   const confirmDeletion = async () => {
-    setConfirmError(false)
+    setConfirmError(false);
 
-    if (confirmValue.toLowerCase() !== "delete") {
-      setConfirmError(true)
-      return
+    if (confirmValue !== "DELETE") {
+      setConfirmError(true);
+      return;
     }
 
     try {
-      setIsDeleting(true)
-      await Promise.all(checkedWorkspaces.map((w) => deleteWorkspace(w.id)))
+      setIsDeleting(true);
+      await Promise.all(checkedWorkspaces.map((w) => deleteWorkspace(w.id)));
     } catch (e) {
       displayError(
         "Error on deleting workspaces",
         getErrorMessage(e, "An error occurred while deleting the workspaces"),
-      )
+      );
     } finally {
-      close()
-      onDelete()
+      close();
+      onDelete();
     }
-  }
+  };
 
   return (
     <ConfirmDialog
@@ -224,9 +252,9 @@ const BatchDeleteConfirmation = ({
       confirmLoading={isDeleting}
       onConfirm={confirmDeletion}
       onClose={() => {
-        onClose()
-        setConfirmValue("")
-        setConfirmError(false)
+        onClose();
+        setConfirmValue("");
+        setConfirmError(false);
       }}
       title={`Delete ${checkedWorkspaces?.length} ${
         checkedWorkspaces.length === 1 ? "workspace" : "workspaces"
@@ -234,8 +262,8 @@ const BatchDeleteConfirmation = ({
       description={
         <form
           onSubmit={async (e) => {
-            e.preventDefault()
-            await confirmDeletion()
+            e.preventDefault();
+            await confirmDeletion();
           }}
         >
           <Box>
@@ -264,7 +292,7 @@ const BatchDeleteConfirmation = ({
             placeholder="Type DELETE to confirm"
             sx={{ mt: 2 }}
             onChange={(e) => {
-              setConfirmValue(e.currentTarget.value)
+              setConfirmValue(e.currentTarget.value);
             }}
             error={confirmError}
             helperText={confirmError && "Please type DELETE to confirm"}
@@ -272,5 +300,5 @@ const BatchDeleteConfirmation = ({
         </form>
       }
     />
-  )
-}
+  );
+};

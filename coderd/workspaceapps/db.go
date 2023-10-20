@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -100,7 +101,7 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 	// Lookup workspace app details from DB.
 	dbReq, err := appReq.getDatabase(dangerousSystemCtx, p.Database)
 	if xerrors.Is(err, sql.ErrNoRows) {
-		WriteWorkspaceApp404(p.Logger, p.DashboardURL, rw, r, &appReq, err.Error())
+		WriteWorkspaceApp404(p.Logger, p.DashboardURL, rw, r, &appReq, nil, err.Error())
 		return nil, "", false
 	} else if err != nil {
 		WriteWorkspaceApp500(p.Logger, p.DashboardURL, rw, r, &appReq, err, "get app details from database")
@@ -114,7 +115,7 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 	}
 
 	// Verify the user has access to the app.
-	authed, err := p.authorizeRequest(r.Context(), authz, dbReq)
+	authed, warnings, err := p.authorizeRequest(r.Context(), authz, dbReq)
 	if err != nil {
 		WriteWorkspaceApp500(p.Logger, p.DashboardURL, rw, r, &appReq, err, "verify authz")
 		return nil, "", false
@@ -122,7 +123,7 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 	if !authed {
 		if apiKey != nil {
 			// The request has a valid API key but insufficient permissions.
-			WriteWorkspaceApp404(p.Logger, p.DashboardURL, rw, r, &appReq, "insufficient permissions")
+			WriteWorkspaceApp404(p.Logger, p.DashboardURL, rw, r, &appReq, warnings, "insufficient permissions")
 			return nil, "", false
 		}
 
@@ -218,7 +219,12 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 	return &token, tokenStr, true
 }
 
-func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *httpmw.Authorization, dbReq *databaseRequest) (bool, error) {
+// authorizeRequest returns true/false if the request is authorized. The returned []string
+// are warnings that aid in debugging. These messages do not prevent authorization,
+// but may indicate that the request is not configured correctly.
+// If an error is returned, the request should be aborted with a 500 error.
+func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *httpmw.Authorization, dbReq *databaseRequest) (bool, []string, error) {
+	var warnings []string
 	accessMethod := dbReq.AccessMethod
 	if accessMethod == "" {
 		accessMethod = AccessMethodPath
@@ -233,6 +239,14 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *httpmw.Au
 	// Dangerous.AllowPathAppSiteOwnerAccess flag is enabled in the check below.
 	sharingLevel := dbReq.AppSharingLevel
 	if isPathApp && !p.DeploymentValues.Dangerous.AllowPathAppSharing.Value() {
+		if dbReq.AppSharingLevel != database.AppSharingLevelOwner {
+			// This is helpful for debugging, and ok to leak to the user.
+			// This is because the app has the sharing level set to something that
+			// should be shared, but we are disabling it from a deployment wide
+			// flag. So the template should be fixed to set the sharing level to
+			// "owner" instead and this will not appear.
+			warnings = append(warnings, fmt.Sprintf("unable to use configured sharing level %q because path-based app sharing is disabled (see --dangerous-allow-path-app-sharing), using sharing level \"owner\" instead", sharingLevel))
+		}
 		sharingLevel = database.AppSharingLevelOwner
 	}
 
@@ -240,7 +254,7 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *httpmw.Au
 	if roles == nil {
 		// The user is not authenticated, so they can only access the app if it
 		// is public.
-		return sharingLevel == database.AppSharingLevelPublic, nil
+		return sharingLevel == database.AppSharingLevelPublic, warnings, nil
 	}
 
 	// Block anyone from accessing workspaces they don't own in path-based apps
@@ -254,7 +268,13 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *httpmw.Au
 		sharingLevel == database.AppSharingLevelOwner &&
 		dbReq.Workspace.OwnerID.String() != roles.Actor.ID &&
 		!p.DeploymentValues.Dangerous.AllowPathAppSiteOwnerAccess.Value() {
-		return false, nil
+		// This is not ideal to check for the 'owner' role, but we are only checking
+		// to determine whether to show a warning for debugging reasons. This does
+		// not do any authz checks, so it is ok.
+		if roles != nil && slices.Contains(roles.Actor.Roles.Names(), rbac.RoleOwner()) {
+			warnings = append(warnings, "path-based apps with \"owner\" share level are only accessible by the workspace owner (see --dangerous-allow-path-app-site-owner-access)")
+		}
+		return false, warnings, nil
 	}
 
 	// Figure out which RBAC resource to check. For terminals we use execution
@@ -280,7 +300,7 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *httpmw.Au
 	// scope allows it).
 	err := p.Authorizer.Authorize(ctx, roles.Actor, rbacAction, rbacResource)
 	if err == nil {
-		return true, nil
+		return true, []string{}, nil
 	}
 
 	switch sharingLevel {
@@ -293,15 +313,15 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *httpmw.Au
 		// to connect to the actor's own workspace. This enforces scopes.
 		err := p.Authorizer.Authorize(ctx, roles.Actor, rbacAction, rbacResourceOwned)
 		if err == nil {
-			return true, nil
+			return true, []string{}, nil
 		}
 	case database.AppSharingLevelPublic:
 		// We don't really care about scopes and stuff if it's public anyways.
 		// Someone with a restricted-scope API key could just not submit the API
 		// key cookie in the request and access the page.
-		return true, nil
+		return true, []string{}, nil
 	}
 
 	// No checks were successful.
-	return false, nil
+	return false, warnings, nil
 }

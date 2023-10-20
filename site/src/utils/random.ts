@@ -7,13 +7,13 @@
  * @see <https://developer.mozilla.org/en-US/docs/Glossary/Base64#encoded_size_increase>
  */
 export const generateRandomString = (bytes: number): string => {
-  const byteArr = window.crypto.getRandomValues(new Uint8Array(bytes))
+  const byteArr = window.crypto.getRandomValues(new Uint8Array(bytes));
   // The types for `map` don't seem to support mapping from one array type to
   // another and `String.fromCharCode.apply` wants `number[]` so loop like this
   // instead.
-  const strArr: string[] = []
+  const strArr: string[] = [];
   for (const byte of byteArr) {
-    strArr.push(String.fromCharCode(byte))
+    strArr.push(String.fromCharCode(byte));
   }
-  return btoa(strArr.join(""))
-}
+  return btoa(strArr.join(""));
+};

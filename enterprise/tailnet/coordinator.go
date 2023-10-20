@@ -57,6 +57,7 @@ func (c *haCoordinator) ServeMultiAgent(id uuid.UUID) agpl.MultiAgentConn {
 		ID:                id,
 		AgentIsLegacyFunc: c.agentIsLegacy,
 		OnSubscribe:       c.clientSubscribeToAgent,
+		OnUnsubscribe:     c.clientUnsubscribeFromAgent,
 		OnNodeUpdate:      c.clientNodeUpdate,
 		OnRemove:          c.clientDisconnected,
 	}).Init()
@@ -99,6 +100,22 @@ func (c *haCoordinator) clientSubscribeToAgent(enq agpl.Queue, agentID uuid.UUID
 
 	// nolint:nilnil
 	return nil, nil
+}
+
+func (c *haCoordinator) clientUnsubscribeFromAgent(enq agpl.Queue, agentID uuid.UUID) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	connectionSockets, ok := c.agentToConnectionSockets[agentID]
+	if !ok {
+		return nil
+	}
+	delete(connectionSockets, enq.UniqueID())
+	if len(connectionSockets) == 0 {
+		delete(c.agentToConnectionSockets, agentID)
+	}
+
+	return nil
 }
 
 type haCoordinator struct {
@@ -157,11 +174,11 @@ func (c *haCoordinator) ServeClient(conn net.Conn, id, agentID uuid.UUID) error 
 	defer cancel()
 	logger := c.clientLogger(id, agentID)
 
-	tc := agpl.NewTrackedConn(ctx, cancel, conn, id, logger, id.String(), 0)
+	tc := agpl.NewTrackedConn(ctx, cancel, conn, id, logger, id.String(), 0, agpl.QueueKindClient)
 	defer tc.Close()
 
 	c.addClient(id, tc)
-	defer c.clientDisconnected(id)
+	defer c.clientDisconnected(tc)
 
 	agentNode, err := c.clientSubscribeToAgent(tc, agentID)
 	if err != nil {
@@ -200,26 +217,24 @@ func (c *haCoordinator) initOrSetAgentConnectionSocketLocked(agentID uuid.UUID, 
 	c.clientsToAgents[enq.UniqueID()][agentID] = c.agentSockets[agentID]
 }
 
-func (c *haCoordinator) clientDisconnected(id uuid.UUID) {
+func (c *haCoordinator) clientDisconnected(enq agpl.Queue) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	for agentID := range c.clientsToAgents[id] {
-		// Clean all traces of this connection from the map.
-		delete(c.nodes, id)
+	for agentID := range c.clientsToAgents[enq.UniqueID()] {
 		connectionSockets, ok := c.agentToConnectionSockets[agentID]
 		if !ok {
-			return
+			continue
 		}
-		delete(connectionSockets, id)
-		if len(connectionSockets) != 0 {
-			return
+		delete(connectionSockets, enq.UniqueID())
+		if len(connectionSockets) == 0 {
+			delete(c.agentToConnectionSockets, agentID)
 		}
-		delete(c.agentToConnectionSockets, agentID)
 	}
 
-	delete(c.clients, id)
-	delete(c.clientsToAgents, id)
+	delete(c.nodes, enq.UniqueID())
+	delete(c.clients, enq.UniqueID())
+	delete(c.clientsToAgents, enq.UniqueID())
 }
 
 func (c *haCoordinator) handleNextClientMessage(id uuid.UUID, decoder *json.Decoder) error {
@@ -300,7 +315,7 @@ func (c *haCoordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) err
 	}
 	// This uniquely identifies a connection that belongs to this goroutine.
 	unique := uuid.New()
-	tc := agpl.NewTrackedConn(ctx, cancel, conn, unique, logger, name, overwrites)
+	tc := agpl.NewTrackedConn(ctx, cancel, conn, unique, logger, name, overwrites, agpl.QueueKindAgent)
 
 	// Publish all nodes on this instance that want to connect to this agent.
 	nodes := c.nodesSubscribedToAgent(id)

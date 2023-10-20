@@ -5,6 +5,8 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/coder/pretty"
+
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
@@ -44,13 +46,13 @@ func (r *RootCmd) publickey() *clibase.Cmd {
 			}
 
 			cliui.Infof(inv.Stdout,
-				"This is your public key for using "+cliui.DefaultStyles.Field.Render("git")+" in "+
+				"This is your public key for using "+pretty.Sprint(cliui.DefaultStyles.Field, "git")+" in "+
 					"Coder. All clones with SSH will be authenticated automatically 🪄.",
 			)
-			cliui.Infof(inv.Stdout, cliui.DefaultStyles.Code.Render(strings.TrimSpace(key.PublicKey))+"\n")
+			cliui.Infof(inv.Stdout, pretty.Sprint(cliui.DefaultStyles.Code, strings.TrimSpace(key.PublicKey))+"\n")
 			cliui.Infof(inv.Stdout, "Add to GitHub and GitLab:")
-			cliui.Infof(inv.Stdout, cliui.DefaultStyles.Prompt.String()+"https://github.com/settings/ssh/new")
-			cliui.Infof(inv.Stdout, cliui.DefaultStyles.Prompt.String()+"https://gitlab.com/-/profile/keys")
+			cliui.Infof(inv.Stdout, "> https://github.com/settings/ssh/new")
+			cliui.Infof(inv.Stdout, "> https://gitlab.com/-/profile/keys")
 
 			return nil
 		},

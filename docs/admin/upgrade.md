@@ -36,7 +36,7 @@ If you installed using `docker-compose`, run the below command to upgrade the
 Coder container:
 
 ```shell
-docker-compose pull coder && docker-compose up coder -d
+docker-compose pull coder && docker-compose up -d coder
 ```
 
 ## Via Kubernetes

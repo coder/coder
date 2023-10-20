@@ -1,24 +1,28 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { updateTemplateMeta } from "api/api"
-import { UpdateTemplateMeta } from "api/typesGenerated"
-import { displaySuccess } from "components/GlobalSnackbar/utils"
-import { FC } from "react"
-import { Helmet } from "react-helmet-async"
-import { useTranslation } from "react-i18next"
-import { useNavigate, useParams } from "react-router-dom"
-import { pageTitle } from "utils/page"
-import {
-  getTemplateQuery,
-  useTemplateSettingsContext,
-} from "../TemplateSettingsLayout"
-import { TemplateSettingsPageView } from "./TemplateSettingsPageView"
+import { useMutation, useQueryClient } from "react-query";
+import { updateTemplateMeta } from "api/api";
+import { UpdateTemplateMeta } from "api/typesGenerated";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { FC } from "react";
+import { Helmet } from "react-helmet-async";
+import { useNavigate, useParams } from "react-router-dom";
+import { pageTitle } from "utils/page";
+import { useTemplateSettings } from "../TemplateSettingsLayout";
+import { TemplateSettingsPageView } from "./TemplateSettingsPageView";
+import { templateByNameKey } from "api/queries/templates";
+import { useOrganizationId } from "hooks";
+import { useDashboard } from "components/Dashboard/DashboardProvider";
 
 export const TemplateSettingsPage: FC = () => {
-  const { template: templateName } = useParams() as { template: string }
-  const { t } = useTranslation("templateSettingsPage")
-  const navigate = useNavigate()
-  const { template } = useTemplateSettingsContext()
-  const queryClient = useQueryClient()
+  const { template: templateName } = useParams() as { template: string };
+  const navigate = useNavigate();
+  const orgId = useOrganizationId();
+  const { template } = useTemplateSettings();
+  const queryClient = useQueryClient();
+  const { entitlements, experiments } = useDashboard();
+  const accessControlEnabled =
+    entitlements.features["advanced_template_scheduling"].enabled &&
+    experiments.includes("template_update_policies");
+
   const {
     mutate: updateTemplate,
     isLoading: isSubmitting,
@@ -27,33 +31,36 @@ export const TemplateSettingsPage: FC = () => {
     (data: UpdateTemplateMeta) => updateTemplateMeta(template.id, data),
     {
       onSuccess: async () => {
-        await queryClient.invalidateQueries({
-          queryKey: getTemplateQuery(templateName),
-        })
-        displaySuccess("Template updated successfully")
+        await queryClient.invalidateQueries(
+          templateByNameKey(orgId, templateName),
+        );
+        displaySuccess("Template updated successfully");
       },
     },
-  )
+  );
 
   return (
     <>
       <Helmet>
-        <title>{pageTitle([template.name, t("title")])}</title>
+        <title>{pageTitle([template.name, "General Settings"])}</title>
       </Helmet>
       <TemplateSettingsPageView
         isSubmitting={isSubmitting}
         template={template}
         submitError={submitError}
         onCancel={() => {
-          navigate(`/templates/${templateName}`)
+          navigate(`/templates/${templateName}`);
         }}
         onSubmit={(templateSettings) => {
           updateTemplate({
             ...template,
             ...templateSettings,
-          })
+          });
         }}
+        accessControlEnabled={accessControlEnabled}
       />
     </>
-  )
-}
+  );
+};
+
+export default TemplateSettingsPage;

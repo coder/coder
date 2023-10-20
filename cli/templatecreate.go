@@ -14,21 +14,22 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/pretty"
+
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/provisionerd"
 )
 
 func (r *RootCmd) templateCreate() *clibase.Cmd {
 	var (
-		provisioner     string
-		provisionerTags []string
-		variablesFile   string
-		variables       []string
-		disableEveryone bool
+		provisioner          string
+		provisionerTags      []string
+		variablesFile        string
+		variables            []string
+		disableEveryone      bool
+		requireActiveVersion bool
 
 		defaultTTL    time.Duration
 		failureTTL    time.Duration
@@ -46,27 +47,35 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
-			if failureTTL != 0 || inactivityTTL != 0 || maxTTL != 0 {
-				// This call can be removed when workspace_actions is no longer experimental
-				experiments, exErr := client.Experiments(inv.Context())
-				if exErr != nil {
-					return xerrors.Errorf("get experiments: %w", exErr)
-				}
+			isTemplateSchedulingOptionsSet := failureTTL != 0 || inactivityTTL != 0 || maxTTL != 0
 
-				if !experiments.Enabled(codersdk.ExperimentWorkspaceActions) {
-					return xerrors.Errorf("--failure-ttl and --inactivityTTL are experimental features. Use the workspace_actions CODER_EXPERIMENTS flag to set these configuration values.")
-				}
-
+			if isTemplateSchedulingOptionsSet || requireActiveVersion {
 				entitlements, err := client.Entitlements(inv.Context())
-				var sdkErr *codersdk.Error
-				if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
-					return xerrors.Errorf("your deployment appears to be an AGPL deployment, so you cannot set --failure-ttl or --inactivityTTL")
+				if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusNotFound {
+					return xerrors.Errorf("your deployment appears to be an AGPL deployment, so you cannot set enterprise-only flags")
 				} else if err != nil {
 					return xerrors.Errorf("get entitlements: %w", err)
 				}
 
-				if !entitlements.Features[codersdk.FeatureAdvancedTemplateScheduling].Enabled {
-					return xerrors.Errorf("your license is not entitled to use advanced template scheduling, so you cannot set --failure-ttl or --inactivityTTL")
+				if isTemplateSchedulingOptionsSet {
+					if !entitlements.Features[codersdk.FeatureAdvancedTemplateScheduling].Enabled {
+						return xerrors.Errorf("your license is not entitled to use advanced template scheduling, so you cannot set --failure-ttl or --inactivityTTL")
+					}
+				}
+
+				if requireActiveVersion {
+					if !entitlements.Features[codersdk.FeatureAccessControl].Enabled {
+						return xerrors.Errorf("your license is not entitled to use enterprise access control, so you cannot set --require-active-version")
+					}
+
+					experiments, exErr := client.Experiments(inv.Context())
+					if exErr != nil {
+						return xerrors.Errorf("get experiments: %w", exErr)
+					}
+
+					if !experiments.Enabled(codersdk.ExperimentTemplateUpdatePolicies) {
+						return xerrors.Errorf("--require-active-version is an experimental feature, contact an administrator to enable the 'template_update_policies' experiment on your Coder server")
+					}
 				}
 			}
 
@@ -111,7 +120,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 				Message:         message,
 				Client:          client,
 				Organization:    organization,
-				Provisioner:     database.ProvisionerType(provisioner),
+				Provisioner:     codersdk.ProvisionerType(provisioner),
 				FileID:          resp.ID,
 				ProvisionerTags: tags,
 				VariablesFile:   variablesFile,
@@ -139,6 +148,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 				MaxTTLMillis:               ptr.Ref(maxTTL.Milliseconds()),
 				TimeTilDormantMillis:       ptr.Ref(inactivityTTL.Milliseconds()),
 				DisableEveryoneGroupAccess: disableEveryone,
+				RequireActiveVersion:       requireActiveVersion,
 			}
 
 			_, err = client.CreateTemplate(inv.Context(), organization.ID, createReq)
@@ -146,11 +156,13 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 				return err
 			}
 
-			_, _ = fmt.Fprintln(inv.Stdout, "\n"+cliui.DefaultStyles.Wrap.Render(
-				"The "+cliui.DefaultStyles.Keyword.Render(templateName)+" template has been created at "+cliui.DefaultStyles.DateTimeStamp.Render(time.Now().Format(time.Stamp))+"! "+
+			_, _ = fmt.Fprintln(inv.Stdout, "\n"+pretty.Sprint(cliui.DefaultStyles.Wrap,
+				"The "+pretty.Sprint(
+					cliui.DefaultStyles.Keyword, templateName)+" template has been created at "+
+					pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, time.Now().Format(time.Stamp))+"! "+
 					"Developers can provision a workspace with this template using:")+"\n")
 
-			_, _ = fmt.Fprintln(inv.Stdout, "  "+cliui.DefaultStyles.Code.Render(fmt.Sprintf("coder create --template=%q [workspace name]", templateName)))
+			_, _ = fmt.Fprintln(inv.Stdout, "  "+pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("coder create --template=%q [workspace name]", templateName)))
 			_, _ = fmt.Fprintln(inv.Stdout)
 
 			return nil
@@ -213,6 +225,13 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 			Value:       clibase.StringOf(&provisioner),
 			Hidden:      true,
 		},
+		{
+			Flag:        "require-active-version",
+			Description: "Requires workspace builds to use the active template version. This setting does not apply to template admins. This is an enterprise-only feature.",
+			Value:       clibase.BoolOf(&requireActiveVersion),
+			Default:     "false",
+		},
+
 		cliui.SkipPromptOption(),
 	}
 	cmd.Options = append(cmd.Options, uploadFlags.options()...)
@@ -224,7 +243,7 @@ type createValidTemplateVersionArgs struct {
 	Message      string
 	Client       *codersdk.Client
 	Organization codersdk.Organization
-	Provisioner  database.ProvisionerType
+	Provisioner  codersdk.ProvisionerType
 	FileID       uuid.UUID
 
 	VariablesFile string
@@ -258,7 +277,7 @@ func createValidTemplateVersion(inv *clibase.Invocation, args createValidTemplat
 		Message:            args.Message,
 		StorageMethod:      codersdk.ProvisionerStorageMethodFile,
 		FileID:             args.FileID,
-		Provisioner:        codersdk.ProvisionerType(args.Provisioner),
+		Provisioner:        args.Provisioner,
 		ProvisionerTags:    args.ProvisionerTags,
 		UserVariableValues: variableValues,
 	}
@@ -284,7 +303,10 @@ func createValidTemplateVersion(inv *clibase.Invocation, args createValidTemplat
 	})
 	if err != nil {
 		var jobErr *cliui.ProvisionerJobError
-		if errors.As(err, &jobErr) && !provisionerd.IsMissingParameterErrorCode(string(jobErr.Code)) {
+		if errors.As(err, &jobErr) && !codersdk.JobIsMissingParameterErrorCode(jobErr.Code) {
+			return nil, err
+		}
+		if err != nil {
 			return nil, err
 		}
 	}
@@ -330,12 +352,12 @@ func prettyDirectoryPath(dir string) string {
 	if err != nil {
 		return dir
 	}
-	pretty := dir
-	if strings.HasPrefix(pretty, homeDir) {
-		pretty = strings.TrimPrefix(pretty, homeDir)
-		pretty = "~" + pretty
+	prettyDir := dir
+	if strings.HasPrefix(prettyDir, homeDir) {
+		prettyDir = strings.TrimPrefix(prettyDir, homeDir)
+		prettyDir = "~" + prettyDir
 	}
-	return pretty
+	return prettyDir
 }
 
 func ParseProvisionerTags(rawTags []string) (map[string]string, error) {

@@ -13,3 +13,6 @@ scripts/apitypings/testdata/**/*.ts
 site/e2e/provisionerGenerated.ts
 
 **/pnpm-lock.yaml
+
+# Ignore generated JSON (e.g. examples/examples.gen.json).
+**/*.gen.json
