@@ -19,10 +19,14 @@ import {
   ButtonTypesEnum,
   actionsByWorkspaceStatus,
 } from "./constants";
-import SettingsOutlined from "@mui/icons-material/SettingsOutlined";
-import HistoryOutlined from "@mui/icons-material/HistoryOutlined";
-import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
+
 import IconButton from "@mui/material/IconButton";
+import DuplicateIcon from "@mui/icons-material/FileCopyOutlined";
+import SettingsIcon from "@mui/icons-material/SettingsOutlined";
+import HistoryIcon from "@mui/icons-material/HistoryOutlined";
+import DeleteIcon from "@mui/icons-material/DeleteOutlined";
+
+import { useWorkspaceDuplication } from "pages/CreateWorkspacePage/useWorkspaceDuplication";
 
 export interface WorkspaceActionsProps {
   workspace: Workspace;
@@ -69,6 +73,8 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   const canBeUpdated = workspace.outdated && canAcceptJobs;
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { duplicateWorkspace, duplicationReady } =
+    useWorkspaceDuplication(workspace);
 
   // A mapping of button type to the corresponding React component
   const buttonMapping: ButtonMapping = {
@@ -120,12 +126,16 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
         (isUpdating
           ? buttonMapping[ButtonTypesEnum.updating]
           : buttonMapping[ButtonTypesEnum.update])}
+
       {isRestarting && buttonMapping[ButtonTypesEnum.restarting]}
+
       {!isRestarting &&
         actionsByStatus.map((action) => (
           <Fragment key={action}>{buttonMapping[action]}</Fragment>
         ))}
+
       {canCancel && <CancelButton handleAction={handleCancel} />}
+
       <div>
         <IconButton
           title="More options"
@@ -139,6 +149,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
         >
           <MoreVertOutlined />
         </IconButton>
+
         <Menu
           id="workspace-options"
           anchorEl={menuTriggerRef.current}
@@ -146,20 +157,30 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
           onClose={() => setIsMenuOpen(false)}
         >
           <MenuItem onClick={onMenuItemClick(handleSettings)}>
-            <SettingsOutlined />
+            <SettingsIcon />
             Settings
           </MenuItem>
+
           {canChangeVersions && (
             <MenuItem onClick={onMenuItemClick(handleChangeVersion)}>
-              <HistoryOutlined />
+              <HistoryIcon />
               Change version&hellip;
             </MenuItem>
           )}
+
+          <MenuItem
+            onClick={onMenuItemClick(duplicateWorkspace)}
+            disabled={!duplicationReady}
+          >
+            <DuplicateIcon />
+            Duplicate&hellip;
+          </MenuItem>
+
           <MenuItem
             onClick={onMenuItemClick(handleDelete)}
             data-testid="delete-button"
           >
-            <DeleteOutlined />
+            <DeleteIcon />
             Delete&hellip;
           </MenuItem>
         </Menu>
