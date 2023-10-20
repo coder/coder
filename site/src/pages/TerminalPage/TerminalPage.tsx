@@ -1,5 +1,4 @@
 import { makeStyles, useTheme } from "@mui/styles";
-import { useMachine } from "@xstate/react";
 import { FC, useCallback, useEffect, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -14,14 +13,15 @@ import { Unicode11Addon } from "xterm-addon-unicode11";
 import "xterm/css/xterm.css";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { pageTitle } from "utils/page";
-import { terminalMachine } from "xServices/terminal/terminalXService";
 import { useProxy } from "contexts/ProxyContext";
 import Box from "@mui/material/Box";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
 import { Region } from "api/typesGenerated";
 import { getLatencyColor } from "utils/latency";
 import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency";
-import { portForwardURL } from "utils/portForward";
+import { openMaybePortForwardedURL } from "utils/portForward";
+import { terminalWebsocketUrl } from "utils/terminal";
+import { getMatchingAgentOrFirst } from "utils/workspace";
 import {
   DisconnectedAlert,
   ErrorScriptAlert,
@@ -30,6 +30,7 @@ import {
 } from "./TerminalAlerts";
 import { useQuery } from "react-query";
 import { deploymentConfig } from "api/queries/deployment";
+import { workspaceByOwnerAndName } from "api/queries/workspaces";
 import {
   Popover,
   PopoverContent,
@@ -48,9 +49,11 @@ const TerminalPage: FC = () => {
   const { proxy } = useProxy();
   const params = useParams() as { username: string; workspace: string };
   const username = params.username.replace("@", "");
-  const workspaceName = params.workspace;
   const xtermRef = useRef<HTMLDivElement>(null);
   const [terminal, setTerminal] = useState<XTerm.Terminal | null>(null);
+  const [terminalState, setTerminalState] = useState<
+    "connected" | "disconnected" | "initializing"
+  >("initializing");
   const [fitAddon, setFitAddon] = useState<FitAddon | null>(null);
   const [searchParams] = useSearchParams();
   // The reconnection token is a unique token that identifies
@@ -60,37 +63,13 @@ const TerminalPage: FC = () => {
   const command = searchParams.get("command") || undefined;
   // The workspace name is in the format:
   // <workspace name>[.<agent name>]
-  const workspaceNameParts = workspaceName?.split(".");
-  const [terminalState, sendEvent] = useMachine(terminalMachine, {
-    context: {
-      agentName: workspaceNameParts?.[1],
-      reconnection: reconnectionToken,
-      workspaceName: workspaceNameParts?.[0],
-      username: username,
-      command: command,
-      baseURL: proxy.preferredPathAppURL,
-    },
-    actions: {
-      readMessage: (_, event) => {
-        if (typeof event.data === "string") {
-          // This exclusively occurs when testing.
-          // "jest-websocket-mock" doesn't support ArrayBuffer.
-          terminal?.write(event.data);
-        } else {
-          terminal?.write(new Uint8Array(event.data));
-        }
-      },
-    },
-  });
-  const isConnected = terminalState.matches("connected");
-  const isDisconnected = terminalState.matches("disconnected");
-  const {
-    workspaceError,
-    workspace,
-    workspaceAgentError,
-    workspaceAgent,
-    websocketError,
-  } = terminalState.context;
+  const workspaceNameParts = params.workspace?.split(".");
+  const workspace = useQuery(
+    workspaceByOwnerAndName(username, workspaceNameParts?.[0]),
+  );
+  const workspaceAgent = workspace.data
+    ? getMatchingAgentOrFirst(workspace.data, workspaceNameParts?.[1])
+    : undefined;
   const dashboard = useDashboard();
   const proxyContext = useProxy();
   const selectedProxy = proxyContext.proxy.proxy;
@@ -105,56 +84,25 @@ const TerminalPage: FC = () => {
   }, [lifecycleState]);
 
   const config = useQuery(deploymentConfig());
+  const renderer = config.data?.config.web_terminal_renderer;
 
   // handleWebLink handles opening of URLs in the terminal!
   const handleWebLink = useCallback(
     (uri: string) => {
-      if (
-        !workspaceAgent ||
-        !workspace ||
-        !username ||
-        !proxy.preferredWildcardHostname
-      ) {
-        return;
-      }
-
-      const open = (uri: string) => {
-        // Copied from: https://github.com/xtermjs/xterm.js/blob/master/addons/xterm-addon-web-links/src/WebLinksAddon.ts#L23
-        const newWindow = window.open();
-        if (newWindow) {
-          try {
-            newWindow.opener = null;
-          } catch {
-            // no-op, Electron can throw
-          }
-          newWindow.location.href = uri;
-        } else {
-          console.warn("Opening link blocked as opener could not be cleared");
-        }
-      };
-
-      try {
-        const url = new URL(uri);
-        const localHosts = ["0.0.0.0", "127.0.0.1", "localhost"];
-        if (!localHosts.includes(url.hostname)) {
-          open(uri);
-          return;
-        }
-        open(
-          portForwardURL(
-            proxy.preferredWildcardHostname,
-            parseInt(url.port),
-            workspaceAgent.name,
-            workspace.name,
-            username,
-          ) + url.pathname,
-        );
-      } catch (ex) {
-        open(uri);
-      }
+      openMaybePortForwardedURL(
+        uri,
+        proxy.preferredWildcardHostname,
+        workspaceAgent?.name,
+        workspace.data?.name,
+        username,
+      );
     },
-    [workspaceAgent, workspace, username, proxy.preferredWildcardHostname],
+    [workspaceAgent, workspace.data, username, proxy.preferredWildcardHostname],
   );
+  const handleWebLinkRef = useRef(handleWebLink);
+  useEffect(() => {
+    handleWebLinkRef.current = handleWebLink;
+  }, [handleWebLink]);
 
   // Create the terminal!
   useEffect(() => {
@@ -171,9 +119,9 @@ const TerminalPage: FC = () => {
         background: colors.gray[16],
       },
     });
-    if (config.data?.config.web_terminal_renderer === "webgl") {
+    if (renderer === "webgl") {
       terminal.loadAddon(new WebglAddon());
-    } else if (config.data?.config.web_terminal_renderer === "canvas") {
+    } else if (renderer === "canvas") {
       terminal.loadAddon(new CanvasAddon());
     }
     const fitAddon = new FitAddon();
@@ -183,26 +131,9 @@ const TerminalPage: FC = () => {
     terminal.unicode.activeVersion = "11";
     terminal.loadAddon(
       new WebLinksAddon((_, uri) => {
-        handleWebLink(uri);
+        handleWebLinkRef.current(uri);
       }),
     );
-    terminal.onData((data) => {
-      sendEvent({
-        type: "WRITE",
-        request: {
-          data: data,
-        },
-      });
-    });
-    terminal.onResize((event) => {
-      sendEvent({
-        type: "WRITE",
-        request: {
-          height: event.rows,
-          width: event.cols,
-        },
-      });
-    });
     setTerminal(terminal);
     terminal.open(xtermRef.current);
     const listener = () => {
@@ -214,11 +145,9 @@ const TerminalPage: FC = () => {
       window.removeEventListener("resize", listener);
       terminal.dispose();
     };
-  }, [config.data, config.isLoading, sendEvent, xtermRef, handleWebLink]);
+  }, [renderer, config.isLoading, xtermRef, handleWebLinkRef]);
 
-  // Triggers the initial terminal connection using
-  // the reconnection token and workspace name found
-  // from the router.
+  // Updates the reconnection token into the URL if necessary.
   useEffect(() => {
     if (searchParams.get("reconnect") === reconnectionToken) {
       return;
@@ -234,7 +163,7 @@ const TerminalPage: FC = () => {
     );
   }, [searchParams, navigate, reconnectionToken]);
 
-  // Apply terminal options based on connection state.
+  // Hook up the terminal through a web socket.
   useEffect(() => {
     if (!terminal || !fitAddon) {
       return;
@@ -246,68 +175,136 @@ const TerminalPage: FC = () => {
     fitAddon.fit();
     fitAddon.fit();
 
-    if (!isConnected) {
-      // Disable user input when not connected.
-      terminal.options = {
-        disableStdin: true,
-      };
-      if (workspaceError instanceof Error) {
-        terminal.writeln(
-          Language.workspaceErrorMessagePrefix + workspaceError.message,
-        );
-      }
-      if (workspaceAgentError instanceof Error) {
-        terminal.writeln(
-          Language.workspaceAgentErrorMessagePrefix +
-            workspaceAgentError.message,
-        );
-      }
-      if (websocketError instanceof Error) {
-        terminal.writeln(
-          Language.websocketErrorMessagePrefix + websocketError.message,
-        );
-      }
-      return;
-    }
-
     // The terminal should be cleared on each reconnect
     // because all data is re-rendered from the backend.
     terminal.clear();
 
-    // Focusing on connection allows users to reload the
-    // page and start typing immediately.
+    // Focusing on connection allows users to reload the page and start
+    // typing immediately.
     terminal.focus();
-    terminal.options = {
-      disableStdin: false,
-      windowsMode: workspaceAgent?.operating_system === "windows",
-    };
 
-    // Update the terminal size post-fit.
-    sendEvent({
-      type: "WRITE",
-      request: {
-        height: terminal.rows,
-        width: terminal.cols,
-      },
-    });
+    // Disable input while we connect.
+    terminal.options.disableStdin = true;
+
+    // Show a message if we failed to find the workspace or agent.
+    if (workspace.isLoading) {
+      return;
+    } else if (workspace.error instanceof Error) {
+      terminal.writeln(
+        Language.workspaceErrorMessagePrefix + workspace.error.message,
+      );
+      return;
+    } else if (!workspaceAgent) {
+      terminal.writeln(
+        Language.workspaceAgentErrorMessagePrefix + "no agent found with ID",
+      );
+      return;
+    }
+
+    // Hook up terminal events to the websocket.
+    let websocket: WebSocket | null;
+    const disposers = [
+      terminal.onData((data) => {
+        websocket?.send(
+          new TextEncoder().encode(JSON.stringify({ data: data })),
+        );
+      }),
+      terminal.onResize((event) => {
+        websocket?.send(
+          new TextEncoder().encode(
+            JSON.stringify({
+              height: event.rows,
+              width: event.cols,
+            }),
+          ),
+        );
+      }),
+    ];
+
+    let disposed = false;
+
+    // Open the web socket and hook it up to the terminal.
+    terminalWebsocketUrl(
+      proxy.preferredPathAppURL,
+      reconnectionToken,
+      workspaceAgent.id,
+      command,
+    )
+      .then((url) => {
+        if (disposed) {
+          return; // Unmounted while we waited for the async call.
+        }
+        websocket = new WebSocket(url);
+        websocket.binaryType = "arraybuffer";
+        websocket.addEventListener("open", () => {
+          // Now that we are connected, allow user input.
+          terminal.options = {
+            disableStdin: false,
+            windowsMode: workspaceAgent?.operating_system === "windows",
+          };
+          // Send the initial size.
+          websocket?.send(
+            new TextEncoder().encode(
+              JSON.stringify({
+                height: terminal.rows,
+                width: terminal.cols,
+              }),
+            ),
+          );
+          setTerminalState("connected");
+        });
+        websocket.addEventListener("error", () => {
+          terminal.options.disableStdin = true;
+          terminal.writeln(
+            Language.websocketErrorMessagePrefix + "socket errored",
+          );
+          setTerminalState("disconnected");
+        });
+        websocket.addEventListener("close", () => {
+          terminal.options.disableStdin = true;
+          setTerminalState("disconnected");
+        });
+        websocket.addEventListener("message", (event) => {
+          if (typeof event.data === "string") {
+            // This exclusively occurs when testing.
+            // "jest-websocket-mock" doesn't support ArrayBuffer.
+            terminal.write(event.data);
+          } else {
+            terminal.write(new Uint8Array(event.data));
+          }
+        });
+      })
+      .catch((error) => {
+        if (disposed) {
+          return; // Unmounted while we waited for the async call.
+        }
+        terminal.writeln(Language.websocketErrorMessagePrefix + error.message);
+        setTerminalState("disconnected");
+      });
+
+    return () => {
+      disposed = true; // Could use AbortController instead?
+      disposers.forEach((d) => d.dispose());
+      websocket?.close(1000);
+    };
   }, [
-    workspaceError,
-    workspaceAgentError,
-    websocketError,
-    workspaceAgent,
-    terminal,
+    command,
     fitAddon,
-    isConnected,
-    sendEvent,
+    proxy.preferredPathAppURL,
+    reconnectionToken,
+    terminal,
+    workspace.isLoading,
+    workspace.error,
+    workspaceAgent,
   ]);
 
   return (
     <>
       <Helmet>
         <title>
-          {terminalState.context.workspace
+          {workspace.data
             ? pageTitle(
-                `Terminal · ${terminalState.context.workspace.owner_name}/${terminalState.context.workspace.name}`,
+                `Terminal · ${workspace.data.owner_name}/${workspace.data.name}`,
               )
             : ""}
         </title>
@@ -317,7 +314,7 @@ const TerminalPage: FC = () => {
         {lifecycleState === "starting" && <LoadingScriptsAlert />}
         {lifecycleState === "ready" &&
           prevLifecycleState.current === "starting" && <LoadedScriptsAlert />}
-        {isDisconnected && <DisconnectedAlert />}
+        {terminalState === "disconnected" && <DisconnectedAlert />}
         <div
           className={styles.terminal}
           ref={xtermRef}
