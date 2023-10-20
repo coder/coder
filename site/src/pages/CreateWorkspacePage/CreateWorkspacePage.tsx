@@ -30,7 +30,8 @@ import { CreateWSPermissions, createWorkspaceChecks } from "./permissions";
 import { paramsUsedToCreateWorkspace } from "utils/workspace";
 import { useEffectEvent } from "hooks/hookPolyfills";
 
-type CreateWorkspaceMode = "form" | "auto";
+export const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
+export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
 
 export type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
 
@@ -41,10 +42,9 @@ const CreateWorkspacePage: FC = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const defaultBuildParameters = getDefaultBuildParameters(searchParams);
-  const mode = (searchParams.get("mode") ?? "form") as CreateWorkspaceMode;
+  const mode = getWorkspaceMode(searchParams);
   const customVersionId = searchParams.get("version") ?? undefined;
-  const defaultName =
-    mode === "auto" ? generateUniqueName() : searchParams.get("name") ?? "";
+  const defaultName = getDefaultName(mode, searchParams);
 
   const queryClient = useQueryClient();
   const autoCreateWorkspaceMutation = useMutation(
@@ -220,18 +220,13 @@ const getDefaultBuildParameters = (
   return buildValues;
 };
 
-export const orderedTemplateParameters = (
-  templateParameters?: TemplateVersionParameter[],
-): TemplateVersionParameter[] => {
-  if (!templateParameters) {
-    return [];
-  }
-
-  const immutables = templateParameters.filter(
-    (parameter) => !parameter.mutable,
-  );
-  const mutables = templateParameters.filter((parameter) => parameter.mutable);
-  return [...immutables, ...mutables];
+export const orderTemplateParameters = (
+  templateParameters?: readonly TemplateVersionParameter[],
+) => {
+  return {
+    mutable: templateParameters?.filter((p) => p.mutable) ?? [],
+    immutable: templateParameters?.filter((p) => !p.mutable) ?? [],
+  } as const;
 };
 
 const generateUniqueName = () => {
@@ -245,3 +240,25 @@ const generateUniqueName = () => {
 };
 
 export default CreateWorkspacePage;
+
+function getWorkspaceMode(params: URLSearchParams): CreateWorkspaceMode {
+  const paramMode = params.get("mode");
+  if (createWorkspaceModes.includes(paramMode as CreateWorkspaceMode)) {
+    return paramMode as CreateWorkspaceMode;
+  }
+
+  return "form";
+}
+
+function getDefaultName(mode: CreateWorkspaceMode, params: URLSearchParams) {
+  if (mode === "auto") {
+    return generateUniqueName();
+  }
+
+  const paramsName = params.get("name");
+  if (mode === "duplicate" && paramsName) {
+    return `${paramsName}-copy`;
+  }
+
+  return paramsName ?? "";
+}
