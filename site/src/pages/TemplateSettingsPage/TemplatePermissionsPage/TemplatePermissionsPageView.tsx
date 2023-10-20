@@ -46,7 +46,6 @@ type AddTemplateUserOrGroupProps = {
 const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
   isLoading,
   onSubmit,
-  organizationId,
   templateID,
   templateACL,
 }) => {
@@ -82,7 +81,6 @@ const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
       <Stack direction="row" alignItems="center" spacing={1}>
         <UserOrGroupAutocomplete
           exclude={excludeFromAutocomplete}
-          organizationId={organizationId}
           templateID={templateID}
           value={selectedOption}
           onChange={(newValue) => {

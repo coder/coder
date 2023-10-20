@@ -6,7 +6,7 @@ import { type ChangeEvent, useState } from "react";
 import { css } from "@emotion/react";
 import type { Group, User } from "api/typesGenerated";
 import { AvatarData } from "components/AvatarData/AvatarData";
-import { everyOneGroup, getGroupSubtitle } from "utils/groups";
+import { getGroupSubtitle } from "utils/groups";
 import { useDebouncedFunction } from "hooks/debounce";
 import { useQuery } from "react-query";
 import { templaceACLAvailable } from "api/queries/templates";
@@ -17,14 +17,13 @@ export type UserOrGroupAutocompleteValue = User | Group | null;
 export type UserOrGroupAutocompleteProps = {
   value: UserOrGroupAutocompleteValue;
   onChange: (value: UserOrGroupAutocompleteValue) => void;
-  organizationId: string;
   templateID: string;
   exclude: UserOrGroupAutocompleteValue[];
 };
 
 export const UserOrGroupAutocomplete: React.FC<
   UserOrGroupAutocompleteProps
-> = ({ value, onChange, templateID, organizationId, exclude }) => {
+> = ({ value, onChange, templateID, exclude }) => {
   const [autoComplete, setAutoComplete] = useState<{
     value: string;
     open: boolean;
@@ -42,7 +41,6 @@ export const UserOrGroupAutocomplete: React.FC<
   });
   const options = aclAvailableQuery.data
     ? [
-        everyOneGroup(organizationId),
         ...aclAvailableQuery.data.groups,
         ...aclAvailableQuery.data.users,
       ].filter((result) => {
