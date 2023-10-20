@@ -14,9 +14,14 @@ const IMPENDING_DELETION_DISPLAY_THRESHOLD = 14; // 14 days
 export const displayDormantDeletion = (
   workspace: Workspace,
   allowAdvancedScheduling: boolean,
+  allowWorkspaceActions: boolean,
 ) => {
   const today = new Date();
-  if (!workspace.deleting_at || !allowAdvancedScheduling) {
+  if (
+    !workspace.deleting_at ||
+    !allowAdvancedScheduling ||
+    !allowWorkspaceActions
+  ) {
     return false;
   }
   return (
