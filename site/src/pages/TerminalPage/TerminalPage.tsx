@@ -229,6 +229,8 @@ const TerminalPage: FC = () => {
       reconnectionToken,
       workspaceAgent.id,
       command,
+      terminal.rows,
+      terminal.cols,
     )
       .then((url) => {
         if (disposed) {
