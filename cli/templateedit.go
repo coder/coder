@@ -51,7 +51,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				}
 
 				if !experiments.Enabled(codersdk.ExperimentWorkspaceActions) {
-					return xerrors.Errorf("--failure-ttl and --inactivityTTL are experimental features. Use the workspace_actions CODER_EXPERIMENTS flag to set these configuration values.")
+					return xerrors.Errorf("--failure-ttl and --inactivity-ttl are experimental features. Use the workspace_actions CODER_EXPERIMENTS flag to set these configuration values.")
 				}
 			}
 
