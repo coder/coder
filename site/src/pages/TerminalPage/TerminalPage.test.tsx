@@ -127,12 +127,19 @@ describe("TerminalPage", () => {
     const { container } = await renderTerminal();
 
     // Then
+    // Ideally we could use ws.connected but that seems to pause React updates.
+    // For now, wait for the initial resize message instead.
     await ws.nextMessage;
     ws.send(text);
     await expectTerminalText(container, text);
     ws.close();
   });
 
+  // Ideally we could just pass the correct size in the web socket URL without
+  // having to resize separately afterward (and then we could delete also this
+  // test), but we need the initial resize message to have something to wait for
+  // in the other tests since ws.connected appears to pause React updates.  So
+  // for now the initial resize message (and this test) are here to stay.
   it("resizes on connect", async () => {
     // Given
     const ws = new WS(
@@ -163,6 +170,8 @@ describe("TerminalPage", () => {
     );
 
     // Then
+    // Ideally we could use ws.connected but that seems to pause React updates.
+    // For now, wait for the initial resize message instead.
     await ws.nextMessage;
     ws.send(text);
     await expectTerminalText(container, text);
