@@ -17,8 +17,10 @@ const WorkspaceSettingsPage = () => {
   const username = params.username.replace("@", "");
   const workspace = useWorkspaceSettings();
   const navigate = useNavigate();
+
   const mutation = useMutation({
     mutationFn: async (formValues: WorkspaceSettingsFormValues) => {
+      console.log("in here", formValues.automatic_updates);
       await patchWorkspace(workspace.id, { name: formValues.name });
       await updateWorkspaceAutomaticUpdates(
         workspace.id,

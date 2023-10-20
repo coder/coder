@@ -6,26 +6,16 @@ import {
   HorizontalForm,
 } from "components/Form/Form";
 import { useFormik } from "formik";
-import { useState, type FC } from "react";
+import { type FC } from "react";
 import * as Yup from "yup";
 import {
   nameValidator,
   getFormHelpers,
   onChangeTrimmed,
 } from "utils/formUtils";
-import {
-  AutomaticUpdates,
-  AutomaticUpdateses,
-  Workspace,
-} from "api/typesGenerated";
+import { AutomaticUpdates, Workspace } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
-import {
-  FormControl,
-  InputLabel,
-  MenuItem,
-  Select,
-  SelectChangeEvent,
-} from "@mui/material";
+import MenuItem from "@mui/material/MenuItem";
 
 export type WorkspaceSettingsFormValues = {
   name: string;
@@ -58,14 +48,7 @@ export const WorkspaceSettingsForm: FC<{
     return inputString.charAt(0).toUpperCase() + inputString.slice(1);
   };
 
-  const [automaticUpdates, setAutomaticUpdates] = useState<AutomaticUpdates>(
-    workspace.automatic_updates,
-  );
-
-  const handleChange = (event: SelectChangeEvent) => {
-    setAutomaticUpdates(event.target.value as AutomaticUpdates);
-    form.setFieldValue("automatic_updates", automaticUpdates);
-  };
+  const autoUpdatesSet = ["never", "always"];
 
   return (
     <HorizontalForm onSubmit={form.handleSubmit} data-testid="form">
@@ -94,25 +77,22 @@ export const WorkspaceSettingsForm: FC<{
         title="Automatic Updates"
         description="Configure your workspace to automatically update to the active template version when started."
       >
-        <FormControl fullWidth>
-          <FormFields>
-            <InputLabel htmlFor="automatic_updates">Update Policy</InputLabel>
-            <Select
-              labelId="automatic_updates"
-              id="automatic_updates"
-              label="Update Policy"
-              value={automaticUpdates}
-              onChange={handleChange}
-              disabled={form.isSubmitting}
-            >
-              {AutomaticUpdateses.map((value) => (
-                <MenuItem value={value}>
-                  {capitalizeFirstLetter(value)}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormFields>
-        </FormControl>
+        <FormFields>
+          <TextField
+            {...getFieldHelpers("automatic_updates")}
+            id="automatic_updates"
+            label="Update Policy"
+            value={form.values.automatic_updates}
+            select
+            disabled={form.isSubmitting}
+          >
+            {autoUpdatesSet.map((value) => (
+              <MenuItem value={value} key={value}>
+                {capitalizeFirstLetter(value)}
+              </MenuItem>
+            ))}
+          </TextField>
+        </FormFields>
       </FormSection>
       <FormFooter onCancel={onCancel} isLoading={isSubmitting} />
     </HorizontalForm>
