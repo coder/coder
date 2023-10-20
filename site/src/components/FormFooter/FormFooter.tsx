@@ -1,7 +1,7 @@
 import Button from "@mui/material/Button";
 import { type FC } from "react";
-import { LoadingButton } from "../LoadingButton/LoadingButton";
 import { Interpolation, Theme } from "@emotion/react";
+import LoadingButton from "@mui/lab/LoadingButton";
 
 export const Language = {
   cancelLabel: "Cancel",

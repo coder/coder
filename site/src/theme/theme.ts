@@ -218,6 +218,12 @@ dark = createTheme(dark, {
         },
       },
     },
+    MuiLoadingButton: {
+      defaultProps: {
+        variant: "outlined",
+        color: "neutral",
+      },
+    },
     MuiTableContainer: {
       styleOverrides: {
         root: {

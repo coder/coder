@@ -6,7 +6,7 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Form, FormFields } from "components/Form/Form";
 import { Alert } from "components/Alert/Alert";
 import { getFormHelpers } from "utils/formUtils";
-import { LoadingButton } from "components/LoadingButton/LoadingButton";
+import LoadingButton from "@mui/lab/LoadingButton";
 
 interface SecurityFormValues {
   old_password: string;
@@ -107,7 +107,7 @@ export const SecurityForm: FC<SecurityFormProps> = ({
               type="submit"
               variant="contained"
             >
-              {isLoading ? "" : Language.updatePassword}
+              {Language.updatePassword}
             </LoadingButton>
           </div>
         </FormFields>

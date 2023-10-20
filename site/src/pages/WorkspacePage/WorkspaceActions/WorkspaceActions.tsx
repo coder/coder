@@ -61,7 +61,11 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     canCancel,
     canAcceptJobs,
     actions: actionsByStatus,
-  } = actionsByWorkspaceStatus(workspace, workspace.latest_build.status);
+  } = actionsByWorkspaceStatus(
+    workspace,
+    workspace.latest_build.status,
+    canChangeVersions,
+  );
   const canBeUpdated = workspace.outdated && canAcceptJobs;
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);

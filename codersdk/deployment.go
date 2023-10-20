@@ -2002,6 +2002,7 @@ const (
 	// ExperimentDashboardTheme mutates the dashboard to use a new, dark color scheme.
 	ExperimentDashboardTheme Experiment = "dashboard_theme"
 
+	ExperimentTemplateUpdatePolicies Experiment = "template_update_policies"
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"
 )

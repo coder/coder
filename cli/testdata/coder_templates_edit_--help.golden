@@ -59,6 +59,11 @@ OPTIONS:
       --name string
           Edit the template name.
 
+      --require-active-version bool (default: false)
+          Requires workspace builds to use the active template version. This
+          setting does not apply to template admins. This is an enterprise-only
+          feature.
+
   -y, --yes bool
           Bypass prompts.
 

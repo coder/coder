@@ -2,7 +2,6 @@ import Box from "@mui/material/Box";
 import Checkbox from "@mui/material/Checkbox";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { LoadingButton } from "components/LoadingButton/LoadingButton";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Stack } from "components/Stack/Stack";
 import { Welcome } from "components/Welcome/Welcome";
@@ -14,6 +13,7 @@ import {
 } from "utils/formUtils";
 import * as Yup from "yup";
 import type * as TypesGen from "api/typesGenerated";
+import LoadingButton from "@mui/lab/LoadingButton";
 
 export const Language = {
   emailLabel: "Email",

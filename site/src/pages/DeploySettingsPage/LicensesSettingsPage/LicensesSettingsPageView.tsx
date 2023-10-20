@@ -13,7 +13,7 @@ import { Link } from "react-router-dom";
 import useWindowSize from "react-use/lib/useWindowSize";
 import MuiLink from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
-import { LoadingButton } from "components/LoadingButton/LoadingButton";
+import LoadingButton from "@mui/lab/LoadingButton";
 
 type Props = {
   showConfetti: boolean;
@@ -72,6 +72,7 @@ const LicensesSettingsPageView: FC<Props> = ({
           </Button>
           <Tooltip title="Refresh license entitlements. This is done automatically every 10 minutes.">
             <LoadingButton
+              loadingPosition="start"
               loading={isRefreshing}
               onClick={refreshEntitlements}
               startIcon={<RefreshIcon />}
