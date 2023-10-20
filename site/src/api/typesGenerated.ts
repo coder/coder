@@ -1710,7 +1710,6 @@ export type Experiment =
   | "template_autostop_requirement"
   | "template_update_policies"
   | "workspace_actions";
-
 export const Experiments: Experiment[] = [
   "dashboard_theme",
   "deployment_health_page",

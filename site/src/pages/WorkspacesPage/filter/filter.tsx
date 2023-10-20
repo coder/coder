@@ -76,7 +76,7 @@ export const WorkspacesFilter = ({
   menus,
 }: WorkspaceFilterProps) => {
   const actionsEnabled = useIsWorkspaceActionsEnabled();
-  const presets = actionsEnabled ? PRESET_FILTERS : PRESETS_WITH_DORMANT;
+  const presets = actionsEnabled ? PRESETS_WITH_DORMANT : PRESET_FILTERS;
 
   return (
     <Filter
