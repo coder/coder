@@ -1,8 +1,8 @@
-import Box, { type BoxProps } from "@mui/material/Box";
+import Box from "@mui/material/Box";
 import TableCell from "@mui/material/TableCell";
 import TableRow from "@mui/material/TableRow";
 import Skeleton from "@mui/material/Skeleton";
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { type Interpolation, type Theme } from "@emotion/react";
 import { type FC } from "react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
@@ -22,6 +22,7 @@ import KeyOutlined from "@mui/icons-material/KeyOutlined";
 import GitHub from "@mui/icons-material/GitHub";
 import PasswordOutlined from "@mui/icons-material/PasswordOutlined";
 import ShieldOutlined from "@mui/icons-material/ShieldOutlined";
+import { LastSeen } from "components/LastSeen/LastSeen";
 import { UserRoleCell } from "./UserRoleCell";
 import { type GroupsByUserId } from "api/queries/groups";
 import { UserGroupsCell } from "./UserGroupsCell";
@@ -269,41 +270,6 @@ const LoginType = ({
     <Box sx={{ display: "flex", alignItems: "center", gap: 1, fontSize: 14 }}>
       {icon}
       {displayName}
-    </Box>
-  );
-};
-
-const LastSeen = ({ value, ...boxProps }: { value: string } & BoxProps) => {
-  const theme = useTheme();
-  const t = dayjs(value);
-  const now = dayjs();
-
-  let message = t.fromNow();
-  let color = theme.palette.text.secondary;
-
-  if (t.isAfter(now.subtract(1, "hour"))) {
-    color = theme.palette.success.light;
-    // Since the agent reports on a 10m interval,
-    // the last_used_at can be inaccurate when recent.
-    message = "Now";
-  } else if (t.isAfter(now.subtract(3, "day"))) {
-    color = theme.palette.text.secondary;
-  } else if (t.isAfter(now.subtract(1, "month"))) {
-    color = theme.palette.warning.light;
-  } else if (t.isAfter(now.subtract(100, "year"))) {
-    color = theme.palette.error.light;
-  } else {
-    message = "Never";
-  }
-
-  return (
-    <Box
-      component="span"
-      data-chromatic="ignore"
-      {...boxProps}
-      sx={{ color, ...boxProps.sx }}
-    >
-      {message}
     </Box>
   );
 };
