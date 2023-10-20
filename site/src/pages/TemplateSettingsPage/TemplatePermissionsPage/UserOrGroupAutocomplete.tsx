@@ -1,83 +1,85 @@
 import CircularProgress from "@mui/material/CircularProgress";
 import TextField from "@mui/material/TextField";
 import Autocomplete from "@mui/material/Autocomplete";
-import { useMachine } from "@xstate/react";
 import Box from "@mui/material/Box";
 import { type ChangeEvent, useState } from "react";
 import { css } from "@emotion/react";
 import type { Group, User } from "api/typesGenerated";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { getGroupSubtitle } from "utils/groups";
-import { searchUsersAndGroupsMachine } from "xServices/template/searchUsersAndGroupsXService";
 import { useDebouncedFunction } from "hooks/debounce";
+import { useQuery } from "react-query";
+import { templaceACLAvailable } from "api/queries/templates";
+import { prepareQuery } from "utils/filters";
 
 export type UserOrGroupAutocompleteValue = User | Group | null;
-
-const isGroup = (value: UserOrGroupAutocompleteValue): value is Group => {
-  return value !== null && "members" in value;
-};
 
 export type UserOrGroupAutocompleteProps = {
   value: UserOrGroupAutocompleteValue;
   onChange: (value: UserOrGroupAutocompleteValue) => void;
-  organizationId: string;
-  templateID?: string;
+  templateID: string;
   exclude: UserOrGroupAutocompleteValue[];
 };
 
-const autoCompleteStyles = css`
-  width: 300px;
-
-  & .MuiFormControl-root {
-    width: 100%;
-  }
-
-  & .MuiInputBase-root {
-    width: 100%;
-  }
-`;
-
 export const UserOrGroupAutocomplete: React.FC<
   UserOrGroupAutocompleteProps
-> = ({ value, onChange, organizationId, templateID, exclude }) => {
-  const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false);
-  const [searchState, sendSearch] = useMachine(searchUsersAndGroupsMachine, {
-    context: {
-      userResults: [],
-      groupResults: [],
-      organizationId,
-      templateID,
-    },
+> = ({ value, onChange, templateID, exclude }) => {
+  const [autoComplete, setAutoComplete] = useState<{
+    value: string;
+    open: boolean;
+  }>({
+    value: "",
+    open: false,
   });
-  const { userResults, groupResults } = searchState.context;
-  const options = [...groupResults, ...userResults].filter((result) => {
-    const excludeIds = exclude.map((optionToExclude) => optionToExclude?.id);
-    return !excludeIds.includes(result.id);
+  const aclAvailableQuery = useQuery({
+    ...templaceACLAvailable(templateID, {
+      q: prepareQuery(encodeURI(autoComplete.value)),
+      limit: 25,
+    }),
+    enabled: autoComplete.open,
+    keepPreviousData: true,
   });
+  const options = aclAvailableQuery.data
+    ? [
+        ...aclAvailableQuery.data.groups,
+        ...aclAvailableQuery.data.users,
+      ].filter((result) => {
+        const excludeIds = exclude.map(
+          (optionToExclude) => optionToExclude?.id,
+        );
+        return !excludeIds.includes(result.id);
+      })
+    : [];
 
   const { debounced: handleFilterChange } = useDebouncedFunction(
     (event: ChangeEvent<HTMLInputElement>) => {
-      sendSearch("SEARCH", { query: event.target.value });
+      setAutoComplete((state) => ({
+        ...state,
+        value: event.target.value,
+      }));
     },
     500,
   );
 
   return (
     <Autocomplete
+      noOptionsText="No users or groups found"
       value={value}
       id="user-or-group-autocomplete"
-      open={isAutocompleteOpen}
+      open={autoComplete.open}
       onOpen={() => {
-        setIsAutocompleteOpen(true);
+        setAutoComplete((state) => ({
+          ...state,
+          open: true,
+        }));
       }}
       onClose={() => {
-        setIsAutocompleteOpen(false);
+        setAutoComplete({
+          value: isGroup(value) ? value.display_name : value?.email ?? "",
+          open: false,
+        });
       }}
       onChange={(_, newValue) => {
-        if (newValue === null) {
-          sendSearch("CLEAR_RESULTS");
-        }
-
         onChange(newValue);
       }}
       isOptionEqualToValue={(option, value) => option.id === value.id}
@@ -102,7 +104,7 @@ export const UserOrGroupAutocomplete: React.FC<
         );
       }}
       options={options}
-      loading={searchState.matches("searching")}
+      loading={aclAvailableQuery.isFetching}
       css={autoCompleteStyles}
       renderInput={(params) => (
         <>
@@ -116,7 +118,7 @@ export const UserOrGroupAutocomplete: React.FC<
               onChange: handleFilterChange,
               endAdornment: (
                 <>
-                  {searchState.matches("searching") ? (
+                  {aclAvailableQuery.isFetching ? (
                     <CircularProgress size={16} />
                   ) : null}
                   {params.InputProps.endAdornment}
@@ -129,3 +131,19 @@ export const UserOrGroupAutocomplete: React.FC<
     />
   );
 };
+
+const isGroup = (value: UserOrGroupAutocompleteValue): value is Group => {
+  return value !== null && "members" in value;
+};
+
+const autoCompleteStyles = css`
+  width: 300px;
+
+  & .MuiFormControl-root {
+    width: 100%;
+  }
+
+  & .MuiInputBase-root {
+    width: 100%;
+  }
+`;

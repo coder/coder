@@ -16,8 +16,15 @@ import {
   useFilter,
 } from "components/Filter/filter";
 import { UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
-import { workspaceFilterQuery } from "utils/filters";
 import { docs } from "utils/docs";
+
+export const workspaceFilterQuery = {
+  me: "owner:me",
+  all: "",
+  running: "status:running",
+  failed: "status:failed",
+  dormant: "is-dormant:true",
+};
 
 type FilterPreset = {
   query: string;

@@ -5,7 +5,6 @@ import {
   type Health,
 } from "api/api";
 import { FieldError } from "api/errors";
-import { everyOneGroup } from "utils/groups";
 import * as TypesGen from "api/typesGenerated";
 import range from "lodash/range";
 import { Permissions } from "components/AuthProvider/permissions";
@@ -2144,6 +2143,17 @@ export const MockGroup: TypesGen.Group = {
   quota_allowance: 5,
   source: "user",
 };
+
+const everyOneGroup = (organizationId: string): TypesGen.Group => ({
+  id: organizationId,
+  name: "Everyone",
+  display_name: "",
+  organization_id: organizationId,
+  members: [],
+  avatar_url: "",
+  quota_allowance: 0,
+  source: "user",
+});
 
 export const MockTemplateACL: TypesGen.TemplateACL = {
   group: [
