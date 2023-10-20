@@ -221,15 +221,6 @@ const getDefaultBuildParameters = (
   return buildValues;
 };
 
-export const orderTemplateParameters = (
-  templateParameters?: readonly TemplateVersionParameter[],
-) => {
-  return {
-    mutable: templateParameters?.filter((p) => p.mutable) ?? [],
-    immutable: templateParameters?.filter((p) => !p.mutable) ?? [],
-  } as const;
-};
-
 const generateUniqueName = () => {
   const numberDictionary = NumberDictionary.generate({ min: 0, max: 99 });
   return uniqueNamesGenerator({
