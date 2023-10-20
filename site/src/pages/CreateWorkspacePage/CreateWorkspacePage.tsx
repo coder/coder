@@ -123,6 +123,7 @@ const CreateWorkspacePage: FC = () => {
         <Loader />
       ) : (
         <CreateWorkspacePageView
+          mode={mode}
           defaultName={defaultName}
           defaultOwner={me}
           defaultBuildParameters={defaultBuildParameters}
