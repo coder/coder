@@ -16,6 +16,7 @@ import {
 import { AutomaticUpdates, Workspace } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import MenuItem from "@mui/material/MenuItem";
+import { useTemplatePoliciesEnabled } from "components/Dashboard/DashboardProvider";
 
 export type WorkspaceSettingsFormValues = {
   name: string;
@@ -50,6 +51,8 @@ export const WorkspaceSettingsForm: FC<{
 
   const autoUpdatesSet = ["never", "always"];
 
+  const templatePoliciesEnabled = useTemplatePoliciesEnabled();
+
   return (
     <HorizontalForm onSubmit={form.handleSubmit} data-testid="form">
       <FormSection
@@ -73,27 +76,29 @@ export const WorkspaceSettingsForm: FC<{
           )}
         </FormFields>
       </FormSection>
-      <FormSection
-        title="Automatic Updates"
-        description="Configure your workspace to automatically update to the active template version when started."
-      >
-        <FormFields>
-          <TextField
-            {...getFieldHelpers("automatic_updates")}
-            id="automatic_updates"
-            label="Update Policy"
-            value={form.values.automatic_updates}
-            select
-            disabled={form.isSubmitting}
-          >
-            {autoUpdatesSet.map((value) => (
-              <MenuItem value={value} key={value}>
-                {capitalizeFirstLetter(value)}
-              </MenuItem>
-            ))}
-          </TextField>
-        </FormFields>
-      </FormSection>
+      {templatePoliciesEnabled && (
+        <FormSection
+          title="Automatic Updates"
+          description="Configure your workspace to automatically update to the active template version when started."
+        >
+          <FormFields>
+            <TextField
+              {...getFieldHelpers("automatic_updates")}
+              id="automatic_updates"
+              label="Update Policy"
+              value={form.values.automatic_updates}
+              select
+              disabled={form.isSubmitting}
+            >
+              {autoUpdatesSet.map((value) => (
+                <MenuItem value={value} key={value}>
+                  {capitalizeFirstLetter(value)}
+                </MenuItem>
+              ))}
+            </TextField>
+          </FormFields>
+        </FormSection>
+      )}
       <FormFooter onCancel={onCancel} isLoading={isSubmitting} />
     </HorizontalForm>
   );
