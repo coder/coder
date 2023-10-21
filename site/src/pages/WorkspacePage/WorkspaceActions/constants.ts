@@ -1,6 +1,5 @@
 import { Workspace, WorkspaceStatus } from "api/typesGenerated";
 import { ReactNode } from "react";
-import { workspaceUpdatePolicy } from "utils/workspace";
 
 // the button types we have
 export enum ButtonTypesEnum {
