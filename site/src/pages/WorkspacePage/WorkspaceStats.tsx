@@ -7,6 +7,7 @@ import {
   getDisplayWorkspaceBuildInitiatedBy,
   getDisplayWorkspaceTemplateName,
   isWorkspaceOn,
+  workspaceUpdatePolicy,
 } from "utils/workspace";
 import { Workspace } from "api/typesGenerated";
 import { Stats, StatsItem } from "components/Stats/Stats";
@@ -77,12 +78,6 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
   const deadlinePlusEnabled = maxDeadlineIncrease >= 1;
   const deadlineMinusEnabled = maxDeadlineDecrease >= 1;
   const templatePoliciesEnabled = useTemplatePoliciesEnabled();
-  const workspaceUpdatePolicy = (): string => {
-    if (workspace.template_require_active_version && !canChangeVersions) {
-      return "Always";
-    }
-    return upperFirst(workspace.automatic_updates);
-  };
 
   return (
     <>
@@ -219,7 +214,9 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
             <StatsItem
               className={styles.statsItem}
               label={Language.updatePolicy}
-              value={workspaceUpdatePolicy()}
+              value={upperFirst(
+                workspaceUpdatePolicy(workspace, canChangeVersions),
+              )}
             />
             {workspace.automatic_updates === "never" &&
               workspace.template_require_active_version &&
