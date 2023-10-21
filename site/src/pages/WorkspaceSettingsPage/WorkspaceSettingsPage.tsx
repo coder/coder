@@ -20,7 +20,6 @@ const WorkspaceSettingsPage = () => {
 
   const mutation = useMutation({
     mutationFn: async (formValues: WorkspaceSettingsFormValues) => {
-      console.log("in here", formValues.automatic_updates);
       await patchWorkspace(workspace.id, { name: formValues.name });
       await updateWorkspaceAutomaticUpdates(
         workspace.id,

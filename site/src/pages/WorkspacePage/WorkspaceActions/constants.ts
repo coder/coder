@@ -43,9 +43,9 @@ export const actionsByWorkspaceStatus = (
     };
   }
   if (
-    workspace.template_require_active_version &&
     workspace.outdated &&
-    !canChangeVersions
+    ((workspace.template_require_active_version && !canChangeVersions) ||
+      workspace.automatic_updates === "always")
   ) {
     if (status === "running") {
       return {
