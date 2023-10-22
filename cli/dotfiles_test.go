@@ -50,6 +50,68 @@ func TestDotfiles(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, string(b), "wow")
 	})
+	t.Run("SwitchRepoDir", func(t *testing.T) {
+		t.Parallel()
+		_, root := clitest.New(t)
+		testRepo := testGitRepo(t, root)
+
+		// nolint:gosec
+		err := os.WriteFile(filepath.Join(testRepo, ".bashrc"), []byte("wow"), 0o750)
+		require.NoError(t, err)
+
+		c := exec.Command("git", "add", ".bashrc")
+		c.Dir = testRepo
+		err = c.Run()
+		require.NoError(t, err)
+
+		c = exec.Command("git", "commit", "-m", `"add .bashrc"`)
+		c.Dir = testRepo
+		out, err := c.CombinedOutput()
+		require.NoError(t, err, string(out))
+
+		inv, _ := clitest.New(t, "dotfiles", "--global-config", string(root), "--symlink-dir", string(root), "--repo-dir", "testrepo", "-y", testRepo)
+		err = inv.Run()
+		require.NoError(t, err)
+
+		b, err := os.ReadFile(filepath.Join(string(root), ".bashrc"))
+		require.NoError(t, err)
+		require.Equal(t, string(b), "wow")
+
+		stat, staterr := os.Stat(filepath.Join(string(root), "testrepo"))
+		require.NoError(t, staterr)
+		require.True(t, stat.IsDir())
+	})
+	t.Run("SwitchRepoDirRelative", func(t *testing.T) {
+		t.Parallel()
+		_, root := clitest.New(t)
+		testRepo := testGitRepo(t, root)
+
+		// nolint:gosec
+		err := os.WriteFile(filepath.Join(testRepo, ".bashrc"), []byte("wow"), 0o750)
+		require.NoError(t, err)
+
+		c := exec.Command("git", "add", ".bashrc")
+		c.Dir = testRepo
+		err = c.Run()
+		require.NoError(t, err)
+
+		c = exec.Command("git", "commit", "-m", `"add .bashrc"`)
+		c.Dir = testRepo
+		out, err := c.CombinedOutput()
+		require.NoError(t, err, string(out))
+
+		inv, _ := clitest.New(t, "dotfiles", "--global-config", string(root), "--symlink-dir", string(root), "--repo-dir", "./relrepo", "-y", testRepo)
+		err = inv.Run()
+		require.NoError(t, err)
+
+		b, err := os.ReadFile(filepath.Join(string(root), ".bashrc"))
+		require.NoError(t, err)
+		require.Equal(t, string(b), "wow")
+
+		stat, staterr := os.Stat(filepath.Join(string(root), "relrepo"))
+		require.NoError(t, staterr)
+		require.True(t, stat.IsDir())
+	})
 	t.Run("InstallScript", func(t *testing.T) {
 		t.Parallel()
 		if runtime.GOOS == "windows" {
