@@ -100,9 +100,12 @@ func (r *Runner) StartCron() {
 	// cron.Start() and cron.Stop() does not guarantee that the cron goroutine
 	// has exited by the time the `cron.Stop()` context returns, so we need to
 	// track it manually.
-	r.trackCommandGoroutine(func() {
+	err := r.trackCommandGoroutine(func() {
 		r.cron.Run()
 	})
+	if err != nil {
+		r.Logger.Warn(context.Background(), "start cron", slog.Error(err))
+	}
 }
 
 // Execute runs a set of scripts according to a filter.
