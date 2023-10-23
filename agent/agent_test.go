@@ -375,6 +375,7 @@ func TestAgent_Session_TTY_MOTD(t *testing.T) {
 	}
 }
 
+//nolint:tparallel // Sub tests need to run sequentially.
 func TestAgent_Session_TTY_MOTD_Update(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {
