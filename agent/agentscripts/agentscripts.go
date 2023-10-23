@@ -97,7 +97,12 @@ func (r *Runner) Init(scripts []codersdk.WorkspaceAgentScript) error {
 // StartCron starts the cron scheduler.
 // This is done async to allow for the caller to execute scripts prior.
 func (r *Runner) StartCron() {
-	r.cron.Start()
+	// cron.Start() and cron.Stop() does not guarantee that the cron goroutine
+	// has exited by the time the `cron.Stop()` context returns, so we need to
+	// track it manually.
+	r.trackCommandGoroutine(func() {
+		r.cron.Run()
+	})
 }
 
 // Execute runs a set of scripts according to a filter.
@@ -254,7 +259,7 @@ func (r *Runner) Close() error {
 	}
 	close(r.closed)
 	r.cronCtxCancel()
-	r.cron.Stop()
+	<-r.cron.Stop().Done()
 	r.cmdCloseWait.Wait()
 	return nil
 }
