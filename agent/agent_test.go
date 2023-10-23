@@ -350,8 +350,13 @@ func TestAgent_Session_TTY_MOTD(t *testing.T) {
 			unexpected: []string{},
 		},
 		{
-			name:     "Trim",
-			manifest: agentsdk.Manifest{},
+			name: "Trim",
+			// Enable motd since it will be printed after the banner,
+			// this ensures that we can test for an exact mount of
+			// newlines.
+			manifest: agentsdk.Manifest{
+				MOTDFile: name,
+			},
 			banner: codersdk.ServiceBannerConfig{
 				Enabled: true,
 				Message: "\n\n\n\n\n\nbanner\n\n\n\n\n\n",
