@@ -1206,6 +1206,14 @@ func WriteConfigMW(cfg *codersdk.DeploymentValues) clibase.MiddlewareFunc {
 // isLocalURL returns true if the hostname of the provided URL appears to
 // resolve to a loopback address.
 func IsLocalURL(ctx context.Context, u *url.URL) (bool, error) {
+	// In tests, we commonly use "example.com" or "google.com", which
+	// are not loopback, so avoid the DNS lookup to avoid flakes.
+	if flag.Lookup("test.v") != nil {
+		if u.Hostname() == "example.com" || u.Hostname() == "google.com" {
+			return false, nil
+		}
+	}
+
 	resolver := &net.Resolver{}
 	ips, err := resolver.LookupIPAddr(ctx, u.Hostname())
 	if err != nil {
