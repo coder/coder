@@ -104,7 +104,7 @@ func (r *Runner) StartCron() {
 		r.cron.Run()
 	})
 	if err != nil {
-		r.Logger.Warn(context.Background(), "start cron", slog.Error(err))
+		r.Logger.Warn(context.Background(), "start cron failed", slog.Error(err))
 	}
 }
 
