@@ -536,6 +536,14 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 			continue
 		case <-report:
 			if len(updatedMetadata) > 0 {
+				select {
+				case <-reportSemaphore:
+				default:
+					// If there's already a report in flight, don't send
+					// another one, wait for next tick instead.
+					continue
+				}
+
 				metadata := make([]agentsdk.Metadata, 0, len(updatedMetadata))
 				for key, result := range updatedMetadata {
 					metadata = append(metadata, agentsdk.Metadata{
@@ -543,14 +551,6 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 						WorkspaceAgentMetadataResult: *result,
 					})
 					delete(updatedMetadata, key)
-				}
-
-				select {
-				case <-reportSemaphore:
-				default:
-					// If there's already a report in flight, don't send
-					// another one, wait for next tick instead.
-					continue
 				}
 
 				go func() {
