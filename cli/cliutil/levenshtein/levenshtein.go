@@ -18,7 +18,7 @@ func Matches(needle string, maxDistance int, haystack ...string) (matches []stri
 	return matches
 }
 
-var ErrMaxDist error = xerrors.New("levenshtein: maxDist exceeded")
+var ErrMaxDist = xerrors.New("levenshtein: maxDist exceeded")
 
 // Distance returns the edit distance between a and b using the
 // Wagner-Fischer algorithm.
@@ -84,6 +84,7 @@ func Distance(a, b string, maxDist int) (int, error) {
 
 	return int(d[m][n]), nil
 }
+
 func min[T constraints.Ordered](ts ...T) T {
 	if len(ts) == 0 {
 		panic("min: no arguments")
