@@ -104,63 +104,84 @@ func Test_Levenshtein_Distance(t *testing.T) {
 		Name     string
 		A        string
 		B        string
+		MaxDist  int
 		Expected int
+		Error    string
 	}{
 		{
 			Name:     "empty",
 			A:        "",
 			B:        "",
+			MaxDist:  -1,
 			Expected: 0,
 		},
 		{
 			Name:     "a empty",
 			A:        "",
 			B:        "foo",
+			MaxDist:  -1,
 			Expected: 3,
 		},
 		{
 			Name:     "b empty",
 			A:        "foo",
 			B:        "",
+			MaxDist:  -1,
 			Expected: 3,
 		},
 		{
 			Name:     "a is b",
 			A:        "foo",
 			B:        "foo",
+			MaxDist:  -1,
 			Expected: 0,
 		},
 		{
 			Name:     "one addition",
 			A:        "foo",
 			B:        "fooo",
+			MaxDist:  -1,
 			Expected: 1,
 		},
 		{
 			Name:     "one deletion",
 			A:        "fooo",
 			B:        "foo",
+			MaxDist:  -1,
 			Expected: 1,
 		},
 		{
 			Name:     "one substitution",
 			A:        "foo",
 			B:        "fou",
+			MaxDist:  -1,
 			Expected: 1,
 		},
 		{
 			Name:     "different strings entirely",
 			A:        "foo",
 			B:        "bar",
+			MaxDist:  -1,
 			Expected: 3,
+		},
+		{
+			Name:    "different strings, max distance 2",
+			A:       "foo",
+			B:       "bar",
+			MaxDist: 2,
+			Error:   levenshtein.ErrMaxDist.Error(),
 		},
 	} {
 		tt := tt
 		t.Run(tt.Name, func(t *testing.T) {
 			t.Parallel()
-			actual, err := levenshtein.Distance(tt.A, tt.B)
-			require.NoError(t, err)
-			require.Equal(t, tt.Expected, actual)
+			actual, err := levenshtein.Distance(tt.A, tt.B, tt.MaxDist)
+			if tt.Error == "" {
+				require.NoError(t, err)
+				require.Equal(t, tt.Expected, actual)
+			} else {
+				require.EqualError(t, err, tt.Error)
+			}
 		})
 	}
 }
