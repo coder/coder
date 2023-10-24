@@ -88,6 +88,7 @@ echo "CODER_AGENT_TOKEN=${coder_agent.dev.token}" >> /etc/environment
 echo "HOME=/home/coder" >> /etc/environment
 echo "export HOME=/home/coder" >> /home/coder/.bashrc
 mkdir /home/coder/workspace
+chown coder: /home/coder/workspace
 
 sudo -E -u coder /bin/bash -c '${coder_agent.dev.init_script}'
 --//--
