@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "react-query";
+import { useQuery } from "react-query";
 import { buildInfo } from "api/queries/buildInfo";
 import { experiments } from "api/queries/experiments";
 import { entitlements } from "api/queries/entitlements";
@@ -39,11 +39,10 @@ export const DashboardProviderContext = createContext<
 >(undefined);
 
 export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
-  const queryClient = useQueryClient();
-  const buildInfoQuery = useQuery(buildInfo(queryClient));
+  const buildInfoQuery = useQuery(buildInfo());
   const entitlementsQuery = useQuery(entitlements());
-  const experimentsQuery = useQuery(experiments(queryClient));
-  const appearanceQuery = useQuery(appearance(queryClient));
+  const experimentsQuery = useQuery(experiments());
+  const appearanceQuery = useQuery(appearance());
 
   const isLoading =
     !buildInfoQuery.data ||
