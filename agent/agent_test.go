@@ -380,6 +380,7 @@ func TestAgent_Session_TTY_MOTD(t *testing.T) {
 	}
 }
 
+//nolint:tparallel // Sub tests need to run sequentially.
 func TestAgent_Session_TTY_MOTD_Update(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {
@@ -439,33 +440,38 @@ func TestAgent_Session_TTY_MOTD_Update(t *testing.T) {
 	}
 	//nolint:dogsled // Allow the blank identifiers.
 	conn, client, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, setSBInterval)
-	for _, test := range tests {
+
+	sshClient, err := conn.SSHClient(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = sshClient.Close()
+	})
+
+	//nolint:paralleltest // These tests need to swap the banner func.
+	for i, test := range tests {
 		test := test
-		// Set new banner func and wait for the agent to call it to update the
-		// banner.
-		ready := make(chan struct{}, 2)
-		client.SetServiceBannerFunc(func() (codersdk.ServiceBannerConfig, error) {
-			select {
-			case ready <- struct{}{}:
-			default:
-			}
-			return test.banner, nil
-		})
-		<-ready
-		<-ready // Wait for two updates to ensure the value has propagated.
+		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
+			// Set new banner func and wait for the agent to call it to update the
+			// banner.
+			ready := make(chan struct{}, 2)
+			client.SetServiceBannerFunc(func() (codersdk.ServiceBannerConfig, error) {
+				select {
+				case ready <- struct{}{}:
+				default:
+				}
+				return test.banner, nil
+			})
+			<-ready
+			<-ready // Wait for two updates to ensure the value has propagated.
 
-		sshClient, err := conn.SSHClient(ctx)
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			_ = sshClient.Close()
-		})
-		session, err := sshClient.NewSession()
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			_ = session.Close()
-		})
+			session, err := sshClient.NewSession()
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				_ = session.Close()
+			})
 
-		testSessionOutput(t, session, test.expected, test.unexpected, nil)
+			testSessionOutput(t, session, test.expected, test.unexpected, nil)
+		})
 	}
 }
 

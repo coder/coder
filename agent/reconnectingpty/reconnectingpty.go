@@ -196,8 +196,8 @@ func (s *ptyState) waitForStateOrContext(ctx context.Context, state State) (Stat
 // until EOF or an error writing to ptty or reading from conn.
 func readConnLoop(ctx context.Context, conn net.Conn, ptty pty.PTYCmd, metrics *prometheus.CounterVec, logger slog.Logger) {
 	decoder := json.NewDecoder(conn)
-	var req codersdk.ReconnectingPTYRequest
 	for {
+		var req codersdk.ReconnectingPTYRequest
 		err := decoder.Decode(&req)
 		if xerrors.Is(err, io.EOF) {
 			return

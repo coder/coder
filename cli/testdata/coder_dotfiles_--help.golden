@@ -15,6 +15,10 @@ OPTIONS:
           default branch or using the existing branch in the cloned repo on
           disk.
 
+      --repo-dir string, $CODER_DOTFILES_REPO_DIR (default: dotfiles)
+          Specifies the directory for the dotfiles repository, relative to
+          global config directory.
+
       --symlink-dir string, $CODER_SYMLINK_DIR
           Specifies the directory for the dotfiles symlink destinations. If
           empty, will use $HOME.
