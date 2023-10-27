@@ -743,7 +743,7 @@ func (a *agent) run(ctx context.Context) error {
 				return script.RunOnStart
 			})
 			if err != nil {
-				a.logger.Warn(ctx, "startup script failed", slog.Error(err))
+				a.logger.Warn(ctx, "startup script(s) failed", slog.Error(err))
 				if errors.Is(err, agentscripts.ErrTimeout) {
 					a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleStartTimeout)
 				} else {
@@ -1465,6 +1465,7 @@ func (a *agent) Close() error {
 		return script.RunOnStop
 	})
 	if err != nil {
+		a.logger.Warn(ctx, "shutdown script(s) failed", slog.Error(err))
 		if errors.Is(err, agentscripts.ErrTimeout) {
 			lifecycleState = codersdk.WorkspaceAgentLifecycleShutdownTimeout
 		} else {
