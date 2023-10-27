@@ -27,6 +27,8 @@ import (
 var (
 	// ErrTimeout is returned when a script times out.
 	ErrTimeout = xerrors.New("script timed out")
+	// ErrTimeout is returned when a script times out.
+	ErrOutputPipesOpen = xerrors.New("script exited without closing output pipes")
 
 	parser = cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.DowOptional)
 )
@@ -248,7 +250,21 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript) 
 		err = cmdCtx.Err()
 	case err = <-cmdDone:
 	}
-	if errors.Is(err, context.DeadlineExceeded) {
+	switch {
+	case errors.Is(err, exec.ErrWaitDelay):
+		err = ErrOutputPipesOpen
+		message := fmt.Sprintf("script exited successfully, but output pipes were not closed after %s", cmd.WaitDelay)
+		details := fmt.Sprint(
+			"This usually means a child process was started with references to stdout or stderr. As a result, this " +
+				"process may now have been terminated. Consider using a separate \"coder_script\" for the service, " +
+				"see https://coder.com/docs/v2/latest/templates/troubleshooting#startup-script-issues for more information.",
+		)
+		// Inform the user by propagating the message via log writers.
+		_, _ = fmt.Fprintf(cmd.Stderr, "WARNING: %s. %s\n", message, details)
+		// Also log to agent logs for ease of debugging.
+		r.Logger.Warn(ctx, message, slog.F("details", details), slog.Error(err))
+
+	case errors.Is(err, context.DeadlineExceeded):
 		err = ErrTimeout
 	}
 	return err
