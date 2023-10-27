@@ -20,8 +20,8 @@ authentication in your Coder deployment.
 
 ### 2. Modify your template to auto-clone repos
 
-The id in the template's `coder_git_auth` data source must match the
-`CODER_GITAUTH_0_ID` in the Coder deployment configuration.
+The id in the template's `coder_external_auth` data source must match the
+`CODER_EXTERNAL_AUTH_X_ID` in the Coder deployment configuration.
 
 If you want the template to clone a specific git repo:
 
