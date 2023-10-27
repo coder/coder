@@ -27,7 +27,13 @@ import (
 var (
 	// ErrTimeout is returned when a script times out.
 	ErrTimeout = xerrors.New("script timed out")
-	// ErrTimeout is returned when a script times out.
+	// ErrOutputPipesOpen is returned when a script exits leaving the output
+	// pipe(s) (stdout, stderr) open. This happens because we set WaitDelay on
+	// the command, which gives us two things:
+	//
+	// 1. The ability to ensure that a script exits (this is important for e.g.
+	//    blocking login, and avoiding doing so indefinitely)
+	// 2. Improved command cancellation on timeout
 	ErrOutputPipesOpen = xerrors.New("script exited without closing output pipes")
 
 	parser = cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.DowOptional)
