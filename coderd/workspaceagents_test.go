@@ -42,11 +42,11 @@ func TestWorkspaceAgent(t *testing.T) {
 		tmpDir := t.TempDir()
 		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
-		ws := dbfake.CreateWorkspace(t, db, database.Workspace{
+		ws := dbfake.Workspace(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        anotherUser.ID,
 		})
-		dbfake.CreateWorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
 			Name: "aws_instance",
 			Agents: []*proto.Agent{{
 				Id:        uuid.NewString(),
@@ -67,11 +67,11 @@ func TestWorkspaceAgent(t *testing.T) {
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		tmpDir := t.TempDir()
-		ws := dbfake.CreateWorkspace(t, db, database.Workspace{
+		ws := dbfake.Workspace(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		})
-		dbfake.CreateWorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
 			Name: "aws_instance",
 			Agents: []*proto.Agent{{
 				Id:        uuid.NewString(),
@@ -99,11 +99,11 @@ func TestWorkspaceAgent(t *testing.T) {
 
 		wantTroubleshootingURL := "https://example.com/troubleshoot"
 
-		ws := dbfake.CreateWorkspace(t, db, database.Workspace{
+		ws := dbfake.Workspace(t, db, database.Workspace{
 			OwnerID:        user.UserID,
 			OrganizationID: user.OrganizationID,
 		})
-		dbfake.CreateWorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
 			Name: "example",
 			Type: "aws_instance",
 			Agents: []*proto.Agent{{
@@ -139,7 +139,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		t.Parallel()
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		ws := dbfake.CreateWorkspace(t, db, database.Workspace{
+		ws := dbfake.Workspace(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		})
@@ -152,7 +152,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			PortForwardingHelper: true,
 			SshHelper:            true,
 		}
-		dbfake.CreateWorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
 			Name: "example",
 			Type: "aws_instance",
 			Agents: []*proto.Agent{
@@ -191,11 +191,11 @@ func TestWorkspaceAgent(t *testing.T) {
 		apps.WebTerminal = false
 
 		// Creating another workspace is easier
-		ws = dbfake.CreateWorkspace(t, db, database.Workspace{
+		ws = dbfake.Workspace(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		})
-		dbfake.CreateWorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
 			Name: "example",
 			Type: "aws_instance",
 			Agents: []*proto.Agent{
@@ -225,7 +225,7 @@ func TestWorkspaceAgentLogs(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		ws, authToken := dbfake.CreateWorkspaceWithAgent(t, db, database.Workspace{
+		ws, authToken := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		})
@@ -267,7 +267,7 @@ func TestWorkspaceAgentLogs(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		ws, authToken := dbfake.CreateWorkspaceWithAgent(t, db, database.Workspace{
+		ws, authToken := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		})
@@ -309,7 +309,7 @@ func TestWorkspaceAgentLogs(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		ws, authToken := dbfake.CreateWorkspaceWithAgent(t, db, database.Workspace{
+		ws, authToken := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		})
@@ -352,7 +352,7 @@ func TestWorkspaceAgentListen(t *testing.T) {
 
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		ws, authToken := dbfake.CreateWorkspaceWithAgent(t, db, database.Workspace{
+		ws, authToken := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		})
@@ -438,7 +438,7 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 	client, db := coderdtest.NewWithDatabase(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 
-	ws, authToken := dbfake.CreateWorkspaceWithAgent(t, db, database.Workspace{
+	ws, authToken := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
 	})
@@ -477,7 +477,7 @@ func TestWorkspaceAgentTailnetDirectDisabled(t *testing.T) {
 		DeploymentValues: dv,
 	})
 	user := coderdtest.CreateFirstUser(t, client)
-	ws, authToken := dbfake.CreateWorkspaceWithAgent(t, db, database.Workspace{
+	ws, authToken := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
 	})
@@ -540,7 +540,7 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 		require.NoError(t, err)
 
 		user := coderdtest.CreateFirstUser(t, client)
-		ws, authToken := dbfake.CreateWorkspaceWithAgent(t, db, database.Workspace{
+		ws, authToken := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		})
@@ -765,11 +765,11 @@ func TestWorkspaceAgentAppHealth(t *testing.T) {
 			},
 		},
 	}
-	ws := dbfake.CreateWorkspace(t, db, database.Workspace{
+	ws := dbfake.Workspace(t, db, database.Workspace{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
 	})
-	dbfake.CreateWorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+	dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
 		Name: "example",
 		Type: "aws_instance",
 		Agents: []*proto.Agent{{
@@ -840,7 +840,7 @@ func TestWorkspaceAgentReportStats(t *testing.T) {
 
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		ws, authToken := dbfake.CreateWorkspaceWithAgent(t, db, database.Workspace{
+		ws, authToken := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		})
@@ -881,7 +881,7 @@ func TestWorkspaceAgent_LifecycleState(t *testing.T) {
 
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		ws, authToken := dbfake.CreateWorkspaceWithAgent(t, db, database.Workspace{
+		ws, authToken := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		})
@@ -947,11 +947,11 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	client, db := coderdtest.NewWithDatabase(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	authToken := uuid.NewString()
-	ws := dbfake.CreateWorkspace(t, db, database.Workspace{
+	ws := dbfake.Workspace(t, db, database.Workspace{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
 	})
-	dbfake.CreateWorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+	dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
 		Name: "example",
 		Type: "aws_instance",
 		Agents: []*proto.Agent{{
@@ -1111,7 +1111,7 @@ func TestWorkspaceAgent_Startup(t *testing.T) {
 
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		ws, authToken := dbfake.CreateWorkspaceWithAgent(t, db, database.Workspace{
+		ws, authToken := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		})
@@ -1156,7 +1156,7 @@ func TestWorkspaceAgent_Startup(t *testing.T) {
 
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		_, authToken := dbfake.CreateWorkspaceWithAgent(t, db, database.Workspace{
+		_, authToken := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		})
@@ -1204,7 +1204,7 @@ func TestWorkspaceAgent_UpdatedDERP(t *testing.T) {
 	api.DERPMapper.Store(&derpMapFn)
 
 	// Start workspace a workspace agent.
-	ws, agentToken := dbfake.CreateWorkspaceWithAgent(t, api.Database, database.Workspace{
+	ws, agentToken := dbfake.WorkspaceWithAgent(t, api.Database, database.Workspace{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
 	})

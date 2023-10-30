@@ -31,7 +31,7 @@ func TestWorkspaceAgent(t *testing.T) {
 
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		ws, authToken := dbfake.CreateWorkspaceWithAgent(t, db, database.Workspace{
+		ws, authToken := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		})
@@ -65,11 +65,11 @@ func TestWorkspaceAgent(t *testing.T) {
 			AzureCertificates: certificates,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
-		ws := dbfake.CreateWorkspace(t, db, database.Workspace{
+		ws := dbfake.Workspace(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		})
-		dbfake.CreateWorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
 			Name: "somename",
 			Type: "someinstance",
 			Agents: []*proto.Agent{{
@@ -107,11 +107,11 @@ func TestWorkspaceAgent(t *testing.T) {
 			AWSCertificates: certificates,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
-		ws := dbfake.CreateWorkspace(t, db, database.Workspace{
+		ws := dbfake.Workspace(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		})
-		dbfake.CreateWorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
 			Name: "somename",
 			Type: "someinstance",
 			Agents: []*proto.Agent{{
@@ -150,11 +150,11 @@ func TestWorkspaceAgent(t *testing.T) {
 		})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-		ws := dbfake.CreateWorkspace(t, db, database.Workspace{
+		ws := dbfake.Workspace(t, db, database.Workspace{
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        memberUser.ID,
 		})
-		dbfake.CreateWorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
 			Name: "somename",
 			Type: "someinstance",
 			Agents: []*proto.Agent{{
@@ -207,7 +207,7 @@ func TestWorkspaceAgent(t *testing.T) {
 
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		ws, authToken := dbfake.CreateWorkspaceWithAgent(t, db, database.Workspace{
+		ws, authToken := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		})

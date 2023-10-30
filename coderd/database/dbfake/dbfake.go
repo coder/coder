@@ -19,8 +19,8 @@ import (
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 )
 
-// CreateWorkspace inserts a workspace into the database.
-func CreateWorkspace(t testing.TB, db database.Store, seed database.Workspace) database.Workspace {
+// Workspace inserts a workspace into the database.
+func Workspace(t testing.TB, db database.Store, seed database.Workspace) database.Workspace {
 	t.Helper()
 
 	// This intentionally fulfills the minimum requirements of the schema.
@@ -37,13 +37,13 @@ func CreateWorkspace(t testing.TB, db database.Store, seed database.Workspace) d
 	return dbgen.Workspace(t, db, seed)
 }
 
-// CreateWorkspaceWithAgent is a helper that generates a workspace with a single resource
+// WorkspaceWithAgent is a helper that generates a workspace with a single resource
 // that has an agent attached to it. The agent token is returned.
-func CreateWorkspaceWithAgent(t testing.TB, db database.Store, seed database.Workspace) (database.Workspace, string) {
+func WorkspaceWithAgent(t testing.TB, db database.Store, seed database.Workspace) (database.Workspace, string) {
 	t.Helper()
 	authToken := uuid.NewString()
-	ws := CreateWorkspace(t, db, seed)
-	CreateWorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+	ws := Workspace(t, db, seed)
+	WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
 		Name: "example",
 		Type: "aws_instance",
 		Agents: []*proto.Agent{{
@@ -56,8 +56,8 @@ func CreateWorkspaceWithAgent(t testing.TB, db database.Store, seed database.Wor
 	return ws, authToken
 }
 
-// CreateWorkspaceBuild inserts a build and a successful job into the database.
-func CreateWorkspaceBuild(t testing.TB, db database.Store, ws database.Workspace, seed database.WorkspaceBuild, resources ...*sdkproto.Resource) database.WorkspaceBuild {
+// WorkspaceBuild inserts a build and a successful job into the database.
+func WorkspaceBuild(t testing.TB, db database.Store, ws database.Workspace, seed database.WorkspaceBuild, resources ...*sdkproto.Resource) database.WorkspaceBuild {
 	t.Helper()
 	jobID := uuid.New()
 	seed.JobID = jobID
@@ -105,12 +105,12 @@ func CreateWorkspaceBuild(t testing.TB, db database.Store, ws database.Workspace
 			Valid: true,
 		},
 	})
-	CreateProvisionerJobResources(t, db, job.ID, seed.Transition, resources...)
+	ProvisionerJobResources(t, db, job.ID, seed.Transition, resources...)
 	return build
 }
 
-// CreateProvisionerJobResources inserts a series of resources into a provisioner job.
-func CreateProvisionerJobResources(t testing.TB, db database.Store, job uuid.UUID, transition database.WorkspaceTransition, resources ...*sdkproto.Resource) {
+// ProvisionerJobResources inserts a series of resources into a provisioner job.
+func ProvisionerJobResources(t testing.TB, db database.Store, job uuid.UUID, transition database.WorkspaceTransition, resources ...*sdkproto.Resource) {
 	t.Helper()
 	if transition == "" {
 		// Default to start!
