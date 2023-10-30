@@ -1,11 +1,10 @@
-import { makeStyles } from "@mui/styles";
+import { type Interpolation, type Theme } from "@emotion/react";
+import { type FC } from "react";
 import { DockerIcon } from "components/Icons/DockerIcon";
 import { MarkdownIcon } from "components/Icons/MarkdownIcon";
 import { TerraformIcon } from "components/Icons/TerraformIcon";
 import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter";
 import { UseTabResult } from "hooks/useTab";
-import { FC } from "react";
-import { combineClasses } from "utils/combineClasses";
 import { AllowedExtension, TemplateVersionFiles } from "utils/templateVersion";
 import InsertDriveFileOutlined from "@mui/icons-material/InsertDriveFileOutlined";
 
@@ -43,15 +42,14 @@ export const TemplateFiles: FC<{
   previousFiles?: TemplateVersionFiles;
   tab: UseTabResult;
 }> = ({ currentFiles, previousFiles, tab }) => {
-  const styles = useStyles();
   const filenames = Object.keys(currentFiles);
   const selectedFilename = filenames[Number(tab.value)];
   const currentFile = currentFiles[selectedFilename];
   const previousFile = previousFiles && previousFiles[selectedFilename];
 
   return (
-    <div className={styles.files}>
-      <div className={styles.tabs}>
+    <div css={styles.files}>
+      <div css={styles.tabs}>
         {filenames.map((filename, index) => {
           const tabValue = index.toString();
           const extension = getExtension(filename) as AllowedExtension;
@@ -63,10 +61,7 @@ export const TemplateFiles: FC<{
 
           return (
             <button
-              className={combineClasses({
-                [styles.tab]: true,
-                [styles.tabActive]: tabValue === tab.value,
-              })}
+              css={[styles.tab, tabValue === tab.value && styles.tabActive]}
               onClick={() => {
                 tab.set(tabValue);
               }}
@@ -74,7 +69,7 @@ export const TemplateFiles: FC<{
             >
               {icon}
               {filename}
-              {hasDiff && <div className={styles.tabDiff} />}
+              {hasDiff && <div css={styles.tabDiff} />}
             </button>
           );
         })}
@@ -92,16 +87,16 @@ export const TemplateFiles: FC<{
     </div>
   );
 };
-const useStyles = makeStyles((theme) => ({
-  tabs: {
+const styles = {
+  tabs: (theme) => ({
     display: "flex",
     alignItems: "baseline",
     borderBottom: `1px solid ${theme.palette.divider}`,
     gap: 1,
     overflowX: "auto",
-  },
+  }),
 
-  tab: {
+  tab: (theme) => ({
     background: "transparent",
     border: 0,
     padding: theme.spacing(0, 3),
@@ -123,9 +118,9 @@ const useStyles = makeStyles((theme) => ({
     "&:hover": {
       backgroundColor: theme.palette.action.hover,
     },
-  },
+  }),
 
-  tabActive: {
+  tabActive: (theme) => ({
     opacity: 1,
     background: theme.palette.action.hover,
     color: theme.palette.text.primary,
@@ -140,26 +135,26 @@ const useStyles = makeStyles((theme) => ({
       backgroundColor: theme.palette.secondary.dark,
       position: "absolute",
     },
-  },
+  }),
 
-  tabDiff: {
+  tabDiff: (theme) => ({
     height: 6,
     width: 6,
     backgroundColor: theme.palette.warning.light,
     borderRadius: "100%",
     marginLeft: theme.spacing(0.5),
-  },
+  }),
 
-  codeWrapper: {
+  codeWrapper: (theme) => ({
     background: theme.palette.background.paperLight,
-  },
+  }),
 
-  files: {
+  files: (theme) => ({
     borderRadius: theme.shape.borderRadius,
     border: `1px solid ${theme.palette.divider}`,
-  },
+  }),
 
   prism: {
     borderRadius: 0,
   },
-}));
+} satisfies Record<string, Interpolation<Theme>>;
