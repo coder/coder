@@ -12,20 +12,20 @@ terraform {
 }
 
 provider "exoscale" {
-  key     = var.exoscale_api_key == "" ? null : var.exoscale_api_key
-  secret  = var.exoscale_api_secret == "" ? null : var.exoscale_api_secret
+  key    = var.exoscale_api_key == "" ? null : var.exoscale_api_key
+  secret = var.exoscale_api_secret == "" ? null : var.exoscale_api_secret
 }
 
 variable "exoscale_api_key" {
   description = "Exoscale API Key"
   sensitive   = true
-  default = ""
+  default     = ""
 }
 
 variable "exoscale_api_secret" {
   description = "Exoscale API Secret"
   sensitive   = true
-  default = ""
+  default     = ""
 }
 
 
@@ -57,7 +57,7 @@ data "exoscale_compute_template" "vm_template" {
 }
 
 locals {
-  user_data  = <<EOT
+  user_data = <<EOT
 Content-Type: multipart/mixed; boundary="//"
 MIME-Version: 1.0
 
@@ -96,9 +96,9 @@ EOT
 }
 
 resource "exoscale_compute_instance" "instance" {
-  zone    = module.exoscale-zone.value
-  count   = data.coder_workspace.me.transition == "start" ? 1 : 0
-  name    = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
+  zone  = module.exoscale-zone.value
+  count = data.coder_workspace.me.transition == "start" ? 1 : 0
+  name  = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
 
   template_id = data.exoscale_compute_template.vm_template.id
   type        = module.exoscale-instance-type.value
@@ -113,7 +113,7 @@ resource "exoscale_compute_instance" "instance" {
   user_data = data.coder_workspace.me.start_count > 0 ? local.user_data : ""
 
   labels = {
-    Name = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
+    Name              = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
     Coder_Provisioned = "true"
   }
 }
@@ -121,8 +121,8 @@ resource "exoscale_compute_instance" "instance" {
 data "coder_workspace" "me" {}
 
 resource "coder_agent" "dev" {
-  arch                    = "amd64"
-  os                      = "linux"
+  arch = "amd64"
+  os   = "linux"
 
   metadata {
     display_name = "CPU Usage"
@@ -163,27 +163,27 @@ resource "coder_metadata" "workspace_info" {
 }
 
 module "code-server" {
-    source     = "https://registry.coder.com/modules/code-server"
-    agent_id   = coder_agent.dev.id
-    folder     = "/home/coder/workspace"
+  source   = "https://registry.coder.com/modules/code-server"
+  agent_id = coder_agent.dev.id
+  folder   = "/home/coder/workspace"
 }
 
 module "exoscale-zone" {
-    source = "https://registry.coder.com/modules/exoscale-zone"
-    default = "at-vie-1"
+  source  = "https://registry.coder.com/modules/exoscale-zone"
+  default = "at-vie-1"
 }
 
 module "exoscale-instance-type" {
-    source = "https://registry.coder.com/modules/exoscale-instance-type"
-    default       = "standard.medium"
-    exclude       = [
-        "standard.tiny",
-        "standard.micro",
-        "standard.small",
-        "standard.huge",
-        "standard.mega",
-        "standard.titan",
-        "standard.jumbo",
-        "standard.colossus",
-    ]
+  source  = "https://registry.coder.com/modules/exoscale-instance-type"
+  default = "standard.medium"
+  exclude = [
+    "standard.tiny",
+    "standard.micro",
+    "standard.small",
+    "standard.huge",
+    "standard.mega",
+    "standard.titan",
+    "standard.jumbo",
+    "standard.colossus",
+  ]
 }
