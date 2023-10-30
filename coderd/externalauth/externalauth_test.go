@@ -19,7 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -223,7 +223,7 @@ func TestRefreshToken(t *testing.T) {
 	t.Run("Updates", func(t *testing.T) {
 		t.Parallel()
 
-		db := dbfake.New()
+		db := dbmem.New()
 		validateCalls := 0
 		refreshCalls := 0
 		fake, config, link := setupOauth2Test(t, testConfig{
@@ -265,7 +265,7 @@ func TestRefreshToken(t *testing.T) {
 	t.Run("WithExtra", func(t *testing.T) {
 		t.Parallel()
 
-		db := dbfake.New()
+		db := dbmem.New()
 		fake, config, link := setupOauth2Test(t, testConfig{
 			FakeIDPOpts: []oidctest.FakeIDPOpt{
 				oidctest.WithMutateToken(func(token map[string]interface{}) {

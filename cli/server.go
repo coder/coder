@@ -68,7 +68,7 @@ import (
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbmetrics"
 	"github.com/coder/coder/v2/coderd/database/dbpurge"
 	"github.com/coder/coder/v2/coderd/database/migrations"
@@ -542,7 +542,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				AppHostname:                 appHostname,
 				AppHostnameRegex:            appHostnameRegex,
 				Logger:                      logger.Named("coderd"),
-				Database:                    dbfake.New(),
+				Database:                    dbmem.New(),
 				BaseDERPMap:                 derpMap,
 				Pubsub:                      pubsub.NewInMemory(),
 				CacheDir:                    cacheDir,
@@ -633,7 +633,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			if vals.InMemoryDatabase {
 				// This is only used for testing.
-				options.Database = dbfake.New()
+				options.Database = dbmem.New()
 				options.Pubsub = pubsub.NewInMemory()
 			} else {
 				sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, vals.PostgresURL.String())
