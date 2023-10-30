@@ -313,6 +313,5 @@ export const workspaceUpdatePolicy = (
   if (workspace.template_require_active_version && !canChangeVersions) {
     return "always";
   }
-  // Else prefer the workspace-level setting.
   return workspace.automatic_updates;
 };

@@ -20,11 +20,13 @@ const WorkspaceSettingsPage = () => {
 
   const mutation = useMutation({
     mutationFn: async (formValues: WorkspaceSettingsFormValues) => {
-      await patchWorkspace(workspace.id, { name: formValues.name });
-      await updateWorkspaceAutomaticUpdates(
-        workspace.id,
-        formValues.automatic_updates,
-      );
+      await Promise.all([
+        patchWorkspace(workspace.id, { name: formValues.name }),
+        updateWorkspaceAutomaticUpdates(
+          workspace.id,
+          formValues.automatic_updates,
+        ),
+      ]);
     },
     onSuccess: (_, formValues) => {
       displaySuccess("Workspace updated successfully");

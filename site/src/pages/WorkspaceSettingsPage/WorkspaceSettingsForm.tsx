@@ -13,10 +13,15 @@ import {
   getFormHelpers,
   onChangeTrimmed,
 } from "utils/formUtils";
-import { AutomaticUpdates, Workspace } from "api/typesGenerated";
+import {
+  AutomaticUpdates,
+  AutomaticUpdateses,
+  Workspace,
+} from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import MenuItem from "@mui/material/MenuItem";
 import { useTemplatePoliciesEnabled } from "components/Dashboard/DashboardProvider";
+import upperFirst from "lodash/upperFirst";
 
 export type WorkspaceSettingsFormValues = {
   name: string;
@@ -38,18 +43,13 @@ export const WorkspaceSettingsForm: FC<{
     },
     validationSchema: Yup.object({
       name: nameValidator("Name"),
+      automatic_updates: Yup.string().oneOf(AutomaticUpdateses),
     }),
   });
   const getFieldHelpers = getFormHelpers<WorkspaceSettingsFormValues>(
     form,
     error,
   );
-
-  const capitalizeFirstLetter = (inputString: string): string => {
-    return inputString.charAt(0).toUpperCase() + inputString.slice(1);
-  };
-
-  const autoUpdatesSet = ["never", "always"];
 
   const templatePoliciesEnabled = useTemplatePoliciesEnabled();
 
@@ -79,7 +79,7 @@ export const WorkspaceSettingsForm: FC<{
       {templatePoliciesEnabled && (
         <FormSection
           title="Automatic Updates"
-          description="Configure your workspace to automatically update to the active template version when started."
+          description="Configure your workspace to automatically update when started."
         >
           <FormFields>
             <TextField
@@ -90,9 +90,9 @@ export const WorkspaceSettingsForm: FC<{
               select
               disabled={form.isSubmitting}
             >
-              {autoUpdatesSet.map((value) => (
+              {AutomaticUpdateses.map((value) => (
                 <MenuItem value={value} key={value}>
-                  {capitalizeFirstLetter(value)}
+                  {upperFirst(value)}
                 </MenuItem>
               ))}
             </TextField>

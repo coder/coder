@@ -580,13 +580,13 @@ export const updateWorkspaceAutomaticUpdates = async (
   workspaceId: string,
   automaticUpdates: TypesGen.AutomaticUpdates,
 ): Promise<void> => {
-  const data: TypesGen.UpdateWorkspaceAutomaticUpdatesRequest = {
+  const req: TypesGen.UpdateWorkspaceAutomaticUpdatesRequest = {
     automatic_updates: automaticUpdates,
   };
 
   const response = await axios.put(
     `/api/v2/workspaces/${workspaceId}/autoupdates`,
-    data,
+    req,
   );
   return response.data;
 };
