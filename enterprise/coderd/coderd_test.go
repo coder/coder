@@ -17,7 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -191,7 +191,7 @@ func TestAuditLogging(t *testing.T) {
 		_, _, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			AuditLogging: true,
 			Options: &coderdtest.Options{
-				Auditor: audit.NewAuditor(dbfake.New(), audit.DefaultFilter),
+				Auditor: audit.NewAuditor(dbmem.New(), audit.DefaultFilter),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -200,7 +200,7 @@ func TestAuditLogging(t *testing.T) {
 			},
 		})
 		auditor := *api.AGPL.Auditor.Load()
-		ea := audit.NewAuditor(dbfake.New(), audit.DefaultFilter)
+		ea := audit.NewAuditor(dbmem.New(), audit.DefaultFilter)
 		t.Logf("%T = %T", auditor, ea)
 		assert.EqualValues(t, reflect.ValueOf(ea).Type(), reflect.ValueOf(auditor).Type())
 	})

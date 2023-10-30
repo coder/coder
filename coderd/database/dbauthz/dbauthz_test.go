@@ -16,8 +16,8 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
@@ -62,7 +62,7 @@ func TestAsNoActor(t *testing.T) {
 func TestPing(t *testing.T) {
 	t.Parallel()
 
-	q := dbauthz.New(dbfake.New(), &coderdtest.RecordingAuthorizer{}, slog.Make(), accessControlStorePointer())
+	q := dbauthz.New(dbmem.New(), &coderdtest.RecordingAuthorizer{}, slog.Make(), accessControlStorePointer())
 	_, err := q.Ping(context.Background())
 	require.NoError(t, err, "must not error")
 }
@@ -71,7 +71,7 @@ func TestPing(t *testing.T) {
 func TestInTX(t *testing.T) {
 	t.Parallel()
 
-	db := dbfake.New()
+	db := dbmem.New()
 	q := dbauthz.New(db, &coderdtest.RecordingAuthorizer{
 		Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: xerrors.New("custom error")},
 	}, slog.Make(), accessControlStorePointer())
@@ -99,7 +99,7 @@ func TestNew(t *testing.T) {
 	t.Parallel()
 
 	var (
-		db  = dbfake.New()
+		db  = dbmem.New()
 		exp = dbgen.Workspace(t, db, database.Workspace{})
 		rec = &coderdtest.RecordingAuthorizer{
 			Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: nil},
@@ -126,7 +126,7 @@ func TestNew(t *testing.T) {
 // as only the first db call will be made. But it is better than nothing.
 func TestDBAuthzRecursive(t *testing.T) {
 	t.Parallel()
-	q := dbauthz.New(dbfake.New(), &coderdtest.RecordingAuthorizer{
+	q := dbauthz.New(dbmem.New(), &coderdtest.RecordingAuthorizer{
 		Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: nil},
 	}, slog.Make(), accessControlStorePointer())
 	actor := rbac.Subject{
