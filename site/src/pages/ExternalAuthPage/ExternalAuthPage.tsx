@@ -72,6 +72,20 @@ const ExternalAuthPage: FC = () => {
     !getExternalAuthProviderQuery.data.authenticated &&
     !getExternalAuthProviderQuery.data.device
   ) {
+    if (window.location.search.includes("redirected=true")) {
+      // The auth flow redirected the user here. If we redirect back to the
+      // callback, that resets the flow and we'll end up in an infinite loop.
+      // So instead, show an error, as the user expects to be authenticated at
+      // this point.
+      // TODO: Unsure what to do about the device auth flow, should we also
+      // show an error there?
+      return (
+        <>
+          Failed to validate the user&apos;s oauth access token. Verify the
+          external auth validate url is configured correctly.
+        </>
+      );
+    }
     window.location.href = `/external-auth/${provider}/callback`;
     return null;
   }
