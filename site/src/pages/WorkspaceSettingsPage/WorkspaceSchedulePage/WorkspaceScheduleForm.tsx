@@ -5,7 +5,6 @@ import FormGroup from "@mui/material/FormGroup";
 import FormHelperText from "@mui/material/FormHelperText";
 import FormLabel from "@mui/material/FormLabel";
 import MenuItem from "@mui/material/MenuItem";
-import makeStyles from "@mui/styles/makeStyles";
 import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
 import {
@@ -200,8 +199,6 @@ export const WorkspaceScheduleForm: FC<
   enableAutoStop,
   enableAutoStart,
 }) => {
-  const styles = useStyles();
-
   const form = useFormik<WorkspaceScheduleFormValues>({
     initialValues,
     onSubmit,
