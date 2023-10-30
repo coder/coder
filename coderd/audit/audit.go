@@ -97,7 +97,7 @@ func (a *MockAuditor) Contains(t testing.TB, expected database.AuditLog) bool {
 			continue
 		}
 		if expected.Ip.Valid && al.Ip.IPNet.String() != expected.Ip.IPNet.String() {
-			t.Logf("audit log %d: expected Ip %s, got %s", idx+1, &expected.Ip.IPNet, al.Ip.IPNet)
+			t.Logf("audit log %d: expected Ip %s, got %s", idx+1, expected.Ip.IPNet, al.Ip.IPNet)
 			continue
 		}
 		if expected.UserAgent.Valid && al.UserAgent.String != expected.UserAgent.String {
