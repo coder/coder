@@ -20,7 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/regosql"
@@ -104,7 +104,7 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 		methodName := names[len(names)-1]
 		s.methodAccounting[methodName]++
 
-		db := dbfake.New()
+		db := dbmem.New()
 		fakeAuthorizer := &coderdtest.FakeAuthorizer{
 			AlwaysReturn: nil,
 		}

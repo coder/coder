@@ -1,4 +1,4 @@
-package dbfake_test
+package dbmem_test
 
 import (
 	"context"
@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 )
 
@@ -20,7 +20,7 @@ import (
 func TestInTx(t *testing.T) {
 	t.Parallel()
 
-	uut := dbfake.New()
+	uut := dbmem.New()
 
 	inTx := make(chan any)
 	queriesDone := make(chan any)
@@ -67,7 +67,7 @@ func TestInTx(t *testing.T) {
 func TestUserOrder(t *testing.T) {
 	t.Parallel()
 
-	db := dbfake.New()
+	db := dbmem.New()
 	now := dbtime.Now()
 
 	usernames := []string{"b-user", "d-user", "a-user", "c-user", "e-user"}
@@ -88,7 +88,7 @@ func TestUserOrder(t *testing.T) {
 func TestProxyByHostname(t *testing.T) {
 	t.Parallel()
 
-	db := dbfake.New()
+	db := dbmem.New()
 
 	// Insert a bunch of different proxies.
 	proxies := []struct {

@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbpurge"
 )
 
@@ -20,7 +20,7 @@ func TestMain(m *testing.M) {
 // Ensures no goroutines leak.
 func TestPurge(t *testing.T) {
 	t.Parallel()
-	purger := dbpurge.New(context.Background(), slogtest.Make(t, nil), dbfake.New())
+	purger := dbpurge.New(context.Background(), slogtest.Make(t, nil), dbmem.New())
 	err := purger.Close()
 	require.NoError(t, err)
 }

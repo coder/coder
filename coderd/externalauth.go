@@ -268,8 +268,9 @@ func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) ht
 
 		redirect := state.Redirect
 		if redirect == "" {
-			// This is a nicely rendered screen on the frontend
-			redirect = fmt.Sprintf("/external-auth/%s", externalAuthConfig.ID)
+			// This is a nicely rendered screen on the frontend. Passing the query param lets the
+			// FE know not to enter the authentication loop again, and instead display an error.
+			redirect = fmt.Sprintf("/external-auth/%s?redirected=true", externalAuthConfig.ID)
 		}
 		http.Redirect(rw, r, redirect, http.StatusTemporaryRedirect)
 	}

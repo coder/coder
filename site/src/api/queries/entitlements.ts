@@ -1,15 +1,16 @@
-import { QueryClient } from "react-query";
+import { QueryClient, UseQueryOptions } from "react-query";
 import * as API from "api/api";
 import { Entitlements } from "api/typesGenerated";
 import { getMetadataAsJSON } from "utils/metadata";
 
-const ENTITLEMENTS_QUERY_KEY = ["entitlements"];
+const initialEntitlementsData = getMetadataAsJSON<Entitlements>("entitlements");
+const ENTITLEMENTS_QUERY_KEY = ["entitlements"] as const;
 
-export const entitlements = () => {
+export const entitlements = (): UseQueryOptions<Entitlements> => {
   return {
     queryKey: ENTITLEMENTS_QUERY_KEY,
-    queryFn: async () =>
-      getMetadataAsJSON<Entitlements>("entitlements") ?? API.getEntitlements(),
+    queryFn: () => API.getEntitlements(),
+    initialData: initialEntitlementsData,
   };
 };
 

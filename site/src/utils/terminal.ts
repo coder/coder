@@ -5,11 +5,15 @@ export const terminalWebsocketUrl = async (
   reconnect: string,
   agentId: string,
   command: string | undefined,
+  height: number,
+  width: number,
 ): Promise<string> => {
   const query = new URLSearchParams({ reconnect });
   if (command) {
     query.set("command", command);
   }
+  query.set("height", height.toString());
+  query.set("width", width.toString());
 
   const url = new URL(baseUrl || `${location.protocol}//${location.host}`);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
