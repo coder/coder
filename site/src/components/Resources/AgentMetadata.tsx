@@ -1,5 +1,8 @@
 import { watchAgentMetadata } from "api/api";
-import { WorkspaceAgent, WorkspaceAgentMetadata } from "api/typesGenerated";
+import type {
+  WorkspaceAgent,
+  WorkspaceAgentMetadata,
+} from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
 import dayjs from "dayjs";
 import {
@@ -14,7 +17,7 @@ import Skeleton from "@mui/material/Skeleton";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import Tooltip from "@mui/material/Tooltip";
 import Box, { BoxProps } from "@mui/material/Box";
-import { Interpolation, Theme } from "@emotion/react";
+import { type Interpolation, type Theme } from "@emotion/react";
 
 type ItemStatus = "stale" | "valid" | "loading";
 
