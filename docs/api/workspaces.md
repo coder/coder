@@ -90,6 +90,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
       {
         "agents": [
           {
+            "api_version": "string",
             "apps": [
               {
                 "command": "string",
@@ -299,6 +300,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
       {
         "agents": [
           {
+            "api_version": "string",
             "apps": [
               {
                 "command": "string",
@@ -511,6 +513,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
           {
             "agents": [
               {
+                "api_version": "string",
                 "apps": [
                   {
                     "command": "string",
@@ -717,6 +720,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
       {
         "agents": [
           {
+            "api_version": "string",
             "apps": [
               {
                 "command": "string",
@@ -1042,6 +1046,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
       {
         "agents": [
           {
+            "api_version": "string",
             "apps": [
               {
                 "command": "string",

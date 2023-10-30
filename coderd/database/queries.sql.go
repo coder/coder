@@ -8039,7 +8039,8 @@ UPDATE
 SET
 	version = $2,
 	expanded_directory = $3,
-	subsystems = $4
+	subsystems = $4,
+	api_version = $5
 WHERE
 	id = $1
 `
@@ -8049,6 +8050,7 @@ type UpdateWorkspaceAgentStartupByIDParams struct {
 	Version           string                    `db:"version" json:"version"`
 	ExpandedDirectory string                    `db:"expanded_directory" json:"expanded_directory"`
 	Subsystems        []WorkspaceAgentSubsystem `db:"subsystems" json:"subsystems"`
+	APIVersion        string                    `db:"api_version" json:"api_version"`
 }
 
 func (q *sqlQuerier) UpdateWorkspaceAgentStartupByID(ctx context.Context, arg UpdateWorkspaceAgentStartupByIDParams) error {
@@ -8057,6 +8059,7 @@ func (q *sqlQuerier) UpdateWorkspaceAgentStartupByID(ctx context.Context, arg Up
 		arg.Version,
 		arg.ExpandedDirectory,
 		pq.Array(arg.Subsystems),
+		arg.APIVersion,
 	)
 	return err
 }

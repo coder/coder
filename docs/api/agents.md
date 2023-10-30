@@ -699,6 +699,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
 
 ```json
 {
+  "api_version": "string",
   "apps": [
     {
       "command": "string",

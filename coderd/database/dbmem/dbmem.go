@@ -6308,6 +6308,7 @@ func (q *FakeQuerier) UpdateWorkspaceAgentStartupByID(_ context.Context, arg dat
 		}
 
 		agent.Version = arg.Version
+		agent.APIVersion = arg.APIVersion
 		agent.ExpandedDirectory = arg.ExpandedDirectory
 		agent.Subsystems = arg.Subsystems
 		q.workspaceAgents[index] = agent

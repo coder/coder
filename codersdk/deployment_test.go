@@ -218,7 +218,7 @@ func TestTimezoneOffsets(t *testing.T) {
 		//	Name:           "Eastern",
 		//	Loc:            must(time.LoadLocation("America/New_York")),
 		//	ExpectedOffset: -4,
-		//},
+		// },
 		//{
 		//	Name:           "Central",
 		//	Loc:            must(time.LoadLocation("America/Chicago")),

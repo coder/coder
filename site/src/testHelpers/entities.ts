@@ -585,6 +585,7 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   status: "connected",
   updated_at: "",
   version: MockBuildInfo.version,
+  api_version: "1.0",
   latency: {
     "Coder Embedded DERP": {
       latency_ms: 32.55,

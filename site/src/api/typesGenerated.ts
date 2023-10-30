@@ -1387,6 +1387,7 @@ export interface WorkspaceAgent {
   readonly directory?: string;
   readonly expanded_directory?: string;
   readonly version: string;
+  readonly api_version: string;
   readonly apps: WorkspaceApp[];
   readonly latency?: Record<string, DERPRegion>;
   readonly connection_timeout_seconds: number;

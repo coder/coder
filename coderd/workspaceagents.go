@@ -250,6 +250,8 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 	})
 }
 
+const AgentAPIVersionREST = "1.0"
+
 // @Summary Submit workspace agent startup
 // @ID submit-workspace-agent-startup
 // @Security CoderSessionToken
@@ -321,6 +323,7 @@ func (api *API) postWorkspaceAgentStartup(rw http.ResponseWriter, r *http.Reques
 		Version:           req.Version,
 		ExpandedDirectory: req.ExpandedDirectory,
 		Subsystems:        convertWorkspaceAgentSubsystems(req.Subsystems),
+		APIVersion:        AgentAPIVersionREST,
 	}); err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Error setting agent version",
@@ -1542,6 +1545,7 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 		LogsOverflowed:           dbAgent.LogsOverflowed,
 		LogSources:               logSources,
 		Version:                  dbAgent.Version,
+		APIVersion:               dbAgent.APIVersion,
 		EnvironmentVariables:     envs,
 		Directory:                dbAgent.Directory,
 		ExpandedDirectory:        dbAgent.ExpandedDirectory,
