@@ -18,7 +18,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/postgres"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 )
@@ -79,7 +79,7 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 		opt(&o)
 	}
 
-	db := dbfake.New()
+	db := dbmem.New()
 	ps := pubsub.NewInMemory()
 	if WillUsePostgres() {
 		connectionURL := os.Getenv("CODER_PG_CONNECTION_URL")

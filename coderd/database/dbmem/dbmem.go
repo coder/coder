@@ -1,4 +1,4 @@
-package dbfake
+package dbmem
 
 import (
 	"context"
@@ -705,7 +705,7 @@ func provisonerJobStatus(j database.ProvisionerJob) database.ProvisionerJobStatu
 	return database.ProvisionerJobStatusRunning
 }
 
-// isNull is only used in dbfake, so reflect is ok. Use this to make the logic
+// isNull is only used in dbmem, so reflect is ok. Use this to make the logic
 // look more similar to the postgres.
 func isNull(v interface{}) bool {
 	return !isNotNull(v)
@@ -4868,7 +4868,7 @@ func (q *FakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 		return database.User{}, err
 	}
 
-	// There is a common bug when using dbfake that 2 inserted users have the
+	// There is a common bug when using dbmem that 2 inserted users have the
 	// same created_at time. This causes user order to not be deterministic,
 	// which breaks some unit tests.
 	// To fix this, we make sure that the created_at time is always greater
