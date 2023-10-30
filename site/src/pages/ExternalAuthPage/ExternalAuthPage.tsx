@@ -10,6 +10,9 @@ import { useParams } from "react-router-dom";
 import ExternalAuthPageView from "./ExternalAuthPageView";
 import { ApiErrorResponse } from "api/errors";
 import { isAxiosError } from "axios";
+import { Box, Button } from "@mui/material";
+import { SignInLayout } from "components/SignInLayout/SignInLayout";
+import { Welcome } from "components/Welcome/Welcome";
 
 const ExternalAuthPage: FC = () => {
   const { provider } = useParams();
@@ -80,10 +83,24 @@ const ExternalAuthPage: FC = () => {
       // TODO: Unsure what to do about the device auth flow, should we also
       // show an error there?
       return (
-        <>
-          Failed to validate the user&apos;s oauth access token. Verify the
-          external auth validate url is configured correctly.
-        </>
+        <SignInLayout>
+          <Welcome message="Failed to validate oauth access token" />
+          <Box textAlign="center">
+            Attempted to validate the user&apos;s oauth access token from the
+            authentication flow. This situation may occur as a result of an
+            external authentication provider misconfiguration. Verify the
+            external authentication validation URL is accurately configured.
+          </Box>
+          <br />
+          <Button
+            onClick={() => {
+              // Redirect to the auth flow again. *crosses fingers*
+              window.location.href = `/external-auth/${provider}/callback`;
+            }}
+          >
+            Retry
+          </Button>
+        </SignInLayout>
       );
     }
     window.location.href = `/external-auth/${provider}/callback`;
