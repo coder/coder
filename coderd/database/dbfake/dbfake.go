@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 )
 
@@ -30,8 +31,29 @@ func CreateWorkspace(t testing.TB, db database.Store, seed database.Workspace) d
 			CreatedBy:      seed.OwnerID,
 		})
 		seed.TemplateID = template.ID
+		seed.OwnerID = template.CreatedBy
+		seed.OrganizationID = template.OrganizationID
 	}
 	return dbgen.Workspace(t, db, seed)
+}
+
+// CreateWorkspaceWithAgent is a helper that generates a workspace with a single resource
+// that has an agent attached to it. The agent token is returned.
+func CreateWorkspaceWithAgent(t testing.TB, db database.Store, seed database.Workspace) (database.Workspace, string) {
+	t.Helper()
+	authToken := uuid.NewString()
+	ws := CreateWorkspace(t, db, seed)
+	CreateWorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+		Name: "example",
+		Type: "aws_instance",
+		Agents: []*proto.Agent{{
+			Id: uuid.NewString(),
+			Auth: &proto.Agent_Token{
+				Token: authToken,
+			},
+		}},
+	})
+	return ws, authToken
 }
 
 // CreateWorkspaceBuild inserts a build and a successful job into the database.
@@ -43,9 +65,28 @@ func CreateWorkspaceBuild(t testing.TB, db database.Store, ws database.Workspace
 	// This intentionally fulfills the minimum requirements of the schema.
 	// Tests can provide a custom version ID if necessary.
 	if seed.TemplateVersionID == uuid.Nil {
+		jobID := uuid.New()
 		templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			JobID:          jobID,
 			OrganizationID: ws.OrganizationID,
 			CreatedBy:      ws.OwnerID,
+			TemplateID: uuid.NullUUID{
+				UUID:  ws.TemplateID,
+				Valid: true,
+			},
+		})
+		payload, _ := json.Marshal(provisionerdserver.TemplateVersionImportJob{
+			TemplateVersionID: templateVersion.ID,
+		})
+		dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			ID:             jobID,
+			OrganizationID: ws.OrganizationID,
+			Input:          payload,
+			Type:           database.ProvisionerJobTypeTemplateVersionImport,
+			CompletedAt: sql.NullTime{
+				Time:  dbtime.Now(),
+				Valid: true,
+			},
 		})
 		seed.TemplateVersionID = templateVersion.ID
 	}
