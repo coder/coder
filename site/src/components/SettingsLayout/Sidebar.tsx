@@ -1,28 +1,73 @@
-import { makeStyles } from "@mui/styles";
+import { css } from "@emotion/css";
+import {
+  type CSSObject,
+  type Interpolation,
+  type Theme,
+  useTheme,
+} from "@emotion/react";
 import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined";
 import FingerprintOutlinedIcon from "@mui/icons-material/FingerprintOutlined";
-import { User } from "api/typesGenerated";
-import { Stack } from "components/Stack/Stack";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
-import { FC, ElementType, PropsWithChildren, ReactNode } from "react";
+import {
+  type FC,
+  type ComponentType,
+  type PropsWithChildren,
+  type ReactNode,
+} from "react";
 import { NavLink } from "react-router-dom";
-import { combineClasses } from "utils/combineClasses";
 import AccountIcon from "@mui/icons-material/Person";
 import ScheduleIcon from "@mui/icons-material/EditCalendarOutlined";
 import SecurityIcon from "@mui/icons-material/LockOutlined";
+import type { User } from "api/typesGenerated";
+import { Stack } from "components/Stack/Stack";
+import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
+import { combineClasses } from "utils/combineClasses";
 
 const SidebarNavItem: FC<
   PropsWithChildren<{ href: string; icon: ReactNode }>
 > = ({ children, href, icon }) => {
-  const styles = useStyles();
+  const theme = useTheme();
+
+  const sidebarNavItemStyles = css`
+    color: inherit;
+    display: block;
+    font-size: 14px;
+    text-decoration: none;
+    padding: ${theme.spacing(1.5, 1.5, 1.5, 2)};
+    border-radius: ${theme.shape.borderRadius / 2}px;
+    transition: background-color 0.15s ease-in-out;
+    margin-bottom: 1px;
+    position: relative;
+
+    &:hover {
+      background-color: theme.palette.action.hover;
+    }
+  `;
+
+  const sidebarNavItemActiveStyles = css`
+    background-color: ${theme.palette.action.hover};
+
+    &:before {
+      content: "";
+      display: block;
+      width: 3px;
+      height: 100%;
+      position: absolute;
+      left: 0;
+      top: 0;
+      background-color: ${theme.palette.secondary.dark};
+      border-top-left-radius: ${theme.shape.borderRadius};
+      border-bottom-left-radius: ${theme.shape.borderRadius};
+    }
+  `;
+
   return (
     <NavLink
       to={href}
       className={({ isActive }) =>
         combineClasses([
-          styles.sidebarNavItem,
-          isActive ? styles.sidebarNavItemActive : undefined,
+          sidebarNavItemStyles,
+          isActive ? sidebarNavItemActiveStyles : undefined,
         ])
       }
     >
@@ -34,26 +79,31 @@ const SidebarNavItem: FC<
   );
 };
 
-const SidebarNavItemIcon: React.FC<{ icon: ElementType }> = ({
-  icon: Icon,
-}) => {
-  const styles = useStyles();
-  return <Icon className={styles.sidebarNavItemIcon} />;
+const SidebarNavItemIcon: React.FC<{
+  icon: ComponentType<{ className?: string }>;
+}> = ({ icon: Icon }) => {
+  return (
+    <Icon
+      css={(theme) => ({
+        width: theme.spacing(2),
+        height: theme.spacing(2),
+      })}
+    />
+  );
 };
 
 export const Sidebar: React.FC<{ user: User }> = ({ user }) => {
-  const styles = useStyles();
   const { entitlements } = useDashboard();
   const allowAutostopRequirement =
     entitlements.features.template_autostop_requirement.enabled;
 
   return (
-    <nav className={styles.sidebar}>
-      <Stack direction="row" alignItems="center" className={styles.userInfo}>
+    <nav css={styles.sidebar}>
+      <Stack direction="row" alignItems="center" css={styles.userInfo}>
         <UserAvatar username={user.username} avatarURL={user.avatar_url} />
-        <Stack spacing={0} className={styles.userData}>
-          <span className={styles.username}>{user.username}</span>
-          <span className={styles.email}>{user.email}</span>
+        <Stack spacing={0} css={styles.userData}>
+          <span css={styles.username}>{user.username}</span>
+          <span css={styles.email}>{user.email}</span>
         </Stack>
       </Stack>
 
@@ -93,50 +143,15 @@ export const Sidebar: React.FC<{ user: User }> = ({ user }) => {
   );
 };
 
-const useStyles = makeStyles((theme) => ({
+const styles = {
   sidebar: {
     width: 245,
     flexShrink: 0,
   },
-  sidebarNavItem: {
-    color: "inherit",
-    display: "block",
-    fontSize: 14,
-    textDecoration: "none",
-    padding: theme.spacing(1.5, 1.5, 1.5, 2),
-    borderRadius: theme.shape.borderRadius / 2,
-    transition: "background-color 0.15s ease-in-out",
-    marginBottom: 1,
-    position: "relative",
-
-    "&:hover": {
-      backgroundColor: theme.palette.action.hover,
-    },
-  },
-  sidebarNavItemActive: {
-    backgroundColor: theme.palette.action.hover,
-
-    "&:before": {
-      content: '""',
-      display: "block",
-      width: 3,
-      height: "100%",
-      position: "absolute",
-      left: 0,
-      top: 0,
-      backgroundColor: theme.palette.secondary.dark,
-      borderTopLeftRadius: theme.shape.borderRadius,
-      borderBottomLeftRadius: theme.shape.borderRadius,
-    },
-  },
-  sidebarNavItemIcon: {
-    width: theme.spacing(2),
-    height: theme.spacing(2),
-  },
-  userInfo: {
-    ...theme.typography.body2,
+  userInfo: (theme) => ({
+    ...(theme.typography.body2 as CSSObject),
     marginBottom: theme.spacing(2),
-  },
+  }),
   userData: {
     overflow: "hidden",
   },
@@ -146,10 +161,10 @@ const useStyles = makeStyles((theme) => ({
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
   },
-  email: {
+  email: (theme) => ({
     color: theme.palette.text.secondary,
     fontSize: 12,
     overflow: "hidden",
     textOverflow: "ellipsis",
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;
