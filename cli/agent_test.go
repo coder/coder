@@ -16,6 +16,8 @@ import (
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfakedata"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -68,33 +70,23 @@ func TestWorkspaceAgent(t *testing.T) {
 		t.Parallel()
 		instanceID := "instanceidentifier"
 		certificates, metadataClient := coderdtest.NewAzureInstanceIdentity(t, instanceID)
-		client := coderdtest.New(t, &coderdtest.Options{
-			AzureCertificates:        certificates,
-			IncludeProvisionerDaemon: true,
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			AzureCertificates: certificates,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Response{{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
-						Resources: []*proto.Resource{{
-							Name: "somename",
-							Type: "someinstance",
-							Agents: []*proto.Agent{{
-								Auth: &proto.Agent_InstanceId{
-									InstanceId: instanceID,
-								},
-							}},
-						}},
-					},
+		ws := dbfakedata.CreateWorkspace(t, db, database.Workspace{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		})
+		dbfakedata.CreateWorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+			Name: "somename",
+			Type: "someinstance",
+			Agents: []*proto.Agent{{
+				Auth: &proto.Agent_InstanceId{
+					InstanceId: instanceID,
 				},
 			}},
 		})
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		inv, _ := clitest.New(t, "agent", "--auth", "azure-instance-identity", "--agent-url", client.URL.String())
 		inv = inv.WithContext(
@@ -103,8 +95,8 @@ func TestWorkspaceAgent(t *testing.T) {
 		)
 		ctx := inv.Context()
 		clitest.Start(t, inv)
-		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-		workspace, err := client.Workspace(ctx, workspace.ID)
+		coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
+		workspace, err := client.Workspace(ctx, ws.ID)
 		require.NoError(t, err)
 		resources := workspace.LatestBuild.Resources
 		if assert.NotEmpty(t, workspace.LatestBuild.Resources) && assert.NotEmpty(t, resources[0].Agents) {
@@ -120,33 +112,23 @@ func TestWorkspaceAgent(t *testing.T) {
 		t.Parallel()
 		instanceID := "instanceidentifier"
 		certificates, metadataClient := coderdtest.NewAWSInstanceIdentity(t, instanceID)
-		client := coderdtest.New(t, &coderdtest.Options{
-			AWSCertificates:          certificates,
-			IncludeProvisionerDaemon: true,
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			AWSCertificates: certificates,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Response{{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
-						Resources: []*proto.Resource{{
-							Name: "somename",
-							Type: "someinstance",
-							Agents: []*proto.Agent{{
-								Auth: &proto.Agent_InstanceId{
-									InstanceId: instanceID,
-								},
-							}},
-						}},
-					},
+		ws := dbfakedata.CreateWorkspace(t, db, database.Workspace{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		})
+		dbfakedata.CreateWorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+			Name: "somename",
+			Type: "someinstance",
+			Agents: []*proto.Agent{{
+				Auth: &proto.Agent_InstanceId{
+					InstanceId: instanceID,
 				},
 			}},
 		})
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		inv, _ := clitest.New(t, "agent", "--auth", "aws-instance-identity", "--agent-url", client.URL.String())
 		inv = inv.WithContext(
@@ -155,8 +137,8 @@ func TestWorkspaceAgent(t *testing.T) {
 		)
 		clitest.Start(t, inv)
 		ctx := inv.Context()
-		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-		workspace, err := client.Workspace(ctx, workspace.ID)
+		coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
+		workspace, err := client.Workspace(ctx, ws.ID)
 		require.NoError(t, err)
 		resources := workspace.LatestBuild.Resources
 		if assert.NotEmpty(t, resources) && assert.NotEmpty(t, resources[0].Agents) {

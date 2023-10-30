@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfakedata"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -36,44 +37,27 @@ func TestWorkspaceAgent(t *testing.T) {
 	t.Parallel()
 	t.Run("Connect", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{
-			IncludeProvisionerDaemon: true,
-		})
+		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		authToken := uuid.NewString()
 		tmpDir := t.TempDir()
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.PlanComplete,
-			ProvisionApply: []*proto.Response{{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
-						Resources: []*proto.Resource{{
-							Name: "example",
-							Type: "aws_instance",
-							Agents: []*proto.Agent{{
-								Id:        uuid.NewString(),
-								Directory: tmpDir,
-								Auth: &proto.Agent_Token{
-									Token: authToken,
-								},
-							}},
-						}},
-					},
-				},
-			}},
-		})
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-
-		anotherClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-		workspace := coderdtest.CreateWorkspace(t, anotherClient, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, anotherClient, workspace.LatestBuild.ID)
+		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		workspace, err := anotherClient.Workspace(ctx, workspace.ID)
+		ws := dbfakedata.CreateWorkspace(t, db, database.Workspace{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        anotherUser.ID,
+		})
+		dbfakedata.CreateWorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+			Name: "aws_instance",
+			Agents: []*proto.Agent{{
+				Id:        uuid.NewString(),
+				Name:      "hey",
+				Directory: tmpDir,
+			}},
+		})
+		workspace, err := anotherClient.Workspace(ctx, ws.ID)
 		require.NoError(t, err)
 		require.Equal(t, tmpDir, workspace.LatestBuild.Resources[0].Agents[0].Directory)
 		_, err = anotherClient.WorkspaceAgent(ctx, workspace.LatestBuild.Resources[0].Agents[0].ID)
