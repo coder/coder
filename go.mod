@@ -113,7 +113,7 @@ require (
 	github.com/go-chi/httprate v0.7.4
 	github.com/go-chi/render v1.0.1
 	github.com/go-jose/go-jose/v3 v3.0.0
-	github.com/go-logr/logr v1.2.4
+	github.com/go-logr/logr v1.3.0
 	github.com/go-ping/ping v1.1.0
 	github.com/go-playground/validator/v10 v10.15.1
 	github.com/gofrs/flock v0.8.1
