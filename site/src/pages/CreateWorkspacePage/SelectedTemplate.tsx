@@ -2,8 +2,7 @@ import { type FC } from "react";
 import type { Template, TemplateExample } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Stack } from "components/Stack/Stack";
-import { Interpolation } from "@emotion/react";
-import { Theme } from "@emotion/react";
+import { type Interpolation, type Theme } from "@emotion/react";
 
 export interface SelectedTemplateProps {
   template: Template | TemplateExample;
