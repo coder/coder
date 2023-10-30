@@ -23,7 +23,7 @@ import (
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbfakedata"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -45,11 +45,11 @@ func TestWorkspaceAgent(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		ws := dbfakedata.CreateWorkspace(t, db, database.Workspace{
+		ws := dbfake.CreateWorkspace(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        anotherUser.ID,
 		})
-		dbfakedata.CreateWorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+		dbfake.CreateWorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
 			Name: "aws_instance",
 			Agents: []*proto.Agent{{
 				Id:        uuid.NewString(),

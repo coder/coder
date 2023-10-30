@@ -17,7 +17,7 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbfakedata"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -74,11 +74,11 @@ func TestWorkspaceAgent(t *testing.T) {
 			AzureCertificates: certificates,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
-		ws := dbfakedata.CreateWorkspace(t, db, database.Workspace{
+		ws := dbfake.CreateWorkspace(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		})
-		dbfakedata.CreateWorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+		dbfake.CreateWorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
 			Name: "somename",
 			Type: "someinstance",
 			Agents: []*proto.Agent{{
@@ -116,11 +116,11 @@ func TestWorkspaceAgent(t *testing.T) {
 			AWSCertificates: certificates,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
-		ws := dbfakedata.CreateWorkspace(t, db, database.Workspace{
+		ws := dbfake.CreateWorkspace(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		})
-		dbfakedata.CreateWorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+		dbfake.CreateWorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
 			Name: "somename",
 			Type: "someinstance",
 			Agents: []*proto.Agent{{
