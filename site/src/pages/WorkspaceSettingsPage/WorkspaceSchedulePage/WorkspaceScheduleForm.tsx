@@ -340,11 +340,23 @@ export const WorkspaceScheduleForm: FC<
           </Stack>
 
           <FormControl component="fieldset" error={Boolean(form.errors.monday)}>
-            <FormLabel className={styles.daysOfWeekLabel} component="legend">
+            <FormLabel
+              css={{
+                fontSize: 12,
+              }}
+              component="legend"
+            >
               {Language.daysOfWeekLabel}
             </FormLabel>
 
-            <FormGroup className={styles.daysOfWeekOptions}>
+            <FormGroup
+              css={(theme) => ({
+                display: "flex",
+                flexDirection: "row",
+                flexWrap: "wrap",
+                paddingTop: theme.spacing(0.5),
+              })}
+            >
               {checkboxes.map((checkbox) => (
                 <FormControlLabel
                   control={
@@ -422,15 +434,3 @@ export const ttlShutdownAt = (formTTL: number): string => {
       .humanize()} ${Language.ttlCausesShutdownAfterStart}.`;
   }
 };
-
-const useStyles = makeStyles((theme) => ({
-  daysOfWeekLabel: {
-    fontSize: 12,
-  },
-  daysOfWeekOptions: {
-    display: "flex",
-    flexDirection: "row",
-    flexWrap: "wrap",
-    paddingTop: theme.spacing(0.5),
-  },
-}));
