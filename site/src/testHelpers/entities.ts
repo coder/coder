@@ -5,7 +5,6 @@ import {
   type Health,
 } from "api/api";
 import { FieldError } from "api/errors";
-import { everyOneGroup } from "utils/groups";
 import * as TypesGen from "api/typesGenerated";
 import range from "lodash/range";
 import { Permissions } from "components/AuthProvider/permissions";
@@ -960,6 +959,7 @@ export const MockWorkspace: TypesGen.Workspace = {
   template_allow_user_cancel_workspace_jobs:
     MockTemplate.allow_user_cancel_workspace_jobs,
   template_active_version_id: MockTemplate.active_version_id,
+  template_require_active_version: MockTemplate.require_active_version,
   outdated: false,
   owner_id: MockUser.id,
   organization_id: MockOrganization.id,
@@ -1052,6 +1052,27 @@ export const MockOutdatedWorkspace: TypesGen.Workspace = {
   id: "test-outdated-workspace",
   outdated: true,
 };
+
+export const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspace =
+  {
+    ...MockWorkspace,
+    id: "test-outdated-workspace-require-active-version",
+    outdated: true,
+    template_require_active_version: true,
+    latest_build: {
+      ...MockWorkspaceBuild,
+      status: "running",
+    },
+  };
+
+export const MockOutdatedStoppedWorkspaceRequireActiveVersion: TypesGen.Workspace =
+  {
+    ...MockOutdatedRunningWorkspaceRequireActiveVersion,
+    latest_build: {
+      ...MockWorkspaceBuild,
+      status: "stopped",
+    },
+  };
 
 export const MockPendingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
@@ -2122,6 +2143,17 @@ export const MockGroup: TypesGen.Group = {
   quota_allowance: 5,
   source: "user",
 };
+
+const everyOneGroup = (organizationId: string): TypesGen.Group => ({
+  id: organizationId,
+  name: "Everyone",
+  display_name: "",
+  organization_id: organizationId,
+  members: [],
+  avatar_url: "",
+  quota_allowance: 0,
+  source: "user",
+});
 
 export const MockTemplateACL: TypesGen.TemplateACL = {
   group: [

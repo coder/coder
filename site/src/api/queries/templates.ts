@@ -6,6 +6,7 @@ import {
   type TemplateVersion,
   CreateTemplateRequest,
   ProvisionerJob,
+  UsersRequest,
   TemplateRole,
 } from "api/typesGenerated";
 import {
@@ -153,6 +154,16 @@ export const updateActiveTemplateVersion = (
         templateByNameKey(template.organization_id, template.name),
       );
     },
+  };
+};
+
+export const templaceACLAvailable = (
+  templateId: string,
+  options: UsersRequest,
+) => {
+  return {
+    queryKey: ["template", templateId, "aclAvailable", options],
+    queryFn: () => API.getTemplateACLAvailable(templateId, options),
   };
 };
 

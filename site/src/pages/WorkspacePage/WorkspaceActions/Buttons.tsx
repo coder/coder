@@ -4,13 +4,13 @@ import CloudQueueIcon from "@mui/icons-material/CloudQueue";
 import CropSquareIcon from "@mui/icons-material/CropSquare";
 import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutline";
 import ReplayIcon from "@mui/icons-material/Replay";
-import { LoadingButton } from "components/LoadingButton/LoadingButton";
 import { FC } from "react";
 import BlockOutlined from "@mui/icons-material/BlockOutlined";
 import ButtonGroup from "@mui/material/ButtonGroup";
 import { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { BuildParametersPopover } from "./BuildParametersPopover";
 import PowerSettingsNewIcon from "@mui/icons-material/PowerSettingsNew";
+import LoadingButton from "@mui/lab/LoadingButton";
 
 interface WorkspaceAction {
   loading?: boolean;
@@ -24,13 +24,12 @@ export const UpdateButton: FC<WorkspaceAction> = ({
   return (
     <LoadingButton
       loading={loading}
-      loadingIndicator={<>Updating&hellip;</>}
       loadingPosition="start"
       data-testid="workspace-update-button"
       startIcon={<CloudQueueIcon />}
       onClick={handleAction}
     >
-      Update&hellip;
+      {loading ? <>Updating&hellip;</> : <>Update&hellip;</>}
     </LoadingButton>
   );
 };
@@ -42,12 +41,11 @@ export const ActivateButton: FC<WorkspaceAction> = ({
   return (
     <LoadingButton
       loading={loading}
-      loadingIndicator={<>Activating&hellip;</>}
       loadingPosition="start"
       startIcon={<PowerSettingsNewIcon />}
       onClick={handleAction}
     >
-      Activate
+      {loading ? <>Activating&hellip;</> : "Activate"}
     </LoadingButton>
   );
 };
@@ -70,12 +68,11 @@ export const StartButton: FC<
     >
       <LoadingButton
         loading={loading}
-        loadingIndicator={<>Starting&hellip;</>}
         loadingPosition="start"
         startIcon={<PlayCircleOutlineIcon />}
         onClick={() => handleAction()}
       >
-        Start
+        {loading ? <>Starting&hellip;</> : "Start"}
       </LoadingButton>
       <BuildParametersPopover
         workspace={workspace}
@@ -90,13 +87,12 @@ export const StopButton: FC<WorkspaceAction> = ({ handleAction, loading }) => {
   return (
     <LoadingButton
       loading={loading}
-      loadingIndicator={<>Stopping&hellip;</>}
       loadingPosition="start"
       startIcon={<CropSquareIcon />}
       onClick={handleAction}
       data-testid="workspace-stop-button"
     >
-      Stop
+      {loading ? <>Stopping&hellip;</> : "Stop"}
     </LoadingButton>
   );
 };
@@ -119,13 +115,12 @@ export const RestartButton: FC<
     >
       <LoadingButton
         loading={loading}
-        loadingIndicator={<>Restarting&hellip;</>}
         loadingPosition="start"
         startIcon={<ReplayIcon />}
         onClick={() => handleAction()}
         data-testid="workspace-restart-button"
       >
-        Restart&hellip;
+        {loading ? <>Restarting&hellip;</> : <>Restart&hellip;</>}
       </LoadingButton>
       <BuildParametersPopover
         workspace={workspace}
@@ -162,12 +157,8 @@ interface LoadingProps {
 
 export const ActionLoadingButton: FC<LoadingProps> = ({ label }) => {
   return (
-    <LoadingButton
-      loading
-      loadingPosition="start"
-      loadingIndicator={label}
-      // This icon can be anything
-      startIcon={<ReplayIcon />}
-    />
+    <LoadingButton loading loadingPosition="start" startIcon={<ReplayIcon />}>
+      {label}
+    </LoadingButton>
   );
 };

@@ -3,7 +3,6 @@ import { FormikContextType, useFormik } from "formik";
 import { FC, useEffect, useState } from "react";
 import * as Yup from "yup";
 import { getFormHelpers } from "utils/formUtils";
-import { LoadingButton } from "components/LoadingButton/LoadingButton";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Form, FormFields } from "components/Form/Form";
 import {
@@ -15,6 +14,7 @@ import { Stack } from "components/Stack/Stack";
 import { timeZones, getPreferredTimezone } from "utils/timeZones";
 import { Alert } from "components/Alert/Alert";
 import { timeToCron, quietHoursDisplay, validTime } from "utils/schedule";
+import LoadingButton from "@mui/lab/LoadingButton";
 
 export interface ScheduleFormValues {
   time: string;
@@ -130,7 +130,7 @@ export const ScheduleForm: FC<React.PropsWithChildren<ScheduleFormProps>> = ({
             type="submit"
             variant="contained"
           >
-            {!isLoading && "Update schedule"}
+            Update schedule
           </LoadingButton>
         </div>
       </FormFields>

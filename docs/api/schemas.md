@@ -2845,6 +2845,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Value                           |
 | ------------------------------- |
 | `moons`                         |
+| `workspace_actions`             |
 | `tailnet_pg_coordinator`        |
 | `single_tailnet`                |
 | `template_autostop_requirement` |
@@ -5766,6 +5767,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "template_icon": "string",
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_name": "string",
+  "template_require_active_version": true,
   "ttl_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -5795,6 +5797,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `template_icon`                             | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
 | `template_id`                               | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
 | `template_name`                             | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
+| `template_require_active_version`           | boolean                                                | false    |              |                                                                                                                                                                                                                                                       |
 | `ttl_ms`                                    | integer                                                | false    |              |                                                                                                                                                                                                                                                       |
 | `updated_at`                                | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
 
@@ -7014,6 +7017,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "template_icon": "string",
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
+      "template_require_active_version": true,
       "ttl_ms": 0,
       "updated_at": "2019-08-24T14:15:22Z"
     }

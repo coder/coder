@@ -27,6 +27,14 @@ import (
 var (
 	// ErrTimeout is returned when a script times out.
 	ErrTimeout = xerrors.New("script timed out")
+	// ErrOutputPipesOpen is returned when a script exits leaving the output
+	// pipe(s) (stdout, stderr) open. This happens because we set WaitDelay on
+	// the command, which gives us two things:
+	//
+	// 1. The ability to ensure that a script exits (this is important for e.g.
+	//    blocking login, and avoiding doing so indefinitely)
+	// 2. Improved command cancellation on timeout
+	ErrOutputPipesOpen = xerrors.New("script exited without closing output pipes")
 
 	parser = cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.DowOptional)
 )
@@ -97,7 +105,15 @@ func (r *Runner) Init(scripts []codersdk.WorkspaceAgentScript) error {
 // StartCron starts the cron scheduler.
 // This is done async to allow for the caller to execute scripts prior.
 func (r *Runner) StartCron() {
-	r.cron.Start()
+	// cron.Start() and cron.Stop() does not guarantee that the cron goroutine
+	// has exited by the time the `cron.Stop()` context returns, so we need to
+	// track it manually.
+	err := r.trackCommandGoroutine(func() {
+		r.cron.Run()
+	})
+	if err != nil {
+		r.Logger.Warn(context.Background(), "start cron failed", slog.Error(err))
+	}
 }
 
 // Execute runs a set of scripts according to a filter.
@@ -240,7 +256,22 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript) 
 		err = cmdCtx.Err()
 	case err = <-cmdDone:
 	}
-	if errors.Is(err, context.DeadlineExceeded) {
+	switch {
+	case errors.Is(err, exec.ErrWaitDelay):
+		err = ErrOutputPipesOpen
+		message := fmt.Sprintf("script exited successfully, but output pipes were not closed after %s", cmd.WaitDelay)
+		details := fmt.Sprint(
+			"This usually means a child process was started with references to stdout or stderr. As a result, this " +
+				"process may now have been terminated. Consider redirecting the output or using a separate " +
+				"\"coder_script\" for the process, see " +
+				"https://coder.com/docs/v2/latest/templates/troubleshooting#startup-script-issues for more information.",
+		)
+		// Inform the user by propagating the message via log writers.
+		_, _ = fmt.Fprintf(cmd.Stderr, "WARNING: %s. %s\n", message, details)
+		// Also log to agent logs for ease of debugging.
+		r.Logger.Warn(ctx, message, slog.F("details", details), slog.Error(err))
+
+	case errors.Is(err, context.DeadlineExceeded):
 		err = ErrTimeout
 	}
 	return err
@@ -254,7 +285,7 @@ func (r *Runner) Close() error {
 	}
 	close(r.closed)
 	r.cronCtxCancel()
-	r.cron.Stop()
+	<-r.cron.Stop().Done()
 	r.cmdCloseWait.Wait()
 	return nil
 }

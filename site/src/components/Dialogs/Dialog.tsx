@@ -1,12 +1,9 @@
 import MuiDialog, { DialogProps as MuiDialogProps } from "@mui/material/Dialog";
 import { type ReactNode } from "react";
 import { colors } from "theme/colors";
-import {
-  LoadingButton,
-  LoadingButtonProps,
-} from "../LoadingButton/LoadingButton";
 import { ConfirmDialogType } from "./types";
 import { type Interpolation, type Theme } from "@emotion/react";
+import LoadingButton, { LoadingButtonProps } from "@mui/lab/LoadingButton";
 
 export interface DialogActionButtonsProps {
   /** Text to display in the cancel button */

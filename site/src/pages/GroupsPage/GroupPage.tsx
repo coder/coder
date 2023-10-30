@@ -13,7 +13,6 @@ import { AvatarData } from "components/AvatarData/AvatarData";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Loader } from "components/Loader/Loader";
-import { LoadingButton } from "components/LoadingButton/LoadingButton";
 import { Margins } from "components/Margins/Margins";
 import {
   PageHeader,
@@ -44,6 +43,10 @@ import {
 } from "api/queries/groups";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { getErrorMessage } from "api/errors";
+import Box from "@mui/material/Box";
+import { LastSeen } from "components/LastSeen/LastSeen";
+import { type Interpolation, type Theme } from "@emotion/react";
+import LoadingButton from "@mui/lab/LoadingButton";
 
 export const GroupPage: FC = () => {
   const { groupId } = useParams() as { groupId: string };
@@ -150,7 +153,8 @@ export const GroupPage: FC = () => {
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell width="99%">User</TableCell>
+                  <TableCell width="59%">User</TableCell>
+                  <TableCell width="40">Status</TableCell>
                   <TableCell width="1%"></TableCell>
                 </TableRow>
               </TableHead>
@@ -235,6 +239,7 @@ const AddGroupMember: React.FC<{
         />
 
         <LoadingButton
+          loadingPosition="start"
           disabled={!selectedUser}
           type="submit"
           startIcon={<PersonAdd />}
@@ -258,7 +263,7 @@ const GroupMemberRow = (props: {
 
   return (
     <TableRow key={member.id}>
-      <TableCell width="99%">
+      <TableCell width="59%">
         <AvatarData
           avatar={
             <UserAvatar
@@ -269,6 +274,13 @@ const GroupMemberRow = (props: {
           title={member.username}
           subtitle={member.email}
         />
+      </TableCell>
+      <TableCell
+        width="40%"
+        css={[styles.status, member.status === "suspended" && styles.suspended]}
+      >
+        <Box>{member.status}</Box>
+        <LastSeen value={member.last_seen_at} sx={{ fontSize: 12 }} />
       </TableCell>
       <TableCell width="1%">
         {canUpdate && (
@@ -311,5 +323,14 @@ const useStyles = makeStyles((theme) => ({
     },
   },
 }));
+
+const styles = {
+  status: {
+    textTransform: "capitalize",
+  },
+  suspended: (theme) => ({
+    color: theme.palette.text.secondary,
+  }),
+} satisfies Record<string, Interpolation<Theme>>;
 
 export default GroupPage;

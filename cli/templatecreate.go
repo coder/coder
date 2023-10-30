@@ -50,6 +50,18 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 			isTemplateSchedulingOptionsSet := failureTTL != 0 || inactivityTTL != 0 || maxTTL != 0
 
 			if isTemplateSchedulingOptionsSet || requireActiveVersion {
+				if failureTTL != 0 || inactivityTTL != 0 {
+					// This call can be removed when workspace_actions is no longer experimental
+					experiments, exErr := client.Experiments(inv.Context())
+					if exErr != nil {
+						return xerrors.Errorf("get experiments: %w", exErr)
+					}
+
+					if !experiments.Enabled(codersdk.ExperimentWorkspaceActions) {
+						return xerrors.Errorf("--failure-ttl and --inactivity-ttl are experimental features. Use the workspace_actions CODER_EXPERIMENTS flag to set these configuration values.")
+					}
+				}
+
 				entitlements, err := client.Entitlements(inv.Context())
 				if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusNotFound {
 					return xerrors.Errorf("your deployment appears to be an AGPL deployment, so you cannot set enterprise-only flags")
@@ -59,7 +71,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 
 				if isTemplateSchedulingOptionsSet {
 					if !entitlements.Features[codersdk.FeatureAdvancedTemplateScheduling].Enabled {
-						return xerrors.Errorf("your license is not entitled to use advanced template scheduling, so you cannot set --failure-ttl or --inactivityTTL")
+						return xerrors.Errorf("your license is not entitled to use advanced template scheduling, so you cannot set --failure-ttl, --inactivity-ttl, or --max-ttl")
 					}
 				}
 
