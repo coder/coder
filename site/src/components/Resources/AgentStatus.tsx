@@ -1,6 +1,5 @@
+import { type Interpolation, type Theme } from "@emotion/react";
 import Tooltip from "@mui/material/Tooltip";
-import { makeStyles } from "@mui/styles";
-import { combineClasses } from "utils/combineClasses";
 import { WorkspaceAgent } from "api/typesGenerated";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import WarningRounded from "@mui/icons-material/WarningRounded";
@@ -19,27 +18,23 @@ import Link from "@mui/material/Link";
 // connected:shutdown_error, connected:off.
 
 const ReadyLifecycle = () => {
-  const styles = useStyles();
-
   return (
     <div
       role="status"
       data-testid="agent-status-ready"
       aria-label="Ready"
-      className={combineClasses([styles.status, styles.connected])}
+      css={[styles.status, styles.connected]}
     />
   );
 };
 
 const StartingLifecycle: React.FC = () => {
-  const styles = useStyles();
-
   return (
     <Tooltip title="Starting...">
       <div
         role="status"
         aria-label="Starting..."
-        className={combineClasses([styles.status, styles.connecting])}
+        css={[styles.status, styles.connecting]}
       />
     </Tooltip>
   );
@@ -48,7 +43,6 @@ const StartingLifecycle: React.FC = () => {
 const StartTimeoutLifecycle: React.FC<{
   agent: WorkspaceAgent;
 }> = ({ agent }) => {
-  const styles = useStyles();
   const anchorRef = useRef<SVGSVGElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const id = isOpen ? "timeout-popover" : undefined;
@@ -61,7 +55,7 @@ const StartTimeoutLifecycle: React.FC<{
         onMouseLeave={() => setIsOpen(false)}
         role="status"
         aria-label="Start timeout"
-        className={styles.timeoutWarning}
+        css={styles.timeoutWarning}
       />
       <HelpPopover
         id={id}
@@ -90,7 +84,6 @@ const StartTimeoutLifecycle: React.FC<{
 const StartErrorLifecycle: React.FC<{
   agent: WorkspaceAgent;
 }> = ({ agent }) => {
-  const styles = useStyles();
   const anchorRef = useRef<SVGSVGElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const id = isOpen ? "timeout-popover" : undefined;
@@ -103,7 +96,7 @@ const StartErrorLifecycle: React.FC<{
         onMouseLeave={() => setIsOpen(false)}
         role="status"
         aria-label="Start error"
-        className={styles.errorWarning}
+        css={styles.errorWarning}
       />
       <HelpPopover
         id={id}
@@ -130,14 +123,12 @@ const StartErrorLifecycle: React.FC<{
 };
 
 const ShuttingDownLifecycle: React.FC = () => {
-  const styles = useStyles();
-
   return (
     <Tooltip title="Stopping...">
       <div
         role="status"
         aria-label="Stopping..."
-        className={combineClasses([styles.status, styles.connecting])}
+        css={[styles.status, styles.connecting]}
       />
     </Tooltip>
   );
@@ -146,7 +137,6 @@ const ShuttingDownLifecycle: React.FC = () => {
 const ShutdownTimeoutLifecycle: React.FC<{
   agent: WorkspaceAgent;
 }> = ({ agent }) => {
-  const styles = useStyles();
   const anchorRef = useRef<SVGSVGElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const id = isOpen ? "timeout-popover" : undefined;
@@ -159,7 +149,7 @@ const ShutdownTimeoutLifecycle: React.FC<{
         onMouseLeave={() => setIsOpen(false)}
         role="status"
         aria-label="Stop timeout"
-        className={styles.timeoutWarning}
+        css={styles.timeoutWarning}
       />
       <HelpPopover
         id={id}
@@ -188,7 +178,6 @@ const ShutdownTimeoutLifecycle: React.FC<{
 const ShutdownErrorLifecycle: React.FC<{
   agent: WorkspaceAgent;
 }> = ({ agent }) => {
-  const styles = useStyles();
   const anchorRef = useRef<SVGSVGElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const id = isOpen ? "timeout-popover" : undefined;
@@ -201,7 +190,7 @@ const ShutdownErrorLifecycle: React.FC<{
         onMouseLeave={() => setIsOpen(false)}
         role="status"
         aria-label="Stop error"
-        className={styles.errorWarning}
+        css={styles.errorWarning}
       />
       <HelpPopover
         id={id}
@@ -228,14 +217,12 @@ const ShutdownErrorLifecycle: React.FC<{
 };
 
 const OffLifecycle: React.FC = () => {
-  const styles = useStyles();
-
   return (
     <Tooltip title="Stopped">
       <div
         role="status"
         aria-label="Stopped"
-        className={combineClasses([styles.status, styles.disconnected])}
+        css={[styles.status, styles.disconnected]}
       />
     </Tooltip>
   );
@@ -280,28 +267,24 @@ const ConnectedStatus: React.FC<{
 };
 
 const DisconnectedStatus: React.FC = () => {
-  const styles = useStyles();
-
   return (
     <Tooltip title="Disconnected">
       <div
         role="status"
         aria-label="Disconnected"
-        className={combineClasses([styles.status, styles.disconnected])}
+        css={[styles.status, styles.disconnected]}
       />
     </Tooltip>
   );
 };
 
 const ConnectingStatus: React.FC = () => {
-  const styles = useStyles();
-
   return (
     <Tooltip title="Connecting...">
       <div
         role="status"
         aria-label="Connecting..."
-        className={combineClasses([styles.status, styles.connecting])}
+        css={[styles.status, styles.connecting]}
       />
     </Tooltip>
   );
@@ -310,7 +293,6 @@ const ConnectingStatus: React.FC = () => {
 const TimeoutStatus: React.FC<{
   agent: WorkspaceAgent;
 }> = ({ agent }) => {
-  const styles = useStyles();
   const anchorRef = useRef<SVGSVGElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const id = isOpen ? "timeout-popover" : undefined;
@@ -323,7 +305,7 @@ const TimeoutStatus: React.FC<{
         onMouseLeave={() => setIsOpen(false)}
         role="status"
         aria-label="Timeout"
-        className={styles.timeoutWarning}
+        css={styles.timeoutWarning}
       />
       <HelpPopover
         id={id}
@@ -370,22 +352,22 @@ export const AgentStatus: React.FC<{
   );
 };
 
-const useStyles = makeStyles((theme) => ({
-  status: {
+const styles = {
+  status: (theme) => ({
     width: theme.spacing(1),
     height: theme.spacing(1),
     borderRadius: "100%",
     flexShrink: 0,
-  },
+  }),
 
-  connected: {
+  connected: (theme) => ({
     backgroundColor: theme.palette.success.light,
     boxShadow: `0 0 12px 0 ${theme.palette.success.light}`,
-  },
+  }),
 
-  disconnected: {
+  disconnected: (theme) => ({
     backgroundColor: theme.palette.text.secondary,
-  },
+  }),
 
   "@keyframes pulse": {
     "0%": {
@@ -399,22 +381,22 @@ const useStyles = makeStyles((theme) => ({
     },
   },
 
-  connecting: {
+  connecting: (theme) => ({
     backgroundColor: theme.palette.info.light,
     animation: "$pulse 1.5s 0.5s ease-in-out forwards infinite",
-  },
+  }),
 
-  timeoutWarning: {
+  timeoutWarning: (theme) => ({
     color: theme.palette.warning.light,
     width: theme.spacing(2),
     height: theme.spacing(2),
     position: "relative",
-  },
+  }),
 
-  errorWarning: {
+  errorWarning: (theme) => ({
     color: theme.palette.error.main,
     width: theme.spacing(2),
     height: theme.spacing(2),
     position: "relative",
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;
