@@ -19,7 +19,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/pty/ptytest"
 )
@@ -30,20 +29,12 @@ func TestWorkspaceAgent(t *testing.T) {
 	t.Run("LogDirectory", func(t *testing.T) {
 		t.Parallel()
 
-		authToken := uuid.NewString()
-		client := coderdtest.New(t, &coderdtest.Options{
-			IncludeProvisionerDaemon: true,
-		})
+		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:          echo.ParseComplete,
-			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+		ws, authToken := dbfake.CreateWorkspaceWithAgent(t, db, database.Workspace{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
 		})
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-
 		logDir := t.TempDir()
 		inv, _ := clitest.New(t,
 			"agent",
@@ -59,7 +50,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		ctx := inv.Context()
 		pty.ExpectMatchContext(ctx, "agent is starting now")
 
-		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+		coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
 
 		info, err := os.Stat(filepath.Join(logDir, "coder-agent.log"))
 		require.NoError(t, err)
@@ -154,35 +145,24 @@ func TestWorkspaceAgent(t *testing.T) {
 		t.Parallel()
 		instanceID := "instanceidentifier"
 		validator, metadataClient := coderdtest.NewGoogleInstanceIdentity(t, instanceID, false)
-		client := coderdtest.New(t, &coderdtest.Options{
-			GoogleTokenValidator:     validator,
-			IncludeProvisionerDaemon: true,
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			GoogleTokenValidator: validator,
 		})
 		owner := coderdtest.CreateFirstUser(t, client)
-		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
-			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Response{{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
-						Resources: []*proto.Resource{{
-							Name: "somename",
-							Type: "someinstance",
-							Agents: []*proto.Agent{{
-								Auth: &proto.Agent_InstanceId{
-									InstanceId: instanceID,
-								},
-							}},
-						}},
-					},
+		member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		ws := dbfake.CreateWorkspace(t, db, database.Workspace{
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        memberUser.ID,
+		})
+		dbfake.CreateWorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+			Name: "somename",
+			Type: "someinstance",
+			Agents: []*proto.Agent{{
+				Auth: &proto.Agent_InstanceId{
+					InstanceId: instanceID,
 				},
 			}},
 		})
-		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, member, owner.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-
 		inv, cfg := clitest.New(t, "agent", "--auth", "google-instance-identity", "--agent-url", client.URL.String())
 		ptytest.New(t).Attach(inv)
 		clitest.SetupConfig(t, member, cfg)
@@ -194,9 +174,8 @@ func TestWorkspaceAgent(t *testing.T) {
 		)
 
 		ctx := inv.Context()
-
-		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-		workspace, err := client.Workspace(ctx, workspace.ID)
+		coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
+		workspace, err := client.Workspace(ctx, ws.ID)
 		require.NoError(t, err)
 		resources := workspace.LatestBuild.Resources
 		if assert.NotEmpty(t, resources) && assert.NotEmpty(t, resources[0].Agents) {
@@ -226,19 +205,12 @@ func TestWorkspaceAgent(t *testing.T) {
 	t.Run("PostStartup", func(t *testing.T) {
 		t.Parallel()
 
-		authToken := uuid.NewString()
-		client := coderdtest.New(t, &coderdtest.Options{
-			IncludeProvisionerDaemon: true,
-		})
+		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:          echo.ParseComplete,
-			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+		ws, authToken := dbfake.CreateWorkspaceWithAgent(t, db, database.Workspace{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
 		})
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		logDir := t.TempDir()
 		inv, _ := clitest.New(t,
@@ -256,7 +228,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		clitest.Start(t, inv)
 		pty.ExpectMatchContext(inv.Context(), "agent is starting now")
 
-		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+		resources := coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
 		require.Len(t, resources, 1)
 		require.Len(t, resources[0].Agents, 1)
 		require.Len(t, resources[0].Agents[0].Subsystems, 2)
