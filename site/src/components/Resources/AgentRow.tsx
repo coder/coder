@@ -319,7 +319,7 @@ export const AgentRow: FC<AgentRowProps> = ({
                           alt=""
                           width={16}
                           height={16}
-                          style={{
+                          css={{
                             marginRight: 8,
                           }}
                         />
@@ -327,7 +327,7 @@ export const AgentRow: FC<AgentRowProps> = ({
                     } else {
                       icon = (
                         <div
-                          style={{
+                          css={{
                             width: 16,
                             height: 16,
                             marginRight: 8,
@@ -359,7 +359,7 @@ export const AgentRow: FC<AgentRowProps> = ({
                     ) {
                       icon = (
                         <div
-                          style={{
+                          css={{
                             minWidth: 16,
                             width: 16,
                             height: 16,
@@ -370,7 +370,7 @@ export const AgentRow: FC<AgentRowProps> = ({
                           }}
                         >
                           <div
-                            style={{
+                            css={{
                               height: nextChangesSource ? "50%" : "100%",
                               width: 4,
                               background: "hsl(222, 31%, 25%)",
@@ -379,7 +379,7 @@ export const AgentRow: FC<AgentRowProps> = ({
                           />
                           {nextChangesSource && (
                             <div
-                              style={{
+                              css={{
                                 height: 4,
                                 width: "50%",
                                 top: "calc(50% - 2px)",

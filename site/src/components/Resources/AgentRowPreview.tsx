@@ -143,11 +143,10 @@ const styles = {
     fontWeight: 600,
   },
 
-  agentOS: (theme) => ({
+  agentOS: {
     textTransform: "capitalize",
     fontSize: 14,
-    color: theme.palette.text.secondary,
-  }),
+  },
 
   agentData: (theme) => ({
     fontSize: 14,
