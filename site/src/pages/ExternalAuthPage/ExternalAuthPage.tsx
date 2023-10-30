@@ -6,7 +6,7 @@ import {
 } from "api/api";
 import { usePermissions } from "hooks";
 import { type FC } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import ExternalAuthPageView from "./ExternalAuthPageView";
 import { ApiErrorResponse } from "api/errors";
 import { isAxiosError } from "axios";
@@ -20,6 +20,7 @@ const ExternalAuthPage: FC = () => {
   if (!provider) {
     throw new Error("provider must exist");
   }
+  const [searchParams] = useSearchParams();
   const permissions = usePermissions();
   const queryClient = useQueryClient();
   const getExternalAuthProviderQuery = useQuery({
@@ -76,7 +77,8 @@ const ExternalAuthPage: FC = () => {
     !getExternalAuthProviderQuery.data.authenticated &&
     !getExternalAuthProviderQuery.data.device
   ) {
-    if (window.location.search.includes("redirected=true")) {
+    const redirectedParam = searchParams?.get("redirected");
+    if (redirectedParam && redirectedParam.toLowerCase() === "true") {
       // The auth flow redirected the user here. If we redirect back to the
       // callback, that resets the flow and we'll end up in an infinite loop.
       // So instead, show an error, as the user expects to be authenticated at
