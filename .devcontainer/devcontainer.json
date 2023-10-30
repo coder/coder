@@ -8,6 +8,6 @@
       "moby": "false"
     }
   },
-  // SYS_PTRACE to enable go debugging
-  "runArgs": ["--cap-add=SYS_PTRACE"]
+   // without --priviliged the Github Codespace build fails (not required otherwise)
+  "runArgs": ["--cap-add=SYS_PTRACE", "--privileged"]
 }
