@@ -6,16 +6,21 @@ import {
 } from "api/api";
 import { usePermissions } from "hooks";
 import { type FC } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import ExternalAuthPageView from "./ExternalAuthPageView";
 import { ApiErrorResponse } from "api/errors";
 import { isAxiosError } from "axios";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import { SignInLayout } from "components/SignInLayout/SignInLayout";
+import { Welcome } from "components/Welcome/Welcome";
 
 const ExternalAuthPage: FC = () => {
   const { provider } = useParams();
   if (!provider) {
     throw new Error("provider must exist");
   }
+  const [searchParams] = useSearchParams();
   const permissions = usePermissions();
   const queryClient = useQueryClient();
   const getExternalAuthProviderQuery = useQuery({
@@ -72,6 +77,35 @@ const ExternalAuthPage: FC = () => {
     !getExternalAuthProviderQuery.data.authenticated &&
     !getExternalAuthProviderQuery.data.device
   ) {
+    const redirectedParam = searchParams?.get("redirected");
+    if (redirectedParam && redirectedParam.toLowerCase() === "true") {
+      // The auth flow redirected the user here. If we redirect back to the
+      // callback, that resets the flow and we'll end up in an infinite loop.
+      // So instead, show an error, as the user expects to be authenticated at
+      // this point.
+      // TODO: Unsure what to do about the device auth flow, should we also
+      // show an error there?
+      return (
+        <SignInLayout>
+          <Welcome message="Failed to validate oauth access token" />
+          <Box textAlign="center">
+            Attempted to validate the user&apos;s oauth access token from the
+            authentication flow. This situation may occur as a result of an
+            external authentication provider misconfiguration. Verify the
+            external authentication validation URL is accurately configured.
+          </Box>
+          <br />
+          <Button
+            onClick={() => {
+              // Redirect to the auth flow again. *crosses fingers*
+              window.location.href = `/external-auth/${provider}/callback`;
+            }}
+          >
+            Retry
+          </Button>
+        </SignInLayout>
+      );
+    }
     window.location.href = `/external-auth/${provider}/callback`;
     return null;
   }
