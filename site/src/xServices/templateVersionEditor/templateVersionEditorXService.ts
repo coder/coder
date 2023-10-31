@@ -43,7 +43,6 @@ export const templateVersionEditorMachine = createMachine(
             fileTree: FileTree;
             templateId: string;
           }
-        | { type: "CANCEL_VERSION" }
         | { type: "SET_MISSING_VARIABLE_VALUES"; values: VariableValue[] }
         | { type: "CANCEL_MISSING_VARIABLE_VALUES" }
         | { type: "ADD_BUILD_LOG"; log: ProvisionerJobLog }
@@ -172,13 +171,6 @@ export const templateVersionEditorMachine = createMachine(
             actions: "addBuildLog",
           },
           BUILD_DONE: "fetchingVersion",
-          CANCEL_VERSION: {
-            target: "cancelingInProgressBuild",
-          },
-          CREATE_VERSION: {
-            actions: ["assignCreateBuild"],
-            target: "uploadTar",
-          },
         },
       },
 
