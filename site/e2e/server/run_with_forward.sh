@@ -5,8 +5,8 @@ workspace=${1:-}
 port=${2:-3000}
 
 if [[ -z "${workspace}" ]]; then
-	echo "Usage: $0 <workspace> [port]"
-	exit 1
+  echo "Usage: $0 <workspace> [port]"
+  exit 1
 fi
 
 # Go to site.
@@ -36,11 +36,11 @@ rm "$playwright_out"
 
 echo "Waiting for Playwright to start..."
 read -r ws_endpoint <&3
-if [[ ${ws_endpoint} != ws://*  ]]; then
-	echo "Playwright failed to start."
-	echo "${ws_endpoint}"
-	cat "$playwright_out"
-	exit 1
+if [[ ${ws_endpoint} != ws://* ]]; then
+  echo "Playwright failed to start."
+  echo "${ws_endpoint}"
+  cat "$playwright_out"
+  exit 1
 fi
 echo "Playwright started at ${ws_endpoint}"
 
