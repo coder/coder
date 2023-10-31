@@ -1,12 +1,17 @@
 import { useMachine } from "@xstate/react";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
 import { useOrganizationId } from "hooks/useOrganizationId";
-import { FC } from "react";
+import { FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { templateVersionEditorMachine } from "xServices/templateVersionEditor/templateVersionEditorXService";
-import { useTemplateVersionData } from "./data";
+import { useQuery } from "react-query";
+import { templateByName, templateVersionByName } from "api/queries/templates";
+import { file } from "api/queries/files";
+import { TarReader } from "utils/tar";
+import { FileTree } from "utils/filetree";
+import { createTemplateVersionFileTree } from "utils/templateVersion";
 
 type Params = {
   version: string;
@@ -18,21 +23,34 @@ export const TemplateVersionEditorPage: FC = () => {
   const { version: versionName, template: templateName } =
     useParams() as Params;
   const orgId = useOrganizationId();
+  const templateQuery = useQuery(templateByName(orgId, templateName));
+  const templateVersionQuery = useQuery(
+    templateVersionByName(orgId, templateName, versionName),
+  );
+  const fileQuery = useQuery({
+    ...file(templateVersionQuery.data?.job.file_id ?? ""),
+    enabled: templateVersionQuery.isSuccess,
+  });
   const [editorState, sendEvent] = useMachine(templateVersionEditorMachine, {
     context: { orgId },
   });
-  const { isSuccess, data } = useTemplateVersionData(
-    {
-      orgId,
-      templateName,
-      versionName,
-    },
-    {
-      onSuccess(data) {
-        sendEvent({ type: "INITIALIZE", tarReader: data.tarReader });
-      },
-    },
-  );
+  const [fileTree, setFileTree] = useState<FileTree>();
+
+  useEffect(() => {
+    const initialize = async (file: ArrayBuffer) => {
+      const tarReader = new TarReader();
+      await tarReader.readFile(file);
+      const fileTree = await createTemplateVersionFileTree(tarReader);
+      sendEvent({ type: "INITIALIZE", tarReader });
+      setFileTree(fileTree);
+    };
+
+    if (fileQuery.data) {
+      initialize(fileQuery.data).catch(() => {
+        console.error("Error on initializing the editor");
+      });
+    }
+  }, [fileQuery.data, sendEvent]);
 
   return (
     <>
@@ -40,17 +58,19 @@ export const TemplateVersionEditorPage: FC = () => {
         <title>{pageTitle(`${templateName} · Template Editor`)}</title>
       </Helmet>
 
-      {isSuccess && (
+      {templateQuery.data && templateVersionQuery.data && fileTree && (
         <TemplateVersionEditor
-          template={data.template}
-          templateVersion={editorState.context.version || data.version}
+          template={templateQuery.data}
+          templateVersion={
+            editorState.context.version || templateVersionQuery.data
+          }
           isBuildingNewVersion={Boolean(editorState.context.version)}
-          defaultFileTree={data.fileTree}
+          defaultFileTree={fileTree}
           onPreview={(fileTree) => {
             sendEvent({
               type: "CREATE_VERSION",
               fileTree,
-              templateId: data.template.id,
+              templateId: templateQuery.data.id,
             });
           }}
           onPublish={() => {
