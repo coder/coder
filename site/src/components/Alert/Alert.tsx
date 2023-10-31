@@ -29,7 +29,7 @@ export const Alert: FC<AlertProps> = ({
   }
 
   return (
-    <Collapse in={open}>
+    <Collapse in>
       <MuiAlert
         {...alertProps}
         sx={{ textAlign: "left", ...alertProps.sx }}
