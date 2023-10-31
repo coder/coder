@@ -1,3 +1,4 @@
+import { type Interpolation, type Theme } from "@emotion/react";
 import Box from "@mui/material/Box";
 import { useQuery } from "react-query";
 import { getHealth } from "api/api";
@@ -16,7 +17,6 @@ import {
   PageHeaderSubtitle,
 } from "components/PageHeader/FullWidthPageHeader";
 import { Stats, StatsItem } from "components/Stats/Stats";
-import { makeStyles } from "@mui/styles";
 import { createDayString } from "utils/createDayString";
 import { DashboardFullPage } from "components/Dashboard/DashboardLayout";
 
@@ -57,8 +57,6 @@ export function HealthPageView({
   healthStatus: Awaited<ReturnType<typeof getHealth>>;
   tab: ReturnType<typeof useTab>;
 }) {
-  const styles = useStyles();
-
   return (
     <DashboardFullPage>
       <FullWidthPageHeader sticky={false}>
@@ -93,14 +91,14 @@ export function HealthPageView({
           </div>
         </Stack>
 
-        <Stats aria-label="Deployment details" className={styles.stats}>
+        <Stats aria-label="Deployment details" css={styles.stats}>
           <StatsItem
-            className={styles.statsItem}
+            css={styles.statsItem}
             label="Last check"
             value={createDayString(healthStatus.time)}
           />
           <StatsItem
-            className={styles.statsItem}
+            css={styles.statsItem}
             label="Coder version"
             value={healthStatus.coder_version}
           />
@@ -212,8 +210,8 @@ export function HealthPageView({
   );
 }
 
-const useStyles = makeStyles((theme) => ({
-  stats: {
+const styles = {
+  stats: (theme) => ({
     padding: 0,
     border: 0,
     gap: theme.spacing(6),
@@ -226,7 +224,7 @@ const useStyles = makeStyles((theme) => ({
       alignItems: "flex-start",
       gap: theme.spacing(1),
     },
-  },
+  }),
 
   statsItem: {
     flexDirection: "column",
@@ -238,4 +236,4 @@ const useStyles = makeStyles((theme) => ({
       fontWeight: 500,
     },
   },
-}));
+} satisfies Record<string, Interpolation<Theme>>;
