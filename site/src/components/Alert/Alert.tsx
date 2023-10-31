@@ -21,6 +21,13 @@ export const Alert: FC<AlertProps> = ({
 }) => {
   const [open, setOpen] = useState(true);
 
+  // Can't only rely on MUI's hiding behavior inside flex layouts, because even
+  // though MUI will make the alert have zero height, the alert will still
+  // behave as a flex child and introduce extra row/column gaps
+  if (!open) {
+    return null;
+  }
+
   return (
     <Collapse in={open}>
       <MuiAlert
