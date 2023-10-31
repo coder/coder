@@ -21,6 +21,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agenttest"
+	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -1367,6 +1368,7 @@ func TestWorkspaceAgent_Startup(t *testing.T) {
 		require.Equal(t, expectedDir, wsagent.ExpandedDirectory)
 		// Sorted
 		require.Equal(t, expectedSubsystems, wsagent.Subsystems)
+		require.Equal(t, coderd.AgentAPIVersionREST, wsagent.APIVersion)
 	})
 
 	t.Run("InvalidSemver", func(t *testing.T) {

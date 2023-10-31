@@ -5642,6 +5642,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       {
         "agents": [
           {
+            "api_version": "string",
             "apps": [
               {
                 "command": "string",
@@ -5812,6 +5813,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "api_version": "string",
   "apps": [
     {
       "command": "string",
@@ -5903,6 +5905,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 | Name                         | Type                                                                                         | Required | Restrictions | Description                                                                                                                                                                  |
 | ---------------------------- | -------------------------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `api_version`                | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `apps`                       | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)                                      | false    |              |                                                                                                                                                                              |
 | `architecture`               | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `connection_timeout_seconds` | integer                                                                                      | false    |              |                                                                                                                                                                              |
@@ -6331,6 +6334,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     {
       "agents": [
         {
+          "api_version": "string",
           "apps": [
             {
               "command": "string",
@@ -6660,6 +6664,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 {
   "agents": [
     {
+      "api_version": "string",
       "apps": [
         {
           "command": "string",
@@ -6896,6 +6901,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           {
             "agents": [
               {
+                "api_version": "string",
                 "apps": [
                   {
                     "command": "string",

@@ -58,6 +58,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
     {
       "agents": [
         {
+          "api_version": "string",
           "apps": [
             {
               "command": "string",
@@ -238,6 +239,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
     {
       "agents": [
         {
+          "api_version": "string",
           "apps": [
             {
               "command": "string",
@@ -557,6 +559,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
   {
     "agents": [
       {
+        "api_version": "string",
         "apps": [
           {
             "command": "string",
@@ -677,6 +680,7 @@ Status Code **200**
 | ------------------------------- | ------------------------------------------------------------------------------------------------------ | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `[array item]`                  | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `» agents`                      | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
+| `»» api_version`                | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» apps`                       | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `»»» command`                   | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» display_name`              | string                                                                                                 | false    |              | Display name is a friendly name for the app.                                                                                                                                                                                                   |
@@ -844,6 +848,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
     {
       "agents": [
         {
+          "api_version": "string",
           "apps": [
             {
               "command": "string",
@@ -1029,6 +1034,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
       {
         "agents": [
           {
+            "api_version": "string",
             "apps": [
               {
                 "command": "string",
@@ -1185,6 +1191,7 @@ Status Code **200**
 | `» reason`                       | [codersdk.BuildReason](schemas.md#codersdkbuildreason)                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `» resources`                    | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `»» agents`                      | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
+| `»»» api_version`                | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» apps`                       | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» command`                   | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» display_name`              | string                                                                                                 | false    |              | Display name is a friendly name for the app.                                                                                                                                                                                                   |
@@ -1405,6 +1412,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
     {
       "agents": [
         {
+          "api_version": "string",
           "apps": [
             {
               "command": "string",

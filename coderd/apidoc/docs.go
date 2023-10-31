@@ -11142,6 +11142,9 @@ const docTemplate = `{
         "codersdk.WorkspaceAgent": {
             "type": "object",
             "properties": {
+                "api_version": {
+                    "type": "string"
+                },
                 "apps": {
                     "type": "array",
                     "items": {
