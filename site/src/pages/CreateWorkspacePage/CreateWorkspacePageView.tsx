@@ -120,8 +120,14 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   return (
     <FullPageHorizontalForm title="New workspace" onCancel={onCancel}>
       <HorizontalForm onSubmit={form.handleSubmit}>
-        {mode === "duplicate" && <DuplicateWarningMessage />}
         {Boolean(error) && <ErrorAlert error={error} />}
+
+        {mode === "duplicate" && (
+          <Alert severity="info" dismissible>
+            Duplicating a workspace only copies its parameters. No state from
+            the old workspace is copied over.
+          </Alert>
+        )}
 
         {/* General info */}
         <FormSection
@@ -286,26 +292,6 @@ const useExternalAuthVerification = (
     verifyExternalAuth,
   };
 };
-
-function DuplicateWarningMessage() {
-  const [isDismissed, setIsDismissed] = useState(false);
-
-  if (isDismissed) {
-    return null;
-  }
-
-  // Setup looks a little hokey (having an Alert already fully configured to
-  // listen to dismissals, on top of more dismissal state), but relying solely
-  // on the Alert API wouldn't get rid of the div and horizontal margin helper
-  // after the dismiss happens. Not using CSS margins because those can be a
-  // style maintenance nightmare over time
-  return (
-    <Alert severity="info" dismissible onDismiss={() => setIsDismissed(true)}>
-      Duplicating a workspace only copies its parameters. No state from the old
-      workspace is copied over.
-    </Alert>
-  );
-}
 
 const useStyles = makeStyles((theme) => ({
   hasDescription: {
