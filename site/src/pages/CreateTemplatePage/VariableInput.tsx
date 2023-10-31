@@ -1,28 +1,26 @@
+import { type Interpolation, type Theme } from "@emotion/react";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
-import { makeStyles } from "@mui/styles";
 import TextField from "@mui/material/TextField";
 import { Stack } from "components/Stack/Stack";
-import { FC } from "react";
-import { TemplateVersionVariable } from "api/typesGenerated";
+import { type FC } from "react";
+import type { TemplateVersionVariable } from "api/typesGenerated";
 
 const isBoolean = (variable: TemplateVersionVariable) => {
   return variable.type === "bool";
 };
 
-const VariableLabel: React.FC<{ variable: TemplateVersionVariable }> = ({
+const VariableLabel: FC<{ variable: TemplateVersionVariable }> = ({
   variable,
 }) => {
-  const styles = useStyles();
-
   return (
     <label htmlFor={variable.name}>
-      <span className={styles.labelName}>
+      <span css={styles.labelName}>
         var.{variable.name}
         {!variable.required && " (optional)"}
       </span>
-      <span className={styles.labelDescription}>{variable.description}</span>
+      <span css={styles.labelDescription}>{variable.description}</span>
     </label>
   );
 };
@@ -40,12 +38,10 @@ export const VariableInput: FC<VariableInputProps> = ({
   variable,
   defaultValue,
 }) => {
-  const styles = useStyles();
-
   return (
     <Stack direction="column" spacing={0.75}>
       <VariableLabel variable={variable} />
-      <div className={styles.input}>
+      <div css={styles.input}>
         <VariableField
           disabled={disabled}
           onChange={onChange}
@@ -113,26 +109,21 @@ const VariableField: React.FC<VariableInputProps> = ({
   );
 };
 
-const useStyles = makeStyles((theme) => ({
-  labelName: {
+const styles = {
+  labelName: (theme) => ({
     fontSize: 14,
     color: theme.palette.text.secondary,
     display: "block",
     marginBottom: theme.spacing(0.5),
-  },
-  labelDescription: {
+  }),
+  labelDescription: (theme) => ({
     fontSize: 16,
     color: theme.palette.text.primary,
     display: "block",
     fontWeight: 600,
-  },
+  }),
   input: {
     display: "flex",
     flexDirection: "column",
   },
-  checkbox: {
-    display: "flex",
-    alignItems: "center",
-    gap: theme.spacing(1),
-  },
-}));
+} satisfies Record<string, Interpolation<Theme>>;
