@@ -8,7 +8,7 @@ import TableRow from "@mui/material/TableRow";
 import DeleteOutline from "@mui/icons-material/DeleteOutline";
 import PersonAdd from "@mui/icons-material/PersonAdd";
 import SettingsOutlined from "@mui/icons-material/SettingsOutlined";
-import { Group, User } from "api/typesGenerated";
+import type { Group, User } from "api/typesGenerated";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { EmptyState } from "components/EmptyState/EmptyState";
@@ -26,7 +26,6 @@ import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
-import { makeStyles } from "@mui/styles";
 import {
   PaginationStatus,
   TableToolbar,
@@ -60,7 +59,6 @@ export const GroupPage: FC = () => {
   const [isDeletingGroup, setIsDeletingGroup] = useState(false);
   const isLoading = !groupData || !permissions;
   const canUpdateGroup = permissions ? permissions.canUpdateGroup : false;
-  const styles = useStyles();
 
   const helmet = (
     <Helmet>
@@ -103,7 +101,7 @@ export const GroupPage: FC = () => {
                     setIsDeletingGroup(true);
                   }}
                   startIcon={<DeleteOutline />}
-                  className={styles.removeButton}
+                  css={styles.removeButton}
                 >
                   Delete&hellip;
                 </Button>
@@ -213,7 +211,6 @@ const AddGroupMember: React.FC<{
   onSubmit: (user: User, reset: () => void) => void;
 }> = ({ isLoading, onSubmit }) => {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const styles = useStyles();
 
   const resetValues = () => {
     setSelectedUser(null);
@@ -231,7 +228,7 @@ const AddGroupMember: React.FC<{
     >
       <Stack direction="row" alignItems="center" spacing={1}>
         <UserAutocomplete
-          className={styles.autoComplete}
+          css={styles.autoComplete}
           value={selectedUser}
           onChange={(newValue) => {
             setSelectedUser(newValue);
@@ -312,19 +309,16 @@ const GroupMemberRow = (props: {
   );
 };
 
-const useStyles = makeStyles((theme) => ({
+const styles = {
   autoComplete: {
     width: 300,
   },
-  removeButton: {
+  removeButton: (theme) => ({
     color: theme.palette.error.main,
     "&:hover": {
       backgroundColor: "transparent",
     },
-  },
-}));
-
-const styles = {
+  }),
   status: {
     textTransform: "capitalize",
   },
