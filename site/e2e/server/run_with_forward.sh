@@ -49,4 +49,4 @@ ws_port=${ws_port%/*}
 
 echo "Starting SSH tunnel, run test via \"pnpm run playwright:test\"..."
 
-ssh -t -R "${ws_port}:127.0.0.1:${ws_port}" -L "${port}:127.0.0.1:${port}" coder."${workspace}" "export CODER_E2E_PORT='${port}'; export CODER_E2E_WS_ENDPOINT='${ws_endpoint}'; [[ -d site ]] && cd site; \"\$(grep \"\${USER}\": /etc/passwd | cut -d: -f7)\" -l"
+ssh -t -R "${ws_port}:127.0.0.1:${ws_port}" -L "${port}:127.0.0.1:${port}" coder."${workspace}" "export CODER_E2E_PORT='${port}'; export CODER_E2E_WS_ENDPOINT='${ws_endpoint}'; [[ -d site ]] && cd site; exec \"\$(grep \"\${USER}\": /etc/passwd | cut -d: -f7)\" -l"
