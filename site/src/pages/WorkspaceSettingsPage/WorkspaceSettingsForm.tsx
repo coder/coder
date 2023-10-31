@@ -28,13 +28,12 @@ export type WorkspaceSettingsFormValues = {
 };
 
 export const WorkspaceSettingsForm: FC<{
-  isSubmitting: boolean;
   workspace: Workspace;
   error: unknown;
-  templatePoliciesEnabled: boolean,
+  templatePoliciesEnabled: boolean;
   onCancel: () => void;
-  onSubmit: (values: WorkspaceSettingsFormValues) => void;
-}> = ({ onCancel, onSubmit, workspace, error, isSubmitting, templatePoliciesEnabled }) => {
+  onSubmit: (values: WorkspaceSettingsFormValues) => Promise<void>;
+}> = ({ onCancel, onSubmit, workspace, error, templatePoliciesEnabled }) => {
   const form = useFormik<WorkspaceSettingsFormValues>({
     onSubmit,
     initialValues: {
@@ -50,7 +49,6 @@ export const WorkspaceSettingsForm: FC<{
     form,
     error,
   );
-
 
   return (
     <HorizontalForm onSubmit={form.handleSubmit} data-testid="form">
@@ -98,7 +96,7 @@ export const WorkspaceSettingsForm: FC<{
           </FormFields>
         </FormSection>
       )}
-      <FormFooter onCancel={onCancel} isLoading={isSubmitting} />
+      <FormFooter onCancel={onCancel} isLoading={form.isSubmitting} />
     </HorizontalForm>
   );
 };

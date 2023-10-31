@@ -7,7 +7,6 @@ const meta: Meta<typeof WorkspaceSettingsPageView> = {
   component: WorkspaceSettingsPageView,
   args: {
     error: undefined,
-    isSubmitting: false,
     workspace: MockWorkspace,
   },
 };

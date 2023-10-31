@@ -44,10 +44,9 @@ const WorkspaceSettingsPage = () => {
 
       <WorkspaceSettingsPageView
         error={mutation.error}
-        isSubmitting={mutation.isLoading}
         workspace={workspace}
         onCancel={() => navigate(`/@${username}/${workspaceName}`)}
-        onSubmit={mutation.mutate}
+        onSubmit={mutation.mutateAsync}
         templatePoliciesEnabled={templatePoliciesEnabled}
       />
     </>
