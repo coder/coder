@@ -66,6 +66,6 @@ export function useWorkspaceDuplication(workspace?: Workspace) {
 
   return {
     duplicateWorkspace,
-    duplicationReady: buildParametersQuery.isSuccess,
+    isDuplicationReady: buildParametersQuery.isSuccess,
   } as const;
 }

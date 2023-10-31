@@ -73,7 +73,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   const canBeUpdated = workspace.outdated && canAcceptJobs;
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const { duplicateWorkspace, duplicationReady } =
+  const { duplicateWorkspace, isDuplicationReady } =
     useWorkspaceDuplication(workspace);
 
   // A mapping of button type to the corresponding React component
@@ -170,7 +170,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 
           <MenuItem
             onClick={onMenuItemClick(duplicateWorkspace)}
-            disabled={!duplicationReady}
+            disabled={!isDuplicationReady}
           >
             <DuplicateIcon />
             Duplicate&hellip;
