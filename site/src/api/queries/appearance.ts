@@ -6,18 +6,12 @@ import { getMetadataAsJSON } from "utils/metadata";
 const initialAppearanceData = getMetadataAsJSON<AppearanceConfig>("appearance");
 const appearanceConfigKey = ["appearance"] as const;
 
-export const appearance = (queryClient: QueryClient) => {
+export const appearance = (): UseQueryOptions<AppearanceConfig> => {
   return {
-    queryKey: appearanceConfigKey,
-    queryFn: async () => {
-      const cachedData = queryClient.getQueryData(appearanceConfigKey);
-      if (cachedData === undefined && initialAppearanceData !== undefined) {
-        return initialAppearanceData;
-      }
-
-      return API.getAppearance();
-    },
-  } satisfies UseQueryOptions<AppearanceConfig>;
+    queryKey: ["appearance"],
+    initialData: initialAppearanceData,
+    queryFn: () => API.getAppearance(),
+  };
 };
 
 export const updateAppearance = (queryClient: QueryClient) => {

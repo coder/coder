@@ -2117,6 +2117,7 @@ type WorkspaceAgent struct {
 	ReadyAt     sql.NullTime              `db:"ready_at" json:"ready_at"`
 	Subsystems  []WorkspaceAgentSubsystem `db:"subsystems" json:"subsystems"`
 	DisplayApps []DisplayApp              `db:"display_apps" json:"display_apps"`
+	APIVersion  string                    `db:"api_version" json:"api_version"`
 }
 
 type WorkspaceAgentLog struct {

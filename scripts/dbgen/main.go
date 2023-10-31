@@ -53,11 +53,11 @@ func run() error {
 	}
 	databasePath := filepath.Join(localPath, "..", "..", "..", "coderd", "database")
 
-	err = orderAndStubDatabaseFunctions(filepath.Join(databasePath, "dbfake", "dbfake.go"), "q", "FakeQuerier", func(params stubParams) string {
+	err = orderAndStubDatabaseFunctions(filepath.Join(databasePath, "dbmem", "dbmem.go"), "q", "FakeQuerier", func(params stubParams) string {
 		return `panic("not implemented")`
 	})
 	if err != nil {
-		return xerrors.Errorf("stub dbfake: %w", err)
+		return xerrors.Errorf("stub dbmem: %w", err)
 	}
 
 	err = orderAndStubDatabaseFunctions(filepath.Join(databasePath, "dbmetrics", "dbmetrics.go"), "m", "metricsStore", func(params stubParams) string {
@@ -257,13 +257,13 @@ func orderAndStubDatabaseFunctions(filePath, receiver, structName string, stub f
 
 	contents, err := os.ReadFile(filePath)
 	if err != nil {
-		return xerrors.Errorf("read dbfake: %w", err)
+		return xerrors.Errorf("read dbmem: %w", err)
 	}
 
 	// Required to preserve imports!
 	f, err := decorator.NewDecoratorWithImports(token.NewFileSet(), packageName, goast.New()).Parse(contents)
 	if err != nil {
-		return xerrors.Errorf("parse dbfake: %w", err)
+		return xerrors.Errorf("parse dbmem: %w", err)
 	}
 
 	pointer := false
@@ -298,8 +298,8 @@ func orderAndStubDatabaseFunctions(filePath, receiver, structName string, stub f
 	for _, fn := range funcs {
 		var bodyStmts []dst.Stmt
 
-		// Add input validation, only relevant for dbfake.
-		if strings.Contains(filePath, "dbfake") && len(fn.Func.Params.List) == 2 && fn.Func.Params.List[1].Names[0].Name == "arg" {
+		// Add input validation, only relevant for dbmem.
+		if strings.Contains(filePath, "dbmem") && len(fn.Func.Params.List) == 2 && fn.Func.Params.List[1].Names[0].Name == "arg" {
 			/*
 				err := validateDatabaseType(arg)
 				if err != nil {

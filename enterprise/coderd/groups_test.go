@@ -648,7 +648,7 @@ func TestGroup(t *testing.T) {
 		require.NotContains(t, group.Members, user1)
 	})
 
-	t.Run("FilterSuspendedUsers", func(t *testing.T) {
+	t.Run("IncludeSuspendedAndDormantUsers", func(t *testing.T) {
 		t.Parallel()
 
 		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
@@ -679,8 +679,30 @@ func TestGroup(t *testing.T) {
 
 		group, err = client.Group(ctx, group.ID)
 		require.NoError(t, err)
-		require.Len(t, group.Members, 1)
-		require.NotContains(t, group.Members, user1)
+		require.Len(t, group.Members, 2)
+		require.Contains(t, group.Members, user1)
+		require.Contains(t, group.Members, user2)
+
+		// cannot explicitly set a dormant user status so must create a new user
+		anotherUser, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+			Email:          "coder@coder.com",
+			Username:       "coder",
+			Password:       "SomeStrongPassword!",
+			OrganizationID: user.OrganizationID,
+		})
+		require.NoError(t, err)
+
+		// Ensure that new user has dormant account
+		require.Equal(t, codersdk.UserStatusDormant, anotherUser.Status)
+
+		group, _ = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{anotherUser.ID.String()},
+		})
+
+		group, err = client.Group(ctx, group.ID)
+		require.NoError(t, err)
+		require.Len(t, group.Members, 3)
+		require.Contains(t, group.Members, user1)
 		require.Contains(t, group.Members, user2)
 	})
 

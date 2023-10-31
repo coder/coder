@@ -8537,6 +8537,7 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "moons",
+                "workspace_actions",
                 "tailnet_pg_coordinator",
                 "single_tailnet",
                 "template_autostop_requirement",
@@ -8546,6 +8547,7 @@ const docTemplate = `{
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
+                "ExperimentWorkspaceActions",
                 "ExperimentTailnetPGCoordinator",
                 "ExperimentSingleTailnet",
                 "ExperimentTemplateAutostopRequirement",
@@ -11140,6 +11142,9 @@ const docTemplate = `{
         "codersdk.WorkspaceAgent": {
             "type": "object",
             "properties": {
+                "api_version": {
+                    "type": "string"
+                },
                 "apps": {
                     "type": "array",
                     "items": {

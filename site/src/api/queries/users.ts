@@ -91,7 +91,9 @@ export const authMethods = () => {
 
 const initialUserData = getMetadataAsJSON<User>("user");
 
-export const me = () => {
+export const me = (): UseQueryOptions<User> & {
+  queryKey: NonNullable<UseQueryOptions<User>["queryKey"]>;
+} => {
   return {
     queryKey: ["me"],
     initialData: initialUserData,
