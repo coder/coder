@@ -101,21 +101,15 @@ export const useSingleSignOnSection = () => {
   };
 };
 
-const useEmptyStateStyles = makeStyles((theme) => ({
-  root: {
-    minHeight: 0,
-    padding: theme.spacing(6, 4),
-    backgroundColor: theme.palette.background.paper,
-    borderRadius: theme.shape.borderRadius,
-  },
-}));
-
 function SSOEmptyState() {
-  const styles = useEmptyStateStyles();
-
   return (
     <EmptyState
-      className={styles.root}
+      css={(theme) => ({
+        minHeight: 0,
+        padding: theme.spacing(6, 4),
+        backgroundColor: theme.palette.background.paper,
+        borderRadius: theme.shape.borderRadius,
+      })}
       message="No SSO Providers"
       description="No SSO providers are configured with this Coder deployment."
       cta={
