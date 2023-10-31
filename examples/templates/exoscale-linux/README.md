@@ -3,7 +3,7 @@ name: Develop in Linux on Exoscale VM
 description: Get started with Linux development on Exoscale.
 maintainer_github: WhizUs
 tags: [cloud, exoscale]
-icon: /icon/exoscale.png
+icon: /icon/exoscale.svg
 ---
 
 # exoscale-linux
