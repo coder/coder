@@ -20,6 +20,13 @@ type workspaceParameterFlags struct {
 
 	richParameterFile string
 	richParameters    []string
+
+	promptRichParameters bool
+}
+
+func (wpf *workspaceParameterFlags) allOptions() []clibase.Option {
+	options := append(wpf.cliBuildOptions(), wpf.cliParameters()...)
+	return append(options, wpf.alwaysPrompt())
 }
 
 func (wpf *workspaceParameterFlags) cliBuildOptions() []clibase.Option {
@@ -52,6 +59,14 @@ func (wpf *workspaceParameterFlags) cliParameters() []clibase.Option {
 			Description: "Specify a file path with values for rich parameters defined in the template.",
 			Value:       clibase.StringOf(&wpf.richParameterFile),
 		},
+	}
+}
+
+func (wpf *workspaceParameterFlags) alwaysPrompt() clibase.Option {
+	return clibase.Option{
+		Flag:        "always-prompt",
+		Description: "Always prompt all parameters. Does not pull parameter values from existing workspace.",
+		Value:       clibase.BoolOf(&wpf.promptRichParameters),
 	}
 }
 
