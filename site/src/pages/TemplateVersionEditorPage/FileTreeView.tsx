@@ -82,7 +82,7 @@ export const FileTreeView: FC<{
               height: 16px;
             }
 
-            & > .muitreeitem-label {
+            & > .MuiTreeItem-label {
               margin-left: 4px;
               font-size: 13px;
               color: inherit;
