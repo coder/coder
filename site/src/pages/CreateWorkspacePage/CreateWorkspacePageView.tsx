@@ -314,7 +314,7 @@ function DuplicateWarningMessage() {
     <div css={{ paddingTop: theme.spacing(6) }}>
       <Margins size="medium">
         <Alert
-          severity="warning"
+          severity="info"
           dismissible
           onDismiss={() => setIsDismissed(true)}
         >
