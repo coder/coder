@@ -1,17 +1,17 @@
+import { type Interpolation, type Theme } from "@emotion/react";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import CircularProgress from "@mui/material/CircularProgress";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
-import { makeStyles } from "@mui/styles";
-import { ApiErrorResponse } from "api/errors";
-import { ExternalAuth, ExternalAuthDevice } from "api/typesGenerated";
+import type { ApiErrorResponse } from "api/errors";
+import type { ExternalAuth, ExternalAuthDevice } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { Avatar } from "components/Avatar/Avatar";
 import { CopyButton } from "components/CopyButton/CopyButton";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Welcome } from "components/Welcome/Welcome";
-import { type FC } from "react";
+import { type FC, type ReactNode } from "react";
 
 export interface ExternalAuthPageViewProps {
   externalAuth: ExternalAuth;
@@ -30,8 +30,6 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
   onReauthenticate,
   viewExternalAuthConfig,
 }) => {
-  const styles = useStyles();
-
   if (!externalAuth.authenticated) {
     return (
       <SignInLayout>
@@ -50,7 +48,7 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
   const hasInstallations = externalAuth.installations.length > 0;
 
   // We only want to wrap this with a link if an install URL is available!
-  let installTheApp: React.ReactNode = `install the ${externalAuth.display_name} App`;
+  let installTheApp: ReactNode = `install the ${externalAuth.display_name} App`;
   if (externalAuth.app_install_url) {
     installTheApp = (
       <Link
@@ -68,7 +66,7 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
       <Welcome
         message={`You've authenticated with ${externalAuth.display_name}!`}
       />
-      <p className={styles.text}>
+      <p css={styles.text}>
         {externalAuth.user?.login && `Hey @${externalAuth.user?.login}! 👋 `}
         {(!externalAuth.app_installable ||
           externalAuth.installations.length > 0) &&
@@ -76,7 +74,7 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
       </p>
 
       {externalAuth.installations.length > 0 && (
-        <div className={styles.authorizedInstalls}>
+        <div css={styles.authorizedInstalls}>
           {externalAuth.installations.map((install) => {
             if (!install.account) {
               return;
@@ -105,9 +103,9 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
         </div>
       )}
 
-      <div className={styles.links}>
+      <div css={styles.links}>
         {!hasInstallations && externalAuth.app_installable && (
-          <Alert severity="warning" className={styles.installAlert}>
+          <Alert severity="warning" css={styles.installAlert}>
             You must {installTheApp} to clone private repositories. Accounts
             will appear here once authorized.
           </Alert>
@@ -120,7 +118,7 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
               href={externalAuth.app_install_url}
               target="_blank"
               rel="noreferrer"
-              className={styles.link}
+              css={styles.link}
             >
               <OpenInNewIcon fontSize="small" />
               {externalAuth.installations.length > 0
@@ -130,7 +128,7 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
             </Link>
           )}
         <Link
-          className={styles.link}
+          css={styles.link}
           href="#"
           onClick={() => {
             onReauthenticate();
@@ -147,10 +145,8 @@ const GitDeviceAuth: FC<{
   externalAuthDevice?: ExternalAuthDevice;
   deviceExchangeError?: ApiErrorResponse;
 }> = ({ externalAuthDevice, deviceExchangeError }) => {
-  const styles = useStyles();
-
   let status = (
-    <p className={styles.status}>
+    <p css={styles.status}>
       <CircularProgress size={16} color="secondary" data-chromatic="ignore" />
       Checking for authentication...
     </p>
@@ -189,18 +185,18 @@ const GitDeviceAuth: FC<{
 
   return (
     <div>
-      <p className={styles.text}>
+      <p css={styles.text}>
         Copy your one-time code:&nbsp;
-        <div className={styles.copyCode}>
-          <span className={styles.code}>{externalAuthDevice.user_code}</span>
+        <div css={styles.copyCode}>
+          <span css={styles.code}>{externalAuthDevice.user_code}</span>
           &nbsp; <CopyButton text={externalAuthDevice.user_code} />
         </div>
         <br />
         Then open the link below and paste it:
       </p>
-      <div className={styles.links}>
+      <div css={styles.links}>
         <Link
-          className={styles.link}
+          css={styles.link}
           href={externalAuthDevice.verification_uri}
           target="_blank"
           rel="noreferrer"
@@ -217,56 +213,56 @@ const GitDeviceAuth: FC<{
 
 export default ExternalAuthPageView;
 
-const useStyles = makeStyles((theme) => ({
-  text: {
+const styles = {
+  text: (theme) => ({
     fontSize: 16,
     color: theme.palette.text.secondary,
     textAlign: "center",
     lineHeight: "160%",
     margin: 0,
-  },
+  }),
 
   copyCode: {
     display: "inline-flex",
     alignItems: "center",
   },
 
-  code: {
+  code: (theme) => ({
     fontWeight: "bold",
     color: theme.palette.text.primary,
-  },
+  }),
 
-  installAlert: {
+  installAlert: (theme) => ({
     margin: theme.spacing(2),
-  },
+  }),
 
-  links: {
+  links: (theme) => ({
     display: "flex",
     gap: theme.spacing(0.5),
     margin: theme.spacing(2),
     flexDirection: "column",
-  },
+  }),
 
-  link: {
+  link: (theme) => ({
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     fontSize: 16,
     gap: theme.spacing(1),
-  },
+  }),
 
-  status: {
+  status: (theme) => ({
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     gap: theme.spacing(1),
     color: theme.palette.text.disabled,
-  },
+  }),
 
-  authorizedInstalls: {
+  authorizedInstalls: (theme) => ({
     display: "flex",
     gap: 4,
     color: theme.palette.text.disabled,
     margin: theme.spacing(4),
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;
