@@ -7,6 +7,7 @@ import {
   getDisplayWorkspaceBuildInitiatedBy,
   getDisplayWorkspaceTemplateName,
   isWorkspaceOn,
+  workspaceUpdatePolicy,
 } from "utils/workspace";
 import { Workspace } from "api/typesGenerated";
 import { Stats, StatsItem } from "components/Stats/Stats";
@@ -26,6 +27,12 @@ import {
   PopoverTrigger,
   usePopover,
 } from "components/Popover/Popover";
+import { useTemplatePoliciesEnabled } from "components/Dashboard/DashboardProvider";
+import {
+  HelpTooltip,
+  HelpTooltipText,
+} from "components/HelpTooltip/HelpTooltip";
+import { Stack } from "components/Stack/Stack";
 
 const Language = {
   workspaceDetails: "Workspace Details",
@@ -37,6 +44,7 @@ const Language = {
   upToDate: "Up to date",
   byLabel: "Last built by",
   costLabel: "Daily cost",
+  updatePolicy: "Update policy",
 };
 
 export interface WorkspaceStatsProps {
@@ -44,6 +52,7 @@ export interface WorkspaceStatsProps {
   maxDeadlineIncrease: number;
   maxDeadlineDecrease: number;
   canUpdateWorkspace: boolean;
+  canChangeVersions: boolean;
   quotaBudget?: number;
   onDeadlinePlus: (hours: number) => void;
   onDeadlineMinus: (hours: number) => void;
@@ -56,6 +65,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
   maxDeadlineDecrease,
   maxDeadlineIncrease,
   canUpdateWorkspace,
+  canChangeVersions,
   handleUpdate,
   onDeadlineMinus,
   onDeadlinePlus,
@@ -67,6 +77,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
   const styles = useStyles();
   const deadlinePlusEnabled = maxDeadlineIncrease >= 1;
   const deadlineMinusEnabled = maxDeadlineDecrease >= 1;
+  const templatePoliciesEnabled = useTemplatePoliciesEnabled();
 
   return (
     <>
@@ -197,6 +208,27 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
               quotaBudget ? `/ ${quotaBudget}` : ""
             }`}
           />
+        )}
+        {templatePoliciesEnabled && (
+          <Stack direction="row" spacing={0.5}>
+            <StatsItem
+              className={styles.statsItem}
+              label={Language.updatePolicy}
+              value={upperFirst(
+                workspaceUpdatePolicy(workspace, canChangeVersions),
+              )}
+            />
+            {workspace.automatic_updates === "never" &&
+              workspace.template_require_active_version &&
+              !canChangeVersions && (
+                <HelpTooltip>
+                  <HelpTooltipText>
+                    Your workspace has not opted in to automatic updates but
+                    your template requires updating to the active version.
+                  </HelpTooltipText>
+                </HelpTooltip>
+              )}
+          </Stack>
         )}
       </Stats>
     </>

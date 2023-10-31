@@ -576,6 +576,21 @@ export const updateWorkspaceDormancy = async (
   return response.data;
 };
 
+export const updateWorkspaceAutomaticUpdates = async (
+  workspaceId: string,
+  automaticUpdates: TypesGen.AutomaticUpdates,
+): Promise<void> => {
+  const req: TypesGen.UpdateWorkspaceAutomaticUpdatesRequest = {
+    automatic_updates: automaticUpdates,
+  };
+
+  const response = await axios.put(
+    `/api/v2/workspaces/${workspaceId}/autoupdates`,
+    req,
+  );
+  return response.data;
+};
+
 export const restartWorkspace = async ({
   workspace,
   buildParameters,

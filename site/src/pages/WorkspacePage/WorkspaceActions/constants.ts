@@ -1,5 +1,6 @@
 import { Workspace, WorkspaceStatus } from "api/typesGenerated";
 import { ReactNode } from "react";
+import { workspaceUpdatePolicy } from "utils/workspace";
 
 // the button types we have
 export enum ButtonTypesEnum {
@@ -43,9 +44,8 @@ export const actionsByWorkspaceStatus = (
     };
   }
   if (
-    workspace.template_require_active_version &&
     workspace.outdated &&
-    !canChangeVersions
+    workspaceUpdatePolicy(workspace, canChangeVersions)
   ) {
     if (status === "running") {
       return {
