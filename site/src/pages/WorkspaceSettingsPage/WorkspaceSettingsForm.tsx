@@ -20,7 +20,6 @@ import {
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import MenuItem from "@mui/material/MenuItem";
-import { useTemplatePoliciesEnabled } from "components/Dashboard/DashboardProvider";
 import upperFirst from "lodash/upperFirst";
 
 export type WorkspaceSettingsFormValues = {
@@ -32,9 +31,10 @@ export const WorkspaceSettingsForm: FC<{
   isSubmitting: boolean;
   workspace: Workspace;
   error: unknown;
+  templatePoliciesEnabled: boolean,
   onCancel: () => void;
   onSubmit: (values: WorkspaceSettingsFormValues) => void;
-}> = ({ onCancel, onSubmit, workspace, error, isSubmitting }) => {
+}> = ({ onCancel, onSubmit, workspace, error, isSubmitting, templatePoliciesEnabled }) => {
   const form = useFormik<WorkspaceSettingsFormValues>({
     onSubmit,
     initialValues: {
@@ -51,7 +51,6 @@ export const WorkspaceSettingsForm: FC<{
     error,
   );
 
-  const templatePoliciesEnabled = useTemplatePoliciesEnabled();
 
   return (
     <HorizontalForm onSubmit={form.handleSubmit} data-testid="form">

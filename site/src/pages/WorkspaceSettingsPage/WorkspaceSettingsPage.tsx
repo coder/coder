@@ -7,6 +7,7 @@ import { useMutation } from "react-query";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { patchWorkspace, updateWorkspaceAutomaticUpdates } from "api/api";
 import { WorkspaceSettingsFormValues } from "./WorkspaceSettingsForm";
+import { useTemplatePoliciesEnabled } from "components/Dashboard/DashboardProvider";
 
 const WorkspaceSettingsPage = () => {
   const params = useParams() as {
@@ -17,6 +18,7 @@ const WorkspaceSettingsPage = () => {
   const username = params.username.replace("@", "");
   const workspace = useWorkspaceSettings();
   const navigate = useNavigate();
+  const templatePoliciesEnabled = useTemplatePoliciesEnabled();
 
   const mutation = useMutation({
     mutationFn: async (formValues: WorkspaceSettingsFormValues) => {
@@ -46,6 +48,7 @@ const WorkspaceSettingsPage = () => {
         workspace={workspace}
         onCancel={() => navigate(`/@${username}/${workspaceName}`)}
         onSubmit={mutation.mutate}
+        templatePoliciesEnabled={templatePoliciesEnabled}
       />
     </>
   );
