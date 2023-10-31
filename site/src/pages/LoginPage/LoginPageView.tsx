@@ -1,11 +1,11 @@
-import { makeStyles } from "@mui/styles";
-import { FC } from "react";
+import { type Interpolation, type Theme } from "@emotion/react";
+import { type FC } from "react";
 import { useLocation } from "react-router-dom";
 import { SignInForm } from "./SignInForm";
 import { retrieveRedirect } from "utils/redirect";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { getApplicationName, getLogoURL } from "utils/appearance";
-import { AuthMethods } from "api/typesGenerated";
+import type { AuthMethods } from "api/typesGenerated";
 
 export interface LoginPageViewProps {
   authMethods: AuthMethods | undefined;
@@ -22,7 +22,6 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
 }) => {
   const location = useLocation();
   const redirectTo = retrieveRedirect(location.search);
-  const styles = useStyles();
   // This allows messages to be displayed at the top of the sign in form.
   // Helpful for any redirects that want to inform the user of something.
   const info = new URLSearchParams(location.search).get("info") || undefined;
@@ -41,12 +40,12 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
       }}
     />
   ) : (
-    <CoderIcon fill="white" opacity={1} className={styles.icon} />
+    <CoderIcon fill="white" opacity={1} css={styles.icon} />
   );
 
   return (
-    <div className={styles.root}>
-      <div className={styles.container}>
+    <div css={styles.root}>
+      <div css={styles.container}>
         {applicationLogo}
         <SignInForm
           authMethods={authMethods}
@@ -56,7 +55,7 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
           info={info}
           onSubmit={onSignIn}
         />
-        <footer className={styles.footer}>
+        <footer css={styles.footer}>
           Copyright © {new Date().getFullYear()} Coder Technologies, Inc.
         </footer>
       </div>
@@ -64,32 +63,32 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
   );
 };
 
-const useStyles = makeStyles((theme) => ({
-  root: {
+const styles = {
+  root: (theme) => ({
     padding: theme.spacing(3),
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     minHeight: "100%",
     textAlign: "center",
-  },
+  }),
 
-  container: {
+  container: (theme) => ({
     width: "100%",
     maxWidth: 385,
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
     gap: theme.spacing(2),
-  },
+  }),
 
-  icon: {
+  icon: (theme) => ({
     fontSize: theme.spacing(8),
-  },
+  }),
 
-  footer: {
+  footer: (theme) => ({
     fontSize: 12,
     color: theme.palette.text.secondary,
     marginTop: theme.spacing(3),
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;
