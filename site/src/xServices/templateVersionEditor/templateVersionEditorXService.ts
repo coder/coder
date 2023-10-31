@@ -3,26 +3,19 @@ import {
   ProvisionerJobStatus,
   TemplateVersion,
   TemplateVersionVariable,
-  UploadResponse,
   VariableValue,
   WorkspaceResource,
 } from "api/typesGenerated";
 import { assign, createMachine } from "xstate";
 import * as API from "api/api";
-import { FileTree, traverse } from "utils/filetree";
-import { isAllowedFile } from "utils/templateVersion";
-import { TarReader, TarWriter } from "utils/tar";
 import { PublishVersionData } from "pages/TemplateVersionEditorPage/types";
 
 export interface TemplateVersionEditorMachineContext {
   orgId: string;
   templateId?: string;
-  fileTree?: FileTree;
-  uploadResponse?: UploadResponse;
   version?: TemplateVersion;
   resources?: WorkspaceResource[];
   buildLogs?: ProvisionerJobLog[];
-  tarReader?: TarReader;
   publishingError?: unknown;
   lastSuccessfulPublishedVersion?: TemplateVersion;
   missingVariables?: TemplateVersionVariable[];
@@ -37,13 +30,15 @@ export const templateVersionEditorMachine = createMachine(
     schema: {
       context: {} as TemplateVersionEditorMachineContext,
       events: {} as
-        | { type: "INITIALIZE"; tarReader: TarReader }
         | {
             type: "CREATE_VERSION";
-            fileTree: FileTree;
-            templateId: string;
+            fileId: string;
           }
-        | { type: "SET_MISSING_VARIABLE_VALUES"; values: VariableValue[] }
+        | {
+            type: "SET_MISSING_VARIABLE_VALUES";
+            values: VariableValue[];
+            fileId: string;
+          }
         | { type: "CANCEL_MISSING_VARIABLE_VALUES" }
         | { type: "ADD_BUILD_LOG"; log: ProvisionerJobLog }
         | { type: "BUILD_DONE" }
@@ -52,9 +47,6 @@ export const templateVersionEditorMachine = createMachine(
         | { type: "CANCEL_PUBLISH" },
 
       services: {} as {
-        uploadTar: {
-          data: UploadResponse;
-        };
         createBuild: {
           data: TemplateVersion;
         };
@@ -73,22 +65,13 @@ export const templateVersionEditorMachine = createMachine(
       },
     },
     tsTypes: {} as import("./templateVersionEditorXService.typegen").Typegen0,
-    initial: "initializing",
+    initial: "idle",
     states: {
-      initializing: {
-        on: {
-          INITIALIZE: {
-            actions: ["assignTarReader"],
-            target: "idle",
-          },
-        },
-      },
-
       idle: {
         on: {
           CREATE_VERSION: {
-            actions: ["assignCreateBuild"],
-            target: "uploadTar",
+            actions: ["resetCreateBuildData"],
+            target: "creatingBuild",
           },
           PUBLISH: {
             target: "askPublishParameters",
@@ -118,18 +101,6 @@ export const templateVersionEditorMachine = createMachine(
           onDone: {
             actions: ["assignLastSuccessfulPublishedVersion"],
             target: ["idle"],
-          },
-        },
-      },
-
-      uploadTar: {
-        tags: "loading",
-        invoke: {
-          id: "uploadTar",
-          src: "uploadTar",
-          onDone: {
-            target: "creatingBuild",
-            actions: "assignUploadResponse",
           },
         },
       },
@@ -221,17 +192,12 @@ export const templateVersionEditorMachine = createMachine(
   },
   {
     actions: {
-      assignCreateBuild: assign({
-        fileTree: (_, event) => event.fileTree,
-        templateId: (_, event) => event.templateId,
+      resetCreateBuildData: assign({
         buildLogs: (_, _1) => [],
         resources: (_, _1) => [],
       }),
       assignResources: assign({
         resources: (_, event) => event.data,
-      }),
-      assignUploadResponse: assign({
-        uploadResponse: (_, event) => event.data,
       }),
       assignBuild: assign({
         version: (_, event) => event.data,
@@ -262,9 +228,6 @@ export const templateVersionEditorMachine = createMachine(
           };
         },
       }),
-      assignTarReader: assign({
-        tarReader: (_, { tarReader }) => tarReader,
-      }),
       assignPublishingError: assign({
         publishingError: (_, event) => event.data,
       }),
@@ -280,60 +243,7 @@ export const templateVersionEditorMachine = createMachine(
       }),
     },
     services: {
-      uploadTar: async ({ fileTree, tarReader }) => {
-        if (!fileTree) {
-          throw new Error("file tree must to be set");
-        }
-        if (!tarReader) {
-          throw new Error("tar reader must to be set");
-        }
-        const tar = new TarWriter();
-
-        // Add previous non editable files
-        for (const file of tarReader.fileInfo) {
-          if (!isAllowedFile(file.name)) {
-            if (file.type === "5") {
-              tar.addFolder(file.name, {
-                mode: file.mode, // https://github.com/beatgammit/tar-js/blob/master/lib/tar.js#L42
-                mtime: file.mtime,
-                user: file.user,
-                group: file.group,
-              });
-            } else {
-              tar.addFile(
-                file.name,
-                tarReader.getTextFile(file.name) as string,
-                {
-                  mode: file.mode, // https://github.com/beatgammit/tar-js/blob/master/lib/tar.js#L42
-                  mtime: file.mtime,
-                  user: file.user,
-                  group: file.group,
-                },
-              );
-            }
-          }
-        }
-        // Add the editable files
-        traverse(fileTree, (content, _filename, fullPath) => {
-          // When a file is deleted. Don't add it to the tar.
-          if (content === undefined) {
-            return;
-          }
-
-          if (typeof content === "string") {
-            tar.addFile(fullPath, content);
-            return;
-          }
-
-          tar.addFolder(fullPath);
-        });
-        const blob = (await tar.write()) as Blob;
-        return API.uploadFile(new File([blob], "template.tar"));
-      },
-      createBuild: async (ctx) => {
-        if (!ctx.uploadResponse) {
-          throw new Error("no upload response");
-        }
+      createBuild: async (ctx, event) => {
         if (ctx.version?.job.status === "running") {
           await API.cancelTemplateVersionBuild(ctx.version.id);
         }
@@ -342,7 +252,7 @@ export const templateVersionEditorMachine = createMachine(
           storage_method: "file",
           tags: {},
           template_id: ctx.templateId,
-          file_id: ctx.uploadResponse.hash,
+          file_id: event.fileId,
           user_variable_values: ctx.missingVariableValues,
         });
       },

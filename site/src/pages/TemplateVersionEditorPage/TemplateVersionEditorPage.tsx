@@ -1,17 +1,20 @@
 import { useMachine } from "@xstate/react";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
 import { useOrganizationId } from "hooks/useOrganizationId";
-import { FC, useEffect, useState } from "react";
+import { FC, useEffect, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { templateVersionEditorMachine } from "xServices/templateVersionEditor/templateVersionEditorXService";
-import { useQuery } from "react-query";
+import { useMutation, useQuery } from "react-query";
 import { templateByName, templateVersionByName } from "api/queries/templates";
-import { file } from "api/queries/files";
-import { TarReader } from "utils/tar";
-import { FileTree } from "utils/filetree";
-import { createTemplateVersionFileTree } from "utils/templateVersion";
+import { file, uploadFile } from "api/queries/files";
+import { TarReader, TarWriter } from "utils/tar";
+import { FileTree, traverse } from "utils/filetree";
+import {
+  createTemplateVersionFileTree,
+  isAllowedFile,
+} from "utils/templateVersion";
 
 type Params = {
   version: string;
@@ -32,16 +35,18 @@ export const TemplateVersionEditorPage: FC = () => {
     enabled: templateVersionQuery.isSuccess,
   });
   const [editorState, sendEvent] = useMachine(templateVersionEditorMachine, {
-    context: { orgId },
+    context: { orgId, templateId: templateQuery.data?.id },
   });
   const [fileTree, setFileTree] = useState<FileTree>();
+  const uploadFileMutation = useMutation(uploadFile());
+  const currentTarFileRef = useRef<TarReader | null>(null);
 
   useEffect(() => {
     const initialize = async (file: ArrayBuffer) => {
       const tarReader = new TarReader();
       await tarReader.readFile(file);
+      currentTarFileRef.current = tarReader;
       const fileTree = await createTemplateVersionFileTree(tarReader);
-      sendEvent({ type: "INITIALIZE", tarReader });
       setFileTree(fileTree);
     };
 
@@ -66,11 +71,21 @@ export const TemplateVersionEditorPage: FC = () => {
           }
           isBuildingNewVersion={Boolean(editorState.context.version)}
           defaultFileTree={fileTree}
-          onPreview={(fileTree) => {
+          onPreview={async (newFileTree) => {
+            if (!currentTarFileRef.current) {
+              return;
+            }
+
+            const newVersionFile = await generateVersionFiles(
+              currentTarFileRef.current,
+              newFileTree,
+            );
+            const newVersionUpload = await uploadFileMutation.mutateAsync(
+              newVersionFile,
+            );
             sendEvent({
               type: "CREATE_VERSION",
-              fileTree,
-              templateId: templateQuery.data.id,
+              fileId: newVersionUpload.hash,
             });
           }}
           onPublish={() => {
@@ -119,6 +134,7 @@ export const TemplateVersionEditorPage: FC = () => {
             sendEvent({
               type: "SET_MISSING_VARIABLE_VALUES",
               values,
+              fileId: uploadFileMutation.data!.hash,
             });
           }}
           onCancelSubmitMissingVariableValues={() => {
@@ -130,6 +146,50 @@ export const TemplateVersionEditorPage: FC = () => {
       )}
     </>
   );
+};
+
+const generateVersionFiles = async (
+  tarReader: TarReader,
+  fileTree: FileTree,
+) => {
+  const tar = new TarWriter();
+
+  // Add previous non editable files
+  for (const file of tarReader.fileInfo) {
+    if (!isAllowedFile(file.name)) {
+      if (file.type === "5") {
+        tar.addFolder(file.name, {
+          mode: file.mode, // https://github.com/beatgammit/tar-js/blob/master/lib/tar.js#L42
+          mtime: file.mtime,
+          user: file.user,
+          group: file.group,
+        });
+      } else {
+        tar.addFile(file.name, tarReader.getTextFile(file.name) as string, {
+          mode: file.mode, // https://github.com/beatgammit/tar-js/blob/master/lib/tar.js#L42
+          mtime: file.mtime,
+          user: file.user,
+          group: file.group,
+        });
+      }
+    }
+  }
+  // Add the editable files
+  traverse(fileTree, (content, _filename, fullPath) => {
+    // When a file is deleted. Don't add it to the tar.
+    if (content === undefined) {
+      return;
+    }
+
+    if (typeof content === "string") {
+      tar.addFile(fullPath, content);
+      return;
+    }
+
+    tar.addFolder(fullPath);
+  });
+  const blob = (await tar.write()) as Blob;
+  return new File([blob], "template.tar");
 };
 
 export default TemplateVersionEditorPage;
