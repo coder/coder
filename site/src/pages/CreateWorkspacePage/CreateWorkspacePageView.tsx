@@ -2,7 +2,7 @@ import TextField from "@mui/material/TextField";
 import * as TypesGen from "api/typesGenerated";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { FormikContextType, useFormik } from "formik";
-import { FC, useEffect, useReducer, useState } from "react";
+import { FC, useEffect, useState } from "react";
 import {
   getFormHelpers,
   nameValidator,
@@ -298,7 +298,7 @@ const useExternalAuthVerification = (
 };
 
 function DuplicateWarningMessage() {
-  const [isDismissed, dismiss] = useReducer(() => true, false);
+  const [isDismissed, setIsDismissed] = useState(false);
   const theme = useTheme();
 
   if (isDismissed) {
@@ -313,7 +313,11 @@ function DuplicateWarningMessage() {
   return (
     <div css={{ paddingTop: theme.spacing(6) }}>
       <Margins size="medium">
-        <Alert severity="warning" dismissible onDismiss={dismiss}>
+        <Alert
+          severity="warning"
+          dismissible
+          onDismiss={() => setIsDismissed(true)}
+        >
           Duplicating a workspace only copies its parameters. No state from the
           old workspace is copied over.
         </Alert>
