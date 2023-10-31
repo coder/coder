@@ -58,9 +58,6 @@ export const templateVersionEditorMachine = createMachine(
         createBuild: {
           data: TemplateVersion;
         };
-        cancelBuild: {
-          data: void;
-        };
         fetchVersion: {
           data: TemplateVersion;
         };
@@ -91,7 +88,7 @@ export const templateVersionEditorMachine = createMachine(
         on: {
           CREATE_VERSION: {
             actions: ["assignCreateBuild"],
-            target: "cancelingInProgressBuild",
+            target: "uploadTar",
           },
           PUBLISH: {
             target: "askPublishParameters",
@@ -121,17 +118,6 @@ export const templateVersionEditorMachine = createMachine(
           onDone: {
             actions: ["assignLastSuccessfulPublishedVersion"],
             target: ["idle"],
-          },
-        },
-      },
-
-      cancelingInProgressBuild: {
-        tags: "loading",
-        invoke: {
-          id: "cancelBuild",
-          src: "cancelBuild",
-          onDone: {
-            target: "uploadTar",
           },
         },
       },
@@ -344,9 +330,12 @@ export const templateVersionEditorMachine = createMachine(
         const blob = (await tar.write()) as Blob;
         return API.uploadFile(new File([blob], "template.tar"));
       },
-      createBuild: (ctx) => {
+      createBuild: async (ctx) => {
         if (!ctx.uploadResponse) {
           throw new Error("no upload response");
+        }
+        if (ctx.version?.job.status === "running") {
+          await API.cancelTemplateVersionBuild(ctx.version.id);
         }
         return API.createTemplateVersion(ctx.orgId, {
           provisioner: "terraform",
@@ -391,14 +380,6 @@ export const templateVersionEditorMachine = createMachine(
           throw new Error("template version must be set");
         }
         return API.getTemplateVersionResources(ctx.version.id);
-      },
-      cancelBuild: async (ctx) => {
-        if (!ctx.version) {
-          return;
-        }
-        if (ctx.version.job.status === "running") {
-          await API.cancelTemplateVersionBuild(ctx.version.id);
-        }
       },
       publishingVersion: async (
         { version, templateId },
