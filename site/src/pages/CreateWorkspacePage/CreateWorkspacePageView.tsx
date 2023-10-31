@@ -35,8 +35,6 @@ import {
 } from "./CreateWorkspacePage";
 import { useSearchParams } from "react-router-dom";
 import { CreateWSPermissions } from "./permissions";
-import { useTheme } from "@emotion/react";
-import { Margins } from "components/Margins/Margins";
 import { Alert } from "components/Alert/Alert";
 
 export interface CreateWorkspacePageViewProps {
@@ -120,143 +118,135 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   );
 
   return (
-    <>
-      {mode === "duplicate" && <DuplicateWarningMessage />}
+    <FullPageHorizontalForm title="New workspace" onCancel={onCancel}>
+      <HorizontalForm onSubmit={form.handleSubmit}>
+        {mode === "duplicate" && <DuplicateWarningMessage />}
+        {Boolean(error) && <ErrorAlert error={error} />}
 
-      <FullPageHorizontalForm title="New workspace" onCancel={onCancel}>
-        <HorizontalForm onSubmit={form.handleSubmit}>
-          {Boolean(error) && <ErrorAlert error={error} />}
-          {/* General info */}
+        {/* General info */}
+        <FormSection
+          title="General"
+          description="The template and name of your new workspace."
+        >
+          <FormFields>
+            <SelectedTemplate template={template} />
+            {versionId && versionId !== template.active_version_id && (
+              <Stack spacing={1} className={styles.hasDescription}>
+                <TextField
+                  disabled
+                  fullWidth
+                  value={versionId}
+                  label="Version ID"
+                />
+                <span className={styles.description}>
+                  This parameter has been preset, and cannot be modified.
+                </span>
+              </Stack>
+            )}
+            <TextField
+              {...getFieldHelpers("name")}
+              disabled={creatingWorkspace}
+              onChange={onChangeTrimmed(form)}
+              autoFocus
+              fullWidth
+              label="Workspace Name"
+            />
+          </FormFields>
+        </FormSection>
+
+        {permissions.createWorkspaceForUser && (
           <FormSection
-            title="General"
-            description="The template and name of your new workspace."
+            title="Workspace Owner"
+            description="Only admins can create workspace for other users."
           >
             <FormFields>
-              <SelectedTemplate template={template} />
-              {versionId && versionId !== template.active_version_id && (
-                <Stack spacing={1} className={styles.hasDescription}>
-                  <TextField
-                    disabled
-                    fullWidth
-                    value={versionId}
-                    label="Version ID"
-                  />
-                  <span className={styles.description}>
-                    This parameter has been preset, and cannot be modified.
-                  </span>
-                </Stack>
-              )}
-              <TextField
-                {...getFieldHelpers("name")}
-                disabled={creatingWorkspace}
-                onChange={onChangeTrimmed(form)}
-                autoFocus
-                fullWidth
-                label="Workspace Name"
+              <UserAutocomplete
+                value={owner}
+                onChange={(user) => {
+                  setOwner(user ?? defaultOwner);
+                }}
+                label="Owner"
+                size="medium"
               />
             </FormFields>
           </FormSection>
+        )}
 
-          {permissions.createWorkspaceForUser && (
-            <FormSection
-              title="Workspace Owner"
-              description="Only admins can create workspace for other users."
-            >
-              <FormFields>
-                <UserAutocomplete
-                  value={owner}
-                  onChange={(user) => {
-                    setOwner(user ?? defaultOwner);
-                  }}
-                  label="Owner"
-                  size="medium"
+        {externalAuth && externalAuth.length > 0 && (
+          <FormSection
+            title="External Authentication"
+            description="This template requires authentication to external services."
+          >
+            <FormFields>
+              {externalAuth.map((auth) => (
+                <ExternalAuth
+                  key={auth.id}
+                  authenticateURL={auth.authenticate_url}
+                  authenticated={auth.authenticated}
+                  externalAuthPollingState={externalAuthPollingState}
+                  startPollingExternalAuth={startPollingExternalAuth}
+                  displayName={auth.display_name}
+                  displayIcon={auth.display_icon}
+                  error={externalAuthErrors[auth.id]}
                 />
-              </FormFields>
-            </FormSection>
-          )}
+              ))}
+            </FormFields>
+          </FormSection>
+        )}
 
-          {externalAuth && externalAuth.length > 0 && (
-            <FormSection
-              title="External Authentication"
-              description="This template requires authentication to external services."
-            >
-              <FormFields>
-                {externalAuth.map((auth) => (
-                  <ExternalAuth
-                    key={auth.id}
-                    authenticateURL={auth.authenticate_url}
-                    authenticated={auth.authenticated}
-                    externalAuthPollingState={externalAuthPollingState}
-                    startPollingExternalAuth={startPollingExternalAuth}
-                    displayName={auth.display_name}
-                    displayIcon={auth.display_icon}
-                    error={externalAuthErrors[auth.id]}
-                  />
-                ))}
-              </FormFields>
-            </FormSection>
-          )}
+        {parameters && (
+          <>
+            <MutableTemplateParametersSection
+              templateParameters={parameters}
+              getInputProps={(parameter, index) => {
+                return {
+                  ...getFieldHelpers(
+                    "rich_parameter_values[" + index + "].value",
+                  ),
+                  onChange: async (value) => {
+                    await form.setFieldValue("rich_parameter_values." + index, {
+                      name: parameter.name,
+                      value: value,
+                    });
+                  },
+                  disabled:
+                    disabledParamsList?.includes(
+                      parameter.name.toLowerCase().replace(/ /g, "_"),
+                    ) || creatingWorkspace,
+                };
+              }}
+            />
+            <ImmutableTemplateParametersSection
+              templateParameters={parameters}
+              classes={{ root: styles.warningSection }}
+              getInputProps={(parameter, index) => {
+                return {
+                  ...getFieldHelpers(
+                    "rich_parameter_values[" + index + "].value",
+                  ),
+                  onChange: async (value) => {
+                    await form.setFieldValue("rich_parameter_values." + index, {
+                      name: parameter.name,
+                      value: value,
+                    });
+                  },
+                  disabled:
+                    disabledParamsList?.includes(
+                      parameter.name.toLowerCase().replace(/ /g, "_"),
+                    ) || creatingWorkspace,
+                };
+              }}
+            />
+          </>
+        )}
 
-          {parameters && (
-            <>
-              <MutableTemplateParametersSection
-                templateParameters={parameters}
-                getInputProps={(parameter, index) => {
-                  return {
-                    ...getFieldHelpers(
-                      "rich_parameter_values[" + index + "].value",
-                    ),
-                    onChange: async (value) => {
-                      await form.setFieldValue(
-                        "rich_parameter_values." + index,
-                        {
-                          name: parameter.name,
-                          value: value,
-                        },
-                      );
-                    },
-                    disabled:
-                      disabledParamsList?.includes(
-                        parameter.name.toLowerCase().replace(/ /g, "_"),
-                      ) || creatingWorkspace,
-                  };
-                }}
-              />
-              <ImmutableTemplateParametersSection
-                templateParameters={parameters}
-                classes={{ root: styles.warningSection }}
-                getInputProps={(parameter, index) => {
-                  return {
-                    ...getFieldHelpers(
-                      "rich_parameter_values[" + index + "].value",
-                    ),
-                    onChange: async (value) => {
-                      await form.setFieldValue(
-                        "rich_parameter_values." + index,
-                        {
-                          name: parameter.name,
-                          value: value,
-                        },
-                      );
-                    },
-                    disabled:
-                      disabledParamsList?.includes(
-                        parameter.name.toLowerCase().replace(/ /g, "_"),
-                      ) || creatingWorkspace,
-                  };
-                }}
-              />
-            </>
-          )}
-
-          <FormFooter
-            onCancel={onCancel}
-            isLoading={creatingWorkspace}
-            submitLabel="Create Workspace"
-          />
-        </HorizontalForm>
-      </FullPageHorizontalForm>
-    </>
+        <FormFooter
+          onCancel={onCancel}
+          isLoading={creatingWorkspace}
+          submitLabel="Create Workspace"
+        />
+      </HorizontalForm>
+    </FullPageHorizontalForm>
   );
 };
 
@@ -299,7 +289,6 @@ const useExternalAuthVerification = (
 
 function DuplicateWarningMessage() {
   const [isDismissed, setIsDismissed] = useState(false);
-  const theme = useTheme();
 
   if (isDismissed) {
     return null;
@@ -311,18 +300,10 @@ function DuplicateWarningMessage() {
   // after the dismiss happens. Not using CSS margins because those can be a
   // style maintenance nightmare over time
   return (
-    <div css={{ paddingTop: theme.spacing(6) }}>
-      <Margins size="medium">
-        <Alert
-          severity="info"
-          dismissible
-          onDismiss={() => setIsDismissed(true)}
-        >
-          Duplicating a workspace only copies its parameters. No state from the
-          old workspace is copied over.
-        </Alert>
-      </Margins>
-    </div>
+    <Alert severity="info" dismissible onDismiss={() => setIsDismissed(true)}>
+      Duplicating a workspace only copies its parameters. No state from the old
+      workspace is copied over.
+    </Alert>
   );
 }
 
