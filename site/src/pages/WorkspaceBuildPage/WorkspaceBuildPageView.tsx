@@ -1,10 +1,10 @@
+import { type Interpolation, type Theme } from "@emotion/react";
 import { BuildAvatar } from "components/BuildAvatar/BuildAvatar";
-import { FC } from "react";
+import { type FC } from "react";
 import { ProvisionerJobLog, WorkspaceBuild } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs";
-import { makeStyles } from "@mui/styles";
 import {
   FullWidthPageHeader,
   PageHeaderTitle,
@@ -48,8 +48,6 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
   builds,
   activeBuildNumber,
 }) => {
-  const styles = useStyles();
-
   if (!build) {
     return <Loader />;
   }
@@ -65,9 +63,9 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
           </div>
         </Stack>
 
-        <Stats aria-label="Build details" className={styles.stats}>
+        <Stats aria-label="Build details" css={styles.stats}>
           <StatsItem
-            className={styles.statsItem}
+            css={styles.statsItem}
             label="Workspace"
             value={
               <Link
@@ -78,22 +76,22 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
             }
           />
           <StatsItem
-            className={styles.statsItem}
+            css={styles.statsItem}
             label="Template version"
             value={build.template_version_name}
           />
           <StatsItem
-            className={styles.statsItem}
+            css={styles.statsItem}
             label="Duration"
             value={displayWorkspaceBuildDuration(build)}
           />
           <StatsItem
-            className={styles.statsItem}
+            css={styles.statsItem}
             label="Started at"
             value={new Date(build.created_at).toLocaleString()}
           />
           <StatsItem
-            className={styles.statsItem}
+            css={styles.statsItem}
             label="Action"
             value={
               <Box component="span" sx={{ textTransform: "capitalize" }}>
@@ -240,8 +238,8 @@ const BuildSidebarItemSkeleton = () => {
   );
 };
 
-const useStyles = makeStyles((theme) => ({
-  stats: {
+const styles = {
+  stats: (theme) => ({
     padding: 0,
     border: 0,
     gap: theme.spacing(6),
@@ -254,7 +252,7 @@ const useStyles = makeStyles((theme) => ({
       alignItems: "flex-start",
       gap: theme.spacing(1),
     },
-  },
+  }),
 
   statsItem: {
     flexDirection: "column",
@@ -266,4 +264,4 @@ const useStyles = makeStyles((theme) => ({
       fontWeight: 500,
     },
   },
-}));
+} satisfies Record<string, Interpolation<Theme>>;
