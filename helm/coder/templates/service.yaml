@@ -28,6 +28,15 @@ spec:
       nodePort: {{ .Values.coder.service.httpsNodePort }}
       {{ end }}
     {{- end }}
+    {{- if eq (include "coder.coderPrometheusEnabled" .) "true" }}
+    - name: "prometheus-http"
+      port: 2112
+      targetPort: "prometheus-http"
+      protocol: TCP
+      {{ if eq .Values.coder.service.type "NodePort" }}
+      nodePort: {{ .Values.coder.service.prometheusNodePort }}
+      {{ end }}
+    {{- end }}
   {{- if eq "LoadBalancer" .Values.coder.service.type }}
   {{- with .Values.coder.service.loadBalancerIP }}
   loadBalancerIP: {{ . | quote }}
