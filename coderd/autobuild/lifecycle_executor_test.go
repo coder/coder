@@ -743,7 +743,6 @@ func TestExecutorAutostopTemplateDisabled(t *testing.T) {
 
 	// Given: we have a workspace built from a template that disallows user autostop
 	var (
-		sched   = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
 		tickCh  = make(chan time.Time)
 		statsCh = make(chan autobuild.Stats)
 
@@ -761,9 +760,9 @@ func TestExecutorAutostopTemplateDisabled(t *testing.T) {
 				},
 			},
 		})
-		// Given: we have a user with a workspace configured to autostart some time in the future
+		// Given: we have a user with a workspace configured to autostop 30 minutes in the future
 		workspace = mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
-			cwr.TTLMillis = ptr.Ref(8 * time.Hour.Milliseconds())
+			cwr.TTLMillis = ptr.Ref(30 * time.Minute.Milliseconds())
 		})
 	)
 
@@ -771,16 +770,28 @@ func TestExecutorAutostopTemplateDisabled(t *testing.T) {
 	// Then: the deadline should be set to the template default TTL
 	assert.WithinDuration(t, workspace.LatestBuild.CreatedAt.Add(time.Hour), workspace.LatestBuild.Deadline.Time, time.Minute)
 
-	// When: the autobuild executor ticks before the next scheduled time
+	// When: the autobuild executor ticks after the workspace setting, but before the template setting:
 	go func() {
-		tickCh <- sched.Next(workspace.LatestBuild.CreatedAt).Add(time.Minute)
-		close(tickCh)
+		tickCh <- workspace.LatestBuild.CreatedAt.Add(45 * time.Minute)
 	}()
 
 	// Then: nothing should happen
 	stats := <-statsCh
 	assert.NoError(t, stats.Error)
 	assert.Len(t, stats.Transitions, 0)
+
+	// When: the autobuild executor ticks after the template setting:
+	go func() {
+		tickCh <- workspace.LatestBuild.CreatedAt.Add(61 * time.Minute)
+		close(tickCh)
+	}()
+
+	// Then: the workspace should be stopped
+	stats = <-statsCh
+	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Transitions, 1)
+	assert.Contains(t, stats.Transitions, workspace.ID)
+	assert.Equal(t, database.WorkspaceTransitionStop, stats.Transitions[workspace.ID])
 }
 
 // Test that an AGPL AccessControlStore properly disables
