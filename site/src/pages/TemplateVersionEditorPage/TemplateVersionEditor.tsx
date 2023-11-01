@@ -52,7 +52,6 @@ import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 export interface TemplateVersionEditorProps {
   template: Template;
   templateVersion: TemplateVersion;
-  isBuildingNewVersion: boolean;
   defaultFileTree: FileTree;
   buildLogs?: ProvisionerJobLog[];
   resources?: WorkspaceResource[];
@@ -92,7 +91,6 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   disableUpdate,
   template,
   templateVersion,
-  isBuildingNewVersion,
   defaultFileTree,
   onPreview,
   onPublish,
@@ -219,7 +217,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
           )}
 
           <div css={styles.topbarSides}>
-            {isBuildingNewVersion && (
+            {buildLogs && (
               <TemplateVersionStatusBadge version={templateVersion} />
             )}
 

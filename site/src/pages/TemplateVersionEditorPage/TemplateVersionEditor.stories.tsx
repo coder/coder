@@ -36,7 +36,6 @@ export const Example: Story = {};
 
 export const Logs = {
   args: {
-    isBuildingNewVersion: true,
     buildLogs: MockWorkspaceBuildLogs,
     templateVersion: {
       ...MockTemplateVersion,
@@ -47,7 +46,6 @@ export const Logs = {
 
 export const Resources: Story = {
   args: {
-    isBuildingNewVersion: true,
     buildLogs: MockWorkspaceBuildLogs,
     resources: [
       MockWorkspaceResource,
@@ -62,7 +60,6 @@ export const Resources: Story = {
 
 export const ManyLogs = {
   args: {
-    isBuildingNewVersion: true,
     templateVersion: {
       ...MockTemplateVersion,
       job: {

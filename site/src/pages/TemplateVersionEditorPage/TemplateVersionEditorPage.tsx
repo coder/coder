@@ -151,11 +151,6 @@ export const TemplateVersionEditorPage: FC = () => {
         <TemplateVersionEditor
           template={templateQuery.data}
           templateVersion={templateVersionQuery.data}
-          isBuildingNewVersion={
-            templateVersionQuery.data.job.status === "running" ||
-            uploadFileMutation.isLoading ||
-            createTemplateVersionMutation.isLoading
-          }
           defaultFileTree={fileTree}
           onPreview={async (newFileTree) => {
             if (!currentTarFileRef.current) {
@@ -175,7 +170,6 @@ export const TemplateVersionEditorPage: FC = () => {
               template_id: templateQuery.data.id,
               file_id: serverFile.hash,
             });
-
             setCurrentVersionName(newVersion.name);
             queryClient.setQueryData(
               templateVersionOptions.queryKey,
@@ -213,9 +207,11 @@ export const TemplateVersionEditorPage: FC = () => {
           }}
           disablePreview={
             templateVersionQuery.data.job.status === "running" ||
+            templateVersionQuery.data.job.status === "pending" ||
             (templateVersionQuery.data.job.status === "succeeded" &&
               templateVersionQuery.data.name !== initialVersionName) ||
-            createTemplateVersionMutation.isLoading
+            createTemplateVersionMutation.isLoading ||
+            uploadFileMutation.isLoading
           }
           disableUpdate={
             templateVersionQuery.data.job.status !== "succeeded" ||
