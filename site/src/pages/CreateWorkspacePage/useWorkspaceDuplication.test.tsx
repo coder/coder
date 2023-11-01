@@ -90,8 +90,9 @@ describe(`${useWorkspaceDuplication.name}`, () => {
       M.MockWorkspaceBuildParameter5,
     ];
 
-    for (const p of mockBuildParams) {
-      expect(parsedParams.get(`param.${p.name}`)).toEqual(p.value);
+    for (const { name, value } of mockBuildParams) {
+      const key = `param.${name}`;
+      expect(parsedParams.get(key)).toEqual(value);
     }
   });
 
@@ -101,13 +102,13 @@ describe(`${useWorkspaceDuplication.name}`, () => {
     await performNavigation(button, router);
 
     const parsedParams = new URLSearchParams(router.state.location.search);
-    const expectedParamEntries = [
+    const extraMetadataEntries = [
       ["mode", "duplicate"],
       ["name", MockWorkspace.name],
       ["version", MockWorkspace.template_active_version_id],
     ] as const;
 
-    for (const [key, value] of expectedParamEntries) {
+    for (const [key, value] of extraMetadataEntries) {
       expect(parsedParams.get(key)).toBe(value);
     }
   });

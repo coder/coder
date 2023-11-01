@@ -37,6 +37,11 @@ import { useSearchParams } from "react-router-dom";
 import { CreateWSPermissions } from "./permissions";
 import { Alert } from "components/Alert/Alert";
 
+export const Language = {
+  duplicationWarning:
+    "Duplicating a workspace only copies its parameters. No state from the old workspace is copied over.",
+} as const;
+
 export interface CreateWorkspacePageViewProps {
   mode: CreateWorkspaceMode;
   error: unknown;
@@ -124,8 +129,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 
         {mode === "duplicate" && (
           <Alert severity="info" dismissible>
-            Duplicating a workspace only copies its parameters. No state from
-            the old workspace is copied over.
+            {Language.duplicationWarning}
           </Alert>
         )}
 
