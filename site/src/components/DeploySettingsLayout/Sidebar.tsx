@@ -2,7 +2,7 @@ import Brush from "@mui/icons-material/Brush";
 import LaunchOutlined from "@mui/icons-material/LaunchOutlined";
 import ApprovalIcon from "@mui/icons-material/VerifiedUserOutlined";
 import LockRounded from "@mui/icons-material/LockOutlined";
-import AnalyticsIcon from "@mui/icons-material/Analytics";
+import InsertChartIcon from "@mui/icons-material/InsertChart";
 import Globe from "@mui/icons-material/PublicOutlined";
 import HubOutlinedIcon from "@mui/icons-material/HubOutlined";
 import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined";
@@ -136,7 +136,7 @@ export const Sidebar: React.FC = () => {
       </SidebarNavItem>
       <SidebarNavItem
         href="observability"
-        icon={<SidebarNavItemIcon icon={AnalyticsIcon} />}
+        icon={<SidebarNavItemIcon icon={InsertChartIcon} />}
       >
         Observability
       </SidebarNavItem>
