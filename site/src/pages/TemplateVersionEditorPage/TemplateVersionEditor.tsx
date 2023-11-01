@@ -111,9 +111,9 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   onCancelSubmitMissingVariableValues,
 }) => {
   const theme = useTheme();
-  // If resources are provided, show them by default!
-  // This is for Storybook!
-  const [selectedTab, setSelectedTab] = useState(() => (resources ? 1 : 0));
+  const [selectedTab, setSelectedTab] = useState<
+    "logs" | "resources" | undefined // Undefined is to hide the tab
+  >();
   const [fileTree, setFileTree] = useState(defaultFileTree);
   const [createFileOpen, setCreateFileOpen] = useState(false);
   const [deleteFileOpen, setDeleteFileOpen] = useState<string>();
@@ -126,7 +126,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   const triggerPreview = useCallback(() => {
     onPreview(fileTree);
     // Switch to the build log!
-    setSelectedTab(0);
+    setSelectedTab("logs");
   }, [fileTree, onPreview]);
 
   // Stop ctrl+s from saving files and make ctrl+enter trigger a preview.
@@ -159,11 +159,12 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
       previousVersion.current = templateVersion;
       return;
     }
+
     if (
       ["running", "pending"].includes(previousVersion.current.job.status) &&
       templateVersion.job.status === "succeeded"
     ) {
-      setSelectedTab(1);
+      setSelectedTab("resources");
       setDirty(false);
     }
     previousVersion.current = templateVersion;
@@ -358,9 +359,9 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               <div css={styles.tabs}>
                 <button
                   css={styles.tab}
-                  className={selectedTab === 0 ? "active" : ""}
+                  className={selectedTab === "logs" ? "active" : ""}
                   onClick={() => {
-                    setSelectedTab(0);
+                    setSelectedTab("logs");
                   }}
                 >
                   {templateVersion.job.status !== "succeeded" ? (
@@ -374,9 +375,9 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                 {!disableUpdate && (
                   <button
                     css={styles.tab}
-                    className={selectedTab === 1 ? "active" : ""}
+                    className={selectedTab === "resources" ? "active" : ""}
                     onClick={() => {
-                      setSelectedTab(1);
+                      setSelectedTab("resources");
                     }}
                   >
                     <PreviewIcon />
@@ -389,7 +390,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                 css={[
                   styles.panel,
                   {
-                    display: selectedTab !== 0 ? "none" : "flex",
+                    display: selectedTab !== "logs" ? "none" : "flex",
                     flexDirection: "column",
                   },
                 ]}
@@ -427,7 +428,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                   styles.panel,
                   {
                     paddingBottom: theme.spacing(2),
-                    display: selectedTab !== 1 ? "none" : undefined,
+                    display: selectedTab !== "resources" ? "none" : undefined,
                   },
                 ]}
               >

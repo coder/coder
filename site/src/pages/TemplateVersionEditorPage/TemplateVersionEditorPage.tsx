@@ -86,7 +86,7 @@ export const TemplateVersionEditorPage: FC = () => {
   }, [fileQuery.data]);
 
   // Watch version logs
-  const [logs, setLogs] = useState<ProvisionerJobLog[]>([]);
+  const [logs, setLogs] = useState<ProvisionerJobLog[]>();
   const templateVersionId = templateVersionQuery.data?.id;
   const refetchTemplateVersion = templateVersionQuery.refetch;
   const templateVersionStatus = templateVersionQuery.data?.job.status;
@@ -99,10 +99,11 @@ export const TemplateVersionEditorPage: FC = () => {
       return;
     }
 
-    setLogs([]);
+    setLogs(undefined);
+
     const socket = watchBuildLogsByTemplateVersionId(templateVersionId, {
       onMessage: (log) => {
-        setLogs((logs) => [...logs, log]);
+        setLogs((logs) => (logs ? [...logs, log] : [log]));
       },
       onDone: async () => {
         await refetchTemplateVersion();
@@ -151,7 +152,9 @@ export const TemplateVersionEditorPage: FC = () => {
           template={templateQuery.data}
           templateVersion={templateVersionQuery.data}
           isBuildingNewVersion={
-            templateVersionQuery.data.job.status === "running"
+            templateVersionQuery.data.job.status === "running" ||
+            uploadFileMutation.isLoading ||
+            createTemplateVersionMutation.isLoading
           }
           defaultFileTree={fileTree}
           onPreview={async (newFileTree) => {
@@ -208,10 +211,17 @@ export const TemplateVersionEditorPage: FC = () => {
               `/templates/${templateName}/workspace?${params.toString()}`,
             );
           }}
-          disablePreview={templateVersionQuery.data.job.status !== "succeeded"}
-          disableUpdate={
+          disablePreview={
             templateVersionQuery.data.job.status === "running" ||
-            templateVersionQuery.data.job.status === "succeeded"
+            (templateVersionQuery.data.job.status === "succeeded" &&
+              templateVersionQuery.data.name !== initialVersionName) ||
+            createTemplateVersionMutation.isLoading
+          }
+          disableUpdate={
+            templateVersionQuery.data.job.status !== "succeeded" ||
+            templateVersionQuery.data.name === initialVersionName ||
+            templateVersionQuery.data.name ===
+              lastSuccessfulPublishedVersion?.name
           }
           resources={resourcesQuery.data}
           buildLogs={logs}
