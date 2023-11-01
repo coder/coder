@@ -6,7 +6,7 @@ import { Helmet } from "react-helmet-async";
 import { useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { templateVersionEditorMachine } from "xServices/templateVersionEditor/templateVersionEditorXService";
-import { useMutation, useQuery } from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
   createTemplateVersion,
   templateByName,
@@ -20,7 +20,7 @@ import {
   isAllowedFile,
 } from "utils/templateVersion";
 import { watchBuildLogsByTemplateVersionId } from "api/api";
-import { ProvisionerJobLog, TemplateVersion } from "api/typesGenerated";
+import { ProvisionerJobLog } from "api/typesGenerated";
 
 type Params = {
   version: string;
@@ -28,14 +28,22 @@ type Params = {
 };
 
 export const TemplateVersionEditorPage: FC = () => {
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { version: versionName, template: templateName } =
     useParams() as Params;
   const orgId = useOrganizationId();
+  const [currentVersionName, setCurrentVersionName] = useState(versionName);
   const templateQuery = useQuery(templateByName(orgId, templateName));
-  const templateVersionQuery = useQuery(
-    templateVersionByName(orgId, templateName, versionName),
+  const templateVersionOptions = templateVersionByName(
+    orgId,
+    templateName,
+    currentVersionName,
   );
+  const templateVersionQuery = useQuery({
+    ...templateVersionOptions,
+    keepPreviousData: true,
+  });
   const fileQuery = useQuery({
     ...file(templateVersionQuery.data?.job.file_id ?? ""),
     enabled: templateVersionQuery.isSuccess,
@@ -49,8 +57,6 @@ export const TemplateVersionEditorPage: FC = () => {
   const createTemplateVersionMutation = useMutation(
     createTemplateVersion(orgId),
   );
-  const [currentVersionOnEditor, setCurrentVersionOnEditor] =
-    useState<TemplateVersion>();
 
   // Initialize file tree
   useEffect(() => {
@@ -69,39 +75,36 @@ export const TemplateVersionEditorPage: FC = () => {
     }
   }, [fileQuery.data, sendEvent]);
 
-  // Initialize current version used on editor
-  useEffect(() => {
-    if (templateVersionQuery.data) {
-      setCurrentVersionOnEditor(templateVersionQuery.data);
-    }
-  }, [templateVersionQuery.data]);
-
   // Watch version logs
   const [logs, setLogs] = useState<ProvisionerJobLog[]>([]);
+  const templateVersionId = templateVersionQuery.data?.id;
+  const refetchTemplateVersion = templateVersionQuery.refetch;
+  const templateVersionStatus = templateVersionQuery.data?.job.status;
   useEffect(() => {
-    if (!currentVersionOnEditor) {
+    if (!templateVersionId || !templateVersionStatus) {
       return;
     }
 
-    const socket = watchBuildLogsByTemplateVersionId(
-      currentVersionOnEditor.id,
-      {
-        onMessage: (log) => {
-          setLogs((logs) => [...logs, log]);
-        },
-        onDone: () => {
-          sendEvent({ type: "BUILD_DONE" });
-        },
-        onError: (error) => {
-          console.error(error);
-        },
+    if (templateVersionStatus !== "running") {
+      return;
+    }
+
+    const socket = watchBuildLogsByTemplateVersionId(templateVersionId, {
+      onMessage: (log) => {
+        setLogs((logs) => [...logs, log]);
       },
-    );
+      onDone: async () => {
+        await refetchTemplateVersion();
+      },
+      onError: (error) => {
+        console.error(error);
+      },
+    });
 
     return () => {
       socket.close();
     };
-  }, [currentVersionOnEditor, sendEvent]);
+  }, [refetchTemplateVersion, templateVersionId, templateVersionStatus]);
 
   return (
     <>
@@ -109,10 +112,10 @@ export const TemplateVersionEditorPage: FC = () => {
         <title>{pageTitle(`${templateName} · Template Editor`)}</title>
       </Helmet>
 
-      {templateQuery.data && currentVersionOnEditor && fileTree && (
+      {templateQuery.data && templateVersionQuery.data && fileTree && (
         <TemplateVersionEditor
           template={templateQuery.data}
-          templateVersion={currentVersionOnEditor}
+          templateVersion={templateVersionQuery.data}
           isBuildingNewVersion={Boolean(editorState.context.version)}
           defaultFileTree={fileTree}
           onPreview={async (newFileTree) => {
@@ -134,7 +137,11 @@ export const TemplateVersionEditorPage: FC = () => {
               file_id: serverFile.hash,
             });
             setLogs([]);
-            setCurrentVersionOnEditor(newVersion);
+            setCurrentVersionName(newVersion.name);
+            queryClient.setQueryData(
+              templateVersionOptions.queryKey,
+              newVersion,
+            );
             sendEvent({
               type: "CREATED_VERSION",
               data: newVersion,

@@ -37,7 +37,6 @@ export const templateVersionEditorMachine = createMachine(
             fileId: string;
           }
         | { type: "CANCEL_MISSING_VARIABLE_VALUES" }
-        | { type: "BUILD_DONE" }
         | { type: "PUBLISH" }
         | ({ type: "CONFIRM_PUBLISH" } & PublishVersionData)
         | { type: "CANCEL_PUBLISH" },
@@ -67,7 +66,7 @@ export const templateVersionEditorMachine = createMachine(
         on: {
           CREATED_VERSION: {
             actions: ["resetCreateBuildData", "assignBuild"],
-            target: "watchingBuildLogs",
+            target: "fetchingVersion",
           },
           PUBLISH: {
             target: "askPublishParameters",
@@ -107,15 +106,8 @@ export const templateVersionEditorMachine = createMachine(
           src: "createBuild",
           onDone: {
             actions: "assignBuild",
-            target: "watchingBuildLogs",
+            target: "fetchingVersion",
           },
-        },
-      },
-
-      watchingBuildLogs: {
-        tags: "loading",
-        on: {
-          BUILD_DONE: "fetchingVersion",
         },
       },
 
