@@ -225,6 +225,13 @@ export const richParameters = (versionId: string) => {
   };
 };
 
+export const resources = (versionId: string) => {
+  return {
+    queryKey: ["templateVersion", versionId, "resources"],
+    queryFn: () => API.getTemplateVersionResources(versionId),
+  };
+};
+
 const waitBuildToBeFinished = async (version: TemplateVersion) => {
   let data: TemplateVersion;
   let jobStatus: ProvisionerJobStatus;

@@ -2,7 +2,6 @@ import {
   TemplateVersion,
   TemplateVersionVariable,
   VariableValue,
-  WorkspaceResource,
 } from "api/typesGenerated";
 import { assign, createMachine } from "xstate";
 import * as API from "api/api";
@@ -12,7 +11,6 @@ export interface TemplateVersionEditorMachineContext {
   orgId: string;
   templateId?: string;
   version?: TemplateVersion;
-  resources?: WorkspaceResource[];
   publishingError?: unknown;
   lastSuccessfulPublishedVersion?: TemplateVersion;
   missingVariables?: TemplateVersionVariable[];
@@ -48,9 +46,6 @@ export const templateVersionEditorMachine = createMachine(
         fetchVersion: {
           data: TemplateVersion;
         };
-        getResources: {
-          data: WorkspaceResource[];
-        };
         publishingVersion: {
           data: void;
         };
@@ -65,7 +60,7 @@ export const templateVersionEditorMachine = createMachine(
       idle: {
         on: {
           CREATED_VERSION: {
-            actions: ["resetCreateBuildData", "assignBuild"],
+            actions: ["assignBuild"],
             target: "fetchingVersion",
           },
           PUBLISH: {
@@ -125,7 +120,7 @@ export const templateVersionEditorMachine = createMachine(
             },
             {
               actions: ["assignBuild"],
-              target: "fetchResources",
+              target: "idle",
             },
           ],
         },
@@ -156,28 +151,10 @@ export const templateVersionEditorMachine = createMachine(
           },
         },
       },
-
-      fetchResources: {
-        tags: "loading",
-        invoke: {
-          id: "getResources",
-          src: "getResources",
-          onDone: {
-            actions: ["assignResources"],
-            target: "idle",
-          },
-        },
-      },
     },
   },
   {
     actions: {
-      resetCreateBuildData: assign({
-        resources: (_, _1) => [],
-      }),
-      assignResources: assign({
-        resources: (_, event) => event.data,
-      }),
       assignBuild: assign({
         version: (_, event) => event.data,
       }),
@@ -218,12 +195,6 @@ export const templateVersionEditorMachine = createMachine(
           throw new Error("template version must be set");
         }
         return API.getTemplateVersion(ctx.version.id);
-      },
-      getResources: (ctx) => {
-        if (!ctx.version) {
-          throw new Error("template version must be set");
-        }
-        return API.getTemplateVersionResources(ctx.version.id);
       },
       publishingVersion: async (
         { version, templateId },

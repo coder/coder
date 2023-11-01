@@ -9,6 +9,7 @@ import { templateVersionEditorMachine } from "xServices/templateVersionEditor/te
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
   createTemplateVersion,
+  resources,
   templateByName,
   templateVersionByName,
 } from "api/queries/templates";
@@ -57,6 +58,10 @@ export const TemplateVersionEditorPage: FC = () => {
   const createTemplateVersionMutation = useMutation(
     createTemplateVersion(orgId),
   );
+  const resourcesQuery = useQuery({
+    ...resources(templateVersionQuery.data?.id ?? ""),
+    enabled: templateVersionQuery.data !== undefined,
+  });
 
   // Initialize file tree
   useEffect(() => {
@@ -89,6 +94,7 @@ export const TemplateVersionEditorPage: FC = () => {
       return;
     }
 
+    setLogs([]);
     const socket = watchBuildLogsByTemplateVersionId(templateVersionId, {
       onMessage: (log) => {
         setLogs((logs) => [...logs, log]);
@@ -116,7 +122,9 @@ export const TemplateVersionEditorPage: FC = () => {
         <TemplateVersionEditor
           template={templateQuery.data}
           templateVersion={templateVersionQuery.data}
-          isBuildingNewVersion={Boolean(editorState.context.version)}
+          isBuildingNewVersion={
+            templateVersionQuery.data.job.status === "running"
+          }
           defaultFileTree={fileTree}
           onPreview={async (newFileTree) => {
             if (!currentTarFileRef.current) {
@@ -136,7 +144,7 @@ export const TemplateVersionEditorPage: FC = () => {
               template_id: templateQuery.data.id,
               file_id: serverFile.hash,
             });
-            setLogs([]);
+
             setCurrentVersionName(newVersion.name);
             queryClient.setQueryData(
               templateVersionOptions.queryKey,
@@ -182,10 +190,10 @@ export const TemplateVersionEditorPage: FC = () => {
           }}
           disablePreview={editorState.hasTag("loading")}
           disableUpdate={
-            editorState.hasTag("loading") ||
-            editorState.context.version?.job.status !== "succeeded"
+            templateVersionQuery.data.job.status === "running" ||
+            templateVersionQuery.data.job.status !== "succeeded"
           }
-          resources={editorState.context.resources}
+          resources={resourcesQuery.data}
           buildLogs={logs}
           isPromptingMissingVariables={editorState.matches("promptVariables")}
           missingVariables={editorState.context.missingVariables}
