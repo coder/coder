@@ -1210,7 +1210,6 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify manifest API response.
-	//  community: allow api users to identify workspace_id & owner by agent tokens
 	require.Equal(t, workspace.ID, manifest.WorkspaceID)
 	require.Equal(t, workspace.OwnerName, manifest.OwnerName)
 	require.Equal(t, "First Meta", manifest.Metadata[0].DisplayName)
