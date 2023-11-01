@@ -27,7 +27,7 @@ export const Logs: FC<React.PropsWithChildren<LogsProps>> = ({
     <div css={styles.root} className={className}>
       <div css={styles.scrollWrapper}>
         {lines.map((line, idx) => (
-          <div css={[styles.line, line.level]} key={idx}>
+          <div css={styles.line} className={line.level} key={idx}>
             {!hideTimestamps && (
               <>
                 <span css={styles.time}>

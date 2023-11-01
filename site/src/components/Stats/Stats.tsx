@@ -1,40 +1,28 @@
-import Box from "@mui/material/Box"
-import { makeStyles } from "@mui/styles"
-import { ComponentProps, FC, PropsWithChildren } from "react"
-import { combineClasses } from "utils/combineClasses"
+import { type CSSObject, type Interpolation, type Theme } from "@emotion/react";
+import Box from "@mui/material/Box";
+import { type ComponentProps, type FC } from "react";
 
 export const Stats: FC<ComponentProps<typeof Box>> = (props) => {
-  const styles = useStyles()
-  return (
-    <Box
-      {...props}
-      className={combineClasses([styles.stats, props.className])}
-    />
-  )
-}
+  return <Box {...props} css={styles.stats} />;
+};
 
 export const StatsItem: FC<
   {
-    label: string
-    value: string | number | JSX.Element
+    label: string;
+    value: string | number | JSX.Element;
   } & ComponentProps<typeof Box>
 > = ({ label, value, ...divProps }) => {
-  const styles = useStyles()
-
   return (
-    <Box
-      {...divProps}
-      className={combineClasses([styles.statItem, divProps.className])}
-    >
-      <span className={styles.statsLabel}>{label}:</span>
-      <span className={styles.statsValue}>{value}</span>
+    <Box {...divProps} css={styles.statItem}>
+      <span css={styles.statsLabel}>{label}:</span>
+      <span css={styles.statsValue}>{value}</span>
     </Box>
-  )
-}
+  );
+};
 
-const useStyles = makeStyles((theme) => ({
-  stats: {
-    ...theme.typography.body2,
+const styles = {
+  stats: (theme) => ({
+    ...(theme.typography.body2 as CSSObject),
     paddingLeft: theme.spacing(2),
     paddingRight: theme.spacing(2),
     borderRadius: theme.shape.borderRadius,
@@ -49,9 +37,9 @@ const useStyles = makeStyles((theme) => ({
       display: "block",
       padding: theme.spacing(2),
     },
-  },
+  }),
 
-  statItem: {
+  statItem: (theme) => ({
     padding: theme.spacing(1.75),
     paddingLeft: theme.spacing(2),
     paddingRight: theme.spacing(2),
@@ -62,14 +50,14 @@ const useStyles = makeStyles((theme) => ({
     [theme.breakpoints.down("md")]: {
       padding: theme.spacing(1),
     },
-  },
+  }),
 
   statsLabel: {
     display: "block",
     wordWrap: "break-word",
   },
 
-  statsValue: {
+  statsValue: (theme) => ({
     marginTop: theme.spacing(0.25),
     display: "flex",
     wordWrap: "break-word",
@@ -85,5 +73,5 @@ const useStyles = makeStyles((theme) => ({
         textDecoration: "underline",
       },
     },
-  },
-}))
+  }),
+} satisfies Record<string, Interpolation<Theme>>;

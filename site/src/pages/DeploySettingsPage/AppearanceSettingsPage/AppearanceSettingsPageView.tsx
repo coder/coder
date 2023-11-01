@@ -20,6 +20,7 @@ import { useFormik } from "formik";
 import Link from "@mui/material/Link";
 import { colors } from "theme/colors";
 import { hslToHex } from "utils/colors";
+import { useTheme } from "@emotion/react";
 
 export type AppearanceSettingsPageViewProps = {
   appearance: UpdateAppearanceConfig;
@@ -37,6 +38,8 @@ export const AppearanceSettingsPageView = ({
   isEntitled,
   onSaveAppearance,
 }: AppearanceSettingsPageViewProps): JSX.Element => {
+  const theme = useTheme();
+
   const applicationNameForm = useFormik<{
     application_name: string;
   }>({
@@ -130,14 +133,14 @@ export const AppearanceSettingsPageView = ({
             endAdornment: (
               <InputAdornment
                 position="end"
-                css={(theme) => ({
+                css={{
                   width: theme.spacing(3),
                   height: theme.spacing(3),
 
                   "& img": {
                     maxWidth: "100%",
                   },
-                })}
+                }}
               >
                 <img
                   alt=""
@@ -246,7 +249,7 @@ export const AppearanceSettingsPageView = ({
                 }}
                 triangle="hide"
                 colors={["#004852", "#D65D0F", "#4CD473", "#D94A5D", "#5A00CF"]}
-                css={(theme) => ({
+                styles={{
                   default: {
                     input: {
                       color: "white",
@@ -260,7 +263,7 @@ export const AppearanceSettingsPageView = ({
                       backgroundColor: "black",
                     },
                   },
-                })}
+                }}
               />
             </Stack>
           </Stack>
