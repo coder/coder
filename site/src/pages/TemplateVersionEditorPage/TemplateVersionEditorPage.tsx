@@ -1,11 +1,9 @@
-import { useMachine } from "@xstate/react";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
 import { useOrganizationId } from "hooks/useOrganizationId";
 import { FC, useEffect, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
-import { templateVersionEditorMachine } from "xServices/templateVersionEditor/templateVersionEditorXService";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
   createTemplateVersion,
@@ -21,8 +19,16 @@ import {
   createTemplateVersionFileTree,
   isAllowedFile,
 } from "utils/templateVersion";
-import { watchBuildLogsByTemplateVersionId } from "api/api";
-import { ProvisionerJobLog } from "api/typesGenerated";
+import {
+  patchTemplateVersion,
+  updateActiveTemplateVersion,
+  watchBuildLogsByTemplateVersionId,
+} from "api/api";
+import {
+  PatchTemplateVersionRequest,
+  ProvisionerJobLog,
+  TemplateVersion,
+} from "api/typesGenerated";
 
 type Params = {
   version: string;
@@ -51,9 +57,6 @@ export const TemplateVersionEditorPage: FC = () => {
     ...file(templateVersionQuery.data?.job.file_id ?? ""),
     enabled: templateVersionQuery.isSuccess,
   });
-  const [editorState, sendEvent] = useMachine(templateVersionEditorMachine, {
-    context: { orgId, templateId: templateQuery.data?.id },
-  });
   const [fileTree, setFileTree] = useState<FileTree>();
   const uploadFileMutation = useMutation(uploadFile());
   const currentTarFileRef = useRef<TarReader | null>(null);
@@ -80,7 +83,7 @@ export const TemplateVersionEditorPage: FC = () => {
         console.error("Error on initializing the editor");
       });
     }
-  }, [fileQuery.data, sendEvent]);
+  }, [fileQuery.data]);
 
   // Watch version logs
   const [logs, setLogs] = useState<ProvisionerJobLog[]>([]);
@@ -129,6 +132,14 @@ export const TemplateVersionEditorPage: FC = () => {
     }
   }, [missingVariablesQuery.data]);
 
+  // Handling publishing
+  const [isPublishingDialogOpen, setIsPublishingDialogOpen] = useState(false);
+  const publishVersionMutation = useMutation({
+    mutationFn: publishVersion,
+  });
+  const [lastSuccessfulPublishedVersion, setLastSuccessfulPublishedVersion] =
+    useState<TemplateVersion>();
+
   return (
     <>
       <Helmet>
@@ -169,31 +180,27 @@ export const TemplateVersionEditorPage: FC = () => {
             );
           }}
           onPublish={() => {
-            sendEvent({
-              type: "PUBLISH",
-            });
+            setIsPublishingDialogOpen(true);
           }}
           onCancelPublish={() => {
-            sendEvent({
-              type: "CANCEL_PUBLISH",
-            });
+            setIsPublishingDialogOpen(false);
           }}
-          onConfirmPublish={(data) => {
-            sendEvent({
-              type: "CONFIRM_PUBLISH",
-              ...data,
+          onConfirmPublish={async ({ isActiveVersion, ...data }) => {
+            await publishVersionMutation.mutateAsync({
+              isActiveVersion,
+              data,
+              version: templateVersionQuery.data,
             });
+            setIsPublishingDialogOpen(false);
+            setLastSuccessfulPublishedVersion(templateVersionQuery.data);
           }}
-          isAskingPublishParameters={editorState.matches(
-            "askPublishParameters",
-          )}
-          isPublishing={editorState.matches("publishingVersion")}
-          publishingError={editorState.context.publishingError}
-          publishedVersion={editorState.context.lastSuccessfulPublishedVersion}
+          isAskingPublishParameters={isPublishingDialogOpen}
+          isPublishing={publishVersionMutation.isLoading}
+          publishingError={publishVersionMutation.error}
+          publishedVersion={lastSuccessfulPublishedVersion}
           onCreateWorkspace={() => {
             const params = new URLSearchParams();
-            const publishedVersion =
-              editorState.context.lastSuccessfulPublishedVersion;
+            const publishedVersion = lastSuccessfulPublishedVersion;
             if (publishedVersion) {
               params.set("version", publishedVersion.id);
             }
@@ -201,10 +208,10 @@ export const TemplateVersionEditorPage: FC = () => {
               `/templates/${templateName}/workspace?${params.toString()}`,
             );
           }}
-          disablePreview={editorState.hasTag("loading")}
+          disablePreview={templateVersionQuery.data.job.status !== "succeeded"}
           disableUpdate={
             templateVersionQuery.data.job.status === "running" ||
-            templateVersionQuery.data.job.status !== "succeeded"
+            templateVersionQuery.data.job.status === "succeeded"
           }
           resources={resourcesQuery.data}
           buildLogs={logs}
@@ -281,6 +288,24 @@ const generateVersionFiles = async (
   });
   const blob = (await tar.write()) as Blob;
   return new File([blob], "template.tar");
+};
+
+const publishVersion = async (options: {
+  version: TemplateVersion;
+  data: PatchTemplateVersionRequest;
+  isActiveVersion: boolean;
+}) => {
+  const { version, data, isActiveVersion } = options;
+  const haveChanges =
+    data.name !== version.name || data.message !== version.message;
+  return Promise.all([
+    haveChanges ? patchTemplateVersion(version.id, data) : Promise.resolve(),
+    isActiveVersion
+      ? updateActiveTemplateVersion(version.template_id!, {
+          id: version.id,
+        })
+      : Promise.resolve(),
+  ]);
 };
 
 export default TemplateVersionEditorPage;
