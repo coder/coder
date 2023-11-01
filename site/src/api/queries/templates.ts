@@ -129,6 +129,15 @@ export const templateVersionVariables = (versionId: string) => {
   };
 };
 
+export const createTemplateVersion = (orgId: string) => {
+  return {
+    mutationFn: async (request: CreateTemplateVersionRequest) => {
+      const newVersion = await API.createTemplateVersion(orgId, request);
+      return newVersion;
+    },
+  };
+};
+
 export const createAndBuildTemplateVersion = (orgId: string) => {
   return {
     mutationFn: async (request: CreateTemplateVersionRequest) => {

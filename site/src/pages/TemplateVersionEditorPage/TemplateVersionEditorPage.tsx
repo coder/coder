@@ -7,7 +7,11 @@ import { useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { templateVersionEditorMachine } from "xServices/templateVersionEditor/templateVersionEditorXService";
 import { useMutation, useQuery } from "react-query";
-import { templateByName, templateVersionByName } from "api/queries/templates";
+import {
+  createTemplateVersion,
+  templateByName,
+  templateVersionByName,
+} from "api/queries/templates";
 import { file, uploadFile } from "api/queries/files";
 import { TarReader, TarWriter } from "utils/tar";
 import { FileTree, traverse } from "utils/filetree";
@@ -40,6 +44,9 @@ export const TemplateVersionEditorPage: FC = () => {
   const [fileTree, setFileTree] = useState<FileTree>();
   const uploadFileMutation = useMutation(uploadFile());
   const currentTarFileRef = useRef<TarReader | null>(null);
+  const createTemplateVersionMutation = useMutation(
+    createTemplateVersion(orgId),
+  );
 
   useEffect(() => {
     const initialize = async (file: ArrayBuffer) => {
@@ -75,17 +82,23 @@ export const TemplateVersionEditorPage: FC = () => {
             if (!currentTarFileRef.current) {
               return;
             }
-
             const newVersionFile = await generateVersionFiles(
               currentTarFileRef.current,
               newFileTree,
             );
-            const newVersionUpload = await uploadFileMutation.mutateAsync(
+            const serverFile = await uploadFileMutation.mutateAsync(
               newVersionFile,
             );
+            const newVersion = await createTemplateVersionMutation.mutateAsync({
+              provisioner: "terraform",
+              storage_method: "file",
+              tags: {},
+              template_id: templateQuery.data.id,
+              file_id: serverFile.hash,
+            });
             sendEvent({
-              type: "CREATE_VERSION",
-              fileId: newVersionUpload.hash,
+              type: "CREATED_VERSION",
+              data: newVersion,
             });
           }}
           onPublish={() => {

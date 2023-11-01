@@ -31,8 +31,8 @@ export const templateVersionEditorMachine = createMachine(
       context: {} as TemplateVersionEditorMachineContext,
       events: {} as
         | {
-            type: "CREATE_VERSION";
-            fileId: string;
+            type: "CREATED_VERSION";
+            data: TemplateVersion;
           }
         | {
             type: "SET_MISSING_VARIABLE_VALUES";
@@ -69,9 +69,9 @@ export const templateVersionEditorMachine = createMachine(
     states: {
       idle: {
         on: {
-          CREATE_VERSION: {
-            actions: ["resetCreateBuildData"],
-            target: "creatingBuild",
+          CREATED_VERSION: {
+            actions: ["resetCreateBuildData", "assignBuild"],
+            target: "watchingBuildLogs",
           },
           PUBLISH: {
             target: "askPublishParameters",
@@ -104,7 +104,6 @@ export const templateVersionEditorMachine = createMachine(
           },
         },
       },
-
       creatingBuild: {
         tags: "loading",
         invoke: {
