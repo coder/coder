@@ -71,13 +71,33 @@ export const TemplateVersionEditorPage: FC = () => {
     isMissingVariablesDialogOpen,
   } = useMissingVariables(templateVersionQuery.data);
 
-  // Handling publishing
+  // Handle template publishing
   const [isPublishingDialogOpen, setIsPublishingDialogOpen] = useState(false);
   const publishVersionMutation = useMutation({
     mutationFn: publishVersion,
   });
   const [lastSuccessfulPublishedVersion, setLastSuccessfulPublishedVersion] =
     useState<TemplateVersion>();
+
+  // Optimistically update the template version data job status to make the
+  // build action feels faster
+  const onBuildStart = () => {
+    setLogs([]);
+    queryClient.setQueryData(templateVersionOptions.queryKey, () => {
+      return {
+        ...templateVersionQuery.data,
+        job: {
+          ...templateVersionQuery.data?.job,
+          status: "pending",
+        },
+      };
+    });
+  };
+
+  const onBuildEnds = (newVersion: TemplateVersion) => {
+    setCurrentVersionName(newVersion.name);
+    queryClient.setQueryData(templateVersionOptions.queryKey, newVersion);
+  };
 
   return (
     <>
@@ -94,7 +114,7 @@ export const TemplateVersionEditorPage: FC = () => {
             if (!tarFile) {
               return;
             }
-            setLogs([]);
+            onBuildStart();
             const newVersionFile = await generateVersionFiles(
               tarFile,
               newFileTree,
@@ -109,11 +129,7 @@ export const TemplateVersionEditorPage: FC = () => {
               template_id: templateQuery.data.id,
               file_id: serverFile.hash,
             });
-            setCurrentVersionName(newVersion.name);
-            queryClient.setQueryData(
-              templateVersionOptions.queryKey,
-              newVersion,
-            );
+            onBuildEnds(newVersion);
           }}
           onPublish={() => {
             setIsPublishingDialogOpen(true);
@@ -164,7 +180,7 @@ export const TemplateVersionEditorPage: FC = () => {
             if (!uploadFileMutation.data) {
               return;
             }
-            setLogs([]);
+            onBuildStart();
             const newVersion = await createTemplateVersionMutation.mutateAsync({
               provisioner: "terraform",
               storage_method: "file",
@@ -173,11 +189,7 @@ export const TemplateVersionEditorPage: FC = () => {
               file_id: uploadFileMutation.data.hash,
               user_variable_values: values,
             });
-            setCurrentVersionName(newVersion.name);
-            queryClient.setQueryData(
-              templateVersionOptions.queryKey,
-              newVersion,
-            );
+            onBuildEnds(newVersion);
             setIsMissingVariablesDialogOpen(false);
           }}
           onCancelSubmitMissingVariableValues={() => {
