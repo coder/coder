@@ -1,6 +1,4 @@
 import {
-  ProvisionerJobLog,
-  ProvisionerJobStatus,
   TemplateVersion,
   TemplateVersionVariable,
   VariableValue,
@@ -15,7 +13,6 @@ export interface TemplateVersionEditorMachineContext {
   templateId?: string;
   version?: TemplateVersion;
   resources?: WorkspaceResource[];
-  buildLogs?: ProvisionerJobLog[];
   publishingError?: unknown;
   lastSuccessfulPublishedVersion?: TemplateVersion;
   missingVariables?: TemplateVersionVariable[];
@@ -40,7 +37,6 @@ export const templateVersionEditorMachine = createMachine(
             fileId: string;
           }
         | { type: "CANCEL_MISSING_VARIABLE_VALUES" }
-        | { type: "ADD_BUILD_LOG"; log: ProvisionerJobLog }
         | { type: "BUILD_DONE" }
         | { type: "PUBLISH" }
         | ({ type: "CONFIRM_PUBLISH" } & PublishVersionData)
@@ -118,14 +114,7 @@ export const templateVersionEditorMachine = createMachine(
 
       watchingBuildLogs: {
         tags: "loading",
-        invoke: {
-          id: "watchBuildLogs",
-          src: "watchBuildLogs",
-        },
         on: {
-          ADD_BUILD_LOG: {
-            actions: "addBuildLog",
-          },
           BUILD_DONE: "fetchingVersion",
         },
       },
@@ -192,7 +181,6 @@ export const templateVersionEditorMachine = createMachine(
   {
     actions: {
       resetCreateBuildData: assign({
-        buildLogs: (_, _1) => [],
         resources: (_, _1) => [],
       }),
       assignResources: assign({
@@ -204,28 +192,6 @@ export const templateVersionEditorMachine = createMachine(
       assignLastSuccessfulPublishedVersion: assign({
         lastSuccessfulPublishedVersion: (ctx) => ctx.version,
         version: () => undefined,
-      }),
-      addBuildLog: assign({
-        buildLogs: (context, event) => {
-          const previousLogs = context.buildLogs ?? [];
-          return [...previousLogs, event.log];
-        },
-        // Instead of periodically fetching the version,
-        // we just assume the state is running after the first log.
-        //
-        // The machine fetches the version after the log stream ends anyways!
-        version: (context) => {
-          if (!context.version || context.buildLogs?.length !== 0) {
-            return context.version;
-          }
-          return {
-            ...context.version,
-            job: {
-              ...context.version.job,
-              status: "running" as ProvisionerJobStatus,
-            },
-          };
-        },
       }),
       assignPublishingError: assign({
         publishingError: (_, event) => event.data,
@@ -261,29 +227,6 @@ export const templateVersionEditorMachine = createMachine(
         }
         return API.getTemplateVersion(ctx.version.id);
       },
-      watchBuildLogs:
-        ({ version }) =>
-        async (callback) => {
-          if (!version) {
-            throw new Error("version must be set");
-          }
-
-          const socket = API.watchBuildLogsByTemplateVersionId(version.id, {
-            onMessage: (log) => {
-              callback({ type: "ADD_BUILD_LOG", log });
-            },
-            onDone: () => {
-              callback({ type: "BUILD_DONE" });
-            },
-            onError: (error) => {
-              console.error(error);
-            },
-          });
-
-          return () => {
-            socket.close();
-          };
-        },
       getResources: (ctx) => {
         if (!ctx.version) {
           throw new Error("template version must be set");

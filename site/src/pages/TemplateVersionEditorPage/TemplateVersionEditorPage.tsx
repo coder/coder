@@ -19,6 +19,8 @@ import {
   createTemplateVersionFileTree,
   isAllowedFile,
 } from "utils/templateVersion";
+import { watchBuildLogsByTemplateVersionId } from "api/api";
+import { ProvisionerJobLog, TemplateVersion } from "api/typesGenerated";
 
 type Params = {
   version: string;
@@ -47,9 +49,12 @@ export const TemplateVersionEditorPage: FC = () => {
   const createTemplateVersionMutation = useMutation(
     createTemplateVersion(orgId),
   );
+  const [currentVersionOnEditor, setCurrentVersionOnEditor] =
+    useState<TemplateVersion>();
 
+  // Initialize file tree
   useEffect(() => {
-    const initialize = async (file: ArrayBuffer) => {
+    const initializeFileTree = async (file: ArrayBuffer) => {
       const tarReader = new TarReader();
       await tarReader.readFile(file);
       currentTarFileRef.current = tarReader;
@@ -58,11 +63,45 @@ export const TemplateVersionEditorPage: FC = () => {
     };
 
     if (fileQuery.data) {
-      initialize(fileQuery.data).catch(() => {
+      initializeFileTree(fileQuery.data).catch(() => {
         console.error("Error on initializing the editor");
       });
     }
   }, [fileQuery.data, sendEvent]);
+
+  // Initialize current version used on editor
+  useEffect(() => {
+    if (templateVersionQuery.data) {
+      setCurrentVersionOnEditor(templateVersionQuery.data);
+    }
+  }, [templateVersionQuery.data]);
+
+  // Watch version logs
+  const [logs, setLogs] = useState<ProvisionerJobLog[]>([]);
+  useEffect(() => {
+    if (!currentVersionOnEditor) {
+      return;
+    }
+
+    const socket = watchBuildLogsByTemplateVersionId(
+      currentVersionOnEditor.id,
+      {
+        onMessage: (log) => {
+          setLogs((logs) => [...logs, log]);
+        },
+        onDone: () => {
+          sendEvent({ type: "BUILD_DONE" });
+        },
+        onError: (error) => {
+          console.error(error);
+        },
+      },
+    );
+
+    return () => {
+      socket.close();
+    };
+  }, [currentVersionOnEditor, sendEvent]);
 
   return (
     <>
@@ -70,12 +109,10 @@ export const TemplateVersionEditorPage: FC = () => {
         <title>{pageTitle(`${templateName} · Template Editor`)}</title>
       </Helmet>
 
-      {templateQuery.data && templateVersionQuery.data && fileTree && (
+      {templateQuery.data && currentVersionOnEditor && fileTree && (
         <TemplateVersionEditor
           template={templateQuery.data}
-          templateVersion={
-            editorState.context.version || templateVersionQuery.data
-          }
+          templateVersion={currentVersionOnEditor}
           isBuildingNewVersion={Boolean(editorState.context.version)}
           defaultFileTree={fileTree}
           onPreview={async (newFileTree) => {
@@ -96,6 +133,8 @@ export const TemplateVersionEditorPage: FC = () => {
               template_id: templateQuery.data.id,
               file_id: serverFile.hash,
             });
+            setLogs([]);
+            setCurrentVersionOnEditor(newVersion);
             sendEvent({
               type: "CREATED_VERSION",
               data: newVersion,
@@ -140,7 +179,7 @@ export const TemplateVersionEditorPage: FC = () => {
             editorState.context.version?.job.status !== "succeeded"
           }
           resources={editorState.context.resources}
-          buildLogs={editorState.context.buildLogs}
+          buildLogs={logs}
           isPromptingMissingVariables={editorState.matches("promptVariables")}
           missingVariables={editorState.context.missingVariables}
           onSubmitMissingVariableValues={(values) => {
