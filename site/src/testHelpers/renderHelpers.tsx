@@ -29,12 +29,15 @@ export const renderWithRouter = (
     },
   });
 
+  const rootComponent = (
+    <AppProviders queryClient={queryClient}>
+      <RouterProvider router={router} />
+    </AppProviders>
+  );
+
   return {
-    ...tlRender(
-      <AppProviders queryClient={queryClient}>
-        <RouterProvider router={router} />
-      </AppProviders>,
-    ),
+    ...tlRender(rootComponent),
+    rootComponent,
     router,
   };
 };
