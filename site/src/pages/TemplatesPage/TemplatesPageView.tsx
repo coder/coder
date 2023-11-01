@@ -36,7 +36,6 @@ import {
 import { EmptyTemplates } from "./EmptyTemplates";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import type { Template, TemplateExample } from "api/typesGenerated";
-import { combineClasses } from "utils/combineClasses";
 import { colors } from "theme/colors";
 import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined";
 import { Avatar } from "components/Avatar/Avatar";
