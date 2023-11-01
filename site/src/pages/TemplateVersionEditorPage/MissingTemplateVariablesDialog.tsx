@@ -1,12 +1,16 @@
-import { makeStyles } from "@mui/styles";
+import { css } from "@emotion/css";
+import { useTheme, type Interpolation, type Theme } from "@emotion/react";
 import Dialog from "@mui/material/Dialog";
 import DialogContent from "@mui/material/DialogContent";
 import DialogContentText from "@mui/material/DialogContentText";
 import DialogTitle from "@mui/material/DialogTitle";
-import { DialogProps } from "components/Dialogs/Dialog";
-import { FC, useEffect, useState } from "react";
+import { type DialogProps } from "components/Dialogs/Dialog";
+import { type FC, useEffect, useState } from "react";
 import { FormFields, VerticalForm } from "components/Form/Form";
-import { TemplateVersionVariable, VariableValue } from "api/typesGenerated";
+import type {
+  TemplateVersionVariable,
+  VariableValue,
+} from "api/typesGenerated";
 import DialogActions from "@mui/material/DialogActions";
 import Button from "@mui/material/Button";
 import { VariableInput } from "pages/CreateTemplatePage/VariableInput";
@@ -24,7 +28,7 @@ export type MissingTemplateVariablesDialogProps = Omit<
 export const MissingTemplateVariablesDialog: FC<
   MissingTemplateVariablesDialogProps
 > = ({ missingVariables, onSubmit, ...dialogProps }) => {
-  const styles = useStyles();
+  const theme = useTheme();
   const [variableValues, setVariableValues] = useState<VariableValue[]>([]);
 
   // Pre-fill the form with the default values when missing variables are loaded
@@ -47,16 +51,25 @@ export const MissingTemplateVariablesDialog: FC<
     >
       <DialogTitle
         id="update-build-parameters-title"
-        classes={{ root: styles.title }}
+        classes={{
+          root: css`
+            padding: ${theme.spacing(3, 5)};
+
+            & h2 {
+              font-size: ${theme.spacing(2.5)};
+              font-weight: 400;
+            }
+          `,
+        }}
       >
         Template variables
       </DialogTitle>
-      <DialogContent className={styles.content}>
-        <DialogContentText className={styles.info}>
+      <DialogContent css={styles.content}>
+        <DialogContentText css={styles.info}>
           There are a few missing template variable values. Please fill them in.
         </DialogContentText>
         <VerticalForm
-          className={styles.form}
+          css={styles.form}
           id="updateVariables"
           onSubmit={(e) => {
             e.preventDefault();
@@ -89,7 +102,7 @@ export const MissingTemplateVariablesDialog: FC<
           )}
         </VerticalForm>
       </DialogContent>
-      <DialogActions disableSpacing className={styles.dialogActions}>
+      <DialogActions disableSpacing css={styles.dialogActions}>
         <Button color="primary" fullWidth type="submit" form="updateVariables">
           Submit
         </Button>
@@ -101,43 +114,22 @@ export const MissingTemplateVariablesDialog: FC<
   );
 };
 
-const useStyles = makeStyles((theme) => ({
-  title: {
-    padding: theme.spacing(3, 5),
-
-    "& h2": {
-      fontSize: theme.spacing(2.5),
-      fontWeight: 400,
-    },
-  },
-
-  content: {
-    padding: theme.spacing(0, 5, 0, 5),
-  },
+const styles = {
+  content: (theme) => ({
+    padding: theme.spacing(0, 5),
+  }),
 
   info: {
     margin: 0,
   },
 
-  form: {
+  form: (theme) => ({
     paddingTop: theme.spacing(4),
-  },
+  }),
 
-  infoTitle: {
-    fontSize: theme.spacing(2),
-    fontWeight: 600,
-    display: "flex",
-    alignItems: "center",
-    gap: theme.spacing(1),
-  },
-
-  formFooter: {
-    flexDirection: "column",
-  },
-
-  dialogActions: {
+  dialogActions: (theme) => ({
     padding: theme.spacing(5),
     flexDirection: "column",
     gap: theme.spacing(1),
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;

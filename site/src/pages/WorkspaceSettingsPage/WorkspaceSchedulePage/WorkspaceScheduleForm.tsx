@@ -5,7 +5,6 @@ import FormGroup from "@mui/material/FormGroup";
 import FormHelperText from "@mui/material/FormHelperText";
 import FormLabel from "@mui/material/FormLabel";
 import MenuItem from "@mui/material/MenuItem";
-import makeStyles from "@mui/styles/makeStyles";
 import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
 import {
@@ -200,8 +199,6 @@ export const WorkspaceScheduleForm: FC<
   enableAutoStop,
   enableAutoStart,
 }) => {
-  const styles = useStyles();
-
   const form = useFormik<WorkspaceScheduleFormValues>({
     initialValues,
     onSubmit,
@@ -340,11 +337,23 @@ export const WorkspaceScheduleForm: FC<
           </Stack>
 
           <FormControl component="fieldset" error={Boolean(form.errors.monday)}>
-            <FormLabel className={styles.daysOfWeekLabel} component="legend">
+            <FormLabel
+              css={{
+                fontSize: 12,
+              }}
+              component="legend"
+            >
               {Language.daysOfWeekLabel}
             </FormLabel>
 
-            <FormGroup className={styles.daysOfWeekOptions}>
+            <FormGroup
+              css={(theme) => ({
+                display: "flex",
+                flexDirection: "row",
+                flexWrap: "wrap",
+                paddingTop: theme.spacing(0.5),
+              })}
+            >
               {checkboxes.map((checkbox) => (
                 <FormControlLabel
                   control={
@@ -422,15 +431,3 @@ export const ttlShutdownAt = (formTTL: number): string => {
       .humanize()} ${Language.ttlCausesShutdownAfterStart}.`;
   }
 };
-
-const useStyles = makeStyles((theme) => ({
-  daysOfWeekLabel: {
-    fontSize: 12,
-  },
-  daysOfWeekOptions: {
-    display: "flex",
-    flexDirection: "row",
-    flexWrap: "wrap",
-    paddingTop: theme.spacing(0.5),
-  },
-}));
