@@ -12,6 +12,7 @@ import {
   resources,
   templateByName,
   templateVersionByName,
+  templateVersionVariables,
 } from "api/queries/templates";
 import { file, uploadFile } from "api/queries/files";
 import { TarReader, TarWriter } from "utils/tar";
@@ -31,10 +32,11 @@ type Params = {
 export const TemplateVersionEditorPage: FC = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { version: versionName, template: templateName } =
+  const { version: initialVersionName, template: templateName } =
     useParams() as Params;
   const orgId = useOrganizationId();
-  const [currentVersionName, setCurrentVersionName] = useState(versionName);
+  const [currentVersionName, setCurrentVersionName] =
+    useState(initialVersionName);
   const templateQuery = useQuery(templateByName(orgId, templateName));
   const templateVersionOptions = templateVersionByName(
     orgId,
@@ -60,7 +62,7 @@ export const TemplateVersionEditorPage: FC = () => {
   );
   const resourcesQuery = useQuery({
     ...resources(templateVersionQuery.data?.id ?? ""),
-    enabled: templateVersionQuery.data !== undefined,
+    enabled: templateVersionQuery.data?.job.status === "succeeded",
   });
 
   // Initialize file tree
@@ -112,6 +114,21 @@ export const TemplateVersionEditorPage: FC = () => {
     };
   }, [refetchTemplateVersion, templateVersionId, templateVersionStatus]);
 
+  // Handling missing variables
+  const missingVariablesQuery = useQuery({
+    ...templateVersionVariables(templateVersionQuery.data?.id ?? ""),
+    enabled:
+      templateVersionQuery.data?.job.error_code ===
+      "REQUIRED_TEMPLATE_VARIABLES",
+  });
+  const [isMissingVariablesDialogOpen, setIsMissingVariablesDialogOpen] =
+    useState(false);
+  useEffect(() => {
+    if (missingVariablesQuery.data) {
+      setIsMissingVariablesDialogOpen(true);
+    }
+  }, [missingVariablesQuery.data]);
+
   return (
     <>
       <Helmet>
@@ -150,10 +167,6 @@ export const TemplateVersionEditorPage: FC = () => {
               templateVersionOptions.queryKey,
               newVersion,
             );
-            sendEvent({
-              type: "CREATED_VERSION",
-              data: newVersion,
-            });
           }}
           onPublish={() => {
             sendEvent({
@@ -195,19 +208,30 @@ export const TemplateVersionEditorPage: FC = () => {
           }
           resources={resourcesQuery.data}
           buildLogs={logs}
-          isPromptingMissingVariables={editorState.matches("promptVariables")}
-          missingVariables={editorState.context.missingVariables}
-          onSubmitMissingVariableValues={(values) => {
-            sendEvent({
-              type: "SET_MISSING_VARIABLE_VALUES",
-              values,
-              fileId: uploadFileMutation.data!.hash,
+          isPromptingMissingVariables={isMissingVariablesDialogOpen}
+          missingVariables={missingVariablesQuery.data}
+          onSubmitMissingVariableValues={async (values) => {
+            if (!uploadFileMutation.data) {
+              return;
+            }
+
+            const newVersion = await createTemplateVersionMutation.mutateAsync({
+              provisioner: "terraform",
+              storage_method: "file",
+              tags: {},
+              template_id: templateQuery.data.id,
+              file_id: uploadFileMutation.data.hash,
+              user_variable_values: values,
             });
+            setCurrentVersionName(newVersion.name);
+            queryClient.setQueryData(
+              templateVersionOptions.queryKey,
+              newVersion,
+            );
+            setIsMissingVariablesDialogOpen(false);
           }}
           onCancelSubmitMissingVariableValues={() => {
-            sendEvent({
-              type: "CANCEL_MISSING_VARIABLE_VALUES",
-            });
+            setIsMissingVariablesDialogOpen(false);
           }}
         />
       )}

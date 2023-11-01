@@ -1,8 +1,4 @@
-import {
-  TemplateVersion,
-  TemplateVersionVariable,
-  VariableValue,
-} from "api/typesGenerated";
+import { TemplateVersion } from "api/typesGenerated";
 import { assign, createMachine } from "xstate";
 import * as API from "api/api";
 import { PublishVersionData } from "pages/TemplateVersionEditorPage/types";
@@ -13,8 +9,6 @@ export interface TemplateVersionEditorMachineContext {
   version?: TemplateVersion;
   publishingError?: unknown;
   lastSuccessfulPublishedVersion?: TemplateVersion;
-  missingVariables?: TemplateVersionVariable[];
-  missingVariableValues?: VariableValue[];
 }
 
 export const templateVersionEditorMachine = createMachine(
@@ -25,32 +19,13 @@ export const templateVersionEditorMachine = createMachine(
     schema: {
       context: {} as TemplateVersionEditorMachineContext,
       events: {} as
-        | {
-            type: "CREATED_VERSION";
-            data: TemplateVersion;
-          }
-        | {
-            type: "SET_MISSING_VARIABLE_VALUES";
-            values: VariableValue[];
-            fileId: string;
-          }
-        | { type: "CANCEL_MISSING_VARIABLE_VALUES" }
         | { type: "PUBLISH" }
         | ({ type: "CONFIRM_PUBLISH" } & PublishVersionData)
         | { type: "CANCEL_PUBLISH" },
 
       services: {} as {
-        createBuild: {
-          data: TemplateVersion;
-        };
-        fetchVersion: {
-          data: TemplateVersion;
-        };
         publishingVersion: {
           data: void;
-        };
-        loadMissingVariables: {
-          data: TemplateVersionVariable[];
         };
       },
     },
@@ -59,10 +34,6 @@ export const templateVersionEditorMachine = createMachine(
     states: {
       idle: {
         on: {
-          CREATED_VERSION: {
-            actions: ["assignBuild"],
-            target: "fetchingVersion",
-          },
           PUBLISH: {
             target: "askPublishParameters",
           },
@@ -94,70 +65,10 @@ export const templateVersionEditorMachine = createMachine(
           },
         },
       },
-      creatingBuild: {
-        tags: "loading",
-        invoke: {
-          id: "createBuild",
-          src: "createBuild",
-          onDone: {
-            actions: "assignBuild",
-            target: "fetchingVersion",
-          },
-        },
-      },
-
-      fetchingVersion: {
-        tags: "loading",
-        invoke: {
-          id: "fetchVersion",
-          src: "fetchVersion",
-
-          onDone: [
-            {
-              actions: ["assignBuild"],
-              target: "promptVariables",
-              cond: "jobFailedWithMissingVariables",
-            },
-            {
-              actions: ["assignBuild"],
-              target: "idle",
-            },
-          ],
-        },
-      },
-
-      promptVariables: {
-        initial: "loadingMissingVariables",
-        states: {
-          loadingMissingVariables: {
-            invoke: {
-              src: "loadMissingVariables",
-              onDone: {
-                actions: "assignMissingVariables",
-                target: "idle",
-              },
-            },
-          },
-          idle: {
-            on: {
-              SET_MISSING_VARIABLE_VALUES: {
-                actions: "assignMissingVariableValues",
-                target: "#templateVersionEditor.creatingBuild",
-              },
-              CANCEL_MISSING_VARIABLE_VALUES: {
-                target: "#templateVersionEditor.idle",
-              },
-            },
-          },
-        },
-      },
     },
   },
   {
     actions: {
-      assignBuild: assign({
-        version: (_, event) => event.data,
-      }),
       assignLastSuccessfulPublishedVersion: assign({
         lastSuccessfulPublishedVersion: (ctx) => ctx.version,
         version: () => undefined,
@@ -169,33 +80,8 @@ export const templateVersionEditorMachine = createMachine(
       clearLastSuccessfulPublishedVersion: assign({
         lastSuccessfulPublishedVersion: (_) => undefined,
       }),
-      assignMissingVariables: assign({
-        missingVariables: (_, event) => event.data,
-      }),
-      assignMissingVariableValues: assign({
-        missingVariableValues: (_, event) => event.values,
-      }),
     },
     services: {
-      createBuild: async (ctx, event) => {
-        if (ctx.version?.job.status === "running") {
-          await API.cancelTemplateVersionBuild(ctx.version.id);
-        }
-        return API.createTemplateVersion(ctx.orgId, {
-          provisioner: "terraform",
-          storage_method: "file",
-          tags: {},
-          template_id: ctx.templateId,
-          file_id: event.fileId,
-          user_variable_values: ctx.missingVariableValues,
-        });
-      },
-      fetchVersion: (ctx) => {
-        if (!ctx.version) {
-          throw new Error("template version must be set");
-        }
-        return API.getTemplateVersion(ctx.version.id);
-      },
       publishingVersion: async (
         { version, templateId },
         { name, message, isActiveVersion },
@@ -218,18 +104,6 @@ export const templateVersionEditorMachine = createMachine(
               })
             : Promise.resolve(),
         ]);
-      },
-      loadMissingVariables: ({ version }) => {
-        if (!version) {
-          throw new Error("Version is not set");
-        }
-        const variables = API.getTemplateVersionVariables(version.id);
-        return variables;
-      },
-    },
-    guards: {
-      jobFailedWithMissingVariables: (_, { data }) => {
-        return data.job.error_code === "REQUIRED_TEMPLATE_VARIABLES";
       },
     },
   },
