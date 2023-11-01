@@ -1,5 +1,4 @@
 import Button from "@mui/material/Button";
-import { makeStyles } from "@mui/styles";
 import { useTheme } from "@emotion/react";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";

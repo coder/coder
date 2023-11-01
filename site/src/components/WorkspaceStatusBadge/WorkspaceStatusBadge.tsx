@@ -1,4 +1,4 @@
-import { Workspace } from "api/typesGenerated";
+import type { Workspace } from "api/typesGenerated";
 import { Pill } from "components/Pill/Pill";
 import { FC, PropsWithChildren } from "react";
 import { makeStyles } from "@mui/styles";
