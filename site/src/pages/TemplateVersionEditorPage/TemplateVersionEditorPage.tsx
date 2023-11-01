@@ -53,13 +53,7 @@ export const TemplateVersionEditorPage: FC = () => {
     ...templateVersionOptions,
     keepPreviousData: true,
   });
-  const fileQuery = useQuery({
-    ...file(templateVersionQuery.data?.job.file_id ?? ""),
-    enabled: templateVersionQuery.isSuccess,
-  });
-  const [fileTree, setFileTree] = useState<FileTree>();
   const uploadFileMutation = useMutation(uploadFile());
-  const currentTarFileRef = useRef<TarReader | null>(null);
   const createTemplateVersionMutation = useMutation(
     createTemplateVersion(orgId),
   );
@@ -70,38 +64,12 @@ export const TemplateVersionEditorPage: FC = () => {
   const { logs, setLogs } = useVersionLogs(templateVersionQuery.data, {
     onDone: templateVersionQuery.refetch,
   });
-
-  // Initialize file tree
-  useEffect(() => {
-    const initializeFileTree = async (file: ArrayBuffer) => {
-      const tarReader = new TarReader();
-      await tarReader.readFile(file);
-      currentTarFileRef.current = tarReader;
-      const fileTree = await createTemplateVersionFileTree(tarReader);
-      setFileTree(fileTree);
-    };
-
-    if (fileQuery.data) {
-      initializeFileTree(fileQuery.data).catch(() => {
-        console.error("Error on initializing the editor");
-      });
-    }
-  }, [fileQuery.data]);
-
-  // Handling missing variables
-  const missingVariablesQuery = useQuery({
-    ...templateVersionVariables(templateVersionQuery.data?.id ?? ""),
-    enabled:
-      templateVersionQuery.data?.job.error_code ===
-      "REQUIRED_TEMPLATE_VARIABLES",
-  });
-  const [isMissingVariablesDialogOpen, setIsMissingVariablesDialogOpen] =
-    useState(false);
-  useEffect(() => {
-    if (missingVariablesQuery.data) {
-      setIsMissingVariablesDialogOpen(true);
-    }
-  }, [missingVariablesQuery.data]);
+  const { fileTree, tarFile } = useFileTree(templateVersionQuery.data);
+  const {
+    missingVariables,
+    setIsMissingVariablesDialogOpen,
+    isMissingVariablesDialogOpen,
+  } = useMissingVariables(templateVersionQuery.data);
 
   // Handling publishing
   const [isPublishingDialogOpen, setIsPublishingDialogOpen] = useState(false);
@@ -123,12 +91,12 @@ export const TemplateVersionEditorPage: FC = () => {
           templateVersion={templateVersionQuery.data}
           defaultFileTree={fileTree}
           onPreview={async (newFileTree) => {
-            if (!currentTarFileRef.current) {
+            if (!tarFile) {
               return;
             }
             setLogs([]);
             const newVersionFile = await generateVersionFiles(
-              currentTarFileRef.current,
+              tarFile,
               newFileTree,
             );
             const serverFile = await uploadFileMutation.mutateAsync(
@@ -191,7 +159,7 @@ export const TemplateVersionEditorPage: FC = () => {
           resources={resourcesQuery.data}
           buildLogs={logs}
           isPromptingMissingVariables={isMissingVariablesDialogOpen}
-          missingVariables={missingVariablesQuery.data}
+          missingVariables={missingVariables}
           onSubmitMissingVariableValues={async (values) => {
             if (!uploadFileMutation.data) {
               return;
@@ -221,11 +189,39 @@ export const TemplateVersionEditorPage: FC = () => {
   );
 };
 
+const useFileTree = (templateVersion: TemplateVersion | undefined) => {
+  const tarFileRef = useRef<TarReader | null>(null);
+  const fileQuery = useQuery({
+    ...file(templateVersion?.job.file_id ?? ""),
+    enabled: templateVersion !== undefined,
+  });
+  const [fileTree, setFileTree] = useState<FileTree>();
+  useEffect(() => {
+    const initializeFileTree = async (file: ArrayBuffer) => {
+      const tarReader = new TarReader();
+      await tarReader.readFile(file);
+      tarFileRef.current = tarReader;
+      const fileTree = await createTemplateVersionFileTree(tarReader);
+      setFileTree(fileTree);
+    };
+
+    if (fileQuery.data) {
+      initializeFileTree(fileQuery.data).catch(() => {
+        console.error("Error on initializing the editor");
+      });
+    }
+  }, [fileQuery.data]);
+
+  return {
+    fileTree,
+    tarFile: tarFileRef.current,
+  };
+};
+
 const useVersionLogs = (
   templateVersion: TemplateVersion | undefined,
   options: { onDone: () => Promise<unknown> },
 ) => {
-  // Watch version logs
   const [logs, setLogs] = useState<ProvisionerJobLog[]>();
   const templateVersionId = templateVersion?.id;
   const refetchTemplateVersion = options.onDone;
@@ -260,6 +256,27 @@ const useVersionLogs = (
   return {
     logs,
     setLogs,
+  };
+};
+
+const useMissingVariables = (templateVersion: TemplateVersion | undefined) => {
+  const { data: missingVariables } = useQuery({
+    ...templateVersionVariables(templateVersion?.id ?? ""),
+    enabled: templateVersion?.job.error_code === "REQUIRED_TEMPLATE_VARIABLES",
+  });
+  const [isMissingVariablesDialogOpen, setIsMissingVariablesDialogOpen] =
+    useState(false);
+
+  useEffect(() => {
+    if (missingVariables) {
+      setIsMissingVariablesDialogOpen(true);
+    }
+  }, [missingVariables]);
+
+  return {
+    missingVariables,
+    isMissingVariablesDialogOpen,
+    setIsMissingVariablesDialogOpen,
   };
 };
 
