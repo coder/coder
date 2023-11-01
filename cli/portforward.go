@@ -98,7 +98,7 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 				return xerrors.Errorf("await agent: %w", err)
 			}
 
-			var logger slog.Logger
+			logger := slog.Make()
 			if r.verbose {
 				logger = slog.Make(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelDebug)
 			}
@@ -131,7 +131,7 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 			defer closeAllListeners()
 
 			for i, spec := range specs {
-				l, err := listenAndPortForward(ctx, inv, conn, wg, spec)
+				l, err := listenAndPortForward(ctx, inv, conn, wg, spec, logger)
 				if err != nil {
 					return err
 				}
@@ -185,7 +185,15 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 	return cmd
 }
 
-func listenAndPortForward(ctx context.Context, inv *clibase.Invocation, conn *codersdk.WorkspaceAgentConn, wg *sync.WaitGroup, spec portForwardSpec) (net.Listener, error) {
+func listenAndPortForward(
+	ctx context.Context,
+	inv *clibase.Invocation,
+	conn *codersdk.WorkspaceAgentConn,
+	wg *sync.WaitGroup,
+	spec portForwardSpec,
+	logger slog.Logger,
+) (net.Listener, error) {
+	logger = logger.With(slog.F("network", spec.listenNetwork), slog.F("address", spec.listenAddress))
 	_, _ = fmt.Fprintf(inv.Stderr, "Forwarding '%v://%v' locally to '%v://%v' in the workspace\n", spec.listenNetwork, spec.listenAddress, spec.dialNetwork, spec.dialAddress)
 
 	var (
@@ -218,6 +226,7 @@ func listenAndPortForward(ctx context.Context, inv *clibase.Invocation, conn *co
 	if err != nil {
 		return nil, xerrors.Errorf("listen '%v://%v': %w", spec.listenNetwork, spec.listenAddress, err)
 	}
+	logger.Debug(ctx, "listening")
 
 	wg.Add(1)
 	go func(spec portForwardSpec) {
@@ -227,12 +236,14 @@ func listenAndPortForward(ctx context.Context, inv *clibase.Invocation, conn *co
 			if err != nil {
 				// Silently ignore net.ErrClosed errors.
 				if xerrors.Is(err, net.ErrClosed) {
+					logger.Debug(ctx, "listener closed")
 					return
 				}
 				_, _ = fmt.Fprintf(inv.Stderr, "Error accepting connection from '%v://%v': %v\n", spec.listenNetwork, spec.listenAddress, err)
 				_, _ = fmt.Fprintln(inv.Stderr, "Killing listener")
 				return
 			}
+			logger.Debug(ctx, "accepted connection", slog.F("remote_addr", netConn.RemoteAddr()))
 
 			go func(netConn net.Conn) {
 				defer netConn.Close()
@@ -242,8 +253,10 @@ func listenAndPortForward(ctx context.Context, inv *clibase.Invocation, conn *co
 					return
 				}
 				defer remoteConn.Close()
+				logger.Debug(ctx, "dialed remote", slog.F("remote_addr", netConn.RemoteAddr()))
 
 				agentssh.Bicopy(ctx, netConn, remoteConn)
+				logger.Debug(ctx, "connection closing", slog.F("remote_addr", netConn.RemoteAddr()))
 			}(netConn)
 		}
 	}(spec)

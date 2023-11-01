@@ -140,9 +140,10 @@ func TestPortForward(t *testing.T) {
 
 	for _, c := range cases {
 		c := c
-		// Delay parallel tests here because setupLocal reserves
+		// No parallel tests here because setupLocal reserves
 		// a free open port which is not guaranteed to be free
 		// between the listener closing and port-forward ready.
+		//nolint:tparallel,paralleltest
 		t.Run(c.name+"_OnePort", func(t *testing.T) {
 			p1 := setupTestListener(t, c.setupRemote(t))
 
@@ -166,8 +167,6 @@ func TestPortForward(t *testing.T) {
 			}()
 			pty.ExpectMatchContext(ctx, "Ready!")
 
-			t.Parallel() // Port is reserved, enable parallel execution.
-
 			// Open two connections simultaneously and test them out of
 			// sync.
 			d := net.Dialer{Timeout: testutil.WaitShort}
@@ -185,6 +184,10 @@ func TestPortForward(t *testing.T) {
 			require.ErrorIs(t, err, context.Canceled)
 		})
 
+		// No parallel tests here because setupLocal reserves
+		// a free open port which is not guaranteed to be free
+		// between the listener closing and port-forward ready.
+		//nolint:tparallel,paralleltest
 		t.Run(c.name+"_TwoPorts", func(t *testing.T) {
 			var (
 				p1 = setupTestListener(t, c.setupRemote(t))
@@ -213,8 +216,6 @@ func TestPortForward(t *testing.T) {
 			}()
 			pty.ExpectMatchContext(ctx, "Ready!")
 
-			t.Parallel() // Port is reserved, enable parallel execution.
-
 			// Open a connection to both listener 1 and 2 simultaneously and
 			// then test them out of order.
 			d := net.Dialer{Timeout: testutil.WaitShort}
@@ -234,6 +235,10 @@ func TestPortForward(t *testing.T) {
 	}
 
 	// Test doing TCP and UDP at the same time.
+	// No parallel tests here because setupLocal reserves
+	// a free open port which is not guaranteed to be free
+	// between the listener closing and port-forward ready.
+	//nolint:tparallel,paralleltest
 	t.Run("All", func(t *testing.T) {
 		var (
 			dials = []addr{}
@@ -265,8 +270,6 @@ func TestPortForward(t *testing.T) {
 			errC <- inv.WithContext(ctx).Run()
 		}()
 		pty.ExpectMatchContext(ctx, "Ready!")
-
-		t.Parallel() // Port is reserved, enable parallel execution.
 
 		// Open connections to all items in the "dial" array.
 		var (

@@ -1,11 +1,11 @@
-import { makeStyles } from "@mui/styles";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import TreeView from "@mui/lab/TreeView";
 import TreeItem from "@mui/lab/TreeItem";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
-import { CSSProperties, FC, useState } from "react";
+import { type CSSProperties, type FC, useState } from "react";
+import { css } from "@emotion/react";
 import { FileTree } from "utils/filetree";
 import { DockerIcon } from "components/Icons/DockerIcon";
 import { colors } from "theme/colors";
@@ -35,7 +35,6 @@ export const FileTreeView: FC<{
   fileTree: FileTree;
   activePath?: string;
 }> = ({ fileTree, activePath, onDelete, onRename, onSelect }) => {
-  const styles = useStyles();
   const [contextMenu, setContextMenu] = useState<ContextMenu | undefined>();
 
   const buildTreeItems = (
@@ -60,9 +59,54 @@ export const FileTreeView: FC<{
         nodeId={currentPath}
         key={currentPath}
         label={filename}
-        className={`${styles.fileTreeItem} ${
-          currentPath === activePath ? "active" : ""
-        }`}
+        css={(theme) => css`
+          overflow: hidden;
+          user-select: none;
+
+          &:focus:not(.active) > .MuiTreeItem-content {
+            background: ${theme.palette.action.hover};
+            color: ${theme.palette.text.primary};
+          }
+
+          &:not(:focus):not(.active) > .MuiTreeItem-content:hover {
+            background: ${theme.palette.action.hover};
+            color: ${theme.palette.text.primary};
+          }
+
+          & > .MuiTreeItem-content {
+            padding: ${theme.spacing(0.25, 2)};
+            color: ${theme.palette.text.secondary};
+
+            & svg {
+              width: 16px;
+              height: 16px;
+            }
+
+            & > .MuiTreeItem-label {
+              margin-left: 4px;
+              font-size: 13px;
+              color: inherit;
+            }
+          }
+
+          &.active {
+            & > .MuiTreeItem-content {
+              color: ${theme.palette.text.primary};
+              background: ${colors.gray[13]};
+              pointer-events: none;
+            }
+          }
+
+          & .MuiTreeItem-group {
+            margin-left: 0;
+
+            // We need to find a better way to recursive padding here
+            & .MuiTreeItem-content {
+              padding-left: calc(var(--level) * ${theme.spacing(5)});
+            }
+          }
+        `}
+        className={currentPath === activePath ? "active" : ""}
         onClick={() => {
           onSelect(currentPath);
         }}
@@ -160,60 +204,6 @@ export const FileTreeView: FC<{
     </TreeView>
   );
 };
-
-const useStyles = makeStyles((theme) => ({
-  fileTreeItem: {
-    overflow: "hidden",
-    userSelect: "none",
-
-    "&:focus:not(.active) > .MuiTreeItem-content": {
-      background: theme.palette.action.hover,
-      color: theme.palette.text.primary,
-    },
-
-    "&:not(:focus):not(.active) > .MuiTreeItem-content:hover": {
-      background: theme.palette.action.hover,
-      color: theme.palette.text.primary,
-    },
-
-    "& > .MuiTreeItem-content": {
-      padding: theme.spacing(0.25, 2),
-      color: theme.palette.text.secondary,
-
-      "& svg": {
-        width: 16,
-        height: 16,
-      },
-
-      "& > .MuiTreeItem-label": {
-        marginLeft: 4,
-        fontSize: 13,
-        color: "inherit",
-      },
-    },
-
-    "&.active": {
-      "& > .MuiTreeItem-content": {
-        color: theme.palette.text.primary,
-        background: colors.gray[13],
-        pointerEvents: "none",
-      },
-    },
-
-    "& .MuiTreeItem-group": {
-      marginLeft: 0,
-
-      // We need to find a better way to recursive padding here
-      "& .MuiTreeItem-content": {
-        paddingLeft: `calc(var(--level) * ${theme.spacing(5)})`,
-      },
-    },
-  },
-  editor: {
-    flex: 1,
-  },
-  preview: {},
-}));
 
 const FileTypeTerraform = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="#813cf3">

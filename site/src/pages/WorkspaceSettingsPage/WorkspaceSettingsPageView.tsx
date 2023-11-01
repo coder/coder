@@ -5,18 +5,18 @@ import { Workspace } from "api/typesGenerated";
 
 export type WorkspaceSettingsPageViewProps = {
   error: unknown;
-  isSubmitting: boolean;
   workspace: Workspace;
   onCancel: () => void;
   onSubmit: ComponentProps<typeof WorkspaceSettingsForm>["onSubmit"];
+  templatePoliciesEnabled: boolean;
 };
 
 export const WorkspaceSettingsPageView: FC<WorkspaceSettingsPageViewProps> = ({
   onCancel,
   onSubmit,
-  isSubmitting,
   error,
   workspace,
+  templatePoliciesEnabled,
 }) => {
   return (
     <>
@@ -30,10 +30,10 @@ export const WorkspaceSettingsPageView: FC<WorkspaceSettingsPageViewProps> = ({
 
       <WorkspaceSettingsForm
         error={error}
-        isSubmitting={isSubmitting}
         workspace={workspace}
         onCancel={onCancel}
         onSubmit={onSubmit}
+        templatePoliciesEnabled={templatePoliciesEnabled}
       />
     </>
   );
