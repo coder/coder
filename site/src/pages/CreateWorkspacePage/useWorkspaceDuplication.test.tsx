@@ -41,9 +41,9 @@ async function performNavigation(
   router: ReturnType<typeof createMemoryRouter>,
 ) {
   await waitFor(() => expect(button).not.toBeDisabled());
-
   await userEvent.click(button);
-  await waitFor(() => {
+
+  return waitFor(() => {
     expect(router.state.location.pathname).toEqual(
       `/templates/${MockWorkspace.template_name}/workspace`,
     );
