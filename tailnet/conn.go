@@ -941,7 +941,7 @@ func (c *Conn) DialContextTCP(ctx context.Context, ipp netip.AddrPort) (*gonet.T
 }
 
 func (c *Conn) DialContextUDP(ctx context.Context, ipp netip.AddrPort) (*gonet.UDPConn, error) {
-	c.logger.Debug(ctx, "dial tcp", slog.F("addr_port", ipp))
+	c.logger.Debug(ctx, "dial udp", slog.F("addr_port", ipp))
 	return c.netStack.DialContextUDP(ctx, ipp)
 }
 
