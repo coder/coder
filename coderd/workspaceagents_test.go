@@ -153,11 +153,8 @@ func TestWorkspaceAgent(t *testing.T) {
 			SshHelper:            true,
 		}
 		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
-			Name: "example",
-			Type: "aws_instance",
 			Agents: []*proto.Agent{
 				{
-					Id:        uuid.NewString(),
 					Directory: tmpDir,
 					Auth: &proto.Agent_Token{
 						Token: authToken,
@@ -196,11 +193,8 @@ func TestWorkspaceAgent(t *testing.T) {
 			OwnerID:        user.UserID,
 		})
 		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
-			Name: "example",
-			Type: "aws_instance",
 			Agents: []*proto.Agent{
 				{
-					Id:        uuid.NewString(),
 					Directory: tmpDir,
 					Auth: &proto.Agent_Token{
 						Token: authToken,

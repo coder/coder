@@ -395,9 +395,6 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 		require.NoError(t, err)
 	}
 
-	job, err = db.GetProvisionerJobByID(genCtx, jobID)
-	require.NoError(t, err)
-
 	return job
 }
 

@@ -15,7 +15,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/telemetry"
-	"github.com/coder/coder/v2/provisionersdk/proto"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 )
 
@@ -43,12 +42,12 @@ func WorkspaceWithAgent(t testing.TB, db database.Store, seed database.Workspace
 	t.Helper()
 	authToken := uuid.NewString()
 	ws := Workspace(t, db, seed)
-	WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+	WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &sdkproto.Resource{
 		Name: "example",
 		Type: "aws_instance",
-		Agents: []*proto.Agent{{
+		Agents: []*sdkproto.Agent{{
 			Id: uuid.NewString(),
-			Auth: &proto.Agent_Token{
+			Auth: &sdkproto.Agent_Token{
 				Token: authToken,
 			},
 		}},
@@ -60,8 +59,25 @@ func WorkspaceWithAgent(t testing.TB, db database.Store, seed database.Workspace
 func WorkspaceBuild(t testing.TB, db database.Store, ws database.Workspace, seed database.WorkspaceBuild, resources ...*sdkproto.Resource) database.WorkspaceBuild {
 	t.Helper()
 	jobID := uuid.New()
+	seed.ID = uuid.New()
 	seed.JobID = jobID
 	seed.WorkspaceID = ws.ID
+
+	// Create a provisioner job for the build!
+	payload, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+		WorkspaceBuildID: seed.ID,
+	})
+	require.NoError(t, err)
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		ID:             jobID,
+		Input:          payload,
+		OrganizationID: ws.OrganizationID,
+		CompletedAt: sql.NullTime{
+			Time:  dbtime.Now(),
+			Valid: true,
+		},
+	})
+
 	// This intentionally fulfills the minimum requirements of the schema.
 	// Tests can provide a custom version ID if necessary.
 	if seed.TemplateVersionID == uuid.Nil {
@@ -91,20 +107,6 @@ func WorkspaceBuild(t testing.TB, db database.Store, ws database.Workspace, seed
 		seed.TemplateVersionID = templateVersion.ID
 	}
 	build := dbgen.WorkspaceBuild(t, db, seed)
-
-	payload, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-		WorkspaceBuildID: build.ID,
-	})
-	require.NoError(t, err)
-	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-		ID:             jobID,
-		Input:          payload,
-		OrganizationID: ws.OrganizationID,
-		CompletedAt: sql.NullTime{
-			Time:  dbtime.Now(),
-			Valid: true,
-		},
-	})
 	ProvisionerJobResources(t, db, job.ID, seed.Transition, resources...)
 	return build
 }
