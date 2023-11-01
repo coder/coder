@@ -22,12 +22,8 @@ export const ObservabilitySettingsPageView = ({
   return (
     <>
       <Stack direction="column" spacing={6}>
-        <Header
-          title="Observability"
-          description="Coder application observability."
-        />
-
         <div>
+          <Header title="Observability" />
           <Header
             title="Audit Logging"
             secondary
