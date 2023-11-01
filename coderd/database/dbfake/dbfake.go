@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -68,15 +69,22 @@ func WorkspaceBuild(t testing.TB, db database.Store, ws database.Workspace, seed
 		WorkspaceBuildID: seed.ID,
 	})
 	require.NoError(t, err)
-	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+	//nolint:gocritic // This is only used by tests.
+	job, err := db.InsertProvisionerJob(dbauthz.AsSystemRestricted(context.Background()), database.InsertProvisionerJobParams{
 		ID:             jobID,
-		Input:          payload,
+		CreatedAt:      dbtime.Now(),
+		UpdatedAt:      dbtime.Now(),
 		OrganizationID: ws.OrganizationID,
-		CompletedAt: sql.NullTime{
-			Time:  dbtime.Now(),
-			Valid: true,
-		},
+		InitiatorID:    ws.OwnerID,
+		Provisioner:    database.ProvisionerTypeEcho,
+		StorageMethod:  database.ProvisionerStorageMethodFile,
+		FileID:         uuid.New(),
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		Input:          payload,
+		Tags:           nil,
+		TraceMetadata:  pqtype.NullRawMessage{},
 	})
+	require.NoError(t, err, "insert job")
 
 	// This intentionally fulfills the minimum requirements of the schema.
 	// Tests can provide a custom version ID if necessary.
