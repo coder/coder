@@ -1,9 +1,4 @@
-import {
-  type CSSObject,
-  type Interpolation,
-  type Theme,
-  useTheme,
-} from "@emotion/react";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
