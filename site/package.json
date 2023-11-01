@@ -38,7 +38,7 @@
     "@fastly/performance-observer-polyfill": "2.0.0",
     "@fontsource/ibm-plex-mono": "5.0.5",
     "@fontsource/inter": "5.0.2",
-    "@monaco-editor/react": "4.5.0",
+    "@monaco-editor/react": "4.6.0",
     "@mui/icons-material": "5.14.0",
     "@mui/lab": "5.0.0-alpha.129",
     "@mui/material": "5.14.0",
