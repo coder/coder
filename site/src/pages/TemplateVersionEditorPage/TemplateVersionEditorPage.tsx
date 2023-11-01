@@ -67,6 +67,9 @@ export const TemplateVersionEditorPage: FC = () => {
     ...resources(templateVersionQuery.data?.id ?? ""),
     enabled: templateVersionQuery.data?.job.status === "succeeded",
   });
+  const { logs, setLogs } = useVersionLogs(templateVersionQuery.data, {
+    onDone: templateVersionQuery.refetch,
+  });
 
   // Initialize file tree
   useEffect(() => {
@@ -84,39 +87,6 @@ export const TemplateVersionEditorPage: FC = () => {
       });
     }
   }, [fileQuery.data]);
-
-  // Watch version logs
-  const [logs, setLogs] = useState<ProvisionerJobLog[]>();
-  const templateVersionId = templateVersionQuery.data?.id;
-  const refetchTemplateVersion = templateVersionQuery.refetch;
-  const templateVersionStatus = templateVersionQuery.data?.job.status;
-  useEffect(() => {
-    if (!templateVersionId || !templateVersionStatus) {
-      return;
-    }
-
-    if (templateVersionStatus !== "running") {
-      return;
-    }
-
-    setLogs(undefined);
-
-    const socket = watchBuildLogsByTemplateVersionId(templateVersionId, {
-      onMessage: (log) => {
-        setLogs((logs) => (logs ? [...logs, log] : [log]));
-      },
-      onDone: async () => {
-        await refetchTemplateVersion();
-      },
-      onError: (error) => {
-        console.error(error);
-      },
-    });
-
-    return () => {
-      socket.close();
-    };
-  }, [refetchTemplateVersion, templateVersionId, templateVersionStatus]);
 
   // Handling missing variables
   const missingVariablesQuery = useQuery({
@@ -156,6 +126,7 @@ export const TemplateVersionEditorPage: FC = () => {
             if (!currentTarFileRef.current) {
               return;
             }
+            setLogs([]);
             const newVersionFile = await generateVersionFiles(
               currentTarFileRef.current,
               newFileTree,
@@ -208,8 +179,6 @@ export const TemplateVersionEditorPage: FC = () => {
           disablePreview={
             templateVersionQuery.data.job.status === "running" ||
             templateVersionQuery.data.job.status === "pending" ||
-            (templateVersionQuery.data.job.status === "succeeded" &&
-              templateVersionQuery.data.name !== initialVersionName) ||
             createTemplateVersionMutation.isLoading ||
             uploadFileMutation.isLoading
           }
@@ -227,7 +196,7 @@ export const TemplateVersionEditorPage: FC = () => {
             if (!uploadFileMutation.data) {
               return;
             }
-
+            setLogs([]);
             const newVersion = await createTemplateVersionMutation.mutateAsync({
               provisioner: "terraform",
               storage_method: "file",
@@ -250,6 +219,48 @@ export const TemplateVersionEditorPage: FC = () => {
       )}
     </>
   );
+};
+
+const useVersionLogs = (
+  templateVersion: TemplateVersion | undefined,
+  options: { onDone: () => Promise<unknown> },
+) => {
+  // Watch version logs
+  const [logs, setLogs] = useState<ProvisionerJobLog[]>();
+  const templateVersionId = templateVersion?.id;
+  const refetchTemplateVersion = options.onDone;
+  const templateVersionStatus = templateVersion?.job.status;
+
+  useEffect(() => {
+    if (!templateVersionId || !templateVersionStatus) {
+      return;
+    }
+
+    if (templateVersionStatus !== "running") {
+      return;
+    }
+
+    const socket = watchBuildLogsByTemplateVersionId(templateVersionId, {
+      onMessage: (log) => {
+        setLogs((logs) => (logs ? [...logs, log] : [log]));
+      },
+      onDone: async () => {
+        await refetchTemplateVersion();
+      },
+      onError: (error) => {
+        console.error(error);
+      },
+    });
+
+    return () => {
+      socket.close();
+    };
+  }, [refetchTemplateVersion, templateVersionId, templateVersionStatus]);
+
+  return {
+    logs,
+    setLogs,
+  };
 };
 
 const generateVersionFiles = async (
