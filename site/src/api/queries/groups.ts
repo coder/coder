@@ -65,7 +65,7 @@ export function groupsForUser(organizationId: string, userId: string) {
 
       return sortGroupsByName(groupsForUser, "asc");
     },
-  } satisfies UseQueryOptions<Group[]>;
+  } as const satisfies UseQueryOptions<Group[], unknown, readonly Group[]>;
 }
 
 export const groupPermissions = (groupId: string) => {

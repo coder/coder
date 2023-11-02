@@ -9,8 +9,9 @@ import { useQuery } from "react-query";
 import { groupsForUser } from "api/queries/groups";
 import { useOrganizationId } from "hooks";
 import { useTheme } from "@emotion/react";
+
 import { Loader } from "components/Loader/Loader";
-import { Group } from "api/typesGenerated";
+import { AvatarCard } from "components/AvatarCard/AvatarCard";
 
 export const AccountPage: FC = () => {
   const theme = useTheme();
@@ -55,7 +56,15 @@ export const AccountPage: FC = () => {
         }
       >
         {groupsQuery.isSuccess ? (
-          <GroupList groups={groupsQuery.data} />
+          <>
+            {groupsQuery.data.map((group) => (
+              <AvatarCard
+                key={group.id}
+                header={group.display_name || group.name}
+                imgUrl={group.avatar_url}
+              />
+            ))}
+          </>
         ) : (
           <Loader />
         )}
@@ -63,24 +72,5 @@ export const AccountPage: FC = () => {
     </Stack>
   );
 };
-
-type GroupListProps = {
-  groups: readonly Group[];
-};
-
-function GroupList({ groups }: GroupListProps) {
-  const theme = useTheme();
-
-  return (
-    <>
-      {groups.map((group) => (
-        <div key={group.id} css={{ backgroundColor: "blue" }}>
-          <span>{group.display_name || group.name}</span>
-          <span>{group.members.length} members</span>
-        </div>
-      ))}
-    </>
-  );
-}
 
 export default AccountPage;
