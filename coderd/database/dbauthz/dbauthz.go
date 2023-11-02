@@ -715,6 +715,13 @@ func (q *querier) DeleteAllTailnetClientSubscriptions(ctx context.Context, arg d
 	return q.db.DeleteAllTailnetClientSubscriptions(ctx, arg)
 }
 
+func (q *querier) DeleteAllTailnetTunnels(ctx context.Context, arg database.DeleteAllTailnetTunnelsParams) error {
+	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
+		return err
+	}
+	return q.db.DeleteAllTailnetTunnels(ctx, arg)
+}
+
 func (q *querier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
 	// TODO: This is not 100% correct because it omits apikey IDs.
 	err := q.authorizeContext(ctx, rbac.ActionDelete,
@@ -809,6 +816,20 @@ func (q *querier) DeleteTailnetClientSubscription(ctx context.Context, arg datab
 		return err
 	}
 	return q.db.DeleteTailnetClientSubscription(ctx, arg)
+}
+
+func (q *querier) DeleteTailnetPeer(ctx context.Context, arg database.DeleteTailnetPeerParams) (database.DeleteTailnetPeerRow, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
+		return database.DeleteTailnetPeerRow{}, err
+	}
+	return q.db.DeleteTailnetPeer(ctx, arg)
+}
+
+func (q *querier) DeleteTailnetTunnel(ctx context.Context, arg database.DeleteTailnetTunnelParams) (database.DeleteTailnetTunnelRow, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
+		return database.DeleteTailnetTunnelRow{}, err
+	}
+	return q.db.DeleteTailnetTunnel(ctx, arg)
 }
 
 func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
@@ -1244,6 +1265,27 @@ func (q *querier) GetTailnetClientsForAgent(ctx context.Context, agentID uuid.UU
 		return nil, err
 	}
 	return q.db.GetTailnetClientsForAgent(ctx, agentID)
+}
+
+func (q *querier) GetTailnetPeers(ctx context.Context, id uuid.UUID) ([]database.TailnetPeer, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
+		return nil, err
+	}
+	return q.db.GetTailnetPeers(ctx, id)
+}
+
+func (q *querier) GetTailnetTunnelPeerBindings(ctx context.Context, srcID uuid.UUID) ([]database.GetTailnetTunnelPeerBindingsRow, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
+		return nil, err
+	}
+	return q.db.GetTailnetTunnelPeerBindings(ctx, srcID)
+}
+
+func (q *querier) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUID) ([]database.GetTailnetTunnelPeerIDsRow, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
+		return nil, err
+	}
+	return q.db.GetTailnetTunnelPeerIDs(ctx, srcID)
 }
 
 func (q *querier) GetTemplateAppInsights(ctx context.Context, arg database.GetTemplateAppInsightsParams) ([]database.GetTemplateAppInsightsRow, error) {
@@ -2970,6 +3012,20 @@ func (q *querier) UpsertTailnetCoordinator(ctx context.Context, id uuid.UUID) (d
 		return database.TailnetCoordinator{}, err
 	}
 	return q.db.UpsertTailnetCoordinator(ctx, id)
+}
+
+func (q *querier) UpsertTailnetPeer(ctx context.Context, arg database.UpsertTailnetPeerParams) (database.TailnetPeer, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceTailnetCoordinator); err != nil {
+		return database.TailnetPeer{}, err
+	}
+	return q.db.UpsertTailnetPeer(ctx, arg)
+}
+
+func (q *querier) UpsertTailnetTunnel(ctx context.Context, arg database.UpsertTailnetTunnelParams) (database.TailnetTunnel, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceTailnetCoordinator); err != nil {
+		return database.TailnetTunnel{}, err
+	}
+	return q.db.UpsertTailnetTunnel(ctx, arg)
 }
 
 func (q *querier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, _ rbac.PreparedAuthorized) ([]database.Template, error) {

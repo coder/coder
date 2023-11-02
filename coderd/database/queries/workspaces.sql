@@ -243,7 +243,7 @@ WHERE
 	-- workspaces since they are considered soft-deleted.
 	AND CASE
 		WHEN @is_dormant :: text != '' THEN
-			dormant_at IS NOT NULL 
+			dormant_at IS NOT NULL
 		ELSE
 			dormant_at IS NULL
 	END
