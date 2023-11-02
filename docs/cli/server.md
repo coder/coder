@@ -874,6 +874,17 @@ Two optional fields can be set in the Strict-Transport-Security header; 'include
 
 HTTPS bind address of the server.
 
+### --tls-allow-insecure-ciphers
+
+|             |                                                     |
+| ----------- | --------------------------------------------------- |
+| Type        | <code>bool</code>                                   |
+| Environment | <code>$CODER_TLS_ALLOW_INSECURE_CIPHERS</code>      |
+| YAML        | <code>networking.tls.tlsAllowInsecureCiphers</code> |
+| Default     | <code>false</code>                                  |
+
+By default, only ciphers marked as 'secure' are allowed to be used. See https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L82-L95.
+
 ### --tls-cert-file
 
 |             |                                       |
@@ -883,6 +894,16 @@ HTTPS bind address of the server.
 | YAML        | <code>networking.tls.certFiles</code> |
 
 Path to each certificate for TLS. It requires a PEM-encoded file. To configure the listener to use a CA certificate, concatenate the primary certificate and the CA certificate together. The primary certificate should appear first in the combined file.
+
+### --tls-ciphers
+
+|             |                                        |
+| ----------- | -------------------------------------- |
+| Type        | <code>string-array</code>              |
+| Environment | <code>$CODER_TLS_CIPHERS</code>        |
+| YAML        | <code>networking.tls.tlsCiphers</code> |
+
+Specify specific TLS ciphers that allowed to be used. See https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L53-L75.
 
 ### --tls-client-auth
 

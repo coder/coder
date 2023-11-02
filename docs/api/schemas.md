@@ -2289,6 +2289,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "host": "string",
         "port": "string"
       },
+      "allow_insecure_ciphers": true,
       "cert_file": ["string"],
       "client_auth": "string",
       "client_ca_file": "string",
@@ -2297,7 +2298,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "enable": true,
       "key_file": ["string"],
       "min_version": "string",
-      "redirect_http": true
+      "redirect_http": true,
+      "supported_ciphers": ["string"]
     },
     "trace": {
       "capture_logs": true,
@@ -2658,6 +2660,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "host": "string",
       "port": "string"
     },
+    "allow_insecure_ciphers": true,
     "cert_file": ["string"],
     "client_auth": "string",
     "client_ca_file": "string",
@@ -2666,7 +2669,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "enable": true,
     "key_file": ["string"],
     "min_version": "string",
-    "redirect_http": true
+    "redirect_http": true,
+    "supported_ciphers": ["string"]
   },
   "trace": {
     "capture_logs": true,
@@ -4278,6 +4282,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "host": "string",
     "port": "string"
   },
+  "allow_insecure_ciphers": true,
   "cert_file": ["string"],
   "client_auth": "string",
   "client_ca_file": "string",
@@ -4286,24 +4291,27 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "enable": true,
   "key_file": ["string"],
   "min_version": "string",
-  "redirect_http": true
+  "redirect_http": true,
+  "supported_ciphers": ["string"]
 }
 ```
 
 ### Properties
 
-| Name               | Type                                 | Required | Restrictions | Description |
-| ------------------ | ------------------------------------ | -------- | ------------ | ----------- |
-| `address`          | [clibase.HostPort](#clibasehostport) | false    |              |             |
-| `cert_file`        | array of string                      | false    |              |             |
-| `client_auth`      | string                               | false    |              |             |
-| `client_ca_file`   | string                               | false    |              |             |
-| `client_cert_file` | string                               | false    |              |             |
-| `client_key_file`  | string                               | false    |              |             |
-| `enable`           | boolean                              | false    |              |             |
-| `key_file`         | array of string                      | false    |              |             |
-| `min_version`      | string                               | false    |              |             |
-| `redirect_http`    | boolean                              | false    |              |             |
+| Name                     | Type                                 | Required | Restrictions | Description |
+| ------------------------ | ------------------------------------ | -------- | ------------ | ----------- |
+| `address`                | [clibase.HostPort](#clibasehostport) | false    |              |             |
+| `allow_insecure_ciphers` | boolean                              | false    |              |             |
+| `cert_file`              | array of string                      | false    |              |             |
+| `client_auth`            | string                               | false    |              |             |
+| `client_ca_file`         | string                               | false    |              |             |
+| `client_cert_file`       | string                               | false    |              |             |
+| `client_key_file`        | string                               | false    |              |             |
+| `enable`                 | boolean                              | false    |              |             |
+| `key_file`               | array of string                      | false    |              |             |
+| `min_version`            | string                               | false    |              |             |
+| `redirect_http`          | boolean                              | false    |              |             |
+| `supported_ciphers`      | array of string                      | false    |              |             |
 
 ## codersdk.TelemetryConfig
 

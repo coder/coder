@@ -882,6 +882,8 @@ export interface TLSConfig {
   readonly min_version: string;
   readonly client_cert_file: string;
   readonly client_key_file: string;
+  readonly supported_ciphers: string[];
+  readonly allow_insecure_ciphers: boolean;
 }
 
 // From codersdk/deployment.go

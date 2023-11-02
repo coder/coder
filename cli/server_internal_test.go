@@ -7,11 +7,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
 )
 
 func Test_configureCipherSuites(t *testing.T) {

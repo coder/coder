@@ -9870,6 +9870,9 @@ const docTemplate = `{
                 "address": {
                     "$ref": "#/definitions/clibase.HostPort"
                 },
+                "allow_insecure_ciphers": {
+                    "type": "boolean"
+                },
                 "cert_file": {
                     "type": "array",
                     "items": {
@@ -9902,6 +9905,12 @@ const docTemplate = `{
                 },
                 "redirect_http": {
                     "type": "boolean"
+                },
+                "supported_ciphers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
