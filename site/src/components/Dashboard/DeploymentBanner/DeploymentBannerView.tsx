@@ -13,6 +13,7 @@ import Tooltip from "@mui/material/Tooltip";
 import { Link as RouterLink } from "react-router-dom";
 import Link from "@mui/material/Link";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
+import { JetBrainsIcon } from "components/Icons/JetBrainsIcon";
 import DownloadIcon from "@mui/icons-material/CloudDownload";
 import UploadIcon from "@mui/icons-material/CloudUpload";
 import LatencyIcon from "@mui/icons-material/SettingsEthernet";
@@ -37,7 +38,6 @@ import { getDisplayWorkspaceStatus } from "utils/workspace";
 import { colors } from "theme/colors";
 import { HelpTooltipTitle } from "components/HelpTooltip/HelpTooltip";
 import { Stack } from "components/Stack/Stack";
-import { JetBrainsIcon } from "components/Icons/JetBrainsIcon";
 
 export const bannerHeight = 36;
 
