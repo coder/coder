@@ -2,7 +2,7 @@ import SvgIcon, { SvgIconProps } from "@mui/material/SvgIcon";
 
 export const JetBrainsIcon = (props: SvgIconProps) => (
   <SvgIcon {...props} viewBox="0 0 100 100">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
       <path d="m22.5 22.5h60v60h-60z" />
       <g fill="#fff">
         <path d="m29.03 71.25h22.5v3.75h-22.5z" />
