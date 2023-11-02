@@ -534,9 +534,18 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 		require.NoError(t, err)
 
 		user := coderdtest.CreateFirstUser(t, client)
-		ws, authToken := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
+		ws := dbfake.Workspace(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
+		})
+		authToken := uuid.NewString()
+		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+			Agents: []*proto.Agent{{
+				Apps: apps,
+				Auth: &proto.Agent_Token{
+					Token: authToken,
+				},
+			}},
 		})
 		_ = agenttest.New(t, client.URL, authToken)
 		resources := coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
