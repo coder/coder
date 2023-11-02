@@ -1,5 +1,5 @@
 import { makeStyles } from "@mui/styles";
-import { FC, Fragment, ReactNode, useRef, useState } from "react";
+import { FC, Fragment, ReactNode } from "react";
 import { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import {
   ActionLoadingButton,
@@ -70,8 +70,6 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     canChangeVersions,
   );
   const canBeUpdated = workspace.outdated && canAcceptJobs;
-  const menuTriggerRef = useRef<HTMLButtonElement>(null);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   // A mapping of button type to the corresponding React component
   const buttonMapping: ButtonMapping = {
