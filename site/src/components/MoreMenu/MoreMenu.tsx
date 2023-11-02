@@ -1,43 +1,88 @@
-import { useRef, useState, createContext, useContext } from "react";
+import { useRef, useState, createContext, useContext, ReactNode } from "react";
 import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined";
 import Menu, { MenuProps } from "@mui/material/Menu";
 import MenuItem, { MenuItemProps } from "@mui/material/MenuItem";
-import IconButton from "@mui/material/IconButton";
+import IconButton, { IconButtonProps } from "@mui/material/IconButton";
 
-const MoreMenuContext = createContext<{ close: () => void } | undefined>(
+type MoreMenuContextValue = {
+  triggerRef: React.RefObject<HTMLButtonElement>;
+  close: () => void;
+  open: () => void;
+  isOpen: boolean;
+};
+
+const MoreMenuContext = createContext<MoreMenuContextValue | undefined>(
   undefined,
 );
 
-export const MoreMenu = (props: Omit<MenuProps, "open" | "onClose">) => {
-  const menuTriggerRef = useRef<HTMLButtonElement>(null);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const { id = "more-options" } = props;
+export const MoreMenu = (props: { children: ReactNode }) => {
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
 
   const close = () => {
-    setIsMenuOpen(false);
+    setIsOpen(false);
+  };
+
+  const open = () => {
+    setIsOpen(true);
   };
 
   return (
-    <MoreMenuContext.Provider value={{ close }}>
-      <IconButton
+    <MoreMenuContext.Provider value={{ close, open, triggerRef, isOpen }}>
+      {/* <IconButton
         aria-controls={id}
         aria-haspopup="true"
         onClick={() => setIsMenuOpen(true)}
-        ref={menuTriggerRef}
+        ref={triggerRef}
         arial-label="More options"
       >
         <MoreVertOutlined />
-      </IconButton>
+      </IconButton> */}
 
-      <Menu
-        {...props}
-        id={id}
-        anchorEl={menuTriggerRef.current}
-        open={isMenuOpen}
-        onClose={close}
-        disablePortal
-      />
+      {props.children}
     </MoreMenuContext.Provider>
+  );
+};
+
+const useMoreMenuContext = () => {
+  const ctx = useContext(MoreMenuContext);
+
+  if (!ctx) {
+    throw new Error("useMoreMenuContext must be used inside of MoreMenu");
+  }
+
+  return ctx;
+};
+
+export const MoreMenuTrigger = (props: IconButtonProps) => {
+  const menu = useMoreMenuContext();
+
+  return (
+    <IconButton
+      aria-controls="menu-options"
+      aria-haspopup="true"
+      onClick={menu.open}
+      ref={menu.triggerRef}
+      arial-label="More options"
+      {...props}
+    >
+      <MoreVertOutlined />
+    </IconButton>
+  );
+};
+
+export const MoreMenuContent = (props: Omit<MenuProps, "open" | "onClose">) => {
+  const menu = useMoreMenuContext();
+
+  return (
+    <Menu
+      id="more-options"
+      anchorEl={menu.triggerRef.current}
+      open={menu.isOpen}
+      onClose={menu.close}
+      disablePortal
+      {...props}
+    />
   );
 };
 

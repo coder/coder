@@ -26,7 +26,12 @@ import SettingsIcon from "@mui/icons-material/SettingsOutlined";
 import DeleteIcon from "@mui/icons-material/DeleteOutlined";
 import EditIcon from "@mui/icons-material/EditOutlined";
 import CopyIcon from "@mui/icons-material/FileCopyOutlined";
-import { MoreMenu, MoreMenuItem } from "components/MoreMenu/MoreMenu";
+import {
+  MoreMenu,
+  MoreMenuContent,
+  MoreMenuItem,
+  MoreMenuTrigger,
+} from "components/MoreMenu/MoreMenu";
 import Divider from "@mui/material/Divider";
 
 type TemplateMenuProps = {
@@ -53,40 +58,43 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
 
   return (
     <>
-      <MoreMenu id="template-options">
-        <MoreMenuItem
-          onClick={() => {
-            navigate(`/templates/${templateName}/settings`);
-          }}
-        >
-          <SettingsIcon />
-          Settings
-        </MoreMenuItem>
+      <MoreMenu>
+        <MoreMenuTrigger />
+        <MoreMenuContent>
+          <MoreMenuItem
+            onClick={() => {
+              navigate(`/templates/${templateName}/settings`);
+            }}
+          >
+            <SettingsIcon />
+            Settings
+          </MoreMenuItem>
 
-        <MoreMenuItem
-          onClick={() => {
-            navigate(
-              `/templates/${templateName}/versions/${templateVersion}/edit`,
-            );
-          }}
-        >
-          <EditIcon />
-          Edit files
-        </MoreMenuItem>
+          <MoreMenuItem
+            onClick={() => {
+              navigate(
+                `/templates/${templateName}/versions/${templateVersion}/edit`,
+              );
+            }}
+          >
+            <EditIcon />
+            Edit files
+          </MoreMenuItem>
 
-        <MoreMenuItem
-          onClick={() => {
-            navigate(`/templates/new?fromTemplate=${templateName}`);
-          }}
-        >
-          <CopyIcon />
-          Duplicate&hellip;
-        </MoreMenuItem>
-        <Divider />
-        <MoreMenuItem onClick={dialogState.openDeleteConfirmation} danger>
-          <DeleteIcon />
-          Delete&hellip;
-        </MoreMenuItem>
+          <MoreMenuItem
+            onClick={() => {
+              navigate(`/templates/new?fromTemplate=${templateName}`);
+            }}
+          >
+            <CopyIcon />
+            Duplicate&hellip;
+          </MoreMenuItem>
+          <Divider />
+          <MoreMenuItem onClick={dialogState.openDeleteConfirmation} danger>
+            <DeleteIcon />
+            Delete&hellip;
+          </MoreMenuItem>
+        </MoreMenuContent>
       </MoreMenu>
 
       {safeToDeleteTemplate ? (
