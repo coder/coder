@@ -570,6 +570,11 @@
       "icon_path": "./images/icons/terminal.svg",
       "children": [
         {
+          "title": "autoupdate",
+          "description": "Toggle auto-update policy for a workspace",
+          "path": "cli/autoupdate.md"
+        },
+        {
           "title": "coder",
           "path": "cli.md"
         },

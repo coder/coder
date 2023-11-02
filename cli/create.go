@@ -140,9 +140,9 @@ func (r *RootCmd) create() *clibase.Cmd {
 			}
 
 			richParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
-				Action:           WorkspaceCreate,
-				Template:         template,
-				NewWorkspaceName: workspaceName,
+				Action:            WorkspaceCreate,
+				TemplateVersionID: template.ActiveVersionID,
+				NewWorkspaceName:  workspaceName,
 
 				RichParameterFile: parameterFlags.richParameterFile,
 				RichParameters:    cliRichParameters,
@@ -224,10 +224,9 @@ func (r *RootCmd) create() *clibase.Cmd {
 }
 
 type prepWorkspaceBuildArgs struct {
-	Action           WorkspaceCLIAction
-	Template         codersdk.Template
-	NewWorkspaceName string
-	WorkspaceID      uuid.UUID
+	Action            WorkspaceCLIAction
+	TemplateVersionID uuid.UUID
+	NewWorkspaceName  string
 
 	LastBuildParameters []codersdk.WorkspaceBuildParameter
 
@@ -244,7 +243,7 @@ type prepWorkspaceBuildArgs struct {
 func prepWorkspaceBuild(inv *clibase.Invocation, client *codersdk.Client, args prepWorkspaceBuildArgs) ([]codersdk.WorkspaceBuildParameter, error) {
 	ctx := inv.Context()
 
-	templateVersion, err := client.TemplateVersion(ctx, args.Template.ActiveVersionID)
+	templateVersion, err := client.TemplateVersion(ctx, args.TemplateVersionID)
 	if err != nil {
 		return nil, xerrors.Errorf("get template version: %w", err)
 	}

@@ -14,6 +14,7 @@ USAGE:
        $ coder templates init
 
 SUBCOMMANDS:
+    autoupdate        Toggle auto-update policy for a workspace
     config-ssh        Add an SSH Host entry for your workspaces "ssh
                       coder.workspace"
     create            Create a workspace
