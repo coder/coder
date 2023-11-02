@@ -65,7 +65,7 @@ export const MuiIconXL = {
 
 export const AvatarIconDarken = {
   args: {
-    children: <AvatarIcon src="/icon/database.svg" />,
+    children: <AvatarIcon src="/icon/database.svg" alt="Database" />,
     colorScheme: "darken",
   },
 };
