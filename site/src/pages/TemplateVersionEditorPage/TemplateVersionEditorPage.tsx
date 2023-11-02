@@ -255,9 +255,7 @@ const useVersionLogs = (
       onMessage: (log) => {
         setLogs((logs) => (logs ? [...logs, log] : [log]));
       },
-      onDone: async () => {
-        await refetchTemplateVersion();
-      },
+      onDone: refetchTemplateVersion,
       onError: (error) => {
         console.error(error);
       },
