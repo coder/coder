@@ -1,6 +1,5 @@
 [default.extend-identifiers]
 alog = "alog"
-Jetbrains = "JetBrains"
 IST = "IST"
 MacOS = "macOS"
 AKS = "AKS"
