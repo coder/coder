@@ -16,6 +16,7 @@ import {
   PopoverTrigger,
   PopoverContent,
 } from "components/Popover/Popover";
+import { css } from "@emotion/css";
 
 type GroupsCellProps = {
   userGroups: readonly Group[] | undefined;
@@ -68,7 +69,23 @@ export function UserGroupsCell({ userGroups }: GroupsCellProps) {
             </Button>
           </PopoverTrigger>
 
-          <PopoverContent disableScrollLock disableRestoreFocus>
+          <PopoverContent
+            disableScrollLock
+            disableRestoreFocus
+            css={(theme) => ({
+              ".MuiPaper-root": {
+                minWidth: "auto",
+              },
+            })}
+            anchorOrigin={{
+              vertical: "top",
+              horizontal: "center",
+            }}
+            transformOrigin={{
+              vertical: "bottom",
+              horizontal: "center",
+            }}
+          >
             <OverflowY maxHeight={400}>
               <List
                 component="ul"
