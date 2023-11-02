@@ -4,23 +4,31 @@ import { useTheme } from "@emotion/react";
 type AvatarCardProps = {
   header: ReactNode;
   imgUrl: string;
+  altText: string;
 
-  subtitle?: string;
-  maxWidth?: number;
+  subtitle?: ReactNode;
+  width?: "sm" | "md" | "lg" | "full";
 };
 
 export function AvatarCard({
   header,
   imgUrl,
+  altText,
   subtitle,
-  maxWidth,
+  width = "full",
 }: AvatarCardProps) {
   const theme = useTheme();
 
   return (
     <div css={{ backgroundColor: "blue" }}>
-      <span>{header}</span>
-      {subtitle && <span>{subtitle}</span>}
+      <div>
+        <span>{header}</span>
+        {subtitle && <span>{subtitle}</span>}
+      </div>
+
+      <div>
+        <img src={imgUrl} alt={altText} />
+      </div>
     </div>
   );
 }

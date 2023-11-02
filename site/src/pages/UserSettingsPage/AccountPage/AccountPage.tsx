@@ -57,13 +57,18 @@ export const AccountPage: FC = () => {
       >
         {groupsQuery.isSuccess ? (
           <>
-            {groupsQuery.data.map((group) => (
-              <AvatarCard
-                key={group.id}
-                header={group.display_name || group.name}
-                imgUrl={group.avatar_url}
-              />
-            ))}
+            {groupsQuery.data.map((group) => {
+              const groupName = group.display_name || group.name;
+
+              return (
+                <AvatarCard
+                  key={group.id}
+                  header={groupName}
+                  imgUrl={group.avatar_url}
+                  altText={groupName}
+                />
+              );
+            })}
           </>
         ) : (
           <Loader />
