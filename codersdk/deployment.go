@@ -305,16 +305,18 @@ type TelemetryConfig struct {
 }
 
 type TLSConfig struct {
-	Enable         clibase.Bool        `json:"enable" typescript:",notnull"`
-	Address        clibase.HostPort    `json:"address" typescript:",notnull"`
-	RedirectHTTP   clibase.Bool        `json:"redirect_http" typescript:",notnull"`
-	CertFiles      clibase.StringArray `json:"cert_file" typescript:",notnull"`
-	ClientAuth     clibase.String      `json:"client_auth" typescript:",notnull"`
-	ClientCAFile   clibase.String      `json:"client_ca_file" typescript:",notnull"`
-	KeyFiles       clibase.StringArray `json:"key_file" typescript:",notnull"`
-	MinVersion     clibase.String      `json:"min_version" typescript:",notnull"`
-	ClientCertFile clibase.String      `json:"client_cert_file" typescript:",notnull"`
-	ClientKeyFile  clibase.String      `json:"client_key_file" typescript:",notnull"`
+	Enable               clibase.Bool        `json:"enable" typescript:",notnull"`
+	Address              clibase.HostPort    `json:"address" typescript:",notnull"`
+	RedirectHTTP         clibase.Bool        `json:"redirect_http" typescript:",notnull"`
+	CertFiles            clibase.StringArray `json:"cert_file" typescript:",notnull"`
+	ClientAuth           clibase.String      `json:"client_auth" typescript:",notnull"`
+	ClientCAFile         clibase.String      `json:"client_ca_file" typescript:",notnull"`
+	KeyFiles             clibase.StringArray `json:"key_file" typescript:",notnull"`
+	MinVersion           clibase.String      `json:"min_version" typescript:",notnull"`
+	ClientCertFile       clibase.String      `json:"client_cert_file" typescript:",notnull"`
+	ClientKeyFile        clibase.String      `json:"client_key_file" typescript:",notnull"`
+	SupportedCiphers     clibase.StringArray `json:"supported_ciphers" typescript:",notnull"`
+	AllowInsecureCiphers clibase.Bool        `json:"allow_insecure_ciphers" typescript:",notnull"`
 }
 
 type TraceConfig struct {
