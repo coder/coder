@@ -179,20 +179,20 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = (props) => {
                 We have detected problems with your Coder deployment.
               </HelpTooltipTitle>
               <Stack spacing={1}>
-                {health.access_url && (
+                {!health.access_url.healthy && (
                   <HealthIssue>
                     Your access URL may be configured incorrectly.
                   </HealthIssue>
                 )}
-                {health.database && (
+                {!health.database.healthy && (
                   <HealthIssue>Your database is unhealthy.</HealthIssue>
                 )}
-                {health.derp && (
+                {!health.derp.healthy && (
                   <HealthIssue>
                     We&apos;re noticing DERP proxy issues.
                   </HealthIssue>
                 )}
-                {health.websocket && (
+                {!health.websocket.healthy && (
                   <HealthIssue>
                     We&apos;re noticing websocket issues.
                   </HealthIssue>
@@ -406,8 +406,8 @@ const WorkspaceBuildValue: FC<{
 
 const HealthIssue: FC<PropsWithChildren> = ({ children }) => {
   return (
-    <Stack direction="row" spacing={1}>
-      <ErrorIcon fontSize="small" htmlColor={colors.red[10]} />
+    <Stack direction="row" spacing={1} alignItems="center">
+      <ErrorIcon css={{ width: 16, height: 16 }} htmlColor={colors.red[10]} />
       {children}
     </Stack>
   );
