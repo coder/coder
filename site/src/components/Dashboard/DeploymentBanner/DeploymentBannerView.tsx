@@ -37,6 +37,7 @@ import { getDisplayWorkspaceStatus } from "utils/workspace";
 import { colors } from "theme/colors";
 import { HelpTooltipTitle } from "components/HelpTooltip/HelpTooltip";
 import { Stack } from "components/Stack/Stack";
+import { JetBrainsIcon } from "components/Icons/JetBrainsIcon";
 
 export const bannerHeight = 36;
 
@@ -295,6 +296,21 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = (props) => {
               {typeof stats?.session_count.vscode === "undefined"
                 ? "-"
                 : stats?.session_count.vscode}
+            </div>
+          </Tooltip>
+          <ValueSeparator />
+          <Tooltip title="JetBrains Gateway and Fleet">
+            <div css={styles.value}>
+              <JetBrainsIcon
+                css={css`
+                  & * {
+                    fill: currentColor;
+                  }
+                `}
+              />
+              {typeof stats?.session_count.jetbrains === "undefined"
+                ? "-"
+                : stats?.session_count.jetbrains}
             </div>
           </Tooltip>
           <ValueSeparator />
