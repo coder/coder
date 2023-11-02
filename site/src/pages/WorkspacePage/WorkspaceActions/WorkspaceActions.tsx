@@ -1,7 +1,4 @@
-import MenuItem from "@mui/material/MenuItem";
-import Menu from "@mui/material/Menu";
 import { makeStyles } from "@mui/styles";
-import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined";
 import { FC, Fragment, ReactNode, useRef, useState } from "react";
 import { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import {
@@ -22,7 +19,13 @@ import {
 import SettingsOutlined from "@mui/icons-material/SettingsOutlined";
 import HistoryOutlined from "@mui/icons-material/HistoryOutlined";
 import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
-import IconButton from "@mui/material/IconButton";
+import {
+  MoreMenu,
+  MoreMenuContent,
+  MoreMenuItem,
+  MoreMenuTrigger,
+} from "components/MoreMenu/MoreMenu";
+import Divider from "@mui/material/Divider";
 
 export interface WorkspaceActionsProps {
   workspace: Workspace;
@@ -108,12 +111,6 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     ),
   };
 
-  // Returns a function that will execute the action and close the menu
-  const onMenuItemClick = (actionFn: () => void) => () => {
-    setIsMenuOpen(false);
-    actionFn();
-  };
-
   return (
     <div className={styles.actions} data-testid="workspace-actions">
       {canBeUpdated &&
@@ -126,44 +123,36 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
           <Fragment key={action}>{buttonMapping[action]}</Fragment>
         ))}
       {canCancel && <CancelButton handleAction={handleCancel} />}
-      <div>
-        <IconButton
+      <MoreMenu>
+        <MoreMenuTrigger
           title="More options"
           size="small"
           data-testid="workspace-options-button"
           aria-controls="workspace-options"
-          aria-haspopup="true"
           disabled={!canAcceptJobs}
-          ref={menuTriggerRef}
-          onClick={() => setIsMenuOpen(true)}
-        >
-          <MoreVertOutlined />
-        </IconButton>
-        <Menu
-          id="workspace-options"
-          anchorEl={menuTriggerRef.current}
-          open={isMenuOpen}
-          onClose={() => setIsMenuOpen(false)}
-        >
-          <MenuItem onClick={onMenuItemClick(handleSettings)}>
+        />
+        <MoreMenuContent id="workspace-options">
+          <MoreMenuItem onClick={handleSettings}>
             <SettingsOutlined />
             Settings
-          </MenuItem>
+          </MoreMenuItem>
           {canChangeVersions && (
-            <MenuItem onClick={onMenuItemClick(handleChangeVersion)}>
+            <MoreMenuItem onClick={handleChangeVersion}>
               <HistoryOutlined />
               Change version&hellip;
-            </MenuItem>
+            </MoreMenuItem>
           )}
-          <MenuItem
-            onClick={onMenuItemClick(handleDelete)}
+          <Divider />
+          <MoreMenuItem
+            danger
+            onClick={handleDelete}
             data-testid="delete-button"
           >
             <DeleteOutlined />
             Delete&hellip;
-          </MenuItem>
-        </Menu>
-      </div>
+          </MoreMenuItem>
+        </MoreMenuContent>
+      </MoreMenu>
     </div>
   );
 };
