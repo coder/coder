@@ -4,9 +4,7 @@ import Link from "@mui/material/Link";
 import { WorkspaceOutdatedTooltip } from "components/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
 import { type FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
-import { createDayString } from "utils/createDayString";
 import {
-  getDisplayWorkspaceBuildInitiatedBy,
   getDisplayWorkspaceTemplateName,
   isWorkspaceOn,
   workspaceUpdatePolicy,
@@ -38,12 +36,6 @@ import { Stack } from "components/Stack/Stack";
 const Language = {
   workspaceDetails: "Workspace Details",
   templateLabel: "Template",
-  statusLabel: "Workspace Status",
-  versionLabel: "Version",
-  lastBuiltLabel: "Last built",
-  outdated: "Outdated",
-  upToDate: "Up to date",
-  byLabel: "Last built by",
   costLabel: "Daily cost",
   updatePolicy: "Update policy",
 };
@@ -72,9 +64,6 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
   onDeadlinePlus,
 }) => {
   const theme = useTheme();
-  const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(
-    workspace.latest_build,
-  );
   const displayTemplateName = getDisplayWorkspaceTemplateName(workspace);
   const deadlinePlusEnabled = maxDeadlineIncrease >= 1;
   const deadlineMinusEnabled = maxDeadlineDecrease >= 1;
@@ -103,24 +92,12 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
           css={styles.statsItem}
           label={Language.templateLabel}
           value={
-            <Link
-              component={RouterLink}
-              to={`/templates/${workspace.template_name}`}
-            >
-              {displayTemplateName}
-            </Link>
-          }
-        />
-        <StatsItem
-          css={styles.statsItem}
-          label={Language.versionLabel}
-          value={
-            <>
+            <div css={{ display: "flex", alignItems: "center", gap: 2 }}>
               <Link
                 component={RouterLink}
-                to={`/templates/${workspace.template_name}/versions/${workspace.latest_build.template_version_name}`}
+                to={`/templates/${workspace.template_name}`}
               >
-                {workspace.latest_build.template_version_name}
+                {displayTemplateName}
               </Link>
 
               {workspace.outdated && (
@@ -131,19 +108,10 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
                   ariaLabel="update version"
                 />
               )}
-            </>
+            </div>
           }
         />
-        <StatsItem
-          css={styles.statsItem}
-          label={Language.lastBuiltLabel}
-          value={
-            <>
-              {upperFirst(createDayString(workspace.latest_build.created_at))}{" "}
-              by {initiatedBy}
-            </>
-          }
-        />
+
         {shouldDisplayScheduleLabel(workspace) && (
           <StatsItem
             css={styles.statsItem}
