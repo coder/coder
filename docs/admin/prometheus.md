@@ -35,7 +35,7 @@ The Prometheus endpoint can be enabled in the
 [Helm chart's](https://github.com/coder/coder/tree/main/helm) `values.yml` by
 setting the environment variable `CODER_PROMETHEUS_ADDRESS` to `0.0.0.0:2112`.
 The environment variable `CODER_PROMETHEUS_ENABLE` will be enabled
-automatically.
+automatically. A Service Endpoint will also be exposed allowing Prometheus Service Monitors to be used.
 
 ### Prometheus configuration
 
@@ -51,6 +51,25 @@ scrape_configs:
       - targets: ["<ip>:2112"] # replace with the the IP address of the Coder pod or server
         labels:
           apps: "coder"
+```
+
+To use the Service Endpoint for prometheus to scrape the metrics, you can create a 
+service monitor. Below is an example: `coder-service-monitor`:
+
+```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: coder-service-monitor
+  namespace: coder
+spec:
+  endpoints:
+  - port: prometheus-http
+    interval: 10s
+    scrapeTimeout: 10s
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: coder
 ```
 
 ## Available metrics
