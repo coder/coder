@@ -57,7 +57,7 @@ func TestAutoUpdate(t *testing.T) {
 			{
 				Name:          "InvalidPolicy",
 				Args:          []string{"autoupdate", "ws", "sometimes"},
-				ErrorContains: fmt.Sprintf("invalid option %q must be either of", "sometimes"),
+				ErrorContains: `invalid option "sometimes" must be either of`,
 			},
 		}
 

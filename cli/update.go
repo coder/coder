@@ -32,11 +32,7 @@ func (r *RootCmd) update() *clibase.Cmd {
 				return nil
 			}
 
-			build, err := startWorkspace(inv, client, startWorkspaceArgs{
-				workspace:      workspace,
-				parameterFlags: parameterFlags,
-				action:         WorkspaceUpdate,
-			})
+			build, err := startWorkspace(inv, client, workspace, parameterFlags, WorkspaceUpdate)
 			if err != nil {
 				return xerrors.Errorf("start workspace: %w", err)
 			}

@@ -35,11 +35,7 @@ func (r *RootCmd) restart() *clibase.Cmd {
 				return err
 			}
 
-			startReq, err := buildWorkspaceStartRequest(inv, client, startWorkspaceArgs{
-				workspace:      workspace,
-				action:         WorkspaceRestart,
-				parameterFlags: parameterFlags,
-			})
+			startReq, err := buildWorkspaceStartRequest(inv, client, workspace, parameterFlags, WorkspaceRestart)
 			if err != nil {
 				return err
 			}
@@ -69,11 +65,7 @@ func (r *RootCmd) restart() *clibase.Cmd {
 			// workspaces with the active version.
 			if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusUnauthorized {
 				_, _ = fmt.Fprintln(inv.Stdout, "Failed to restart with the template version from your last build. Policy may require you to restart with the current active template version.")
-				build, err = startWorkspace(inv, client, startWorkspaceArgs{
-					workspace:      workspace,
-					parameterFlags: parameterFlags,
-					action:         WorkspaceUpdate,
-				})
+				build, err = startWorkspace(inv, client, workspace, parameterFlags, WorkspaceUpdate)
 				if err != nil {
 					return xerrors.Errorf("start workspace with active template version: %w", err)
 				}
