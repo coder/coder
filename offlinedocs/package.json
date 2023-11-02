@@ -6,7 +6,7 @@
     "dev": "pnpm copy-images && next dev",
     "build": "pnpm exec next build",
     "start": "pnpm exec next start",
-    "export": "pnpm copy-images && next build && next export",
+    "export": "pnpm copy-images && next build",
     "copy-images": "sh ./scripts/copyImages.sh",
     "lint": "pnpm run lint:types",
     "lint:fix": "FIX=true pnpm lint",
