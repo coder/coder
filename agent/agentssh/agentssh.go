@@ -264,9 +264,9 @@ func (s *Server) sessionStart(session ssh.Session, extraEnv []string) (retErr er
 		for _, kv := range env {
 			switch {
 			case strings.HasPrefix(kv, "TERMINAL_EMULATOR=JetBrains-JediTerm"):
-				magicType = MagicSessionTypeJetBrains // Set as JetBrains Gateway type
+				magicType = MagicSessionTypeJetBrains
 			case strings.HasPrefix(kv, "TERM_PROGRAM=Jetbrains.Fleet"):
-				magicType = MagicSessionTypeJetBrains // Set as Fleet type
+				magicType = MagicSessionTypeJetBrains
 			default:
 				continue
 			}
