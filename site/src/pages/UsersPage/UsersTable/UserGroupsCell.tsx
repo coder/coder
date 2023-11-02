@@ -1,22 +1,18 @@
 import { useTheme } from "@emotion/react";
 import { type Group } from "api/typesGenerated";
-
 import { Stack } from "components/Stack/Stack";
 import { Avatar } from "components/Avatar/Avatar";
 import { OverflowY } from "components/OverflowY/OverflowY";
-
 import TableCell from "@mui/material/TableCell";
 import Button from "@mui/material/Button";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import GroupIcon from "@mui/icons-material/Group";
-
 import {
   Popover,
   PopoverTrigger,
   PopoverContent,
 } from "components/Popover/Popover";
-import { css } from "@emotion/css";
 
 type GroupsCellProps = {
   userGroups: readonly Group[] | undefined;
@@ -72,11 +68,11 @@ export function UserGroupsCell({ userGroups }: GroupsCellProps) {
           <PopoverContent
             disableScrollLock
             disableRestoreFocus
-            css={(theme) => ({
+            css={{
               ".MuiPaper-root": {
                 minWidth: "auto",
               },
-            })}
+            }}
             anchorOrigin={{
               vertical: "top",
               horizontal: "center",
