@@ -1,11 +1,11 @@
+import { useTheme, type CSSObject } from "@emotion/react";
 import { type MouseEventHandler } from "react";
 import { type TableRowProps } from "@mui/material/TableRow";
-import { makeStyles } from "@mui/styles";
 import { useClickable, type UseClickableResult } from "./useClickable";
 
 type UseClickableTableRowResult = UseClickableResult<HTMLTableRowElement> &
   TableRowProps & {
-    className: string;
+    css: CSSObject;
     hover: true;
     onAuxClick: MouseEventHandler<HTMLTableRowElement>;
   };
@@ -28,12 +28,24 @@ export const useClickableTableRow = ({
   onDoubleClick,
   onMiddleClick,
 }: UseClickableTableRowConfig): UseClickableTableRowResult => {
-  const styles = useStyles();
   const clickableProps = useClickable(onClick);
+  const theme = useTheme();
 
   return {
     ...clickableProps,
-    className: styles.row,
+    css: {
+      cursor: "pointer",
+
+      "&:focus": {
+        outline: `1px solid ${theme.palette.secondary.dark}`,
+        outlineOffset: -1,
+      },
+
+      "&:last-of-type": {
+        borderBottomLeftRadius: theme.shape.borderRadius,
+        borderBottomRightRadius: theme.shape.borderRadius,
+      },
+    },
     hover: true,
     onDoubleClick,
     onAuxClick: (event) => {
@@ -46,19 +58,3 @@ export const useClickableTableRow = ({
     },
   };
 };
-
-const useStyles = makeStyles((theme) => ({
-  row: {
-    cursor: "pointer",
-
-    "&:focus": {
-      outline: `1px solid ${theme.palette.secondary.dark}`,
-      outlineOffset: -1,
-    },
-
-    "&:last-of-type": {
-      borderBottomLeftRadius: theme.shape.borderRadius,
-      borderBottomRightRadius: theme.shape.borderRadius,
-    },
-  },
-}));

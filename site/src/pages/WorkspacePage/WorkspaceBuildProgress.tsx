@@ -1,8 +1,9 @@
+import { css } from "@emotion/css";
+import { type Interpolation, type Theme } from "@emotion/react";
 import LinearProgress from "@mui/material/LinearProgress";
-import makeStyles from "@mui/styles/makeStyles";
-import { TransitionStats, Template, Workspace } from "api/typesGenerated";
-import dayjs, { Dayjs } from "dayjs";
-import { FC, useEffect, useState } from "react";
+import type { TransitionStats, Template, Workspace } from "api/typesGenerated";
+import dayjs, { type Dayjs } from "dayjs";
+import { type FC, useEffect, useState } from "react";
 import capitalize from "lodash/capitalize";
 
 import duration from "dayjs/plugin/duration";
@@ -68,7 +69,6 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
   workspace,
   transitionStats: transitionStats,
 }) => {
-  const styles = useStyles();
   const job = workspace.latest_build.job;
   const [progressValue, setProgressValue] = useState<number | undefined>(0);
   const [progressText, setProgressText] = useState<string | undefined>(
@@ -107,7 +107,7 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
     return <></>;
   }
   return (
-    <div className={styles.stack}>
+    <div css={styles.stack}>
       <LinearProgress
         data-chromatic="ignore"
         value={progressValue !== undefined ? progressValue : 0}
@@ -123,13 +123,17 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
         // If a transition is set, there is a moment on new load where the
         // bar accelerates to progressValue and then rapidly decelerates, which
         // is not indicative of true progress.
-        classes={{ bar: styles.noTransition }}
+        classes={{
+          bar: css`
+            transition: none;
+          `,
+        }}
       />
-      <div className={styles.barHelpers}>
-        <div className={styles.label}>
+      <div css={styles.barHelpers}>
+        <div css={styles.label}>
           {capitalize(workspace.latest_build.status)} workspace...
         </div>
-        <div className={styles.label} data-chromatic="ignore">
+        <div css={styles.label} data-chromatic="ignore">
           {progressText}
         </div>
       </div>
@@ -137,23 +141,20 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
   );
 };
 
-const useStyles = makeStyles((theme) => ({
-  stack: {
+const styles = {
+  stack: (theme) => ({
     paddingLeft: theme.spacing(0.2),
     paddingRight: theme.spacing(0.2),
-  },
-  noTransition: {
-    transition: "none",
-  },
-  barHelpers: {
+  }),
+  barHelpers: (theme) => ({
     display: "flex",
     justifyContent: "space-between",
     marginTop: theme.spacing(0.5),
-  },
-  label: {
+  }),
+  label: (theme) => ({
     fontSize: 12,
     display: "block",
     fontWeight: 600,
     color: theme.palette.text.secondary,
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;

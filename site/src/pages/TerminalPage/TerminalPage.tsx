@@ -1,5 +1,5 @@
-import { makeStyles, useTheme } from "@mui/styles";
-import { FC, useCallback, useEffect, useRef, useState } from "react";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { type FC, useCallback, useEffect, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { colors } from "theme/colors";
@@ -16,7 +16,7 @@ import { pageTitle } from "utils/page";
 import { useProxy } from "contexts/ProxyContext";
 import Box from "@mui/material/Box";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
-import { Region } from "api/typesGenerated";
+import type { Region } from "api/typesGenerated";
 import { getLatencyColor } from "utils/latency";
 import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency";
 import { openMaybePortForwardedURL } from "utils/portForward";
@@ -45,7 +45,6 @@ export const Language = {
 
 const TerminalPage: FC = () => {
   const navigate = useNavigate();
-  const styles = useStyles();
   const { proxy } = useProxy();
   const params = useParams() as { username: string; workspace: string };
   const username = params.username.replace("@", "");
@@ -316,11 +315,7 @@ const TerminalPage: FC = () => {
         {lifecycleState === "ready" &&
           prevLifecycleState.current === "starting" && <LoadedScriptsAlert />}
         {terminalState === "disconnected" && <DisconnectedAlert />}
-        <div
-          className={styles.terminal}
-          ref={xtermRef}
-          data-testid="terminal"
-        />
+        <div css={styles.terminal} ref={xtermRef} data-testid="terminal" />
         {dashboard.experiments.includes("moons") &&
           selectedProxy &&
           latency && (
@@ -426,35 +421,8 @@ const BottomBar = ({ proxy, latency }: { proxy: Region; latency?: number }) => {
   );
 };
 
-const useStyles = makeStyles((theme) => ({
-  overlay: {
-    position: "absolute",
-    pointerEvents: "none",
-    top: 0,
-    left: 0,
-    bottom: 0,
-    right: 0,
-    zIndex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    display: "flex",
-    color: "white",
-    fontSize: 16,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-    backdropFilter: "blur(4px)",
-    "&.connected": {
-      opacity: 0,
-    },
-  },
-  overlayText: {
-    fontSize: 16,
-    fontWeight: 600,
-  },
-  overlaySubtext: {
-    fontSize: 14,
-    color: theme.palette.text.secondary,
-  },
-  terminal: {
+const styles = {
+  terminal: (theme) => ({
     width: "100vw",
     overflow: "hidden",
     backgroundColor: theme.palette.background.paper,
@@ -480,36 +448,7 @@ const useStyles = makeStyles((theme) => ({
       minHeight: 20,
       backgroundColor: "rgba(255, 255, 255, 0.18)",
     },
-  },
-  alert: {
-    display: "flex",
-    background: theme.palette.background.paperLight,
-    alignItems: "center",
-    padding: theme.spacing(2),
-    gap: theme.spacing(2),
-    borderBottom: `1px solid ${theme.palette.divider}`,
-    ...theme.typography.body2,
-  },
-  alertIcon: {
-    color: theme.palette.warning.light,
-    fontSize: theme.spacing(3),
-  },
-  alertError: {
-    "& $alertIcon": {
-      color: theme.palette.error.light,
-    },
-  },
-  alertTitle: {
-    fontWeight: 600,
-    color: theme.palette.text.primary,
-  },
-  alertMessage: {
-    fontSize: 14,
-    color: theme.palette.text.secondary,
-  },
-  alertActions: {
-    marginLeft: "auto",
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;
 
 export default TerminalPage;

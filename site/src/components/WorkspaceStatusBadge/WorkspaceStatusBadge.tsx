@@ -1,15 +1,17 @@
-import { Workspace } from "api/typesGenerated";
+import type { Workspace } from "api/typesGenerated";
 import { Pill } from "components/Pill/Pill";
-import { FC, PropsWithChildren } from "react";
-import { makeStyles } from "@mui/styles";
-import { combineClasses } from "utils/combineClasses";
+import { type FC, type PropsWithChildren } from "react";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { DormantDeletionText } from "components/WorkspaceDeletion";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
-import Tooltip, { TooltipProps, tooltipClasses } from "@mui/material/Tooltip";
+import Tooltip, {
+  type TooltipProps,
+  tooltipClasses,
+} from "@mui/material/Tooltip";
 import { styled } from "@mui/material/styles";
 import Box from "@mui/material/Box";
 import ErrorOutline from "@mui/icons-material/ErrorOutline";
+import { type Interpolation, type Theme } from "@emotion/react";
 
 export type WorkspaceStatusBadgeProps = {
   workspace: Workspace;
@@ -56,7 +58,6 @@ export const WorkspaceStatusBadge: FC<
 export const WorkspaceStatusText: FC<
   PropsWithChildren<WorkspaceStatusBadgeProps>
 > = ({ workspace, className }) => {
-  const styles = useStyles();
   const { text, type } = getDisplayWorkspaceStatus(
     workspace.latest_build.status,
   );
@@ -71,11 +72,8 @@ export const WorkspaceStatusText: FC<
         <span
           role="status"
           data-testid="build-status"
-          className={combineClasses([
-            className,
-            styles.root,
-            styles[`type-${type}`],
-          ])}
+          className={className}
+          css={[styles.root, styles[`type-${type}`]]}
         >
           {text}
         </span>
@@ -95,27 +93,22 @@ const FailureTooltip = styled(({ className, ...props }: TooltipProps) => (
   },
 }));
 
-const useStyles = makeStyles((theme) => ({
+const styles = {
   root: { fontWeight: 600 },
-  "type-error": {
+
+  "type-error": (theme) => ({
     color: theme.palette.error.light,
-  },
-  "type-warning": {
+  }),
+  "type-warning": (theme) => ({
     color: theme.palette.warning.light,
-  },
-  "type-success": {
+  }),
+  "type-success": (theme) => ({
     color: theme.palette.success.light,
-  },
-  "type-info": {
+  }),
+  "type-info": (theme) => ({
     color: theme.palette.info.light,
-  },
-  "type-undefined": {
+  }),
+  "type-undefined": (theme) => ({
     color: theme.palette.text.secondary,
-  },
-  "type-primary": {
-    color: theme.palette.text.primary,
-  },
-  "type-secondary": {
-    color: theme.palette.text.secondary,
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;

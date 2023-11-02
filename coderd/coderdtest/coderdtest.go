@@ -151,6 +151,13 @@ func New(t testing.TB, options *Options) *codersdk.Client {
 	return client
 }
 
+// NewWithDatabase constructs a codersdk client connected to an in-memory API instance.
+// The database is returned to provide direct data manipulation for tests.
+func NewWithDatabase(t testing.TB, options *Options) (*codersdk.Client, database.Store) {
+	client, _, api := NewWithAPI(t, options)
+	return client, api.Database
+}
+
 // NewWithProvisionerCloser returns a client as well as a handle to close
 // the provisioner. This is a temporary function while work is done to
 // standardize how provisioners are registered with coderd. The option

@@ -6,10 +6,7 @@ import {
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import { SecurityPage } from "./SecurityPage";
-import {
-  MockAuthMethodsWithPasswordType,
-  mockApiError,
-} from "testHelpers/entities";
+import { MockAuthMethodsAll, mockApiError } from "testHelpers/entities";
 import userEvent from "@testing-library/user-event";
 import * as SSO from "./SingleSignOnSection";
 import { OAuthConversionResponse } from "api/typesGenerated";
@@ -40,9 +37,7 @@ const fillAndSubmitSecurityForm = () => {
 };
 
 beforeEach(() => {
-  jest
-    .spyOn(API, "getAuthMethods")
-    .mockResolvedValue(MockAuthMethodsWithPasswordType);
+  jest.spyOn(API, "getAuthMethods").mockResolvedValue(MockAuthMethodsAll);
   jest.spyOn(API, "getUserLoginType").mockResolvedValue({
     login_type: "password",
   });
