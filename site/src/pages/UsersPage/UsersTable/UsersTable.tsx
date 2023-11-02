@@ -67,7 +67,7 @@ export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
 }) => {
   return (
     <TableContainer>
-      <Table>
+      <Table data-testid="users-table">
         <TableHead>
           <TableRow>
             <TableCell width="29%">{Language.usernameLabel}</TableCell>

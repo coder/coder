@@ -49,11 +49,11 @@ export const MoreMenuTrigger = (props: IconButtonProps) => {
 
   return (
     <IconButton
-      aria-controls="menu-options"
+      aria-controls="more-options"
+      aria-label="More options"
       aria-haspopup="true"
       onClick={menu.open}
       ref={menu.triggerRef}
-      arial-label="More options"
       {...props}
     >
       <MoreVertOutlined />

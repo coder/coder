@@ -184,9 +184,14 @@ export const UsersTableBody: FC<
               <TableCell>
                 <MoreMenu>
                   <MoreMenuTrigger />
-                  <MoreMenuContent keepMounted>
+                  <MoreMenuContent>
                     {user.status === "active" || user.status === "dormant" ? (
-                      <MoreMenuItem onClick={() => onSuspendUser(user)}>
+                      <MoreMenuItem
+                        data-testid="suspend-button"
+                        onClick={() => {
+                          onSuspendUser(user);
+                        }}
+                      >
                         Suspend&hellip;
                       </MoreMenuItem>
                     ) : (
