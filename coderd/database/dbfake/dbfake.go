@@ -70,7 +70,8 @@ func WorkspaceBuild(t testing.TB, db database.Store, ws database.Workspace, seed
 	})
 	require.NoError(t, err)
 	//nolint:gocritic // This is only used by tests.
-	job, err := db.InsertProvisionerJob(dbauthz.AsSystemRestricted(context.Background()), database.InsertProvisionerJobParams{
+	ctx := dbauthz.AsSystemRestricted(context.Background())
+	job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 		ID:             jobID,
 		CreatedAt:      dbtime.Now(),
 		UpdatedAt:      dbtime.Now(),
@@ -85,6 +86,17 @@ func WorkspaceBuild(t testing.TB, db database.Store, ws database.Workspace, seed
 		TraceMetadata:  pqtype.NullRawMessage{},
 	})
 	require.NoError(t, err, "insert job")
+	err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
+		ID:        job.ID,
+		UpdatedAt: dbtime.Now(),
+		Error:     sql.NullString{},
+		ErrorCode: sql.NullString{},
+		CompletedAt: sql.NullTime{
+			Time:  dbtime.Now(),
+			Valid: true,
+		},
+	})
+	require.NoError(t, err, "complete job")
 
 	// This intentionally fulfills the minimum requirements of the schema.
 	// Tests can provide a custom version ID if necessary.
