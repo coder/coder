@@ -1,6 +1,6 @@
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
 import { useOrganizationId } from "hooks/useOrganizationId";
-import { FC, useEffect, useRef, useState } from "react";
+import { FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
@@ -204,19 +204,23 @@ export const TemplateVersionEditorPage: FC = () => {
 };
 
 const useFileTree = (templateVersion: TemplateVersion | undefined) => {
-  const tarFileRef = useRef<TarReader | null>(null);
   const fileQuery = useQuery({
     ...file(templateVersion?.job.file_id ?? ""),
     enabled: templateVersion !== undefined,
   });
-  const [fileTree, setFileTree] = useState<FileTree>();
+  const [state, setState] = useState<{
+    fileTree?: FileTree;
+    tarFile?: TarReader;
+  }>({
+    fileTree: undefined,
+    tarFile: undefined,
+  });
   useEffect(() => {
     const initializeFileTree = async (file: ArrayBuffer) => {
-      const tarReader = new TarReader();
-      await tarReader.readFile(file);
-      tarFileRef.current = tarReader;
-      const fileTree = await createTemplateVersionFileTree(tarReader);
-      setFileTree(fileTree);
+      const tarFile = new TarReader();
+      await tarFile.readFile(file);
+      const fileTree = await createTemplateVersionFileTree(tarFile);
+      setState({ fileTree, tarFile });
     };
 
     if (fileQuery.data) {
@@ -226,10 +230,7 @@ const useFileTree = (templateVersion: TemplateVersion | undefined) => {
     }
   }, [fileQuery.data]);
 
-  return {
-    fileTree,
-    tarFile: tarFileRef.current,
-  };
+  return state;
 };
 
 const useVersionLogs = (
