@@ -29,16 +29,6 @@ export const MoreMenu = (props: { children: ReactNode }) => {
 
   return (
     <MoreMenuContext.Provider value={{ close, open, triggerRef, isOpen }}>
-      {/* <IconButton
-        aria-controls={id}
-        aria-haspopup="true"
-        onClick={() => setIsMenuOpen(true)}
-        ref={triggerRef}
-        arial-label="More options"
-      >
-        <MoreVertOutlined />
-      </IconButton> */}
-
       {props.children}
     </MoreMenuContext.Provider>
   );
