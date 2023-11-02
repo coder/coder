@@ -345,15 +345,21 @@ const publishVersion = async (options: {
   const { version, data, isActiveVersion } = options;
   const haveChanges =
     data.name !== version.name || data.message !== version.message;
+  const publishActions: Promise<unknown>[] = [];
 
-  return Promise.all([
-    haveChanges ? patchTemplateVersion(version.id, data) : Promise.resolve(),
-    isActiveVersion
-      ? updateActiveTemplateVersion(version.template_id!, {
-          id: version.id,
-        })
-      : Promise.resolve(),
-  ]);
+  if (haveChanges) {
+    publishActions.push(patchTemplateVersion(version.id, data));
+  }
+
+  if (isActiveVersion) {
+    publishActions.push(
+      updateActiveTemplateVersion(version.template_id!, {
+        id: version.id,
+      }),
+    );
+  }
+
+  return Promise.all(publishActions);
 };
 
 export default TemplateVersionEditorPage;
