@@ -133,7 +133,7 @@ jest.spyOn(console, "error").mockImplementation(() => {});
 describe("UsersPage", () => {
   describe("suspend user", () => {
     describe("when it is success", () => {
-      it.only("shows a success message", async () => {
+      it("shows a success message", async () => {
         renderPage();
 
         server.use(
