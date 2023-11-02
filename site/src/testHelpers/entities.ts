@@ -1254,16 +1254,30 @@ export const MockUserAgent = {
   os: "Windows 10",
 };
 
-export const MockAuthMethods: TypesGen.AuthMethods = {
+export const MockAuthMethodsPasswordOnly: TypesGen.AuthMethods = {
   password: { enabled: true },
   github: { enabled: false },
   oidc: { enabled: false, signInText: "", iconUrl: "" },
 };
 
-export const MockAuthMethodsWithPasswordType: TypesGen.AuthMethods = {
-  ...MockAuthMethods,
+export const MockAuthMethodsExternal: TypesGen.AuthMethods = {
+  password: { enabled: false },
   github: { enabled: true },
-  oidc: { enabled: true, signInText: "", iconUrl: "" },
+  oidc: {
+    enabled: true,
+    signInText: "Google",
+    iconUrl: "/icon/google.svg",
+  },
+};
+
+export const MockAuthMethodsAll: TypesGen.AuthMethods = {
+  password: { enabled: true },
+  github: { enabled: true },
+  oidc: {
+    enabled: true,
+    signInText: "Google",
+    iconUrl: "/icon/google.svg",
+  },
 };
 
 export const MockGitSSHKey: TypesGen.GitSSHKey = {
