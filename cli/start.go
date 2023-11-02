@@ -62,12 +62,6 @@ func (r *RootCmd) start() *clibase.Cmd {
 	return cmd
 }
 
-type startWorkspaceArgs struct {
-	workspace      codersdk.Workspace
-	parameterFlags workspaceParameterFlags
-	action         WorkspaceCLIAction
-}
-
 func buildWorkspaceStartRequest(inv *clibase.Invocation, client *codersdk.Client, workspace codersdk.Workspace, parameterFlags workspaceParameterFlags, action WorkspaceCLIAction) (codersdk.CreateWorkspaceBuildRequest, error) {
 	version := workspace.LatestBuild.TemplateVersionID
 	if workspace.AutomaticUpdates == codersdk.AutomaticUpdatesAlways || action == WorkspaceUpdate {
