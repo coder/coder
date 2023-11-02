@@ -103,9 +103,10 @@ export const WorkspaceReadyPage = ({
     if (typeof window === "undefined" || !window.matchMedia) {
       return;
     }
-    const isDark = window.matchMedia("(prefers-color-scheme: dark)");
+
+    const matchResult = window.matchMedia("(prefers-color-scheme: dark)");
     // We want the favicon the opposite of the theme.
-    setFaviconTheme(isDark ? "light" : "dark");
+    setFaviconTheme(matchResult.matches ? "light" : "dark");
   }, []);
   const buildLogs = useWorkspaceBuildLogs(workspace.latest_build.id);
   const shouldDisplayBuildLogs =
