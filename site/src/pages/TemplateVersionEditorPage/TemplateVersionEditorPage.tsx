@@ -83,6 +83,7 @@ export const TemplateVersionEditorPage: FC = () => {
   // build action feels faster
   const onBuildStart = () => {
     setLogs([]);
+
     queryClient.setQueryData(templateVersionOptions.queryKey, () => {
       return {
         ...templateVersionQuery.data,
@@ -344,6 +345,7 @@ const publishVersion = async (options: {
   const { version, data, isActiveVersion } = options;
   const haveChanges =
     data.name !== version.name || data.message !== version.message;
+
   return Promise.all([
     haveChanges ? patchTemplateVersion(version.id, data) : Promise.resolve(),
     isActiveVersion
