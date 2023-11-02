@@ -1,13 +1,14 @@
+import { type Interpolation, type Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
-import { makeStyles, useTheme } from "@mui/styles";
+import { useTheme } from "@mui/styles";
 import Skeleton from "@mui/material/Skeleton";
 import AddIcon from "@mui/icons-material/AddOutlined";
 import RefreshIcon from "@mui/icons-material/Refresh";
-import { GetLicensesResponse } from "api/api";
+import type { GetLicensesResponse } from "api/api";
 import { Header } from "components/DeploySettingsLayout/Header";
 import { LicenseCard } from "./LicenseCard";
 import { Stack } from "components/Stack/Stack";
-import { FC } from "react";
+import { type FC } from "react";
 import Confetti from "react-confetti";
 import { Link } from "react-router-dom";
 import useWindowSize from "react-use/lib/useWindowSize";
@@ -38,10 +39,8 @@ const LicensesSettingsPageView: FC<Props> = ({
   removeLicense,
   refreshEntitlements,
 }) => {
-  const styles = useStyles();
-  const { width, height } = useWindowSize();
-
   const theme = useTheme();
+  const { width, height } = useWindowSize();
 
   return (
     <>
@@ -107,13 +106,11 @@ const LicensesSettingsPageView: FC<Props> = ({
       )}
 
       {!isLoading && licenses === null && (
-        <div className={styles.root}>
+        <div css={styles.root}>
           <Stack alignItems="center" spacing={1}>
             <Stack alignItems="center" spacing={0.5}>
-              <span className={styles.title}>
-                You don&apos;t have any licenses!
-              </span>
-              <span className={styles.description}>
+              <span css={styles.title}>You don&apos;t have any licenses!</span>
+              <span css={styles.description}>
                 You&apos;re missing out on high availability, RBAC, quotas, and
                 much more. Contact{" "}
                 <MuiLink href="mailto:sales@coder.com">sales</MuiLink> or{" "}
@@ -130,12 +127,12 @@ const LicensesSettingsPageView: FC<Props> = ({
   );
 };
 
-const useStyles = makeStyles((theme) => ({
-  title: {
+const styles = {
+  title: (theme) => ({
     fontSize: theme.spacing(2),
-  },
+  }),
 
-  root: {
+  root: (theme) => ({
     minHeight: theme.spacing(30),
     display: "flex",
     alignItems: "center",
@@ -143,14 +140,14 @@ const useStyles = makeStyles((theme) => ({
     borderRadius: theme.shape.borderRadius,
     border: `1px solid ${theme.palette.divider}`,
     padding: theme.spacing(6),
-  },
+  }),
 
-  description: {
+  description: (theme) => ({
     color: theme.palette.text.secondary,
     textAlign: "center",
     maxWidth: theme.spacing(58),
     marginTop: theme.spacing(1),
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;
 
 export default LicensesSettingsPageView;
