@@ -6,7 +6,7 @@
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/audit?q=string \
+curl -X GET http://coder-server:8080/api/v2/audit \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
@@ -15,12 +15,11 @@ curl -X GET http://coder-server:8080/api/v2/audit?q=string \
 
 ### Parameters
 
-| Name       | In    | Type         | Required | Description  |
-| ---------- | ----- | ------------ | -------- | ------------ |
-| `q`        | query | string       | true     | Search query |
-| `after_id` | query | string(uuid) | false    | After ID     |
-| `limit`    | query | integer      | false    | Page limit   |
-| `offset`   | query | integer      | false    | Page offset  |
+| Name     | In    | Type    | Required | Description  |
+| -------- | ----- | ------- | -------- | ------------ |
+| `q`      | query | string  | false    | Search query |
+| `limit`  | query | integer | false    | Page limit   |
+| `offset` | query | integer | false    | Page offset  |
 
 ### Example responses
 
@@ -86,45 +85,5 @@ curl -X GET http://coder-server:8080/api/v2/audit?q=string \
 | Status | Meaning                                                 | Description | Schema                                                           |
 | ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AuditLogResponse](schemas.md#codersdkauditlogresponse) |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
-## Generate fake audit log
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X POST http://coder-server:8080/api/v2/audit/testgenerate \
-  -H 'Content-Type: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`POST /audit/testgenerate`
-
-> Body parameter
-
-```json
-{
-  "action": "create",
-  "additional_fields": [0],
-  "build_reason": "autostart",
-  "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-  "resource_type": "template",
-  "time": "2019-08-24T14:15:22Z"
-}
-```
-
-### Parameters
-
-| Name   | In   | Type                                                                               | Required | Description       |
-| ------ | ---- | ---------------------------------------------------------------------------------- | -------- | ----------------- |
-| `body` | body | [codersdk.CreateTestAuditLogRequest](schemas.md#codersdkcreatetestauditlogrequest) | true     | Audit log request |
-
-### Responses
-
-| Status | Meaning                                                         | Description | Schema |
-| ------ | --------------------------------------------------------------- | ----------- | ------ |
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
