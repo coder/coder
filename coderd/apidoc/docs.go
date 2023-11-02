@@ -6575,6 +6575,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "owner_name": {
+                    "description": "OwnerName and WorkspaceID are used by an open-source user to identify the workspace.\nWe do not provide insurance that this will not be removed in the future,\nbut if it's easy to persist lets keep it around.",
                     "type": "string"
                 },
                 "scripts": {
