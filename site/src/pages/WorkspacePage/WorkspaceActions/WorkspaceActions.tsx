@@ -1,4 +1,3 @@
-import { makeStyles } from "@mui/styles";
 import { FC, Fragment, ReactNode } from "react";
 import { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import {
@@ -59,7 +58,6 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   isRestarting,
   canChangeVersions,
 }) => {
-  const styles = useStyles();
   const {
     canCancel,
     canAcceptJobs,
@@ -110,7 +108,14 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   };
 
   return (
-    <div className={styles.actions} data-testid="workspace-actions">
+    <div
+      css={(theme) => ({
+        display: "flex",
+        alignItems: "center",
+        gap: theme.spacing(1.5),
+      })}
+      data-testid="workspace-actions"
+    >
       {canBeUpdated &&
         (isUpdating
           ? buttonMapping[ButtonTypesEnum.updating]
@@ -154,11 +159,3 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     </div>
   );
 };
-
-const useStyles = makeStyles((theme) => ({
-  actions: {
-    display: "flex",
-    alignItems: "center",
-    gap: theme.spacing(1.5),
-  },
-}));

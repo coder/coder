@@ -2,7 +2,7 @@ import {
   MockUser,
   MockUser2,
   MockAssignableSiteRoles,
-  MockAuthMethods,
+  MockAuthMethodsPasswordOnly,
   MockGroup,
 } from "testHelpers/entities";
 import { UsersTable } from "./UsersTable";
@@ -18,7 +18,7 @@ const meta: Meta<typeof UsersTable> = {
   component: UsersTable,
   args: {
     isNonInitialPage: false,
-    authMethods: MockAuthMethods,
+    authMethods: MockAuthMethodsPasswordOnly,
   },
 };
 

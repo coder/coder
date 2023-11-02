@@ -1,11 +1,10 @@
-import { makeStyles } from "@mui/styles";
 import dayjs from "dayjs";
-import { ComponentProps, FC, Fragment } from "react";
-import { ProvisionerJobLog } from "api/typesGenerated";
+import { type ComponentProps, type FC, Fragment } from "react";
+import type { ProvisionerJobLog } from "api/typesGenerated";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { Logs } from "./Logs";
 import Box from "@mui/material/Box";
-import { combineClasses } from "utils/combineClasses";
+import { type Interpolation, type Theme } from "@emotion/react";
 
 const Language = {
   seconds: "seconds",
@@ -53,7 +52,6 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 }) => {
   const groupedLogsByStage = groupLogsByStage(logs);
   const stages = Object.keys(groupedLogsByStage);
-  const styles = useStyles();
 
   return (
     <Box
@@ -79,15 +77,10 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 
         return (
           <Fragment key={stage}>
-            <div
-              className={combineClasses([
-                styles.header,
-                sticky ? styles.sticky : "",
-              ])}
-            >
+            <div css={[styles.header, sticky && styles.sticky]}>
               <div>{stage}</div>
               {shouldDisplayDuration && (
-                <div className={styles.duration}>
+                <div css={styles.duration}>
                   {duration} {Language.seconds}
                 </div>
               )}
@@ -100,8 +93,8 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
   );
 };
 
-const useStyles = makeStyles((theme) => ({
-  header: {
+const styles = {
+  header: (theme) => ({
     fontSize: 13,
     fontWeight: 600,
     padding: theme.spacing(0.5, 3),
@@ -119,16 +112,16 @@ const useStyles = makeStyles((theme) => ({
     "&:first-child": {
       borderRadius: "8px 8px 0 0",
     },
-  },
+  }),
 
   sticky: {
     position: "sticky",
     top: 0,
   },
 
-  duration: {
+  duration: (theme) => ({
     marginLeft: "auto",
     color: theme.palette.text.secondary,
     fontSize: 12,
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;
