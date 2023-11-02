@@ -123,7 +123,6 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 
   const triggerPreview = useCallback(() => {
     onPreview(fileTree);
-    // Switch to the build log!
     setSelectedTab("logs");
   }, [fileTree, onPreview]);
 
