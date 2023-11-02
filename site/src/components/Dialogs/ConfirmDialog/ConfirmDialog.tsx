@@ -135,7 +135,6 @@ export const ConfirmDialog: FC<PropsWithChildren<ConfirmDialogProps>> = ({
       <DialogActions>
         <DialogActionButtons
           cancelText={cancelText}
-          confirmDialog
           confirmLoading={confirmLoading}
           confirmText={confirmText || defaults.confirmText}
           disabled={disabled}
