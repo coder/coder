@@ -66,6 +66,9 @@ func buildWorkspaceStartRequest(inv *clibase.Invocation, client *codersdk.Client
 	version := workspace.LatestBuild.TemplateVersionID
 	if workspace.AutomaticUpdates == codersdk.AutomaticUpdatesAlways || action == WorkspaceUpdate {
 		version = workspace.TemplateActiveVersionID
+		if version != workspace.LatestBuild.TemplateVersionID {
+			action = WorkspaceUpdate
+		}
 	}
 
 	lastBuildParameters, err := client.WorkspaceBuildParameters(inv.Context(), workspace.LatestBuild.ID)
