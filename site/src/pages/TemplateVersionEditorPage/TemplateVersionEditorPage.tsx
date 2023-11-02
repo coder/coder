@@ -29,6 +29,7 @@ import {
   ProvisionerJobLog,
   TemplateVersion,
 } from "api/typesGenerated";
+import { displayError } from "components/GlobalSnackbar/utils";
 
 type Params = {
   version: string;
@@ -220,7 +221,7 @@ const useFileTree = (templateVersion: TemplateVersion | undefined) => {
 
     if (fileQuery.data) {
       initializeFileTree(fileQuery.data).catch(() => {
-        console.error("Error on initializing the editor");
+        displayError("Error on initializing the editor");
       });
     }
   }, [fileQuery.data]);
