@@ -3,26 +3,24 @@ import { useDeploySettings } from "components/DeploySettingsLayout/DeploySetting
 import { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
-import { SecuritySettingsPageView } from "./SecuritySettingsPageView";
+import { ObservabilitySettingsPageView } from "./ObservabilitySettingsPageView";
 
-const SecuritySettingsPage: FC = () => {
+const ObservabilitySettingsPage: FC = () => {
   const { deploymentValues: deploymentValues } = useDeploySettings();
   const { entitlements } = useDashboard();
 
   return (
     <>
       <Helmet>
-        <title>{pageTitle("Security Settings")}</title>
+        <title>{pageTitle("Observability Settings")}</title>
       </Helmet>
 
-      <SecuritySettingsPageView
+      <ObservabilitySettingsPageView
         options={deploymentValues.options}
-        featureBrowserOnlyEnabled={
-          entitlements.features["browser_only"].enabled
-        }
+        featureAuditLogEnabled={entitlements.features["audit_log"].enabled}
       />
     </>
   );
 };
 
-export default SecuritySettingsPage;
+export default ObservabilitySettingsPage;
