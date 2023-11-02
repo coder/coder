@@ -256,6 +256,26 @@ func (s *Server) sessionStart(session ssh.Session, extraEnv []string) (retErr er
 		env = append(env[:index], env[index+1:]...)
 	}
 
+	// Check for JetBrains Gateway and Fleet if MagicType is empty
+	// JetBrains Geteway does not support SetEnv so this is not being set. See: #9673
+	// As a workaround, we can check for the TERMINAL_EMULATOR env variable to identify JetBrains Gateway
+	// and TERM_PROGRAM for JetBrains Fleet
+	if magicType == "" {
+		for _, kv := range env {
+			switch {
+			case strings.HasPrefix(kv, "TERMINAL_EMULATOR=JetBrains-JediTerm"):
+				magicType = MagicSessionTypeJetBrains // Set as JetBrains Gateway type
+				break
+			case strings.HasPrefix(kv, "TERM_PROGRAM=Jetbrains.Fleet"):
+				magicType = MagicSessionTypeJetBrains // Set as Fleet type
+				break
+			// leave magicType as empty string if not found
+			default:
+				continue
+			}
+		}
+	}
+
 	// Always force lowercase checking to be case-insensitive.
 	switch strings.ToLower(magicType) {
 	case strings.ToLower(MagicSessionTypeVSCode):
