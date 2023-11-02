@@ -33,6 +33,16 @@ func Test_configureCipherSuites(t *testing.T) {
 		return ids
 	}
 
+	cipherByName := func(cipher string) *tls.CipherSuite {
+		for _, c := range append(tls.CipherSuites(), tls.InsecureCipherSuites()...) {
+			if cipher == c.Name {
+				c := c
+				return c
+			}
+		}
+		return nil
+	}
+
 	tests := []struct {
 		name          string
 		wantErr       string
@@ -44,6 +54,14 @@ func Test_configureCipherSuites(t *testing.T) {
 		expectCiphers []uint16
 	}{
 		{
+			name:          "AllSecure",
+			minTLS:        tls.VersionTLS10,
+			maxTLS:        tls.VersionTLS13,
+			inputCiphers:  cipherNames(tls.CipherSuites()),
+			wantWarnings:  []string{},
+			expectCiphers: cipherIDs(tls.CipherSuites()),
+		},
+		{
 			name:          "AllowInsecure",
 			minTLS:        tls.VersionTLS10,
 			maxTLS:        tls.VersionTLS13,
@@ -54,7 +72,45 @@ func Test_configureCipherSuites(t *testing.T) {
 			},
 			expectCiphers: append(cipherIDs(tls.CipherSuites()), tls.InsecureCipherSuites()[0].ID),
 		},
+		{
+			name:          "AllInsecure",
+			minTLS:        tls.VersionTLS10,
+			maxTLS:        tls.VersionTLS13,
+			inputCiphers:  append(cipherNames(tls.CipherSuites()), cipherNames(tls.InsecureCipherSuites())...),
+			allowInsecure: true,
+			wantWarnings: []string{
+				"insecure tls cipher specified",
+			},
+			expectCiphers: append(cipherIDs(tls.CipherSuites()), cipherIDs(tls.InsecureCipherSuites())...),
+		},
+		{
+			// Providing ciphers that are not compatible with any tls version
+			// enabled should generate a warning.
+			name:   "ExcessiveCiphers",
+			minTLS: tls.VersionTLS10,
+			maxTLS: tls.VersionTLS11,
+			inputCiphers: []string{
+				"TLS_RSA_WITH_AES_128_CBC_SHA",
+				// Only for TLS 1.3
+				"TLS_AES_128_GCM_SHA256",
+			},
+			allowInsecure: true,
+			wantWarnings: []string{
+				"cipher not supported for tls versions",
+			},
+			expectCiphers: cipherIDs([]*tls.CipherSuite{
+				cipherByName("TLS_RSA_WITH_AES_128_CBC_SHA"),
+				cipherByName("TLS_AES_128_GCM_SHA256"),
+			}),
+		},
 		// Errors
+		{
+			name:         "NotRealCiphers",
+			minTLS:       tls.VersionTLS10,
+			maxTLS:       tls.VersionTLS13,
+			inputCiphers: []string{"RSA-Fake"},
+			wantErr:      "unsupported tls ciphers",
+		},
 		{
 			name:    "NoCiphers",
 			minTLS:  tls.VersionTLS10,
@@ -74,6 +130,20 @@ func Test_configureCipherSuites(t *testing.T) {
 			maxTLS:       tls.VersionTLS13,
 			inputCiphers: cipherNames(tls.CipherSuites()),
 			wantErr:      "tls ciphers cannot be specified when using minimum tls version 1.3",
+		},
+		{
+			name:   "TLSUnsupported",
+			minTLS: tls.VersionTLS10,
+			maxTLS: tls.VersionTLS13,
+			// TLS_RSA_WITH_AES_128_GCM_SHA256 only supports tls 1.2
+			inputCiphers: []string{"TLS_RSA_WITH_AES_128_GCM_SHA256"},
+			wantErr:      "no tls ciphers supported for tls versions",
+		},
+		{
+			name:    "Min>Max",
+			minTLS:  tls.VersionTLS13,
+			maxTLS:  tls.VersionTLS12,
+			wantErr: "minimum tls version cannot be greater than maximum tls version",
 		},
 	}
 	for _, tt := range tests {

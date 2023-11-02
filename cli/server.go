@@ -1021,7 +1021,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					r.Verbosef(inv, "Shutting down provisioner daemon %d...", id)
 					err := shutdownWithTimeout(provisionerDaemon.Shutdown, 5*time.Second)
 					if err != nil {
-						cliui.Errorf(inv.Stderr, "Failed to shutdown provisioner daemon %d: %s\n", id, err)
+						cliui.Errorf(inv.Stderr, "Failed to shut down provisioner daemon %d: %s\n", id, err)
 						return
 					}
 					err = provisionerDaemon.Close()
@@ -1500,6 +1500,9 @@ func configureServerTLS(ctx context.Context, logger slog.Logger, tlsMinVersion, 
 }
 
 func configureCipherSuites(ctx context.Context, logger slog.Logger, ciphers []string, allowInsecureCiphers bool, minTLS, maxTLS uint16) ([]uint16, error) {
+	if minTLS > maxTLS {
+		return nil, xerrors.Errorf("minimum tls version cannot be greater than maximum tls version")
+	}
 	if minTLS >= tls.VersionTLS13 {
 		// The cipher suites config option is ignored for tls 1.3 and higher.
 		// So this user flag is a no-op if the min version is 1.3.
@@ -1536,7 +1539,7 @@ func configureCipherSuites(ctx context.Context, logger slog.Logger, ciphers []st
 			for _, sv := range cipher.SupportedVersions {
 				versions = append(versions, tls.VersionName(sv))
 			}
-			logger.Warn(ctx, "cipher not supported for tls versions allowed, cipher will not be used",
+			logger.Warn(ctx, "cipher not supported for tls versions enabled, cipher will not be used",
 				slog.F("cipher", cipher.Name),
 				slog.F("cipher_supported_versions", strings.Join(versions, ",")),
 				slog.F("server_min_version", tls.VersionName(minTLS)),
