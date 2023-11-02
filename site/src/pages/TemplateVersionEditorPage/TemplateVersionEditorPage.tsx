@@ -13,7 +13,7 @@ import {
   templateVersionVariables,
 } from "api/queries/templates";
 import { file, uploadFile } from "api/queries/files";
-import { TarReader, TarWriter } from "utils/tar";
+import { TarFileTypeCodes, TarReader, TarWriter } from "utils/tar";
 import { FileTree, traverse } from "utils/filetree";
 import {
   createTemplateVersionFileTree,
@@ -302,7 +302,7 @@ const generateVersionFiles = async (
   // Add previous non editable files
   for (const file of tarReader.fileInfo) {
     if (!isAllowedFile(file.name)) {
-      if (file.type === "5") {
+      if (file.type === TarFileTypeCodes.Dir) {
         tar.addFolder(file.name, {
           mode: file.mode, // https://github.com/beatgammit/tar-js/blob/master/lib/tar.js#L42
           mtime: file.mtime,
