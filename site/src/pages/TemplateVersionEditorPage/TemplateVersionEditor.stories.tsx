@@ -34,8 +34,9 @@ type Story = StoryObj<typeof TemplateVersionEditor>;
 
 export const Example: Story = {};
 
-export const Logs = {
+export const Logs: Story = {
   args: {
+    defaultTab: "logs",
     buildLogs: MockWorkspaceBuildLogs,
     templateVersion: {
       ...MockTemplateVersion,
@@ -46,6 +47,7 @@ export const Logs = {
 
 export const Resources: Story = {
   args: {
+    defaultTab: "resources",
     buildLogs: MockWorkspaceBuildLogs,
     resources: [
       MockWorkspaceResource,
@@ -58,8 +60,9 @@ export const Resources: Story = {
   },
 };
 
-export const ManyLogs = {
+export const WithError = {
   args: {
+    defaultTab: "logs",
     templateVersion: {
       ...MockTemplateVersion,
       job: {

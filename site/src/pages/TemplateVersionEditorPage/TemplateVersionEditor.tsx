@@ -49,6 +49,7 @@ import AlertTitle from "@mui/material/AlertTitle";
 import { DashboardFullPage } from "components/Dashboard/DashboardLayout";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 
+type Tab = "logs" | "resources" | undefined; // Undefined is to hide the tab
 export interface TemplateVersionEditorProps {
   template: Template;
   templateVersion: TemplateVersion;
@@ -70,6 +71,7 @@ export interface TemplateVersionEditorProps {
   missingVariables?: TemplateVersionVariable[];
   onSubmitMissingVariableValues: (values: VariableValue[]) => void;
   onCancelSubmitMissingVariableValues: () => void;
+  defaultTab?: Tab;
 }
 
 const topbarHeight = 80;
@@ -107,11 +109,10 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   missingVariables,
   onSubmitMissingVariableValues,
   onCancelSubmitMissingVariableValues,
+  defaultTab,
 }) => {
   const theme = useTheme();
-  const [selectedTab, setSelectedTab] = useState<
-    "logs" | "resources" | undefined // Undefined is to hide the tab
-  >();
+  const [selectedTab, setSelectedTab] = useState<Tab>(defaultTab);
   const [fileTree, setFileTree] = useState(defaultFileTree);
   const [createFileOpen, setCreateFileOpen] = useState(false);
   const [deleteFileOpen, setDeleteFileOpen] = useState<string>();
