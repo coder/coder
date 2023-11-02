@@ -27,6 +27,7 @@ import DeleteIcon from "@mui/icons-material/DeleteOutlined";
 import EditIcon from "@mui/icons-material/EditOutlined";
 import CopyIcon from "@mui/icons-material/FileCopyOutlined";
 import { MoreMenu, MoreMenuItem } from "components/MoreMenu/MoreMenu";
+import Divider from "@mui/material/Divider";
 
 type TemplateMenuProps = {
   templateName: string;
@@ -81,8 +82,8 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
           <CopyIcon />
           Duplicate&hellip;
         </MoreMenuItem>
-
-        <MoreMenuItem onClick={dialogState.openDeleteConfirmation}>
+        <Divider />
+        <MoreMenuItem onClick={dialogState.openDeleteConfirmation} danger>
           <DeleteIcon />
           Delete&hellip;
         </MoreMenuItem>

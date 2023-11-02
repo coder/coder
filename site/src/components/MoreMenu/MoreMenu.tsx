@@ -42,9 +42,9 @@ export const MoreMenu = (props: Omit<MenuProps, "open" | "onClose">) => {
 };
 
 export const MoreMenuItem = (
-  props: MenuItemProps & { closeOnClick?: boolean },
+  props: MenuItemProps & { closeOnClick?: boolean; danger?: boolean },
 ) => {
-  const { closeOnClick = true, ...menuItemProps } = props;
+  const { closeOnClick = true, danger = false, ...menuItemProps } = props;
   const ctx = useContext(MoreMenuContext);
 
   if (!ctx) {
@@ -54,6 +54,14 @@ export const MoreMenuItem = (
   return (
     <MenuItem
       {...menuItemProps}
+      css={(theme) => ({
+        fontSize: 14,
+        color: danger ? theme.palette.error.light : undefined,
+        "& .MuiSvgIcon-root": {
+          width: theme.spacing(2),
+          height: theme.spacing(2),
+        },
+      })}
       onClick={(e) => {
         menuItemProps.onClick && menuItemProps.onClick(e);
         if (closeOnClick) {
