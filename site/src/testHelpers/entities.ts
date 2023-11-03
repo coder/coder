@@ -2817,7 +2817,7 @@ export const DeploymentHealthUnhealthy: Health = {
   healthy: false,
   time: "2023-10-12T23:15:00.000000000Z",
   coder_version: "v2.3.0-devel+8cca4915a",
-  access_url: { healthy: false },
+  access_url: { healthy: true },
   database: { healthy: false },
   derp: { healthy: false },
   websocket: { healthy: false },
