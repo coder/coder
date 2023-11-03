@@ -126,10 +126,10 @@ const styles = {
     fontWeight: 600,
   },
   messageSubtitle: (theme) => ({
-    marginTop: theme.spacing(1.5),
+    marginTop: 12,
   }),
   errorIcon: (theme) => ({
     color: theme.palette.error.contrastText,
-    marginRight: theme.spacing(2),
+    marginRight: 16,
   }),
 } satisfies Record<string, Interpolation<Theme>>;

@@ -33,7 +33,7 @@ export const ServiceBannerView: React.FC<ServiceBannerViewProps> = ({
   return (
     <div
       css={css`
-        padding: ${theme.spacing(1.5)};
+        padding: 12px;
         background-color: ${backgroundColor ?? theme.palette.warning.main};
         display: flex;
         align-items: center;

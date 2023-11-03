@@ -11,12 +11,12 @@ export const FullWidthPageHeader: FC<
       css={[
         {
           ...(theme.typography.body2 as CSSObject),
-          padding: theme.spacing(3),
+          padding: 24,
           background: theme.palette.background.paper,
           borderBottom: `1px solid ${theme.palette.divider}`,
           display: "flex",
           alignItems: "center",
-          gap: theme.spacing(6),
+          gap: 48,
 
           zIndex: 10,
           flexWrap: "wrap",

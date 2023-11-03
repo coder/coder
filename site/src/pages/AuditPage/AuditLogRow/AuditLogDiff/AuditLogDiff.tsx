@@ -71,9 +71,9 @@ const styles = {
 
   diffColumn: (theme) => ({
     flex: 1,
-    paddingTop: theme.spacing(2),
-    paddingBottom: theme.spacing(2.5),
-    paddingRight: theme.spacing(2),
+    paddingTop: 16,
+    paddingBottom: 20,
+    paddingRight: 16,
     lineHeight: "160%",
     alignSelf: "stretch",
     overflowWrap: "anywhere",
@@ -91,13 +91,13 @@ const styles = {
 
   diffLine: (theme) => ({
     opacity: 0.5,
-    width: theme.spacing(6),
+    width: 48,
     textAlign: "right",
     flexShrink: 0,
   }),
 
   diffIcon: (theme) => ({
-    width: theme.spacing(4),
+    width: 32,
     textAlign: "center",
     fontSize: theme.typography.body1.fontSize,
     flexShrink: 0,

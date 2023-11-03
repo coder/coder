@@ -220,7 +220,7 @@ const styles = {
     },
 
     "& .MuiTableCell-root:last-child": {
-      paddingRight: `${theme.spacing(2)} !important`,
+      paddingRight: `16px !important`,
     },
   }),
   arrowRight: (theme) => ({

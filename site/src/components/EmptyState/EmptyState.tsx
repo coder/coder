@@ -1,7 +1,6 @@
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import type { FC, ReactNode } from "react";
-import { useTheme } from "@emotion/react";
 
 export interface EmptyStateProps {
   /** Text Message to display, placed inside Typography component */
@@ -25,7 +24,6 @@ export const EmptyState: FC<React.PropsWithChildren<EmptyStateProps>> = (
   props,
 ) => {
   const { message, description, cta, image, ...boxProps } = props;
-  const theme = useTheme();
 
   return (
     <Box
@@ -37,17 +35,12 @@ export const EmptyState: FC<React.PropsWithChildren<EmptyStateProps>> = (
         alignItems: "center",
         textAlign: "center",
         minHeight: 360,
-        padding: theme.spacing(10, 5),
+        padding: "80px 40px",
         position: "relative",
       }}
       {...boxProps}
     >
-      <Typography
-        variant="h5"
-        css={{
-          fontSize: theme.spacing(3),
-        }}
-      >
+      <Typography variant="h5" css={{ fontSize: 24 }}>
         {message}
       </Typography>
       {description && (
@@ -55,24 +48,16 @@ export const EmptyState: FC<React.PropsWithChildren<EmptyStateProps>> = (
           variant="body2"
           color="textSecondary"
           css={{
-            marginTop: theme.spacing(1.5),
-            fontSize: theme.spacing(2),
+            marginTop: 12,
+            fontSize: 16,
             lineHeight: "140%",
-            maxWidth: theme.spacing(60),
+            maxWidth: 480,
           }}
         >
           {description}
         </Typography>
       )}
-      {cta && (
-        <div
-          css={{
-            marginTop: theme.spacing(4),
-          }}
-        >
-          {cta}
-        </div>
-      )}
+      {cta && <div css={{ marginTop: 32 }}>{cta}</div>}
       {image}
     </Box>
   );

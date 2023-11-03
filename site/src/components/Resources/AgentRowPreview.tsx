@@ -102,7 +102,7 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
 
 const styles = {
   agentRow: (theme) => ({
-    padding: theme.spacing(2, 4),
+    padding: "16px 32px",
     backgroundColor: theme.palette.background.paperLight,
     fontSize: 16,
     position: "relative",
@@ -122,12 +122,12 @@ const styles = {
     },
   }),
 
-  agentStatusWrapper: (theme) => ({
-    width: theme.spacing(4.5),
+  agentStatusWrapper: {
+    width: 36,
     display: "flex",
     justifyContent: "center",
     flexShrink: 0,
-  }),
+  },
 
   agentStatusPreview: (theme) => ({
     width: 10,
@@ -153,7 +153,7 @@ const styles = {
     color: theme.palette.text.secondary,
 
     [theme.breakpoints.down("md")]: {
-      gap: theme.spacing(2),
+      gap: 16,
       flexWrap: "wrap",
     },
   }),
@@ -170,7 +170,7 @@ const styles = {
     [theme.breakpoints.down("md")]: {
       flexDirection: "column",
       alignItems: "flex-start",
-      gap: theme.spacing(1),
+      gap: 8,
       width: "fit-content",
     },
   }),

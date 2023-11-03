@@ -31,8 +31,8 @@ const SidebarNavItem: FC<
     display: block;
     font-size: 14px;
     text-decoration: none;
-    padding: ${theme.spacing(1.5, 1.5, 1.5, 2)};
-    border-radius: ${theme.shape.borderRadius / 2}px;
+    padding: 12px 12px 12px 16px;
+    border-radius: 4px;
     transition: background-color 0.15s ease-in-out;
     margin-bottom: 1px;
     position: relative;
@@ -130,12 +130,12 @@ const styles = {
     flexShrink: 0,
   },
   sidebarNavItemIcon: (theme) => ({
-    width: theme.spacing(2),
-    height: theme.spacing(2),
+    width: 16,
+    height: 16,
   }),
   templateInfo: (theme) => ({
     ...(theme.typography.body2 as CSSObject),
-    marginBottom: theme.spacing(2),
+    marginBottom: 16,
   }),
   templateData: {
     overflow: "hidden",

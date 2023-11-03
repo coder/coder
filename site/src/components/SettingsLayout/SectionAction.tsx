@@ -10,7 +10,7 @@ export const SectionAction: FC<React.PropsWithChildren<unknown>> = ({
   return (
     <div
       css={(theme) => ({
-        marginTop: theme.spacing(3),
+        marginTop: 24,
       })}
     >
       {children}

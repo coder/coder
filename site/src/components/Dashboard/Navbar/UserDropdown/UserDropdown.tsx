@@ -40,7 +40,7 @@ export const UserDropdown: FC<PropsWithChildren<UserDropdownProps>> = ({
                 border: 0;
                 cursor: pointer;
                 height: ${navHeight}px;
-                padding: ${theme.spacing(1.5, 0)};
+                padding: 12px 0;
 
                 &:hover {
                   background-color: transparent;

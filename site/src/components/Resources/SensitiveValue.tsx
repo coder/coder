@@ -26,7 +26,7 @@ export const SensitiveValue: React.FC<{ value: string }> = ({ value }) => {
       css={(theme) => ({
         display: "flex",
         alignItems: "center",
-        gap: theme.spacing(0.5),
+        gap: 4,
       })}
     >
       <CopyableValue

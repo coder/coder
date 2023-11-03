@@ -22,8 +22,8 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
   const theme = useTheme();
 
   const iconStyles = {
-    width: theme.spacing(2),
-    height: theme.spacing(2),
+    width: 16,
+    height: 16,
   };
 
   return (

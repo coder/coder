@@ -74,7 +74,7 @@ export const FileTreeView: FC<{
           }
 
           & > .MuiTreeItem-content {
-            padding: ${theme.spacing(0.25, 2)};
+            padding: 2px 16px;
             color: ${theme.palette.text.secondary};
 
             & svg {
@@ -102,7 +102,7 @@ export const FileTreeView: FC<{
 
             // We need to find a better way to recursive padding here
             & .MuiTreeItem-content {
-              padding-left: calc(var(--level) * ${theme.spacing(5)});
+              padding-left: calc(var(--level) * 40px);
             }
           }
         `}

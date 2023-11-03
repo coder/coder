@@ -362,7 +362,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 
 const styles = {
   content: (theme) => ({
-    marginTop: theme.spacing(4),
+    marginTop: 32,
   }),
 
   actions: (theme) => ({

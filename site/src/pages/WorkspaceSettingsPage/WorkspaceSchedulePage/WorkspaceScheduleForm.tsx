@@ -351,7 +351,7 @@ export const WorkspaceScheduleForm: FC<
                 display: "flex",
                 flexDirection: "row",
                 flexWrap: "wrap",
-                paddingTop: theme.spacing(0.5),
+                paddingTop: 4,
               })}
             >
               {checkboxes.map((checkbox) => (

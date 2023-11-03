@@ -130,10 +130,8 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
             ),
             classes: {
               root: css`
-                padding-left: ${theme.spacing(
-                  1.75,
-                )} !important; // Same padding left as input
-                gap: ${theme.spacing(0.5)};
+                padding-left: 14px !important; // Same padding left as input
+                gap: 4px;
               `,
             },
           }}

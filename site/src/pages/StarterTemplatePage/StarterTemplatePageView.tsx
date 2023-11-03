@@ -67,8 +67,8 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
         <Stack direction="row" spacing={3} alignItems="center">
           <div
             css={{
-              height: theme.spacing(6),
-              width: theme.spacing(6),
+              height: 48,
+              width: 48,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -99,7 +99,7 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
       >
         <div
           css={{
-            padding: theme.spacing(5, 5, 8),
+            padding: "40px 40px 64px",
             maxWidth: 800,
             margin: "auto",
           }}

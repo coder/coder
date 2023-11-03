@@ -52,20 +52,20 @@ const styles = {
     alignItems: "center",
     textAlign: "center",
     minHeight: 300,
-    padding: theme.spacing(3),
+    padding: 24,
     backgroundColor: theme.palette.background.paper,
     border: `1px solid ${theme.palette.divider}`,
     borderRadius: theme.shape.borderRadius,
   }),
   header: (theme) => ({
-    marginBottom: theme.spacing(3),
+    marginBottom: 24,
   }),
   title: {
     fontWeight: 600,
     fontFamily: "inherit",
   },
   description: (theme) => ({
-    marginTop: theme.spacing(1),
+    marginTop: 8,
     fontFamily: "inherit",
     maxWidth: 420,
     lineHeight: "160%",

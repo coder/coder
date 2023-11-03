@@ -17,9 +17,9 @@ const isBoolean = (parameter: TemplateVersionParameter) => {
 };
 
 const styles = {
-  label: (theme) => ({
-    marginBottom: theme.spacing(0.5),
-  }),
+  label: {
+    marginBottom: 4,
+  },
   labelCaption: (theme) => ({
     fontSize: 14,
     color: theme.palette.text.secondary,
@@ -43,11 +43,11 @@ const styles = {
       fontSize: 14,
     },
   }),
-  labelImmutable: (theme) => ({
-    marginTop: theme.spacing(0.5),
-    marginBottom: theme.spacing(0.5),
+  labelImmutable: {
+    marginTop: 4,
+    marginBottom: 4,
     color: colors.yellow[7],
-  }),
+  },
   textField: {
     ".small & .MuiInputBase-root": {
       height: 36,
@@ -55,32 +55,32 @@ const styles = {
       borderRadius: 6,
     },
   },
-  radioGroup: (theme) => ({
+  radioGroup: {
     ".small & .MuiFormControlLabel-label": {
       fontSize: 14,
     },
     ".small & .MuiRadio-root": {
-      padding: theme.spacing(0.75, "9px"), // 8px + 1px border
+      padding: "6px 9px", // 8px + 1px border
     },
     ".small & .MuiRadio-root svg": {
       width: 16,
       height: 16,
     },
-  }),
-  checkbox: (theme) => ({
+  },
+  checkbox: {
     display: "flex",
     alignItems: "center",
-    gap: theme.spacing(1),
-  }),
-  labelIconWrapper: (theme) => ({
-    width: theme.spacing(2.5),
-    height: theme.spacing(2.5),
+    gap: 8,
+  },
+  labelIconWrapper: {
+    width: 20,
+    height: 20,
     display: "block",
 
     ".small &": {
       display: "none",
     },
-  }),
+  },
   labelIcon: {
     width: "100%",
     height: "100%",
@@ -233,7 +233,7 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
                     alignItems={small ? "center" : undefined}
                     direction={small ? "row" : "column"}
                     css={{
-                      padding: small ? undefined : `${theme.spacing(0.5)} 0`,
+                      padding: small ? undefined : "4px 0",
                     }}
                   >
                     {small ? (

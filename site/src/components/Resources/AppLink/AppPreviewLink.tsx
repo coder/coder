@@ -12,7 +12,7 @@ export const AppPreviewLink: FC<AppPreviewProps> = ({ app }) => {
   return (
     <Stack
       css={(theme) => ({
-        padding: theme.spacing(0.25, 1.5),
+        padding: "2px 12px",
         borderRadius: 9999,
         border: `1px solid ${theme.palette.divider}`,
         color: theme.palette.text.primary,

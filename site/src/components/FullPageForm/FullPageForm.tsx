@@ -21,7 +21,7 @@ export const FullPageForm: FC<React.PropsWithChildren<FullPageFormProps>> = ({
 
   return (
     <Margins size="small">
-      <PageHeader css={{ paddingBottom: theme.spacing(3) }}>
+      <PageHeader css={{ paddingBottom: 24 }}>
         <PageHeaderTitle>{title}</PageHeaderTitle>
         {detail && <PageHeaderSubtitle>{detail}</PageHeaderSubtitle>}
       </PageHeader>

@@ -48,7 +48,7 @@ export function UserGroupsCell({ userGroups }: GroupsCellProps) {
               <Stack
                 spacing={0}
                 direction="row"
-                css={{ columnGap: theme.spacing(1), alignItems: "center" }}
+                css={{ columnGap: 8, alignItems: "center" }}
               >
                 <GroupIcon
                   sx={{
@@ -89,7 +89,7 @@ export function UserGroupsCell({ userGroups }: GroupsCellProps) {
                   display: "flex",
                   flexFlow: "column nowrap",
                   fontSize: theme.typography.body2.fontSize,
-                  padding: theme.spacing(0.5, 0.25),
+                  padding: "4px 2px",
                   gap: 0,
                 }}
               >
@@ -99,7 +99,7 @@ export function UserGroupsCell({ userGroups }: GroupsCellProps) {
                     <ListItem
                       key={group.id}
                       css={{
-                        columnGap: theme.spacing(1.25),
+                        columnGap: 10,
                         alignItems: "center",
                       }}
                     >

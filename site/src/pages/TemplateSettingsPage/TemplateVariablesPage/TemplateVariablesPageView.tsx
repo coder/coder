@@ -48,7 +48,7 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
         <PageHeaderTitle>Template variables</PageHeaderTitle>
       </PageHeader>
       {hasError && (
-        <Stack css={(theme) => ({ marginBottom: theme.spacing(8) })}>
+        <Stack css={{ marginBottom: 64 }}>
           {Boolean(errors.buildError) && (
             <ErrorAlert error={errors.buildError} />
           )}

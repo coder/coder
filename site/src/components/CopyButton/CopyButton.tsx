@@ -47,7 +47,7 @@ export const CopyButton: React.FC<React.PropsWithChildren<CopyButtonProps>> = ({
           className={buttonClassName}
           css={(theme) => css`
             border-radius: ${theme.shape.borderRadius}px;
-            padding: ${theme.spacing(0.85)};
+            padding: 8px;
             min-width: 32px;
 
             &:hover {
@@ -67,7 +67,7 @@ export const CopyButton: React.FC<React.PropsWithChildren<CopyButtonProps>> = ({
           {ctaCopy && (
             <div
               css={(theme) => ({
-                marginLeft: theme.spacing(1),
+                marginLeft: 8,
               })}
             >
               {ctaCopy}

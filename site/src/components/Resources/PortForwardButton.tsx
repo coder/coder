@@ -54,7 +54,7 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
                 fontWeight: 500,
                 height: 20,
                 minWidth: 20,
-                padding: (theme) => theme.spacing(0, 0.5),
+                padding: "0 4px",
                 borderRadius: "50%",
                 display: "flex",
                 alignItems: "center",
@@ -75,9 +75,9 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
         classes={{
           paper: css`
             padding: 0;
-            width: ${theme.spacing(38)};
+            width: 304px;
             color: ${theme.palette.text.secondary};
-            margin-top: ${theme.spacing(0.5)};
+            margin-top: 4px;
           `,
         }}
       >
@@ -96,7 +96,7 @@ export const PortForwardPopoverView: React.FC<
     <>
       <Box
         sx={{
-          padding: (theme) => theme.spacing(2.5),
+          padding: 20,
           borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
         }}
       >
@@ -108,7 +108,7 @@ export const PortForwardPopoverView: React.FC<
             ? "No open ports were detected."
             : "The forwarded ports are exclusively accessible to you."}
         </HelpTooltipText>
-        <Box sx={{ marginTop: (theme) => theme.spacing(1.5) }}>
+        <Box sx={{ marginTop: 12 }}>
           {ports?.map((p) => {
             const url = portForwardURL(
               host,
@@ -154,11 +154,7 @@ export const PortForwardPopoverView: React.FC<
         </Box>
       </Box>
 
-      <Box
-        sx={{
-          padding: (theme) => theme.spacing(2.5),
-        }}
-      >
+      <Box sx={{ padding: 20 }}>
         <HelpTooltipTitle>Forward port</HelpTooltipTitle>
         <HelpTooltipText
           sx={{ color: (theme) => theme.palette.text.secondary }}
@@ -204,7 +200,7 @@ export const PortForwardPopoverView: React.FC<
             sx={{
               fontSize: 14,
               height: 34,
-              p: (theme) => theme.spacing(0, 1.5),
+              p: "0 12px",
               background: "none",
               border: 0,
               outline: "none",
@@ -219,7 +215,7 @@ export const PortForwardPopoverView: React.FC<
               flexShrink: 0,
               width: 14,
               height: 14,
-              marginRight: (theme) => theme.spacing(1.5),
+              marginRight: 12,
               color: (theme) => theme.palette.text.primary,
             }}
           />

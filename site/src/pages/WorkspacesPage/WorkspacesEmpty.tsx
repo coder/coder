@@ -27,8 +27,8 @@ export const WorkspacesEmpty = (props: {
             css={(theme) => ({
               display: "flex",
               flexWrap: "wrap",
-              gap: theme.spacing(2),
-              marginBottom: theme.spacing(3),
+              gap: 16,
+              marginBottom: 24,
               justifyContent: "center",
               maxWidth: "800px",
             })}
@@ -39,12 +39,12 @@ export const WorkspacesEmpty = (props: {
                 key={t.id}
                 css={(theme) => ({
                   width: "320px",
-                  padding: theme.spacing(2),
+                  padding: 16,
                   borderRadius: 6,
                   border: `1px solid ${theme.palette.divider}`,
                   textAlign: "left",
                   display: "flex",
-                  gap: theme.spacing(2),
+                  gap: 16,
                   textDecoration: "none",
                   color: "inherit",
 

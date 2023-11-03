@@ -8,6 +8,7 @@ import { CopyableValue } from "components/CopyableValue/CopyableValue";
 import { Stack } from "../Stack/Stack";
 import { ResourceAvatar } from "./ResourceAvatar";
 import { SensitiveValue } from "./SensitiveValue";
+import { MemoizedMarkdown } from "components/Markdown/Markdown";
 
 const styles = {
   resourceCard: (theme) => ({
@@ -33,7 +34,7 @@ const styles = {
   },
 
   resourceCardHeader: (theme) => ({
-    padding: theme.spacing(3, 4),
+    padding: "24px 32px",
     borderBottom: `1px solid ${theme.palette.divider}`,
 
     "&:last-child": {
@@ -116,8 +117,8 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
             flexGrow: 2,
             display: "grid",
             gridTemplateColumns: `repeat(${gridWidth}, minmax(0, 1fr))`,
-            gap: theme.spacing(5),
-            rowGap: theme.spacing(3),
+            gap: 40,
+            rowGap: 24,
           })}
         >
           {resource.daily_cost > 0 && (
@@ -137,7 +138,7 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
                     <SensitiveValue value={meta.value} />
                   ) : (
                     <CopyableValue value={meta.value}>
-                      {meta.value}
+                      <MemoizedMarkdown>{meta.value}</MemoizedMarkdown>
                     </CopyableValue>
                   )}
                 </div>

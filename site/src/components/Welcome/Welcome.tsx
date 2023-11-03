@@ -27,18 +27,16 @@ export const Welcome: FC<
         <CoderIcon
           css={{
             color: theme.palette.text.primary,
-            fontSize: theme.spacing(8),
+            fontSize: 64,
           }}
         />
       </div>
       <Typography
         css={css`
           text-align: center;
-          font-size: ${theme.spacing(4)};
+          font-size: 32px;
           font-weight: 400;
-          margin: 0;
-          margin-bottom: ${theme.spacing(4)};
-          margin-top: ${theme.spacing(2)};
+          margin: 16px 0 32px;
           line-height: 1.25;
 
           & strong {

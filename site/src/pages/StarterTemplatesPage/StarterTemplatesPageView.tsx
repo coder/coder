@@ -91,10 +91,10 @@ export const StarterTemplatesPageView: FC<StarterTemplatesPageViewProps> = ({
 };
 
 const styles = {
-  filter: (theme) => ({
-    width: theme.spacing(26),
+  filter: {
+    width: 208,
     flexShrink: 0,
-  }),
+  },
 
   filterCaption: (theme) => ({
     textTransform: "uppercase",
@@ -120,11 +120,11 @@ const styles = {
     fontWeight: 600,
   }),
 
-  templates: (theme) => ({
+  templates: {
     flex: "1",
     display: "grid",
     gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: theme.spacing(2),
+    gap: 16,
     gridAutoRows: "min-content",
-  }),
+  },
 } satisfies Record<string, Interpolation<Theme>>;

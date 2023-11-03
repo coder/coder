@@ -242,15 +242,15 @@ const styles = {
   stats: (theme) => ({
     padding: 0,
     border: 0,
-    gap: theme.spacing(6),
-    rowGap: theme.spacing(3),
+    gap: 48,
+    rowGap: 24,
     flex: 1,
 
     [theme.breakpoints.down("md")]: {
       display: "flex",
       flexDirection: "column",
       alignItems: "flex-start",
-      gap: theme.spacing(1),
+      gap: 8,
     },
   }),
 

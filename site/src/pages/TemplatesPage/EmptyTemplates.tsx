@@ -106,24 +106,24 @@ const styles = {
     paddingBottom: 0,
   },
 
-  emptyImage: (theme) => ({
+  emptyImage: {
     maxWidth: "50%",
-    height: theme.spacing(40),
+    height: 320,
     overflow: "hidden",
     opacity: 0.85,
 
     "& img": {
       maxWidth: "100%",
     },
-  }),
+  },
 
-  featuredExamples: (theme) => ({
-    maxWidth: theme.spacing(100),
+  featuredExamples: {
+    maxWidth: 800,
     display: "grid",
     gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: theme.spacing(2),
+    gap: 16,
     gridAutoRows: "min-content",
-  }),
+  },
 
   template: (theme) => ({
     backgroundColor: theme.palette.background.paperLight,

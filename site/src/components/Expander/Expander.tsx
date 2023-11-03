@@ -50,7 +50,7 @@ const styles = {
     color: theme.palette.text.secondary,
   }),
   collapseLink: (theme) => ({
-    marginTop: theme.spacing(2),
+    marginTop: 16,
   }),
   text: (theme) => ({
     display: "flex",

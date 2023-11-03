@@ -47,36 +47,36 @@ const styles = {
     },
   }),
 
-  templateIcon: (theme) => ({
-    width: theme.spacing(12),
-    height: theme.spacing(12),
+  templateIcon: {
+    width: 96,
+    height: 96,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
 
     "& img": {
-      height: theme.spacing(4),
+      height: 32,
     },
-  }),
+  },
 
-  templateInfo: (theme) => ({
-    padding: theme.spacing(2, 2, 2, 0),
+  templateInfo: {
+    padding: "16px 16px 16px 0",
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
-  }),
+  },
 
-  templateName: (theme) => ({
-    fontSize: theme.spacing(2),
+  templateName: {
+    fontSize: 16,
     textOverflow: "ellipsis",
     width: "100%",
     overflow: "hidden",
     whiteSpace: "nowrap",
-  }),
+  },
 
   templateDescription: (theme) => ({
-    fontSize: theme.spacing(1.75),
+    fontSize: 14,
     color: theme.palette.text.secondary,
     textOverflow: "ellipsis",
     width: "100%",

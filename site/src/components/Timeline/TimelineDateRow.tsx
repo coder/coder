@@ -23,7 +23,7 @@ export const TimelineDateRow: FC<TimelineDateRow> = ({ date }) => {
     >
       <TableCell
         css={{
-          padding: `${theme.spacing(1, 4)} !important`,
+          padding: `8px 32px !important`,
           background: `${theme.palette.background.paperLight} !important`,
           fontSize: 12,
           position: "relative",

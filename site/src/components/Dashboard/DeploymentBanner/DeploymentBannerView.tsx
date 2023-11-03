@@ -46,18 +46,18 @@ const styles = {
     align-items: center;
   `,
   category: (theme) => ({
-    marginRight: theme.spacing(2),
+    marginRight: 16,
     color: theme.palette.text.primary,
   }),
   values: (theme) => ({
     display: "flex",
-    gap: theme.spacing(1),
+    gap: 8,
     color: theme.palette.text.secondary,
   }),
-  value: (theme) => css`
+  value: css`
     display: flex;
     align-items: center;
-    gap: ${theme.spacing(0.5)};
+    gap: 4px;
 
     & svg {
       width: 12px;
@@ -129,7 +129,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = (props) => {
     align-items: center;
     justify-content: center;
     background-color: ${unhealthy ? colors.red[10] : undefined};
-    padding: ${theme.spacing(0, 1.5)};
+    padding: 0 12px;
     height: ${bannerHeight}px;
     color: #fff;
 
@@ -142,9 +142,9 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = (props) => {
   const statusSummaryStyle = className`
     ${theme.typography.body2 as CSSObject}
 
-    margin: ${theme.spacing(0, 0, 0.5, 1.5)};
-    width: ${theme.spacing(50)};
-    padding: ${theme.spacing(2)};
+    margin: 0 0 4px 12px;
+    width: 400px;
+    padding: 16px;
     color: ${theme.palette.text.primary};
     background-color: ${theme.palette.background.paper};
     border: 1px solid ${theme.palette.divider};
@@ -158,13 +158,13 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = (props) => {
         height: bannerHeight,
         bottom: 0,
         zIndex: 1,
-        paddingRight: theme.spacing(2),
+        paddingRight: 16,
         backgroundColor: theme.palette.background.paper,
         display: "flex",
         alignItems: "center",
         fontFamily: MONOSPACE_FONT_FAMILY,
         fontSize: 12,
-        gap: theme.spacing(4),
+        gap: 32,
         borderTop: `1px solid ${theme.palette.divider}`,
         overflowX: "auto",
         whiteSpace: "nowrap",
@@ -204,7 +204,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = (props) => {
           )
         }
         open={process.env.STORYBOOK === "true" ? true : undefined}
-        css={{ marginRight: theme.spacing(-2) }}
+        css={{ marginRight: -16 }}
       >
         {unhealthy ? (
           <Link component={RouterLink} to="/health" css={statusBadgeStyle}>
@@ -323,7 +323,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = (props) => {
           marginLeft: "auto",
           display: "flex",
           alignItems: "center",
-          gap: theme.spacing(2),
+          gap: 16,
         }}
       >
         <Tooltip title="The last time stats were aggregated. Workspaces report statistics periodically, so it may take a bit for these to update!">
@@ -335,23 +335,24 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = (props) => {
 
         <Tooltip title="A countdown until stats are fetched again. Click to refresh!">
           <Button
-            css={css`
-              ${styles.value(theme)}
+            css={[
+              styles.value,
+              css`
+                margin: 0;
+                padding: 0 8px;
+                height: unset;
+                min-height: unset;
+                font-size: unset;
+                color: unset;
+                border: 0;
+                min-width: unset;
+                font-family: inherit;
 
-              margin: 0;
-              padding: 0 8px;
-              height: unset;
-              min-height: unset;
-              font-size: unset;
-              color: unset;
-              border: 0;
-              min-width: unset;
-              font-family: inherit;
-
-              & svg {
-                margin-right: ${theme.spacing(0.5)};
-              }
-            `}
+                & svg {
+                  margin-right: 4px;
+                }
+              `,
+            ]}
             onClick={() => {
               if (fetchStats) {
                 fetchStats();

@@ -195,7 +195,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                     <Box
                       sx={{
                         display: "flex",
-                        paddingLeft: (theme) => theme.spacing(2),
+                        paddingLeft: 16,
                       }}
                     >
                       <KeyboardArrowRight

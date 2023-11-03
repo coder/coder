@@ -55,7 +55,7 @@ export const Section: SectionFC = ({
             {toolbar && <div>{toolbar}</div>}
           </div>
         )}
-        {alert && <div css={{ marginBottom: theme.spacing(1) }}>{alert}</div>}
+        {alert && <div css={{ marginBottom: 8 }}>{alert}</div>}
         {children}
       </div>
     </section>
@@ -67,7 +67,7 @@ Section.Action = SectionAction;
 
 const styles = {
   header: (theme) => ({
-    marginBottom: theme.spacing(3),
+    marginBottom: 24,
     display: "flex",
     flexDirection: "row",
     justifyContent: "space-between",
@@ -75,7 +75,7 @@ const styles = {
   description: (theme) => ({
     color: theme.palette.text.secondary,
     fontSize: 16,
-    marginTop: theme.spacing(0.5),
+    marginTop: 4,
     lineHeight: "140%",
   }),
 } satisfies Record<string, Interpolation<Theme>>;

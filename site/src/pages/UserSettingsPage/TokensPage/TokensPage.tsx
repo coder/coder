@@ -18,7 +18,7 @@ export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
       direction="row"
       justifyContent="end"
       css={(theme) => ({
-        marginBottom: theme.spacing(1),
+        marginBottom: 8,
       })}
     >
       <Button startIcon={<AddIcon />} component={RouterLink} to="new">

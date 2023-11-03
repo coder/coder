@@ -695,18 +695,18 @@ const styles = {
   },
 
   optionText: (theme) => ({
-    fontSize: theme.spacing(2),
+    fontSize: 16,
     color: theme.palette.text.primary,
   }),
 
   optionHelperText: (theme) => ({
-    fontSize: theme.spacing(1.5),
+    fontSize: 12,
     color: theme.palette.text.secondary,
   }),
 
   error: (theme) => ({
-    padding: theme.spacing(3),
-    borderRadius: theme.spacing(1),
+    padding: 24,
+    borderRadius: 8,
     background: theme.palette.background.paper,
     border: `1px solid ${theme.palette.error.main}`,
   }),
@@ -719,13 +719,13 @@ const styles = {
   errorDescription: (theme) => ({
     margin: 0,
     color: theme.palette.text.secondary,
-    marginTop: theme.spacing(0.5),
+    marginTop: 4,
   }),
 
   errorDetails: (theme) => ({
     display: "block",
-    marginTop: theme.spacing(1),
+    marginTop: 8,
     color: theme.palette.error.light,
-    fontSize: theme.spacing(2),
+    fontSize: 16,
   }),
 } satisfies Record<string, Interpolation<Theme>>;

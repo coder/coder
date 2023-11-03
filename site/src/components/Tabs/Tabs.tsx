@@ -10,15 +10,15 @@ export const Tabs = ({ children }: { children: ReactNode }) => {
     <div
       css={(theme) => ({
         borderBottom: `1px solid ${theme.palette.divider}`,
-        marginBottom: theme.spacing(5),
+        marginBottom: 40,
       })}
     >
       <Margins
-        css={(theme) => ({
+        css={{
           display: "flex",
           alignItems: "center",
-          gap: theme.spacing(0.25),
-        })}
+          gap: 2,
+        }}
       >
         {children}
       </Margins>
@@ -34,7 +34,7 @@ export const TabLink = (props: NavLinkProps) => {
     color: ${theme.palette.text.secondary};
     font-size: 14px;
     display: block;
-    padding: ${theme.spacing(0, 2, 2)};
+    padding: 0 16px 16px;
 
     &:hover {
       color: ${theme.palette.text.primary};

@@ -23,8 +23,8 @@ export const StatsItem: FC<
 const styles = {
   stats: (theme) => ({
     ...(theme.typography.body2 as CSSObject),
-    paddingLeft: theme.spacing(2),
-    paddingRight: theme.spacing(2),
+    paddingLeft: 16,
+    paddingRight: 16,
     borderRadius: theme.shape.borderRadius,
     border: `1px solid ${theme.palette.divider}`,
     display: "flex",
@@ -35,20 +35,20 @@ const styles = {
 
     [theme.breakpoints.down("md")]: {
       display: "block",
-      padding: theme.spacing(2),
+      padding: 16,
     },
   }),
 
   statItem: (theme) => ({
-    padding: theme.spacing(1.75),
-    paddingLeft: theme.spacing(2),
-    paddingRight: theme.spacing(2),
+    padding: 14,
+    paddingLeft: 16,
+    paddingRight: 16,
     display: "flex",
     alignItems: "baseline",
-    gap: theme.spacing(1),
+    gap: 8,
 
     [theme.breakpoints.down("md")]: {
-      padding: theme.spacing(1),
+      padding: 8,
     },
   }),
 
@@ -58,7 +58,7 @@ const styles = {
   },
 
   statsValue: (theme) => ({
-    marginTop: theme.spacing(0.25),
+    marginTop: 2,
     display: "flex",
     wordWrap: "break-word",
     color: theme.palette.text.primary,

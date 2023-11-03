@@ -36,7 +36,7 @@ export const EnterpriseSnackbar: FC<
     border: 1px solid ${theme.palette.divider};
     border-left: 4px solid ${variantColor(variant, theme)};
     border-radius: ${theme.shape.borderRadius}px;
-    padding: ${theme.spacing(1, 3, 1, 2)};
+    padding: 8px 24px 8px 16px;
     box-shadow: ${theme.shadows[6]};
     align-items: inherit;
     background-color: ${theme.palette.background.paper};

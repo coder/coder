@@ -28,7 +28,7 @@ const styles = {
   info: (theme) => [
     theme.typography.body2 as CSSObject,
     {
-      padding: theme.spacing(2.5),
+      padding: 20,
     },
   ],
   userName: {
@@ -45,8 +45,8 @@ const styles = {
     color: "inherit",
   },
   menuItem: (theme) => css`
-    gap: ${theme.spacing(2.5)};
-    padding: ${theme.spacing(1, 2.5)};
+    gap: 20px;
+    padding: 8px 20px;
 
     &:hover {
       background-color: ${theme.palette.action.hover};
@@ -55,8 +55,8 @@ const styles = {
   `,
   menuItemIcon: (theme) => ({
     color: theme.palette.text.secondary,
-    width: theme.spacing(2.5),
-    height: theme.spacing(2.5),
+    width: 20,
+    height: 20,
   }),
   menuItemText: {
     fontSize: 14,

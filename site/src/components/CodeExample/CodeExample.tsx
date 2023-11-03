@@ -27,7 +27,7 @@ export const CodeExample: FC<CodeExampleProps> = (props) => {
         fontFamily: MONOSPACE_FONT_FAMILY,
         fontSize: 14,
         borderRadius: theme.shape.borderRadius,
-        padding: theme.spacing(1),
+        padding: 8,
         lineHeight: "150%",
         border: `1px solid ${theme.palette.divider}`,
       }}
@@ -35,7 +35,7 @@ export const CodeExample: FC<CodeExampleProps> = (props) => {
     >
       <code
         css={{
-          padding: theme.spacing(0, 1),
+          padding: "0 8px",
           width: "100%",
           display: "flex",
           alignItems: "center",

@@ -51,11 +51,7 @@ export const WorkspaceSettingsLayout: FC = () => {
       </Helmet>
 
       <Margins>
-        <Stack
-          css={{ padding: theme.spacing(6, 0) }}
-          direction="row"
-          spacing={10}
-        >
+        <Stack css={{ padding: "48px 0" }} direction="row" spacing={10}>
           {isError ? (
             <ErrorAlert error={error} />
           ) : (

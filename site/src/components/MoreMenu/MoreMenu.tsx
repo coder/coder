@@ -93,8 +93,8 @@ export const MoreMenuItem = (
         fontSize: 14,
         color: danger ? theme.palette.error.light : undefined,
         "& .MuiSvgIcon-root": {
-          width: theme.spacing(2),
-          height: theme.spacing(2),
+          width: 16,
+          height: 16,
         },
       })}
       onClick={(e) => {

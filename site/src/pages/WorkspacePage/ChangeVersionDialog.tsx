@@ -104,8 +104,8 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
                               {option.message && (
                                 <InfoIcon
                                   sx={(theme) => ({
-                                    width: theme.spacing(1.5),
-                                    height: theme.spacing(1.5),
+                                    width: 12,
+                                    height: 12,
                                   })}
                                 />
                               )}
@@ -138,7 +138,7 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
                           classes: {
                             // Same `padding-left` as input
                             root: css`
-                              padding-left: ${theme.spacing(1.75)} !important;
+                              padding-left: 14px !important;
                             `,
                           },
                         }}

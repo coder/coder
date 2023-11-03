@@ -63,9 +63,9 @@ const defaultStyles = {
     // The first button is the submit so it is the first element to be focused
     // on tab so we use row-reverse to display it on the right
     flexDirection: "row-reverse",
-    gap: theme.spacing(1.5),
+    gap: 12,
     alignItems: "center",
-    marginTop: theme.spacing(3),
+    marginTop: 24,
   }),
   button: {
     width: "100%",

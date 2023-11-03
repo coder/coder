@@ -26,10 +26,10 @@ const styles = {
     width: "100%",
   },
   title: (theme) => ({
-    fontSize: theme.spacing(4),
+    fontSize: 32,
     fontWeight: 400,
     margin: 0,
-    marginBottom: theme.spacing(4),
+    marginBottom: 32,
     lineHeight: 1,
 
     "& strong": {
@@ -37,14 +37,14 @@ const styles = {
     },
   }),
   alert: (theme) => ({
-    marginBottom: theme.spacing(4),
+    marginBottom: 32,
   }),
   divider: (theme) => ({
-    paddingTop: theme.spacing(3),
-    paddingBottom: theme.spacing(3),
+    paddingTop: 24,
+    paddingBottom: 24,
     display: "flex",
     alignItems: "center",
-    gap: theme.spacing(2),
+    gap: 16,
   }),
   dividerLine: (theme) => ({
     width: "100%",
@@ -59,8 +59,8 @@ const styles = {
     letterSpacing: 1,
   }),
   icon: (theme) => ({
-    width: theme.spacing(2),
-    height: theme.spacing(2),
+    width: 16,
+    height: 16,
   }),
 } satisfies Record<string, Interpolation<Theme>>;
 

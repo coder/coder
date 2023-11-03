@@ -74,7 +74,7 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
 
   if (error) {
     return (
-      <div css={{ margin: theme.spacing(2) }}>
+      <div css={{ margin: 16 }}>
         <ErrorAlert error={error} />
       </div>
     );

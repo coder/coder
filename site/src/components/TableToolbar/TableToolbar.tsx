@@ -4,7 +4,7 @@ import Skeleton from "@mui/material/Skeleton";
 
 export const TableToolbar = styled(Box)(({ theme }) => ({
   fontSize: 13,
-  marginBottom: theme.spacing(1),
+  marginBottom: 8,
   marginTop: 0,
   height: 36, // The size of a small button
   color: theme.palette.text.secondary,
