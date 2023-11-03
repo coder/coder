@@ -1,6 +1,7 @@
 import { type ReactNode } from "react";
 import { Avatar } from "components/Avatar/Avatar";
 import { type CSSObject, useTheme } from "@emotion/react";
+import { colors } from "theme/colors";
 
 type AvatarCardProps = {
   header: string;
@@ -38,7 +39,7 @@ export function AvatarCard({
           css={[
             theme.typography.body1 as CSSObject,
             {
-              lineHeight: 1.5,
+              lineHeight: 1.4,
               margin: 0,
               overflow: "hidden",
               whiteSpace: "nowrap",
@@ -61,7 +62,12 @@ export function AvatarCard({
         )}
       </div>
 
-      <Avatar src={imgUrl} alt={altText} colorScheme="darken">
+      <Avatar
+        src={imgUrl}
+        alt={altText}
+        size="md"
+        css={{ backgroundColor: colors.gray[7] }}
+      >
         {header}
       </Avatar>
     </article>
