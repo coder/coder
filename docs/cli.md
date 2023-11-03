@@ -25,6 +25,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 
 | Name                                                   | Purpose                                                                                               |
 | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| [<code>autoupdate</code>](./cli/autoupdate.md)         | Toggle auto-update policy for a workspace                                                             |
 | [<code>config-ssh</code>](./cli/config-ssh.md)         | Add an SSH Host entry for your workspaces "ssh coder.workspace"                                       |
 | [<code>create</code>](./cli/create.md)                 | Create a workspace                                                                                    |
 | [<code>delete</code>](./cli/delete.md)                 | Delete a workspace                                                                                    |

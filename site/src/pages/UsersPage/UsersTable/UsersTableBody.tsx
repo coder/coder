@@ -15,7 +15,6 @@ import {
   TableLoaderSkeleton,
   TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
-import { TableRowMenu } from "components/TableRowMenu/TableRowMenu";
 import { EnterpriseBadge } from "components/DeploySettingsLayout/Badges";
 import HideSourceOutlined from "@mui/icons-material/HideSourceOutlined";
 import KeyOutlined from "@mui/icons-material/KeyOutlined";
@@ -26,6 +25,13 @@ import { LastSeen } from "components/LastSeen/LastSeen";
 import { UserRoleCell } from "./UserRoleCell";
 import { type GroupsByUserId } from "api/queries/groups";
 import { UserGroupsCell } from "./UserGroupsCell";
+import {
+  MoreMenu,
+  MoreMenuTrigger,
+  MoreMenuContent,
+  MoreMenuItem,
+} from "components/MoreMenu/MoreMenu";
+import Divider from "@mui/material/Divider";
 
 dayjs.extend(relativeTime);
 
@@ -176,48 +182,49 @@ export const UsersTableBody: FC<
 
             {canEditUsers && (
               <TableCell>
-                <TableRowMenu
-                  data={user}
-                  menuItems={[
-                    // Return either suspend or activate depending on status
-                    user.status === "active" || user.status === "dormant"
-                      ? {
-                          label: <>Suspend&hellip;</>,
-                          onClick: onSuspendUser,
-                          disabled: false,
-                        }
-                      : {
-                          label: <>Activate&hellip;</>,
-                          onClick: onActivateUser,
-                          disabled: false,
-                        },
-                    {
-                      label: <>Delete&hellip;</>,
-                      onClick: onDeleteUser,
-                      disabled: user.id === actorID,
-                    },
-                    {
-                      label: <>Reset password&hellip;</>,
-                      onClick: onResetUserPassword,
-                      disabled: user.login_type !== "password",
-                    },
-                    {
-                      label: "View workspaces",
-                      onClick: onListWorkspaces,
-                      disabled: false,
-                    },
-                    {
-                      label: (
-                        <>
-                          View activity
-                          {!canViewActivity && <EnterpriseBadge />}
-                        </>
-                      ),
-                      onClick: onViewActivity,
-                      disabled: !canViewActivity,
-                    },
-                  ]}
-                />
+                <MoreMenu>
+                  <MoreMenuTrigger />
+                  <MoreMenuContent>
+                    {user.status === "active" || user.status === "dormant" ? (
+                      <MoreMenuItem
+                        data-testid="suspend-button"
+                        onClick={() => {
+                          onSuspendUser(user);
+                        }}
+                      >
+                        Suspend&hellip;
+                      </MoreMenuItem>
+                    ) : (
+                      <MoreMenuItem onClick={() => onActivateUser(user)}>
+                        Activate&hellip;
+                      </MoreMenuItem>
+                    )}
+                    <MoreMenuItem onClick={() => onListWorkspaces(user)}>
+                      View workspaces
+                    </MoreMenuItem>
+                    <MoreMenuItem
+                      onClick={() => onViewActivity(user)}
+                      disabled={!canViewActivity}
+                    >
+                      View activity
+                      {!canViewActivity && <EnterpriseBadge />}
+                    </MoreMenuItem>
+                    <MoreMenuItem
+                      onClick={() => onResetUserPassword(user)}
+                      disabled={user.login_type !== "password"}
+                    >
+                      Reset password&hellip;
+                    </MoreMenuItem>
+                    <Divider />
+                    <MoreMenuItem
+                      onClick={() => onDeleteUser(user)}
+                      disabled={user.id === actorID}
+                      danger
+                    >
+                      Delete&hellip;
+                    </MoreMenuItem>
+                  </MoreMenuContent>
+                </MoreMenu>
               </TableCell>
             )}
           </TableRow>

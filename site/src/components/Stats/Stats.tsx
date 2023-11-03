@@ -1,6 +1,6 @@
 import { type CSSObject, type Interpolation, type Theme } from "@emotion/react";
 import Box from "@mui/material/Box";
-import { type ComponentProps, type FC } from "react";
+import { ReactNode, type ComponentProps, type FC } from "react";
 
 export const Stats: FC<ComponentProps<typeof Box>> = (props) => {
   return <Box {...props} css={styles.stats} />;
@@ -9,7 +9,7 @@ export const Stats: FC<ComponentProps<typeof Box>> = (props) => {
 export const StatsItem: FC<
   {
     label: string;
-    value: string | number | JSX.Element;
+    value: ReactNode;
   } & ComponentProps<typeof Box>
 > = ({ label, value, ...divProps }) => {
   return (

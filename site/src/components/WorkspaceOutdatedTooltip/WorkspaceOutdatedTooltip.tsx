@@ -20,7 +20,7 @@ export const Language = {
   outdatedLabel: "Outdated",
   versionTooltipText:
     "This workspace version is outdated and a newer version is available.",
-  updateVersionLabel: "Update version",
+  updateVersionLabel: "Update",
 };
 
 interface TooltipProps {

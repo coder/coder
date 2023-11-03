@@ -934,11 +934,8 @@ func MustTransitionWorkspace(t testing.TB, client *codersdk.Client, workspaceID 
 	require.NoError(t, err, "unexpected error fetching workspace")
 	require.Equal(t, workspace.LatestBuild.Transition, codersdk.WorkspaceTransition(from), "expected workspace state: %s got: %s", from, workspace.LatestBuild.Transition)
 
-	template, err := client.Template(ctx, workspace.TemplateID)
-	require.NoError(t, err, "fetch workspace template")
-
 	req := codersdk.CreateWorkspaceBuildRequest{
-		TemplateVersionID: template.ActiveVersionID,
+		TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
 		Transition:        codersdk.WorkspaceTransition(to),
 	}
 

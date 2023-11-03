@@ -20,7 +20,6 @@ import {
   PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
-import { TableRowMenu } from "components/TableRowMenu/TableRowMenu";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
@@ -46,6 +45,12 @@ import Box from "@mui/material/Box";
 import { LastSeen } from "components/LastSeen/LastSeen";
 import { type Interpolation, type Theme } from "@emotion/react";
 import LoadingButton from "@mui/lab/LoadingButton";
+import {
+  MoreMenu,
+  MoreMenuContent,
+  MoreMenuItem,
+  MoreMenuTrigger,
+} from "components/MoreMenu/MoreMenu";
 
 export const GroupPage: FC = () => {
   const { groupId } = useParams() as { groupId: string };
@@ -281,12 +286,12 @@ const GroupMemberRow = (props: {
       </TableCell>
       <TableCell width="1%">
         {canUpdate && (
-          <TableRowMenu
-            data={member}
-            menuItems={[
-              {
-                label: "Remove",
-                onClick: async () => {
+          <MoreMenu>
+            <MoreMenuTrigger />
+            <MoreMenuContent>
+              <MoreMenuItem
+                danger
+                onClick={async () => {
                   try {
                     await removeMemberMutation.mutateAsync({
                       groupId: group.id,
@@ -298,11 +303,13 @@ const GroupMemberRow = (props: {
                       getErrorMessage(error, "Failed to remove member."),
                     );
                   }
-                },
-                disabled: group.id === group.organization_id,
-              },
-            ]}
-          />
+                }}
+                disabled={group.id === group.organization_id}
+              >
+                Remove
+              </MoreMenuItem>
+            </MoreMenuContent>
+          </MoreMenu>
         )}
       </TableCell>
     </TableRow>

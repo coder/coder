@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/google/uuid"
@@ -154,21 +155,26 @@ func TestStart(t *testing.T) {
 						require.NoError(t, err)
 						coderdtest.AwaitWorkspaceBuildJobCompleted(t, c.Client, ws.LatestBuild.ID)
 
+						initialTemplateVersion := ws.LatestBuild.TemplateVersionID
+
 						if cmd == "start" {
 							// Stop the workspace so that we can start it.
-							coderdtest.MustTransitionWorkspace(t, c.Client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop, func(req *codersdk.CreateWorkspaceBuildRequest) {
-								req.TemplateVersionID = oldVersion.ID
-							})
+							coderdtest.MustTransitionWorkspace(t, c.Client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
 						}
 						// Start the workspace. Every test permutation should
 						// pass.
+						var buf bytes.Buffer
 						inv, conf := newCLI(t, cmd, ws.Name, "-y")
+						inv.Stdout = &buf
 						clitest.SetupConfig(t, c.Client, conf)
 						err = inv.Run()
 						require.NoError(t, err)
 
 						ws = coderdtest.MustWorkspace(t, c.Client, ws.ID)
 						require.Equal(t, c.ExpectedVersion, ws.LatestBuild.TemplateVersionID)
+						if initialTemplateVersion != ws.LatestBuild.TemplateVersionID {
+							require.Contains(t, buf.String(), "Failed to restart with the template version from your last build. Policy may require you to restart with the current active template version.")
+						}
 					})
 				}
 			})

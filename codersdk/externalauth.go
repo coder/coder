@@ -39,6 +39,7 @@ const (
 	EnhancedExternalAuthProviderBitBucket       EnhancedExternalAuthProvider = "bitbucket"
 	EnhancedExternalAuthProviderBitBucketServer EnhancedExternalAuthProvider = "bitbucket-server"
 	EnhancedExternalAuthProviderSlack           EnhancedExternalAuthProvider = "slack"
+	EnhancedExternalAuthProviderJFrog       EnhancedExternalAuthProvider = "jfrog"
 )
 
 type ExternalAuth struct {
