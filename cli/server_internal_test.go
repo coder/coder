@@ -128,7 +128,7 @@ func Test_configureCipherSuites(t *testing.T) {
 			minTLS:       tls.VersionTLS13,
 			maxTLS:       tls.VersionTLS13,
 			inputCiphers: cipherNames(tls.CipherSuites()),
-			wantErr:      "tls ciphers cannot be specified when using minimum tls version 1.3",
+			wantErr:      "'--tls-ciphers' cannot be specified when using minimum tls version 1.3",
 		},
 		{
 			name:   "TLSUnsupported",
@@ -142,7 +142,7 @@ func Test_configureCipherSuites(t *testing.T) {
 			name:    "Min>Max",
 			minTLS:  tls.VersionTLS13,
 			maxTLS:  tls.VersionTLS12,
-			wantErr: "minimum tls version cannot be greater than maximum tls version",
+			wantErr: "minimum tls version (TLS 1.3) cannot be greater than maximum tls version (TLS 1.2)",
 		},
 	}
 	for _, tt := range tests {

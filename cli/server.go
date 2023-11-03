@@ -1503,13 +1503,14 @@ func configureServerTLS(ctx context.Context, logger slog.Logger, tlsMinVersion, 
 
 //nolint:revive
 func configureCipherSuites(ctx context.Context, logger slog.Logger, ciphers []string, allowInsecureCiphers bool, minTLS, maxTLS uint16) ([]uint16, error) {
+	fmt.Println(ciphers)
 	if minTLS > maxTLS {
-		return nil, xerrors.Errorf("minimum tls version cannot be greater than maximum tls version")
+		return nil, xerrors.Errorf("minimum tls version (%s) cannot be greater than maximum tls version (%s)", versionName(minTLS), versionName(maxTLS))
 	}
 	if minTLS >= tls.VersionTLS13 {
 		// The cipher suites config option is ignored for tls 1.3 and higher.
 		// So this user flag is a no-op if the min version is 1.3.
-		return nil, xerrors.Errorf("tls ciphers cannot be specified when using minimum tls version 1.3 or higher")
+		return nil, xerrors.Errorf("'--tls-ciphers' cannot be specified when using minimum tls version 1.3 or higher, %d ciphers found as input.", len(ciphers))
 	}
 	// Configure the cipher suites which parses the strings and converts them
 	// to golang cipher suites.
@@ -1615,7 +1616,7 @@ func parseTLSCipherSuites(ciphers []string) ([]tls.CipherSuite, error) {
 	}
 
 	if len(unsupported) > 0 {
-		return nil, xerrors.Errorf("unsupported tls ciphers specified: %s", strings.Join(unsupported, ", "))
+		return nil, xerrors.Errorf("unsupported tls ciphers specified, see https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L53-L75: %s", strings.Join(unsupported, ", "))
 	}
 
 	return supported, nil
