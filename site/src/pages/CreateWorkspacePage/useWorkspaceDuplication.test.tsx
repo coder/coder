@@ -1,47 +1,36 @@
-import { waitFor, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { createMemoryRouter } from "react-router-dom";
-import { renderWithRouter } from "testHelpers/renderHelpers";
-
+import { waitFor } from "@testing-library/react";
 import * as M from "../../testHelpers/entities";
 import { type Workspace } from "api/typesGenerated";
 import { useWorkspaceDuplication } from "./useWorkspaceDuplication";
 import { MockWorkspace } from "testHelpers/entities";
 import CreateWorkspacePage from "./CreateWorkspacePage";
+import { renderHookWithAuth } from "testHelpers/renderHelpers";
 
-// Tried really hard to get these tests working with RTL's renderHook, but I
-// kept running into weird function mismatches, mostly stemming from the fact
-// that React Router's RouteProvider does not accept children, meaning that you
-// can't inject values into it with renderHook's wrapper
-function WorkspaceMock({ workspace }: { workspace?: Workspace }) {
-  const { duplicateWorkspace, isDuplicationReady } =
-    useWorkspaceDuplication(workspace);
-
-  return (
-    <button onClick={duplicateWorkspace} disabled={!isDuplicationReady}>
-      Click me!
-    </button>
+function render(workspace?: Workspace) {
+  return renderHookWithAuth(
+    ({ workspace }: { workspace?: Workspace }) => {
+      return useWorkspaceDuplication(workspace);
+    },
+    {
+      initialProps: { workspace },
+      extraRoutes: [
+        {
+          path: "/templates/:template/workspace",
+          element: <CreateWorkspacePage />,
+        },
+      ],
+    },
   );
 }
 
-function renderInMemory(workspace?: Workspace) {
-  const router = createMemoryRouter([
-    { path: "/", element: <WorkspaceMock workspace={workspace} /> },
-    {
-      path: "/templates/:template/workspace",
-      element: <CreateWorkspacePage />,
-    },
-  ]);
-
-  return renderWithRouter(router);
-}
+type RenderResult = Awaited<ReturnType<typeof render>>;
 
 async function performNavigation(
-  button: HTMLElement,
-  router: ReturnType<typeof createMemoryRouter>,
+  result: RenderResult["result"],
+  router: RenderResult["router"],
 ) {
-  await waitFor(() => expect(button).not.toBeDisabled());
-  await userEvent.click(button);
+  await waitFor(() => expect(result.current.isDuplicationReady).toBe(true));
+  result.current.duplicateWorkspace();
 
   return waitFor(() => {
     expect(router.state.location.pathname).toEqual(
@@ -52,34 +41,30 @@ async function performNavigation(
 
 describe(`${useWorkspaceDuplication.name}`, () => {
   it("Will never be ready when there is no workspace passed in", async () => {
-    const { rootComponent, rerender } = renderInMemory(undefined);
-    const button = await screen.findByRole("button");
-    expect(button).toBeDisabled();
+    const { result, rerender } = await render(undefined);
+    expect(result.current.isDuplicationReady).toBe(false);
 
     for (let i = 0; i < 10; i++) {
-      rerender(rootComponent);
-      expect(button).toBeDisabled();
+      rerender({ workspace: undefined });
+      expect(result.current.isDuplicationReady).toBe(false);
     }
   });
 
   it("Will become ready when workspace is provided and build params are successfully fetched", async () => {
-    renderInMemory(MockWorkspace);
-    const button = await screen.findByRole("button");
+    const { result } = await render(MockWorkspace);
 
-    expect(button).toBeDisabled();
-    await waitFor(() => expect(button).not.toBeDisabled());
+    expect(result.current.isDuplicationReady).toBe(false);
+    await waitFor(() => expect(result.current.isDuplicationReady).toBe(true));
   });
 
-  it("duplicateWorkspace navigates the user to the workspace creation page", async () => {
-    const { router } = renderInMemory(MockWorkspace);
-    const button = await screen.findByRole("button");
-    await performNavigation(button, router);
+  it("Is able to navigate the user to the workspace creation page", async () => {
+    const { result, router } = await render(MockWorkspace);
+    await performNavigation(result, router);
   });
 
   test("Navigating populates the URL search params with the workspace's build params", async () => {
-    const { router } = renderInMemory(MockWorkspace);
-    const button = await screen.findByRole("button");
-    await performNavigation(button, router);
+    const { result, router } = await render(MockWorkspace);
+    await performNavigation(result, router);
 
     const parsedParams = new URLSearchParams(router.state.location.search);
     const mockBuildParams = [
@@ -97,9 +82,8 @@ describe(`${useWorkspaceDuplication.name}`, () => {
   });
 
   test("Navigating appends other necessary metadata to the search params", async () => {
-    const { router } = renderInMemory(MockWorkspace);
-    const button = await screen.findByRole("button");
-    await performNavigation(button, router);
+    const { result, router } = await render(MockWorkspace);
+    await performNavigation(result, router);
 
     const parsedParams = new URLSearchParams(router.state.location.search);
     const extraMetadataEntries = [
