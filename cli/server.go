@@ -1501,6 +1501,7 @@ func configureServerTLS(ctx context.Context, logger slog.Logger, tlsMinVersion, 
 	return tlsConfig, nil
 }
 
+//nolint:revive
 func configureCipherSuites(ctx context.Context, logger slog.Logger, ciphers []string, allowInsecureCiphers bool, minTLS, maxTLS uint16) ([]uint16, error) {
 	if minTLS > maxTLS {
 		return nil, xerrors.Errorf("minimum tls version cannot be greater than maximum tls version")
