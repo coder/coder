@@ -81,6 +81,13 @@ export const Markdown: Story = {
         id: "2",
         name: "Unsupported",
         metadata: [
+          {
+            key: "multiple paragraphs",
+            value: `home,
+
+home on the range`,
+            sensitive: false,
+          },
           { key: "heading", value: "# HI", sensitive: false },
           { key: "image", value: "![go](/icon/go.svg)", sensitive: false },
         ],

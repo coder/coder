@@ -123,7 +123,7 @@ export const InlineMarkdown: FC<MarkdownProps> = (props) => {
     <ReactMarkdown
       css={markdownStyles}
       className={className}
-      allowedElements={["p", "em", "strong", "a", "pre", "code"]}
+      allowedElements={["em", "strong", "a", "pre", "code"]}
       unwrapDisallowed
       components={{
         a: ({ href, target, children }) => (
@@ -131,8 +131,6 @@ export const InlineMarkdown: FC<MarkdownProps> = (props) => {
             {children}
           </Link>
         ),
-
-        pre: ({ children }) => <pre>{children}</pre>,
 
         code: ({ node, className, children, style, ...props }) => (
           <code
