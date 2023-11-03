@@ -60,9 +60,11 @@ export const StarterTemplatesPageView: FC<StarterTemplatesPageViewProps> = ({
 
       {Boolean(!starterTemplatesByTag) && <Loader />}
 
-      <Stack direction="row" spacing={4}>
+      <Stack direction="row" spacing={4} alignItems="flex-start">
         {starterTemplatesByTag && tags && (
-          <Stack css={styles.filter}>
+          <Stack
+            css={{ width: 208, flexShrink: 0, position: "sticky", top: 48 }}
+          >
             <span css={styles.filterCaption}>Filter</span>
             {tags.map((tag) => (
               <Link
@@ -90,6 +92,9 @@ export const StarterTemplatesPageView: FC<StarterTemplatesPageViewProps> = ({
           {visibleTemplates &&
             visibleTemplates.map((example) => (
               <TemplateExampleCard
+                css={(theme) => ({
+                  backgroundColor: theme.palette.background.paper,
+                })}
                 example={example}
                 key={example.id}
                 activeTag={activeTag}
@@ -102,11 +107,6 @@ export const StarterTemplatesPageView: FC<StarterTemplatesPageViewProps> = ({
 };
 
 const styles = {
-  filter: (theme) => ({
-    width: theme.spacing(26),
-    flexShrink: 0,
-  }),
-
   filterCaption: (theme) => ({
     textTransform: "uppercase",
     fontWeight: 600,

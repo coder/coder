@@ -2,18 +2,16 @@ import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import type { TemplateExample } from "api/typesGenerated";
 import { Pill } from "components/Pill/Pill";
-import { type FC } from "react";
+import { HTMLProps } from "react";
 import { Link as RouterLink } from "react-router-dom";
 
-export interface TemplateExampleCardProps {
+type TemplateExampleCardProps = {
   example: TemplateExample;
   activeTag?: string;
-}
+} & HTMLProps<HTMLDivElement>;
 
-export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
-  example,
-  activeTag,
-}) => {
+export const TemplateExampleCard = (props: TemplateExampleCardProps) => {
+  const { example, activeTag, ...divProps } = props;
   return (
     <div
       css={(theme) => ({
@@ -27,6 +25,7 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
         display: "flex",
         flexDirection: "column",
       })}
+      {...divProps}
     >
       <div
         css={{
