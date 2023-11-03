@@ -342,6 +342,13 @@ dark = createTheme(dark, {
           padding: "4px 0",
           minWidth: 160,
         },
+        root: {
+          // It should be the same as the menu padding
+          "& .MuiDivider-root": {
+            marginTop: 4,
+            marginBottom: 4,
+          },
+        },
       },
     },
     MuiMenuItem: {
