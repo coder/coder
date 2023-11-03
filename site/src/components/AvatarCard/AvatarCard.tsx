@@ -9,6 +9,7 @@ type AvatarCardProps = {
   altText: string;
 
   subtitle?: ReactNode;
+  maxWidth?: number | "none";
 };
 
 export function AvatarCard({
@@ -16,13 +17,14 @@ export function AvatarCard({
   imgUrl,
   altText,
   subtitle,
+  maxWidth = 420,
 }: AvatarCardProps) {
   const theme = useTheme();
 
   return (
     <article
       css={{
-        width: "100%",
+        maxWidth: maxWidth === undefined ? undefined : `${maxWidth}px`,
         display: "flex",
         flexFlow: "row nowrap",
         alignItems: "center",
