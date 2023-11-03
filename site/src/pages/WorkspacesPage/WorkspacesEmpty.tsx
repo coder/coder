@@ -25,10 +25,12 @@ export const WorkspacesEmpty = (props: {
         <div>
           <div
             css={(theme) => ({
-              display: "grid",
-              gridTemplateColumns: "repeat(2, 320px)",
+              display: "flex",
+              flexWrap: "wrap",
               gap: theme.spacing(2),
               marginBottom: theme.spacing(3),
+              justifyContent: "center",
+              maxWidth: "800px",
             })}
           >
             {featuredTemplates?.map((t) => (
@@ -36,6 +38,7 @@ export const WorkspacesEmpty = (props: {
                 to={`/templates/${t.name}/workspace`}
                 key={t.id}
                 css={(theme) => ({
+                  width: "320px",
                   padding: theme.spacing(2),
                   borderRadius: 6,
                   border: `1px solid ${theme.palette.divider}`,
