@@ -14,6 +14,7 @@ import { useAuth } from "components/AuthProvider/AuthProvider";
 import { Section } from "components/SettingsLayout/Section";
 import { Loader } from "components/Loader/Loader";
 import { AvatarCard } from "components/AvatarCard/AvatarCard";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 
 export const AccountPage: FC = () => {
   const theme = useTheme();
@@ -57,31 +58,26 @@ export const AccountPage: FC = () => {
           )
         }
       >
-        {groupsQuery.isSuccess ? (
-          <Grid
-            container
-            columns={{ xs: 1, sm: 1, md: 2 }}
-            spacing={theme.spacing(3)}
-          >
-            {groupsQuery.data.map((group) => (
-              <Grid item key={group.id} xs={1}>
-                <AvatarCard
-                  imgUrl={group.avatar_url}
-                  altText={group.display_name || group.name}
-                  header={group.display_name || group.name}
-                  subtitle={
-                    <>
-                      {group.members.length} member
-                      {group.members.length !== 1 && "s"}
-                    </>
-                  }
-                />
-              </Grid>
-            ))}
-          </Grid>
-        ) : (
-          <Loader />
-        )}
+        {groupsQuery.isLoading && <Loader />}
+        {groupsQuery.isError && <ErrorAlert error={groupsQuery.error} />}
+
+        <Grid container columns={{ xs: 1, md: 2 }} spacing="16px">
+          {groupsQuery.data?.map((group) => (
+            <Grid item key={group.id} xs={1}>
+              <AvatarCard
+                imgUrl={group.avatar_url}
+                altText={group.display_name || group.name}
+                header={group.display_name || group.name}
+                subtitle={
+                  <>
+                    {group.members.length} member
+                    {group.members.length !== 1 && "s"}
+                  </>
+                }
+              />
+            </Grid>
+          ))}
+        </Grid>
       </Section>
     </Stack>
   );
