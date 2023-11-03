@@ -102,9 +102,7 @@ export const PortForwardPopoverView: React.FC<
         }}
       >
         <HelpTooltipTitle>Forwarded ports</HelpTooltipTitle>
-        <HelpTooltipText
-          sx={{ color: (theme) => theme.palette.text.secondary }}
-        >
+        <HelpTooltipText sx={{ color: theme.palette.text.secondary }}>
           {ports?.length === 0
             ? "No open ports were detected."
             : "The forwarded ports are exclusively accessible to you."}
@@ -123,7 +121,7 @@ export const PortForwardPopoverView: React.FC<
               <Link
                 underline="none"
                 sx={{
-                  color: (theme) => theme.palette.text.primary,
+                  color: theme.palette.text.primary,
                   fontSize: 14,
                   display: "flex",
                   alignItems: "center",
@@ -142,7 +140,7 @@ export const PortForwardPopoverView: React.FC<
                   component="span"
                   sx={{
                     ml: "auto",
-                    color: (theme) => theme.palette.text.secondary,
+                    color: theme.palette.text.secondary,
                     fontSize: 13,
                     fontWeight: 400,
                   }}
@@ -157,22 +155,20 @@ export const PortForwardPopoverView: React.FC<
 
       <Box css={{ padding: 20 }}>
         <HelpTooltipTitle>Forward port</HelpTooltipTitle>
-        <HelpTooltipText
-          sx={{ color: (theme) => theme.palette.text.secondary }}
-        >
+        <HelpTooltipText sx={{ color: theme.palette.text.secondary }}>
           Access ports running on the agent:
         </HelpTooltipText>
 
         <Box
           component="form"
           sx={{
-            border: (theme) => `1px solid ${theme.palette.divider}`,
+            border: `1px solid ${theme.palette.divider}`,
             borderRadius: "4px",
             mt: 2,
             display: "flex",
             alignItems: "center",
             "&:focus-within": {
-              borderColor: (theme) => theme.palette.primary.main,
+              borderColor: theme.palette.primary.main,
             },
           }}
           onSubmit={(e) => {
@@ -198,26 +194,26 @@ export const PortForwardPopoverView: React.FC<
             min={0}
             max={65535}
             required
-            sx={{
+            css={{
               fontSize: 14,
               height: 34,
               p: "0 12px",
               background: "none",
               border: 0,
               outline: "none",
-              color: (theme) => theme.palette.text.primary,
+              color: theme.palette.text.primary,
               appearance: "textfield",
               display: "block",
               width: "100%",
             }}
           />
           <OpenInNewOutlined
-            sx={{
+            css={{
               flexShrink: 0,
               width: 14,
               height: 14,
               marginRight: 12,
-              color: (theme) => theme.palette.text.primary,
+              color: theme.palette.text.primary,
             }}
           />
         </Box>

@@ -58,25 +58,6 @@ const reallyLong = {
   sensitive: false,
 };
 
-export const Markdown: Story = {
-  args: {
-    resources: [
-      {
-        ...nullDevice,
-        type: "workspace",
-        id: "1",
-        name: "Workspace",
-        metadata: [
-          { key: "text", value: "hello", sensitive: false },
-          { key: "link", value: "[hello](hello)", sensitive: false },
-          { key: "heading", value: "# hello", sensitive: false },
-          { key: "image", value: "![go](/icon/go.svg)", sensitive: false },
-        ],
-      },
-    ],
-  },
-};
-
 export const BunchOfDevicesWithMetadata: Story = {
   args: {
     resources: [
