@@ -90,14 +90,15 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
 export const PortForwardPopoverView: React.FC<
   PortForwardButtonProps & { ports?: WorkspaceAgentListeningPort[] }
 > = (props) => {
+  const theme = useTheme();
   const { host, workspaceName, agent, username, ports } = props;
 
   return (
     <>
       <Box
-        sx={{
+        css={{
           padding: 20,
-          borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
+          borderBottom: `1px solid ${theme.palette.divider}`,
         }}
       >
         <HelpTooltipTitle>Forwarded ports</HelpTooltipTitle>
@@ -108,7 +109,7 @@ export const PortForwardPopoverView: React.FC<
             ? "No open ports were detected."
             : "The forwarded ports are exclusively accessible to you."}
         </HelpTooltipText>
-        <Box sx={{ marginTop: 12 }}>
+        <Box css={{ marginTop: 12 }}>
           {ports?.map((p) => {
             const url = portForwardURL(
               host,
@@ -154,7 +155,7 @@ export const PortForwardPopoverView: React.FC<
         </Box>
       </Box>
 
-      <Box sx={{ padding: 20 }}>
+      <Box css={{ padding: 20 }}>
         <HelpTooltipTitle>Forward port</HelpTooltipTitle>
         <HelpTooltipText
           sx={{ color: (theme) => theme.palette.text.secondary }}

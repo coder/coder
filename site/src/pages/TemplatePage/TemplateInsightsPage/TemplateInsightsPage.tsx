@@ -175,7 +175,7 @@ export const TemplateInsightsPageView = ({
         {controls}
       </Box>
       <Box
-        sx={{
+        css={{
           display: "grid",
           gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
           gridTemplateRows: "440px 440px auto",

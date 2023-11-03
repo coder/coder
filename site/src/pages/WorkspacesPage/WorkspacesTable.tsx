@@ -192,12 +192,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                   </TableCell>
 
                   <TableCell>
-                    <Box
-                      sx={{
-                        display: "flex",
-                        paddingLeft: 16,
-                      }}
-                    >
+                    <Box css={{ display: "flex", paddingLeft: 16 }}>
                       <KeyboardArrowRight
                         sx={{
                           color: (theme) => theme.palette.text.secondary,

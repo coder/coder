@@ -117,7 +117,7 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
       <PopoverContent
         classes={{
           paper: css`
-            width: 360;
+            width: 360px;
             margin-top: 8px;
             background: ${theme.palette.background.paperLight};
           `,

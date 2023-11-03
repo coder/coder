@@ -75,7 +75,7 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
             <TextField
               fullWidth
               autoFocus
-              sx={{ marginTop: 24 }}
+              css={{ marginTop: 24 }}
               name="confirmation"
               autoComplete="off"
               id={`${hookId}-confirm`}

@@ -117,7 +117,7 @@ const styles = {
 
     ${theme.breakpoints.up("md")} {
       height: ${navHeight}px;
-      padding: 0 24;
+      padding: 0 24px;
     }
   `,
 } satisfies Record<string, Interpolation<Theme>>;
@@ -171,6 +171,7 @@ const NavItems: React.FC<NavItemsProps> = (props) => {
     </nav>
   );
 };
+
 export const NavbarView: FC<NavbarViewProps> = ({
   user,
   logo_url,

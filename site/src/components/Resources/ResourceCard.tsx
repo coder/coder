@@ -2,13 +2,12 @@ import { type FC, useState } from "react";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import { type CSSObject, type Interpolation, type Theme } from "@emotion/react";
-import { WorkspaceAgent, WorkspaceResource } from "api/typesGenerated";
-import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
-import { CopyableValue } from "components/CopyableValue/CopyableValue";
+import type { WorkspaceAgent, WorkspaceResource } from "api/typesGenerated";
+import { DropdownArrow } from "../DropdownArrow/DropdownArrow";
+import { CopyableValue } from "../CopyableValue/CopyableValue";
 import { Stack } from "../Stack/Stack";
 import { ResourceAvatar } from "./ResourceAvatar";
 import { SensitiveValue } from "./SensitiveValue";
-import { MemoizedMarkdown } from "components/Markdown/Markdown";
 
 const styles = {
   resourceCard: (theme) => ({
@@ -138,7 +137,7 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
                     <SensitiveValue value={meta.value} />
                   ) : (
                     <CopyableValue value={meta.value}>
-                      <MemoizedMarkdown>{meta.value}</MemoizedMarkdown>
+                      {meta.value}
                     </CopyableValue>
                   )}
                 </div>
