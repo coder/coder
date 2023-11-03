@@ -30,11 +30,21 @@ import {
 import { ExternalAuth } from "./ExternalAuth";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Stack } from "components/Stack/Stack";
-import { type ExternalAuthPollingState } from "./CreateWorkspacePage";
+import {
+  CreateWorkspaceMode,
+  type ExternalAuthPollingState,
+} from "./CreateWorkspacePage";
 import { useSearchParams } from "react-router-dom";
-import type { CreateWSPermissions } from "./permissions";
+import { CreateWSPermissions } from "./permissions";
+import { Alert } from "components/Alert/Alert";
+
+export const Language = {
+  duplicationWarning:
+    "Duplicating a workspace only copies its parameters. No state from the old workspace is copied over.",
+} as const;
 
 export interface CreateWorkspacePageViewProps {
+  mode: CreateWorkspaceMode;
   error: unknown;
   defaultName: string;
   defaultOwner: TypesGen.User;
@@ -55,6 +65,7 @@ export interface CreateWorkspacePageViewProps {
 }
 
 export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
+  mode,
   error,
   defaultName,
   defaultOwner,
@@ -116,6 +127,13 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
     <FullPageHorizontalForm title="New workspace" onCancel={onCancel}>
       <HorizontalForm onSubmit={form.handleSubmit}>
         {Boolean(error) && <ErrorAlert error={error} />}
+
+        {mode === "duplicate" && (
+          <Alert severity="info" dismissible>
+            {Language.duplicationWarning}
+          </Alert>
+        )}
+
         {/* General info */}
         <FormSection
           title="General"
