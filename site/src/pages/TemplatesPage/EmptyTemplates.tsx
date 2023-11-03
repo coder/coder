@@ -54,7 +54,7 @@ export const EmptyTemplates: FC<{
               target="_blank"
               rel="noreferrer"
             >
-              creating your own
+              create your own
             </Link>
             .
           </>
