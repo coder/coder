@@ -2452,7 +2452,7 @@ func createExternalAuthResponse(typ, token string, extra pqtype.NullRawMessage) 
 			Username: "oauth2",
 			Password: token,
 		}
-	case string(codersdk.EnhancedExternalAuthProviderBitBucket):
+	case string(codersdk.EnhancedExternalAuthProviderBitBucket), string(codersdk.EnhancedExternalAuthProviderBitBucketServer):
 		// https://support.atlassian.com/bitbucket-cloud/docs/use-oauth-on-bitbucket-cloud/#Cloning-a-repository-with-an-access-token
 		resp = agentsdk.ExternalAuthResponse{
 			Username: "x-token-auth",

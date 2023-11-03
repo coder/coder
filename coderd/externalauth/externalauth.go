@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strings"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -409,7 +410,7 @@ func ConvertConfig(entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([
 		// Applies defaults to the config entry.
 		// This allows users to very simply state that they type is "GitHub",
 		// apply their client secret and ID, and have the UI appear nicely.
-		applyDefaultsToConfig(&entry)
+		configDefaults(&entry)
 
 		valid := httpapi.NameValid(entry.ID)
 		if valid != nil {
@@ -490,8 +491,22 @@ func ConvertConfig(entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([
 }
 
 // applyDefaultsToConfig applies defaults to the config entry.
-func applyDefaultsToConfig(config *codersdk.ExternalAuthConfig) {
-	defaults := defaults[codersdk.EnhancedExternalAuthProvider(config.Type)]
+func configDefaults(config *codersdk.ExternalAuthConfig) {
+	// If static defaults exist, apply them.
+	if defaults, ok := staticDefaults[codersdk.EnhancedExternalAuthProvider(config.Type)]; ok {
+		applyDefaultsToConfig(config, defaults)
+		return
+	}
+
+	// Dynamic defaults
+	switch codersdk.EnhancedExternalAuthProvider(config.Type) {
+	case codersdk.EnhancedExternalAuthProviderBitBucketServer:
+		applyDefaultsToConfig(config, bitbucketServerDefaults(config))
+		return
+	}
+}
+
+func applyDefaultsToConfig(config *codersdk.ExternalAuthConfig, defaults codersdk.ExternalAuthConfig) {
 	if config.AuthURL == "" {
 		config.AuthURL = defaults.AuthURL
 	}
@@ -539,7 +554,43 @@ func applyDefaultsToConfig(config *codersdk.ExternalAuthConfig) {
 	}
 }
 
-var defaults = map[codersdk.EnhancedExternalAuthProvider]codersdk.ExternalAuthConfig{
+func bitbucketServerDefaults(config *codersdk.ExternalAuthConfig) codersdk.ExternalAuthConfig {
+	defaults := codersdk.ExternalAuthConfig{
+		DisplayName: "Bitbucket Server",
+		Scopes:      []string{"PUBLIC_REPOS", "REPO_READ", "REPO_WRITE"},
+		DisplayIcon: "/icon/bitbucket.svg",
+	}
+	// Bitbucket servers will have some base url, e.g. https://bitbucket.coder.com.
+	// We will grab this from the Auth URL. This choice is a bit arbitrary,
+	// but we need to require at least 1 field to be populated.
+	if config.AuthURL == "" {
+		// No auth url, means we cannot guess the urls.
+		return defaults
+	}
+
+	auth, err := url.Parse(config.AuthURL)
+	if err != nil {
+		// We need a valid URL to continue with.
+		return defaults
+	}
+
+	// Populate Regex, ValidateURL, and TokenURL.
+	// Default regex should be anything using the same host as the auth url.
+	defaults.Regex = fmt.Sprintf(`^(https?://)?%s(/.*)?$`, strings.ReplaceAll(auth.Host, ".", `\.`))
+
+	tokenURL := auth.ResolveReference(&url.URL{Path: "/rest/oauth2/latest/token"})
+	defaults.TokenURL = tokenURL.String()
+
+	// validate needs to return a 200 when logged in and a 401 when unauthenticated.
+	// This endpoint returns the count of the number of PR's in the authenticated
+	// user's inbox. Which will work perfectly for our use case.
+	validate := auth.ResolveReference(&url.URL{Path: "/rest/api/latest/inbox/pull-requests/count"})
+	defaults.ValidateURL = validate.String()
+
+	return defaults
+}
+
+var staticDefaults = map[codersdk.EnhancedExternalAuthProvider]codersdk.ExternalAuthConfig{
 	codersdk.EnhancedExternalAuthProviderAzureDevops: {
 		AuthURL:     "https://app.vssps.visualstudio.com/oauth2/authorize",
 		TokenURL:    "https://app.vssps.visualstudio.com/oauth2/token",

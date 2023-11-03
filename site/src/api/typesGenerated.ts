@@ -1682,12 +1682,14 @@ export const DisplayApps: DisplayApp[] = [
 export type EnhancedExternalAuthProvider =
   | "azure-devops"
   | "bitbucket"
+  | "bitbucket-server"
   | "github"
   | "gitlab"
   | "slack";
 export const EnhancedExternalAuthProviders: EnhancedExternalAuthProvider[] = [
   "azure-devops",
   "bitbucket",
+  "bitbucket-server",
   "github",
   "gitlab",
   "slack",
