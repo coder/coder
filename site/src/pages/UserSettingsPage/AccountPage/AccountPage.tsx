@@ -58,26 +58,31 @@ export const AccountPage: FC = () => {
           )
         }
       >
-        {groupsQuery.isLoading && <Loader />}
-        {groupsQuery.isError && <ErrorAlert error={groupsQuery.error} />}
+        <div
+          css={{ display: "flex", flexFlow: "column nowrap", rowGap: "24px" }}
+        >
+          {<ErrorAlert error={groupsQuery.error} />}
 
-        <Grid container columns={{ xs: 1, md: 2 }} spacing="16px">
-          {groupsQuery.data?.map((group) => (
-            <Grid item key={group.id} xs={1}>
-              <AvatarCard
-                imgUrl={group.avatar_url}
-                altText={group.display_name || group.name}
-                header={group.display_name || group.name}
-                subtitle={
-                  <>
-                    {group.members.length} member
-                    {group.members.length !== 1 && "s"}
-                  </>
-                }
-              />
-            </Grid>
-          ))}
-        </Grid>
+          <Grid container columns={{ xs: 1, md: 2 }} spacing="16px">
+            {groupsQuery.data?.map((group) => (
+              <Grid item key={group.id} xs={1}>
+                <AvatarCard
+                  imgUrl={group.avatar_url}
+                  altText={group.display_name || group.name}
+                  header={group.display_name || group.name}
+                  subtitle={
+                    <>
+                      {group.members.length} member
+                      {group.members.length !== 1 && "s"}
+                    </>
+                  }
+                />
+              </Grid>
+            ))}
+          </Grid>
+
+          {groupsQuery.isLoading && <Loader />}
+        </div>
       </Section>
     </Stack>
   );
