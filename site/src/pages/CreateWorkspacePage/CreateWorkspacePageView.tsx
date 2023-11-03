@@ -290,9 +290,9 @@ const useExternalAuthVerification = (
 };
 
 const styles = {
-  hasDescription: (theme) => ({
+  hasDescription: {
     paddingBottom: 16,
-  }),
+  },
   description: (theme) => ({
     fontSize: 13,
     color: theme.palette.text.secondary,

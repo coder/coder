@@ -125,9 +125,9 @@ const styles = {
     fontSize: 14,
     fontWeight: 600,
   },
-  messageSubtitle: (theme) => ({
+  messageSubtitle: {
     marginTop: 12,
-  }),
+  },
   errorIcon: (theme) => ({
     color: theme.palette.error.contrastText,
     marginRight: 16,

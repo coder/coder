@@ -64,15 +64,7 @@ export const CopyButton: React.FC<React.PropsWithChildren<CopyButtonProps>> = ({
           ) : (
             <FileCopyIcon css={fileCopyIconStyles} />
           )}
-          {ctaCopy && (
-            <div
-              css={(theme) => ({
-                marginLeft: 8,
-              })}
-            >
-              {ctaCopy}
-            </div>
-          )}
+          {ctaCopy && <div css={{ marginLeft: 8 }}>{ctaCopy}</div>}
         </IconButton>
       </div>
     </Tooltip>

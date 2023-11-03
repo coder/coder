@@ -57,7 +57,7 @@ export const FormFooter: FC<FormFooterProps> = ({
 };
 
 const defaultStyles = {
-  footer: (theme) => ({
+  footer: {
     display: "flex",
     flex: "0",
     // The first button is the submit so it is the first element to be focused
@@ -66,7 +66,7 @@ const defaultStyles = {
     gap: 12,
     alignItems: "center",
     marginTop: 24,
-  }),
+  },
   button: {
     width: "100%",
   },

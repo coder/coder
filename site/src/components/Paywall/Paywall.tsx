@@ -57,19 +57,19 @@ const styles = {
     border: `1px solid ${theme.palette.divider}`,
     borderRadius: 8,
   }),
-  header: (theme) => ({
+  header: {
     marginBottom: 24,
-  }),
+  },
   title: {
     fontWeight: 600,
     fontFamily: "inherit",
   },
-  description: (theme) => ({
+  description: {
     marginTop: 8,
     fontFamily: "inherit",
     maxWidth: 420,
     lineHeight: "160%",
-  }),
+  },
   enterpriseChip: (theme) => ({
     background: theme.palette.success.dark,
     color: theme.palette.success.contrastText,

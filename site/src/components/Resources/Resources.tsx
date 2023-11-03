@@ -55,12 +55,12 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
 };
 
 const styles = {
-  buttonWrapper: (theme) => ({
+  buttonWrapper: {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     marginTop: 16,
-  }),
+  },
 
   showMoreButton: {
     borderRadius: 9999,

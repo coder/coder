@@ -8,7 +8,7 @@ import { useFormik } from "formik";
 import * as Yup from "yup";
 import { type FC } from "react";
 import { css } from "@emotion/css";
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { type Interpolation, type Theme } from "@emotion/react";
 import { getFormHelpers } from "utils/formUtils";
 import type { DialogProps } from "components/Dialogs/Dialog";
 import { FormFields, VerticalForm } from "components/Form/Form";
@@ -31,7 +31,6 @@ export type UpdateBuildParametersDialogProps = DialogProps & {
 export const UpdateBuildParametersDialog: FC<
   UpdateBuildParametersDialogProps
 > = ({ missedParameters, onUpdate, ...dialogProps }) => {
-  const theme = useTheme();
   const form = useFormik({
     initialValues: {
       rich_parameter_values: getInitialRichParameterValues(missedParameters),

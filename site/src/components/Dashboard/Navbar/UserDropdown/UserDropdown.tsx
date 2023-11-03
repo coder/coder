@@ -1,7 +1,7 @@
 import Badge from "@mui/material/Badge";
-import { FC, PropsWithChildren } from "react";
+import { type FC, type PropsWithChildren } from "react";
 import { colors } from "theme/colors";
-import * as TypesGen from "api/typesGenerated";
+import type * as TypesGen from "api/typesGenerated";
 import { navHeight } from "theme/constants";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
@@ -35,7 +35,7 @@ export const UserDropdown: FC<PropsWithChildren<UserDropdownProps>> = ({
         <>
           <PopoverTrigger>
             <button
-              css={(theme) => css`
+              css={css`
                 background: none;
                 border: 0;
                 cursor: pointer;

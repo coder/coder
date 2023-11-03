@@ -165,12 +165,12 @@ export const TemplateInsightsPageView = ({
   return (
     <>
       <Box
-        css={(theme) => ({
+        css={{
           marginBottom: 32,
           display: "flex",
           alignItems: "center",
           gap: 8,
-        })}
+        }}
       >
         {controls}
       </Box>
@@ -179,7 +179,7 @@ export const TemplateInsightsPageView = ({
           display: "grid",
           gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
           gridTemplateRows: "440px 440px auto",
-          gap: (theme) => 24,
+          gap: 24,
         }}
       >
         <ActiveUsersPanel
@@ -560,7 +560,7 @@ const filterOrphanValues = (
   return true;
 };
 
-const ParameterUsageRow = styled(Box)(({ theme }) => ({
+const ParameterUsageRow = styled(Box)(() => ({
   display: "flex",
   alignItems: "baseline",
   justifyContent: "space-between",
@@ -703,7 +703,7 @@ const Panel = styled(Box)(({ theme }) => ({
 
 type PanelProps = ComponentProps<typeof Panel>;
 
-const PanelHeader = styled(Box)(({ theme }) => ({
+const PanelHeader = styled(Box)(() => ({
   padding: "20px 24px 24px",
 }));
 
@@ -712,7 +712,7 @@ const PanelTitle = styled(Box)(() => ({
   fontWeight: 500,
 }));
 
-const PanelContent = styled(Box)(({ theme }) => ({
+const PanelContent = styled(Box)(() => ({
   padding: "0 24px 24px",
   flex: 1,
 }));

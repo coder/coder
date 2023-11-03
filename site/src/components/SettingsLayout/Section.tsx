@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import Typography from "@mui/material/Typography";
 import { type FC, type ReactNode, type PropsWithChildren } from "react";
 import { SectionAction } from "./SectionAction";
@@ -32,8 +31,6 @@ export const Section: SectionFC = ({
   children,
   layout = "fixed",
 }) => {
-  const theme = useTheme();
-
   return (
     <section className={className} id={id} data-testid={id}>
       <div css={{ maxWidth: layout === "fluid" ? "100%" : 500 }}>
@@ -66,12 +63,12 @@ export const Section: SectionFC = ({
 Section.Action = SectionAction;
 
 const styles = {
-  header: (theme) => ({
+  header: {
     marginBottom: 24,
     display: "flex",
     flexDirection: "row",
     justifyContent: "space-between",
-  }),
+  },
   description: (theme) => ({
     color: theme.palette.text.secondary,
     fontSize: 16,

@@ -64,27 +64,27 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
 };
 
 const styles = {
-  root: (theme) => ({
+  root: {
     padding: 24,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     minHeight: "100%",
     textAlign: "center",
-  }),
+  },
 
-  container: (theme) => ({
+  container: {
     width: "100%",
     maxWidth: 385,
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
     gap: 16,
-  }),
+  },
 
-  icon: (theme) => ({
+  icon: {
     fontSize: 64,
-  }),
+  },
 
   footer: (theme) => ({
     fontSize: 12,

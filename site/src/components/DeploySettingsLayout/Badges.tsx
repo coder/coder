@@ -5,7 +5,7 @@ import { Stack } from "components/Stack/Stack";
 import { colors } from "theme/colors";
 
 const styles = {
-  badge: (theme) => ({
+  badge: {
     fontSize: 10,
     height: 24,
     fontWeight: 600,
@@ -17,7 +17,7 @@ const styles = {
     alignItems: "center",
     width: "fit-content",
     whiteSpace: "nowrap",
-  }),
+  },
 
   enabledBadge: (theme) => ({
     border: `1px solid ${theme.palette.success.light}`,

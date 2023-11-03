@@ -232,24 +232,24 @@ const styles = {
     color: theme.palette.text.primary,
   }),
 
-  installAlert: (theme) => ({
+  installAlert: {
     margin: 16,
-  }),
+  },
 
-  links: (theme) => ({
+  links: {
     display: "flex",
     gap: 4,
     margin: 16,
     flexDirection: "column",
-  }),
+  },
 
-  link: (theme) => ({
+  link: {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     fontSize: 16,
     gap: 8,
-  }),
+  },
 
   status: (theme) => ({
     display: "flex",

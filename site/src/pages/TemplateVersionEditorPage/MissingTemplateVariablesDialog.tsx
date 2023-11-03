@@ -1,5 +1,5 @@
 import { css } from "@emotion/css";
-import { useTheme, type Interpolation, type Theme } from "@emotion/react";
+import { type Interpolation, type Theme } from "@emotion/react";
 import Dialog from "@mui/material/Dialog";
 import DialogContent from "@mui/material/DialogContent";
 import DialogContentText from "@mui/material/DialogContentText";
@@ -28,7 +28,6 @@ export type MissingTemplateVariablesDialogProps = Omit<
 export const MissingTemplateVariablesDialog: FC<
   MissingTemplateVariablesDialogProps
 > = ({ missingVariables, onSubmit, ...dialogProps }) => {
-  const theme = useTheme();
   const [variableValues, setVariableValues] = useState<VariableValue[]>([]);
 
   // Pre-fill the form with the default values when missing variables are loaded

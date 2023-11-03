@@ -640,11 +640,11 @@ const styles = {
     },
   }),
 
-  agentDataGroup: (theme) => ({
+  agentDataGroup: {
     display: "flex",
     alignItems: "baseline",
     gap: 48,
-  }),
+  },
 
   agentData: (theme) => ({
     display: "flex",

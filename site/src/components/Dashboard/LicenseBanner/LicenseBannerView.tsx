@@ -21,10 +21,10 @@ export const Language = {
 };
 
 const styles = {
-  leftContent: (theme) => ({
+  leftContent: {
     marginRight: 8,
     marginLeft: 8,
-  }),
+  },
 } satisfies Record<string, Interpolation<Theme>>;
 
 export interface LicenseBannerViewProps {

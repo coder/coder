@@ -353,12 +353,12 @@ export const AgentStatus: React.FC<{
 };
 
 const styles = {
-  status: (theme) => ({
+  status: {
     width: 8,
     height: 8,
     borderRadius: "100%",
     flexShrink: 0,
-  }),
+  },
 
   connected: (theme) => ({
     backgroundColor: theme.palette.success.light,

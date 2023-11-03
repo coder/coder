@@ -53,14 +53,14 @@ export const PageHeaderTitle: FC<PropsWithChildren<unknown>> = ({
 }) => {
   return (
     <h1
-      css={(theme) => ({
+      css={{
         fontSize: 24,
         fontWeight: 400,
         margin: 0,
         display: "flex",
         alignItems: "center",
         lineHeight: "140%",
-      })}
+      }}
     >
       {children}
     </h1>

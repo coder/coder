@@ -1,5 +1,5 @@
 import { css } from "@emotion/css";
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { type Interpolation, type Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
 import { WorkspaceOutdatedTooltip } from "components/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
 import { type FC } from "react";
@@ -63,7 +63,6 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
   onDeadlineMinus,
   onDeadlinePlus,
 }) => {
-  const theme = useTheme();
   const displayTemplateName = getDisplayWorkspaceTemplateName(workspace);
   const deadlinePlusEnabled = maxDeadlineIncrease >= 1;
   const deadlineMinusEnabled = maxDeadlineDecrease >= 1;
@@ -393,12 +392,12 @@ const styles = {
     color: theme.palette.text.secondary,
   }),
 
-  timePopoverForm: (theme) => ({
+  timePopoverForm: {
     display: "flex",
     alignItems: "center",
     gap: 8,
     padding: "8px 0",
-  }),
+  },
 
   timePopoverField: {
     margin: 0,

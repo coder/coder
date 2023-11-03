@@ -135,9 +135,9 @@ const styles = {
   licenseExpires: (theme) => ({
     color: theme.palette.text.secondary,
   }),
-  expiredBadge: (theme) => ({
+  expiredBadge: {
     marginBottom: 4,
-  }),
+  },
   secondaryMaincolor: (theme) => ({
     color: theme.palette.text.secondary,
   }),

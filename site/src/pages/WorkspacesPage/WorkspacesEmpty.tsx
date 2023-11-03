@@ -24,14 +24,14 @@ export const WorkspacesEmpty = (props: {
       cta={
         <div>
           <div
-            css={(theme) => ({
+            css={{
               display: "flex",
               flexWrap: "wrap",
               gap: 16,
               marginBottom: 24,
               justifyContent: "center",
               maxWidth: "800px",
-            })}
+            }}
           >
             {featuredTemplates?.map((t) => (
               <Link

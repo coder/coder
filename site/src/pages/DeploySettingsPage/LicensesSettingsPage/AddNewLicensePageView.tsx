@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
 import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
@@ -23,8 +22,6 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
   isSavingLicense,
   savingLicenseError,
 }) => {
-  const theme = useTheme();
-
   function handleFileUploaded(files: File[]) {
     const fileReader = new FileReader();
     fileReader.onload = () => {

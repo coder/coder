@@ -64,12 +64,7 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
 
   return (
     <SignInLayout>
-      <header
-        css={(theme) => ({
-          textAlign: "center",
-          marginBottom: 32,
-        })}
-      >
+      <header css={{ textAlign: "center", marginBottom: 32 }}>
         <CoderIcon
           css={(theme) => ({
             color: theme.palette.text.primary,
@@ -77,11 +72,11 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
           })}
         />
         <h1
-          css={(theme) => ({
+          css={{
             fontWeight: 400,
             margin: 0,
             marginTop: 16,
-          })}
+          }}
         >
           Welcome to <strong>Coder</strong>
         </h1>

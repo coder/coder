@@ -77,14 +77,7 @@ const SidebarNavItem: FC<
 const SidebarNavItemIcon: FC<{
   icon: ComponentType<{ className?: string }>;
 }> = ({ icon: Icon }) => {
-  return (
-    <Icon
-      css={(theme) => ({
-        width: 16,
-        height: 16,
-      })}
-    />
-  );
+  return <Icon css={{ width: 16, height: 16 }} />;
 };
 
 export const Sidebar: React.FC<{ username: string; workspace: Workspace }> = ({

@@ -25,7 +25,7 @@ const styles = {
   root: {
     width: "100%",
   },
-  title: (theme) => ({
+  title: {
     fontSize: 32,
     fontWeight: 400,
     margin: 0,
@@ -35,17 +35,17 @@ const styles = {
     "& strong": {
       fontWeight: 600,
     },
-  }),
-  alert: (theme) => ({
+  },
+  alert: {
     marginBottom: 32,
-  }),
-  divider: (theme) => ({
+  },
+  divider: {
     paddingTop: 24,
     paddingBottom: 24,
     display: "flex",
     alignItems: "center",
     gap: 16,
-  }),
+  },
   dividerLine: (theme) => ({
     width: "100%",
     height: 1,
@@ -58,10 +58,10 @@ const styles = {
     fontSize: 12,
     letterSpacing: 1,
   }),
-  icon: (theme) => ({
+  icon: {
     width: 16,
     height: 16,
-  }),
+  },
 } satisfies Record<string, Interpolation<Theme>>;
 
 export interface SignInFormProps {

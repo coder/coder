@@ -122,11 +122,11 @@ function WorkspaceResultsRow({ template }: { template: Template }) {
   return (
     <PopoverLink
       to={`/templates/${template.name}/workspace`}
-      css={(theme) => ({
+      css={{
         display: "flex",
         gap: 12,
         alignItems: "center",
-      })}
+      }}
     >
       <Avatar
         src={template.icon}

@@ -49,9 +49,9 @@ const styles = {
     cursor: "pointer",
     color: theme.palette.text.secondary,
   }),
-  collapseLink: (theme) => ({
+  collapseLink: {
     marginTop: 16,
-  }),
+  },
   text: (theme) => ({
     display: "flex",
     alignItems: "center",

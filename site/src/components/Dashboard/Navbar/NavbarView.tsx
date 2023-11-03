@@ -70,11 +70,11 @@ const styles = {
       justify-content: flex-start;
     }
   `,
-  drawerHeader: (theme) => ({
+  drawerHeader: {
     padding: 16,
     paddingTop: 32,
     paddingBottom: 32,
-  }),
+  },
   logo: (theme) => css`
     align-items: center;
     display: flex;
@@ -89,10 +89,10 @@ const styles = {
       object-fit: contain;
     }
   `,
-  drawerLogo: (theme) => ({
+  drawerLogo: {
     padding: 0,
     maxHeight: 40,
-  }),
+  },
   item: {
     padding: 0,
   },

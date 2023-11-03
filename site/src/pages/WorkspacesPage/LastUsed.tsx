@@ -13,8 +13,6 @@ type CircleProps = {
 };
 
 const Circle: FC<CircleProps> = ({ color, variant = "solid" }) => {
-  const theme = useTheme();
-
   return (
     <div
       aria-hidden

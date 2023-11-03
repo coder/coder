@@ -4,7 +4,7 @@ import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
 import TextField, { TextFieldProps } from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { type Interpolation, type Theme } from "@emotion/react";
 import { type FC } from "react";
 import { TemplateVersionParameter } from "api/typesGenerated";
 import { MemoizedMarkdown } from "components/Markdown/Markdown";
@@ -175,7 +175,6 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
   size,
   ...props
 }) => {
-  const theme = useTheme();
   const small = size === "small";
 
   if (isBoolean(parameter)) {
@@ -232,9 +231,7 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
                     spacing={small ? 1 : 0}
                     alignItems={small ? "center" : undefined}
                     direction={small ? "row" : "column"}
-                    css={{
-                      padding: small ? undefined : "4px 0",
-                    }}
+                    css={{ padding: small ? undefined : "4px 0" }}
                   >
                     {small ? (
                       <Tooltip

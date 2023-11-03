@@ -1,5 +1,5 @@
 import { type FC, type ReactNode, useMemo, forwardRef } from "react";
-import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { css, type Interpolation, type Theme } from "@emotion/react";
 import { colors } from "theme/colors";
 
 export type PillType =
@@ -53,7 +53,6 @@ export const Pill: FC<PillProps> = forwardRef<HTMLDivElement, PillProps>(
       type = "neutral",
       ...attrs
     } = props;
-    const theme = useTheme();
 
     const typeStyles = useMemo(() => {
       if (type in themeOverrides) {

@@ -17,18 +17,18 @@ const sizeStyles = {
     fontSize: 8,
     fontWeight: 700,
   },
-  sm: (theme) => ({
+  sm: {
     width: 24,
     height: 24,
     fontSize: 12,
     fontWeight: 600,
-  }),
+  },
   md: {},
-  xl: (theme) => ({
+  xl: {
     width: 48,
     height: 48,
     fontSize: 24,
-  }),
+  },
 } satisfies Record<string, Interpolation<Theme>>;
 
 const colorStyles = {

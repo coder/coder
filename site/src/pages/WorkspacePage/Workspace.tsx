@@ -361,9 +361,9 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 };
 
 const styles = {
-  content: (theme) => ({
+  content: {
     marginTop: 32,
-  }),
+  },
 
   actions: (theme) => ({
     [theme.breakpoints.down("md")]: {

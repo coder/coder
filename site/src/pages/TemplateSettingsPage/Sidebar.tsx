@@ -129,10 +129,10 @@ const styles = {
     width: 245,
     flexShrink: 0,
   },
-  sidebarNavItemIcon: (theme) => ({
+  sidebarNavItemIcon: {
     width: 16,
     height: 16,
-  }),
+  },
   templateInfo: (theme) => ({
     ...(theme.typography.body2 as CSSObject),
     marginBottom: 16,

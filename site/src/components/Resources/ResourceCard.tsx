@@ -113,13 +113,13 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
         </Stack>
 
         <div
-          css={(theme) => ({
+          css={{
             flexGrow: 2,
             display: "grid",
             gridTemplateColumns: `repeat(${gridWidth}, minmax(0, 1fr))`,
             gap: 40,
             rowGap: 24,
-          })}
+          }}
         >
           {resource.daily_cost > 0 && (
             <div css={styles.metadata}>
