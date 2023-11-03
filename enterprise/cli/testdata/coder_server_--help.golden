@@ -250,11 +250,20 @@ can safely ignore these settings.
       --tls-address host:port, $CODER_TLS_ADDRESS (default: 127.0.0.1:3443)
           HTTPS bind address of the server.
 
+      --tls-allow-insecure-ciphers bool, $CODER_TLS_ALLOW_INSECURE_CIPHERS (default: false)
+          By default, only ciphers marked as 'secure' are allowed to be used.
+          See
+          https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L82-L95.
+
       --tls-cert-file string-array, $CODER_TLS_CERT_FILE
           Path to each certificate for TLS. It requires a PEM-encoded file. To
           configure the listener to use a CA certificate, concatenate the
           primary certificate and the CA certificate together. The primary
           certificate should appear first in the combined file.
+
+      --tls-ciphers string-array, $CODER_TLS_CIPHERS
+          Specify specific TLS ciphers that allowed to be used. See
+          https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L53-L75.
 
       --tls-client-auth string, $CODER_TLS_CLIENT_AUTH (default: none)
           Policy the server will follow for TLS Client Authentication. Accepted
