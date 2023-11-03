@@ -71,8 +71,6 @@ export const Markdown: Story = {
           { key: "link", value: "[hello](#)", sensitive: false },
           { key: "b/i", value: "_hello_, **friend**!", sensitive: false },
           { key: "coder", value: "`beep boop`", sensitive: false },
-          { key: "heading", value: "# HI", sensitive: false }, // unsupported
-          { key: "image", value: "![go](/icon/go.svg)", sensitive: false }, // unsupported
         ],
       },
 
