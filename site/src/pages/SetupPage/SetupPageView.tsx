@@ -12,6 +12,8 @@ import type * as TypesGen from "api/typesGenerated";
 import LoadingButton from "@mui/lab/LoadingButton";
 import { FormFields, VerticalForm } from "components/Form/Form";
 import { CoderIcon } from "components/Icons/CoderIcon";
+import Link from "@mui/material/Link";
+import { docs } from "utils/docs";
 
 export const Language = {
   emailLabel: "Email",
@@ -132,7 +134,6 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
             <Checkbox
               id="trial"
               name="trial"
-              defaultChecked
               value={form.values.trial}
               onChange={form.handleChange}
               data-testid="trial"
@@ -154,6 +155,13 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
                 Get access to high availability, template RBAC, audit logging,
                 quotas, and more.
               </span>
+              <Link
+                href={docs("/enterprise")}
+                target="_blank"
+                css={{ marginTop: 4, display: "inline-block", fontSize: 13 }}
+              >
+                Read more
+              </Link>
             </div>
           </label>
 
