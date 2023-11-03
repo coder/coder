@@ -1,13 +1,13 @@
+import { type CSSObject, type Interpolation, type Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import Paper from "@mui/material/Paper";
-import { makeStyles } from "@mui/styles";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { Stack } from "components/Stack/Stack";
 import dayjs from "dayjs";
 import { useState } from "react";
-import { Pill } from "components/Pill/Pill";
 import { compareAsc } from "date-fns";
-import { GetLicensesResponse } from "api/api";
+import { type GetLicensesResponse } from "api/api";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { Pill } from "components/Pill/Pill";
+import { Stack } from "components/Stack/Stack";
 
 type LicenseCardProps = {
   license: GetLicensesResponse;
@@ -24,8 +24,6 @@ export const LicenseCard = ({
   onRemove,
   isRemoving,
 }: LicenseCardProps) => {
-  const styles = useStyles();
-
   const [licenseIDMarkedForRemoval, setLicenseIDMarkedForRemoval] = useState<
     number | undefined
   >(undefined);
@@ -34,7 +32,7 @@ export const LicenseCard = ({
     license.claims.features["user_limit"] || userLimitLimit;
 
   return (
-    <Paper key={license.id} elevation={2} className={styles.licenseCard}>
+    <Paper key={license.id} elevation={2} css={styles.licenseCard}>
       <ConfirmDialog
         type="delete"
         hideCancel={false}
@@ -55,12 +53,12 @@ export const LicenseCard = ({
       <Stack
         direction="row"
         spacing={2}
-        className={styles.cardContent}
+        css={styles.cardContent}
         justifyContent="left"
         alignItems="center"
       >
-        <span className={styles.licenseId}>#{license.id}</span>
-        <span className={styles.accountType}>
+        <span css={styles.licenseId}>#{license.id}</span>
+        <span css={styles.accountType}>
           {license.claims.trial ? "Trial" : "Enterprise"}
         </span>
         <Stack
@@ -73,8 +71,8 @@ export const LicenseCard = ({
           }}
         >
           <Stack direction="column" spacing={0} alignItems="center">
-            <span className={styles.secondaryMaincolor}>Users</span>
-            <span className={styles.userLimit}>
+            <span css={styles.secondaryMaincolor}>Users</span>
+            <span css={styles.userLimit}>
               {userLimitActual} {` / ${currentUserLimit || "Unlimited"}`}
             </span>
           </Stack>
@@ -88,15 +86,11 @@ export const LicenseCard = ({
               new Date(license.claims.license_expires * 1000),
               new Date(),
             ) < 1 ? (
-              <Pill
-                className={styles.expiredBadge}
-                text="Expired"
-                type="error"
-              />
+              <Pill css={styles.expiredBadge} text="Expired" type="error" />
             ) : (
-              <span className={styles.secondaryMaincolor}>Valid Until</span>
+              <span css={styles.secondaryMaincolor}>Valid Until</span>
             )}
-            <span className={styles.licenseExpires}>
+            <span css={styles.licenseExpires}>
               {dayjs
                 .unix(license.claims.license_expires)
                 .format("MMMM D, YYYY")}
@@ -104,7 +98,7 @@ export const LicenseCard = ({
           </Stack>
           <Stack spacing={2}>
             <Button
-              className={styles.removeButton}
+              css={styles.removeButton}
               variant="contained"
               size="small"
               onClick={() => setLicenseIDMarkedForRemoval(license.id)}
@@ -118,39 +112,39 @@ export const LicenseCard = ({
   );
 };
 
-const useStyles = makeStyles((theme) => ({
-  userLimit: {
+const styles = {
+  userLimit: (theme) => ({
     color: theme.palette.text.primary,
-  },
-  licenseCard: {
-    ...theme.typography.body2,
+  }),
+  licenseCard: (theme) => ({
+    ...(theme.typography.body2 as CSSObject),
     padding: theme.spacing(2),
-  },
+  }),
   cardContent: {},
-  licenseId: {
+  licenseId: (theme) => ({
     color: theme.palette.secondary.main,
     fontSize: 18,
     fontWeight: 600,
-  },
+  }),
   accountType: {
     fontWeight: 600,
     fontSize: 18,
     alignItems: "center",
     textTransform: "capitalize",
   },
-  licenseExpires: {
+  licenseExpires: (theme) => ({
     color: theme.palette.text.secondary,
-  },
-  expiredBadge: {
+  }),
+  expiredBadge: (theme) => ({
     marginBottom: theme.spacing(0.5),
-  },
-  secondaryMaincolor: {
+  }),
+  secondaryMaincolor: (theme) => ({
     color: theme.palette.text.secondary,
-  },
-  removeButton: {
+  }),
+  removeButton: (theme) => ({
     color: theme.palette.error.main,
     "&:hover": {
       backgroundColor: "transparent",
     },
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;

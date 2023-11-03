@@ -2,6 +2,7 @@ import Brush from "@mui/icons-material/Brush";
 import LaunchOutlined from "@mui/icons-material/LaunchOutlined";
 import ApprovalIcon from "@mui/icons-material/VerifiedUserOutlined";
 import LockRounded from "@mui/icons-material/LockOutlined";
+import InsertChartIcon from "@mui/icons-material/InsertChart";
 import Globe from "@mui/icons-material/PublicOutlined";
 import HubOutlinedIcon from "@mui/icons-material/HubOutlined";
 import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined";
@@ -132,6 +133,12 @@ export const Sidebar: React.FC = () => {
         icon={<SidebarNavItemIcon icon={LockRounded} />}
       >
         Security
+      </SidebarNavItem>
+      <SidebarNavItem
+        href="observability"
+        icon={<SidebarNavItemIcon icon={InsertChartIcon} />}
+      >
+        Observability
       </SidebarNavItem>
       {dashboard.experiments.includes("deployment_health_page") && (
         <SidebarNavItem

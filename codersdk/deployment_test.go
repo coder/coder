@@ -223,12 +223,12 @@ func TestTimezoneOffsets(t *testing.T) {
 		//	Name:           "Central",
 		//	Loc:            must(time.LoadLocation("America/Chicago")),
 		//	ExpectedOffset: -5,
-		//},
+		// },
 		//{
 		//	Name:           "Ireland",
 		//	Loc:            must(time.LoadLocation("Europe/Dublin")),
 		//	ExpectedOffset: 1,
-		//},
+		// },
 		{
 			Name: "HalfHourTz",
 			// This timezone is +6:30, but the function rounds to the nearest hour.

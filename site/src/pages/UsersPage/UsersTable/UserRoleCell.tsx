@@ -119,7 +119,16 @@ function OverflowRolePill({ roles }: OverflowRolePillProps) {
             rowGap: theme.spacing(1.5),
             padding: theme.spacing(1.5, 2),
             alignContent: "space-around",
+            minWidth: "auto",
           },
+        }}
+        anchorOrigin={{
+          vertical: -4,
+          horizontal: "center",
+        }}
+        transformOrigin={{
+          vertical: "bottom",
+          horizontal: "center",
         }}
       >
         {roles.map((role) => (

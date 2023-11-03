@@ -1,7 +1,7 @@
+import { type Interpolation, type Theme } from "@emotion/react";
 import Checkbox from "@mui/material/Checkbox";
-import { makeStyles } from "@mui/styles";
 import TextField from "@mui/material/TextField";
-import {
+import type {
   ProvisionerJobLog,
   Template,
   TemplateExample,
@@ -9,10 +9,10 @@ import {
   VariableValue,
 } from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
-import { TemplateUpload, TemplateUploadProps } from "./TemplateUpload";
+import { TemplateUpload, type TemplateUploadProps } from "./TemplateUpload";
 import { useFormik } from "formik";
 import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate";
-import { FC, useEffect } from "react";
+import { type FC, useEffect } from "react";
 import {
   nameValidator,
   getFormHelpers,
@@ -43,8 +43,8 @@ import {
 } from "pages/TemplateSettingsPage/TemplateSchedulePage/AutostopRequirementHelperText";
 import MenuItem from "@mui/material/MenuItem";
 import {
-  TemplateAutostartRequirementDaysValue,
-  TemplateAutostopRequirementDaysValue,
+  type TemplateAutostartRequirementDaysValue,
+  type TemplateAutostopRequirementDaysValue,
 } from "utils/schedule";
 import {
   TemplateScheduleAutostart,
@@ -218,7 +218,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
     allowDisableEveryoneAccess,
     allowAutostopRequirement,
   } = props;
-  const styles = useStyles();
   const form = useFormik<CreateTemplateData>({
     initialValues: getInitialValues({
       allowAdvancedScheduling,
@@ -338,7 +337,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
         description="Define when workspaces created from this template automatically stop."
       >
         <FormFields>
-          <Stack direction="row" className={styles.ttlFields}>
+          <Stack direction="row" css={styles.ttlFields}>
             <TextField
               {...getFieldHelpers(
                 "default_ttl_hours",
@@ -373,7 +372,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
           </Stack>
 
           {allowAutostopRequirement && (
-            <Stack direction="row" className={styles.ttlFields}>
+            <Stack direction="row" css={styles.ttlFields}>
               <TextField
                 {...getFieldHelpers(
                   "autostop_requirement_days_of_week",
@@ -481,7 +480,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
                 <strong>
                   Allow users to customize autostop duration for workspaces.
                 </strong>
-                <span className={styles.optionHelperText}>
+                <span css={styles.optionHelperText}>
                   Workspaces will always use the default TTL if this is set.
                   Regardless of this setting, workspaces can only stay on for
                   the max TTL.
@@ -514,7 +513,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
                     direction="row"
                     alignItems="center"
                     spacing={0.5}
-                    className={styles.optionText}
+                    css={styles.optionText}
                   >
                     <strong>
                       Allow users to cancel in-progress workspace jobs
@@ -527,7 +526,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
                       </HelpTooltipText>
                     </HelpTooltip>
                   </Stack>
-                  <span className={styles.optionHelperText}>
+                  <span css={styles.optionHelperText}>
                     Depending on your template, canceling builds may leave
                     workspaces in an unhealthy state. This option isn&apos;t
                     recommended for most use cases.
@@ -552,7 +551,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
                     direction="row"
                     alignItems="center"
                     spacing={0.5}
-                    className={styles.optionText}
+                    css={styles.optionText}
                   >
                     <strong>Allow everyone to use the template</strong>
 
@@ -569,7 +568,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
                       </HelpTooltipText>
                     </HelpTooltip>
                   </Stack>
-                  <span className={styles.optionHelperText}>
+                  <span css={styles.optionHelperText}>
                     This setting requires an enterprise license for the&nbsp;
                     <Link href={docs("/admin/rbac")}>
                       &apos;Template RBAC&apos;
@@ -610,14 +609,14 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 
       {jobError && (
         <Stack>
-          <div className={styles.error}>
-            <h5 className={styles.errorTitle}>Error during provisioning</h5>
-            <p className={styles.errorDescription}>
+          <div css={styles.error}>
+            <h5 css={styles.errorTitle}>Error during provisioning</h5>
+            <p css={styles.errorDescription}>
               Looks like we found an error during the template provisioning. You
               can see the logs bellow.
             </p>
 
-            <code className={styles.errorDetails}>{jobError}</code>
+            <code css={styles.errorDetails}>{jobError}</code>
           </div>
 
           <WorkspaceBuildLogs logs={logs ?? []} />
@@ -690,43 +689,43 @@ const MaxTTLHelperText = (props: { ttl?: number }) => {
   );
 };
 
-const useStyles = makeStyles((theme) => ({
+const styles = {
   ttlFields: {
     width: "100%",
   },
 
-  optionText: {
+  optionText: (theme) => ({
     fontSize: theme.spacing(2),
     color: theme.palette.text.primary,
-  },
+  }),
 
-  optionHelperText: {
+  optionHelperText: (theme) => ({
     fontSize: theme.spacing(1.5),
     color: theme.palette.text.secondary,
-  },
+  }),
 
-  error: {
+  error: (theme) => ({
     padding: theme.spacing(3),
     borderRadius: theme.spacing(1),
     background: theme.palette.background.paper,
     border: `1px solid ${theme.palette.error.main}`,
-  },
+  }),
 
   errorTitle: {
     fontSize: 16,
     margin: 0,
   },
 
-  errorDescription: {
+  errorDescription: (theme) => ({
     margin: 0,
     color: theme.palette.text.secondary,
     marginTop: theme.spacing(0.5),
-  },
+  }),
 
-  errorDetails: {
+  errorDetails: (theme) => ({
     display: "block",
     marginTop: theme.spacing(1),
     color: theme.palette.error.light,
     fontSize: theme.spacing(2),
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;

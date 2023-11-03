@@ -97,6 +97,7 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 		r.version(defaultVersionInfo),
 
 		// Workspace Commands
+		r.autoupdate(),
 		r.configSSH(),
 		r.create(),
 		r.deleteWorkspace(),

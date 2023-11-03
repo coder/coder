@@ -1,8 +1,10 @@
+import { css } from "@emotion/css";
+import { useTheme, type Interpolation, type Theme } from "@emotion/react";
 import TextField from "@mui/material/TextField";
-import * as TypesGen from "api/typesGenerated";
+import type * as TypesGen from "api/typesGenerated";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { FormikContextType, useFormik } from "formik";
-import { FC, useEffect, useState } from "react";
+import { type FC, useEffect, useState } from "react";
 import {
   getFormHelpers,
   nameValidator,
@@ -17,7 +19,6 @@ import {
   FormFooter,
   HorizontalForm,
 } from "components/Form/Form";
-import { makeStyles } from "@mui/styles";
 import {
   getInitialRichParameterValues,
   useValidationSchemaForRichParameters,
@@ -80,7 +81,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   onSubmit,
   onCancel,
 }) => {
-  const styles = useStyles();
+  const theme = useTheme();
   const [owner, setOwner] = useState(defaultOwner);
   const { verifyExternalAuth, externalAuthErrors } =
     useExternalAuthVerification(externalAuth);
@@ -141,14 +142,14 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
           <FormFields>
             <SelectedTemplate template={template} />
             {versionId && versionId !== template.active_version_id && (
-              <Stack spacing={1} className={styles.hasDescription}>
+              <Stack spacing={1} css={styles.hasDescription}>
                 <TextField
                   disabled
                   fullWidth
                   value={versionId}
                   label="Version ID"
                 />
-                <span className={styles.description}>
+                <span css={styles.description}>
                   This parameter has been preset, and cannot be modified.
                 </span>
               </Stack>
@@ -228,7 +229,16 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
             />
             <ImmutableTemplateParametersSection
               templateParameters={parameters}
-              classes={{ root: styles.warningSection }}
+              classes={{
+                root: css`
+                  border: 1px solid ${theme.palette.warning.light};
+                  border-radius: 8px;
+                  background-color: ${theme.palette.background.paper};
+                  padding: ${theme.spacing(10)};
+                  margin-left: ${theme.spacing(-10)};
+                  margin-right: ${theme.spacing(-10)};
+                `,
+              }}
               getInputProps={(parameter, index) => {
                 return {
                   ...getFieldHelpers(
@@ -297,23 +307,12 @@ const useExternalAuthVerification = (
   };
 };
 
-const useStyles = makeStyles((theme) => ({
-  hasDescription: {
+const styles = {
+  hasDescription: (theme) => ({
     paddingBottom: theme.spacing(2),
-  },
-  description: {
+  }),
+  description: (theme) => ({
     fontSize: 13,
     color: theme.palette.text.secondary,
-  },
-  warningText: {
-    color: theme.palette.warning.light,
-  },
-  warningSection: {
-    border: `1px solid ${theme.palette.warning.light}`,
-    borderRadius: 8,
-    backgroundColor: theme.palette.background.paper,
-    padding: theme.spacing(10),
-    marginLeft: theme.spacing(-10),
-    marginRight: theme.spacing(-10),
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;

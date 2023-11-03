@@ -4,16 +4,13 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import { Workspace } from "api/typesGenerated";
+import { Template, Workspace } from "api/typesGenerated";
 import { FC, ReactNode } from "react";
-import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import {
   TableLoaderSkeleton,
   TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
-import AddOutlined from "@mui/icons-material/AddOutlined";
-import Button from "@mui/material/Button";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
 import Box from "@mui/material/Box";
@@ -28,8 +25,7 @@ import Checkbox from "@mui/material/Checkbox";
 import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
 import Skeleton from "@mui/material/Skeleton";
 import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
-import { css } from "@emotion/react";
-import { useTheme } from "@mui/system";
+import { WorkspacesEmpty } from "./WorkspacesEmpty";
 
 export interface WorkspacesTableProps {
   workspaces?: Workspace[];
@@ -39,6 +35,7 @@ export interface WorkspacesTableProps {
   onUpdateWorkspace: (workspace: Workspace) => void;
   onCheckChange: (checkedWorkspaces: Workspace[]) => void;
   canCheckWorkspaces: boolean;
+  templates?: Template[];
 }
 
 export const WorkspacesTable: FC<WorkspacesTableProps> = ({
@@ -48,9 +45,8 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
   onUpdateWorkspace,
   onCheckChange,
   canCheckWorkspaces,
+  templates,
 }) => {
-  const theme = useTheme();
-
   return (
     <TableContainer>
       <Table>
@@ -93,47 +89,10 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
             <TableLoader canCheckWorkspaces={canCheckWorkspaces} />
           )}
           {workspaces && workspaces.length === 0 && (
-            <>
-              {isUsingFilter ? (
-                <TableEmpty message="No results matched your search" />
-              ) : (
-                <TableEmpty
-                  css={{
-                    paddingBottom: 0,
-                  }}
-                  message="Create a workspace"
-                  description="A workspace is your personal, customizable development environment in the cloud"
-                  cta={
-                    <Button
-                      component={RouterLink}
-                      to="/templates"
-                      startIcon={<AddOutlined />}
-                      variant="contained"
-                      data-testid="button-select-template"
-                    >
-                      Select a Template
-                    </Button>
-                  }
-                  image={
-                    <div
-                      css={css`
-                        max-width: 50%;
-                        height: ${theme.spacing(34)};
-                        overflow: hidden;
-                        margin-top: ${theme.spacing(6)};
-                        opacity: 0.85;
-
-                        & img {
-                          max-width: 100%;
-                        }
-                      `}
-                    >
-                      <img src="/featured/workspaces.webp" alt="" />
-                    </div>
-                  }
-                />
-              )}
-            </>
+            <WorkspacesEmpty
+              templates={templates}
+              isUsingFilter={isUsingFilter}
+            />
           )}
           {workspaces &&
             workspaces.map((workspace) => {

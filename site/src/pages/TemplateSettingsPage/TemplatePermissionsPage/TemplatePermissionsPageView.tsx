@@ -20,7 +20,6 @@ import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
-import { TableRowMenu } from "components/TableRowMenu/TableRowMenu";
 import {
   UserOrGroupAutocomplete,
   UserOrGroupAutocompleteValue,
@@ -30,6 +29,12 @@ import { GroupAvatar } from "components/GroupAvatar/GroupAvatar";
 import { getGroupSubtitle } from "utils/groups";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import LoadingButton from "@mui/lab/LoadingButton";
+import {
+  MoreMenu,
+  MoreMenuContent,
+  MoreMenuItem,
+  MoreMenuTrigger,
+} from "components/MoreMenu/MoreMenu";
 
 type AddTemplateUserOrGroupProps = {
   organizationId: string;
@@ -281,16 +286,17 @@ export const TemplatePermissionsPageView: FC<
 
                       <TableCell>
                         {canUpdatePermissions && (
-                          <TableRowMenu
-                            data={group}
-                            menuItems={[
-                              {
-                                label: "Remove",
-                                onClick: () => onRemoveGroup(group),
-                                disabled: false,
-                              },
-                            ]}
-                          />
+                          <MoreMenu>
+                            <MoreMenuTrigger />
+                            <MoreMenuContent>
+                              <MoreMenuItem
+                                danger
+                                onClick={() => onRemoveGroup(group)}
+                              >
+                                Remove
+                              </MoreMenuItem>
+                            </MoreMenuContent>
+                          </MoreMenu>
                         )}
                       </TableCell>
                     </TableRow>
@@ -327,16 +333,17 @@ export const TemplatePermissionsPageView: FC<
 
                       <TableCell>
                         {canUpdatePermissions && (
-                          <TableRowMenu
-                            data={user}
-                            menuItems={[
-                              {
-                                label: "Remove",
-                                onClick: () => onRemoveUser(user),
-                                disabled: false,
-                              },
-                            ]}
-                          />
+                          <MoreMenu>
+                            <MoreMenuTrigger />
+                            <MoreMenuContent>
+                              <MoreMenuItem
+                                danger
+                                onClick={() => onRemoveUser(user)}
+                              >
+                                Remove
+                              </MoreMenuItem>
+                            </MoreMenuContent>
+                          </MoreMenu>
                         )}
                       </TableCell>
                     </TableRow>

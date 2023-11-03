@@ -600,9 +600,9 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 			}
 
 			richParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
-				Action:           WorkspaceCreate,
-				Template:         tpl,
-				NewWorkspaceName: "scaletest-N", // TODO: the scaletest runner will pass in a different name here. Does this matter?
+				Action:            WorkspaceCreate,
+				TemplateVersionID: tpl.ActiveVersionID,
+				NewWorkspaceName:  "scaletest-N", // TODO: the scaletest runner will pass in a different name here. Does this matter?
 
 				RichParameterFile: parameterFlags.richParameterFile,
 				RichParameters:    cliRichParameters,

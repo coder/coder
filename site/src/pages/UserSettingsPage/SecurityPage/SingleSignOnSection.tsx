@@ -7,7 +7,7 @@ import KeyIcon from "@mui/icons-material/VpnKey";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
 import { convertToOAUTH } from "api/api";
-import {
+import type {
   AuthMethods,
   LoginType,
   OIDCAuthMethod,
@@ -19,7 +19,6 @@ import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { getErrorMessage } from "api/errors";
 import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { makeStyles } from "@mui/styles";
 import Link from "@mui/material/Link";
 import { docs } from "utils/docs";
 
@@ -101,21 +100,15 @@ export const useSingleSignOnSection = () => {
   };
 };
 
-const useEmptyStateStyles = makeStyles((theme) => ({
-  root: {
-    minHeight: 0,
-    padding: theme.spacing(6, 4),
-    backgroundColor: theme.palette.background.paper,
-    borderRadius: theme.shape.borderRadius,
-  },
-}));
-
 function SSOEmptyState() {
-  const styles = useEmptyStateStyles();
-
   return (
     <EmptyState
-      className={styles.root}
+      css={(theme) => ({
+        minHeight: 0,
+        padding: theme.spacing(6, 4),
+        backgroundColor: theme.palette.background.paper,
+        borderRadius: theme.shape.borderRadius,
+      })}
       message="No SSO Providers"
       description="No SSO providers are configured with this Coder deployment."
       cta={

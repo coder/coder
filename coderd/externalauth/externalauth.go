@@ -457,6 +457,9 @@ func ConvertConfig(entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([
 		if entry.Type == string(codersdk.EnhancedExternalAuthProviderAzureDevops) {
 			oauthConfig = &jwtConfig{oc}
 		}
+		if entry.Type == string(codersdk.EnhancedExternalAuthProviderJFrog) {
+			oauthConfig = &exchangeWithClientSecret{oc}
+		}
 
 		cfg := &Config{
 			OAuth2Config:        oauthConfig,
@@ -618,4 +621,29 @@ func (c *jwtConfig) Exchange(ctx context.Context, code string, opts ...oauth2.Au
 			oauth2.SetAuthURLParam("code", ""),
 		)...,
 	)
+}
+
+// exchangeWithClientSecret wraps an OAuth config and adds the client secret
+// to the Exchange request as a Bearer header. This is used by JFrog Artifactory.
+type exchangeWithClientSecret struct {
+	*oauth2.Config
+}
+
+func (e *exchangeWithClientSecret) Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
+	httpClient, ok := ctx.Value(oauth2.HTTPClient).(*http.Client)
+	if httpClient == nil || !ok {
+		httpClient = http.DefaultClient
+	}
+	oldTransport := httpClient.Transport
+	httpClient.Transport = roundTripper(func(req *http.Request) (*http.Response, error) {
+		req.Header.Set("Authorization", "Bearer "+e.ClientSecret)
+		return oldTransport.RoundTrip(req)
+	})
+	return e.Config.Exchange(context.WithValue(ctx, oauth2.HTTPClient, httpClient), code, opts...)
+}
+
+type roundTripper func(req *http.Request) (*http.Response, error)
+
+func (r roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	return r(req)
 }

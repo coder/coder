@@ -1,9 +1,9 @@
+import { css, Global, useTheme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import InputAdornment from "@mui/material/InputAdornment";
-import TextField, { TextFieldProps } from "@mui/material/TextField";
-import { makeStyles } from "@mui/styles";
+import TextField, { type TextFieldProps } from "@mui/material/TextField";
 import Picker from "@emoji-mart/react";
-import { FC } from "react";
+import { type FC } from "react";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Stack } from "components/Stack/Stack";
 import { colors } from "theme/colors";
@@ -48,7 +48,7 @@ const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
     throw new Error(`Invalid icon value "${typeof textFieldProps.value}"`);
   }
 
-  const styles = useStyles();
+  const theme = useTheme();
   const hasIcon = textFieldProps.value && textFieldProps.value !== "";
 
   return (
@@ -59,7 +59,21 @@ const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
         label="Icon"
         InputProps={{
           endAdornment: hasIcon ? (
-            <InputAdornment position="end" className={styles.adornment}>
+            <InputAdornment
+              position="end"
+              css={{
+                width: theme.spacing(3),
+                height: theme.spacing(3),
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+
+                "& img": {
+                  maxWidth: "100%",
+                  objectFit: "contain",
+                },
+              }}
+            >
               <img
                 alt=""
                 src={textFieldProps.value}
@@ -85,6 +99,18 @@ const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
               id="emoji"
               css={{ marginTop: 0, ".MuiPaper-root": { width: "auto" } }}
             >
+              <Global
+                styles={css`
+                  em-emoji-picker {
+                    --rgb-background: ${theme.palette.background.paper};
+                    --rgb-input: ${colors.gray[17]};
+                    --rgb-color: ${colors.gray[4]};
+
+                    // Hack to prevent the right side from being cut off
+                    width: 350px;
+                  }
+                `}
+              />
               <Picker
                 set="twitter"
                 theme="dark"
@@ -103,30 +129,5 @@ const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
     </Stack>
   );
 };
-
-const useStyles = makeStyles((theme) => ({
-  "@global": {
-    "em-emoji-picker": {
-      "--rgb-background": theme.palette.background.paper,
-      "--rgb-input": colors.gray[17],
-      "--rgb-color": colors.gray[4],
-
-      // Hack to prevent the right side from being cut off
-      width: 350,
-    },
-  },
-  adornment: {
-    width: theme.spacing(3),
-    height: theme.spacing(3),
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-
-    "& img": {
-      maxWidth: "100%",
-      objectFit: "contain",
-    },
-  },
-}));
 
 export default IconField;

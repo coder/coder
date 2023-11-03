@@ -12,16 +12,15 @@ import { getFormHelpers } from "utils/formUtils";
 import Button from "@mui/material/Button";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import { BlockPicker } from "react-color";
-import makeStyles from "@mui/styles/makeStyles";
 import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
-import { UpdateAppearanceConfig } from "api/typesGenerated";
+import type { UpdateAppearanceConfig } from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
 import { useFormik } from "formik";
-import { useTheme } from "@mui/styles";
 import Link from "@mui/material/Link";
 import { colors } from "theme/colors";
 import { hslToHex } from "utils/colors";
+import { useTheme } from "@emotion/react";
 
 export type AppearanceSettingsPageViewProps = {
   appearance: UpdateAppearanceConfig;
@@ -39,7 +38,6 @@ export const AppearanceSettingsPageView = ({
   isEntitled,
   onSaveAppearance,
 }: AppearanceSettingsPageViewProps): JSX.Element => {
-  const styles = useStyles();
   const theme = useTheme();
 
   const applicationNameForm = useFormik<{
@@ -133,7 +131,17 @@ export const AppearanceSettingsPageView = ({
           disabled={!isEntitled}
           InputProps={{
             endAdornment: (
-              <InputAdornment position="end" className={styles.logoAdornment}>
+              <InputAdornment
+                position="end"
+                css={{
+                  width: theme.spacing(3),
+                  height: theme.spacing(3),
+
+                  "& img": {
+                    maxWidth: "100%",
+                  },
+                }}
+              >
                 <img
                   alt=""
                   src={logoForm.values.logo_url}
@@ -264,17 +272,3 @@ export const AppearanceSettingsPageView = ({
     </>
   );
 };
-
-const useStyles = makeStyles((theme) => ({
-  form: {
-    maxWidth: "500px",
-  },
-  logoAdornment: {
-    width: theme.spacing(3),
-    height: theme.spacing(3),
-
-    "& img": {
-      maxWidth: "100%",
-    },
-  },
-}));

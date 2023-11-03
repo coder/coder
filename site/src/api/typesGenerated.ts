@@ -1684,12 +1684,14 @@ export type EnhancedExternalAuthProvider =
   | "bitbucket"
   | "github"
   | "gitlab"
+  | "jfrog"
   | "slack";
 export const EnhancedExternalAuthProviders: EnhancedExternalAuthProvider[] = [
   "azure-devops",
   "bitbucket",
   "github",
   "gitlab",
+  "jfrog",
   "slack",
 ];
 

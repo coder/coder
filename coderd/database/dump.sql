@@ -141,6 +141,11 @@ CREATE TYPE startup_script_behavior AS ENUM (
     'non-blocking'
 );
 
+CREATE TYPE tailnet_status AS ENUM (
+    'ok',
+    'lost'
+);
+
 CREATE TYPE user_status AS ENUM (
     'active',
     'suspended',
@@ -289,6 +294,35 @@ CREATE FUNCTION tailnet_notify_coordinator_heartbeat() RETURNS trigger
 BEGIN
 	PERFORM pg_notify('tailnet_coordinator_heartbeat', NEW.id::text);
 	RETURN NULL;
+END;
+$$;
+
+CREATE FUNCTION tailnet_notify_peer_change() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	IF (OLD IS NOT NULL) THEN
+		PERFORM pg_notify('tailnet_peer_update', OLD.id::text);
+		RETURN NULL;
+	END IF;
+	IF (NEW IS NOT NULL) THEN
+		PERFORM pg_notify('tailnet_peer_update', NEW.id::text);
+		RETURN NULL;
+	END IF;
+END;
+$$;
+
+CREATE FUNCTION tailnet_notify_tunnel_change() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	IF (NEW IS NOT NULL) THEN
+		PERFORM pg_notify('tailnet_tunnel_update', NEW.src_id || ',' || NEW.dst_id);
+		RETURN NULL;
+	ELSIF (OLD IS NOT NULL) THEN
+		PERFORM pg_notify('tailnet_tunnel_update', OLD.src_id || ',' || OLD.dst_id);
+		RETURN NULL;
+	END IF;
 END;
 $$;
 
@@ -586,6 +620,21 @@ CREATE TABLE tailnet_coordinators (
 );
 
 COMMENT ON TABLE tailnet_coordinators IS 'We keep this separate from replicas in case we need to break the coordinator out into its own service';
+
+CREATE TABLE tailnet_peers (
+    id uuid NOT NULL,
+    coordinator_id uuid NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    node bytea NOT NULL,
+    status tailnet_status DEFAULT 'ok'::tailnet_status NOT NULL
+);
+
+CREATE TABLE tailnet_tunnels (
+    coordinator_id uuid NOT NULL,
+    src_id uuid NOT NULL,
+    dst_id uuid NOT NULL,
+    updated_at timestamp with time zone NOT NULL
+);
 
 CREATE TABLE template_version_parameters (
     template_version_id uuid NOT NULL,
@@ -1248,6 +1297,12 @@ ALTER TABLE ONLY tailnet_clients
 ALTER TABLE ONLY tailnet_coordinators
     ADD CONSTRAINT tailnet_coordinators_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY tailnet_peers
+    ADD CONSTRAINT tailnet_peers_pkey PRIMARY KEY (id, coordinator_id);
+
+ALTER TABLE ONLY tailnet_tunnels
+    ADD CONSTRAINT tailnet_tunnels_pkey PRIMARY KEY (coordinator_id, src_id, dst_id);
+
 ALTER TABLE ONLY template_version_parameters
     ADD CONSTRAINT template_version_parameters_template_version_id_name_key UNIQUE (template_version_id, name);
 
@@ -1351,6 +1406,8 @@ CREATE INDEX idx_tailnet_agents_coordinator ON tailnet_agents USING btree (coord
 
 CREATE INDEX idx_tailnet_clients_coordinator ON tailnet_clients USING btree (coordinator_id);
 
+CREATE INDEX idx_tailnet_peers_coordinator ON tailnet_peers USING btree (coordinator_id);
+
 CREATE UNIQUE INDEX idx_users_email ON users USING btree (email) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX idx_users_username ON users USING btree (username) WHERE (deleted = false);
@@ -1390,6 +1447,10 @@ CREATE TRIGGER tailnet_notify_client_change AFTER INSERT OR DELETE OR UPDATE ON 
 CREATE TRIGGER tailnet_notify_client_subscription_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_client_subscriptions FOR EACH ROW EXECUTE FUNCTION tailnet_notify_client_subscription_change();
 
 CREATE TRIGGER tailnet_notify_coordinator_heartbeat AFTER INSERT OR UPDATE ON tailnet_coordinators FOR EACH ROW EXECUTE FUNCTION tailnet_notify_coordinator_heartbeat();
+
+CREATE TRIGGER tailnet_notify_peer_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_peers FOR EACH ROW EXECUTE FUNCTION tailnet_notify_peer_change();
+
+CREATE TRIGGER tailnet_notify_tunnel_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_tunnels FOR EACH ROW EXECUTE FUNCTION tailnet_notify_tunnel_change();
 
 CREATE TRIGGER trigger_insert_apikeys BEFORE INSERT ON api_keys FOR EACH ROW EXECUTE FUNCTION insert_apikey_fail_if_user_deleted();
 
@@ -1439,6 +1500,12 @@ ALTER TABLE ONLY tailnet_client_subscriptions
 
 ALTER TABLE ONLY tailnet_clients
     ADD CONSTRAINT tailnet_clients_coordinator_id_fkey FOREIGN KEY (coordinator_id) REFERENCES tailnet_coordinators(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY tailnet_peers
+    ADD CONSTRAINT tailnet_peers_coordinator_id_fkey FOREIGN KEY (coordinator_id) REFERENCES tailnet_coordinators(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY tailnet_tunnels
+    ADD CONSTRAINT tailnet_tunnels_coordinator_id_fkey FOREIGN KEY (coordinator_id) REFERENCES tailnet_coordinators(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY template_version_parameters
     ADD CONSTRAINT template_version_parameters_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;

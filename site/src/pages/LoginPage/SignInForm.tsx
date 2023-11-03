@@ -1,10 +1,10 @@
-import { makeStyles } from "@mui/styles";
-import { FormikTouched } from "formik";
-import { FC, useState } from "react";
-import { AuthMethods } from "api/typesGenerated";
+import { type Interpolation, type Theme } from "@emotion/react";
+import { type FormikTouched } from "formik";
+import { type FC, useState } from "react";
+import type { AuthMethods } from "api/typesGenerated";
 import { PasswordSignInForm } from "./PasswordSignInForm";
 import { OAuthSignInForm } from "./OAuthSignInForm";
-import { BuiltInAuthFormValues } from "./SignInForm.types";
+import { type BuiltInAuthFormValues } from "./SignInForm.types";
 import Button from "@mui/material/Button";
 import EmailIcon from "@mui/icons-material/EmailOutlined";
 import { Alert } from "components/Alert/Alert";
@@ -21,11 +21,11 @@ export const Language = {
   oidcSignIn: "OpenID Connect",
 };
 
-const useStyles = makeStyles((theme) => ({
+const styles = {
   root: {
     width: "100%",
   },
-  title: {
+  title: (theme) => ({
     fontSize: theme.spacing(4),
     fontWeight: 400,
     margin: 0,
@@ -35,34 +35,34 @@ const useStyles = makeStyles((theme) => ({
     "& strong": {
       fontWeight: 600,
     },
-  },
-  alert: {
+  }),
+  alert: (theme) => ({
     marginBottom: theme.spacing(4),
-  },
-  divider: {
+  }),
+  divider: (theme) => ({
     paddingTop: theme.spacing(3),
     paddingBottom: theme.spacing(3),
     display: "flex",
     alignItems: "center",
     gap: theme.spacing(2),
-  },
-  dividerLine: {
+  }),
+  dividerLine: (theme) => ({
     width: "100%",
     height: 1,
     backgroundColor: theme.palette.divider,
-  },
-  dividerLabel: {
+  }),
+  dividerLabel: (theme) => ({
     flexShrink: 0,
     color: theme.palette.text.secondary,
     textTransform: "uppercase",
     fontSize: 12,
     letterSpacing: 1,
-  },
-  icon: {
+  }),
+  icon: (theme) => ({
     width: theme.spacing(2),
     height: theme.spacing(2),
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;
 
 export interface SignInFormProps {
   isSigningIn: boolean;
@@ -90,23 +90,22 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
   const passwordEnabled = authMethods?.password.enabled ?? true;
   // Hide password auth by default if any OAuth method is enabled
   const [showPasswordAuth, setShowPasswordAuth] = useState(!oAuthEnabled);
-  const styles = useStyles();
   const applicationName = getApplicationName();
 
   return (
-    <div className={styles.root}>
-      <h1 className={styles.title}>
+    <div css={styles.root}>
+      <h1 css={styles.title}>
         Sign in to <strong>{applicationName}</strong>
       </h1>
 
       {Boolean(error) && (
-        <div className={styles.alert}>
+        <div css={styles.alert}>
           <ErrorAlert error={error} />
         </div>
       )}
 
       {Boolean(info) && Boolean(error) && (
-        <div className={styles.alert}>
+        <div css={styles.alert}>
           <Alert severity="info">{info}</Alert>
         </div>
       )}
@@ -120,10 +119,10 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
       )}
 
       {passwordEnabled && showPasswordAuth && oAuthEnabled && (
-        <div className={styles.divider}>
-          <div className={styles.dividerLine} />
-          <div className={styles.dividerLabel}>Or</div>
-          <div className={styles.dividerLine} />
+        <div css={styles.divider}>
+          <div css={styles.dividerLine} />
+          <div css={styles.dividerLabel}>Or</div>
+          <div css={styles.dividerLine} />
         </div>
       )}
 
@@ -141,17 +140,17 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
 
       {passwordEnabled && !showPasswordAuth && (
         <>
-          <div className={styles.divider}>
-            <div className={styles.dividerLine} />
-            <div className={styles.dividerLabel}>Or</div>
-            <div className={styles.dividerLine} />
+          <div css={styles.divider}>
+            <div css={styles.dividerLine} />
+            <div css={styles.dividerLabel}>Or</div>
+            <div css={styles.dividerLine} />
           </div>
 
           <Button
             fullWidth
             size="large"
             onClick={() => setShowPasswordAuth(true)}
-            startIcon={<EmailIcon className={styles.icon} />}
+            startIcon={<EmailIcon css={styles.icon} />}
           >
             Email and password
           </Button>

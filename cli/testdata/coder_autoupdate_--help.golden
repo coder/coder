@@ -1,0 +1,13 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder autoupdate [flags] <workspace> <always|never>
+
+  Toggle auto-update policy for a workspace
+
+OPTIONS:
+  -y, --yes bool
+          Bypass prompts.
+
+———
+Run `coder --help` for a list of global options.
