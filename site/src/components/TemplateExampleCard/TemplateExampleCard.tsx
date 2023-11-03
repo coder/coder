@@ -16,7 +16,7 @@ export const TemplateExampleCard = (props: TemplateExampleCardProps) => {
     <div
       css={(theme) => ({
         width: "320px",
-        padding: theme.spacing(3),
+        padding: 24,
         borderRadius: 6,
         border: `1px solid ${theme.palette.divider}`,
         textAlign: "left",
@@ -29,34 +29,28 @@ export const TemplateExampleCard = (props: TemplateExampleCardProps) => {
     >
       <div
         css={{
-          flexShrink: 0,
-          paddingTop: 4,
-          width: 32,
-          height: 32,
-          marginBottom: 16,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 24,
         }}
       >
-        <img
-          src={example.icon}
-          alt=""
-          css={{ width: "100%", height: "100%", objectFit: "contain" }}
-        />
-      </div>
-
-      <div>
-        <h4 css={{ fontSize: 14, fontWeight: 600, margin: 0 }}>
-          {example.name}
-        </h4>
-        <span
-          css={(theme) => ({
-            fontSize: 13,
-            color: theme.palette.text.secondary,
-            lineHeight: "0.5",
-          })}
+        <div
+          css={{
+            flexShrink: 0,
+            paddingTop: 4,
+            width: 32,
+            height: 32,
+          }}
         >
-          {example.description}
-        </span>
-        <div css={{ marginTop: 16, display: "flex", flexWrap: "wrap", gap: 8 }}>
+          <img
+            src={example.icon}
+            alt=""
+            css={{ width: "100%", height: "100%", objectFit: "contain" }}
+          />
+        </div>
+
+        <div css={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           {example.tags.map((tag) => {
             const isActive = activeTag === tag;
 
@@ -83,12 +77,35 @@ export const TemplateExampleCard = (props: TemplateExampleCardProps) => {
         </div>
       </div>
 
+      <div>
+        <h4 css={{ fontSize: 14, fontWeight: 600, margin: 0, marginBottom: 4 }}>
+          {example.name}
+        </h4>
+        <span
+          css={(theme) => ({
+            fontSize: 13,
+            color: theme.palette.text.secondary,
+            lineHeight: "1.8",
+            display: "block",
+          })}
+        >
+          {example.description}
+        </span>
+        <Link
+          component={RouterLink}
+          to={`/starter-templates/${example.id}`}
+          css={{ display: "inline-block", fontSize: 13, marginTop: 4 }}
+        >
+          Read more
+        </Link>
+      </div>
+
       <div
         css={{
           display: "flex",
           gap: 12,
           flexDirection: "column",
-          paddingTop: 32,
+          paddingTop: 24,
           marginTop: "auto",
           alignItems: "center",
         }}
@@ -100,13 +117,6 @@ export const TemplateExampleCard = (props: TemplateExampleCardProps) => {
         >
           Use template
         </Button>
-        <Link
-          component={RouterLink}
-          css={{ fontSize: 13 }}
-          to={`/starter-templates/${example.id}`}
-        >
-          Read more
-        </Link>
       </div>
     </div>
   );
