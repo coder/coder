@@ -61,7 +61,7 @@ export const AccountPage: FC = () => {
         <div
           css={{ display: "flex", flexFlow: "column nowrap", rowGap: "24px" }}
         >
-          {<ErrorAlert error={groupsQuery.error} />}
+          {groupsQuery.isError && <ErrorAlert error={groupsQuery.error} />}
 
           <Grid container columns={{ xs: 1, md: 2 }} spacing="16px">
             {groupsQuery.data?.map((group) => (
