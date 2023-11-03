@@ -1537,13 +1537,13 @@ func configureCipherSuites(ctx context.Context, logger slog.Logger, ciphers []st
 		if !hasSupportedVersion(minTLS, maxTLS, cipher.SupportedVersions) {
 			versions := make([]string, 0, len(cipher.SupportedVersions))
 			for _, sv := range cipher.SupportedVersions {
-				versions = append(versions, tls.VersionName(sv))
+				versions = append(versions, versionName(sv))
 			}
 			logger.Warn(ctx, "cipher not supported for tls versions enabled, cipher will not be used",
 				slog.F("cipher", cipher.Name),
 				slog.F("cipher_supported_versions", strings.Join(versions, ",")),
-				slog.F("server_min_version", tls.VersionName(minTLS)),
-				slog.F("server_max_version", tls.VersionName(maxTLS)),
+				slog.F("server_min_version", versionName(minTLS)),
+				slog.F("server_max_version", versionName(maxTLS)),
 			)
 		}
 
@@ -1567,7 +1567,7 @@ func configureCipherSuites(ctx context.Context, logger slog.Logger, ciphers []st
 			continue // v1.3 ignores configured cipher suites.
 		}
 		if !covered {
-			missedVersions = append(missedVersions, tls.VersionName(version))
+			missedVersions = append(missedVersions, versionName(version))
 		}
 	}
 	if len(missedVersions) > 0 {
@@ -1629,6 +1629,25 @@ func hasSupportedVersion(min, max uint16, versions []uint16) bool {
 		}
 	}
 	return false
+}
+
+// versionName is tls.VersionName in go 1.21.
+// Until the switch, the function is copied locally.
+func versionName(version uint16) string {
+	switch version {
+	case tls.VersionSSL30:
+		return "SSLv3"
+	case tls.VersionTLS10:
+		return "TLS 1.0"
+	case tls.VersionTLS11:
+		return "TLS 1.1"
+	case tls.VersionTLS12:
+		return "TLS 1.2"
+	case tls.VersionTLS13:
+		return "TLS 1.3"
+	default:
+		return fmt.Sprintf("0x%04X", version)
+	}
 }
 
 func configureOIDCPKI(orig *oauth2.Config, keyFile string, certFile string) (*oauthpki.Config, error) {
