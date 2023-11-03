@@ -32,10 +32,7 @@ const CONFIRM_DIALOG_DEFAULTS: Record<
 };
 
 export interface ConfirmDialogProps
-  extends Omit<
-    DialogActionButtonsProps,
-    "color" | "confirmDialog" | "onCancel"
-  > {
+  extends Omit<DialogActionButtonsProps, "color" | "onCancel"> {
   readonly description?: ReactNode;
   /**
    * hideCancel hides the cancel button when set true, and shows the cancel
@@ -135,7 +132,6 @@ export const ConfirmDialog: FC<PropsWithChildren<ConfirmDialogProps>> = ({
       <DialogActions>
         <DialogActionButtons
           cancelText={cancelText}
-          confirmDialog
           confirmLoading={confirmLoading}
           confirmText={confirmText || defaults.confirmText}
           disabled={disabled}
