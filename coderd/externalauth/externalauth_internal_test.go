@@ -9,6 +9,8 @@ import (
 )
 
 func Test_bitbucketServerConfigDefaults(t *testing.T) {
+	t.Parallel()
+
 	bbType := string(codersdk.EnhancedExternalAuthProviderBitBucketServer)
 	tests := []struct {
 		name     string
@@ -50,7 +52,9 @@ func Test_bitbucketServerConfigDefaults(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			configDefaults(tt.config)
 			require.Equal(t, tt.expected, *tt.config)
 		})
