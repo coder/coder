@@ -79,10 +79,21 @@ export const StarterTemplatesPageView: FC<StarterTemplatesPageViewProps> = ({
           </Stack>
         )}
 
-        <div css={styles.templates}>
+        <div
+          css={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 32,
+            height: "max-content",
+          }}
+        >
           {visibleTemplates &&
             visibleTemplates.map((example) => (
-              <TemplateExampleCard example={example} key={example.id} />
+              <TemplateExampleCard
+                example={example}
+                key={example.id}
+                activeTag={activeTag}
+              />
             ))}
         </div>
       </Stack>
@@ -118,13 +129,5 @@ const styles = {
   tagLinkActive: (theme) => ({
     color: theme.palette.text.primary,
     fontWeight: 600,
-  }),
-
-  templates: (theme) => ({
-    flex: "1",
-    display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: theme.spacing(2),
-    gridAutoRows: "min-content",
   }),
 } satisfies Record<string, Interpolation<Theme>>;
