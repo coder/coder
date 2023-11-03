@@ -239,4 +239,55 @@ func TestRestartWithParameters(t *testing.T) {
 			Value: immutableParameterValue,
 		})
 	})
+
+	t.Run("AlwaysPrompt", func(t *testing.T) {
+		t.Parallel()
+
+		// Create the workspace
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, mutableParamsResponse)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, member, owner.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+				{
+					Name:  mutableParameterName,
+					Value: mutableParameterValue,
+				},
+			}
+		})
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		inv, root := clitest.New(t, "restart", workspace.Name, "-y", "--always-prompt")
+		clitest.SetupConfig(t, member, root)
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t).Attach(inv)
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		// We should be prompted for the parameters again.
+		newValue := "xyz"
+		pty.ExpectMatch(mutableParameterName)
+		pty.WriteLine(newValue)
+		pty.ExpectMatch("workspace has been restarted")
+		<-doneChan
+
+		// Verify that the updated values are persisted.
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		workspace, err := client.WorkspaceByOwnerAndName(ctx, workspace.OwnerName, workspace.Name, codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+		actualParameters, err := client.WorkspaceBuildParameters(ctx, workspace.LatestBuild.ID)
+		require.NoError(t, err)
+		require.Contains(t, actualParameters, codersdk.WorkspaceBuildParameter{
+			Name:  mutableParameterName,
+			Value: newValue,
+		})
+	})
 }

@@ -129,6 +129,15 @@ export const templateVersionVariables = (versionId: string) => {
   };
 };
 
+export const createTemplateVersion = (orgId: string) => {
+  return {
+    mutationFn: async (request: CreateTemplateVersionRequest) => {
+      const newVersion = await API.createTemplateVersion(orgId, request);
+      return newVersion;
+    },
+  };
+};
+
 export const createAndBuildTemplateVersion = (orgId: string) => {
   return {
     mutationFn: async (request: CreateTemplateVersionRequest) => {
@@ -213,6 +222,13 @@ export const richParameters = (versionId: string) => {
   return {
     queryKey: ["templateVersion", versionId, "richParameters"],
     queryFn: () => API.getTemplateVersionRichParameters(versionId),
+  };
+};
+
+export const resources = (versionId: string) => {
+  return {
+    queryKey: ["templateVersion", versionId, "resources"],
+    queryFn: () => API.getTemplateVersionResources(versionId),
   };
 };
 

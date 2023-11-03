@@ -43,6 +43,7 @@ func TestVSCodeSSH(t *testing.T) {
 		"--url-file", "/url",
 		"--session-token-file", "/token",
 		"--network-info-dir", "/net",
+		"--log-dir", "/log",
 		"--network-info-interval", "25ms",
 		fmt.Sprintf("coder-vscode--%s--%s", user.Username, workspace.Name),
 	)
@@ -50,13 +51,15 @@ func TestVSCodeSSH(t *testing.T) {
 
 	waiter := clitest.StartWithWaiter(t, inv.WithContext(ctx))
 
-	assert.Eventually(t, func() bool {
-		entries, err := afero.ReadDir(fs, "/net")
-		if err != nil {
-			return false
-		}
-		return len(entries) > 0
-	}, testutil.WaitLong, testutil.IntervalFast)
+	for _, dir := range []string{"/net", "/log"} {
+		assert.Eventually(t, func() bool {
+			entries, err := afero.ReadDir(fs, dir)
+			if err != nil {
+				return false
+			}
+			return len(entries) > 0
+		}, testutil.WaitLong, testutil.IntervalFast)
+	}
 	waiter.Cancel()
 
 	if err := waiter.Wait(); err != nil {
