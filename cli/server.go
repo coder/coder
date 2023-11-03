@@ -1519,6 +1519,8 @@ func configureCipherSuites(ctx context.Context, logger slog.Logger, ciphers []st
 	}
 
 	// allVersions is all tls versions the server supports.
+	// We enumerate these to ensure if ciphers are configured, at least
+	// 1 cipher for each version exists.
 	allVersions := make(map[uint16]bool)
 	for v := minTLS; v <= maxTLS; v++ {
 		allVersions[v] = false
