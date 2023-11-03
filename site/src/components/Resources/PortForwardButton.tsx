@@ -197,7 +197,7 @@ export const PortForwardPopoverView: React.FC<
             css={{
               fontSize: 14,
               height: 34,
-              p: "0 12px",
+              padding: "0 12px",
               background: "none",
               border: 0,
               outline: "none",
