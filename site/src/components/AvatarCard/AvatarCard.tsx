@@ -17,14 +17,14 @@ export function AvatarCard({
   imgUrl,
   altText,
   subtitle,
-  maxWidth = 420,
+  maxWidth = "none",
 }: AvatarCardProps) {
   const theme = useTheme();
 
   return (
     <article
       css={{
-        maxWidth: maxWidth === undefined ? undefined : `${maxWidth}px`,
+        maxWidth: maxWidth === "none" ? undefined : `${maxWidth}px`,
         display: "flex",
         flexFlow: "row nowrap",
         alignItems: "center",
