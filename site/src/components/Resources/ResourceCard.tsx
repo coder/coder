@@ -8,7 +8,7 @@ import { CopyableValue } from "components/CopyableValue/CopyableValue";
 import { Stack } from "../Stack/Stack";
 import { ResourceAvatar } from "./ResourceAvatar";
 import { SensitiveValue } from "./SensitiveValue";
-import { MemoizedMarkdown } from "components/Markdown/Markdown";
+import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 
 const styles = {
   resourceCard: (theme) => ({
@@ -138,7 +138,9 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
                     <SensitiveValue value={meta.value} />
                   ) : (
                     <CopyableValue value={meta.value}>
-                      <MemoizedMarkdown>{meta.value}</MemoizedMarkdown>
+                      <MemoizedInlineMarkdown>
+                        {meta.value}
+                      </MemoizedInlineMarkdown>
                     </CopyableValue>
                   )}
                 </div>

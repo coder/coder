@@ -113,7 +113,50 @@ export const Markdown: FC<MarkdownProps> = (props) => {
   );
 };
 
+/**
+ * Supports a strict subset of Markdown that bahaves well as inline/confined content.
+ */
+export const InlineMarkdown: FC<MarkdownProps> = (props) => {
+  const { children, className } = props;
+
+  return (
+    <ReactMarkdown
+      css={markdownStyles}
+      className={className}
+      allowedElements={["p", "em", "strong", "a", "pre", "code"]}
+      unwrapDisallowed
+      components={{
+        a: ({ href, target, children }) => (
+          <Link href={href} target={target}>
+            {children}
+          </Link>
+        ),
+
+        pre: ({ children }) => <pre>{children}</pre>,
+
+        code: ({ node, className, children, style, ...props }) => (
+          <code
+            css={(theme) => ({
+              padding: "1px 4px",
+              background: theme.palette.divider,
+              borderRadius: 4,
+              color: theme.palette.text.primary,
+              fontSize: 14,
+            })}
+            {...props}
+          >
+            {children}
+          </code>
+        ),
+      }}
+    >
+      {children}
+    </ReactMarkdown>
+  );
+};
+
 export const MemoizedMarkdown = memo(Markdown);
+export const MemoizedInlineMarkdown = memo(InlineMarkdown);
 
 const markdownStyles: Interpolation<Theme> = (theme: Theme) => ({
   fontSize: 16,
