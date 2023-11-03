@@ -15,7 +15,7 @@ export const WorkspacesEmpty = (props: {
   const featuredTemplates = templates?.slice(0, totalFeaturedTemplates);
   const defaultTitle = "Create a workspace";
   const defaultMessage =
-    "A workspace is your personal, customizable development environment in the cloud.";
+    "A workspace is your personal, customizable development environment.";
   const defaultImage = (
     <div
       css={{
