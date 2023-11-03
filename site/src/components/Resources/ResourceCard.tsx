@@ -13,7 +13,7 @@ import { MemoizedMarkdown } from "components/Markdown/Markdown";
 const styles = {
   resourceCard: (theme) => ({
     background: theme.palette.background.paper,
-    borderRadius: theme.shape.borderRadius,
+    borderRadius: 8,
     border: `1px solid ${theme.palette.divider}`,
 
     "&:not(:first-of-type)": {

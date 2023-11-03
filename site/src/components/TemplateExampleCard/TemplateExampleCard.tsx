@@ -33,7 +33,7 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 const styles = {
   template: (theme) => ({
     border: `1px solid ${theme.palette.divider}`,
-    borderRadius: theme.shape.borderRadius,
+    borderRadius: 8,
     background: theme.palette.background.paper,
     textDecoration: "none",
     textAlign: "left",

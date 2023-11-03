@@ -69,7 +69,7 @@ const styles = {
     zIndex: 2,
   }),
 
-  diffColumn: (theme) => ({
+  diffColumn: {
     flex: 1,
     paddingTop: 16,
     paddingBottom: 20,
@@ -77,7 +77,7 @@ const styles = {
     lineHeight: "160%",
     alignSelf: "stretch",
     overflowWrap: "anywhere",
-  }),
+  },
 
   diffOld: (theme) => ({
     backgroundColor: theme.palette.error.dark,
@@ -89,12 +89,12 @@ const styles = {
     alignItems: "baseline",
   },
 
-  diffLine: (theme) => ({
+  diffLine: {
     opacity: 0.5,
     width: 48,
     textAlign: "right",
     flexShrink: 0,
-  }),
+  },
 
   diffIcon: (theme) => ({
     width: 32,
@@ -108,10 +108,10 @@ const styles = {
     color: theme.palette.success.contrastText,
   }),
 
-  diffValue: (theme) => ({
+  diffValue: {
     padding: 1,
-    borderRadius: theme.shape.borderRadius / 2,
-  }),
+    borderRadius: 4,
+  },
 
   diffValueOld: {
     backgroundColor: colors.red[12],

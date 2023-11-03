@@ -54,8 +54,8 @@ const SidebarNavItem: FC<
       left: 0;
       top: 0;
       background-color: ${theme.palette.secondary.dark};
-      border-top-left-radius: ${theme.shape.borderRadius}px;
-      border-bottom-left-radius: ${theme.shape.borderRadius}px;
+      border-top-left-radius: 8px;
+      border-bottom-left-radius: 8px;
     }
   `;
 

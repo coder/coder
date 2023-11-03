@@ -46,7 +46,7 @@ export const CopyButton: React.FC<React.PropsWithChildren<CopyButtonProps>> = ({
         <IconButton
           className={buttonClassName}
           css={(theme) => css`
-            border-radius: ${theme.shape.borderRadius}px;
+            border-radius: 8px;
             padding: 8px;
             min-width: 32px;
 

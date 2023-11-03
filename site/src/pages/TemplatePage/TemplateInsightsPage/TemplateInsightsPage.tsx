@@ -694,7 +694,7 @@ const ParameterUsageLabel = ({
 };
 
 const Panel = styled(Box)(({ theme }) => ({
-  borderRadius: theme.shape.borderRadius,
+  borderRadius: 8,
   border: `1px solid ${theme.palette.divider}`,
   backgroundColor: theme.palette.background.paper,
   display: "flex",

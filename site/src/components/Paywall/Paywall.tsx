@@ -55,7 +55,7 @@ const styles = {
     padding: 24,
     backgroundColor: theme.palette.background.paper,
     border: `1px solid ${theme.palette.divider}`,
-    borderRadius: theme.shape.borderRadius,
+    borderRadius: 8,
   }),
   header: (theme) => ({
     marginBottom: 24,

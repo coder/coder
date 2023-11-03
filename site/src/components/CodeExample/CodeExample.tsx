@@ -26,7 +26,7 @@ export const CodeExample: FC<CodeExampleProps> = (props) => {
         color: theme.palette.primary.contrastText,
         fontFamily: MONOSPACE_FONT_FAMILY,
         fontSize: 14,
-        borderRadius: theme.shape.borderRadius,
+        borderRadius: 8,
         padding: 8,
         lineHeight: "150%",
         border: `1px solid ${theme.palette.divider}`,

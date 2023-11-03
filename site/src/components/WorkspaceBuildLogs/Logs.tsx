@@ -94,7 +94,7 @@ const styles = {
   root: (theme) => ({
     minHeight: 156,
     padding: "8px 0",
-    borderRadius: theme.shape.borderRadius,
+    borderRadius: 8,
     overflowX: "auto",
     background: theme.palette.background.default,
 

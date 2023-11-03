@@ -21,7 +21,7 @@ export default function TemplateDocsPage() {
         css={{
           background: theme.palette.background.paper,
           border: `1px solid ${theme.palette.divider}`,
-          borderRadius: theme.shape.borderRadius,
+          borderRadius: 8,
         }}
         id="readme"
       >

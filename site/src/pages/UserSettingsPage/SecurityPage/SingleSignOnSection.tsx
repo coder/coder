@@ -107,7 +107,7 @@ function SSOEmptyState() {
         minHeight: 0,
         padding: "48px 32px",
         backgroundColor: theme.palette.background.paper,
-        borderRadius: theme.shape.borderRadius,
+        borderRadius: 8,
       })}
       message="No SSO Providers"
       description="No SSO providers are configured with this Coder deployment."

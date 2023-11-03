@@ -53,8 +53,8 @@ const SidebarNavItem: FC<
       left: 0,
       top: 0,
       backgroundColor: theme.palette.secondary.dark,
-      borderTopLeftRadius: theme.shape.borderRadius,
-      borderBottomLeftRadius: theme.shape.borderRadius,
+      borderTopLeftRadius: 8,
+      borderBottomLeftRadius: 8,
     },
   });
 

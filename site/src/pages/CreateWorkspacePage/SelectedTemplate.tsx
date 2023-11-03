@@ -41,7 +41,7 @@ export const SelectedTemplate: FC<SelectedTemplateProps> = ({ template }) => {
 const styles = {
   template: (theme) => ({
     padding: "20px 24px",
-    borderRadius: theme.shape.borderRadius,
+    borderRadius: 8,
     backgroundColor: theme.palette.background.paper,
     border: `1px solid ${theme.palette.divider}`,
   }),

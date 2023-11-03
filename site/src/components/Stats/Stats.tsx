@@ -25,7 +25,7 @@ const styles = {
     ...(theme.typography.body2 as CSSObject),
     paddingLeft: 16,
     paddingRight: 16,
-    borderRadius: theme.shape.borderRadius,
+    borderRadius: 8,
     border: `1px solid ${theme.palette.divider}`,
     display: "flex",
     alignItems: "center",

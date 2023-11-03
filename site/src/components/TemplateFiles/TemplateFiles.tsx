@@ -150,7 +150,7 @@ const styles = {
   }),
 
   files: (theme) => ({
-    borderRadius: theme.shape.borderRadius,
+    borderRadius: 8,
     border: `1px solid ${theme.palette.divider}`,
   }),
 

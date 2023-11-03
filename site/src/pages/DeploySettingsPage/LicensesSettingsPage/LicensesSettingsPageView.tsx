@@ -137,7 +137,7 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: theme.shape.borderRadius,
+    borderRadius: 8,
     border: `1px solid ${theme.palette.divider}`,
     padding: 48,
   }),

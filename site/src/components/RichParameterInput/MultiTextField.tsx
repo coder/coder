@@ -72,7 +72,7 @@ export const MultiTextField: FC<MultiTextFieldProps> = ({
 const styles = {
   root: (theme) => ({
     border: `1px solid ${theme.palette.divider}`,
-    borderRadius: theme.shape.borderRadius,
+    borderRadius: 8,
     minHeight: 48, // Chip height + paddings
     padding: "10px 14px",
     fontSize: 16,
