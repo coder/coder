@@ -68,8 +68,22 @@ export const Markdown: Story = {
         name: "Workspace",
         metadata: [
           { key: "text", value: "hello", sensitive: false },
-          { key: "link", value: "[hello](hello)", sensitive: false },
-          { key: "heading", value: "# hello", sensitive: false },
+          { key: "link", value: "[hello](#)", sensitive: false },
+          { key: "b/i", value: "_hello_, **friend**!", sensitive: false },
+          { key: "coder", value: "`beep boop`", sensitive: false },
+          { key: "heading", value: "# HI", sensitive: false }, // unsupported
+          { key: "image", value: "![go](/icon/go.svg)", sensitive: false }, // unsupported
+        ],
+      },
+
+      // bits of Markdown that are intentionally not supported here
+      {
+        ...nullDevice,
+        type: "unsupported",
+        id: "2",
+        name: "Unsupported",
+        metadata: [
+          { key: "heading", value: "# HI", sensitive: false },
           { key: "image", value: "![go](/icon/go.svg)", sensitive: false },
         ],
       },
