@@ -812,6 +812,11 @@ export interface Replica {
   readonly database_latency: number;
 }
 
+// From codersdk/workspaces.go
+export interface ResolveAutostartResponse {
+  readonly parameter_mismatch: boolean;
+}
+
 // From codersdk/client.go
 export interface Response {
   readonly message: string;

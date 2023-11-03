@@ -1240,6 +1240,37 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/extend \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Determine whether a workspace is capable of autostarting.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/resolve \
+  -H 'Accept: */*' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaces/{workspace}/resolve`
+
+### Parameters
+
+| Name        | In   | Type         | Required | Description  |
+| ----------- | ---- | ------------ | -------- | ------------ |
+| `workspace` | path | string(uuid) | true     | Workspace ID |
+
+### Example responses
+
+> 200 Response
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                           |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ResolveAutostartResponse](schemas.md#codersdkresolveautostartresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Update workspace TTL by ID
 
 ### Code samples

@@ -6480,6 +6480,41 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaces/{workspace}/resolve": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Determine whether a workspace is capable of autostarting.",
+                "operationId": "resolve-workspace-autostart-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ResolveAutostartResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaces/{workspace}/ttl": {
             "put": {
                 "security": [
@@ -9717,6 +9752,14 @@ const docTemplate = `{
                 "relay_address": {
                     "description": "RelayAddress is the accessible address to relay DERP connections.",
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.ResolveAutostartResponse": {
+            "type": "object",
+            "properties": {
+                "parameter_mismatch": {
+                    "type": "boolean"
                 }
             }
         },
