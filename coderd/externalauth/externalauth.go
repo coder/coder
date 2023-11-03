@@ -506,6 +506,11 @@ func configDefaults(config *codersdk.ExternalAuthConfig) {
 	case codersdk.EnhancedExternalAuthProviderBitBucketServer:
 		applyDefaultsToConfig(config, bitbucketServerDefaults(config))
 		return
+	default:
+		// No defaults for this type. We still want to run this apply with
+		// an empty set of defaults.
+		applyDefaultsToConfig(config, codersdk.ExternalAuthConfig{})
+		return
 	}
 }
 
