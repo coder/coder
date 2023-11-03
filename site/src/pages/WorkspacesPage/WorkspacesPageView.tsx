@@ -47,7 +47,6 @@ export interface WorkspacesPageViewProps {
   onCheckChange: (checkedWorkspaces: Workspace[]) => void;
   onDeleteAll: () => void;
   canCheckWorkspaces: boolean;
-
   templatesFetchStatus: TemplateQuery["status"];
   templates: TemplateQuery["data"];
 }
@@ -156,6 +155,7 @@ export const WorkspacesPageView: FC<
         checkedWorkspaces={checkedWorkspaces}
         onCheckChange={onCheckChange}
         canCheckWorkspaces={canCheckWorkspaces}
+        templates={templates}
       />
       {count !== undefined && (
         <PaginationWidgetBase
