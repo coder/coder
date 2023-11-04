@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"testing"
+	"fmt"
 
 	gliderssh "github.com/gliderlabs/ssh"
 	"github.com/prometheus/client_golang/prometheus"
@@ -19,6 +20,10 @@ import (
 	"github.com/coder/coder/v2/testutil"
 
 	"cdr.dev/slog/sloggers/slogtest"
+	"go.uber.org/atomic"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/codersdk"
+
 )
 
 const longScript = `
@@ -194,4 +199,25 @@ func (testSSHContext) SetValue(_, _ interface{}) {
 
 func (testSSHContext) KeepAlive() *gliderssh.SessionKeepAlive {
 	panic("not implemented")
+}
+
+func TestSomeSSHServer(t *testing.T) {
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
+	logger := slogtest.Make(t, nil)
+
+	s, err := NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), 0, "")
+	require.NoError(t, err)
+	defer s.Close()
+	// Required to not panic on new connection
+	s.Manifest = atomic.NewPointer(&agentsdk.Manifest{})
+	s.ServiceBanner = atomic.NewPointer(&codersdk.ServiceBannerConfig{})
+	s.AgentToken = func() string {
+		return "something"
+	}
+
+	l, err := net.Listen("tcp", "localhost:1828")
+	require.NoError(t, err)
+	fmt.Println(s.Serve(l))
 }

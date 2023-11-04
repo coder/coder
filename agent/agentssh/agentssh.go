@@ -289,6 +289,7 @@ func (s *Server) sessionStart(session ssh.Session, extraEnv []string) (retErr er
 	}
 
 	magicTypeLabel := magicTypeMetricLabel(magicType)
+	fmt.Println("New connection, magic type =", magicType)
 	sshPty, windowSize, isPty := session.Pty()
 
 	cmd, err := s.CreateCommand(ctx, session.RawCommand(), env)
