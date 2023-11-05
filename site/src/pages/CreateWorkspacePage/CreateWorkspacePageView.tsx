@@ -5,8 +5,8 @@ import { FormikContextType, useFormik } from "formik";
 import { FC, useEffect, useState } from "react";
 import {
   getFormHelpers,
-  nameValidator,
   onChangeTrimmed,
+  workspaceNameValidator,
 } from "utils/formUtils";
 import * as Yup from "yup";
 import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm";
@@ -87,7 +87,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
         ),
       },
       validationSchema: Yup.object({
-        name: nameValidator("Workspace Name"),
+        name: workspaceNameValidator("Workspace Name"),
         rich_parameter_values: useValidationSchemaForRichParameters(parameters),
       }),
       enableReinitialize: true,

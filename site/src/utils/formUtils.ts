@@ -8,7 +8,7 @@ import {
 } from "react";
 import * as Yup from "yup";
 
-const Language = {
+export const Language = {
   nameRequired: (name: string): string => {
     return name ? `Please enter a ${name.toLowerCase()}.` : "Required";
   },
@@ -20,6 +20,9 @@ const Language = {
   },
   templateDisplayNameInvalidChars: (name: string): string => {
     return `${name} must start and end with non-whitespace character`;
+  },
+  workspaceNameInvalidChars: (name: string): string => {
+    return `${name} must start with lowercase a-z or 0-9 and can contain lowercase a-z, 0-9 or -`;
   },
 };
 
@@ -76,6 +79,7 @@ const maxLenName = 32;
 const templateDisplayNameMaxLength = 64;
 const usernameRE = /^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*$/;
 const templateDisplayNameRE = /^[^\s](.*[^\s])?$/;
+const workspaceNameRE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 // REMARK: see #1756 for name/username semantics
 export const nameValidator = (name: string): Yup.StringSchema =>
@@ -97,5 +101,10 @@ export const templateDisplayNameValidator = (
       Language.nameTooLong(displayName, templateDisplayNameMaxLength),
     )
     .optional();
+
+export const workspaceNameValidator = (name: string): Yup.StringSchema =>
+  Yup.string()
+    .required(Language.nameRequired(name))
+    .matches(workspaceNameRE, Language.workspaceNameInvalidChars(name));
 
 export const iconValidator = Yup.string().label("Icon").max(256);

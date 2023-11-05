@@ -20,6 +20,7 @@ import {
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import CreateWorkspacePage from "./CreateWorkspacePage";
+import { Language } from "utils/formUtils";
 
 const nameLabelText = "Workspace Name";
 const createWorkspaceText = "Create Workspace";
@@ -269,5 +270,32 @@ describe("CreateWorkspacePage", () => {
         }),
       );
     });
+  });
+  it("validates against capital letters in workspace name", async () => {
+    renderCreateWorkspacePage();
+    await waitForLoaderToBeRemoved();
+
+    const nameField = await screen.findByLabelText(nameLabelText);
+
+    // have to use fireEvent b/c userEvent isn't cleaning up properly between tests
+    fireEvent.change(nameField, {
+      target: { value: "Test" },
+    });
+
+    const submitButton = screen.getByText(createWorkspaceText);
+    await userEvent.click(submitButton);
+
+    await screen.findByText(
+      Language.workspaceNameInvalidChars("Workspace Name"),
+    );
+
+    // have to use fireEvent b/c userEvent isn't cleaning up properly between tests
+    fireEvent.change(nameField, {
+      target: { value: "test" },
+    });
+
+    await userEvent.click(submitButton);
+
+    await waitFor(() => expect(API.createWorkspace).toBeCalled());
   });
 });
