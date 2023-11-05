@@ -90,7 +90,7 @@ export function UserGroupsCell({ userGroups }: GroupsCellProps) {
                   flexFlow: "column nowrap",
                   fontSize: theme.typography.body2.fontSize,
                   padding: theme.spacing(0.5, 0.25),
-                  gap: theme.spacing(0),
+                  gap: 0,
                 }}
               >
                 {userGroups.map((group) => {

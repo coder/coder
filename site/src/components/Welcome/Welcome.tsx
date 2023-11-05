@@ -37,7 +37,7 @@ export const Welcome: FC<
           font-size: ${theme.spacing(4)};
           font-weight: 400;
           margin: 0;
-          margin-bottom: ${theme.spacing(2)};
+          margin-bottom: ${theme.spacing(4)};
           margin-top: ${theme.spacing(2)};
           line-height: 1.25;
 

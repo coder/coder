@@ -124,6 +124,7 @@ func WorkspaceBuild(t testing.TB, db database.Store, ws database.Workspace, seed
 				Valid: true,
 			},
 		})
+		ProvisionerJobResources(t, db, jobID, seed.Transition, resources...)
 		seed.TemplateVersionID = templateVersion.ID
 	}
 	build := dbgen.WorkspaceBuild(t, db, seed)

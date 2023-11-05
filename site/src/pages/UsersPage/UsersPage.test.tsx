@@ -21,12 +21,11 @@ const renderPage = () => {
 const suspendUser = async () => {
   const user = userEvent.setup();
   // Get the first user in the table
-  const moreButtons = await screen.findAllByLabelText("more");
+  const moreButtons = await screen.findAllByLabelText("More options");
   const firstMoreButton = moreButtons[0];
   await user.click(firstMoreButton);
 
-  const menu = await screen.findByRole("menu");
-  const suspendButton = within(menu).getByText(/Suspend/);
+  const suspendButton = screen.getByTestId("suspend-button");
   await user.click(suspendButton);
 
   // Check if the confirm message is displayed
@@ -39,17 +38,15 @@ const suspendUser = async () => {
 
 const deleteUser = async () => {
   const user = userEvent.setup();
-  // Click on the "more" button to display the "Delete" option
+  // Click on the "More options" button to display the "Delete" option
   // Needs to await fetching users and fetching permissions, because they're needed to see the more button
-  const moreButtons = await screen.findAllByLabelText("more");
+  const moreButtons = await screen.findAllByLabelText("More options");
   // get MockUser2
   const selectedMoreButton = moreButtons[1];
 
   await user.click(selectedMoreButton);
 
-  const menu = await screen.findByRole("menu");
-  const deleteButton = within(menu).getByText(/Delete/);
-
+  const deleteButton = screen.getByText(/Delete/);
   await user.click(deleteButton);
 
   // Check if the confirm message is displayed
@@ -67,12 +64,11 @@ const deleteUser = async () => {
 };
 
 const activateUser = async () => {
-  const moreButtons = await screen.findAllByLabelText("more");
+  const moreButtons = await screen.findAllByLabelText("More options");
   const suspendedMoreButton = moreButtons[2];
   fireEvent.click(suspendedMoreButton);
 
-  const menu = screen.getByRole("menu");
-  const activateButton = within(menu).getByText(/Activate/);
+  const activateButton = screen.getByText(/Activate/);
   fireEvent.click(activateButton);
 
   // Check if the confirm message is displayed
@@ -86,14 +82,11 @@ const activateUser = async () => {
 };
 
 const resetUserPassword = async (setupActionSpies: () => void) => {
-  const moreButtons = await screen.findAllByLabelText("more");
+  const moreButtons = await screen.findAllByLabelText("More options");
   const firstMoreButton = moreButtons[0];
-
   fireEvent.click(firstMoreButton);
 
-  const menu = screen.getByRole("menu");
-  const resetPasswordButton = within(menu).getByText(/Reset password/);
-
+  const resetPasswordButton = screen.getByText(/Reset password/);
   fireEvent.click(resetPasswordButton);
 
   // Check if the confirm message is displayed
@@ -134,6 +127,8 @@ const updateUserRole = async (role: Role) => {
     userRow,
   };
 };
+
+jest.spyOn(console, "error").mockImplementation(() => {});
 
 describe("UsersPage", () => {
   describe("suspend user", () => {

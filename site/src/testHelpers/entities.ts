@@ -1254,16 +1254,30 @@ export const MockUserAgent = {
   os: "Windows 10",
 };
 
-export const MockAuthMethods: TypesGen.AuthMethods = {
+export const MockAuthMethodsPasswordOnly: TypesGen.AuthMethods = {
   password: { enabled: true },
   github: { enabled: false },
   oidc: { enabled: false, signInText: "", iconUrl: "" },
 };
 
-export const MockAuthMethodsWithPasswordType: TypesGen.AuthMethods = {
-  ...MockAuthMethods,
+export const MockAuthMethodsExternal: TypesGen.AuthMethods = {
+  password: { enabled: false },
   github: { enabled: true },
-  oidc: { enabled: true, signInText: "", iconUrl: "" },
+  oidc: {
+    enabled: true,
+    signInText: "Google",
+    iconUrl: "/icon/google.svg",
+  },
+};
+
+export const MockAuthMethodsAll: TypesGen.AuthMethods = {
+  password: { enabled: true },
+  github: { enabled: true },
+  oidc: {
+    enabled: true,
+    signInText: "Google",
+    iconUrl: "/icon/google.svg",
+  },
 };
 
 export const MockGitSSHKey: TypesGen.GitSSHKey = {
@@ -2803,7 +2817,7 @@ export const DeploymentHealthUnhealthy: Health = {
   healthy: false,
   time: "2023-10-12T23:15:00.000000000Z",
   coder_version: "v2.3.0-devel+8cca4915a",
-  access_url: { healthy: false },
+  access_url: { healthy: true },
   database: { healthy: false },
   derp: { healthy: false },
   websocket: { healthy: false },

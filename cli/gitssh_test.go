@@ -16,7 +16,6 @@ import (
 	"testing"
 
 	"github.com/gliderlabs/ssh"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	gossh "golang.org/x/crypto/ssh"
 
@@ -24,9 +23,10 @@ import (
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
-	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -34,7 +34,7 @@ import (
 func prepareTestGitSSH(ctx context.Context, t *testing.T) (*agentsdk.Client, string, gossh.PublicKey) {
 	t.Helper()
 
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	client, db := coderdtest.NewWithDatabase(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -48,24 +48,17 @@ func prepareTestGitSSH(ctx context.Context, t *testing.T) (*agentsdk.Client, str
 	require.NoError(t, err)
 
 	// setup template
-	agentToken := uuid.NewString()
-	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-		Parse:          echo.ParseComplete,
-		ProvisionPlan:  echo.PlanComplete,
-		ProvisionApply: echo.ProvisionApplyWithAgent(agentToken),
+	ws, agentToken := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
 	})
-	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-
 	// start workspace agent
 	agentClient := agentsdk.New(client.URL)
 	agentClient.SetSessionToken(agentToken)
 	_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
 		o.Client = agentClient
 	})
-	_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+	_ = coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
 	return agentClient, agentToken, pubkey
 }
 

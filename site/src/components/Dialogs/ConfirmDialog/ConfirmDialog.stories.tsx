@@ -55,3 +55,12 @@ export const SuccessDialogWithCancel: Story = {
     type: "success",
   },
 };
+
+export const SuccessDialogLoading: Story = {
+  args: {
+    description: "I am successful.",
+    hideCancel: true,
+    type: "success",
+    confirmLoading: true,
+  },
+};

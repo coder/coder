@@ -8,7 +8,7 @@ import {
 } from "react";
 import * as Yup from "yup";
 
-export const Language = {
+export const validationText = {
   nameRequired: (name: string): string => {
     return name ? `Please enter a ${name.toLowerCase()}.` : "Required";
   },
@@ -84,9 +84,9 @@ const workspaceNameRE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 // REMARK: see #1756 for name/username semantics
 export const nameValidator = (name: string): Yup.StringSchema =>
   Yup.string()
-    .required(Language.nameRequired(name))
-    .matches(usernameRE, Language.nameInvalidChars(name))
-    .max(maxLenName, Language.nameTooLong(name, maxLenName));
+    .required(validationText.nameRequired(name))
+    .matches(usernameRE, validationText.nameInvalidChars(name))
+    .max(maxLenName, validationText.nameTooLong(name, maxLenName));
 
 export const templateDisplayNameValidator = (
   displayName: string,
@@ -94,17 +94,17 @@ export const templateDisplayNameValidator = (
   Yup.string()
     .matches(
       templateDisplayNameRE,
-      Language.templateDisplayNameInvalidChars(displayName),
+      validationText.templateDisplayNameInvalidChars(displayName),
     )
     .max(
       templateDisplayNameMaxLength,
-      Language.nameTooLong(displayName, templateDisplayNameMaxLength),
+      validationText.nameTooLong(displayName, templateDisplayNameMaxLength),
     )
     .optional();
 
 export const workspaceNameValidator = (name: string): Yup.StringSchema =>
   Yup.string()
-    .required(Language.nameRequired(name))
-    .matches(workspaceNameRE, Language.workspaceNameInvalidChars(name));
+    .required(validationText.nameRequired(name))
+    .matches(workspaceNameRE, validationText.workspaceNameInvalidChars(name));
 
 export const iconValidator = Yup.string().label("Icon").max(256);

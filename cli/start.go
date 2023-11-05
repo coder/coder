@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/clibase"
@@ -25,52 +24,19 @@ func (r *RootCmd) start() *clibase.Cmd {
 			clibase.RequireNArgs(1),
 			r.InitClient(client),
 		),
-		Options: append(parameterFlags.cliBuildOptions(), cliui.SkipPromptOption()),
+		Options: clibase.OptionSet{cliui.SkipPromptOption()},
 		Handler: func(inv *clibase.Invocation) error {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
 			}
 
-			lastBuildParameters, err := client.WorkspaceBuildParameters(inv.Context(), workspace.LatestBuild.ID)
-			if err != nil {
-				return err
-			}
-
-			buildOptions, err := asWorkspaceBuildParameters(parameterFlags.buildOptions)
-			if err != nil {
-				return xerrors.Errorf("unable to parse build options: %w", err)
-			}
-
-			buildParameters, err := prepStartWorkspace(inv, client, prepStartWorkspaceArgs{
-				Action:            WorkspaceStart,
-				TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
-
-				LastBuildParameters: lastBuildParameters,
-
-				PromptBuildOptions: parameterFlags.promptBuildOptions,
-				BuildOptions:       buildOptions,
-			})
-			if err != nil {
-				return err
-			}
-
-			req := codersdk.CreateWorkspaceBuildRequest{
-				Transition:          codersdk.WorkspaceTransitionStart,
-				RichParameterValues: buildParameters,
-				TemplateVersionID:   workspace.LatestBuild.TemplateVersionID,
-			}
-
-			build, err := client.CreateWorkspaceBuild(inv.Context(), workspace.ID, req)
+			build, err := startWorkspace(inv, client, workspace, parameterFlags, WorkspaceStart)
 			// It's possible for a workspace build to fail due to the template requiring starting
 			// workspaces with the active version.
 			if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusUnauthorized {
-				build, err = startWorkspaceActiveVersion(inv, client, startWorkspaceActiveVersionArgs{
-					BuildOptions:        buildOptions,
-					LastBuildParameters: lastBuildParameters,
-					PromptBuildOptions:  parameterFlags.promptBuildOptions,
-					Workspace:           workspace,
-				})
+				_, _ = fmt.Fprintln(inv.Stdout, "Failed to restart with the template version from your last build. Policy may require you to restart with the current active template version.")
+				build, err = startWorkspace(inv, client, workspace, parameterFlags, WorkspaceUpdate)
 				if err != nil {
 					return xerrors.Errorf("start workspace with active template version: %w", err)
 				}
@@ -90,74 +56,68 @@ func (r *RootCmd) start() *clibase.Cmd {
 			return nil
 		},
 	}
+
+	cmd.Options = append(cmd.Options, parameterFlags.allOptions()...)
+
 	return cmd
 }
 
-type prepStartWorkspaceArgs struct {
-	Action            WorkspaceCLIAction
-	TemplateVersionID uuid.UUID
-
-	LastBuildParameters []codersdk.WorkspaceBuildParameter
-
-	PromptBuildOptions bool
-	BuildOptions       []codersdk.WorkspaceBuildParameter
-}
-
-func prepStartWorkspace(inv *clibase.Invocation, client *codersdk.Client, args prepStartWorkspaceArgs) ([]codersdk.WorkspaceBuildParameter, error) {
-	ctx := inv.Context()
-
-	templateVersion, err := client.TemplateVersion(ctx, args.TemplateVersionID)
-	if err != nil {
-		return nil, xerrors.Errorf("get template version: %w", err)
+func buildWorkspaceStartRequest(inv *clibase.Invocation, client *codersdk.Client, workspace codersdk.Workspace, parameterFlags workspaceParameterFlags, action WorkspaceCLIAction) (codersdk.CreateWorkspaceBuildRequest, error) {
+	version := workspace.LatestBuild.TemplateVersionID
+	if workspace.AutomaticUpdates == codersdk.AutomaticUpdatesAlways || action == WorkspaceUpdate {
+		version = workspace.TemplateActiveVersionID
+		if version != workspace.LatestBuild.TemplateVersionID {
+			action = WorkspaceUpdate
+		}
 	}
 
-	templateVersionParameters, err := client.TemplateVersionRichParameters(inv.Context(), templateVersion.ID)
+	lastBuildParameters, err := client.WorkspaceBuildParameters(inv.Context(), workspace.LatestBuild.ID)
 	if err != nil {
-		return nil, xerrors.Errorf("get template version rich parameters: %w", err)
+		return codersdk.CreateWorkspaceBuildRequest{}, err
 	}
 
-	resolver := new(ParameterResolver).
-		WithLastBuildParameters(args.LastBuildParameters).
-		WithPromptBuildOptions(args.PromptBuildOptions).
-		WithBuildOptions(args.BuildOptions)
-	return resolver.Resolve(inv, args.Action, templateVersionParameters)
-}
-
-type startWorkspaceActiveVersionArgs struct {
-	BuildOptions        []codersdk.WorkspaceBuildParameter
-	LastBuildParameters []codersdk.WorkspaceBuildParameter
-	PromptBuildOptions  bool
-	Workspace           codersdk.Workspace
-}
-
-func startWorkspaceActiveVersion(inv *clibase.Invocation, client *codersdk.Client, args startWorkspaceActiveVersionArgs) (codersdk.WorkspaceBuild, error) {
-	_, _ = fmt.Fprintln(inv.Stdout, "Failed to restart with the template version from your last build. Policy may require you to restart with the current active template version.")
-
-	template, err := client.Template(inv.Context(), args.Workspace.TemplateID)
+	buildOptions, err := asWorkspaceBuildParameters(parameterFlags.buildOptions)
 	if err != nil {
-		return codersdk.WorkspaceBuild{}, xerrors.Errorf("get template: %w", err)
+		return codersdk.CreateWorkspaceBuildRequest{}, xerrors.Errorf("unable to parse build options: %w", err)
 	}
 
-	buildParameters, err := prepStartWorkspace(inv, client, prepStartWorkspaceArgs{
-		Action:            WorkspaceStart,
-		TemplateVersionID: template.ActiveVersionID,
+	cliRichParameters, err := asWorkspaceBuildParameters(parameterFlags.richParameters)
+	if err != nil {
+		return codersdk.CreateWorkspaceBuildRequest{}, xerrors.Errorf("unable to parse build options: %w", err)
+	}
 
-		LastBuildParameters: args.LastBuildParameters,
+	buildParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
+		Action:              action,
+		TemplateVersionID:   version,
+		NewWorkspaceName:    workspace.Name,
+		LastBuildParameters: lastBuildParameters,
 
-		PromptBuildOptions: args.PromptBuildOptions,
-		BuildOptions:       args.BuildOptions,
+		PromptBuildOptions:   parameterFlags.promptBuildOptions,
+		BuildOptions:         buildOptions,
+		PromptRichParameters: parameterFlags.promptRichParameters,
+		RichParameters:       cliRichParameters,
+		RichParameterFile:    parameterFlags.richParameterFile,
 	})
 	if err != nil {
-		return codersdk.WorkspaceBuild{}, err
+		return codersdk.CreateWorkspaceBuildRequest{}, err
 	}
 
-	build, err := client.CreateWorkspaceBuild(inv.Context(), args.Workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+	return codersdk.CreateWorkspaceBuildRequest{
 		Transition:          codersdk.WorkspaceTransitionStart,
 		RichParameterValues: buildParameters,
-		TemplateVersionID:   template.ActiveVersionID,
-	})
+		TemplateVersionID:   version,
+	}, nil
+}
+
+func startWorkspace(inv *clibase.Invocation, client *codersdk.Client, workspace codersdk.Workspace, parameterFlags workspaceParameterFlags, action WorkspaceCLIAction) (codersdk.WorkspaceBuild, error) {
+	req, err := buildWorkspaceStartRequest(inv, client, workspace, parameterFlags, action)
 	if err != nil {
 		return codersdk.WorkspaceBuild{}, err
+	}
+
+	build, err := client.CreateWorkspaceBuild(inv.Context(), workspace.ID, req)
+	if err != nil {
+		return codersdk.WorkspaceBuild{}, xerrors.Errorf("create workspace build: %w", err)
 	}
 
 	return build, nil

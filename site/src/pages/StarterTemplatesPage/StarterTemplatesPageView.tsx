@@ -1,4 +1,4 @@
-import { makeStyles } from "@mui/styles";
+import { type Interpolation, type Theme } from "@emotion/react";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
@@ -9,10 +9,9 @@ import {
 } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 import { TemplateExampleCard } from "components/TemplateExampleCard/TemplateExampleCard";
-import { FC } from "react";
+import { type FC } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { combineClasses } from "utils/combineClasses";
-import { StarterTemplatesByTag } from "utils/starterTemplates";
+import type { StarterTemplatesByTag } from "utils/starterTemplates";
 
 const getTagLabel = (tag: string) => {
   const labelByTag: Record<string, string> = {
@@ -40,7 +39,6 @@ export const StarterTemplatesPageView: FC<StarterTemplatesPageViewProps> = ({
   error,
 }) => {
   const [urlParams] = useSearchParams();
-  const styles = useStyles();
   const tags = starterTemplatesByTag
     ? selectTags(starterTemplatesByTag)
     : undefined;
@@ -64,16 +62,16 @@ export const StarterTemplatesPageView: FC<StarterTemplatesPageViewProps> = ({
 
       <Stack direction="row" spacing={4}>
         {starterTemplatesByTag && tags && (
-          <Stack className={styles.filter}>
-            <span className={styles.filterCaption}>Filter</span>
+          <Stack css={styles.filter}>
+            <span css={styles.filterCaption}>Filter</span>
             {tags.map((tag) => (
               <Link
                 key={tag}
                 to={`?tag=${tag}`}
-                className={combineClasses({
-                  [styles.tagLink]: true,
-                  [styles.tagLinkActive]: tag === activeTag,
-                })}
+                css={[
+                  styles.tagLink,
+                  tag === activeTag && styles.tagLinkActive,
+                ]}
               >
                 {getTagLabel(tag)} ({starterTemplatesByTag[tag].length})
               </Link>
@@ -81,7 +79,7 @@ export const StarterTemplatesPageView: FC<StarterTemplatesPageViewProps> = ({
           </Stack>
         )}
 
-        <div className={styles.templates}>
+        <div css={styles.templates}>
           {visibleTemplates &&
             visibleTemplates.map((example) => (
               <TemplateExampleCard example={example} key={example.id} />
@@ -92,21 +90,21 @@ export const StarterTemplatesPageView: FC<StarterTemplatesPageViewProps> = ({
   );
 };
 
-const useStyles = makeStyles((theme) => ({
-  filter: {
+const styles = {
+  filter: (theme) => ({
     width: theme.spacing(26),
     flexShrink: 0,
-  },
+  }),
 
-  filterCaption: {
+  filterCaption: (theme) => ({
     textTransform: "uppercase",
     fontWeight: 600,
     fontSize: 12,
     color: theme.palette.text.secondary,
     letterSpacing: "0.1em",
-  },
+  }),
 
-  tagLink: {
+  tagLink: (theme) => ({
     color: theme.palette.text.secondary,
     textDecoration: "none",
     fontSize: 14,
@@ -115,18 +113,18 @@ const useStyles = makeStyles((theme) => ({
     "&:hover": {
       color: theme.palette.text.primary,
     },
-  },
+  }),
 
-  tagLinkActive: {
+  tagLinkActive: (theme) => ({
     color: theme.palette.text.primary,
     fontWeight: 600,
-  },
+  }),
 
-  templates: {
+  templates: (theme) => ({
     flex: "1",
     display: "grid",
     gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
     gap: theme.spacing(2),
     gridAutoRows: "min-content",
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;
