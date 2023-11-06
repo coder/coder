@@ -201,7 +201,7 @@ require (
 )
 
 require (
-	github.com/aws/smithy-go v1.15.0
+	github.com/aws/smithy-go v1.16.0
 	github.com/chromedp/cdproto v0.0.0-20230802225258-3cf4e6d46a89
 	github.com/chromedp/chromedp v0.9.2
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
