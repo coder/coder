@@ -87,6 +87,13 @@ func Test_Levenshtein_Matches(t *testing.T) {
 			Haystack:    []string{"bar", "boo", "boof"},
 			Expected:    []string{"boo", "boof"},
 		},
+		{
+			Name:        "longer input",
+			Needle:      "kuberenetes",
+			MaxDistance: 5,
+			Haystack:    []string{"kubernetes", "kubeconfig", "kubectl", "kube"},
+			Expected:    []string{"kubernetes"},
+		},
 	} {
 		tt := tt
 		t.Run(tt.Name, func(t *testing.T) {
