@@ -35,6 +35,12 @@ export function AvatarCard({
         cursor: "default",
       }}
     >
+      {/**
+       * minWidth is necessary to ensure that the text truncation works properly
+       * with flex containers that don't have fixed width
+       *
+       * @see {@link https://css-tricks.com/flexbox-truncated-text/}
+       */}
       <div css={{ marginRight: "auto", minWidth: 0 }}>
         <h3
           title={header}
