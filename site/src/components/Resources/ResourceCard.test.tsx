@@ -18,7 +18,7 @@ describe("Resource Card", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders daily cost and 4 metadata tiles", async () => {
+  it("renders daily cost and 3 metadata tiles", async () => {
     const mockResource = {
       ...MockWorkspaceResource,
       metadata: [
