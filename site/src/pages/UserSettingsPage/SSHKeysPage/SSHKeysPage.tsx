@@ -1,11 +1,10 @@
 import { PropsWithChildren, FC, useState } from "react";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Section } from "components/SettingsLayout/Section";
 import { SSHKeysPageView } from "./SSHKeysPageView";
 import { regenerateUserSSHKey, userSSHKey } from "api/queries/sshKeys";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { getErrorMessage } from "api/errors";
 
 export const Language = {
   title: "SSH keys",
@@ -22,9 +21,12 @@ export const SSHKeysPage: FC<PropsWithChildren<unknown>> = () => {
 
   const userSSHKeyQuery = useQuery(userSSHKey("me"));
   const queryClient = useQueryClient();
-  const regenerateSSHKeyMutation = useMutation(
-    regenerateUserSSHKey("me", queryClient),
-  );
+  const regenerateSSHKeyMutation = useMutation({
+    ...regenerateUserSSHKey("me", queryClient),
+    onError: () => {
+      //
+    },
+  });
 
   return (
     <>
@@ -51,10 +53,9 @@ export const SSHKeysPage: FC<PropsWithChildren<unknown>> = () => {
           try {
             await regenerateSSHKeyMutation.mutateAsync();
             displaySuccess("SSH Key regenerated successfully.");
-          } catch (error) {
-            displayError(
-              getErrorMessage(error, "Failed to regenerate SSH key"),
-            );
+          } catch (err) {
+            // No error handling because UI displays the error message after
+            // React Query automatically puts it into state
           } finally {
             setIsConfirmingRegeneration(false);
           }
