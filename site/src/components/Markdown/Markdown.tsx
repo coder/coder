@@ -113,7 +113,7 @@ export const Markdown: FC<MarkdownProps> = (props) => {
   );
 };
 
-interface MarkdownProps {
+interface MarkdownInlineProps {
   /**
    * The Markdown text to parse and render
    */
@@ -130,7 +130,7 @@ interface MarkdownProps {
 /**
  * Supports a strict subset of Markdown that bahaves well as inline/confined content.
  */
-export const InlineMarkdown: FC<MarkdownProps> = (props) => {
+export const InlineMarkdown: FC<MarkdownInlineProps> = (props) => {
   const { children, className, components = {} } = props;
 
   return (
