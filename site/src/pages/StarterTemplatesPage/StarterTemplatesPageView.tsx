@@ -60,9 +60,11 @@ export const StarterTemplatesPageView: FC<StarterTemplatesPageViewProps> = ({
 
       {Boolean(!starterTemplatesByTag) && <Loader />}
 
-      <Stack direction="row" spacing={4}>
+      <Stack direction="row" spacing={4} alignItems="flex-start">
         {starterTemplatesByTag && tags && (
-          <Stack css={styles.filter}>
+          <Stack
+            css={{ width: 208, flexShrink: 0, position: "sticky", top: 48 }}
+          >
             <span css={styles.filterCaption}>Filter</span>
             {tags.map((tag) => (
               <Link
@@ -79,10 +81,24 @@ export const StarterTemplatesPageView: FC<StarterTemplatesPageViewProps> = ({
           </Stack>
         )}
 
-        <div css={styles.templates}>
+        <div
+          css={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 32,
+            height: "max-content",
+          }}
+        >
           {visibleTemplates &&
             visibleTemplates.map((example) => (
-              <TemplateExampleCard example={example} key={example.id} />
+              <TemplateExampleCard
+                css={(theme) => ({
+                  backgroundColor: theme.palette.background.paper,
+                })}
+                example={example}
+                key={example.id}
+                activeTag={activeTag}
+              />
             ))}
         </div>
       </Stack>
@@ -91,11 +107,6 @@ export const StarterTemplatesPageView: FC<StarterTemplatesPageViewProps> = ({
 };
 
 const styles = {
-  filter: {
-    width: 208,
-    flexShrink: 0,
-  },
-
   filterCaption: (theme) => ({
     textTransform: "uppercase",
     fontWeight: 600,
@@ -119,12 +130,4 @@ const styles = {
     color: theme.palette.text.primary,
     fontWeight: 600,
   }),
-
-  templates: {
-    flex: "1",
-    display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: 16,
-    gridAutoRows: "min-content",
-  },
 } satisfies Record<string, Interpolation<Theme>>;

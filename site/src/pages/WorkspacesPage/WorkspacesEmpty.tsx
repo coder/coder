@@ -122,7 +122,7 @@ export const WorkspacesEmpty = (props: {
                 </div>
                 <div>
                   <h4 css={{ fontSize: 14, fontWeight: 600, margin: 0 }}>
-                    {t.display_name}
+                    {t.display_name.length > 0 ? t.display_name : t.name}
                   </h4>
                   <span
                     css={(theme) => ({

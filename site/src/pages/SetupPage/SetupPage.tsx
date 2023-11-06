@@ -35,7 +35,7 @@ export const SetupPage: FC = () => {
         onSubmit={async (firstUser) => {
           await createFirstUserMutation.mutateAsync(firstUser);
           await signIn(firstUser.email, firstUser.password);
-          navigate("/");
+          navigate("/templates");
         }}
       />
     </>

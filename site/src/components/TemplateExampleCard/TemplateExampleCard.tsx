@@ -1,86 +1,123 @@
-import { type Interpolation, type Theme } from "@emotion/react";
+import Button from "@mui/material/Button";
+import Link from "@mui/material/Link";
 import type { TemplateExample } from "api/typesGenerated";
-import { type FC } from "react";
-import { Link } from "react-router-dom";
+import { Pill } from "components/Pill/Pill";
+import { HTMLProps } from "react";
+import { Link as RouterLink } from "react-router-dom";
 
-export interface TemplateExampleCardProps {
+type TemplateExampleCardProps = {
   example: TemplateExample;
-  className?: string;
-}
+  activeTag?: string;
+} & HTMLProps<HTMLDivElement>;
 
-export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
-  example,
-  className,
-}) => {
+export const TemplateExampleCard = (props: TemplateExampleCardProps) => {
+  const { example, activeTag, ...divProps } = props;
   return (
-    <Link
-      to={`/starter-templates/${example.id}`}
-      css={styles.template}
-      className={className}
-      key={example.id}
+    <div
+      css={(theme) => ({
+        width: "320px",
+        padding: 24,
+        borderRadius: 6,
+        border: `1px solid ${theme.palette.divider}`,
+        textAlign: "left",
+        textDecoration: "none",
+        color: "inherit",
+        display: "flex",
+        flexDirection: "column",
+      })}
+      {...divProps}
     >
-      <div css={styles.templateIcon}>
-        <img src={example.icon} alt="" />
+      <div
+        css={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 24,
+        }}
+      >
+        <div
+          css={{
+            flexShrink: 0,
+            paddingTop: 4,
+            width: 32,
+            height: 32,
+          }}
+        >
+          <img
+            src={example.icon}
+            alt=""
+            css={{ width: "100%", height: "100%", objectFit: "contain" }}
+          />
+        </div>
+
+        <div css={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {example.tags.map((tag) => {
+            const isActive = activeTag === tag;
+
+            return (
+              <RouterLink key={tag} to={`/starter-templates?tag=${tag}`}>
+                <Pill
+                  text={tag}
+                  css={(theme) => ({
+                    borderColor: isActive
+                      ? theme.palette.primary.main
+                      : theme.palette.divider,
+                    cursor: "pointer",
+                    backgroundColor: isActive
+                      ? theme.palette.primary.dark
+                      : undefined,
+                    "&: hover": {
+                      borderColor: theme.palette.primary.main,
+                    },
+                  })}
+                />
+              </RouterLink>
+            );
+          })}
+        </div>
       </div>
-      <div css={styles.templateInfo}>
-        <span css={styles.templateName}>{example.name}</span>
-        <span css={styles.templateDescription}>{example.description}</span>
+
+      <div>
+        <h4 css={{ fontSize: 14, fontWeight: 600, margin: 0, marginBottom: 4 }}>
+          {example.name}
+        </h4>
+        <span
+          css={(theme) => ({
+            fontSize: 13,
+            color: theme.palette.text.secondary,
+            lineHeight: "1.6",
+            display: "block",
+          })}
+        >
+          {example.description}{" "}
+          <Link
+            component={RouterLink}
+            to={`/starter-templates/${example.id}`}
+            css={{ display: "inline-block", fontSize: 13, marginTop: 4 }}
+          >
+            Read more
+          </Link>
+        </span>
       </div>
-    </Link>
+
+      <div
+        css={{
+          display: "flex",
+          gap: 12,
+          flexDirection: "column",
+          paddingTop: 24,
+          marginTop: "auto",
+          alignItems: "center",
+        }}
+      >
+        <Button
+          component={RouterLink}
+          fullWidth
+          to={`/templates/new?exampleId=${example.id}`}
+        >
+          Use template
+        </Button>
+      </div>
+    </div>
   );
 };
-
-const styles = {
-  template: (theme) => ({
-    border: `1px solid ${theme.palette.divider}`,
-    borderRadius: 8,
-    background: theme.palette.background.paper,
-    textDecoration: "none",
-    textAlign: "left",
-    color: "inherit",
-    display: "flex",
-    alignItems: "center",
-    height: "fit-content",
-
-    "&:hover": {
-      backgroundColor: theme.palette.background.paperLight,
-    },
-  }),
-
-  templateIcon: {
-    width: 96,
-    height: 96,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-
-    "& img": {
-      height: 32,
-    },
-  },
-
-  templateInfo: {
-    padding: "16px 16px 16px 0",
-    display: "flex",
-    flexDirection: "column",
-    overflow: "hidden",
-  },
-
-  templateName: {
-    fontSize: 16,
-    textOverflow: "ellipsis",
-    width: "100%",
-    overflow: "hidden",
-    whiteSpace: "nowrap",
-  },
-
-  templateDescription: (theme) => ({
-    fontSize: 14,
-    color: theme.palette.text.secondary,
-    textOverflow: "ellipsis",
-    width: "100%",
-    overflow: "hidden",
-    whiteSpace: "nowrap",
-  }),
-} satisfies Record<string, Interpolation<Theme>>;

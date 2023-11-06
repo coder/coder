@@ -44,12 +44,11 @@ export const EmptyTemplates: FC<{
   if (canCreateTemplates) {
     return (
       <TableEmpty
-        message="Create a Template"
+        message="Create your first template"
         description={
           <>
             Templates are written in Terraform and describe the infrastructure
-            for workspaces (e.g., docker_container, aws_instance,
-            kubernetes_pod). Select a starter template below or
+            for workspaces. You can start using a starter template below or{" "}
             <Link
               href={docs("/templates/tutorial")}
               target="_blank"
@@ -64,11 +63,7 @@ export const EmptyTemplates: FC<{
           <Stack alignItems="center" spacing={4}>
             <div css={styles.featuredExamples}>
               {featuredExamples.map((example) => (
-                <TemplateExampleCard
-                  example={example}
-                  key={example.id}
-                  css={styles.template}
-                />
+                <TemplateExampleCard example={example} key={example.id} />
               ))}
             </div>
 
@@ -76,7 +71,7 @@ export const EmptyTemplates: FC<{
               size="small"
               component={RouterLink}
               to="/starter-templates"
-              css={styles.viewAllButton}
+              css={{ borderRadius: 9999 }}
             >
               View all starter templates
             </Button>
@@ -117,23 +112,10 @@ const styles = {
     },
   },
 
-  featuredExamples: {
-    maxWidth: 800,
-    display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: 16,
-    gridAutoRows: "min-content",
-  },
-
-  template: (theme) => ({
-    backgroundColor: theme.palette.background.paperLight,
-
-    "&:hover": {
-      backgroundColor: theme.palette.divider,
-    },
+  featuredExamples: (theme) => ({
+    display: "flex",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: theme.spacing(2),
   }),
-
-  viewAllButton: {
-    borderRadius: 9999,
-  },
 } satisfies Record<string, Interpolation<Theme>>;
