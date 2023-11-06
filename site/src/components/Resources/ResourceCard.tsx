@@ -74,12 +74,16 @@ export interface ResourceCardProps {
   agentRow: (agent: WorkspaceAgent) => JSX.Element;
 }
 
-const p = ({ children }: PropsWithChildren) => {
-  const childrens = Children.toArray(children);
-  if (childrens.every((child) => typeof child === "string")) {
-    return <CopyableValue value={childrens.join("")}>{children}</CopyableValue>;
-  }
-  return <>{children}</>;
+const markdownComponents = {
+  p: ({ children }: PropsWithChildren) => {
+    const childrens = Children.toArray(children);
+    if (childrens.every((child) => typeof child === "string")) {
+      return (
+        <CopyableValue value={childrens.join("")}>{children}</CopyableValue>
+      );
+    }
+    return <>{children}</>;
+  },
 };
 
 export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
@@ -146,7 +150,7 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
                   {meta.sensitive ? (
                     <SensitiveValue value={meta.value} />
                   ) : (
-                    <MemoizedInlineMarkdown components={{ p }}>
+                    <MemoizedInlineMarkdown components={markdownComponents}>
                       {meta.value}
                     </MemoizedInlineMarkdown>
                   )}
