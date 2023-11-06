@@ -21,7 +21,7 @@ func (e EnhancedExternalAuthProvider) Git() bool {
 	switch e {
 	case EnhancedExternalAuthProviderGitHub,
 		EnhancedExternalAuthProviderGitLab,
-		EnhancedExternalAuthProviderBitBucket,
+		EnhancedExternalAuthProviderBitBucketCloud,
 		EnhancedExternalAuthProviderBitBucketServer,
 		EnhancedExternalAuthProviderAzureDevops:
 		return true
@@ -34,9 +34,9 @@ const (
 	EnhancedExternalAuthProviderAzureDevops EnhancedExternalAuthProvider = "azure-devops"
 	EnhancedExternalAuthProviderGitHub      EnhancedExternalAuthProvider = "github"
 	EnhancedExternalAuthProviderGitLab      EnhancedExternalAuthProvider = "gitlab"
-	// EnhancedExternalAuthProviderBitBucket is the Bitbucket Cloud provider.
+	// EnhancedExternalAuthProviderBitBucketCloud is the Bitbucket Cloud provider.
 	// Not to be confused with the self-hosted 'EnhancedExternalAuthProviderBitBucketServer'
-	EnhancedExternalAuthProviderBitBucket       EnhancedExternalAuthProvider = "bitbucket"
+	EnhancedExternalAuthProviderBitBucketCloud  EnhancedExternalAuthProvider = "bitbucket-cloud"
 	EnhancedExternalAuthProviderBitBucketServer EnhancedExternalAuthProvider = "bitbucket-server"
 	EnhancedExternalAuthProviderSlack           EnhancedExternalAuthProvider = "slack"
 	EnhancedExternalAuthProviderJFrog           EnhancedExternalAuthProvider = "jfrog"

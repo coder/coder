@@ -19,7 +19,7 @@ func Test_bitbucketServerConfigDefaults(t *testing.T) {
 	}{
 		{
 			// Very few fields are statically defined for Bitbucket Server.
-			name: "EmpyBitbucketServer",
+			name: "EmptyBitbucketServer",
 			config: &codersdk.ExternalAuthConfig{
 				Type: bbType,
 			},
@@ -48,6 +48,25 @@ func Test_bitbucketServerConfigDefaults(t *testing.T) {
 				Regex:       `^(https?://)?bitbucket\.example\.com(/.*)?$`,
 				DisplayName: "Bitbucket Server",
 				DisplayIcon: "/icon/bitbucket.svg",
+			},
+		},
+		{
+			// Ensure backwards compatibility. The type should update to "bitbucket-cloud",
+			// but the ID and other fields should remain the same.
+			name: "BitbucketLegacy",
+			config: &codersdk.ExternalAuthConfig{
+				Type: "bitbucket",
+			},
+			expected: codersdk.ExternalAuthConfig{
+				Type:        string(codersdk.EnhancedExternalAuthProviderBitBucketCloud),
+				ID:          "bitbucket", // Legacy ID remains unchanged
+				AuthURL:     "https://bitbucket.org/site/oauth2/authorize",
+				TokenURL:    "https://bitbucket.org/site/oauth2/access_token",
+				ValidateURL: "https://api.bitbucket.org/2.0/user",
+				DisplayName: "BitBucket",
+				DisplayIcon: "/icon/bitbucket.svg",
+				Regex:       `^(https?://)?bitbucket\.org(/.*)?$`,
+				Scopes:      []string{"account", "repository:write"},
 			},
 		},
 	}

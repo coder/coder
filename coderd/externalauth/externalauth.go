@@ -495,8 +495,18 @@ func ConvertConfig(entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([
 
 // applyDefaultsToConfig applies defaults to the config entry.
 func applyDefaultsToConfig(config *codersdk.ExternalAuthConfig) {
+	configType := codersdk.EnhancedExternalAuthProvider(config.Type)
+	if configType == "bitbucket" {
+		// For backwards compatibility, we need to support the "bitbucket" string.
+		configType = codersdk.EnhancedExternalAuthProviderBitBucketCloud
+		defer func() {
+			// The config type determines the config ID (if unset). So change the legacy
+			// type to the correct new type after the defaults have been configured.
+			config.Type = string(codersdk.EnhancedExternalAuthProviderBitBucketCloud)
+		}()
+	}
 	// If static defaults exist, apply them.
-	if defaults, ok := staticDefaults[codersdk.EnhancedExternalAuthProvider(config.Type)]; ok {
+	if defaults, ok := staticDefaults[configType]; ok {
 		copyDefaultSettings(config, defaults)
 		return
 	}
@@ -607,7 +617,7 @@ var staticDefaults = map[codersdk.EnhancedExternalAuthProvider]codersdk.External
 		Regex:       `^(https?://)?dev\.azure\.com(/.*)?$`,
 		Scopes:      []string{"vso.code_write"},
 	},
-	codersdk.EnhancedExternalAuthProviderBitBucket: {
+	codersdk.EnhancedExternalAuthProviderBitBucketCloud: {
 		AuthURL:     "https://bitbucket.org/site/oauth2/authorize",
 		TokenURL:    "https://bitbucket.org/site/oauth2/access_token",
 		ValidateURL: "https://api.bitbucket.org/2.0/user",
