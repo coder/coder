@@ -410,7 +410,7 @@ func ConvertConfig(entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([
 		// Applies defaults to the config entry.
 		// This allows users to very simply state that they type is "GitHub",
 		// apply their client secret and ID, and have the UI appear nicely.
-		configDefaults(&entry)
+		applyDefaultsToConfig(&entry)
 
 		valid := httpapi.NameValid(entry.ID)
 		if valid != nil {
@@ -494,27 +494,27 @@ func ConvertConfig(entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([
 }
 
 // applyDefaultsToConfig applies defaults to the config entry.
-func configDefaults(config *codersdk.ExternalAuthConfig) {
+func applyDefaultsToConfig(config *codersdk.ExternalAuthConfig) {
 	// If static defaults exist, apply them.
 	if defaults, ok := staticDefaults[codersdk.EnhancedExternalAuthProvider(config.Type)]; ok {
-		applyDefaultsToConfig(config, defaults)
+		copyDefaultSettings(config, defaults)
 		return
 	}
 
 	// Dynamic defaults
 	switch codersdk.EnhancedExternalAuthProvider(config.Type) {
 	case codersdk.EnhancedExternalAuthProviderBitBucketServer:
-		applyDefaultsToConfig(config, bitbucketServerDefaults(config))
+		copyDefaultSettings(config, bitbucketServerDefaults(config))
 		return
 	default:
 		// No defaults for this type. We still want to run this apply with
 		// an empty set of defaults.
-		applyDefaultsToConfig(config, codersdk.ExternalAuthConfig{})
+		copyDefaultSettings(config, codersdk.ExternalAuthConfig{})
 		return
 	}
 }
 
-func applyDefaultsToConfig(config *codersdk.ExternalAuthConfig, defaults codersdk.ExternalAuthConfig) {
+func copyDefaultSettings(config *codersdk.ExternalAuthConfig, defaults codersdk.ExternalAuthConfig) {
 	if config.AuthURL == "" {
 		config.AuthURL = defaults.AuthURL
 	}

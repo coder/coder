@@ -55,7 +55,7 @@ func Test_bitbucketServerConfigDefaults(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			configDefaults(tt.config)
+			applyDefaultsToConfig(tt.config)
 			require.Equal(t, tt.expected, *tt.config)
 		})
 	}
