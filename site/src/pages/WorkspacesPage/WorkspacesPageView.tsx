@@ -1,6 +1,6 @@
 import { Template, Workspace } from "api/typesGenerated";
 import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
-import { ComponentProps, FC } from "react";
+import { ComponentProps } from "react";
 import { Margins } from "components/Margins/Margins";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
@@ -49,11 +49,10 @@ export interface WorkspacesPageViewProps {
   canCheckWorkspaces: boolean;
   templatesFetchStatus: TemplateQuery["status"];
   templates: TemplateQuery["data"];
+  canCreateTemplate: boolean;
 }
 
-export const WorkspacesPageView: FC<
-  React.PropsWithChildren<WorkspacesPageViewProps>
-> = ({
+export const WorkspacesPageView = ({
   workspaces,
   dormantWorkspaces,
   error,
@@ -69,7 +68,8 @@ export const WorkspacesPageView: FC<
   canCheckWorkspaces,
   templates,
   templatesFetchStatus,
-}) => {
+  canCreateTemplate,
+}: WorkspacesPageViewProps) => {
   const { saveLocal } = useLocalStorage();
 
   const workspacesDeletionScheduled = dormantWorkspaces
@@ -149,6 +149,7 @@ export const WorkspacesPageView: FC<
       </TableToolbar>
 
       <WorkspacesTable
+        canCreateTemplate={canCreateTemplate}
         workspaces={workspaces}
         isUsingFilter={filterProps.filter.used}
         onUpdateWorkspace={onUpdateWorkspace}
@@ -157,6 +158,7 @@ export const WorkspacesPageView: FC<
         canCheckWorkspaces={canCheckWorkspaces}
         templates={templates}
       />
+
       {count !== undefined && (
         <PaginationWidgetBase
           count={count}
