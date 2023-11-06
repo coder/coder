@@ -69,9 +69,9 @@ func TestDERP(t *testing.T) {
 				assert.True(t, node.CanExchangeMessages)
 				assert.NotEmpty(t, node.RoundTripPing)
 				assert.Len(t, node.ClientLogs, 2)
-				assert.Len(t, node.ClientLogs[0], 1)
+				assert.Len(t, node.ClientLogs[0], 3)
 				assert.Len(t, node.ClientErrs[0], 0)
-				assert.Len(t, node.ClientLogs[1], 1)
+				assert.Len(t, node.ClientLogs[1], 3)
 				assert.Len(t, node.ClientErrs[1], 0)
 
 				assert.False(t, node.STUN.Enabled)
@@ -113,9 +113,11 @@ func TestDERP(t *testing.T) {
 				assert.True(t, node.CanExchangeMessages)
 				assert.NotEmpty(t, node.RoundTripPing)
 				assert.Len(t, node.ClientLogs, 2)
-				assert.Len(t, node.ClientLogs[0], 1)
+				// the exact number of logs depends on the certificates, which we don't control.
+				assert.GreaterOrEqual(t, len(node.ClientLogs[0]), 1)
 				assert.Len(t, node.ClientErrs[0], 0)
-				assert.Len(t, node.ClientLogs[1], 1)
+				// the exact number of logs depends on the certificates, which we don't control.
+				assert.GreaterOrEqual(t, len(node.ClientLogs[1]), 1)
 				assert.Len(t, node.ClientErrs[1], 0)
 
 				assert.True(t, node.STUN.Enabled)
@@ -125,7 +127,7 @@ func TestDERP(t *testing.T) {
 		}
 	})
 
-	t.Run("ForceWebsockets", func(t *testing.T) {
+	t.Run("FailoverToWebsockets", func(t *testing.T) {
 		t.Parallel()
 
 		derpSrv := derp.NewServer(key.NewNode(), func(format string, args ...any) { t.Logf(format, args...) })
@@ -176,8 +178,8 @@ func TestDERP(t *testing.T) {
 				assert.True(t, node.CanExchangeMessages)
 				assert.NotEmpty(t, node.RoundTripPing)
 				assert.Len(t, node.ClientLogs, 2)
-				assert.Len(t, node.ClientLogs[0], 3)
-				assert.Len(t, node.ClientLogs[1], 3)
+				assert.Len(t, node.ClientLogs[0], 5)
+				assert.Len(t, node.ClientLogs[1], 5)
 				assert.Len(t, node.ClientErrs, 2)
 				assert.Len(t, node.ClientErrs[0], 1) // this
 				assert.Len(t, node.ClientErrs[1], 1)
