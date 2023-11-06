@@ -30,23 +30,14 @@ export const Example: Story = {
       },
       MockTemplateVersion,
     ],
-    onPromoteClick: undefined,
   },
 };
 
-export const CanPromote: Story = {
+export const NoEditPermission: Story = {
   args: {
-    activeVersionId: MockTemplateVersion.id,
-    onPromoteClick: action("onPromoteClick"),
-    versions: [
-      {
-        ...MockTemplateVersion,
-        id: "2",
-        name: "test-template-version-2",
-        created_at: "2022-05-18T18:39:01.382927298Z",
-      },
-      MockTemplateVersion,
-    ],
+    ...Example.args,
+    onPromoteClick: undefined,
+    onArchiveClick: undefined,
   },
 };
 
@@ -92,6 +83,14 @@ export const BuildStatuses: Story = {
       },
       MockTemplateVersion,
     ],
+  },
+};
+
+export const BuildStatusesNoEditPermission: Story = {
+  args: {
+    ...BuildStatuses.args,
+    onPromoteClick: undefined,
+    onArchiveClick: undefined,
   },
 };
 

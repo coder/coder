@@ -64,6 +64,8 @@ const TemplateVersionsPage = () => {
     string | undefined
   >();
 
+  console.log("permissions.canUpdateTemplate", permissions.canUpdateTemplate);
+
   return (
     <>
       <Helmet>
