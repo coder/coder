@@ -38,17 +38,18 @@ func TestEntitlements(t *testing.T) {
 	t.Parallel()
 	t.Run("NoLicense", func(t *testing.T) {
 		t.Parallel()
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+		adminClient, adminUser := coderdenttest.New(t, &coderdenttest.Options{
 			DontAddLicense: true,
 		})
-		res, err := client.Entitlements(context.Background())
+		anotherClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
+		res, err := anotherClient.Entitlements(context.Background())
 		require.NoError(t, err)
 		require.False(t, res.HasLicense)
 		require.Empty(t, res.Warnings)
 	})
 	t.Run("FullLicense", func(t *testing.T) {
 		t.Parallel()
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+		adminClient, _ := coderdenttest.New(t, &coderdenttest.Options{
 			AuditLogging:   true,
 			DontAddLicense: true,
 		})
@@ -58,11 +59,11 @@ func TestEntitlements(t *testing.T) {
 			features[feature] = 1
 		}
 		features[codersdk.FeatureUserLimit] = 100
-		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+		coderdenttest.AddLicense(t, adminClient, coderdenttest.LicenseOptions{
 			Features: features,
 			GraceAt:  time.Now().Add(59 * 24 * time.Hour),
 		})
-		res, err := client.Entitlements(context.Background())
+		res, err := adminClient.Entitlements(context.Background()) //nolint:gocritic // adding another user would put us over user limit
 		require.NoError(t, err)
 		assert.True(t, res.HasLicense)
 		ul := res.Features[codersdk.FeatureUserLimit]
@@ -83,27 +84,28 @@ func TestEntitlements(t *testing.T) {
 	})
 	t.Run("FullLicenseToNone", func(t *testing.T) {
 		t.Parallel()
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+		adminClient, adminUser := coderdenttest.New(t, &coderdenttest.Options{
 			AuditLogging:   true,
 			DontAddLicense: true,
 		})
-		license := coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+		anotherClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
+		license := coderdenttest.AddLicense(t, adminClient, coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureUserLimit: 100,
 				codersdk.FeatureAuditLog:  1,
 			},
 		})
-		res, err := client.Entitlements(context.Background())
+		res, err := anotherClient.Entitlements(context.Background())
 		require.NoError(t, err)
 		assert.True(t, res.HasLicense)
 		al := res.Features[codersdk.FeatureAuditLog]
 		assert.Equal(t, codersdk.EntitlementEntitled, al.Entitlement)
 		assert.True(t, al.Enabled)
 
-		err = client.DeleteLicense(context.Background(), license.ID)
+		err = adminClient.DeleteLicense(context.Background(), license.ID)
 		require.NoError(t, err)
 
-		res, err = client.Entitlements(context.Background())
+		res, err = anotherClient.Entitlements(context.Background())
 		require.NoError(t, err)
 		assert.False(t, res.HasLicense)
 		al = res.Features[codersdk.FeatureAuditLog]
@@ -112,8 +114,9 @@ func TestEntitlements(t *testing.T) {
 	})
 	t.Run("Pubsub", func(t *testing.T) {
 		t.Parallel()
-		client, _, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{DontAddLicense: true})
-		entitlements, err := client.Entitlements(context.Background())
+		adminClient, _, api, adminUser := coderdenttest.NewWithAPI(t, &coderdenttest.Options{DontAddLicense: true})
+		anotherClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
+		entitlements, err := anotherClient.Entitlements(context.Background())
 		require.NoError(t, err)
 		require.False(t, entitlements.HasLicense)
 		//nolint:gocritic // unit test
@@ -131,18 +134,19 @@ func TestEntitlements(t *testing.T) {
 		err = api.Pubsub.Publish(coderd.PubsubEventLicenses, []byte{})
 		require.NoError(t, err)
 		require.Eventually(t, func() bool {
-			entitlements, err := client.Entitlements(context.Background())
+			entitlements, err := anotherClient.Entitlements(context.Background())
 			assert.NoError(t, err)
 			return entitlements.HasLicense
 		}, testutil.WaitShort, testutil.IntervalFast)
 	})
 	t.Run("Resync", func(t *testing.T) {
 		t.Parallel()
-		client, _, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		adminClient, _, api, adminUser := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			EntitlementsUpdateInterval: 25 * time.Millisecond,
 			DontAddLicense:             true,
 		})
-		entitlements, err := client.Entitlements(context.Background())
+		anotherClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
+		entitlements, err := anotherClient.Entitlements(context.Background())
 		require.NoError(t, err)
 		require.False(t, entitlements.HasLicense)
 		// Valid
@@ -177,7 +181,7 @@ func TestEntitlements(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Eventually(t, func() bool {
-			entitlements, err := client.Entitlements(context.Background())
+			entitlements, err := anotherClient.Entitlements(context.Background())
 			assert.NoError(t, err)
 			return entitlements.HasLicense
 		}, testutil.WaitShort, testutil.IntervalFast)
@@ -224,7 +228,7 @@ func TestAuditLogging(t *testing.T) {
 			DontAddLicense: true,
 		})
 		workspace, agent := setupWorkspaceAgent(t, client, user, 0)
-		conn, err := client.DialWorkspaceAgent(ctx, agent.ID, nil)
+		conn, err := client.DialWorkspaceAgent(ctx, agent.ID, nil) //nolint:gocritic // RBAC is not the purpose of this test
 		require.NoError(t, err)
 		defer conn.Close()
 		connected := conn.AwaitReachable(ctx)

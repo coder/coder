@@ -153,6 +153,7 @@ func TestUserQuietHours(t *testing.T) {
 		})
 
 		ctx := testutil.Context(t, testutil.WaitLong)
+		//nolint:gocritic // We want to test the lack of entitlement, not RBAC.
 		_, err := client.UserQuietHoursSchedule(ctx, user.UserID.String())
 		require.Error(t, err)
 		var sdkErr *codersdk.Error
@@ -181,6 +182,7 @@ func TestUserQuietHours(t *testing.T) {
 		})
 
 		ctx := testutil.Context(t, testutil.WaitLong)
+		//nolint:gocritic // We want to test the lack of feature, not RBAC.
 		_, err := client.UserQuietHoursSchedule(ctx, user.UserID.String())
 		require.Error(t, err)
 		var sdkErr *codersdk.Error
@@ -208,6 +210,7 @@ func TestUserQuietHours(t *testing.T) {
 		})
 
 		ctx := testutil.Context(t, testutil.WaitLong)
+		//nolint:gocritic // We want to test the lack of feature, not RBAC.
 		_, err := client.UserQuietHoursSchedule(ctx, user.UserID.String())
 		require.Error(t, err)
 		var sdkErr *codersdk.Error

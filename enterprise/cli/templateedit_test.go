@@ -77,6 +77,7 @@ func TestTemplateEdit(t *testing.T) {
 				IncludeProvisionerDaemon: true,
 			},
 		})
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -89,7 +90,7 @@ func TestTemplateEdit(t *testing.T) {
 			"-y",
 		)
 
-		clitest.SetupConfig(t, client, conf)
+		clitest.SetupConfig(t, templateAdmin, conf)
 
 		err := inv.Run()
 		require.Error(t, err)

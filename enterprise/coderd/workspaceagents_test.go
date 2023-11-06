@@ -45,6 +45,7 @@ func TestBlockNonBrowser(t *testing.T) {
 			},
 		})
 		_, agent := setupWorkspaceAgent(t, client, user, 0)
+		//nolint:gocritic // Testing that even the owner gets blocked.
 		_, err := client.DialWorkspaceAgent(context.Background(), agent.ID, nil)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -63,6 +64,7 @@ func TestBlockNonBrowser(t *testing.T) {
 			},
 		})
 		_, agent := setupWorkspaceAgent(t, client, user, 0)
+		//nolint:gocritic // Testing RBAC is not the point of this test.
 		conn, err := client.DialWorkspaceAgent(context.Background(), agent.ID, nil)
 		require.NoError(t, err)
 		_ = conn.Close()
