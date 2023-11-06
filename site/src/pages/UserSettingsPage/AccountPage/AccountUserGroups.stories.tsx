@@ -2,12 +2,17 @@ import { type Group } from "api/typesGenerated";
 import { type Meta, type StoryObj } from "@storybook/react";
 
 import { AccountUserGroups } from "./AccountUserGroups";
-import { MockGroup as MockGroup1, mockApiError } from "testHelpers/entities";
+import {
+  MockGroup as MockGroup1,
+  MockUser,
+  mockApiError,
+} from "testHelpers/entities";
 
 const MockGroup2: Group = {
   ...MockGroup1,
   avatar_url: "",
   display_name: "Goofy Goobers",
+  members: [MockUser],
 };
 
 const mockError = mockApiError({
