@@ -4,21 +4,6 @@ import { renderWithAuth } from "testHelpers/renderHelpers";
 import { Language as SSHKeysPageLanguage, SSHKeysPage } from "./SSHKeysPage";
 import { MockGitSSHKey, mockApiError } from "testHelpers/entities";
 
-/**
- * React Query will automatically log all errors outside of production mode,
- * even if you're running a test where they're expected
- *
- * v4 had a way to set custom loggers, but they're removed in v5. Only other
- * option is changing the env directly, which feels super dicey
- */
-beforeAll(() => {
-  jest.spyOn(console, "error").mockImplementation(() => {});
-});
-
-afterAll(() => {
-  jest.clearAllMocks();
-});
-
 describe("SSH keys Page", () => {
   it("shows the SSH key", async () => {
     renderWithAuth(<SSHKeysPage />);
