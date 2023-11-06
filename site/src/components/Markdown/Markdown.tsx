@@ -5,13 +5,13 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import { FC, memo } from "react";
-import ReactMarkdown from "react-markdown";
+import { type Interpolation, type Theme } from "@emotion/react";
+import { type FC, memo } from "react";
+import ReactMarkdown, { type Options } from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import gfm from "remark-gfm";
 import { colors } from "theme/colors";
 import { darcula } from "react-syntax-highlighter/dist/cjs/styles/prism";
-import { type Interpolation, type Theme } from "@emotion/react";
 
 interface MarkdownProps {
   /**
@@ -113,19 +113,35 @@ export const Markdown: FC<MarkdownProps> = (props) => {
   );
 };
 
+interface MarkdownProps {
+  /**
+   * The Markdown text to parse and render
+   */
+  children: string;
+
+  className?: string;
+
+  /**
+   * Can override the behavior of the generated elements
+   */
+  components?: Options["components"];
+}
+
 /**
  * Supports a strict subset of Markdown that bahaves well as inline/confined content.
  */
 export const InlineMarkdown: FC<MarkdownProps> = (props) => {
-  const { children, className } = props;
+  const { children, className, components = {} } = props;
 
   return (
     <ReactMarkdown
       css={markdownStyles}
       className={className}
-      allowedElements={["em", "strong", "a", "pre", "code"]}
+      allowedElements={["p", "em", "strong", "a", "pre", "code"]}
       unwrapDisallowed
       components={{
+        p: ({ children }) => <>{children}</>,
+
         a: ({ href, target, children }) => (
           <Link href={href} target={target}>
             {children}
@@ -146,6 +162,8 @@ export const InlineMarkdown: FC<MarkdownProps> = (props) => {
             {children}
           </code>
         ),
+
+        ...components,
       }}
     >
       {children}

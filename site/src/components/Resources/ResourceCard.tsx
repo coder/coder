@@ -1,8 +1,9 @@
-import { type FC, useState } from "react";
+import { type FC, useState, PropsWithChildren } from "react";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import { type CSSObject, type Interpolation, type Theme } from "@emotion/react";
-import { WorkspaceAgent, WorkspaceResource } from "api/typesGenerated";
+import { Children } from "react";
+import type { WorkspaceAgent, WorkspaceResource } from "api/typesGenerated";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { CopyableValue } from "components/CopyableValue/CopyableValue";
 import { Stack } from "../Stack/Stack";
@@ -73,6 +74,14 @@ export interface ResourceCardProps {
   agentRow: (agent: WorkspaceAgent) => JSX.Element;
 }
 
+const p = ({ children }: PropsWithChildren) => {
+  const childrens = Children.toArray(children);
+  if (childrens.every((child) => typeof child === "string")) {
+    return <CopyableValue value={childrens.join("")}>{children}</CopyableValue>;
+  }
+  return <>{children}</>;
+};
+
 export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
   const [shouldDisplayAllMetadata, setShouldDisplayAllMetadata] =
     useState(false);
@@ -137,11 +146,9 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
                   {meta.sensitive ? (
                     <SensitiveValue value={meta.value} />
                   ) : (
-                    <CopyableValue value={meta.value}>
-                      <MemoizedInlineMarkdown>
-                        {meta.value}
-                      </MemoizedInlineMarkdown>
-                    </CopyableValue>
+                    <MemoizedInlineMarkdown components={{ p }}>
+                      {meta.value}
+                    </MemoizedInlineMarkdown>
                   )}
                 </div>
               </div>
