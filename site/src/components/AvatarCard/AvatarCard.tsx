@@ -22,7 +22,7 @@ export function AvatarCard({
   const theme = useTheme();
 
   return (
-    <article
+    <div
       css={{
         maxWidth: maxWidth === "none" ? undefined : `${maxWidth}px`,
         display: "flex",
@@ -72,6 +72,6 @@ export function AvatarCard({
       >
         {header}
       </Avatar>
-    </article>
+    </div>
   );
 }
