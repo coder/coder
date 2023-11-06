@@ -74,7 +74,7 @@ describe("SSH keys Page", () => {
 
         jest.spyOn(API, "regenerateUserSSHKey").mockRejectedValueOnce(
           mockApiError({
-            message: "Error regenerating SSH key",
+            message: SSHKeysPageLanguage.regenerationError,
           }),
         );
 
@@ -93,7 +93,8 @@ describe("SSH keys Page", () => {
         fireEvent.click(confirmButton);
 
         // Check if the error message is displayed
-        await screen.findByText("Error regenerating SSH key");
+        const alert = await screen.findByRole("alert");
+        expect(alert).toHaveTextContent(SSHKeysPageLanguage.regenerationError);
 
         // Check if the API was called correctly
         expect(API.regenerateUserSSHKey).toBeCalledTimes(1);

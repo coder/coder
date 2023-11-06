@@ -1,14 +1,17 @@
 import { PropsWithChildren, FC, useState } from "react";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Section } from "components/SettingsLayout/Section";
 import { SSHKeysPageView } from "./SSHKeysPageView";
 import { regenerateUserSSHKey, userSSHKey } from "api/queries/sshKeys";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { getErrorMessage } from "api/errors";
 
 export const Language = {
   title: "SSH keys",
   regenerateDialogTitle: "Regenerate SSH key?",
+  regenerationError: "Failed to regenerate SSH key",
+  regenerationSuccess: "SSH Key regenerated successfully.",
   regenerateDialogMessage:
     "You will need to replace the public SSH key on services you use it with, and you'll need to rebuild existing workspaces.",
   confirmLabel: "Confirm",
@@ -31,7 +34,6 @@ export const SSHKeysPage: FC<PropsWithChildren<unknown>> = () => {
         <SSHKeysPageView
           isLoading={userSSHKeyQuery.isLoading}
           getSSHKeyError={userSSHKeyQuery.error}
-          regenerateSSHKeyError={regenerateSSHKeyMutation.error}
           sshKey={userSSHKeyQuery.data}
           onRegenerateClick={() => setIsConfirmingRegeneration(true)}
         />
@@ -49,10 +51,9 @@ export const SSHKeysPage: FC<PropsWithChildren<unknown>> = () => {
         onConfirm={async () => {
           try {
             await regenerateSSHKeyMutation.mutateAsync();
-            displaySuccess("SSH Key regenerated successfully.");
-          } catch (err) {
-            // No error handling because UI displays the error message after
-            // React Query automatically puts it into state
+            displaySuccess(Language.regenerationSuccess);
+          } catch (error) {
+            displayError(getErrorMessage(error, Language.regenerationError));
           } finally {
             setIsConfirmingRegeneration(false);
           }
