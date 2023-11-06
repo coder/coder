@@ -19,6 +19,7 @@ const meta: Meta<typeof CreateWorkspacePageView> = {
     template: MockTemplate,
     parameters: [],
     externalAuth: [],
+    mode: "form",
     permissions: {
       createWorkspaceForUser: true,
     },

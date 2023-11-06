@@ -94,7 +94,7 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
       <span
         css={
           !isPrivateApp && {
-            marginRight: theme.spacing(1),
+            marginRight: 8,
           }
         }
       >

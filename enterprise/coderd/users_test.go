@@ -37,7 +37,7 @@ func TestUserQuietHours(t *testing.T) {
 		dv.UserQuietHoursSchedule.DefaultSchedule.Set(defaultQuietHoursSchedule)
 		dv.Experiments.Set(string(codersdk.ExperimentTemplateAutostopRequirement))
 
-		client, user := coderdenttest.New(t, &coderdenttest.Options{
+		adminClient, adminUser := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
 			},
@@ -48,6 +48,10 @@ func TestUserQuietHours(t *testing.T) {
 				},
 			},
 		})
+
+		// Do it with another user to make sure that we're not hitting RBAC
+		// errors.
+		client, user := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
 
 		// Get quiet hours for a user that doesn't have them set.
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -72,7 +76,7 @@ func TestUserQuietHours(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		sched2, err := client.UpdateUserQuietHoursSchedule(ctx, user.UserID.String(), codersdk.UpdateUserQuietHoursScheduleRequest{
+		sched2, err := client.UpdateUserQuietHoursSchedule(ctx, user.ID.String(), codersdk.UpdateUserQuietHoursScheduleRequest{
 			Schedule: customQuietHoursSchedule,
 		})
 		require.NoError(t, err)
@@ -83,7 +87,7 @@ func TestUserQuietHours(t *testing.T) {
 		require.WithinDuration(t, customScheduleParsed.Next(time.Now()), sched2.Next, 15*time.Second)
 
 		// Get quiet hours for a user that has them set.
-		sched3, err := client.UserQuietHoursSchedule(ctx, user.UserID.String())
+		sched3, err := client.UserQuietHoursSchedule(ctx, user.ID.String())
 		require.NoError(t, err)
 		require.Equal(t, customScheduleParsed.String(), sched3.RawSchedule)
 		require.True(t, sched3.UserSet)
@@ -92,33 +96,33 @@ func TestUserQuietHours(t *testing.T) {
 		require.WithinDuration(t, customScheduleParsed.Next(time.Now()), sched3.Next, 15*time.Second)
 
 		// Try setting a garbage schedule.
-		_, err = client.UpdateUserQuietHoursSchedule(ctx, user.UserID.String(), codersdk.UpdateUserQuietHoursScheduleRequest{
+		_, err = client.UpdateUserQuietHoursSchedule(ctx, user.ID.String(), codersdk.UpdateUserQuietHoursScheduleRequest{
 			Schedule: "garbage",
 		})
 		require.Error(t, err)
 		require.ErrorContains(t, err, "parse daily schedule")
 
 		// Try setting a non-daily schedule.
-		_, err = client.UpdateUserQuietHoursSchedule(ctx, user.UserID.String(), codersdk.UpdateUserQuietHoursScheduleRequest{
+		_, err = client.UpdateUserQuietHoursSchedule(ctx, user.ID.String(), codersdk.UpdateUserQuietHoursScheduleRequest{
 			Schedule: "CRON_TZ=America/Chicago 0 0 * * 1",
 		})
 		require.Error(t, err)
 		require.ErrorContains(t, err, "parse daily schedule")
 
 		// Try setting a schedule with a timezone that doesn't exist.
-		_, err = client.UpdateUserQuietHoursSchedule(ctx, user.UserID.String(), codersdk.UpdateUserQuietHoursScheduleRequest{
+		_, err = client.UpdateUserQuietHoursSchedule(ctx, user.ID.String(), codersdk.UpdateUserQuietHoursScheduleRequest{
 			Schedule: "CRON_TZ=Deans/House 0 0 * * *",
 		})
 		require.Error(t, err)
 		require.ErrorContains(t, err, "parse daily schedule")
 
 		// Try setting a schedule with more than one time.
-		_, err = client.UpdateUserQuietHoursSchedule(ctx, user.UserID.String(), codersdk.UpdateUserQuietHoursScheduleRequest{
+		_, err = client.UpdateUserQuietHoursSchedule(ctx, user.ID.String(), codersdk.UpdateUserQuietHoursScheduleRequest{
 			Schedule: "CRON_TZ=America/Chicago 0 0,12 * * *",
 		})
 		require.Error(t, err)
 		require.ErrorContains(t, err, "more than one time")
-		_, err = client.UpdateUserQuietHoursSchedule(ctx, user.UserID.String(), codersdk.UpdateUserQuietHoursScheduleRequest{
+		_, err = client.UpdateUserQuietHoursSchedule(ctx, user.ID.String(), codersdk.UpdateUserQuietHoursScheduleRequest{
 			Schedule: "CRON_TZ=America/Chicago 0-30 0 * * *",
 		})
 		require.Error(t, err)

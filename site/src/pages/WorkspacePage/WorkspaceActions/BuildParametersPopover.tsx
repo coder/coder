@@ -51,7 +51,7 @@ export const BuildParametersPopover = ({
       </PopoverTrigger>
       <PopoverContent
         horizontal="right"
-        css={(theme) => ({ ".MuiPaper-root": { width: theme.spacing(38) } })}
+        css={{ ".MuiPaper-root": { width: 304 } }}
       >
         <BuildParametersPopoverContent
           workspace={workspace}

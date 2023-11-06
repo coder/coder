@@ -5,19 +5,19 @@ import { Stack } from "components/Stack/Stack";
 import { colors } from "theme/colors";
 
 const styles = {
-  badge: (theme) => ({
+  badge: {
     fontSize: 10,
     height: 24,
     fontWeight: 600,
     textTransform: "uppercase",
     letterSpacing: "0.085em",
-    padding: theme.spacing(0, 1.5),
+    padding: "0 12px",
     borderRadius: 9999,
     display: "flex",
     alignItems: "center",
     width: "fit-content",
     whiteSpace: "nowrap",
-  }),
+  },
 
   enabledBadge: (theme) => ({
     border: `1px solid ${theme.palette.success.light}`,
@@ -125,9 +125,7 @@ export const AlphaBadge: FC = () => {
 export const Badges: FC<PropsWithChildren> = ({ children }) => {
   return (
     <Stack
-      css={(theme) => ({
-        margin: theme.spacing(0, 0, 2),
-      })}
+      css={{ margin: "0 0 16px" }}
       direction="row"
       alignItems="center"
       spacing={1}

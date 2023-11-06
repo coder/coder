@@ -2653,10 +2653,14 @@ func (q *querier) UpdateUserProfile(ctx context.Context, arg database.UpdateUser
 }
 
 func (q *querier) UpdateUserQuietHoursSchedule(ctx context.Context, arg database.UpdateUserQuietHoursScheduleParams) (database.User, error) {
-	fetch := func(ctx context.Context, arg database.UpdateUserQuietHoursScheduleParams) (database.User, error) {
-		return q.db.GetUserByID(ctx, arg.ID)
+	u, err := q.db.GetUserByID(ctx, arg.ID)
+	if err != nil {
+		return database.User{}, err
 	}
-	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateUserQuietHoursSchedule)(ctx, arg)
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, u.UserDataRBACObject()); err != nil {
+		return database.User{}, err
+	}
+	return q.db.UpdateUserQuietHoursSchedule(ctx, arg)
 }
 
 // UpdateUserRoles updates the site roles of a user. The validation for this function include more than

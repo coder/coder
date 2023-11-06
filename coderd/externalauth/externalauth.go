@@ -635,6 +635,9 @@ func (e *exchangeWithClientSecret) Exchange(ctx context.Context, code string, op
 		httpClient = http.DefaultClient
 	}
 	oldTransport := httpClient.Transport
+	if oldTransport == nil {
+		oldTransport = http.DefaultTransport
+	}
 	httpClient.Transport = roundTripper(func(req *http.Request) (*http.Response, error) {
 		req.Header.Set("Authorization", "Bearer "+e.ClientSecret)
 		return oldTransport.RoundTrip(req)

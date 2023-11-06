@@ -1,5 +1,5 @@
 import { type FC, type ReactNode, useMemo, forwardRef } from "react";
-import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { css, type Interpolation, type Theme } from "@emotion/react";
 import { colors } from "theme/colors";
 
 export type PillType =
@@ -53,7 +53,6 @@ export const Pill: FC<PillProps> = forwardRef<HTMLDivElement, PillProps>(
       type = "neutral",
       ...attrs
     } = props;
-    const theme = useTheme();
 
     const typeStyles = useMemo(() => {
       if (type in themeOverrides) {
@@ -75,9 +74,9 @@ export const Pill: FC<PillProps> = forwardRef<HTMLDivElement, PillProps>(
             borderRadius: 99999,
             fontSize: 12,
             color: "#FFF",
-            height: theme.spacing(3),
-            paddingLeft: icon ? theme.spacing(0.75) : theme.spacing(1.5),
-            paddingRight: theme.spacing(1.5),
+            height: 24,
+            paddingLeft: icon ? 6 : 12,
+            paddingRight: 12,
             whiteSpace: "nowrap",
             fontWeight: 400,
           },
@@ -89,9 +88,9 @@ export const Pill: FC<PillProps> = forwardRef<HTMLDivElement, PillProps>(
         {icon && (
           <div
             css={css`
-              margin-right: ${theme.spacing(0.5)};
-              width: ${theme.spacing(1.75)};
-              height: ${theme.spacing(1.75)};
+              margin-right: 4px;
+              width: 14px;
+              height: 14px;
               line-height: 0;
               display: flex;
               align-items: center;
@@ -99,8 +98,8 @@ export const Pill: FC<PillProps> = forwardRef<HTMLDivElement, PillProps>(
 
               & > img,
               & > svg {
-                width: ${theme.spacing(1.75)};
-                height: ${theme.spacing(1.75)};
+                width: 14px;
+                height: 14px;
               }
             `}
           >

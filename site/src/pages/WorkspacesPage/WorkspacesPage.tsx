@@ -97,6 +97,7 @@ const WorkspacesPage: FC = () => {
   const { entitlements } = useDashboard();
   const canCheckWorkspaces =
     entitlements.features["workspace_batch_actions"].enabled;
+  const permissions = usePermissions();
 
   // We want to uncheck the selected workspaces always when the url changes
   // because of filtering or pagination
@@ -111,6 +112,7 @@ const WorkspacesPage: FC = () => {
       </Helmet>
 
       <WorkspacesPageView
+        canCreateTemplate={permissions.createTemplates}
         checkedWorkspaces={checkedWorkspaces}
         onCheckChange={setCheckedWorkspaces}
         canCheckWorkspaces={canCheckWorkspaces}

@@ -4,13 +4,15 @@ import Skeleton from "@mui/material/Skeleton";
 
 export const TableToolbar = styled(Box)(({ theme }) => ({
   fontSize: 13,
-  marginBottom: theme.spacing(1),
+  marginBottom: "8px",
   marginTop: 0,
-  height: 36, // The size of a small button
+  height: "36px", // The size of a small button
   color: theme.palette.text.secondary,
-  "& strong": { color: theme.palette.text.primary },
   display: "flex",
   alignItems: "center",
+  "& strong": {
+    color: theme.palette.text.primary,
+  },
 }));
 
 type BasePaginationStatusProps = {

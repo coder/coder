@@ -15,8 +15,8 @@ export const NotFoundPage: FC = () => {
     >
       <div
         css={(theme) => ({
-          margin: theme.spacing(1),
-          padding: theme.spacing(1),
+          margin: 8,
+          padding: 8,
           borderRight: theme.palette.divider,
         })}
       >

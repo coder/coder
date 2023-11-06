@@ -2,14 +2,15 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/pretty"
-
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/cli/cliutil/levenshtein"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/pretty"
 )
 
 type WorkspaceCLIAction int
@@ -163,7 +164,7 @@ func (pr *ParameterResolver) verifyConstraints(resolved []codersdk.WorkspaceBuil
 	for _, r := range resolved {
 		tvp := findTemplateVersionParameter(r, templateVersionParameters)
 		if tvp == nil {
-			return xerrors.Errorf("parameter %q is not present in the template", r.Name)
+			return templateVersionParametersNotFound(r.Name, templateVersionParameters)
 		}
 
 		if tvp.Ephemeral && !pr.promptBuildOptions && findWorkspaceBuildParameter(tvp.Name, pr.buildOptions) == nil {
@@ -253,4 +254,20 @@ func isValidTemplateParameterOption(buildParameter codersdk.WorkspaceBuildParame
 		}
 	}
 	return false
+}
+
+func templateVersionParametersNotFound(unknown string, params []codersdk.TemplateVersionParameter) error {
+	var sb strings.Builder
+	_, _ = sb.WriteString(fmt.Sprintf("parameter %q is not present in the template.", unknown))
+	// Going with a fairly generous edit distance
+	maxDist := len(unknown) / 2
+	var paramNames []string
+	for _, p := range params {
+		paramNames = append(paramNames, p.Name)
+	}
+	matches := levenshtein.Matches(unknown, maxDist, paramNames...)
+	if len(matches) > 0 {
+		_, _ = sb.WriteString(fmt.Sprintf("\nDid you mean: %s", strings.Join(matches, ", ")))
+	}
+	return xerrors.Errorf(sb.String())
 }

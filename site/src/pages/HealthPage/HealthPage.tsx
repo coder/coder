@@ -114,7 +114,7 @@ export function HealthPageView({
       >
         <Box
           sx={{
-            width: (theme) => theme.spacing(32),
+            width: 256,
             flexShrink: 0,
             borderRight: (theme) => `1px solid ${theme.palette.divider}`,
           }}
@@ -125,7 +125,7 @@ export function HealthPageView({
               textTransform: "uppercase",
               fontWeight: 500,
               color: (theme) => theme.palette.text.secondary,
-              padding: (theme) => theme.spacing(1.5, 3),
+              padding: "12px 24px",
               letterSpacing: "0.5px",
             }}
           >
@@ -157,7 +157,7 @@ export function HealthPageView({
                       gap: 1,
                       textAlign: "left",
                       height: 36,
-                      padding: (theme) => theme.spacing(0, 3),
+                      padding: "0 24px",
                       cursor: "pointer",
                       pointerEvents: isActive ? "none" : "auto",
                       color: (theme) =>
@@ -214,15 +214,15 @@ const styles = {
   stats: (theme) => ({
     padding: 0,
     border: 0,
-    gap: theme.spacing(6),
-    rowGap: theme.spacing(3),
+    gap: 48,
+    rowGap: 24,
     flex: 1,
 
     [theme.breakpoints.down("md")]: {
       display: "flex",
       flexDirection: "column",
       alignItems: "flex-start",
-      gap: theme.spacing(1),
+      gap: 8,
     },
   }),
 

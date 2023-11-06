@@ -129,7 +129,7 @@ const ProxyMessagesList: FC<{
       sx={{
         borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
         backgroundColor: (theme) => theme.palette.background.default,
-        p: (theme) => theme.spacing(2, 3),
+        p: "16px 24px",
       }}
     >
       <Box
@@ -147,7 +147,7 @@ const ProxyMessagesList: FC<{
           component="pre"
           key={"message" + index}
           sx={{
-            margin: (theme) => theme.spacing(0, 0, 1),
+            margin: "0 0 8px",
             fontSize: 14,
             whiteSpace: "pre-wrap",
           }}

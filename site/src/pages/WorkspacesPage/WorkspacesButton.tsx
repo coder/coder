@@ -22,7 +22,6 @@ import {
 } from "components/Popover/Popover";
 
 const ICON_SIZE = 18;
-const COLUMN_GAP = 1.5;
 
 type TemplatesQuery = UseQueryResult<Template[]>;
 
@@ -70,7 +69,7 @@ export function WorkspacesButton({
           onValueChange={(newValue) => setSearchTerm(newValue)}
           placeholder="Type/select a workspace template"
           label="Template select for workspace"
-          sx={{ flexShrink: 0, columnGap: COLUMN_GAP }}
+          sx={{ flexShrink: 0, columnGap: 1.5 }}
         />
 
         <OverflowY
@@ -96,7 +95,7 @@ export function WorkspacesButton({
 
         <Box
           css={(theme) => ({
-            padding: theme.spacing(1, 0),
+            padding: "8px 0",
             borderTop: `1px solid ${theme.palette.divider}`,
           })}
         >
@@ -105,7 +104,7 @@ export function WorkspacesButton({
             css={(theme) => ({
               display: "flex",
               alignItems: "center",
-              columnGap: theme.spacing(COLUMN_GAP),
+              columnGap: 12,
 
               color: theme.palette.primary.main,
             })}
@@ -123,11 +122,11 @@ function WorkspaceResultsRow({ template }: { template: Template }) {
   return (
     <PopoverLink
       to={`/templates/${template.name}/workspace`}
-      css={(theme) => ({
+      css={{
         display: "flex",
-        gap: theme.spacing(COLUMN_GAP),
+        gap: 12,
         alignItems: "center",
-      })}
+      }}
     >
       <Avatar
         src={template.icon}
@@ -182,7 +181,7 @@ function PopoverLink(props: RouterLinkProps) {
       {...props}
       css={(theme) => ({
         color: theme.palette.text.primary,
-        padding: theme.spacing(1, 2),
+        padding: "8px 16px",
         fontSize: 14,
         outline: "none",
         textDecoration: "none",

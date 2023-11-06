@@ -35,7 +35,7 @@ export const SyntaxHighlighter: FC<{
   return (
     <div
       css={(theme) => ({
-        padding: theme.spacing(1, 0),
+        padding: "8px 0",
         background: theme.palette.background.paper,
         height: "100%",
       })}

@@ -60,7 +60,7 @@ export const DashboardLayout: FC = () => {
             sx: (theme) => ({
               background: theme.palette.background.paper,
               color: theme.palette.text.primary,
-              maxWidth: theme.spacing(55),
+              maxWidth: 440,
               flexDirection: "row",
               borderColor: theme.palette.info.light,
 

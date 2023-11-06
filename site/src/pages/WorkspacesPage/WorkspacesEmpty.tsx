@@ -8,30 +8,87 @@ import { Link } from "react-router-dom";
 export const WorkspacesEmpty = (props: {
   isUsingFilter: boolean;
   templates?: Template[];
+  canCreateTemplate: boolean;
 }) => {
-  const { isUsingFilter, templates } = props;
+  const { isUsingFilter, templates, canCreateTemplate } = props;
   const totalFeaturedTemplates = 6;
   const featuredTemplates = templates?.slice(0, totalFeaturedTemplates);
+  const defaultTitle = "Create a workspace";
+  const defaultMessage =
+    "A workspace is your personal, customizable development environment.";
+  const defaultImage = (
+    <div
+      css={{
+        maxWidth: "50%",
+        height: 272,
+        overflow: "hidden",
+        marginTop: 48,
+        opacity: 0.85,
+
+        "& img": {
+          maxWidth: "100%",
+        },
+      }}
+    >
+      <img src="/featured/workspaces.webp" alt="" />
+    </div>
+  );
 
   if (isUsingFilter) {
     return <TableEmpty message="No results matched your search" />;
   }
 
+  if (templates && templates.length === 0 && canCreateTemplate) {
+    return (
+      <TableEmpty
+        message={defaultTitle}
+        description={`${defaultMessage} To create a workspace, you first need to create a template.`}
+        cta={
+          <Button
+            component={Link}
+            to="/templates"
+            variant="contained"
+            startIcon={<ArrowForwardOutlined />}
+          >
+            Go to templates
+          </Button>
+        }
+        css={{
+          paddingBottom: 0,
+        }}
+        image={defaultImage}
+      />
+    );
+  }
+
+  if (templates && templates.length === 0 && !canCreateTemplate) {
+    return (
+      <TableEmpty
+        message={defaultTitle}
+        description={`${defaultMessage} There are no templates available, but you will see them here once your admin adds them.`}
+        css={{
+          paddingBottom: 0,
+        }}
+        image={defaultImage}
+      />
+    );
+  }
+
   return (
     <TableEmpty
-      message="Create a workspace"
-      description="A workspace is your personal, customizable development environment in the cloud. Select one template below to start."
+      message={defaultTitle}
+      description={`${defaultMessage} Select one template below to start.`}
       cta={
         <div>
           <div
-            css={(theme) => ({
+            css={{
               display: "flex",
               flexWrap: "wrap",
-              gap: theme.spacing(2),
-              marginBottom: theme.spacing(3),
+              gap: 16,
+              marginBottom: 24,
               justifyContent: "center",
               maxWidth: "800px",
-            })}
+            }}
           >
             {featuredTemplates?.map((t) => (
               <Link
@@ -39,12 +96,12 @@ export const WorkspacesEmpty = (props: {
                 key={t.id}
                 css={(theme) => ({
                   width: "320px",
-                  padding: theme.spacing(2),
+                  padding: 16,
                   borderRadius: 6,
                   border: `1px solid ${theme.palette.divider}`,
                   textAlign: "left",
                   display: "flex",
-                  gap: theme.spacing(2),
+                  gap: 16,
                   textDecoration: "none",
                   color: "inherit",
 
@@ -65,7 +122,7 @@ export const WorkspacesEmpty = (props: {
                 </div>
                 <div>
                   <h4 css={{ fontSize: 14, fontWeight: 600, margin: 0 }}>
-                    {t.display_name}
+                    {t.display_name.length > 0 ? t.display_name : t.name}
                   </h4>
                   <span
                     css={(theme) => ({
@@ -80,6 +137,7 @@ export const WorkspacesEmpty = (props: {
               </Link>
             ))}
           </div>
+
           {templates && templates.length > totalFeaturedTemplates && (
             <Button
               component={Link}

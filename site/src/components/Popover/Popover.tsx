@@ -128,19 +128,19 @@ export const PopoverContent = (
   return (
     <MuiPopover
       disablePortal
-      css={(theme) => ({
+      css={{
         // When it is on hover mode, and the mode is moving from the trigger to
         // the popover, if there is any space, the popover will be closed. I
         // found this is a limitation on how MUI structured the component. It is
         // not a big issue for now but we can re-evaluate it in the future.
-        marginTop: hoverMode ? undefined : theme.spacing(1),
+        marginTop: hoverMode ? undefined : 8,
         pointerEvents: hoverMode ? "none" : undefined,
         "& .MuiPaper-root": {
-          minWidth: theme.spacing(40),
+          minWidth: 320,
           fontSize: 14,
           pointerEvents: hoverMode ? "auto" : undefined,
         },
-      })}
+      }}
       {...horizontalProps(horizontal)}
       {...modeProps(popover)}
       {...props}

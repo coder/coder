@@ -72,12 +72,12 @@ export const CreateTokenPage: FC = () => {
       <p>Make sure you copy the below token before proceeding:</p>
       <CodeExample
         code={newToken?.key ?? ""}
-        css={(theme) => ({
+        css={{
           minHeight: "auto",
           userSelect: "all",
           width: "100%",
-          marginTop: theme.spacing(3),
-        })}
+          marginTop: 24,
+        }}
       />
     </>
   );

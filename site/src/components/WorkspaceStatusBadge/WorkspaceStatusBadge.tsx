@@ -89,7 +89,7 @@ const FailureTooltip = styled(({ className, ...props }: TooltipProps) => (
     backgroundColor: theme.palette.background.paperLight,
     border: `1px solid ${theme.palette.divider}`,
     fontSize: 12,
-    padding: theme.spacing(1, 1.25),
+    padding: "8px 10px",
   },
 }));
 

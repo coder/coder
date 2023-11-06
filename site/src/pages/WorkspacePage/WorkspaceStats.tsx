@@ -1,5 +1,5 @@
 import { css } from "@emotion/css";
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { type Interpolation, type Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
 import { WorkspaceOutdatedTooltip } from "components/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
 import { type FC } from "react";
@@ -7,11 +7,9 @@ import { Link as RouterLink } from "react-router-dom";
 import {
   getDisplayWorkspaceTemplateName,
   isWorkspaceOn,
-  workspaceUpdatePolicy,
 } from "utils/workspace";
 import type { Workspace } from "api/typesGenerated";
 import { Stats, StatsItem } from "components/Stats/Stats";
-import upperFirst from "lodash/upperFirst";
 import { autostartDisplay, autostopDisplay } from "utils/schedule";
 import IconButton from "@mui/material/IconButton";
 import RemoveIcon from "@mui/icons-material/RemoveOutlined";
@@ -26,12 +24,6 @@ import {
   PopoverTrigger,
   usePopover,
 } from "components/Popover/Popover";
-import { useTemplatePoliciesEnabled } from "components/Dashboard/DashboardProvider";
-import {
-  HelpTooltip,
-  HelpTooltipText,
-} from "components/HelpTooltip/HelpTooltip";
-import { Stack } from "components/Stack/Stack";
 
 const Language = {
   workspaceDetails: "Workspace Details",
@@ -45,7 +37,6 @@ export interface WorkspaceStatsProps {
   maxDeadlineIncrease: number;
   maxDeadlineDecrease: number;
   canUpdateWorkspace: boolean;
-  canChangeVersions: boolean;
   quotaBudget?: number;
   onDeadlinePlus: (hours: number) => void;
   onDeadlineMinus: (hours: number) => void;
@@ -58,25 +49,22 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
   maxDeadlineDecrease,
   maxDeadlineIncrease,
   canUpdateWorkspace,
-  canChangeVersions,
   handleUpdate,
   onDeadlineMinus,
   onDeadlinePlus,
 }) => {
-  const theme = useTheme();
   const displayTemplateName = getDisplayWorkspaceTemplateName(workspace);
   const deadlinePlusEnabled = maxDeadlineIncrease >= 1;
   const deadlineMinusEnabled = maxDeadlineDecrease >= 1;
-  const templatePoliciesEnabled = useTemplatePoliciesEnabled();
 
   const paperStyles = css`
-    padding: ${theme.spacing(3)};
-    max-width: ${theme.spacing(36)};
-    margin-top: ${theme.spacing(1)};
+    padding: 24px;
+    max-width: 288px;
+    margin-top: ${8};
     border-radius: 4px;
     display: flex;
     flex-direction: column;
-    gap: ${theme.spacing(1)};
+    gap: ${8};
   `;
 
   return (
@@ -92,12 +80,25 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
           css={styles.statsItem}
           label={Language.templateLabel}
           value={
-            <div css={{ display: "flex", alignItems: "center", gap: 2 }}>
+            <Link
+              component={RouterLink}
+              to={`/templates/${workspace.template_name}`}
+            >
+              {displayTemplateName}
+            </Link>
+          }
+        />
+
+        <StatsItem
+          css={styles.statsItem}
+          label="Version"
+          value={
+            <>
               <Link
                 component={RouterLink}
-                to={`/templates/${workspace.template_name}`}
+                to={`/templates/${workspace.template_name}/versions/${workspace.latest_build.template_version_name}`}
               >
-                {displayTemplateName}
+                {workspace.latest_build.template_version_name}
               </Link>
 
               {workspace.outdated && (
@@ -108,7 +109,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
                   ariaLabel="update version"
                 />
               )}
-            </div>
+            </>
           }
         />
 
@@ -187,27 +188,6 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
               quotaBudget ? `/ ${quotaBudget}` : ""
             }`}
           />
-        )}
-        {templatePoliciesEnabled && (
-          <Stack direction="row" spacing={0.5}>
-            <StatsItem
-              css={styles.statsItem}
-              label={Language.updatePolicy}
-              value={upperFirst(
-                workspaceUpdatePolicy(workspace, canChangeVersions),
-              )}
-            />
-            {workspace.automatic_updates === "never" &&
-              workspace.template_require_active_version &&
-              !canChangeVersions && (
-                <HelpTooltip>
-                  <HelpTooltipText>
-                    Your workspace has not opted in to automatic updates but
-                    your template requires updating to the active version.
-                  </HelpTooltipText>
-                </HelpTooltip>
-              )}
-          </Stack>
         )}
       </Stats>
     </>
@@ -338,15 +318,15 @@ const styles = {
   stats: (theme) => ({
     padding: 0,
     border: 0,
-    gap: theme.spacing(6),
-    rowGap: theme.spacing(3),
+    gap: 48,
+    rowGap: 24,
     flex: 1,
 
     [theme.breakpoints.down("md")]: {
       display: "flex",
       flexDirection: "column",
       alignItems: "flex-start",
-      gap: theme.spacing(1),
+      gap: 8,
     },
   }),
 
@@ -361,17 +341,17 @@ const styles = {
     },
   },
 
-  scheduleValue: (theme) => ({
+  scheduleValue: {
     display: "flex",
     alignItems: "center",
-    gap: theme.spacing(1.5),
-  }),
+    gap: 12,
+  },
 
-  scheduleControls: (theme) => ({
+  scheduleControls: {
     display: "flex",
     alignItems: "center",
-    gap: theme.spacing(0.5),
-  }),
+    gap: 4,
+  },
 
   scheduleButton: (theme) => ({
     border: `1px solid ${theme.palette.divider}`,
@@ -380,8 +360,8 @@ const styles = {
     height: 20,
 
     "& svg.MuiSvgIcon-root": {
-      width: theme.spacing(1.5),
-      height: theme.spacing(1.5),
+      width: 12,
+      height: 12,
     },
   }),
 
@@ -393,21 +373,21 @@ const styles = {
     color: theme.palette.text.secondary,
   }),
 
-  timePopoverForm: (theme) => ({
+  timePopoverForm: {
     display: "flex",
     alignItems: "center",
-    gap: theme.spacing(1),
-    padding: theme.spacing(1, 0),
-  }),
+    gap: 8,
+    padding: "8px 0",
+  },
 
   timePopoverField: {
     margin: 0,
   },
 
-  timePopoverButton: (theme) => ({
+  timePopoverButton: {
     borderRadius: 4,
-    paddingLeft: theme.spacing(2),
-    paddingRight: theme.spacing(2),
+    paddingLeft: 16,
+    paddingRight: 16,
     flexShrink: 0,
-  }),
+  },
 } satisfies Record<string, Interpolation<Theme>>;

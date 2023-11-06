@@ -144,7 +144,7 @@ dark = createTheme(dark, {
           letterSpacing: "normal",
           fontWeight: 500,
           height: BUTTON_MD_HEIGHT,
-          padding: theme.spacing(1, 2),
+          padding: "8px 16px",
           borderRadius: "6px",
           fontSize: 14,
 

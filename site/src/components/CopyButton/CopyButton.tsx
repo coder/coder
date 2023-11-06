@@ -46,8 +46,8 @@ export const CopyButton: React.FC<React.PropsWithChildren<CopyButtonProps>> = ({
         <IconButton
           className={buttonClassName}
           css={(theme) => css`
-            border-radius: ${theme.shape.borderRadius}px;
-            padding: ${theme.spacing(0.85)};
+            border-radius: 8px;
+            padding: 8px;
             min-width: 32px;
 
             &:hover {
@@ -64,15 +64,7 @@ export const CopyButton: React.FC<React.PropsWithChildren<CopyButtonProps>> = ({
           ) : (
             <FileCopyIcon css={fileCopyIconStyles} />
           )}
-          {ctaCopy && (
-            <div
-              css={(theme) => ({
-                marginLeft: theme.spacing(1),
-              })}
-            >
-              {ctaCopy}
-            </div>
-          )}
+          {ctaCopy && <div css={{ marginLeft: 8 }}>{ctaCopy}</div>}
         </IconButton>
       </div>
     </Tooltip>

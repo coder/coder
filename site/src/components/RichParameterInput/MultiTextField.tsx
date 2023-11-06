@@ -72,15 +72,15 @@ export const MultiTextField: FC<MultiTextFieldProps> = ({
 const styles = {
   root: (theme) => ({
     border: `1px solid ${theme.palette.divider}`,
-    borderRadius: theme.shape.borderRadius,
-    minHeight: theme.spacing(6), // Chip height + paddings
-    padding: theme.spacing(1.25, 1.75),
-    fontSize: theme.spacing(2),
+    borderRadius: 8,
+    minHeight: 48, // Chip height + paddings
+    padding: "10px 14px",
+    fontSize: 16,
     display: "flex",
     flexWrap: "wrap",
-    gap: theme.spacing(1),
+    gap: 8,
     position: "relative",
-    margin: theme.spacing(1, 0, 0.5), // Have same margin than TextField
+    margin: "8px 0 4px", // Have same margin than TextField
 
     "&:has(input:focus)": {
       borderColor: theme.palette.primary.main,

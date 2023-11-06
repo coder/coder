@@ -114,7 +114,7 @@ const styles = {
     fontSize: 14,
     color: theme.palette.text.secondary,
     display: "block",
-    marginBottom: theme.spacing(0.5),
+    marginBottom: 4,
   }),
   labelDescription: (theme) => ({
     fontSize: 16,

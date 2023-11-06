@@ -97,7 +97,7 @@ const styles = {
   header: (theme) => ({
     fontSize: 13,
     fontWeight: 600,
-    padding: theme.spacing(0.5, 3),
+    padding: "4px 24px",
     display: "flex",
     alignItems: "center",
     fontFamily: "Inter",

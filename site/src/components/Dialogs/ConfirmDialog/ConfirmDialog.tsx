@@ -58,22 +58,22 @@ const styles = {
       background: theme.palette.background.paper,
       border: `1px solid ${theme.palette.divider}`,
       width: "100%",
-      maxWidth: theme.spacing(55),
+      maxWidth: 440,
     },
     "& .MuiDialogActions-spacing": {
-      padding: `0 ${theme.spacing(5)} ${theme.spacing(5)}`,
+      padding: "0 40px 40px",
     },
   }),
   dialogContent: (theme) => ({
     color: theme.palette.text.secondary,
-    padding: theme.spacing(5),
+    padding: 40,
   }),
   dialogTitle: (theme) => ({
     margin: 0,
-    marginBottom: theme.spacing(2),
+    marginBottom: 16,
     color: theme.palette.text.primary,
     fontWeight: 400,
-    fontSize: theme.spacing(2.5),
+    fontSize: 20,
   }),
   dialogDescription: (theme) => ({
     color: theme.palette.text.secondary,
@@ -89,7 +89,7 @@ const styles = {
     },
 
     "& > p": {
-      margin: theme.spacing(1, 0),
+      margin: "8px 0",
     },
   }),
 } satisfies Record<string, Interpolation<Theme>>;

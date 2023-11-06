@@ -4,7 +4,6 @@ import GitHubIcon from "@mui/icons-material/GitHub";
 import KeyIcon from "@mui/icons-material/VpnKey";
 import Box from "@mui/material/Box";
 import { type FC } from "react";
-import { useTheme } from "@emotion/react";
 import { Language } from "./SignInForm";
 import { type AuthMethods } from "api/typesGenerated";
 
@@ -19,11 +18,9 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
   redirectTo,
   authMethods,
 }) => {
-  const theme = useTheme();
-
   const iconStyles = {
-    width: theme.spacing(2),
-    height: theme.spacing(2),
+    width: 16,
+    height: 16,
   };
 
   return (

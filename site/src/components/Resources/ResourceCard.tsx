@@ -4,17 +4,17 @@ import Tooltip from "@mui/material/Tooltip";
 import { type CSSObject, type Interpolation, type Theme } from "@emotion/react";
 import { Children } from "react";
 import type { WorkspaceAgent, WorkspaceResource } from "api/typesGenerated";
-import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
-import { CopyableValue } from "components/CopyableValue/CopyableValue";
+import { DropdownArrow } from "../DropdownArrow/DropdownArrow";
+import { CopyableValue } from "../CopyableValue/CopyableValue";
+import { MemoizedInlineMarkdown } from "../Markdown/Markdown";
 import { Stack } from "../Stack/Stack";
 import { ResourceAvatar } from "./ResourceAvatar";
 import { SensitiveValue } from "./SensitiveValue";
-import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 
 const styles = {
   resourceCard: (theme) => ({
     background: theme.palette.background.paper,
-    borderRadius: theme.shape.borderRadius,
+    borderRadius: 8,
     border: `1px solid ${theme.palette.divider}`,
 
     "&:not(:first-of-type)": {
@@ -35,7 +35,7 @@ const styles = {
   },
 
   resourceCardHeader: (theme) => ({
-    padding: theme.spacing(3, 4),
+    padding: "24px 32px",
     borderBottom: `1px solid ${theme.palette.divider}`,
 
     "&:last-child": {
@@ -122,13 +122,13 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
         </Stack>
 
         <div
-          css={(theme) => ({
+          css={{
             flexGrow: 2,
             display: "grid",
             gridTemplateColumns: `repeat(${gridWidth}, minmax(0, 1fr))`,
-            gap: theme.spacing(5),
-            rowGap: theme.spacing(3),
-          })}
+            gap: 40,
+            rowGap: 24,
+          }}
         >
           {resource.daily_cost > 0 && (
             <div css={styles.metadata}>

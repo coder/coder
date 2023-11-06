@@ -27,17 +27,17 @@ export const Fieldset: FC<FieldsetProps> = (props) => {
   return (
     <form
       css={{
-        borderRadius: theme.spacing(1),
+        borderRadius: 8,
         border: `1px solid ${theme.palette.divider}`,
         background: theme.palette.background.paper,
-        marginTop: theme.spacing(4),
+        marginTop: 32,
       }}
       onSubmit={onSubmit}
     >
-      <header css={{ padding: theme.spacing(3) }}>
+      <header css={{ padding: 24 }}>
         <div
           css={{
-            fontSize: theme.spacing(2.5),
+            fontSize: 20,
             margin: 0,
             fontWeight: 600,
           }}
@@ -49,18 +49,13 @@ export const Fieldset: FC<FieldsetProps> = (props) => {
             css={{
               color: theme.palette.text.secondary,
               fontSize: 14,
-              marginTop: theme.spacing(1),
+              marginTop: 8,
             }}
           >
             {subtitle}
           </div>
         )}
-        <div
-          css={[
-            theme.typography.body2 as CSSObject,
-            { paddingTop: theme.spacing(2) },
-          ]}
-        >
+        <div css={[theme.typography.body2 as CSSObject, { paddingTop: 16 }]}>
           {children}
         </div>
       </header>
@@ -69,7 +64,7 @@ export const Fieldset: FC<FieldsetProps> = (props) => {
           theme.typography.body2 as CSSObject,
           {
             background: theme.palette.background.paperLight,
-            padding: `${theme.spacing(2)} ${theme.spacing(3)}`,
+            padding: "16px 24px",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",

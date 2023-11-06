@@ -365,34 +365,34 @@ const styles = {
     width: 100,
   },
 
-  updateSelect: (theme) => ({
+  updateSelect: {
     margin: 0,
     // Set a fixed width for the select. It avoids selects having different sizes
     // depending on how many roles they have selected.
-    width: theme.spacing(25),
+    width: 200,
 
     "& .MuiSelect-root": {
       // Adjusting padding because it does not have label
-      paddingTop: theme.spacing(1.5),
-      paddingBottom: theme.spacing(1.5),
+      paddingTop: 12,
+      paddingBottom: 12,
 
       ".secondary": {
         display: "none",
       },
     },
-  }),
+  },
 
   role: {
     textTransform: "capitalize",
   },
 
-  menuItem: (theme) => ({
+  menuItem: {
     lineHeight: "140%",
-    paddingTop: theme.spacing(1.5),
-    paddingBottom: theme.spacing(1.5),
+    paddingTop: 12,
+    paddingBottom: 12,
     whiteSpace: "normal",
     inlineSize: "250px",
-  }),
+  },
 
   menuItemSecondary: (theme) => ({
     fontSize: 14,

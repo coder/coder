@@ -28,6 +28,25 @@ spec:
       nodePort: {{ .Values.coder.service.httpsNodePort }}
       {{ end }}
     {{- end }}
+    {{- range .Values.coder.env }}
+    {{- if eq .name "CODER_PROMETHEUS_ENABLE" }}
+    {{/*
+      This sadly has to be nested to avoid evaluating the second part
+      of the condition too early and potentially getting type errors if
+      the value is not a string (like a `valueFrom`). We do not support
+      `valueFrom` for this env var specifically.
+      */}}
+    {{- if eq .value "true" }}
+    - name: "prometheus-http"
+      port: 2112
+      targetPort: "prometheus-http"
+      protocol: TCP
+      {{ if eq $.Values.coder.service.type "NodePort" }}
+      nodePort: {{ $.Values.coder.service.prometheusNodePort }}
+      {{ end }}
+    {{- end }}
+    {{- end }}
+    {{- end }}
   {{- if eq "LoadBalancer" .Values.coder.service.type }}
   {{- with .Values.coder.service.loadBalancerIP }}
   loadBalancerIP: {{ . | quote }}

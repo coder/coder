@@ -13,14 +13,12 @@ type CircleProps = {
 };
 
 const Circle: FC<CircleProps> = ({ color, variant = "solid" }) => {
-  const theme = useTheme();
-
   return (
     <div
       aria-hidden
       css={{
-        width: theme.spacing(1),
-        height: theme.spacing(1),
+        width: 8,
+        height: 8,
         backgroundColor: variant === "solid" ? color : undefined,
         border: variant === "outlined" ? `1px solid ${color}` : undefined,
         borderRadius: 9999,

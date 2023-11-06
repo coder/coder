@@ -205,26 +205,26 @@ const StaticWidth = (props: BoxProps) => {
 // site/src/components/Resources/ResourceCard.tsx
 const styles = {
   root: (theme) => ({
-    padding: theme.spacing(2.5, 4),
+    padding: "20px 32px",
     borderTop: `1px solid ${theme.palette.divider}`,
     background: theme.palette.background.paper,
     overflowX: "auto",
-    scrollPadding: theme.spacing(0, 4),
+    scrollPadding: "0 32px",
   }),
 
-  metadata: (theme) => ({
+  metadata: {
     fontSize: 12,
     lineHeight: "normal",
     display: "flex",
     flexDirection: "column",
-    gap: theme.spacing(0.5),
+    gap: 4,
     overflow: "visible",
 
     // Because of scrolling
     "&:last-child": {
-      paddingRight: theme.spacing(4),
+      paddingRight: 32,
     },
-  }),
+  },
 
   metadataLabel: (theme) => ({
     color: theme.palette.text.secondary,
@@ -255,9 +255,9 @@ const styles = {
     cursor: "pointer",
   }),
 
-  skeleton: (theme) => ({
-    marginTop: theme.spacing(0.5),
-  }),
+  skeleton: {
+    marginTop: 4,
+  },
 
   inlineCommand: (theme) => ({
     fontFamily: MONOSPACE_FONT_FAMILY,
