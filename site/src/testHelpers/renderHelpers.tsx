@@ -1,4 +1,9 @@
-import { render as tlRender, screen, waitFor } from "@testing-library/react";
+import {
+  render as tlRender,
+  screen,
+  waitFor,
+  renderHook,
+} from "@testing-library/react";
 import { AppProviders, ThemeProviders } from "App";
 import { DashboardLayout } from "components/Dashboard/DashboardLayout";
 import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout";
@@ -10,15 +15,13 @@ import {
 } from "react-router-dom";
 import { RequireAuth } from "../components/RequireAuth/RequireAuth";
 import { MockUser } from "./entities";
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import { QueryClient } from "react-query";
 
-export const renderWithRouter = (
-  router: ReturnType<typeof createMemoryRouter>,
-) => {
-  // Create one query client for each render isolate it avoid other
-  // tests to be affected
-  const queryClient = new QueryClient({
+function createTestQueryClient() {
+  // Helps create one query client for each test case, to make sure that tests
+  // are isolated and can't affect each other
+  return new QueryClient({
     defaultOptions: {
       queries: {
         retry: false,
@@ -28,6 +31,12 @@ export const renderWithRouter = (
       },
     },
   });
+}
+
+export const renderWithRouter = (
+  router: ReturnType<typeof createMemoryRouter>,
+) => {
+  const queryClient = createTestQueryClient();
 
   return {
     ...tlRender(
@@ -53,7 +62,7 @@ export const render = (element: ReactNode) => {
   );
 };
 
-type RenderWithAuthOptions = {
+export type RenderWithAuthOptions = {
   // The current URL, /workspaces/123
   route?: string;
   // The route path, /workspaces/:workspaceId
@@ -93,6 +102,82 @@ export function renderWithAuth(
     user: MockUser,
     ...renderResult,
   };
+}
+
+type RenderHookWithAuthOptions<Props> = Partial<
+  Readonly<
+    Omit<RenderWithAuthOptions, "children"> & {
+      initialProps: Props;
+    }
+  >
+>;
+
+/**
+ * Custom version of renderHook that is aware of all our App providers.
+ *
+ * Had to do some nasty, cursed things in the implementation to make sure that
+ * the tests using this function remained simple.
+ *
+ * @see {@link https://github.com/coder/coder/pull/10362#discussion_r1380852725}
+ */
+export async function renderHookWithAuth<Result, Props>(
+  render: (initialProps: Props) => Result,
+  {
+    initialProps,
+    path = "/",
+    extraRoutes = [],
+  }: RenderHookWithAuthOptions<Props> = {},
+) {
+  const queryClient = createTestQueryClient();
+
+  // Easy to miss – there's an evil definite assignment via the !
+  let escapedRouter!: ReturnType<typeof createMemoryRouter>;
+
+  const { result, rerender, unmount } = renderHook(render, {
+    initialProps,
+    wrapper: ({ children }) => {
+      /**
+       * Unfortunately, there isn't a way to define the router outside the
+       * wrapper while keeping it aware of children, meaning that we need to
+       * define the router as readonly state in the component instance. This
+       * ensures the value remains stable across all re-renders
+       */
+      // eslint-disable-next-line react-hooks/rules-of-hooks -- This is actually processed as a component; the linter just isn't aware of that
+      const [readonlyStatefulRouter] = useState(() => {
+        return createMemoryRouter([
+          { path, element: <>{children}</> },
+          ...extraRoutes,
+        ]);
+      });
+
+      /**
+       * Leaks the wrapper component's state outside React's render cycles.
+       */
+      escapedRouter = readonlyStatefulRouter;
+
+      return (
+        <AppProviders queryClient={queryClient}>
+          <RouterProvider router={readonlyStatefulRouter} />
+        </AppProviders>
+      );
+    },
+  });
+
+  /**
+   * This is necessary to get around some providers in AppProviders having
+   * conditional rendering and not always rendering their children immediately.
+   *
+   * The hook result won't actually exist until the children defined via wrapper
+   * render in full.
+   */
+  await waitFor(() => expect(result.current).not.toBe(null));
+
+  return {
+    result,
+    rerender,
+    unmount,
+    router: escapedRouter,
+  } as const;
 }
 
 export function renderWithTemplateSettingsLayout(

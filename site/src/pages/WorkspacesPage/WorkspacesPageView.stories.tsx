@@ -147,6 +147,33 @@ export const OwnerHasNoWorkspaces: Story = {
   args: {
     workspaces: [],
     count: 0,
+    canCreateTemplate: true,
+  },
+};
+
+export const OwnerHasNoWorkspacesAndNoTemplates: Story = {
+  args: {
+    workspaces: [],
+    templates: [],
+    count: 0,
+    canCreateTemplate: true,
+  },
+};
+
+export const UserHasNoWorkspaces: Story = {
+  args: {
+    workspaces: [],
+    count: 0,
+    canCreateTemplate: false,
+  },
+};
+
+export const UserHasNoWorkspacesAndNoTemplates: Story = {
+  args: {
+    workspaces: [],
+    templates: [],
+    count: 0,
+    canCreateTemplate: false,
   },
 };
 

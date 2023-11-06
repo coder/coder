@@ -391,6 +391,31 @@ func TestCreateWithRichParameters(t *testing.T) {
 		}
 		<-doneChan
 	})
+
+	t.Run("WrongParameterName/DidYouMean", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		wrongFirstParameterName := "frst-prameter"
+		inv, root := clitest.New(t, "create", "my-workspace", "--template", template.Name,
+			"--parameter", fmt.Sprintf("%s=%s", wrongFirstParameterName, firstParameterValue),
+			"--parameter", fmt.Sprintf("%s=%s", secondParameterName, secondParameterValue),
+			"--parameter", fmt.Sprintf("%s=%s", immutableParameterName, immutableParameterValue))
+		clitest.SetupConfig(t, member, root)
+		pty := ptytest.New(t).Attach(inv)
+		inv.Stdout = pty.Output()
+		inv.Stderr = pty.Output()
+		err := inv.Run()
+		assert.ErrorContains(t, err, "parameter \""+wrongFirstParameterName+"\" is not present in the template")
+		assert.ErrorContains(t, err, "Did you mean: "+firstParameterName)
+	})
 }
 
 func TestCreateValidateRichParameters(t *testing.T) {
