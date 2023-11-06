@@ -43,6 +43,7 @@ export function AvatarCard({
        */}
       <div css={{ marginRight: "auto", minWidth: 0 }}>
         <h3
+          // Lets users hover over truncated text to see whole thing
           title={header}
           css={[
             theme.typography.body1 as CSSObject,
