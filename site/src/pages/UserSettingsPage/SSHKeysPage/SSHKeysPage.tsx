@@ -21,12 +21,9 @@ export const SSHKeysPage: FC<PropsWithChildren<unknown>> = () => {
 
   const userSSHKeyQuery = useQuery(userSSHKey("me"));
   const queryClient = useQueryClient();
-  const regenerateSSHKeyMutation = useMutation({
-    ...regenerateUserSSHKey("me", queryClient),
-    onError: () => {
-      //
-    },
-  });
+  const regenerateSSHKeyMutation = useMutation(
+    regenerateUserSSHKey("me", queryClient),
+  );
 
   return (
     <>
