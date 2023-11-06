@@ -89,15 +89,15 @@ export const TemplateExampleCard = (props: TemplateExampleCardProps) => {
             display: "block",
           })}
         >
-          {example.description}
+          {example.description}{" "}
+          <Link
+            component={RouterLink}
+            to={`/starter-templates/${example.id}`}
+            css={{ display: "inline-block", fontSize: 13, marginTop: 4 }}
+          >
+            Read more
+          </Link>
         </span>
-        <Link
-          component={RouterLink}
-          to={`/starter-templates/${example.id}`}
-          css={{ display: "inline-block", fontSize: 13, marginTop: 4 }}
-        >
-          Read more
-        </Link>
       </div>
 
       <div
