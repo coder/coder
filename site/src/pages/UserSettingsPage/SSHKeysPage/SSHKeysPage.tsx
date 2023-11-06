@@ -19,8 +19,9 @@ export const Language = {
 export const SSHKeysPage: FC<PropsWithChildren<unknown>> = () => {
   const [isConfirmingRegeneration, setIsConfirmingRegeneration] =
     useState(false);
-  const queryClient = useQueryClient();
+
   const userSSHKeyQuery = useQuery(userSSHKey("me"));
+  const queryClient = useQueryClient();
   const regenerateSSHKeyMutation = useMutation(
     regenerateUserSSHKey("me", queryClient),
   );
@@ -33,9 +34,7 @@ export const SSHKeysPage: FC<PropsWithChildren<unknown>> = () => {
           getSSHKeyError={userSSHKeyQuery.error}
           regenerateSSHKeyError={regenerateSSHKeyMutation.error}
           sshKey={userSSHKeyQuery.data}
-          onRegenerateClick={() => {
-            setIsConfirmingRegeneration(true);
-          }}
+          onRegenerateClick={() => setIsConfirmingRegeneration(true)}
         />
       </Section>
 
@@ -45,7 +44,9 @@ export const SSHKeysPage: FC<PropsWithChildren<unknown>> = () => {
         open={isConfirmingRegeneration}
         confirmLoading={regenerateSSHKeyMutation.isLoading}
         title={Language.regenerateDialogTitle}
+        description={Language.regenerateDialogMessage}
         confirmText={Language.confirmLabel}
+        onClose={() => setIsConfirmingRegeneration(false)}
         onConfirm={async () => {
           try {
             await regenerateSSHKeyMutation.mutateAsync();
@@ -58,10 +59,6 @@ export const SSHKeysPage: FC<PropsWithChildren<unknown>> = () => {
             setIsConfirmingRegeneration(false);
           }
         }}
-        onClose={() => {
-          setIsConfirmingRegeneration(false);
-        }}
-        description={<>{Language.regenerateDialogMessage}</>}
       />
     </>
   );
