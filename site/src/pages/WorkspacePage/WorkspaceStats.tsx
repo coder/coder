@@ -7,11 +7,9 @@ import { Link as RouterLink } from "react-router-dom";
 import {
   getDisplayWorkspaceTemplateName,
   isWorkspaceOn,
-  workspaceUpdatePolicy,
 } from "utils/workspace";
 import type { Workspace } from "api/typesGenerated";
 import { Stats, StatsItem } from "components/Stats/Stats";
-import upperFirst from "lodash/upperFirst";
 import { autostartDisplay, autostopDisplay } from "utils/schedule";
 import IconButton from "@mui/material/IconButton";
 import RemoveIcon from "@mui/icons-material/RemoveOutlined";
@@ -26,12 +24,6 @@ import {
   PopoverTrigger,
   usePopover,
 } from "components/Popover/Popover";
-import { useTemplatePoliciesEnabled } from "components/Dashboard/DashboardProvider";
-import {
-  HelpTooltip,
-  HelpTooltipText,
-} from "components/HelpTooltip/HelpTooltip";
-import { Stack } from "components/Stack/Stack";
 
 const Language = {
   workspaceDetails: "Workspace Details",
@@ -45,7 +37,6 @@ export interface WorkspaceStatsProps {
   maxDeadlineIncrease: number;
   maxDeadlineDecrease: number;
   canUpdateWorkspace: boolean;
-  canChangeVersions: boolean;
   quotaBudget?: number;
   onDeadlinePlus: (hours: number) => void;
   onDeadlineMinus: (hours: number) => void;
@@ -58,7 +49,6 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
   maxDeadlineDecrease,
   maxDeadlineIncrease,
   canUpdateWorkspace,
-  canChangeVersions,
   handleUpdate,
   onDeadlineMinus,
   onDeadlinePlus,
@@ -66,7 +56,6 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
   const displayTemplateName = getDisplayWorkspaceTemplateName(workspace);
   const deadlinePlusEnabled = maxDeadlineIncrease >= 1;
   const deadlineMinusEnabled = maxDeadlineDecrease >= 1;
-  const templatePoliciesEnabled = useTemplatePoliciesEnabled();
 
   const paperStyles = css`
     padding: 24px;
@@ -91,12 +80,25 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
           css={styles.statsItem}
           label={Language.templateLabel}
           value={
-            <div css={{ display: "flex", alignItems: "center", gap: 2 }}>
+            <Link
+              component={RouterLink}
+              to={`/templates/${workspace.template_name}`}
+            >
+              {displayTemplateName}
+            </Link>
+          }
+        />
+
+        <StatsItem
+          css={styles.statsItem}
+          label="Version"
+          value={
+            <>
               <Link
                 component={RouterLink}
-                to={`/templates/${workspace.template_name}`}
+                to={`/templates/${workspace.template_name}/versions/${workspace.latest_build.template_version_name}`}
               >
-                {displayTemplateName}
+                {workspace.latest_build.template_version_name}
               </Link>
 
               {workspace.outdated && (
@@ -107,7 +109,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
                   ariaLabel="update version"
                 />
               )}
-            </div>
+            </>
           }
         />
 
@@ -186,27 +188,6 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
               quotaBudget ? `/ ${quotaBudget}` : ""
             }`}
           />
-        )}
-        {templatePoliciesEnabled && (
-          <Stack direction="row" spacing={0.5}>
-            <StatsItem
-              css={styles.statsItem}
-              label={Language.updatePolicy}
-              value={upperFirst(
-                workspaceUpdatePolicy(workspace, canChangeVersions),
-              )}
-            />
-            {workspace.automatic_updates === "never" &&
-              workspace.template_require_active_version &&
-              !canChangeVersions && (
-                <HelpTooltip>
-                  <HelpTooltipText>
-                    Your workspace has not opted in to automatic updates but
-                    your template requires updating to the active version.
-                  </HelpTooltipText>
-                </HelpTooltip>
-              )}
-          </Stack>
         )}
       </Stats>
     </>

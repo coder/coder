@@ -191,7 +191,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           quotaBudget={quotaBudget}
           handleUpdate={handleUpdate}
           canUpdateWorkspace={canUpdateWorkspace}
-          canChangeVersions={canChangeVersions}
           maxDeadlineDecrease={scheduleProps.maxDeadlineDecrease}
           maxDeadlineIncrease={scheduleProps.maxDeadlineIncrease}
           onDeadlineMinus={scheduleProps.onDeadlineMinus}
