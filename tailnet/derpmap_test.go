@@ -33,7 +33,10 @@ func TestNewDERPMap(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			data, _ := json.Marshal(&tailcfg.DERPMap{
 				Regions: map[int]*tailcfg.DERPRegion{
-					1: {},
+					1: {
+						RegionID: 1,
+						Nodes:    []*tailcfg.DERPNode{{}},
+					},
 				},
 			})
 			_, _ = w.Write(data)
@@ -66,7 +69,9 @@ func TestNewDERPMap(t *testing.T) {
 		localPath := filepath.Join(t.TempDir(), "derp.json")
 		content, err := json.Marshal(&tailcfg.DERPMap{
 			Regions: map[int]*tailcfg.DERPRegion{
-				1: {},
+				1: {
+					Nodes: []*tailcfg.DERPNode{{}},
+				},
 			},
 		})
 		require.NoError(t, err)
@@ -130,5 +135,30 @@ func TestNewDERPMap(t *testing.T) {
 		// ... but we still remove the STUN port from existing nodes in the
 		// region.
 		require.EqualValues(t, -1, derpMap.Regions[3].Nodes[0].STUNPort)
+	})
+	t.Run("RequireRegions", func(t *testing.T) {
+		t.Parallel()
+		_, err := tailnet.NewDERPMap(context.Background(), nil, nil, "", "", false)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "DERP map has no regions")
+	})
+	t.Run("RequireDERPNodes", func(t *testing.T) {
+		t.Parallel()
+
+		// No nodes.
+		_, err := tailnet.NewDERPMap(context.Background(), &tailcfg.DERPRegion{}, nil, "", "", false)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "DERP map has no DERP nodes")
+
+		// No DERP nodes.
+		_, err = tailnet.NewDERPMap(context.Background(), &tailcfg.DERPRegion{
+			Nodes: []*tailcfg.DERPNode{
+				{
+					STUNOnly: true,
+				},
+			},
+		}, nil, "", "", false)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "DERP map has no DERP nodes")
 	})
 }

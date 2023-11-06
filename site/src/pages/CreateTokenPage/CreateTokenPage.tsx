@@ -1,4 +1,4 @@
-import { FC, useState } from "react";
+import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm";
@@ -12,7 +12,6 @@ import { CreateTokenForm } from "./CreateTokenForm";
 import { NANO_HOUR, CreateTokenData } from "./utils";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { CodeExample } from "components/CodeExample/CodeExample";
-import { makeStyles } from "@mui/styles";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 
 const initialValues: CreateTokenData = {
@@ -21,7 +20,6 @@ const initialValues: CreateTokenData = {
 };
 
 export const CreateTokenPage: FC = () => {
-  const styles = useStyles();
   const navigate = useNavigate();
 
   const {
@@ -72,7 +70,15 @@ export const CreateTokenPage: FC = () => {
   const tokenDescription = (
     <>
       <p>Make sure you copy the below token before proceeding:</p>
-      <CodeExample code={newToken?.key ?? ""} className={styles.codeExample} />
+      <CodeExample
+        code={newToken?.key ?? ""}
+        css={(theme) => ({
+          minHeight: "auto",
+          userSelect: "all",
+          width: "100%",
+          marginTop: theme.spacing(3),
+        })}
+      />
     </>
   );
 
@@ -113,14 +119,5 @@ export const CreateTokenPage: FC = () => {
     </>
   );
 };
-
-const useStyles = makeStyles((theme) => ({
-  codeExample: {
-    minHeight: "auto",
-    userSelect: "all",
-    width: "100%",
-    marginTop: theme.spacing(3),
-  },
-}));
 
 export default CreateTokenPage;

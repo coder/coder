@@ -3,10 +3,10 @@ import Button from "@mui/material/Button";
 import GitHubIcon from "@mui/icons-material/GitHub";
 import KeyIcon from "@mui/icons-material/VpnKey";
 import Box from "@mui/material/Box";
+import { type FC } from "react";
+import { useTheme } from "@emotion/react";
 import { Language } from "./SignInForm";
-import { AuthMethods } from "api/typesGenerated";
-import { FC } from "react";
-import { makeStyles } from "@mui/styles";
+import { type AuthMethods } from "api/typesGenerated";
 
 type OAuthSignInFormProps = {
   isSigningIn: boolean;
@@ -14,19 +14,17 @@ type OAuthSignInFormProps = {
   authMethods?: AuthMethods;
 };
 
-const useStyles = makeStyles((theme) => ({
-  buttonIcon: {
-    width: theme.spacing(2),
-    height: theme.spacing(2),
-  },
-}));
-
 export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
   isSigningIn,
   redirectTo,
   authMethods,
 }) => {
-  const styles = useStyles();
+  const theme = useTheme();
+
+  const iconStyles = {
+    width: theme.spacing(2),
+    height: theme.spacing(2),
+  };
 
   return (
     <Box display="grid" gap="16px">
@@ -37,7 +35,7 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
           )}`}
         >
           <Button
-            startIcon={<GitHubIcon className={styles.buttonIcon} />}
+            startIcon={<GitHubIcon css={iconStyles} />}
             disabled={isSigningIn}
             fullWidth
             type="submit"
@@ -61,10 +59,10 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
                 <img
                   alt="Open ID Connect icon"
                   src={authMethods.oidc.iconUrl}
-                  className={styles.buttonIcon}
+                  css={iconStyles}
                 />
               ) : (
-                <KeyIcon className={styles.buttonIcon} />
+                <KeyIcon css={iconStyles} />
               )
             }
             disabled={isSigningIn}

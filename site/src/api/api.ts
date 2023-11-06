@@ -576,6 +576,21 @@ export const updateWorkspaceDormancy = async (
   return response.data;
 };
 
+export const updateWorkspaceAutomaticUpdates = async (
+  workspaceId: string,
+  automaticUpdates: TypesGen.AutomaticUpdates,
+): Promise<void> => {
+  const req: TypesGen.UpdateWorkspaceAutomaticUpdatesRequest = {
+    automatic_updates: automaticUpdates,
+  };
+
+  const response = await axios.put(
+    `/api/v2/workspaces/${workspaceId}/autoupdates`,
+    req,
+  );
+  return response.data;
+};
+
 export const restartWorkspace = async ({
   workspace,
   buildParameters,
@@ -947,7 +962,7 @@ export const getTemplateACL = async (
 export const updateTemplateACL = async (
   templateId: string,
   data: TypesGen.UpdateTemplateACL,
-): Promise<TypesGen.TemplateACL> => {
+): Promise<{ message: string }> => {
   const response = await axios.patch(
     `/api/v2/templates/${templateId}/acl`,
     data,

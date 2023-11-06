@@ -26,8 +26,8 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -48,13 +48,13 @@ func TestActiveUsers(t *testing.T) {
 	}{{
 		Name: "None",
 		Database: func(t *testing.T) database.Store {
-			return dbfake.New()
+			return dbmem.New()
 		},
 		Count: 0,
 	}, {
 		Name: "One",
 		Database: func(t *testing.T) database.Store {
-			db := dbfake.New()
+			db := dbmem.New()
 			dbgen.APIKey(t, db, database.APIKey{
 				LastUsed: dbtime.Now(),
 			})
@@ -64,7 +64,7 @@ func TestActiveUsers(t *testing.T) {
 	}, {
 		Name: "OneWithExpired",
 		Database: func(t *testing.T) database.Store {
-			db := dbfake.New()
+			db := dbmem.New()
 
 			dbgen.APIKey(t, db, database.APIKey{
 				LastUsed: dbtime.Now(),
@@ -81,7 +81,7 @@ func TestActiveUsers(t *testing.T) {
 	}, {
 		Name: "Multiple",
 		Database: func(t *testing.T) database.Store {
-			db := dbfake.New()
+			db := dbmem.New()
 			dbgen.APIKey(t, db, database.APIKey{
 				LastUsed: dbtime.Now(),
 			})
@@ -200,13 +200,13 @@ func TestWorkspaces(t *testing.T) {
 	}{{
 		Name: "None",
 		Database: func() database.Store {
-			return dbfake.New()
+			return dbmem.New()
 		},
 		Total: 0,
 	}, {
 		Name: "Multiple",
 		Database: func() database.Store {
-			db := dbfake.New()
+			db := dbmem.New()
 			insertCanceled(db)
 			insertFailed(db)
 			insertFailed(db)

@@ -222,14 +222,6 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Search query",
                         "name": "q",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "After ID",
-                        "name": "after_id",
                         "in": "query"
                     },
                     {
@@ -285,6 +277,9 @@ const docTemplate = `{
                     "204": {
                         "description": "No Content"
                     }
+                },
+                "x-apidocgen": {
+                    "skip": true
                 }
             }
         },
@@ -8537,19 +8532,23 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "moons",
+                "workspace_actions",
                 "tailnet_pg_coordinator",
                 "single_tailnet",
                 "template_autostop_requirement",
                 "deployment_health_page",
-                "dashboard_theme"
+                "dashboard_theme",
+                "template_update_policies"
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
+                "ExperimentWorkspaceActions",
                 "ExperimentTailnetPGCoordinator",
                 "ExperimentSingleTailnet",
                 "ExperimentTemplateAutostopRequirement",
                 "ExperimentDeploymentHealthPage",
-                "ExperimentDashboardTheme"
+                "ExperimentDashboardTheme",
+                "ExperimentTemplateUpdatePolicies"
             ]
         },
         "codersdk.ExternalAuth": {
@@ -11123,6 +11122,9 @@ const docTemplate = `{
                 "template_name": {
                     "type": "string"
                 },
+                "template_require_active_version": {
+                    "type": "boolean"
+                },
                 "ttl_ms": {
                     "type": "integer"
                 },
@@ -11135,6 +11137,9 @@ const docTemplate = `{
         "codersdk.WorkspaceAgent": {
             "type": "object",
             "properties": {
+                "api_version": {
+                    "type": "string"
+                },
                 "apps": {
                     "type": "array",
                     "items": {

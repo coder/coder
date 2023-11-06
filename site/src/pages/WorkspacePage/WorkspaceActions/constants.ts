@@ -1,5 +1,6 @@
 import { Workspace, WorkspaceStatus } from "api/typesGenerated";
 import { ReactNode } from "react";
+import { workspaceUpdatePolicy } from "utils/workspace";
 
 // the button types we have
 export enum ButtonTypesEnum {
@@ -33,6 +34,7 @@ interface WorkspaceAbilities {
 export const actionsByWorkspaceStatus = (
   workspace: Workspace,
   status: WorkspaceStatus,
+  canChangeVersions: boolean,
 ): WorkspaceAbilities => {
   if (workspace.dormant_at) {
     return {
@@ -40,6 +42,25 @@ export const actionsByWorkspaceStatus = (
       canCancel: false,
       canAcceptJobs: false,
     };
+  }
+  if (
+    workspace.outdated &&
+    workspaceUpdatePolicy(workspace, canChangeVersions)
+  ) {
+    if (status === "running") {
+      return {
+        actions: [ButtonTypesEnum.stop],
+        canCancel: false,
+        canAcceptJobs: true,
+      };
+    }
+    if (status === "stopped") {
+      return {
+        actions: [],
+        canCancel: false,
+        canAcceptJobs: true,
+      };
+    }
   }
   return statusToActions[status];
 };

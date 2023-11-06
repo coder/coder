@@ -1,8 +1,7 @@
-import { ComponentProps, FC } from "react";
+import { type ComponentProps, type FC } from "react";
 import Editor, { DiffEditor, loader } from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
 import { useCoderTheme } from "./coderTheme";
-import { makeStyles } from "@mui/styles";
 
 loader.config({ monaco });
 
@@ -13,7 +12,6 @@ export const SyntaxHighlighter: FC<{
     ComponentProps<typeof DiffEditor>;
   compareWith?: string;
 }> = ({ value, compareWith, language, editorProps }) => {
-  const styles = useStyles();
   const hasDiff = compareWith && value !== compareWith;
   const coderTheme = useCoderTheme();
   const commonProps = {
@@ -35,7 +33,13 @@ export const SyntaxHighlighter: FC<{
   }
 
   return (
-    <div className={styles.wrapper}>
+    <div
+      css={(theme) => ({
+        padding: theme.spacing(1, 0),
+        background: theme.palette.background.paper,
+        height: "100%",
+      })}
+    >
       {hasDiff ? (
         <DiffEditor original={compareWith} modified={value} {...commonProps} />
       ) : (
@@ -44,11 +48,3 @@ export const SyntaxHighlighter: FC<{
     </div>
   );
 };
-
-const useStyles = makeStyles((theme) => ({
-  wrapper: {
-    padding: theme.spacing(1, 0),
-    background: theme.palette.background.paper,
-    height: "100%",
-  },
-}));

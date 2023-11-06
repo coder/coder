@@ -22,7 +22,7 @@ export const Opened: Story = {
   args: {
     workspaceName: MockWorkspace.name,
     agentName: MockWorkspaceAgent.name,
-    defaultIsOpen: true,
+    isDefaultOpen: true,
     sshPrefix: "coder.",
   },
 };

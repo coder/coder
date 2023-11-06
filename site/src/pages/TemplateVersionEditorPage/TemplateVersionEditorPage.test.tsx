@@ -4,6 +4,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as api from "api/api";
 import {
+  MockTemplate,
   MockTemplateVersion,
   MockWorkspaceBuildLogs,
 } from "testHelpers/entities";
@@ -17,9 +18,10 @@ jest.mock("components/TemplateResourcesTable/TemplateResourcesTable", () => {
   };
 });
 
-test("Use custom name, message and set it as active when publishing", async () => {
-  const user = userEvent.setup();
+const renderTemplateEditorPage = () => {
   renderWithAuth(<TemplateVersionEditorPage />, {
+    route: `/templates/${MockTemplate.name}/versions/${MockTemplateVersion.name}/edit`,
+    path: "/templates/:template/versions/:version/edit",
     extraRoutes: [
       {
         path: "/templates/:templateId",
@@ -27,16 +29,26 @@ test("Use custom name, message and set it as active when publishing", async () =
       },
     ],
   });
+};
+
+test("Use custom name, message and set it as active when publishing", async () => {
+  const user = userEvent.setup();
+  renderTemplateEditorPage();
   const topbar = await screen.findByTestId("topbar");
 
   // Build Template
   jest.spyOn(api, "uploadFile").mockResolvedValueOnce({ hash: "hash" });
+  const newTemplateVersion = {
+    ...MockTemplateVersion,
+    id: "new-version-id",
+    name: "new-version",
+  };
   jest
     .spyOn(api, "createTemplateVersion")
-    .mockResolvedValueOnce(MockTemplateVersion);
+    .mockResolvedValue(newTemplateVersion);
   jest
-    .spyOn(api, "getTemplateVersion")
-    .mockResolvedValue({ ...MockTemplateVersion, id: "new-version-id" });
+    .spyOn(api, "getTemplateVersionByName")
+    .mockResolvedValue(newTemplateVersion);
   jest
     .spyOn(api, "watchBuildLogsByTemplateVersionId")
     .mockImplementation((_, options) => {
@@ -52,7 +64,7 @@ test("Use custom name, message and set it as active when publishing", async () =
   // Publish
   const patchTemplateVersion = jest
     .spyOn(api, "patchTemplateVersion")
-    .mockResolvedValue(MockTemplateVersion);
+    .mockResolvedValue(newTemplateVersion);
   const updateActiveTemplateVersion = jest
     .spyOn(api, "updateActiveTemplateVersion")
     .mockResolvedValue({ message: "" });
@@ -84,24 +96,22 @@ test("Use custom name, message and set it as active when publishing", async () =
 
 test("Do not mark as active if promote is not checked", async () => {
   const user = userEvent.setup();
-  renderWithAuth(<TemplateVersionEditorPage />, {
-    extraRoutes: [
-      {
-        path: "/templates/:templateId",
-        element: <div />,
-      },
-    ],
-  });
+  renderTemplateEditorPage();
   const topbar = await screen.findByTestId("topbar");
 
   // Build Template
   jest.spyOn(api, "uploadFile").mockResolvedValueOnce({ hash: "hash" });
+  const newTemplateVersion = {
+    ...MockTemplateVersion,
+    id: "new-version-id",
+    name: "new-version",
+  };
   jest
     .spyOn(api, "createTemplateVersion")
-    .mockResolvedValueOnce(MockTemplateVersion);
+    .mockResolvedValue(newTemplateVersion);
   jest
-    .spyOn(api, "getTemplateVersion")
-    .mockResolvedValue({ ...MockTemplateVersion, id: "new-version-id" });
+    .spyOn(api, "getTemplateVersionByName")
+    .mockResolvedValue(newTemplateVersion);
   jest
     .spyOn(api, "watchBuildLogsByTemplateVersionId")
     .mockImplementation((_, options) => {
@@ -117,7 +127,7 @@ test("Do not mark as active if promote is not checked", async () => {
   // Publish
   const patchTemplateVersion = jest
     .spyOn(api, "patchTemplateVersion")
-    .mockResolvedValue(MockTemplateVersion);
+    .mockResolvedValue(newTemplateVersion);
   const updateActiveTemplateVersion = jest
     .spyOn(api, "updateActiveTemplateVersion")
     .mockResolvedValue({ message: "" });
@@ -146,30 +156,27 @@ test("Do not mark as active if promote is not checked", async () => {
 });
 
 test("Patch request is not send when there are no changes", async () => {
-  const MockTemplateVersionWithEmptyMessage = {
+  const newTemplateVersion = {
     ...MockTemplateVersion,
+    id: "new-version-id",
+    name: "new-version",
+  };
+  const MockTemplateVersionWithEmptyMessage = {
+    ...newTemplateVersion,
     message: "",
   };
   const user = userEvent.setup();
-  renderWithAuth(<TemplateVersionEditorPage />, {
-    extraRoutes: [
-      {
-        path: "/templates/:templateId",
-        element: <div />,
-      },
-    ],
-  });
+  renderTemplateEditorPage();
   const topbar = await screen.findByTestId("topbar");
 
   // Build Template
   jest.spyOn(api, "uploadFile").mockResolvedValueOnce({ hash: "hash" });
   jest
     .spyOn(api, "createTemplateVersion")
-    .mockResolvedValueOnce(MockTemplateVersionWithEmptyMessage);
-  jest.spyOn(api, "getTemplateVersion").mockResolvedValue({
-    ...MockTemplateVersionWithEmptyMessage,
-    id: "new-version-id",
-  });
+    .mockResolvedValue(MockTemplateVersionWithEmptyMessage);
+  jest
+    .spyOn(api, "getTemplateVersionByName")
+    .mockResolvedValue(MockTemplateVersionWithEmptyMessage);
   jest
     .spyOn(api, "watchBuildLogsByTemplateVersionId")
     .mockImplementation((_, options) => {

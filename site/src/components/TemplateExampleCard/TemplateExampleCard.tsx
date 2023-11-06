@@ -1,8 +1,7 @@
-import { makeStyles } from "@mui/styles";
-import { TemplateExample } from "api/typesGenerated";
-import { FC } from "react";
+import { type Interpolation, type Theme } from "@emotion/react";
+import type { TemplateExample } from "api/typesGenerated";
+import { type FC } from "react";
 import { Link } from "react-router-dom";
-import { combineClasses } from "utils/combineClasses";
 
 export interface TemplateExampleCardProps {
   example: TemplateExample;
@@ -13,29 +12,26 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
   example,
   className,
 }) => {
-  const styles = useStyles();
-
   return (
     <Link
       to={`/starter-templates/${example.id}`}
-      className={combineClasses([styles.template, className])}
+      css={styles.template}
+      className={className}
       key={example.id}
     >
-      <div className={styles.templateIcon}>
+      <div css={styles.templateIcon}>
         <img src={example.icon} alt="" />
       </div>
-      <div className={styles.templateInfo}>
-        <span className={styles.templateName}>{example.name}</span>
-        <span className={styles.templateDescription}>
-          {example.description}
-        </span>
+      <div css={styles.templateInfo}>
+        <span css={styles.templateName}>{example.name}</span>
+        <span css={styles.templateDescription}>{example.description}</span>
       </div>
     </Link>
   );
 };
 
-const useStyles = makeStyles((theme) => ({
-  template: {
+const styles = {
+  template: (theme) => ({
     border: `1px solid ${theme.palette.divider}`,
     borderRadius: theme.shape.borderRadius,
     background: theme.palette.background.paper,
@@ -49,9 +45,9 @@ const useStyles = makeStyles((theme) => ({
     "&:hover": {
       backgroundColor: theme.palette.background.paperLight,
     },
-  },
+  }),
 
-  templateIcon: {
+  templateIcon: (theme) => ({
     width: theme.spacing(12),
     height: theme.spacing(12),
     display: "flex",
@@ -62,29 +58,29 @@ const useStyles = makeStyles((theme) => ({
     "& img": {
       height: theme.spacing(4),
     },
-  },
+  }),
 
-  templateInfo: {
+  templateInfo: (theme) => ({
     padding: theme.spacing(2, 2, 2, 0),
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
-  },
+  }),
 
-  templateName: {
+  templateName: (theme) => ({
     fontSize: theme.spacing(2),
     textOverflow: "ellipsis",
     width: "100%",
     overflow: "hidden",
     whiteSpace: "nowrap",
-  },
+  }),
 
-  templateDescription: {
+  templateDescription: (theme) => ({
     fontSize: theme.spacing(1.75),
     color: theme.palette.text.secondary,
     textOverflow: "ellipsis",
     width: "100%",
     overflow: "hidden",
     whiteSpace: "nowrap",
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;

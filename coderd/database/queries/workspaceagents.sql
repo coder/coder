@@ -69,7 +69,8 @@ UPDATE
 SET
 	version = $2,
 	expanded_directory = $3,
-	subsystems = $4
+	subsystems = $4,
+	api_version = $5
 WHERE
 	id = $1;
 

@@ -28,6 +28,16 @@ coder dotfiles [flags] <git_repo_url>
 
 Specifies which branch to clone. If empty, will default to cloning the default branch or using the existing branch in the cloned repo on disk.
 
+### --repo-dir
+
+|             |                                       |
+| ----------- | ------------------------------------- |
+| Type        | <code>string</code>                   |
+| Environment | <code>$CODER_DOTFILES_REPO_DIR</code> |
+| Default     | <code>dotfiles</code>                 |
+
+Specifies the directory for the dotfiles repository, relative to global config directory.
+
 ### --symlink-dir
 
 |             |                                 |

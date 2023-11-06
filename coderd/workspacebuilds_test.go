@@ -48,14 +48,12 @@ func TestWorkspaceBuild(t *testing.T) {
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	auditor.ResetLogs()
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-
-	_, err := client.WorkspaceBuild(ctx, workspace.LatestBuild.ID)
-	require.NoError(t, err)
-	require.Len(t, auditor.AuditLogs(), 1)
+	_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	// Create workspace will also start a build, so we need to wait for
+	// it to ensure all events are recorded.
+	require.Len(t, auditor.AuditLogs(), 2)
 	require.Equal(t, auditor.AuditLogs()[0].Ip.IPNet.IP.String(), "127.0.0.1")
+	require.Equal(t, auditor.AuditLogs()[1].Ip.IPNet.IP.String(), "127.0.0.1")
 }
 
 func TestWorkspaceBuildByBuildNumber(t *testing.T) {

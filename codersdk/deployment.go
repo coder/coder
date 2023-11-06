@@ -1973,6 +1973,9 @@ const (
 	// feature is not yet complete in functionality.
 	ExperimentMoons Experiment = "moons"
 
+	// https://github.com/coder/coder/milestone/19
+	ExperimentWorkspaceActions Experiment = "workspace_actions"
+
 	// ExperimentTailnetPGCoordinator enables the PGCoord in favor of the pubsub-
 	// only Coordinator
 	ExperimentTailnetPGCoordinator Experiment = "tailnet_pg_coordinator"
@@ -2002,6 +2005,7 @@ const (
 	// ExperimentDashboardTheme mutates the dashboard to use a new, dark color scheme.
 	ExperimentDashboardTheme Experiment = "dashboard_theme"
 
+	ExperimentTemplateUpdatePolicies Experiment = "template_update_policies"
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"
 )

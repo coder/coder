@@ -34,6 +34,7 @@ func (r *RootCmd) vscodeSSH() *clibase.Cmd {
 	var (
 		sessionTokenFile    string
 		urlFile             string
+		logDir              string
 		networkInfoDir      string
 		networkInfoInterval time.Duration
 	)
@@ -129,13 +130,25 @@ func (r *RootCmd) vscodeSSH() *clibase.Cmd {
 				}
 			}
 
-			var logger slog.Logger
-			if r.verbose {
-				logger = slog.Make(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelDebug)
-			}
+			// The VS Code extension obtains the PID of the SSH process to
+			// read files to display logs and network info.
+			//
+			// We get the parent PID because it's assumed `ssh` is calling this
+			// command via the ProxyCommand SSH option.
+			pid := os.Getppid()
 
+			var logger slog.Logger
+			if logDir != "" {
+				logFilePath := filepath.Join(logDir, fmt.Sprintf("%d.log", pid))
+				logFile, err := fs.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY, 0o600)
+				if err != nil {
+					return xerrors.Errorf("open log file %q: %w", logFilePath, err)
+				}
+				defer logFile.Close()
+				logger = slog.Make(sloghuman.Sink(logFile)).Leveled(slog.LevelDebug)
+			}
 			if r.disableDirect {
-				_, _ = fmt.Fprintln(inv.Stderr, "Direct connections disabled.")
+				logger.Info(ctx, "direct connections disabled")
 			}
 			agentConn, err := client.DialWorkspaceAgent(ctx, agent.ID, &codersdk.DialWorkspaceAgentOptions{
 				Logger:         logger,
@@ -166,7 +179,7 @@ func (r *RootCmd) vscodeSSH() *clibase.Cmd {
 			//
 			// We get the parent PID because it's assumed `ssh` is calling this
 			// command via the ProxyCommand SSH option.
-			networkInfoFilePath := filepath.Join(networkInfoDir, fmt.Sprintf("%d.json", os.Getppid()))
+			networkInfoFilePath := filepath.Join(networkInfoDir, fmt.Sprintf("%d.json", pid))
 
 			statsErrChan := make(chan error, 1)
 			cb := func(start, end time.Time, virtual, _ map[netlogtype.Connection]netlogtype.Counts) {
@@ -212,6 +225,11 @@ func (r *RootCmd) vscodeSSH() *clibase.Cmd {
 			Flag:        "network-info-dir",
 			Description: "Specifies a directory to write network information periodically.",
 			Value:       clibase.StringOf(&networkInfoDir),
+		},
+		{
+			Flag:        "log-dir",
+			Description: "Specifies a directory to write logs to.",
+			Value:       clibase.StringOf(&logDir),
 		},
 		{
 			Flag:        "session-token-file",

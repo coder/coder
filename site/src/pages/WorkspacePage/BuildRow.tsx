@@ -58,7 +58,11 @@ export const BuildRow: React.FC<BuildRowProps> = ({ build }) => {
                 </span>
               </Stack>
 
-              <Stack direction="row" spacing={1}>
+              <Stack
+                direction="row"
+                spacing={1}
+                css={{ "& strong": { fontWeight: 600 } }}
+              >
                 <span css={styles.buildInfo}>
                   Reason: <strong>{build.reason}</strong>
                 </span>
@@ -94,6 +98,9 @@ const styles = {
   buildSummary: (theme) => ({
     ...(theme.typography.body1 as CSSObject),
     fontFamily: "inherit",
+    "& strong": {
+      fontWeight: 600,
+    },
   }),
 
   buildInfo: (theme) => ({

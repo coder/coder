@@ -66,6 +66,12 @@ func AuditLog(t testing.TB, db database.Store, seed database.AuditLog) database.
 
 func Template(t testing.TB, db database.Store, seed database.Template) database.Template {
 	id := takeFirst(seed.ID, uuid.New())
+	if seed.GroupACL == nil {
+		// By default, all users in the organization can read the template.
+		seed.GroupACL = database.TemplateACL{
+			seed.OrganizationID.String(): []rbac.Action{rbac.ActionRead},
+		}
+	}
 	err := db.InsertTemplate(genCtx, database.InsertTemplateParams{
 		ID:                           id,
 		CreatedAt:                    takeFirst(seed.CreatedAt, dbtime.Now()),
@@ -84,7 +90,7 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 	})
 	require.NoError(t, err, "insert template")
 
-	template, err := db.GetTemplateByID(context.Background(), id)
+	template, err := db.GetTemplateByID(genCtx, id)
 	require.NoError(t, err, "get template")
 	return template
 }

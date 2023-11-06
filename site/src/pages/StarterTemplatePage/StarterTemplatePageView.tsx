@@ -1,5 +1,5 @@
 import Button from "@mui/material/Button";
-import { makeStyles } from "@mui/styles";
+import { useTheme } from "@emotion/react";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { MemoizedMarkdown } from "components/Markdown/Markdown";
@@ -8,13 +8,13 @@ import {
   PageHeaderSubtitle,
   PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
-import { FC } from "react";
+import { type FC } from "react";
 import ViewCodeIcon from "@mui/icons-material/OpenInNewOutlined";
 import PlusIcon from "@mui/icons-material/AddOutlined";
 import { Stack } from "components/Stack/Stack";
 import { Link } from "react-router-dom";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { TemplateExample } from "api/typesGenerated";
+import type { TemplateExample } from "api/typesGenerated";
 
 export interface StarterTemplatePageViewProps {
   starterTemplate?: TemplateExample;
@@ -25,7 +25,7 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
   starterTemplate,
   error,
 }) => {
-  const styles = useStyles();
+  const theme = useTheme();
 
   if (error) {
     return (
@@ -65,7 +65,19 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
         }
       >
         <Stack direction="row" spacing={3} alignItems="center">
-          <div className={styles.icon}>
+          <div
+            css={{
+              height: theme.spacing(6),
+              width: theme.spacing(6),
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+
+              "& img": {
+                width: "100%",
+              },
+            }}
+          >
             <img src={starterTemplate.icon} alt="" />
           </div>
           <div>
@@ -77,39 +89,24 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
         </Stack>
       </PageHeader>
 
-      <div className={styles.markdownSection} id="readme">
-        <div className={styles.markdownWrapper}>
+      <div
+        css={{
+          background: theme.palette.background.paper,
+          border: `1px solid ${theme.palette.divider}`,
+          borderRadius: theme.shape.borderRadius,
+        }}
+        id="readme"
+      >
+        <div
+          css={{
+            padding: theme.spacing(5, 5, 8),
+            maxWidth: 800,
+            margin: "auto",
+          }}
+        >
           <MemoizedMarkdown>{starterTemplate.markdown}</MemoizedMarkdown>
         </div>
       </div>
     </Margins>
   );
 };
-
-export const useStyles = makeStyles((theme) => {
-  return {
-    icon: {
-      height: theme.spacing(6),
-      width: theme.spacing(6),
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-
-      "& img": {
-        width: "100%",
-      },
-    },
-
-    markdownSection: {
-      background: theme.palette.background.paper,
-      border: `1px solid ${theme.palette.divider}`,
-      borderRadius: theme.shape.borderRadius,
-    },
-
-    markdownWrapper: {
-      padding: theme.spacing(5, 5, 8),
-      maxWidth: 800,
-      margin: "auto",
-    },
-  };
-});

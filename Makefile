@@ -448,13 +448,15 @@ lint/helm:
 DB_GEN_FILES := \
 	coderd/database/querier.go \
 	coderd/database/unique_constraint.go \
-	coderd/database/dbfake/dbfake.go \
+	coderd/database/dbmem/dbmem.go \
 	coderd/database/dbmetrics/dbmetrics.go \
 	coderd/database/dbauthz/dbauthz.go \
 	coderd/database/dbmock/dbmock.go
 
 # all gen targets should be added here and to gen/mark-fresh
 gen: \
+	tailnet/proto/tailnet.pb.go \
+	agent/proto/agent.pb.go \
 	provisionersdk/proto/provisioner.pb.go \
 	provisionerd/proto/provisionerd.pb.go \
 	coderd/database/dump.sql \
@@ -479,6 +481,8 @@ gen: \
 # used during releases so we don't run generation scripts.
 gen/mark-fresh:
 	files="\
+		tailnet/proto/tailnet.pb.go \
+		agent/proto/agent.pb.go \
 		provisionersdk/proto/provisioner.pb.go \
 		provisionerd/proto/provisionerd.pb.go \
 		coderd/database/dump.sql \
@@ -523,6 +527,22 @@ coderd/database/querier.go: coderd/database/sqlc.yaml coderd/database/dump.sql $
 
 coderd/database/dbmock/dbmock.go: coderd/database/db.go coderd/database/querier.go
 	go generate ./coderd/database/dbmock/
+
+tailnet/proto/tailnet.pb.go: tailnet/proto/tailnet.proto
+	protoc \
+		--go_out=. \
+		--go_opt=paths=source_relative \
+		--go-drpc_out=. \
+		--go-drpc_opt=paths=source_relative \
+		./tailnet/proto/tailnet.proto
+
+agent/proto/agent.pb.go: agent/proto/agent.proto
+	protoc \
+		--go_out=. \
+		--go_opt=paths=source_relative \
+		--go-drpc_out=. \
+		--go-drpc_opt=paths=source_relative \
+		./agent/proto/agent.proto
 
 provisionersdk/proto/provisioner.pb.go: provisionersdk/proto/provisioner.proto
 	protoc \

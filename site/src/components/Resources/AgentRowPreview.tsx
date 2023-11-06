@@ -1,9 +1,8 @@
-import { makeStyles } from "@mui/styles";
-import { AppPreviewLink } from "components/Resources/AppLink/AppPreviewLink";
-import { FC } from "react";
-import { combineClasses } from "utils/combineClasses";
-import { WorkspaceAgent } from "api/typesGenerated";
+import { type Interpolation, type Theme } from "@emotion/react";
+import { type FC } from "react";
+import type { WorkspaceAgent } from "api/typesGenerated";
 import { Stack } from "../Stack/Stack";
+import { AppPreviewLink } from "./AppLink/AppPreviewLink";
 
 interface AgentRowPreviewStyles {
   // Helpful when there are more than one row so the values are aligned
@@ -18,57 +17,58 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
   agent,
   alignValues,
 }) => {
-  const styles = useStyles({ alignValues });
-
   return (
     <Stack
       key={agent.id}
       direction="row"
       alignItems="center"
       justifyContent="space-between"
-      className={styles.agentRow}
+      css={styles.agentRow}
     >
       <Stack direction="row" alignItems="baseline">
-        <div className={styles.agentStatusWrapper}>
-          <div className={styles.agentStatusPreview}></div>
+        <div css={styles.agentStatusWrapper}>
+          <div css={styles.agentStatusPreview}></div>
         </div>
         <Stack
           alignItems="baseline"
           direction="row"
           spacing={4}
-          className={styles.agentData}
+          css={styles.agentData}
         >
           <Stack
             direction="row"
             alignItems="baseline"
             spacing={1}
-            className={combineClasses([
+            css={[
               styles.noShrink,
               styles.agentDataItem,
-              styles.agentDataName,
-            ])}
+              (theme) => ({
+                [theme.breakpoints.up("sm")]: {
+                  minWidth: alignValues ? 240 : undefined,
+                },
+              }),
+            ]}
           >
             <span>Agent:</span>
-            <span className={styles.agentDataValue}>{agent.name}</span>
+            <span css={styles.agentDataValue}>{agent.name}</span>
           </Stack>
 
           <Stack
             direction="row"
             alignItems="baseline"
             spacing={1}
-            className={combineClasses([
+            css={[
               styles.noShrink,
               styles.agentDataItem,
-              styles.agentDataOS,
-            ])}
+              (theme) => ({
+                [theme.breakpoints.up("sm")]: {
+                  minWidth: alignValues ? 100 : undefined,
+                },
+              }),
+            ]}
           >
             <span>OS:</span>
-            <span
-              className={combineClasses([
-                styles.agentDataValue,
-                styles.agentOS,
-              ])}
-            >
+            <span css={[styles.agentDataValue, styles.agentOS]}>
               {agent.operating_system}
             </span>
           </Stack>
@@ -77,7 +77,7 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
             direction="row"
             alignItems="center"
             spacing={1}
-            className={styles.agentDataItem}
+            css={styles.agentDataItem}
           >
             <span>Apps:</span>
             <Stack
@@ -90,7 +90,7 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
                 <AppPreviewLink key={app.slug} app={app} />
               ))}
               {agent.apps.length === 0 && (
-                <span className={styles.agentDataValue}>None</span>
+                <span css={styles.agentDataValue}>None</span>
               )}
             </Stack>
           </Stack>
@@ -100,8 +100,8 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
   );
 };
 
-const useStyles = makeStyles((theme) => ({
-  agentRow: {
+const styles = {
+  agentRow: (theme) => ({
     padding: theme.spacing(2, 4),
     backgroundColor: theme.palette.background.paperLight,
     fontSize: 16,
@@ -120,16 +120,16 @@ const useStyles = makeStyles((theme) => ({
       top: 0,
       left: 49,
     },
-  },
+  }),
 
-  agentStatusWrapper: {
+  agentStatusWrapper: (theme) => ({
     width: theme.spacing(4.5),
     display: "flex",
     justifyContent: "center",
     flexShrink: 0,
-  },
+  }),
 
-  agentStatusPreview: {
+  agentStatusPreview: (theme) => ({
     width: 10,
     height: 10,
     border: `2px solid ${theme.palette.text.secondary}`,
@@ -137,7 +137,7 @@ const useStyles = makeStyles((theme) => ({
     position: "relative",
     zIndex: 1,
     background: theme.palette.background.paper,
-  },
+  }),
 
   agentName: {
     fontWeight: 600,
@@ -146,10 +146,9 @@ const useStyles = makeStyles((theme) => ({
   agentOS: {
     textTransform: "capitalize",
     fontSize: 14,
-    color: theme.palette.text.secondary,
   },
 
-  agentData: {
+  agentData: (theme) => ({
     fontSize: 14,
     color: theme.palette.text.secondary,
 
@@ -157,36 +156,22 @@ const useStyles = makeStyles((theme) => ({
       gap: theme.spacing(2),
       flexWrap: "wrap",
     },
-  },
+  }),
 
-  agentDataName: {
-    [theme.breakpoints.up("sm")]: {
-      minWidth: ({ alignValues }: AgentRowPreviewStyles) =>
-        alignValues ? 240 : undefined,
-    },
-  },
-
-  agentDataOS: {
-    [theme.breakpoints.up("sm")]: {
-      minWidth: ({ alignValues }: AgentRowPreviewStyles) =>
-        alignValues ? 100 : undefined,
-    },
-  },
-
-  agentDataValue: {
+  agentDataValue: (theme) => ({
     color: theme.palette.text.primary,
-  },
+  }),
 
   noShrink: {
     flexShrink: 0,
   },
 
-  agentDataItem: {
+  agentDataItem: (theme) => ({
     [theme.breakpoints.down("md")]: {
       flexDirection: "column",
       alignItems: "flex-start",
       gap: theme.spacing(1),
       width: "fit-content",
     },
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;

@@ -118,7 +118,6 @@ export const ScheduleDialog: FC<PropsWithChildren<ScheduleDialogProps>> = ({
       <DialogActions>
         <DialogActionButtons
           cancelText={cancelText}
-          confirmDialog
           confirmLoading={confirmLoading}
           confirmText="Submit"
           disabled={disabled}

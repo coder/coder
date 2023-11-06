@@ -182,7 +182,7 @@ export const handlers = [
     return res(ctx.status(200), ctx.json(M.MockAPIKey));
   }),
   rest.get("/api/v2/users/authmethods", async (req, res, ctx) => {
-    return res(ctx.status(200), ctx.json(M.MockAuthMethods));
+    return res(ctx.status(200), ctx.json(M.MockAuthMethodsPasswordOnly));
   }),
   rest.get("/api/v2/users/roles", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockSiteRoles));
@@ -354,7 +354,16 @@ export const handlers = [
   rest.get(
     "/api/v2/workspacebuilds/:workspaceBuildId/parameters",
     (_, res, ctx) => {
-      return res(ctx.status(200), ctx.json([M.MockWorkspaceBuildParameter1]));
+      return res(
+        ctx.status(200),
+        ctx.json([
+          M.MockWorkspaceBuildParameter1,
+          M.MockWorkspaceBuildParameter2,
+          M.MockWorkspaceBuildParameter3,
+          M.MockWorkspaceBuildParameter4,
+          M.MockWorkspaceBuildParameter5,
+        ]),
+      );
     },
   ),
 

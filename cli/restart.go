@@ -2,15 +2,15 @@ package cli
 
 import (
 	"fmt"
+	"net/http"
 	"time"
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/pretty"
-
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/pretty"
 )
 
 func (r *RootCmd) restart() *clibase.Cmd {
@@ -25,7 +25,7 @@ func (r *RootCmd) restart() *clibase.Cmd {
 			clibase.RequireNArgs(1),
 			r.InitClient(client),
 		),
-		Options: append(parameterFlags.cliBuildOptions(), cliui.SkipPromptOption()),
+		Options: clibase.OptionSet{cliui.SkipPromptOption()},
 		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
 			out := inv.Stdout
@@ -35,30 +35,7 @@ func (r *RootCmd) restart() *clibase.Cmd {
 				return err
 			}
 
-			lastBuildParameters, err := client.WorkspaceBuildParameters(inv.Context(), workspace.LatestBuild.ID)
-			if err != nil {
-				return err
-			}
-
-			template, err := client.Template(inv.Context(), workspace.TemplateID)
-			if err != nil {
-				return err
-			}
-
-			buildOptions, err := asWorkspaceBuildParameters(parameterFlags.buildOptions)
-			if err != nil {
-				return xerrors.Errorf("can't parse build options: %w", err)
-			}
-
-			buildParameters, err := prepStartWorkspace(inv, client, prepStartWorkspaceArgs{
-				Action:   WorkspaceRestart,
-				Template: template,
-
-				LastBuildParameters: lastBuildParameters,
-
-				PromptBuildOptions: parameterFlags.promptBuildOptions,
-				BuildOptions:       buildOptions,
-			})
+			startReq, err := buildWorkspaceStartRequest(inv, client, workspace, parameterFlags, WorkspaceRestart)
 			if err != nil {
 				return err
 			}
@@ -77,18 +54,25 @@ func (r *RootCmd) restart() *clibase.Cmd {
 			if err != nil {
 				return err
 			}
+
 			err = cliui.WorkspaceBuild(ctx, out, client, build.ID)
 			if err != nil {
 				return err
 			}
 
-			build, err = client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-				Transition:          codersdk.WorkspaceTransitionStart,
-				RichParameterValues: buildParameters,
-			})
-			if err != nil {
+			build, err = client.CreateWorkspaceBuild(ctx, workspace.ID, startReq)
+			// It's possible for a workspace build to fail due to the template requiring starting
+			// workspaces with the active version.
+			if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusUnauthorized {
+				_, _ = fmt.Fprintln(inv.Stdout, "Failed to restart with the template version from your last build. Policy may require you to restart with the current active template version.")
+				build, err = startWorkspace(inv, client, workspace, parameterFlags, WorkspaceUpdate)
+				if err != nil {
+					return xerrors.Errorf("start workspace with active template version: %w", err)
+				}
+			} else if err != nil {
 				return err
 			}
+
 			err = cliui.WorkspaceBuild(ctx, out, client, build.ID)
 			if err != nil {
 				return err
@@ -101,5 +85,8 @@ func (r *RootCmd) restart() *clibase.Cmd {
 			return nil
 		},
 	}
+
+	cmd.Options = append(cmd.Options, parameterFlags.allOptions()...)
+
 	return cmd
 }

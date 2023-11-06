@@ -54,6 +54,7 @@ export interface TemplateScheduleForm {
   isSubmitting: boolean;
   error?: unknown;
   allowAdvancedScheduling: boolean;
+  allowWorkspaceActions: boolean;
   allowAutostopRequirement: boolean;
   // Helpful to show field errors on Storybook
   initialTouched?: FormikTouched<UpdateTemplateMeta>;
@@ -65,6 +66,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
   onCancel,
   error,
   allowAdvancedScheduling,
+  allowWorkspaceActions,
   allowAutostopRequirement,
   isSubmitting,
   initialTouched,
@@ -491,7 +493,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
           </Stack>
         </Stack>
       </FormSection>
-      {allowAdvancedScheduling && (
+      {allowAdvancedScheduling && allowWorkspaceActions && (
         <>
           <FormSection
             title="Failure Cleanup"

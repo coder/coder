@@ -1,9 +1,6 @@
-import MenuItem from "@mui/material/MenuItem";
-import Menu from "@mui/material/Menu";
-import { makeStyles } from "@mui/styles";
-import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined";
-import { FC, Fragment, ReactNode, useRef, useState } from "react";
+import { FC, Fragment, ReactNode } from "react";
 import { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
+import { useWorkspaceDuplication } from "pages/CreateWorkspacePage/useWorkspaceDuplication";
 import {
   ActionLoadingButton,
   CancelButton,
@@ -19,10 +16,19 @@ import {
   ButtonTypesEnum,
   actionsByWorkspaceStatus,
 } from "./constants";
-import SettingsOutlined from "@mui/icons-material/SettingsOutlined";
-import HistoryOutlined from "@mui/icons-material/HistoryOutlined";
-import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
-import IconButton from "@mui/material/IconButton";
+
+import Divider from "@mui/material/Divider";
+import DuplicateIcon from "@mui/icons-material/FileCopyOutlined";
+import SettingsIcon from "@mui/icons-material/SettingsOutlined";
+import HistoryIcon from "@mui/icons-material/HistoryOutlined";
+import DeleteIcon from "@mui/icons-material/DeleteOutlined";
+
+import {
+  MoreMenu,
+  MoreMenuContent,
+  MoreMenuItem,
+  MoreMenuTrigger,
+} from "components/MoreMenu/MoreMenu";
 
 export interface WorkspaceActionsProps {
   workspace: Workspace;
@@ -56,15 +62,18 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   isRestarting,
   canChangeVersions,
 }) => {
-  const styles = useStyles();
   const {
     canCancel,
     canAcceptJobs,
     actions: actionsByStatus,
-  } = actionsByWorkspaceStatus(workspace, workspace.latest_build.status);
+  } = actionsByWorkspaceStatus(
+    workspace,
+    workspace.latest_build.status,
+    canChangeVersions,
+  );
   const canBeUpdated = workspace.outdated && canAcceptJobs;
-  const menuTriggerRef = useRef<HTMLButtonElement>(null);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { duplicateWorkspace, isDuplicationReady } =
+    useWorkspaceDuplication(workspace);
 
   // A mapping of button type to the corresponding React component
   const buttonMapping: ButtonMapping = {
@@ -104,70 +113,70 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     ),
   };
 
-  // Returns a function that will execute the action and close the menu
-  const onMenuItemClick = (actionFn: () => void) => () => {
-    setIsMenuOpen(false);
-    actionFn();
-  };
-
   return (
-    <div className={styles.actions} data-testid="workspace-actions">
+    <div
+      css={(theme) => ({
+        display: "flex",
+        alignItems: "center",
+        gap: theme.spacing(1.5),
+      })}
+      data-testid="workspace-actions"
+    >
       {canBeUpdated &&
         (isUpdating
           ? buttonMapping[ButtonTypesEnum.updating]
           : buttonMapping[ButtonTypesEnum.update])}
+
       {isRestarting && buttonMapping[ButtonTypesEnum.restarting]}
+
       {!isRestarting &&
         actionsByStatus.map((action) => (
           <Fragment key={action}>{buttonMapping[action]}</Fragment>
         ))}
+
       {canCancel && <CancelButton handleAction={handleCancel} />}
-      <div>
-        <IconButton
+      <MoreMenu>
+        <MoreMenuTrigger
           title="More options"
           size="small"
           data-testid="workspace-options-button"
           aria-controls="workspace-options"
-          aria-haspopup="true"
           disabled={!canAcceptJobs}
-          ref={menuTriggerRef}
-          onClick={() => setIsMenuOpen(true)}
-        >
-          <MoreVertOutlined />
-        </IconButton>
-        <Menu
-          id="workspace-options"
-          anchorEl={menuTriggerRef.current}
-          open={isMenuOpen}
-          onClose={() => setIsMenuOpen(false)}
-        >
-          <MenuItem onClick={onMenuItemClick(handleSettings)}>
-            <SettingsOutlined />
+        />
+
+        <MoreMenuContent id="workspace-options">
+          <MoreMenuItem onClick={handleSettings}>
+            <SettingsIcon />
             Settings
-          </MenuItem>
+          </MoreMenuItem>
+
           {canChangeVersions && (
-            <MenuItem onClick={onMenuItemClick(handleChangeVersion)}>
-              <HistoryOutlined />
+            <MoreMenuItem onClick={handleChangeVersion}>
+              <HistoryIcon />
               Change version&hellip;
-            </MenuItem>
+            </MoreMenuItem>
           )}
-          <MenuItem
-            onClick={onMenuItemClick(handleDelete)}
+
+          <MoreMenuItem
+            onClick={duplicateWorkspace}
+            disabled={!isDuplicationReady}
+          >
+            <DuplicateIcon />
+            Duplicate&hellip;
+          </MoreMenuItem>
+
+          <Divider />
+
+          <MoreMenuItem
+            danger
+            onClick={handleDelete}
             data-testid="delete-button"
           >
-            <DeleteOutlined />
+            <DeleteIcon />
             Delete&hellip;
-          </MenuItem>
-        </Menu>
-      </div>
+          </MoreMenuItem>
+        </MoreMenuContent>
+      </MoreMenu>
     </div>
   );
 };
-
-const useStyles = makeStyles((theme) => ({
-  actions: {
-    display: "flex",
-    alignItems: "center",
-    gap: theme.spacing(1.5),
-  },
-}));

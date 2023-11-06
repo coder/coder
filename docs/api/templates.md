@@ -1704,6 +1704,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
   {
     "agents": [
       {
+        "api_version": "string",
         "apps": [
           {
             "command": "string",
@@ -1824,6 +1825,7 @@ Status Code **200**
 | ------------------------------- | ------------------------------------------------------------------------------------------------------ | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `[array item]`                  | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `» agents`                      | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
+| `»» api_version`                | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» apps`                       | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `»»» command`                   | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» display_name`              | string                                                                                                 | false    |              | Display name is a friendly name for the app.                                                                                                                                                                                                   |
@@ -2120,6 +2122,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
   {
     "agents": [
       {
+        "api_version": "string",
         "apps": [
           {
             "command": "string",
@@ -2240,6 +2243,7 @@ Status Code **200**
 | ------------------------------- | ------------------------------------------------------------------------------------------------------ | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `[array item]`                  | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `» agents`                      | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
+| `»» api_version`                | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» apps`                       | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `»»» command`                   | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» display_name`              | string                                                                                                 | false    |              | Display name is a friendly name for the app.                                                                                                                                                                                                   |

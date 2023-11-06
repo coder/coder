@@ -1,4 +1,6 @@
 import Link from "@mui/material/Link";
+// This is used as base for the main HelpTooltip component
+// eslint-disable-next-line no-restricted-imports -- Read above
 import Popover, { PopoverProps } from "@mui/material/Popover";
 import HelpIcon from "@mui/icons-material/HelpOutline";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
@@ -86,7 +88,7 @@ export const HelpPopover: FC<
 
 export const HelpTooltip: FC<PropsWithChildren<HelpTooltipProps>> = ({
   children,
-  open,
+  open = false,
   size = "medium",
   icon: Icon = HelpIcon,
   iconClassName,
@@ -94,7 +96,7 @@ export const HelpTooltip: FC<PropsWithChildren<HelpTooltipProps>> = ({
 }) => {
   const theme = useTheme();
   const anchorRef = useRef<HTMLButtonElement>(null);
-  const [isOpen, setIsOpen] = useState(Boolean(open));
+  const [isOpen, setIsOpen] = useState(open);
   const id = isOpen ? "help-popover" : undefined;
 
   const onClose = () => {

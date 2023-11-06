@@ -22,8 +22,9 @@ import (
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
@@ -64,8 +65,7 @@ func TestConfigSSH(t *testing.T) {
 	const hostname = "test-coder."
 	const expectedKey = "ConnectionAttempts"
 	const removeKey = "ConnectionTimeout"
-	client := coderdtest.New(t, &coderdtest.Options{
-		IncludeProvisionerDaemon: true,
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 		ConfigSSH: codersdk.SSHConfigResponse{
 			HostnamePrefix: hostname,
 			SSHConfigOptions: map[string]string{
@@ -76,32 +76,13 @@ func TestConfigSSH(t *testing.T) {
 		},
 	})
 	owner := coderdtest.CreateFirstUser(t, client)
-	member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-	authToken := uuid.NewString()
-	version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
-		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{{
-			Type: &proto.Response_Plan{
-				Plan: &proto.PlanComplete{
-					Resources: []*proto.Resource{{
-						Name: "example",
-						Type: "aws_instance",
-						Agents: []*proto.Agent{{
-							Id:   uuid.NewString(),
-							Name: "example",
-						}},
-					}},
-				},
-			},
-		}},
-		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+	member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+	ws, authToken := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
+		OrganizationID: owner.OrganizationID,
+		OwnerID:        memberUser.ID,
 	})
-	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-	template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, member, owner.OrganizationID, template.ID)
-	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 	_ = agenttest.New(t, client.URL, authToken)
-	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
 	agentConn, err := client.DialWorkspaceAgent(context.Background(), resources[0].Agents[0].ID, nil)
 	require.NoError(t, err)
 	defer agentConn.Close()
@@ -172,7 +153,7 @@ func TestConfigSSH(t *testing.T) {
 
 	home := filepath.Dir(filepath.Dir(sshConfigFile))
 	// #nosec
-	sshCmd := exec.Command("ssh", "-F", sshConfigFile, hostname+workspace.Name, "echo", "test")
+	sshCmd := exec.Command("ssh", "-F", sshConfigFile, hostname+ws.Name, "echo", "test")
 	pty = ptytest.New(t)
 	// Set HOME because coder config is included from ~/.ssh/coder.
 	sshCmd.Env = append(sshCmd.Env, fmt.Sprintf("HOME=%s", home))
@@ -213,13 +194,13 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 		match, write string
 	}
 	tests := []struct {
-		name         string
-		args         []string
-		matches      []match
-		writeConfig  writeConfig
-		wantConfig   wantConfig
-		wantErr      bool
-		echoResponse *echo.Responses
+		name        string
+		args        []string
+		matches     []match
+		writeConfig writeConfig
+		wantConfig  wantConfig
+		wantErr     bool
+		hasAgent    bool
 	}{
 		{
 			name: "Config file is created",
@@ -576,11 +557,8 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			args: []string{
 				"-y", "--coder-binary-path", "/foo/bar/coder",
 			},
-			wantErr: false,
-			echoResponse: &echo.Responses{
-				Parse:          echo.ParseComplete,
-				ProvisionApply: echo.ProvisionApplyWithAgent(""),
-			},
+			wantErr:  false,
+			hasAgent: true,
 			wantConfig: wantConfig{
 				regexMatch: "ProxyCommand /foo/bar/coder",
 			},
@@ -591,15 +569,14 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var (
-				client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-				user      = coderdtest.CreateFirstUser(t, client)
-				version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, tt.echoResponse)
-				_         = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-				project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-				workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
-				_         = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-			)
+			client, db := coderdtest.NewWithDatabase(t, nil)
+			user := coderdtest.CreateFirstUser(t, client)
+			if tt.hasAgent {
+				_, _ = dbfake.WorkspaceWithAgent(t, db, database.Workspace{
+					OrganizationID: user.OrganizationID,
+					OwnerID:        user.UserID,
+				})
+			}
 
 			// Prepare ssh config files.
 			sshConfigName := sshConfigFileName(t)
@@ -613,6 +590,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			}
 			args = append(args, tt.args...)
 			inv, root := clitest.New(t, args...)
+			//nolint:gocritic // This has always ran with the admin user.
 			clitest.SetupConfig(t, client, root)
 
 			pty := ptytest.New(t)
@@ -710,17 +688,15 @@ func TestConfigSSH_Hostnames(t *testing.T) {
 				resources = append(resources, resource)
 			}
 
-			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			client, db := coderdtest.NewWithDatabase(t, nil)
 			owner := coderdtest.CreateFirstUser(t, client)
-			member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-			// authToken := uuid.NewString()
-			version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID,
-				echo.WithResources(resources))
-			coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
-			workspace := coderdtest.CreateWorkspace(t, member, owner.OrganizationID, template.ID)
-			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+			member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
+			ws := dbfake.Workspace(t, db, database.Workspace{
+				OrganizationID: owner.OrganizationID,
+				OwnerID:        memberUser.ID,
+			})
+			dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, resources...)
 			sshConfigFile := sshConfigFileName(t)
 
 			inv, root := clitest.New(t, "config-ssh", "--ssh-config-file", sshConfigFile)
@@ -745,7 +721,7 @@ func TestConfigSSH_Hostnames(t *testing.T) {
 
 			var expectedHosts []string
 			for _, hostnamePattern := range tt.expected {
-				hostname := strings.ReplaceAll(hostnamePattern, "@", workspace.Name)
+				hostname := strings.ReplaceAll(hostnamePattern, "@", ws.Name)
 				expectedHosts = append(expectedHosts, hostname)
 			}
 

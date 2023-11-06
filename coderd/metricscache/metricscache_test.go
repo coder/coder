@@ -11,8 +11,8 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/metricscache"
 	"github.com/coder/coder/v2/codersdk"
@@ -210,7 +210,7 @@ func TestCache_TemplateUsers(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			var (
-				db    = dbfake.New()
+				db    = dbmem.New()
 				cache = metricscache.New(db, slogtest.Make(t, nil), metricscache.Intervals{
 					TemplateDAUs: testutil.IntervalFast,
 				})
@@ -342,7 +342,7 @@ func TestCache_BuildTime(t *testing.T) {
 			ctx := context.Background()
 
 			var (
-				db    = dbfake.New()
+				db    = dbmem.New()
 				cache = metricscache.New(db, slogtest.Make(t, nil), metricscache.Intervals{
 					TemplateDAUs: testutil.IntervalFast,
 				})
@@ -436,7 +436,7 @@ func TestCache_BuildTime(t *testing.T) {
 
 func TestCache_DeploymentStats(t *testing.T) {
 	t.Parallel()
-	db := dbfake.New()
+	db := dbmem.New()
 	cache := metricscache.New(db, slogtest.Make(t, nil), metricscache.Intervals{
 		DeploymentStats: testutil.IntervalFast,
 	})
