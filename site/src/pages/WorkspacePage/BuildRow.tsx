@@ -85,9 +85,9 @@ export const BuildRow: React.FC<BuildRowProps> = ({ build }) => {
 };
 
 const styles = {
-  buildWrapper: (theme) => ({
-    padding: theme.spacing(2, 4),
-  }),
+  buildWrapper: {
+    padding: "16px 32px",
+  },
 
   buildCell: {
     padding: "0 !important",

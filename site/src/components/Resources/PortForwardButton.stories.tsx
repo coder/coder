@@ -13,7 +13,7 @@ const meta: Meta<typeof PortForwardPopoverView> = {
     (Story) => (
       <Box
         sx={{
-          width: (theme) => theme.spacing(38),
+          width: 304,
           border: (theme) => `1px solid ${theme.palette.divider}`,
           borderRadius: 1,
           backgroundColor: (theme) => theme.palette.background.paper,

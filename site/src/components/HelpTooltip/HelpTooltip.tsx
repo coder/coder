@@ -59,9 +59,9 @@ export const HelpPopover: FC<
         paper: className`
           ${theme.typography.body2 as CSSObject}
 
-          margin-top: ${theme.spacing(0.5)};
-          width: ${theme.spacing(38)};
-          padding: ${theme.spacing(2.5)};
+          margin-top: 4px;
+          width: 304px;
+          padding: 20px;
           color: ${theme.palette.text.secondary};
           pointer-events: auto;
         `,
@@ -239,7 +239,7 @@ const getIconSpacingFromSize = (size?: Size): number => {
 const styles = {
   title: (theme) => ({
     marginTop: 0,
-    marginBottom: theme.spacing(1),
+    marginBottom: 8,
     color: theme.palette.text.primary,
     fontSize: 14,
     lineHeight: "150%",
@@ -247,8 +247,8 @@ const styles = {
   }),
 
   text: (theme) => ({
-    marginTop: theme.spacing(0.5),
-    marginBottom: theme.spacing(0.5),
+    marginTop: 4,
+    marginBottom: 4,
     ...(theme.typography.body2 as CSSObject),
   }),
 
@@ -258,16 +258,16 @@ const styles = {
     ...(theme.typography.body2 as CSSObject),
   }),
 
-  linkIcon: (theme) => ({
+  linkIcon: {
     color: "inherit",
     width: 14,
     height: 14,
-    marginRight: theme.spacing(1),
-  }),
+    marginRight: 8,
+  },
 
-  linksGroup: (theme) => ({
-    marginTop: theme.spacing(2),
-  }),
+  linksGroup: {
+    marginTop: 16,
+  },
 
   action: (theme) => ({
     display: "flex",
@@ -280,10 +280,10 @@ const styles = {
     fontSize: 14,
   }),
 
-  actionIcon: (theme) => ({
+  actionIcon: {
     color: "inherit",
     width: 14,
     height: 14,
-    marginRight: theme.spacing(1),
-  }),
+    marginRight: 8,
+  },
 } satisfies Record<string, Interpolation<Theme>>;

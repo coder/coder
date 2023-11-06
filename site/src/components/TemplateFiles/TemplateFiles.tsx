@@ -99,13 +99,13 @@ const styles = {
   tab: (theme) => ({
     background: "transparent",
     border: 0,
-    padding: theme.spacing(0, 3),
+    padding: "0 24px",
     display: "flex",
     alignItems: "center",
-    height: theme.spacing(6),
+    height: 48,
     opacity: 0.85,
     cursor: "pointer",
-    gap: theme.spacing(0.5),
+    gap: 4,
     position: "relative",
     color: theme.palette.text.secondary,
     whiteSpace: "nowrap",
@@ -142,7 +142,7 @@ const styles = {
     width: 6,
     backgroundColor: theme.palette.warning.light,
     borderRadius: "100%",
-    marginLeft: theme.spacing(0.5),
+    marginLeft: 4,
   }),
 
   codeWrapper: (theme) => ({
@@ -150,7 +150,7 @@ const styles = {
   }),
 
   files: (theme) => ({
-    borderRadius: theme.shape.borderRadius,
+    borderRadius: 8,
     border: `1px solid ${theme.palette.divider}`,
   }),
 

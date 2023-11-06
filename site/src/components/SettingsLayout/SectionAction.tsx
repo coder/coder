@@ -7,13 +7,5 @@ import { type FC } from "react";
 export const SectionAction: FC<React.PropsWithChildren<unknown>> = ({
   children,
 }) => {
-  return (
-    <div
-      css={(theme) => ({
-        marginTop: theme.spacing(3),
-      })}
-    >
-      {children}
-    </div>
-  );
+  return <div css={{ marginTop: 24 }}>{children}</div>;
 };

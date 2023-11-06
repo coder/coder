@@ -2,7 +2,7 @@ import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import VisibilityOffOutlined from "@mui/icons-material/VisibilityOffOutlined";
 import VisibilityOutlined from "@mui/icons-material/VisibilityOutlined";
-import { useState } from "react";
+import { type FC, useState } from "react";
 import { css } from "@emotion/react";
 import { CopyableValue } from "components/CopyableValue/CopyableValue";
 
@@ -11,7 +11,7 @@ const Language = {
   hideLabel: "Hide value",
 };
 
-export const SensitiveValue: React.FC<{ value: string }> = ({ value }) => {
+export const SensitiveValue: FC<{ value: string }> = ({ value }) => {
   const [shouldDisplay, setShouldDisplay] = useState(false);
   const displayValue = shouldDisplay ? value : "••••••••";
   const buttonLabel = shouldDisplay ? Language.hideLabel : Language.showLabel;
@@ -23,11 +23,11 @@ export const SensitiveValue: React.FC<{ value: string }> = ({ value }) => {
 
   return (
     <div
-      css={(theme) => ({
+      css={{
         display: "flex",
         alignItems: "center",
-        gap: theme.spacing(0.5),
-      })}
+        gap: 4,
+      }}
     >
       <CopyableValue
         value={value}

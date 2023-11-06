@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import { createContext, type FC, Suspense, useContext } from "react";
 import { useQuery } from "react-query";
 import { Outlet, useNavigate, useParams } from "react-router-dom";
@@ -62,7 +61,6 @@ export const useTemplateLayoutContext = (): TemplateLayoutContextValue => {
 export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
   children = <Outlet />,
 }) => {
-  const theme = useTheme();
   const navigate = useNavigate();
   const orgId = useOrganizationId();
   const { template: templateName } = useParams() as { template: string };
@@ -74,7 +72,7 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
 
   if (error) {
     return (
-      <div css={{ margin: theme.spacing(2) }}>
+      <div css={{ margin: 16 }}>
         <ErrorAlert error={error} />
       </div>
     );

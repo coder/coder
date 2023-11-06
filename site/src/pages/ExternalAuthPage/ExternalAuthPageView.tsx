@@ -232,30 +232,30 @@ const styles = {
     color: theme.palette.text.primary,
   }),
 
-  installAlert: (theme) => ({
-    margin: theme.spacing(2),
-  }),
+  installAlert: {
+    margin: 16,
+  },
 
-  links: (theme) => ({
+  links: {
     display: "flex",
-    gap: theme.spacing(0.5),
-    margin: theme.spacing(2),
+    gap: 4,
+    margin: 16,
     flexDirection: "column",
-  }),
+  },
 
-  link: (theme) => ({
+  link: {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     fontSize: 16,
-    gap: theme.spacing(1),
-  }),
+    gap: 8,
+  },
 
   status: (theme) => ({
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    gap: theme.spacing(1),
+    gap: 8,
     color: theme.palette.text.disabled,
   }),
 
@@ -263,6 +263,6 @@ const styles = {
     display: "flex",
     gap: 4,
     color: theme.palette.text.disabled,
-    margin: theme.spacing(4),
+    margin: 32,
   }),
 } satisfies Record<string, Interpolation<Theme>>;

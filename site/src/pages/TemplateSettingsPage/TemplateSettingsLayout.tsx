@@ -57,9 +57,9 @@ export const TemplateSettingsLayout: FC = () => {
 
       <Margins>
         <Stack
-          css={(theme) => ({
-            padding: theme.spacing(6, 0),
-          })}
+          css={{
+            padding: "48px 0",
+          }}
           direction="row"
           spacing={10}
         >

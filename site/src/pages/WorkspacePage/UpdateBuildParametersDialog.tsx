@@ -8,7 +8,7 @@ import { useFormik } from "formik";
 import * as Yup from "yup";
 import { type FC } from "react";
 import { css } from "@emotion/css";
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { type Interpolation, type Theme } from "@emotion/react";
 import { getFormHelpers } from "utils/formUtils";
 import type { DialogProps } from "components/Dialogs/Dialog";
 import { FormFields, VerticalForm } from "components/Form/Form";
@@ -31,7 +31,6 @@ export type UpdateBuildParametersDialogProps = DialogProps & {
 export const UpdateBuildParametersDialog: FC<
   UpdateBuildParametersDialogProps
 > = ({ missedParameters, onUpdate, ...dialogProps }) => {
-  const theme = useTheme();
   const form = useFormik({
     initialValues: {
       rich_parameter_values: getInitialRichParameterValues(missedParameters),
@@ -59,10 +58,10 @@ export const UpdateBuildParametersDialog: FC<
         id="update-build-parameters-title"
         classes={{
           root: css`
-            padding: ${theme.spacing(3, 5)};
+            padding: 24px 40px;
 
             & h2 {
-              font-size: ${theme.spacing(2.5)};
+              font-size: 20px;
               font-weight: 400;
             }
           `,
@@ -125,17 +124,17 @@ export const UpdateBuildParametersDialog: FC<
 };
 
 const styles = {
-  content: (theme) => ({
-    padding: theme.spacing(0, 5, 0, 5),
-  }),
+  content: {
+    padding: "0 40px",
+  },
 
-  form: (theme) => ({
-    paddingTop: theme.spacing(4),
-  }),
+  form: {
+    paddingTop: 32,
+  },
 
-  dialogActions: (theme) => ({
-    padding: theme.spacing(5),
+  dialogActions: {
+    padding: 40,
     flexDirection: "column",
-    gap: theme.spacing(1),
-  }),
+    gap: 8,
+  },
 } satisfies Record<string, Interpolation<Theme>>;

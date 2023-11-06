@@ -28,7 +28,7 @@ export const AvatarData: FC<AvatarDataProps> = ({
       direction="row"
       alignItems="center"
       css={{
-        minHeight: theme.spacing(5), // Make it predictable for the skeleton
+        minHeight: 40, // Make it predictable for the skeleton
         width: "100%",
         lineHeight: "150%",
       }}

@@ -14,13 +14,7 @@ export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
   const cliCreateCommand = "coder tokens create";
 
   const TokenActions = () => (
-    <Stack
-      direction="row"
-      justifyContent="end"
-      css={(theme) => ({
-        marginBottom: theme.spacing(1),
-      })}
-    >
+    <Stack direction="row" justifyContent="end" css={{ marginBottom: 8 }}>
       <Button startIcon={<AddIcon />} component={RouterLink} to="new">
         Add token
       </Button>

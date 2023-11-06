@@ -1,4 +1,4 @@
-import { css, useTheme } from "@emotion/react";
+import { css } from "@emotion/react";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -18,8 +18,6 @@ export type ExternalAuthSettingsPageViewProps = {
 export const ExternalAuthSettingsPageView = ({
   config,
 }: ExternalAuthSettingsPageViewProps): JSX.Element => {
-  const theme = useTheme();
-
   return (
     <>
       <Header
@@ -42,8 +40,8 @@ export const ExternalAuthSettingsPageView = ({
 
       <div
         css={{
-          marginTop: theme.spacing(3),
-          marginBottom: theme.spacing(3),
+          marginTop: 24,
+          marginBottom: 24,
         }}
       >
         <Alert severity="info" actions={<EnterpriseBadge key="enterprise" />}>
@@ -56,13 +54,13 @@ export const ExternalAuthSettingsPageView = ({
         <Table
           css={css`
             & td {
-              padding-top: ${theme.spacing(3)};
-              padding-bottom: ${theme.spacing(3)};
+              padding-top: 24px;
+              padding-bottom: 24px;
             }
 
             & td:last-child,
             & th:last-child {
-              padding-left: ${theme.spacing(4)};
+              padding-left: 32px;
             }
           `}
         >

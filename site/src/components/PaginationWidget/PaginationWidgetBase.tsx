@@ -41,7 +41,7 @@ export const PaginationWidgetBase = ({
     >
       <Button
         css={{
-          marginRight: theme.spacing(0.5),
+          marginRight: 4,
         }}
         aria-label="Previous page"
         disabled={isFirstPage}

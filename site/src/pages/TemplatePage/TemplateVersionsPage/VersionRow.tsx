@@ -139,9 +139,9 @@ const styles = {
     transition: "none",
   }),
 
-  versionWrapper: (theme) => ({
-    padding: theme.spacing(2, 4),
-  }),
+  versionWrapper: {
+    padding: "16px 32px",
+  },
 
   active: (theme) => ({
     backgroundColor: theme.palette.background.paperLight,

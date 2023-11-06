@@ -30,8 +30,8 @@ const SidebarNavItem: FC<
     display: "block",
     fontSize: 14,
     textDecoration: "none",
-    padding: theme.spacing(1.5, 1.5, 1.5, 2),
-    borderRadius: theme.shape.borderRadius / 2,
+    padding: "12px 12px 12px 16px",
+    borderRadius: 4,
     transition: "background-color 0.15s ease-in-out",
     marginBottom: 1,
     position: "relative",
@@ -53,8 +53,8 @@ const SidebarNavItem: FC<
       left: 0,
       top: 0,
       backgroundColor: theme.palette.secondary.dark,
-      borderTopLeftRadius: theme.shape.borderRadius,
-      borderBottomLeftRadius: theme.shape.borderRadius,
+      borderTopLeftRadius: 8,
+      borderBottomLeftRadius: 8,
     },
   });
 
@@ -77,14 +77,7 @@ const SidebarNavItem: FC<
 const SidebarNavItemIcon: FC<{
   icon: ComponentType<{ className?: string }>;
 }> = ({ icon: Icon }) => {
-  return (
-    <Icon
-      css={(theme) => ({
-        width: theme.spacing(2),
-        height: theme.spacing(2),
-      })}
-    />
-  );
+  return <Icon css={{ width: 16, height: 16 }} />;
 };
 
 export const Sidebar: React.FC<{ username: string; workspace: Workspace }> = ({
@@ -131,7 +124,7 @@ const styles = {
   },
   workspaceInfo: (theme) => ({
     ...(theme.typography.body2 as CSSObject),
-    marginBottom: theme.spacing(2),
+    marginBottom: 16,
   }),
   workspaceData: {
     overflow: "hidden",

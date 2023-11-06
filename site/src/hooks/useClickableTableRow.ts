@@ -42,8 +42,8 @@ export const useClickableTableRow = ({
       },
 
       "&:last-of-type": {
-        borderBottomLeftRadius: theme.shape.borderRadius,
-        borderBottomRightRadius: theme.shape.borderRadius,
+        borderBottomLeftRadius: 8,
+        borderBottomRightRadius: 8,
       },
     },
     hover: true,

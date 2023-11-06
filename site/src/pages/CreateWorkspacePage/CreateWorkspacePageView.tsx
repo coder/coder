@@ -234,9 +234,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                   border: 1px solid ${theme.palette.warning.light};
                   border-radius: 8px;
                   background-color: ${theme.palette.background.paper};
-                  padding: ${theme.spacing(10)};
-                  margin-left: ${theme.spacing(-10)};
-                  margin-right: ${theme.spacing(-10)};
+                  padding: 80px;
+                  margin-left: -80px;
+                  margin-right: -80px;
                 `,
               }}
               getInputProps={(parameter, index) => {
@@ -308,9 +308,9 @@ const useExternalAuthVerification = (
 };
 
 const styles = {
-  hasDescription: (theme) => ({
-    paddingBottom: theme.spacing(2),
-  }),
+  hasDescription: {
+    paddingBottom: 16,
+  },
   description: (theme) => ({
     fontSize: 13,
     color: theme.palette.text.secondary,

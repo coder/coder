@@ -70,17 +70,17 @@ const styles = {
       justify-content: flex-start;
     }
   `,
-  drawerHeader: (theme) => ({
-    padding: theme.spacing(2),
-    paddingTop: theme.spacing(4),
-    paddingBottom: theme.spacing(4),
-  }),
+  drawerHeader: {
+    padding: 16,
+    paddingTop: 32,
+    paddingBottom: 32,
+  },
   logo: (theme) => css`
     align-items: center;
     display: flex;
     height: ${navHeight}px;
     color: ${theme.palette.text.primary};
-    padding: ${theme.spacing(2)};
+    padding: 16px;
 
     // svg is for the Coder logo, img is for custom images
     & svg,
@@ -89,10 +89,10 @@ const styles = {
       object-fit: contain;
     }
   `,
-  drawerLogo: (theme) => ({
+  drawerLogo: {
     padding: 0,
-    maxHeight: theme.spacing(5),
-  }),
+    maxHeight: 40,
+  },
   item: {
     padding: 0,
   },
@@ -102,7 +102,7 @@ const styles = {
     display: flex;
     flex: 1;
     font-size: 16px;
-    padding: ${theme.spacing(1.5)} ${theme.spacing(2)};
+    padding: 12px 16px;
     text-decoration: none;
     transition: background-color 0.15s ease-in-out;
 
@@ -117,7 +117,7 @@ const styles = {
 
     ${theme.breakpoints.up("md")} {
       height: ${navHeight}px;
-      padding: 0 ${theme.spacing(3)};
+      padding: 0 24px;
     }
   `,
 } satisfies Record<string, Interpolation<Theme>>;
@@ -171,6 +171,7 @@ const NavItems: React.FC<NavItemsProps> = (props) => {
     </nav>
   );
 };
+
 export const NavbarView: FC<NavbarViewProps> = ({
   user,
   logo_url,

@@ -115,11 +115,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 
   return (
     <div
-      css={(theme) => ({
-        display: "flex",
-        alignItems: "center",
-        gap: theme.spacing(1.5),
-      })}
+      css={{ display: "flex", alignItems: "center", gap: 12 }}
       data-testid="workspace-actions"
     >
       {canBeUpdated &&

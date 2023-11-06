@@ -24,7 +24,7 @@ export const PageButton = ({
       css={[
         css`
           &:not(:last-of-type) {
-            margin-right: ${theme.spacing(0.5)};
+            margin-right: 4px;
           }
         `,
         activePage === page && {

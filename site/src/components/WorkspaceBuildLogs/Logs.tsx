@@ -25,7 +25,7 @@ export const Logs: FC<React.PropsWithChildren<LogsProps>> = ({
 }) => {
   return (
     <div css={styles.root} className={className}>
-      <div css={styles.scrollWrapper}>
+      <div css={{ minWidth: "fit-content" }}>
         {lines.map((line, idx) => (
           <div css={styles.line} className={line.level} key={idx}>
             {!hideTimestamps && (
@@ -63,7 +63,7 @@ export const LogLine: FC<{
 
   return (
     <div
-      css={[styles.line, isUsingLineNumber && styles.lineNumber]}
+      css={[styles.line, isUsingLineNumber && { paddingLeft: 16 }]}
       className={line.level}
       style={style}
     >
@@ -93,8 +93,8 @@ export const LogLine: FC<{
 const styles = {
   root: (theme) => ({
     minHeight: 156,
-    padding: theme.spacing(1, 0),
-    borderRadius: theme.shape.borderRadius,
+    padding: "8px 0",
+    borderRadius: 8,
     overflowX: "auto",
     background: theme.palette.background.default,
 
@@ -103,9 +103,6 @@ const styles = {
       borderRadius: 0,
     },
   }),
-  scrollWrapper: {
-    minWidth: "fit-content",
-  },
   line: (theme) => ({
     wordBreak: "break-all",
     display: "flex",
@@ -116,7 +113,7 @@ const styles = {
     height: "auto",
     // Whitespace is significant in terminal output for alignment
     whiteSpace: "pre",
-    padding: theme.spacing(0, 4),
+    padding: "0 32px",
 
     "&.error": {
       backgroundColor: theme.palette.error.dark,
@@ -130,23 +127,20 @@ const styles = {
       backgroundColor: theme.palette.warning.dark,
     },
   }),
-  lineNumber: (theme) => ({
-    paddingLeft: theme.spacing(2),
-  }),
-  space: (theme) => ({
+  space: {
     userSelect: "none",
-    width: theme.spacing(3),
+    width: 24,
     display: "block",
     flexShrink: 0,
-  }),
+  },
   time: (theme) => ({
     userSelect: "none",
     whiteSpace: "pre",
     display: "inline-block",
     color: theme.palette.text.secondary,
   }),
-  number: (theme) => ({
-    width: theme.spacing(4),
+  number: {
+    width: 32,
     textAlign: "right",
-  }),
+  },
 } satisfies Record<string, Interpolation<Theme>>;

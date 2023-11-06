@@ -28,7 +28,7 @@ export const ChartSection: FC<PropsWithChildren<ChartSectionProps>> = ({
     <Paper
       css={{
         border: `1px solid ${theme.palette.divider}`,
-        borderRadius: theme.shape.borderRadius,
+        borderRadius: 8,
       }}
       elevation={0}
     >
@@ -38,7 +38,7 @@ export const ChartSection: FC<PropsWithChildren<ChartSectionProps>> = ({
             alignItems: "center",
             display: "flex",
             justifyContent: "space-between",
-            padding: theme.spacing(1.5, 2),
+            padding: "12px 16px",
           }}
         >
           <h6
@@ -54,12 +54,7 @@ export const ChartSection: FC<PropsWithChildren<ChartSectionProps>> = ({
         </div>
       )}
 
-      <div
-        {...contentsProps}
-        css={{
-          margin: theme.spacing(2),
-        }}
-      >
+      <div {...contentsProps} css={{ margin: 16 }}>
         {children}
       </div>
     </Paper>

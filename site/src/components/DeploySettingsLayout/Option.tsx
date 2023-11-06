@@ -30,7 +30,7 @@ export const OptionDescription: FC<PropsWithChildren> = (props) => {
         display: "block",
         color: theme.palette.text.secondary,
         fontSize: 14,
-        marginTop: theme.spacing(0.5),
+        marginTop: 4,
       }}
     >
       {children}
@@ -53,16 +53,8 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
     user-select: all;
 
     & ul {
-      padding: ${theme.spacing(2)};
+      padding: 16px;
     }
-  `;
-
-  const listStyles = css`
-    margin: 0,
-    padding: 0,
-    display: "flex",
-    flex-direction: "column",
-    gap: theme.spacing(0.5),
   `;
 
   if (typeof value === "boolean") {
@@ -83,7 +75,7 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 
   if (typeof value === "object" && !Array.isArray(value)) {
     return (
-      <ul css={listStyles && { listStyle: "none" }}>
+      <ul css={{ listStyle: "none" }}>
         {Object.entries(value)
           .sort((a, b) => a[0].localeCompare(b[0]))
           .map(([option, isEnabled]) => (
@@ -109,7 +101,7 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
                       width: 16,
                       height: 16,
                       color: (theme) => theme.palette.success.light,
-                      margin: (theme) => theme.spacing(0, 1),
+                      margin: "0 8px",
                     }}
                   />
                 )}
@@ -123,7 +115,7 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 
   if (Array.isArray(value)) {
     return (
-      <ul css={listStyles && { listStylePosition: "inside" }}>
+      <ul css={{ listStylePosition: "inside" }}>
         {value.map((item) => (
           <li key={item} css={optionStyles}>
             {item}
@@ -162,7 +154,7 @@ export const OptionConfig = (props: OptionConfigProps) => {
         display: "inline-flex",
         alignItems: "center",
         borderRadius: 0.25,
-        padding: (theme) => theme.spacing(0, 1),
+        padding: "0 8px",
         border: `1px solid ${borderColor}`,
         ...sx,
       }}
@@ -183,12 +175,12 @@ export const OptionConfigFlag = (props: OptionConfigFlagProps) => {
       sx={{
         fontSize: 10,
         fontWeight: 600,
-        margin: (theme) => theme.spacing(0, 0.75, 0, -0.5),
+        margin: "0 6px 0 -4px",
         display: "block",
         backgroundColor: (theme) =>
           source ? "rgba(0, 0, 0, 0.7)" : theme.palette.divider,
         lineHeight: 1,
-        padding: (theme) => theme.spacing(0.25, 0.5),
+        padding: "2px 4px",
         borderRadius: 0.25,
         ...sx,
       }}
