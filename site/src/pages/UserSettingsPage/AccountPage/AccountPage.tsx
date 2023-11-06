@@ -52,7 +52,8 @@ export const AccountPage: FC = () => {
                   fontWeight: 600,
                 }}
               >
-                {groupsQuery.data.length} groups
+                {groupsQuery.data.length} group
+                {groupsQuery.data.length !== 1 && "s"}
               </em>
             </span>
           )
