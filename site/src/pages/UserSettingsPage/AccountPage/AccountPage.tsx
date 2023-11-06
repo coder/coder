@@ -4,20 +4,14 @@ import { usePermissions } from "hooks/usePermissions";
 import { useQuery } from "react-query";
 import { groupsForUser } from "api/queries/groups";
 import { useOrganizationId } from "hooks";
-import { useTheme } from "@emotion/react";
+import { useAuth } from "components/AuthProvider/AuthProvider";
 
 import { Stack } from "@mui/system";
-import Grid from "@mui/material/Grid";
-
+import { AccountUserGroups } from "./AccountUserGroups";
 import { AccountForm } from "./AccountForm";
-import { useAuth } from "components/AuthProvider/AuthProvider";
 import { Section } from "components/SettingsLayout/Section";
-import { Loader } from "components/Loader/Loader";
-import { AvatarCard } from "components/AvatarCard/AvatarCard";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
 
 export const AccountPage: FC = () => {
-  const theme = useTheme();
   const { updateProfile, updateProfileError, isUpdatingProfile } = useAuth();
   const permissions = usePermissions();
 
@@ -38,53 +32,12 @@ export const AccountPage: FC = () => {
         />
       </Section>
 
-      <Section
-        title="Your groups"
-        layout="fluid"
-        description={
-          groupsQuery.isSuccess && (
-            <span>
-              You are in{" "}
-              <em
-                css={{
-                  fontStyle: "normal",
-                  color: theme.palette.text.primary,
-                  fontWeight: 600,
-                }}
-              >
-                {groupsQuery.data.length} group
-                {groupsQuery.data.length !== 1 && "s"}
-              </em>
-            </span>
-          )
-        }
-      >
-        <div
-          css={{ display: "flex", flexFlow: "column nowrap", rowGap: "24px" }}
-        >
-          {groupsQuery.isError && <ErrorAlert error={groupsQuery.error} />}
-
-          <Grid container columns={{ xs: 1, md: 2 }} spacing="16px">
-            {groupsQuery.data?.map((group) => (
-              <Grid item key={group.id} xs={1}>
-                <AvatarCard
-                  imgUrl={group.avatar_url}
-                  altText={group.display_name || group.name}
-                  header={group.display_name || group.name}
-                  subtitle={
-                    <>
-                      {group.members.length} member
-                      {group.members.length !== 1 && "s"}
-                    </>
-                  }
-                />
-              </Grid>
-            ))}
-          </Grid>
-
-          {groupsQuery.isLoading && <Loader />}
-        </div>
-      </Section>
+      {/* Has <Section> embedded inside because its description is dynamic */}
+      <AccountUserGroups
+        groups={groupsQuery.data}
+        loading={groupsQuery.isLoading}
+        error={groupsQuery.error}
+      />
     </Stack>
   );
 };
