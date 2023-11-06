@@ -85,7 +85,7 @@ export const TemplateExampleCard = (props: TemplateExampleCardProps) => {
           css={(theme) => ({
             fontSize: 13,
             color: theme.palette.text.secondary,
-            lineHeight: "1.8",
+            lineHeight: "1.6",
             display: "block",
           })}
         >
