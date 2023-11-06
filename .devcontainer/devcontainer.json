@@ -1,12 +1,13 @@
 {
   "name": "Development environments on your infrastructure",
-  "image": "codercom/oss-dogfood:latest",
+  "image": "codercom/oss-dogfood:pre-nix",
 
   "features": {
     // See all possible options here https://github.com/devcontainers/features/tree/main/src/docker-in-docker
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "moby": "false"
+    }
   },
   // SYS_PTRACE to enable go debugging
-  // without --priviliged the Github Codespace build fails (not required otherwise)
-  "runArgs": ["--cap-add=SYS_PTRACE", "--privileged"]
+  "runArgs": ["--cap-add=SYS_PTRACE"]
 }
