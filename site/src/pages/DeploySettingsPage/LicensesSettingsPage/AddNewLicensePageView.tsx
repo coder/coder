@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
 import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
@@ -23,8 +22,6 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
   isSavingLicense,
   savingLicenseError,
 }) => {
-  const theme = useTheme();
-
   function handleFileUploaded(files: File[]) {
     const fileReader = new FileReader();
     fileReader.onload = () => {
@@ -76,7 +73,7 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
         description="Select a text file that contains your license key."
       />
 
-      <Stack css={{ paddingTop: theme.spacing(5) }}>
+      <Stack css={{ paddingTop: 40 }}>
         <DividerWithText>or</DividerWithText>
 
         <Fieldset

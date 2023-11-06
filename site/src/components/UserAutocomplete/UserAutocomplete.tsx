@@ -1,5 +1,4 @@
 import { css } from "@emotion/css";
-import { useTheme } from "@emotion/react";
 import CircularProgress from "@mui/material/CircularProgress";
 import TextField from "@mui/material/TextField";
 import Autocomplete from "@mui/material/Autocomplete";
@@ -33,7 +32,6 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
   className,
   size = "small",
 }) => {
-  const theme = useTheme();
   const [autoComplete, setAutoComplete] = useState<{
     value: string;
     open: boolean;
@@ -130,10 +128,8 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
             ),
             classes: {
               root: css`
-                padding-left: ${theme.spacing(
-                  1.75,
-                )} !important; // Same padding left as input
-                gap: ${theme.spacing(0.5)};
+                padding-left: 14px !important; // Same padding left as input
+                gap: 4px;
               `,
             },
           }}

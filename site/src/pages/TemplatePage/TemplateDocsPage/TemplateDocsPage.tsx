@@ -21,7 +21,7 @@ export default function TemplateDocsPage() {
         css={{
           background: theme.palette.background.paper,
           border: `1px solid ${theme.palette.divider}`,
-          borderRadius: theme.shape.borderRadius,
+          borderRadius: 8,
         }}
         id="readme"
       >
@@ -29,7 +29,7 @@ export default function TemplateDocsPage() {
           css={{
             color: theme.palette.text.secondary,
             fontWeight: 600,
-            padding: theme.spacing(2, 3),
+            padding: "16px 24px",
             borderBottom: `1px solid ${theme.palette.divider}`,
           }}
         >
@@ -37,7 +37,7 @@ export default function TemplateDocsPage() {
         </div>
         <div
           css={{
-            padding: theme.spacing(0, 3, 5),
+            padding: "0 24px 40px",
             maxWidth: 800,
             margin: "auto",
           }}

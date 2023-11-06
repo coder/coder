@@ -11,24 +11,24 @@ export type AvatarProps = MuiAvatarProps & {
 };
 
 const sizeStyles = {
-  xs: (theme) => ({
-    width: theme.spacing(2),
-    height: theme.spacing(2),
-    fontSize: theme.spacing(1),
+  xs: {
+    width: 16,
+    height: 16,
+    fontSize: 8,
     fontWeight: 700,
-  }),
-  sm: (theme) => ({
-    width: theme.spacing(3),
-    height: theme.spacing(3),
-    fontSize: theme.spacing(1.5),
+  },
+  sm: {
+    width: 24,
+    height: 24,
+    fontSize: 12,
     fontWeight: 600,
-  }),
+  },
   md: {},
-  xl: (theme) => ({
-    width: theme.spacing(6),
-    height: theme.spacing(6),
-    fontSize: theme.spacing(3),
-  }),
+  xl: {
+    width: 48,
+    height: 48,
+    fontSize: 24,
+  },
 } satisfies Record<string, Interpolation<Theme>>;
 
 const colorStyles = {

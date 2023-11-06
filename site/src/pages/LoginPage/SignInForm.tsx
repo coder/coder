@@ -25,27 +25,27 @@ const styles = {
   root: {
     width: "100%",
   },
-  title: (theme) => ({
-    fontSize: theme.spacing(4),
+  title: {
+    fontSize: 32,
     fontWeight: 400,
     margin: 0,
-    marginBottom: theme.spacing(4),
+    marginBottom: 32,
     lineHeight: 1,
 
     "& strong": {
       fontWeight: 600,
     },
-  }),
-  alert: (theme) => ({
-    marginBottom: theme.spacing(4),
-  }),
-  divider: (theme) => ({
-    paddingTop: theme.spacing(3),
-    paddingBottom: theme.spacing(3),
+  },
+  alert: {
+    marginBottom: 32,
+  },
+  divider: {
+    paddingTop: 24,
+    paddingBottom: 24,
     display: "flex",
     alignItems: "center",
-    gap: theme.spacing(2),
-  }),
+    gap: 16,
+  },
   dividerLine: (theme) => ({
     width: "100%",
     height: 1,
@@ -58,10 +58,10 @@ const styles = {
     fontSize: 12,
     letterSpacing: 1,
   }),
-  icon: (theme) => ({
-    width: theme.spacing(2),
-    height: theme.spacing(2),
-  }),
+  icon: {
+    width: 16,
+    height: 16,
+  },
 } satisfies Record<string, Interpolation<Theme>>;
 
 export interface SignInFormProps {

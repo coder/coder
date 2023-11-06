@@ -41,10 +41,10 @@ export const SSHButton: FC<PropsWithChildren<SSHButtonProps>> = ({
         horizontal="right"
         classes={{
           paper: css`
-            padding: ${theme.spacing(2, 3, 3)};
-            width: ${theme.spacing(38)};
+            padding: 16px 24px 24px;
+            width: 304px;
             color: ${theme.palette.text.secondary};
-            margin-top: ${theme.spacing(0.25)};
+            margin-top: 2px;
           `,
         }}
       >
@@ -94,9 +94,9 @@ export const SSHButton: FC<PropsWithChildren<SSHButtonProps>> = ({
 };
 
 const styles = {
-  codeExamples: (theme) => ({
-    marginTop: theme.spacing(1.5),
-  }),
+  codeExamples: {
+    marginTop: 12,
+  },
 
   codeExampleLabel: {
     fontSize: 12,

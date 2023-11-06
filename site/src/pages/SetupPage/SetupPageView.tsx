@@ -64,30 +64,25 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
 
   return (
     <SignInLayout>
-      <header
-        css={(theme) => ({
-          textAlign: "center",
-          marginBottom: theme.spacing(4),
-        })}
-      >
+      <header css={{ textAlign: "center", marginBottom: 32 }}>
         <CoderIcon
           css={(theme) => ({
             color: theme.palette.text.primary,
-            fontSize: theme.spacing(8),
+            fontSize: 64,
           })}
         />
         <h1
-          css={(theme) => ({
+          css={{
             fontWeight: 400,
             margin: 0,
-            marginTop: theme.spacing(2),
-          })}
+            marginTop: 16,
+          }}
         >
           Welcome to <strong>Coder</strong>
         </h1>
         <div
           css={(theme) => ({
-            marginTop: theme.spacing(1.5),
+            marginTop: 12,
             color: theme.palette.text.secondary,
           })}
         >

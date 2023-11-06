@@ -66,7 +66,7 @@ export const Markdown: FC<MarkdownProps> = (props) => {
           ) : (
             <code
               css={(theme) => ({
-                padding: theme.spacing(0.125, 0.5),
+                padding: "1px 4px",
                 background: theme.palette.divider,
                 borderRadius: 4,
                 color: theme.palette.text.primary,
@@ -120,14 +120,14 @@ const markdownStyles: Interpolation<Theme> = (theme: Theme) => ({
   lineHeight: "24px",
 
   "& h1, & h2, & h3, & h4, & h5, & h6": {
-    marginTop: theme.spacing(4),
-    marginBottom: theme.spacing(2),
+    marginTop: 32,
+    marginBottom: 16,
     lineHeight: "1.25",
   },
 
   "& p": {
     marginTop: 0,
-    marginBottom: theme.spacing(2),
+    marginBottom: 16,
   },
 
   "& p:only-child": {
@@ -138,12 +138,12 @@ const markdownStyles: Interpolation<Theme> = (theme: Theme) => ({
   "& ul, & ol": {
     display: "flex",
     flexDirection: "column",
-    gap: theme.spacing(1),
-    marginBottom: theme.spacing(2),
+    gap: 8,
+    marginBottom: 16,
   },
 
   "& li > ul, & li > ol": {
-    marginTop: theme.spacing(2),
+    marginTop: 16,
   },
 
   "& li > p": {
@@ -152,8 +152,8 @@ const markdownStyles: Interpolation<Theme> = (theme: Theme) => ({
 
   "& .prismjs": {
     background: theme.palette.background.paperLight,
-    borderRadius: theme.shape.borderRadius,
-    padding: theme.spacing(2, 3),
+    borderRadius: 8,
+    padding: "16px 24px",
     overflowX: "auto",
 
     "& code": {

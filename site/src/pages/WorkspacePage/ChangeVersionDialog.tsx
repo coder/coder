@@ -6,7 +6,6 @@ import Box from "@mui/material/Box";
 import AlertTitle from "@mui/material/AlertTitle";
 import InfoIcon from "@mui/icons-material/InfoOutlined";
 import { css } from "@emotion/css";
-import { useTheme } from "@emotion/react";
 import type { Template, TemplateVersion } from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
 import type { DialogProps } from "components/Dialogs/Dialog";
@@ -38,7 +37,6 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
   const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false);
   const selectedTemplateVersion = useRef<TemplateVersion | undefined>();
   const version = selectedTemplateVersion.current;
-  const theme = useTheme();
 
   return (
     <ConfirmDialog
@@ -102,12 +100,7 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
                             >
                               {option.name}
                               {option.message && (
-                                <InfoIcon
-                                  sx={(theme) => ({
-                                    width: theme.spacing(1.5),
-                                    height: theme.spacing(1.5),
-                                  })}
-                                />
+                                <InfoIcon sx={{ width: 12, height: 12 }} />
                               )}
                             </Stack>
                             {template?.active_version_id === option.id && (
@@ -138,7 +131,7 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
                           classes: {
                             // Same `padding-left` as input
                             root: css`
-                              padding-left: ${theme.spacing(1.75)} !important;
+                              padding-left: 14px !important;
                             `,
                           },
                         }}

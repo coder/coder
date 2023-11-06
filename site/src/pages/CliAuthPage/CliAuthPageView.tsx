@@ -26,7 +26,7 @@ export const CliAuthPageView: FC<CliAuthPageViewProps> = ({ sessionToken }) => {
         css={{
           fontSize: 16,
           color: theme.palette.text.secondary,
-          marginBottom: theme.spacing(4),
+          marginBottom: 32,
           textAlign: "center",
           lineHeight: "160%",
         }}
@@ -48,7 +48,7 @@ export const CliAuthPageView: FC<CliAuthPageViewProps> = ({ sessionToken }) => {
         css={{
           display: "flex",
           justifyContent: "flex-end",
-          paddingTop: theme.spacing(1),
+          paddingTop: 8,
         }}
       >
         <Button component={RouterLink} size="large" to="/workspaces" fullWidth>

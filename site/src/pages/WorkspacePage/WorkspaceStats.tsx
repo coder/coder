@@ -1,5 +1,5 @@
 import { css } from "@emotion/css";
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { type Interpolation, type Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
 import { WorkspaceOutdatedTooltip } from "components/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
 import { type FC } from "react";
@@ -63,20 +63,19 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
   onDeadlineMinus,
   onDeadlinePlus,
 }) => {
-  const theme = useTheme();
   const displayTemplateName = getDisplayWorkspaceTemplateName(workspace);
   const deadlinePlusEnabled = maxDeadlineIncrease >= 1;
   const deadlineMinusEnabled = maxDeadlineDecrease >= 1;
   const templatePoliciesEnabled = useTemplatePoliciesEnabled();
 
   const paperStyles = css`
-    padding: ${theme.spacing(3)};
-    max-width: ${theme.spacing(36)};
-    margin-top: ${theme.spacing(1)};
+    padding: 24px;
+    max-width: 288px;
+    margin-top: ${8};
     border-radius: 4px;
     display: flex;
     flex-direction: column;
-    gap: ${theme.spacing(1)};
+    gap: ${8};
   `;
 
   return (
@@ -338,15 +337,15 @@ const styles = {
   stats: (theme) => ({
     padding: 0,
     border: 0,
-    gap: theme.spacing(6),
-    rowGap: theme.spacing(3),
+    gap: 48,
+    rowGap: 24,
     flex: 1,
 
     [theme.breakpoints.down("md")]: {
       display: "flex",
       flexDirection: "column",
       alignItems: "flex-start",
-      gap: theme.spacing(1),
+      gap: 8,
     },
   }),
 
@@ -361,17 +360,17 @@ const styles = {
     },
   },
 
-  scheduleValue: (theme) => ({
+  scheduleValue: {
     display: "flex",
     alignItems: "center",
-    gap: theme.spacing(1.5),
-  }),
+    gap: 12,
+  },
 
-  scheduleControls: (theme) => ({
+  scheduleControls: {
     display: "flex",
     alignItems: "center",
-    gap: theme.spacing(0.5),
-  }),
+    gap: 4,
+  },
 
   scheduleButton: (theme) => ({
     border: `1px solid ${theme.palette.divider}`,
@@ -380,8 +379,8 @@ const styles = {
     height: 20,
 
     "& svg.MuiSvgIcon-root": {
-      width: theme.spacing(1.5),
-      height: theme.spacing(1.5),
+      width: 12,
+      height: 12,
     },
   }),
 
@@ -393,21 +392,21 @@ const styles = {
     color: theme.palette.text.secondary,
   }),
 
-  timePopoverForm: (theme) => ({
+  timePopoverForm: {
     display: "flex",
     alignItems: "center",
-    gap: theme.spacing(1),
-    padding: theme.spacing(1, 0),
-  }),
+    gap: 8,
+    padding: "8px 0",
+  },
 
   timePopoverField: {
     margin: 0,
   },
 
-  timePopoverButton: (theme) => ({
+  timePopoverButton: {
     borderRadius: 4,
-    paddingLeft: theme.spacing(2),
-    paddingRight: theme.spacing(2),
+    paddingLeft: 16,
+    paddingRight: 16,
     flexShrink: 0,
-  }),
+  },
 } satisfies Record<string, Interpolation<Theme>>;

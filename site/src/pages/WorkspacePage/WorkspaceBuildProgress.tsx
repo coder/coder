@@ -142,15 +142,15 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 };
 
 const styles = {
-  stack: (theme) => ({
-    paddingLeft: theme.spacing(0.2),
-    paddingRight: theme.spacing(0.2),
-  }),
-  barHelpers: (theme) => ({
+  stack: {
+    paddingLeft: 2,
+    paddingRight: 2,
+  },
+  barHelpers: {
     display: "flex",
     justifyContent: "space-between",
-    marginTop: theme.spacing(0.5),
-  }),
+    marginTop: 4,
+  },
   label: (theme) => ({
     fontSize: 12,
     display: "block",

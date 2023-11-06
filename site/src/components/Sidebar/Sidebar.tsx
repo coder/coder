@@ -5,7 +5,7 @@ import { colors } from "theme/colors";
 export const Sidebar = styled((props: BoxProps) => (
   <Box {...props} component="nav" />
 ))(({ theme }) => ({
-  width: theme.spacing(32),
+  width: 256,
   flexShrink: 0,
   borderRight: `1px solid ${theme.palette.divider}`,
   height: "100%",
@@ -22,7 +22,7 @@ export const SidebarItem = styled(
   fontSize: 14,
   width: "100%",
   textAlign: "left",
-  padding: theme.spacing(0, 3),
+  padding: "0 24px",
   cursor: "pointer",
   pointerEvents: active ? "none" : "auto",
   color: active ? theme.palette.text.primary : theme.palette.text.secondary,
@@ -30,8 +30,8 @@ export const SidebarItem = styled(
     background: theme.palette.action.hover,
     color: theme.palette.text.primary,
   },
-  paddingTop: theme.spacing(1.25),
-  paddingBottom: theme.spacing(1.25),
+  paddingTop: 10,
+  paddingBottom: 10,
 }));
 
 export const SidebarCaption = styled(Box)(({ theme }) => ({
@@ -39,6 +39,6 @@ export const SidebarCaption = styled(Box)(({ theme }) => ({
   textTransform: "uppercase",
   fontWeight: 500,
   color: theme.palette.text.secondary,
-  padding: theme.spacing(1.5, 3),
+  padding: "12px 24px",
   letterSpacing: "0.5px",
 }));

@@ -1,5 +1,5 @@
 import { css } from "@emotion/css";
-import { useTheme, type Interpolation, type Theme } from "@emotion/react";
+import { type Interpolation, type Theme } from "@emotion/react";
 import Dialog from "@mui/material/Dialog";
 import DialogContent from "@mui/material/DialogContent";
 import DialogContentText from "@mui/material/DialogContentText";
@@ -28,7 +28,6 @@ export type MissingTemplateVariablesDialogProps = Omit<
 export const MissingTemplateVariablesDialog: FC<
   MissingTemplateVariablesDialogProps
 > = ({ missingVariables, onSubmit, ...dialogProps }) => {
-  const theme = useTheme();
   const [variableValues, setVariableValues] = useState<VariableValue[]>([]);
 
   // Pre-fill the form with the default values when missing variables are loaded
@@ -53,10 +52,10 @@ export const MissingTemplateVariablesDialog: FC<
         id="update-build-parameters-title"
         classes={{
           root: css`
-            padding: ${theme.spacing(3, 5)};
+            padding: 24px 40px;
 
             & h2 {
-              font-size: ${theme.spacing(2.5)};
+              font-size: 20px;
               font-weight: 400;
             }
           `,
@@ -115,21 +114,21 @@ export const MissingTemplateVariablesDialog: FC<
 };
 
 const styles = {
-  content: (theme) => ({
-    padding: theme.spacing(0, 5),
-  }),
+  content: {
+    padding: "0 40px",
+  },
 
   info: {
     margin: 0,
   },
 
-  form: (theme) => ({
-    paddingTop: theme.spacing(4),
-  }),
+  form: {
+    paddingTop: 32,
+  },
 
-  dialogActions: (theme) => ({
-    padding: theme.spacing(5),
+  dialogActions: {
+    padding: 40,
     flexDirection: "column",
-    gap: theme.spacing(1),
-  }),
+    gap: 8,
+  },
 } satisfies Record<string, Interpolation<Theme>>;

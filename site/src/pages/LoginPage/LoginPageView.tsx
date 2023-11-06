@@ -64,31 +64,31 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
 };
 
 const styles = {
-  root: (theme) => ({
-    padding: theme.spacing(3),
+  root: {
+    padding: 24,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     minHeight: "100%",
     textAlign: "center",
-  }),
+  },
 
-  container: (theme) => ({
+  container: {
     width: "100%",
     maxWidth: 385,
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
-    gap: theme.spacing(2),
-  }),
+    gap: 16,
+  },
 
-  icon: (theme) => ({
-    fontSize: theme.spacing(8),
-  }),
+  icon: {
+    fontSize: 64,
+  },
 
   footer: (theme) => ({
     fontSize: 12,
     color: theme.palette.text.secondary,
-    marginTop: theme.spacing(3),
+    marginTop: 24,
   }),
 } satisfies Record<string, Interpolation<Theme>>;

@@ -21,10 +21,10 @@ export const Language = {
 };
 
 const styles = {
-  leftContent: (theme) => ({
-    marginRight: theme.spacing(1),
-    marginLeft: theme.spacing(1),
-  }),
+  leftContent: {
+    marginRight: 8,
+    marginLeft: 8,
+  },
 } satisfies Record<string, Interpolation<Theme>>;
 
 export interface LicenseBannerViewProps {
@@ -47,7 +47,7 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
 
     display: flex;
     align-items: center;
-    padding: ${theme.spacing(1.5)};
+    padding: 12px;
     background-color: ${type === "error"
       ? colors.red[12]
       : theme.palette.warning.main};
@@ -84,9 +84,9 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
           </Link>
         </div>
         <Expander expanded={showDetails} setExpanded={setShowDetails}>
-          <ul css={{ padding: theme.spacing(1), margin: 0 }}>
+          <ul css={{ padding: 8, margin: 0 }}>
             {messages.map((message) => (
-              <li css={{ margin: theme.spacing(0.5) }} key={message}>
+              <li css={{ margin: 4 }} key={message}>
                 {message}
               </li>
             ))}

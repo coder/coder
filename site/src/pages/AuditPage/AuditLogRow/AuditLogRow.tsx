@@ -168,9 +168,9 @@ const styles = {
     border: 0,
   },
 
-  auditLogHeader: (theme) => ({
-    padding: theme.spacing(2, 4),
-  }),
+  auditLogHeader: {
+    padding: "16px 32px",
+  },
 
   auditLogHeaderInfo: {
     flex: 1,

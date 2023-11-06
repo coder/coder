@@ -134,8 +134,8 @@ export const AppearanceSettingsPageView = ({
               <InputAdornment
                 position="end"
                 css={{
-                  width: theme.spacing(3),
-                  height: theme.spacing(3),
+                  width: 24,
+                  height: 24,
 
                   "& img": {
                     maxWidth: "100%",

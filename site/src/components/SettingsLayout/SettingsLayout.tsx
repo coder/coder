@@ -18,21 +18,10 @@ export const SettingsLayout: FC = () => {
       </Helmet>
 
       <Margins>
-        <Stack
-          css={(theme) => ({
-            padding: theme.spacing(6, 0),
-          })}
-          direction="row"
-          spacing={6}
-        >
+        <Stack css={{ padding: "48px 0" }} direction="row" spacing={6}>
           <Sidebar user={me} />
           <Suspense fallback={<Loader />}>
-            <main
-              css={{
-                maxWidth: 800,
-                width: "100%",
-              }}
-            >
+            <main css={{ maxWidth: 800, width: "100%" }}>
               <Outlet />
             </main>
           </Suspense>

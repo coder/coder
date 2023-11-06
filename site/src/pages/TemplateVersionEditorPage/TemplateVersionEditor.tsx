@@ -425,7 +425,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                 css={[
                   styles.panel,
                   {
-                    paddingBottom: theme.spacing(2),
+                    paddingBottom: 16,
                     display: selectedTab !== "resources" ? "none" : undefined,
                   },
                 ]}
@@ -465,7 +465,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 
 const styles = {
   topbar: (theme) => ({
-    padding: theme.spacing(2),
+    padding: 16,
     borderBottom: `1px solid ${theme.palette.divider}`,
     display: "flex",
     alignItems: "center",
@@ -473,11 +473,11 @@ const styles = {
     height: topbarHeight,
     background: theme.palette.background.paper,
   }),
-  topbarSides: (theme) => ({
+  topbarSides: {
     display: "flex",
     alignItems: "center",
-    gap: theme.spacing(2),
-  }),
+    gap: 16,
+  },
   sidebarAndEditor: {
     display: "flex",
     flex: 1,
@@ -492,7 +492,7 @@ const styles = {
   sidebarTitle: (theme) => ({
     fontSize: 10,
     textTransform: "uppercase",
-    padding: theme.spacing(1, 2),
+    padding: "8px 16px",
     color: theme.palette.text.primary,
     fontWeight: 500,
     letterSpacing: "0.5px",
@@ -538,7 +538,7 @@ const styles = {
   }),
   tab: (theme) => ({
     cursor: "pointer",
-    padding: theme.spacing(1.5),
+    padding: 12,
     fontSize: 10,
     textTransform: "uppercase",
     letterSpacing: "0.5px",

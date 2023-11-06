@@ -165,21 +165,21 @@ export const TemplateInsightsPageView = ({
   return (
     <>
       <Box
-        css={(theme) => ({
-          marginBottom: theme.spacing(4),
+        css={{
+          marginBottom: 32,
           display: "flex",
           alignItems: "center",
-          gap: theme.spacing(1),
-        })}
+          gap: 8,
+        }}
       >
         {controls}
       </Box>
       <Box
-        sx={{
+        css={{
           display: "grid",
           gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
           gridTemplateRows: "440px 440px auto",
-          gap: (theme) => theme.spacing(3),
+          gap: 24,
         }}
       >
         <ActiveUsersPanel
@@ -490,7 +490,7 @@ const TemplateParametersUsagePanel = ({
                   p: 3,
                   marginX: -3,
                   borderTop: (theme) => `1px solid ${theme.palette.divider}`,
-                  width: (theme) => `calc(100% + ${theme.spacing(6)})`,
+                  width: "calc(100% + 48px)",
                   "&:first-child": {
                     borderTop: 0,
                   },
@@ -560,12 +560,12 @@ const filterOrphanValues = (
   return true;
 };
 
-const ParameterUsageRow = styled(Box)(({ theme }) => ({
+const ParameterUsageRow = styled(Box)(() => ({
   display: "flex",
   alignItems: "baseline",
   justifyContent: "space-between",
-  padding: theme.spacing(0.5, 0),
-  gap: theme.spacing(5),
+  padding: "4px 0",
+  gap: 40,
 }));
 
 const ParameterUsageLabel = ({
@@ -640,7 +640,7 @@ const ParameterUsageLabel = ({
             <Box
               key={i}
               sx={{
-                p: (theme) => theme.spacing(0.25, 1.5),
+                p: "2px 12px",
                 borderRadius: 999,
                 background: (theme) => theme.palette.divider,
                 whiteSpace: "nowrap",
@@ -694,7 +694,7 @@ const ParameterUsageLabel = ({
 };
 
 const Panel = styled(Box)(({ theme }) => ({
-  borderRadius: theme.shape.borderRadius,
+  borderRadius: 8,
   border: `1px solid ${theme.palette.divider}`,
   backgroundColor: theme.palette.background.paper,
   display: "flex",
@@ -703,8 +703,8 @@ const Panel = styled(Box)(({ theme }) => ({
 
 type PanelProps = ComponentProps<typeof Panel>;
 
-const PanelHeader = styled(Box)(({ theme }) => ({
-  padding: theme.spacing(2.5, 3, 3),
+const PanelHeader = styled(Box)(() => ({
+  padding: "20px 24px 24px",
 }));
 
 const PanelTitle = styled(Box)(() => ({
@@ -712,8 +712,8 @@ const PanelTitle = styled(Box)(() => ({
   fontWeight: 500,
 }));
 
-const PanelContent = styled(Box)(({ theme }) => ({
-  padding: theme.spacing(0, 3, 3),
+const PanelContent = styled(Box)(() => ({
+  padding: "0 24px 24px",
   flex: 1,
 }));
 

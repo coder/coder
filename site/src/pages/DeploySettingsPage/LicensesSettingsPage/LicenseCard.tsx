@@ -118,7 +118,7 @@ const styles = {
   }),
   licenseCard: (theme) => ({
     ...(theme.typography.body2 as CSSObject),
-    padding: theme.spacing(2),
+    padding: 16,
   }),
   cardContent: {},
   licenseId: (theme) => ({
@@ -135,9 +135,9 @@ const styles = {
   licenseExpires: (theme) => ({
     color: theme.palette.text.secondary,
   }),
-  expiredBadge: (theme) => ({
-    marginBottom: theme.spacing(0.5),
-  }),
+  expiredBadge: {
+    marginBottom: 4,
+  },
   secondaryMaincolor: (theme) => ({
     color: theme.palette.text.secondary,
   }),

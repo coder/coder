@@ -101,16 +101,16 @@ const styles = {
     paddingBottom: 0,
   },
 
-  emptyImage: (theme) => ({
+  emptyImage: {
     maxWidth: "50%",
-    height: theme.spacing(40),
+    height: 320,
     overflow: "hidden",
     opacity: 0.85,
 
     "& img": {
       maxWidth: "100%",
     },
-  }),
+  },
 
   featuredExamples: (theme) => ({
     display: "flex",

@@ -62,8 +62,8 @@ const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
             <InputAdornment
               position="end"
               css={{
-                width: theme.spacing(3),
-                height: theme.spacing(3),
+                width: 24,
+                height: 24,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",

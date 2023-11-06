@@ -117,8 +117,8 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
       <PopoverContent
         classes={{
           paper: css`
-            width: ${theme.spacing(45)};
-            margin-top: ${theme.spacing(1)};
+            width: 360px;
+            margin-top: 8px;
             background: ${theme.palette.background.paperLight};
           `,
         }}
@@ -162,8 +162,8 @@ const styles = {
     color: theme.palette.text.secondary,
 
     "& .MuiSvgIcon-root": {
-      width: theme.spacing(2),
-      height: theme.spacing(2),
+      width: 16,
+      height: 16,
       position: "relative",
       top: -2, // Align the pencil square
     },
@@ -182,37 +182,37 @@ const styles = {
       opacity: 0.5,
     },
   },
-  options: (theme) => ({
-    padding: theme.spacing(3),
-  }),
+  options: {
+    padding: 24,
+  },
   option: {
     cursor: "pointer",
     fontSize: 14,
   },
-  checkbox: (theme) => ({
+  checkbox: {
     padding: 0,
     position: "relative",
     top: 1, // Alignment
 
     "& svg": {
-      width: theme.spacing(2.5),
-      height: theme.spacing(2.5),
+      width: 20,
+      height: 20,
     },
-  }),
+  },
   optionDescription: (theme) => ({
     fontSize: 13,
     color: theme.palette.text.secondary,
     lineHeight: "160%",
   }),
   footer: (theme) => ({
-    padding: theme.spacing(3),
+    padding: 24,
     backgroundColor: theme.palette.background.paper,
     borderTop: `1px solid ${theme.palette.divider}`,
     fontSize: 14,
   }),
   userIcon: (theme) => ({
-    width: theme.spacing(2.5), // Same as the checkbox
-    height: theme.spacing(2.5),
+    width: 20, // Same as the checkbox
+    height: 20,
     color: theme.palette.primary.main,
   }),
 } satisfies Record<string, Interpolation<Theme>>;
