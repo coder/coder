@@ -33,28 +33,24 @@ export const buildPagedList = (
     return range(1, numPages);
   }
 
-  const leftBound = activePage - PAGE_NEIGHBORS;
-  const rightBound = activePage + PAGE_NEIGHBORS;
-  const beforeLastPage = numPages - 1;
-  const startPage = leftBound > 2 ? leftBound : 2;
-  const endPage = rightBound < beforeLastPage ? rightBound : beforeLastPage;
+  const pageBeforeLast = numPages - 1;
+  const startPage = Math.max(activePage - PAGE_NEIGHBORS, 2);
+  const endPage = Math.min(activePage + PAGE_NEIGHBORS, pageBeforeLast);
 
   let pages: ReturnType<typeof buildPagedList> = range(startPage, endPage);
 
   const singleSpillOffset = PAGES_TO_DISPLAY - pages.length - 1;
   const hasLeftOverflow = startPage > 2;
-  const hasRightOverflow = endPage < beforeLastPage;
-  const leftOverflowPage = "left";
-  const rightOverflowPage = "right";
+  const hasRightOverflow = endPage < pageBeforeLast;
 
   if (hasLeftOverflow && !hasRightOverflow) {
     const extraPages = range(startPage - singleSpillOffset, startPage - 1);
-    pages = [leftOverflowPage, ...extraPages, ...pages];
+    pages = ["left", ...extraPages, ...pages];
   } else if (!hasLeftOverflow && hasRightOverflow) {
     const extraPages = range(endPage + 1, endPage + singleSpillOffset);
-    pages = [...pages, ...extraPages, rightOverflowPage];
+    pages = [...pages, ...extraPages, "right"];
   } else if (hasLeftOverflow && hasRightOverflow) {
-    pages = [leftOverflowPage, ...pages, rightOverflowPage];
+    pages = ["left", ...pages, "right"];
   }
 
   return [1, ...pages, numPages];
