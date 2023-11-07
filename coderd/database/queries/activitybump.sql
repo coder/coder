@@ -13,8 +13,18 @@ WITH latest AS (
 		(
 			CASE
 				WHEN templates.allow_user_autostop
-				THEN (workspaces.ttl / 1000 / 1000 / 1000 || ' seconds')::interval
-				ELSE (templates.default_ttl / 1000 / 1000 / 1000 || ' seconds')::interval
+				THEN
+					CASE
+						-- If ttl_bump is set, then use that instead of the ttl
+						-- for the bump amount.
+						WHEN workspaces.ttl_bump > 0 THEN (workspaces.ttl_bump / 1000 / 1000 / 1000 || ' seconds')::interval
+						ELSE (workspaces.ttl / 1000 / 1000 / 1000 || ' seconds')::interval
+					END
+				ELSE
+					CASE
+						WHEN templates.ttl_bump > 0 THEN (templates.ttl_bump / 1000 / 1000 / 1000 || ' seconds')::interval
+						ELSE (templates.default_ttl / 1000 / 1000 / 1000 || ' seconds')::interval
+					END
 			END
 		) AS ttl_interval
 	FROM workspace_builds
