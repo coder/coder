@@ -57,8 +57,12 @@ export const buildPagedList = (
 };
 
 // pages count from 1
-export const getOffset = (page: number, limit: number): number =>
-  (page - 1) * limit;
+export const getOffset = (page: number, limit: number): number => {
+  const pageIsValid = Number.isInteger(page) && page >= 1;
+  const pageToUse = pageIsValid ? page : 1;
+
+  return (pageToUse - 1) * limit;
+};
 
 export const nonInitialPage = (searchParams: URLSearchParams): boolean => {
   const page = searchParams.get("page");
