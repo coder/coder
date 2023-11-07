@@ -21,13 +21,14 @@ export const PaginationWidgetBase = ({
 }: PaginationWidgetBaseProps): JSX.Element | null => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
-  const numPages = Math.ceil(count / limit);
-  const isFirstPage = page === 0;
-  const isLastPage = page === numPages - 1;
 
+  const numPages = Math.ceil(count / limit);
   if (numPages < 2) {
     return null;
   }
+
+  const isFirstPage = page <= 1;
+  const isLastPage = page >= numPages;
 
   return (
     <div
