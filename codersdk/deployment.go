@@ -305,16 +305,18 @@ type TelemetryConfig struct {
 }
 
 type TLSConfig struct {
-	Enable         clibase.Bool        `json:"enable" typescript:",notnull"`
-	Address        clibase.HostPort    `json:"address" typescript:",notnull"`
-	RedirectHTTP   clibase.Bool        `json:"redirect_http" typescript:",notnull"`
-	CertFiles      clibase.StringArray `json:"cert_file" typescript:",notnull"`
-	ClientAuth     clibase.String      `json:"client_auth" typescript:",notnull"`
-	ClientCAFile   clibase.String      `json:"client_ca_file" typescript:",notnull"`
-	KeyFiles       clibase.StringArray `json:"key_file" typescript:",notnull"`
-	MinVersion     clibase.String      `json:"min_version" typescript:",notnull"`
-	ClientCertFile clibase.String      `json:"client_cert_file" typescript:",notnull"`
-	ClientKeyFile  clibase.String      `json:"client_key_file" typescript:",notnull"`
+	Enable               clibase.Bool        `json:"enable" typescript:",notnull"`
+	Address              clibase.HostPort    `json:"address" typescript:",notnull"`
+	RedirectHTTP         clibase.Bool        `json:"redirect_http" typescript:",notnull"`
+	CertFiles            clibase.StringArray `json:"cert_file" typescript:",notnull"`
+	ClientAuth           clibase.String      `json:"client_auth" typescript:",notnull"`
+	ClientCAFile         clibase.String      `json:"client_ca_file" typescript:",notnull"`
+	KeyFiles             clibase.StringArray `json:"key_file" typescript:",notnull"`
+	MinVersion           clibase.String      `json:"min_version" typescript:",notnull"`
+	ClientCertFile       clibase.String      `json:"client_cert_file" typescript:",notnull"`
+	ClientKeyFile        clibase.String      `json:"client_key_file" typescript:",notnull"`
+	SupportedCiphers     clibase.StringArray `json:"supported_ciphers" typescript:",notnull"`
+	AllowInsecureCiphers clibase.Bool        `json:"allow_insecure_ciphers" typescript:",notnull"`
 }
 
 type TraceConfig struct {
@@ -738,6 +740,28 @@ when required by your organization's security policy.`,
 			Value:       &c.TLS.ClientKeyFile,
 			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "clientKeyFile",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+		},
+		{
+			Name:        "TLS Ciphers",
+			Description: "Specify specific TLS ciphers that allowed to be used. See https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L53-L75.",
+			Flag:        "tls-ciphers",
+			Env:         "CODER_TLS_CIPHERS",
+			Default:     "",
+			Value:       &c.TLS.SupportedCiphers,
+			Group:       &deploymentGroupNetworkingTLS,
+			YAML:        "tlsCiphers",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+		},
+		{
+			Name:        "TLS Allow Insecure Ciphers",
+			Description: "By default, only ciphers marked as 'secure' are allowed to be used. See https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L82-L95.",
+			Flag:        "tls-allow-insecure-ciphers",
+			Env:         "CODER_TLS_ALLOW_INSECURE_CIPHERS",
+			Default:     "false",
+			Value:       &c.TLS.AllowInsecureCiphers,
+			Group:       &deploymentGroupNetworkingTLS,
+			YAML:        "tlsAllowInsecureCiphers",
 			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		// Derp settings
