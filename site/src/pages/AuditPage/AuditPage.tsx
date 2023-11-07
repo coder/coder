@@ -1,6 +1,6 @@
 import {
   DEFAULT_RECORDS_PER_PAGE,
-  nonInitialPage,
+  isNonInitialPage,
 } from "components/PaginationWidget/utils";
 import { useFeatureVisibility } from "hooks/useFeatureVisibility";
 import { FC } from "react";
@@ -73,7 +73,7 @@ const AuditPage: FC = () => {
         page={pagination.page}
         limit={pagination.limit}
         onPageChange={pagination.goToPage}
-        isNonInitialPage={nonInitialPage(searchParamsResult[0])}
+        isNonInitialPage={isNonInitialPage(searchParamsResult[0])}
         isAuditLogVisible={isAuditLogVisible}
         error={error}
         filterProps={{

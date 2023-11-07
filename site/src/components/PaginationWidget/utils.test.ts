@@ -1,6 +1,6 @@
-import { buildPagedList, getOffset } from "./utils";
+import { buildPagedList, getOffset, isNonInitialPage } from "./utils";
 
-describe("buildPagedList", () => {
+describe(buildPagedList.name, () => {
   it("has no placeholder entries when there are seven or fewer pages", () => {
     for (let i = 1; i <= 7; i++) {
       const expectedResult: number[] = [];
@@ -55,7 +55,7 @@ describe("buildPagedList", () => {
   });
 });
 
-describe("getOffset", () => {
+describe(getOffset.name, () => {
   it("returns 0 on page 1", () => {
     const page = 1;
     const limit = 10;
@@ -70,9 +70,37 @@ describe("getOffset", () => {
     }
   });
 
-  it("Returns offset based on the current page for all pages after 1", () => {
+  it("Returns offset based on the current page for all valid pages after 1", () => {
     expect(getOffset(2, 10)).toEqual(10);
     expect(getOffset(3, 10)).toEqual(20);
     expect(getOffset(4, 45)).toEqual(135);
+  });
+});
+
+describe(isNonInitialPage.name, () => {
+  it("Should detect your page correctly if input is set and valid", () => {
+    const params1 = new URLSearchParams({ page: String(1) });
+    expect(isNonInitialPage(params1)).toBe(false);
+
+    const inputs = [2, 50, 500, 3722];
+
+    for (const input of inputs) {
+      const params = new URLSearchParams({ page: String(input) });
+      expect(isNonInitialPage(params)).toBe(true);
+    }
+  });
+
+  it("Should act as if you are on page 1 if input is set but invalid", () => {
+    const inputs = ["", Infinity, -Infinity, NaN, 3.74, -3];
+
+    for (const input of inputs) {
+      const params = new URLSearchParams({ page: String(input) });
+      expect(isNonInitialPage(params)).toBe(false);
+    }
+  });
+
+  it("Should act as if you are on page 1 if input does not exist", () => {
+    const params = new URLSearchParams();
+    expect(isNonInitialPage(params)).toBe(false);
   });
 });

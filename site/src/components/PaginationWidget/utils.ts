@@ -64,8 +64,10 @@ export const getOffset = (page: number, limit: number): number => {
   return (pageToUse - 1) * limit;
 };
 
-export const nonInitialPage = (searchParams: URLSearchParams): boolean => {
+export const isNonInitialPage = (searchParams: URLSearchParams): boolean => {
   const page = searchParams.get("page");
-  const numberPage = page ? Number(page) : 1;
-  return numberPage > 1;
+  const conversion = Number(page);
+  const inputIsValid = Number.isInteger(conversion) && conversion >= 1;
+
+  return inputIsValid ? conversion > 1 : false;
 };
