@@ -2411,7 +2411,7 @@ func (q *FakeQuerier) GetTemplateAppInsightsByTemplate(ctx context.Context, arg 
 		}
 
 		t := s.SessionStartedAt.Truncate(time.Minute)
-		sessionEndedAt := s.SessionEndedAt.Add(-time.Microsecond).Truncate(time.Minute)
+		sessionEndedAt := s.SessionEndedAt.Truncate(time.Minute)
 		if t.Before(arg.StartTime) {
 			t = arg.StartTime
 		}

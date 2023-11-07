@@ -85,7 +85,7 @@ func TestCollectInsights(t *testing.T) {
 			SlugOrPort:       "golden-slug",
 			SessionID:        uuid.New(),
 			SessionStartedAt: time.Now().Add(-3 * time.Minute),
-			SessionEndedAt:   time.Now().Add(-time.Minute),
+			SessionEndedAt:   time.Now().Add(-time.Minute).Add(-time.Second),
 			Requests:         1,
 		},
 	})
