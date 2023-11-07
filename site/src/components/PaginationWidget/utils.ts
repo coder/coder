@@ -12,8 +12,8 @@ export const DEFAULT_RECORDS_PER_PAGE = 25;
 const PAGE_NEIGHBORS = 1;
 
 // Minimum number of pages to display at all times (assuming there are enough
-// pages). Needed to handle case where there are the left and right
-// placeholder/ellipsis elements are both showing
+// pages). Needed to handle case where the left and right placeholder/ellipsis
+// elements are both showing
 const PAGES_TO_DISPLAY = PAGE_NEIGHBORS * 2 + 3;
 
 // Total number of pagination elements to display (accounting for visible pages
