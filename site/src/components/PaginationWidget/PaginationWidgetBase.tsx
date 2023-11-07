@@ -4,7 +4,7 @@ import useMediaQuery from "@mui/material/useMediaQuery";
 import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
 import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
 import { useTheme } from "@emotion/react";
-import { PlaceholderPageButton, NumberedPageButton } from "./PageButton";
+import { PlaceholderPageButton, NumberedPageButton } from "./PageButtons";
 import { buildPagedList } from "./utils";
 
 export type PaginationWidgetBaseProps = {
