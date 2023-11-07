@@ -2,12 +2,12 @@ BEGIN;
 
 DROP VIEW template_with_users;
 
-ALTER TABLE templates ADD COLUMN default_ttl_bump bigint DEFAULT '-1'::bigint NOT NULL;
-COMMENT ON COLUMN templates.default_ttl_bump IS 'Amount of time to bump workspace ttl from activity. Anything <0 will default to the ttl time.';
+ALTER TABLE templates ADD COLUMN default_ttl_bump bigint DEFAULT '0'::bigint NOT NULL;
+COMMENT ON COLUMN templates.default_ttl_bump IS 'Amount of time to bump workspace ttl from activity. 0 will default to the "default_ttl" as the bump interval.';
 
 
-ALTER TABLE workspaces ADD COLUMN ttl_bump bigint DEFAULT '-1'::bigint NOT NULL;
-COMMENT ON COLUMN workspaces.ttl_bump IS 'Amount of time to bump workspace ttl from activity. Anything <0 will default to the ttl time.';
+ALTER TABLE workspaces ADD COLUMN ttl_bump bigint DEFAULT '0'::bigint NOT NULL;
+COMMENT ON COLUMN workspaces.ttl_bump IS 'Amount of time to bump workspace ttl from activity. 0 will default to the "ttl" as the bump interval.';
 
 CREATE VIEW
 	template_with_users

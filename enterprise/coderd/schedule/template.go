@@ -142,6 +142,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 			AllowUserAutostart:            opts.UserAutostartEnabled,
 			AllowUserAutostop:             opts.UserAutostopEnabled,
 			DefaultTTL:                    int64(opts.DefaultTTL),
+			DefaultTtlBump:                int64(opts.DefaultTTLBump),
 			MaxTTL:                        int64(opts.MaxTTL),
 			AutostopRequirementDaysOfWeek: int16(opts.AutostopRequirement.DaysOfWeek),
 			AutostopRequirementWeeks:      opts.AutostopRequirement.Weeks,

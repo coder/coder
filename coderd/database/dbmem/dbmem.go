@@ -824,9 +824,15 @@ func (q *FakeQuerier) ActivityBumpWorkspace(ctx context.Context, workspaceID uui
 		var ttlDur time.Duration
 		if workspace.Ttl.Valid {
 			ttlDur = time.Duration(workspace.Ttl.Int64)
+			if workspace.TtlBump > 0 {
+				ttlDur += time.Duration(workspace.TtlBump)
+			}
 		}
 		if !template.AllowUserAutostop {
 			ttlDur = time.Duration(template.DefaultTTL)
+			if template.DefaultTtlBump > 0 {
+				ttlDur += time.Duration(template.DefaultTtlBump)
+			}
 		}
 		if ttlDur <= 0 {
 			// There's no TTL set anymore, so we don't know the bump duration.

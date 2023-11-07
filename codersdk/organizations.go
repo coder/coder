@@ -84,6 +84,10 @@ type CreateTemplateRequest struct {
 	// DefaultTTLMillis allows optionally specifying the default TTL
 	// for all workspaces created from this template.
 	DefaultTTLMillis *int64 `json:"default_ttl_ms,omitempty"`
+	// DefaultTTLBumpMillis allows optionally specifying the default TTL
+	// bump based on workspace activity. If unset, the default TTL will be
+	// used as the bump amount.
+	DefaultTTLBumpMillis *int64 `json:"default_ttl_bump_ms,omitempty"`
 	// TODO(@dean): remove max_ttl once autostop_requirement is matured
 	MaxTTLMillis *int64 `json:"max_ttl_ms,omitempty"`
 	// AutostopRequirement allows optionally specifying the autostop requirement

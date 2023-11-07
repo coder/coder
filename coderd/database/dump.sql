@@ -806,7 +806,7 @@ CREATE TABLE templates (
     autostop_requirement_weeks bigint DEFAULT 0 NOT NULL,
     autostart_block_days_of_week smallint DEFAULT 0 NOT NULL,
     require_active_version boolean DEFAULT false NOT NULL,
-    default_ttl_bump bigint DEFAULT '-1'::bigint NOT NULL
+    default_ttl_bump bigint DEFAULT '0'::bigint NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -825,7 +825,7 @@ COMMENT ON COLUMN templates.autostop_requirement_weeks IS 'The number of weeks b
 
 COMMENT ON COLUMN templates.autostart_block_days_of_week IS 'A bitmap of days of week that autostart of a workspace is not allowed. Default allows all days. This is intended as a cost savings measure to prevent auto start on weekends (for example).';
 
-COMMENT ON COLUMN templates.default_ttl_bump IS 'Amount of time to bump workspace ttl from activity. Anything <0 will default to the ttl time.';
+COMMENT ON COLUMN templates.default_ttl_bump IS 'Amount of time to bump workspace ttl from activity. 0 will default to the "default_ttl" as the bump interval.';
 
 CREATE VIEW template_with_users AS
  SELECT templates.id,
@@ -1197,10 +1197,10 @@ CREATE TABLE workspaces (
     dormant_at timestamp with time zone,
     deleting_at timestamp with time zone,
     automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL,
-    ttl_bump bigint DEFAULT '-1'::bigint NOT NULL
+    ttl_bump bigint DEFAULT '0'::bigint NOT NULL
 );
 
-COMMENT ON COLUMN workspaces.ttl_bump IS 'Amount of time to bump workspace ttl from activity. Anything <0 will default to the ttl time.';
+COMMENT ON COLUMN workspaces.ttl_bump IS 'Amount of time to bump workspace ttl from activity. 0 will default to the "ttl" as the bump interval.';
 
 ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('licenses_id_seq'::regclass);
 

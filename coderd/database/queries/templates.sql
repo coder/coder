@@ -123,7 +123,8 @@ SET
 	autostart_block_days_of_week = $9,
 	failure_ttl = $10,
 	time_til_dormant = $11,
-	time_til_dormant_autodelete = $12
+	time_til_dormant_autodelete = $12,
+	default_ttl_bump = $13
 WHERE
 	id = $1
 ;

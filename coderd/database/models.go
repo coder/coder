@@ -2006,7 +2006,7 @@ type TemplateTable struct {
 	// A bitmap of days of week that autostart of a workspace is not allowed. Default allows all days. This is intended as a cost savings measure to prevent auto start on weekends (for example).
 	AutostartBlockDaysOfWeek int16 `db:"autostart_block_days_of_week" json:"autostart_block_days_of_week"`
 	RequireActiveVersion     bool  `db:"require_active_version" json:"require_active_version"`
-	// Amount of time to bump workspace ttl from activity. Anything <0 will default to the ttl time.
+	// Amount of time to bump workspace ttl from activity. 0 will default to the "default_ttl" as the bump interval.
 	DefaultTtlBump int64 `db:"default_ttl_bump" json:"default_ttl_bump"`
 }
 
@@ -2151,7 +2151,7 @@ type Workspace struct {
 	DormantAt         sql.NullTime     `db:"dormant_at" json:"dormant_at"`
 	DeletingAt        sql.NullTime     `db:"deleting_at" json:"deleting_at"`
 	AutomaticUpdates  AutomaticUpdates `db:"automatic_updates" json:"automatic_updates"`
-	// Amount of time to bump workspace ttl from activity. Anything <0 will default to the ttl time.
+	// Amount of time to bump workspace ttl from activity. 0 will default to the "ttl" as the bump interval.
 	TtlBump int64 `db:"ttl_bump" json:"ttl_bump"`
 }
 
