@@ -1,34 +1,35 @@
+import { type ReactElement } from "react";
 import Button from "@mui/material/Button";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
 import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
 import { useTheme } from "@emotion/react";
-import { PageButton } from "./PageButton";
+import { PlaceholderPageButton, NumberedPageButton } from "./PageButton";
 import { buildPagedList } from "./utils";
 
 export type PaginationWidgetBaseProps = {
   count: number;
   page: number;
   limit: number;
-  onChange: (page: number) => void;
+  onChange: (newPage: number) => void;
 };
 
 export const PaginationWidgetBase = ({
   count,
-  page,
   limit,
   onChange,
-}: PaginationWidgetBaseProps): JSX.Element | null => {
+  page: currentPage,
+}: PaginationWidgetBaseProps): ReactElement | null => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+  const totalPages = Math.ceil(count / limit);
 
-  const numPages = Math.ceil(count / limit);
-  if (numPages < 2) {
+  if (totalPages < 2) {
     return null;
   }
 
-  const isFirstPage = page <= 1;
-  const isLastPage = page >= numPages;
+  const isFirstPage = currentPage <= 1;
+  const isLastPage = currentPage >= totalPages;
 
   return (
     <div
@@ -38,54 +39,41 @@ export const PaginationWidgetBase = ({
         display: "flex",
         flexDirection: "row",
         padding: "20px",
+        columnGap: "6px",
       }}
     >
       <Button
-        css={{
-          marginRight: 4,
-        }}
         aria-label="Previous page"
         disabled={isFirstPage}
         onClick={() => {
           if (!isFirstPage) {
-            onChange(page - 1);
+            onChange(currentPage - 1);
           }
         }}
       >
         <KeyboardArrowLeft />
       </Button>
-      {isMobile ? (
-        <PageButton activePage={page} page={page} numPages={numPages} />
-      ) : (
-        buildPagedList(numPages, page).map((pageItem) => {
-          if (pageItem === "left" || pageItem === "right") {
-            return (
-              <PageButton
-                key={pageItem}
-                activePage={page}
-                placeholder="..."
-                disabled
-              />
-            );
-          }
 
-          return (
-            <PageButton
-              key={pageItem}
-              page={pageItem}
-              activePage={page}
-              numPages={numPages}
-              onPageClick={() => onChange(pageItem)}
-            />
-          );
-        })
+      {isMobile ? (
+        <NumberedPageButton
+          highlighted
+          pageNumber={currentPage}
+          totalPages={totalPages}
+        />
+      ) : (
+        <PaginationRow
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onChange={onChange}
+        />
       )}
+
       <Button
         aria-label="Next page"
         disabled={isLastPage}
         onClick={() => {
           if (!isLastPage) {
-            onChange(page + 1);
+            onChange(currentPage + 1);
           }
         }}
       >
@@ -94,3 +82,43 @@ export const PaginationWidgetBase = ({
     </div>
   );
 };
+
+type PaginationRowProps = {
+  currentPage: number;
+  totalPages: number;
+  onChange: (newPage: number) => void;
+};
+
+function PaginationRow({
+  currentPage,
+  totalPages,
+  onChange,
+}: PaginationRowProps) {
+  const pageInfo = buildPagedList(totalPages, currentPage);
+  const pagesOmitted = totalPages - pageInfo.length - 1;
+
+  return (
+    <>
+      {pageInfo.map((pageEntry) => {
+        if (pageEntry === "left" || pageEntry === "right") {
+          return (
+            <PlaceholderPageButton
+              key={pageEntry}
+              pagesOmitted={pagesOmitted}
+            />
+          );
+        }
+
+        return (
+          <NumberedPageButton
+            key={pageEntry}
+            pageNumber={pageEntry}
+            totalPages={totalPages}
+            highlighted={pageEntry === currentPage}
+            onClick={() => onChange(pageEntry)}
+          />
+        );
+      })}
+    </>
+  );
+}
