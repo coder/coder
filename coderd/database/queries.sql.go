@@ -1757,6 +1757,96 @@ func (q *sqlQuerier) GetTemplateAppInsights(ctx context.Context, arg GetTemplate
 	return items, nil
 }
 
+const getTemplateAppInsightsByTemplate = `-- name: GetTemplateAppInsightsByTemplate :many
+WITH app_stats_by_user_and_agent AS (
+	SELECT
+		s.start_time,
+		60 as seconds,
+		w.template_id,
+		was.user_id,
+		was.agent_id,
+		was.slug_or_port,
+		wa.display_name,
+		(wa.slug IS NOT NULL)::boolean AS is_app
+	FROM workspace_app_stats was
+	JOIN workspaces w ON (
+		w.id = was.workspace_id
+	)
+	-- We do a left join here because we want to include user IDs that have used
+	-- e.g. ports when counting active users.
+	LEFT JOIN workspace_apps wa ON (
+		wa.agent_id = was.agent_id
+		AND wa.slug = was.slug_or_port
+	)
+	-- This table contains both 1 minute entries and >1 minute entries,
+	-- to calculate this with our uniqueness constraints, we generate series
+	-- for the longer intervals.
+	CROSS JOIN LATERAL generate_series(
+		date_trunc('minute', was.session_started_at),
+		-- Subtract 1 microsecond to avoid creating an extra series.
+		date_trunc('minute', was.session_ended_at - '1 microsecond'::interval),
+		'1 minute'::interval
+	) s(start_time)
+	WHERE
+		s.start_time >= $1::timestamptz
+		-- Subtract one minute because the series only contains the start time.
+		AND s.start_time < ($2::timestamptz) - '1 minute'::interval
+	GROUP BY s.start_time, w.template_id, was.user_id, was.agent_id, was.slug_or_port, wa.display_name, wa.slug
+)
+
+SELECT
+	template_id,
+	display_name,
+	slug_or_port,
+	COALESCE(COUNT(DISTINCT user_id))::bigint AS active_users,
+	SUM(seconds) AS usage_seconds
+FROM app_stats_by_user_and_agent
+WHERE is_app IS TRUE
+GROUP BY template_id, display_name, slug_or_port
+`
+
+type GetTemplateAppInsightsByTemplateParams struct {
+	StartTime time.Time `db:"start_time" json:"start_time"`
+	EndTime   time.Time `db:"end_time" json:"end_time"`
+}
+
+type GetTemplateAppInsightsByTemplateRow struct {
+	TemplateID   uuid.UUID      `db:"template_id" json:"template_id"`
+	DisplayName  sql.NullString `db:"display_name" json:"display_name"`
+	SlugOrPort   string         `db:"slug_or_port" json:"slug_or_port"`
+	ActiveUsers  int64          `db:"active_users" json:"active_users"`
+	UsageSeconds int64          `db:"usage_seconds" json:"usage_seconds"`
+}
+
+func (q *sqlQuerier) GetTemplateAppInsightsByTemplate(ctx context.Context, arg GetTemplateAppInsightsByTemplateParams) ([]GetTemplateAppInsightsByTemplateRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplateAppInsightsByTemplate, arg.StartTime, arg.EndTime)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTemplateAppInsightsByTemplateRow
+	for rows.Next() {
+		var i GetTemplateAppInsightsByTemplateRow
+		if err := rows.Scan(
+			&i.TemplateID,
+			&i.DisplayName,
+			&i.SlugOrPort,
+			&i.ActiveUsers,
+			&i.UsageSeconds,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getTemplateInsights = `-- name: GetTemplateInsights :one
 WITH agent_stats_by_interval_and_user AS (
 	SELECT

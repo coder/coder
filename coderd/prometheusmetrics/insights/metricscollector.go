@@ -13,9 +13,13 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk"
 )
 
-var templatesActiveUsersDesc = prometheus.NewDesc("coderd_insights_templates_active_users", "The number of active users of the template.", []string{"template_name"}, nil)
+var (
+	templatesActiveUsersDesc     = prometheus.NewDesc("coderd_insights_templates_active_users", "The number of active users of the template.", []string{"template_name"}, nil)
+	applicationsUsageSecondsDesc = prometheus.NewDesc("coderd_insights_applications_usage_seconds", "The application usage per template.", []string{"template_name", "application_name", "slug"}, nil)
+)
 
 type MetricsCollector struct {
 	database     database.Store
@@ -28,6 +32,7 @@ type MetricsCollector struct {
 
 type insightsData struct {
 	templates []database.GetTemplateInsightsByTemplateRow
+	apps      []database.GetTemplateAppInsightsByTemplateRow
 
 	templateNames map[uuid.UUID]string
 }
@@ -70,9 +75,10 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 		// Phase 1: Fetch insights from database
 		// FIXME errorGroup will be used to fetch insights for apps and parameters
 		eg, egCtx := errgroup.WithContext(ctx)
-		eg.SetLimit(1)
+		eg.SetLimit(2)
 
 		var templateInsights []database.GetTemplateInsightsByTemplateRow
+		var appInsights []database.GetTemplateAppInsightsByTemplateRow
 
 		eg.Go(func() error {
 			var err error
@@ -85,13 +91,24 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 			}
 			return err
 		})
+		eg.Go(func() error {
+			var err error
+			appInsights, err = mc.database.GetTemplateAppInsightsByTemplate(egCtx, database.GetTemplateAppInsightsByTemplateParams{
+				StartTime: startTime,
+				EndTime:   endTime,
+			})
+			if err != nil {
+				mc.logger.Error(ctx, "unable to fetch application insights from database", slog.Error(err))
+			}
+			return err
+		})
 		err := eg.Wait()
 		if err != nil {
 			return
 		}
 
 		// Phase 2: Collect template IDs, and fetch relevant details
-		templateIDs := uniqueTemplateIDs(templateInsights)
+		templateIDs := uniqueTemplateIDs(templateInsights, appInsights)
 
 		templateNames := make(map[uuid.UUID]string, len(templateIDs))
 		if len(templateIDs) > 0 {
@@ -107,7 +124,9 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 
 		// Refresh the collector state
 		mc.data.Store(&insightsData{
-			templates:     templateInsights,
+			templates: templateInsights,
+			apps:      appInsights,
+
 			templateNames: templateNames,
 		})
 	}
@@ -133,6 +152,7 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 
 func (*MetricsCollector) Describe(descCh chan<- *prometheus.Desc) {
 	descCh <- templatesActiveUsersDesc
+	descCh <- applicationsUsageSecondsDesc
 }
 
 func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
@@ -143,6 +163,40 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 		return // insights data not loaded yet
 	}
 
+	// Custom apps
+	for _, appRow := range data.apps {
+		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue, float64(appRow.UsageSeconds), data.templateNames[appRow.TemplateID],
+			appRow.DisplayName.String, appRow.SlugOrPort)
+	}
+
+	// Built-in apps
+	for _, templateRow := range data.templates {
+		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
+			float64(templateRow.UsageVscodeSeconds),
+			data.templateNames[templateRow.TemplateID],
+			codersdk.TemplateBuiltinAppDisplayNameVSCode,
+			"")
+
+		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
+			float64(templateRow.UsageJetbrainsSeconds),
+			data.templateNames[templateRow.TemplateID],
+			codersdk.TemplateBuiltinAppDisplayNameJetBrains,
+			"")
+
+		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
+			float64(templateRow.UsageReconnectingPtySeconds),
+			data.templateNames[templateRow.TemplateID],
+			codersdk.TemplateBuiltinAppDisplayNameWebTerminal,
+			"")
+
+		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
+			float64(templateRow.UsageSshSeconds),
+			data.templateNames[templateRow.TemplateID],
+			codersdk.TemplateBuiltinAppDisplayNameSSH,
+			"")
+	}
+
+	// Templates
 	for _, templateRow := range data.templates {
 		metricsCh <- prometheus.MustNewConstMetric(templatesActiveUsersDesc, prometheus.GaugeValue, float64(templateRow.ActiveUsers), data.templateNames[templateRow.TemplateID])
 	}
@@ -150,9 +204,12 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 
 // Helper functions below.
 
-func uniqueTemplateIDs(templateInsights []database.GetTemplateInsightsByTemplateRow) []uuid.UUID {
+func uniqueTemplateIDs(templateInsights []database.GetTemplateInsightsByTemplateRow, appInsights []database.GetTemplateAppInsightsByTemplateRow) []uuid.UUID {
 	tids := map[uuid.UUID]bool{}
 	for _, t := range templateInsights {
+		tids[t.TemplateID] = true
+	}
+	for _, t := range appInsights {
 		tids[t.TemplateID] = true
 	}
 
