@@ -13,10 +13,10 @@ import { useTheme } from "@emotion/react";
 
 type NavProps = {
   currentPage: number;
-  onChange: (newPage: number) => void;
+  onPageChange: (newPage: number) => void;
 };
 
-export function LeftNavButton({ currentPage, onChange }: NavProps) {
+export function LeftNavButton({ currentPage, onPageChange }: NavProps) {
   const isFirstPage = currentPage <= 1;
 
   return (
@@ -26,7 +26,7 @@ export function LeftNavButton({ currentPage, onChange }: NavProps) {
       aria-label="Previous page"
       onClick={() => {
         if (!isFirstPage) {
-          onChange(currentPage - 1);
+          onPageChange(currentPage - 1);
         }
       }}
     >
@@ -35,7 +35,7 @@ export function LeftNavButton({ currentPage, onChange }: NavProps) {
   );
 }
 
-export function RightNavButton({ currentPage, onChange }: NavProps) {
+export function RightNavButton({ currentPage, onPageChange }: NavProps) {
   const isLastPage = currentPage <= 1;
 
   return (
@@ -45,7 +45,7 @@ export function RightNavButton({ currentPage, onChange }: NavProps) {
       aria-label="Previous page"
       onClick={() => {
         if (!isLastPage) {
-          onChange(currentPage + 1);
+          onPageChange(currentPage + 1);
         }
       }}
     >

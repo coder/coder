@@ -6,21 +6,21 @@ import { buildPagedList } from "./utils";
 import { LeftNavButton, RightNavButton } from "./PaginationNavButtons";
 
 export type PaginationWidgetBaseProps = {
-  count: number;
-  page: number;
-  limit: number;
-  onChange: (newPage: number) => void;
+  currentPage: number;
+  pageSize: number;
+  totalRecords: number;
+  onPageChange: (newPage: number) => void;
 };
 
 export const PaginationWidgetBase = ({
-  count,
-  limit,
-  onChange,
-  page: currentPage,
+  currentPage,
+  pageSize,
+  totalRecords,
+  onPageChange,
 }: PaginationWidgetBaseProps) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
-  const totalPages = Math.ceil(count / limit);
+  const totalPages = Math.ceil(totalRecords / pageSize);
 
   if (totalPages < 2) {
     return null;
@@ -37,7 +37,7 @@ export const PaginationWidgetBase = ({
         columnGap: "6px",
       }}
     >
-      <LeftNavButton currentPage={currentPage} onChange={onChange} />
+      <LeftNavButton currentPage={currentPage} onPageChange={onPageChange} />
 
       {isMobile ? (
         <NumberedPageButton
@@ -49,11 +49,11 @@ export const PaginationWidgetBase = ({
         <PaginationRow
           currentPage={currentPage}
           totalPages={totalPages}
-          onChange={onChange}
+          onChange={onPageChange}
         />
       )}
 
-      <RightNavButton currentPage={currentPage} onChange={onChange} />
+      <RightNavButton currentPage={currentPage} onPageChange={onPageChange} />
     </div>
   );
 };

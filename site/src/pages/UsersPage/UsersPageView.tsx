@@ -102,10 +102,10 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
 
       {count && (
         <PaginationWidgetBase
-          count={count}
-          limit={limit}
-          onChange={onPageChange}
-          page={page}
+          totalRecords={count}
+          pageSize={limit}
+          onPageChange={onPageChange}
+          currentPage={page}
         />
       )}
     </>
