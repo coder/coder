@@ -3,6 +3,11 @@ set -euo pipefail
 
 [[ $VERBOSE == 1 ]] && set -x
 
+if [[ ${SCALETEST_PARAM_GREEDY_AGENT_TEMPLATE} == "${SCALETEST_PARAM_TEMPLATE}" ]]; then
+	echo "ERROR: Greedy agent template must be different from the scaletest template." >&2
+	exit 1
+fi
+
 # Unzip scripts and add to path.
 # shellcheck disable=SC2153
 echo "Extracting scaletest scripts into ${SCRIPTS_DIR}..."

@@ -26,6 +26,53 @@ end_phase
 
 wait_baseline "${SCALETEST_PARAM_LOAD_SCENARIO_BASELINE_DURATION}"
 
+if [[ ${SCALETEST_PARAM_GREEDY_AGENT} != 1 ]]; then
+	greedy_agent() { :; }
+else
+	echo "WARNING: Greedy agent enabled, this may cause the load tests to fail." >&2
+
+	coder exp scaletest create-workspaces \
+		--count 1 \
+		--template "${SCALETEST_PARAM_GREEDY_AGENT_TEMPLATE}" \
+		--concurrency 1 \
+		--timeout 5h \
+		--job-timeout 5h \
+		--no-cleanup \
+		--output json:"${SCALETEST_RESULTS_DIR}/create-workspaces-greedy-agent.json"
+
+	greedy_agent() {
+		local timeout=${1} scenario=${2}
+		# Run the greedy test for ~1/3 of the timeout.
+		delay=$((timeout * 60 / 3))
+
+		local type=web-terminal
+		args=()
+		if [[ ${scenario} == "SSH Traffic" ]]; then
+			type=ssh
+			args+=(--ssh)
+		fi
+
+		sleep "${delay}"
+		annotate_grafana greedy_agent "${scenario}: Greedy agent"
+
+		# Produce load at about 1000MB/s.
+		set +e
+		coder exp scaletest workspace-traffic \
+			--template "${SCALETEST_PARAM_GREEDY_AGENT_TEMPLATE}" \
+			--timeout "$((delay))s" \
+			--job-timeout "$((delay))s" \
+			--output json:"${SCALETEST_RESULTS_DIR}/traffic-${type}-greedy-agent.json" \
+			--bytes-per-tick $((1024 * 1000)) \
+			--tick-interval 1ms \
+			"${args[@]}"
+		status=${?}
+
+		annotate_grafana_end greedy_agent "${scenario}: Greedy agent"
+
+		return ${status}
+	}
+fi
+
 declare -A failed=()
 for scenario in "${SCALETEST_PARAM_LOAD_SCENARIOS[@]}"; do
 	start_phase "Load scenario: ${scenario}"
@@ -34,7 +81,9 @@ for scenario in "${SCALETEST_PARAM_LOAD_SCENARIOS[@]}"; do
 	status=0
 	case "${scenario}" in
 	"SSH Traffic")
+		greedy_agent "${SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_DURATION}" "${scenario}" &
 		coder exp scaletest workspace-traffic \
+			--template "${SCALETEST_PARAM_TEMPLATE}" \
 			--ssh \
 			--bytes-per-tick "${SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_BYTES_PER_TICK}" \
 			--tick-interval "${SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_TICK_INTERVAL}ms" \
@@ -42,16 +91,28 @@ for scenario in "${SCALETEST_PARAM_LOAD_SCENARIOS[@]}"; do
 			--job-timeout "${SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_DURATION}m30s" \
 			--output json:"${SCALETEST_RESULTS_DIR}/traffic-ssh.json"
 		status=$?
+		wait
+		status2=$?
+		if [[ ${status} == 0 ]]; then
+			status=${status2}
+		fi
 		show_json "${SCALETEST_RESULTS_DIR}/traffic-ssh.json"
 		;;
 	"Web Terminal Traffic")
+		greedy_agent "${SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_DURATION}" "${scenario}" &
 		coder exp scaletest workspace-traffic \
+			--template "${SCALETEST_PARAM_TEMPLATE}" \
 			--bytes-per-tick "${SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_BYTES_PER_TICK}" \
 			--tick-interval "${SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_TICK_INTERVAL}ms" \
 			--timeout "${SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_DURATION}m" \
 			--job-timeout "${SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_DURATION}m30s" \
 			--output json:"${SCALETEST_RESULTS_DIR}/traffic-web-terminal.json"
 		status=$?
+		wait
+		status2=$?
+		if [[ ${status} == 0 ]]; then
+			status=${status2}
+		fi
 		show_json "${SCALETEST_RESULTS_DIR}/traffic-web-terminal.json"
 		;;
 	"Dashboard Traffic")
@@ -65,6 +126,10 @@ for scenario in "${SCALETEST_PARAM_LOAD_SCENARIOS[@]}"; do
 		;;
 
 	# Debug scenarios, for testing the runner.
+	"debug:greedy_agent")
+		greedy_agent 10 "${scenario}"
+		status=$?
+		;;
 	"debug:success")
 		maybedryrun "$DRY_RUN" sleep 10
 		status=0
