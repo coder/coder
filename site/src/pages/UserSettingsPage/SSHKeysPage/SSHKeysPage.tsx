@@ -10,6 +10,8 @@ import { getErrorMessage } from "api/errors";
 export const Language = {
   title: "SSH keys",
   regenerateDialogTitle: "Regenerate SSH key?",
+  regenerationError: "Failed to regenerate SSH key",
+  regenerationSuccess: "SSH Key regenerated successfully.",
   regenerateDialogMessage:
     "You will need to replace the public SSH key on services you use it with, and you'll need to rebuild existing workspaces.",
   confirmLabel: "Confirm",
@@ -19,8 +21,9 @@ export const Language = {
 export const SSHKeysPage: FC<PropsWithChildren<unknown>> = () => {
   const [isConfirmingRegeneration, setIsConfirmingRegeneration] =
     useState(false);
-  const queryClient = useQueryClient();
+
   const userSSHKeyQuery = useQuery(userSSHKey("me"));
+  const queryClient = useQueryClient();
   const regenerateSSHKeyMutation = useMutation(
     regenerateUserSSHKey("me", queryClient),
   );
@@ -31,11 +34,8 @@ export const SSHKeysPage: FC<PropsWithChildren<unknown>> = () => {
         <SSHKeysPageView
           isLoading={userSSHKeyQuery.isLoading}
           getSSHKeyError={userSSHKeyQuery.error}
-          regenerateSSHKeyError={regenerateSSHKeyMutation.error}
           sshKey={userSSHKeyQuery.data}
-          onRegenerateClick={() => {
-            setIsConfirmingRegeneration(true);
-          }}
+          onRegenerateClick={() => setIsConfirmingRegeneration(true)}
         />
       </Section>
 
@@ -45,23 +45,19 @@ export const SSHKeysPage: FC<PropsWithChildren<unknown>> = () => {
         open={isConfirmingRegeneration}
         confirmLoading={regenerateSSHKeyMutation.isLoading}
         title={Language.regenerateDialogTitle}
+        description={Language.regenerateDialogMessage}
         confirmText={Language.confirmLabel}
+        onClose={() => setIsConfirmingRegeneration(false)}
         onConfirm={async () => {
           try {
             await regenerateSSHKeyMutation.mutateAsync();
-            displaySuccess("SSH Key regenerated successfully.");
+            displaySuccess(Language.regenerationSuccess);
           } catch (error) {
-            displayError(
-              getErrorMessage(error, "Failed to regenerate SSH key"),
-            );
+            displayError(getErrorMessage(error, Language.regenerationError));
           } finally {
             setIsConfirmingRegeneration(false);
           }
         }}
-        onClose={() => {
-          setIsConfirmingRegeneration(false);
-        }}
-        description={<>{Language.regenerateDialogMessage}</>}
       />
     </>
   );

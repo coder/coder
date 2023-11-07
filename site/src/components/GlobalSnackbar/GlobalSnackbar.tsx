@@ -1,6 +1,5 @@
-import { type FC, useCallback, useState } from "react";
+import { type FC, useState } from "react";
 import { useCustomEvent } from "hooks/events";
-import type { CustomEventListener } from "utils/events";
 import { EnterpriseSnackbar } from "./EnterpriseSnackbar";
 import { ErrorIcon } from "../Icons/ErrorIcon";
 import { Typography } from "../Typography/Typography";
@@ -29,54 +28,10 @@ export const GlobalSnackbar: FC = () => {
   const [open, setOpen] = useState<boolean>(false);
   const [notification, setNotification] = useState<NotificationMsg>();
 
-  const handleNotification = useCallback<CustomEventListener<NotificationMsg>>(
-    (event) => {
-      setNotification(event.detail);
-      setOpen(true);
-    },
-    [],
-  );
-
-  useCustomEvent(SnackbarEventType, handleNotification);
-
-  const renderAdditionalMessage = (msg: AdditionalMessage, idx: number) => {
-    if (isNotificationText(msg)) {
-      return (
-        <Typography
-          key={idx}
-          gutterBottom
-          variant="body2"
-          css={styles.messageSubtitle}
-        >
-          {msg}
-        </Typography>
-      );
-    } else if (isNotificationTextPrefixed(msg)) {
-      return (
-        <Typography
-          key={idx}
-          gutterBottom
-          variant="body2"
-          css={styles.messageSubtitle}
-        >
-          <strong>{msg.prefix}:</strong> {msg.text}
-        </Typography>
-      );
-    } else if (isNotificationList(msg)) {
-      return (
-        <ul css={styles.list} key={idx}>
-          {msg.map((item, idx) => (
-            <li key={idx}>
-              <Typography variant="body2" css={styles.messageSubtitle}>
-                {item}
-              </Typography>
-            </li>
-          ))}
-        </ul>
-      );
-    }
-    return null;
-  };
+  useCustomEvent<NotificationMsg>(SnackbarEventType, (event) => {
+    setNotification(event.detail);
+    setOpen(true);
+  });
 
   if (!notification) {
     return null;
@@ -87,26 +42,27 @@ export const GlobalSnackbar: FC = () => {
       key={notification.msg}
       open={open}
       variant={variantFromMsgType(notification.msgType)}
+      onClose={() => setOpen(false)}
+      autoHideDuration={notification.msgType === MsgType.Error ? 22000 : 6000}
+      anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
       message={
         <div css={styles.messageWrapper}>
           {notification.msgType === MsgType.Error && (
             <ErrorIcon css={styles.errorIcon} />
           )}
+
           <div css={styles.message}>
             <Typography variant="body1" css={styles.messageTitle}>
               {notification.msg}
             </Typography>
+
             {notification.additionalMsgs &&
-              notification.additionalMsgs.map(renderAdditionalMessage)}
+              notification.additionalMsgs.map((msg, index) => (
+                <AdditionalMessageDisplay key={index} message={msg} />
+              ))}
           </div>
         </div>
       }
-      onClose={() => setOpen(false)}
-      autoHideDuration={notification.msgType === MsgType.Error ? 22000 : 6000}
-      anchorOrigin={{
-        vertical: "bottom",
-        horizontal: "right",
-      }}
     />
   );
 };
@@ -133,3 +89,37 @@ const styles = {
     marginRight: 16,
   }),
 } satisfies Record<string, Interpolation<Theme>>;
+
+function AdditionalMessageDisplay({ message }: { message: AdditionalMessage }) {
+  if (isNotificationText(message)) {
+    return (
+      <Typography gutterBottom variant="body2" css={styles.messageSubtitle}>
+        {message}
+      </Typography>
+    );
+  }
+
+  if (isNotificationTextPrefixed(message)) {
+    return (
+      <Typography gutterBottom variant="body2" css={styles.messageSubtitle}>
+        <strong>{message.prefix}:</strong> {message.text}
+      </Typography>
+    );
+  }
+
+  if (isNotificationList(message)) {
+    return (
+      <ul css={styles.list}>
+        {message.map((item, idx) => (
+          <li key={idx}>
+            <Typography variant="body2" css={styles.messageSubtitle}>
+              {item}
+            </Typography>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
+  return null;
+}
