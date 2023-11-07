@@ -1,76 +1,27 @@
-import {
-  type PropsWithChildren,
-  type ReactNode,
-  useEffect,
-  useState,
-} from "react";
+import { type ReactNode, useEffect, useState } from "react";
 
-import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
-import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
 import Button from "@mui/material/Button";
 import Tooltip from "@mui/material/Tooltip";
 import { useTheme } from "@emotion/react";
 
-type NavProps = {
-  currentPage: number;
-  onPageChange: (newPage: number) => void;
-};
-
-export function LeftNavButton({ currentPage, onPageChange }: NavProps) {
-  const isFirstPage = currentPage <= 1;
-
-  return (
-    <BaseNavButton
-      disabledMessage="You are already on the first page"
-      disabled={isFirstPage}
-      aria-label="Previous page"
-      onClick={() => {
-        if (!isFirstPage) {
-          onPageChange(currentPage - 1);
-        }
-      }}
-    >
-      <KeyboardArrowLeft />
-    </BaseNavButton>
-  );
-}
-
-export function RightNavButton({ currentPage, onPageChange }: NavProps) {
-  const isLastPage = currentPage <= 1;
-
-  return (
-    <BaseNavButton
-      disabledMessage="You're already on the last page"
-      disabled={isLastPage}
-      aria-label="Previous page"
-      onClick={() => {
-        if (!isLastPage) {
-          onPageChange(currentPage + 1);
-        }
-      }}
-    >
-      <KeyboardArrowRight />
-    </BaseNavButton>
-  );
-}
-
-type BaseButtonProps = PropsWithChildren<{
+type PaginationNavButtonProps = {
+  children: ReactNode;
   disabled: boolean;
   disabledMessage: ReactNode;
   onClick: () => void;
   "aria-label": string;
 
   disabledMessageTimeout?: number;
-}>;
+};
 
-function BaseNavButton({
+export function PaginationNavButton({
   children,
   onClick,
   disabled,
   disabledMessage,
   "aria-label": ariaLabel,
   disabledMessageTimeout = 3000,
-}: BaseButtonProps) {
+}: PaginationNavButtonProps) {
   const theme = useTheme();
   const [showDisabledMessage, setShowDisabledMessage] = useState(false);
 

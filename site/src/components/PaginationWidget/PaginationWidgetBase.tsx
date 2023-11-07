@@ -3,7 +3,9 @@ import { useTheme } from "@emotion/react";
 
 import { PlaceholderPageButton, NumberedPageButton } from "./PageButtons";
 import { buildPagedList } from "./utils";
-import { LeftNavButton, RightNavButton } from "./PaginationNavButtons";
+import { PaginationNavButton } from "./PaginationNavButton";
+import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
+import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
 
 export type PaginationWidgetBaseProps = {
   currentPage: number;
@@ -26,6 +28,9 @@ export const PaginationWidgetBase = ({
     return null;
   }
 
+  const onFirstPage = currentPage <= 1;
+  const onLastPage = currentPage >= totalPages;
+
   return (
     <div
       css={{
@@ -37,7 +42,18 @@ export const PaginationWidgetBase = ({
         columnGap: "6px",
       }}
     >
-      <LeftNavButton currentPage={currentPage} onPageChange={onPageChange} />
+      <PaginationNavButton
+        disabledMessage="You are already on the first page"
+        disabled={onFirstPage}
+        aria-label="Previous page"
+        onClick={() => {
+          if (!onFirstPage) {
+            onPageChange(currentPage - 1);
+          }
+        }}
+      >
+        <KeyboardArrowLeft />
+      </PaginationNavButton>
 
       {isMobile ? (
         <NumberedPageButton
@@ -53,7 +69,18 @@ export const PaginationWidgetBase = ({
         />
       )}
 
-      <RightNavButton currentPage={currentPage} onPageChange={onPageChange} />
+      <PaginationNavButton
+        disabledMessage="You're already on the last page"
+        disabled={onLastPage}
+        aria-label="Next page"
+        onClick={() => {
+          if (!onLastPage) {
+            onPageChange(currentPage + 1);
+          }
+        }}
+      >
+        <KeyboardArrowRight />
+      </PaginationNavButton>
     </div>
   );
 };
