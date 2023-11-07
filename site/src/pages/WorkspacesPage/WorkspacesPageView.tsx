@@ -28,12 +28,8 @@ import {
   MoreMenuItem,
   MoreMenuTrigger,
 } from "components/MoreMenu/MoreMenu";
-import {
-  ArrowDropDown,
-  ArrowDropDownOutlined,
-  KeyboardArrowDownOutlined,
-} from "@mui/icons-material";
-import { Divider } from "@mui/material";
+import KeyboardArrowDownOutlined from "@mui/icons-material/KeyboardArrowDownOutlined";
+import Divider from "@mui/material/Divider";
 
 export const Language = {
   pageTitle: "Workspaces",
@@ -159,6 +155,7 @@ export const WorkspacesPageView = ({
               </MoreMenuTrigger>
               <MoreMenuContent>
                 <MoreMenuItem
+                  onClick={onStartAll}
                   disabled={
                     !checkedWorkspaces?.every(
                       (w) => w.latest_build.status === "stopped",
@@ -168,6 +165,7 @@ export const WorkspacesPageView = ({
                   <PlayArrowOutlined /> Start
                 </MoreMenuItem>
                 <MoreMenuItem
+                  onClick={onStopAll}
                   disabled={
                     !checkedWorkspaces?.every(
                       (w) => w.latest_build.status === "running",
@@ -182,64 +180,6 @@ export const WorkspacesPageView = ({
                 </MoreMenuItem>
               </MoreMenuContent>
             </MoreMenu>
-            {/* <div
-              css={{
-                marginLeft: "auto",
-                display: "flex",
-                gap: 8,
-                alignItems: "center",
-              }}
-            >
-              <Button
-                disabled={
-                  !workspaces?.every((w) => w.latest_build.status === "stopped")
-                }
-                variant="text"
-                size="small"
-                // Needs some manual adjustment to align with the delete button icon
-                startIcon={
-                  <PlayArrowOutlined css={{ width: 16, height: 16 }} />
-                }
-                onClick={onStartAll}
-              >
-                Start
-              </Button>
-              <div
-                css={(theme) => ({
-                  width: 1,
-                  height: 12,
-                  backgroundColor: theme.palette.divider,
-                })}
-              />
-              <Button
-                variant="text"
-                disabled={
-                  !workspaces?.every((w) => w.latest_build.status === "running")
-                }
-                size="small"
-                // Needs some manual adjustment to align with the delete button icon
-                startIcon={<StopOutlined css={{ width: 16, height: 16 }} />}
-                onClick={onStopAll}
-              >
-                Stop
-              </Button>
-              <div
-                css={(theme) => ({
-                  width: 1,
-                  height: 12,
-                  backgroundColor: theme.palette.divider,
-                })}
-              />
-              <Button
-                variant="text"
-                size="small"
-                startIcon={<DeleteOutlined />}
-                onClick={onDeleteAll}
-                color="error"
-              >
-                Delete
-              </Button>
-            </div> */}
           </>
         ) : (
           <PaginationStatus
