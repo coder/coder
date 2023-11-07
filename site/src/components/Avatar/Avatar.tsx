@@ -1,8 +1,10 @@
 // This is the only place MuiAvatar can be used
 // eslint-disable-next-line no-restricted-imports -- Read above
 import MuiAvatar, { AvatarProps as MuiAvatarProps } from "@mui/material/Avatar";
-import { FC } from "react";
+import { FC, useId } from "react";
 import { css, type Interpolation, type Theme } from "@emotion/react";
+import { Box } from "@mui/system";
+import { visuallyHidden } from "@mui/utils";
 
 export type AvatarProps = MuiAvatarProps & {
   size?: "xs" | "sm" | "md" | "xl";
@@ -66,18 +68,30 @@ export const Avatar: FC<AvatarProps> = ({
   );
 };
 
+type AvatarIconProps = {
+  src: string;
+  alt: string;
+};
+
 /**
  * Use it to make an img element behaves like a MaterialUI Icon component
  */
-export const AvatarIcon: FC<{ src: string }> = ({ src }) => {
+export const AvatarIcon: FC<AvatarIconProps> = ({ src, alt }) => {
+  const hookId = useId();
+  const avatarId = `${hookId}-avatar`;
+
   return (
-    <img
-      src={src}
-      alt=""
-      css={{
-        maxWidth: "50%",
-      }}
-    />
+    <>
+      <img
+        src={src}
+        alt=""
+        css={{ maxWidth: "50%" }}
+        aria-labelledby={avatarId}
+      />
+      <Box id={avatarId} sx={visuallyHidden}>
+        {alt}
+      </Box>
+    </>
   );
 };
 
