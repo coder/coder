@@ -1577,7 +1577,7 @@ func configureCipherSuites(ctx context.Context, logger slog.Logger, ciphers []st
 	}
 	if len(missedVersions) > 0 {
 		return nil, xerrors.Errorf("no tls ciphers supported for tls versions %q."+
-			"Add additional ciphers, specify the minimum version to 'tls13, or remove the ciphers configured and rely on the default",
+			"Add additional ciphers, set the minimum version to 'tls13, or remove the ciphers configured and rely on the default",
 			strings.Join(missedVersions, ","))
 	}
 
