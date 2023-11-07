@@ -1,11 +1,9 @@
-import { type ReactElement } from "react";
-import Button from "@mui/material/Button";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
-import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
 import { useTheme } from "@emotion/react";
+
 import { PlaceholderPageButton, NumberedPageButton } from "./PageButtons";
 import { buildPagedList } from "./utils";
+import { LeftNavButton, RightNavButton } from "./PaginationNavButtons";
 
 export type PaginationWidgetBaseProps = {
   count: number;
@@ -19,7 +17,7 @@ export const PaginationWidgetBase = ({
   limit,
   onChange,
   page: currentPage,
-}: PaginationWidgetBaseProps): ReactElement | null => {
+}: PaginationWidgetBaseProps) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const totalPages = Math.ceil(count / limit);
@@ -27,9 +25,6 @@ export const PaginationWidgetBase = ({
   if (totalPages < 2) {
     return null;
   }
-
-  const isFirstPage = currentPage <= 1;
-  const isLastPage = currentPage >= totalPages;
 
   return (
     <div
@@ -42,17 +37,7 @@ export const PaginationWidgetBase = ({
         columnGap: "6px",
       }}
     >
-      <Button
-        aria-label="Previous page"
-        disabled={isFirstPage}
-        onClick={() => {
-          if (!isFirstPage) {
-            onChange(currentPage - 1);
-          }
-        }}
-      >
-        <KeyboardArrowLeft />
-      </Button>
+      <LeftNavButton currentPage={currentPage} onChange={onChange} />
 
       {isMobile ? (
         <NumberedPageButton
@@ -68,17 +53,7 @@ export const PaginationWidgetBase = ({
         />
       )}
 
-      <Button
-        aria-label="Next page"
-        disabled={isLastPage}
-        onClick={() => {
-          if (!isLastPage) {
-            onChange(currentPage + 1);
-          }
-        }}
-      >
-        <KeyboardArrowRight />
-      </Button>
+      <RightNavButton currentPage={currentPage} onChange={onChange} />
     </div>
   );
 };
