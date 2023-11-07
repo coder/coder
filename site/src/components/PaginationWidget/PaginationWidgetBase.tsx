@@ -80,7 +80,6 @@ export const PaginationWidgetBase = ({
           );
         })
       )}
-
       <Button
         aria-label="Next page"
         disabled={isLastPage}
