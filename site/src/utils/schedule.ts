@@ -206,7 +206,7 @@ export const quietHoursDisplay = (
     display += ` on ${day.format("dddd, MMMM D")}`;
   }
 
-  display += ` (${day.from(today)})`;
+  display += ` (${day.from(today)}) in ${tz}`;
 
   return display;
 };
