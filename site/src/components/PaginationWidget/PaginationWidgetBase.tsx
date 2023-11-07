@@ -14,8 +14,8 @@ export type PaginationWidgetBaseProps = {
 };
 
 export const PaginationWidgetBase = ({
-  page,
   count,
+  page,
   limit,
   onChange,
 }: PaginationWidgetBaseProps): JSX.Element | null => {
