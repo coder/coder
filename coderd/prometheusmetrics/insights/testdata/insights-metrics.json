@@ -1,3 +1,4 @@
 {
-  "coderd_insights_templates_active_users": 1
+  "coderd_insights_applications_usage_seconds[application_name=SSH,template_name=golden-template]": 60,
+  "coderd_insights_templates_active_users[template_name=golden-template]": 1
 }

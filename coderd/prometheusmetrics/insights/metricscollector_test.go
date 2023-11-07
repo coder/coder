@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -23,7 +25,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestCollect_TemplateInsights(t *testing.T) {
+func TestCollectInsights(t *testing.T) {
 	t.Parallel()
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
@@ -55,7 +57,9 @@ func TestCollect_TemplateInsights(t *testing.T) {
 		ProvisionPlan:  echo.PlanComplete,
 		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
 	})
-	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+		ctr.Name = "golden-template"
+	})
 	require.Empty(t, template.BuildTimeStats[codersdk.WorkspaceTransitionStart])
 
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -97,6 +101,11 @@ func TestCollect_TemplateInsights(t *testing.T) {
 	err = sess.Start("cat")
 	require.NoError(t, err)
 
+	defer func() {
+		_ = sess.Close()
+		_ = sshConn.Close()
+	}()
+
 	goldenFile, err := os.ReadFile("testdata/insights-metrics.json")
 	require.NoError(t, err)
 	golden := map[string]int{}
@@ -112,10 +121,13 @@ func TestCollect_TemplateInsights(t *testing.T) {
 		// Then
 		for _, metric := range metrics {
 			switch metric.GetName() {
-			case "coderd_insights_applications_usage_seconds": // metric is valid, but it can't be verified using golden files
-			case "coderd_insights_templates_active_users":
+			case "coderd_insights_applications_usage_seconds", "coderd_insights_templates_active_users":
 				for _, m := range metric.Metric {
-					collected[metric.GetName()] = int(m.Gauge.GetValue())
+					key := metric.GetName()
+					if len(m.Label) > 0 {
+						key = key + "[" + metricLabelAsString(m) + "]"
+					}
+					collected[key] = int(m.Gauge.GetValue())
 				}
 			default:
 				require.FailNowf(t, "unexpected metric collected", "metric: %s", metric.GetName())
@@ -123,11 +135,13 @@ func TestCollect_TemplateInsights(t *testing.T) {
 		}
 
 		return assert.ObjectsAreEqualValues(golden, collected)
-	}, testutil.WaitMedium, testutil.IntervalFast, "template insights are missing")
+	}, testutil.WaitMedium, testutil.IntervalFast, "template insights are inconsistent with golden files, got: %v", collected)
+}
 
-	// We got our latency metrics, close the connection.
-	_ = sess.Close()
-	_ = sshConn.Close()
-
-	require.EqualValues(t, golden, collected)
+func metricLabelAsString(m *io_prometheus_client.Metric) string {
+	var labels []string
+	for _, labelPair := range m.Label {
+		labels = append(labels, labelPair.GetName()+"="+labelPair.GetValue())
+	}
+	return strings.Join(labels, ",")
 }
