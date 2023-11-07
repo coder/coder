@@ -2459,6 +2459,7 @@ func (q *FakeQuerier) GetTemplateAppInsightsByTemplate(ctx context.Context, arg 
 				r.UsageSeconds += usage
 			}
 		}
+		result = append(result, r)
 	}
 	return result, nil
 }

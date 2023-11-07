@@ -18,10 +18,13 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics/insights"
+	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -55,7 +58,7 @@ func TestCollectInsights(t *testing.T) {
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:          echo.ParseComplete,
 		ProvisionPlan:  echo.PlanComplete,
-		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+		ProvisionApply: provisionApplyWithAgentAndApp(authToken),
 	})
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 		ctr.Name = "golden-template"
@@ -69,6 +72,24 @@ func TestCollectInsights(t *testing.T) {
 	// Start an agent so that we can generate stats.
 	_ = agenttest.New(t, client.URL, authToken)
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+	// Fake app usage
+	reporter := workspaceapps.NewStatsDBReporter(db, workspaceapps.DefaultStatsDBReporterBatchSize)
+	//nolint:gocritic // This is a test.
+	err = reporter.Report(dbauthz.AsSystemRestricted(context.Background()), []workspaceapps.StatsReport{
+		{
+			UserID:           user.UserID,
+			WorkspaceID:      workspace.ID,
+			AgentID:          resources[0].Agents[0].ID,
+			AccessMethod:     "terminal",
+			SlugOrPort:       "golden-slug",
+			SessionID:        uuid.New(),
+			SessionStartedAt: time.Now().Add(-2 * time.Minute),
+			SessionEndedAt:   time.Now().Add(-1 * time.Minute),
+			Requests:         1,
+		},
+	})
+	require.NoError(t, err, "want no error inserting app stats")
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
@@ -144,4 +165,32 @@ func metricLabelAsString(m *io_prometheus_client.Metric) string {
 		labels = append(labels, labelPair.GetName()+"="+labelPair.GetValue())
 	}
 	return strings.Join(labels, ",")
+}
+
+func provisionApplyWithAgentAndApp(authToken string) []*proto.Response {
+	return []*proto.Response{{
+		Type: &proto.Response_Apply{
+			Apply: &proto.ApplyComplete{
+				Resources: []*proto.Resource{{
+					Name: "example",
+					Type: "aws_instance",
+					Agents: []*proto.Agent{{
+						Id:   uuid.NewString(),
+						Name: "example",
+						Auth: &proto.Agent_Token{
+							Token: authToken,
+						},
+						Apps: []*proto.App{
+							{
+								Slug:         "golden-slug",
+								DisplayName:  "Golden Slug",
+								SharingLevel: proto.AppSharingLevel_OWNER,
+								Url:          "http://localhost:1234",
+							},
+						},
+					}},
+				}},
+			},
+		},
+	}}
 }
