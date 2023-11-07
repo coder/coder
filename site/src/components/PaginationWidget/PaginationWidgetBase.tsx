@@ -15,9 +15,9 @@ export type PaginationWidgetBaseProps = {
 
 export const PaginationWidgetBase = ({
   count,
-  page,
   limit,
   onChange,
+  page: currentPage,
 }: PaginationWidgetBaseProps): JSX.Element | null => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
@@ -27,8 +27,8 @@ export const PaginationWidgetBase = ({
     return null;
   }
 
-  const isFirstPage = page <= 1;
-  const isLastPage = page >= numPages;
+  const isFirstPage = currentPage <= 1;
+  const isLastPage = currentPage >= numPages;
 
   return (
     <div
@@ -48,21 +48,25 @@ export const PaginationWidgetBase = ({
         disabled={isFirstPage}
         onClick={() => {
           if (!isFirstPage) {
-            onChange(page - 1);
+            onChange(currentPage - 1);
           }
         }}
       >
         <KeyboardArrowLeft />
       </Button>
       {isMobile ? (
-        <PageButton activePage={page} page={page} numPages={numPages} />
+        <PageButton
+          activePage={currentPage}
+          page={currentPage}
+          numPages={numPages}
+        />
       ) : (
-        buildPagedList(numPages, page).map((pageItem) => {
+        buildPagedList(numPages, currentPage).map((pageItem) => {
           if (pageItem === "left" || pageItem === "right") {
             return (
               <PageButton
                 key={pageItem}
-                activePage={page}
+                activePage={currentPage}
                 placeholder="..."
                 disabled
               />
@@ -73,7 +77,7 @@ export const PaginationWidgetBase = ({
             <PageButton
               key={pageItem}
               page={pageItem}
-              activePage={page}
+              activePage={currentPage}
               numPages={numPages}
               onPageClick={() => onChange(pageItem)}
             />
@@ -85,7 +89,7 @@ export const PaginationWidgetBase = ({
         disabled={isLastPage}
         onClick={() => {
           if (!isLastPage) {
-            onChange(page + 1);
+            onChange(currentPage + 1);
           }
         }}
       >
