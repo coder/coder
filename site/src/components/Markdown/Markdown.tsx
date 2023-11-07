@@ -6,6 +6,7 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import { type Interpolation, type Theme } from "@emotion/react";
+import isEqual from "lodash/isEqual";
 import { type FC, memo } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -20,10 +21,15 @@ interface MarkdownProps {
   children: string;
 
   className?: string;
+
+  /**
+   * Can override the behavior of the generated elements
+   */
+  components?: Options["components"];
 }
 
 export const Markdown: FC<MarkdownProps> = (props) => {
-  const { children, className } = props;
+  const { children, className, components = {} } = props;
 
   return (
     <ReactMarkdown
@@ -106,6 +112,8 @@ export const Markdown: FC<MarkdownProps> = (props) => {
         th: ({ children }) => {
           return <TableCell>{children}</TableCell>;
         },
+
+        ...components,
       }}
     >
       {children}
@@ -171,8 +179,8 @@ export const InlineMarkdown: FC<MarkdownInlineProps> = (props) => {
   );
 };
 
-export const MemoizedMarkdown = memo(Markdown);
-export const MemoizedInlineMarkdown = memo(InlineMarkdown);
+export const MemoizedMarkdown = memo(Markdown, isEqual);
+export const MemoizedInlineMarkdown = memo(InlineMarkdown, isEqual);
 
 const markdownStyles: Interpolation<Theme> = (theme: Theme) => ({
   fontSize: 16,
