@@ -84,8 +84,8 @@ func TestCollectInsights(t *testing.T) {
 			AccessMethod:     "terminal",
 			SlugOrPort:       "golden-slug",
 			SessionID:        uuid.New(),
-			SessionStartedAt: time.Now().Add(-5 * time.Minute),
-			SessionEndedAt:   time.Now(),
+			SessionStartedAt: time.Now().Add(-3 * time.Minute),
+			SessionEndedAt:   time.Now().Add(-time.Minute),
 			Requests:         1,
 		},
 	})
@@ -148,7 +148,17 @@ func TestCollectInsights(t *testing.T) {
 					if len(m.Label) > 0 {
 						key = key + "[" + metricLabelAsString(m) + "]"
 					}
-					collected[key] = int(m.Gauge.GetValue())
+
+					v := int(m.Gauge.GetValue())
+					// Unfortunately, this test is time dependent, and due to `s.SessionStartedAt.Truncate`
+					// performed in `GetTemplateAppInsightsByTemplate`, the session duration can't be
+					// deterministic.
+					//
+					// To ensure consistency with golden files, let's set a constant value, 1sec.
+					if metric.GetName() == "coderd_insights_applications_usage_seconds" {
+						v = 1
+					}
+					collected[key] = v
 				}
 			default:
 				require.FailNowf(t, "unexpected metric collected", "metric: %s", metric.GetName())
