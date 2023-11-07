@@ -143,7 +143,6 @@ export const InlineMarkdown: FC<MarkdownInlineProps> = (props) => {
 
   return (
     <ReactMarkdown
-      css={markdownStyles}
       className={className}
       allowedElements={["p", "em", "strong", "a", "pre", "code"]}
       unwrapDisallowed
