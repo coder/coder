@@ -112,6 +112,7 @@ func TestCollect_TemplateInsights(t *testing.T) {
 		// Then
 		for _, metric := range metrics {
 			switch metric.GetName() {
+			case "coderd_insights_applications_usage_seconds":
 			case "coderd_insights_templates_active_users":
 				for _, m := range metric.Metric {
 					collected[metric.GetName()] = int(m.Gauge.GetValue())
