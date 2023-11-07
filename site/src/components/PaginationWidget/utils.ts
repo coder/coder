@@ -29,36 +29,35 @@ export const buildPagedList = (
   numPages: number,
   activePage: number,
 ): ("left" | "right" | number)[] => {
-  if (numPages > TOTAL_PAGE_BLOCKS) {
-    let pages = [];
-    const leftBound = activePage - PAGE_NEIGHBORS;
-    const rightBound = activePage + PAGE_NEIGHBORS;
-    const beforeLastPage = numPages - 1;
-    const startPage = leftBound > 2 ? leftBound : 2;
-    const endPage = rightBound < beforeLastPage ? rightBound : beforeLastPage;
-
-    pages = range(startPage, endPage);
-
-    const singleSpillOffset = PAGES_TO_DISPLAY - pages.length - 1;
-    const hasLeftOverflow = startPage > 2;
-    const hasRightOverflow = endPage < beforeLastPage;
-    const leftOverflowPage = "left" as const;
-    const rightOverflowPage = "right" as const;
-
-    if (hasLeftOverflow && !hasRightOverflow) {
-      const extraPages = range(startPage - singleSpillOffset, startPage - 1);
-      pages = [leftOverflowPage, ...extraPages, ...pages];
-    } else if (!hasLeftOverflow && hasRightOverflow) {
-      const extraPages = range(endPage + 1, endPage + singleSpillOffset);
-      pages = [...pages, ...extraPages, rightOverflowPage];
-    } else if (hasLeftOverflow && hasRightOverflow) {
-      pages = [leftOverflowPage, ...pages, rightOverflowPage];
-    }
-
-    return [1, ...pages, numPages];
+  if (numPages <= TOTAL_PAGE_BLOCKS) {
+    return range(1, numPages);
   }
 
-  return range(1, numPages);
+  const leftBound = activePage - PAGE_NEIGHBORS;
+  const rightBound = activePage + PAGE_NEIGHBORS;
+  const beforeLastPage = numPages - 1;
+  const startPage = leftBound > 2 ? leftBound : 2;
+  const endPage = rightBound < beforeLastPage ? rightBound : beforeLastPage;
+
+  let pages: ReturnType<typeof buildPagedList> = range(startPage, endPage);
+
+  const singleSpillOffset = PAGES_TO_DISPLAY - pages.length - 1;
+  const hasLeftOverflow = startPage > 2;
+  const hasRightOverflow = endPage < beforeLastPage;
+  const leftOverflowPage = "left";
+  const rightOverflowPage = "right";
+
+  if (hasLeftOverflow && !hasRightOverflow) {
+    const extraPages = range(startPage - singleSpillOffset, startPage - 1);
+    pages = [leftOverflowPage, ...extraPages, ...pages];
+  } else if (!hasLeftOverflow && hasRightOverflow) {
+    const extraPages = range(endPage + 1, endPage + singleSpillOffset);
+    pages = [...pages, ...extraPages, rightOverflowPage];
+  } else if (hasLeftOverflow && hasRightOverflow) {
+    pages = [leftOverflowPage, ...pages, rightOverflowPage];
+  }
+
+  return [1, ...pages, numPages];
 };
 
 /**
