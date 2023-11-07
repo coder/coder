@@ -14,10 +14,10 @@ export type PaginationWidgetBaseProps = {
 };
 
 export const PaginationWidgetBase = ({
+  page,
   count,
   limit,
   onChange,
-  page: currentPage,
 }: PaginationWidgetBaseProps): JSX.Element | null => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
@@ -27,8 +27,8 @@ export const PaginationWidgetBase = ({
     return null;
   }
 
-  const isFirstPage = currentPage <= 1;
-  const isLastPage = currentPage >= numPages;
+  const isFirstPage = page <= 1;
+  const isLastPage = page >= numPages;
 
   return (
     <div
@@ -48,25 +48,21 @@ export const PaginationWidgetBase = ({
         disabled={isFirstPage}
         onClick={() => {
           if (!isFirstPage) {
-            onChange(currentPage - 1);
+            onChange(page - 1);
           }
         }}
       >
         <KeyboardArrowLeft />
       </Button>
       {isMobile ? (
-        <PageButton
-          activePage={currentPage}
-          page={currentPage}
-          numPages={numPages}
-        />
+        <PageButton activePage={page} page={page} numPages={numPages} />
       ) : (
-        buildPagedList(numPages, currentPage).map((pageItem) => {
+        buildPagedList(numPages, page).map((pageItem) => {
           if (pageItem === "left" || pageItem === "right") {
             return (
               <PageButton
                 key={pageItem}
-                activePage={currentPage}
+                activePage={page}
                 placeholder="..."
                 disabled
               />
@@ -77,7 +73,7 @@ export const PaginationWidgetBase = ({
             <PageButton
               key={pageItem}
               page={pageItem}
-              activePage={currentPage}
+              activePage={page}
               numPages={numPages}
               onPageClick={() => onChange(pageItem)}
             />
@@ -89,7 +85,7 @@ export const PaginationWidgetBase = ({
         disabled={isLastPage}
         onClick={() => {
           if (!isLastPage) {
-            onChange(currentPage + 1);
+            onChange(page + 1);
           }
         }}
       >
