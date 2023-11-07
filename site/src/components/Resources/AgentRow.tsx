@@ -10,7 +10,6 @@ import type {
   WorkspaceAgentMetadata,
 } from "api/typesGenerated";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { VSCodeDesktopButton } from "components/Resources/VSCodeDesktopButton/VSCodeDesktopButton";
 import {
   Line,
@@ -472,6 +471,11 @@ const useAgentLogs = (
       // Get all logs
       after: 0,
       onMessage: (logs) => {
+        // Prevent new logs getting added when a connection is not open
+        if (socket.current?.readyState !== WebSocket.OPEN) {
+          return;
+        }
+
         setLogs((previousLogs) => {
           const newLogs: LineWithID[] = logs.map((log) => ({
             id: log.id,
@@ -488,8 +492,14 @@ const useAgentLogs = (
           return [...previousLogs, ...newLogs];
         });
       },
-      onError: () => {
-        displayError("Error on getting agent logs");
+      onError: (error) => {
+        // For some reason Firefox and Safari throw an error when a websocket
+        // connection is close in the middle of a message and because of that we
+        // can't safely show to the users an error message since most of the
+        // time they are just internal stuff. This does not happen to Chrome at
+        // all and I tried to find better way to "soft close" a WS connection on
+        // those browsers without success.
+        console.error(error);
       },
     });
 
