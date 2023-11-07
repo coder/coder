@@ -1797,11 +1797,12 @@ WITH app_stats_by_user_and_agent AS (
 SELECT
 	template_id,
 	display_name,
+	slug_or_port,
 	COALESCE(COUNT(DISTINCT user_id))::bigint AS active_users,
 	SUM(seconds) AS usage_seconds
 FROM app_stats_by_user_and_agent
 WHERE is_app IS TRUE
-GROUP BY template_id, display_name
+GROUP BY template_id, display_name, slug_or_port
 `
 
 type GetTemplateAppInsightsByTemplateParams struct {
@@ -1812,6 +1813,7 @@ type GetTemplateAppInsightsByTemplateParams struct {
 type GetTemplateAppInsightsByTemplateRow struct {
 	TemplateID   uuid.UUID      `db:"template_id" json:"template_id"`
 	DisplayName  sql.NullString `db:"display_name" json:"display_name"`
+	SlugOrPort   string         `db:"slug_or_port" json:"slug_or_port"`
 	ActiveUsers  int64          `db:"active_users" json:"active_users"`
 	UsageSeconds int64          `db:"usage_seconds" json:"usage_seconds"`
 }
@@ -1828,6 +1830,7 @@ func (q *sqlQuerier) GetTemplateAppInsightsByTemplate(ctx context.Context, arg G
 		if err := rows.Scan(
 			&i.TemplateID,
 			&i.DisplayName,
+			&i.SlugOrPort,
 			&i.ActiveUsers,
 			&i.UsageSeconds,
 		); err != nil {

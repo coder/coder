@@ -18,7 +18,7 @@ import (
 
 var (
 	templatesActiveUsersDesc     = prometheus.NewDesc("coderd_insights_templates_active_users", "The number of active users of the template.", []string{"template_name"}, nil)
-	applicationsUsageSecondsDesc = prometheus.NewDesc("coderd_insights_applications_usage_seconds", "The application usage per template.", []string{"template_name", "application_name"}, nil)
+	applicationsUsageSecondsDesc = prometheus.NewDesc("coderd_insights_applications_usage_seconds", "The application usage per template.", []string{"template_name", "application_name", "slug"}, nil)
 )
 
 type MetricsCollector struct {
@@ -165,7 +165,8 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 
 	// Custom apps
 	for _, appRow := range data.apps {
-		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue, float64(appRow.UsageSeconds), data.templateNames[appRow.TemplateID], appRow.DisplayName.String)
+		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue, float64(appRow.UsageSeconds), data.templateNames[appRow.TemplateID],
+			appRow.DisplayName.String, appRow.SlugOrPort)
 	}
 
 	// Built-in apps
@@ -173,22 +174,26 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
 			float64(templateRow.UsageVscodeSeconds),
 			data.templateNames[templateRow.TemplateID],
-			codersdk.TemplateBuiltinAppDisplayNameVSCode)
+			codersdk.TemplateBuiltinAppDisplayNameVSCode,
+			"")
 
 		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
 			float64(templateRow.UsageJetbrainsSeconds),
 			data.templateNames[templateRow.TemplateID],
-			codersdk.TemplateBuiltinAppDisplayNameJetBrains)
+			codersdk.TemplateBuiltinAppDisplayNameJetBrains,
+			"")
 
 		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
 			float64(templateRow.UsageReconnectingPtySeconds),
 			data.templateNames[templateRow.TemplateID],
-			codersdk.TemplateBuiltinAppDisplayNameWebTerminal)
+			codersdk.TemplateBuiltinAppDisplayNameWebTerminal,
+			"")
 
 		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
 			float64(templateRow.UsageSshSeconds),
 			data.templateNames[templateRow.TemplateID],
-			codersdk.TemplateBuiltinAppDisplayNameSSH)
+			codersdk.TemplateBuiltinAppDisplayNameSSH,
+			"")
 	}
 
 	// Templates

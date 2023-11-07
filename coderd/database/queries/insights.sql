@@ -258,11 +258,12 @@ WITH app_stats_by_user_and_agent AS (
 SELECT
 	template_id,
 	display_name,
+	slug_or_port,
 	COALESCE(COUNT(DISTINCT user_id))::bigint AS active_users,
 	SUM(seconds) AS usage_seconds
 FROM app_stats_by_user_and_agent
 WHERE is_app IS TRUE
-GROUP BY template_id, display_name;
+GROUP BY template_id, display_name, slug_or_port;
 
 -- name: GetTemplateInsightsByInterval :many
 -- GetTemplateInsightsByInterval returns all intervals between start and end
