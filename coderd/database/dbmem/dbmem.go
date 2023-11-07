@@ -2380,7 +2380,7 @@ func (q *FakeQuerier) GetTemplateAppInsightsByTemplate(ctx context.Context, arg 
 		Slug        string
 	}
 
-	// map (TemplateID + UserID + DisplayName + Slug) x uuid.UUID x time.Time x <usage>
+	// map (TemplateID + DisplayName + Slug) x time.Time x UserID x <usage>
 	usageByTemplateAppUser := map[uniqueKey]map[time.Time]map[uuid.UUID]int64{}
 
 	// Review agent stats in terms of usage

@@ -165,42 +165,30 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 
 	// Custom apps
 	for _, appRow := range data.apps {
-		displayName := appRow.DisplayName.String
-		if displayName == "" { // just in case Prometheus complains about missing label value
-			displayName = "unknown"
-		}
-		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue, float64(appRow.UsageSeconds), data.templateNames[appRow.TemplateID], displayName)
+		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue, float64(appRow.UsageSeconds), data.templateNames[appRow.TemplateID], appRow.DisplayName.String)
 	}
 
 	// Built-in apps
 	for _, templateRow := range data.templates {
-		if templateRow.UsageVscodeSeconds > 0 {
-			metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
-				float64(templateRow.UsageVscodeSeconds),
-				data.templateNames[templateRow.TemplateID],
-				codersdk.TemplateBuiltinAppDisplayNameVSCode)
-		}
+		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
+			float64(templateRow.UsageVscodeSeconds),
+			data.templateNames[templateRow.TemplateID],
+			codersdk.TemplateBuiltinAppDisplayNameVSCode)
 
-		if templateRow.UsageJetbrainsSeconds > 0 {
-			metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
-				float64(templateRow.UsageJetbrainsSeconds),
-				data.templateNames[templateRow.TemplateID],
-				codersdk.TemplateBuiltinAppDisplayNameJetBrains)
-		}
+		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
+			float64(templateRow.UsageJetbrainsSeconds),
+			data.templateNames[templateRow.TemplateID],
+			codersdk.TemplateBuiltinAppDisplayNameJetBrains)
 
-		if templateRow.UsageReconnectingPtySeconds > 0 {
-			metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
-				float64(templateRow.UsageReconnectingPtySeconds),
-				data.templateNames[templateRow.TemplateID],
-				codersdk.TemplateBuiltinAppDisplayNameWebTerminal)
-		}
+		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
+			float64(templateRow.UsageReconnectingPtySeconds),
+			data.templateNames[templateRow.TemplateID],
+			codersdk.TemplateBuiltinAppDisplayNameWebTerminal)
 
-		if templateRow.UsageSshSeconds > 0 {
-			metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
-				float64(templateRow.UsageSshSeconds),
-				data.templateNames[templateRow.TemplateID],
-				codersdk.TemplateBuiltinAppDisplayNameSSH)
-		}
+		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
+			float64(templateRow.UsageSshSeconds),
+			data.templateNames[templateRow.TemplateID],
+			codersdk.TemplateBuiltinAppDisplayNameSSH)
 	}
 
 	// Templates

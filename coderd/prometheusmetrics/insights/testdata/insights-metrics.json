@@ -1,4 +1,7 @@
 {
+  "coderd_insights_applications_usage_seconds[application_name=JetBrains,template_name=golden-template]": 0,
+  "coderd_insights_applications_usage_seconds[application_name=Visual Studio Code,template_name=golden-template]": 0,
+  "coderd_insights_applications_usage_seconds[application_name=Web Terminal,template_name=golden-template]": 0,
   "coderd_insights_applications_usage_seconds[application_name=SSH,template_name=golden-template]": 60,
   "coderd_insights_applications_usage_seconds[application_name=Golden Slug,template_name=golden-template]": 180,
   "coderd_insights_templates_active_users[template_name=golden-template]": 1
