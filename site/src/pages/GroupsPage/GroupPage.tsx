@@ -50,6 +50,7 @@ import {
   MoreMenuContent,
   MoreMenuItem,
   MoreMenuTrigger,
+  ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
 
 export const GroupPage: FC = () => {
@@ -287,7 +288,9 @@ const GroupMemberRow = (props: {
       <TableCell width="1%">
         {canUpdate && (
           <MoreMenu>
-            <MoreMenuTrigger />
+            <MoreMenuTrigger>
+              <ThreeDotsButton />
+            </MoreMenuTrigger>
             <MoreMenuContent>
               <MoreMenuItem
                 danger

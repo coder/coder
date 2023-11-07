@@ -28,6 +28,7 @@ import {
   MoreMenuContent,
   MoreMenuItem,
   MoreMenuTrigger,
+  ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
 
 export interface WorkspaceActionsProps {
@@ -132,13 +133,15 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 
       {canCancel && <CancelButton handleAction={handleCancel} />}
       <MoreMenu>
-        <MoreMenuTrigger
-          title="More options"
-          size="small"
-          data-testid="workspace-options-button"
-          aria-controls="workspace-options"
-          disabled={!canAcceptJobs}
-        />
+        <MoreMenuTrigger>
+          <ThreeDotsButton
+            title="More options"
+            size="small"
+            data-testid="workspace-options-button"
+            aria-controls="workspace-options"
+            disabled={!canAcceptJobs}
+          />
+        </MoreMenuTrigger>
 
         <MoreMenuContent id="workspace-options">
           <MoreMenuItem onClick={handleSettings}>
