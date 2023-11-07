@@ -576,6 +576,21 @@ export const updateWorkspaceDormancy = async (
   return response.data;
 };
 
+export const updateWorkspaceAutomaticUpdates = async (
+  workspaceId: string,
+  automaticUpdates: TypesGen.AutomaticUpdates,
+): Promise<void> => {
+  const req: TypesGen.UpdateWorkspaceAutomaticUpdatesRequest = {
+    automatic_updates: automaticUpdates,
+  };
+
+  const response = await axios.put(
+    `/api/v2/workspaces/${workspaceId}/autoupdates`,
+    req,
+  );
+  return response.data;
+};
+
 export const restartWorkspace = async ({
   workspace,
   buildParameters,
@@ -918,8 +933,10 @@ export const getTemplateDAUs = async (
 };
 
 export const getDeploymentDAUs = async (
-  // Default to user's local timezone
-  offset = new Date().getTimezoneOffset() / 60,
+  // Default to user's local timezone.
+  // As /api/v2/insights/daus only accepts whole-number values for tz_offset
+  // we truncate the tz offset down to the closest hour.
+  offset = Math.trunc(new Date().getTimezoneOffset() / 60),
 ): Promise<TypesGen.DAUsResponse> => {
   const response = await axios.get(`/api/v2/insights/daus?tz_offset=${offset}`);
   return response.data;
@@ -947,7 +964,7 @@ export const getTemplateACL = async (
 export const updateTemplateACL = async (
   templateId: string,
   data: TypesGen.UpdateTemplateACL,
-): Promise<TypesGen.TemplateACL> => {
+): Promise<{ message: string }> => {
   const response = await axios.patch(
     `/api/v2/templates/${templateId}/acl`,
     data,

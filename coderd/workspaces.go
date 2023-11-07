@@ -512,7 +512,9 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			db,
 			func(action rbac.Action, object rbac.Objecter) bool {
 				return api.Authorize(r, action, object)
-			})
+			},
+			audit.WorkspaceBuildBaggageFromRequest(r),
+		)
 		return err
 	}, nil)
 	var bldErr wsbuilder.BuildError
@@ -1336,6 +1338,7 @@ func convertWorkspace(
 		TemplateDisplayName:                  template.DisplayName,
 		TemplateAllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 		TemplateActiveVersionID:              template.ActiveVersionID,
+		TemplateRequireActiveVersion:         template.RequireActiveVersion,
 		Outdated:                             workspaceBuild.TemplateVersionID.String() != template.ActiveVersionID.String(),
 		Name:                                 workspace.Name,
 		AutostartSchedule:                    autostartSchedule,

@@ -912,12 +912,15 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 					s.Logger.Error(ctx, "marshal workspace resource info for failed job", slog.Error(err))
 				}
 
+				bag := audit.BaggageFromContext(ctx)
+
 				audit.WorkspaceBuildAudit(ctx, &audit.BuildAuditParams[database.WorkspaceBuild]{
 					Audit:            *auditor,
 					Log:              s.Logger,
 					UserID:           job.InitiatorID,
 					OrganizationID:   workspace.OrganizationID,
 					JobID:            job.ID,
+					IP:               bag.IP,
 					Action:           auditAction,
 					Old:              previousBuild,
 					New:              build,
@@ -1203,6 +1206,13 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 						case <-wait:
 							// Wait for the next potential timeout to occur.
 							if err := s.Pubsub.Publish(codersdk.WorkspaceNotifyChannel(workspaceBuild.WorkspaceID), []byte{}); err != nil {
+								if s.lifecycleCtx.Err() != nil {
+									// If the server is shutting down, we don't want to log this error, nor wait around.
+									s.Logger.Debug(ctx, "stopping notifications due to server shutdown",
+										slog.F("workspace_build_id", workspaceBuild.ID),
+									)
+									return
+								}
 								s.Logger.Error(ctx, "workspace notification after agent timeout failed",
 									slog.F("workspace_build_id", workspaceBuild.ID),
 									slog.Error(err),
@@ -1259,12 +1269,15 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 				s.Logger.Error(ctx, "marshal resource info for successful job", slog.Error(err))
 			}
 
+			bag := audit.BaggageFromContext(ctx)
+
 			audit.WorkspaceBuildAudit(ctx, &audit.BuildAuditParams[database.WorkspaceBuild]{
 				Audit:            *auditor,
 				Log:              s.Logger,
 				UserID:           job.InitiatorID,
 				OrganizationID:   workspace.OrganizationID,
 				JobID:            job.ID,
+				IP:               bag.IP,
 				Action:           auditAction,
 				Old:              previousBuild,
 				New:              workspaceBuild,

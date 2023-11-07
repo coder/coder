@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/enterprise/coderd/schedule"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -570,6 +571,51 @@ func TestTemplates(t *testing.T) {
 		// Validate that the workspace dormant_at value is updated.
 		require.Equal(t, updatedDormantWS.DormantAt, dormantWorkspace.DormantAt)
 		require.True(t, updatedDormantWS.LastUsedAt.After(dormantWorkspace.LastUsedAt))
+	})
+
+	t.Run("RequireActiveVersion", func(t *testing.T) {
+		t.Parallel()
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore()),
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAccessControl: 1,
+				},
+			},
+		})
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.RequireActiveVersion = true
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		require.True(t, template.RequireActiveVersion)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Update the field and assert it persists.
+		updatedTemplate, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			RequireActiveVersion: false,
+		})
+		require.NoError(t, err)
+		require.False(t, updatedTemplate.RequireActiveVersion)
+
+		// Flip it back to ensure we aren't hardcoding to a default value.
+		updatedTemplate, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			RequireActiveVersion: true,
+		})
+		require.NoError(t, err)
+		require.True(t, updatedTemplate.RequireActiveVersion)
+
+		// Assert that fetching a template is no different from the response
+		// when updating.
+		template, err = client.Template(ctx, template.ID)
+		require.NoError(t, err)
+		require.Equal(t, updatedTemplate, template)
 	})
 }
 

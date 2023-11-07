@@ -20,6 +20,7 @@ import {
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import CreateWorkspacePage from "./CreateWorkspacePage";
+import { Language } from "./CreateWorkspacePageView";
 
 const nameLabelText = "Workspace Name";
 const createWorkspaceText = "Create Workspace";
@@ -269,5 +270,26 @@ describe("CreateWorkspacePage", () => {
         }),
       );
     });
+  });
+
+  it("Detects when a workspace is being created with the 'duplicate' mode", async () => {
+    const params = new URLSearchParams({
+      mode: "duplicate",
+      name: MockWorkspace.name,
+      version: MockWorkspace.template_active_version_id,
+    });
+
+    renderWithAuth(<CreateWorkspacePage />, {
+      path: "/templates/:template/workspace",
+      route: `/templates/${MockWorkspace.name}/workspace?${params.toString()}`,
+    });
+
+    const warningMessage = await screen.findByRole("alert");
+    const nameInput = await screen.findByRole("textbox", {
+      name: "Workspace Name",
+    });
+
+    expect(warningMessage).toHaveTextContent(Language.duplicationWarning);
+    expect(nameInput).toHaveValue(`${MockWorkspace.name}-copy`);
   });
 });

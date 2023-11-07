@@ -1,8 +1,10 @@
+import { css } from "@emotion/css";
+import { useTheme, type Interpolation, type Theme } from "@emotion/react";
 import TextField from "@mui/material/TextField";
-import * as TypesGen from "api/typesGenerated";
+import type * as TypesGen from "api/typesGenerated";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { FormikContextType, useFormik } from "formik";
-import { FC, useEffect, useState } from "react";
+import { type FC, useEffect, useState } from "react";
 import {
   getFormHelpers,
   nameValidator,
@@ -17,7 +19,6 @@ import {
   FormFooter,
   HorizontalForm,
 } from "components/Form/Form";
-import { makeStyles } from "@mui/styles";
 import {
   getInitialRichParameterValues,
   useValidationSchemaForRichParameters,
@@ -29,12 +30,22 @@ import {
 import { ExternalAuth } from "./ExternalAuth";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Stack } from "components/Stack/Stack";
-import { type ExternalAuthPollingState } from "./CreateWorkspacePage";
+import {
+  CreateWorkspaceMode,
+  type ExternalAuthPollingState,
+} from "./CreateWorkspacePage";
 import { useSearchParams } from "react-router-dom";
 import colors from "theme/tailwind";
 import { CreateWSPermissions } from "./permissions";
+import { Alert } from "components/Alert/Alert";
+
+export const Language = {
+  duplicationWarning:
+    "Duplicating a workspace only copies its parameters. No state from the old workspace is copied over.",
+} as const;
 
 export interface CreateWorkspacePageViewProps {
+  mode: CreateWorkspaceMode;
   error: unknown;
   defaultName: string;
   defaultOwner: TypesGen.User;
@@ -55,6 +66,7 @@ export interface CreateWorkspacePageViewProps {
 }
 
 export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
+  mode,
   error,
   defaultName,
   defaultOwner,
@@ -70,7 +82,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   onSubmit,
   onCancel,
 }) => {
-  const styles = useStyles();
+  const theme = useTheme();
   const [owner, setOwner] = useState(defaultOwner);
   const { verifyExternalAuth, externalAuthErrors } =
     useExternalAuthVerification(externalAuth);
@@ -116,6 +128,13 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
     <FullPageHorizontalForm title="New workspace" onCancel={onCancel}>
       <HorizontalForm onSubmit={form.handleSubmit}>
         {Boolean(error) && <ErrorAlert error={error} />}
+
+        {mode === "duplicate" && (
+          <Alert severity="info" dismissible>
+            {Language.duplicationWarning}
+          </Alert>
+        )}
+
         {/* General info */}
         <FormSection
           title="General"
@@ -124,14 +143,14 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
           <FormFields>
             <SelectedTemplate template={template} />
             {versionId && versionId !== template.active_version_id && (
-              <Stack spacing={1} className={styles.hasDescription}>
+              <Stack spacing={1} css={styles.hasDescription}>
                 <TextField
                   disabled
                   fullWidth
                   value={versionId}
                   label="Version ID"
                 />
-                <span className={styles.description}>
+                <span css={styles.description}>
                   This parameter has been preset, and cannot be modified.
                 </span>
               </Stack>
@@ -211,7 +230,16 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
             />
             <ImmutableTemplateParametersSection
               templateParameters={parameters}
-              classes={{ root: styles.warningSection }}
+              classes={{
+                root: css`
+                  border: 1px solid ${theme.palette.warning.light};
+                  border-radius: 8px;
+                  background-color: ${theme.palette.background.paper};
+                  padding: 80px;
+                  margin-left: -80px;
+                  margin-right: -80px;
+                `,
+              }}
               getInputProps={(parameter, index) => {
                 return {
                   ...getFieldHelpers(
@@ -280,23 +308,12 @@ const useExternalAuthVerification = (
   };
 };
 
-const useStyles = makeStyles((theme) => ({
+const styles = {
   hasDescription: {
-    paddingBottom: theme.spacing(2),
+    paddingBottom: 16,
   },
-  description: {
+  description: (theme) => ({
     fontSize: 13,
     color: theme.palette.text.secondary,
-  },
-  warningText: {
-    color: theme.palette.warning.light,
-  },
-  warningSection: {
-    border: `1px solid ${colors.orange[500]}`,
-    borderRadius: 8,
-    backgroundColor: theme.palette.background.paper,
-    padding: theme.spacing(10),
-    marginLeft: theme.spacing(-10),
-    marginRight: theme.spacing(-10),
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;

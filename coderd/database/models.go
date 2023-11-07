@@ -1289,6 +1289,64 @@ func AllStartupScriptBehaviorValues() []StartupScriptBehavior {
 	}
 }
 
+type TailnetStatus string
+
+const (
+	TailnetStatusOk   TailnetStatus = "ok"
+	TailnetStatusLost TailnetStatus = "lost"
+)
+
+func (e *TailnetStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TailnetStatus(s)
+	case string:
+		*e = TailnetStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TailnetStatus: %T", src)
+	}
+	return nil
+}
+
+type NullTailnetStatus struct {
+	TailnetStatus TailnetStatus `json:"tailnet_status"`
+	Valid         bool          `json:"valid"` // Valid is true if TailnetStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTailnetStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.TailnetStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TailnetStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTailnetStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TailnetStatus), nil
+}
+
+func (e TailnetStatus) Valid() bool {
+	switch e {
+	case TailnetStatusOk,
+		TailnetStatusLost:
+		return true
+	}
+	return false
+}
+
+func AllTailnetStatusValues() []TailnetStatus {
+	return []TailnetStatus{
+		TailnetStatusOk,
+		TailnetStatusLost,
+	}
+}
+
 // Defines the user status: active, dormant, or suspended.
 type UserStatus string
 
@@ -1865,6 +1923,21 @@ type TailnetCoordinator struct {
 	HeartbeatAt time.Time `db:"heartbeat_at" json:"heartbeat_at"`
 }
 
+type TailnetPeer struct {
+	ID            uuid.UUID     `db:"id" json:"id"`
+	CoordinatorID uuid.UUID     `db:"coordinator_id" json:"coordinator_id"`
+	UpdatedAt     time.Time     `db:"updated_at" json:"updated_at"`
+	Node          []byte        `db:"node" json:"node"`
+	Status        TailnetStatus `db:"status" json:"status"`
+}
+
+type TailnetTunnel struct {
+	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
+	SrcID         uuid.UUID `db:"src_id" json:"src_id"`
+	DstID         uuid.UUID `db:"dst_id" json:"dst_id"`
+	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
+}
+
 // Joins in the username + avatar url of the created by user.
 type Template struct {
 	ID                            uuid.UUID       `db:"id" json:"id"`
@@ -1892,6 +1965,7 @@ type Template struct {
 	AutostopRequirementDaysOfWeek int16           `db:"autostop_requirement_days_of_week" json:"autostop_requirement_days_of_week"`
 	AutostopRequirementWeeks      int64           `db:"autostop_requirement_weeks" json:"autostop_requirement_weeks"`
 	AutostartBlockDaysOfWeek      int16           `db:"autostart_block_days_of_week" json:"autostart_block_days_of_week"`
+	RequireActiveVersion          bool            `db:"require_active_version" json:"require_active_version"`
 	CreatedByAvatarURL            sql.NullString  `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 }
@@ -1930,6 +2004,7 @@ type TemplateTable struct {
 	AutostopRequirementWeeks int64 `db:"autostop_requirement_weeks" json:"autostop_requirement_weeks"`
 	// A bitmap of days of week that autostart of a workspace is not allowed. Default allows all days. This is intended as a cost savings measure to prevent auto start on weekends (for example).
 	AutostartBlockDaysOfWeek int16 `db:"autostart_block_days_of_week" json:"autostart_block_days_of_week"`
+	RequireActiveVersion     bool  `db:"require_active_version" json:"require_active_version"`
 }
 
 // Joins in the username + avatar url of the created by user.
@@ -2115,6 +2190,7 @@ type WorkspaceAgent struct {
 	ReadyAt     sql.NullTime              `db:"ready_at" json:"ready_at"`
 	Subsystems  []WorkspaceAgentSubsystem `db:"subsystems" json:"subsystems"`
 	DisplayApps []DisplayApp              `db:"display_apps" json:"display_apps"`
+	APIVersion  string                    `db:"api_version" json:"api_version"`
 }
 
 type WorkspaceAgentLog struct {

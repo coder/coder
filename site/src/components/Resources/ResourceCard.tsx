@@ -1,10 +1,12 @@
-import { type FC, useState } from "react";
+import { type FC, type PropsWithChildren, useState } from "react";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import { type CSSObject, type Interpolation, type Theme } from "@emotion/react";
-import { WorkspaceAgent, WorkspaceResource } from "api/typesGenerated";
-import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
-import { CopyableValue } from "components/CopyableValue/CopyableValue";
+import { Children } from "react";
+import type { WorkspaceAgent, WorkspaceResource } from "api/typesGenerated";
+import { DropdownArrow } from "../DropdownArrow/DropdownArrow";
+import { CopyableValue } from "../CopyableValue/CopyableValue";
+import { MemoizedInlineMarkdown } from "../Markdown/Markdown";
 import { Stack } from "../Stack/Stack";
 import { ResourceAvatar } from "./ResourceAvatar";
 import { SensitiveValue } from "./SensitiveValue";
@@ -12,7 +14,7 @@ import { SensitiveValue } from "./SensitiveValue";
 const styles = {
   resourceCard: (theme) => ({
     background: theme.palette.background.paper,
-    borderRadius: theme.shape.borderRadius,
+    borderRadius: 8,
     border: `1px solid ${theme.palette.divider}`,
 
     "&:not(:first-of-type)": {
@@ -33,7 +35,7 @@ const styles = {
   },
 
   resourceCardHeader: (theme) => ({
-    padding: theme.spacing(3, 4),
+    padding: "24px 32px",
     borderBottom: `1px solid ${theme.palette.divider}`,
 
     "&:last-child": {
@@ -71,6 +73,14 @@ export interface ResourceCardProps {
   resource: WorkspaceResource;
   agentRow: (agent: WorkspaceAgent) => JSX.Element;
 }
+
+const p = ({ children }: PropsWithChildren) => {
+  const childrens = Children.toArray(children);
+  if (childrens.every((child) => typeof child === "string")) {
+    return <CopyableValue value={childrens.join("")}>{children}</CopyableValue>;
+  }
+  return <>{children}</>;
+};
 
 export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
   const [shouldDisplayAllMetadata, setShouldDisplayAllMetadata] =
@@ -112,13 +122,13 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
         </Stack>
 
         <div
-          css={(theme) => ({
+          css={{
             flexGrow: 2,
             display: "grid",
             gridTemplateColumns: `repeat(${gridWidth}, minmax(0, 1fr))`,
-            gap: theme.spacing(5),
-            rowGap: theme.spacing(3),
-          })}
+            gap: 40,
+            rowGap: 24,
+          }}
         >
           {resource.daily_cost > 0 && (
             <div css={styles.metadata}>
@@ -136,9 +146,9 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
                   {meta.sensitive ? (
                     <SensitiveValue value={meta.value} />
                   ) : (
-                    <CopyableValue value={meta.value}>
+                    <MemoizedInlineMarkdown components={{ p }}>
                       {meta.value}
-                    </CopyableValue>
+                    </MemoizedInlineMarkdown>
                   )}
                 </div>
               </div>

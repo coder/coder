@@ -1,38 +1,44 @@
 # Telemetry
 
-Coder collects telemetry data from all free installations. Our users have the
-right to know what we collect, why we collect it, and how we use the data.
+<blockquote class="info">
+TL;DR: disable telemetry by setting <code>CODER_TELEMETRY=false</code>.
+</blockquote>
+
+Coder collects telemetry from all installations by default. We believe our users
+should have the right to know what we collect, why we collect it, and how we use
+the data.
 
 ## What we collect
 
-First of all, we do not collect any information that could threaten the security
-of your installation. For example, we do not collect parameters, environment
-variables, or passwords.
-
-You can find a full list of the data we collect in the source code
+You can find a full list of the data we collect in our source code
 [here](https://github.com/coder/coder/blob/main/coderd/telemetry/telemetry.go).
+In particular, look at the struct types such as `Template` or `Workspace`.
 
-Telemetry can be configured with the `CODER_TELEMETRY=x` environment variable.
+As a rule, we **do not collect** the following types of information:
 
-For example, telemetry can be disabled with `CODER_TELEMETRY=false`.
+- Any data that could make your installation less secure
+- Any data that could identify individual users
 
-`CODER_TELEMETRY=true` is our default level. It includes user email and IP
-addresses. This information is used in aggregate to understand where our users
-are and general demographic information. We may reach out to the deployment
-admin, but will never use these emails for outbound marketing.
+For example, we do not collect parameters, environment variables, or user email
+addresses.
 
-`CODER_TELEMETRY=false` disables telemetry altogether.
+## Why we collect
 
-## How we use telemetry
+Telemetry helps us understand which features are most valuable, what use cases
+to focus on, and which bugs to fix first.
 
-We use telemetry to build product better and faster. Without telemetry, we don't
-know which features are most useful, we don't know where users are dropping off
-in our funnel, and we don't know if our roadmap is aligned with the demographics
-that really use Coder.
+Most cloud-based software products collect far more data than we do. They often
+offer little transparency and configurability. It's hard to imagine our favorite
+SaaS products existing without their creators having a detailed understanding of
+user interactions. We want to wield some of that product development power to
+build self-hosted, open-source software.
 
-Typical SaaS companies collect far more than what we do with little transparency
-and configurability. It's hard to imagine our favorite products today existing
-without their backers having good intelligence.
+## Security
 
-We've decided the only way we can make our product open-source _and_ build at a
-fast pace is by collecting usage data as well.
+In the event we discover a critical security issue with Coder, we will use
+telemetry to identify affected installations and notify their administrators.
+
+## Toggling
+
+You can turn telemetry on or off using either the `CODER_TELEMETRY=[true|false]`
+environment variable or the `--telemetry=[true|false]` command-line flag.

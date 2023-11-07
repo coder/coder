@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import Typography from "@mui/material/Typography";
 import { type FC, type ReactNode, type PropsWithChildren } from "react";
 import { SectionAction } from "./SectionAction";
@@ -32,8 +31,6 @@ export const Section: SectionFC = ({
   children,
   layout = "fixed",
 }) => {
-  const theme = useTheme();
-
   return (
     <section className={className} id={id} data-testid={id}>
       <div css={{ maxWidth: layout === "fluid" ? "100%" : 500 }}>
@@ -55,7 +52,7 @@ export const Section: SectionFC = ({
             {toolbar && <div>{toolbar}</div>}
           </div>
         )}
-        {alert && <div css={{ marginBottom: theme.spacing(1) }}>{alert}</div>}
+        {alert && <div css={{ marginBottom: 8 }}>{alert}</div>}
         {children}
       </div>
     </section>
@@ -66,16 +63,16 @@ export const Section: SectionFC = ({
 Section.Action = SectionAction;
 
 const styles = {
-  header: (theme) => ({
-    marginBottom: theme.spacing(3),
+  header: {
+    marginBottom: 24,
     display: "flex",
     flexDirection: "row",
     justifyContent: "space-between",
-  }),
+  },
   description: (theme) => ({
     color: theme.palette.text.secondary,
     fontSize: 16,
-    marginTop: theme.spacing(0.5),
+    marginTop: 4,
     lineHeight: "140%",
   }),
 } satisfies Record<string, Interpolation<Theme>>;

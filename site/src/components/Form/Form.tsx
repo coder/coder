@@ -34,10 +34,10 @@ export const Form: FC<FormProps> = ({ direction, ...formProps }) => {
         css={{
           display: "flex",
           flexDirection: "column",
-          gap: theme.spacing(direction === "horizontal" ? 10 : 5),
+          gap: direction === "horizontal" ? 80 : 40,
 
           [theme.breakpoints.down("md")]: {
-            gap: theme.spacing(8),
+            gap: 64,
           },
         }}
       />
@@ -88,11 +88,11 @@ export const FormSection: FC<
         display: "flex",
         alignItems: "flex-start",
         flexDirection: direction === "horizontal" ? "row" : "column",
-        gap: theme.spacing(direction === "horizontal" ? 15 : 3),
+        gap: direction === "horizontal" ? 120 : 24,
 
         [theme.breakpoints.down("md")]: {
           flexDirection: "column",
-          gap: theme.spacing(2),
+          gap: 16,
         },
       }}
       className={classes.root}
@@ -103,7 +103,7 @@ export const FormSection: FC<
           maxWidth: direction === "horizontal" ? 312 : undefined,
           flexShrink: 0,
           position: direction === "horizontal" ? "sticky" : undefined,
-          top: theme.spacing(3),
+          top: 24,
 
           [theme.breakpoints.down("md")]: {
             width: "100%",
@@ -144,15 +144,15 @@ const styles = {
     color: theme.palette.text.primary,
     fontWeight: 400,
     margin: 0,
-    marginBottom: theme.spacing(1),
+    marginBottom: 8,
   }),
 
-  formSectionInfoTitleAlpha: (theme) => ({
+  formSectionInfoTitleAlpha: {
     display: "flex",
     flexDirection: "row",
     alignItems: "center",
-    gap: theme.spacing(1.5),
-  }),
+    gap: 12,
+  },
 
   formSectionInfoDescription: (theme) => ({
     fontSize: 14,
@@ -172,7 +172,7 @@ export const FormFooter = (props: Exclude<FormFooterProps, "styles">) => (
 
 const footerStyles = {
   button: (theme) => ({
-    minWidth: theme.spacing(23),
+    minWidth: 184,
 
     [theme.breakpoints.down("md")]: {
       width: "100%",
@@ -184,11 +184,11 @@ const footerStyles = {
     alignItems: "center",
     justifyContent: "flex-start",
     flexDirection: "row-reverse",
-    gap: theme.spacing(2),
+    gap: 16,
 
     [theme.breakpoints.down("md")]: {
       flexDirection: "column",
-      gap: theme.spacing(1),
+      gap: 8,
     },
   }),
 } satisfies FormFooterStyles;

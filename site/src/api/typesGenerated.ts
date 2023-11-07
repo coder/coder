@@ -221,6 +221,7 @@ export interface CreateTemplateRequest {
   readonly dormant_ttl_ms?: number;
   readonly delete_ttl_ms?: number;
   readonly disable_everyone_group_access: boolean;
+  readonly require_active_version: boolean;
 }
 
 // From codersdk/templateversions.go
@@ -881,6 +882,8 @@ export interface TLSConfig {
   readonly min_version: string;
   readonly client_cert_file: string;
   readonly client_key_file: string;
+  readonly supported_ciphers: string[];
+  readonly allow_insecure_ciphers: boolean;
 }
 
 // From codersdk/deployment.go
@@ -916,6 +919,7 @@ export interface Template {
   readonly failure_ttl_ms: number;
   readonly time_til_dormant_ms: number;
   readonly time_til_dormant_autodelete_ms: number;
+  readonly require_active_version: boolean;
 }
 
 // From codersdk/templates.go
@@ -1166,6 +1170,7 @@ export interface UpdateTemplateMeta {
   readonly time_til_dormant_autodelete_ms?: number;
   readonly update_workspace_last_used_at: boolean;
   readonly update_workspace_dormant_at: boolean;
+  readonly require_active_version: boolean;
 }
 
 // From codersdk/users.go
@@ -1348,6 +1353,7 @@ export interface Workspace {
   readonly template_icon: string;
   readonly template_allow_user_cancel_workspace_jobs: boolean;
   readonly template_active_version_id: string;
+  readonly template_require_active_version: boolean;
   readonly latest_build: WorkspaceBuild;
   readonly outdated: boolean;
   readonly name: string;
@@ -1383,6 +1389,7 @@ export interface WorkspaceAgent {
   readonly directory?: string;
   readonly expanded_directory?: string;
   readonly version: string;
+  readonly api_version: string;
   readonly apps: WorkspaceApp[];
   readonly latency?: Record<string, DERPRegion>;
   readonly connection_timeout_seconds: number;
@@ -1679,12 +1686,14 @@ export type EnhancedExternalAuthProvider =
   | "bitbucket"
   | "github"
   | "gitlab"
+  | "jfrog"
   | "slack";
 export const EnhancedExternalAuthProviders: EnhancedExternalAuthProvider[] = [
   "azure-devops",
   "bitbucket",
   "github",
   "gitlab",
+  "jfrog",
   "slack",
 ];
 
@@ -1703,7 +1712,9 @@ export type Experiment =
   | "moons"
   | "single_tailnet"
   | "tailnet_pg_coordinator"
-  | "template_autostop_requirement";
+  | "template_autostop_requirement"
+  | "template_update_policies"
+  | "workspace_actions";
 export const Experiments: Experiment[] = [
   "dashboard_theme",
   "deployment_health_page",
@@ -1711,10 +1722,13 @@ export const Experiments: Experiment[] = [
   "single_tailnet",
   "tailnet_pg_coordinator",
   "template_autostop_requirement",
+  "template_update_policies",
+  "workspace_actions",
 ];
 
 // From codersdk/deployment.go
 export type FeatureName =
+  | "access_control"
   | "advanced_template_scheduling"
   | "appearance"
   | "audit_log"
@@ -1731,6 +1745,7 @@ export type FeatureName =
   | "workspace_batch_actions"
   | "workspace_proxy";
 export const FeatureNames: FeatureName[] = [
+  "access_control",
   "advanced_template_scheduling",
   "appearance",
   "audit_log",

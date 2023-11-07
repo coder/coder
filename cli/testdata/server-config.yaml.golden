@@ -83,6 +83,14 @@ networking:
     # Path to key for client TLS authentication. It requires a PEM-encoded file.
     # (default: <unset>, type: string)
     clientKeyFile: ""
+    # Specify specific TLS ciphers that allowed to be used. See
+    # https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L53-L75.
+    # (default: <unset>, type: string-array)
+    tlsCiphers: []
+    # By default, only ciphers marked as 'secure' are allowed to be used. See
+    # https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L82-L95.
+    # (default: false, type: bool)
+    tlsAllowInsecureCiphers: false
     # Controls if the 'Strict-Transport-Security' header is set on all static file
     # responses. This header should only be set if the server is accessed via HTTPS.
     # This value is the MaxAge in seconds of the header.

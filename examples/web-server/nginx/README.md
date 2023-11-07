@@ -7,7 +7,7 @@
    ```env
    CODER_HTTP_ADDRESS=127.0.0.1:3000
    CODER_ACCESS_URL=https://coder.example.com
-   CODER_WILDCARD_ACCESS_URL=*coder.example.com
+   CODER_WILDCARD_ACCESS_URL=*.coder.example.com
    ```
 
    Throughout the guide, be sure to replace `coder.example.com` with the domain you intend to use with Coder.

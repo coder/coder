@@ -122,6 +122,12 @@ const NetworkSettingsPage = lazy(
       "./pages/DeploySettingsPage/NetworkSettingsPage/NetworkSettingsPage"
     ),
 );
+const ObservabilitySettingsPage = lazy(
+  () =>
+    import(
+      "./pages/DeploySettingsPage/ObservabilitySettingsPage/ObservabilitySettingsPage"
+    ),
+);
 const ExternalAuthPage = lazy(
   () => import("./pages/ExternalAuthPage/ExternalAuthPage"),
 );
@@ -290,6 +296,10 @@ export const AppRouter: FC = () => {
                 <Route path="licenses" element={<LicensesSettingsPage />} />
                 <Route path="licenses/add" element={<AddNewLicensePage />} />
                 <Route path="security" element={<SecuritySettingsPage />} />
+                <Route
+                  path="observability"
+                  element={<ObservabilitySettingsPage />}
+                />
                 <Route path="appearance" element={<AppearanceSettingsPage />} />
                 <Route path="network" element={<NetworkSettingsPage />} />
                 <Route path="userauth" element={<UserAuthSettingsPage />} />

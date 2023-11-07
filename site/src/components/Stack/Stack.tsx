@@ -25,15 +25,15 @@ export const Stack = forwardRef<HTMLDivElement, StackProps>((props, ref) => {
     <div
       {...divProps}
       ref={ref}
-      css={(theme) => ({
+      css={{
         display: "flex",
         flexDirection: direction,
-        gap: spacing && theme.spacing(spacing),
+        gap: spacing * 8,
         alignItems: alignItems,
         justifyContent: justifyContent,
         flexWrap: wrap,
         maxWidth: "100%",
-      })}
+      }}
     >
       {children}
     </div>

@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -19,7 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/regosql"
@@ -59,7 +60,7 @@ func (s *MethodTestSuite) SetupSuite() {
 	mockStore := dbmock.NewMockStore(ctrl)
 	// We intentionally set no expectations apart from this.
 	mockStore.EXPECT().Wrappers().Return([]string{}).AnyTimes()
-	az := dbauthz.New(mockStore, nil, slog.Make())
+	az := dbauthz.New(mockStore, nil, slog.Make(), accessControlStorePointer())
 	// Take the underlying type of the interface.
 	azt := reflect.TypeOf(az).Elem()
 	s.methodAccounting = make(map[string]int)
@@ -103,14 +104,14 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 		methodName := names[len(names)-1]
 		s.methodAccounting[methodName]++
 
-		db := dbfake.New()
+		db := dbmem.New()
 		fakeAuthorizer := &coderdtest.FakeAuthorizer{
 			AlwaysReturn: nil,
 		}
 		rec := &coderdtest.RecordingAuthorizer{
 			Wrapped: fakeAuthorizer,
 		}
-		az := dbauthz.New(db, rec, slog.Make())
+		az := dbauthz.New(db, rec, slog.Make(), accessControlStorePointer())
 		actor := rbac.Subject{
 			ID:     uuid.NewString(),
 			Roles:  rbac.RoleNames{rbac.RoleOwner()},
@@ -397,4 +398,23 @@ type emptyPreparedAuthorized struct{}
 func (emptyPreparedAuthorized) Authorize(_ context.Context, _ rbac.Object) error { return nil }
 func (emptyPreparedAuthorized) CompileToSQL(_ context.Context, _ regosql.ConvertConfig) (string, error) {
 	return "", nil
+}
+
+func accessControlStorePointer() *atomic.Pointer[dbauthz.AccessControlStore] {
+	acs := &atomic.Pointer[dbauthz.AccessControlStore]{}
+	var tacs dbauthz.AccessControlStore = fakeAccessControlStore{}
+	acs.Store(&tacs)
+	return acs
+}
+
+type fakeAccessControlStore struct{}
+
+func (fakeAccessControlStore) GetTemplateAccessControl(t database.Template) dbauthz.TemplateAccessControl {
+	return dbauthz.TemplateAccessControl{
+		RequireActiveVersion: t.RequireActiveVersion,
+	}
+}
+
+func (fakeAccessControlStore) SetTemplateAccessControl(context.Context, database.Store, uuid.UUID, dbauthz.TemplateAccessControl) error {
+	panic("not implemented")
 }

@@ -82,7 +82,7 @@ export const IconsPage: FC = () => {
               title={
                 <Box
                   css={{
-                    padding: theme.spacing(1),
+                    padding: 8,
                     fontSize: 13,
                     lineHeight: 1.5,
                   }}
@@ -153,14 +153,14 @@ export const IconsPage: FC = () => {
           wrap="wrap"
           spacing={1}
           justifyContent="center"
-          css={(theme) => ({ marginTop: theme.spacing(4) })}
+          css={{ marginTop: 32 }}
         >
           {searchedIcons.length === 0 && (
             <EmptyState message="No results matched your search" />
           )}
           {searchedIcons.map((icon) => (
             <CopyableValue key={icon.url} value={icon.url} placement="bottom">
-              <Stack alignItems="center" css={{ margin: theme.spacing(1.5) }}>
+              <Stack alignItems="center" css={{ margin: 12 }}>
                 <img
                   alt={icon.url}
                   src={icon.url}
@@ -169,7 +169,7 @@ export const IconsPage: FC = () => {
                     height: 60,
                     objectFit: "contain",
                     pointerEvents: "none",
-                    padding: theme.spacing(1.5),
+                    padding: 12,
                   }}
                 />
                 <figcaption

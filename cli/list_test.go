@@ -11,6 +11,8 @@ import (
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
@@ -20,14 +22,13 @@ func TestList(t *testing.T) {
 	t.Parallel()
 	t.Run("Single", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		client, db := coderdtest.NewWithDatabase(t, nil)
 		owner := coderdtest.CreateFirstUser(t, client)
-		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, member, owner.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		ws, _ := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        memberUser.ID,
+		})
 		inv, root := clitest.New(t, "ls")
 		clitest.SetupConfig(t, member, root)
 		pty := ptytest.New(t).Attach(inv)
@@ -40,7 +41,7 @@ func TestList(t *testing.T) {
 			assert.NoError(t, errC)
 			close(done)
 		}()
-		pty.ExpectMatch(workspace.Name)
+		pty.ExpectMatch(ws.Name)
 		pty.ExpectMatch("Started")
 		cancelFunc()
 		<-done
@@ -48,14 +49,13 @@ func TestList(t *testing.T) {
 
 	t.Run("JSON", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		client, db := coderdtest.NewWithDatabase(t, nil)
 		owner := coderdtest.CreateFirstUser(t, client)
-		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, member, owner.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		dbfake.WorkspaceWithAgent(t, db, database.Workspace{
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        memberUser.ID,
+		})
 
 		inv, root := clitest.New(t, "list", "--output=json")
 		clitest.SetupConfig(t, member, root)
@@ -68,8 +68,8 @@ func TestList(t *testing.T) {
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
-		var templates []codersdk.Workspace
-		require.NoError(t, json.Unmarshal(out.Bytes(), &templates))
-		require.Len(t, templates, 1)
+		var workspaces []codersdk.Workspace
+		require.NoError(t, json.Unmarshal(out.Bytes(), &workspaces))
+		require.Len(t, workspaces, 1)
 	})
 }

@@ -536,6 +536,14 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 			continue
 		case <-report:
 			if len(updatedMetadata) > 0 {
+				select {
+				case <-reportSemaphore:
+				default:
+					// If there's already a report in flight, don't send
+					// another one, wait for next tick instead.
+					continue
+				}
+
 				metadata := make([]agentsdk.Metadata, 0, len(updatedMetadata))
 				for key, result := range updatedMetadata {
 					metadata = append(metadata, agentsdk.Metadata{
@@ -543,14 +551,6 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 						WorkspaceAgentMetadataResult: *result,
 					})
 					delete(updatedMetadata, key)
-				}
-
-				select {
-				case <-reportSemaphore:
-				default:
-					// If there's already a report in flight, don't send
-					// another one, wait for next tick instead.
-					continue
 				}
 
 				go func() {
@@ -743,7 +743,7 @@ func (a *agent) run(ctx context.Context) error {
 				return script.RunOnStart
 			})
 			if err != nil {
-				a.logger.Warn(ctx, "startup script failed", slog.Error(err))
+				a.logger.Warn(ctx, "startup script(s) failed", slog.Error(err))
 				if errors.Is(err, agentscripts.ErrTimeout) {
 					a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleStartTimeout)
 				} else {
@@ -1465,6 +1465,7 @@ func (a *agent) Close() error {
 		return script.RunOnStop
 	})
 	if err != nil {
+		a.logger.Warn(ctx, "shutdown script(s) failed", slog.Error(err))
 		if errors.Is(err, agentscripts.ErrTimeout) {
 			lifecycleState = codersdk.WorkspaceAgentLifecycleShutdownTimeout
 		} else {

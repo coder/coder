@@ -2,15 +2,14 @@ import { screen } from "@testing-library/react";
 import { MockUser } from "testHelpers/entities";
 import { render, waitForLoaderToBeRemoved } from "testHelpers/renderHelpers";
 import { Language, UserDropdownContent } from "./UserDropdownContent";
+import { Popover } from "components/Popover/Popover";
 
 describe("UserDropdownContent", () => {
   it("has the correct link for the account item", async () => {
     render(
-      <UserDropdownContent
-        user={MockUser}
-        onSignOut={jest.fn()}
-        onPopoverClose={jest.fn()}
-      />,
+      <Popover>
+        <UserDropdownContent user={MockUser} onSignOut={jest.fn()} />
+      </Popover>,
     );
     await waitForLoaderToBeRemoved();
 
@@ -25,11 +24,9 @@ describe("UserDropdownContent", () => {
   it("calls the onSignOut function", async () => {
     const onSignOut = jest.fn();
     render(
-      <UserDropdownContent
-        user={MockUser}
-        onSignOut={onSignOut}
-        onPopoverClose={jest.fn()}
-      />,
+      <Popover>
+        <UserDropdownContent user={MockUser} onSignOut={onSignOut} />
+      </Popover>,
     );
     await waitForLoaderToBeRemoved();
     screen.getByText(Language.signOutLabel).click();

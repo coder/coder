@@ -34,7 +34,7 @@ export const WorkspaceBuildLogsSection = ({
         sx={(theme) => ({
           background: theme.palette.background.paper,
           borderBottom: `1px solid ${theme.palette.divider}`,
-          padding: theme.spacing(1, 1, 1, 3),
+          padding: "8px 8px 8px 24px",
           fontSize: 13,
           fontWeight: 600,
           display: "flex",

@@ -92,6 +92,56 @@ func TestScaleTestWorkspaceTraffic(t *testing.T) {
 }
 
 // This test just validates that the CLI command accepts its known arguments.
+func TestScaleTestWorkspaceTraffic_Template(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancelFunc()
+
+	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	client := coderdtest.New(t, &coderdtest.Options{
+		Logger: &log,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	inv, root := clitest.New(t, "exp", "scaletest", "workspace-traffic",
+		"--template", "doesnotexist",
+	)
+	clitest.SetupConfig(t, client, root)
+	pty := ptytest.New(t)
+	inv.Stdout = pty.Output()
+	inv.Stderr = pty.Output()
+
+	err := inv.WithContext(ctx).Run()
+	require.ErrorContains(t, err, "could not find template \"doesnotexist\" in any organization")
+}
+
+// This test just validates that the CLI command accepts its known arguments.
+func TestScaleTestCleanup_Template(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancelFunc()
+
+	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	client := coderdtest.New(t, &coderdtest.Options{
+		Logger: &log,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	inv, root := clitest.New(t, "exp", "scaletest", "cleanup",
+		"--template", "doesnotexist",
+	)
+	clitest.SetupConfig(t, client, root)
+	pty := ptytest.New(t)
+	inv.Stdout = pty.Output()
+	inv.Stderr = pty.Output()
+
+	err := inv.WithContext(ctx).Run()
+	require.ErrorContains(t, err, "could not find template \"doesnotexist\" in any organization")
+}
+
+// This test just validates that the CLI command accepts its known arguments.
 func TestScaleTestDashboard(t *testing.T) {
 	t.Parallel()
 	t.Run("MinWait", func(t *testing.T) {

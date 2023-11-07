@@ -35,11 +35,3 @@ export const WithGetSSHKeyError: Story = {
     }),
   },
 };
-
-export const WithRegenerateSSHKeyError: Story = {
-  args: {
-    regenerateSSHKeyError: mockApiError({
-      message: "Failed to regenerate SSH key",
-    }),
-  },
-};

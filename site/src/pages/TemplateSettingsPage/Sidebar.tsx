@@ -1,27 +1,72 @@
-import { makeStyles } from "@mui/styles";
+import { css } from "@emotion/css";
+import {
+  useTheme,
+  type CSSObject,
+  type Interpolation,
+  type Theme,
+} from "@emotion/react";
 import ScheduleIcon from "@mui/icons-material/TimerOutlined";
 import VariablesIcon from "@mui/icons-material/CodeOutlined";
-import { Template } from "api/typesGenerated";
+import type { Template } from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
-import { FC, ElementType, PropsWithChildren, ReactNode } from "react";
+import {
+  type FC,
+  type ElementType,
+  type PropsWithChildren,
+  type ReactNode,
+} from "react";
 import { Link, NavLink } from "react-router-dom";
-import { combineClasses } from "utils/combineClasses";
 import GeneralIcon from "@mui/icons-material/SettingsOutlined";
 import SecurityIcon from "@mui/icons-material/LockOutlined";
 import { Avatar } from "components/Avatar/Avatar";
+import { combineClasses } from "utils/combineClasses";
 
 const SidebarNavItem: FC<
   PropsWithChildren<{ href: string; icon: ReactNode }>
 > = ({ children, href, icon }) => {
-  const styles = useStyles();
+  const theme = useTheme();
+
+  const sidebarNavItemStyles = css`
+    color: inherit;
+    display: block;
+    font-size: 14px;
+    text-decoration: none;
+    padding: 12px 12px 12px 16px;
+    border-radius: 4px;
+    transition: background-color 0.15s ease-in-out;
+    margin-bottom: 1px;
+    position: relative;
+
+    &:hover {
+      background-color: ${theme.palette.action.hover};
+    }
+  `;
+
+  const sidebarNavItemActiveStyles = css`
+    background-color: ${theme.palette.action.hover};
+
+    &:before {
+      content: "";
+      display: block;
+      width: 3px;
+      height: 100%;
+      position: absolute;
+      left: 0;
+      top: 0;
+      background-color: ${theme.palette.secondary.dark};
+      border-top-left-radius: 8px;
+      border-bottom-left-radius: 8px;
+    }
+  `;
+
   return (
     <NavLink
       end
       to={href}
       className={({ isActive }) =>
         combineClasses([
-          styles.sidebarNavItem,
-          isActive ? styles.sidebarNavItemActive : undefined,
+          sidebarNavItemStyles,
+          isActive ? sidebarNavItemActiveStyles : undefined,
         ])
       }
     >
@@ -36,28 +81,21 @@ const SidebarNavItem: FC<
 const SidebarNavItemIcon: React.FC<{ icon: ElementType }> = ({
   icon: Icon,
 }) => {
-  const styles = useStyles();
-  return <Icon className={styles.sidebarNavItemIcon} />;
+  return <Icon css={styles.sidebarNavItemIcon} />;
 };
 
 export const Sidebar: React.FC<{ template: Template }> = ({ template }) => {
-  const styles = useStyles();
-
   return (
-    <nav className={styles.sidebar}>
-      <Stack
-        direction="row"
-        alignItems="center"
-        className={styles.templateInfo}
-      >
+    <nav css={styles.sidebar}>
+      <Stack direction="row" alignItems="center" css={styles.templateInfo}>
         <Avatar src={template.icon} variant="square" fitImage />
-        <Stack spacing={0} className={styles.templateData}>
-          <Link className={styles.name} to={`/templates/${template.name}`}>
+        <Stack spacing={0} css={styles.templateData}>
+          <Link css={styles.name} to={`/templates/${template.name}`}>
             {template.display_name !== ""
               ? template.display_name
               : template.name}
           </Link>
-          <span className={styles.secondary}>{template.name}</span>
+          <span css={styles.secondary}>{template.name}</span>
         </Stack>
       </Stack>
 
@@ -86,65 +124,34 @@ export const Sidebar: React.FC<{ template: Template }> = ({ template }) => {
   );
 };
 
-const useStyles = makeStyles((theme) => ({
+const styles = {
   sidebar: {
     width: 245,
     flexShrink: 0,
   },
-  sidebarNavItem: {
-    color: "inherit",
-    display: "block",
-    fontSize: 14,
-    textDecoration: "none",
-    padding: theme.spacing(1.5, 1.5, 1.5, 2),
-    borderRadius: theme.shape.borderRadius / 2,
-    transition: "background-color 0.15s ease-in-out",
-    marginBottom: 1,
-    position: "relative",
-
-    "&:hover": {
-      backgroundColor: theme.palette.action.hover,
-    },
-  },
-  sidebarNavItemActive: {
-    backgroundColor: theme.palette.action.hover,
-
-    "&:before": {
-      content: '""',
-      display: "block",
-      width: 3,
-      height: "100%",
-      position: "absolute",
-      left: 0,
-      top: 0,
-      backgroundColor: theme.palette.secondary.dark,
-      borderTopLeftRadius: theme.shape.borderRadius,
-      borderBottomLeftRadius: theme.shape.borderRadius,
-    },
-  },
   sidebarNavItemIcon: {
-    width: theme.spacing(2),
-    height: theme.spacing(2),
+    width: 16,
+    height: 16,
   },
-  templateInfo: {
-    ...theme.typography.body2,
-    marginBottom: theme.spacing(2),
-  },
+  templateInfo: (theme) => ({
+    ...(theme.typography.body2 as CSSObject),
+    marginBottom: 16,
+  }),
   templateData: {
     overflow: "hidden",
   },
-  name: {
+  name: (theme) => ({
     fontWeight: 600,
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
     color: theme.palette.text.primary,
     textDecoration: "none",
-  },
-  secondary: {
+  }),
+  secondary: (theme) => ({
     color: theme.palette.text.secondary,
     fontSize: 12,
     overflow: "hidden",
     textOverflow: "ellipsis",
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;

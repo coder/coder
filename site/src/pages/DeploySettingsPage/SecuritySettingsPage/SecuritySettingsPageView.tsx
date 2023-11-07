@@ -16,12 +16,10 @@ import { docs } from "utils/docs";
 
 export type SecuritySettingsPageViewProps = {
   options: ClibaseOption[];
-  featureAuditLogEnabled: boolean;
   featureBrowserOnlyEnabled: boolean;
 };
 export const SecuritySettingsPageView = ({
   options: options,
-  featureAuditLogEnabled,
   featureBrowserOnlyEnabled,
 }: SecuritySettingsPageViewProps): JSX.Element => {
   const tlsOptions = options.filter((o) =>
@@ -45,20 +43,6 @@ export const SecuritySettingsPageView = ({
               "Disable Owner Workspace Access",
             )}
           />
-        </div>
-
-        <div>
-          <Header
-            title="Audit Logging"
-            secondary
-            description="Allow auditors to monitor user operations in your deployment."
-            docsHref={docs("/admin/audit-logs")}
-          />
-
-          <Badges>
-            {featureAuditLogEnabled ? <EnabledBadge /> : <DisabledBadge />}
-            <EnterpriseBadge />
-          </Badges>
         </div>
 
         <div>

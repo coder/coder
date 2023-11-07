@@ -12,8 +12,8 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/proxyhealth"
@@ -46,7 +46,7 @@ func TestProxyHealth_Nil(t *testing.T) {
 
 func TestProxyHealth_Unregistered(t *testing.T) {
 	t.Parallel()
-	db := dbfake.New()
+	db := dbmem.New()
 
 	proxies := []database.WorkspaceProxy{
 		insertProxy(t, db, ""),
@@ -72,7 +72,7 @@ func TestProxyHealth_Unregistered(t *testing.T) {
 
 func TestProxyHealth_Unhealthy(t *testing.T) {
 	t.Parallel()
-	db := dbfake.New()
+	db := dbmem.New()
 
 	srvBadReport := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		httpapi.Write(context.Background(), w, http.StatusOK, codersdk.ProxyHealthReport{
@@ -112,7 +112,7 @@ func TestProxyHealth_Unhealthy(t *testing.T) {
 
 func TestProxyHealth_Reachable(t *testing.T) {
 	t.Parallel()
-	db := dbfake.New()
+	db := dbmem.New()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		httpapi.Write(context.Background(), w, http.StatusOK, codersdk.ProxyHealthReport{
@@ -147,7 +147,7 @@ func TestProxyHealth_Reachable(t *testing.T) {
 
 func TestProxyHealth_Unreachable(t *testing.T) {
 	t.Parallel()
-	db := dbfake.New()
+	db := dbmem.New()
 
 	cli := &http.Client{
 		Transport: &http.Transport{

@@ -41,6 +41,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/mod/semver"
 	"golang.org/x/oauth2"
@@ -66,7 +68,7 @@ import (
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbmetrics"
 	"github.com/coder/coder/v2/coderd/database/dbpurge"
 	"github.com/coder/coder/v2/coderd/database/migrations"
@@ -78,6 +80,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/oauthpki"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
+	"github.com/coder/coder/v2/coderd/prometheusmetrics/insights"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -197,6 +200,21 @@ func enablePrometheus(
 		return nil, xerrors.Errorf("register workspaces prometheus metric: %w", err)
 	}
 	afterCtx(ctx, closeWorkspacesFunc)
+
+	insightsMetricsCollector, err := insights.NewMetricsCollector(options.Database, options.Logger, 0, 0)
+	if err != nil {
+		return nil, xerrors.Errorf("unable to initialize insights metrics collector: %w", err)
+	}
+	err = options.PrometheusRegistry.Register(insightsMetricsCollector)
+	if err != nil {
+		return nil, xerrors.Errorf("unable to register insights metrics collector: %w", err)
+	}
+
+	closeInsightsMetricsCollector, err := insightsMetricsCollector.Run(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("unable to run insights metrics collector: %w", err)
+	}
+	afterCtx(ctx, closeInsightsMetricsCollector)
 
 	if vals.Prometheus.CollectAgentStats {
 		closeAgentStatsFunc, err := prometheusmetrics.AgentStats(ctx, logger, options.PrometheusRegistry, options.Database, time.Now(), 0)
@@ -336,7 +354,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				logger.Debug(ctx, "tracing closed", slog.Error(traceCloseErr))
 			}()
 
-			httpServers, err := ConfigureHTTPServers(inv, vals)
+			httpServers, err := ConfigureHTTPServers(logger, inv, vals)
 			if err != nil {
 				return xerrors.Errorf("configure http(s): %w", err)
 			}
@@ -524,7 +542,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				AppHostname:                 appHostname,
 				AppHostnameRegex:            appHostnameRegex,
 				Logger:                      logger.Named("coderd"),
-				Database:                    dbfake.New(),
+				Database:                    dbmem.New(),
 				BaseDERPMap:                 derpMap,
 				Pubsub:                      pubsub.NewInMemory(),
 				CacheDir:                    cacheDir,
@@ -615,7 +633,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			if vals.InMemoryDatabase {
 				// This is only used for testing.
-				options.Database = dbfake.New()
+				options.Database = dbmem.New()
 				options.Pubsub = pubsub.NewInMemory()
 			} else {
 				sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, vals.PostgresURL.String())
@@ -764,6 +782,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					return xerrors.Errorf("create telemetry reporter: %w", err)
 				}
 				defer options.Telemetry.Close()
+			} else {
+				logger.Warn(ctx, `telemetry disabled, unable to notify of security issues. Read more: https://coder.com/docs/v2/latest/admin/telemetry`)
 			}
 
 			// This prevents the pprof import from being accidentally deleted.
@@ -938,7 +958,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			autobuildTicker := time.NewTicker(vals.AutobuildPollInterval.Value())
 			defer autobuildTicker.Stop()
 			autobuildExecutor := autobuild.NewExecutor(
-				ctx, options.Database, options.Pubsub, coderAPI.TemplateScheduleStore, &coderAPI.Auditor, logger, autobuildTicker.C)
+				ctx, options.Database, options.Pubsub, coderAPI.TemplateScheduleStore, &coderAPI.Auditor, coderAPI.AccessControlStore, logger, autobuildTicker.C)
 			autobuildExecutor.Run()
 
 			hangDetectorTicker := time.NewTicker(vals.JobHangDetectorInterval.Value())
@@ -1001,7 +1021,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					r.Verbosef(inv, "Shutting down provisioner daemon %d...", id)
 					err := shutdownWithTimeout(provisionerDaemon.Shutdown, 5*time.Second)
 					if err != nil {
-						cliui.Errorf(inv.Stderr, "Failed to shutdown provisioner daemon %d: %s\n", id, err)
+						cliui.Errorf(inv.Stderr, "Failed to shut down provisioner daemon %d: %s\n", id, err)
 						return
 					}
 					err = provisionerDaemon.Close()
@@ -1186,6 +1206,14 @@ func WriteConfigMW(cfg *codersdk.DeploymentValues) clibase.MiddlewareFunc {
 // isLocalURL returns true if the hostname of the provided URL appears to
 // resolve to a loopback address.
 func IsLocalURL(ctx context.Context, u *url.URL) (bool, error) {
+	// In tests, we commonly use "example.com" or "google.com", which
+	// are not loopback, so avoid the DNS lookup to avoid flakes.
+	if flag.Lookup("test.v") != nil {
+		if u.Hostname() == "example.com" || u.Hostname() == "google.com" {
+			return false, nil
+		}
+	}
+
 	resolver := &net.Resolver{}
 	ips, err := resolver.LookupIPAddr(ctx, u.Hostname())
 	if err != nil {
@@ -1383,7 +1411,12 @@ func generateSelfSignedCertificate() (*tls.Certificate, error) {
 	return &cert, nil
 }
 
-func configureTLS(tlsMinVersion, tlsClientAuth string, tlsCertFiles, tlsKeyFiles []string, tlsClientCAFile string) (*tls.Config, error) {
+// configureServerTLS returns the TLS config used for the Coderd server
+// connections to clients. A logger is passed in to allow printing warning
+// messages that do not block startup.
+//
+//nolint:revive
+func configureServerTLS(ctx context.Context, logger slog.Logger, tlsMinVersion, tlsClientAuth string, tlsCertFiles, tlsKeyFiles []string, tlsClientCAFile string, ciphers []string, allowInsecureCiphers bool) (*tls.Config, error) {
 	tlsConfig := &tls.Config{
 		MinVersion: tls.VersionTLS12,
 		NextProtos: []string{"h2", "http/1.1"},
@@ -1399,6 +1432,15 @@ func configureTLS(tlsMinVersion, tlsClientAuth string, tlsCertFiles, tlsKeyFiles
 		tlsConfig.MinVersion = tls.VersionTLS13
 	default:
 		return nil, xerrors.Errorf("unrecognized tls version: %q", tlsMinVersion)
+	}
+
+	// A custom set of supported ciphers.
+	if len(ciphers) > 0 {
+		cipherIDs, err := configureCipherSuites(ctx, logger, ciphers, allowInsecureCiphers, tlsConfig.MinVersion, tls.VersionTLS13)
+		if err != nil {
+			return nil, err
+		}
+		tlsConfig.CipherSuites = cipherIDs
 	}
 
 	switch tlsClientAuth {
@@ -1457,6 +1499,160 @@ func configureTLS(tlsMinVersion, tlsClientAuth string, tlsCertFiles, tlsKeyFiles
 	}
 
 	return tlsConfig, nil
+}
+
+//nolint:revive
+func configureCipherSuites(ctx context.Context, logger slog.Logger, ciphers []string, allowInsecureCiphers bool, minTLS, maxTLS uint16) ([]uint16, error) {
+	if minTLS > maxTLS {
+		return nil, xerrors.Errorf("minimum tls version (%s) cannot be greater than maximum tls version (%s)", versionName(minTLS), versionName(maxTLS))
+	}
+	if minTLS >= tls.VersionTLS13 {
+		// The cipher suites config option is ignored for tls 1.3 and higher.
+		// So this user flag is a no-op if the min version is 1.3.
+		return nil, xerrors.Errorf("'--tls-ciphers' cannot be specified when using minimum tls version 1.3 or higher, %d ciphers found as input.", len(ciphers))
+	}
+	// Configure the cipher suites which parses the strings and converts them
+	// to golang cipher suites.
+	supported, err := parseTLSCipherSuites(ciphers)
+	if err != nil {
+		return nil, xerrors.Errorf("tls ciphers: %w", err)
+	}
+
+	// allVersions is all tls versions the server supports.
+	// We enumerate these to ensure if ciphers are configured, at least
+	// 1 cipher for each version exists.
+	allVersions := make(map[uint16]bool)
+	for v := minTLS; v <= maxTLS; v++ {
+		allVersions[v] = false
+	}
+
+	var insecure []string
+	cipherIDs := make([]uint16, 0, len(supported))
+	for _, cipher := range supported {
+		if cipher.Insecure {
+			// Always show this warning, even if they have allowInsecureCiphers
+			// specified.
+			logger.Warn(ctx, "insecure tls cipher specified for server use", slog.F("cipher", cipher.Name))
+			insecure = append(insecure, cipher.Name)
+		}
+
+		// This is a warning message to tell the user if they are specifying
+		// a cipher that does not support the tls versions they have specified.
+		// This makes the cipher essentially a "noop" cipher.
+		if !hasSupportedVersion(minTLS, maxTLS, cipher.SupportedVersions) {
+			versions := make([]string, 0, len(cipher.SupportedVersions))
+			for _, sv := range cipher.SupportedVersions {
+				versions = append(versions, versionName(sv))
+			}
+			logger.Warn(ctx, "cipher not supported for tls versions enabled, cipher will not be used",
+				slog.F("cipher", cipher.Name),
+				slog.F("cipher_supported_versions", strings.Join(versions, ",")),
+				slog.F("server_min_version", versionName(minTLS)),
+				slog.F("server_max_version", versionName(maxTLS)),
+			)
+		}
+
+		for _, v := range cipher.SupportedVersions {
+			allVersions[v] = true
+		}
+
+		cipherIDs = append(cipherIDs, cipher.ID)
+	}
+
+	if len(insecure) > 0 && !allowInsecureCiphers {
+		return nil, xerrors.Errorf("insecure tls ciphers specified, must use '--tls-allow-insecure-ciphers' to allow these: %s", strings.Join(insecure, ", "))
+	}
+
+	// This is an additional sanity check. The user can specify ciphers that
+	// do not cover the full range of tls versions they have specified.
+	// They can unintentionally break TLS for some tls configured versions.
+	var missedVersions []string
+	for version, covered := range allVersions {
+		if version == tls.VersionTLS13 {
+			continue // v1.3 ignores configured cipher suites.
+		}
+		if !covered {
+			missedVersions = append(missedVersions, versionName(version))
+		}
+	}
+	if len(missedVersions) > 0 {
+		return nil, xerrors.Errorf("no tls ciphers supported for tls versions %q."+
+			"Add additional ciphers, set the minimum version to 'tls13, or remove the ciphers configured and rely on the default",
+			strings.Join(missedVersions, ","))
+	}
+
+	return cipherIDs, nil
+}
+
+// parseTLSCipherSuites will parse cipher suite names like 'TLS_RSA_WITH_AES_128_CBC_SHA'
+// to their tls cipher suite structs. If a cipher suite that is unsupported is
+// passed in, this function will return an error.
+// This function can return insecure cipher suites.
+func parseTLSCipherSuites(ciphers []string) ([]tls.CipherSuite, error) {
+	if len(ciphers) == 0 {
+		return nil, nil
+	}
+
+	var unsupported []string
+	var supported []tls.CipherSuite
+	// A custom set of supported ciphers.
+	allCiphers := append(tls.CipherSuites(), tls.InsecureCipherSuites()...)
+	for _, cipher := range ciphers {
+		// For each cipher specified by the client, find the cipher in the
+		// list of golang supported ciphers.
+		var found *tls.CipherSuite
+		for _, supported := range allCiphers {
+			if strings.EqualFold(supported.Name, cipher) {
+				found = supported
+				break
+			}
+		}
+
+		if found == nil {
+			unsupported = append(unsupported, cipher)
+			continue
+		}
+
+		supported = append(supported, *found)
+	}
+
+	if len(unsupported) > 0 {
+		return nil, xerrors.Errorf("unsupported tls ciphers specified, see https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L53-L75: %s", strings.Join(unsupported, ", "))
+	}
+
+	return supported, nil
+}
+
+// hasSupportedVersion is a helper function that returns true if the list
+// of supported versions contains a version between min and max.
+// If the versions list is outside the min/max, then it returns false.
+func hasSupportedVersion(min, max uint16, versions []uint16) bool {
+	for _, v := range versions {
+		if v >= min && v <= max {
+			// If one version is in between min/max, return true.
+			return true
+		}
+	}
+	return false
+}
+
+// versionName is tls.VersionName in go 1.21.
+// Until the switch, the function is copied locally.
+func versionName(version uint16) string {
+	switch version {
+	case tls.VersionSSL30:
+		return "SSLv3"
+	case tls.VersionTLS10:
+		return "TLS 1.0"
+	case tls.VersionTLS11:
+		return "TLS 1.1"
+	case tls.VersionTLS12:
+		return "TLS 1.2"
+	case tls.VersionTLS13:
+		return "TLS 1.3"
+	default:
+		return fmt.Sprintf("0x%04X", version)
+	}
 }
 
 func configureOIDCPKI(orig *oauth2.Config, keyFile string, certFile string) (*oauthpki.Config, error) {
@@ -2020,6 +2216,13 @@ func ConfigureTraceProvider(
 		sqlDriver      = "postgres"
 	)
 
+	otel.SetTextMapPropagator(
+		propagation.NewCompositeTextMapPropagator(
+			propagation.TraceContext{},
+			propagation.Baggage{},
+		),
+	)
+
 	if cfg.Trace.Enable.Value() || cfg.Trace.DataDog.Value() || cfg.Trace.HoneycombAPIKey != "" {
 		sdkTracerProvider, _closeTracing, err := tracing.TracerProvider(ctx, "coderd", tracing.TracerOpts{
 			Default:   cfg.Trace.Enable.Value(),
@@ -2043,7 +2246,8 @@ func ConfigureTraceProvider(
 	return tracerProvider, sqlDriver, closeTracing
 }
 
-func ConfigureHTTPServers(inv *clibase.Invocation, cfg *codersdk.DeploymentValues) (_ *HTTPServers, err error) {
+func ConfigureHTTPServers(logger slog.Logger, inv *clibase.Invocation, cfg *codersdk.DeploymentValues) (_ *HTTPServers, err error) {
+	ctx := inv.Context()
 	httpServers := &HTTPServers{}
 	defer func() {
 		if err != nil {
@@ -2119,16 +2323,20 @@ func ConfigureHTTPServers(inv *clibase.Invocation, cfg *codersdk.DeploymentValue
 		// DEPRECATED: This redirect used to default to true.
 		// It made more sense to have the redirect be opt-in.
 		if inv.Environ.Get("CODER_TLS_REDIRECT_HTTP") == "true" || inv.ParsedFlags().Changed("tls-redirect-http-to-https") {
-			cliui.Warn(inv.Stderr, "--tls-redirect-http-to-https is deprecated, please use --redirect-to-access-url instead")
+			logger.Warn(ctx, "--tls-redirect-http-to-https is deprecated, please use --redirect-to-access-url instead")
 			cfg.RedirectToAccessURL = cfg.TLS.RedirectHTTP
 		}
 
-		tlsConfig, err := configureTLS(
+		tlsConfig, err := configureServerTLS(
+			ctx,
+			logger,
 			cfg.TLS.MinVersion.String(),
 			cfg.TLS.ClientAuth.String(),
 			cfg.TLS.CertFiles,
 			cfg.TLS.KeyFiles,
 			cfg.TLS.ClientCAFile.String(),
+			cfg.TLS.SupportedCiphers.Value(),
+			cfg.TLS.AllowInsecureCiphers.Value(),
 		)
 		if err != nil {
 			return nil, xerrors.Errorf("configure tls: %w", err)

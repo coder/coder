@@ -84,6 +84,8 @@ describe("util/schedule", () => {
       new Date("2023-09-06T15:00:00.000+10:00"),
     );
 
-    expect(quietHoursStart).toBe("12:00AM tomorrow (in 9 hours)");
+    expect(quietHoursStart).toBe(
+      "12:00AM tomorrow (in 9 hours) in Australia/Sydney",
+    );
   });
 });

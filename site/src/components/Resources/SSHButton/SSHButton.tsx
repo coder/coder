@@ -1,7 +1,6 @@
-import Popover from "@mui/material/Popover";
 import { css } from "@emotion/css";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import { type FC, type PropsWithChildren, useRef, useState } from "react";
+import { type FC, type PropsWithChildren } from "react";
 import {
   HelpTooltipLink,
   HelpTooltipLinksGroup,
@@ -11,60 +10,42 @@ import { docs } from "utils/docs";
 import { CodeExample } from "../../CodeExample/CodeExample";
 import { Stack } from "../../Stack/Stack";
 import { SecondaryAgentButton } from "../AgentButton";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "components/Popover/Popover";
 
 export interface SSHButtonProps {
   workspaceName: string;
   agentName: string;
-  defaultIsOpen?: boolean;
+  isDefaultOpen?: boolean;
   sshPrefix?: string;
 }
 
 export const SSHButton: FC<PropsWithChildren<SSHButtonProps>> = ({
   workspaceName,
   agentName,
-  defaultIsOpen = false,
+  isDefaultOpen = false,
   sshPrefix,
 }) => {
   const theme = useTheme();
-  const anchorRef = useRef<HTMLButtonElement>(null);
-  const [isOpen, setIsOpen] = useState(defaultIsOpen);
-  const id = isOpen ? "schedule-popover" : undefined;
-
-  const onClose = () => {
-    setIsOpen(false);
-  };
 
   return (
-    <>
-      <SecondaryAgentButton
-        ref={anchorRef}
-        onClick={() => {
-          setIsOpen(true);
-        }}
-      >
-        SSH
-      </SecondaryAgentButton>
+    <Popover isDefaultOpen={isDefaultOpen}>
+      <PopoverTrigger>
+        <SecondaryAgentButton>SSH</SecondaryAgentButton>
+      </PopoverTrigger>
 
-      <Popover
+      <PopoverContent
+        horizontal="right"
         classes={{
           paper: css`
-            padding: ${theme.spacing(2, 3, 3)};
-            width: ${theme.spacing(38)};
+            padding: 16px 24px 24px;
+            width: 304px;
             color: ${theme.palette.text.secondary};
-            margin-top: ${theme.spacing(0.25)};
+            margin-top: 2px;
           `,
-        }}
-        id={id}
-        open={isOpen}
-        anchorEl={anchorRef.current}
-        onClose={onClose}
-        anchorOrigin={{
-          vertical: "bottom",
-          horizontal: "left",
-        }}
-        transformOrigin={{
-          vertical: "top",
-          horizontal: "left",
         }}
       >
         <HelpTooltipText>
@@ -107,15 +88,15 @@ export const SSHButton: FC<PropsWithChildren<SSHButtonProps>> = ({
             SSH configuration
           </HelpTooltipLink>
         </HelpTooltipLinksGroup>
-      </Popover>
-    </>
+      </PopoverContent>
+    </Popover>
   );
 };
 
 const styles = {
-  codeExamples: (theme) => ({
-    marginTop: theme.spacing(1.5),
-  }),
+  codeExamples: {
+    marginTop: 12,
+  },
 
   codeExampleLabel: {
     fontSize: 12,

@@ -2,7 +2,6 @@ import { createContext, type FC, Suspense, useContext } from "react";
 import { Helmet } from "react-helmet-async";
 import { Outlet, useParams } from "react-router-dom";
 import { useQuery } from "react-query";
-import { useTheme } from "@emotion/react";
 import type { Workspace } from "api/typesGenerated";
 import { workspaceByOwnerAndName } from "api/queries/workspaces";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -26,7 +25,6 @@ export function useWorkspaceSettings() {
 }
 
 export const WorkspaceSettingsLayout: FC = () => {
-  const theme = useTheme();
   const params = useParams() as {
     workspace: string;
     username: string;
@@ -51,11 +49,7 @@ export const WorkspaceSettingsLayout: FC = () => {
       </Helmet>
 
       <Margins>
-        <Stack
-          css={{ padding: theme.spacing(6, 0) }}
-          direction="row"
-          spacing={10}
-        >
+        <Stack css={{ padding: "48px 0" }} direction="row" spacing={10}>
           {isError ? (
             <ErrorAlert error={error} />
           ) : (

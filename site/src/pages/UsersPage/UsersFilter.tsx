@@ -11,8 +11,12 @@ import {
 } from "components/Filter/filter";
 import { BaseOption } from "components/Filter/options";
 import { UseFilterMenuOptions, useFilterMenu } from "components/Filter/menu";
-import { userFilterQuery } from "utils/filters";
 import { docs } from "utils/docs";
+
+const userFilterQuery = {
+  active: "status:active",
+  all: "",
+};
 
 type StatusOption = BaseOption & {
   color: string;

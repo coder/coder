@@ -286,3 +286,32 @@ export const hasJobError = (workspace: TypesGen.Workspace) => {
 export const paramsUsedToCreateWorkspace = (
   param: TypesGen.TemplateVersionParameter,
 ) => !param.ephemeral;
+
+export const getMatchingAgentOrFirst = (
+  workspace: TypesGen.Workspace,
+  agentName: string | undefined,
+): TypesGen.WorkspaceAgent | undefined => {
+  return workspace.latest_build.resources
+    .map((resource) => {
+      if (!resource.agents || resource.agents.length === 0) {
+        return;
+      }
+      if (!agentName) {
+        return resource.agents[0];
+      }
+      return resource.agents.find((agent) => agent.name === agentName);
+    })
+    .filter((a) => a)[0];
+};
+
+export const workspaceUpdatePolicy = (
+  workspace: TypesGen.Workspace,
+  canChangeVersions: boolean,
+): TypesGen.AutomaticUpdates => {
+  // If a template requires the active version and you cannot change versions
+  // (restricted to template admins), then your policy must be "Always".
+  if (workspace.template_require_active_version && !canChangeVersions) {
+    return "always";
+  }
+  return workspace.automatic_updates;
+};

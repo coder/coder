@@ -1,5 +1,5 @@
+import { type Interpolation, type Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
-import { makeStyles } from "@mui/styles";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -7,7 +7,7 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import AddIcon from "@mui/icons-material/AddOutlined";
-import { FC } from "react";
+import { type FC } from "react";
 import { useNavigate, Link as RouterLink } from "react-router-dom";
 import { createDayString } from "utils/createDayString";
 import {
@@ -35,8 +35,7 @@ import {
 } from "components/HelpTooltip/HelpTooltip";
 import { EmptyTemplates } from "./EmptyTemplates";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
-import { Template, TemplateExample } from "api/typesGenerated";
-import { combineClasses } from "utils/combineClasses";
+import type { Template, TemplateExample } from "api/typesGenerated";
 import { colors } from "theme/colors";
 import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined";
 import { Avatar } from "components/Avatar/Avatar";
@@ -80,17 +79,17 @@ const TemplateRow: FC<{ template: Template }> = ({ template }) => {
   const templatePageLink = `/templates/${template.name}`;
   const hasIcon = template.icon && template.icon !== "";
   const navigate = useNavigate();
-  const styles = useStyles();
 
-  const { className: clickableClassName, ...clickableRow } =
-    useClickableTableRow({ onClick: () => navigate(templatePageLink) });
+  const { css: clickableCss, ...clickableRow } = useClickableTableRow({
+    onClick: () => navigate(templatePageLink),
+  });
 
   return (
     <TableRow
       key={template.id}
       data-testid={`template-${template.id}`}
       {...clickableRow}
-      className={combineClasses([clickableClassName, styles.tableRow])}
+      css={[clickableCss, styles.tableRow]}
     >
       <TableCell>
         <AvatarData
@@ -106,22 +105,23 @@ const TemplateRow: FC<{ template: Template }> = ({ template }) => {
         />
       </TableCell>
 
-      <TableCell className={styles.secondary}>
+      <TableCell css={styles.secondary}>
         {Language.developerCount(template.active_user_count)}
       </TableCell>
 
-      <TableCell className={styles.secondary}>
+      <TableCell css={styles.secondary}>
         {formatTemplateBuildTime(template.build_time_stats.start.P50)}
       </TableCell>
 
-      <TableCell data-chromatic="ignore" className={styles.secondary}>
+      <TableCell data-chromatic="ignore" css={styles.secondary}>
         {createDayString(template.updated_at)}
       </TableCell>
 
-      <TableCell className={styles.actionCell}>
+      <TableCell css={styles.actionCell}>
         <Button
           size="small"
-          className={styles.actionButton}
+          css={styles.actionButton}
+          className="actionButton"
           startIcon={<ArrowForwardOutlined />}
           title={`Create a workspace using the ${template.display_name} template`}
           onClick={(e) => {
@@ -247,7 +247,7 @@ const TableLoader = () => {
   );
 };
 
-const useStyles = makeStyles((theme) => ({
+const styles = {
   templateIconWrapper: {
     // Same size then the avatar component
     width: 36,
@@ -261,20 +261,20 @@ const useStyles = makeStyles((theme) => ({
   actionCell: {
     whiteSpace: "nowrap",
   },
-  secondary: {
+  secondary: (theme) => ({
     color: theme.palette.text.secondary,
-  },
-  tableRow: {
-    "&:hover $actionButton": {
+  }),
+  tableRow: (theme) => ({
+    "&:hover .actionButton": {
       color: theme.palette.text.primary,
       borderColor: colors.gray[11],
       "&:hover": {
         borderColor: theme.palette.text.primary,
       },
     },
-  },
-  actionButton: {
+  }),
+  actionButton: (theme) => ({
     color: theme.palette.text.secondary,
     transition: "none",
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;

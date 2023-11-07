@@ -18,18 +18,23 @@ import type {
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { LoadingButton } from "components/LoadingButton/LoadingButton";
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
-import { TableRowMenu } from "components/TableRowMenu/TableRowMenu";
 import {
   UserOrGroupAutocomplete,
   UserOrGroupAutocompleteValue,
-} from "components/UserOrGroupAutocomplete/UserOrGroupAutocomplete";
+} from "./UserOrGroupAutocomplete";
 import { type FC, useState } from "react";
 import { GroupAvatar } from "components/GroupAvatar/GroupAvatar";
 import { getGroupSubtitle } from "utils/groups";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
+import LoadingButton from "@mui/lab/LoadingButton";
+import {
+  MoreMenu,
+  MoreMenuContent,
+  MoreMenuItem,
+  MoreMenuTrigger,
+} from "components/MoreMenu/MoreMenu";
 
 type AddTemplateUserOrGroupProps = {
   organizationId: string;
@@ -46,7 +51,6 @@ type AddTemplateUserOrGroupProps = {
 const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
   isLoading,
   onSubmit,
-  organizationId,
   templateID,
   templateACL,
 }) => {
@@ -82,7 +86,6 @@ const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
       <Stack direction="row" alignItems="center" spacing={1}>
         <UserOrGroupAutocomplete
           exclude={excludeFromAutocomplete}
-          organizationId={organizationId}
           templateID={templateID}
           value={selectedOption}
           onChange={(newValue) => {
@@ -108,6 +111,7 @@ const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
         </Select>
 
         <LoadingButton
+          loadingPosition="start"
           disabled={!selectedRole || !selectedOption}
           type="submit"
           startIcon={<PersonAdd />}
@@ -161,7 +165,7 @@ export interface TemplatePermissionsPageViewProps {
   ) => void;
   isAddingUser: boolean;
   onUpdateUser: (user: TemplateUser, role: TemplateRole) => void;
-  updatingUser: TemplateUser | undefined;
+  updatingUserId: TemplateUser["id"] | undefined;
   onRemoveUser: (user: TemplateUser) => void;
   // Group
   onAddGroup: (
@@ -171,7 +175,7 @@ export interface TemplatePermissionsPageViewProps {
   ) => void;
   isAddingGroup: boolean;
   onUpdateGroup: (group: TemplateGroup, role: TemplateRole) => void;
-  updatingGroup: TemplateGroup | undefined;
+  updatingGroupId?: TemplateGroup["id"] | undefined;
   onRemoveGroup: (group: Group) => void;
 }
 
@@ -185,13 +189,13 @@ export const TemplatePermissionsPageView: FC<
   // User
   onAddUser,
   isAddingUser,
-  updatingUser,
+  updatingUserId,
   onUpdateUser,
   onRemoveUser,
   // Group
   onAddGroup,
   isAddingGroup,
-  updatingGroup,
+  updatingGroupId,
   onUpdateGroup,
   onRemoveGroup,
 }) => {
@@ -265,9 +269,7 @@ export const TemplatePermissionsPageView: FC<
                           <Cond condition={canUpdatePermissions}>
                             <RoleSelect
                               value={group.role}
-                              disabled={
-                                updatingGroup && updatingGroup.id === group.id
-                              }
+                              disabled={updatingGroupId === group.id}
                               onChange={(event) => {
                                 onUpdateGroup(
                                   group,
@@ -284,16 +286,17 @@ export const TemplatePermissionsPageView: FC<
 
                       <TableCell>
                         {canUpdatePermissions && (
-                          <TableRowMenu
-                            data={group}
-                            menuItems={[
-                              {
-                                label: "Remove",
-                                onClick: () => onRemoveGroup(group),
-                                disabled: false,
-                              },
-                            ]}
-                          />
+                          <MoreMenu>
+                            <MoreMenuTrigger />
+                            <MoreMenuContent>
+                              <MoreMenuItem
+                                danger
+                                onClick={() => onRemoveGroup(group)}
+                              >
+                                Remove
+                              </MoreMenuItem>
+                            </MoreMenuContent>
+                          </MoreMenu>
                         )}
                       </TableCell>
                     </TableRow>
@@ -313,9 +316,7 @@ export const TemplatePermissionsPageView: FC<
                           <Cond condition={canUpdatePermissions}>
                             <RoleSelect
                               value={user.role}
-                              disabled={
-                                updatingUser && updatingUser.id === user.id
-                              }
+                              disabled={updatingUserId === user.id}
                               onChange={(event) => {
                                 onUpdateUser(
                                   user,
@@ -332,16 +333,17 @@ export const TemplatePermissionsPageView: FC<
 
                       <TableCell>
                         {canUpdatePermissions && (
-                          <TableRowMenu
-                            data={user}
-                            menuItems={[
-                              {
-                                label: "Remove",
-                                onClick: () => onRemoveUser(user),
-                                disabled: false,
-                              },
-                            ]}
-                          />
+                          <MoreMenu>
+                            <MoreMenuTrigger />
+                            <MoreMenuContent>
+                              <MoreMenuItem
+                                danger
+                                onClick={() => onRemoveUser(user)}
+                              >
+                                Remove
+                              </MoreMenuItem>
+                            </MoreMenuContent>
+                          </MoreMenu>
                         )}
                       </TableCell>
                     </TableRow>
@@ -363,34 +365,34 @@ const styles = {
     width: 100,
   },
 
-  updateSelect: (theme) => ({
+  updateSelect: {
     margin: 0,
     // Set a fixed width for the select. It avoids selects having different sizes
     // depending on how many roles they have selected.
-    width: theme.spacing(25),
+    width: 200,
 
     "& .MuiSelect-root": {
       // Adjusting padding because it does not have label
-      paddingTop: theme.spacing(1.5),
-      paddingBottom: theme.spacing(1.5),
+      paddingTop: 12,
+      paddingBottom: 12,
 
       ".secondary": {
         display: "none",
       },
     },
-  }),
+  },
 
   role: {
     textTransform: "capitalize",
   },
 
-  menuItem: (theme) => ({
+  menuItem: {
     lineHeight: "140%",
-    paddingTop: theme.spacing(1.5),
-    paddingBottom: theme.spacing(1.5),
+    paddingTop: 12,
+    paddingBottom: 12,
     whiteSpace: "normal",
     inlineSize: "250px",
-  }),
+  },
 
   menuItemSecondary: (theme) => ({
     fontSize: 14,

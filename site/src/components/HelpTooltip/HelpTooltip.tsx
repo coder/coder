@@ -1,4 +1,6 @@
 import Link from "@mui/material/Link";
+// This is used as base for the main HelpTooltip component
+// eslint-disable-next-line no-restricted-imports -- Read above
 import Popover, { type PopoverProps } from "@mui/material/Popover";
 import HelpIcon from "@mui/icons-material/HelpOutline";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
@@ -57,9 +59,9 @@ export const HelpPopover: FC<
         paper: className`
           ${theme.typography.body2 as CSSObject}
 
-          margin-top: ${theme.spacing(0.5)};
-          width: ${theme.spacing(38)};
-          padding: ${theme.spacing(2.5)};
+          margin-top: 4px;
+          width: 304px;
+          padding: 20px;
           color: ${theme.palette.text.secondary};
           pointer-events: auto;
         `,
@@ -86,7 +88,7 @@ export const HelpPopover: FC<
 
 export const HelpTooltip: FC<PropsWithChildren<HelpTooltipProps>> = ({
   children,
-  open,
+  open = false,
   size = "medium",
   icon: Icon = HelpIcon,
   iconClassName,
@@ -94,7 +96,7 @@ export const HelpTooltip: FC<PropsWithChildren<HelpTooltipProps>> = ({
 }) => {
   const theme = useTheme();
   const anchorRef = useRef<HTMLButtonElement>(null);
-  const [isOpen, setIsOpen] = useState(Boolean(open));
+  const [isOpen, setIsOpen] = useState(open);
   const id = isOpen ? "help-popover" : undefined;
 
   const onClose = () => {
@@ -237,7 +239,7 @@ const getIconSpacingFromSize = (size?: Size): number => {
 const styles = {
   title: (theme) => ({
     marginTop: 0,
-    marginBottom: theme.spacing(1),
+    marginBottom: 8,
     color: theme.palette.text.primary,
     fontSize: 14,
     lineHeight: "150%",
@@ -245,8 +247,8 @@ const styles = {
   }),
 
   text: (theme) => ({
-    marginTop: theme.spacing(0.5),
-    marginBottom: theme.spacing(0.5),
+    marginTop: 4,
+    marginBottom: 4,
     ...(theme.typography.body2 as CSSObject),
   }),
 
@@ -257,16 +259,16 @@ const styles = {
     color: theme.palette.text.primary,
   }),
 
-  linkIcon: (theme) => ({
+  linkIcon: {
     color: "inherit",
     width: 14,
     height: 14,
-    marginRight: theme.spacing(1),
-  }),
+    marginRight: 8,
+  },
 
-  linksGroup: (theme) => ({
-    marginTop: theme.spacing(2),
-  }),
+  linksGroup: {
+    marginTop: 16,
+  },
 
   action: (theme) => ({
     display: "flex",
@@ -279,10 +281,10 @@ const styles = {
     fontSize: 14,
   }),
 
-  actionIcon: (theme) => ({
+  actionIcon: {
     color: "inherit",
     width: 14,
     height: 14,
-    marginRight: theme.spacing(1),
-  }),
+    marginRight: 8,
+  },
 } satisfies Record<string, Interpolation<Theme>>;

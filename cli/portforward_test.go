@@ -18,8 +18,9 @@ import (
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -132,17 +133,18 @@ func TestPortForward(t *testing.T) {
 	// Setup agent once to be shared between test-cases (avoid expensive
 	// non-parallel setup).
 	var (
-		client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		admin     = coderdtest.CreateFirstUser(t, client)
-		member, _ = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
-		workspace = runAgent(t, client, member)
+		client, db         = coderdtest.NewWithDatabase(t, nil)
+		admin              = coderdtest.CreateFirstUser(t, client)
+		member, memberUser = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		workspace          = runAgent(t, client, memberUser.ID, db)
 	)
 
 	for _, c := range cases {
 		c := c
-		// Delay parallel tests here because setupLocal reserves
+		// No parallel tests here because setupLocal reserves
 		// a free open port which is not guaranteed to be free
 		// between the listener closing and port-forward ready.
+		//nolint:tparallel,paralleltest
 		t.Run(c.name+"_OnePort", func(t *testing.T) {
 			p1 := setupTestListener(t, c.setupRemote(t))
 
@@ -166,8 +168,6 @@ func TestPortForward(t *testing.T) {
 			}()
 			pty.ExpectMatchContext(ctx, "Ready!")
 
-			t.Parallel() // Port is reserved, enable parallel execution.
-
 			// Open two connections simultaneously and test them out of
 			// sync.
 			d := net.Dialer{Timeout: testutil.WaitShort}
@@ -185,6 +185,10 @@ func TestPortForward(t *testing.T) {
 			require.ErrorIs(t, err, context.Canceled)
 		})
 
+		// No parallel tests here because setupLocal reserves
+		// a free open port which is not guaranteed to be free
+		// between the listener closing and port-forward ready.
+		//nolint:tparallel,paralleltest
 		t.Run(c.name+"_TwoPorts", func(t *testing.T) {
 			var (
 				p1 = setupTestListener(t, c.setupRemote(t))
@@ -213,8 +217,6 @@ func TestPortForward(t *testing.T) {
 			}()
 			pty.ExpectMatchContext(ctx, "Ready!")
 
-			t.Parallel() // Port is reserved, enable parallel execution.
-
 			// Open a connection to both listener 1 and 2 simultaneously and
 			// then test them out of order.
 			d := net.Dialer{Timeout: testutil.WaitShort}
@@ -234,6 +236,10 @@ func TestPortForward(t *testing.T) {
 	}
 
 	// Test doing TCP and UDP at the same time.
+	// No parallel tests here because setupLocal reserves
+	// a free open port which is not guaranteed to be free
+	// between the listener closing and port-forward ready.
+	//nolint:tparallel,paralleltest
 	t.Run("All", func(t *testing.T) {
 		var (
 			dials = []addr{}
@@ -266,8 +272,6 @@ func TestPortForward(t *testing.T) {
 		}()
 		pty.ExpectMatchContext(ctx, "Ready!")
 
-		t.Parallel() // Port is reserved, enable parallel execution.
-
 		// Open connections to all items in the "dial" array.
 		var (
 			d     = net.Dialer{Timeout: testutil.WaitShort}
@@ -296,35 +300,22 @@ func TestPortForward(t *testing.T) {
 // runAgent creates a fake workspace and starts an agent locally for that
 // workspace. The agent will be cleaned up on test completion.
 // nolint:unused
-func runAgent(t *testing.T, adminClient, userClient *codersdk.Client) codersdk.Workspace {
-	ctx := context.Background()
-	user, err := userClient.User(ctx, codersdk.Me)
+func runAgent(t *testing.T, client *codersdk.Client, owner uuid.UUID, db database.Store) database.Workspace {
+	user, err := client.User(context.Background(), codersdk.Me)
 	require.NoError(t, err, "specified user does not exist")
 	require.Greater(t, len(user.OrganizationIDs), 0, "user has no organizations")
 	orgID := user.OrganizationIDs[0]
-
-	// Setup template
-	agentToken := uuid.NewString()
-	version := coderdtest.CreateTemplateVersion(t, adminClient, orgID, &echo.Responses{
-		Parse:          echo.ParseComplete,
-		ProvisionPlan:  echo.PlanComplete,
-		ProvisionApply: echo.ProvisionApplyWithAgent(agentToken),
+	ws, agentToken := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
+		OrganizationID: orgID,
+		OwnerID:        owner,
 	})
-
-	// Create template and workspace
-	template := coderdtest.CreateTemplate(t, adminClient, orgID, version.ID)
-	coderdtest.AwaitTemplateVersionJobCompleted(t, adminClient, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, userClient, orgID, template.ID)
-	coderdtest.AwaitWorkspaceBuildJobCompleted(t, adminClient, workspace.LatestBuild.ID)
-
-	_ = agenttest.New(t, adminClient.URL, agentToken,
+	_ = agenttest.New(t, client.URL, agentToken,
 		func(o *agent.Options) {
 			o.SSHMaxTimeout = 60 * time.Second
 		},
 	)
-	coderdtest.AwaitWorkspaceAgents(t, adminClient, workspace.ID)
-
-	return workspace
+	coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
+	return ws
 }
 
 // setupTestListener starts accepting connections and echoing a single packet.

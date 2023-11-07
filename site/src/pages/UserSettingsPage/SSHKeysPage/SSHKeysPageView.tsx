@@ -11,7 +11,6 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 export interface SSHKeysPageViewProps {
   isLoading: boolean;
   getSSHKeyError?: unknown;
-  regenerateSSHKeyError?: unknown;
   sshKey?: GitSSHKey;
   onRegenerateClick: () => void;
 }
@@ -19,7 +18,6 @@ export interface SSHKeysPageViewProps {
 export const SSHKeysPageView: FC<PropsWithChildren<SSHKeysPageViewProps>> = ({
   isLoading,
   getSSHKeyError,
-  regenerateSSHKeyError,
   sshKey,
   onRegenerateClick,
 }) => {
@@ -38,9 +36,7 @@ export const SSHKeysPageView: FC<PropsWithChildren<SSHKeysPageViewProps>> = ({
       {/* Regenerating the key is not an option if getSSHKey fails.
         Only one of the error messages will exist at a single time */}
       {Boolean(getSSHKeyError) && <ErrorAlert error={getSSHKeyError} />}
-      {Boolean(regenerateSSHKeyError) && (
-        <ErrorAlert error={regenerateSSHKeyError} dismissible />
-      )}
+
       {sshKey && (
         <>
           <p

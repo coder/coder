@@ -28,15 +28,15 @@ const OptionsTable: FC<{
   return (
     <TableContainer>
       <Table
-        css={(theme) => css`
+        css={css`
           & td {
-            padding-top: ${theme.spacing(3)};
-            padding-bottom: ${theme.spacing(3)};
+            padding-top: 24px;
+            padding-bottom: 24px;
           }
 
           & td:last-child,
           & th:last-child {
-            padding-left: ${theme.spacing(4)};
+            padding-left: 32px;
           }
         `}
       >

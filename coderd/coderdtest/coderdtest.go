@@ -151,6 +151,13 @@ func New(t testing.TB, options *Options) *codersdk.Client {
 	return client
 }
 
+// NewWithDatabase constructs a codersdk client connected to an in-memory API instance.
+// The database is returned to provide direct data manipulation for tests.
+func NewWithDatabase(t testing.TB, options *Options) (*codersdk.Client, database.Store) {
+	client, _, api := NewWithAPI(t, options)
+	return client, api.Database
+}
+
 // NewWithProvisionerCloser returns a client as well as a handle to close
 // the provisioner. This is a temporary function while work is done to
 // standardize how provisioners are registered with coderd. The option
@@ -218,7 +225,6 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 
 	if options.Database == nil {
 		options.Database, options.Pubsub = dbtestutil.NewDB(t)
-		options.Database = dbauthz.New(options.Database, options.Authorizer, options.Logger.Leveled(slog.LevelDebug))
 	}
 
 	// Some routes expect a deployment ID, so just make sure one exists.
@@ -260,6 +266,10 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		t.Cleanup(closeBatcher)
 	}
 
+	accessControlStore := &atomic.Pointer[dbauthz.AccessControlStore]{}
+	var acs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
+	accessControlStore.Store(&acs)
+
 	var templateScheduleStore atomic.Pointer[schedule.TemplateScheduleStore]
 	if options.TemplateScheduleStore == nil {
 		options.TemplateScheduleStore = schedule.NewAGPLTemplateScheduleStore()
@@ -279,6 +289,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.Pubsub,
 		&templateScheduleStore,
 		&auditor,
+		accessControlStore,
 		*options.Logger,
 		options.AutobuildTicker,
 	).WithStatsChannel(options.AutobuildStats)
@@ -416,6 +427,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			Authorizer:                         options.Authorizer,
 			Telemetry:                          telemetry.NewNoop(),
 			TemplateScheduleStore:              &templateScheduleStore,
+			AccessControlStore:                 accessControlStore,
 			TLSCertificates:                    options.TLSCertificates,
 			TrialGenerator:                     options.TrialGenerator,
 			TailnetCoordinator:                 options.Coordinator,
@@ -605,7 +617,7 @@ func CreateAnotherUserMutators(t testing.TB, client *codersdk.Client, organizati
 func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, retries int, roles []string, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
 	req := codersdk.CreateUserRequest{
 		Email:          namesgenerator.GetRandomName(10) + "@coder.com",
-		Username:       randomUsername(t),
+		Username:       RandomUsername(t),
 		Password:       "SomeSecurePassword!",
 		OrganizationID: organizationID,
 	}
@@ -739,7 +751,7 @@ func CreateWorkspaceBuild(
 // compatibility with testing. The name assigned is randomly generated.
 func CreateTemplate(t testing.TB, client *codersdk.Client, organization uuid.UUID, version uuid.UUID, mutators ...func(*codersdk.CreateTemplateRequest)) codersdk.Template {
 	req := codersdk.CreateTemplateRequest{
-		Name:      randomUsername(t),
+		Name:      RandomUsername(t),
 		VersionID: version,
 	}
 	for _, mut := range mutators {
@@ -901,7 +913,7 @@ func CreateWorkspace(t testing.TB, client *codersdk.Client, organization uuid.UU
 	t.Helper()
 	req := codersdk.CreateWorkspaceRequest{
 		TemplateID:        templateID,
-		Name:              randomUsername(t),
+		Name:              RandomUsername(t),
 		AutostartSchedule: ptr.Ref("CRON_TZ=US/Central 30 9 * * 1-5"),
 		TTLMillis:         ptr.Ref((8 * time.Hour).Milliseconds()),
 		AutomaticUpdates:  codersdk.AutomaticUpdatesNever,
@@ -915,20 +927,23 @@ func CreateWorkspace(t testing.TB, client *codersdk.Client, organization uuid.UU
 }
 
 // TransitionWorkspace is a convenience method for transitioning a workspace from one state to another.
-func MustTransitionWorkspace(t testing.TB, client *codersdk.Client, workspaceID uuid.UUID, from, to database.WorkspaceTransition) codersdk.Workspace {
+func MustTransitionWorkspace(t testing.TB, client *codersdk.Client, workspaceID uuid.UUID, from, to database.WorkspaceTransition, muts ...func(req *codersdk.CreateWorkspaceBuildRequest)) codersdk.Workspace {
 	t.Helper()
 	ctx := context.Background()
 	workspace, err := client.Workspace(ctx, workspaceID)
 	require.NoError(t, err, "unexpected error fetching workspace")
 	require.Equal(t, workspace.LatestBuild.Transition, codersdk.WorkspaceTransition(from), "expected workspace state: %s got: %s", from, workspace.LatestBuild.Transition)
 
-	template, err := client.Template(ctx, workspace.TemplateID)
-	require.NoError(t, err, "fetch workspace template")
-
-	build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-		TemplateVersionID: template.ActiveVersionID,
+	req := codersdk.CreateWorkspaceBuildRequest{
+		TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
 		Transition:        codersdk.WorkspaceTransition(to),
-	})
+	}
+
+	for _, mut := range muts {
+		mut(&req)
+	}
+
+	build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, req)
 	require.NoError(t, err, "unexpected error transitioning workspace to %s", to)
 
 	_ = AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
@@ -1159,7 +1174,7 @@ func NewAzureInstanceIdentity(t testing.TB, instanceID string) (x509.VerifyOptio
 		}
 }
 
-func randomUsername(t testing.TB) string {
+func RandomUsername(t testing.TB) string {
 	suffix, err := cryptorand.String(3)
 	require.NoError(t, err)
 	suffix = "-" + suffix

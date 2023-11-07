@@ -17,7 +17,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
@@ -31,7 +31,7 @@ func TestMain(m *testing.M) {
 // TestAcquirer_Store tests that a database.Store is accepted as a provisionerdserver.AcquirerStore
 func TestAcquirer_Store(t *testing.T) {
 	t.Parallel()
-	db := dbfake.New()
+	db := dbmem.New()
 	ps := pubsub.NewInMemory()
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()

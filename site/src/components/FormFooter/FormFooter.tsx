@@ -1,7 +1,7 @@
 import Button from "@mui/material/Button";
 import { type FC } from "react";
-import { LoadingButton } from "../LoadingButton/LoadingButton";
 import { Interpolation, Theme } from "@emotion/react";
+import LoadingButton from "@mui/lab/LoadingButton";
 
 export const Language = {
   cancelLabel: "Cancel",
@@ -57,16 +57,16 @@ export const FormFooter: FC<FormFooterProps> = ({
 };
 
 const defaultStyles = {
-  footer: (theme) => ({
+  footer: {
     display: "flex",
     flex: "0",
     // The first button is the submit so it is the first element to be focused
     // on tab so we use row-reverse to display it on the right
     flexDirection: "row-reverse",
-    gap: theme.spacing(1.5),
+    gap: 12,
     alignItems: "center",
-    marginTop: theme.spacing(3),
-  }),
+    marginTop: 24,
+  },
   button: {
     width: "100%",
   },

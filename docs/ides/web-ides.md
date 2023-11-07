@@ -45,7 +45,7 @@ resource "coder_app" "pubslack" {
   display_name = "Coder Public Slack"
   slug         = "pubslack"
   url          = "https://coder-com.slack.com/"
-  icon         = "https://cdn2.hubspot.net/hubfs/521324/slack-logo.png"
+  icon         = "/icon/slack.svg"
   external     = true
 }
 
@@ -54,7 +54,7 @@ resource "coder_app" "discord" {
   display_name = "Coder Discord"
   slug         = "discord"
   url          = "https://discord.com/invite/coder"
-  icon         = "https://logodix.com/logo/573024.png"
+  icon         = "/icon/discord.svg"
   external     = true
 }
 ```
@@ -133,43 +133,59 @@ resource "coder_app" "code-server" {
 
 ![code-server in a workspace](../images/code-server-ide.png)
 
-## VS Code Server
+## VS Code Web
 
 VS Code supports launching a local web client using the `code serve-web`
-command. To add VS Code web as a web IDE, Install and start this in your
-`startup_script` and create a corresponding `coder_app`
+command. To add VS Code web as a web IDE, you have two options.
 
-```hcl
-resource "coder_agent" "main" {
-    arch           = "amd64"
-    os             = "linux"
-    startup_script = <<EOF
-    #!/bin/sh
-    # install VS Code
-    curl -L "https://update.code.visualstudio.com/1.82.0/linux-deb-x64/stable" -o /tmp/code.deb
-    sudo dpkg -i /tmp/code.deb && sudo apt-get install -f -y
-    # start the web server on a specific port
-    code serve-web --port 13338 --without-connection-token  --accept-server-license-terms >/tmp/vscode-web.log 2>&1 &
-    EOF
-}
-```
+1. Install using the
+   [vscode-web module](https://registry.coder.com/modules/vscode-web) from the
+   coder registry.
 
-> `code serve-web` was introduced in version 1.82.0 (August 2023).
+   ```hcl
+   module "vscode-web" {
+     source         = "https://registry.coder.com/modules/vscode-web"
+     agent_id       = coder_agent.main.id
+     accept_license = true
+   }
+   ```
 
-You also need to add a `coder_app` resource for this.
+2. Install and start in your `startup_script` and create a corresponding
+   `coder_app`
 
-```hcl
-# VS Code Web
-resource "coder_app" "vscode-web" {
-  agent_id     = coder_agent.coder.id
-  slug         = "vscode-web"
-  display_name = "VS Code Web"
-  icon         = "/icon/code.svg"
-  url          = "http://localhost:13338?folder=/home/coder"
-  subdomain    = true  # VS Code Web does currently does not work with a subpath https://github.com/microsoft/vscode/issues/192947
-  share        = "owner"
-}
-```
+   ```hcl
+   resource "coder_agent" "main" {
+       arch           = "amd64"
+       os             = "linux"
+       startup_script = <<EOF
+       #!/bin/sh
+       # install VS Code
+       curl -Lk 'https://code.visualstudio.com/sha/download?build=stable&os=cli-alpine-x64' --output vscode_cli.tar.gz
+       mkdir -p /tmp/vscode-cli
+       tar -xf vscode_cli.tar.gz -C /tmp/vscode-cli
+       rm vscode_cli.tar.gz
+       # start the web server on a specific port
+       /tmp/vscode-cli/code serve-web --port 13338 --without-connection-token  --accept-server-license-terms >/tmp/vscode-web.log 2>&1 &
+       EOF
+   }
+   ```
+
+   > `code serve-web` was introduced in version 1.82.0 (August 2023).
+
+   You also need to add a `coder_app` resource for this.
+
+   ```hcl
+   # VS Code Web
+   resource "coder_app" "vscode-web" {
+     agent_id     = coder_agent.coder.id
+     slug         = "vscode-web"
+     display_name = "VS Code Web"
+     icon         = "/icon/code.svg"
+     url          = "http://localhost:13338?folder=/home/coder"
+     subdomain    = true  # VS Code Web does currently does not work with a subpath https://github.com/microsoft/vscode/issues/192947
+     share        = "owner"
+   }
+   ```
 
 ## JupyterLab
 

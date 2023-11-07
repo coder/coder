@@ -662,6 +662,13 @@ func (m metricsStore) GetTemplateAppInsights(ctx context.Context, arg database.G
 	return r0, r1
 }
 
+func (m metricsStore) GetTemplateAppInsightsByTemplate(ctx context.Context, arg database.GetTemplateAppInsightsByTemplateParams) ([]database.GetTemplateAppInsightsByTemplateRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateAppInsightsByTemplate(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetTemplateAppInsightsByTemplate").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (database.GetTemplateAverageBuildTimeRow, error) {
 	start := time.Now()
 	buildTime, err := m.s.GetTemplateAverageBuildTime(ctx, arg)
@@ -701,6 +708,13 @@ func (m metricsStore) GetTemplateInsightsByInterval(ctx context.Context, arg dat
 	start := time.Now()
 	r0, r1 := m.s.GetTemplateInsightsByInterval(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetTemplateInsightsByInterval").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) GetTemplateInsightsByTemplate(ctx context.Context, arg database.GetTemplateInsightsByTemplateParams) ([]database.GetTemplateInsightsByTemplateRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateInsightsByTemplate(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetTemplateInsightsByTemplate").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -1521,6 +1535,13 @@ func (m metricsStore) UpdateTemplateACLByID(ctx context.Context, arg database.Up
 	err := m.s.UpdateTemplateACLByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateTemplateACLByID").Observe(time.Since(start).Seconds())
 	return err
+}
+
+func (m metricsStore) UpdateTemplateAccessControlByID(ctx context.Context, arg database.UpdateTemplateAccessControlByIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateTemplateAccessControlByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateTemplateAccessControlByID").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m metricsStore) UpdateTemplateActiveVersionByID(ctx context.Context, arg database.UpdateTemplateActiveVersionByIDParams) error {

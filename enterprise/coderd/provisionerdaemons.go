@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
@@ -27,6 +28,8 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 )
@@ -155,6 +158,11 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	id, _ := uuid.Parse(r.URL.Query().Get("id"))
+	if id == uuid.Nil {
+		id = uuid.New()
+	}
+
 	provisionersMap := map[codersdk.ProvisionerType]struct{}{}
 	for _, provisioner := range r.URL.Query()["provisioner"] {
 		switch provisioner {
@@ -210,6 +218,13 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	api.AGPL.WebsocketWaitMutex.Unlock()
 	defer api.AGPL.WebsocketWaitGroup.Done()
 
+	tep := telemetry.ConvertExternalProvisioner(id, tags, provisioners)
+	api.Telemetry.Report(&telemetry.Snapshot{ExternalProvisioners: []telemetry.ExternalProvisioner{tep}})
+	defer func() {
+		tep.ShutdownAt = ptr.Ref(time.Now())
+		api.Telemetry.Report(&telemetry.Snapshot{ExternalProvisioners: []telemetry.ExternalProvisioner{tep}})
+	}()
+
 	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
 		// Need to disable compression to avoid a data-race.
 		CompressionMode: websocket.CompressionDisabled,
@@ -245,7 +260,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	srv, err := provisionerdserver.NewServer(
 		api.ctx,
 		api.AccessURL,
-		uuid.New(),
+		id,
 		logger,
 		provisioners,
 		tags,

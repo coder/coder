@@ -5,7 +5,6 @@ import {
   type Health,
 } from "api/api";
 import { FieldError } from "api/errors";
-import { everyOneGroup } from "utils/groups";
 import * as TypesGen from "api/typesGenerated";
 import range from "lodash/range";
 import { Permissions } from "components/AuthProvider/permissions";
@@ -467,6 +466,7 @@ export const MockTemplate: TypesGen.Template = {
   time_til_dormant_autodelete_ms: 0,
   allow_user_autostart: true,
   allow_user_autostop: true,
+  require_active_version: false,
 };
 
 export const MockTemplateVersionFiles: TemplateVersionFiles = {
@@ -585,6 +585,7 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   status: "connected",
   updated_at: "",
   version: MockBuildInfo.version,
+  api_version: "1.0",
   latency: {
     "Coder Embedded DERP": {
       latency_ms: 32.55,
@@ -959,6 +960,7 @@ export const MockWorkspace: TypesGen.Workspace = {
   template_allow_user_cancel_workspace_jobs:
     MockTemplate.allow_user_cancel_workspace_jobs,
   template_active_version_id: MockTemplate.active_version_id,
+  template_require_active_version: MockTemplate.require_active_version,
   outdated: false,
   owner_id: MockUser.id,
   organization_id: MockOrganization.id,
@@ -1051,6 +1053,27 @@ export const MockOutdatedWorkspace: TypesGen.Workspace = {
   id: "test-outdated-workspace",
   outdated: true,
 };
+
+export const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspace =
+  {
+    ...MockWorkspace,
+    id: "test-outdated-workspace-require-active-version",
+    outdated: true,
+    template_require_active_version: true,
+    latest_build: {
+      ...MockWorkspaceBuild,
+      status: "running",
+    },
+  };
+
+export const MockOutdatedStoppedWorkspaceRequireActiveVersion: TypesGen.Workspace =
+  {
+    ...MockOutdatedRunningWorkspaceRequireActiveVersion,
+    latest_build: {
+      ...MockWorkspaceBuild,
+      status: "stopped",
+    },
+  };
 
 export const MockPendingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
@@ -1231,16 +1254,30 @@ export const MockUserAgent = {
   os: "Windows 10",
 };
 
-export const MockAuthMethods: TypesGen.AuthMethods = {
+export const MockAuthMethodsPasswordOnly: TypesGen.AuthMethods = {
   password: { enabled: true },
   github: { enabled: false },
   oidc: { enabled: false, signInText: "", iconUrl: "" },
 };
 
-export const MockAuthMethodsWithPasswordType: TypesGen.AuthMethods = {
-  ...MockAuthMethods,
+export const MockAuthMethodsExternal: TypesGen.AuthMethods = {
+  password: { enabled: false },
   github: { enabled: true },
-  oidc: { enabled: true, signInText: "", iconUrl: "" },
+  oidc: {
+    enabled: true,
+    signInText: "Google",
+    iconUrl: "/icon/google.svg",
+  },
+};
+
+export const MockAuthMethodsAll: TypesGen.AuthMethods = {
+  password: { enabled: true },
+  github: { enabled: true },
+  oidc: {
+    enabled: true,
+    signInText: "Google",
+    iconUrl: "/icon/google.svg",
+  },
 };
 
 export const MockGitSSHKey: TypesGen.GitSSHKey = {
@@ -2122,6 +2159,17 @@ export const MockGroup: TypesGen.Group = {
   source: "user",
 };
 
+const everyOneGroup = (organizationId: string): TypesGen.Group => ({
+  id: organizationId,
+  name: "Everyone",
+  display_name: "",
+  organization_id: organizationId,
+  members: [],
+  avatar_url: "",
+  quota_allowance: 0,
+  source: "user",
+});
+
 export const MockTemplateACL: TypesGen.TemplateACL = {
   group: [
     { ...everyOneGroup(MockOrganization.id), role: "use" },
@@ -2769,7 +2817,7 @@ export const DeploymentHealthUnhealthy: Health = {
   healthy: false,
   time: "2023-10-12T23:15:00.000000000Z",
   coder_version: "v2.3.0-devel+8cca4915a",
-  access_url: { healthy: false },
+  access_url: { healthy: true },
   database: { healthy: false },
   derp: { healthy: false },
   websocket: { healthy: false },

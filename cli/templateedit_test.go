@@ -1021,4 +1021,30 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.TimeTilDormantMillis, updated.TimeTilDormantMillis)
 		})
 	})
+
+	t.Run("RequireActiveVersion", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {})
+
+		// Test the cli command with --allow-user-autostart.
+		cmdArgs := []string{
+			"templates",
+			"edit",
+			template.Name,
+			"--require-active-version",
+		}
+		inv, root := clitest.New(t, cmdArgs...)
+		//nolint
+		clitest.SetupConfig(t, client, root)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err := inv.WithContext(ctx).Run()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "appears to be an AGPL deployment")
+	})
 }

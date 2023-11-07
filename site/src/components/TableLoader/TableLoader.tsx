@@ -1,21 +1,12 @@
 import TableCell from "@mui/material/TableCell";
 import TableRow, { type TableRowProps } from "@mui/material/TableRow";
 import { type FC, type ReactNode, cloneElement, isValidElement } from "react";
-import { useTheme } from "@emotion/react";
 import { Loader } from "../Loader/Loader";
 
 export const TableLoader: FC = () => {
-  const theme = useTheme();
-
   return (
     <TableRow>
-      <TableCell
-        colSpan={999}
-        css={{
-          textAlign: "center",
-          height: theme.spacing(20),
-        }}
-      >
+      <TableCell colSpan={999} css={{ textAlign: "center", height: 160 }}>
         <Loader />
       </TableCell>
     </TableRow>

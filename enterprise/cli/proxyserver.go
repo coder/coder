@@ -158,7 +158,7 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 				logger.Debug(ctx, "tracing closed", slog.Error(traceCloseErr))
 			}()
 
-			httpServers, err := cli.ConfigureHTTPServers(inv, cfg)
+			httpServers, err := cli.ConfigureHTTPServers(logger, inv, cfg)
 			if err != nil {
 				return xerrors.Errorf("configure http(s): %w", err)
 			}

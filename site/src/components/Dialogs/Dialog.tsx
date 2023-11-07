@@ -1,13 +1,9 @@
 import MuiDialog, { DialogProps as MuiDialogProps } from "@mui/material/Dialog";
 import { type ReactNode } from "react";
 import { colors } from "theme/colors";
-import {
-  LoadingButton,
-  LoadingButtonProps,
-} from "../LoadingButton/LoadingButton";
 import { ConfirmDialogType } from "./types";
 import { type Interpolation, type Theme } from "@emotion/react";
-import { dark } from "theme/theme";
+import LoadingButton, { LoadingButtonProps } from "@mui/lab/LoadingButton";
 
 export interface DialogActionButtonsProps {
   /** Text to display in the cancel button */
@@ -16,8 +12,6 @@ export interface DialogActionButtonsProps {
   confirmText?: ReactNode;
   /** Whether or not confirm is loading, also disables cancel when true */
   confirmLoading?: boolean;
-  /** Whether or not this is a confirm dialog */
-  confirmDialog?: boolean;
   /** Whether or not the submit button is disabled */
   disabled?: boolean;
   /** Called when cancel is clicked */
@@ -28,7 +22,7 @@ export interface DialogActionButtonsProps {
 }
 
 const typeToColor = (type: ConfirmDialogType): LoadingButtonProps["color"] => {
-  if (type === "danger") {
+  if (type === "delete") {
     return "secondary";
   }
   return "primary";
@@ -53,6 +47,7 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
           {cancelText}
         </LoadingButton>
       )}
+
       {onConfirm && (
         <LoadingButton
           fullWidth
@@ -64,7 +59,7 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
           disabled={disabled}
           type="submit"
           css={[
-            type === "danger" && styles.dangerButton,
+            type === "delete" && styles.errorButton,
             type === "success" && styles.successButton,
           ]}
         >
@@ -76,64 +71,59 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
 };
 
 const styles = {
-  dangerButton: (theme) => ({
+  errorButton: (theme) => ({
     "&.MuiButton-contained": {
-      backgroundColor: dark.roles.danger.fill,
-      borderColor: dark.roles.danger.outline,
-      color: dark.roles.danger.text,
+      backgroundColor: colors.red[10],
+      borderColor: colors.red[9],
+
+      "&:not(.MuiLoadingButton-loading)": {
+        color: theme.palette.text.primary,
+      },
 
       "&:hover:not(:disabled)": {
-        backgroundColor: dark.roles.danger.hover.fill,
-        borderColor: dark.roles.danger.hover.outline,
-        color: dark.roles.danger.hover.text,
+        backgroundColor: colors.red[9],
+        borderColor: colors.red[9],
       },
 
       "&.Mui-disabled": {
-        backgroundColor: dark.roles.danger.disabled.fill,
-        borderColor: dark.roles.danger.disabled.outline,
-        color: dark.roles.danger.disabled.text,
+        backgroundColor: colors.red[15],
+        borderColor: colors.red[15],
+
+        "&:not(.MuiLoadingButton-loading)": {
+          color: colors.red[9],
+        },
       },
     },
   }),
   successButton: (theme) => ({
     "&.MuiButton-contained": {
-      backgroundColor: dark.roles.success.fill,
-      borderColor: dark.roles.success.outline,
-      color: dark.roles.success.text,
+      backgroundColor: theme.palette.success.main,
 
-      "&:hover:not(:disabled)": {
-        backgroundColor: dark.roles.success.hover.fill,
-        borderColor: dark.roles.success.hover.outline,
-        color: dark.roles.success.hover.text,
+      "&:not(.MuiLoadingButton-loading)": {
+        color: theme.palette.primary.contrastText,
+      },
+
+      "&:hover": {
+        backgroundColor: theme.palette.success.dark,
+
+        "@media (hover: none)": {
+          backgroundColor: "transparent",
+        },
+
+        "&.Mui-disabled": {
+          backgroundColor: "transparent",
+        },
       },
 
       "&.Mui-disabled": {
-        backgroundColor: dark.roles.success.disabled.fill,
-        borderColor: dark.roles.success.disabled.outline,
-        color: dark.roles.success.disabled.text,
+        backgroundColor: theme.palette.success.dark,
+
+        "&:not(.MuiLoadingButton-loading)": {
+          color: theme.palette.text.secondary,
+        },
       },
     },
 
-    // I wanna use the version about instead. bit cleaner, and matches the danger mode.
-    // "&.MuiButton-contained": {
-    //   backgroundColor: theme.palette.success.main,
-    //   color: theme.palette.primary.contrastText,
-    //   "&:hover": {
-    //     backgroundColor: theme.palette.success.dark,
-    //     "@media (hover: none)": {
-    //       backgroundColor: "transparent",
-    //     },
-    //     "&.Mui-disabled": {
-    //       backgroundColor: "transparent",
-    //     },
-    //   },
-    //   "&.Mui-disabled": {
-    //     backgroundColor: theme.palette.action.disabledBackground,
-    //     color: theme.palette.text.secondary,
-    //   },
-    // },
-
-    // TODO: do we need this?
     "&.MuiButton-outlined": {
       color: theme.palette.success.main,
       borderColor: theme.palette.success.main,
@@ -152,7 +142,6 @@ const styles = {
       },
     },
 
-    // TODO: do we need this?
     "&.MuiButton-text": {
       color: theme.palette.success.main,
       "&:hover": {

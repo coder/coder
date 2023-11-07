@@ -135,6 +135,10 @@ rules:
           message:
             "You should use the Alert component provided on
             components/Alert/Alert"
+        - name: "@mui/material/Popover"
+          message:
+            "You should use the Popover component provided on
+            components/Popover/Popover"
   no-unused-vars: "off"
   "object-curly-spacing": "off"
   react-hooks/exhaustive-deps: warn

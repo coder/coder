@@ -1584,6 +1584,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "icon": "string",
   "max_ttl_ms": 0,
   "name": "string",
+  "require_active_version": true,
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1"
 }
 ```
@@ -1607,6 +1608,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `icon`                                                                                                                                                                                    | string                                                                         | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                                                                                                    |
 | `max_ttl_ms`                                                                                                                                                                              | integer                                                                        | false    |              | Max ttl ms remove max_ttl once autostop_requirement is matured                                                                                                                                                                                                                                                      |
 | `name`                                                                                                                                                                                    | string                                                                         | true     |              | Name is the name of the template.                                                                                                                                                                                                                                                                                   |
+| `require_active_version`                                                                                                                                                                  | boolean                                                                        | false    |              | Require active version mandates that workspaces are built with the active template version.                                                                                                                                                                                                                         |
 | `template_version_id`                                                                                                                                                                     | string                                                                         | true     |              | Template version ID is an in-progress or completed job to use as an initial version of the template.                                                                                                                                                                                                                |
 | This is required on creation to enable a user-flow of validating a template works. There is no reason the data-model cannot support empty templates, but it doesn't make sense for users. |
 
@@ -2287,6 +2289,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "host": "string",
         "port": "string"
       },
+      "allow_insecure_ciphers": true,
       "cert_file": ["string"],
       "client_auth": "string",
       "client_ca_file": "string",
@@ -2295,7 +2298,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "enable": true,
       "key_file": ["string"],
       "min_version": "string",
-      "redirect_http": true
+      "redirect_http": true,
+      "supported_ciphers": ["string"]
     },
     "trace": {
       "capture_logs": true,
@@ -2656,6 +2660,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "host": "string",
       "port": "string"
     },
+    "allow_insecure_ciphers": true,
     "cert_file": ["string"],
     "client_auth": "string",
     "client_ca_file": "string",
@@ -2664,7 +2669,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "enable": true,
     "key_file": ["string"],
     "min_version": "string",
-    "redirect_http": true
+    "redirect_http": true,
+    "supported_ciphers": ["string"]
   },
   "trace": {
     "capture_logs": true,
@@ -2843,11 +2849,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Value                           |
 | ------------------------------- |
 | `moons`                         |
+| `workspace_actions`             |
 | `tailnet_pg_coordinator`        |
 | `single_tailnet`                |
 | `template_autostop_requirement` |
 | `deployment_health_page`        |
 | `dashboard_theme`               |
+| `template_update_policies`      |
 
 ## codersdk.ExternalAuth
 
@@ -4274,6 +4282,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "host": "string",
     "port": "string"
   },
+  "allow_insecure_ciphers": true,
   "cert_file": ["string"],
   "client_auth": "string",
   "client_ca_file": "string",
@@ -4282,24 +4291,27 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "enable": true,
   "key_file": ["string"],
   "min_version": "string",
-  "redirect_http": true
+  "redirect_http": true,
+  "supported_ciphers": ["string"]
 }
 ```
 
 ### Properties
 
-| Name               | Type                                 | Required | Restrictions | Description |
-| ------------------ | ------------------------------------ | -------- | ------------ | ----------- |
-| `address`          | [clibase.HostPort](#clibasehostport) | false    |              |             |
-| `cert_file`        | array of string                      | false    |              |             |
-| `client_auth`      | string                               | false    |              |             |
-| `client_ca_file`   | string                               | false    |              |             |
-| `client_cert_file` | string                               | false    |              |             |
-| `client_key_file`  | string                               | false    |              |             |
-| `enable`           | boolean                              | false    |              |             |
-| `key_file`         | array of string                      | false    |              |             |
-| `min_version`      | string                               | false    |              |             |
-| `redirect_http`    | boolean                              | false    |              |             |
+| Name                     | Type                                 | Required | Restrictions | Description |
+| ------------------------ | ------------------------------------ | -------- | ------------ | ----------- |
+| `address`                | [clibase.HostPort](#clibasehostport) | false    |              |             |
+| `allow_insecure_ciphers` | boolean                              | false    |              |             |
+| `cert_file`              | array of string                      | false    |              |             |
+| `client_auth`            | string                               | false    |              |             |
+| `client_ca_file`         | string                               | false    |              |             |
+| `client_cert_file`       | string                               | false    |              |             |
+| `client_key_file`        | string                               | false    |              |             |
+| `enable`                 | boolean                              | false    |              |             |
+| `key_file`               | array of string                      | false    |              |             |
+| `min_version`            | string                               | false    |              |             |
+| `redirect_http`          | boolean                              | false    |              |             |
+| `supported_ciphers`      | array of string                      | false    |              |             |
 
 ## codersdk.TelemetryConfig
 
@@ -4370,6 +4382,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "provisioner": "terraform",
+  "require_active_version": true,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
@@ -4401,6 +4414,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `name`                             | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `organization_id`                  | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `provisioner`                      | string                                                                         | false    |              |                                                                                                                                                                                                 |
+| `require_active_version`           | boolean                                                                        | false    |              | Require active version mandates that workspaces are built with the active template version.                                                                                                     |
 | `time_til_dormant_autodelete_ms`   | integer                                                                        | false    |              |                                                                                                                                                                                                 |
 | `time_til_dormant_ms`              | integer                                                                        | false    |              |                                                                                                                                                                                                 |
 | `updated_at`                       | string                                                                         | false    |              |                                                                                                                                                                                                 |
@@ -5636,6 +5650,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       {
         "agents": [
           {
+            "api_version": "string",
             "apps": [
               {
                 "command": "string",
@@ -5761,6 +5776,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "template_icon": "string",
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_name": "string",
+  "template_require_active_version": true,
   "ttl_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -5790,6 +5806,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `template_icon`                             | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
 | `template_id`                               | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
 | `template_name`                             | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
+| `template_require_active_version`           | boolean                                                | false    |              |                                                                                                                                                                                                                                                       |
 | `ttl_ms`                                    | integer                                                | false    |              |                                                                                                                                                                                                                                                       |
 | `updated_at`                                | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
 
@@ -5804,6 +5821,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "api_version": "string",
   "apps": [
     {
       "command": "string",
@@ -5895,6 +5913,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 | Name                         | Type                                                                                         | Required | Restrictions | Description                                                                                                                                                                  |
 | ---------------------------- | -------------------------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `api_version`                | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `apps`                       | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)                                      | false    |              |                                                                                                                                                                              |
 | `architecture`               | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `connection_timeout_seconds` | integer                                                                                      | false    |              |                                                                                                                                                                              |
@@ -6323,6 +6342,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     {
       "agents": [
         {
+          "api_version": "string",
           "apps": [
             {
               "command": "string",
@@ -6652,6 +6672,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 {
   "agents": [
     {
+      "api_version": "string",
       "apps": [
         {
           "command": "string",
@@ -6888,6 +6909,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           {
             "agents": [
               {
+                "api_version": "string",
                 "apps": [
                   {
                     "command": "string",
@@ -7009,6 +7031,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "template_icon": "string",
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
+      "template_require_active_version": true,
       "ttl_ms": 0,
       "updated_at": "2019-08-24T14:15:22Z"
     }

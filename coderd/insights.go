@@ -452,7 +452,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 		{
 			TemplateIDs: usage.TemplateIDs,
 			Type:        codersdk.TemplateAppsTypeBuiltin,
-			DisplayName: "Visual Studio Code",
+			DisplayName: codersdk.TemplateBuiltinAppDisplayNameVSCode,
 			Slug:        "vscode",
 			Icon:        "/icon/code.svg",
 			Seconds:     usage.UsageVscodeSeconds,
@@ -460,7 +460,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 		{
 			TemplateIDs: usage.TemplateIDs,
 			Type:        codersdk.TemplateAppsTypeBuiltin,
-			DisplayName: "JetBrains",
+			DisplayName: codersdk.TemplateBuiltinAppDisplayNameJetBrains,
 			Slug:        "jetbrains",
 			Icon:        "/icon/intellij.svg",
 			Seconds:     usage.UsageJetbrainsSeconds,
@@ -474,7 +474,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 		{
 			TemplateIDs: usage.TemplateIDs,
 			Type:        codersdk.TemplateAppsTypeBuiltin,
-			DisplayName: "Web Terminal",
+			DisplayName: codersdk.TemplateBuiltinAppDisplayNameWebTerminal,
 			Slug:        "reconnecting-pty",
 			Icon:        "/icon/terminal.svg",
 			Seconds:     usage.UsageReconnectingPtySeconds,
@@ -482,7 +482,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 		{
 			TemplateIDs: usage.TemplateIDs,
 			Type:        codersdk.TemplateAppsTypeBuiltin,
-			DisplayName: "SSH",
+			DisplayName: codersdk.TemplateBuiltinAppDisplayNameSSH,
 			Slug:        "ssh",
 			Icon:        "/icon/terminal.svg",
 			Seconds:     usage.UsageSshSeconds,

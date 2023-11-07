@@ -698,6 +698,23 @@ func ConvertWorkspaceProxy(proxy database.WorkspaceProxy) WorkspaceProxy {
 	}
 }
 
+func ConvertExternalProvisioner(id uuid.UUID, tags map[string]string, provisioners []database.ProvisionerType) ExternalProvisioner {
+	tagsCopy := make(map[string]string, len(tags))
+	for k, v := range tags {
+		tagsCopy[k] = v
+	}
+	strProvisioners := make([]string, 0, len(provisioners))
+	for _, prov := range provisioners {
+		strProvisioners = append(strProvisioners, string(prov))
+	}
+	return ExternalProvisioner{
+		ID:           id.String(),
+		Tags:         tagsCopy,
+		Provisioners: strProvisioners,
+		StartedAt:    time.Now(),
+	}
+}
+
 // Snapshot represents a point-in-time anonymized database dump.
 // Data is aggregated by latest on the server-side, so partial data
 // can be sent without issue.
@@ -705,20 +722,21 @@ type Snapshot struct {
 	DeploymentID string `json:"deployment_id"`
 
 	APIKeys                   []APIKey                    `json:"api_keys"`
-	ProvisionerJobs           []ProvisionerJob            `json:"provisioner_jobs"`
-	Licenses                  []License                   `json:"licenses"`
-	Templates                 []Template                  `json:"templates"`
-	TemplateVersions          []TemplateVersion           `json:"template_versions"`
-	Users                     []User                      `json:"users"`
-	Workspaces                []Workspace                 `json:"workspaces"`
-	WorkspaceApps             []WorkspaceApp              `json:"workspace_apps"`
-	WorkspaceAgents           []WorkspaceAgent            `json:"workspace_agents"`
-	WorkspaceAgentStats       []WorkspaceAgentStat        `json:"workspace_agent_stats"`
-	WorkspaceBuilds           []WorkspaceBuild            `json:"workspace_build"`
-	WorkspaceResources        []WorkspaceResource         `json:"workspace_resources"`
-	WorkspaceResourceMetadata []WorkspaceResourceMetadata `json:"workspace_resource_metadata"`
-	WorkspaceProxies          []WorkspaceProxy            `json:"workspace_proxies"`
 	CLIInvocations            []clitelemetry.Invocation   `json:"cli_invocations"`
+	ExternalProvisioners      []ExternalProvisioner       `json:"external_provisioners"`
+	Licenses                  []License                   `json:"licenses"`
+	ProvisionerJobs           []ProvisionerJob            `json:"provisioner_jobs"`
+	TemplateVersions          []TemplateVersion           `json:"template_versions"`
+	Templates                 []Template                  `json:"templates"`
+	Users                     []User                      `json:"users"`
+	WorkspaceAgentStats       []WorkspaceAgentStat        `json:"workspace_agent_stats"`
+	WorkspaceAgents           []WorkspaceAgent            `json:"workspace_agents"`
+	WorkspaceApps             []WorkspaceApp              `json:"workspace_apps"`
+	WorkspaceBuilds           []WorkspaceBuild            `json:"workspace_build"`
+	WorkspaceProxies          []WorkspaceProxy            `json:"workspace_proxies"`
+	WorkspaceResourceMetadata []WorkspaceResourceMetadata `json:"workspace_resource_metadata"`
+	WorkspaceResources        []WorkspaceResource         `json:"workspace_resources"`
+	Workspaces                []Workspace                 `json:"workspaces"`
 }
 
 // Deployment contains information about the host running Coder.
@@ -898,6 +916,14 @@ type WorkspaceProxy struct {
 	// No Status since it may contain sensitive information.
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type ExternalProvisioner struct {
+	ID           string            `json:"id"`
+	Tags         map[string]string `json:"tags"`
+	Provisioners []string          `json:"provisioners"`
+	StartedAt    time.Time         `json:"started_at"`
+	ShutdownAt   *time.Time        `json:"shutdown_at"`
 }
 
 type noopReporter struct{}

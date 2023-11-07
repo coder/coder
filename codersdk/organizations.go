@@ -124,6 +124,10 @@ type CreateTemplateRequest struct {
 	// and must be explicitly granted to users or groups in the permissions settings
 	// of the template.
 	DisableEveryoneGroupAccess bool `json:"disable_everyone_group_access"`
+
+	// RequireActiveVersion mandates that workspaces are built with the active
+	// template version.
+	RequireActiveVersion bool `json:"require_active_version"`
 }
 
 // CreateWorkspaceRequest provides options for creating a new workspace.

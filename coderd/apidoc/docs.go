@@ -222,14 +222,6 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Search query",
                         "name": "q",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "After ID",
-                        "name": "after_id",
                         "in": "query"
                     },
                     {
@@ -285,6 +277,9 @@ const docTemplate = `{
                     "204": {
                         "description": "No Content"
                     }
+                },
+                "x-apidocgen": {
+                    "skip": true
                 }
             }
         },
@@ -7816,6 +7811,10 @@ const docTemplate = `{
                     "description": "Name is the name of the template.",
                     "type": "string"
                 },
+                "require_active_version": {
+                    "description": "RequireActiveVersion mandates that workspaces are built with the active\ntemplate version.",
+                    "type": "boolean"
+                },
                 "template_version_id": {
                     "description": "VersionID is an in-progress or completed job to use as an initial version\nof the template.\n\nThis is required on creation to enable a user-flow of validating a\ntemplate works. There is no reason the data-model cannot support empty\ntemplates, but it doesn't make sense for users.",
                     "type": "string",
@@ -8533,19 +8532,23 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "moons",
+                "workspace_actions",
                 "tailnet_pg_coordinator",
                 "single_tailnet",
                 "template_autostop_requirement",
                 "deployment_health_page",
-                "dashboard_theme"
+                "dashboard_theme",
+                "template_update_policies"
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
+                "ExperimentWorkspaceActions",
                 "ExperimentTailnetPGCoordinator",
                 "ExperimentSingleTailnet",
                 "ExperimentTemplateAutostopRequirement",
                 "ExperimentDeploymentHealthPage",
-                "ExperimentDashboardTheme"
+                "ExperimentDashboardTheme",
+                "ExperimentTemplateUpdatePolicies"
             ]
         },
         "codersdk.ExternalAuth": {
@@ -9862,6 +9865,9 @@ const docTemplate = `{
                 "address": {
                     "$ref": "#/definitions/clibase.HostPort"
                 },
+                "allow_insecure_ciphers": {
+                    "type": "boolean"
+                },
                 "cert_file": {
                     "type": "array",
                     "items": {
@@ -9894,6 +9900,12 @@ const docTemplate = `{
                 },
                 "redirect_http": {
                     "type": "boolean"
+                },
+                "supported_ciphers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -9993,6 +10005,10 @@ const docTemplate = `{
                     "enum": [
                         "terraform"
                     ]
+                },
+                "require_active_version": {
+                    "description": "RequireActiveVersion mandates that workspaces are built with the active\ntemplate version.",
+                    "type": "boolean"
                 },
                 "time_til_dormant_autodelete_ms": {
                     "type": "integer"
@@ -11115,6 +11131,9 @@ const docTemplate = `{
                 "template_name": {
                     "type": "string"
                 },
+                "template_require_active_version": {
+                    "type": "boolean"
+                },
                 "ttl_ms": {
                     "type": "integer"
                 },
@@ -11127,6 +11146,9 @@ const docTemplate = `{
         "codersdk.WorkspaceAgent": {
             "type": "object",
             "properties": {
+                "api_version": {
+                    "type": "string"
+                },
                 "apps": {
                     "type": "array",
                     "items": {
