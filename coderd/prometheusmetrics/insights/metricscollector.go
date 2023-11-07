@@ -165,7 +165,11 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 
 	// Custom apps
 	for _, appRow := range data.apps {
-		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue, float64(appRow.UsageSeconds), appRow.DisplayName.String, data.templateNames[appRow.TemplateID])
+		displayName := appRow.DisplayName.String
+		if displayName == "" { // just in case Prometheus complains about missing label value
+			displayName = "unknown"
+		}
+		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue, float64(appRow.UsageSeconds), displayName, data.templateNames[appRow.TemplateID])
 	}
 
 	// Built-in apps
