@@ -96,7 +96,6 @@ function BaseNavButton({
   return (
     <Tooltip title={disabledMessage} open={showDisabledMessage}>
       <Button
-        disabled={false}
         aria-label={ariaLabel}
         css={
           disabled && {
