@@ -933,8 +933,10 @@ export const getTemplateDAUs = async (
 };
 
 export const getDeploymentDAUs = async (
-  // Default to user's local timezone
-  offset = new Date().getTimezoneOffset() / 60,
+  // Default to user's local timezone.
+  // As /api/v2/insights/daus only accepts whole-number values for tz_offset
+  // we truncate the tz offset down to the closest hour.
+  offset = Math.trunc(new Date().getTimezoneOffset() / 60),
 ): Promise<TypesGen.DAUsResponse> => {
   const response = await axios.get(`/api/v2/insights/daus?tz_offset=${offset}`);
   return response.data;
