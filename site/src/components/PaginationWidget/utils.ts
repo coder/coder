@@ -1,30 +1,35 @@
 /**
  * Generates a ranged array with an option to step over values.
  * Shamelessly stolen from:
- * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/from#sequence_generator_range
+ * {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/from#sequence_generator_range}
  */
 const range = (start: number, stop: number, step = 1) =>
   Array.from({ length: (stop - start) / step + 1 }, (_, i) => start + i * step);
 
 export const DEFAULT_RECORDS_PER_PAGE = 25;
-// Number of pages to the left or right of the current page selection.
+
+// Number of pages to display on either side of the current page selection
 const PAGE_NEIGHBORS = 1;
-// Number of pages displayed for cases where there are multiple ellipsis showing. This can be
-// thought of as the minimum number of page numbers to display when multiple ellipsis are showing.
+
+// Minimum number of pages to display at all times (assuming there are enough
+// pages). Needed to handle case where there are the left and right
+// placeholder/ellipsis elements are both showing
 const PAGES_TO_DISPLAY = PAGE_NEIGHBORS * 2 + 3;
-// Total page blocks(page numbers or ellipsis) displayed, including the maximum number of ellipsis (2).
-// This gives us maximum number of 7 page blocks to be displayed when the page neighbors value is 1.
-const NUM_PAGE_BLOCKS = PAGES_TO_DISPLAY + 2;
+
+// Total number of pagination elements to display (accounting for visible pages
+// and up to two ellipses placeholders). With 1 page neighbor on either side,
+// the UI will show up to seven elements total
+const TOTAL_PAGE_BLOCKS = PAGES_TO_DISPLAY + 2;
 
 /**
- * Builds a list of pages based on how many pages exist and where the user is in their navigation of those pages.
- * List result is used to from the buttons that make up the Pagination Widget
+ * Takes the total number of pages from a pagination result, and truncates it
+ * into a UI-friendly list.
  */
 export const buildPagedList = (
   numPages: number,
   activePage: number,
 ): ("left" | "right" | number)[] => {
-  if (numPages > NUM_PAGE_BLOCKS) {
+  if (numPages > TOTAL_PAGE_BLOCKS) {
     let pages = [];
     const leftBound = activePage - PAGE_NEIGHBORS;
     const rightBound = activePage + PAGE_NEIGHBORS;
@@ -56,12 +61,14 @@ export const buildPagedList = (
   return range(1, numPages);
 };
 
-// pages count from 1
-export const getOffset = (page: number, limit: number): number => {
+/**
+ * Calculates the current offset from the start of a paginated dataset
+ */
+export const getOffset = (page: number, pageSize: number): number => {
   const pageIsValid = Number.isInteger(page) && page >= 1;
   const pageToUse = pageIsValid ? page : 1;
 
-  return (pageToUse - 1) * limit;
+  return (pageToUse - 1) * pageSize;
 };
 
 export const isNonInitialPage = (searchParams: URLSearchParams): boolean => {
