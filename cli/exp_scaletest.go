@@ -394,6 +394,8 @@ func (r *userCleanupRunner) Run(ctx context.Context, _ string, _ io.Writer) erro
 }
 
 func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
+	var template string
+
 	cleanupStrategy := &scaletestStrategyFlags{cleanup: true}
 	client := new(codersdk.Client)
 
@@ -407,7 +409,7 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
 
-			_, err := requireAdmin(ctx, client)
+			me, err := requireAdmin(ctx, client)
 			if err != nil {
 				return err
 			}
@@ -421,8 +423,15 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 				},
 			}
 
+			if template != "" {
+				_, err := parseTemplate(ctx, client, me.OrganizationIDs, template)
+				if err != nil {
+					return xerrors.Errorf("parse template: %w", err)
+				}
+			}
+
 			cliui.Infof(inv.Stdout, "Fetching scaletest workspaces...")
-			workspaces, err := getScaletestWorkspaces(ctx, client)
+			workspaces, err := getScaletestWorkspaces(ctx, client, template)
 			if err != nil {
 				return err
 			}
@@ -491,6 +500,15 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 			}
 
 			return nil
+		},
+	}
+
+	cmd.Options = clibase.OptionSet{
+		{
+			Flag:        "template",
+			Env:         "CODER_SCALETEST_CLEANUP_TEMPLATE",
+			Description: "Name or ID of the template. Only delete workspaces created from the given template.",
+			Value:       clibase.StringOf(&template),
 		},
 	}
 
@@ -564,34 +582,12 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 				return xerrors.Errorf("could not parse --output flags")
 			}
 
-			var tpl codersdk.Template
 			if template == "" {
 				return xerrors.Errorf("--template is required")
 			}
-			if id, err := uuid.Parse(template); err == nil && id != uuid.Nil {
-				tpl, err = client.Template(ctx, id)
-				if err != nil {
-					return xerrors.Errorf("get template by ID %q: %w", template, err)
-				}
-			} else {
-				// List templates in all orgs until we find a match.
-			orgLoop:
-				for _, orgID := range me.OrganizationIDs {
-					tpls, err := client.TemplatesByOrganization(ctx, orgID)
-					if err != nil {
-						return xerrors.Errorf("list templates in org %q: %w", orgID, err)
-					}
-
-					for _, t := range tpls {
-						if t.Name == template {
-							tpl = t
-							break orgLoop
-						}
-					}
-				}
-			}
-			if tpl.ID == uuid.Nil {
-				return xerrors.Errorf("could not find template %q in any organization", template)
+			tpl, err := parseTemplate(ctx, client, me.OrganizationIDs, template)
+			if err != nil {
+				return xerrors.Errorf("parse template: %w", err)
 			}
 
 			cliRichParameters, err := asWorkspaceBuildParameters(parameterFlags.richParameters)
@@ -859,6 +855,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 		tickInterval time.Duration
 		bytesPerTick int64
 		ssh          bool
+		template     string
 
 		client          = &codersdk.Client{}
 		tracingFlags    = &scaletestTracingFlags{}
@@ -876,6 +873,12 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
+
+			me, err := requireAdmin(ctx, client)
+			if err != nil {
+				return err
+			}
+
 			reg := prometheus.NewRegistry()
 			metrics := workspacetraffic.NewMetrics(reg, "username", "workspace_name", "agent_name")
 
@@ -893,7 +896,14 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 				},
 			}
 
-			workspaces, err := getScaletestWorkspaces(inv.Context(), client)
+			if template != "" {
+				_, err := parseTemplate(ctx, client, me.OrganizationIDs, template)
+				if err != nil {
+					return xerrors.Errorf("parse template: %w", err)
+				}
+			}
+
+			workspaces, err := getScaletestWorkspaces(inv.Context(), client, template)
 			if err != nil {
 				return err
 			}
@@ -997,6 +1007,13 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 	}
 
 	cmd.Options = []clibase.Option{
+		{
+			Flag:          "template",
+			FlagShorthand: "t",
+			Env:           "CODER_SCALETEST_TEMPLATE",
+			Description:   "Name or ID of the template. Traffic generation will be limited to workspaces created from this template.",
+			Value:         clibase.StringOf(&template),
+		},
 		{
 			Flag:        "bytes-per-tick",
 			Env:         "CODER_SCALETEST_WORKSPACE_TRAFFIC_BYTES_PER_TICK",
@@ -1281,7 +1298,7 @@ func isScaleTestWorkspace(workspace codersdk.Workspace) bool {
 		strings.HasPrefix(workspace.Name, "scaletest-")
 }
 
-func getScaletestWorkspaces(ctx context.Context, client *codersdk.Client) ([]codersdk.Workspace, error) {
+func getScaletestWorkspaces(ctx context.Context, client *codersdk.Client, template string) ([]codersdk.Workspace, error) {
 	var (
 		pageNumber = 0
 		limit      = 100
@@ -1290,9 +1307,10 @@ func getScaletestWorkspaces(ctx context.Context, client *codersdk.Client) ([]cod
 
 	for {
 		page, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-			Name:   "scaletest-",
-			Offset: pageNumber * limit,
-			Limit:  limit,
+			Name:     "scaletest-",
+			Template: template,
+			Offset:   pageNumber * limit,
+			Limit:    limit,
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("fetch scaletest workspaces page %d: %w", pageNumber, err)
@@ -1348,4 +1366,34 @@ func getScaletestUsers(ctx context.Context, client *codersdk.Client) ([]codersdk
 	}
 
 	return users, nil
+}
+
+func parseTemplate(ctx context.Context, client *codersdk.Client, organizationIDs []uuid.UUID, template string) (tpl codersdk.Template, err error) {
+	if id, err := uuid.Parse(template); err == nil && id != uuid.Nil {
+		tpl, err = client.Template(ctx, id)
+		if err != nil {
+			return tpl, xerrors.Errorf("get template by ID %q: %w", template, err)
+		}
+	} else {
+		// List templates in all orgs until we find a match.
+	orgLoop:
+		for _, orgID := range organizationIDs {
+			tpls, err := client.TemplatesByOrganization(ctx, orgID)
+			if err != nil {
+				return tpl, xerrors.Errorf("list templates in org %q: %w", orgID, err)
+			}
+
+			for _, t := range tpls {
+				if t.Name == template {
+					tpl = t
+					break orgLoop
+				}
+			}
+		}
+	}
+	if tpl.ID == uuid.Nil {
+		return tpl, xerrors.Errorf("could not find template %q in any organization", template)
+	}
+
+	return tpl, nil
 }
