@@ -72,7 +72,7 @@ export const BatchDeleteConfirmation = (
   const { checkedWorkspaces, open, onClose, onConfirm, isLoading } = props;
   const [confirmation, setConfirmation] = useState({ value: "", error: false });
 
-  const confirmDeletion = async () => {
+  const confirmDeletion = () => {
     setConfirmation((c) => ({ ...c, error: false }));
 
     if (confirmation.value !== "DELETE") {
@@ -100,7 +100,7 @@ export const BatchDeleteConfirmation = (
         <form
           onSubmit={async (e) => {
             e.preventDefault();
-            await confirmDeletion();
+            confirmDeletion();
           }}
         >
           <Box>
@@ -129,7 +129,8 @@ export const BatchDeleteConfirmation = (
             placeholder="Type DELETE to confirm"
             sx={{ mt: 2 }}
             onChange={(e) => {
-              setConfirmation((c) => ({ ...c, value: e.currentTarget.value }));
+              const value = e.currentTarget?.value;
+              setConfirmation((c) => ({ ...c, value }));
             }}
             error={confirmation.error}
             helperText={confirmation.error && "Please type DELETE to confirm"}

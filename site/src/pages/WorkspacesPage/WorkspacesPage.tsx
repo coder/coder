@@ -142,7 +142,10 @@ const WorkspacesPage: FC = () => {
         isLoading={batchActions.isLoading}
         checkedWorkspaces={checkedWorkspaces}
         open={isConfirmingDeleteAll}
-        onConfirm={() => batchActions.deleteAll(checkedWorkspaces)}
+        onConfirm={async () => {
+          await batchActions.deleteAll(checkedWorkspaces);
+          setIsConfirmingDeleteAll(false);
+        }}
         onClose={() => {
           setIsConfirmingDeleteAll(false);
         }}
