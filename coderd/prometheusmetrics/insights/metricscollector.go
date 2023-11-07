@@ -13,6 +13,7 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 var (
@@ -162,12 +163,34 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 		return // insights data not loaded yet
 	}
 
-	for _, templateRow := range data.templates {
-		metricsCh <- prometheus.MustNewConstMetric(templatesActiveUsersDesc, prometheus.GaugeValue, float64(templateRow.ActiveUsers), data.templateNames[templateRow.TemplateID])
-	}
-
+	// Custom apps
 	for _, appRow := range data.apps {
 		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue, float64(appRow.UsageSeconds), appRow.DisplayName.String, data.templateNames[appRow.TemplateID])
+	}
+
+	// Built-in apps
+	for _, templateRow := range data.templates {
+		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
+			float64(templateRow.UsageVscodeSeconds),
+			codersdk.TemplateBuiltinAppDisplayNameVSCode,
+			data.templateNames[templateRow.TemplateID])
+		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
+			float64(templateRow.UsageJetbrainsSeconds),
+			codersdk.TemplateBuiltinAppDisplayNameJetBrains,
+			data.templateNames[templateRow.TemplateID])
+		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
+			float64(templateRow.UsageReconnectingPtySeconds),
+			codersdk.TemplateBuiltinAppDisplayNameWebTerminal,
+			data.templateNames[templateRow.TemplateID])
+		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
+			float64(templateRow.UsageSshSeconds),
+			codersdk.TemplateBuiltinAppDisplayNameSSH,
+			data.templateNames[templateRow.TemplateID])
+	}
+
+	// Templates
+	for _, templateRow := range data.templates {
+		metricsCh <- prometheus.MustNewConstMetric(templatesActiveUsersDesc, prometheus.GaugeValue, float64(templateRow.ActiveUsers), data.templateNames[templateRow.TemplateID])
 	}
 }
 
