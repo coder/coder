@@ -20,6 +20,20 @@ import Button from "@mui/material/Button";
 import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
 import { WorkspacesButton } from "./WorkspacesButton";
 import { UseQueryResult } from "react-query";
+import StopOutlined from "@mui/icons-material/StopOutlined";
+import PlayArrowOutlined from "@mui/icons-material/PlayArrowOutlined";
+import {
+  MoreMenu,
+  MoreMenuContent,
+  MoreMenuItem,
+  MoreMenuTrigger,
+} from "components/MoreMenu/MoreMenu";
+import {
+  ArrowDropDown,
+  ArrowDropDownOutlined,
+  KeyboardArrowDownOutlined,
+} from "@mui/icons-material";
+import { Divider } from "@mui/material";
 
 export const Language = {
   pageTitle: "Workspaces",
@@ -46,6 +60,8 @@ export interface WorkspacesPageViewProps {
   onUpdateWorkspace: (workspace: Workspace) => void;
   onCheckChange: (checkedWorkspaces: Workspace[]) => void;
   onDeleteAll: () => void;
+  onStartAll: () => void;
+  onStopAll: () => void;
   canCheckWorkspaces: boolean;
   templatesFetchStatus: TemplateQuery["status"];
   templates: TemplateQuery["data"];
@@ -65,6 +81,8 @@ export const WorkspacesPageView = ({
   checkedWorkspaces,
   onCheckChange,
   onDeleteAll,
+  onStopAll,
+  onStartAll,
   canCheckWorkspaces,
   templates,
   templatesFetchStatus,
@@ -128,15 +146,100 @@ export const WorkspacesPageView = ({
               {workspaces?.length === 1 ? "workspace" : "workspaces"}
             </Box>
 
-            <Box sx={{ marginLeft: "auto" }}>
+            <MoreMenu>
+              <MoreMenuTrigger>
+                <Button
+                  variant="text"
+                  size="small"
+                  css={{ borderRadius: 9999, marginLeft: "auto" }}
+                  endIcon={<KeyboardArrowDownOutlined />}
+                >
+                  Actions
+                </Button>
+              </MoreMenuTrigger>
+              <MoreMenuContent>
+                <MoreMenuItem
+                  disabled={
+                    !checkedWorkspaces?.every(
+                      (w) => w.latest_build.status === "stopped",
+                    )
+                  }
+                >
+                  <PlayArrowOutlined /> Start
+                </MoreMenuItem>
+                <MoreMenuItem
+                  disabled={
+                    !checkedWorkspaces?.every(
+                      (w) => w.latest_build.status === "running",
+                    )
+                  }
+                >
+                  <StopOutlined /> Stop
+                </MoreMenuItem>
+                <Divider />
+                <MoreMenuItem danger onClick={onDeleteAll}>
+                  <DeleteOutlined /> Delete
+                </MoreMenuItem>
+              </MoreMenuContent>
+            </MoreMenu>
+            {/* <div
+              css={{
+                marginLeft: "auto",
+                display: "flex",
+                gap: 8,
+                alignItems: "center",
+              }}
+            >
               <Button
+                disabled={
+                  !workspaces?.every((w) => w.latest_build.status === "stopped")
+                }
+                variant="text"
+                size="small"
+                // Needs some manual adjustment to align with the delete button icon
+                startIcon={
+                  <PlayArrowOutlined css={{ width: 16, height: 16 }} />
+                }
+                onClick={onStartAll}
+              >
+                Start
+              </Button>
+              <div
+                css={(theme) => ({
+                  width: 1,
+                  height: 12,
+                  backgroundColor: theme.palette.divider,
+                })}
+              />
+              <Button
+                variant="text"
+                disabled={
+                  !workspaces?.every((w) => w.latest_build.status === "running")
+                }
+                size="small"
+                // Needs some manual adjustment to align with the delete button icon
+                startIcon={<StopOutlined css={{ width: 16, height: 16 }} />}
+                onClick={onStopAll}
+              >
+                Stop
+              </Button>
+              <div
+                css={(theme) => ({
+                  width: 1,
+                  height: 12,
+                  backgroundColor: theme.palette.divider,
+                })}
+              />
+              <Button
+                variant="text"
                 size="small"
                 startIcon={<DeleteOutlined />}
                 onClick={onDeleteAll}
+                color="error"
               >
-                Delete selected
+                Delete
               </Button>
-            </Box>
+            </div> */}
           </>
         ) : (
           <PaginationStatus

@@ -54,10 +54,10 @@ const useMoreMenuContext = () => {
   return ctx;
 };
 
-export const MoreMenuTrigger = (props: HTMLProps<HTMLButtonElement>) => {
+export const MoreMenuTrigger = ({ children, ...props }: HTMLProps<HTMLButtonElement>) => {
   const menu = useMoreMenuContext();
 
-  return cloneElement(props.children as ReactElement, {
+  return cloneElement(children as ReactElement, {
     "aria-haspopup": "true",
     ...props,
     ref: menu.triggerRef,

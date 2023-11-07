@@ -132,6 +132,8 @@ const WorkspacesPage: FC = () => {
         onDeleteAll={() => {
           setIsDeletingAll(true);
         }}
+        onStartAll={() => {}}
+        onStopAll={() => {}}
       />
 
       <BatchDeleteConfirmation
