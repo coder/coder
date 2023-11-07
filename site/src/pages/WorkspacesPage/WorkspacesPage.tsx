@@ -14,7 +14,12 @@ import { useTemplateFilterMenu, useStatusFilterMenu } from "./filter/menus";
 import { useSearchParams } from "react-router-dom";
 import { useFilter } from "components/Filter/filter";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
-import { deleteWorkspace, getWorkspaces } from "api/api";
+import {
+  deleteWorkspace,
+  getWorkspaces,
+  startWorkspace,
+  stopWorkspace,
+} from "api/api";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import Box from "@mui/material/Box";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
@@ -22,7 +27,7 @@ import TextField from "@mui/material/TextField";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { getErrorMessage } from "api/errors";
 import { useEffectEvent } from "hooks/hookPolyfills";
-import { useQuery } from "react-query";
+import { useMutation, useQuery } from "react-query";
 import { templates } from "api/queries/templates";
 
 function useSafeSearchParams() {
@@ -99,6 +104,30 @@ const WorkspacesPage: FC = () => {
     entitlements.features["workspace_batch_actions"].enabled;
   const permissions = usePermissions();
 
+  // Batch mutations
+  const startAllMutation = useMutation({
+    mutationFn: async (workspaces: Workspace[]) => {
+      return Promise.all(
+        workspaces.map((w) =>
+          startWorkspace(w.id, w.latest_build.template_version_id),
+        ),
+      );
+    },
+    onSuccess: async () => {
+      await refetch();
+      setCheckedWorkspaces([]);
+    },
+  });
+  const stopAllMutation = useMutation({
+    mutationFn: async (workspaces: Workspace[]) => {
+      return Promise.all(workspaces.map((w) => stopWorkspace(w.id)));
+    },
+    onSuccess: async () => {
+      await refetch();
+      setCheckedWorkspaces([]);
+    },
+  });
+
   // We want to uncheck the selected workspaces always when the url changes
   // because of filtering or pagination
   useEffect(() => {
@@ -129,11 +158,24 @@ const WorkspacesPage: FC = () => {
         onUpdateWorkspace={(workspace) => {
           updateWorkspace.mutate(workspace);
         }}
+        isRunningBatchAction={
+          isDeletingAll ||
+          startAllMutation.isLoading ||
+          stopAllMutation.isLoading
+        }
         onDeleteAll={() => {
           setIsDeletingAll(true);
         }}
-        onStartAll={() => {}}
-        onStopAll={() => {}}
+        onStartAll={async () => {
+          await startAllMutation.mutateAsync(checkedWorkspaces);
+          await refetch();
+          setCheckedWorkspaces([]);
+        }}
+        onStopAll={async () => {
+          await stopAllMutation.mutateAsync(checkedWorkspaces);
+          await refetch();
+          setCheckedWorkspaces([]);
+        }}
       />
 
       <BatchDeleteConfirmation

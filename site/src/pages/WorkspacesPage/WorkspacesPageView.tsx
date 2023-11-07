@@ -16,7 +16,6 @@ import {
   TableToolbar,
 } from "components/TableToolbar/TableToolbar";
 import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
 import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
 import { WorkspacesButton } from "./WorkspacesButton";
 import { UseQueryResult } from "react-query";
@@ -30,6 +29,7 @@ import {
 } from "components/MoreMenu/MoreMenu";
 import KeyboardArrowDownOutlined from "@mui/icons-material/KeyboardArrowDownOutlined";
 import Divider from "@mui/material/Divider";
+import LoadingButton from "@mui/lab/LoadingButton";
 
 export const Language = {
   pageTitle: "Workspaces",
@@ -55,6 +55,7 @@ export interface WorkspacesPageViewProps {
   onPageChange: (page: number) => void;
   onUpdateWorkspace: (workspace: Workspace) => void;
   onCheckChange: (checkedWorkspaces: Workspace[]) => void;
+  isRunningBatchAction: boolean;
   onDeleteAll: () => void;
   onStartAll: () => void;
   onStopAll: () => void;
@@ -79,6 +80,7 @@ export const WorkspacesPageView = ({
   onDeleteAll,
   onStopAll,
   onStartAll,
+  isRunningBatchAction,
   canCheckWorkspaces,
   templates,
   templatesFetchStatus,
@@ -144,14 +146,16 @@ export const WorkspacesPageView = ({
 
             <MoreMenu>
               <MoreMenuTrigger>
-                <Button
+                <LoadingButton
+                  loading={isRunningBatchAction}
+                  loadingPosition="end"
                   variant="text"
                   size="small"
                   css={{ borderRadius: 9999, marginLeft: "auto" }}
                   endIcon={<KeyboardArrowDownOutlined />}
                 >
                   Actions
-                </Button>
+                </LoadingButton>
               </MoreMenuTrigger>
               <MoreMenuContent>
                 <MoreMenuItem
