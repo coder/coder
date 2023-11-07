@@ -2410,11 +2410,12 @@ func (q *FakeQuerier) GetTemplateAppInsightsByTemplate(ctx context.Context, arg 
 			Slug:        app.Slug,
 		}
 
-		t := s.SessionStartedAt.Truncate(5 * time.Minute)
+		t := s.SessionStartedAt.Truncate(time.Minute)
+		sessionEndedAt := s.SessionEndedAt.Add(-time.Microsecond).Truncate(time.Minute)
 		if t.Before(arg.StartTime) {
 			t = arg.StartTime
 		}
-		for t.Before(s.SessionEndedAt) && t.Before(arg.EndTime) {
+		for t.Before(sessionEndedAt) && t.Before(arg.EndTime) {
 			if _, ok := usageByTemplateAppUser[key]; !ok {
 				usageByTemplateAppUser[key] = map[time.Time]map[uuid.UUID]int64{}
 			}
