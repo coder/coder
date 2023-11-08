@@ -19,6 +19,7 @@ import (
 var (
 	templatesActiveUsersDesc     = prometheus.NewDesc("coderd_insights_templates_active_users", "The number of active users of the template.", []string{"template_name"}, nil)
 	applicationsUsageSecondsDesc = prometheus.NewDesc("coderd_insights_applications_usage_seconds", "The application usage per template.", []string{"template_name", "application_name", "slug"}, nil)
+	parametersDesc               = prometheus.NewDesc("coderd_insights_parameters", "The parameter usage per template.", []string{"template_name", "parameter_name", "parameter_value"}, nil)
 )
 
 type MetricsCollector struct {
@@ -75,7 +76,7 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 		// Phase 1: Fetch insights from database
 		// FIXME errorGroup will be used to fetch insights for apps and parameters
 		eg, egCtx := errgroup.WithContext(ctx)
-		eg.SetLimit(2)
+		eg.SetLimit(3)
 
 		var templateInsights []database.GetTemplateInsightsByTemplateRow
 		var appInsights []database.GetTemplateAppInsightsByTemplateRow
@@ -100,6 +101,11 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 			if err != nil {
 				mc.logger.Error(ctx, "unable to fetch application insights from database", slog.Error(err))
 			}
+			return err
+		})
+		eg.Go(func() error {
+			var err error
+
 			return err
 		})
 		err := eg.Wait()
@@ -153,6 +159,7 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 func (*MetricsCollector) Describe(descCh chan<- *prometheus.Desc) {
 	descCh <- templatesActiveUsersDesc
 	descCh <- applicationsUsageSecondsDesc
+	descCh <- parametersDesc
 }
 
 func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
