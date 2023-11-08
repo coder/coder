@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
+	"go.uber.org/automaxprocs/maxprocs"
 	"golang.org/x/xerrors"
 	"gopkg.in/natefinch/lumberjack.v2"
 	"tailscale.com/util/clientmetric"
@@ -161,6 +162,16 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 
 			sinks = append(sinks, sloghuman.Sink(logWriter))
 			logger := slog.Make(sinks...).Leveled(slog.LevelDebug)
+
+			// This can improve the performance of Coder inside of a container.
+			// See: https://github.com/uber-go/automaxprocs
+			undoMacProcs, err := maxprocs.Set(maxprocs.Logger(func(format string, args ...interface{}) {
+				logger.Debug(ctx, fmt.Sprintf(format, args...))
+			}))
+			if err != nil {
+				return xerrors.Errorf("set maxprocs: %w", err)
+			}
+			defer undoMacProcs()
 
 			version := buildinfo.Version()
 			logger.Info(ctx, "agent is starting now",

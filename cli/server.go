@@ -326,9 +326,13 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			// This can improve the performance of Coder inside of a container.
 			// See: https://github.com/uber-go/automaxprocs
-			maxprocs.Set(maxprocs.Logger(func(format string, args ...interface{}) {
+			undoMacProcs, err := maxprocs.Set(maxprocs.Logger(func(format string, args ...interface{}) {
 				logger.Debug(ctx, fmt.Sprintf(format, args...))
 			}))
+			if err != nil {
+				return xerrors.Errorf("set maxprocs: %w", err)
+			}
+			defer undoMacProcs()
 
 			// Register signals early on so that graceful shutdown can't
 			// be interrupted by additional signals. Note that we avoid
