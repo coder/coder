@@ -109,12 +109,11 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
       {canBeUpdated &&
         (isUpdating ? buttonMapping.updating : buttonMapping.update)}
 
-      {isRestarting && buttonMapping.restarting}
-
-      {!isRestarting &&
-        actionsByStatus.map((action) => (
-          <Fragment key={action}>{buttonMapping[action]}</Fragment>
-        ))}
+      {isRestarting
+        ? buttonMapping.restarting
+        : actionsByStatus.map((action) => (
+            <Fragment key={action}>{buttonMapping[action]}</Fragment>
+          ))}
 
       {canCancel && <CancelButton handleAction={handleCancel} />}
 
