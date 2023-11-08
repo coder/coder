@@ -762,6 +762,25 @@ func CreateTemplate(t testing.TB, client *codersdk.Client, organization uuid.UUI
 	return template
 }
 
+// CreateGroup creates a group with the given name and members.
+func CreateGroup(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, name string, members ...codersdk.User) codersdk.Group {
+	t.Helper()
+	group, err := client.CreateGroup(context.Background(), organizationID, codersdk.CreateGroupRequest{
+		Name: name,
+	})
+	require.NoError(t, err, "failed to create group")
+	memberIDs := make([]string, 0)
+	for _, member := range members {
+		memberIDs = append(memberIDs, member.ID.String())
+	}
+	group, err = client.PatchGroup(context.Background(), group.ID, codersdk.PatchGroupRequest{
+		AddUsers: memberIDs,
+	})
+
+	require.NoError(t, err, "failed to add members to group")
+	return group
+}
+
 // UpdateTemplateVersion creates a new template version with the "echo" provisioner
 // and associates it with the given templateID.
 func UpdateTemplateVersion(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses, templateID uuid.UUID) codersdk.TemplateVersion {
@@ -785,6 +804,14 @@ func UpdateActiveTemplateVersion(t testing.TB, client *codersdk.Client, template
 		ID: versionID,
 	})
 	require.NoError(t, err)
+}
+
+// UpdateTemplateMeta updates the template meta for the given template.
+func UpdateTemplateMeta(t testing.TB, client *codersdk.Client, templateID uuid.UUID, meta codersdk.UpdateTemplateMeta) codersdk.Template {
+	t.Helper()
+	updated, err := client.UpdateTemplateMeta(context.Background(), templateID, meta)
+	require.NoError(t, err)
+	return updated
 }
 
 // AwaitTemplateVersionJobRunning waits for the build to be picked up by a provisioner.

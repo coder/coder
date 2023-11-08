@@ -348,12 +348,12 @@ const BottomBar = ({ proxy, latency }: { proxy: Region; latency?: number }) => {
             component="button"
             aria-label="Terminal latency"
             aria-haspopup="true"
-            sx={{
+            css={{
               background: "none",
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
-              gap: 1,
+              gap: 8,
               border: 0,
               padding: 8,
             }}

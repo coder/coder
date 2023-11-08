@@ -21,7 +21,8 @@ func (e EnhancedExternalAuthProvider) Git() bool {
 	switch e {
 	case EnhancedExternalAuthProviderGitHub,
 		EnhancedExternalAuthProviderGitLab,
-		EnhancedExternalAuthProviderBitBucket,
+		EnhancedExternalAuthProviderBitBucketCloud,
+		EnhancedExternalAuthProviderBitBucketServer,
 		EnhancedExternalAuthProviderAzureDevops:
 		return true
 	default:
@@ -33,9 +34,12 @@ const (
 	EnhancedExternalAuthProviderAzureDevops EnhancedExternalAuthProvider = "azure-devops"
 	EnhancedExternalAuthProviderGitHub      EnhancedExternalAuthProvider = "github"
 	EnhancedExternalAuthProviderGitLab      EnhancedExternalAuthProvider = "gitlab"
-	EnhancedExternalAuthProviderBitBucket   EnhancedExternalAuthProvider = "bitbucket"
-	EnhancedExternalAuthProviderSlack       EnhancedExternalAuthProvider = "slack"
-	EnhancedExternalAuthProviderJFrog       EnhancedExternalAuthProvider = "jfrog"
+	// EnhancedExternalAuthProviderBitBucketCloud is the Bitbucket Cloud provider.
+	// Not to be confused with the self-hosted 'EnhancedExternalAuthProviderBitBucketServer'
+	EnhancedExternalAuthProviderBitBucketCloud  EnhancedExternalAuthProvider = "bitbucket-cloud"
+	EnhancedExternalAuthProviderBitBucketServer EnhancedExternalAuthProvider = "bitbucket-server"
+	EnhancedExternalAuthProviderSlack           EnhancedExternalAuthProvider = "slack"
+	EnhancedExternalAuthProviderJFrog           EnhancedExternalAuthProvider = "jfrog"
 )
 
 type ExternalAuth struct {

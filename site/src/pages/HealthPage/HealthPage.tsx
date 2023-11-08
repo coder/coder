@@ -194,7 +194,7 @@ export function HealthPageView({
           </Box>
         </Box>
         {/* 62px - navbar and 36px - the bottom bar */}
-        <Box sx={{ overflowY: "auto", width: "100%" }}>
+        <Box sx={{ overflowY: "auto", width: "100%" }} data-chromatic="ignore">
           <SyntaxHighlighter
             language="json"
             editorProps={{ height: "100%" }}
