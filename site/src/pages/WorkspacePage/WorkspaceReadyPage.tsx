@@ -33,7 +33,9 @@ import { templateVersion, templateVersions } from "api/queries/templates";
 import { Alert } from "components/Alert/Alert";
 import { Stack } from "components/Stack/Stack";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
-import { useDecreaseDeadline, useIncreaseDeadline } from "./scheduleControls";
+import { decreaseDeadline, increaseDeadline } from "api/queries/workspaces";
+import { getErrorMessage } from "api/errors";
+import { displaySuccess, displayError } from "components/GlobalSnackbar/utils";
 
 interface WorkspaceReadyPageProps {
   workspaceState: StateFrom<typeof workspaceMachine>;
@@ -118,8 +120,25 @@ export const WorkspaceReadyPage = ({
   } = useMutation({
     mutationFn: restartWorkspace,
   });
-  const decreaseDeadline = useDecreaseDeadline(workspace);
-  const increaseDeadline = useIncreaseDeadline(workspace);
+
+  const onDeadlineChangeSuccess = () => {
+    displaySuccess("Updated workspace shutdown time.");
+  };
+  const onDeadlineChangeFails = (error: unknown) => {
+    displayError(
+      getErrorMessage(error, "Failed to update workspace shutdown time."),
+    );
+  };
+  const decreaseMutation = useMutation({
+    ...decreaseDeadline(workspace),
+    onSuccess: onDeadlineChangeSuccess,
+    onError: onDeadlineChangeFails,
+  });
+  const increaseMutation = useMutation({
+    ...increaseDeadline(workspace),
+    onSuccess: onDeadlineChangeSuccess,
+    onError: onDeadlineChangeFails,
+  });
 
   return (
     <>
@@ -139,8 +158,8 @@ export const WorkspaceReadyPage = ({
 
       <Workspace
         scheduleProps={{
-          onDeadlineMinus: decreaseDeadline,
-          onDeadlinePlus: increaseDeadline,
+          onDeadlineMinus: decreaseMutation.mutate,
+          onDeadlinePlus: increaseMutation.mutate,
           maxDeadlineDecrease: getMaxDeadlineChange(deadline, getMinDeadline()),
           maxDeadlineIncrease: getMaxDeadlineChange(
             getMaxDeadline(workspace),
