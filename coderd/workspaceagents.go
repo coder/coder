@@ -1153,7 +1153,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 
 	err = ensureLatestBuild()
 	if err != nil {
-		api.Logger.Debug(ctx, "agent tried to connect from non-latest built",
+		api.Logger.Debug(ctx, "agent tried to connect from non-latest build",
 			slog.F("resource", resource),
 			slog.F("agent", workspaceAgent),
 		)
