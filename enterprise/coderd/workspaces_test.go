@@ -422,7 +422,9 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
-		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.AutostartSchedule = nil
+		})
 		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
 
