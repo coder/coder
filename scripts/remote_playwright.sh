@@ -16,6 +16,7 @@ main() {
 	# necessary because Playwright uses their own protocol for communicating
 	# between the server and client, and the protocol changes between versions.
 	echo "Checking Playwright version from \"${workspace}\"..."
+	# shellcheck disable=SC2029 # This is intended to expand client-side.
 	playwright_version="$(ssh "coder.${workspace}" "cat '${coder_repo}'/site/pnpm-lock.yaml | grep '^  /@playwright/test@' | cut -d '@' -f 3 | tr -d ':'")"
 
 	echo "Found Playwright version ${playwright_version}..."
@@ -75,6 +76,7 @@ main() {
 
 	echo
 	echo "Starting SSH tunnel, run test via \"pnpm run playwright:test\"..."
+	# shellcheck disable=SC2029 # This is intended to expand client-side.
 	ssh -t -R "${ws_port}:127.0.0.1:${ws_port}" -L "${port}:127.0.0.1:${port}" coder."${workspace}" "export CODER_E2E_PORT='${port}'; export CODER_E2E_WS_ENDPOINT='${ws_endpoint}'; [[ -d '${coder_repo}/site' ]] && cd '${coder_repo}/site'; exec \"\$(grep \"\${USER}\": /etc/passwd | cut -d: -f7)\" -i -l"
 }
 
