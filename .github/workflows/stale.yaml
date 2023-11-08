@@ -30,6 +30,52 @@ jobs:
           operations-per-run: 60
           # Start with the oldest issues, always.
           ascending: true
+      - name: "Close old issues labeled likely-no"
+        uses: actions/github-script@v5
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const thirtyDaysAgo = new Date(new Date().setDate(new Date().getDate() - 30));
+            console.log(`Looking for issues labeled with 'likely-no' more than 30 days ago, which is after ${thirtyDaysAgo.toISOString()}`);
+
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'likely-no',
+              state: 'open',
+            });
+
+            console.log(`Found ${issues.data.length} open issues labeled with 'likely-no'`);
+
+            for (const issue of issues.data) {
+              console.log(`Checking issue #${issue.number} created at ${issue.created_at}`);
+
+              const timeline = await github.rest.issues.listEventsForTimeline({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+              });
+
+              const labelEvent = timeline.data.find(event => event.event === 'labeled' && event.label.name === 'likely-no');
+              
+              if (labelEvent) {
+                console.log(`Issue #${issue.number} was labeled with 'likely-no' at ${labelEvent.created_at}`);
+
+                if (new Date(labelEvent.created_at) < thirtyDaysAgo) {
+                  console.log(`Issue #${issue.number} is older than 30 days with 'likely-no' label, closing issue.`);
+                  await github.rest.issues.update({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    state: 'closed',
+                    state_reason: 'not planned'
+                  });
+                }
+              } else {
+                console.log(`Issue #${issue.number} does not have a 'likely-no' label event in its timeline.`);
+              }
+            }
+
   branches:
     runs-on: ubuntu-latest
     steps:
