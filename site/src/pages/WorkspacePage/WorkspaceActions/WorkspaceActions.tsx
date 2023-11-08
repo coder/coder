@@ -59,16 +59,6 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   isRestarting,
   canChangeVersions,
 }) => {
-  const {
-    canCancel,
-    canAcceptJobs,
-    actions: actionsByStatus,
-  } = actionsByWorkspaceStatus(
-    workspace,
-    workspace.latest_build.status,
-    canChangeVersions,
-  );
-  const canBeUpdated = workspace.outdated && canAcceptJobs;
   const { duplicateWorkspace, isDuplicationReady } =
     useWorkspaceDuplication(workspace);
 
@@ -99,6 +89,17 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     activate: <ActivateButton handleAction={handleDormantActivate} />,
     activating: <ActivateButton loading handleAction={handleDormantActivate} />,
   };
+
+  const {
+    canCancel,
+    canAcceptJobs,
+    actions: actionsByStatus,
+  } = actionsByWorkspaceStatus(
+    workspace,
+    workspace.latest_build.status,
+    canChangeVersions,
+  );
+  const canBeUpdated = workspace.outdated && canAcceptJobs;
 
   return (
     <div

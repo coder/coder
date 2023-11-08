@@ -1,5 +1,5 @@
-import { Workspace, WorkspaceStatus } from "api/typesGenerated";
-import { ReactNode } from "react";
+import { type Workspace, type WorkspaceStatus } from "api/typesGenerated";
+import { type ReactNode } from "react";
 import { workspaceUpdatePolicy } from "utils/workspace";
 
 /**
