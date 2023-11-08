@@ -290,7 +290,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               actions={
                 canRetryDebugMode && (
                   <Button
-                    key={0}
                     onClick={handleBuildRetry}
                     variant="text"
                     size="small"
