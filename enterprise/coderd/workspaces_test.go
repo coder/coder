@@ -1115,6 +1115,7 @@ func TestResolveAutostart(t *testing.T) {
 	workspace := coderdtest.CreateWorkspace(t, client, owner.OrganizationID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
+	//nolint:gocritic
 	err := ownerClient.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
 		ID: version2.ID,
 	})
