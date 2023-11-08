@@ -118,8 +118,8 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 
   // 2023-11-08 - MES - This effect will be called every single render because
   // "now" will always change and invalidate the dependency array. Need to
-  // figure out if this effect should run every render (possibly meaning no
-  // dependency array at all), or how to get the array stabilized (more ideal)
+  // figure out if this effect really should run every render (possibly meaning
+  // no dependency array at all), or how to get the array stabilized (ideal)
   const now = dayjs();
   useEffect(() => {
     if (
