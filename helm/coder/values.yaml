@@ -94,6 +94,9 @@ coder:
     # coder.serviceAccount.enableDeployments -- Provides the service account permission
     # to manage Kubernetes deployments.
     enableDeployments: true
+    # coder.serviceAccount.enableServices -- Provides the service account permission
+    # to manage Kubernetes services.
+    enableServices: false
     # coder.serviceAccount.annotations -- The Coder service account annotations.
     annotations: {}
     # coder.serviceAccount.name -- The service account name
