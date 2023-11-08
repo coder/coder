@@ -11,11 +11,7 @@ import {
   UpdateButton,
   ActivateButton,
 } from "./Buttons";
-import {
-  ButtonMapping,
-  ButtonTypesEnum,
-  actionsByWorkspaceStatus,
-} from "./constants";
+import { ButtonMapping, actionsByWorkspaceStatus } from "./constants";
 
 import Divider from "@mui/material/Divider";
 import DuplicateIcon from "@mui/icons-material/FileCopyOutlined";
@@ -76,42 +72,32 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   const { duplicateWorkspace, isDuplicationReady } =
     useWorkspaceDuplication(workspace);
 
-  // A mapping of button type to the corresponding React component
+  // A mapping of button type to their corresponding React components
   const buttonMapping: ButtonMapping = {
-    [ButtonTypesEnum.update]: <UpdateButton handleAction={handleUpdate} />,
-    [ButtonTypesEnum.updating]: (
-      <UpdateButton loading handleAction={handleUpdate} />
-    ),
-    [ButtonTypesEnum.start]: (
-      <StartButton workspace={workspace} handleAction={handleStart} />
-    ),
-    [ButtonTypesEnum.starting]: (
+    update: <UpdateButton handleAction={handleUpdate} />,
+    updating: <UpdateButton loading handleAction={handleUpdate} />,
+    start: <StartButton workspace={workspace} handleAction={handleStart} />,
+    starting: (
       <StartButton loading workspace={workspace} handleAction={handleStart} />
     ),
-    [ButtonTypesEnum.stop]: <StopButton handleAction={handleStop} />,
-    [ButtonTypesEnum.stopping]: (
-      <StopButton loading handleAction={handleStop} />
-    ),
-    [ButtonTypesEnum.restart]: (
+    stop: <StopButton handleAction={handleStop} />,
+    stopping: <StopButton loading handleAction={handleStop} />,
+    restart: (
       <RestartButton workspace={workspace} handleAction={handleRestart} />
     ),
-    [ButtonTypesEnum.restarting]: (
+    restarting: (
       <RestartButton
         loading
         workspace={workspace}
         handleAction={handleRestart}
       />
     ),
-    [ButtonTypesEnum.deleting]: <ActionLoadingButton label="Deleting" />,
-    [ButtonTypesEnum.canceling]: <DisabledButton label="Canceling..." />,
-    [ButtonTypesEnum.deleted]: <DisabledButton label="Deleted" />,
-    [ButtonTypesEnum.pending]: <ActionLoadingButton label="Pending..." />,
-    [ButtonTypesEnum.activate]: (
-      <ActivateButton handleAction={handleDormantActivate} />
-    ),
-    [ButtonTypesEnum.activating]: (
-      <ActivateButton loading handleAction={handleDormantActivate} />
-    ),
+    deleting: <ActionLoadingButton label="Deleting" />,
+    canceling: <DisabledButton label="Canceling..." />,
+    deleted: <DisabledButton label="Deleted" />,
+    pending: <ActionLoadingButton label="Pending..." />,
+    activate: <ActivateButton handleAction={handleDormantActivate} />,
+    activating: <ActivateButton loading handleAction={handleDormantActivate} />,
   };
 
   return (
@@ -120,11 +106,9 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
       data-testid="workspace-actions"
     >
       {canBeUpdated &&
-        (isUpdating
-          ? buttonMapping[ButtonTypesEnum.updating]
-          : buttonMapping[ButtonTypesEnum.update])}
+        (isUpdating ? buttonMapping.updating : buttonMapping.update)}
 
-      {isRestarting && buttonMapping[ButtonTypesEnum.restarting]}
+      {isRestarting && buttonMapping.restarting}
 
       {!isRestarting &&
         actionsByStatus.map((action) => (
@@ -132,6 +116,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
         ))}
 
       {canCancel && <CancelButton handleAction={handleCancel} />}
+
       <MoreMenu>
         <MoreMenuTrigger>
           <ThreeDotsButton

@@ -2,31 +2,39 @@ import { Workspace, WorkspaceStatus } from "api/typesGenerated";
 import { ReactNode } from "react";
 import { workspaceUpdatePolicy } from "utils/workspace";
 
-// the button types we have
-export enum ButtonTypesEnum {
-  start = "start",
-  starting = "starting",
-  stop = "stop",
-  stopping = "stopping",
-  restart = "restart",
-  restarting = "restarting",
-  deleting = "deleting",
-  update = "update",
-  updating = "updating",
-  activate = "activate",
-  activating = "activating",
-  // disabled buttons
-  canceling = "canceling",
-  deleted = "deleted",
-  pending = "pending",
-}
+/**
+ * An iterable of all button types supported by the workspace actions UI
+ */
+const buttonTypes = [
+  "start",
+  "starting",
+  "stop",
+  "stopping",
+  "restart",
+  "restarting",
+  "deleting",
+  "update",
+  "updating",
+  "activate",
+  "activating",
+
+  // These are buttons that should be with disabled UI elements
+  "canceling",
+  "deleted",
+  "pending",
+] as const;
+
+/**
+ * A button type supported by the workspace actions UI
+ */
+export type ButtonType = (typeof buttonTypes)[number];
 
 export type ButtonMapping = {
-  [key in ButtonTypesEnum]: ReactNode;
+  [key in ButtonType]: ReactNode;
 };
 
 interface WorkspaceAbilities {
-  actions: ButtonTypesEnum[];
+  actions: ButtonType[];
   canCancel: boolean;
   canAcceptJobs: boolean;
 }
@@ -38,7 +46,7 @@ export const actionsByWorkspaceStatus = (
 ): WorkspaceAbilities => {
   if (workspace.dormant_at) {
     return {
-      actions: [ButtonTypesEnum.activate],
+      actions: ["activate"],
       canCancel: false,
       canAcceptJobs: false,
     };
@@ -49,7 +57,7 @@ export const actionsByWorkspaceStatus = (
   ) {
     if (status === "running") {
       return {
-        actions: [ButtonTypesEnum.stop],
+        actions: ["stop"],
         canCancel: false,
         canAcceptJobs: true,
       };
@@ -67,33 +75,33 @@ export const actionsByWorkspaceStatus = (
 
 const statusToActions: Record<WorkspaceStatus, WorkspaceAbilities> = {
   starting: {
-    actions: [ButtonTypesEnum.starting],
+    actions: ["starting"],
     canCancel: true,
     canAcceptJobs: false,
   },
   running: {
-    actions: [ButtonTypesEnum.stop, ButtonTypesEnum.restart],
+    actions: ["stop", "restart"],
     canCancel: false,
     canAcceptJobs: true,
   },
   stopping: {
-    actions: [ButtonTypesEnum.stopping],
+    actions: ["stopping"],
     canCancel: true,
     canAcceptJobs: false,
   },
   stopped: {
-    actions: [ButtonTypesEnum.start],
+    actions: ["start"],
     canCancel: false,
     canAcceptJobs: true,
   },
   canceled: {
-    actions: [ButtonTypesEnum.start, ButtonTypesEnum.stop],
+    actions: ["start", "stop"],
     canCancel: false,
     canAcceptJobs: true,
   },
   // in the case of an error
   failed: {
-    actions: [ButtonTypesEnum.start, ButtonTypesEnum.stop],
+    actions: ["start", "stop"],
     canCancel: false,
     canAcceptJobs: true,
   },
@@ -101,22 +109,22 @@ const statusToActions: Record<WorkspaceStatus, WorkspaceAbilities> = {
    * disabled states
    */
   canceling: {
-    actions: [ButtonTypesEnum.canceling],
+    actions: ["canceling"],
     canCancel: false,
     canAcceptJobs: false,
   },
   deleting: {
-    actions: [ButtonTypesEnum.deleting],
+    actions: ["deleting"],
     canCancel: true,
     canAcceptJobs: false,
   },
   deleted: {
-    actions: [ButtonTypesEnum.deleted],
+    actions: ["deleted"],
     canCancel: false,
     canAcceptJobs: false,
   },
   pending: {
-    actions: [ButtonTypesEnum.pending],
+    actions: ["pending"],
     canCancel: false,
     canAcceptJobs: false,
   },
