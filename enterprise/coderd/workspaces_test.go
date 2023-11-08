@@ -973,7 +973,8 @@ func TestWorkspacesWithoutTemplatePerms(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	//nolint:gocritic // Remove everyone access
+	// Remove everyone access
+	//nolint:gocritic // creating a separate user just for this is overkill
 	err := client.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
 		GroupPerms: map[string]codersdk.TemplateRole{
 			first.OrganizationID.String(): codersdk.TemplateRoleDeleted,

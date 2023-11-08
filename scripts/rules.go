@@ -57,9 +57,9 @@ func testingWithOwnerUser(m dsl.Matcher) {
 	// For both AGPL and enterprise code, we check for SetupConfig being called with a
 	// client authenticated as the Owner user.
 	m.Match(`
-	$_ := coderdtest.CreateFirstUser($t, $client)
-	$*_
-	clitest.$SetupConfig($t, $client, $_)
+		$_ := coderdtest.CreateFirstUser($t, $client)
+		$*_
+		clitest.$SetupConfig($t, $client, $_)
 	`).
 		Where(m["t"].Type.Implements("testing.TB") &&
 			m["SetupConfig"].Text.Matches("^SetupConfig$") &&
@@ -68,9 +68,9 @@ func testingWithOwnerUser(m dsl.Matcher) {
 		Report(`The CLI will be operating as the owner user, which has unrestricted permissions. Consider creating a different user.`)
 
 	m.Match(`
-	$client, $_ := coderdenttest.New($t, $*_)
-	$*_
-	clitest.$SetupConfig($t, $client, $_)
+		$client, $_ := coderdenttest.New($t, $*_)
+		$*_
+		clitest.$SetupConfig($t, $client, $_)
 	`).Where(m["t"].Type.Implements("testing.TB") &&
 		m["SetupConfig"].Text.Matches("^SetupConfig$") &&
 		m.File().Name.Matches(`_test\.go$`)).
@@ -92,9 +92,9 @@ func testingWithOwnerUser(m dsl.Matcher) {
 
 	// Sadly, we need to match both one- and two-valued assignments separately.
 	m.Match(`
-	$client, $_ := coderdenttest.New($t, $*_)
-	$*_
-	$_ := $client.$Method($*_)
+		$client, $_ := coderdenttest.New($t, $*_)
+		$*_
+		$_ := $client.$Method($*_)
 	`).Where(m["t"].Type.Implements("testing.TB") &&
 		m.File().Name.Matches(`_test\.go$`) &&
 		!m["Method"].Text.Matches(`^(UpdateAppearance|Licenses|AddLicense|InsertLicense|DeleteLicense|CreateWorkspaceProxy|Replicas|Regions)$`)).
