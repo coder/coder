@@ -21,7 +21,7 @@ import (
 var (
 	templatesActiveUsersDesc     = prometheus.NewDesc("coderd_insights_templates_active_users", "The number of active users of the template.", []string{"template_name"}, nil)
 	applicationsUsageSecondsDesc = prometheus.NewDesc("coderd_insights_applications_usage_seconds", "The application usage per template.", []string{"template_name", "application_name", "slug"}, nil)
-	parametersDesc               = prometheus.NewDesc("coderd_insights_parameters", "The parameter usage per template.", []string{"template_name", "parameter_name", "parameter_value"}, nil)
+	parametersDesc               = prometheus.NewDesc("coderd_insights_parameters", "The parameter usage per template.", []string{"template_name", "parameter_name", "parameter_type", "parameter_value"}, nil)
 )
 
 type MetricsCollector struct {
@@ -44,6 +44,7 @@ type insightsData struct {
 type parameterRow struct {
 	templateID uuid.UUID
 	name       string
+	aType      string
 	value      string
 
 	count int64
@@ -230,7 +231,7 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 
 	// Parameters
 	for _, parameterRow := range data.params {
-		metricsCh <- prometheus.MustNewConstMetric(parametersDesc, prometheus.GaugeValue, float64(parameterRow.count), data.templateNames[parameterRow.templateID], parameterRow.name, parameterRow.value)
+		metricsCh <- prometheus.MustNewConstMetric(parametersDesc, prometheus.GaugeValue, float64(parameterRow.count), data.templateNames[parameterRow.templateID], parameterRow.name, parameterRow.aType, parameterRow.value)
 	}
 }
 
@@ -269,6 +270,7 @@ func convertParameterInsights(rows []database.GetTemplateParameterInsightsRow) [
 	type uniqueKey struct {
 		templateID     uuid.UUID
 		parameterName  string
+		parameterType  string
 		parameterValue string
 	}
 
@@ -278,6 +280,7 @@ func convertParameterInsights(rows []database.GetTemplateParameterInsightsRow) [
 			key := uniqueKey{
 				templateID:     t,
 				parameterName:  r.Name,
+				parameterType:  r.Type,
 				parameterValue: r.Value,
 			}
 
@@ -294,6 +297,7 @@ func convertParameterInsights(rows []database.GetTemplateParameterInsightsRow) [
 		converted[i] = parameterRow{
 			templateID: k.templateID,
 			name:       k.parameterName,
+			aType:      k.parameterType,
 			value:      k.parameterValue,
 			count:      c,
 		}
