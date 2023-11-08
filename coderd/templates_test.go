@@ -128,7 +128,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-		require.Contains(t, err.Error(), "default_ttl_ms: Must be a positive integer")
+		require.Contains(t, err.Error(), "default_ttl_bump_ms: Must be a positive integer")
 	})
 
 	t.Run("NoDefaultTTL", func(t *testing.T) {
