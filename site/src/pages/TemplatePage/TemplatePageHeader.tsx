@@ -31,6 +31,7 @@ import {
   MoreMenuContent,
   MoreMenuItem,
   MoreMenuTrigger,
+  ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
 import Divider from "@mui/material/Divider";
 
@@ -59,7 +60,9 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
   return (
     <>
       <MoreMenu>
-        <MoreMenuTrigger />
+        <MoreMenuTrigger>
+          <ThreeDotsButton />
+        </MoreMenuTrigger>
         <MoreMenuContent>
           <MoreMenuItem
             onClick={() => {

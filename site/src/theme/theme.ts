@@ -345,8 +345,8 @@ dark = createTheme(dark, {
         root: {
           // It should be the same as the menu padding
           "& .MuiDivider-root": {
-            marginTop: 4,
-            marginBottom: 4,
+            marginTop: `4px !important`,
+            marginBottom: `4px !important`,
           },
         },
       },

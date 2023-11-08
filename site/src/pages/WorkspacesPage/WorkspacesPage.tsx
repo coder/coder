@@ -14,16 +14,11 @@ import { useTemplateFilterMenu, useStatusFilterMenu } from "./filter/menus";
 import { useSearchParams } from "react-router-dom";
 import { useFilter } from "components/Filter/filter";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
-import { deleteWorkspace, getWorkspaces } from "api/api";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import Box from "@mui/material/Box";
-import { MONOSPACE_FONT_FAMILY } from "theme/constants";
-import TextField from "@mui/material/TextField";
-import { displayError } from "components/GlobalSnackbar/utils";
-import { getErrorMessage } from "api/errors";
+import { getWorkspaces } from "api/api";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { useQuery } from "react-query";
 import { templates } from "api/queries/templates";
+import { BatchDeleteConfirmation, useBatchActions } from "./BatchActions";
 
 function useSafeSearchParams() {
   // Have to wrap setSearchParams because React Router doesn't make sure that
@@ -92,12 +87,18 @@ const WorkspacesPage: FC = () => {
   }, [experimentEnabled, data, filterProps.filter.query]);
   const updateWorkspace = useWorkspaceUpdate(queryKey);
   const [checkedWorkspaces, setCheckedWorkspaces] = useState<Workspace[]>([]);
-  const [isDeletingAll, setIsDeletingAll] = useState(false);
+  const [isConfirmingDeleteAll, setIsConfirmingDeleteAll] = useState(false);
   const [urlSearchParams] = searchParamsResult;
   const { entitlements } = useDashboard();
   const canCheckWorkspaces =
     entitlements.features["workspace_batch_actions"].enabled;
   const permissions = usePermissions();
+  const batchActions = useBatchActions({
+    onSuccess: async () => {
+      await refetch();
+      setCheckedWorkspaces([]);
+    },
+  });
 
   // We want to uncheck the selected workspaces always when the url changes
   // because of filtering or pagination
@@ -129,20 +130,24 @@ const WorkspacesPage: FC = () => {
         onUpdateWorkspace={(workspace) => {
           updateWorkspace.mutate(workspace);
         }}
+        isRunningBatchAction={batchActions.isLoading}
         onDeleteAll={() => {
-          setIsDeletingAll(true);
+          setIsConfirmingDeleteAll(true);
         }}
+        onStartAll={() => batchActions.startAll(checkedWorkspaces)}
+        onStopAll={() => batchActions.stopAll(checkedWorkspaces)}
       />
 
       <BatchDeleteConfirmation
+        isLoading={batchActions.isLoading}
         checkedWorkspaces={checkedWorkspaces}
-        open={isDeletingAll}
-        onClose={() => {
-          setIsDeletingAll(false);
+        open={isConfirmingDeleteAll}
+        onConfirm={async () => {
+          await batchActions.deleteAll(checkedWorkspaces);
+          setIsConfirmingDeleteAll(false);
         }}
-        onDelete={async () => {
-          await refetch();
-          setCheckedWorkspaces([]);
+        onClose={() => {
+          setIsConfirmingDeleteAll(false);
         }}
       />
     </>
@@ -198,110 +203,4 @@ const useWorkspacesFilter = ({
       status: statusMenu,
     },
   };
-};
-
-const BatchDeleteConfirmation = ({
-  checkedWorkspaces,
-  open,
-  onClose,
-  onDelete,
-}: {
-  checkedWorkspaces: Workspace[];
-  open: boolean;
-  onClose: () => void;
-  onDelete: () => void;
-}) => {
-  const [confirmValue, setConfirmValue] = useState("");
-  const [confirmError, setConfirmError] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-
-  const close = () => {
-    if (isDeleting) {
-      return;
-    }
-
-    onClose();
-    setConfirmValue("");
-    setConfirmError(false);
-    setIsDeleting(false);
-  };
-
-  const confirmDeletion = async () => {
-    setConfirmError(false);
-
-    if (confirmValue !== "DELETE") {
-      setConfirmError(true);
-      return;
-    }
-
-    try {
-      setIsDeleting(true);
-      await Promise.all(checkedWorkspaces.map((w) => deleteWorkspace(w.id)));
-    } catch (e) {
-      displayError(
-        "Error on deleting workspaces",
-        getErrorMessage(e, "An error occurred while deleting the workspaces"),
-      );
-    } finally {
-      close();
-      onDelete();
-    }
-  };
-
-  return (
-    <ConfirmDialog
-      type="delete"
-      open={open}
-      confirmLoading={isDeleting}
-      onConfirm={confirmDeletion}
-      onClose={() => {
-        onClose();
-        setConfirmValue("");
-        setConfirmError(false);
-      }}
-      title={`Delete ${checkedWorkspaces?.length} ${
-        checkedWorkspaces.length === 1 ? "workspace" : "workspaces"
-      }`}
-      description={
-        <form
-          onSubmit={async (e) => {
-            e.preventDefault();
-            await confirmDeletion();
-          }}
-        >
-          <Box>
-            Deleting these workspaces is irreversible! Are you sure you want to
-            proceed? Type{" "}
-            <Box
-              component="code"
-              sx={{
-                fontFamily: MONOSPACE_FONT_FAMILY,
-                color: (theme) => theme.palette.text.primary,
-                fontWeight: 600,
-              }}
-            >
-              `DELETE`
-            </Box>{" "}
-            to confirm.
-          </Box>
-          <TextField
-            value={confirmValue}
-            required
-            autoFocus
-            fullWidth
-            inputProps={{
-              "aria-label": "Type DELETE to confirm",
-            }}
-            placeholder="Type DELETE to confirm"
-            sx={{ mt: 2 }}
-            onChange={(e) => {
-              setConfirmValue(e.currentTarget.value);
-            }}
-            error={confirmError}
-            helperText={confirmError && "Please type DELETE to confirm"}
-          />
-        </form>
-      }
-    />
-  );
 };
