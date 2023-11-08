@@ -1080,7 +1080,8 @@ func (api *API) resolveAutostart(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	useActiveVersion := template.RequireActiveVersion || workspace.AutomaticUpdates == database.AutomaticUpdatesAlways
+	templateAccessControl := (*(api.AccessControlStore.Load())).GetTemplateAccessControl(template)
+	useActiveVersion := templateAccessControl.RequireActiveVersion || workspace.AutomaticUpdates == database.AutomaticUpdatesAlways
 	if !useActiveVersion {
 		httpapi.Write(ctx, rw, http.StatusOK, codersdk.ResolveAutostartResponse{})
 		return
@@ -1111,7 +1112,7 @@ func (api *API) resolveAutostart(rw http.ResponseWriter, r *http.Request) {
 
 	dbVersionParams, err := api.Database.GetTemplateVersionParameters(ctx, version.ID)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching template version parameters.",
 			Detail:  err.Error(),
 		})
@@ -1141,13 +1142,16 @@ func (api *API) resolveAutostart(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var response codersdk.ResolveAutostartResponse
-	for i := 0; i < len(versionParams) && !response.ParameterMismatch; i++ {
-		_, err := resolver.ValidateResolve(versionParams[i], nil)
+	for _, param := range versionParams {
+		_, err := resolver.ValidateResolve(param, nil)
 		// There's a parameter mismatch if we get an error back from the
 		// resolver.
 		response.ParameterMismatch = err != nil
-	}
+		if response.ParameterMismatch {
+			break
+		}
 
+	}
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
