@@ -1067,7 +1067,7 @@ func (api *API) putWorkspaceAutoupdates(rw http.ResponseWriter, r *http.Request)
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Success 200 {object} codersdk.ResolveAutostartResponse
-// @Router /workspaces/{workspace}/resolve [get]
+// @Router /workspaces/{workspace}/resolve-autostart [get]
 func (api *API) resolveAutostart(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx       = r.Context()

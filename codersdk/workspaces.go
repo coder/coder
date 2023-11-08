@@ -454,7 +454,7 @@ type ResolveAutostartResponse struct {
 }
 
 func (c *Client) ResolveAutostart(ctx context.Context, workspaceID string) (ResolveAutostartResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/resolve", workspaceID), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/resolve-autostart", workspaceID), nil)
 	if err != nil {
 		return ResolveAutostartResponse{}, err
 	}

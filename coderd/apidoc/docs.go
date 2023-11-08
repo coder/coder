@@ -6480,7 +6480,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaces/{workspace}/resolve": {
+        "/workspaces/{workspace}/resolve-autostart": {
             "get": {
                 "security": [
                     {

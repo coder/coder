@@ -1246,12 +1246,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/resolve \
+curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/resolve-autostart \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspaces/{workspace}/resolve`
+`GET /workspaces/{workspace}/resolve-autostart`
 
 ### Parameters
 
