@@ -1,4 +1,3 @@
-import { useActor } from "@xstate/react";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
 import dayjs from "dayjs";
 import { useFeatureVisibility } from "hooks/useFeatureVisibility";
@@ -34,6 +33,7 @@ import { templateVersion, templateVersions } from "api/queries/templates";
 import { Alert } from "components/Alert/Alert";
 import { Stack } from "components/Stack/Stack";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
+import { useDecreaseDeadline, useIncreaseDeadline } from "./scheduleControls";
 
 interface WorkspaceReadyPageProps {
   workspaceState: StateFrom<typeof workspaceMachine>;
@@ -56,9 +56,6 @@ export const WorkspaceReadyPage = ({
   isLoadingMoreBuilds,
   hasMoreBuilds,
 }: WorkspaceReadyPageProps): JSX.Element => {
-  const [_, bannerSend] = useActor(
-    workspaceState.children["scheduleBannerMachine"],
-  );
   const { buildInfo } = useDashboard();
   const featureVisibility = useFeatureVisibility();
   const {
@@ -121,10 +118,8 @@ export const WorkspaceReadyPage = ({
   } = useMutation({
     mutationFn: restartWorkspace,
   });
-  // keep banner machine in sync with workspace
-  useEffect(() => {
-    bannerSend({ type: "REFRESH_WORKSPACE", workspace });
-  }, [bannerSend, workspace]);
+  const decreaseDeadline = useDecreaseDeadline(workspace);
+  const increaseDeadline = useIncreaseDeadline(workspace);
 
   return (
     <>
@@ -144,18 +139,8 @@ export const WorkspaceReadyPage = ({
 
       <Workspace
         scheduleProps={{
-          onDeadlineMinus: (hours: number) => {
-            bannerSend({
-              type: "DECREASE_DEADLINE",
-              hours,
-            });
-          },
-          onDeadlinePlus: (hours: number) => {
-            bannerSend({
-              type: "INCREASE_DEADLINE",
-              hours,
-            });
-          },
+          onDeadlineMinus: decreaseDeadline,
+          onDeadlinePlus: increaseDeadline,
           maxDeadlineDecrease: getMaxDeadlineChange(deadline, getMinDeadline()),
           maxDeadlineIncrease: getMaxDeadlineChange(
             getMaxDeadline(workspace),
