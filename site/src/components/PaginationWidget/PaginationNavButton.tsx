@@ -1,26 +1,35 @@
-import { type ReactNode, useEffect, useState } from "react";
+import {
+  type ButtonHTMLAttributes,
+  type ReactNode,
+  useEffect,
+  useState,
+} from "react";
+import { useTheme } from "@emotion/react";
 
 import Button from "@mui/material/Button";
 import Tooltip from "@mui/material/Tooltip";
-import { useTheme } from "@emotion/react";
 
-type PaginationNavButtonProps = {
+type PaginationNavButtonProps = Omit<
+  ButtonHTMLAttributes<HTMLButtonElement>,
+  "aria-disabled" | "color"
+> & {
+  // Required/narrowed versions of default props
   children: ReactNode;
   disabled: boolean;
-  disabledMessage: ReactNode;
   onClick: () => void;
   "aria-label": string;
 
+  // Bespoke props
+  disabledMessage: ReactNode;
   disabledMessageTimeout?: number;
 };
 
 export function PaginationNavButton({
-  children,
   onClick,
   disabled,
   disabledMessage,
-  "aria-label": ariaLabel,
   disabledMessageTimeout = 3000,
+  ...delegatedProps
 }: PaginationNavButtonProps) {
   const theme = useTheme();
   const [showDisabledMessage, setShowDisabledMessage] = useState(false);
@@ -56,7 +65,6 @@ export function PaginationNavButton({
        *   (mostly for giving direct UI feedback to those actions)
        */}
       <Button
-        aria-label={ariaLabel}
         aria-disabled={disabled}
         css={
           disabled && {
@@ -76,9 +84,8 @@ export function PaginationNavButton({
             onClick();
           }
         }}
-      >
-        {children}
-      </Button>
+        {...delegatedProps}
+      />
     </Tooltip>
   );
 }
