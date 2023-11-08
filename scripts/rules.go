@@ -52,17 +52,54 @@ func dbauthzAuthorizationContext(m dsl.Matcher) {
 func testingWithOwnerUser(m dsl.Matcher) {
 	m.Import("testing")
 	m.Import("github.com/coder/coder/v2/cli/clitest")
+	m.Import("github.com/coder/coder/v2/enterprise/coderd/coderenttest")
 
+	// For both AGPL and enterprise code, we check for SetupConfig being called with a
+	// client authenticated as the Owner user.
 	m.Match(`
-	$_ := coderdtest.CreateFirstUser($t, $client)
-	$*_
-	clitest.$SetupConfig($t, $client, $_)
+		$_ := coderdtest.CreateFirstUser($t, $client)
+		$*_
+		clitest.$SetupConfig($t, $client, $_)
 	`).
 		Where(m["t"].Type.Implements("testing.TB") &&
 			m["SetupConfig"].Text.Matches("^SetupConfig$") &&
 			m.File().Name.Matches(`_test\.go$`)).
 		At(m["SetupConfig"]).
 		Report(`The CLI will be operating as the owner user, which has unrestricted permissions. Consider creating a different user.`)
+
+	m.Match(`
+		$client, $_ := coderdenttest.New($t, $*_)
+		$*_
+		clitest.$SetupConfig($t, $client, $_)
+	`).Where(m["t"].Type.Implements("testing.TB") &&
+		m["SetupConfig"].Text.Matches("^SetupConfig$") &&
+		m.File().Name.Matches(`_test\.go$`)).
+		At(m["SetupConfig"]).
+		Report(`The CLI will be operating as the owner user, which has unrestricted permissions. Consider creating a different user.`)
+
+	// For the enterprise code, we check for any method called on the client.
+	// While we want to be a bit stricter here, some methods are known to require
+	// the owner user, so we exclude them.
+	m.Match(`
+		$client, $_ := coderdenttest.New($t, $*_)
+		$*_
+		$_, $_ := $client.$Method($*_)
+	`).Where(m["t"].Type.Implements("testing.TB") &&
+		m.File().Name.Matches(`_test\.go$`) &&
+		!m["Method"].Text.Matches(`^(UpdateAppearance|Licenses|AddLicense|InsertLicense|DeleteLicense|CreateWorkspaceProxy|Replicas|Regions)$`)).
+		At(m["Method"]).
+		Report(`This client is operating as the owner user, which has unrestricted permissions. Consider creating a different user.`)
+
+	// Sadly, we need to match both one- and two-valued assignments separately.
+	m.Match(`
+		$client, $_ := coderdenttest.New($t, $*_)
+		$*_
+		$_ := $client.$Method($*_)
+	`).Where(m["t"].Type.Implements("testing.TB") &&
+		m.File().Name.Matches(`_test\.go$`) &&
+		!m["Method"].Text.Matches(`^(UpdateAppearance|Licenses|AddLicense|InsertLicense|DeleteLicense|CreateWorkspaceProxy|Replicas|Regions)$`)).
+		At(m["Method"]).
+		Report(`This client is operating as the owner user, which has unrestricted permissions. Consider creating a different user.`)
 }
 
 // Use xerrors everywhere! It provides additional stacktrace info!
