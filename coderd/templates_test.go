@@ -111,6 +111,26 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		require.Contains(t, err.Error(), "default_ttl_ms: Must be a positive integer")
 	})
 
+	t.Run("DefaultTTLBumpTooLow", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
+			Name:                 "testing",
+			VersionID:            version.ID,
+			DefaultTTLBumpMillis: ptr.Ref(int64(-1)),
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, err.Error(), "default_ttl_ms: Must be a positive integer")
+	})
+
 	t.Run("NoDefaultTTL", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
@@ -121,9 +141,10 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		defer cancel()
 
 		got, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
-			Name:             "testing",
-			VersionID:        version.ID,
-			DefaultTTLMillis: ptr.Ref(int64(0)),
+			Name:                 "testing",
+			VersionID:            version.ID,
+			DefaultTTLMillis:     ptr.Ref(int64(0)),
+			DefaultTTLBumpMillis: ptr.Ref(int64(0)),
 		})
 		require.NoError(t, err)
 		require.Zero(t, got.DefaultTTLMillis)
