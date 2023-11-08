@@ -1,10 +1,22 @@
-import { PaletteColor, PaletteColorOptions, Theme } from "@mui/material/styles";
+import type {
+  PaletteColor,
+  PaletteColorOptions,
+  Theme,
+} from "@mui/material/styles";
 
 declare module "@mui/styles/defaultTheme" {
+  /**
+   * @deprecated
+   */
   interface DefaultTheme extends Theme {}
 }
 
 declare module "@mui/material/styles" {
+  /**
+   * @deprecated
+   */
+  interface Theme {}
+
   interface TypeBackground {
     paperLight: string;
   }
