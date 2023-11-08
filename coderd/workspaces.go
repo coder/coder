@@ -1150,7 +1150,6 @@ func (api *API) resolveAutostart(rw http.ResponseWriter, r *http.Request) {
 		if response.ParameterMismatch {
 			break
 		}
-
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
