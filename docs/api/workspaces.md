@@ -1240,7 +1240,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/extend \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Determine whether a workspace is capable of autostarting.
+## Resolve workspace autostart by id.
 
 ### Code samples
 

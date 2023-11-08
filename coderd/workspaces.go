@@ -1060,7 +1060,7 @@ func (api *API) putWorkspaceAutoupdates(rw http.ResponseWriter, r *http.Request)
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// @Summary Determine whether a workspace is capable of autostarting.
+// @Summary Resolve workspace autostart by id.
 // @ID resolve-workspace-autostart-by-id
 // @Security CoderSessionToken
 // @Produce json

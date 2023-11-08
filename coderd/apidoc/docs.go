@@ -6493,7 +6493,7 @@ const docTemplate = `{
                 "tags": [
                     "Workspaces"
                 ],
-                "summary": "Determine whether a workspace is capable of autostarting.",
+                "summary": "Resolve workspace autostart by id.",
                 "operationId": "resolve-workspace-autostart-by-id",
                 "parameters": [
                     {
