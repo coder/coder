@@ -403,6 +403,7 @@ require (
 	go.opentelemetry.io/contrib v1.19.0 // indirect
 	go.opentelemetry.io/otel/metric v1.19.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.0.0 // indirect
+	go.uber.org/automaxprocs v1.5.3 // indirect
 	go4.org/intern v0.0.0-20230525184215-6c62f75575cb // indirect
 	go4.org/mem v0.0.0-20220726221520-4f986261bf13 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20230525183740-e7c30c78aeb2 // indirect
