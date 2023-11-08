@@ -100,7 +100,7 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
         authMethods={authMethods}
       />
 
-      {count && (
+      {count !== undefined && (
         <PaginationWidgetBase
           count={count}
           limit={limit}
