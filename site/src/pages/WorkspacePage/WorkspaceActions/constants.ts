@@ -18,7 +18,7 @@ const buttonTypes = [
   "activate",
   "activating",
 
-  // These are buttons that should be with disabled UI elements
+  // These are buttons that should be used with disabled UI elements
   "canceling",
   "deleted",
   "pending",
