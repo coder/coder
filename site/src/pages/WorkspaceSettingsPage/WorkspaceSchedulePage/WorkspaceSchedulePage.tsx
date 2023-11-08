@@ -9,7 +9,7 @@ import {
 } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
 import { ttlMsToAutostop } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/ttl";
 import { useWorkspaceSettings } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
-import { FC } from "react";
+import { FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
@@ -24,7 +24,11 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { checkAuthorization } from "api/queries/authCheck";
 import { templateByName } from "api/queries/templates";
-import { putWorkspaceAutostart, putWorkspaceAutostop } from "api/api";
+import {
+  putWorkspaceAutostart,
+  putWorkspaceAutostop,
+  startWorkspace,
+} from "api/api";
 
 const permissionsToCheck = (workspace: TypesGen.Workspace) =>
   ({
@@ -61,6 +65,12 @@ export const WorkspaceSchedulePage: FC = () => {
   });
   const error = checkPermissionsError || getTemplateError;
   const isLoading = !template || !permissions;
+
+  const [isConfirmingApply, setIsConfirmingApply] = useState(false);
+  const { mutate: updateWorkspace } = useMutation({
+    mutationFn: () =>
+      startWorkspace(workspace.id, workspace.template_active_version_id),
+  });
 
   return (
     <>
@@ -111,24 +121,24 @@ export const WorkspaceSchedulePage: FC = () => {
               ),
               autostopChanged: scheduleChanged(getAutostop(workspace), values),
             });
-
-            navigate(`/@${username}/${workspaceName}`);
+            setIsConfirmingApply(true);
           }}
         />
       )}
 
       <ConfirmDialog
-        open={scheduleState.matches("showingRestartDialog")}
+        open={isConfirmingApply}
         title="Restart workspace?"
         description="Would you like to restart your workspace now to apply your new autostop setting, or let it apply after your next workspace start?"
         confirmText="Restart"
         cancelText="Apply later"
         hideCancel={false}
         onConfirm={() => {
-          scheduleSend("RESTART_WORKSPACE");
+          updateWorkspace();
+          navigate(`/@${username}/${workspaceName}`);
         }}
         onClose={() => {
-          scheduleSend("APPLY_LATER");
+          navigate(`/@${username}/${workspaceName}`);
         }}
       />
     </>
