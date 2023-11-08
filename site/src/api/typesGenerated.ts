@@ -1683,14 +1683,16 @@ export const DisplayApps: DisplayApp[] = [
 // From codersdk/externalauth.go
 export type EnhancedExternalAuthProvider =
   | "azure-devops"
-  | "bitbucket"
+  | "bitbucket-cloud"
+  | "bitbucket-server"
   | "github"
   | "gitlab"
   | "jfrog"
   | "slack";
 export const EnhancedExternalAuthProviders: EnhancedExternalAuthProvider[] = [
   "azure-devops",
-  "bitbucket",
+  "bitbucket-cloud",
+  "bitbucket-server",
   "github",
   "gitlab",
   "jfrog",
