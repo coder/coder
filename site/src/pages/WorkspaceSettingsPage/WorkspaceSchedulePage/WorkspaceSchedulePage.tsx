@@ -111,7 +111,7 @@ export const WorkspaceSchedulePage: FC = () => {
             navigate(`/@${username}/${workspaceName}`);
           }}
           onSubmit={async (values) => {
-            await submitScheduleMutation.mutateAsync({
+            const data = {
               workspace,
               autostart: formValuesToAutostartRequest(values),
               ttl: formValuesToTTLRequest(values),
@@ -120,8 +120,13 @@ export const WorkspaceSchedulePage: FC = () => {
                 values,
               ),
               autostopChanged: scheduleChanged(getAutostop(workspace), values),
-            });
-            setIsConfirmingApply(true);
+            };
+
+            await submitScheduleMutation.mutateAsync(data);
+
+            if (data.autostopChanged) {
+              setIsConfirmingApply(true);
+            }
           }}
         />
       )}
