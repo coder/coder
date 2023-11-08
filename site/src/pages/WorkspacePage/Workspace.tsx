@@ -113,31 +113,13 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   hasMoreBuilds,
 }) => {
   const navigate = useNavigate();
-  const serverVersion = buildInfo?.version || "";
   const { saveLocal, getLocal } = useLocalStorage();
-
-  const buildError = Boolean(workspaceErrors[WorkspaceErrors.BUILD_ERROR]) && (
-    <ErrorAlert
-      error={workspaceErrors[WorkspaceErrors.BUILD_ERROR]}
-      dismissible
-    />
-  );
-
-  const cancellationError = Boolean(
-    workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR],
-  ) && (
-    <ErrorAlert
-      error={workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]}
-      dismissible
-    />
-  );
-
-  let transitionStats: TypesGen.TransitionStats | undefined = undefined;
-  if (template !== undefined) {
-    transitionStats = ActiveTransition(template, workspace);
-  }
-
   const [showAlertPendingInQueue, setShowAlertPendingInQueue] = useState(false);
+
+  // 2023-11-08 - MES - This effect will be called every single render because
+  // "now" will always change and invalidate the dependency array. Need to
+  // figure out if this effect should run every render (possibly meaning no
+  // dependency array at all), or how to get the array stabilized (more ideal)
   const now = dayjs();
   useEffect(() => {
     if (
@@ -164,10 +146,12 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
       setShowAlertPendingInQueue(true);
     }, t);
 
-    return () => {
-      clearTimeout(showTimer);
-    };
+    return () => clearTimeout(showTimer);
   }, [workspace, now, showAlertPendingInQueue]);
+
+  const transitionStats =
+    template !== undefined ? ActiveTransition(template, workspace) : undefined;
+
   return (
     <>
       <FullWidthPageHeader>
@@ -226,8 +210,21 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               {updateMessage && <AlertDetail>{updateMessage}</AlertDetail>}
             </Alert>
           )}
-          {buildError}
-          {cancellationError}
+
+          {Boolean(workspaceErrors[WorkspaceErrors.BUILD_ERROR]) && (
+            <ErrorAlert
+              error={workspaceErrors[WorkspaceErrors.BUILD_ERROR]}
+              dismissible
+            />
+          )}
+
+          {Boolean(workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]) && (
+            <ErrorAlert
+              error={workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]}
+              dismissible
+            />
+          )}
+
           {workspace.latest_build.status === "running" &&
             !workspace.health.healthy && (
               <Alert
@@ -334,7 +331,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
                   showBuiltinApps={canUpdateWorkspace}
                   hideSSHButton={hideSSHButton}
                   hideVSCodeDesktopButton={hideVSCodeDesktopButton}
-                  serverVersion={serverVersion}
+                  serverVersion={buildInfo?.version || ""}
                   onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
                 />
               )}
