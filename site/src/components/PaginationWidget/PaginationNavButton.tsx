@@ -11,7 +11,9 @@ import Tooltip from "@mui/material/Tooltip";
 
 type PaginationNavButtonProps = Omit<
   ButtonHTMLAttributes<HTMLButtonElement>,
-  "aria-disabled" | "color"
+  | "aria-disabled"
+  // Need to omit color for MUI compatibility
+  | "color"
 > & {
   // Required/narrowed versions of default props
   children: ReactNode;
@@ -24,7 +26,7 @@ type PaginationNavButtonProps = Omit<
   disabledMessageTimeout?: number;
 };
 
-export function PaginationNavButton({
+function PaginationNavButtonCore({
   onClick,
   disabled,
   disabledMessage,
@@ -44,15 +46,12 @@ export function PaginationNavButton({
       return;
     }
 
-    const timeoutId = window.setTimeout(
+    const timeoutId = setTimeout(
       () => setShowDisabledMessage(false),
       disabledMessageTimeout,
     );
 
-    return () => {
-      setShowDisabledMessage(false);
-      window.clearTimeout(timeoutId);
-    };
+    return () => clearTimeout(timeoutId);
   }, [showDisabledMessage, disabledMessageTimeout]);
 
   return (
@@ -87,5 +86,20 @@ export function PaginationNavButton({
         {...delegatedProps}
       />
     </Tooltip>
+  );
+}
+
+export function PaginationNavButton({
+  disabledMessageTimeout = 3000,
+  ...delegatedProps
+}: PaginationNavButtonProps) {
+  return (
+    // Key prop ensures that if timeout changes, the component just unmounts and
+    // remounts, avoiding a swath of possible sync issues
+    <PaginationNavButtonCore
+      key={disabledMessageTimeout}
+      disabledMessageTimeout={disabledMessageTimeout}
+      {...delegatedProps}
+    />
   );
 }
