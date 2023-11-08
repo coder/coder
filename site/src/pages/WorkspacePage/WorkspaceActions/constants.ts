@@ -29,7 +29,7 @@ const buttonTypes = [
 export type ButtonType = (typeof buttonTypes)[number];
 
 interface WorkspaceAbilities {
-  actions: ButtonType[];
+  actions: readonly ButtonType[];
   canCancel: boolean;
   canAcceptJobs: boolean;
 }

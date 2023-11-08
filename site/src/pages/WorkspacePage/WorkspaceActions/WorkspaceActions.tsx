@@ -90,11 +90,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     activating: <ActivateButton loading handleAction={handleDormantActivate} />,
   };
 
-  const {
-    canCancel,
-    canAcceptJobs,
-    actions: actionsByStatus,
-  } = actionsByWorkspaceStatus(
+  const { actions, canCancel, canAcceptJobs } = actionsByWorkspaceStatus(
     workspace,
     workspace.latest_build.status,
     canChangeVersions,
@@ -111,7 +107,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 
       {isRestarting
         ? buttonMapping.restarting
-        : actionsByStatus.map((action) => (
+        : actions.map((action) => (
             <Fragment key={action}>{buttonMapping[action]}</Fragment>
           ))}
 
