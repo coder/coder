@@ -4,7 +4,7 @@ import {
   DisabledBadge,
   EnabledBadge,
   EnterpriseBadge,
-} from "components/DeploySettingsLayout/Badges";
+} from "components/Badges/Badges";
 import { Header } from "components/DeploySettingsLayout/Header";
 import OptionsTable from "components/DeploySettingsLayout/OptionsTable";
 import { Stack } from "components/Stack/Stack";
