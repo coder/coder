@@ -1,4 +1,4 @@
-import { FC, Fragment, ReactNode } from "react";
+import { type FC, type ReactNode, Fragment } from "react";
 import { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { useWorkspaceDuplication } from "pages/CreateWorkspacePage/useWorkspaceDuplication";
 import {
