@@ -23,12 +23,20 @@ import {
   formValuesToTTLRequest,
 } from "./formToRequest";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { useQueryClient } from "react-query";
+import { useQuery, useQueryClient } from "react-query";
+import { checkAuthorization } from "api/queries/authCheck";
 
-const getAutostart = (workspace: TypesGen.Workspace) =>
-  scheduleToAutostart(workspace.autostart_schedule);
-const getAutostop = (workspace: TypesGen.Workspace) =>
-  ttlMsToAutostop(workspace.ttl_ms);
+const permissionsToCheck = (workspace: TypesGen.Workspace) =>
+  ({
+    updateWorkspace: {
+      object: {
+        resource_type: "workspace",
+        resource_id: workspace.id,
+        owner_id: workspace.owner_id,
+      },
+      action: "update",
+    },
+  }) as const;
 
 export const WorkspaceSchedulePage: FC = () => {
   const params = useParams() as { username: string; workspace: string };
@@ -37,6 +45,9 @@ export const WorkspaceSchedulePage: FC = () => {
   const workspaceName = params.workspace;
   const queryClient = useQueryClient();
   const workspace = useWorkspaceSettings();
+  const { data: permissions } = useQuery(
+    checkAuthorization({ checks: permissionsToCheck(workspace) }),
+  );
   const [scheduleState, scheduleSend] = useMachine(workspaceSchedule, {
     context: { workspace },
   });
@@ -44,7 +55,6 @@ export const WorkspaceSchedulePage: FC = () => {
     checkPermissionsError,
     submitScheduleError,
     getTemplateError,
-    permissions,
     template,
   } = scheduleState.context;
 
@@ -133,5 +143,11 @@ export const WorkspaceSchedulePage: FC = () => {
     </>
   );
 };
+
+const getAutostart = (workspace: TypesGen.Workspace) =>
+  scheduleToAutostart(workspace.autostart_schedule);
+
+const getAutostop = (workspace: TypesGen.Workspace) =>
+  ttlMsToAutostop(workspace.ttl_ms);
 
 export default WorkspaceSchedulePage;
