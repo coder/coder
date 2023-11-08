@@ -40,10 +40,9 @@ func TestWorkspaceBuild(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, ownerClient, owner.OrganizationID, oldVersion.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, oldVersion.ID)
 		require.Equal(t, oldVersion.ID, template.ActiveVersionID)
-		template, err := ownerClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+		template = coderdtest.UpdateTemplateMeta(t, ownerClient, template.ID, codersdk.UpdateTemplateMeta{
 			RequireActiveVersion: true,
 		})
-		require.NoError(t, err)
 		require.True(t, template.RequireActiveVersion)
 
 		// Create a new version that we will promote.
@@ -51,10 +50,7 @@ func TestWorkspaceBuild(t *testing.T) {
 			ctvr.TemplateID = template.ID
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, activeVersion.ID)
-		err = ownerClient.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
-			ID: activeVersion.ID,
-		})
-		require.NoError(t, err)
+		coderdtest.UpdateActiveTemplateVersion(t, ownerClient, template.ID, activeVersion.ID)
 
 		templateAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
 		templateACLAdminClient, templateACLAdmin := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
@@ -62,19 +58,12 @@ func TestWorkspaceBuild(t *testing.T) {
 		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 
 		// Create a group so we can also test group template admin ownership.
-		group, err := ownerClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
-			Name: "test",
-		})
-		require.NoError(t, err)
-
 		// Add the user who gains template admin via group membership.
-		group, err = ownerClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
-			AddUsers: []string{templateGroupACLAdmin.ID.String()},
-		})
-		require.NoError(t, err)
+		group := coderdtest.CreateGroup(t, ownerClient, owner.OrganizationID, "test", templateGroupACLAdmin)
 
 		// Update the template for both users and groups.
-		err = ownerClient.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
+		//nolint:gocritic // test setup
+		err := ownerClient.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
 			UserPerms: map[string]codersdk.TemplateRole{
 				templateACLAdmin.ID.String(): codersdk.TemplateRoleAdmin,
 			},

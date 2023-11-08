@@ -122,7 +122,7 @@ func TestLicensesAddReal(t *testing.T) {
 			t,
 			"licenses", "add", "-l", fakeLicenseJWT,
 		)
-		clitest.SetupConfig(t, client, conf)
+		clitest.SetupConfig(t, client, conf) //nolint:gocritic // requires owner
 
 		waiter := clitest.StartWithWaiter(t, inv)
 		var coderError *codersdk.Error
@@ -180,7 +180,7 @@ func TestLicensesListReal(t *testing.T) {
 		inv.Stdout = stdout
 		stderr := new(bytes.Buffer)
 		inv.Stderr = stderr
-		clitest.SetupConfig(t, client, conf)
+		clitest.SetupConfig(t, client, conf) //nolint:gocritic // requires owner
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		errC := make(chan error)
@@ -216,7 +216,7 @@ func TestLicensesDeleteReal(t *testing.T) {
 		inv, conf := newCLI(
 			t,
 			"licenses", "delete", "1")
-		clitest.SetupConfig(t, client, conf)
+		clitest.SetupConfig(t, client, conf) //nolint:gocritic // requires owner
 
 		var coderError *codersdk.Error
 		clitest.StartWithWaiter(t, inv).RequireAs(&coderError)
