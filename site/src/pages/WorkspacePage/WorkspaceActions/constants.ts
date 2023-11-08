@@ -1,5 +1,4 @@
 import { type Workspace, type WorkspaceStatus } from "api/typesGenerated";
-import { type ReactNode } from "react";
 import { workspaceUpdatePolicy } from "utils/workspace";
 
 /**
@@ -28,10 +27,6 @@ const buttonTypes = [
  * A button type supported by the workspace actions UI
  */
 export type ButtonType = (typeof buttonTypes)[number];
-
-export type ButtonMapping = {
-  [key in ButtonType]: ReactNode;
-};
 
 interface WorkspaceAbilities {
   actions: ButtonType[];
@@ -99,15 +94,15 @@ const statusToActions: Record<WorkspaceStatus, WorkspaceAbilities> = {
     canCancel: false,
     canAcceptJobs: true,
   },
+
   // in the case of an error
   failed: {
     actions: ["start", "stop"],
     canCancel: false,
     canAcceptJobs: true,
   },
-  /**
-   * disabled states
-   */
+
+  // Disabled states
   canceling: {
     actions: ["canceling"],
     canCancel: false,

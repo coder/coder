@@ -11,7 +11,7 @@ import {
   UpdateButton,
   ActivateButton,
 } from "./Buttons";
-import { ButtonMapping, actionsByWorkspaceStatus } from "./constants";
+import { type ButtonType, actionsByWorkspaceStatus } from "./constants";
 
 import Divider from "@mui/material/Divider";
 import DuplicateIcon from "@mui/icons-material/FileCopyOutlined";
@@ -63,7 +63,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     useWorkspaceDuplication(workspace);
 
   // A mapping of button type to their corresponding React components
-  const buttonMapping: ButtonMapping = {
+  const buttonMapping: Record<ButtonType, ReactNode> = {
     update: <UpdateButton handleAction={handleUpdate} />,
     updating: <UpdateButton loading handleAction={handleUpdate} />,
     start: <StartButton workspace={workspace} handleAction={handleStart} />,
