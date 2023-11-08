@@ -1082,9 +1082,7 @@ func (api *API) resolveAutostart(rw http.ResponseWriter, r *http.Request) {
 
 	useActiveVersion := template.RequireActiveVersion || workspace.AutomaticUpdates == database.AutomaticUpdatesAlways
 	if !useActiveVersion {
-		httpapi.Write(ctx, rw, http.StatusOK, codersdk.ResolveAutostartResponse{
-			ParameterMismatch: true,
-		})
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.ResolveAutostartResponse{})
 		return
 	}
 
@@ -1098,28 +1096,14 @@ func (api *API) resolveAutostart(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if build.TemplateVersionID == template.ActiveVersionID {
-		httpapi.Write(ctx, rw, http.StatusOK, codersdk.ResolveAutostartResponse{
-			ParameterMismatch: false,
-		})
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.ResolveAutostartResponse{})
 		return
 	}
 
 	version, err := api.Database.GetTemplateVersionByID(ctx, template.ActiveVersionID)
-	if httpapi.Is404Error(err) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching template version.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	if version.TemplateID.UUID != workspace.TemplateID {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Workspace cannot be resolved against unrelated template.",
 			Detail:  err.Error(),
 		})
 		return
