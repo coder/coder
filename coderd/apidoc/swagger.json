@@ -5726,6 +5726,7 @@
           }
         ],
         "consumes": ["application/json"],
+        "produces": ["application/json"],
         "tags": ["Workspaces"],
         "summary": "Determine whether a workspace is capable of autostarting.",
         "operationId": "resolve-workspace-autostart-by-id",

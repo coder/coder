@@ -1064,6 +1064,7 @@ func (api *API) putWorkspaceAutoupdates(rw http.ResponseWriter, r *http.Request)
 // @ID resolve-workspace-autostart-by-id
 // @Security CoderSessionToken
 // @Accept json
+// @Produce json
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Success 200 {object} codersdk.ResolveAutostartResponse
