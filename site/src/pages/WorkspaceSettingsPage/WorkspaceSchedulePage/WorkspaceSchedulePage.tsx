@@ -25,6 +25,7 @@ import {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { useQuery, useQueryClient } from "react-query";
 import { checkAuthorization } from "api/queries/authCheck";
+import { templateByName } from "api/queries/templates";
 
 const permissionsToCheck = (workspace: TypesGen.Workspace) =>
   ({
@@ -45,18 +46,16 @@ export const WorkspaceSchedulePage: FC = () => {
   const workspaceName = params.workspace;
   const queryClient = useQueryClient();
   const workspace = useWorkspaceSettings();
-  const { data: permissions } = useQuery(
+  const { data: permissions, error: checkPermissionsError } = useQuery(
     checkAuthorization({ checks: permissionsToCheck(workspace) }),
+  );
+  const { data: template, error: getTemplateError } = useQuery(
+    templateByName(workspace.organization_id, workspace.template_name),
   );
   const [scheduleState, scheduleSend] = useMachine(workspaceSchedule, {
     context: { workspace },
   });
-  const {
-    checkPermissionsError,
-    submitScheduleError,
-    getTemplateError,
-    template,
-  } = scheduleState.context;
+  const { submitScheduleError } = scheduleState.context;
 
   if (!username || !workspaceName) {
     return <Navigate to="/workspaces" />;
