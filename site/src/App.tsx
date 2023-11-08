@@ -6,7 +6,8 @@ import { HelmetProvider } from "react-helmet-async";
 import { AppRouter } from "./AppRouter";
 import { ErrorBoundary } from "./components/ErrorBoundary/ErrorBoundary";
 import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar";
-import { dark } from "./theme/mui";
+import { dark as deprecated } from "./theme/mui";
+import { dark } from "./theme/theme";
 import "./theme/globalFonts";
 import {
   StyledEngineProvider,
@@ -25,11 +26,16 @@ const defaultQueryClient = new QueryClient({
   },
 });
 
+const theme = {
+  ...dark,
+  deprecated,
+};
+
 export const ThemeProviders: FC<PropsWithChildren> = ({ children }) => {
   return (
     <StyledEngineProvider injectFirst>
-      <MuiThemeProvider theme={dark}>
-        <EmotionThemeProvider theme={dark}>
+      <MuiThemeProvider theme={theme}>
+        <EmotionThemeProvider theme={theme}>
           <CssBaseline enableColorScheme />
           {children}
         </EmotionThemeProvider>
