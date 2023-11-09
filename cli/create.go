@@ -151,16 +151,16 @@ func (r *RootCmd) create() *clibase.Cmd {
 				schedSpec = ptr.Ref(sched.String())
 			}
 
-			var buildParameters []codersdk.WorkspaceBuildParameter
+			cliBuildParameters, err := asWorkspaceBuildParameters(parameterFlags.richParameters)
+			if err != nil {
+				return xerrors.Errorf("can't parse given parameter values: %w", err)
+			}
+
+			var sourceWorkspaceParameters []codersdk.WorkspaceBuildParameter
 			if copyParameters != "" {
-				buildParameters, err = client.WorkspaceBuildParameters(inv.Context(), sourceWorkspace.ID)
+				sourceWorkspaceParameters, err = client.WorkspaceBuildParameters(inv.Context(), sourceWorkspace.ID)
 				if err != nil {
 					return err
-				}
-			} else {
-				buildParameters, err = asWorkspaceBuildParameters(parameterFlags.richParameters)
-				if err != nil {
-					return xerrors.Errorf("can't parse given parameter values: %w", err)
 				}
 			}
 
@@ -170,7 +170,9 @@ func (r *RootCmd) create() *clibase.Cmd {
 				NewWorkspaceName:  workspaceName,
 
 				RichParameterFile: parameterFlags.richParameterFile,
-				RichParameters:    buildParameters,
+				RichParameters:    cliBuildParameters,
+
+				SourceWorkspaceParameters: sourceWorkspaceParameters,
 			})
 			if err != nil {
 				return xerrors.Errorf("prepare build: %w", err)
@@ -260,7 +262,8 @@ type prepWorkspaceBuildArgs struct {
 	TemplateVersionID uuid.UUID
 	NewWorkspaceName  string
 
-	LastBuildParameters []codersdk.WorkspaceBuildParameter
+	LastBuildParameters       []codersdk.WorkspaceBuildParameter
+	SourceWorkspaceParameters []codersdk.WorkspaceBuildParameter
 
 	PromptBuildOptions bool
 	BuildOptions       []codersdk.WorkspaceBuildParameter
@@ -295,6 +298,7 @@ func prepWorkspaceBuild(inv *clibase.Invocation, client *codersdk.Client, args p
 
 	resolver := new(ParameterResolver).
 		WithLastBuildParameters(args.LastBuildParameters).
+		WithSourceWorkspaceParameters(args.SourceWorkspaceParameters).
 		WithPromptBuildOptions(args.PromptBuildOptions).
 		WithBuildOptions(args.BuildOptions).
 		WithPromptRichParameters(args.PromptRichParameters).

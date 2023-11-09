@@ -23,7 +23,8 @@ const (
 )
 
 type ParameterResolver struct {
-	lastBuildParameters []codersdk.WorkspaceBuildParameter
+	lastBuildParameters       []codersdk.WorkspaceBuildParameter
+	sourceWorkspaceParameters []codersdk.WorkspaceBuildParameter
 
 	richParameters     []codersdk.WorkspaceBuildParameter
 	richParametersFile map[string]string
@@ -35,6 +36,11 @@ type ParameterResolver struct {
 
 func (pr *ParameterResolver) WithLastBuildParameters(params []codersdk.WorkspaceBuildParameter) *ParameterResolver {
 	pr.lastBuildParameters = params
+	return pr
+}
+
+func (pr *ParameterResolver) WithSourceWorkspaceParameters(params []codersdk.WorkspaceBuildParameter) *ParameterResolver {
+	pr.sourceWorkspaceParameters = params
 	return pr
 }
 
@@ -69,6 +75,7 @@ func (pr *ParameterResolver) Resolve(inv *clibase.Invocation, action WorkspaceCL
 
 	staged = pr.resolveWithParametersMapFile(staged)
 	staged = pr.resolveWithCommandLineOrEnv(staged)
+	staged = pr.resolveWithSourceBuildParameters(staged, templateVersionParameters)
 	staged = pr.resolveWithLastBuildParameters(staged, templateVersionParameters)
 	if err = pr.verifyConstraints(staged, action, templateVersionParameters); err != nil {
 		return nil, err
@@ -146,6 +153,30 @@ next:
 
 		if len(tvp.Options) > 0 && !isValidTemplateParameterOption(buildParameter, tvp.Options) {
 			continue // do not propagate invalid options
+		}
+
+		for i, r := range resolved {
+			if r.Name == buildParameter.Name {
+				resolved[i].Value = buildParameter.Value
+				continue next
+			}
+		}
+
+		resolved = append(resolved, buildParameter)
+	}
+	return resolved
+}
+
+func (pr *ParameterResolver) resolveWithSourceBuildParameters(resolved []codersdk.WorkspaceBuildParameter, templateVersionParameters []codersdk.TemplateVersionParameter) []codersdk.WorkspaceBuildParameter {
+next:
+	for _, buildParameter := range pr.sourceWorkspaceParameters {
+		tvp := findTemplateVersionParameter(buildParameter, templateVersionParameters)
+		if tvp == nil {
+			continue // it looks like this parameter is not present anymore
+		}
+
+		if tvp.Ephemeral {
+			continue // ephemeral parameters should not be passed to consecutive builds
 		}
 
 		for i, r := range resolved {
