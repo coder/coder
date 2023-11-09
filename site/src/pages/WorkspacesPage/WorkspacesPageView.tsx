@@ -208,10 +208,10 @@ export const WorkspacesPageView = ({
 
       {count !== undefined && (
         <PaginationWidgetBase
-          count={count}
-          limit={limit}
-          onChange={onPageChange}
-          page={page}
+          totalRecords={count}
+          pageSize={limit}
+          onPageChange={onPageChange}
+          currentPage={page}
         />
       )}
     </Margins>
