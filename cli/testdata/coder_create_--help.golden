@@ -14,7 +14,7 @@ OPTIONS:
           Specify automatic updates setting for the workspace (accepts 'always'
           or 'never').
 
-      --copy-parameters string, $CODER_WORKSPACE_COPY_PARAMETERS (default: never)
+      --copy-parameters string, $CODER_WORKSPACE_COPY_PARAMETERS
           Specify the source workspace name to copy parameters from.
 
       --parameter string-array, $CODER_RICH_PARAMETER
