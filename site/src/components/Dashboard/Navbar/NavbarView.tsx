@@ -17,7 +17,7 @@ import { ProxyContextValue } from "contexts/ProxyContext";
 import { displayError } from "components/GlobalSnackbar/utils";
 import Divider from "@mui/material/Divider";
 import Skeleton from "@mui/material/Skeleton";
-import { BUTTON_SM_HEIGHT } from "theme/theme";
+import { BUTTON_SM_HEIGHT } from "theme/constants";
 import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency";
 import { usePermissions } from "hooks/usePermissions";
 import Typography from "@mui/material/Typography";

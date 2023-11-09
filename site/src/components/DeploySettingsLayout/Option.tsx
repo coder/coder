@@ -1,7 +1,7 @@
 import type { PropsWithChildren, FC } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import Box, { BoxProps } from "@mui/material/Box";
-import { useTheme } from "@mui/system";
+import { useTheme } from "@emotion/react";
 import { DisabledBadge, EnabledBadge } from "./Badges";
 import { css } from "@emotion/react";
 import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";

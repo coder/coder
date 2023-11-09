@@ -1,11 +1,12 @@
 import { colors, experimentalTheme } from "./colors";
 import { createTheme, type ThemeOptions } from "@mui/material/styles";
-import { BODY_FONT_FAMILY, borderRadius } from "./constants";
-
-// MUI does not have aligned heights for buttons and inputs so we have to "hack" it a little bit
-export const BUTTON_LG_HEIGHT = 40;
-export const BUTTON_MD_HEIGHT = 36;
-export const BUTTON_SM_HEIGHT = 32;
+import {
+  BODY_FONT_FAMILY,
+  borderRadius,
+  BUTTON_LG_HEIGHT,
+  BUTTON_MD_HEIGHT,
+  BUTTON_SM_HEIGHT,
+} from "./constants";
 
 export type PaletteIndex =
   | "primary"
