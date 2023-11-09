@@ -36,6 +36,7 @@ import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import { decreaseDeadline, increaseDeadline } from "api/queries/workspaces";
 import { getErrorMessage } from "api/errors";
 import { displaySuccess, displayError } from "components/GlobalSnackbar/utils";
+import { deploymentConfig } from "api/queries/deployment";
 
 interface WorkspaceReadyPageProps {
   workspaceState: StateFrom<typeof workspaceMachine>;
@@ -63,7 +64,6 @@ export const WorkspaceReadyPage = ({
   const {
     workspace,
     template,
-    deploymentValues,
     buildError,
     cancellationError,
     sshPrefix,
@@ -76,9 +76,13 @@ export const WorkspaceReadyPage = ({
   const deadline = getDeadline(workspace);
   const canUpdateWorkspace = Boolean(permissions?.updateWorkspace);
   const canUpdateTemplate = Boolean(permissions?.updateTemplate);
-  const canRetryDebugMode =
-    Boolean(permissions?.viewDeploymentValues) &&
-    Boolean(deploymentValues?.enable_terraform_debug_mode);
+  const { data: deploymentValues } = useQuery({
+    ...deploymentConfig(),
+    enabled: permissions?.viewDeploymentValues,
+  });
+  const canRetryDebugMode = Boolean(
+    deploymentValues?.config.enable_terraform_debug_mode,
+  );
   const favicon = getFaviconByStatus(workspace.latest_build);
   const navigate = useNavigate();
   const [changeVersionDialogOpen, setChangeVersionDialogOpen] = useState(false);

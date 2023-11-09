@@ -11,14 +11,12 @@ export interface WorkspaceContext {
   orgId: string;
   username: string;
   workspaceName: string;
-
   error?: unknown;
   // our server side events instance
   eventSource?: EventSource;
   workspace?: TypesGen.Workspace;
   template?: TypesGen.Template;
   permissions?: Permissions;
-  deploymentValues?: TypesGen.DeploymentValues;
   build?: TypesGen.WorkspaceBuild;
   // Builds
   builds?: TypesGen.WorkspaceBuild[];
@@ -436,7 +434,6 @@ export const workspaceMachine = createMachine(
         workspace: (_, event) => event.data.workspace,
         template: (_, event) => event.data.template,
         permissions: (_, event) => event.data.permissions as Permissions,
-        deploymentValues: (_, event) => event.data.deploymentValues,
       }),
       assignError: assign({
         error: (_, event) => event.data,
@@ -684,16 +681,9 @@ async function loadInitialWorkspaceData({
     checks: permissionsToCheck(workspace, template),
   });
 
-  const canViewDeploymentValues = Boolean(
-    (permissions as Permissions)?.viewDeploymentValues,
-  );
-  const deploymentValues = canViewDeploymentValues
-    ? (await API.getDeploymentConfig())?.config
-    : undefined;
   return {
     workspace,
     template,
     permissions,
-    deploymentValues,
   };
 }
