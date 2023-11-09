@@ -16,7 +16,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/telemetry"
-	"github.com/coder/coder/v2/provisionersdk/proto"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 )
 
@@ -38,7 +37,7 @@ func Workspace(t testing.TB, db database.Store, seed database.Workspace) databas
 	return dbgen.Workspace(t, db, seed)
 }
 
-func TemplateWithVersion(t testing.TB, db database.Store, tpl database.Template, tv database.TemplateVersion, job database.ProvisionerJob, resources ...*proto.Resource) (database.Template, database.TemplateVersion) {
+func TemplateWithVersion(t testing.TB, db database.Store, tpl database.Template, tv database.TemplateVersion, job database.ProvisionerJob, resources ...*sdkproto.Resource) (database.Template, database.TemplateVersion) {
 	t.Helper()
 
 	template := dbgen.Template(t, db, tpl)
@@ -58,7 +57,7 @@ func TemplateWithVersion(t testing.TB, db database.Store, tpl database.Template,
 	return template, version
 }
 
-func TemplateVersion(t testing.TB, db database.Store, tv database.TemplateVersion, job database.ProvisionerJob, resources ...*proto.Resource) database.TemplateVersion {
+func TemplateVersion(t testing.TB, db database.Store, tv database.TemplateVersion, job database.ProvisionerJob, resources ...*sdkproto.Resource) database.TemplateVersion {
 	templateVersion := dbgen.TemplateVersion(t, db, tv)
 	payload, err := json.Marshal(provisionerdserver.TemplateVersionImportJob{
 		TemplateVersionID: templateVersion.ID,
@@ -198,26 +197,4 @@ func ProvisionerJobResources(t testing.TB, db database.Store, job uuid.UUID, tra
 		err := provisionerdserver.InsertWorkspaceResource(dbauthz.AsSystemRestricted(context.Background()), db, job, transition, resource, &telemetry.Snapshot{})
 		require.NoError(t, err)
 	}
-}
-
-func must[V any](v V, err error) V {
-	if err != nil {
-		panic(err)
-	}
-	return v
-}
-
-// takeFirstF takes the first value that returns true
-func takeFirstF[Value any](values []Value, take func(v Value) bool) Value {
-	for _, v := range values {
-		if take(v) {
-			return v
-		}
-	}
-	// If all empty, return the last element
-	if len(values) > 0 {
-		return values[len(values)-1]
-	}
-	var empty Value
-	return empty
 }
