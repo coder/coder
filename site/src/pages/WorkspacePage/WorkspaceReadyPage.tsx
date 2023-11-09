@@ -37,9 +37,16 @@ import { decreaseDeadline, increaseDeadline } from "api/queries/workspaces";
 import { getErrorMessage } from "api/errors";
 import { displaySuccess, displayError } from "components/GlobalSnackbar/utils";
 import { deploymentConfig } from "api/queries/deployment";
+import { WorkspacePermissions } from "./permissions";
 
 interface WorkspaceReadyPageProps {
-  workspaceState: StateFrom<typeof workspaceMachine>;
+  template: TypesGen.Template;
+  workspace: TypesGen.Workspace;
+  permissions: WorkspacePermissions;
+  workspaceState: Omit<
+    StateFrom<typeof workspaceMachine>,
+    "template" | "workspace" | "permissions"
+  >;
   workspaceSend: (event: WorkspaceEvent) => void;
   quota?: TypesGen.WorkspaceQuota;
   builds: TypesGen.WorkspaceBuild[] | undefined;
@@ -50,6 +57,9 @@ interface WorkspaceReadyPageProps {
 }
 
 export const WorkspaceReadyPage = ({
+  workspace,
+  template,
+  permissions,
   workspaceState,
   workspaceSend,
   quota,
@@ -61,15 +71,8 @@ export const WorkspaceReadyPage = ({
 }: WorkspaceReadyPageProps): JSX.Element => {
   const { buildInfo } = useDashboard();
   const featureVisibility = useFeatureVisibility();
-  const {
-    workspace,
-    template,
-    buildError,
-    cancellationError,
-    sshPrefix,
-    permissions,
-    missedParameters,
-  } = workspaceState.context;
+  const { buildError, cancellationError, sshPrefix, missedParameters } =
+    workspaceState.context;
   if (workspace === undefined) {
     throw Error("Workspace is undefined");
   }

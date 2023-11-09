@@ -4,8 +4,6 @@ import * as API from "api/api";
 import * as TypesGen from "api/typesGenerated";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 
-type Permissions = Record<keyof ReturnType<typeof permissionsToCheck>, boolean>;
-
 export interface WorkspaceContext {
   // Initial data
   orgId: string;
@@ -35,6 +33,7 @@ export interface WorkspaceContext {
 }
 
 export type WorkspaceEvent =
+  | { type: "LOAD" }
   | { type: "REFRESH_WORKSPACE"; data: TypesGen.ServerSentEvent["data"] }
   | { type: "START"; buildParameters?: TypesGen.WorkspaceBuildParameter[] }
   | { type: "STOP" }
@@ -57,49 +56,6 @@ export type WorkspaceEvent =
   | { type: "RETRY_BUILD" }
   | { type: "ACTIVATE" };
 
-export const checks = {
-  readWorkspace: "readWorkspace",
-  updateWorkspace: "updateWorkspace",
-  updateTemplate: "updateTemplate",
-  viewDeploymentValues: "viewDeploymentValues",
-} as const;
-
-const permissionsToCheck = (
-  workspace: TypesGen.Workspace,
-  template: TypesGen.Template,
-) =>
-  ({
-    [checks.readWorkspace]: {
-      object: {
-        resource_type: "workspace",
-        resource_id: workspace.id,
-        owner_id: workspace.owner_id,
-      },
-      action: "read",
-    },
-    [checks.updateWorkspace]: {
-      object: {
-        resource_type: "workspace",
-        resource_id: workspace.id,
-        owner_id: workspace.owner_id,
-      },
-      action: "update",
-    },
-    [checks.updateTemplate]: {
-      object: {
-        resource_type: "template",
-        resource_id: template.id,
-      },
-      action: "update",
-    },
-    [checks.viewDeploymentValues]: {
-      object: {
-        resource_type: "deployment_config",
-      },
-      action: "read",
-    },
-  }) as const;
-
 export const workspaceMachine = createMachine(
   {
     id: "workspaceState",
@@ -109,9 +65,6 @@ export const workspaceMachine = createMachine(
       context: {} as WorkspaceContext,
       events: {} as WorkspaceEvent,
       services: {} as {
-        loadInitialWorkspaceData: {
-          data: Awaited<ReturnType<typeof loadInitialWorkspaceData>>;
-        };
         updateWorkspace: {
           data: TypesGen.WorkspaceBuild;
         };
@@ -147,17 +100,10 @@ export const workspaceMachine = createMachine(
     initial: "loadInitialData",
     states: {
       loadInitialData: {
-        entry: ["clearContext"],
-        invoke: {
-          src: "loadInitialWorkspaceData",
-          id: "loadInitialWorkspaceData",
-          onDone: [{ target: "ready", actions: ["assignInitialData"] }],
-          onError: [
-            {
-              actions: "assignError",
-              target: "error",
-            },
-          ],
+        on: {
+          LOAD: {
+            target: "ready",
+          },
         },
       },
       ready: {
@@ -421,23 +367,6 @@ export const workspaceMachine = createMachine(
   },
   {
     actions: {
-      // Clear data about an old workspace when looking at a new one
-      clearContext: () =>
-        assign({
-          workspace: undefined,
-          template: undefined,
-          build: undefined,
-          permissions: undefined,
-          eventSource: undefined,
-        }),
-      assignInitialData: assign({
-        workspace: (_, event) => event.data.workspace,
-        template: (_, event) => event.data.template,
-        permissions: (_, event) => event.data.permissions as Permissions,
-      }),
-      assignError: assign({
-        error: (_, event) => event.data,
-      }),
       assignBuild: assign({
         build: (_, event) => event.data,
       }),
@@ -530,7 +459,6 @@ export const workspaceMachine = createMachine(
         Boolean(templateVersionIdToChange),
     },
     services: {
-      loadInitialWorkspaceData,
       updateWorkspace:
         ({ workspace }, { buildParameters }) =>
         async (send) => {
@@ -663,27 +591,3 @@ export const workspaceMachine = createMachine(
     },
   },
 );
-
-async function loadInitialWorkspaceData({
-  orgId,
-  username,
-  workspaceName,
-}: WorkspaceContext) {
-  const workspace = await API.getWorkspaceByOwnerAndName(
-    username,
-    workspaceName,
-    {
-      include_deleted: true,
-    },
-  );
-  const template = await API.getTemplateByName(orgId, workspace.template_name);
-  const permissions = await API.checkAuthorization({
-    checks: permissionsToCheck(workspace, template),
-  });
-
-  return {
-    workspace,
-    template,
-    permissions,
-  };
-}

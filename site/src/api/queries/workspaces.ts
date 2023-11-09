@@ -24,7 +24,8 @@ export const workspaceByOwnerAndName = (
 ): QueryOptions<Workspace> => {
   return {
     queryKey: workspaceByOwnerAndNameKey(owner, name),
-    queryFn: () => API.getWorkspaceByOwnerAndName(owner, name),
+    queryFn: () =>
+      API.getWorkspaceByOwnerAndName(owner, name, { include_deleted: true }),
   };
 };
 
