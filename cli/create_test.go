@@ -416,6 +416,39 @@ func TestCreateWithRichParameters(t *testing.T) {
 		assert.ErrorContains(t, err, "parameter \""+wrongFirstParameterName+"\" is not present in the template")
 		assert.ErrorContains(t, err, "Did you mean: "+firstParameterName)
 	})
+
+	t.Run("CopyParameters", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		// Firstly, create a regular workspace using template with parameters.
+		inv, root := clitest.New(t, "create", "my-workspace", "--template", template.Name, "-y",
+			"--parameter", fmt.Sprintf("%s=%s", firstParameterName, firstParameterValue),
+			"--parameter", fmt.Sprintf("%s=%s", secondParameterName, secondParameterValue),
+			"--parameter", fmt.Sprintf("%s=%s", immutableParameterName, immutableParameterValue))
+		clitest.SetupConfig(t, member, root)
+		pty := ptytest.New(t).Attach(inv)
+		inv.Stdout = pty.Output()
+		inv.Stderr = pty.Output()
+		err := inv.Run()
+		require.NoError(t, err, "can't create first workspace")
+
+		// Secondly, create a new workspace using parameters from the previous workspace.
+		inv, root = clitest.New(t, "create", "--copy-parameters", "my-workspace", "other-workspace", "-y")
+		clitest.SetupConfig(t, member, root)
+		pty = ptytest.New(t).Attach(inv)
+		inv.Stdout = pty.Output()
+		inv.Stderr = pty.Output()
+		err = inv.Run()
+		require.NoError(t, err, "can't create a workspace based on the source workspace")
+	})
 }
 
 func TestCreateValidateRichParameters(t *testing.T) {
