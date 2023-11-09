@@ -454,8 +454,13 @@ dark = createTheme(dark, {
       },
     },
     MuiSwitch: {
-      defaultProps: {
-        color: "primary",
+      defaultProps: { color: "primary" },
+      styleOverrides: {
+        root: {
+          ".Mui-focusVisible .MuiSwitch-thumb": {
+            outline: `10px auto ${colors.blue[7]}`,
+          },
+        },
       },
     },
     MuiAutocomplete: {
