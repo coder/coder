@@ -248,7 +248,6 @@ func (r *RootCmd) create() *clibase.Cmd {
 			Flag:        "copy-parameters",
 			Env:         "CODER_WORKSPACE_COPY_PARAMETERS",
 			Description: "Specify the source workspace name to copy parameters from.",
-			Default:     string(codersdk.AutomaticUpdatesNever),
 			Value:       clibase.StringOf(&copyParameters),
 		},
 		cliui.SkipPromptOption(),
