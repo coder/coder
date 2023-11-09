@@ -18,7 +18,6 @@ export interface WorkspaceContext {
   workspace?: TypesGen.Workspace;
   template?: TypesGen.Template;
   permissions?: Permissions;
-  templateVersion?: TypesGen.TemplateVersion;
   deploymentValues?: TypesGen.DeploymentValues;
   build?: TypesGen.WorkspaceBuild;
   // Builds
@@ -436,7 +435,6 @@ export const workspaceMachine = createMachine(
       assignInitialData: assign({
         workspace: (_, event) => event.data.workspace,
         template: (_, event) => event.data.template,
-        templateVersion: (_, event) => event.data.templateVersion,
         permissions: (_, event) => event.data.permissions as Permissions,
         deploymentValues: (_, event) => event.data.deploymentValues,
       }),
@@ -682,12 +680,9 @@ async function loadInitialWorkspaceData({
     },
   );
   const template = await API.getTemplateByName(orgId, workspace.template_name);
-  const [templateVersion, permissions] = await Promise.all([
-    API.getTemplateVersion(template.active_version_id),
-    API.checkAuthorization({
-      checks: permissionsToCheck(workspace, template),
-    }),
-  ]);
+  const permissions = await API.checkAuthorization({
+    checks: permissionsToCheck(workspace, template),
+  });
 
   const canViewDeploymentValues = Boolean(
     (permissions as Permissions)?.viewDeploymentValues,
@@ -698,7 +693,6 @@ async function loadInitialWorkspaceData({
   return {
     workspace,
     template,
-    templateVersion,
     permissions,
     deploymentValues,
   };

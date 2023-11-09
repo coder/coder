@@ -63,7 +63,6 @@ export const WorkspaceReadyPage = ({
   const {
     workspace,
     template,
-    templateVersion: currentVersion,
     deploymentValues,
     buildError,
     cancellationError,
@@ -207,7 +206,6 @@ export const WorkspaceReadyPage = ({
         sshPrefix={sshPrefix}
         template={template}
         quotaBudget={quota?.budget}
-        templateWarnings={currentVersion?.warnings}
         buildLogs={
           shouldDisplayBuildLogs && (
             <WorkspaceBuildLogsSection logs={buildLogs} />
