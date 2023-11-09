@@ -22,6 +22,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 		description                    string
 		icon                           string
 		defaultTTL                     time.Duration
+		defaultTTLBump                 time.Duration
 		maxTTL                         time.Duration
 		autostopRequirementDaysOfWeek  []string
 		autostopRequirementWeeks       int64
@@ -120,12 +121,13 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 
 			// NOTE: coderd will ignore empty fields.
 			req := codersdk.UpdateTemplateMeta{
-				Name:             name,
-				DisplayName:      displayName,
-				Description:      description,
-				Icon:             icon,
-				DefaultTTLMillis: defaultTTL.Milliseconds(),
-				MaxTTLMillis:     maxTTL.Milliseconds(),
+				Name:                 name,
+				DisplayName:          displayName,
+				Description:          description,
+				Icon:                 icon,
+				DefaultTTLMillis:     defaultTTL.Milliseconds(),
+				DefaultTTLBumpMillis: defaultTTLBump.Milliseconds(),
+				MaxTTLMillis:         maxTTL.Milliseconds(),
 				AutostopRequirement: &codersdk.TemplateAutostopRequirement{
 					DaysOfWeek: autostopRequirementDaysOfWeek,
 					Weeks:      autostopRequirementWeeks,
@@ -175,6 +177,12 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 			Flag:        "default-ttl",
 			Description: "Edit the template default time before shutdown - workspaces created from this template default to this value. Maps to \"Default autostop\" in the UI.",
 			Value:       clibase.DurationOf(&defaultTTL),
+		},
+		{
+			Flag:        "default-activity-bump",
+			Description: "Specify a default amount of time to bump the deadline for the workspaces based on workspace activity. By default, activity will extend the deadline for a workspace by the 'default-ttl' amount.",
+			Default:     "0",
+			Value:       clibase.DurationOf(&defaultTTLBump),
 		},
 		{
 			Flag:        "max-ttl",

@@ -434,11 +434,15 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// The default bump should come from the template, unless the workspace is
-	// setting a custom value. Then the workspace TTL is the default bump.
+	// The default ttl bump should come from the request only if the workspace
+	// ttl or ttl_bump is explicitly set. By default, just use the template
+	// defaults.
 	defaultBump := templateSchedule.DefaultTTLBump
 	if !ptr.NilOrZero(createWorkspace.TTLMillis) {
-		defaultBump = time.Duration(*createWorkspace.TTLMillis) * time.Millisecond
+		// By setting the default bump to 0, that means to defer to TTL
+		// for the bump duration. So this defaults to the explicitly set TTL
+		// in the workspace by making this field a noop.
+		defaultBump = 0
 	}
 
 	dbTTLBump, err := validWorkspaceTTLBumpMillis(createWorkspace.TTLBumpMillis, defaultBump)

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -73,7 +74,7 @@ func TestTemplateCreate(t *testing.T) {
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		coderdtest.CreateFirstUser(t, client)
+		owner := coderdtest.CreateFirstUser(t, client)
 		source := clitest.CreateTemplateVersionSource(t, completeWithAgent())
 		args := []string{
 			"templates",
@@ -82,12 +83,13 @@ func TestTemplateCreate(t *testing.T) {
 			"--directory", source,
 			"--test.provisioner", string(database.ProvisionerTypeEcho),
 			"--default-ttl", "24h",
+			"--default-activity-bump", "1h",
 		}
 		inv, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
 
-		clitest.Start(t, inv)
+		waitor := clitest.StartWithWaiter(t, inv)
 
 		matches := []struct {
 			match string
@@ -104,6 +106,14 @@ func TestTemplateCreate(t *testing.T) {
 				pty.WriteLine(m.write)
 			}
 		}
+		waitor.RequireSuccess()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		tpl, err := client.TemplateByName(ctx, owner.OrganizationID, "my-template")
+		require.NoError(t, err)
+
+		require.EqualValues(t, (24 * time.Hour).Milliseconds(), tpl.DefaultTTLMillis)
+		require.EqualValues(t, time.Hour.Milliseconds(), tpl.DefaultTTLBumpMillis)
 	})
 	t.Run("CreateNoLockfile", func(t *testing.T) {
 		t.Parallel()

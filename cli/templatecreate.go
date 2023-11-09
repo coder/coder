@@ -31,10 +31,11 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 		disableEveryone      bool
 		requireActiveVersion bool
 
-		defaultTTL    time.Duration
-		failureTTL    time.Duration
-		inactivityTTL time.Duration
-		maxTTL        time.Duration
+		defaultTTL     time.Duration
+		defaultTTLBump time.Duration
+		failureTTL     time.Duration
+		inactivityTTL  time.Duration
+		maxTTL         time.Duration
 
 		uploadFlags templateUploadFlags
 	)
@@ -156,6 +157,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 				Name:                       templateName,
 				VersionID:                  job.ID,
 				DefaultTTLMillis:           ptr.Ref(defaultTTL.Milliseconds()),
+				DefaultTTLBumpMillis:       ptr.Ref(defaultTTLBump.Milliseconds()),
 				FailureTTLMillis:           ptr.Ref(failureTTL.Milliseconds()),
 				MaxTTLMillis:               ptr.Ref(maxTTL.Milliseconds()),
 				TimeTilDormantMillis:       ptr.Ref(inactivityTTL.Milliseconds()),
@@ -212,6 +214,12 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 			Description: "Specify a default TTL for workspaces created from this template. It is the default time before shutdown - workspaces created from this template default to this value. Maps to \"Default autostop\" in the UI.",
 			Default:     "24h",
 			Value:       clibase.DurationOf(&defaultTTL),
+		},
+		{
+			Flag:        "default-activity-bump",
+			Description: "Specify a default amount of time to bump the deadline for the workspaces based on workspace activity. By default, activity will extend the deadline for a workspace by the 'default-ttl' amount.",
+			Default:     "0",
+			Value:       clibase.DurationOf(&defaultTTLBump),
 		},
 		{
 			Flag:        "failure-ttl",
