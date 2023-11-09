@@ -43,7 +43,7 @@ rules:
     - update
     - watch
 {{- end }}
-{{- with .Values.coder.serviceAccount.extraResources }}
+{{- with .Values.coder.serviceAccount.extraRules }}
 {{ toYaml . | nindent 2 }}
 {{- end }}
 ---
