@@ -42,6 +42,7 @@ type Workspace struct {
 	Name                                 string         `json:"name"`
 	AutostartSchedule                    *string        `json:"autostart_schedule,omitempty"`
 	TTLMillis                            *int64         `json:"ttl_ms,omitempty"`
+	TTLBumpMillis                        int64          `json:"ttl_bump_ms,omitempty"`
 	LastUsedAt                           time.Time      `json:"last_used_at" format:"date-time"`
 
 	// DeletingAt indicates the time at which the workspace will be permanently deleted.
@@ -266,7 +267,8 @@ func (c *Client) UpdateWorkspaceAutostart(ctx context.Context, id uuid.UUID, req
 
 // UpdateWorkspaceTTLRequest is a request to update a workspace's TTL.
 type UpdateWorkspaceTTLRequest struct {
-	TTLMillis *int64 `json:"ttl_ms"`
+	TTLMillis     *int64 `json:"ttl_ms"`
+	TTLBumpMillis *int64 `json:"ttl_bump_ms"`
 }
 
 // UpdateWorkspaceTTL sets the ttl for workspace by id.

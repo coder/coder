@@ -433,6 +433,22 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// The default bump should come from the template, unless the workspace is
+	// setting a custom value. Then the workspace TTL is the default bump.
+	defaultBump := templateSchedule.DefaultTTLBump
+	if !ptr.NilOrZero(createWorkspace.TTLMillis) {
+		defaultBump = time.Duration(*createWorkspace.TTLMillis) * time.Millisecond
+	}
+
+	dbTTLBump, err := validWorkspaceTTLBumpMillis(createWorkspace.TTLBumpMillis, defaultBump)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid Workspace Time to Shutdown.",
+			Validations: []codersdk.ValidationError{{Field: "ttl_ms", Detail: err.Error()}},
+		})
+		return
+	}
+
 	// back-compatibility: default to "never" if not included.
 	dbAU := database.AutomaticUpdatesNever
 	if createWorkspace.AutomaticUpdates != "" {
@@ -489,6 +505,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			Name:              createWorkspace.Name,
 			AutostartSchedule: dbAutostartSchedule,
 			Ttl:               dbTTL,
+			TtlBump:           int64(dbTTLBump),
 			// The workspaces page will sort by last used at, and it's useful to
 			// have the newly created workspace at the top of the list!
 			LastUsedAt:       dbtime.Now(),
@@ -763,7 +780,13 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.TTLBumpMillis == nil {
+		// Always default to the existing value if the request omits.
+		req.TTLBumpMillis = &workspace.TtlBump
+	}
+
 	var dbTTL sql.NullInt64
+	var dbTTLBump time.Duration
 
 	err := api.Database.InTx(func(s database.Store) error {
 		templateSchedule, err := (*api.TemplateScheduleStore.Load()).Get(ctx, s, workspace.TemplateID)
@@ -787,9 +810,16 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		if validityErr != nil {
 			return codersdk.ValidationError{Field: "ttl_ms", Detail: validityErr.Error()}
 		}
+
+		dbTTLBump, validityErr = validWorkspaceTTLBumpMillis(req.TTLBumpMillis, templateSchedule.DefaultTTLBump)
+		if validityErr != nil {
+			return codersdk.ValidationError{Field: "ttl_bump_ms", Detail: validityErr.Error()}
+		}
+
 		if err := s.UpdateWorkspaceTTL(ctx, database.UpdateWorkspaceTTLParams{
-			ID:  workspace.ID,
-			Ttl: dbTTL,
+			ID:      workspace.ID,
+			Ttl:     dbTTL,
+			TtlBump: int64(dbTTLBump),
 		}); err != nil {
 			return xerrors.Errorf("update workspace time until shutdown: %w", err)
 		}
@@ -814,6 +844,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 
 	newWorkspace := workspace
 	newWorkspace.Ttl = dbTTL
+	newWorkspace.TtlBump = int64(dbTTLBump)
 	aReq.New = newWorkspace
 
 	rw.WriteHeader(http.StatusNoContent)
@@ -1343,6 +1374,7 @@ func convertWorkspace(
 		Name:                                 workspace.Name,
 		AutostartSchedule:                    autostartSchedule,
 		TTLMillis:                            ttlMillis,
+		TTLBumpMillis:                        time.Duration(workspace.TtlBump).Milliseconds(),
 		LastUsedAt:                           workspace.LastUsedAt,
 		DeletingAt:                           deletingAt,
 		DormantAt:                            dormantAt,
@@ -1404,6 +1436,28 @@ func validWorkspaceTTLMillis(millis *int64, templateDefault, templateMax time.Du
 		Valid: true,
 		Int64: int64(truncated),
 	}, nil
+}
+
+// validWorkspaceTTLBumpMillis returns the workspace ttl bump.
+// If the bump is set to <= 0, it is ignored and ttl is used as the
+// bump duration.
+// So this function should only return explicitly set bump durations.
+func validWorkspaceTTLBumpMillis(millis *int64, defaultBump time.Duration) (time.Duration, error) {
+	if ptr.NilOrZero(millis) {
+		return defaultBump, nil
+	}
+
+	dur := time.Duration(*millis) * time.Millisecond
+	truncated := dur.Truncate(time.Minute)
+	if truncated < ttlMin {
+		return -1, errTTLMin
+	}
+
+	if truncated > ttlMax {
+		return -1, errTTLMax
+	}
+
+	return truncated, nil
 }
 
 func validWorkspaceAutomaticUpdates(updates codersdk.AutomaticUpdates) (database.AutomaticUpdates, error) {

@@ -67,6 +67,7 @@ overrides:
       group_acl: GroupACL
       troubleshooting_url: TroubleshootingURL
       default_ttl: DefaultTTL
+      default_ttl_bump: DefaultTTLBump
       max_ttl: MaxTTL
       template_max_ttl: TemplateMaxTTL
       motd_file: MOTDFile

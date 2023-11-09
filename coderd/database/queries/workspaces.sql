@@ -243,7 +243,7 @@ WHERE
 	-- workspaces since they are considered soft-deleted.
 	AND CASE
 		WHEN @is_dormant :: text != '' THEN
-			dormant_at IS NOT NULL 
+			dormant_at IS NOT NULL
 		ELSE
 			dormant_at IS NULL
 	END
@@ -299,11 +299,12 @@ INSERT INTO
 		name,
 		autostart_schedule,
 		ttl,
+	    ttl_bump,
 		last_used_at,
 		automatic_updates
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *;
 
 -- name: UpdateWorkspaceDeletedByID :exec
 UPDATE
@@ -335,7 +336,8 @@ WHERE
 UPDATE
 	workspaces
 SET
-	ttl = $2
+	ttl = $2,
+	ttl_bump = $3
 WHERE
 	id = $1;
 

@@ -350,6 +350,7 @@ func (q *FakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspac
 			Name:              w.Name,
 			AutostartSchedule: w.AutostartSchedule,
 			Ttl:               w.Ttl,
+			TtlBump:           w.TtlBump,
 			LastUsedAt:        w.LastUsedAt,
 			DormantAt:         w.DormantAt,
 			DeletingAt:        w.DeletingAt,
@@ -830,8 +831,8 @@ func (q *FakeQuerier) ActivityBumpWorkspace(ctx context.Context, workspaceID uui
 		}
 		if !template.AllowUserAutostop {
 			ttlDur = time.Duration(template.DefaultTTL)
-			if template.DefaultTtlBump > 0 {
-				ttlDur += time.Duration(template.DefaultTtlBump)
+			if template.DefaultTTLBump > 0 {
+				ttlDur += time.Duration(template.DefaultTTLBump)
 			}
 		}
 		if ttlDur <= 0 {
@@ -5076,6 +5077,7 @@ func (q *FakeQuerier) InsertWorkspace(_ context.Context, arg database.InsertWork
 		Name:              arg.Name,
 		AutostartSchedule: arg.AutostartSchedule,
 		Ttl:               arg.Ttl,
+		TtlBump:           arg.TtlBump,
 		LastUsedAt:        arg.LastUsedAt,
 		AutomaticUpdates:  arg.AutomaticUpdates,
 	}
@@ -5947,6 +5949,7 @@ func (q *FakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database
 		tpl.AllowUserAutostop = arg.AllowUserAutostop
 		tpl.UpdatedAt = dbtime.Now()
 		tpl.DefaultTTL = arg.DefaultTTL
+		tpl.DefaultTTLBump = arg.DefaultTTLBump
 		tpl.MaxTTL = arg.MaxTTL
 		tpl.AutostopRequirementDaysOfWeek = arg.AutostopRequirementDaysOfWeek
 		tpl.AutostopRequirementWeeks = arg.AutostopRequirementWeeks
@@ -6677,6 +6680,7 @@ func (q *FakeQuerier) UpdateWorkspaceTTL(_ context.Context, arg database.UpdateW
 			continue
 		}
 		workspace.Ttl = arg.Ttl
+		workspace.TtlBump = arg.TtlBump
 		q.workspaces[index] = workspace
 		return nil
 	}

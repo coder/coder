@@ -4936,7 +4936,7 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.AutostopRequirementWeeks,
 		&i.AutostartBlockDaysOfWeek,
 		&i.RequireActiveVersion,
-		&i.DefaultTtlBump,
+		&i.DefaultTTLBump,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 	)
@@ -4992,7 +4992,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.AutostopRequirementWeeks,
 		&i.AutostartBlockDaysOfWeek,
 		&i.RequireActiveVersion,
-		&i.DefaultTtlBump,
+		&i.DefaultTTLBump,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 	)
@@ -5040,7 +5040,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 			&i.AutostopRequirementWeeks,
 			&i.AutostartBlockDaysOfWeek,
 			&i.RequireActiveVersion,
-			&i.DefaultTtlBump,
+			&i.DefaultTTLBump,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 		); err != nil {
@@ -5136,7 +5136,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 			&i.AutostopRequirementWeeks,
 			&i.AutostartBlockDaysOfWeek,
 			&i.RequireActiveVersion,
-			&i.DefaultTtlBump,
+			&i.DefaultTTLBump,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 		); err != nil {
@@ -5364,7 +5364,7 @@ type UpdateTemplateScheduleByIDParams struct {
 	FailureTTL                    int64     `db:"failure_ttl" json:"failure_ttl"`
 	TimeTilDormant                int64     `db:"time_til_dormant" json:"time_til_dormant"`
 	TimeTilDormantAutoDelete      int64     `db:"time_til_dormant_autodelete" json:"time_til_dormant_autodelete"`
-	DefaultTtlBump                int64     `db:"default_ttl_bump" json:"default_ttl_bump"`
+	DefaultTTLBump                int64     `db:"default_ttl_bump" json:"default_ttl_bump"`
 }
 
 func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateTemplateScheduleByIDParams) error {
@@ -5381,7 +5381,7 @@ func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateT
 		arg.FailureTTL,
 		arg.TimeTilDormant,
 		arg.TimeTilDormantAutoDelete,
-		arg.DefaultTtlBump,
+		arg.DefaultTTLBump,
 	)
 	return err
 }
@@ -10408,7 +10408,7 @@ WHERE
 	-- workspaces since they are considered soft-deleted.
 	AND CASE
 		WHEN $10 :: text != '' THEN
-			dormant_at IS NOT NULL 
+			dormant_at IS NOT NULL
 		ELSE
 			dormant_at IS NULL
 	END
@@ -10655,11 +10655,12 @@ INSERT INTO
 		name,
 		autostart_schedule,
 		ttl,
+	    ttl_bump,
 		last_used_at,
 		automatic_updates
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, ttl_bump
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, ttl_bump
 `
 
 type InsertWorkspaceParams struct {
@@ -10672,6 +10673,7 @@ type InsertWorkspaceParams struct {
 	Name              string           `db:"name" json:"name"`
 	AutostartSchedule sql.NullString   `db:"autostart_schedule" json:"autostart_schedule"`
 	Ttl               sql.NullInt64    `db:"ttl" json:"ttl"`
+	TtlBump           int64            `db:"ttl_bump" json:"ttl_bump"`
 	LastUsedAt        time.Time        `db:"last_used_at" json:"last_used_at"`
 	AutomaticUpdates  AutomaticUpdates `db:"automatic_updates" json:"automatic_updates"`
 }
@@ -10687,6 +10689,7 @@ func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspacePar
 		arg.Name,
 		arg.AutostartSchedule,
 		arg.Ttl,
+		arg.TtlBump,
 		arg.LastUsedAt,
 		arg.AutomaticUpdates,
 	)
@@ -10896,18 +10899,20 @@ const updateWorkspaceTTL = `-- name: UpdateWorkspaceTTL :exec
 UPDATE
 	workspaces
 SET
-	ttl = $2
+	ttl = $2,
+	ttl_bump = $3
 WHERE
 	id = $1
 `
 
 type UpdateWorkspaceTTLParams struct {
-	ID  uuid.UUID     `db:"id" json:"id"`
-	Ttl sql.NullInt64 `db:"ttl" json:"ttl"`
+	ID      uuid.UUID     `db:"id" json:"id"`
+	Ttl     sql.NullInt64 `db:"ttl" json:"ttl"`
+	TtlBump int64         `db:"ttl_bump" json:"ttl_bump"`
 }
 
 func (q *sqlQuerier) UpdateWorkspaceTTL(ctx context.Context, arg UpdateWorkspaceTTLParams) error {
-	_, err := q.db.ExecContext(ctx, updateWorkspaceTTL, arg.ID, arg.Ttl)
+	_, err := q.db.ExecContext(ctx, updateWorkspaceTTL, arg.ID, arg.Ttl, arg.TtlBump)
 	return err
 }
 

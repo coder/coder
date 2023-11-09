@@ -549,7 +549,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	// If the user does not specify a value for the default bump,
 	// set it to the existing value.
 	if req.DefaultTTLBumpMillis == nil {
-		ms := time.Duration(template.DefaultTtlBump).Milliseconds()
+		ms := time.Duration(template.DefaultTTLBump).Milliseconds()
 		req.DefaultTTLBumpMillis = &ms
 	}
 
@@ -634,7 +634,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	var updated database.Template
 
 	err = api.Database.InTx(func(tx database.Store) error {
-		defaultTTLBump := time.Duration(template.DefaultTtlBump)
+		defaultTTLBump := time.Duration(template.DefaultTTLBump)
 		// This should never be nil at this point, but we'll check anyway.
 		if req.DefaultTTLBumpMillis != nil {
 			defaultTTLBump = time.Duration(*req.DefaultTTLBumpMillis) * time.Millisecond
@@ -648,7 +648,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.AllowUserAutostop == template.AllowUserAutostop &&
 			req.AllowUserCancelWorkspaceJobs == template.AllowUserCancelWorkspaceJobs &&
 			req.DefaultTTLMillis == time.Duration(template.DefaultTTL).Milliseconds() &&
-			defaultTTLBump == time.Duration(template.DefaultTtlBump) &&
+			defaultTTLBump == time.Duration(template.DefaultTTLBump) &&
 			req.MaxTTLMillis == time.Duration(template.MaxTTL).Milliseconds() &&
 			autostopRequirementDaysOfWeekParsed == scheduleOpts.AutostopRequirement.DaysOfWeek &&
 			autostartRequirementDaysOfWeekParsed == scheduleOpts.AutostartRequirement.DaysOfWeek &&
@@ -701,7 +701,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		timeTilDormantAutoDelete := time.Duration(req.TimeTilDormantAutoDeleteMillis) * time.Millisecond
 
 		if defaultTTL != time.Duration(template.DefaultTTL) ||
-			defaultTTLBump != time.Duration(template.DefaultTtlBump) ||
+			defaultTTLBump != time.Duration(template.DefaultTTLBump) ||
 			maxTTL != time.Duration(template.MaxTTL) ||
 			autostopRequirementDaysOfWeekParsed != scheduleOpts.AutostopRequirement.DaysOfWeek ||
 			autostartRequirementDaysOfWeekParsed != scheduleOpts.AutostartRequirement.DaysOfWeek ||
@@ -861,6 +861,7 @@ func (api *API) convertTemplate(
 		Description:                    template.Description,
 		Icon:                           template.Icon,
 		DefaultTTLMillis:               time.Duration(template.DefaultTTL).Milliseconds(),
+		DefaultTTLBumpMillis:           time.Duration(template.DefaultTTLBump).Milliseconds(),
 		MaxTTLMillis:                   time.Duration(template.MaxTTL).Milliseconds(),
 		CreatedByID:                    template.CreatedBy,
 		CreatedByName:                  template.CreatedByUsername,

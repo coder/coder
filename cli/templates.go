@@ -95,6 +95,7 @@ type templateTableRow struct {
 	ActiveVersionID uuid.UUID                `json:"-" table:"active version id"`
 	UsedBy          string                   `json:"-" table:"used by"`
 	DefaultTTL      time.Duration            `json:"-" table:"default ttl"`
+	DefaultTTLBump  time.Duration            `json:"-" table:"default ttl bump"`
 }
 
 // templateToRows converts a list of templates to a list of templateTableRow for
@@ -111,7 +112,8 @@ func templatesToRows(templates ...codersdk.Template) []templateTableRow {
 			Provisioner:     template.Provisioner,
 			ActiveVersionID: template.ActiveVersionID,
 			UsedBy:          pretty.Sprint(cliui.DefaultStyles.Fuchsia, formatActiveDevelopers(template.ActiveUserCount)),
-			DefaultTTL:      (time.Duration(template.DefaultTTLMillis) * time.Millisecond),
+			DefaultTTL:      time.Duration(template.DefaultTTLMillis) * time.Millisecond,
+			DefaultTTLBump:  time.Duration(template.DefaultTTLBumpMillis) * time.Millisecond,
 		}
 	}
 

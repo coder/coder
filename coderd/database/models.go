@@ -1966,7 +1966,7 @@ type Template struct {
 	AutostopRequirementWeeks      int64           `db:"autostop_requirement_weeks" json:"autostop_requirement_weeks"`
 	AutostartBlockDaysOfWeek      int16           `db:"autostart_block_days_of_week" json:"autostart_block_days_of_week"`
 	RequireActiveVersion          bool            `db:"require_active_version" json:"require_active_version"`
-	DefaultTtlBump                int64           `db:"default_ttl_bump" json:"default_ttl_bump"`
+	DefaultTTLBump                int64           `db:"default_ttl_bump" json:"default_ttl_bump"`
 	CreatedByAvatarURL            sql.NullString  `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 }
@@ -2007,7 +2007,7 @@ type TemplateTable struct {
 	AutostartBlockDaysOfWeek int16 `db:"autostart_block_days_of_week" json:"autostart_block_days_of_week"`
 	RequireActiveVersion     bool  `db:"require_active_version" json:"require_active_version"`
 	// Amount of time to bump workspace ttl from activity. 0 will default to the "default_ttl" as the bump interval.
-	DefaultTtlBump int64 `db:"default_ttl_bump" json:"default_ttl_bump"`
+	DefaultTTLBump int64 `db:"default_ttl_bump" json:"default_ttl_bump"`
 }
 
 // Joins in the username + avatar url of the created by user.

@@ -184,6 +184,7 @@ func (*agplTemplateScheduleStore) Get(ctx context.Context, db database.Store, te
 		UserAutostartEnabled: true,
 		UserAutostopEnabled:  true,
 		DefaultTTL:           time.Duration(tpl.DefaultTTL),
+		DefaultTTLBump:       time.Duration(tpl.DefaultTTLBump),
 		// Disregard the values in the database, since AutostopRequirement,
 		// FailureTTL, TimeTilDormant, and TimeTilDormantAutoDelete are enterprise features.
 		UseAutostopRequirement: false,
@@ -208,7 +209,7 @@ func (*agplTemplateScheduleStore) Set(ctx context.Context, db database.Store, tp
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	if int64(opts.DefaultTTL) == tpl.DefaultTTL && int64(opts.DefaultTTLBump) == tpl.DefaultTtlBump {
+	if int64(opts.DefaultTTL) == tpl.DefaultTTL && int64(opts.DefaultTTLBump) == tpl.DefaultTTLBump {
 		// Avoid updating the UpdatedAt timestamp if nothing will be changed.
 		return tpl, nil
 	}
@@ -219,7 +220,7 @@ func (*agplTemplateScheduleStore) Set(ctx context.Context, db database.Store, tp
 			ID:             tpl.ID,
 			UpdatedAt:      dbtime.Now(),
 			DefaultTTL:     int64(opts.DefaultTTL),
-			DefaultTtlBump: int64(opts.DefaultTTLBump),
+			DefaultTTLBump: int64(opts.DefaultTTLBump),
 			// Don't allow changing these settings, but keep the value in the DB (to
 			// avoid clearing settings if the license has an issue).
 			MaxTTL:                        tpl.MaxTTL,
