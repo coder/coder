@@ -12,7 +12,6 @@ import {
   MockTemplateVersionParameter1,
   MockTemplateVersionParameter2,
   MockBuilds,
-  MockTemplateVersion3,
   MockUser,
   MockDeploymentConfig,
 } from "testHelpers/entities";
@@ -265,20 +264,6 @@ describe("WorkspacePage", () => {
       // Added +1 because of the date row
       expect(rows).toHaveLength(MockBuilds.length + 1);
     });
-  });
-
-  it("shows the template warning", async () => {
-    server.use(
-      rest.get(
-        "/api/v2/templateversions/:templateVersionId",
-        async (req, res, ctx) => {
-          return res(ctx.status(200), ctx.json(MockTemplateVersion3));
-        },
-      ),
-    );
-
-    await renderWorkspacePage();
-    await screen.findByTestId("error-unsupported-workspaces");
   });
 
   it("restart the workspace with one time parameters when having the confirmation dialog", async () => {
