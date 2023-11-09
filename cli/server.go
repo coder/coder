@@ -44,7 +44,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/automaxprocs/maxprocs"
 	"golang.org/x/mod/semver"
 	"golang.org/x/oauth2"
 	xgithub "golang.org/x/oauth2/github"
@@ -324,11 +323,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			logger.Debug(ctx, "started debug logging")
 			logger.Sync()
 
-			// This can improve the performance of Coder inside of a container.
-			// See: https://github.com/uber-go/automaxprocs
-			undoMacProcs, err := maxprocs.Set(maxprocs.Logger(func(format string, args ...interface{}) {
-				logger.Debug(ctx, fmt.Sprintf(format, args...))
-			}))
+			undoMacProcs, err := limitGoMaxProcs(logger)
 			if err != nil {
 				return xerrors.Errorf("set maxprocs: %w", err)
 			}

@@ -25,6 +25,7 @@ import (
 
 	"github.com/mattn/go-isatty"
 	"github.com/mitchellh/go-wordwrap"
+	"go.uber.org/automaxprocs/maxprocs"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
@@ -1126,6 +1127,19 @@ func headLineStyle() pretty.Style {
 
 func tailLineStyle() pretty.Style {
 	return pretty.Style{pretty.Nop}
+}
+
+// limitGoMaxProcs sets GOMAXPROCS to the number of CPUs available.
+// This can improve the performance of Coder inside of a container.
+func limitGoMaxProcs(logger slog.Logger) (func(), error) {
+	// See: https://github.com/uber-go/automaxprocs
+	undoMacProcs, err := maxprocs.Set(maxprocs.Logger(func(format string, args ...interface{}) {
+		logger.Debug(context.Background(), fmt.Sprintf(format, args...))
+	}))
+	if err != nil {
+		return nil, xerrors.Errorf("set maxprocs: %w", err)
+	}
+	return undoMacProcs, nil
 }
 
 //nolint:unused
