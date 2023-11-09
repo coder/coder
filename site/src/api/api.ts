@@ -1287,6 +1287,15 @@ export const updateWorkspace = async (
   });
 };
 
+export const getWorkspaceResolveAutostart = async (
+  workspaceId: string,
+): Promise<TypesGen.ResolveAutostartResponse> => {
+  const response = await axios.get(
+    `/api/v2/workspaces/${workspaceId}/resolve-autostart`,
+  );
+  return response.data;
+};
+
 const getMissingParameters = (
   oldBuildParameters: TypesGen.WorkspaceBuildParameter[],
   newBuildParameters: TypesGen.WorkspaceBuildParameter[],
