@@ -57,7 +57,7 @@ func TestCollectInsights(t *testing.T) {
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:          echo.ParseComplete,
-		ProvisionPlan:  echo.PlanComplete,
+		ProvisionPlan:  provisionPlanWithParameters(),
 		ProvisionApply: provisionApplyWithAgentAndApp(authToken),
 	})
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
@@ -66,7 +66,13 @@ func TestCollectInsights(t *testing.T) {
 	require.Empty(t, template.BuildTimeStats[codersdk.WorkspaceTransitionStart])
 
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+		cwr.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+			{Name: "first_parameter", Value: "Foobar"},
+			{Name: "second_parameter", Value: "true"},
+			{Name: "third_parameter", Value: "789"},
+		}
+	})
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 	// Start an agent so that we can generate stats.
@@ -142,7 +148,7 @@ func TestCollectInsights(t *testing.T) {
 		// Then
 		for _, metric := range metrics {
 			switch metric.GetName() {
-			case "coderd_insights_applications_usage_seconds", "coderd_insights_templates_active_users":
+			case "coderd_insights_applications_usage_seconds", "coderd_insights_templates_active_users", "coderd_insights_parameters":
 				for _, m := range metric.Metric {
 					key := metric.GetName()
 					if len(m.Label) > 0 {
@@ -165,6 +171,22 @@ func metricLabelAsString(m *io_prometheus_client.Metric) string {
 		labels = append(labels, labelPair.GetName()+"="+labelPair.GetValue())
 	}
 	return strings.Join(labels, ",")
+}
+
+func provisionPlanWithParameters() []*proto.Response {
+	return []*proto.Response{
+		{
+			Type: &proto.Response_Plan{
+				Plan: &proto.PlanComplete{
+					Parameters: []*proto.RichParameter{
+						{Name: "first_parameter", Type: "string", Mutable: true},
+						{Name: "second_parameter", Type: "bool", Mutable: true},
+						{Name: "third_parameter", Type: "number", Mutable: true},
+					},
+				},
+			},
+		},
+	}
 }
 
 func provisionApplyWithAgentAndApp(authToken string) []*proto.Response {
