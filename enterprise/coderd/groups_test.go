@@ -10,6 +10,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -28,8 +29,9 @@ func TestCreateGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		}})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 		ctx := testutil.Context(t, testutil.WaitLong)
-		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+		group, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name:      "hi",
 			AvatarURL: "https://example.com",
 		})
@@ -58,18 +60,21 @@ func TestCreateGroup(t *testing.T) {
 				},
 			},
 		})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		numLogs := len(auditor.AuditLogs())
-		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+		group, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
 		require.NoError(t, err)
 		numLogs++
 		require.Len(t, auditor.AuditLogs(), numLogs)
-		require.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[numLogs-1].Action)
-		require.Equal(t, group.ID, auditor.AuditLogs()[numLogs-1].ResourceID)
+		require.True(t, auditor.Contains(t, database.AuditLog{
+			Action:     database.AuditActionCreate,
+			ResourceID: group.ID,
+		}))
 	})
 
 	t.Run("Conflict", func(t *testing.T) {
@@ -80,13 +85,14 @@ func TestCreateGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		}})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 		ctx := testutil.Context(t, testutil.WaitLong)
-		_, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+		_, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
 		require.NoError(t, err)
 
-		_, err = client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+		_, err = userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
 		require.Error(t, err)
@@ -103,8 +109,9 @@ func TestCreateGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		}})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 		ctx := testutil.Context(t, testutil.WaitLong)
-		_, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+		_, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: database.EveryoneGroup,
 		})
 		require.Error(t, err)
@@ -125,9 +132,10 @@ func TestPatchGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		}})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 		const displayName = "foobar"
 		ctx := testutil.Context(t, testutil.WaitLong)
-		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+		group, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name:           "hi",
 			AvatarURL:      "https://example.com",
 			QuotaAllowance: 10,
@@ -136,7 +144,7 @@ func TestPatchGroup(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 10, group.QuotaAllowance)
 
-		group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+		group, err = userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
 			Name:           "bye",
 			AvatarURL:      ptr.Ref("https://google.com"),
 			QuotaAllowance: ptr.Ref(20),
@@ -157,9 +165,10 @@ func TestPatchGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		}})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 		const displayName = "foobar"
 		ctx := testutil.Context(t, testutil.WaitLong)
-		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+		group, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name:           "hi",
 			AvatarURL:      "https://example.com",
 			QuotaAllowance: 10,
@@ -168,7 +177,7 @@ func TestPatchGroup(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 10, group.QuotaAllowance)
 
-		group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+		group, err = userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
 			Name:           "bye",
 			AvatarURL:      ptr.Ref("https://google.com"),
 			QuotaAllowance: ptr.Ref(20),
@@ -191,13 +200,14 @@ func TestPatchGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		}})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 		ctx := testutil.Context(t, testutil.WaitLong)
-		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+		group, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
 		require.NoError(t, err)
 
-		group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+		group, err = userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
 			Name: "hi",
 		})
 		require.NoError(t, err)
@@ -212,16 +222,17 @@ func TestPatchGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		}})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 		_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_, user3 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+		group, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
 		require.NoError(t, err)
 
-		group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+		group, err = userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
 			AddUsers: []string{user2.ID.String(), user3.ID.String()},
 		})
 		require.NoError(t, err)
@@ -237,24 +248,25 @@ func TestPatchGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		}})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 		_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_, user3 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_, user4 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+		group, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
 		require.NoError(t, err)
 
-		group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+		group, err = userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
 			AddUsers: []string{user2.ID.String(), user3.ID.String(), user4.ID.String()},
 		})
 		require.NoError(t, err)
 		require.Contains(t, group.Members, user2)
 		require.Contains(t, group.Members, user3)
 
-		group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+		group, err = userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
 			RemoveUsers: []string{user2.ID.String(), user3.ID.String()},
 		})
 		require.NoError(t, err)
@@ -280,15 +292,16 @@ func TestPatchGroup(t *testing.T) {
 				},
 			},
 		})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+		group, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
 		require.NoError(t, err)
 
 		numLogs := len(auditor.AuditLogs())
-		group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+		group, err = userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
 			Name: "bye",
 		})
 		require.NoError(t, err)
@@ -306,19 +319,20 @@ func TestPatchGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		}})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 		ctx := testutil.Context(t, testutil.WaitLong)
-		group1, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+		group1, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name:      "hi",
 			AvatarURL: "https://example.com",
 		})
 		require.NoError(t, err)
 
-		group2, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+		group2, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "bye",
 		})
 		require.NoError(t, err)
 
-		group1, err = client.PatchGroup(ctx, group1.ID, codersdk.PatchGroupRequest{
+		group1, err = userAdminClient.PatchGroup(ctx, group1.ID, codersdk.PatchGroupRequest{
 			Name:      group2.Name,
 			AvatarURL: ptr.Ref("https://google.com"),
 		})
@@ -336,13 +350,14 @@ func TestPatchGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		}})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 		ctx := testutil.Context(t, testutil.WaitLong)
-		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+		group, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
 		require.NoError(t, err)
 
-		group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+		group, err = userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
 			AddUsers: []string{uuid.NewString()},
 		})
 		require.Error(t, err)
@@ -359,13 +374,14 @@ func TestPatchGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		}})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 		ctx := testutil.Context(t, testutil.WaitLong)
-		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+		group, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
 		require.NoError(t, err)
 
-		group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+		group, err = userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
 			AddUsers: []string{"yeet"},
 		})
 		require.Error(t, err)
@@ -382,14 +398,15 @@ func TestPatchGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		}})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 		_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+		group, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
 		require.NoError(t, err)
 
-		group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+		group, err = userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
 			AddUsers: []string{user2.ID.String(), user2.ID.String()},
 		})
 		require.Error(t, err)
@@ -407,13 +424,14 @@ func TestPatchGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		}})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 		ctx := testutil.Context(t, testutil.WaitLong)
-		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+		group, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
 		require.NoError(t, err)
 
-		group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+		group, err = userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
 			Name: database.EveryoneGroup,
 		})
 		require.Error(t, err)
@@ -432,8 +450,9 @@ func TestPatchGroup(t *testing.T) {
 					codersdk.FeatureTemplateRBAC: 1,
 				},
 			}})
+			userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 			ctx := testutil.Context(t, testutil.WaitLong)
-			_, err := client.PatchGroup(ctx, user.OrganizationID, codersdk.PatchGroupRequest{
+			_, err := userAdminClient.PatchGroup(ctx, user.OrganizationID, codersdk.PatchGroupRequest{
 				Name: "hi",
 			})
 			require.Error(t, err)
@@ -450,8 +469,9 @@ func TestPatchGroup(t *testing.T) {
 					codersdk.FeatureTemplateRBAC: 1,
 				},
 			}})
+			userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 			ctx := testutil.Context(t, testutil.WaitLong)
-			_, err := client.PatchGroup(ctx, user.OrganizationID, codersdk.PatchGroupRequest{
+			_, err := userAdminClient.PatchGroup(ctx, user.OrganizationID, codersdk.PatchGroupRequest{
 				DisplayName: ptr.Ref("hi"),
 			})
 			require.Error(t, err)
@@ -468,10 +488,11 @@ func TestPatchGroup(t *testing.T) {
 					codersdk.FeatureTemplateRBAC: 1,
 				},
 			}})
+			userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 			_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			_, err := client.PatchGroup(ctx, user.OrganizationID, codersdk.PatchGroupRequest{
+			_, err := userAdminClient.PatchGroup(ctx, user.OrganizationID, codersdk.PatchGroupRequest{
 				AddUsers: []string{user2.ID.String()},
 			})
 			require.Error(t, err)
@@ -488,9 +509,10 @@ func TestPatchGroup(t *testing.T) {
 					codersdk.FeatureTemplateRBAC: 1,
 				},
 			}})
+			userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			_, err := client.PatchGroup(ctx, user.OrganizationID, codersdk.PatchGroupRequest{
+			_, err := userAdminClient.PatchGroup(ctx, user.OrganizationID, codersdk.PatchGroupRequest{
 				RemoveUsers: []string{user.UserID.String()},
 			})
 			require.Error(t, err)
@@ -507,15 +529,16 @@ func TestPatchGroup(t *testing.T) {
 					codersdk.FeatureTemplateRBAC: 1,
 				},
 			}})
+			userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			group, err := client.Group(ctx, user.OrganizationID)
+			group, err := userAdminClient.Group(ctx, user.OrganizationID)
 			require.NoError(t, err)
 
 			require.Equal(t, 0, group.QuotaAllowance)
 
 			expectedQuota := 123
-			group, err = client.PatchGroup(ctx, user.OrganizationID, codersdk.PatchGroupRequest{
+			group, err = userAdminClient.PatchGroup(ctx, user.OrganizationID, codersdk.PatchGroupRequest{
 				QuotaAllowance: ptr.Ref(expectedQuota),
 			})
 			require.NoError(t, err)
@@ -536,13 +559,14 @@ func TestGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		}})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 		ctx := testutil.Context(t, testutil.WaitLong)
-		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+		group, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
 		require.NoError(t, err)
 
-		ggroup, err := client.Group(ctx, group.ID)
+		ggroup, err := userAdminClient.Group(ctx, group.ID)
 		require.NoError(t, err)
 		require.Equal(t, group, ggroup)
 	})
@@ -555,13 +579,14 @@ func TestGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		}})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 		ctx := testutil.Context(t, testutil.WaitLong)
-		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+		group, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
 		require.NoError(t, err)
 
-		ggroup, err := client.GroupByOrgAndName(ctx, group.OrganizationID, group.Name)
+		ggroup, err := userAdminClient.GroupByOrgAndName(ctx, group.OrganizationID, group.Name)
 		require.NoError(t, err)
 		require.Equal(t, group, ggroup)
 	})
@@ -574,23 +599,24 @@ func TestGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		}})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 		_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_, user3 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+		group, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
 		require.NoError(t, err)
 
-		group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+		group, err = userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
 			AddUsers: []string{user2.ID.String(), user3.ID.String()},
 		})
 		require.NoError(t, err)
 		require.Contains(t, group.Members, user2)
 		require.Contains(t, group.Members, user3)
 
-		ggroup, err := client.Group(ctx, group.ID)
+		ggroup, err := userAdminClient.Group(ctx, group.ID)
 		require.NoError(t, err)
 		require.Equal(t, group, ggroup)
 	})
@@ -606,6 +632,7 @@ func TestGroup(t *testing.T) {
 		client1, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
+		//nolint:gocritic // test setup
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
@@ -623,27 +650,28 @@ func TestGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		}})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 
 		_, user1 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+		group, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
 		require.NoError(t, err)
 
-		group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+		group, err = userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
 			AddUsers: []string{user1.ID.String(), user2.ID.String()},
 		})
 		require.NoError(t, err)
 		require.Contains(t, group.Members, user1)
 		require.Contains(t, group.Members, user2)
 
-		err = client.DeleteUser(ctx, user1.ID)
+		err = userAdminClient.DeleteUser(ctx, user1.ID)
 		require.NoError(t, err)
 
-		group, err = client.Group(ctx, group.ID)
+		group, err = userAdminClient.Group(ctx, group.ID)
 		require.NoError(t, err)
 		require.NotContains(t, group.Members, user1)
 	})
@@ -656,17 +684,18 @@ func TestGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		}})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 
 		_, user1 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+		group, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
 		require.NoError(t, err)
 
-		group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+		group, err = userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
 			AddUsers: []string{user1.ID.String(), user2.ID.String()},
 		})
 		require.NoError(t, err)
@@ -674,17 +703,17 @@ func TestGroup(t *testing.T) {
 		require.Contains(t, group.Members, user1)
 		require.Contains(t, group.Members, user2)
 
-		user1, err = client.UpdateUserStatus(ctx, user1.ID.String(), codersdk.UserStatusSuspended)
+		user1, err = userAdminClient.UpdateUserStatus(ctx, user1.ID.String(), codersdk.UserStatusSuspended)
 		require.NoError(t, err)
 
-		group, err = client.Group(ctx, group.ID)
+		group, err = userAdminClient.Group(ctx, group.ID)
 		require.NoError(t, err)
 		require.Len(t, group.Members, 2)
 		require.Contains(t, group.Members, user1)
 		require.Contains(t, group.Members, user2)
 
 		// cannot explicitly set a dormant user status so must create a new user
-		anotherUser, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+		anotherUser, err := userAdminClient.CreateUser(ctx, codersdk.CreateUserRequest{
 			Email:          "coder@coder.com",
 			Username:       "coder",
 			Password:       "SomeStrongPassword!",
@@ -695,11 +724,11 @@ func TestGroup(t *testing.T) {
 		// Ensure that new user has dormant account
 		require.Equal(t, codersdk.UserStatusDormant, anotherUser.Status)
 
-		group, _ = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+		group, _ = userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
 			AddUsers: []string{anotherUser.ID.String()},
 		})
 
-		group, err = client.Group(ctx, group.ID)
+		group, err = userAdminClient.Group(ctx, group.ID)
 		require.NoError(t, err)
 		require.Len(t, group.Members, 3)
 		require.Contains(t, group.Members, user1)
@@ -714,14 +743,15 @@ func TestGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		}})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 		_, user1 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		// The 'Everyone' group always has an ID that matches the organization ID.
-		group, err := client.Group(ctx, user.OrganizationID)
+		group, err := userAdminClient.Group(ctx, user.OrganizationID)
 		require.NoError(t, err)
-		require.Len(t, group.Members, 3)
+		require.Len(t, group.Members, 4)
 		require.Equal(t, "Everyone", group.Name)
 		require.Equal(t, user.OrganizationID, group.OrganizationID)
 		require.Contains(t, group.Members, user1, user2)
@@ -740,33 +770,34 @@ func TestGroups(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		}})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 		_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_, user3 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_, user4 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_, user5 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		group1, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+		group1, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
 		require.NoError(t, err)
 
-		group2, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+		group2, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hey",
 		})
 		require.NoError(t, err)
 
-		group1, err = client.PatchGroup(ctx, group1.ID, codersdk.PatchGroupRequest{
+		group1, err = userAdminClient.PatchGroup(ctx, group1.ID, codersdk.PatchGroupRequest{
 			AddUsers: []string{user2.ID.String(), user3.ID.String()},
 		})
 		require.NoError(t, err)
 
-		group2, err = client.PatchGroup(ctx, group2.ID, codersdk.PatchGroupRequest{
+		group2, err = userAdminClient.PatchGroup(ctx, group2.ID, codersdk.PatchGroupRequest{
 			AddUsers: []string{user4.ID.String(), user5.ID.String()},
 		})
 		require.NoError(t, err)
 
-		groups, err := client.GroupsByOrganization(ctx, user.OrganizationID)
+		groups, err := userAdminClient.GroupsByOrganization(ctx, user.OrganizationID)
 		require.NoError(t, err)
 		// 'Everyone' group + 2 custom groups.
 		require.Len(t, groups, 3)
@@ -786,16 +817,17 @@ func TestDeleteGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		}})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 		ctx := testutil.Context(t, testutil.WaitLong)
-		group1, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+		group1, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
 		require.NoError(t, err)
 
-		err = client.DeleteGroup(ctx, group1.ID)
+		err = userAdminClient.DeleteGroup(ctx, group1.ID)
 		require.NoError(t, err)
 
-		_, err = client.Group(ctx, group1.ID)
+		_, err = userAdminClient.Group(ctx, group1.ID)
 		require.Error(t, err)
 		cerr, ok := codersdk.AsError(err)
 		require.True(t, ok)
@@ -813,6 +845,7 @@ func TestDeleteGroup(t *testing.T) {
 				Auditor:                  auditor,
 			},
 		})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 			Features: license.Features{
@@ -822,19 +855,21 @@ func TestDeleteGroup(t *testing.T) {
 		})
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+		group, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
 		require.NoError(t, err)
 
 		numLogs := len(auditor.AuditLogs())
-		err = client.DeleteGroup(ctx, group.ID)
+		err = userAdminClient.DeleteGroup(ctx, group.ID)
 		require.NoError(t, err)
 		numLogs++
 
 		require.Len(t, auditor.AuditLogs(), numLogs)
-		require.Equal(t, database.AuditActionDelete, auditor.AuditLogs()[numLogs-1].Action)
-		require.Equal(t, group.ID, auditor.AuditLogs()[numLogs-1].ResourceID)
+		require.True(t, auditor.Contains(t, database.AuditLog{
+			Action:     database.AuditActionDelete,
+			ResourceID: group.ID,
+		}))
 	})
 
 	t.Run("allUsers", func(t *testing.T) {
@@ -845,8 +880,9 @@ func TestDeleteGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		}})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 		ctx := testutil.Context(t, testutil.WaitLong)
-		err := client.DeleteGroup(ctx, user.OrganizationID)
+		err := userAdminClient.DeleteGroup(ctx, user.OrganizationID)
 		require.Error(t, err)
 		cerr, ok := codersdk.AsError(err)
 		require.True(t, ok)

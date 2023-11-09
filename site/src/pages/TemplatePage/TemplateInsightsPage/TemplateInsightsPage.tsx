@@ -68,10 +68,13 @@ export default function TemplateInsightsPage() {
     setSearchParams(searchParams);
   };
 
+  // date ranges can have different offsets because of daylight savings so to
+  // avoid that we are going to use a common offset
+  const baseOffset = dateRange.endDate.getTimezoneOffset();
   const commonFilters = {
     template_ids: template.id,
-    start_time: toISOLocal(dateRange.startDate),
-    end_time: toISOLocal(dateRange.endDate),
+    start_time: toISOLocal(dateRange.startDate, baseOffset),
+    end_time: toISOLocal(dateRange.endDate, baseOffset),
   };
 
   const insightsFilter = { ...commonFilters, interval };
@@ -782,6 +785,19 @@ function formatTime(seconds: number): string {
   }
 }
 
-function toISOLocal(d: Date) {
-  return format(d, "yyyy-MM-dd'T'HH:mm:ssxxx");
+function toISOLocal(d: Date, offset: number) {
+  return format(d, `yyyy-MM-dd'T'HH:mm:ss${formatOffset(offset)}`);
+}
+
+function formatOffset(offset: number): string {
+  const isPositive = offset >= 0;
+  const absoluteOffset = Math.abs(offset);
+  const hours = Math.floor(absoluteOffset / 60);
+  const minutes = Math.abs(offset) % 60;
+  const formattedHours = `${isPositive ? "+" : "-"}${String(hours).padStart(
+    2,
+    "0",
+  )}`;
+  const formattedMinutes = String(minutes).padStart(2, "0");
+  return `${formattedHours}:${formattedMinutes}`;
 }

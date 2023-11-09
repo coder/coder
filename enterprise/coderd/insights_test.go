@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -41,6 +42,7 @@ func TestTemplateInsightsWithTemplateAdminACL(t *testing.T) {
 					codersdk.FeatureTemplateRBAC: 1,
 				},
 			}})
+			templateAdminClient, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleTemplateAdmin())
 
 			version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
 			template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
@@ -50,7 +52,7 @@ func TestTemplateInsightsWithTemplateAdminACL(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 			defer cancel()
 
-			err := client.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
+			err := templateAdminClient.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
 				UserPerms: map[string]codersdk.TemplateRole{
 					regularUser.ID.String(): codersdk.TemplateRoleAdmin,
 				},

@@ -75,13 +75,14 @@ export interface DeploymentBannerViewProps {
 export const DeploymentBannerView: FC<DeploymentBannerViewProps> = (props) => {
   const { health, stats, fetchStats } = props;
   const theme = useTheme();
+
   const aggregatedMinutes = useMemo(() => {
     if (!stats) {
       return;
     }
     return dayjs(stats.collected_at).diff(stats.aggregated_from, "minutes");
   }, [stats]);
-  const displayLatency = stats?.workspaces.connection_latency_ms.P50 || -1;
+
   const [timeUntilRefresh, setTimeUntilRefresh] = useState(0);
   useEffect(() => {
     if (!stats || !fetchStats) {
@@ -130,7 +131,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = (props) => {
     justify-content: center;
     background-color: ${unhealthy ? colors.red[10] : undefined};
     padding: 0 12px;
-    height: ${bannerHeight}px;
+    height: 100%;
     color: #fff;
 
     & svg {
@@ -151,10 +152,13 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = (props) => {
     pointer-events: none;
   `;
 
+  const displayLatency = stats?.workspaces.connection_latency_ms.P50 || -1;
+
   return (
     <div
       css={{
         position: "sticky",
+        lineHeight: 1,
         height: bannerHeight,
         bottom: 0,
         zIndex: 1,
@@ -216,6 +220,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = (props) => {
           </div>
         )}
       </Tooltip>
+
       <div css={styles.group}>
         <div css={styles.category}>Workspaces</div>
         <div css={styles.values}>
@@ -245,6 +250,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = (props) => {
           />
         </div>
       </div>
+
       <div css={styles.group}>
         <Tooltip title={`Activity in the last ~${aggregatedMinutes} minutes`}>
           <div css={styles.category}>Transmission</div>
@@ -279,6 +285,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = (props) => {
           </Tooltip>
         </div>
       </div>
+
       <div css={styles.group}>
         <div css={styles.category}>Active Connections</div>
 
@@ -317,6 +324,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = (props) => {
           </Tooltip>
         </div>
       </div>
+
       <div
         css={{
           color: theme.palette.text.primary,

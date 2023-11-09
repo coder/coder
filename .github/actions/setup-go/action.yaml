@@ -8,56 +8,10 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Cache go toolchain
-      uses: buildjet/cache@v3
-      with:
-        path: |
-          ${{ runner.tool_cache }}/go/${{ inputs.version }}
-        key: gotoolchain-${{ runner.os }}-${{ inputs.version }}
-        restore-keys: |
-          gotoolchain-${{ runner.os }}-
-
     - name: Setup Go
       uses: buildjet/setup-go@v4
       with:
-        # We do our own caching for implementation clarity.
-        cache: false
         go-version: ${{ inputs.version }}
-
-    - name: Get cache dirs
-      shell: bash
-      run: |
-        set -x
-        echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_ENV
-        echo "GOCACHE=$(go env GOCACHE)" >> $GITHUB_ENV
-
-    # We split up GOMODCACHE from GOCACHE because the latter must be invalidated
-    # on code change, but the former can be kept.
-    - name: Cache $GOMODCACHE
-      uses: buildjet/cache@v3
-      with:
-        path: |
-          ${{ env.GOMODCACHE }}
-        key: gomodcache-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-${{ github.job }}
-        # restore-keys aren't used because it causes the cache to grow
-        # infinitely. go.sum changes very infrequently, so rebuilding from
-        # scratch every now and then isn't terrible.
-
-    - name: Cache $GOCACHE
-      uses: buildjet/cache@v3
-      with:
-        path: |
-          ${{ env.GOCACHE }}
-        # Job name must be included in the key for effective test cache reuse.
-        # The key format is intentionally different than GOMODCACHE, because any
-        # time a Go file changes we invalidate this cache, whereas GOMODCACHE is
-        # only invalidated when go.sum changes.
-        # The number in the key is incremented when the cache gets too large,
-        # since this technically grows without bound.
-        key: gocache2-${{ runner.os }}-${{ github.job }}-${{ hashFiles('**/*.go', 'go.**') }}
-        restore-keys: |
-          gocache2-${{ runner.os }}-${{ github.job }}-
-          gocache2-${{ runner.os }}-
 
     - name: Install gotestsum
       shell: bash

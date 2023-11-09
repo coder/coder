@@ -1,34 +1,35 @@
-import Button from "@mui/material/Button";
 import useMediaQuery from "@mui/material/useMediaQuery";
+import { useTheme } from "@emotion/react";
+
+import { PlaceholderPageButton, NumberedPageButton } from "./PageButtons";
+import { buildPagedList } from "./utils";
+import { PaginationNavButton } from "./PaginationNavButton";
 import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
 import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
-import { useTheme } from "@emotion/react";
-import { PageButton } from "./PageButton";
-import { buildPagedList } from "./utils";
 
 export type PaginationWidgetBaseProps = {
-  count: number;
-  page: number;
-  limit: number;
-  onChange: (page: number) => void;
+  currentPage: number;
+  pageSize: number;
+  totalRecords: number;
+  onPageChange: (newPage: number) => void;
 };
 
 export const PaginationWidgetBase = ({
-  count,
-  page,
-  limit,
-  onChange,
-}: PaginationWidgetBaseProps): JSX.Element | null => {
+  currentPage,
+  pageSize,
+  totalRecords,
+  onPageChange,
+}: PaginationWidgetBaseProps) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+  const totalPages = Math.ceil(totalRecords / pageSize);
 
-  const numPages = Math.ceil(count / limit);
-  if (numPages < 2) {
+  if (totalPages < 2) {
     return null;
   }
 
-  const isFirstPage = page <= 1;
-  const isLastPage = page >= numPages;
+  const onFirstPage = currentPage <= 1;
+  const onLastPage = currentPage >= totalPages;
 
   return (
     <div
@@ -38,59 +39,88 @@ export const PaginationWidgetBase = ({
         display: "flex",
         flexDirection: "row",
         padding: "20px",
+        columnGap: "6px",
       }}
     >
-      <Button
-        css={{
-          marginRight: 4,
-        }}
+      <PaginationNavButton
+        disabledMessage="You are already on the first page"
+        disabled={onFirstPage}
         aria-label="Previous page"
-        disabled={isFirstPage}
         onClick={() => {
-          if (!isFirstPage) {
-            onChange(page - 1);
+          if (!onFirstPage) {
+            onPageChange(currentPage - 1);
           }
         }}
       >
         <KeyboardArrowLeft />
-      </Button>
-      {isMobile ? (
-        <PageButton activePage={page} page={page} numPages={numPages} />
-      ) : (
-        buildPagedList(numPages, page).map((pageItem) => {
-          if (pageItem === "left" || pageItem === "right") {
-            return (
-              <PageButton
-                key={pageItem}
-                activePage={page}
-                placeholder="..."
-                disabled
-              />
-            );
-          }
+      </PaginationNavButton>
 
-          return (
-            <PageButton
-              key={pageItem}
-              page={pageItem}
-              activePage={page}
-              numPages={numPages}
-              onPageClick={() => onChange(pageItem)}
-            />
-          );
-        })
+      {isMobile ? (
+        <NumberedPageButton
+          highlighted
+          pageNumber={currentPage}
+          totalPages={totalPages}
+        />
+      ) : (
+        <PaginationRow
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onChange={onPageChange}
+        />
       )}
-      <Button
+
+      <PaginationNavButton
+        disabledMessage="You're already on the last page"
+        disabled={onLastPage}
         aria-label="Next page"
-        disabled={isLastPage}
         onClick={() => {
-          if (!isLastPage) {
-            onChange(page + 1);
+          if (!onLastPage) {
+            onPageChange(currentPage + 1);
           }
         }}
       >
         <KeyboardArrowRight />
-      </Button>
+      </PaginationNavButton>
     </div>
   );
 };
+
+type PaginationRowProps = {
+  currentPage: number;
+  totalPages: number;
+  onChange: (newPage: number) => void;
+};
+
+function PaginationRow({
+  currentPage,
+  totalPages,
+  onChange,
+}: PaginationRowProps) {
+  const pageInfo = buildPagedList(totalPages, currentPage);
+  const pagesOmitted = totalPages - pageInfo.length - 1;
+
+  return (
+    <>
+      {pageInfo.map((pageEntry) => {
+        if (pageEntry === "left" || pageEntry === "right") {
+          return (
+            <PlaceholderPageButton
+              key={pageEntry}
+              pagesOmitted={pagesOmitted}
+            />
+          );
+        }
+
+        return (
+          <NumberedPageButton
+            key={pageEntry}
+            pageNumber={pageEntry}
+            totalPages={totalPages}
+            highlighted={pageEntry === currentPage}
+            onClick={() => onChange(pageEntry)}
+          />
+        );
+      })}
+    </>
+  );
+}
