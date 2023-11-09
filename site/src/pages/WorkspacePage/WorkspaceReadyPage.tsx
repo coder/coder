@@ -48,7 +48,6 @@ interface WorkspaceReadyPageProps {
     "template" | "workspace" | "permissions"
   >;
   workspaceSend: (event: WorkspaceEvent) => void;
-  quota?: TypesGen.WorkspaceQuota;
   builds: TypesGen.WorkspaceBuild[] | undefined;
   buildsError: unknown;
   onLoadMoreBuilds: () => void;
@@ -62,7 +61,6 @@ export const WorkspaceReadyPage = ({
   permissions,
   workspaceState,
   workspaceSend,
-  quota,
   builds,
   buildsError,
   onLoadMoreBuilds,
@@ -212,7 +210,6 @@ export const WorkspaceReadyPage = ({
         buildInfo={buildInfo}
         sshPrefix={sshPrefix}
         template={template}
-        quotaBudget={quota?.budget}
         buildLogs={
           shouldDisplayBuildLogs && (
             <WorkspaceBuildLogsSection logs={buildLogs} />

@@ -9,7 +9,6 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { useOrganizationId } from "hooks";
 import { isAxiosError } from "axios";
 import { Margins } from "components/Margins/Margins";
-import { workspaceQuota } from "api/queries/workspaceQuota";
 import { useInfiniteQuery, useQuery } from "react-query";
 import { infiniteWorkspaceBuilds } from "api/queries/workspaceBuilds";
 import { templateByName } from "api/queries/templates";
@@ -57,19 +56,14 @@ export const WorkspacePage: FC = () => {
   });
   const permissions = permissionsQuery.data as WorkspacePermissions | undefined;
 
-  const quotaQuery = useQuery(workspaceQuota(username));
-
   const buildsQuery = useInfiniteQuery({
     ...infiniteWorkspaceBuilds(workspace?.id ?? ""),
     enabled: workspace !== undefined,
   });
 
   const pageError =
-    workspaceQuery.error ??
-    templateQuery.error ??
-    quotaQuery.error ??
-    permissionsQuery.error;
-  const isLoading = !workspace || !template || !permissions || !quotaQuery.data;
+    workspaceQuery.error ?? templateQuery.error ?? permissionsQuery.error;
+  const isLoading = !workspace || !template || !permissions;
 
   if (pageError) {
     return (
@@ -94,7 +88,6 @@ export const WorkspacePage: FC = () => {
         template={template}
         permissions={permissions}
         workspaceState={workspaceState}
-        quota={quotaQuery.data}
         workspaceSend={workspaceSend}
         builds={buildsQuery.data?.pages.flat()}
         buildsError={buildsQuery.error}
