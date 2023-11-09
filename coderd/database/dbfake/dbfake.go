@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 )
 
@@ -37,6 +38,64 @@ func Workspace(t testing.TB, db database.Store, seed database.Workspace) databas
 	return dbgen.Workspace(t, db, seed)
 }
 
+func TemplateWithVersion(t testing.TB, db database.Store, tpl database.Template, tv database.TemplateVersion, job database.ProvisionerJob, resources ...*proto.Resource) (database.Template, database.TemplateVersion) {
+	t.Helper()
+
+	template := dbgen.Template(t, db, tpl)
+
+	tv.TemplateID = dbgen.TakeFirst(tv.TemplateID, uuid.NullUUID{UUID: template.ID, Valid: true})
+	tv.OrganizationID = dbgen.TakeFirst(tv.OrganizationID, template.OrganizationID)
+	tv.CreatedBy = dbgen.TakeFirst(tv.CreatedBy, template.CreatedBy)
+	version := TemplateVersion(t, db, tv, job, resources...)
+
+	err := db.UpdateTemplateActiveVersionByID(dbgen.Ctx, database.UpdateTemplateActiveVersionByIDParams{
+		ID:              template.ID,
+		ActiveVersionID: version.ID,
+		UpdatedAt:       dbtime.Now(),
+	})
+	require.NoError(t, err)
+
+	return template, version
+}
+
+func TemplateVersion(t testing.TB, db database.Store, tv database.TemplateVersion, job database.ProvisionerJob, resources ...*proto.Resource) database.TemplateVersion {
+	templateVersion := dbgen.TemplateVersion(t, db, tv)
+	payload, err := json.Marshal(provisionerdserver.TemplateVersionImportJob{
+		TemplateVersionID: templateVersion.ID,
+	})
+	require.NoError(t, err)
+
+	job.ID = dbgen.TakeFirst(job.ID, templateVersion.JobID)
+	job.OrganizationID = dbgen.TakeFirst(job.OrganizationID, templateVersion.OrganizationID)
+	job.Input = dbgen.TakeFirstSlice(job.Input, payload)
+	job.Type = dbgen.TakeFirst(job.Type, database.ProvisionerJobTypeTemplateVersionImport)
+	job.CompletedAt = dbgen.TakeFirst(job.CompletedAt, sql.NullTime{
+		Time:  dbtime.Now(),
+		Valid: true,
+	})
+
+	job = dbgen.ProvisionerJob(t, db, nil, job)
+	ProvisionerJobResources(t, db, job.ID, "", resources...)
+	return templateVersion
+}
+
+func TemplateVersionWithParams(t testing.TB, db database.Store, tv database.TemplateVersion, job database.ProvisionerJob, params []database.TemplateVersionParameter) (database.TemplateVersion, []database.TemplateVersionParameter) {
+	t.Helper()
+
+	version := TemplateVersion(t, db, tv, job)
+	tvps := make([]database.TemplateVersionParameter, 0, len(params))
+
+	for _, param := range params {
+		if param.TemplateVersionID == uuid.Nil {
+			param.TemplateVersionID = version.ID
+		}
+		tvp := dbgen.TemplateVersionParameter(t, db, param)
+		tvps = append(tvps, tvp)
+	}
+
+	return version, tvps
+}
+
 // WorkspaceWithAgent is a helper that generates a workspace with a single resource
 // that has an agent attached to it. The agent token is returned.
 func WorkspaceWithAgent(t testing.TB, db database.Store, seed database.Workspace) (database.Workspace, string) {
@@ -56,6 +115,19 @@ func WorkspaceWithAgent(t testing.TB, db database.Store, seed database.Workspace
 	return ws, authToken
 }
 
+func WorkspaceBuildWithParameters(t testing.TB, db database.Store, ws database.Workspace, build database.WorkspaceBuild, params []database.WorkspaceBuildParameter, resources ...*sdkproto.Resource) (database.WorkspaceBuild, []database.WorkspaceBuildParameter) {
+	t.Helper()
+
+	b := WorkspaceBuild(t, db, ws, build, resources...)
+
+	for i, param := range params {
+		if param.WorkspaceBuildID == uuid.Nil {
+			params[i].WorkspaceBuildID = b.ID
+		}
+	}
+	return b, dbgen.WorkspaceBuildParameters(t, db, params)
+}
+
 // WorkspaceBuild inserts a build and a successful job into the database.
 func WorkspaceBuild(t testing.TB, db database.Store, ws database.Workspace, seed database.WorkspaceBuild, resources ...*sdkproto.Resource) database.WorkspaceBuild {
 	t.Helper()
@@ -69,9 +141,7 @@ func WorkspaceBuild(t testing.TB, db database.Store, ws database.Workspace, seed
 		WorkspaceBuildID: seed.ID,
 	})
 	require.NoError(t, err)
-	//nolint:gocritic // This is only used by tests.
-	ctx := dbauthz.AsSystemRestricted(context.Background())
-	job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+	job, err := db.InsertProvisionerJob(dbgen.Ctx, database.InsertProvisionerJobParams{
 		ID:             jobID,
 		CreatedAt:      dbtime.Now(),
 		UpdatedAt:      dbtime.Now(),
@@ -86,7 +156,7 @@ func WorkspaceBuild(t testing.TB, db database.Store, ws database.Workspace, seed
 		TraceMetadata:  pqtype.NullRawMessage{},
 	})
 	require.NoError(t, err, "insert job")
-	err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
+	err = db.UpdateProvisionerJobWithCompleteByID(dbgen.Ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 		ID:        job.ID,
 		UpdatedAt: dbtime.Now(),
 		Error:     sql.NullString{},
@@ -101,30 +171,14 @@ func WorkspaceBuild(t testing.TB, db database.Store, ws database.Workspace, seed
 	// This intentionally fulfills the minimum requirements of the schema.
 	// Tests can provide a custom version ID if necessary.
 	if seed.TemplateVersionID == uuid.Nil {
-		jobID := uuid.New()
-		templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-			JobID:          jobID,
+		templateVersion := TemplateVersion(t, db, database.TemplateVersion{
 			OrganizationID: ws.OrganizationID,
 			CreatedBy:      ws.OwnerID,
 			TemplateID: uuid.NullUUID{
 				UUID:  ws.TemplateID,
 				Valid: true,
 			},
-		})
-		payload, _ := json.Marshal(provisionerdserver.TemplateVersionImportJob{
-			TemplateVersionID: templateVersion.ID,
-		})
-		dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-			ID:             jobID,
-			OrganizationID: ws.OrganizationID,
-			Input:          payload,
-			Type:           database.ProvisionerJobTypeTemplateVersionImport,
-			CompletedAt: sql.NullTime{
-				Time:  dbtime.Now(),
-				Valid: true,
-			},
-		})
-		ProvisionerJobResources(t, db, jobID, seed.Transition, resources...)
+		}, database.ProvisionerJob{})
 		seed.TemplateVersionID = templateVersion.ID
 	}
 	build := dbgen.WorkspaceBuild(t, db, seed)
@@ -144,4 +198,26 @@ func ProvisionerJobResources(t testing.TB, db database.Store, job uuid.UUID, tra
 		err := provisionerdserver.InsertWorkspaceResource(dbauthz.AsSystemRestricted(context.Background()), db, job, transition, resource, &telemetry.Snapshot{})
 		require.NoError(t, err)
 	}
+}
+
+func must[V any](v V, err error) V {
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
+// takeFirstF takes the first value that returns true
+func takeFirstF[Value any](values []Value, take func(v Value) bool) Value {
+	for _, v := range values {
+		if take(v) {
+			return v
+		}
+	}
+	// If all empty, return the last element
+	if len(values) > 0 {
+		return values[len(values)-1]
+	}
+	var empty Value
+	return empty
 }

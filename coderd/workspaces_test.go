@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -343,94 +344,84 @@ func TestWorkspace(t *testing.T) {
 func TestResolveAutostart(t *testing.T) {
 	t.Parallel()
 
-	t.Run("OK", func(t *testing.T) {
-		t.Parallel()
-		ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		owner := coderdtest.CreateFirstUser(t, ownerClient)
-		version1 := coderdtest.CreateTemplateVersion(t, ownerClient, owner.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, version1.ID)
-		template := coderdtest.CreateTemplate(t, ownerClient, owner.OrganizationID, version1.ID)
+	ownerClient, db := coderdtest.NewWithDatabase(t, nil)
+	owner := coderdtest.CreateFirstUser(t, ownerClient)
 
-		params := &echo.Responses{
-			Parse: echo.ParseComplete,
-			ProvisionPlan: []*proto.Response{
-				{
-					Type: &proto.Response_Plan{
-						Plan: &proto.PlanComplete{
-							Parameters: []*proto.RichParameter{
-								{
-									Name:        "param",
-									Description: "param",
-									Required:    true,
-									Mutable:     true,
-								},
-							},
-						},
-					},
-				},
-			},
-			ProvisionApply: echo.ApplyComplete,
-		}
-		version2 := coderdtest.CreateTemplateVersion(t, ownerClient, owner.OrganizationID, params, func(ctvr *codersdk.CreateTemplateVersionRequest) {
-			ctvr.TemplateID = template.ID
-		})
-		coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, version2.ID)
+	template, version1 := dbfake.TemplateWithVersion(t, db, database.Template{
+		CreatedBy:      owner.UserID,
+		OrganizationID: owner.OrganizationID,
+	}, database.TemplateVersion{}, database.ProvisionerJob{})
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+	params := []database.TemplateVersionParameter{{
+		Name:         "param",
+		DefaultValue: "",
+		Required:     true,
+	}}
+	version2, _ := dbfake.TemplateVersionWithParams(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+		OrganizationID: template.OrganizationID,
+		CreatedBy:      owner.UserID,
+	}, database.ProvisionerJob{}, []database.TemplateVersionParameter{{
+		Name:     "param",
+		Required: true,
+	}})
 
-		client, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
-		workspace := coderdtest.CreateWorkspace(t, client, owner.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
-			cwr.AutomaticUpdates = codersdk.AutomaticUpdatesAlways
-		})
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
 
-		err := ownerClient.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
-			ID: version2.ID,
-		})
-		require.NoError(t, err)
-
-		// Autostart shouldn't be possible if parameters do not match.
-		resp, err := client.ResolveAutostart(ctx, workspace.ID.String())
-		require.NoError(t, err)
-		require.True(t, resp.ParameterMismatch)
-
-		update, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-			TemplateVersionID: version2.ID,
-			Transition:        codersdk.WorkspaceTransitionStart,
-			RichParameterValues: []codersdk.WorkspaceBuildParameter{
-				{
-					Name:  "param",
-					Value: "Hello",
-				},
-			},
-		})
-		require.NoError(t, err)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, update.ID)
-
-		// We should be able to autostart since parameters are updated.
-		resp, err = client.ResolveAutostart(ctx, workspace.ID.String())
-		require.NoError(t, err)
-		require.False(t, resp.ParameterMismatch)
-
-		// Create one last version where the parameters are the same as the previous
-		// version.
-		version3 := coderdtest.CreateTemplateVersion(t, ownerClient, owner.OrganizationID, params, func(ctvr *codersdk.CreateTemplateVersionRequest) {
-			ctvr.TemplateID = template.ID
-		})
-		coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, version3.ID)
-
-		err = ownerClient.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
-			ID: version3.ID,
-		})
-		require.NoError(t, err)
-
-		// Even though we're out of date we should still be able to autostart
-		// since parameters resolve.
-		resp, err = client.ResolveAutostart(ctx, workspace.ID.String())
-		require.NoError(t, err)
-		require.False(t, resp.ParameterMismatch)
+	client, member := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+	workspace := dbfake.Workspace(t, db, database.Workspace{
+		TemplateID:       template.ID,
+		OwnerID:          member.ID,
+		OrganizationID:   owner.OrganizationID,
+		AutomaticUpdates: database.AutomaticUpdatesAlways,
 	})
+	_ = dbfake.WorkspaceBuild(t, db, workspace, database.WorkspaceBuild{
+		TemplateVersionID: version1.ID,
+	})
+
+	err := ownerClient.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
+		ID: version2.ID,
+	})
+	require.NoError(t, err)
+
+	// Autostart shouldn't be possible if parameters do not match.
+	resp, err := client.ResolveAutostart(ctx, workspace.ID.String())
+	require.NoError(t, err)
+	require.True(t, resp.ParameterMismatch)
+
+	_, _ = dbfake.WorkspaceBuildWithParameters(t, db, workspace, database.WorkspaceBuild{
+		TemplateVersionID: version2.ID,
+		BuildNumber:       2,
+	}, []database.WorkspaceBuildParameter{
+		{
+			Name:  "param",
+			Value: "hello",
+		},
+	})
+	require.NoError(t, err)
+
+	// We should be able to autostart since parameters are updated.
+	resp, err = client.ResolveAutostart(ctx, workspace.ID.String())
+	require.NoError(t, err)
+	require.False(t, resp.ParameterMismatch)
+
+	version3, _ := dbfake.TemplateVersionWithParams(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+		OrganizationID: owner.OrganizationID,
+		CreatedBy:      owner.UserID,
+	}, database.ProvisionerJob{}, params)
+
+	err = ownerClient.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
+		ID: version3.ID,
+	})
+	require.NoError(t, err)
+
+	// Even though we're out of date we should still be able to autostart
+	// since parameters resolve.
+	resp, err = client.ResolveAutostart(ctx, workspace.ID.String())
+	require.NoError(t, err)
+	require.False(t, resp.ParameterMismatch)
 }
 
 func TestAdminViewAllWorkspaces(t *testing.T) {
