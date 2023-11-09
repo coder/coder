@@ -28,6 +28,7 @@ func (r *RootCmd) create() *clibase.Cmd {
 
 		parameterFlags workspaceParameterFlags
 		autoUpdates    string
+		copyParameters string
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -74,6 +75,22 @@ func (r *RootCmd) create() *clibase.Cmd {
 			_, err = client.WorkspaceByOwnerAndName(inv.Context(), workspaceOwner, workspaceName, codersdk.WorkspaceOptions{})
 			if err == nil {
 				return xerrors.Errorf("A workspace already exists named %q!", workspaceName)
+			}
+
+			var sourceWorkspace codersdk.Workspace
+			if copyParameters != "" {
+				sourceWorkspaceOwner, sourceWorkspaceName, err := splitNamedWorkspace(copyParameters)
+				if err != nil {
+					return err
+				}
+
+				sourceWorkspace, err = client.WorkspaceByOwnerAndName(inv.Context(), sourceWorkspaceOwner, sourceWorkspaceName, codersdk.WorkspaceOptions{})
+				if err != nil {
+					return err
+				}
+
+				_, _ = fmt.Fprintf(inv.Stdout, "Coder will use the same template %q as the source workspace.\n", sourceWorkspace.TemplateName)
+				templateName = sourceWorkspace.TemplateName
 			}
 
 			var template codersdk.Template
@@ -134,9 +151,17 @@ func (r *RootCmd) create() *clibase.Cmd {
 				schedSpec = ptr.Ref(sched.String())
 			}
 
-			cliRichParameters, err := asWorkspaceBuildParameters(parameterFlags.richParameters)
-			if err != nil {
-				return xerrors.Errorf("can't parse given parameter values: %w", err)
+			var buildParameters []codersdk.WorkspaceBuildParameter
+			if copyParameters != "" {
+				buildParameters, err = client.WorkspaceBuildParameters(inv.Context(), sourceWorkspace.ID)
+				if err != nil {
+					return err
+				}
+			} else {
+				buildParameters, err = asWorkspaceBuildParameters(parameterFlags.richParameters)
+				if err != nil {
+					return xerrors.Errorf("can't parse given parameter values: %w", err)
+				}
 			}
 
 			richParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
@@ -145,7 +170,7 @@ func (r *RootCmd) create() *clibase.Cmd {
 				NewWorkspaceName:  workspaceName,
 
 				RichParameterFile: parameterFlags.richParameterFile,
-				RichParameters:    cliRichParameters,
+				RichParameters:    buildParameters,
 			})
 			if err != nil {
 				return xerrors.Errorf("prepare build: %w", err)
@@ -216,6 +241,13 @@ func (r *RootCmd) create() *clibase.Cmd {
 			Description: "Specify automatic updates setting for the workspace (accepts 'always' or 'never').",
 			Default:     string(codersdk.AutomaticUpdatesNever),
 			Value:       clibase.StringOf(&autoUpdates),
+		},
+		clibase.Option{
+			Flag:        "copy-parameters",
+			Env:         "CODER_WORKSPACE_COPY_PARAMETERS",
+			Description: "Specify the source workspace name to copy parameters from.",
+			Default:     string(codersdk.AutomaticUpdatesNever),
+			Value:       clibase.StringOf(&copyParameters),
 		},
 		cliui.SkipPromptOption(),
 	)
