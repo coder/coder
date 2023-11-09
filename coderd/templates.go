@@ -546,13 +546,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// If the user does not specify a value for the default bump,
-	// set it to the existing value.
-	if req.DefaultTTLBumpMillis == nil {
-		ms := time.Duration(template.DefaultTTLBump).Milliseconds()
-		req.DefaultTTLBumpMillis = &ms
-	}
-
 	var (
 		validErrs                            []codersdk.ValidationError
 		autostopRequirementDaysOfWeekParsed  uint8
@@ -561,7 +554,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	if req.DefaultTTLMillis < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be a positive integer."})
 	}
-	if req.DefaultTTLBumpMillis != nil && *req.DefaultTTLBumpMillis < 0 {
+	if req.DefaultTTLBumpMillis < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_bump_ms", Detail: "Must be a positive integer."})
 	}
 	if req.MaxTTLMillis < 0 {
@@ -570,7 +563,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	if req.MaxTTLMillis != 0 && req.DefaultTTLMillis > req.MaxTTLMillis {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be less than or equal to max_ttl_ms if max_ttl_ms is set."})
 	}
-	if req.DefaultTTLBumpMillis != nil && req.MaxTTLMillis != 0 && *req.DefaultTTLBumpMillis > req.MaxTTLMillis {
+	if req.MaxTTLMillis != 0 && req.DefaultTTLBumpMillis > req.MaxTTLMillis {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_bump_ms", Detail: "Must be less than or equal to max_ttl_ms if max_ttl_ms is set."})
 	}
 	if req.AutostopRequirement == nil {
@@ -634,12 +627,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	var updated database.Template
 
 	err = api.Database.InTx(func(tx database.Store) error {
-		defaultTTLBump := time.Duration(template.DefaultTTLBump)
-		// This should never be nil at this point, but we'll check anyway.
-		if req.DefaultTTLBumpMillis != nil {
-			defaultTTLBump = time.Duration(*req.DefaultTTLBumpMillis) * time.Millisecond
-		}
-
 		if req.Name == template.Name &&
 			req.Description == template.Description &&
 			req.DisplayName == template.DisplayName &&
@@ -648,7 +635,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.AllowUserAutostop == template.AllowUserAutostop &&
 			req.AllowUserCancelWorkspaceJobs == template.AllowUserCancelWorkspaceJobs &&
 			req.DefaultTTLMillis == time.Duration(template.DefaultTTL).Milliseconds() &&
-			defaultTTLBump == time.Duration(template.DefaultTTLBump) &&
+			req.DefaultTTLBumpMillis == time.Duration(template.DefaultTTLBump).Milliseconds() &&
 			req.MaxTTLMillis == time.Duration(template.MaxTTL).Milliseconds() &&
 			autostopRequirementDaysOfWeekParsed == scheduleOpts.AutostopRequirement.DaysOfWeek &&
 			autostartRequirementDaysOfWeekParsed == scheduleOpts.AutostartRequirement.DaysOfWeek &&
@@ -695,6 +682,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		defaultTTL := time.Duration(req.DefaultTTLMillis) * time.Millisecond
+		defaultTTLBump := time.Duration(req.DefaultTTLBumpMillis) * time.Millisecond
 		maxTTL := time.Duration(req.MaxTTLMillis) * time.Millisecond
 		failureTTL := time.Duration(req.FailureTTLMillis) * time.Millisecond
 		inactivityTTL := time.Duration(req.TimeTilDormantMillis) * time.Millisecond

@@ -29,7 +29,7 @@ type Template struct {
 	Description          string                 `json:"description"`
 	Icon                 string                 `json:"icon"`
 	DefaultTTLMillis     int64                  `json:"default_ttl_ms"`
-	DefaultTTLBumpMillis int64                    `json:"default_ttl_bump_ms"`
+	DefaultTTLBumpMillis int64                  `json:"default_ttl_bump_ms"`
 	// TODO(@dean): remove max_ttl once autostop_requirement is matured
 	MaxTTLMillis int64 `json:"max_ttl_ms"`
 	// AutostopRequirement and AutostartRequirement are enterprise features. Its
@@ -199,13 +199,12 @@ type ACLAvailable struct {
 }
 
 type UpdateTemplateMeta struct {
-	Name             string `json:"name,omitempty" validate:"omitempty,template_name"`
-	DisplayName      string `json:"display_name,omitempty" validate:"omitempty,template_display_name"`
-	Description      string `json:"description,omitempty"`
-	Icon             string `json:"icon,omitempty"`
-	DefaultTTLMillis int64  `json:"default_ttl_ms,omitempty"`
-	// DefaultTTLBumpMillis defaults to nil which means no change.
-	DefaultTTLBumpMillis *int64 `json:"default_ttl_bump_ms,omitempty"`
+	Name                 string `json:"name,omitempty" validate:"omitempty,template_name"`
+	DisplayName          string `json:"display_name,omitempty" validate:"omitempty,template_display_name"`
+	Description          string `json:"description,omitempty"`
+	Icon                 string `json:"icon,omitempty"`
+	DefaultTTLMillis     int64  `json:"default_ttl_ms,omitempty"`
+	DefaultTTLBumpMillis int64  `json:"default_ttl_bump_ms,omitempty"`
 	// TODO(@dean): remove max_ttl once autostop_requirement is matured
 	MaxTTLMillis int64 `json:"max_ttl_ms,omitempty"`
 	// AutostopRequirement and AutostartRequirement can only be set if your license
