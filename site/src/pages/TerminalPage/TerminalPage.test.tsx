@@ -77,6 +77,7 @@ describe("TerminalPage", () => {
       expect(API.getWorkspaceByOwnerAndName).toHaveBeenCalledWith(
         MockUser.username,
         MockWorkspace.name,
+        { include_deleted: true },
       );
     });
     spy.mockRestore();
