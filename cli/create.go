@@ -26,9 +26,9 @@ func (r *RootCmd) create() *clibase.Cmd {
 		stopAfter     time.Duration
 		workspaceName string
 
-		parameterFlags workspaceParameterFlags
-		autoUpdates    string
-		copyParameters string
+		parameterFlags     workspaceParameterFlags
+		autoUpdates        string
+		copyParametersFrom string
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -78,8 +78,8 @@ func (r *RootCmd) create() *clibase.Cmd {
 			}
 
 			var sourceWorkspace codersdk.Workspace
-			if copyParameters != "" {
-				sourceWorkspaceOwner, sourceWorkspaceName, err := splitNamedWorkspace(copyParameters)
+			if copyParametersFrom != "" {
+				sourceWorkspaceOwner, sourceWorkspaceName, err := splitNamedWorkspace(copyParametersFrom)
 				if err != nil {
 					return err
 				}
@@ -157,7 +157,7 @@ func (r *RootCmd) create() *clibase.Cmd {
 			}
 
 			var sourceWorkspaceParameters []codersdk.WorkspaceBuildParameter
-			if copyParameters != "" {
+			if copyParametersFrom != "" {
 				sourceWorkspaceParameters, err = client.WorkspaceBuildParameters(inv.Context(), sourceWorkspace.LatestBuild.ID)
 				if err != nil {
 					return xerrors.Errorf("get source workspace build parameters: %w", err)
@@ -245,10 +245,10 @@ func (r *RootCmd) create() *clibase.Cmd {
 			Value:       clibase.StringOf(&autoUpdates),
 		},
 		clibase.Option{
-			Flag:        "copy-parameters",
-			Env:         "CODER_WORKSPACE_COPY_PARAMETERS",
+			Flag:        "copy-parameters-from",
+			Env:         "CODER_WORKSPACE_COPY_PARAMETERS_FROM",
 			Description: "Specify the source workspace name to copy parameters from.",
-			Value:       clibase.StringOf(&copyParameters),
+			Value:       clibase.StringOf(&copyParametersFrom),
 		},
 		cliui.SkipPromptOption(),
 	)

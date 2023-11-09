@@ -443,7 +443,7 @@ func TestCreateWithRichParameters(t *testing.T) {
 		// Secondly, create a new workspace using parameters from the previous workspace.
 		const otherWorkspace = "other-workspace"
 
-		inv, root = clitest.New(t, "create", "--copy-parameters", "my-workspace", otherWorkspace, "-y")
+		inv, root = clitest.New(t, "create", "--copy-parameters-from", "my-workspace", otherWorkspace, "-y")
 		clitest.SetupConfig(t, member, root)
 		pty = ptytest.New(t).Attach(inv)
 		inv.Stdout = pty.Output()
