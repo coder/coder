@@ -21,10 +21,11 @@ import (
 
 func (r *RootCmd) create() *clibase.Cmd {
 	var (
-		templateName  string
-		startAt       string
-		stopAfter     time.Duration
-		workspaceName string
+		templateName   string
+		startAt        string
+		stopAfter      time.Duration
+		defaultTTLBump time.Duration
+		workspaceName  string
 
 		parameterFlags     workspaceParameterFlags
 		autoUpdates        string
@@ -199,12 +200,17 @@ func (r *RootCmd) create() *clibase.Cmd {
 			if stopAfter > 0 {
 				ttlMillis = ptr.Ref(stopAfter.Milliseconds())
 			}
+			var ttlBumpMillis *int64
+			if defaultTTLBump.Milliseconds() > 0 {
+				ttlBumpMillis = ptr.Ref(defaultTTLBump.Milliseconds())
+			}
 
 			workspace, err := client.CreateWorkspace(inv.Context(), organization.ID, workspaceOwner, codersdk.CreateWorkspaceRequest{
 				TemplateVersionID:   templateVersionID,
 				Name:                workspaceName,
 				AutostartSchedule:   schedSpec,
 				TTLMillis:           ttlMillis,
+				TTLBumpMillis:       ttlBumpMillis,
 				RichParameterValues: richParameters,
 				AutomaticUpdates:    codersdk.AutomaticUpdates(autoUpdates),
 			})
@@ -245,6 +251,12 @@ func (r *RootCmd) create() *clibase.Cmd {
 			Env:         "CODER_WORKSPACE_STOP_AFTER",
 			Description: "Specify a duration after which the workspace should shut down (e.g. 8h).",
 			Value:       clibase.DurationOf(&stopAfter),
+		},
+		clibase.Option{
+			Flag:        "activity-bump",
+			Description: "Specify a default amount of time to bump the deadline for the workspaces based on workspace activity. By default, activity will extend the deadline for a workspace by the 'stop-after' amount.",
+			Default:     "0",
+			Value:       clibase.DurationOf(&defaultTTLBump),
 		},
 		clibase.Option{
 			Flag:        "automatic-updates",

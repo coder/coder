@@ -44,6 +44,7 @@ func TestTemplateEdit(t *testing.T) {
 		desc := "lorem ipsum dolor sit amet et cetera"
 		icon := "/icon/new-icon.png"
 		defaultTTL := 12 * time.Hour
+		defaultTTLBump := time.Hour
 		allowUserCancelWorkspaceJobs := false
 
 		cmdArgs := []string{
@@ -55,6 +56,7 @@ func TestTemplateEdit(t *testing.T) {
 			"--description", desc,
 			"--icon", icon,
 			"--default-ttl", defaultTTL.String(),
+			"--default-activity-bump", defaultTTLBump.String(),
 			"--allow-user-cancel-workspace-jobs=" + strconv.FormatBool(allowUserCancelWorkspaceJobs),
 		}
 		inv, root := clitest.New(t, cmdArgs...)
@@ -73,6 +75,7 @@ func TestTemplateEdit(t *testing.T) {
 		assert.Equal(t, desc, updated.Description)
 		assert.Equal(t, icon, updated.Icon)
 		assert.Equal(t, defaultTTL.Milliseconds(), updated.DefaultTTLMillis)
+		assert.Equal(t, defaultTTLBump.Milliseconds(), updated.DefaultTTLBumpMillis)
 		assert.Equal(t, allowUserCancelWorkspaceJobs, updated.AllowUserCancelWorkspaceJobs)
 	})
 	t.Run("FirstEmptyThenNotModified", func(t *testing.T) {
