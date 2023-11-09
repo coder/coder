@@ -74,10 +74,20 @@ main() {
 	ws_port=${ws_endpoint##*:}
 	ws_port=${ws_port%/*}
 
+	port_args=(
+		-R "${ws_port}:127.0.0.1:${ws_port}"
+		-L "${port}:127.0.0.1:${port}"
+	)
+
+	# Also forward prometheus, pprof, and gitauth ports.
+	for p in 2114 6061 50515 50516; do
+		port_args+=(-L "${p}:127.0.0.1:${p}")
+	done
+
 	echo
 	echo "Starting SSH tunnel, run test via \"pnpm run playwright:test\"..."
 	# shellcheck disable=SC2029 # This is intended to expand client-side.
-	ssh -t -R "${ws_port}:127.0.0.1:${ws_port}" -L "${port}:127.0.0.1:${port}" coder."${workspace}" "export CODER_E2E_PORT='${port}'; export CODER_E2E_WS_ENDPOINT='${ws_endpoint}'; [[ -d '${coder_repo}/site' ]] && cd '${coder_repo}/site'; exec \"\$(grep \"\${USER}\": /etc/passwd | cut -d: -f7)\" -i -l"
+	ssh -t "${port_args[@]}" coder."${workspace}" "export CODER_E2E_PORT='${port}'; export CODER_E2E_WS_ENDPOINT='${ws_endpoint}'; [[ -d '${coder_repo}/site' ]] && cd '${coder_repo}/site'; exec \"\$(grep \"\${USER}\": /etc/passwd | cut -d: -f7)\" -i -l"
 }
 
 main
