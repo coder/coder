@@ -623,6 +623,29 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		templateTTL := 24 * time.Hour.Milliseconds()
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.DefaultTTLMillis = ptr.Ref(templateTTL)
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.TTLMillis = nil // ensure that no default TTL is set
+		})
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		// TTL should be set by the template
+		require.Equal(t, template.DefaultTTLMillis, templateTTL)
+		require.Equal(t, template.DefaultTTLMillis, *workspace.TTLMillis)
+		require.Equal(t, template.DefaultTTLBumpMillis, int64(0))
+		// Workspace inherits template TTL bump
+		require.Equal(t, template.DefaultTTLBumpMillis, templateTTL)
+	})
+
+	t.Run("TemplateCustomTTL", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		templateTTL := 24 * time.Hour.Milliseconds()
 		templateTTLBump := templateTTL / 24
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.DefaultTTLMillis = ptr.Ref(templateTTL)
@@ -638,6 +661,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		require.Equal(t, template.DefaultTTLMillis, templateTTL)
 		require.Equal(t, template.DefaultTTLMillis, *workspace.TTLMillis)
 		require.Equal(t, template.DefaultTTLBumpMillis, templateTTLBump)
+		// Workspace inherits template TTL bump
 		require.Equal(t, template.DefaultTTLBumpMillis, workspace.TTLBumpMillis)
 	})
 
