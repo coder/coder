@@ -86,7 +86,7 @@ func (r *RootCmd) create() *clibase.Cmd {
 
 				sourceWorkspace, err = client.WorkspaceByOwnerAndName(inv.Context(), sourceWorkspaceOwner, sourceWorkspaceName, codersdk.WorkspaceOptions{})
 				if err != nil {
-					return err
+					return xerrors.Errorf("get source workspace: %w", err)
 				}
 
 				_, _ = fmt.Fprintf(inv.Stdout, "Coder will use the same template %q as the source workspace.\n", sourceWorkspace.TemplateName)
@@ -158,9 +158,9 @@ func (r *RootCmd) create() *clibase.Cmd {
 
 			var sourceWorkspaceParameters []codersdk.WorkspaceBuildParameter
 			if copyParameters != "" {
-				sourceWorkspaceParameters, err = client.WorkspaceBuildParameters(inv.Context(), sourceWorkspace.ID)
+				sourceWorkspaceParameters, err = client.WorkspaceBuildParameters(inv.Context(), sourceWorkspace.LatestBuild.ID)
 				if err != nil {
-					return err
+					return xerrors.Errorf("get source workspace build parameters: %w", err)
 				}
 			}
 
