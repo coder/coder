@@ -4100,6 +4100,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `region_id`        | integer | false    |              | Region ID is the region of the replica.                            |
 | `relay_address`    | string  | false    |              | Relay address is the accessible address to relay DERP connections. |
 
+## codersdk.ResolveAutostartResponse
+
+```json
+{
+  "parameter_mismatch": true
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description |
+| -------------------- | ------- | -------- | ------------ | ----------- |
+| `parameter_mismatch` | boolean | false    |              |             |
+
 ## codersdk.ResourceType
 
 ```json

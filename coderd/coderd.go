@@ -885,6 +885,7 @@ func New(options *Options) *API {
 				r.Put("/extend", api.putExtendWorkspace)
 				r.Put("/dormant", api.putWorkspaceDormant)
 				r.Put("/autoupdates", api.putWorkspaceAutoupdates)
+				r.Get("/resolve-autostart", api.resolveAutostart)
 			})
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {
