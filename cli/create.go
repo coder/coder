@@ -94,6 +94,7 @@ func (r *RootCmd) create() *clibase.Cmd {
 			}
 
 			var template codersdk.Template
+			var templateVersionID uuid.UUID
 			if templateName == "" {
 				_, _ = fmt.Fprintln(inv.Stdout, pretty.Sprint(cliui.DefaultStyles.Wrap, "Select a template below to preview the provisioned infrastructure:"))
 
@@ -135,11 +136,19 @@ func (r *RootCmd) create() *clibase.Cmd {
 				}
 
 				template = templateByName[option]
+				templateVersionID = template.ActiveVersionID
+			} else if sourceWorkspace.LatestBuild.TemplateVersionID != uuid.Nil {
+				template, err = client.Template(inv.Context(), sourceWorkspace.TemplateID)
+				if err != nil {
+					return xerrors.Errorf("get template by name: %w", err)
+				}
+				templateVersionID = sourceWorkspace.LatestBuild.TemplateVersionID
 			} else {
 				template, err = client.TemplateByName(inv.Context(), organization.ID, templateName)
 				if err != nil {
 					return xerrors.Errorf("get template by name: %w", err)
 				}
+				templateVersionID = template.ActiveVersionID
 			}
 
 			var schedSpec *string
@@ -166,7 +175,7 @@ func (r *RootCmd) create() *clibase.Cmd {
 
 			richParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
 				Action:            WorkspaceCreate,
-				TemplateVersionID: template.ActiveVersionID,
+				TemplateVersionID: templateVersionID,
 				NewWorkspaceName:  workspaceName,
 
 				RichParameterFile: parameterFlags.richParameterFile,
@@ -192,7 +201,7 @@ func (r *RootCmd) create() *clibase.Cmd {
 			}
 
 			workspace, err := client.CreateWorkspace(inv.Context(), organization.ID, workspaceOwner, codersdk.CreateWorkspaceRequest{
-				TemplateID:          template.ID,
+				TemplateVersionID:   templateVersionID,
 				Name:                workspaceName,
 				AutostartSchedule:   schedSpec,
 				TTLMillis:           ttlMillis,
