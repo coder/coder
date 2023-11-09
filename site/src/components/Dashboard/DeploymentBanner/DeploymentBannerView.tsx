@@ -131,7 +131,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = (props) => {
     justify-content: center;
     background-color: ${unhealthy ? colors.red[10] : undefined};
     padding: 0 12px;
-    height: ${bannerHeight}px;
+    height: calc(${bannerHeight}px - 1px);
     color: #fff;
 
     & svg {
@@ -158,6 +158,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = (props) => {
     <div
       css={{
         position: "sticky",
+        lineHeight: 1,
         height: bannerHeight,
         bottom: 0,
         zIndex: 1,
