@@ -444,7 +444,7 @@ dark = createTheme(dark, {
            * customization).
            */
           "&.Mui-focusVisible": {
-            outline: `10px auto ${colors.blue[7]}`,
+            boxShadow: `0 0 0 2px ${colors.blue[7]}`,
           },
 
           "&.Mui-disabled": {
@@ -458,7 +458,9 @@ dark = createTheme(dark, {
       styleOverrides: {
         root: {
           ".Mui-focusVisible .MuiSwitch-thumb": {
-            outline: `10px auto ${colors.blue[7]}`,
+            // Had to thicken outline to make sure that the focus color didn't
+            // bleed into the thumb and was still easily-visible
+            boxShadow: `0 0 0 3px ${colors.blue[7]}`,
           },
         },
       },
@@ -526,7 +528,7 @@ dark = createTheme(dark, {
       styleOverrides: {
         root: {
           "&.Mui-focusVisible": {
-            outline: `10px auto ${colors.blue[7]}`,
+            boxShadow: `0 0 0 2px ${colors.blue[7]}`,
           },
         },
       },
