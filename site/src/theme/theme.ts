@@ -516,5 +516,15 @@ dark = createTheme(dark, {
         },
       },
     },
+
+    MuiIconButton: {
+      styleOverrides: {
+        root: {
+          "&.Mui-focusVisible": {
+            outline: `10px auto ${colors.blue[7]}`,
+          },
+        },
+      },
+    },
   },
 } as ThemeOptions);
