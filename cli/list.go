@@ -77,9 +77,7 @@ func workspaceListRowFromWorkspace(now time.Time, usersByID map[uuid.UUID]coders
 
 func (r *RootCmd) list() *clibase.Cmd {
 	var (
-		all               bool
-		defaultQuery      = "owner:me"
-		searchQuery       string
+		filter            cliui.WorkspaceFilter
 		displayWorkspaces []workspaceListRow
 		formatter         = cliui.NewOutputFormatter(
 			cliui.TableFormat(
@@ -109,14 +107,7 @@ func (r *RootCmd) list() *clibase.Cmd {
 			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
-			filter := codersdk.WorkspaceFilter{
-				FilterQuery: searchQuery,
-			}
-			if all && searchQuery == defaultQuery {
-				filter.FilterQuery = ""
-			}
-
-			res, err := client.Workspaces(inv.Context(), filter)
+			res, err := client.Workspaces(inv.Context(), filter.Filter())
 			if err != nil {
 				return err
 			}
@@ -153,22 +144,7 @@ func (r *RootCmd) list() *clibase.Cmd {
 			return err
 		},
 	}
-	cmd.Options = clibase.OptionSet{
-		{
-			Flag:          "all",
-			FlagShorthand: "a",
-			Description:   "Specifies whether all workspaces will be listed or not.",
-
-			Value: clibase.BoolOf(&all),
-		},
-		{
-			Flag:        "search",
-			Description: "Search for a workspace with a query.",
-			Default:     defaultQuery,
-			Value:       clibase.StringOf(&searchQuery),
-		},
-	}
-
+	filter.AttachOptions(&cmd.Options)
 	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }
