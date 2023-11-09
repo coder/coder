@@ -1807,8 +1807,12 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 	testCases := []struct {
 		name           string
 		ttlMillis      *int64
+		ttlBumpMillis  *int64
 		expectedError  string
 		modifyTemplate func(*codersdk.CreateTemplateRequest)
+
+		expectedTTLMillis     *int64
+		expectedTTLBumpMillis int64
 	}{
 		{
 			name:          "disable ttl",
@@ -1816,12 +1820,16 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			expectedError: "",
 			modifyTemplate: func(ctr *codersdk.CreateTemplateRequest) {
 				ctr.DefaultTTLMillis = ptr.Ref((8 * time.Hour).Milliseconds())
+				ctr.DefaultTTLBumpMillis = ptr.Ref((5 * time.Minute).Milliseconds())
 			},
+			expectedTTLMillis:     nil,
+			expectedTTLBumpMillis: 0,
 		},
 		{
-			name:          "update ttl",
-			ttlMillis:     ptr.Ref(12 * time.Hour.Milliseconds()),
-			expectedError: "",
+			name:              "update ttl",
+			ttlMillis:         ptr.Ref(12 * time.Hour.Milliseconds()),
+			expectedTTLMillis: ptr.Ref(12 * time.Hour.Milliseconds()),
+			expectedError:     "",
 			modifyTemplate: func(ctr *codersdk.CreateTemplateRequest) {
 				ctr.DefaultTTLMillis = ptr.Ref((8 * time.Hour).Milliseconds())
 			},
@@ -1832,19 +1840,33 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			expectedError: "time until shutdown must be at least one minute",
 		},
 		{
-			name:          "minimum ttl",
-			ttlMillis:     ptr.Ref(time.Minute.Milliseconds()),
-			expectedError: "",
+			name:              "minimum ttl",
+			ttlMillis:         ptr.Ref(time.Minute.Milliseconds()),
+			expectedTTLMillis: ptr.Ref(time.Minute.Milliseconds()),
+			expectedError:     "",
 		},
 		{
-			name:          "maximum ttl",
-			ttlMillis:     ptr.Ref((24 * 30 * time.Hour).Milliseconds()),
-			expectedError: "",
+			name:              "maximum ttl",
+			ttlMillis:         ptr.Ref((24 * 30 * time.Hour).Milliseconds()),
+			expectedTTLMillis: ptr.Ref((24 * 30 * time.Hour).Milliseconds()),
+			expectedError:     "",
 		},
 		{
 			name:          "above maximum ttl",
 			ttlMillis:     ptr.Ref((24*30*time.Hour + time.Minute).Milliseconds()),
 			expectedError: "time until shutdown must be less than 30 days",
+		},
+		{
+			name:          "update ttl bump",
+			ttlMillis:     ptr.Ref(12 * time.Hour.Milliseconds()),
+			ttlBumpMillis: ptr.Ref(12 * time.Minute.Milliseconds()),
+			expectedError: "",
+			modifyTemplate: func(request *codersdk.CreateTemplateRequest) {
+				request.DefaultTTLMillis = ptr.Ref((8 * time.Hour).Milliseconds())
+				request.DefaultTTLBumpMillis = ptr.Ref((5 * time.Minute).Milliseconds())
+			},
+			expectedTTLMillis:     ptr.Ref(12 * time.Hour.Milliseconds()),
+			expectedTTLBumpMillis: 12 * time.Minute.Milliseconds(),
 		},
 	}
 
@@ -1875,7 +1897,8 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			defer cancel()
 
 			err := client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
-				TTLMillis: testCase.ttlMillis,
+				TTLMillis:     testCase.ttlMillis,
+				TTLBumpMillis: testCase.ttlBumpMillis,
 			})
 
 			if testCase.expectedError != "" {
@@ -1888,7 +1911,8 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			updated, err := client.Workspace(ctx, workspace.ID)
 			require.NoError(t, err, "fetch updated workspace")
 
-			require.Equal(t, testCase.ttlMillis, updated.TTLMillis, "expected autostop ttl to equal requested")
+			require.EqualValues(t, testCase.expectedTTLMillis, updated.TTLMillis, "expected autostop ttl to equal requested")
+			require.Equal(t, testCase.expectedTTLBumpMillis, updated.TTLBumpMillis, "expected autostop ttl bump to equal requested")
 
 			require.Eventually(t, func() bool {
 				if len(auditor.AuditLogs()) != 7 {

@@ -780,11 +780,6 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.TTLBumpMillis == nil {
-		// Always default to the existing value if the request omits.
-		req.TTLBumpMillis = &workspace.TtlBump
-	}
-
 	var dbTTL sql.NullInt64
 	var dbTTLBump time.Duration
 
@@ -811,7 +806,9 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 			return codersdk.ValidationError{Field: "ttl_ms", Detail: validityErr.Error()}
 		}
 
-		dbTTLBump, validityErr = validWorkspaceTTLBumpMillis(req.TTLBumpMillis, templateSchedule.DefaultTTLBump)
+		// The TTL bump defaults to 0, which means the bump amount is the
+		// TTL.
+		dbTTLBump, validityErr = validWorkspaceTTLBumpMillis(req.TTLBumpMillis, 0)
 		if validityErr != nil {
 			return codersdk.ValidationError{Field: "ttl_bump_ms", Detail: validityErr.Error()}
 		}

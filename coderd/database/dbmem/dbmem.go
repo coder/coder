@@ -826,13 +826,13 @@ func (q *FakeQuerier) ActivityBumpWorkspace(ctx context.Context, workspaceID uui
 		if workspace.Ttl.Valid {
 			ttlDur = time.Duration(workspace.Ttl.Int64)
 			if workspace.TtlBump > 0 {
-				ttlDur += time.Duration(workspace.TtlBump)
+				ttlDur = time.Duration(workspace.TtlBump)
 			}
 		}
 		if !template.AllowUserAutostop {
 			ttlDur = time.Duration(template.DefaultTTL)
 			if template.DefaultTTLBump > 0 {
-				ttlDur += time.Duration(template.DefaultTTLBump)
+				ttlDur = time.Duration(template.DefaultTTLBump)
 			}
 		}
 		if ttlDur <= 0 {
@@ -850,6 +850,10 @@ func (q *FakeQuerier) ActivityBumpWorkspace(ctx context.Context, workspaceID uui
 		// Bump.
 		newDeadline := now.Add(ttlDur)
 		q.workspaceBuilds[i].UpdatedAt = now
+		if newDeadline.Before(q.workspaceBuilds[i].Deadline) {
+			// Never shorten a deadline
+			newDeadline = q.workspaceBuilds[i].Deadline
+		}
 		if !q.workspaceBuilds[i].MaxDeadline.IsZero() {
 			q.workspaceBuilds[i].Deadline = minTime(newDeadline, q.workspaceBuilds[i].MaxDeadline)
 		} else {
