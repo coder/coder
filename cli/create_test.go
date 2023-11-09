@@ -441,13 +441,34 @@ func TestCreateWithRichParameters(t *testing.T) {
 		require.NoError(t, err, "can't create first workspace")
 
 		// Secondly, create a new workspace using parameters from the previous workspace.
-		inv, root = clitest.New(t, "create", "--copy-parameters", "my-workspace", "other-workspace", "-y")
+		const otherWorkspace = "other-workspace"
+
+		inv, root = clitest.New(t, "create", "--copy-parameters", "my-workspace", otherWorkspace, "-y")
 		clitest.SetupConfig(t, member, root)
 		pty = ptytest.New(t).Attach(inv)
 		inv.Stdout = pty.Output()
 		inv.Stderr = pty.Output()
 		err = inv.Run()
 		require.NoError(t, err, "can't create a workspace based on the source workspace")
+
+		// Verify if the new workspace uses expected parameters.
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			Name: otherWorkspace,
+		})
+		require.NoError(t, err, "can't list available workspaces")
+		require.Len(t, workspaces.Workspaces, 1)
+
+		otherWorkspaceLatestBuild := workspaces.Workspaces[0].LatestBuild
+
+		buildParameters, err := client.WorkspaceBuildParameters(ctx, otherWorkspaceLatestBuild.ID)
+		require.NoError(t, err)
+		require.Len(t, buildParameters, 3)
+		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: firstParameterName, Value: firstParameterValue})
+		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: secondParameterName, Value: secondParameterValue})
+		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: immutableParameterName, Value: immutableParameterValue})
 	})
 }
 
