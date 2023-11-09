@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"strings"
+	"testing"
 	"unicode"
 
 	"github.com/spf13/pflag"
@@ -183,6 +185,9 @@ type Invocation struct {
 	Stdout  io.Writer
 	Stderr  io.Writer
 	Stdin   io.Reader
+
+	// testing
+	signalNotifyContext func(parent context.Context, signals ...os.Signal) (ctx context.Context, stop context.CancelFunc)
 }
 
 // WithOS returns the invocation as a main package, filling in the invocation's unset
@@ -195,6 +200,26 @@ func (inv *Invocation) WithOS() *Invocation {
 		i.Args = os.Args[1:]
 		i.Environ = ParseEnviron(os.Environ(), "")
 	})
+}
+
+// WithTestSignalNotifyContext allows overriding the default implementation of SignalNotifyContext.
+// This should only be used in testing.
+func (inv *Invocation) WithTestSignalNotifyContext(
+	_ testing.TB, // ensure we only call this from tests
+	f func(parent context.Context, signals ...os.Signal) (ctx context.Context, stop context.CancelFunc),
+) *Invocation {
+	return inv.with(func(i *Invocation) {
+		i.signalNotifyContext = f
+	})
+}
+
+// SignalNotifyContext is equivalent to signal.NotifyContext, but supports being overridden in
+// tests.
+func (inv *Invocation) SignalNotifyContext(parent context.Context, signals ...os.Signal) (ctx context.Context, stop context.CancelFunc) {
+	if inv.signalNotifyContext == nil {
+		return signal.NotifyContext(parent, signals...)
+	}
+	return inv.signalNotifyContext(parent, signals...)
 }
 
 func (inv *Invocation) Context() context.Context {
