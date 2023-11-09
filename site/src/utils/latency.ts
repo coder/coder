@@ -1,16 +1,18 @@
-import { Theme } from "@mui/material/styles";
+import { dark } from "theme/mui";
 
-export const getLatencyColor = (theme: Theme, latency?: number) => {
+// TODO: fix this, it'd be nice to make it "constant" but needs light mode awareness somehow
+
+export const getLatencyColor = (latency?: number) => {
   if (!latency) {
-    return theme.palette.text.secondary;
+    return dark.palette.text.secondary;
   }
 
-  let color = theme.palette.success.light;
+  let color = dark.palette.success.light;
 
   if (latency >= 150 && latency < 300) {
-    color = theme.palette.warning.light;
+    color = dark.palette.warning.light;
   } else if (latency >= 300) {
-    color = theme.palette.error.light;
+    color = dark.palette.error.light;
   }
   return color;
 };

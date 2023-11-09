@@ -365,7 +365,7 @@ const styles = {
   },
 
   actions: (theme) => ({
-    [theme.breakpoints.down("md")]: {
+    [theme.deprecated.breakpoints.down("md")]: {
       flexDirection: "column",
     },
   }),

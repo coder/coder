@@ -13,9 +13,9 @@ import { SensitiveValue } from "./SensitiveValue";
 
 const styles = {
   resourceCard: (theme) => ({
-    background: theme.palette.background.paper,
+    background: theme.deprecated.palette.background.paper,
     borderRadius: 8,
-    border: `1px solid ${theme.palette.divider}`,
+    border: `1px solid ${theme.deprecated.palette.divider}`,
 
     "&:not(:first-of-type)": {
       borderTop: 0,
@@ -36,26 +36,26 @@ const styles = {
 
   resourceCardHeader: (theme) => ({
     padding: "24px 32px",
-    borderBottom: `1px solid ${theme.palette.divider}`,
+    borderBottom: `1px solid ${theme.deprecated.palette.divider}`,
 
     "&:last-child": {
       borderBottom: 0,
     },
 
-    [theme.breakpoints.down("md")]: {
+    [theme.deprecated.breakpoints.down("md")]: {
       width: "100%",
       overflow: "scroll",
     },
   }),
 
   metadata: (theme) => ({
-    ...(theme.typography.body2 as CSSObject),
+    ...(theme.deprecated.typography.body2 as CSSObject),
     lineHeight: "120%",
   }),
 
   metadataLabel: (theme) => ({
     fontSize: 12,
-    color: theme.palette.text.secondary,
+    color: theme.deprecated.palette.text.secondary,
     textOverflow: "ellipsis",
     overflow: "hidden",
     whiteSpace: "nowrap",
@@ -65,7 +65,7 @@ const styles = {
     textOverflow: "ellipsis",
     overflow: "hidden",
     whiteSpace: "nowrap",
-    ...(theme.typography.body1 as CSSObject),
+    ...(theme.deprecated.typography.body1 as CSSObject),
   }),
 } satisfies Record<string, Interpolation<Theme>>;
 

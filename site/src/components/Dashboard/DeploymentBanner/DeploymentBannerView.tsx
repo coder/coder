@@ -47,12 +47,12 @@ const styles = {
   `,
   category: (theme) => ({
     marginRight: 16,
-    color: theme.palette.text.primary,
+    color: theme.deprecated.palette.text.primary,
   }),
   values: (theme) => ({
     display: "flex",
     gap: 8,
-    color: theme.palette.text.secondary,
+    color: theme.deprecated.palette.text.secondary,
   }),
   value: css`
     display: flex;
@@ -140,14 +140,14 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = (props) => {
   `;
 
   const statusSummaryStyle = className`
-    ${theme.typography.body2 as CSSObject}
+    ${theme.deprecated.typography.body2 as CSSObject}
 
     margin: 0 0 4px 12px;
     width: 400px;
     padding: 16px;
-    color: ${theme.palette.text.primary};
-    background-color: ${theme.palette.background.paper};
-    border: 1px solid ${theme.palette.divider};
+    color: ${theme.deprecated.palette.text.primary};
+    background-color: ${theme.deprecated.palette.background.paper};
+    border: 1px solid ${theme.deprecated.palette.divider};
     pointer-events: none;
   `;
 
@@ -159,13 +159,13 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = (props) => {
         bottom: 0,
         zIndex: 1,
         paddingRight: 16,
-        backgroundColor: theme.palette.background.paper,
+        backgroundColor: theme.deprecated.palette.background.paper,
         display: "flex",
         alignItems: "center",
         fontFamily: MONOSPACE_FONT_FAMILY,
         fontSize: 12,
         gap: 32,
-        borderTop: `1px solid ${theme.palette.divider}`,
+        borderTop: `1px solid ${theme.deprecated.palette.divider}`,
         overflowX: "auto",
         whiteSpace: "nowrap",
       }}
@@ -319,7 +319,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = (props) => {
       </div>
       <div
         css={{
-          color: theme.palette.text.primary,
+          color: theme.deprecated.palette.text.primary,
           marginLeft: "auto",
           display: "flex",
           alignItems: "center",
@@ -372,7 +372,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = (props) => {
 const ValueSeparator: FC = () => {
   const theme = useTheme();
   const separatorStyles = css`
-    color: ${theme.palette.text.disabled};
+    color: ${theme.deprecated.palette.text.disabled};
   `;
 
   return <div css={separatorStyles}>/</div>;

@@ -155,6 +155,6 @@ const styles = {
     fontSize: 12,
     display: "block",
     fontWeight: 600,
-    color: theme.palette.text.secondary,
+    color: theme.deprecated.palette.text.secondary,
   }),
 } satisfies Record<string, Interpolation<Theme>>;

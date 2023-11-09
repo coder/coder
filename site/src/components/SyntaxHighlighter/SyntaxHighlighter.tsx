@@ -36,7 +36,7 @@ export const SyntaxHighlighter: FC<{
     <div
       css={(theme) => ({
         padding: "8px 0",
-        background: theme.palette.background.paper,
+        background: theme.deprecated.palette.background.paper,
         height: "100%",
       })}
     >

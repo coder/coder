@@ -117,7 +117,7 @@ export const IconsPage: FC = () => {
               borderRadius: "6px",
               marginLeft: "-1px",
               "& input::placeholder": {
-                color: theme.palette.text.secondary,
+                color: theme.deprecated.palette.text.secondary,
               },
               "& .MuiInputAdornment-root": {
                 marginLeft: 0,
@@ -128,7 +128,7 @@ export const IconsPage: FC = () => {
                 <SearchIcon
                   sx={{
                     fontSize: 14,
-                    color: theme.palette.text.secondary,
+                    color: theme.deprecated.palette.text.secondary,
                   }}
                 />
               </InputAdornment>

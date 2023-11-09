@@ -116,6 +116,6 @@ const styles = {
     display: "flex",
     flexWrap: "wrap",
     justifyContent: "center",
-    gap: theme.spacing(2),
+    gap: theme.deprecated.spacing(2),
   }),
 } satisfies Record<string, Interpolation<Theme>>;

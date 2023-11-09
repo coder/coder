@@ -31,7 +31,7 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
   const theme = useTheme();
   const versionLabelStyles = {
     fontWeight: 600,
-    color: theme.palette.text.primary,
+    color: theme.deprecated.palette.text.primary,
   };
 
   return (

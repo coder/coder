@@ -96,7 +96,7 @@ export function WorkspacesButton({
         <Box
           css={(theme) => ({
             padding: "8px 0",
-            borderTop: `1px solid ${theme.palette.divider}`,
+            borderTop: `1px solid ${theme.deprecated.palette.divider}`,
           })}
         >
           <PopoverLink
@@ -106,7 +106,7 @@ export function WorkspacesButton({
               alignItems: "center",
               columnGap: 12,
 
-              color: theme.palette.primary.main,
+              color: theme.deprecated.palette.primary.main,
             })}
           >
             <OpenIcon css={{ width: 14, height: 14 }} />
@@ -144,7 +144,7 @@ function WorkspaceResultsRow({ template }: { template: Template }) {
 
       <Box
         css={(theme) => ({
-          color: theme.palette.text.primary,
+          color: theme.deprecated.palette.text.primary,
           display: "flex",
           flexDirection: "column",
           lineHeight: "140%",
@@ -158,7 +158,7 @@ function WorkspaceResultsRow({ template }: { template: Template }) {
         <span
           css={(theme) => ({
             fontSize: 13,
-            color: theme.palette.text.secondary,
+            color: theme.deprecated.palette.text.secondary,
           })}
         >
           {/*
@@ -180,17 +180,17 @@ function PopoverLink(props: RouterLinkProps) {
     <RouterLink
       {...props}
       css={(theme) => ({
-        color: theme.palette.text.primary,
+        color: theme.deprecated.palette.text.primary,
         padding: "8px 16px",
         fontSize: 14,
         outline: "none",
         textDecoration: "none",
         "&:focus": {
-          backgroundColor: theme.palette.action.focus,
+          backgroundColor: theme.deprecated.palette.action.focus,
         },
         "&:hover": {
           textDecoration: "none",
-          backgroundColor: theme.palette.action.hover,
+          backgroundColor: theme.deprecated.palette.action.hover,
         },
       })}
     />

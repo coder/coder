@@ -79,7 +79,9 @@ export const WorkspaceOutdatedTooltip: FC<TooltipProps> = ({
               <Link
                 href={`/templates/${templateName}/versions/${activeVersion.name}`}
                 target="_blank"
-                sx={{ color: (theme) => theme.palette.primary.light }}
+                sx={{
+                  color: (theme) => theme.palette.primary.light,
+                }}
               >
                 {activeVersion.name}
               </Link>

@@ -55,8 +55,8 @@ export interface ConfirmDialogProps
 const styles = {
   dialogWrapper: (theme) => ({
     "& .MuiPaper-root": {
-      background: theme.palette.background.paper,
-      border: `1px solid ${theme.palette.divider}`,
+      background: theme.deprecated.palette.background.paper,
+      border: `1px solid ${theme.deprecated.palette.divider}`,
       width: "100%",
       maxWidth: 440,
     },
@@ -65,23 +65,23 @@ const styles = {
     },
   }),
   dialogContent: (theme) => ({
-    color: theme.palette.text.secondary,
+    color: theme.deprecated.palette.text.secondary,
     padding: 40,
   }),
   dialogTitle: (theme) => ({
     margin: 0,
     marginBottom: 16,
-    color: theme.palette.text.primary,
+    color: theme.deprecated.palette.text.primary,
     fontWeight: 400,
     fontSize: 20,
   }),
   dialogDescription: (theme) => ({
-    color: theme.palette.text.secondary,
+    color: theme.deprecated.palette.text.secondary,
     lineHeight: "160%",
     fontSize: 16,
 
     "& strong": {
-      color: theme.palette.text.primary,
+      color: theme.deprecated.palette.text.primary,
     },
 
     "& p:not(.MuiFormHelperText-root)": {

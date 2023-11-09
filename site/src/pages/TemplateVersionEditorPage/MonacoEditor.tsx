@@ -1,4 +1,4 @@
-import { useTheme } from "@mui/styles";
+import { useTheme } from "@emotion/react";
 import Editor, { loader } from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
 import { FC, useLayoutEffect, useMemo, useState } from "react";
@@ -123,8 +123,8 @@ export const MonacoEditor: FC<{
             },
           ],
           colors: {
-            "editor.foreground": theme.palette.text.primary,
-            "editor.background": theme.palette.background.default,
+            "editor.foreground": theme.deprecated.palette.text.primary,
+            "editor.background": theme.deprecated.palette.background.default,
           },
         });
         editor.updateOptions({

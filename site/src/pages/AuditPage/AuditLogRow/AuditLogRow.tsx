@@ -177,20 +177,20 @@ const styles = {
   },
 
   auditLogSummary: (theme) => ({
-    ...(theme.typography.body1 as CSSObject),
+    ...(theme.deprecated.typography.body1 as CSSObject),
     fontFamily: "inherit",
   }),
 
   auditLogTime: (theme) => ({
-    color: theme.palette.text.secondary,
+    color: theme.deprecated.palette.text.secondary,
     fontSize: 12,
   }),
 
   auditLogInfo: (theme) => ({
-    ...(theme.typography.body2 as CSSObject),
+    ...(theme.deprecated.typography.body2 as CSSObject),
     fontSize: 12,
     fontFamily: "inherit",
-    color: theme.palette.text.secondary,
+    color: theme.deprecated.palette.text.secondary,
     display: "block",
   }),
 
@@ -212,7 +212,7 @@ const styles = {
   },
 
   deletedLabel: (theme) => ({
-    ...(theme.typography.caption as CSSObject),
-    color: theme.palette.text.secondary,
+    ...(theme.deprecated.typography.caption as CSSObject),
+    color: theme.deprecated.palette.text.secondary,
   }),
 } satisfies Record<string, Interpolation<Theme>>;

@@ -75,11 +75,11 @@ export function UserRoleCell({
           text={mainDisplayRole.display_name}
           css={{
             backgroundColor: hasOwnerRole
-              ? theme.palette.info.dark
-              : theme.palette.background.paperLight,
+              ? theme.deprecated.palette.info.dark
+              : theme.deprecated.palette.background.paperLight,
             borderColor: hasOwnerRole
-              ? theme.palette.info.light
-              : theme.palette.divider,
+              ? theme.deprecated.palette.info.light
+              : theme.deprecated.palette.divider,
           }}
         />
 
@@ -102,8 +102,8 @@ function OverflowRolePill({ roles }: OverflowRolePillProps) {
         <Pill
           text={`+${roles.length} more`}
           css={{
-            backgroundColor: theme.palette.background.paperLight,
-            borderColor: theme.palette.divider,
+            backgroundColor: theme.deprecated.palette.background.paperLight,
+            borderColor: theme.deprecated.palette.divider,
           }}
         />
       </PopoverTrigger>
@@ -136,8 +136,8 @@ function OverflowRolePill({ roles }: OverflowRolePillProps) {
             key={role.name}
             text={role.display_name || role.name}
             css={{
-              backgroundColor: theme.palette.background.paperLight,
-              borderColor: theme.palette.divider,
+              backgroundColor: theme.deprecated.palette.background.paperLight,
+              borderColor: theme.deprecated.palette.divider,
             }}
           />
         ))}

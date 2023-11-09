@@ -361,12 +361,12 @@ const styles = {
   },
 
   connected: (theme) => ({
-    backgroundColor: theme.palette.success.light,
-    boxShadow: `0 0 12px 0 ${theme.palette.success.light}`,
+    backgroundColor: theme.deprecated.palette.success.light,
+    boxShadow: `0 0 12px 0 ${theme.deprecated.palette.success.light}`,
   }),
 
   disconnected: (theme) => ({
-    backgroundColor: theme.palette.text.secondary,
+    backgroundColor: theme.deprecated.palette.text.secondary,
   }),
 
   "@keyframes pulse": {
@@ -382,19 +382,19 @@ const styles = {
   },
 
   connecting: (theme) => ({
-    backgroundColor: theme.palette.info.light,
+    backgroundColor: theme.deprecated.palette.info.light,
     animation: "$pulse 1.5s 0.5s ease-in-out forwards infinite",
   }),
 
   timeoutWarning: (theme) => ({
-    color: theme.palette.warning.light,
+    color: theme.deprecated.palette.warning.light,
     width: 16,
     height: 16,
     position: "relative",
   }),
 
   errorWarning: (theme) => ({
-    color: theme.palette.error.main,
+    color: theme.deprecated.palette.error.main,
     width: 16,
     height: 16,
     position: "relative",

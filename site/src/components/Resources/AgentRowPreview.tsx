@@ -43,7 +43,7 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
               styles.noShrink,
               styles.agentDataItem,
               (theme) => ({
-                [theme.breakpoints.up("sm")]: {
+                [theme.deprecated.breakpoints.up("sm")]: {
                   minWidth: alignValues ? 240 : undefined,
                 },
               }),
@@ -61,7 +61,7 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
               styles.noShrink,
               styles.agentDataItem,
               (theme) => ({
-                [theme.breakpoints.up("sm")]: {
+                [theme.deprecated.breakpoints.up("sm")]: {
                   minWidth: alignValues ? 100 : undefined,
                 },
               }),
@@ -103,7 +103,7 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
 const styles = {
   agentRow: (theme) => ({
     padding: "16px 32px",
-    backgroundColor: theme.palette.background.paperLight,
+    backgroundColor: theme.deprecated.palette.background.paperLight,
     fontSize: 16,
     position: "relative",
 
@@ -115,7 +115,7 @@ const styles = {
       content: "''",
       height: "100%",
       width: 2,
-      backgroundColor: theme.palette.divider,
+      backgroundColor: theme.deprecated.palette.divider,
       position: "absolute",
       top: 0,
       left: 49,
@@ -132,11 +132,11 @@ const styles = {
   agentStatusPreview: (theme) => ({
     width: 10,
     height: 10,
-    border: `2px solid ${theme.palette.text.secondary}`,
+    border: `2px solid ${theme.deprecated.palette.text.secondary}`,
     borderRadius: "100%",
     position: "relative",
     zIndex: 1,
-    background: theme.palette.background.paper,
+    background: theme.deprecated.palette.background.paper,
   }),
 
   agentName: {
@@ -150,16 +150,16 @@ const styles = {
 
   agentData: (theme) => ({
     fontSize: 14,
-    color: theme.palette.text.secondary,
+    color: theme.deprecated.palette.text.secondary,
 
-    [theme.breakpoints.down("md")]: {
+    [theme.deprecated.breakpoints.down("md")]: {
       gap: 16,
       flexWrap: "wrap",
     },
   }),
 
   agentDataValue: (theme) => ({
-    color: theme.palette.text.primary,
+    color: theme.deprecated.palette.text.primary,
   }),
 
   noShrink: {
@@ -167,7 +167,7 @@ const styles = {
   },
 
   agentDataItem: (theme) => ({
-    [theme.breakpoints.down("md")]: {
+    [theme.deprecated.breakpoints.down("md")]: {
       flexDirection: "column",
       alignItems: "flex-start",
       gap: 8,

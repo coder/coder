@@ -36,16 +36,16 @@ export let dark = createTheme({
       dark: tw.sky[800], // "#f00", // colors.indigo[1], //
     },
     background: {
-      default: coderTheme.primary.background,
-      paper: coderTheme.secondary.background,
-      paperLight: coderTheme.tertiary.background,
+      default: coderTheme.l1.background,
+      paper: coderTheme.l2.background,
+      paperLight: coderTheme.l3.background,
     },
     text: {
-      primary: coderTheme.secondary.text,
-      secondary: coderTheme.secondary.text,
-      disabled: coderTheme.secondary.disabled.text,
+      primary: coderTheme.l2.text,
+      secondary: coderTheme.l2.text,
+      disabled: coderTheme.l2.disabled.text,
     },
-    divider: coderTheme.primary.outline,
+    divider: coderTheme.l1.outline,
     warning: {
       light: coderTheme.roles.warning.outline,
       main: coderTheme.roles.warning.fill,

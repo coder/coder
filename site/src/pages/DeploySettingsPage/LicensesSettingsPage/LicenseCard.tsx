@@ -114,15 +114,15 @@ export const LicenseCard = ({
 
 const styles = {
   userLimit: (theme) => ({
-    color: theme.palette.text.primary,
+    color: theme.deprecated.palette.text.primary,
   }),
   licenseCard: (theme) => ({
-    ...(theme.typography.body2 as CSSObject),
+    ...(theme.deprecated.typography.body2 as CSSObject),
     padding: 16,
   }),
   cardContent: {},
   licenseId: (theme) => ({
-    color: theme.palette.secondary.main,
+    color: theme.deprecated.palette.secondary.main,
     fontSize: 18,
     fontWeight: 600,
   }),
@@ -133,16 +133,16 @@ const styles = {
     textTransform: "capitalize",
   },
   licenseExpires: (theme) => ({
-    color: theme.palette.text.secondary,
+    color: theme.deprecated.palette.text.secondary,
   }),
   expiredBadge: {
     marginBottom: 4,
   },
   secondaryMaincolor: (theme) => ({
-    color: theme.palette.text.secondary,
+    color: theme.deprecated.palette.text.secondary,
   }),
   removeButton: (theme) => ({
-    color: theme.palette.error.main,
+    color: theme.deprecated.palette.error.main,
     "&:hover": {
       backgroundColor: "transparent",
     },

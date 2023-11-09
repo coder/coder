@@ -34,8 +34,8 @@ export function UserGroupsCell({ userGroups }: GroupsCellProps) {
             <Button
               css={{
                 justifyContent: "flex-start",
-                fontSize: theme.typography.body2.fontSize,
-                lineHeight: theme.typography.body2.lineHeight,
+                fontSize: theme.deprecated.typography.body2.fontSize,
+                lineHeight: theme.deprecated.typography.body2.lineHeight,
                 fontWeight: 400,
                 border: "none",
                 padding: 0,
@@ -88,7 +88,7 @@ export function UserGroupsCell({ userGroups }: GroupsCellProps) {
                 css={{
                   display: "flex",
                   flexFlow: "column nowrap",
-                  fontSize: theme.typography.body2.fontSize,
+                  fontSize: theme.deprecated.typography.body2.fontSize,
                   padding: "4px 2px",
                   gap: 0,
                 }}

@@ -96,10 +96,10 @@ const styles = {
     padding: "8px 0",
     borderRadius: 8,
     overflowX: "auto",
-    background: theme.palette.background.default,
+    background: theme.deprecated.palette.background.default,
 
     "&:not(:last-child)": {
-      borderBottom: `1px solid ${theme.palette.divider}`,
+      borderBottom: `1px solid ${theme.deprecated.palette.divider}`,
       borderRadius: 0,
     },
   }),
@@ -108,7 +108,7 @@ const styles = {
     display: "flex",
     alignItems: "center",
     fontSize: 14,
-    color: theme.palette.text.primary,
+    color: theme.deprecated.palette.text.primary,
     fontFamily: MONOSPACE_FONT_FAMILY,
     height: "auto",
     // Whitespace is significant in terminal output for alignment
@@ -116,15 +116,15 @@ const styles = {
     padding: "0 32px",
 
     "&.error": {
-      backgroundColor: theme.palette.error.dark,
+      backgroundColor: theme.deprecated.palette.error.dark,
     },
 
     "&.debug": {
-      backgroundColor: theme.palette.background.paperLight,
+      backgroundColor: theme.deprecated.palette.background.paperLight,
     },
 
     "&.warn": {
-      backgroundColor: theme.palette.warning.dark,
+      backgroundColor: theme.deprecated.palette.warning.dark,
     },
   }),
   space: {
@@ -137,7 +137,7 @@ const styles = {
     userSelect: "none",
     whiteSpace: "pre",
     display: "inline-block",
-    color: theme.palette.text.secondary,
+    color: theme.deprecated.palette.text.secondary,
   }),
   number: {
     width: 32,

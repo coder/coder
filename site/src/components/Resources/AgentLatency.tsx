@@ -25,7 +25,7 @@ const getDisplayLatency = (theme: Theme, agent: WorkspaceAgent) => {
 
   return {
     ...latency,
-    color: getLatencyColor(theme, latency.latency_ms),
+    color: getLatencyColor(latency.latency_ms),
   };
 };
 
@@ -34,7 +34,7 @@ export const AgentLatency: FC<{ agent: WorkspaceAgent }> = ({ agent }) => {
   const anchorRef = useRef<HTMLButtonElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const id = isOpen ? "latency-popover" : undefined;
-  const latency = getDisplayLatency(theme, agent);
+  const latency = getDisplayLatency(theme.deprecated, agent);
 
   if (!latency || !agent.latency) {
     return null;
@@ -76,7 +76,7 @@ export const AgentLatency: FC<{ agent: WorkspaceAgent }> = ({ agent }) => {
                   justifyContent="space-between"
                   css={
                     region.preferred && {
-                      color: theme.palette.text.primary,
+                      color: theme.deprecated.palette.text.primary,
                     }
                   }
                 >

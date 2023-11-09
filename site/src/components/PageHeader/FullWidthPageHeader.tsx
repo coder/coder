@@ -10,10 +10,10 @@ export const FullWidthPageHeader: FC<
       data-testid="header"
       css={[
         {
-          ...(theme.typography.body2 as CSSObject),
+          ...(theme.deprecated.typography.body2 as CSSObject),
           padding: 24,
-          background: theme.palette.background.paper,
-          borderBottom: `1px solid ${theme.palette.divider}`,
+          background: theme.deprecated.palette.background.paper,
+          borderBottom: `1px solid ${theme.deprecated.palette.divider}`,
           display: "flex",
           alignItems: "center",
           gap: 48,
@@ -21,11 +21,11 @@ export const FullWidthPageHeader: FC<
           zIndex: 10,
           flexWrap: "wrap",
 
-          [theme.breakpoints.down("lg")]: {
+          [theme.deprecated.breakpoints.down("lg")]: {
             position: "unset",
             alignItems: "flex-start",
           },
-          [theme.breakpoints.down("md")]: {
+          [theme.deprecated.breakpoints.down("md")]: {
             flexDirection: "column",
           },
         },
@@ -46,7 +46,7 @@ export const PageHeaderActions: FC<PropsWithChildren> = ({ children }) => {
     <div
       css={{
         marginLeft: "auto",
-        [theme.breakpoints.down("md")]: {
+        [theme.deprecated.breakpoints.down("md")]: {
           marginLeft: "unset",
         },
       }}
@@ -77,7 +77,7 @@ export const PageHeaderSubtitle: FC<PropsWithChildren> = ({ children }) => {
     <span
       css={{
         fontSize: 14,
-        color: theme.palette.text.secondary,
+        color: theme.deprecated.palette.text.secondary,
         display: "block",
       }}
     >

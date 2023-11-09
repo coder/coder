@@ -73,9 +73,9 @@ export const Markdown: FC<MarkdownProps> = (props) => {
             <code
               css={(theme) => ({
                 padding: "1px 4px",
-                background: theme.palette.divider,
+                background: theme.deprecated.palette.divider,
                 borderRadius: 4,
-                color: theme.palette.text.primary,
+                color: theme.deprecated.palette.text.primary,
                 fontSize: 14,
               })}
               {...props}
@@ -159,9 +159,9 @@ export const InlineMarkdown: FC<MarkdownInlineProps> = (props) => {
           <code
             css={(theme) => ({
               padding: "1px 4px",
-              background: theme.palette.divider,
+              background: theme.deprecated.palette.divider,
               borderRadius: 4,
-              color: theme.palette.text.primary,
+              color: theme.deprecated.palette.text.primary,
               fontSize: 14,
             })}
             {...props}
@@ -217,13 +217,13 @@ const markdownStyles: Interpolation<Theme> = (theme: Theme) => ({
   },
 
   "& .prismjs": {
-    background: theme.palette.background.paperLight,
+    background: theme.deprecated.palette.background.paperLight,
     borderRadius: 8,
     padding: "16px 24px",
     overflowX: "auto",
 
     "& code": {
-      color: theme.palette.text.secondary,
+      color: theme.deprecated.palette.text.secondary,
     },
 
     "& .key, & .property, & .inserted, .keyword": {
@@ -231,7 +231,7 @@ const markdownStyles: Interpolation<Theme> = (theme: Theme) => ({
     },
 
     "& .deleted": {
-      color: theme.palette.error.light,
+      color: theme.deprecated.palette.error.light,
     },
   },
 });

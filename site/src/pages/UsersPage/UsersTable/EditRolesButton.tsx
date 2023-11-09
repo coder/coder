@@ -119,7 +119,7 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
           paper: css`
             width: 360px;
             margin-top: 8px;
-            background: ${theme.palette.background.paperLight};
+            background: ${theme.deprecated.palette.background.paperLight};
           `,
         }}
       >
@@ -159,7 +159,7 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
 
 const styles = {
   editButton: (theme) => ({
-    color: theme.palette.text.secondary,
+    color: theme.deprecated.palette.text.secondary,
 
     "& .MuiSvgIcon-root": {
       width: 16,
@@ -169,7 +169,7 @@ const styles = {
     },
 
     "&:hover": {
-      color: theme.palette.text.primary,
+      color: theme.deprecated.palette.text.primary,
       backgroundColor: "transparent",
     },
   }),
@@ -201,18 +201,18 @@ const styles = {
   },
   optionDescription: (theme) => ({
     fontSize: 13,
-    color: theme.palette.text.secondary,
+    color: theme.deprecated.palette.text.secondary,
     lineHeight: "160%",
   }),
   footer: (theme) => ({
     padding: 24,
-    backgroundColor: theme.palette.background.paper,
-    borderTop: `1px solid ${theme.palette.divider}`,
+    backgroundColor: theme.deprecated.palette.background.paper,
+    borderTop: `1px solid ${theme.deprecated.palette.divider}`,
     fontSize: 14,
   }),
   userIcon: (theme) => ({
     width: 20, // Same as the checkbox
     height: 20,
-    color: theme.palette.primary.main,
+    color: theme.deprecated.palette.primary.main,
   }),
 } satisfies Record<string, Interpolation<Theme>>;

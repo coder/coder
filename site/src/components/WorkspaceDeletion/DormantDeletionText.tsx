@@ -29,6 +29,6 @@ export const DormantDeletionText = ({
 };
 
 const StyledSpan = styled.span<{ theme?: MaterialUITheme }>`
-  color: ${(props) => props.theme.palette.warning.light};
+  color: ${(props) => props.theme.deprecated.palette.warning.light};
   font-weight: 600;
 `;

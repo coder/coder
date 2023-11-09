@@ -513,63 +513,63 @@ const useAgentLogs = (
 
 const styles = {
   agentRow: (theme) => ({
-    backgroundColor: theme.palette.background.paperLight,
+    backgroundColor: theme.deprecated.palette.background.paperLight,
     fontSize: 16,
-    borderLeft: `2px solid ${theme.palette.text.secondary}`,
+    borderLeft: `2px solid ${theme.deprecated.palette.text.secondary}`,
 
     "&:not(:first-of-type)": {
-      borderTop: `2px solid ${theme.palette.divider}`,
+      borderTop: `2px solid ${theme.deprecated.palette.divider}`,
     },
   }),
 
   "agentRow-connected": (theme) => ({
-    borderLeftColor: theme.palette.success.light,
+    borderLeftColor: theme.deprecated.palette.success.light,
   }),
 
   "agentRow-disconnected": (theme) => ({
-    borderLeftColor: theme.palette.text.secondary,
+    borderLeftColor: theme.deprecated.palette.text.secondary,
   }),
 
   "agentRow-connecting": (theme) => ({
-    borderLeftColor: theme.palette.info.light,
+    borderLeftColor: theme.deprecated.palette.info.light,
   }),
 
   "agentRow-timeout": (theme) => ({
-    borderLeftColor: theme.palette.warning.light,
+    borderLeftColor: theme.deprecated.palette.warning.light,
   }),
 
   "agentRow-lifecycle-created": {},
 
   "agentRow-lifecycle-starting": (theme) => ({
-    borderLeftColor: theme.palette.info.light,
+    borderLeftColor: theme.deprecated.palette.info.light,
   }),
 
   "agentRow-lifecycle-ready": (theme) => ({
-    borderLeftColor: theme.palette.success.light,
+    borderLeftColor: theme.deprecated.palette.success.light,
   }),
 
   "agentRow-lifecycle-start_timeout": (theme) => ({
-    borderLeftColor: theme.palette.warning.light,
+    borderLeftColor: theme.deprecated.palette.warning.light,
   }),
 
   "agentRow-lifecycle-start_error": (theme) => ({
-    borderLeftColor: theme.palette.error.light,
+    borderLeftColor: theme.deprecated.palette.error.light,
   }),
 
   "agentRow-lifecycle-shutting_down": (theme) => ({
-    borderLeftColor: theme.palette.info.light,
+    borderLeftColor: theme.deprecated.palette.info.light,
   }),
 
   "agentRow-lifecycle-shutdown_timeout": (theme) => ({
-    borderLeftColor: theme.palette.warning.light,
+    borderLeftColor: theme.deprecated.palette.warning.light,
   }),
 
   "agentRow-lifecycle-shutdown_error": (theme) => ({
-    borderLeftColor: theme.palette.error.light,
+    borderLeftColor: theme.deprecated.palette.error.light,
   }),
 
   "agentRow-lifecycle-off": (theme) => ({
-    borderLeftColor: theme.palette.text.secondary,
+    borderLeftColor: theme.deprecated.palette.text.secondary,
   }),
 
   agentInfo: (theme) => ({
@@ -579,7 +579,7 @@ const styles = {
     gap: 48,
     flexWrap: "wrap",
 
-    [theme.breakpoints.down("md")]: {
+    [theme.deprecated.breakpoints.down("md")]: {
       gap: 16,
     },
   }),
@@ -590,7 +590,7 @@ const styles = {
     gap: 24,
     flexWrap: "wrap",
 
-    [theme.breakpoints.down("md")]: {
+    [theme.deprecated.breakpoints.down("md")]: {
       gap: 12,
     },
   }),
@@ -602,7 +602,7 @@ const styles = {
     flexWrap: "wrap",
     flex: 1,
 
-    [theme.breakpoints.down("md")]: {
+    [theme.deprecated.breakpoints.down("md")]: {
       marginLeft: 0,
       justifyContent: "flex-start",
     },
@@ -610,13 +610,13 @@ const styles = {
 
   agentDescription: (theme) => ({
     fontSize: 14,
-    color: theme.palette.text.secondary,
+    color: theme.deprecated.palette.text.secondary,
   }),
 
   startupLogs: (theme) => ({
     maxHeight: 256,
-    borderBottom: `1px solid ${theme.palette.divider}`,
-    backgroundColor: theme.palette.background.paper,
+    borderBottom: `1px solid ${theme.deprecated.palette.divider}`,
+    backgroundColor: theme.deprecated.palette.background.paper,
     paddingTop: 16,
 
     // We need this to be able to apply the padding top from startupLogs
@@ -630,7 +630,7 @@ const styles = {
     alignItems: "center",
     gap: 32,
 
-    [theme.breakpoints.down("md")]: {
+    [theme.deprecated.breakpoints.down("md")]: {
       width: "100%",
     },
   }),
@@ -645,7 +645,7 @@ const styles = {
     flexShrink: 0,
     width: "fit-content",
 
-    [theme.breakpoints.down("md")]: {
+    [theme.deprecated.breakpoints.down("md")]: {
       overflow: "unset",
     },
   }),
@@ -663,12 +663,12 @@ const styles = {
 
     "& > *:first-of-type": {
       fontWeight: 500,
-      color: theme.palette.text.secondary,
+      color: theme.deprecated.palette.text.secondary,
     },
   }),
 
   logsPanel: (theme) => ({
-    borderTop: `1px solid ${theme.palette.divider}`,
+    borderTop: `1px solid ${theme.deprecated.palette.divider}`,
   }),
 
   logsPanelButtons: {
@@ -681,7 +681,7 @@ const styles = {
     border: 0,
     fontFamily: "inherit",
     padding: "12px 32px",
-    color: theme.palette.text.secondary,
+    color: theme.deprecated.palette.text.secondary,
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
@@ -689,7 +689,7 @@ const styles = {
     whiteSpace: "nowrap",
 
     "&:hover": {
-      color: theme.palette.text.primary,
+      color: theme.deprecated.palette.text.primary,
       backgroundColor: colors.gray[14],
     },
 
@@ -710,7 +710,7 @@ const styles = {
     fontSize: 12,
     fontWeight: 400,
     marginTop: 4,
-    color: theme.palette.warning.light,
+    color: theme.deprecated.palette.warning.light,
   }),
 
   agentOS: {

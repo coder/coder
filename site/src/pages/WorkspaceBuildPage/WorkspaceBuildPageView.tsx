@@ -187,13 +187,15 @@ const BuildSidebarItem = ({
         <Box sx={{ display: "flex", alignItems: "start", gap: 1 }}>
           <BuildIcon
             transition={build.transition}
-            sx={{
+            css={(theme) => ({
               width: 16,
               height: 16,
-              color: (theme) =>
-                theme.palette[getDisplayWorkspaceBuildStatus(theme, build).type]
-                  .light,
-            }}
+              // TODO: this sucks really bad
+              color:
+                theme.deprecated.palette[
+                  getDisplayWorkspaceBuildStatus(theme, build).type
+                ].light,
+            })}
           />
           <Box sx={{ overflow: "hidden" }}>
             <Box
@@ -246,7 +248,7 @@ const styles = {
     rowGap: 24,
     flex: 1,
 
-    [theme.breakpoints.down("md")]: {
+    [theme.deprecated.breakpoints.down("md")]: {
       display: "flex",
       flexDirection: "column",
       alignItems: "flex-start",

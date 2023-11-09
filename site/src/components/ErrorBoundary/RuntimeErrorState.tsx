@@ -168,14 +168,14 @@ const styles = {
 
   text: (theme) => ({
     fontSize: 16,
-    color: theme.palette.text.secondary,
+    color: theme.deprecated.palette.text.secondary,
     lineHeight: "160%",
     marginBottom: 32,
   }),
 
   stack: (theme) => ({
-    backgroundColor: theme.palette.background.paper,
-    border: `1px solid ${theme.palette.divider}`,
+    backgroundColor: theme.deprecated.palette.background.paper,
+    border: `1px solid ${theme.deprecated.palette.divider}`,
     borderRadius: 4,
     marginTop: 64,
     display: "block",
@@ -188,9 +188,9 @@ const styles = {
     fontWeight: 600,
     letterSpacing: 1,
     padding: "8px 8px 8px 16px",
-    backgroundColor: theme.palette.background.paperLight,
-    borderBottom: `1px solid ${theme.palette.divider}`,
-    color: theme.palette.text.secondary,
+    backgroundColor: theme.deprecated.palette.background.paperLight,
+    borderBottom: `1px solid ${theme.deprecated.palette.divider}`,
+    color: theme.deprecated.palette.text.secondary,
     display: "flex",
     flexAlign: "center",
     justifyContent: "space-between",
@@ -207,6 +207,6 @@ const styles = {
   version: (theme) => ({
     marginTop: 32,
     fontSize: 12,
-    color: theme.palette.text.secondary,
+    color: theme.deprecated.palette.text.secondary,
   }),
 } satisfies Record<string, Interpolation<Theme>>;

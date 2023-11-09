@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { type Interpolation, type Theme } from "@emotion/react";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -327,8 +327,7 @@ const TerminalPage: FC = () => {
 };
 
 const BottomBar = ({ proxy, latency }: { proxy: Region; latency?: number }) => {
-  const theme = useTheme();
-  const color = getLatencyColor(theme, latency);
+  const color = getLatencyColor(latency);
 
   return (
     <Box
@@ -425,7 +424,7 @@ const styles = {
   terminal: (theme) => ({
     width: "100vw",
     overflow: "hidden",
-    backgroundColor: theme.palette.background.paper,
+    backgroundColor: theme.deprecated.palette.background.paper,
     flex: 1,
     // These styles attempt to mimic the VS Code scrollbar.
     "& .xterm": {

@@ -28,8 +28,8 @@ export const PageButton = ({
           }
         `,
         activePage === page && {
-          borderColor: `${theme.palette.info.main}`,
-          backgroundColor: `${theme.palette.info.dark}`,
+          borderColor: `${theme.deprecated.palette.info.main}`,
+          backgroundColor: `${theme.deprecated.palette.info.dark}`,
         },
       ]}
       aria-label={`${page === activePage ? "Current Page" : ""} ${

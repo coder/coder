@@ -20,7 +20,7 @@ export const PaginationWidgetBase = ({
   onChange,
 }: PaginationWidgetBaseProps): JSX.Element | null => {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+  const isMobile = useMediaQuery(theme.deprecated.breakpoints.down("md"));
 
   const numPages = Math.ceil(count / limit);
   if (numPages < 2) {

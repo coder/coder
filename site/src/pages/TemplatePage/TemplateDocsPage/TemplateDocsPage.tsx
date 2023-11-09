@@ -19,18 +19,18 @@ export default function TemplateDocsPage() {
 
       <div
         css={{
-          background: theme.palette.background.paper,
-          border: `1px solid ${theme.palette.divider}`,
+          background: theme.deprecated.palette.background.paper,
+          border: `1px solid ${theme.deprecated.palette.divider}`,
           borderRadius: 8,
         }}
         id="readme"
       >
         <div
           css={{
-            color: theme.palette.text.secondary,
+            color: theme.deprecated.palette.text.secondary,
             fontWeight: 600,
             padding: "16px 24px",
-            borderBottom: `1px solid ${theme.palette.divider}`,
+            borderBottom: `1px solid ${theme.deprecated.palette.divider}`,
           }}
         >
           README.md

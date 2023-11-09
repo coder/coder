@@ -34,7 +34,7 @@ const theme = {
 export const ThemeProviders: FC<PropsWithChildren> = ({ children }) => {
   return (
     <StyledEngineProvider injectFirst>
-      <MuiThemeProvider theme={theme}>
+      <MuiThemeProvider theme={deprecated}>
         <EmotionThemeProvider theme={theme}>
           <CssBaseline enableColorScheme />
           {children}

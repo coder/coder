@@ -252,7 +252,8 @@ export const AppearanceSettingsPageView = ({
                   default: {
                     input: {
                       color: "white",
-                      backgroundColor: theme.palette.background.default,
+                      backgroundColor:
+                        theme.deprecated.palette.background.default,
                     },
                     body: {
                       backgroundColor: "black",

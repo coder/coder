@@ -1,4 +1,4 @@
-import { useTheme } from "@mui/styles";
+import { useTheme } from "@emotion/react";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -11,9 +11,9 @@ import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import dayjs from "dayjs";
-import { FC } from "react";
+import { type FC } from "react";
 import IconButton from "@mui/material/IconButton/IconButton";
-import { APIKeyWithOwner } from "api/typesGenerated";
+import type { APIKeyWithOwner } from "api/typesGenerated";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 
@@ -79,13 +79,21 @@ export const TokensPageView: FC<
                       tabIndex={0}
                     >
                       <TableCell>
-                        <span style={{ color: theme.palette.text.secondary }}>
+                        <span
+                          style={{
+                            color: theme.deprecated.palette.text.secondary,
+                          }}
+                        >
                           {token.id}
                         </span>
                       </TableCell>
 
                       <TableCell>
-                        <span style={{ color: theme.palette.text.secondary }}>
+                        <span
+                          style={{
+                            color: theme.deprecated.palette.text.secondary,
+                          }}
+                        >
                           {token.token_name}
                         </span>
                       </TableCell>
@@ -94,7 +102,9 @@ export const TokensPageView: FC<
 
                       <TableCell>
                         <span
-                          style={{ color: theme.palette.text.secondary }}
+                          style={{
+                            color: theme.deprecated.palette.text.secondary,
+                          }}
                           data-chromatic="ignore"
                         >
                           {dayjs(token.expires_at).fromNow()}
@@ -102,13 +112,21 @@ export const TokensPageView: FC<
                       </TableCell>
 
                       <TableCell>
-                        <span style={{ color: theme.palette.text.secondary }}>
+                        <span
+                          style={{
+                            color: theme.deprecated.palette.text.secondary,
+                          }}
+                        >
                           {dayjs(token.created_at).fromNow()}
                         </span>
                       </TableCell>
 
                       <TableCell>
-                        <span style={{ color: theme.palette.text.secondary }}>
+                        <span
+                          style={{
+                            color: theme.deprecated.palette.text.secondary,
+                          }}
+                        >
                           <IconButton
                             onClick={() => {
                               onDelete(token);

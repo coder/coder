@@ -42,7 +42,7 @@ export const SSHKeysPageView: FC<PropsWithChildren<SSHKeysPageViewProps>> = ({
           <p
             css={{
               fontSize: 14,
-              color: theme.palette.text.secondary,
+              color: theme.deprecated.palette.text.secondary,
               margin: 0,
             }}
           >
@@ -51,10 +51,10 @@ export const SSHKeysPageView: FC<PropsWithChildren<SSHKeysPageViewProps>> = ({
             access from your workspace. Coder configures authentication via{" "}
             <code
               css={{
-                background: theme.palette.divider,
+                background: theme.deprecated.palette.divider,
                 fontSize: 12,
                 padding: "2px 4px",
-                color: theme.palette.text.primary,
+                color: theme.deprecated.palette.text.primary,
                 borderRadius: 2,
               }}
             >

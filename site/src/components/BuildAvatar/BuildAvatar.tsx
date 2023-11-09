@@ -1,11 +1,11 @@
 import Badge from "@mui/material/Badge";
-import { useTheme, withStyles } from "@mui/styles";
-import { FC } from "react";
-import { WorkspaceBuild } from "api/typesGenerated";
+import { withStyles } from "@mui/styles";
+import { useTheme } from "@emotion/react";
+import { type FC } from "react";
+import type { WorkspaceBuild } from "api/typesGenerated";
 import { getDisplayWorkspaceBuildStatus } from "utils/workspace";
-import { Avatar, AvatarProps } from "components/Avatar/Avatar";
+import { Avatar, type AvatarProps } from "components/Avatar/Avatar";
 import type { PaletteIndex } from "theme/mui";
-import { Theme } from "@mui/material/styles";
 import { BuildIcon } from "components/BuildIcon/BuildIcon";
 
 interface StylesBadgeProps {
@@ -14,7 +14,8 @@ interface StylesBadgeProps {
 
 const StyledBadge = withStyles((theme) => ({
   badge: {
-    backgroundColor: ({ type }: StylesBadgeProps) => theme.palette[type].light,
+    backgroundColor: ({ type }: StylesBadgeProps) =>
+      theme.deprecated.palette[type].light,
     borderRadius: "100%",
     width: 8,
     minWidth: 8,
@@ -30,14 +31,14 @@ export interface BuildAvatarProps {
 }
 
 export const BuildAvatar: FC<BuildAvatarProps> = ({ build, size }) => {
-  const theme = useTheme<Theme>();
+  const theme = useTheme();
   const displayBuildStatus = getDisplayWorkspaceBuildStatus(theme, build);
 
   return (
     <StyledBadge
       role="status"
       type={displayBuildStatus.type}
-      arial-label={displayBuildStatus.status}
+      aria-label={displayBuildStatus.status}
       title={displayBuildStatus.status}
       overlap="circular"
       anchorOrigin={{

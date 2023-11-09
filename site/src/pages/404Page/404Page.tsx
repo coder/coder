@@ -17,7 +17,7 @@ export const NotFoundPage: FC = () => {
         css={(theme) => ({
           margin: 8,
           padding: 8,
-          borderRight: theme.palette.divider,
+          borderRight: theme.deprecated.palette.divider,
         })}
       >
         <Typography variant="h4">404</Typography>

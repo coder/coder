@@ -32,7 +32,7 @@ export function AccountUserGroups({
             <em
               css={{
                 fontStyle: "normal",
-                color: theme.palette.text.primary,
+                color: theme.deprecated.palette.text.primary,
                 fontWeight: 600,
               }}
             >

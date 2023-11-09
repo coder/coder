@@ -1,6 +1,6 @@
 import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined";
 import Button from "@mui/material/Button";
-import { Template } from "api/typesGenerated";
+import type { Template } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import { Link } from "react-router-dom";
@@ -98,7 +98,7 @@ export const WorkspacesEmpty = (props: {
                   width: "320px",
                   padding: 16,
                   borderRadius: 6,
-                  border: `1px solid ${theme.palette.divider}`,
+                  border: `1px solid ${theme.deprecated.palette.divider}`,
                   textAlign: "left",
                   display: "flex",
                   gap: 16,
@@ -106,7 +106,7 @@ export const WorkspacesEmpty = (props: {
                   color: "inherit",
 
                   "&:hover": {
-                    backgroundColor: theme.palette.background.paperLight,
+                    backgroundColor: theme.deprecated.palette.background.paper,
                   },
                 })}
               >
@@ -127,7 +127,7 @@ export const WorkspacesEmpty = (props: {
                   <span
                     css={(theme) => ({
                       fontSize: 13,
-                      color: theme.palette.text.secondary,
+                      color: theme.deprecated.palette.text.secondary,
                       lineHeight: "0.5",
                     })}
                   >

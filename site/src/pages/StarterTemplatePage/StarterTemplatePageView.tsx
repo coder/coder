@@ -91,8 +91,8 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
 
       <div
         css={{
-          background: theme.palette.background.paper,
-          border: `1px solid ${theme.palette.divider}`,
+          background: theme.deprecated.palette.background.paper,
+          border: `1px solid ${theme.deprecated.palette.divider}`,
           borderRadius: 8,
         }}
         id="readme"

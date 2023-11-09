@@ -51,7 +51,7 @@ export const CopyButton: React.FC<React.PropsWithChildren<CopyButtonProps>> = ({
             min-width: 32px;
 
             &:hover {
-              background: ${theme.palette.background.paper};
+              background: ${theme.deprecated.palette.background.paper};
             }
           `}
           onClick={copyToClipboard}

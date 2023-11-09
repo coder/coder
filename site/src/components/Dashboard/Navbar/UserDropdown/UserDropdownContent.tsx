@@ -26,7 +26,7 @@ export const Language = {
 
 const styles = {
   info: (theme) => [
-    theme.typography.body2 as CSSObject,
+    theme.deprecated.typography.body2 as CSSObject,
     {
       padding: 20,
     },
@@ -35,7 +35,7 @@ const styles = {
     fontWeight: 600,
   },
   userEmail: (theme) => ({
-    color: theme.palette.text.secondary,
+    color: theme.deprecated.palette.text.secondary,
     width: "100%",
     textOverflow: "ellipsis",
     overflow: "hidden",
@@ -49,12 +49,12 @@ const styles = {
     padding: 8px 20px;
 
     &:hover {
-      background-color: ${theme.palette.action.hover};
+      background-color: ${theme.deprecated.palette.action.hover};
       transition: background-color 0.3s ease;
     }
   `,
   menuItemIcon: (theme) => ({
-    color: theme.palette.text.secondary,
+    color: theme.deprecated.palette.text.secondary,
     width: 20,
     height: 20,
   }),
@@ -64,7 +64,7 @@ const styles = {
   footerText: (theme) => css`
     font-size: 12px;
     text-decoration: none;
-    color: ${theme.palette.text.secondary};
+    color: ${theme.deprecated.palette.text.secondary};
     display: flex;
     align-items: center;
     gap: 4px;
@@ -75,7 +75,7 @@ const styles = {
     }
   `,
   buildInfo: (theme) => ({
-    color: theme.palette.text.primary,
+    color: theme.deprecated.palette.text.primary,
   }),
 } satisfies Record<string, Interpolation<Theme>>;
 

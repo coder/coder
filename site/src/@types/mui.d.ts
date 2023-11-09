@@ -3,6 +3,7 @@ import type {
   PaletteColorOptions,
   Theme,
 } from "@mui/material/styles";
+import { CoderTheme } from "theme/theme";
 
 declare module "@mui/styles/defaultTheme" {
   /**
@@ -16,8 +17,10 @@ declare module "@mui/material/styles" {
    * @deprecated
    */
   interface Theme {}
-
   interface TypeBackground {
+    /**
+     * @deprecated
+     */
     paperLight: string;
   }
 

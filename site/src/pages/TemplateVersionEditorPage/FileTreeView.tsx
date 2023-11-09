@@ -64,18 +64,18 @@ export const FileTreeView: FC<{
           user-select: none;
 
           &:focus:not(.active) > .MuiTreeItem-content {
-            background: ${theme.palette.action.hover};
-            color: ${theme.palette.text.primary};
+            background: ${theme.deprecated.palette.action.hover};
+            color: ${theme.deprecated.palette.text.primary};
           }
 
           &:not(:focus):not(.active) > .MuiTreeItem-content:hover {
-            background: ${theme.palette.action.hover};
-            color: ${theme.palette.text.primary};
+            background: ${theme.deprecated.palette.action.hover};
+            color: ${theme.deprecated.palette.text.primary};
           }
 
           & > .MuiTreeItem-content {
             padding: 2px 16px;
-            color: ${theme.palette.text.secondary};
+            color: ${theme.deprecated.palette.text.secondary};
 
             & svg {
               width: 16px;
@@ -91,7 +91,7 @@ export const FileTreeView: FC<{
 
           &.active {
             & > .MuiTreeItem-content {
-              color: ${theme.palette.text.primary};
+              color: ${theme.deprecated.palette.text.primary};
               background: ${colors.gray[13]};
               pointer-events: none;
             }

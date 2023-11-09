@@ -88,7 +88,7 @@ const styles = {
 
   footer: (theme) => ({
     fontSize: 12,
-    color: theme.palette.text.secondary,
+    color: theme.deprecated.palette.text.secondary,
     marginTop: 24,
   }),
 } satisfies Record<string, Interpolation<Theme>>;

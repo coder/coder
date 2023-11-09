@@ -49,11 +49,11 @@ const styles = {
   dividerLine: (theme) => ({
     width: "100%",
     height: 1,
-    backgroundColor: theme.palette.divider,
+    backgroundColor: theme.deprecated.palette.divider,
   }),
   dividerLabel: (theme) => ({
     flexShrink: 0,
-    color: theme.palette.text.secondary,
+    color: theme.deprecated.palette.text.secondary,
     textTransform: "uppercase",
     fontSize: 12,
     letterSpacing: 1,

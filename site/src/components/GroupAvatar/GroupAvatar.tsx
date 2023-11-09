@@ -6,8 +6,8 @@ import { FC } from "react";
 
 const StyledBadge = withStyles((theme) => ({
   badge: {
-    backgroundColor: theme.palette.background.paper,
-    border: `1px solid ${theme.palette.divider}`,
+    backgroundColor: theme.deprecated.palette.background.paper,
+    border: `1px solid ${theme.deprecated.palette.divider}`,
     borderRadius: "100%",
     width: 24,
     height: 24,

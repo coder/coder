@@ -51,12 +51,12 @@ const styles = {
   desktopNavItems: (theme) => css`
     display: none;
 
-    ${theme.breakpoints.up("md")} {
+    ${theme.deprecated.breakpoints.up("md")} {
       display: flex;
     }
   `,
   mobileMenuButton: (theme) => css`
-    ${theme.breakpoints.up("md")} {
+    ${theme.deprecated.breakpoints.up("md")} {
       display: none;
     }
   `,
@@ -66,7 +66,7 @@ const styles = {
     justify-content: space-between;
     align-items: center;
 
-    ${theme.breakpoints.up("md")} {
+    ${theme.deprecated.breakpoints.up("md")} {
       justify-content: flex-start;
     }
   `,
@@ -79,7 +79,7 @@ const styles = {
     align-items: center;
     display: flex;
     height: ${navHeight}px;
-    color: ${theme.palette.text.primary};
+    color: ${theme.deprecated.palette.text.primary};
     padding: 16px;
 
     // svg is for the Coder logo, img is for custom images
@@ -107,15 +107,15 @@ const styles = {
     transition: background-color 0.15s ease-in-out;
 
     &.active {
-      color: ${theme.palette.text.primary};
+      color: ${theme.deprecated.palette.text.primary};
       font-weight: 500;
     }
 
     &:hover {
-      background-color: ${theme.palette.action.hover};
+      background-color: ${theme.deprecated.palette.action.hover};
     }
 
-    ${theme.breakpoints.up("md")} {
+    ${theme.deprecated.breakpoints.up("md")} {
       height: ${navHeight}px;
       padding: 0 24px;
     }
@@ -142,7 +142,7 @@ const NavItems: React.FC<NavItemsProps> = (props) => {
         css={[
           styles.link,
           location.pathname.startsWith("/@") && {
-            color: theme.palette.text.primary,
+            color: theme.deprecated.palette.text.primary,
             fontWeight: 500,
           },
         ]}
@@ -189,8 +189,8 @@ export const NavbarView: FC<NavbarViewProps> = ({
     <nav
       css={(theme) => ({
         height: navHeight,
-        background: theme.palette.background.paper,
-        borderBottom: `1px solid ${theme.palette.divider}`,
+        background: theme.deprecated.palette.background.paper,
+        borderBottom: `1px solid ${theme.deprecated.palette.divider}`,
       })}
     >
       <div css={styles.wrapper}>

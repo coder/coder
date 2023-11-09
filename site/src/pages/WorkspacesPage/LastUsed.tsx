@@ -37,7 +37,10 @@ export const LastUsed: FC<LastUsedProps> = ({ lastUsedAt }) => {
   const now = dayjs();
   let message = t.fromNow();
   let circle = (
-    <Circle color={theme.palette.text.secondary} variant="outlined" />
+    <Circle
+      color={theme.deprecated.palette.text.secondary}
+      variant="outlined"
+    />
   );
 
   if (t.isAfter(now.subtract(1, "hour"))) {
@@ -46,19 +49,19 @@ export const LastUsed: FC<LastUsedProps> = ({ lastUsedAt }) => {
     // the last_used_at can be inaccurate when recent.
     message = "Now";
   } else if (t.isAfter(now.subtract(3, "day"))) {
-    circle = <Circle color={theme.palette.text.secondary} />;
+    circle = <Circle color={theme.deprecated.palette.text.secondary} />;
   } else if (t.isAfter(now.subtract(1, "month"))) {
-    circle = <Circle color={theme.palette.warning.light} />;
+    circle = <Circle color={theme.deprecated.palette.warning.light} />;
   } else if (t.isAfter(now.subtract(100, "year"))) {
     circle = <Circle color={colors.red[10]} />;
   } else {
-    // color = theme.palette.error.light
+    // color = theme.deprecated.palette.error.light
     message = "Never";
   }
 
   return (
     <Stack
-      css={{ color: theme.palette.text.secondary }}
+      css={{ color: theme.deprecated.palette.text.secondary }}
       direction="row"
       spacing={1}
       alignItems="center"

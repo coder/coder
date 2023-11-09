@@ -1,9 +1,9 @@
 import colors from "./tailwind";
 
 export interface CoderTheme {
-  primary: Role; // page background, things which sit at the "root level"
-  secondary: InteractiveRole; // sidebars, table headers, navigation
-  tertiary: InteractiveRole; // buttons, inputs
+  l1: Role; // page background, things which sit at the "root level"
+  l2: InteractiveRole; // sidebars, table headers, navigation
+  l3: InteractiveRole; // buttons, inputs
   modal: Role; // modals/popovers/dropdowns
 
   roles: {
@@ -13,7 +13,7 @@ export interface CoderTheme {
     notice: Role; // like info, but actionable. "this is fine, but you may want to..."
     info: Role; // just sharing :)
     success: InteractiveRole; // yay!! it's working!!
-    active: Role; // selected items, focused inputs,
+    active: Role; // selected items, focused inputs, in progress
   };
 }
 
@@ -31,13 +31,13 @@ export interface InteractiveRole extends Role {
 }
 
 export const dark = {
-  primary: {
+  l1: {
     background: colors.gray[950],
     outline: colors.gray[700],
     fill: "#f00",
     text: colors.white,
   },
-  secondary: {
+  l2: {
     background: colors.gray[900],
     outline: colors.gray[700],
     fill: "#f00",
@@ -55,7 +55,7 @@ export const dark = {
       text: colors.white,
     },
   },
-  tertiary: {
+  l3: {
     background: colors.gray[800],
     outline: colors.gray[700],
     fill: "#f00",

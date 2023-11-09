@@ -77,7 +77,7 @@ const styles = {
       borderColor: colors.red[9],
 
       "&:not(.MuiLoadingButton-loading)": {
-        color: theme.palette.text.primary,
+        color: theme.deprecated.palette.text.primary,
       },
 
       "&:hover:not(:disabled)": {
@@ -97,14 +97,14 @@ const styles = {
   }),
   successButton: (theme) => ({
     "&.MuiButton-contained": {
-      backgroundColor: theme.palette.success.main,
+      backgroundColor: theme.deprecated.palette.success.main,
 
       "&:not(.MuiLoadingButton-loading)": {
-        color: theme.palette.primary.contrastText,
+        color: theme.deprecated.palette.primary.contrastText,
       },
 
       "&:hover": {
-        backgroundColor: theme.palette.success.dark,
+        backgroundColor: theme.deprecated.palette.success.dark,
 
         "@media (hover: none)": {
           backgroundColor: "transparent",
@@ -116,19 +116,19 @@ const styles = {
       },
 
       "&.Mui-disabled": {
-        backgroundColor: theme.palette.success.dark,
+        backgroundColor: theme.deprecated.palette.success.dark,
 
         "&:not(.MuiLoadingButton-loading)": {
-          color: theme.palette.text.secondary,
+          color: theme.deprecated.palette.text.secondary,
         },
       },
     },
 
     "&.MuiButton-outlined": {
-      color: theme.palette.success.main,
-      borderColor: theme.palette.success.main,
+      color: theme.deprecated.palette.success.main,
+      borderColor: theme.deprecated.palette.success.main,
       "&:hover": {
-        backgroundColor: theme.palette.success.dark,
+        backgroundColor: theme.deprecated.palette.success.dark,
         "@media (hover: none)": {
           backgroundColor: "transparent",
         },
@@ -137,21 +137,21 @@ const styles = {
         },
       },
       "&.Mui-disabled": {
-        color: theme.palette.text.secondary,
-        borderColor: theme.palette.action.disabled,
+        color: theme.deprecated.palette.text.secondary,
+        borderColor: theme.deprecated.palette.action.disabled,
       },
     },
 
     "&.MuiButton-text": {
-      color: theme.palette.success.main,
+      color: theme.deprecated.palette.success.main,
       "&:hover": {
-        backgroundColor: theme.palette.success.dark,
+        backgroundColor: theme.deprecated.palette.success.dark,
         "@media (hover: none)": {
           backgroundColor: "transparent",
         },
       },
       "&.Mui-disabled": {
-        color: theme.palette.text.secondary,
+        color: theme.deprecated.palette.text.secondary,
       },
     },
   }),

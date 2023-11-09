@@ -13,7 +13,7 @@ export const FullScreenLoader: FC = () => {
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
-        background: theme.palette.background.default,
+        background: theme.deprecated.palette.background.default,
       })}
       data-testid="loader"
     >

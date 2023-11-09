@@ -21,7 +21,7 @@ export const TimelineEntry = forwardRef(function TimelineEntry(
             outlineStyle: "solid",
             outlineOffset: -1,
             outlineWidth: 2,
-            outlineColor: theme.palette.secondary.dark,
+            outlineColor: theme.deprecated.palette.secondary.dark,
           },
           "& td:before": {
             position: "absolute",
@@ -30,14 +30,14 @@ export const TimelineEntry = forwardRef(function TimelineEntry(
             content: "''",
             height: "100%",
             width: 2,
-            background: theme.palette.divider,
+            background: theme.deprecated.palette.divider,
           },
         },
         clickable && {
           cursor: "pointer",
 
           "&:hover": {
-            backgroundColor: theme.palette.action.hover,
+            backgroundColor: theme.deprecated.palette.action.hover,
           },
         },
       ]}

@@ -216,7 +216,7 @@ export default ExternalAuthPageView;
 const styles = {
   text: (theme) => ({
     fontSize: 16,
-    color: theme.palette.text.secondary,
+    color: theme.deprecated.palette.text.secondary,
     textAlign: "center",
     lineHeight: "160%",
     margin: 0,
@@ -229,7 +229,7 @@ const styles = {
 
   code: (theme) => ({
     fontWeight: "bold",
-    color: theme.palette.text.primary,
+    color: theme.deprecated.palette.text.primary,
   }),
 
   installAlert: {
@@ -256,13 +256,13 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    color: theme.palette.text.disabled,
+    color: theme.deprecated.palette.text.disabled,
   }),
 
   authorizedInstalls: (theme) => ({
     display: "flex",
     gap: 4,
-    color: theme.palette.text.disabled,
+    color: theme.deprecated.palette.text.disabled,
     margin: 32,
   }),
 } satisfies Record<string, Interpolation<Theme>>;

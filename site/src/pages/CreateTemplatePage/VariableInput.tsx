@@ -112,13 +112,13 @@ const VariableField: React.FC<VariableInputProps> = ({
 const styles = {
   labelName: (theme) => ({
     fontSize: 14,
-    color: theme.palette.text.secondary,
+    color: theme.deprecated.palette.text.secondary,
     display: "block",
     marginBottom: 4,
   }),
   labelDescription: (theme) => ({
     fontSize: 16,
-    color: theme.palette.text.primary,
+    color: theme.deprecated.palette.text.primary,
     display: "block",
     fontWeight: 600,
   }),

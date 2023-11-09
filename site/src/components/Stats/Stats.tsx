@@ -22,18 +22,18 @@ export const StatsItem: FC<
 
 const styles = {
   stats: (theme) => ({
-    ...(theme.typography.body2 as CSSObject),
+    ...(theme.deprecated.typography.body2 as CSSObject),
     paddingLeft: 16,
     paddingRight: 16,
     borderRadius: 8,
-    border: `1px solid ${theme.palette.divider}`,
+    border: `1px solid ${theme.deprecated.palette.divider}`,
     display: "flex",
     alignItems: "center",
-    color: theme.palette.text.secondary,
+    color: theme.deprecated.palette.text.secondary,
     margin: "0px",
     flexWrap: "wrap",
 
-    [theme.breakpoints.down("md")]: {
+    [theme.deprecated.breakpoints.down("md")]: {
       display: "block",
       padding: 16,
     },
@@ -47,7 +47,7 @@ const styles = {
     alignItems: "baseline",
     gap: 8,
 
-    [theme.breakpoints.down("md")]: {
+    [theme.deprecated.breakpoints.down("md")]: {
       padding: 8,
     },
   }),
@@ -61,11 +61,11 @@ const styles = {
     marginTop: 2,
     display: "flex",
     wordWrap: "break-word",
-    color: theme.palette.text.primary,
+    color: theme.deprecated.palette.text.primary,
     alignItems: "center",
 
     "& a": {
-      color: theme.palette.text.primary,
+      color: theme.deprecated.palette.text.primary,
       textDecoration: "none",
       fontWeight: 600,
 

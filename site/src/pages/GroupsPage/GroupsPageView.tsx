@@ -212,11 +212,11 @@ const styles = {
     cursor: "pointer",
 
     "&:hover td": {
-      backgroundColor: theme.palette.action.hover,
+      backgroundColor: theme.deprecated.palette.action.hover,
     },
 
     "&:focus": {
-      outline: `1px solid ${theme.palette.secondary.dark}`,
+      outline: `1px solid ${theme.deprecated.palette.secondary.dark}`,
     },
 
     "& .MuiTableCell-root:last-child": {
@@ -224,7 +224,7 @@ const styles = {
     },
   }),
   arrowRight: (theme) => ({
-    color: theme.palette.text.secondary,
+    color: theme.deprecated.palette.text.secondary,
     width: 20,
     height: 20,
   }),

@@ -289,6 +289,6 @@ const styles = {
     textTransform: "capitalize",
   },
   suspended: (theme) => ({
-    color: theme.palette.text.secondary,
+    color: theme.deprecated.palette.text.secondary,
   }),
 } satisfies Record<string, Interpolation<Theme>>;

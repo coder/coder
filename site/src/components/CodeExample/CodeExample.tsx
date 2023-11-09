@@ -23,13 +23,13 @@ export const CodeExample: FC<CodeExampleProps> = (props) => {
         flexDirection: "row",
         alignItems: "center",
         background: "rgb(0 0 0 / 30%)",
-        color: theme.palette.primary.contrastText,
+        color: theme.deprecated.palette.primary.contrastText,
         fontFamily: MONOSPACE_FONT_FAMILY,
         fontSize: 14,
         borderRadius: 8,
         padding: 8,
         lineHeight: "150%",
-        border: `1px solid ${theme.palette.divider}`,
+        border: `1px solid ${theme.deprecated.palette.divider}`,
       }}
       className={className}
     >

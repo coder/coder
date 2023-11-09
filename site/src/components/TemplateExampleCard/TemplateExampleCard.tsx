@@ -18,7 +18,7 @@ export const TemplateExampleCard = (props: TemplateExampleCardProps) => {
         width: "320px",
         padding: 24,
         borderRadius: 6,
-        border: `1px solid ${theme.palette.divider}`,
+        border: `1px solid ${theme.deprecated.palette.divider}`,
         textAlign: "left",
         textDecoration: "none",
         color: "inherit",
@@ -60,14 +60,14 @@ export const TemplateExampleCard = (props: TemplateExampleCardProps) => {
                   text={tag}
                   css={(theme) => ({
                     borderColor: isActive
-                      ? theme.palette.primary.main
-                      : theme.palette.divider,
+                      ? theme.deprecated.palette.primary.main
+                      : theme.deprecated.palette.divider,
                     cursor: "pointer",
                     backgroundColor: isActive
-                      ? theme.palette.primary.dark
+                      ? theme.deprecated.palette.primary.dark
                       : undefined,
                     "&: hover": {
-                      borderColor: theme.palette.primary.main,
+                      borderColor: theme.deprecated.palette.primary.main,
                     },
                   })}
                 />
@@ -84,7 +84,7 @@ export const TemplateExampleCard = (props: TemplateExampleCardProps) => {
         <span
           css={(theme) => ({
             fontSize: 13,
-            color: theme.palette.text.secondary,
+            color: theme.deprecated.palette.text.secondary,
             lineHeight: "1.6",
             display: "block",
           })}

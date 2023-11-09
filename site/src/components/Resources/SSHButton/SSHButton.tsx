@@ -43,7 +43,7 @@ export const SSHButton: FC<PropsWithChildren<SSHButtonProps>> = ({
           paper: css`
             padding: 16px 24px 24px;
             width: 304px;
-            color: ${theme.palette.text.secondary};
+            color: ${theme.deprecated.palette.text.secondary};
             margin-top: 2px;
           `,
         }}

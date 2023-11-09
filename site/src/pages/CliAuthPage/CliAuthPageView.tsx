@@ -25,7 +25,7 @@ export const CliAuthPageView: FC<CliAuthPageViewProps> = ({ sessionToken }) => {
       <p
         css={{
           fontSize: 16,
-          color: theme.palette.text.secondary,
+          color: theme.deprecated.palette.text.secondary,
           marginBottom: 32,
           textAlign: "center",
           lineHeight: "160%",

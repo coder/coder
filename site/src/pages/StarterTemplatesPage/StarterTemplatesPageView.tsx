@@ -93,7 +93,7 @@ export const StarterTemplatesPageView: FC<StarterTemplatesPageViewProps> = ({
             visibleTemplates.map((example) => (
               <TemplateExampleCard
                 css={(theme) => ({
-                  backgroundColor: theme.palette.background.paper,
+                  backgroundColor: theme.deprecated.palette.background.paper,
                 })}
                 example={example}
                 key={example.id}
@@ -111,23 +111,23 @@ const styles = {
     textTransform: "uppercase",
     fontWeight: 600,
     fontSize: 12,
-    color: theme.palette.text.secondary,
+    color: theme.deprecated.palette.text.secondary,
     letterSpacing: "0.1em",
   }),
 
   tagLink: (theme) => ({
-    color: theme.palette.text.secondary,
+    color: theme.deprecated.palette.text.secondary,
     textDecoration: "none",
     fontSize: 14,
     textTransform: "capitalize",
 
     "&:hover": {
-      color: theme.palette.text.primary,
+      color: theme.deprecated.palette.text.primary,
     },
   }),
 
   tagLinkActive: (theme) => ({
-    color: theme.palette.text.primary,
+    color: theme.deprecated.palette.text.primary,
     fontWeight: 600,
   }),
 } satisfies Record<string, Interpolation<Theme>>;
