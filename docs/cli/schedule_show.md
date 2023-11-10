@@ -7,7 +7,7 @@ Show workspace schedules
 ## Usage
 
 ```console
-coder schedule show [flags] [<workspace>] | [--search <query>] [--all]
+coder schedule show [flags] <workspace | --search <query> | --all>
 ```
 
 ## Description
