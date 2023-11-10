@@ -2385,15 +2385,18 @@ export const MockLicenseResponse: GetLicensesResponse[] = [
   },
 ];
 
-export const MockHealth = {
+export const MockHealth: TypesGen.HealthcheckReport = {
   time: "2023-08-01T16:51:03.29792825Z",
   healthy: true,
-  failing_sections: null,
+  warning: false,
+  failing_sections: [],
   derp: {
     healthy: true,
+    warning: false,
     regions: {
       "999": {
         healthy: true,
+        warning: false,
         region: {
           EmbeddedRelay: true,
           RegionID: 999,
@@ -2419,6 +2422,7 @@ export const MockHealth = {
         node_reports: [
           {
             healthy: true,
+            warning: false,
             node: {
               Name: "999stun0",
               RegionID: 999,
@@ -2431,19 +2435,19 @@ export const MockHealth = {
               TokenBucketBytesBurst: 0,
             },
             can_exchange_messages: false,
-            round_trip_ping: 0,
+            round_trip_ping: "0",
+            round_trip_ping_ms: 0,
             uses_websocket: false,
             client_logs: [],
             client_errs: [],
-            error: null,
             stun: {
               Enabled: true,
               CanSTUN: true,
-              Error: null,
             },
           },
           {
             healthy: true,
+            warning: false,
             node: {
               Name: "999b",
               RegionID: 999,
@@ -2456,7 +2460,8 @@ export const MockHealth = {
               TokenBucketBytesBurst: 0,
             },
             can_exchange_messages: true,
-            round_trip_ping: 7674330,
+            round_trip_ping: "7674330",
+            round_trip_ping_ms: 7674330,
             uses_websocket: false,
             client_logs: [
               [
@@ -2467,18 +2472,16 @@ export const MockHealth = {
               ],
             ],
             client_errs: [[], []],
-            error: null,
             stun: {
               Enabled: false,
               CanSTUN: false,
-              Error: null,
             },
           },
         ],
-        error: null,
       },
       "10007": {
         healthy: true,
+        warning: false,
         region: {
           EmbeddedRelay: false,
           RegionID: 10007,
@@ -2504,6 +2507,7 @@ export const MockHealth = {
         node_reports: [
           {
             healthy: true,
+            warning: false,
             node: {
               Name: "10007stun0",
               RegionID: 10007,
@@ -2516,19 +2520,19 @@ export const MockHealth = {
               TokenBucketBytesBurst: 0,
             },
             can_exchange_messages: false,
-            round_trip_ping: 0,
+            round_trip_ping: "0",
+            round_trip_ping_ms: 0,
             uses_websocket: false,
             client_logs: [],
             client_errs: [],
-            error: null,
             stun: {
               Enabled: true,
               CanSTUN: true,
-              Error: null,
             },
           },
           {
             healthy: true,
+            warning: false,
             node: {
               Name: "10007a",
               RegionID: 10007,
@@ -2541,7 +2545,8 @@ export const MockHealth = {
               TokenBucketBytesBurst: 0,
             },
             can_exchange_messages: true,
-            round_trip_ping: 170527034,
+            round_trip_ping: "170527034",
+            round_trip_ping_ms: 170527034,
             uses_websocket: false,
             client_logs: [
               [
@@ -2552,18 +2557,16 @@ export const MockHealth = {
               ],
             ],
             client_errs: [[], []],
-            error: null,
             stun: {
               Enabled: false,
               CanSTUN: false,
-              Error: null,
             },
           },
         ],
-        error: null,
       },
       "10008": {
         healthy: true,
+        warning: false,
         region: {
           EmbeddedRelay: false,
           RegionID: 10008,
@@ -2589,6 +2592,7 @@ export const MockHealth = {
         node_reports: [
           {
             healthy: true,
+            warning: false,
             node: {
               Name: "10008stun0",
               RegionID: 10008,
@@ -2601,19 +2605,19 @@ export const MockHealth = {
               TokenBucketBytesBurst: 0,
             },
             can_exchange_messages: false,
-            round_trip_ping: 0,
+            round_trip_ping: "0",
+            round_trip_ping_ms: 0,
             uses_websocket: false,
             client_logs: [],
             client_errs: [],
-            error: null,
             stun: {
               Enabled: true,
               CanSTUN: true,
-              Error: null,
             },
           },
           {
             healthy: true,
+            warning: false,
             node: {
               Name: "10008a",
               RegionID: 10008,
@@ -2626,7 +2630,8 @@ export const MockHealth = {
               TokenBucketBytesBurst: 0,
             },
             can_exchange_messages: true,
-            round_trip_ping: 111329690,
+            round_trip_ping: "111329690",
+            round_trip_ping_ms: 111329690,
             uses_websocket: false,
             client_logs: [
               [
@@ -2637,18 +2642,16 @@ export const MockHealth = {
               ],
             ],
             client_errs: [[], []],
-            error: null,
             stun: {
               Enabled: false,
               CanSTUN: false,
-              Error: null,
             },
           },
         ],
-        error: null,
       },
       "10009": {
         healthy: true,
+        warning: false,
         region: {
           EmbeddedRelay: false,
           RegionID: 10009,
@@ -2674,6 +2677,7 @@ export const MockHealth = {
         node_reports: [
           {
             healthy: true,
+            warning: false,
             node: {
               Name: "10009stun0",
               RegionID: 10009,
@@ -2686,19 +2690,19 @@ export const MockHealth = {
               TokenBucketBytesBurst: 0,
             },
             can_exchange_messages: false,
-            round_trip_ping: 0,
+            round_trip_ping: "0",
+            round_trip_ping_ms: 0,
             uses_websocket: false,
             client_logs: [],
             client_errs: [],
-            error: null,
             stun: {
               Enabled: true,
               CanSTUN: true,
-              Error: null,
             },
           },
           {
             healthy: true,
+            warning: false,
             node: {
               Name: "10009a",
               RegionID: 10009,
@@ -2711,7 +2715,8 @@ export const MockHealth = {
               TokenBucketBytesBurst: 0,
             },
             can_exchange_messages: true,
-            round_trip_ping: 138185506,
+            round_trip_ping: "138185506",
+            round_trip_ping_ms: 138185506,
             uses_websocket: false,
             client_logs: [
               [
@@ -2722,15 +2727,12 @@ export const MockHealth = {
               ],
             ],
             client_errs: [[], []],
-            error: null,
             stun: {
               Enabled: false,
               CanSTUN: false,
-              Error: null,
             },
           },
         ],
-        error: null,
       },
     },
     netcheck: {
@@ -2764,7 +2766,6 @@ export const MockHealth = {
       GlobalV6: "",
       CaptivePortal: null,
     },
-    netcheck_err: null,
     netcheck_logs: [
       "netcheck: netcheck.runProbe: got STUN response for 10007stun0 from 34.71.26.24:55368 (9b07930007da49dd7df79bc7) in 1.791799ms",
       "netcheck: netcheck.runProbe: got STUN response for 999stun0 from 34.71.26.24:55368 (7397fec097f1d5b01364566b) in 1.791529ms",
@@ -2777,7 +2778,6 @@ export const MockHealth = {
       "netcheck: [v1] measureAllICMPLatency: listen ip4:icmp 0.0.0.0: socket: operation not permitted",
       "netcheck: [v1] report: udp=true v6=false v6os=true mapvarydest=false hair= portmap= v4a=34.71.26.24:55368 derp=999 derpdist=999v4:2ms,10007v4:175ms,10008v4:112ms,10009v4:139ms",
     ],
-    error: null,
   },
   access_url: {
     access_url: "https://dev.coder.com",
@@ -2785,21 +2785,17 @@ export const MockHealth = {
     reachable: true,
     status_code: 200,
     healthz_response: "OK",
-    error: null,
   },
   websocket: {
     healthy: true,
-    response: {
-      body: "",
-      code: 101,
-    },
-    error: null,
+    body: "",
+    code: 101,
   },
   database: {
     healthy: true,
     reachable: true,
-    latency: 92570,
-    error: null,
+    latency: "92570",
+    latency_ms: 92570,
   },
   coder_version: "v0.27.1-devel+c575292",
 };

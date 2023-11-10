@@ -1557,12 +1557,13 @@ export const getInsightsTemplate = async (
 
 export interface Health {
   healthy: boolean;
+  warning: boolean;
   time: string;
   coder_version: string;
-  access_url: { healthy: boolean };
-  database: { healthy: boolean };
-  derp: { healthy: boolean };
-  websocket: { healthy: boolean };
+  access_url: { healthy: boolean; warning: boolean };
+  database: { healthy: boolean; warning: boolean };
+  derp: { healthy: boolean; warning: boolean };
+  websocket: { healthy: boolean; warning: boolean };
 }
 
 export const getHealth = async () => {

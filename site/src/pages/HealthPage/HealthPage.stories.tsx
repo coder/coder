@@ -31,3 +31,16 @@ export const UnhealthyDERP: Story = {
     },
   },
 };
+
+export const HealthyDERPWithWarning: Story = {
+  args: {
+    healthStatus: {
+      ...MockHealth,
+      warning: true,
+      derp: {
+        ...MockHealth.derp,
+        warning: true,
+      },
+    },
+  },
+};
