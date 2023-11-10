@@ -183,6 +183,7 @@ type DeploymentValues struct {
 	EnableTerraformDebugMode        clibase.Bool                         `json:"enable_terraform_debug_mode,omitempty" typescript:",notnull"`
 	UserQuietHoursSchedule          UserQuietHoursScheduleConfig         `json:"user_quiet_hours_schedule,omitempty" typescript:",notnull"`
 	WebTerminalRenderer             clibase.String                       `json:"web_terminal_renderer,omitempty" typescript:",notnull"`
+	Healthcheck                     HealthcheckConfig                    `json:"healthcheck,omitempty" typescript:",notnull"`
 
 	Config      clibase.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig clibase.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -395,6 +396,11 @@ type UserQuietHoursScheduleConfig struct {
 	// WindowDuration  clibase.Duration `json:"window_duration" typescript:",notnull"`
 }
 
+// HealthcheckConfig contains configuration for healthchecks.
+type HealthcheckConfig struct {
+	ThresholdDatabase clibase.Duration `json:"threshold_database" typescript:",notnull"`
+}
+
 const (
 	annotationEnterpriseKey = "enterprise"
 	annotationSecretKey     = "secret"
@@ -488,6 +494,11 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Parent: &deploymentGroupIntrospection,
 			Name:   "Logging",
 			YAML:   "logging",
+		}
+		deploymentGroupIntrospectionHealthcheck = clibase.Group{
+			Parent: &deploymentGroupIntrospection,
+			Name:   "Healthcheck",
+			YAML:   "healthcheck",
 		}
 		deploymentGroupOAuth2 = clibase.Group{
 			Name:        "OAuth2",
@@ -1798,6 +1809,16 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.WebTerminalRenderer,
 			Group:       &deploymentGroupClient,
 			YAML:        "webTerminalRenderer",
+		},
+		{
+			Name:        "Healthcheck Threshold Database",
+			Description: "The threshold for the database healthcheck. If the median latency of the database exceeds this threshold over 5 attempts, the database is considered unhealthy. The default value is 15ms.",
+			Flag:        "",
+			Env:         "CODER_HEALTHCHECK_THRESHOLD_DATABASE",
+			Default:     (15 * time.Millisecond).String(),
+			Value:       &c.Healthcheck.ThresholdDatabase,
+			Group:       &deploymentGroupIntrospectionHealthcheck,
+			YAML:        "thresholdDatabase",
 		},
 	}
 
