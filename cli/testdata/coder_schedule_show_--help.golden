@@ -1,7 +1,7 @@
 coder v0.0.0-devel
 
 USAGE:
-  coder schedule show [flags] [<workspace>] | [--search <query>] [--all]
+  coder schedule show [flags] <workspace | --search <query> | --all>
 
   Show workspace schedules
 
