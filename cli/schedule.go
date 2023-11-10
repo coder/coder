@@ -92,7 +92,7 @@ func (r *RootCmd) scheduleShow() *clibase.Cmd {
 	)
 	client := new(codersdk.Client)
 	showCmd := &clibase.Cmd{
-		Use:   "show [<workspace>] | [--search <query>] [--all]",
+		Use:   "show <workspace | --search <query> | --all>",
 		Short: "Show workspace schedules",
 		Long:  scheduleShowDescriptionLong,
 		Middleware: clibase.Chain(
