@@ -7113,7 +7113,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "enabled": true,
     "error": "string"
   },
-  "uses_websocket": true
+  "uses_websocket": true,
+  "warning": true
 }
 ```
 
@@ -7132,6 +7133,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `round_trip_ping_ms`    | integer                                          | false    |              |             |
 | `stun`                  | [derphealth.StunReport](#derphealthstunreport)   | false    |              |             |
 | `uses_websocket`        | boolean                                          | false    |              |             |
+| `warning`               | boolean                                          | false    |              |             |
 
 ## derphealth.RegionReport
 
@@ -7172,7 +7174,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "enabled": true,
         "error": "string"
       },
-      "uses_websocket": true
+      "uses_websocket": true,
+      "warning": true
     }
   ],
   "region": {
@@ -7198,7 +7201,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "regionCode": "string",
     "regionID": 0,
     "regionName": "string"
-  }
+  },
+  "warning": true
 }
 ```
 
@@ -7210,6 +7214,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `healthy`      | boolean                                                 | false    |              |             |
 | `node_reports` | array of [derphealth.NodeReport](#derphealthnodereport) | false    |              |             |
 | `region`       | [tailcfg.DERPRegion](#tailcfgderpregion)                | false    |              |             |
+| `warning`      | boolean                                                 | false    |              |             |
 
 ## derphealth.Report
 
@@ -7286,7 +7291,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "enabled": true,
             "error": "string"
           },
-          "uses_websocket": true
+          "uses_websocket": true,
+          "warning": true
         }
       ],
       "region": {
@@ -7312,7 +7318,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "regionCode": "string",
         "regionID": 0,
         "regionName": "string"
-      }
+      },
+      "warning": true
     },
     "property2": {
       "error": "string",
@@ -7350,7 +7357,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "enabled": true,
             "error": "string"
           },
-          "uses_websocket": true
+          "uses_websocket": true,
+          "warning": true
         }
       ],
       "region": {
@@ -7376,9 +7384,11 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "regionCode": "string",
         "regionID": 0,
         "regionName": "string"
-      }
+      },
+      "warning": true
     }
-  }
+  },
+  "warning": true
 }
 ```
 
@@ -7393,6 +7403,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `netcheck_logs`    | array of string                                    | false    |              |             |
 | `regions`          | object                                             | false    |              |             |
 | » `[any property]` | [derphealth.RegionReport](#derphealthregionreport) | false    |              |             |
+| `warning`          | boolean                                            | false    |              |             |
 
 ## derphealth.StunReport
 
@@ -7550,7 +7561,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "enabled": true,
               "error": "string"
             },
-            "uses_websocket": true
+            "uses_websocket": true,
+            "warning": true
           }
         ],
         "region": {
@@ -7576,7 +7588,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "regionCode": "string",
           "regionID": 0,
           "regionName": "string"
-        }
+        },
+        "warning": true
       },
       "property2": {
         "error": "string",
@@ -7614,7 +7627,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "enabled": true,
               "error": "string"
             },
-            "uses_websocket": true
+            "uses_websocket": true,
+            "warning": true
           }
         ],
         "region": {
@@ -7640,13 +7654,16 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "regionCode": "string",
           "regionID": 0,
           "regionName": "string"
-        }
+        },
+        "warning": true
       }
-    }
+    },
+    "warning": true
   },
   "failing_sections": ["string"],
   "healthy": true,
   "time": "string",
+  "warning": true,
   "websocket": {
     "body": "string",
     "code": 0,
@@ -7658,16 +7675,17 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name               | Type                                                       | Required | Restrictions | Description                                                                |
-| ------------------ | ---------------------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------- |
-| `access_url`       | [healthcheck.AccessURLReport](#healthcheckaccessurlreport) | false    |              |                                                                            |
-| `coder_version`    | string                                                     | false    |              | The Coder version of the server that the report was generated on.          |
-| `database`         | [healthcheck.DatabaseReport](#healthcheckdatabasereport)   | false    |              |                                                                            |
-| `derp`             | [derphealth.Report](#derphealthreport)                     | false    |              |                                                                            |
-| `failing_sections` | array of string                                            | false    |              | Failing sections is a list of sections that have failed their healthcheck. |
-| `healthy`          | boolean                                                    | false    |              | Healthy is true if the report returns no errors.                           |
-| `time`             | string                                                     | false    |              | Time is the time the report was generated at.                              |
-| `websocket`        | [healthcheck.WebsocketReport](#healthcheckwebsocketreport) | false    |              |                                                                            |
+| Name               | Type                                                       | Required | Restrictions | Description                                                                      |
+| ------------------ | ---------------------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------- |
+| `access_url`       | [healthcheck.AccessURLReport](#healthcheckaccessurlreport) | false    |              |                                                                                  |
+| `coder_version`    | string                                                     | false    |              | The Coder version of the server that the report was generated on.                |
+| `database`         | [healthcheck.DatabaseReport](#healthcheckdatabasereport)   | false    |              |                                                                                  |
+| `derp`             | [derphealth.Report](#derphealthreport)                     | false    |              |                                                                                  |
+| `failing_sections` | array of string                                            | false    |              | Failing sections is a list of sections that have failed their healthcheck.       |
+| `healthy`          | boolean                                                    | false    |              | Healthy is true if the report returns no errors.                                 |
+| `time`             | string                                                     | false    |              | Time is the time the report was generated at.                                    |
+| `warning`          | boolean                                                    | false    |              | Warning is true when Coder is operational but its performance might be impacted. |
+| `websocket`        | [healthcheck.WebsocketReport](#healthcheckwebsocketreport) | false    |              |                                                                                  |
 
 ## healthcheck.WebsocketReport
 

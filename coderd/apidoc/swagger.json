@@ -10996,6 +10996,9 @@
         },
         "uses_websocket": {
           "type": "boolean"
+        },
+        "warning": {
+          "type": "boolean"
         }
       }
     },
@@ -11016,6 +11019,9 @@
         },
         "region": {
           "$ref": "#/definitions/tailcfg.DERPRegion"
+        },
+        "warning": {
+          "type": "boolean"
         }
       }
     },
@@ -11045,6 +11051,9 @@
           "additionalProperties": {
             "$ref": "#/definitions/derphealth.RegionReport"
           }
+        },
+        "warning": {
+          "type": "boolean"
         }
       }
     },
@@ -11135,6 +11144,10 @@
         "time": {
           "description": "Time is the time the report was generated at.",
           "type": "string"
+        },
+        "warning": {
+          "description": "Warning is true when Coder is operational but its performance might be impacted.",
+          "type": "boolean"
         },
         "websocket": {
           "$ref": "#/definitions/healthcheck.WebsocketReport"

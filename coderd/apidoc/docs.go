@@ -12071,6 +12071,9 @@ const docTemplate = `{
                 },
                 "uses_websocket": {
                     "type": "boolean"
+                },
+                "warning": {
+                    "type": "boolean"
                 }
             }
         },
@@ -12091,6 +12094,9 @@ const docTemplate = `{
                 },
                 "region": {
                     "$ref": "#/definitions/tailcfg.DERPRegion"
+                },
+                "warning": {
+                    "type": "boolean"
                 }
             }
         },
@@ -12120,6 +12126,9 @@ const docTemplate = `{
                     "additionalProperties": {
                         "$ref": "#/definitions/derphealth.RegionReport"
                     }
+                },
+                "warning": {
+                    "type": "boolean"
                 }
             }
         },
@@ -12210,6 +12219,10 @@ const docTemplate = `{
                 "time": {
                     "description": "Time is the time the report was generated at.",
                     "type": "string"
+                },
+                "warning": {
+                    "description": "Warning is true when Coder is operational but its performance might be impacted.",
+                    "type": "boolean"
                 },
                 "websocket": {
                     "$ref": "#/definitions/healthcheck.WebsocketReport"

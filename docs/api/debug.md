@@ -127,7 +127,8 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
               "enabled": true,
               "error": "string"
             },
-            "uses_websocket": true
+            "uses_websocket": true,
+            "warning": true
           }
         ],
         "region": {
@@ -153,7 +154,8 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
           "regionCode": "string",
           "regionID": 0,
           "regionName": "string"
-        }
+        },
+        "warning": true
       },
       "property2": {
         "error": "string",
@@ -191,7 +193,8 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
               "enabled": true,
               "error": "string"
             },
-            "uses_websocket": true
+            "uses_websocket": true,
+            "warning": true
           }
         ],
         "region": {
@@ -217,13 +220,16 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
           "regionCode": "string",
           "regionID": 0,
           "regionName": "string"
-        }
+        },
+        "warning": true
       }
-    }
+    },
+    "warning": true
   },
   "failing_sections": ["string"],
   "healthy": true,
   "time": "string",
+  "warning": true,
   "websocket": {
     "body": "string",
     "code": 0,
