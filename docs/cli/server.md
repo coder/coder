@@ -305,6 +305,17 @@ Time to force cancel provisioning tasks that are stuck.
 
 HTTP bind address of the server. Unset to disable the HTTP endpoint.
 
+### --
+
+|             |                                                          |
+| ----------- | -------------------------------------------------------- |
+| Type        | <code>duration</code>                                    |
+| Environment | <code>$CODER_HEALTHCHECK_THRESHOLD_DATABASE</code>       |
+| YAML        | <code>introspection.healthcheck.thresholdDatabase</code> |
+| Default     | <code>15ms</code>                                        |
+
+The threshold for the database healthcheck. If the median latency of the database exceeds this threshold over 5 attempts, the database is considered unhealthy. The default value is 15ms.
+
 ### --log-human
 
 |             |                                              |

@@ -423,6 +423,7 @@ export interface DeploymentValues {
   readonly enable_terraform_debug_mode?: boolean;
   readonly user_quiet_hours_schedule?: UserQuietHoursScheduleConfig;
   readonly web_terminal_renderer?: string;
+  readonly healthcheck?: HealthcheckConfig;
   readonly config?: string;
   readonly write_config?: boolean;
   readonly address?: string;
@@ -546,6 +547,11 @@ export interface Healthcheck {
   readonly url: string;
   readonly interval: number;
   readonly threshold: number;
+}
+
+// From codersdk/deployment.go
+export interface HealthcheckConfig {
+  readonly threshold_database: number;
 }
 
 // From codersdk/workspaceagents.go
@@ -2088,6 +2094,7 @@ export interface HealthcheckDatabaseReport {
   readonly reachable: boolean;
   readonly latency: string;
   readonly latency_ms: number;
+  readonly threshold_ms: number;
   readonly error?: string;
 }
 
