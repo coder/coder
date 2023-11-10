@@ -1,7 +1,7 @@
 import {
   withDefaultFeatures,
   type GetLicensesResponse,
-  type DeploymentConfig
+  type DeploymentConfig,
 } from "api/api";
 import { FieldError } from "api/errors";
 import * as TypesGen from "api/typesGenerated";
