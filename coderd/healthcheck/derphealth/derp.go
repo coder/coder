@@ -27,6 +27,7 @@ import (
 // @typescript-generate Report
 type Report struct {
 	Healthy bool `json:"healthy"`
+	Warning bool `json:"warning"`
 
 	Regions map[int]*RegionReport `json:"regions"`
 
@@ -41,6 +42,7 @@ type Report struct {
 type RegionReport struct {
 	mu      sync.Mutex
 	Healthy bool `json:"healthy"`
+	Warning bool `json:"warning"`
 
 	Region      *tailcfg.DERPRegion `json:"region"`
 	NodeReports []*NodeReport       `json:"node_reports"`
@@ -53,6 +55,7 @@ type NodeReport struct {
 	clientCounter int
 
 	Healthy bool              `json:"healthy"`
+	Warning bool              `json:"warning"`
 	Node    *tailcfg.DERPNode `json:"node"`
 
 	ServerInfo          derp.ServerInfoMessage `json:"node_info"`
@@ -108,6 +111,9 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 			if !regionReport.Healthy {
 				r.Healthy = false
 			}
+			if regionReport.Warning {
+				r.Warning = true
+			}
 			mu.Unlock()
 		}()
 	}
@@ -159,6 +165,9 @@ func (r *RegionReport) Run(ctx context.Context) {
 			if !nodeReport.Healthy {
 				r.Healthy = false
 			}
+			if nodeReport.Warning {
+				r.Warning = true
+			}
 			r.mu.Unlock()
 		}()
 	}
@@ -208,14 +217,15 @@ func (r *NodeReport) Run(ctx context.Context) {
 
 	// We can't exchange messages with the node,
 	if (!r.CanExchangeMessages && !r.Node.STUNOnly) ||
-		// A node may use websockets because `Upgrade: DERP` may be blocked on
-		// the load balancer. This is unhealthy because websockets are slower
-		// than the regular DERP protocol.
-		r.UsesWebsocket ||
 		// The node was marked as STUN compatible but the STUN test failed.
 		r.STUN.Error != nil {
 		r.Healthy = false
 	}
+
+	// A node may use websockets because `Upgrade: DERP` may be blocked on
+	// the load balancer. This is unhealthy because websockets are slower
+	// than the regular DERP protocol.
+	r.Warning = r.UsesWebsocket
 }
 
 func (r *NodeReport) doExchangeMessage(ctx context.Context) {

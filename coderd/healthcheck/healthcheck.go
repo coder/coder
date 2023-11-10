@@ -36,6 +36,8 @@ type Report struct {
 	Time time.Time `json:"time"`
 	// Healthy is true if the report returns no errors.
 	Healthy bool `json:"healthy"`
+	// Warning is true when Coder is operational but its performance might be impacted.
+	Warning bool `json:"warning"`
 	// FailingSections is a list of sections that have failed their healthcheck.
 	FailingSections []string `json:"failing_sections"`
 
@@ -155,6 +157,9 @@ func Run(ctx context.Context, opts *ReportOptions) *Report {
 	report.Time = time.Now()
 	if !report.DERP.Healthy {
 		report.FailingSections = append(report.FailingSections, SectionDERP)
+	}
+	if report.DERP.Warning {
+		report.Warning = true
 	}
 	if !report.AccessURL.Healthy {
 		report.FailingSections = append(report.FailingSections, SectionAccessURL)
