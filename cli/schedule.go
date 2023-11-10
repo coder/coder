@@ -292,8 +292,8 @@ func displaySchedule(ws codersdk.Workspace, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	_, _ = fmt.Fprintln(out, rendered)
-	return nil
+	_, err = fmt.Fprintln(out, rendered)
+	return err
 }
 
 // scheduleListRow is a row in the schedule list.
