@@ -10,20 +10,30 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 )
 
+const (
+	DatabaseDefaultThreshold = 15 * time.Millisecond
+)
+
 // @typescript-generate DatabaseReport
 type DatabaseReport struct {
-	Healthy   bool    `json:"healthy"`
-	Reachable bool    `json:"reachable"`
-	Latency   string  `json:"latency"`
-	LatencyMs int     `json:"latency_ms"`
-	Error     *string `json:"error"`
+	Healthy     bool    `json:"healthy"`
+	Reachable   bool    `json:"reachable"`
+	Latency     string  `json:"latency"`
+	LatencyMs   int64   `json:"latency_ms"`
+	ThresholdMs int64   `json:"threshold_ms"`
+	Error       *string `json:"error"`
 }
 
 type DatabaseReportOptions struct {
-	DB database.Store
+	DB        database.Store
+	Threshold time.Duration
 }
 
 func (r *DatabaseReport) Run(ctx context.Context, opts *DatabaseReportOptions) {
+	r.ThresholdMs = opts.Threshold.Milliseconds()
+	if r.ThresholdMs == 0 {
+		r.ThresholdMs = DatabaseDefaultThreshold.Milliseconds()
+	}
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -43,10 +53,8 @@ func (r *DatabaseReport) Run(ctx context.Context, opts *DatabaseReportOptions) {
 	// Take the median ping.
 	latency := pings[pingCount/2]
 	r.Latency = latency.String()
-	r.LatencyMs = int(latency.Milliseconds())
-	// Somewhat arbitrary, but if the latency is over 15ms, we consider it
-	// unhealthy.
-	if latency < 15*time.Millisecond {
+	r.LatencyMs = latency.Milliseconds()
+	if r.LatencyMs < r.ThresholdMs {
 		r.Healthy = true
 	}
 	r.Reachable = true
