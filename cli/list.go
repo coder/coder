@@ -1,19 +1,17 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
-
-	"github.com/coder/pretty"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/coderd/schedule/cron"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/pretty"
 )
 
 // workspaceListRow is the type provided to the OutputFormatter. This is a bit
@@ -31,55 +29,42 @@ type workspaceListRow struct {
 	LastBuilt     string `json:"-" table:"last built"`
 	Outdated      bool   `json:"-" table:"outdated"`
 	StartsAt      string `json:"-" table:"starts at"`
+	StartsNext    string `json:"-" table:"starts next"`
 	StopsAfter    string `json:"-" table:"stops after"`
+	StopsNext     string `json:"-" table:"stops next"`
 	DailyCost     string `json:"-" table:"daily cost"`
 }
 
-func workspaceListRowFromWorkspace(now time.Time, usersByID map[uuid.UUID]codersdk.User, workspace codersdk.Workspace) workspaceListRow {
+func workspaceListRowFromWorkspace(now time.Time, workspace codersdk.Workspace) workspaceListRow {
 	status := codersdk.WorkspaceDisplayStatus(workspace.LatestBuild.Job.Status, workspace.LatestBuild.Transition)
 
 	lastBuilt := now.UTC().Sub(workspace.LatestBuild.Job.CreatedAt).Truncate(time.Second)
-	autostartDisplay := "-"
-	if !ptr.NilOrEmpty(workspace.AutostartSchedule) {
-		if sched, err := cron.Weekly(*workspace.AutostartSchedule); err == nil {
-			autostartDisplay = fmt.Sprintf("%s %s (%s)", sched.Time(), sched.DaysOfWeek(), sched.Location())
-		}
-	}
-
-	autostopDisplay := "-"
-	if !ptr.NilOrZero(workspace.TTLMillis) {
-		dur := time.Duration(*workspace.TTLMillis) * time.Millisecond
-		autostopDisplay = durationDisplay(dur)
-		if !workspace.LatestBuild.Deadline.IsZero() && workspace.LatestBuild.Deadline.Time.After(now) && status == "Running" {
-			remaining := time.Until(workspace.LatestBuild.Deadline.Time)
-			autostopDisplay = fmt.Sprintf("%s (%s)", autostopDisplay, relative(remaining))
-		}
-	}
+	schedRow := scheduleListRowFromWorkspace(now, workspace)
 
 	healthy := ""
 	if status == "Starting" || status == "Started" {
 		healthy = strconv.FormatBool(workspace.Health.Healthy)
 	}
-	user := usersByID[workspace.OwnerID]
 	return workspaceListRow{
 		Workspace:     workspace,
-		WorkspaceName: user.Username + "/" + workspace.Name,
+		WorkspaceName: workspace.OwnerName + "/" + workspace.Name,
 		Template:      workspace.TemplateName,
 		Status:        status,
 		Healthy:       healthy,
 		LastBuilt:     durationDisplay(lastBuilt),
 		Outdated:      workspace.Outdated,
-		StartsAt:      autostartDisplay,
-		StopsAfter:    autostopDisplay,
+		StartsAt:      schedRow.StartsAt,
+		StartsNext:    schedRow.StartsNext,
+		StopsAfter:    schedRow.StopsAfter,
+		StopsNext:     schedRow.StopsNext,
 		DailyCost:     strconv.Itoa(int(workspace.LatestBuild.DailyCost)),
 	}
 }
 
 func (r *RootCmd) list() *clibase.Cmd {
 	var (
-		filter            cliui.WorkspaceFilter
-		displayWorkspaces []workspaceListRow
-		formatter         = cliui.NewOutputFormatter(
+		filter    cliui.WorkspaceFilter
+		formatter = cliui.NewOutputFormatter(
 			cliui.TableFormat(
 				[]workspaceListRow{},
 				[]string{
@@ -107,11 +92,12 @@ func (r *RootCmd) list() *clibase.Cmd {
 			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
-			res, err := client.Workspaces(inv.Context(), filter.Filter())
+			res, err := queryConvertWorkspaces(inv.Context(), client, filter.Filter(), workspaceListRowFromWorkspace)
 			if err != nil {
 				return err
 			}
-			if len(res.Workspaces) == 0 {
+
+			if len(res) == 0 {
 				pretty.Fprintf(inv.Stderr, cliui.DefaultStyles.Prompt, "No workspaces found! Create one:\n")
 				_, _ = fmt.Fprintln(inv.Stderr)
 				_, _ = fmt.Fprintln(inv.Stderr, "  "+pretty.Sprint(cliui.DefaultStyles.Code, "coder create <name>"))
@@ -119,23 +105,7 @@ func (r *RootCmd) list() *clibase.Cmd {
 				return nil
 			}
 
-			userRes, err := client.Users(inv.Context(), codersdk.UsersRequest{})
-			if err != nil {
-				return err
-			}
-
-			usersByID := map[uuid.UUID]codersdk.User{}
-			for _, user := range userRes.Users {
-				usersByID[user.ID] = user
-			}
-
-			now := time.Now()
-			displayWorkspaces = make([]workspaceListRow, len(res.Workspaces))
-			for i, workspace := range res.Workspaces {
-				displayWorkspaces[i] = workspaceListRowFromWorkspace(now, usersByID, workspace)
-			}
-
-			out, err := formatter.Format(inv.Context(), displayWorkspaces)
+			out, err := formatter.Format(inv.Context(), res)
 			if err != nil {
 				return err
 			}
@@ -147,4 +117,22 @@ func (r *RootCmd) list() *clibase.Cmd {
 	filter.AttachOptions(&cmd.Options)
 	formatter.AttachOptions(&cmd.Options)
 	return cmd
+}
+
+// queryConvertWorkspaces is a helper function for converting
+// codersdk.Workspaces to a different type.
+// It's used by the list command to convert workspaces to
+// workspaceListRow, and by the schedule command to
+// convert workspaces to scheduleListRow.
+func queryConvertWorkspaces[T any](ctx context.Context, client *codersdk.Client, filter codersdk.WorkspaceFilter, convertF func(time.Time, codersdk.Workspace) T) ([]T, error) {
+	var empty []T
+	workspaces, err := client.Workspaces(ctx, filter)
+	if err != nil {
+		return empty, xerrors.Errorf("query workspaces: %w", err)
+	}
+	converted := make([]T, len(workspaces.Workspaces))
+	for i, workspace := range workspaces.Workspaces {
+		converted[i] = convertF(time.Now(), workspace)
+	}
+	return converted, nil
 }
