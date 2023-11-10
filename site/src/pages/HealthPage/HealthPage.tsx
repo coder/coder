@@ -226,9 +226,6 @@ export function HealthPageView({
   );
 };
 
-export const getValidationErrorMessage = (error: unknown): string => {
-
-
 const styles = {
   stats: (theme) => ({
     padding: 0,
