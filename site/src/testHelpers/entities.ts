@@ -1,8 +1,7 @@
 import {
   withDefaultFeatures,
   type GetLicensesResponse,
-  type DeploymentConfig,
-  type Health,
+  type DeploymentConfig
 } from "api/api";
 import { FieldError } from "api/errors";
 import * as TypesGen from "api/typesGenerated";
@@ -2809,12 +2808,34 @@ export const MockListeningPortsResponse: TypesGen.WorkspaceAgentListeningPortsRe
     ],
   };
 
-export const DeploymentHealthUnhealthy: Health = {
+export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
   healthy: false,
+  warning: false,
+  failing_sections: [], // apparently this property is not used at all?
   time: "2023-10-12T23:15:00.000000000Z",
   coder_version: "v2.3.0-devel+8cca4915a",
-  access_url: { healthy: true },
-  database: { healthy: false },
-  derp: { healthy: false },
-  websocket: { healthy: false },
+  access_url: {
+    healthy: true,
+    access_url: "",
+    healthz_response: "",
+    reachable: true,
+    status_code: 0,
+  },
+  database: {
+    healthy: false,
+    latency: "",
+    latency_ms: 0,
+    reachable: true,
+  },
+  derp: {
+    healthy: false,
+    warning: false,
+    regions: [],
+    netcheck_logs: [],
+  },
+  websocket: {
+    healthy: false,
+    body: "",
+    code: 0,
+  },
 };

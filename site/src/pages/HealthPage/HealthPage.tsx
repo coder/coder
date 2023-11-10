@@ -19,6 +19,7 @@ import {
 import { Stats, StatsItem } from "components/Stats/Stats";
 import { createDayString } from "utils/createDayString";
 import { DashboardFullPage } from "components/Dashboard/DashboardLayout";
+import { DerphealthReport } from "api/typesGenerated"
 
 const sections = {
   derp: "DERP",
@@ -139,10 +140,12 @@ export function HealthPageView({
               .map((key) => {
                 const label = sections[key as keyof typeof sections];
                 const isActive = tab.value === key;
-                const isHealthy =
-                  healthStatus[key as keyof typeof sections].healthy;
-                const isWarning =
-                  healthStatus[key as keyof typeof sections].warning;
+                const healthSection = healthStatus[key as keyof typeof sections]
+                const isHealthy = healthSection.healthy;
+                if (healthSection instanceof DerphealthReport) {
+
+                }
+                const isWarning = (healthSection as DerphealthReport).warning;
                 return (
                   <Box
                     component="button"
@@ -221,7 +224,10 @@ export function HealthPageView({
       </Box>
     </DashboardFullPage>
   );
-}
+};
+
+export const getValidationErrorMessage = (error: unknown): string => {
+
 
 const styles = {
   stats: (theme) => ({
