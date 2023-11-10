@@ -2095,6 +2095,7 @@ export interface HealthcheckDatabaseReport {
 export interface HealthcheckReport {
   readonly time: string;
   readonly healthy: boolean;
+  readonly warning: boolean;
   readonly failing_sections: string[];
   // Named type "github.com/coder/coder/v2/coderd/healthcheck/derphealth.Report" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
@@ -2118,6 +2119,7 @@ export interface HealthcheckWebsocketReport {
 // From derphealth/derp.go
 export interface DerphealthNodeReport {
   readonly healthy: boolean;
+  readonly warning: boolean;
   // Named type "tailscale.com/tailcfg.DERPNode" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly node?: any;
@@ -2137,6 +2139,7 @@ export interface DerphealthNodeReport {
 // From derphealth/derp.go
 export interface DerphealthRegionReport {
   readonly healthy: boolean;
+  readonly warning: boolean;
   // Named type "tailscale.com/tailcfg.DERPRegion" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly region?: any;
@@ -2147,6 +2150,7 @@ export interface DerphealthRegionReport {
 // From derphealth/derp.go
 export interface DerphealthReport {
   readonly healthy: boolean;
+  readonly warning: boolean;
   readonly regions: Record<number, DerphealthRegionReport>;
   // Named type "tailscale.com/net/netcheck.Report" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
