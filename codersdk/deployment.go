@@ -398,6 +398,8 @@ type UserQuietHoursScheduleConfig struct {
 
 // HealthcheckConfig contains configuration for healthchecks.
 type HealthcheckConfig struct {
+	Timeout           clibase.Duration `json:"timeout" typescript:",notnull"`
+	Refresh           clibase.Duration `json:"refresh" typescript:",notnull"`
 	ThresholdDatabase clibase.Duration `json:"threshold_database" typescript:",notnull"`
 }
 
@@ -1810,10 +1812,31 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupClient,
 			YAML:        "webTerminalRenderer",
 		},
+		// Healthcheck Options
+		{
+			Name:        "Healthcheck Timeout",
+			Description: "Overall timeout for healthchecks.",
+			Flag:        "healthcheck-timeout",
+			Env:         "CODER_HEALTHCHECK_TIMEOUT",
+			Default:     (30 * time.Second).String(),
+			Value:       &c.Healthcheck.Timeout,
+			Group:       &deploymentGroupIntrospectionHealthcheck,
+			YAML:        "timeout",
+		},
+		{
+			Name:        "Healthcheck Refresh",
+			Description: "Refresh interval for healthchecks.",
+			Flag:        "healthcheck-refresh",
+			Env:         "CODER_HEALTHCHECK_REFRESH",
+			Default:     (10 * time.Minute).String(),
+			Value:       &c.Healthcheck.Refresh,
+			Group:       &deploymentGroupIntrospectionHealthcheck,
+			YAML:        "refresh",
+		},
 		{
 			Name:        "Healthcheck Threshold Database",
 			Description: "The threshold for the database healthcheck. If the median latency of the database exceeds this threshold over 5 attempts, the database is considered unhealthy. The default value is 15ms.",
-			Flag:        "",
+			Flag:        "threshold-database",
 			Env:         "CODER_HEALTHCHECK_THRESHOLD_DATABASE",
 			Default:     (15 * time.Millisecond).String(),
 			Value:       &c.Healthcheck.ThresholdDatabase,

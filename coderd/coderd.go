@@ -417,10 +417,10 @@ func New(options *Options) *API {
 		}
 	}
 	if options.HealthcheckTimeout == 0 {
-		options.HealthcheckTimeout = 30 * time.Second
+		options.HealthcheckTimeout = options.DeploymentValues.Healthcheck.Timeout.Value()
 	}
 	if options.HealthcheckRefresh == 0 {
-		options.HealthcheckRefresh = 10 * time.Minute
+		options.HealthcheckRefresh = options.DeploymentValues.Healthcheck.Refresh.Value()
 	}
 
 	var oidcAuthURLParams map[string]string
