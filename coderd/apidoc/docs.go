@@ -8865,7 +8865,13 @@ const docTemplate = `{
         "codersdk.HealthcheckConfig": {
             "type": "object",
             "properties": {
+                "refresh": {
+                    "type": "integer"
+                },
                 "threshold_database": {
+                    "type": "integer"
+                },
+                "timeout": {
                     "type": "integer"
                 }
             }

@@ -305,7 +305,18 @@ Time to force cancel provisioning tasks that are stuck.
 
 HTTP bind address of the server. Unset to disable the HTTP endpoint.
 
-### --
+### --healthcheck-refresh
+
+|             |                                                |
+| ----------- | ---------------------------------------------- |
+| Type        | <code>duration</code>                          |
+| Environment | <code>$CODER_HEALTHCHECK_REFRESH</code>        |
+| YAML        | <code>introspection.healthcheck.refresh</code> |
+| Default     | <code>10m0s</code>                             |
+
+Refresh interval for healthchecks.
+
+### --threshold-database
 
 |             |                                                          |
 | ----------- | -------------------------------------------------------- |
@@ -315,6 +326,17 @@ HTTP bind address of the server. Unset to disable the HTTP endpoint.
 | Default     | <code>15ms</code>                                        |
 
 The threshold for the database healthcheck. If the median latency of the database exceeds this threshold over 5 attempts, the database is considered unhealthy. The default value is 15ms.
+
+### --healthcheck-timeout
+
+|             |                                                |
+| ----------- | ---------------------------------------------- |
+| Type        | <code>duration</code>                          |
+| Environment | <code>$CODER_HEALTHCHECK_TIMEOUT</code>        |
+| YAML        | <code>introspection.healthcheck.timeout</code> |
+| Default     | <code>30s</code>                               |
+
+Overall timeout for healthchecks.
 
 ### --log-human
 

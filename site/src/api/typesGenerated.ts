@@ -551,6 +551,8 @@ export interface Healthcheck {
 
 // From codersdk/deployment.go
 export interface HealthcheckConfig {
+  readonly timeout: number;
+  readonly refresh: number;
   readonly threshold_database: number;
 }
 

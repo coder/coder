@@ -233,6 +233,12 @@ introspection:
     # (default: false, type: bool)
     enableTerraformDebugMode: false
   healthcheck:
+    # Overall timeout for healthchecks.
+    # (default: 30s, type: duration)
+    timeout: 30s
+    # Refresh interval for healthchecks.
+    # (default: 10m0s, type: duration)
+    refresh: 10m0s
     # The threshold for the database healthcheck. If the median latency of the
     # database exceeds this threshold over 5 attempts, the database is considered
     # unhealthy. The default value is 15ms.

@@ -2157,7 +2157,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     },
     "external_token_encryption_keys": ["string"],
     "healthcheck": {
-      "threshold_database": 0
+      "refresh": 0,
+      "threshold_database": 0,
+      "timeout": 0
     },
     "http_address": "string",
     "in_memory_database": true,
@@ -2531,7 +2533,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   },
   "external_token_encryption_keys": ["string"],
   "healthcheck": {
-    "threshold_database": 0
+    "refresh": 0,
+    "threshold_database": 0,
+    "timeout": 0
   },
   "http_address": "string",
   "in_memory_database": true,
@@ -3187,7 +3191,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "threshold_database": 0
+  "refresh": 0,
+  "threshold_database": 0,
+  "timeout": 0
 }
 ```
 
@@ -3195,7 +3201,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name                 | Type    | Required | Restrictions | Description |
 | -------------------- | ------- | -------- | ------------ | ----------- |
+| `refresh`            | integer | false    |              |             |
 | `threshold_database` | integer | false    |              |             |
+| `timeout`            | integer | false    |              |             |
 
 ## codersdk.InsightsReportInterval
 
