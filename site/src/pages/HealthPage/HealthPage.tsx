@@ -143,9 +143,7 @@ export function HealthPageView({
                 const healthSection =
                   healthStatus[key as keyof typeof sections];
                 const isHealthy = healthSection.healthy;
-                if (healthSection instanceof DerphealthReport) {
-                }
-                const isWarning = (healthSection as DerphealthReport).warning;
+                const isWarning = (healthSection as DerphealthReport)?.warning;
                 return (
                   <Box
                     component="button"
