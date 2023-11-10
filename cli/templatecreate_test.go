@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -73,8 +74,9 @@ func TestTemplateCreate(t *testing.T) {
 	t.Parallel()
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		owner := coderdtest.CreateFirstUser(t, client)
+		rootClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, rootClient)
+		client, _ := coderdtest.CreateAnotherUser(t, rootClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
 		source := clitest.CreateTemplateVersionSource(t, completeWithAgent())
 		args := []string{
 			"templates",
