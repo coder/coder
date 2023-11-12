@@ -13,7 +13,7 @@ export const WorkspacesEmpty = (props: {
   const { isUsingFilter, templates, canCreateTemplate } = props;
   const totalFeaturedTemplates = 6;
   const featuredTemplates = templates?.slice(0, totalFeaturedTemplates);
-  const defaultTitle = "Create a workspace";
+  const defaultTitle = "Create a Workspace";
   const defaultMessage =
     "A workspace is your personal, customizable development environment.";
   const defaultImage = (

@@ -35,7 +35,7 @@ describe("WorkspacesPage", () => {
     renderWithAuth(<WorkspacesPage />);
 
     // Then
-    await screen.findByText("Create a workspace");
+    await screen.findByText("Create a Workspace");
   });
 
   it("renders a filled workspaces page", async () => {
