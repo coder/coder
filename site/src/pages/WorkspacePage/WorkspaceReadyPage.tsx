@@ -41,6 +41,7 @@ import {
   increaseDeadline,
   update,
   stop,
+  start,
 } from "api/queries/workspaces";
 import { getErrorMessage } from "api/errors";
 import { displaySuccess, displayError } from "components/GlobalSnackbar/utils";
@@ -194,6 +195,9 @@ export const WorkspaceReadyPage = ({
   // Stop workspace
   const stopWorkspaceMutation = useMutation(stop(workspace, queryClient));
 
+  // Start workspace
+  const startWorkspaceMutation = useMutation(start(workspace, queryClient));
+
   return (
     <>
       <Helmet>
@@ -223,9 +227,9 @@ export const WorkspaceReadyPage = ({
         isUpdating={updateWorkspaceMutation.isLoading}
         isRestarting={isRestarting}
         workspace={workspace}
-        handleStart={(buildParameters) =>
-          workspaceSend({ type: "START", buildParameters })
-        }
+        handleStart={(buildParameters) => {
+          startWorkspaceMutation.mutate(buildParameters);
+        }}
         handleStop={() => {
           stopWorkspaceMutation.mutate();
         }}

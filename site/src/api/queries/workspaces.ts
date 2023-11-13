@@ -181,6 +181,22 @@ export const stop = (workspace: Workspace, queryClient: QueryClient) => {
   };
 };
 
+export const start = (workspace: Workspace, queryClient: QueryClient) => {
+  return {
+    mutationFn: (buildParameters?: WorkspaceBuildParameter[]) => {
+      return API.startWorkspace(
+        workspace.id,
+        workspace.latest_build.template_version_id,
+        undefined,
+        buildParameters,
+      );
+    },
+    onSuccess: async (build: WorkspaceBuild) => {
+      await updateWorkspaceBuild(build, queryClient);
+    },
+  };
+};
+
 export const activate = (workspace: Workspace, queryClient: QueryClient) => {
   return {
     mutationFn: () => {
