@@ -15,6 +15,7 @@ export const users = (req: UsersRequest): UseQueryOptions<GetUsersResponse> => {
   return {
     queryKey: ["users", req],
     queryFn: ({ signal }) => API.getUsers(req, signal),
+    cacheTime: 5 * 60 * 1000,
   };
 };
 
