@@ -25,7 +25,7 @@ export const WorkspacePage: FC = () => {
   const workspaceName = params.workspace;
   const username = params.username.replace("@", "");
   const orgId = useOrganizationId();
-  const [workspaceState, workspaceSend] = useMachine(workspaceMachine, {
+  const [_, workspaceSend] = useMachine(workspaceMachine, {
     context: {
       orgId,
       workspaceName,
@@ -117,7 +117,6 @@ export const WorkspacePage: FC = () => {
       workspace={workspace}
       template={template}
       permissions={permissions}
-      workspaceState={workspaceState}
       workspaceSend={workspaceSend}
       builds={buildsQuery.data?.pages.flat()}
       buildsError={buildsQuery.error}

@@ -197,6 +197,14 @@ export const start = (workspace: Workspace, queryClient: QueryClient) => {
   };
 };
 
+export const cancelBuild = (workspace: Workspace) => {
+  return {
+    mutationFn: () => {
+      return API.cancelWorkspaceBuild(workspace.id);
+    },
+  };
+};
+
 export const activate = (workspace: Workspace, queryClient: QueryClient) => {
   return {
     mutationFn: () => {

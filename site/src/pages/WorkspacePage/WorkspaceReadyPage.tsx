@@ -10,15 +10,11 @@ import {
   getMaxDeadlineChange,
   getMinDeadline,
 } from "utils/schedule";
-import { StateFrom } from "xstate";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { Workspace, WorkspaceErrors } from "./Workspace";
 import { pageTitle } from "utils/page";
 import { hasJobError } from "utils/workspace";
-import {
-  WorkspaceEvent,
-  workspaceMachine,
-} from "xServices/workspace/workspaceXService";
+import { WorkspaceEvent } from "xServices/workspace/workspaceXService";
 import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
 import { ChangeVersionDialog } from "./ChangeVersionDialog";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -42,6 +38,7 @@ import {
   update,
   stop,
   start,
+  cancelBuild,
 } from "api/queries/workspaces";
 import { getErrorMessage } from "api/errors";
 import { displaySuccess, displayError } from "components/GlobalSnackbar/utils";
@@ -53,10 +50,6 @@ interface WorkspaceReadyPageProps {
   template: TypesGen.Template;
   workspace: TypesGen.Workspace;
   permissions: WorkspacePermissions;
-  workspaceState: Omit<
-    StateFrom<typeof workspaceMachine>,
-    "template" | "workspace" | "permissions"
-  >;
   workspaceSend: (event: WorkspaceEvent) => void;
   builds: TypesGen.WorkspaceBuild[] | undefined;
   buildsError: unknown;
@@ -69,7 +62,6 @@ export const WorkspaceReadyPage = ({
   workspace,
   template,
   permissions,
-  workspaceState,
   workspaceSend,
   builds,
   buildsError,
@@ -81,7 +73,6 @@ export const WorkspaceReadyPage = ({
   const queryClient = useQueryClient();
   const { buildInfo } = useDashboard();
   const featureVisibility = useFeatureVisibility();
-  const { buildError, cancellationError } = workspaceState.context;
   if (workspace === undefined) {
     throw Error("Workspace is undefined");
   }
@@ -198,6 +189,9 @@ export const WorkspaceReadyPage = ({
   // Start workspace
   const startWorkspaceMutation = useMutation(start(workspace, queryClient));
 
+  // Cancel build
+  const cancelBuildMutation = useMutation(cancelBuild(workspace));
+
   return (
     <>
       <Helmet>
@@ -230,9 +224,7 @@ export const WorkspaceReadyPage = ({
         handleStart={(buildParameters) => {
           startWorkspaceMutation.mutate(buildParameters);
         }}
-        handleStop={() => {
-          stopWorkspaceMutation.mutate();
-        }}
+        handleStop={stopWorkspaceMutation.mutate}
         handleDelete={() => {
           setIsConfirmingDelete(true);
         }}
@@ -242,7 +234,7 @@ export const WorkspaceReadyPage = ({
         handleUpdate={() => {
           setIsConfirmingUpdate(true);
         }}
-        handleCancel={() => workspaceSend({ type: "CANCEL" })}
+        handleCancel={cancelBuildMutation.mutate}
         handleSettings={() => navigate("settings")}
         handleBuildRetry={() => workspaceSend({ type: "RETRY_BUILD" })}
         handleChangeVersion={() => {
@@ -269,8 +261,13 @@ export const WorkspaceReadyPage = ({
         hideVSCodeDesktopButton={featureVisibility["browser_only"]}
         workspaceErrors={{
           [WorkspaceErrors.GET_BUILDS_ERROR]: buildsError,
-          [WorkspaceErrors.BUILD_ERROR]: buildError || restartBuildError,
-          [WorkspaceErrors.CANCELLATION_ERROR]: cancellationError,
+          [WorkspaceErrors.BUILD_ERROR]:
+            restartBuildError ??
+            startWorkspaceMutation.error ??
+            stopWorkspaceMutation.error ??
+            deleteWorkspaceMutation.error ??
+            updateWorkspaceMutation.error,
+          [WorkspaceErrors.CANCELLATION_ERROR]: cancelBuildMutation.error,
         }}
         buildInfo={buildInfo}
         sshPrefix={sshPrefixQuery.data?.hostname_prefix}
