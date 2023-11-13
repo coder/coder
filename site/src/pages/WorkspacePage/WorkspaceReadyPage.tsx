@@ -1,6 +1,5 @@
 import { useActor } from "@xstate/react";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
-import dayjs from "dayjs";
 import { useFeatureVisibility } from "hooks/useFeatureVisibility";
 import { FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
@@ -12,7 +11,6 @@ import {
   getMinDeadline,
 } from "utils/schedule";
 import { StateFrom } from "xstate";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { Workspace, WorkspaceErrors } from "./Workspace";
 import { pageTitle } from "utils/page";
 import { getFaviconByStatus, hasJobError } from "utils/workspace";
@@ -34,6 +32,7 @@ import { templateVersion, templateVersions } from "api/queries/templates";
 import { Alert } from "components/Alert/Alert";
 import { Stack } from "components/Stack/Stack";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
+import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog/WorkspaceDeleteDialog";
 
 interface WorkspaceReadyPageProps {
   workspaceState: StateFrom<typeof workspaceMachine>;
@@ -210,16 +209,12 @@ export const WorkspaceReadyPage = ({
           )
         }
       />
-      <DeleteDialog
-        entity="workspace"
-        name={workspace.name}
-        info={`This workspace was created ${dayjs(
-          workspace.created_at,
-        ).fromNow()}.`}
+      <WorkspaceDeleteDialog
+        workspace={workspace}
         isOpen={workspaceState.matches({ ready: { build: "askingDelete" } })}
         onCancel={() => workspaceSend({ type: "CANCEL_DELETE" })}
-        onConfirm={() => {
-          workspaceSend({ type: "DELETE" });
+        onConfirm={(orphan) => {
+          workspaceSend({ type: "DELETE", orphan });
         }}
       />
       <UpdateBuildParametersDialog

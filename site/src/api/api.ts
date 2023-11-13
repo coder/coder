@@ -546,10 +546,12 @@ export const stopWorkspace = (
 export const deleteWorkspace = (
   workspaceId: string,
   logLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"],
+  orphan?: TypesGen.CreateWorkspaceBuildRequest["orphan"],
 ) =>
   postWorkspaceBuild(workspaceId, {
     transition: "delete",
     log_level: logLevel,
+    orphan,
   });
 
 export const cancelWorkspaceBuild = async (
