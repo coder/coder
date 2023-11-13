@@ -56,7 +56,7 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
   if (messages.length === 1) {
     return (
       <div css={containerStyles}>
-        <Pill text={Language.licenseIssue} type={type} lightBorder />
+        <Pill text={Language.licenseIssue} type={type} />
         <div css={styles.leftContent}>
           <span>{messages[0]}</span>
           &nbsp;
@@ -70,11 +70,7 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
 
   return (
     <div css={containerStyles}>
-      <Pill
-        text={Language.licenseIssues(messages.length)}
-        type={type}
-        lightBorder
-      />
+      <Pill text={Language.licenseIssues(messages.length)} type={type} />
       <div css={styles.leftContent}>
         <div>
           {Language.exceeded}

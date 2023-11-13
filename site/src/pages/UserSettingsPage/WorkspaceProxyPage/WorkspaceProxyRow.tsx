@@ -64,7 +64,7 @@ export const ProxyRow: FC<{
             textAlign: "right",
             color: (theme) =>
               latency
-                ? getLatencyColor(latency.latencyMS)
+                ? getLatencyColor(theme, latency.latencyMS)
                 : theme.palette.text.secondary,
           }}
         >
