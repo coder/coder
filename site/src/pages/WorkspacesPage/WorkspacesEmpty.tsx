@@ -98,7 +98,7 @@ export const WorkspacesEmpty = (props: {
                   width: "320px",
                   padding: 16,
                   borderRadius: 6,
-                  border: `1px solid ${theme.deprecated.palette.divider}`,
+                  border: `1px solid ${theme.palette.divider}`,
                   textAlign: "left",
                   display: "flex",
                   gap: 16,
@@ -106,7 +106,7 @@ export const WorkspacesEmpty = (props: {
                   color: "inherit",
 
                   "&:hover": {
-                    backgroundColor: theme.deprecated.palette.background.paper,
+                    backgroundColor: theme.palette.background.paper,
                   },
                 })}
               >
@@ -127,7 +127,7 @@ export const WorkspacesEmpty = (props: {
                   <span
                     css={(theme) => ({
                       fontSize: 13,
-                      color: theme.deprecated.palette.text.secondary,
+                      color: theme.palette.text.secondary,
                       lineHeight: "0.5",
                     })}
                   >

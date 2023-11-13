@@ -48,10 +48,7 @@ const LicensesSettingsPageView: FC<Props> = ({
         width={width - 1}
         height={height - 1}
         numberOfPieces={showConfetti ? 200 : 0}
-        colors={[
-          theme.deprecated.palette.primary.main,
-          theme.deprecated.palette.secondary.main,
-        ]}
+        colors={[theme.palette.primary.main, theme.palette.secondary.main]}
       />
       <Stack
         alignItems="baseline"
@@ -140,12 +137,12 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 8,
-    border: `1px solid ${theme.deprecated.palette.divider}`,
+    border: `1px solid ${theme.palette.divider}`,
     padding: 48,
   }),
 
   description: (theme) => ({
-    color: theme.deprecated.palette.text.secondary,
+    color: theme.palette.text.secondary,
     textAlign: "center",
     maxWidth: 464,
     marginTop: 8,

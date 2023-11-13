@@ -353,7 +353,7 @@ const UsersActivityPanel = ({
                 </Box>
                 <Box
                   css={(theme) => ({
-                    color: theme.deprecated.palette.text.secondary,
+                    color: theme.palette.text.secondary,
                     fontSize: 13,
                     textAlign: "right",
                   })}

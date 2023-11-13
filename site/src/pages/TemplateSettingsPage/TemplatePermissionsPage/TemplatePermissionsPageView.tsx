@@ -401,7 +401,7 @@ const styles = {
 
   menuItemSecondary: (theme) => ({
     fontSize: 14,
-    color: theme.deprecated.palette.text.secondary,
+    color: theme.palette.text.secondary,
   }),
 
   pageHeader: {

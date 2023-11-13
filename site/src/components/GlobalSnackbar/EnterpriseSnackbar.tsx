@@ -33,14 +33,14 @@ export const EnterpriseSnackbar: FC<
   const theme = useTheme();
 
   const snackbarContentStyles = css`
-    border: 1px solid ${theme.deprecated.palette.divider};
+    border: 1px solid ${theme.palette.divider};
     border-left: 4px solid ${variantColor(variant, theme)};
     border-radius: 8px;
     padding: 8px 24px 8px 16px;
-    box-shadow: ${theme.deprecated.shadows[6]};
+    box-shadow: ${theme.shadows[6]};
     align-items: inherit;
-    background-color: ${theme.deprecated.palette.background.paper};
-    color: ${theme.deprecated.palette.text.secondary};
+    background-color: ${theme.palette.background.paper};
+    color: ${theme.palette.text.secondary};
   `;
 
   return (
@@ -70,11 +70,11 @@ export const EnterpriseSnackbar: FC<
 const variantColor = (variant: EnterpriseSnackbarVariant, theme: Theme) => {
   switch (variant) {
     case "error":
-      return theme.deprecated.palette.error.main;
+      return theme.palette.error.main;
     case "info":
-      return theme.deprecated.palette.info.main;
+      return theme.palette.info.main;
     case "success":
-      return theme.deprecated.palette.success.main;
+      return theme.palette.success.main;
   }
 };
 
@@ -86,6 +86,6 @@ const styles = {
   closeIcon: (theme) => ({
     width: 25,
     height: 25,
-    color: theme.deprecated.palette.primary.contrastText,
+    color: theme.palette.primary.contrastText,
   }),
 } satisfies Record<string, Interpolation<Theme>>;

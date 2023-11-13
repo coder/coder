@@ -42,8 +42,8 @@ const styles = {
   template: (theme) => ({
     padding: "20px 24px",
     borderRadius: 8,
-    backgroundColor: theme.deprecated.palette.background.paper,
-    border: `1px solid ${theme.deprecated.palette.divider}`,
+    backgroundColor: theme.palette.background.paper,
+    border: `1px solid ${theme.palette.divider}`,
   }),
 
   templateName: {
@@ -52,6 +52,6 @@ const styles = {
 
   templateDescription: (theme) => ({
     fontSize: 14,
-    color: theme.deprecated.palette.text.secondary,
+    color: theme.palette.text.secondary,
   }),
 } satisfies Record<string, Interpolation<Theme>>;

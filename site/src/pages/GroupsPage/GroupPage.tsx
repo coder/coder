@@ -324,7 +324,7 @@ const styles = {
     width: 300,
   },
   removeButton: (theme) => ({
-    color: theme.deprecated.palette.error.main,
+    color: theme.palette.error.main,
     "&:hover": {
       backgroundColor: "transparent",
     },
@@ -333,7 +333,7 @@ const styles = {
     textTransform: "capitalize",
   },
   suspended: (theme) => ({
-    color: theme.deprecated.palette.text.secondary,
+    color: theme.palette.text.secondary,
   }),
 } satisfies Record<string, Interpolation<Theme>>;
 

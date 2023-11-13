@@ -28,8 +28,8 @@ export const Fieldset: FC<FieldsetProps> = (props) => {
     <form
       css={{
         borderRadius: 8,
-        border: `1px solid ${theme.deprecated.palette.divider}`,
-        background: theme.deprecated.palette.background.paper,
+        border: `1px solid ${theme.palette.divider}`,
+        background: theme.palette.background.paper,
         marginTop: 32,
       }}
       onSubmit={onSubmit}
@@ -47,7 +47,7 @@ export const Fieldset: FC<FieldsetProps> = (props) => {
         {subtitle && (
           <div
             css={{
-              color: theme.deprecated.palette.text.secondary,
+              color: theme.palette.text.secondary,
               fontSize: 14,
               marginTop: 8,
             }}
@@ -55,20 +55,15 @@ export const Fieldset: FC<FieldsetProps> = (props) => {
             {subtitle}
           </div>
         )}
-        <div
-          css={[
-            theme.deprecated.typography.body2 as CSSObject,
-            { paddingTop: 16 },
-          ]}
-        >
+        <div css={[theme.typography.body2 as CSSObject, { paddingTop: 16 }]}>
           {children}
         </div>
       </header>
       <footer
         css={[
-          theme.deprecated.typography.body2 as CSSObject,
+          theme.typography.body2 as CSSObject,
           {
-            background: theme.deprecated.palette.background.paperLight,
+            background: theme.palette.background.paperLight,
             padding: "16px 24px",
             display: "flex",
             alignItems: "center",
@@ -76,9 +71,7 @@ export const Fieldset: FC<FieldsetProps> = (props) => {
           },
         ]}
       >
-        <div css={{ color: theme.deprecated.palette.text.secondary }}>
-          {validation}
-        </div>
+        <div css={{ color: theme.palette.text.secondary }}>{validation}</div>
         {button || (
           <Button type="submit" disabled={isSubmitting}>
             Submit

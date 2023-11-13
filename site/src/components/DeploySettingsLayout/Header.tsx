@@ -39,7 +39,7 @@ export const Header: FC<{
           <span
             css={{
               fontSize: 14,
-              color: theme.deprecated.palette.text.secondary,
+              color: theme.palette.text.secondary,
               lineHeight: "160%",
             }}
           >

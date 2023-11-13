@@ -14,20 +14,20 @@ export const TimelineDateRow: FC<TimelineDateRow> = ({ date }) => {
   return (
     <TableRow
       css={css`
-        background: ${theme.deprecated.palette.background.paper};
+        background: ${theme.palette.background.paper};
 
         &:not(:first-of-type) td {
-          border-top: 1px solid ${theme.deprecated.palette.divider};
+          border-top: 1px solid ${theme.palette.divider};
         }
       `}
     >
       <TableCell
         css={{
           padding: `8px 32px !important`,
-          background: `${theme.deprecated.palette.background.paperLight} !important`,
+          background: `${theme.palette.background.paperLight} !important`,
           fontSize: 12,
           position: "relative",
-          color: theme.deprecated.palette.text.secondary,
+          color: theme.palette.text.secondary,
           textTransform: "capitalize",
         }}
         title={date.toLocaleDateString()}

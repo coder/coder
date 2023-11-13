@@ -20,16 +20,16 @@ const styles = {
   },
 
   enabledBadge: (theme) => ({
-    border: `1px solid ${theme.deprecated.palette.success.light}`,
-    backgroundColor: theme.deprecated.palette.success.dark,
+    border: `1px solid ${theme.palette.success.light}`,
+    backgroundColor: theme.palette.success.dark,
   }),
   errorBadge: (theme) => ({
-    border: `1px solid ${theme.deprecated.palette.error.light}`,
-    backgroundColor: theme.deprecated.palette.error.dark,
+    border: `1px solid ${theme.palette.error.light}`,
+    backgroundColor: theme.palette.error.dark,
   }),
   warnBadge: (theme) => ({
-    border: `1px solid ${theme.deprecated.palette.warning.light}`,
-    backgroundColor: theme.deprecated.palette.warning.dark,
+    border: `1px solid ${theme.palette.warning.light}`,
+    backgroundColor: theme.palette.warning.dark,
   }),
 } satisfies Record<string, Interpolation<Theme>>;
 
@@ -79,8 +79,8 @@ export const DisabledBadge: FC = () => {
       css={[
         styles.badge,
         (theme) => ({
-          border: `1px solid ${theme.deprecated.palette.divider}`,
-          backgroundColor: theme.deprecated.palette.background.paper,
+          border: `1px solid ${theme.palette.divider}`,
+          backgroundColor: theme.palette.background.paper,
         }),
       ]}
     >
@@ -95,8 +95,8 @@ export const EnterpriseBadge: FC = () => {
       css={[
         styles.badge,
         (theme) => ({
-          backgroundColor: theme.deprecated.palette.info.dark,
-          border: `1px solid ${theme.deprecated.palette.info.light}`,
+          backgroundColor: theme.palette.info.dark,
+          border: `1px solid ${theme.palette.info.light}`,
         }),
       ]}
     >

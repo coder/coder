@@ -97,18 +97,18 @@ const styles = {
   root: { fontWeight: 600 },
 
   "type-error": (theme) => ({
-    color: theme.deprecated.palette.error.light,
+    color: theme.palette.error.light,
   }),
   "type-warning": (theme) => ({
-    color: theme.deprecated.palette.warning.light,
+    color: theme.palette.warning.light,
   }),
   "type-success": (theme) => ({
-    color: theme.deprecated.palette.success.light,
+    color: theme.palette.success.light,
   }),
   "type-info": (theme) => ({
-    color: theme.deprecated.palette.info.light,
+    color: theme.palette.info.light,
   }),
   "type-undefined": (theme) => ({
-    color: theme.deprecated.palette.text.secondary,
+    color: theme.palette.text.secondary,
   }),
 } satisfies Record<string, Interpolation<Theme>>;

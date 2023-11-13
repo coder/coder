@@ -123,8 +123,8 @@ export const MonacoEditor: FC<{
             },
           ],
           colors: {
-            "editor.foreground": theme.deprecated.palette.text.primary,
-            "editor.background": theme.deprecated.palette.background.default,
+            "editor.foreground": theme.palette.text.primary,
+            "editor.background": theme.palette.background.default,
           },
         });
         editor.updateOptions({

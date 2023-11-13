@@ -213,11 +213,11 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 const styles = {
   optionText: (theme) => ({
     fontSize: 16,
-    color: theme.deprecated.palette.text.primary,
+    color: theme.palette.text.primary,
   }),
 
   optionHelperText: (theme) => ({
     fontSize: 12,
-    color: theme.deprecated.palette.text.secondary,
+    color: theme.palette.text.secondary,
   }),
 } satisfies Record<string, Interpolation<Theme>>;

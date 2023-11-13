@@ -53,8 +53,8 @@ const styles = {
     textAlign: "center",
     minHeight: 300,
     padding: 24,
-    backgroundColor: theme.deprecated.palette.background.paper,
-    border: `1px solid ${theme.deprecated.palette.divider}`,
+    backgroundColor: theme.palette.background.paper,
+    border: `1px solid ${theme.palette.divider}`,
     borderRadius: 8,
   }),
   header: {
@@ -71,9 +71,9 @@ const styles = {
     lineHeight: "160%",
   },
   enterpriseChip: (theme) => ({
-    background: theme.deprecated.palette.success.dark,
-    color: theme.deprecated.palette.success.contrastText,
-    border: `1px solid ${theme.deprecated.palette.success.light}`,
+    background: theme.palette.success.dark,
+    color: theme.palette.success.contrastText,
+    border: `1px solid ${theme.palette.success.light}`,
     fontSize: 13,
   }),
 } satisfies Record<string, Interpolation<Theme>>;

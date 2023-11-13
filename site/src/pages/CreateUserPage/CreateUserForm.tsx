@@ -167,7 +167,7 @@ export const CreateUserForm: FC<
                     <span
                       css={(theme) => ({
                         fontSize: 14,
-                        color: theme.deprecated.palette.text.secondary,
+                        color: theme.palette.text.secondary,
                         wordWrap: "normal",
                         whiteSpace: "break-spaces",
                       })}

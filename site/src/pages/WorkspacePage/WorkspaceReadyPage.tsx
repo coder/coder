@@ -106,7 +106,7 @@ export const WorkspaceReadyPage = ({
     }
 
     const isDark = window.matchMedia("(prefers-color-scheme: dark)");
-    // We want the favicon the opposite of the theme.deprecated.
+    // We want the favicon the opposite of the theme.
     setFaviconTheme(isDark.matches ? "light" : "dark");
   }, []);
   const buildLogs = useWorkspaceBuildLogs(workspace.latest_build.id);

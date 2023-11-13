@@ -17,7 +17,7 @@ const styles = {
     alignItems: "center",
   },
   border: (theme) => ({
-    borderBottom: `2px solid ${theme.deprecated.palette.divider}`,
+    borderBottom: `2px solid ${theme.palette.divider}`,
     width: "100%",
   }),
   content: (theme) => ({
@@ -25,7 +25,7 @@ const styles = {
     paddingBottom: 4,
     paddingRight: 16,
     paddingLeft: 16,
-    fontSize: theme.deprecated.typography.h5.fontSize,
-    color: theme.deprecated.palette.text.secondary,
+    fontSize: theme.typography.h5.fontSize,
+    color: theme.palette.text.secondary,
   }),
 } satisfies Record<string, Interpolation<Theme>>;

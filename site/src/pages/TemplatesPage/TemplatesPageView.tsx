@@ -262,19 +262,19 @@ const styles = {
     whiteSpace: "nowrap",
   },
   secondary: (theme) => ({
-    color: theme.deprecated.palette.text.secondary,
+    color: theme.palette.text.secondary,
   }),
   tableRow: (theme) => ({
     "&:hover .actionButton": {
-      color: theme.deprecated.palette.text.primary,
+      color: theme.palette.text.primary,
       borderColor: colors.gray[11],
       "&:hover": {
-        borderColor: theme.deprecated.palette.text.primary,
+        borderColor: theme.palette.text.primary,
       },
     },
   }),
   actionButton: (theme) => ({
-    color: theme.deprecated.palette.text.secondary,
+    color: theme.palette.text.secondary,
     transition: "none",
   }),
 } satisfies Record<string, Interpolation<Theme>>;

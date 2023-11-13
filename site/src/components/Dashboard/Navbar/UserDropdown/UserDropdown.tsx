@@ -77,7 +77,7 @@ export const UserDropdown: FC<PropsWithChildren<UserDropdownProps>> = ({
               ".MuiPaper-root": {
                 minWidth: "auto",
                 width: 260,
-                boxShadow: theme.deprecated.shadows[6],
+                boxShadow: theme.shadows[6],
               },
             })}
           >

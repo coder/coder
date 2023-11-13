@@ -96,7 +96,7 @@ const styles = {
   },
 
   buildSummary: (theme) => ({
-    ...(theme.deprecated.typography.body1 as CSSObject),
+    ...(theme.typography.body1 as CSSObject),
     fontFamily: "inherit",
     "& strong": {
       fontWeight: 600,
@@ -104,15 +104,15 @@ const styles = {
   }),
 
   buildInfo: (theme) => ({
-    ...(theme.deprecated.typography.body2 as CSSObject),
+    ...(theme.typography.body2 as CSSObject),
     fontSize: 12,
     fontFamily: "inherit",
-    color: theme.deprecated.palette.text.secondary,
+    color: theme.palette.text.secondary,
     display: "block",
   }),
 
   buildTime: (theme) => ({
-    color: theme.deprecated.palette.text.secondary,
+    color: theme.palette.text.secondary,
     fontSize: 12,
   }),
 

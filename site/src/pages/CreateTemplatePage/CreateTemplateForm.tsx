@@ -696,19 +696,19 @@ const styles = {
 
   optionText: (theme) => ({
     fontSize: 16,
-    color: theme.deprecated.palette.text.primary,
+    color: theme.palette.text.primary,
   }),
 
   optionHelperText: (theme) => ({
     fontSize: 12,
-    color: theme.deprecated.palette.text.secondary,
+    color: theme.palette.text.secondary,
   }),
 
   error: (theme) => ({
     padding: 24,
     borderRadius: 8,
-    background: theme.deprecated.palette.background.paper,
-    border: `1px solid ${theme.deprecated.palette.error.main}`,
+    background: theme.palette.background.paper,
+    border: `1px solid ${theme.palette.error.main}`,
   }),
 
   errorTitle: {
@@ -718,14 +718,14 @@ const styles = {
 
   errorDescription: (theme) => ({
     margin: 0,
-    color: theme.deprecated.palette.text.secondary,
+    color: theme.palette.text.secondary,
     marginTop: 4,
   }),
 
   errorDetails: (theme) => ({
     display: "block",
     marginTop: 8,
-    color: theme.deprecated.palette.error.light,
+    color: theme.palette.error.light,
     fontSize: 16,
   }),
 } satisfies Record<string, Interpolation<Theme>>;

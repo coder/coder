@@ -26,7 +26,7 @@ export const Welcome: FC<
       >
         <CoderIcon
           css={{
-            color: theme.deprecated.palette.text.primary,
+            color: theme.palette.text.primary,
             fontSize: 64,
           }}
         />

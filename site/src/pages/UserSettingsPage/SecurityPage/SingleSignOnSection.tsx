@@ -106,7 +106,7 @@ function SSOEmptyState() {
       css={(theme) => ({
         minHeight: 0,
         padding: "48px 32px",
-        backgroundColor: theme.deprecated.palette.background.paper,
+        backgroundColor: theme.palette.background.paper,
         borderRadius: 8,
       })}
       message="No SSO Providers"

@@ -14,8 +14,7 @@ interface StylesBadgeProps {
 
 const StyledBadge = withStyles((theme) => ({
   badge: {
-    backgroundColor: ({ type }: StylesBadgeProps) =>
-      theme.deprecated.palette[type].light,
+    backgroundColor: ({ type }: StylesBadgeProps) => theme.palette[type].light,
     borderRadius: "100%",
     width: 8,
     minWidth: 8,

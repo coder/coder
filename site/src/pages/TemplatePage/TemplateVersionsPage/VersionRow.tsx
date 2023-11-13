@@ -129,16 +129,16 @@ export const VersionRow: React.FC<VersionRowProps> = ({
 const styles = {
   row: (theme) => ({
     "&:hover $promoteButton": {
-      color: theme.deprecated.palette.text.primary,
+      color: theme.palette.text.primary,
       borderColor: colors.gray[11],
       "&:hover": {
-        borderColor: theme.deprecated.palette.text.primary,
+        borderColor: theme.palette.text.primary,
       },
     },
   }),
 
   promoteButton: (theme) => ({
-    color: theme.deprecated.palette.text.secondary,
+    color: theme.palette.text.secondary,
     transition: "none",
   }),
 
@@ -153,12 +153,12 @@ const styles = {
   },
 
   versionSummary: (theme) => ({
-    ...(theme.deprecated.typography.body1 as CSSObject),
+    ...(theme.typography.body1 as CSSObject),
     fontFamily: "inherit",
   }),
 
   versionTime: (theme) => ({
-    color: theme.deprecated.palette.text.secondary,
+    color: theme.palette.text.secondary,
     fontSize: 12,
   }),
 } satisfies Record<string, Interpolation<Theme>>;

@@ -218,7 +218,7 @@ const styles = {
     rowGap: 24,
     flex: 1,
 
-    [theme.deprecated.breakpoints.down("md")]: {
+    [theme.breakpoints.down("md")]: {
       display: "flex",
       flexDirection: "column",
       alignItems: "flex-start",

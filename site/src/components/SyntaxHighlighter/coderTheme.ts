@@ -206,11 +206,10 @@ export const coderTheme = (theme: Theme): editor.IStandaloneThemeData => ({
     },
   ],
   colors: {
-    "editor.foreground": theme.deprecated.palette.text.primary,
-    "editor.background": theme.deprecated.palette.background.paper,
-    "editor.selectionBackground": theme.deprecated.palette.action.hover,
-    "editor.lineHighlightBackground":
-      theme.deprecated.palette.background.paperLight,
+    "editor.foreground": theme.palette.text.primary,
+    "editor.background": theme.palette.background.paper,
+    "editor.selectionBackground": theme.palette.action.hover,
+    "editor.lineHighlightBackground": theme.palette.background.paperLight,
 
     "editorCursor.foreground": "#f8f8f0",
     "editorWhitespace.foreground": "#3B3A32",

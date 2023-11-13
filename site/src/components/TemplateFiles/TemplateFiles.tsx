@@ -91,7 +91,7 @@ const styles = {
   tabs: (theme) => ({
     display: "flex",
     alignItems: "baseline",
-    borderBottom: `1px solid ${theme.deprecated.palette.divider}`,
+    borderBottom: `1px solid ${theme.palette.divider}`,
     gap: 1,
     overflowX: "auto",
   }),
@@ -107,7 +107,7 @@ const styles = {
     cursor: "pointer",
     gap: 4,
     position: "relative",
-    color: theme.deprecated.palette.text.secondary,
+    color: theme.palette.text.secondary,
     whiteSpace: "nowrap",
 
     "& svg": {
@@ -116,14 +116,14 @@ const styles = {
     },
 
     "&:hover": {
-      backgroundColor: theme.deprecated.palette.action.hover,
+      backgroundColor: theme.palette.action.hover,
     },
   }),
 
   tabActive: (theme) => ({
     opacity: 1,
-    background: theme.deprecated.palette.action.hover,
-    color: theme.deprecated.palette.text.primary,
+    background: theme.palette.action.hover,
+    color: theme.palette.text.primary,
 
     "&:after": {
       content: '""',
@@ -132,7 +132,7 @@ const styles = {
       width: "100%",
       bottom: 0,
       left: 0,
-      backgroundColor: theme.deprecated.palette.secondary.dark,
+      backgroundColor: theme.palette.secondary.dark,
       position: "absolute",
     },
   }),
@@ -140,18 +140,18 @@ const styles = {
   tabDiff: (theme) => ({
     height: 6,
     width: 6,
-    backgroundColor: theme.deprecated.palette.warning.light,
+    backgroundColor: theme.palette.warning.light,
     borderRadius: "100%",
     marginLeft: 4,
   }),
 
   codeWrapper: (theme) => ({
-    background: theme.deprecated.palette.background.paperLight,
+    background: theme.palette.background.paperLight,
   }),
 
   files: (theme) => ({
     borderRadius: 8,
-    border: `1px solid ${theme.deprecated.palette.divider}`,
+    border: `1px solid ${theme.palette.divider}`,
   }),
 
   prism: {

@@ -76,7 +76,7 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
           paper: css`
             padding: 0;
             width: 304px;
-            color: ${theme.deprecated.palette.text.secondary};
+            color: ${theme.palette.text.secondary};
             margin-top: 4px;
           `,
         }}
@@ -98,13 +98,11 @@ export const PortForwardPopoverView: React.FC<
       <Box
         css={{
           padding: 20,
-          borderBottom: `1px solid ${theme.deprecated.palette.divider}`,
+          borderBottom: `1px solid ${theme.palette.divider}`,
         }}
       >
         <HelpTooltipTitle>Forwarded ports</HelpTooltipTitle>
-        <HelpTooltipText
-          sx={{ color: theme.deprecated.palette.text.secondary }}
-        >
+        <HelpTooltipText sx={{ color: theme.palette.text.secondary }}>
           {ports?.length === 0
             ? "No open ports were detected."
             : "The forwarded ports are exclusively accessible to you."}
@@ -123,7 +121,7 @@ export const PortForwardPopoverView: React.FC<
               <Link
                 underline="none"
                 sx={{
-                  color: theme.deprecated.palette.text.primary,
+                  color: theme.palette.text.primary,
                   fontSize: 14,
                   display: "flex",
                   alignItems: "center",
@@ -142,7 +140,7 @@ export const PortForwardPopoverView: React.FC<
                   component="span"
                   sx={{
                     ml: "auto",
-                    color: theme.deprecated.palette.text.secondary,
+                    color: theme.palette.text.secondary,
                     fontSize: 13,
                     fontWeight: 400,
                   }}
@@ -157,22 +155,20 @@ export const PortForwardPopoverView: React.FC<
 
       <Box css={{ padding: 20 }}>
         <HelpTooltipTitle>Forward port</HelpTooltipTitle>
-        <HelpTooltipText
-          sx={{ color: theme.deprecated.palette.text.secondary }}
-        >
+        <HelpTooltipText sx={{ color: theme.palette.text.secondary }}>
           Access ports running on the agent:
         </HelpTooltipText>
 
         <Box
           component="form"
           sx={{
-            border: `1px solid ${theme.deprecated.palette.divider}`,
+            border: `1px solid ${theme.palette.divider}`,
             borderRadius: "4px",
             mt: 2,
             display: "flex",
             alignItems: "center",
             "&:focus-within": {
-              borderColor: theme.deprecated.palette.primary.main,
+              borderColor: theme.palette.primary.main,
             },
           }}
           onSubmit={(e) => {
@@ -205,7 +201,7 @@ export const PortForwardPopoverView: React.FC<
               background: "none",
               border: 0,
               outline: "none",
-              color: theme.deprecated.palette.text.primary,
+              color: theme.palette.text.primary,
               appearance: "textfield",
               display: "block",
               width: "100%",
@@ -217,7 +213,7 @@ export const PortForwardPopoverView: React.FC<
               width: 14,
               height: 14,
               marginRight: 12,
-              color: theme.deprecated.palette.text.primary,
+              color: theme.palette.text.primary,
             }}
           />
         </Box>

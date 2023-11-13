@@ -85,7 +85,7 @@ const styles = {
     marginTop: 12,
   },
   errorIcon: (theme) => ({
-    color: theme.deprecated.palette.error.contrastText,
+    color: theme.palette.error.contrastText,
     marginRight: 16,
   }),
 } satisfies Record<string, Interpolation<Theme>>;

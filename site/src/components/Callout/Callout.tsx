@@ -28,10 +28,10 @@ export const Callout: FC<CalloutProps> = (props) => {
       css={{
         backgroundColor: dark.roles[type].background,
         border: `1px solid ${dark.roles[type].outline}`,
-        borderRadius: theme.deprecated.shape.borderRadius,
+        borderRadius: theme.shape.borderRadius,
         color: dark.roles[type].text,
-        padding: theme.deprecated.spacing(1, 2),
-        margin: theme.deprecated.spacing(1, 0),
+        padding: theme.spacing(1, 2),
+        margin: theme.spacing(1, 0),
       }}
     >
       {children}

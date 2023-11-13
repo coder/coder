@@ -21,7 +21,7 @@ export const PageHeader: FC<PropsWithChildren<PageHeaderProps>> = ({
         paddingBottom: 48,
         gap: 32,
 
-        [theme.deprecated.breakpoints.down("md")]: {
+        [theme.breakpoints.down("md")]: {
           flexDirection: "column",
           alignItems: "flex-start",
         },
@@ -35,7 +35,7 @@ export const PageHeader: FC<PropsWithChildren<PageHeaderProps>> = ({
           css={(theme) => ({
             marginLeft: "auto",
 
-            [theme.deprecated.breakpoints.down("md")]: {
+            [theme.breakpoints.down("md")]: {
               marginLeft: "initial",
               width: "100%",
             },
@@ -74,7 +74,7 @@ export const PageHeaderSubtitle: FC<
     <h2
       css={(theme) => ({
         fontSize: 16,
-        color: theme.deprecated.palette.text.secondary,
+        color: theme.palette.text.secondary,
         fontWeight: 400,
         display: "block",
         margin: 0,
@@ -92,7 +92,7 @@ export const PageHeaderCaption: FC<PropsWithChildren> = ({ children }) => {
     <span
       css={(theme) => ({
         fontSize: 12,
-        color: theme.deprecated.palette.text.secondary,
+        color: theme.palette.text.secondary,
         fontWeight: 600,
         textTransform: "uppercase",
         letterSpacing: "0.1em",

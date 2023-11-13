@@ -482,7 +482,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
               <span
                 css={{
                   fontSize: 12,
-                  color: theme.deprecated.palette.text.secondary,
+                  color: theme.palette.text.secondary,
                 }}
               >
                 Workspaces will always use the default TTL if this is set.

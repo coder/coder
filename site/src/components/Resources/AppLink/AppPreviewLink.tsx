@@ -14,9 +14,9 @@ export const AppPreviewLink: FC<AppPreviewProps> = ({ app }) => {
       css={(theme) => ({
         padding: "2px 12px",
         borderRadius: 9999,
-        border: `1px solid ${theme.deprecated.palette.divider}`,
-        color: theme.deprecated.palette.text.primary,
-        background: theme.deprecated.palette.background.paper,
+        border: `1px solid ${theme.palette.divider}`,
+        color: theme.palette.text.primary,
+        background: theme.palette.background.paper,
         flexShrink: 0,
         width: "fit-content",
         fontSize: 12,

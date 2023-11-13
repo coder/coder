@@ -27,7 +27,7 @@ export const ChartSection: FC<PropsWithChildren<ChartSectionProps>> = ({
   return (
     <Paper
       css={{
-        border: `1px solid ${theme.deprecated.palette.divider}`,
+        border: `1px solid ${theme.palette.divider}`,
         borderRadius: 8,
       }}
       elevation={0}

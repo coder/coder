@@ -81,7 +81,7 @@ export const TokensPageView: FC<
                       <TableCell>
                         <span
                           style={{
-                            color: theme.deprecated.palette.text.secondary,
+                            color: theme.palette.text.secondary,
                           }}
                         >
                           {token.id}
@@ -91,7 +91,7 @@ export const TokensPageView: FC<
                       <TableCell>
                         <span
                           style={{
-                            color: theme.deprecated.palette.text.secondary,
+                            color: theme.palette.text.secondary,
                           }}
                         >
                           {token.token_name}
@@ -103,7 +103,7 @@ export const TokensPageView: FC<
                       <TableCell>
                         <span
                           style={{
-                            color: theme.deprecated.palette.text.secondary,
+                            color: theme.palette.text.secondary,
                           }}
                           data-chromatic="ignore"
                         >
@@ -114,7 +114,7 @@ export const TokensPageView: FC<
                       <TableCell>
                         <span
                           style={{
-                            color: theme.deprecated.palette.text.secondary,
+                            color: theme.palette.text.secondary,
                           }}
                         >
                           {dayjs(token.created_at).fromNow()}
@@ -124,7 +124,7 @@ export const TokensPageView: FC<
                       <TableCell>
                         <span
                           style={{
-                            color: theme.deprecated.palette.text.secondary,
+                            color: theme.palette.text.secondary,
                           }}
                         >
                           <IconButton

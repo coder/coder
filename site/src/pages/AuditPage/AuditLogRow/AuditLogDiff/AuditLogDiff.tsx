@@ -62,8 +62,8 @@ const styles = {
   diff: (theme) => ({
     display: "flex",
     alignItems: "flex-start",
-    fontSize: theme.deprecated.typography.body2.fontSize,
-    borderTop: `1px solid ${theme.deprecated.palette.divider}`,
+    fontSize: theme.typography.body2.fontSize,
+    borderTop: `1px solid ${theme.palette.divider}`,
     fontFamily: MONOSPACE_FONT_FAMILY,
     position: "relative",
     zIndex: 2,
@@ -80,8 +80,8 @@ const styles = {
   },
 
   diffOld: (theme) => ({
-    backgroundColor: theme.deprecated.palette.error.dark,
-    color: theme.deprecated.palette.error.contrastText,
+    backgroundColor: theme.palette.error.dark,
+    color: theme.palette.error.contrastText,
   }),
 
   diffRow: {
@@ -99,13 +99,13 @@ const styles = {
   diffIcon: (theme) => ({
     width: 32,
     textAlign: "center",
-    fontSize: theme.deprecated.typography.body1.fontSize,
+    fontSize: theme.typography.body1.fontSize,
     flexShrink: 0,
   }),
 
   diffNew: (theme) => ({
-    backgroundColor: theme.deprecated.palette.success.dark,
-    color: theme.deprecated.palette.success.contrastText,
+    backgroundColor: theme.palette.success.dark,
+    color: theme.palette.success.contrastText,
   }),
 
   diffValue: {

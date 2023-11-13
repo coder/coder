@@ -21,7 +21,7 @@ const SidebarNavItem: FC<
   const theme = useTheme();
 
   const activeStyles = css`
-    background-color: ${theme.deprecated.palette.action.hover};
+    background-color: ${theme.palette.action.hover};
 
     &::before {
       content: "";
@@ -31,7 +31,7 @@ const SidebarNavItem: FC<
       position: absolute;
       left: 0;
       top: 0;
-      background-color: ${theme.deprecated.palette.secondary.dark};
+      background-color: ${theme.palette.secondary.dark};
       border-top-left-radius: 8px;
       border-bottom-left-radius: 8px;
     }
@@ -54,7 +54,7 @@ const SidebarNavItem: FC<
         position: relative;
 
         &:hover {
-          background-color: ${theme.deprecated.palette.action.hover};
+          background-color: ${theme.palette.action.hover};
         }
       `}
     >

@@ -43,7 +43,7 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
   const type = isError ? "error" : "warning";
 
   const containerStyles = css`
-    ${theme.deprecated.typography.body2 as CSSObject}
+    ${theme.typography.body2 as CSSObject}
 
     display: flex;
     align-items: center;

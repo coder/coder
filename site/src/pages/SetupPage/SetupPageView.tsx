@@ -67,7 +67,7 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
       <header css={{ textAlign: "center", marginBottom: 32 }}>
         <CoderIcon
           css={(theme) => ({
-            color: theme.deprecated.palette.text.primary,
+            color: theme.palette.text.primary,
             fontSize: 64,
           })}
         />
@@ -83,7 +83,7 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
         <div
           css={(theme) => ({
             marginTop: 12,
-            color: theme.deprecated.palette.text.secondary,
+            color: theme.palette.text.secondary,
           })}
         >
           Let&lsquo;s create your first admin user account
@@ -143,7 +143,7 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
                 css={(theme) => ({
                   display: "block",
                   fontSize: 13,
-                  color: theme.deprecated.palette.text.secondary,
+                  color: theme.palette.text.secondary,
                   lineHeight: "1.6",
                 })}
               >

@@ -180,7 +180,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
     <>
       <DashboardFullPage
         css={{
-          background: theme.deprecated.palette.background.default,
+          background: theme.palette.background.default,
         }}
       >
         <div css={styles.topbar} data-testid="topbar">
@@ -466,12 +466,12 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 const styles = {
   topbar: (theme) => ({
     padding: 16,
-    borderBottom: `1px solid ${theme.deprecated.palette.divider}`,
+    borderBottom: `1px solid ${theme.palette.divider}`,
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
     height: topbarHeight,
-    background: theme.deprecated.palette.background.paper,
+    background: theme.palette.background.paper,
   }),
   topbarSides: {
     display: "flex",
@@ -486,14 +486,14 @@ const styles = {
   },
   sidebar: (theme) => ({
     minWidth: 256,
-    backgroundColor: theme.deprecated.palette.background.paper,
-    borderRight: `1px solid ${theme.deprecated.palette.divider}`,
+    backgroundColor: theme.palette.background.paper,
+    borderRight: `1px solid ${theme.palette.divider}`,
   }),
   sidebarTitle: (theme) => ({
     fontSize: 10,
     textTransform: "uppercase",
     padding: "8px 16px",
-    color: theme.deprecated.palette.text.primary,
+    color: theme.palette.text.primary,
     fontWeight: 500,
     letterSpacing: "0.5px",
     display: "flex",
@@ -502,7 +502,7 @@ const styles = {
   sidebarActions: (theme) => ({
     marginLeft: "auto",
     "& svg": {
-      fill: theme.deprecated.palette.text.primary,
+      fill: theme.palette.text.primary,
     },
   }),
   editor: {
@@ -510,7 +510,7 @@ const styles = {
   },
   panelWrapper: (theme) => ({
     flex: 1,
-    borderLeft: `1px solid ${theme.deprecated.palette.divider}`,
+    borderLeft: `1px solid ${theme.palette.divider}`,
     overflow: "hidden",
     display: "flex",
     flexDirection: "column",
@@ -525,7 +525,7 @@ const styles = {
     },
   },
   tabs: (theme) => ({
-    borderBottom: `1px solid ${theme.deprecated.palette.divider}`,
+    borderBottom: `1px solid ${theme.palette.divider}`,
     display: "flex",
     boxShadow: "#000000 0 6px 6px -6px inset",
 
@@ -546,7 +546,7 @@ const styles = {
     background: "transparent",
     fontFamily: "inherit",
     border: 0,
-    color: theme.deprecated.palette.text.secondary,
+    color: theme.palette.text.secondary,
     transition: "150ms ease all",
     display: "flex",
     gap: 8,
@@ -560,34 +560,34 @@ const styles = {
     },
 
     "&.active": {
-      color: theme.deprecated.palette.text.primary,
+      color: theme.palette.text.primary,
       "&:after": {
         content: '""',
         display: "block",
         width: "100%",
         height: 1,
-        backgroundColor: theme.deprecated.palette.text.primary,
+        backgroundColor: theme.palette.text.primary,
         bottom: -1,
         position: "absolute",
       },
     },
 
     "&:hover": {
-      color: theme.deprecated.palette.text.primary,
+      color: theme.palette.text.primary,
     },
   }),
   tabBar: (theme) => ({
     padding: "8px 16px",
     position: "sticky",
     top: 0,
-    background: theme.deprecated.palette.background.default,
-    borderBottom: `1px solid ${theme.deprecated.palette.divider}`,
-    color: theme.deprecated.palette.text.primary,
+    background: theme.palette.background.default,
+    borderBottom: `1px solid ${theme.palette.divider}`,
+    color: theme.palette.text.primary,
     textTransform: "uppercase",
     fontSize: 12,
 
     "&.top": {
-      borderTop: `1px solid ${theme.deprecated.palette.divider}`,
+      borderTop: `1px solid ${theme.palette.divider}`,
     },
   }),
 } satisfies Record<string, Interpolation<Theme>>;

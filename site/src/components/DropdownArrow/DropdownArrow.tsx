@@ -18,7 +18,7 @@ export const DropdownArrow: FC<ArrowProps> = (props) => {
     <Arrow
       aria-label={close ? "close-dropdown" : "open-dropdown"}
       css={(theme: Theme) => ({
-        color: color ?? theme.deprecated.palette.primary.contrastText,
+        color: color ?? theme.palette.primary.contrastText,
         marginLeft: margin ? 8 : 0,
         width: 16,
         height: 16,

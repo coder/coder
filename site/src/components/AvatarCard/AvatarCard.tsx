@@ -28,7 +28,7 @@ export function AvatarCard({
         display: "flex",
         flexFlow: "row nowrap",
         alignItems: "center",
-        border: `1px solid ${theme.deprecated.palette.divider}`,
+        border: `1px solid ${theme.palette.divider}`,
         gap: "16px",
         padding: "16px",
         borderRadius: "8px",
@@ -46,7 +46,7 @@ export function AvatarCard({
           // Lets users hover over truncated text to see whole thing
           title={header}
           css={[
-            theme.deprecated.typography.body1 as CSSObject,
+            theme.typography.body1 as CSSObject,
             {
               lineHeight: 1.4,
               margin: 0,
@@ -62,8 +62,8 @@ export function AvatarCard({
         {subtitle && (
           <div
             css={[
-              theme.deprecated.typography.body2 as CSSObject,
-              { color: theme.deprecated.palette.text.secondary },
+              theme.typography.body2 as CSSObject,
+              { color: theme.palette.text.secondary },
             ]}
           >
             {subtitle}

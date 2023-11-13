@@ -322,7 +322,7 @@ const styles = {
     rowGap: 24,
     flex: 1,
 
-    [theme.deprecated.breakpoints.down("md")]: {
+    [theme.breakpoints.down("md")]: {
       display: "flex",
       flexDirection: "column",
       alignItems: "flex-start",
@@ -354,7 +354,7 @@ const styles = {
   },
 
   scheduleButton: (theme) => ({
-    border: `1px solid ${theme.deprecated.palette.divider}`,
+    border: `1px solid ${theme.palette.divider}`,
     borderRadius: 4,
     width: 20,
     height: 20,
@@ -370,7 +370,7 @@ const styles = {
   },
 
   timePopoverDescription: (theme) => ({
-    color: theme.deprecated.palette.text.secondary,
+    color: theme.palette.text.secondary,
   }),
 
   timePopoverForm: {

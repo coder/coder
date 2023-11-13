@@ -34,7 +34,7 @@ export const AgentLatency: FC<{ agent: WorkspaceAgent }> = ({ agent }) => {
   const anchorRef = useRef<HTMLButtonElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const id = isOpen ? "latency-popover" : undefined;
-  const latency = getDisplayLatency(theme.deprecated, agent);
+  const latency = getDisplayLatency(theme, agent);
 
   if (!latency || !agent.latency) {
     return null;
@@ -76,7 +76,7 @@ export const AgentLatency: FC<{ agent: WorkspaceAgent }> = ({ agent }) => {
                   justifyContent="space-between"
                   css={
                     region.preferred && {
-                      color: theme.deprecated.palette.text.primary,
+                      color: theme.palette.text.primary,
                     }
                   }
                 >

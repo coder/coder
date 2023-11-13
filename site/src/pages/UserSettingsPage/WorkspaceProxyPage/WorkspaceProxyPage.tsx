@@ -21,10 +21,10 @@ export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
       title="Workspace Proxies"
       css={(theme) => ({
         "& code": {
-          background: theme.deprecated.palette.divider,
+          background: theme.palette.divider,
           fontSize: 12,
           padding: "2px 4px",
-          color: theme.deprecated.palette.text.primary,
+          color: theme.palette.text.primary,
           borderRadius: 2,
         },
       })}

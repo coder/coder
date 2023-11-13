@@ -47,7 +47,7 @@ export const Expander: FC<PropsWithChildren<ExpanderProps>> = ({
 const styles = {
   expandLink: (theme) => ({
     cursor: "pointer",
-    color: theme.deprecated.palette.text.secondary,
+    color: theme.palette.text.secondary,
   }),
   collapseLink: {
     marginTop: 16,
@@ -55,7 +55,7 @@ const styles = {
   text: (theme) => ({
     display: "flex",
     alignItems: "center",
-    color: theme.deprecated.palette.text.secondary,
-    fontSize: theme.deprecated.typography.caption.fontSize,
+    color: theme.palette.text.secondary,
+    fontSize: theme.typography.caption.fontSize,
   }),
 } satisfies Record<string, Interpolation<Theme>>;

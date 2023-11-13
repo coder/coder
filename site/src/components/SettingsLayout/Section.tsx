@@ -70,7 +70,7 @@ const styles = {
     justifyContent: "space-between",
   },
   description: (theme) => ({
-    color: theme.deprecated.palette.text.secondary,
+    color: theme.palette.text.secondary,
     fontSize: 16,
     marginTop: 4,
     lineHeight: "140%",

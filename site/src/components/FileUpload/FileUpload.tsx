@@ -134,12 +134,12 @@ const styles = {
     align-items: center;
     justify-content: center;
     border-radius: 8px;
-    border: 2px dashed ${theme.deprecated.palette.divider};
+    border: 2px dashed ${theme.palette.divider};
     padding: 48px;
     cursor: pointer;
 
     &:hover {
-      background-color: ${theme.deprecated.palette.background.paper};
+      background-color: ${theme.palette.background.paper};
     }
   `,
 
@@ -157,7 +157,7 @@ const styles = {
   },
 
   description: (theme) => ({
-    color: theme.deprecated.palette.text.secondary,
+    color: theme.palette.text.secondary,
     textAlign: "center",
     maxWidth: 400,
   }),
@@ -168,8 +168,8 @@ const styles = {
 
   file: (theme) => ({
     borderRadius: 8,
-    border: `1px solid ${theme.deprecated.palette.divider}`,
+    border: `1px solid ${theme.palette.divider}`,
     padding: 16,
-    background: theme.deprecated.palette.background.paper,
+    background: theme.palette.background.paper,
   }),
 } satisfies Record<string, Interpolation<Theme>>;

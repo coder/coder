@@ -32,12 +32,12 @@ const SidebarNavItem: FC<
     position: "relative",
 
     "&:hover": {
-      backgroundColor: theme.deprecated.palette.action.hover,
+      backgroundColor: theme.palette.action.hover,
     },
   });
 
   const activeLinkStyles = css({
-    backgroundColor: theme.deprecated.palette.action.hover,
+    backgroundColor: theme.palette.action.hover,
 
     "&:before": {
       content: '""',
@@ -47,7 +47,7 @@ const SidebarNavItem: FC<
       position: "absolute",
       left: 0,
       top: 0,
-      backgroundColor: theme.deprecated.palette.secondary.dark,
+      backgroundColor: theme.palette.secondary.dark,
       borderTopLeftRadius: 8,
       borderBottomLeftRadius: 8,
     },
@@ -119,7 +119,7 @@ const styles = {
     height: 16,
   },
   workspaceInfo: (theme) => ({
-    ...(theme.deprecated.typography.body2 as CSSObject),
+    ...(theme.typography.body2 as CSSObject),
     marginBottom: 16,
   }),
   workspaceData: {
@@ -130,11 +130,11 @@ const styles = {
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
-    color: theme.deprecated.palette.text.primary,
+    color: theme.palette.text.primary,
     textDecoration: "none",
   }),
   secondary: (theme) => ({
-    color: theme.deprecated.palette.text.secondary,
+    color: theme.palette.text.secondary,
     fontSize: 12,
     overflow: "hidden",
     textOverflow: "ellipsis",

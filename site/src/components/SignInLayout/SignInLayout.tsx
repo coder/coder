@@ -31,7 +31,7 @@ export const SignInLayout: FC<{ children: ReactNode }> = ({ children }) => {
         <div
           css={(theme) => ({
             fontSize: 12,
-            color: theme.deprecated.palette.text.secondary,
+            color: theme.palette.text.secondary,
             marginTop: 24,
           })}
         >

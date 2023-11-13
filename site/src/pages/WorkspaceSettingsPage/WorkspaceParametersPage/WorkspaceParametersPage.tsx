@@ -117,7 +117,7 @@ export const WorkspaceParametersPageView: FC<
               </Button>
             }
             css={(theme) => ({
-              border: `1px solid ${theme.deprecated.palette.divider}`,
+              border: `1px solid ${theme.palette.divider}`,
               borderRadius: 8,
             })}
           />

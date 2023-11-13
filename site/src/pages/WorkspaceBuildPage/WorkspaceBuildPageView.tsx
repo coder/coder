@@ -192,9 +192,8 @@ const BuildSidebarItem = ({
               height: 16,
               // TODO: this sucks really bad
               color:
-                theme.deprecated.palette[
-                  getDisplayWorkspaceBuildStatus(theme, build).type
-                ].light,
+                theme.palette[getDisplayWorkspaceBuildStatus(theme, build).type]
+                  .light,
             })}
           />
           <Box sx={{ overflow: "hidden" }}>
@@ -248,7 +247,7 @@ const styles = {
     rowGap: 24,
     flex: 1,
 
-    [theme.deprecated.breakpoints.down("md")]: {
+    [theme.breakpoints.down("md")]: {
       display: "flex",
       flexDirection: "column",
       alignItems: "flex-start",

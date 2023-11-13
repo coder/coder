@@ -101,8 +101,8 @@ const styles = {
     display: "flex",
     alignItems: "center",
     fontFamily: "Inter",
-    borderBottom: `1px solid ${theme.deprecated.palette.divider}`,
-    background: theme.deprecated.palette.background.default,
+    borderBottom: `1px solid ${theme.palette.divider}`,
+    background: theme.palette.background.default,
 
     "&:last-child": {
       borderBottom: 0,
@@ -121,7 +121,7 @@ const styles = {
 
   duration: (theme) => ({
     marginLeft: "auto",
-    color: theme.deprecated.palette.text.secondary,
+    color: theme.palette.text.secondary,
     fontSize: 12,
   }),
 } satisfies Record<string, Interpolation<Theme>>;

@@ -57,12 +57,12 @@ export const HelpPopover: FC<
       `}
       classes={{
         paper: className`
-          ${theme.deprecated.typography.body2 as CSSObject}
+          ${theme.typography.body2 as CSSObject}
 
           margin-top: 4px;
           width: 304px;
           padding: 20px;
-          color: ${theme.deprecated.palette.text.secondary};
+          color: ${theme.palette.text.secondary};
           pointer-events: auto;
         `,
       }}
@@ -112,12 +112,12 @@ export const HelpTooltip: FC<PropsWithChildren<HelpTooltipProps>> = ({
           display: flex;
           align-items: center;
           justify-content: center;
-          width: ${theme.deprecated.spacing(getButtonSpacingFromSize(size))};
-          height: ${theme.deprecated.spacing(getButtonSpacingFromSize(size))};
+          width: ${theme.spacing(getButtonSpacingFromSize(size))};
+          height: ${theme.spacing(getButtonSpacingFromSize(size))};
           padding: 0;
           border: 0;
           background: transparent;
-          color: ${theme.deprecated.palette.text.primary};
+          color: ${theme.palette.text.primary};
           opacity: 0.5;
           cursor: pointer;
 
@@ -140,8 +140,8 @@ export const HelpTooltip: FC<PropsWithChildren<HelpTooltipProps>> = ({
       >
         <Icon
           css={{
-            width: theme.deprecated.spacing(getIconSpacingFromSize(size)),
-            height: theme.deprecated.spacing(getIconSpacingFromSize(size)),
+            width: theme.spacing(getIconSpacingFromSize(size)),
+            height: theme.spacing(getIconSpacingFromSize(size)),
           }}
           className={iconClassName}
         />
@@ -240,7 +240,7 @@ const styles = {
   title: (theme) => ({
     marginTop: 0,
     marginBottom: 8,
-    color: theme.deprecated.palette.text.primary,
+    color: theme.palette.text.primary,
     fontSize: 14,
     lineHeight: "150%",
     fontWeight: 600,
@@ -249,14 +249,14 @@ const styles = {
   text: (theme) => ({
     marginTop: 4,
     marginBottom: 4,
-    ...(theme.deprecated.typography.body2 as CSSObject),
+    ...(theme.typography.body2 as CSSObject),
   }),
 
   link: (theme) => ({
     display: "flex",
     alignItems: "center",
-    ...(theme.deprecated.typography.body2 as CSSObject),
-    color: theme.deprecated.palette.text.primary,
+    ...(theme.typography.body2 as CSSObject),
+    color: theme.palette.text.primary,
   }),
 
   linkIcon: {
@@ -275,7 +275,7 @@ const styles = {
     alignItems: "center",
     background: "none",
     border: 0,
-    color: theme.deprecated.palette.primary.light,
+    color: theme.palette.primary.light,
     padding: 0,
     cursor: "pointer",
     fontSize: 14,

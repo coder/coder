@@ -11,19 +11,19 @@ export const LastSeen = ({
   const now = dayjs();
 
   let message = t.fromNow();
-  let color = theme.deprecated.palette.text.secondary;
+  let color = theme.palette.text.secondary;
 
   if (t.isAfter(now.subtract(1, "hour"))) {
-    color = theme.deprecated.palette.success.light;
+    color = theme.palette.success.light;
     // Since the agent reports on a 10m interval,
     // the last_used_at can be inaccurate when recent.
     message = "Now";
   } else if (t.isAfter(now.subtract(3, "day"))) {
-    color = theme.deprecated.palette.text.secondary;
+    color = theme.palette.text.secondary;
   } else if (t.isAfter(now.subtract(1, "month"))) {
-    color = theme.deprecated.palette.warning.light;
+    color = theme.palette.warning.light;
   } else if (t.isAfter(now.subtract(100, "year"))) {
-    color = theme.deprecated.palette.error.light;
+    color = theme.palette.error.light;
   } else {
     message = "Never";
   }

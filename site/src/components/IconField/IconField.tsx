@@ -102,8 +102,7 @@ const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
               <Global
                 styles={css`
                   em-emoji-picker {
-                    --rgb-background: ${theme.deprecated.palette.background
-                      .paper};
+                    --rgb-background: ${theme.palette.background.paper};
                     --rgb-input: ${colors.gray[17]};
                     --rgb-color: ${colors.gray[4]};
 

@@ -38,12 +38,12 @@ const SidebarNavItem: FC<
     position: relative;
 
     &:hover {
-      background-color: ${theme.deprecated.palette.action.hover};
+      background-color: ${theme.palette.action.hover};
     }
   `;
 
   const sidebarNavItemActiveStyles = css`
-    background-color: ${theme.deprecated.palette.action.hover};
+    background-color: ${theme.palette.action.hover};
 
     &:before {
       content: "";
@@ -53,7 +53,7 @@ const SidebarNavItem: FC<
       position: absolute;
       left: 0;
       top: 0;
-      background-color: ${theme.deprecated.palette.secondary.dark};
+      background-color: ${theme.palette.secondary.dark};
       border-top-left-radius: 8px;
       border-bottom-left-radius: 8px;
     }
@@ -134,7 +134,7 @@ const styles = {
     height: 16,
   },
   templateInfo: (theme) => ({
-    ...(theme.deprecated.typography.body2 as CSSObject),
+    ...(theme.typography.body2 as CSSObject),
     marginBottom: 16,
   }),
   templateData: {
@@ -145,11 +145,11 @@ const styles = {
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
-    color: theme.deprecated.palette.text.primary,
+    color: theme.palette.text.primary,
     textDecoration: "none",
   }),
   secondary: (theme) => ({
-    color: theme.deprecated.palette.text.secondary,
+    color: theme.palette.text.secondary,
     fontSize: 12,
     overflow: "hidden",
     textOverflow: "ellipsis",

@@ -33,8 +33,7 @@ export const ServiceBannerView: React.FC<ServiceBannerViewProps> = ({
     <div
       css={css`
         padding: 12px;
-        background-color: ${backgroundColor ??
-        theme.deprecated.palette.warning.main};
+        background-color: ${backgroundColor ?? theme.palette.warning.main};
         display: flex;
         align-items: center;
 

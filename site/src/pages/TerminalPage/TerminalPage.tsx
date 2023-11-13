@@ -424,7 +424,7 @@ const styles = {
   terminal: (theme) => ({
     width: "100vw",
     overflow: "hidden",
-    backgroundColor: theme.deprecated.palette.background.paper,
+    backgroundColor: theme.palette.background.paper,
     flex: 1,
     // These styles attempt to mimic the VS Code scrollbar.
     "& .xterm": {

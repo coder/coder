@@ -232,10 +232,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
               templateParameters={parameters}
               classes={{
                 root: css`
-                  border: 1px solid ${theme.deprecated.palette.warning.light};
+                  border: 1px solid ${theme.palette.warning.light};
                   border-radius: 8px;
-                  background-color: ${theme.deprecated.palette.background
-                    .paper};
+                  background-color: ${theme.palette.background.paper};
                   padding: 80px;
                   margin-left: -80px;
                   margin-right: -80px;
@@ -315,6 +314,6 @@ const styles = {
   },
   description: (theme) => ({
     fontSize: 13,
-    color: theme.deprecated.palette.text.secondary,
+    color: theme.palette.text.secondary,
   }),
 } satisfies Record<string, Interpolation<Theme>>;

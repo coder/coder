@@ -206,8 +206,8 @@ const StaticWidth = (props: BoxProps) => {
 const styles = {
   root: (theme) => ({
     padding: "20px 32px",
-    borderTop: `1px solid ${theme.deprecated.palette.divider}`,
-    background: theme.deprecated.palette.background.paper,
+    borderTop: `1px solid ${theme.palette.divider}`,
+    background: theme.palette.background.paper,
     overflowX: "auto",
     scrollPadding: "0 32px",
   }),
@@ -227,7 +227,7 @@ const styles = {
   },
 
   metadataLabel: (theme) => ({
-    color: theme.deprecated.palette.text.secondary,
+    color: theme.palette.text.secondary,
     textOverflow: "ellipsis",
     overflow: "hidden",
     whiteSpace: "nowrap",
@@ -243,15 +243,15 @@ const styles = {
   },
 
   metadataValueSuccess: (theme) => ({
-    color: theme.deprecated.palette.success.light,
+    color: theme.palette.success.light,
   }),
 
   metadataValueError: (theme) => ({
-    color: theme.deprecated.palette.error.main,
+    color: theme.palette.error.main,
   }),
 
   metadataStale: (theme) => ({
-    color: theme.deprecated.palette.text.disabled,
+    color: theme.palette.text.disabled,
     cursor: "pointer",
   }),
 
@@ -265,6 +265,6 @@ const styles = {
     fontWeight: 600,
     margin: 0,
     borderRadius: 4,
-    color: theme.deprecated.palette.text.primary,
+    color: theme.palette.text.primary,
   }),
 } satisfies Record<string, Interpolation<Theme>>;

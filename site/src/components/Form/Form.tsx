@@ -36,7 +36,7 @@ export const Form: FC<FormProps> = ({ direction, ...formProps }) => {
           flexDirection: "column",
           gap: direction === "horizontal" ? 80 : 40,
 
-          [theme.deprecated.breakpoints.down("md")]: {
+          [theme.breakpoints.down("md")]: {
             gap: 64,
           },
         }}
@@ -90,7 +90,7 @@ export const FormSection: FC<
         flexDirection: direction === "horizontal" ? "row" : "column",
         gap: direction === "horizontal" ? 120 : 24,
 
-        [theme.deprecated.breakpoints.down("md")]: {
+        [theme.breakpoints.down("md")]: {
           flexDirection: "column",
           gap: 16,
         },
@@ -105,7 +105,7 @@ export const FormSection: FC<
           position: direction === "horizontal" ? "sticky" : undefined,
           top: 24,
 
-          [theme.deprecated.breakpoints.down("md")]: {
+          [theme.breakpoints.down("md")]: {
             width: "100%",
             position: "initial" as const,
           },
@@ -141,7 +141,7 @@ export const FormFields: FC<PropsWithChildren> = ({ children }) => {
 const styles = {
   formSectionInfoTitle: (theme) => ({
     fontSize: 20,
-    color: theme.deprecated.palette.text.primary,
+    color: theme.palette.text.primary,
     fontWeight: 400,
     margin: 0,
     marginBottom: 8,
@@ -156,7 +156,7 @@ const styles = {
 
   formSectionInfoDescription: (theme) => ({
     fontSize: 14,
-    color: theme.deprecated.palette.text.secondary,
+    color: theme.palette.text.secondary,
     lineHeight: "160%",
     margin: 0,
   }),
@@ -174,7 +174,7 @@ const footerStyles = {
   button: (theme) => ({
     minWidth: 184,
 
-    [theme.deprecated.breakpoints.down("md")]: {
+    [theme.breakpoints.down("md")]: {
       width: "100%",
     },
   }),
@@ -186,7 +186,7 @@ const footerStyles = {
     flexDirection: "row-reverse",
     gap: 16,
 
-    [theme.deprecated.breakpoints.down("md")]: {
+    [theme.breakpoints.down("md")]: {
       flexDirection: "column",
       gap: 8,
     },

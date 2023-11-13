@@ -43,7 +43,7 @@ export const AvatarData: FC<AvatarDataProps> = ({
       >
         <span
           css={{
-            color: theme.deprecated.palette.text.primary,
+            color: theme.palette.text.primary,
             fontWeight: 600,
           }}
         >
@@ -53,7 +53,7 @@ export const AvatarData: FC<AvatarDataProps> = ({
           <span
             css={{
               fontSize: 12,
-              color: theme.deprecated.palette.text.secondary,
+              color: theme.palette.text.secondary,
               lineHeight: "150%",
               maxWidth: 540,
             }}

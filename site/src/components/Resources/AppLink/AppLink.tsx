@@ -64,11 +64,7 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
   }
   if (app.health === "unhealthy") {
     canClick = false;
-    icon = (
-      <ErrorOutlineIcon
-        css={{ color: theme.deprecated.palette.warning.light }}
-      />
-    );
+    icon = <ErrorOutlineIcon css={{ color: theme.palette.warning.light }} />;
     primaryTooltip = "Unhealthy";
   }
   if (!appsHost && app.subdomain) {
@@ -76,7 +72,7 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
     icon = (
       <ErrorOutlineIcon
         css={{
-          color: theme.deprecated.palette.grey[300],
+          color: theme.palette.grey[300],
         }}
       />
     );

@@ -38,8 +38,8 @@ const sizeStyles = {
 const colorStyles = {
   light: {},
   darken: (theme) => ({
-    background: theme.deprecated.palette.divider,
-    color: theme.deprecated.palette.text.primary,
+    background: theme.palette.divider,
+    color: theme.palette.text.primary,
   }),
 } satisfies Record<string, Interpolation<Theme>>;
 

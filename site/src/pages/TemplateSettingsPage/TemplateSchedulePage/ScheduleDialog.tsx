@@ -133,8 +133,8 @@ export const ScheduleDialog: FC<PropsWithChildren<ScheduleDialogProps>> = ({
 const styles = {
   dialogWrapper: (theme) => ({
     "& .MuiPaper-root": {
-      background: theme.deprecated.palette.background.paper,
-      border: `1px solid ${theme.deprecated.palette.divider}`,
+      background: theme.palette.background.paper,
+      border: `1px solid ${theme.palette.divider}`,
       width: "100%",
       maxWidth: 1000,
     },
@@ -143,23 +143,23 @@ const styles = {
     },
   }),
   dialogContent: (theme) => ({
-    color: theme.deprecated.palette.text.secondary,
+    color: theme.palette.text.secondary,
     padding: 40,
   }),
   dialogTitle: (theme) => ({
     margin: 0,
     marginBottom: 16,
-    color: theme.deprecated.palette.text.primary,
+    color: theme.palette.text.primary,
     fontWeight: 400,
     fontSize: 20,
   }),
   dialogDescription: (theme) => ({
-    color: theme.deprecated.palette.text.secondary,
+    color: theme.palette.text.secondary,
     lineHeight: "160%",
     fontSize: 16,
 
     "& strong": {
-      color: theme.deprecated.palette.text.primary,
+      color: theme.palette.text.primary,
     },
 
     "& p:not(.MuiFormHelperText-root)": {

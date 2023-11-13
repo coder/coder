@@ -22,7 +22,7 @@ const styles = {
   },
   labelCaption: (theme) => ({
     fontSize: 14,
-    color: theme.deprecated.palette.text.secondary,
+    color: theme.palette.text.secondary,
 
     ".small &": {
       fontSize: 13,
@@ -31,7 +31,7 @@ const styles = {
   }),
   labelPrimary: (theme) => ({
     fontSize: 16,
-    color: theme.deprecated.palette.text.primary,
+    color: theme.palette.text.primary,
     fontWeight: 600,
 
     "& p": {
