@@ -41,9 +41,3 @@ func TestGeneration(t *testing.T) {
 		})
 	}
 }
-
-func TestFoo(t *testing.T) {
-	output, err := Generate("/Users/mtojek/code/coder/coderd/healthcheck")
-	require.NoError(t, err)
-	require.Equal(t, "a", output)
-}
