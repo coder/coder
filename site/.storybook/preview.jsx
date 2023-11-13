@@ -6,7 +6,7 @@ import {
 import { ThemeProvider as EmotionThemeProvider } from "@emotion/react";
 import { withRouter } from "storybook-addon-react-router-v6";
 import { HelmetProvider } from "react-helmet-async";
-import { dark } from "theme";
+import { dark } from "theme/mui";
 import "theme/globalFonts";
 import { QueryClient, QueryClientProvider } from "react-query";
 

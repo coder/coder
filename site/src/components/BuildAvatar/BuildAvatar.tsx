@@ -1,11 +1,11 @@
 import Badge from "@mui/material/Badge";
-import { useTheme, withStyles } from "@mui/styles";
-import { FC } from "react";
+import { withStyles } from "@mui/styles";
+import { type FC } from "react";
 import { WorkspaceBuild } from "api/typesGenerated";
 import { getDisplayWorkspaceBuildStatus } from "utils/workspace";
 import { Avatar, AvatarProps } from "components/Avatar/Avatar";
-import { PaletteIndex } from "theme/theme";
-import { Theme } from "@mui/material/styles";
+import type { PaletteIndex } from "theme/mui";
+import { useTheme } from "@emotion/react";
 import { BuildIcon } from "components/BuildIcon/BuildIcon";
 
 interface StylesBadgeProps {
@@ -30,7 +30,7 @@ export interface BuildAvatarProps {
 }
 
 export const BuildAvatar: FC<BuildAvatarProps> = ({ build, size }) => {
-  const theme = useTheme<Theme>();
+  const theme = useTheme();
   const displayBuildStatus = getDisplayWorkspaceBuildStatus(theme, build);
 
   return (
