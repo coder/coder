@@ -47,9 +47,6 @@ export type WorkspaceEvent =
   | {
       type: "REFRESH_TIMELINE";
     }
-  | { type: "EVENT_SOURCE_ERROR"; error: unknown }
-  | { type: "INCREASE_DEADLINE"; hours: number }
-  | { type: "DECREASE_DEADLINE"; hours: number }
   | { type: "RETRY_BUILD" }
   | { type: "ACTIVATE" };
 
@@ -82,15 +79,6 @@ export const workspaceMachine = createMachine(
         };
         activateWorkspace: {
           data: TypesGen.Response;
-        };
-        listening: {
-          data: TypesGen.ServerSentEvent;
-        };
-        getBuilds: {
-          data: TypesGen.WorkspaceBuild[];
-        };
-        getSSHPrefix: {
-          data: TypesGen.SSHConfigResponse;
         };
       },
     },
@@ -459,7 +447,6 @@ export const workspaceMachine = createMachine(
           throw Error("Cannot activate workspace without workspace id");
         }
       },
-
     },
   },
 );
