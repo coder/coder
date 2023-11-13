@@ -2,7 +2,6 @@ package cli
 
 import (
 	"encoding/json"
-	"os/signal"
 
 	"golang.org/x/xerrors"
 
@@ -63,7 +62,7 @@ fi
 		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
 
-			ctx, stop := signal.NotifyContext(ctx, InterruptSignals...)
+			ctx, stop := inv.SignalNotifyContext(ctx, InterruptSignals...)
 			defer stop()
 
 			client, err := r.createAgentClient()

@@ -62,7 +62,15 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) (retErr error) {
-			ctx, cancel := context.WithCancel(inv.Context())
+			// Before dialing the SSH server over TCP, capture Interrupt signals
+			// so that if we are interrupted, we have a chance to tear down the
+			// TCP session cleanly before exiting.  If we don't, then the TCP
+			// session can persist for up to 72 hours, since we set a long
+			// timeout on the Agent side of the connection.  In particular,
+			// OpenSSH sends SIGHUP to terminate a proxy command.
+			ctx, stop := inv.SignalNotifyContext(inv.Context(), InterruptSignals...)
+			defer stop()
+			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
 
 			logger := slog.Make() // empty logger
@@ -227,8 +235,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				go func() {
 					defer wg.Done()
 					// Ensure stdout copy closes incase stdin is closed
-					// unexpectedly. Typically we wouldn't worry about
-					// this since OpenSSH should kill the proxy command.
+					// unexpectedly.
 					defer rawSSH.Close()
 
 					_, err := io.Copy(rawSSH, inv.Stdin)
