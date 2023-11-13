@@ -23,6 +23,11 @@ OPTIONS:
           this value for the template (and allow autostart on all days), pass
           'all'.
 
+      --default-activity-bump duration (default: 0)
+          Specify a default amount of time to bump the deadline for the
+          workspaces based on workspace activity. By default, activity will
+          extend the deadline for a workspace by the 'default-ttl' amount.
+
       --default-ttl duration
           Edit the template default time before shutdown - workspaces created
           from this template default to this value. Maps to "Default autostop"

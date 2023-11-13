@@ -10,6 +10,11 @@ USAGE:
        $ coder create <username>/<workspace_name>
 
 OPTIONS:
+      --activity-bump duration (default: 0)
+          Specify a default amount of time to bump the deadline for the
+          workspaces based on workspace activity. By default, activity will
+          extend the deadline for a workspace by the 'stop-after' amount.
+
       --automatic-updates string, $CODER_WORKSPACE_AUTOMATIC_UPDATES (default: never)
           Specify automatic updates setting for the workspace (accepts 'always'
           or 'never').

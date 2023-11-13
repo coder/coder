@@ -441,6 +441,7 @@ export const MockTemplate: TypesGen.Template = {
   },
   description: "This is a test description.",
   default_ttl_ms: 24 * 60 * 60 * 1000,
+  default_ttl_bump_ms: 0,
   max_ttl_ms: 2 * 24 * 60 * 60 * 1000,
   autostop_requirement: {
     days_of_week: [],

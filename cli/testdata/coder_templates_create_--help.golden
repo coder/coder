@@ -6,6 +6,11 @@ USAGE:
   Create a template from the current directory or as specified by flag
 
 OPTIONS:
+      --default-activity-bump duration (default: 0)
+          Specify a default amount of time to bump the deadline for the
+          workspaces based on workspace activity. By default, activity will
+          extend the deadline for a workspace by the 'default-ttl' amount.
+
       --default-ttl duration (default: 24h)
           Specify a default TTL for workspaces created from this template. It is
           the default time before shutdown - workspaces created from this
