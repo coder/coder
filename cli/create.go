@@ -26,8 +26,9 @@ func (r *RootCmd) create() *clibase.Cmd {
 		stopAfter     time.Duration
 		workspaceName string
 
-		parameterFlags workspaceParameterFlags
-		autoUpdates    string
+		parameterFlags     workspaceParameterFlags
+		autoUpdates        string
+		copyParametersFrom string
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -76,7 +77,24 @@ func (r *RootCmd) create() *clibase.Cmd {
 				return xerrors.Errorf("A workspace already exists named %q!", workspaceName)
 			}
 
+			var sourceWorkspace codersdk.Workspace
+			if copyParametersFrom != "" {
+				sourceWorkspaceOwner, sourceWorkspaceName, err := splitNamedWorkspace(copyParametersFrom)
+				if err != nil {
+					return err
+				}
+
+				sourceWorkspace, err = client.WorkspaceByOwnerAndName(inv.Context(), sourceWorkspaceOwner, sourceWorkspaceName, codersdk.WorkspaceOptions{})
+				if err != nil {
+					return xerrors.Errorf("get source workspace: %w", err)
+				}
+
+				_, _ = fmt.Fprintf(inv.Stdout, "Coder will use the same template %q as the source workspace.\n", sourceWorkspace.TemplateName)
+				templateName = sourceWorkspace.TemplateName
+			}
+
 			var template codersdk.Template
+			var templateVersionID uuid.UUID
 			if templateName == "" {
 				_, _ = fmt.Fprintln(inv.Stdout, pretty.Sprint(cliui.DefaultStyles.Wrap, "Select a template below to preview the provisioned infrastructure:"))
 
@@ -118,11 +136,19 @@ func (r *RootCmd) create() *clibase.Cmd {
 				}
 
 				template = templateByName[option]
+				templateVersionID = template.ActiveVersionID
+			} else if sourceWorkspace.LatestBuild.TemplateVersionID != uuid.Nil {
+				template, err = client.Template(inv.Context(), sourceWorkspace.TemplateID)
+				if err != nil {
+					return xerrors.Errorf("get template by name: %w", err)
+				}
+				templateVersionID = sourceWorkspace.LatestBuild.TemplateVersionID
 			} else {
 				template, err = client.TemplateByName(inv.Context(), organization.ID, templateName)
 				if err != nil {
 					return xerrors.Errorf("get template by name: %w", err)
 				}
+				templateVersionID = template.ActiveVersionID
 			}
 
 			var schedSpec *string
@@ -134,18 +160,28 @@ func (r *RootCmd) create() *clibase.Cmd {
 				schedSpec = ptr.Ref(sched.String())
 			}
 
-			cliRichParameters, err := asWorkspaceBuildParameters(parameterFlags.richParameters)
+			cliBuildParameters, err := asWorkspaceBuildParameters(parameterFlags.richParameters)
 			if err != nil {
 				return xerrors.Errorf("can't parse given parameter values: %w", err)
 			}
 
+			var sourceWorkspaceParameters []codersdk.WorkspaceBuildParameter
+			if copyParametersFrom != "" {
+				sourceWorkspaceParameters, err = client.WorkspaceBuildParameters(inv.Context(), sourceWorkspace.LatestBuild.ID)
+				if err != nil {
+					return xerrors.Errorf("get source workspace build parameters: %w", err)
+				}
+			}
+
 			richParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
 				Action:            WorkspaceCreate,
-				TemplateVersionID: template.ActiveVersionID,
+				TemplateVersionID: templateVersionID,
 				NewWorkspaceName:  workspaceName,
 
 				RichParameterFile: parameterFlags.richParameterFile,
-				RichParameters:    cliRichParameters,
+				RichParameters:    cliBuildParameters,
+
+				SourceWorkspaceParameters: sourceWorkspaceParameters,
 			})
 			if err != nil {
 				return xerrors.Errorf("prepare build: %w", err)
@@ -165,7 +201,7 @@ func (r *RootCmd) create() *clibase.Cmd {
 			}
 
 			workspace, err := client.CreateWorkspace(inv.Context(), organization.ID, workspaceOwner, codersdk.CreateWorkspaceRequest{
-				TemplateID:          template.ID,
+				TemplateVersionID:   templateVersionID,
 				Name:                workspaceName,
 				AutostartSchedule:   schedSpec,
 				TTLMillis:           ttlMillis,
@@ -217,6 +253,12 @@ func (r *RootCmd) create() *clibase.Cmd {
 			Default:     string(codersdk.AutomaticUpdatesNever),
 			Value:       clibase.StringOf(&autoUpdates),
 		},
+		clibase.Option{
+			Flag:        "copy-parameters-from",
+			Env:         "CODER_WORKSPACE_COPY_PARAMETERS_FROM",
+			Description: "Specify the source workspace name to copy parameters from.",
+			Value:       clibase.StringOf(&copyParametersFrom),
+		},
 		cliui.SkipPromptOption(),
 	)
 	cmd.Options = append(cmd.Options, parameterFlags.cliParameters()...)
@@ -228,7 +270,8 @@ type prepWorkspaceBuildArgs struct {
 	TemplateVersionID uuid.UUID
 	NewWorkspaceName  string
 
-	LastBuildParameters []codersdk.WorkspaceBuildParameter
+	LastBuildParameters       []codersdk.WorkspaceBuildParameter
+	SourceWorkspaceParameters []codersdk.WorkspaceBuildParameter
 
 	PromptBuildOptions bool
 	BuildOptions       []codersdk.WorkspaceBuildParameter
@@ -263,6 +306,7 @@ func prepWorkspaceBuild(inv *clibase.Invocation, client *codersdk.Client, args p
 
 	resolver := new(ParameterResolver).
 		WithLastBuildParameters(args.LastBuildParameters).
+		WithSourceWorkspaceParameters(args.SourceWorkspaceParameters).
 		WithPromptBuildOptions(args.PromptBuildOptions).
 		WithBuildOptions(args.BuildOptions).
 		WithPromptRichParameters(args.PromptRichParameters).

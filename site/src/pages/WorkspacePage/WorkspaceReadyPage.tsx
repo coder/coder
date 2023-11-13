@@ -53,6 +53,7 @@ interface WorkspaceReadyPageProps {
   onLoadMoreBuilds: () => void;
   isLoadingMoreBuilds: boolean;
   hasMoreBuilds: boolean;
+  canAutostart: boolean;
 }
 
 export const WorkspaceReadyPage = ({
@@ -66,6 +67,7 @@ export const WorkspaceReadyPage = ({
   onLoadMoreBuilds,
   isLoadingMoreBuilds,
   hasMoreBuilds,
+  canAutostart,
 }: WorkspaceReadyPageProps): JSX.Element => {
   const { buildInfo } = useDashboard();
   const featureVisibility = useFeatureVisibility();
@@ -215,6 +217,7 @@ export const WorkspaceReadyPage = ({
             <WorkspaceBuildLogsSection logs={buildLogs} />
           )
         }
+        canAutostart={canAutostart}
       />
       <DeleteDialog
         entity="workspace"

@@ -9,6 +9,7 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { useOrganizationId } from "hooks";
 import { isAxiosError } from "axios";
 import { Margins } from "components/Margins/Margins";
+import { workspaceResolveAutostart } from "api/queries/workspaceQuota";
 import { useInfiniteQuery, useQuery } from "react-query";
 import { infiniteWorkspaceBuilds } from "api/queries/workspaceBuilds";
 import { templateByName } from "api/queries/templates";
@@ -64,6 +65,11 @@ export const WorkspacePage: FC = () => {
   const pageError =
     workspaceQuery.error ?? templateQuery.error ?? permissionsQuery.error;
   const isLoading = !workspace || !template || !permissions;
+  const canAutostartResponse = useQuery(
+    workspaceResolveAutostart(workspace?.id ?? ""),
+  );
+
+  const canAutostart = !canAutostartResponse.data?.parameter_mismatch ?? false;
 
   if (pageError) {
     return (
@@ -96,6 +102,7 @@ export const WorkspacePage: FC = () => {
           await buildsQuery.fetchNextPage();
         }}
         hasMoreBuilds={Boolean(buildsQuery.hasNextPage)}
+        canAutostart={canAutostart}
       />
     </RequirePermission>
   );

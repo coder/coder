@@ -4,7 +4,6 @@ package cli
 
 import (
 	"fmt"
-	"os/signal"
 	"sort"
 
 	"github.com/google/uuid"
@@ -48,7 +47,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *clibase.Cmd {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 
-			ctx, cancel := signal.NotifyContext(ctx, InterruptSignals...)
+			ctx, cancel := inv.SignalNotifyContext(ctx, InterruptSignals...)
 			defer cancel()
 
 			if newUserDBURL == "" {

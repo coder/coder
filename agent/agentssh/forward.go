@@ -37,6 +37,7 @@ type forwardedUnixHandler struct {
 }
 
 func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, req *gossh.Request) (bool, []byte) {
+	h.log.Debug(ctx, "handling SSH unix forward")
 	h.Lock()
 	if h.forwards == nil {
 		h.forwards = make(map[string]net.Listener)
@@ -47,22 +48,25 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 		h.log.Warn(ctx, "SSH unix forward request from client with no gossh connection")
 		return false, nil
 	}
+	log := h.log.With(slog.F("remote_addr", conn.RemoteAddr()))
 
 	switch req.Type {
 	case "streamlocal-forward@openssh.com":
 		var reqPayload streamLocalForwardPayload
 		err := gossh.Unmarshal(req.Payload, &reqPayload)
 		if err != nil {
-			h.log.Warn(ctx, "parse streamlocal-forward@openssh.com request payload from client", slog.Error(err))
+			h.log.Warn(ctx, "parse streamlocal-forward@openssh.com request (SSH unix forward) payload from client", slog.Error(err))
 			return false, nil
 		}
 
 		addr := reqPayload.SocketPath
+		log = log.With(slog.F("socket_path", addr))
+		log.Debug(ctx, "request begin SSH unix forward")
 		h.Lock()
 		_, ok := h.forwards[addr]
 		h.Unlock()
 		if ok {
-			h.log.Warn(ctx, "SSH unix forward request for socket path that is already being forwarded (maybe to another client?)",
+			log.Warn(ctx, "SSH unix forward request for socket path that is already being forwarded (maybe to another client?)",
 				slog.F("socket_path", addr),
 			)
 			return false, nil
@@ -72,9 +76,8 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 		parentDir := filepath.Dir(addr)
 		err = os.MkdirAll(parentDir, 0o700)
 		if err != nil {
-			h.log.Warn(ctx, "create parent dir for SSH unix forward request",
+			log.Warn(ctx, "create parent dir for SSH unix forward request",
 				slog.F("parent_dir", parentDir),
-				slog.F("socket_path", addr),
 				slog.Error(err),
 			)
 			return false, nil
@@ -82,12 +85,13 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 
 		ln, err := net.Listen("unix", addr)
 		if err != nil {
-			h.log.Warn(ctx, "listen on Unix socket for SSH unix forward request",
+			log.Warn(ctx, "listen on Unix socket for SSH unix forward request",
 				slog.F("socket_path", addr),
 				slog.Error(err),
 			)
 			return false, nil
 		}
+		log.Debug(ctx, "SSH unix forward listening on socket")
 
 		// The listener needs to successfully start before it can be added to
 		// the map, so we don't have to worry about checking for an existing
@@ -97,6 +101,7 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 		h.Lock()
 		h.forwards[addr] = ln
 		h.Unlock()
+		log.Debug(ctx, "SSH unix forward added to cache")
 
 		ctx, cancel := context.WithCancel(ctx)
 		go func() {
@@ -110,14 +115,15 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 				c, err := ln.Accept()
 				if err != nil {
 					if !xerrors.Is(err, net.ErrClosed) {
-						h.log.Warn(ctx, "accept on local Unix socket for SSH unix forward request",
-							slog.F("socket_path", addr),
+						log.Warn(ctx, "accept on local Unix socket for SSH unix forward request",
 							slog.Error(err),
 						)
 					}
 					// closed below
+					log.Debug(ctx, "SSH unix forward listener closed")
 					break
 				}
+				log.Debug(ctx, "accepted SSH unix forward connection")
 				payload := gossh.Marshal(&forwardedStreamLocalPayload{
 					SocketPath: addr,
 				})
@@ -125,7 +131,7 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 				go func() {
 					ch, reqs, err := conn.OpenChannel("forwarded-streamlocal@openssh.com", payload)
 					if err != nil {
-						h.log.Warn(ctx, "open SSH channel to forward Unix connection to client",
+						h.log.Warn(ctx, "open SSH unix forward channel to client",
 							slog.F("socket_path", addr),
 							slog.Error(err),
 						)
@@ -143,6 +149,7 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 				delete(h.forwards, addr)
 			}
 			h.Unlock()
+			log.Debug(ctx, "SSH unix forward listener removed from cache", slog.F("path", addr))
 			_ = ln.Close()
 		}()
 
@@ -152,9 +159,10 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 		var reqPayload streamLocalForwardPayload
 		err := gossh.Unmarshal(req.Payload, &reqPayload)
 		if err != nil {
-			h.log.Warn(ctx, "parse cancel-streamlocal-forward@openssh.com request payload from client", slog.Error(err))
+			h.log.Warn(ctx, "parse cancel-streamlocal-forward@openssh.com (SSH unix forward) request payload from client", slog.Error(err))
 			return false, nil
 		}
+		log.Debug(ctx, "request to cancel SSH unix forward", slog.F("path", reqPayload.SocketPath))
 		h.Lock()
 		ln, ok := h.forwards[reqPayload.SocketPath]
 		h.Unlock()

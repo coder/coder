@@ -11,3 +11,15 @@ export const workspaceQuota = (username: string) => {
     queryFn: () => API.getWorkspaceQuota(username),
   };
 };
+
+const getWorkspaceResolveAutostartQueryKey = (workspaceId: string) => [
+  workspaceId,
+  "workspaceResolveAutostart",
+];
+
+export const workspaceResolveAutostart = (workspaceId: string) => {
+  return {
+    queryKey: getWorkspaceResolveAutostartQueryKey(workspaceId),
+    queryFn: () => API.getWorkspaceResolveAutostart(workspaceId),
+  };
+};
