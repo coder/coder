@@ -29,7 +29,6 @@ export interface WorkspaceContext {
 }
 
 export type WorkspaceEvent =
-  | { type: "REFRESH_WORKSPACE"; data: TypesGen.ServerSentEvent["data"] }
   | { type: "START"; buildParameters?: TypesGen.WorkspaceBuildParameter[] }
   | { type: "STOP" }
   | { type: "CANCEL" }
