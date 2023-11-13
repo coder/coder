@@ -499,7 +499,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 		}
 		deploymentGroupIntrospectionHealthcheck = clibase.Group{
 			Parent: &deploymentGroupIntrospection,
-			Name:   "Healthcheck",
+			Name:   "Health Check",
 			YAML:   "healthcheck",
 		}
 		deploymentGroupOAuth2 = clibase.Group{

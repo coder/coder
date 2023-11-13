@@ -80,7 +80,7 @@ Use a YAML configuration file when your server launch become unwieldy.
           
           Write out the current server config as YAML to stdout.
 
-INTROSPECTION / HEALTHCHECK OPTIONS: 
+INTROSPECTION / HEALTH CHECK OPTIONS: 
       --health-check-refresh duration, $CODER_HEALTH_CHECK_REFRESH (default: 10m0s)
           Refresh interval for healthchecks.
 
