@@ -32,6 +32,7 @@ const defaultInitialValues = {
   ...defaultSchedule(),
   autostopEnabled: true,
   ttl: 24,
+  ttl_bump: emptyTTL,
 };
 
 export const AllDisabled: Story = {
@@ -41,6 +42,7 @@ export const AllDisabled: Story = {
       ...emptySchedule,
       autostopEnabled: false,
       ttl: emptyTTL,
+      ttl_bump: emptyTTL,
     },
     enableAutoStart: false,
     enableAutoStop: false,
@@ -54,6 +56,7 @@ export const Autostart: Story = {
       ...defaultSchedule(),
       autostopEnabled: false,
       ttl: emptyTTL,
+      ttl_bump: emptyTTL,
     },
     enableAutoStop: false,
   },
@@ -61,25 +64,31 @@ export const Autostart: Story = {
 
 export const WorkspaceWillShutdownInTwoHours: Story = {
   args: {
-    initialValues: { ...defaultInitialValues, ttl: 2 },
+    initialValues: { ...defaultInitialValues, ttl: 2, ttl_bump: emptyTTL },
   },
 };
 
 export const WorkspaceWillShutdownInADay: Story = {
   args: {
-    initialValues: { ...defaultInitialValues, ttl: 24 },
+    initialValues: { ...defaultInitialValues, ttl: 24, ttl_bump: emptyTTL },
+  },
+};
+
+export const WorkspaceWillShutdownInADayBump2Hours: Story = {
+  args: {
+    initialValues: { ...defaultInitialValues, ttl: 24, ttl_bump: 2 },
   },
 };
 
 export const WorkspaceWillShutdownInTwoDays: Story = {
   args: {
-    initialValues: { ...defaultInitialValues, ttl: 48 },
+    initialValues: { ...defaultInitialValues, ttl: 48, ttl_bump: emptyTTL },
   },
 };
 
 export const WithError: Story = {
   args: {
-    initialValues: { ...defaultInitialValues, ttl: 100 },
+    initialValues: { ...defaultInitialValues, ttl: 100, ttl_bump: emptyTTL },
     initialTouched: { ttl: true },
     submitScheduleError: mockApiError({
       message: "Something went wrong.",

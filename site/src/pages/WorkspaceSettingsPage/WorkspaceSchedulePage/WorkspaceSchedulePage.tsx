@@ -107,6 +107,9 @@ export const WorkspaceSchedulePage: FC = () => {
           }}
           isLoading={submitScheduleMutation.isLoading}
           defaultTTL={dayjs.duration(template.default_ttl_ms, "ms").asHours()}
+          defaultTTLBump={dayjs
+            .duration(template.default_ttl_bump_ms, "ms")
+            .asHours()}
           onCancel={() => {
             navigate(`/@${username}/${workspaceName}`);
           }}
@@ -154,7 +157,7 @@ const getAutostart = (workspace: TypesGen.Workspace) =>
   scheduleToAutostart(workspace.autostart_schedule);
 
 const getAutostop = (workspace: TypesGen.Workspace) =>
-  ttlMsToAutostop(workspace.ttl_ms);
+  ttlMsToAutostop(workspace.ttl_ms, workspace.ttl_bump_ms);
 
 type SubmitScheduleData = {
   workspace: TypesGen.Workspace;

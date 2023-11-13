@@ -20,6 +20,7 @@ const valid: WorkspaceScheduleFormValues = {
 
   autostopEnabled: true,
   ttl: 120,
+  ttl_bump: 0,
 };
 
 describe("validationSchema", () => {
@@ -38,6 +39,7 @@ describe("validationSchema", () => {
 
       autostopEnabled: false,
       ttl: 0,
+      ttl_bump: 0,
     };
     const validate = () => validationSchema.validateSync(values);
     expect(validate).not.toThrow();

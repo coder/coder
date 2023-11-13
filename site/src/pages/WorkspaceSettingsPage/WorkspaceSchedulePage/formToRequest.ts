@@ -73,5 +73,9 @@ export const formValuesToTTLRequest = (
       values.autostopEnabled && values.ttl
         ? values.ttl * 60 * 60 * 1000
         : undefined,
+    ttl_bump_ms:
+      values.autostopEnabled && values.ttl_bump
+        ? values.ttl_bump * 60 * 60 * 1000
+        : undefined,
   };
 };

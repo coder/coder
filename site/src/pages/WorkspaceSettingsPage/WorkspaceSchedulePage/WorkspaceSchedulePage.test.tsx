@@ -29,6 +29,7 @@ const validValues: WorkspaceScheduleFormValues = {
   timezone: "Canada/Eastern",
   autostopEnabled: true,
   ttl: 120,
+  ttl_bump: 0,
 };
 
 describe("WorkspaceSchedulePage", () => {
@@ -49,6 +50,7 @@ describe("WorkspaceSchedulePage", () => {
           timezone: "",
           autostopEnabled: false,
           ttl: 0,
+          ttl_bump: 0,
         },
         {
           schedule: "",
@@ -69,6 +71,7 @@ describe("WorkspaceSchedulePage", () => {
           timezone: "Canada/Eastern",
           autostopEnabled: true,
           ttl: 120,
+          ttl_bump: 0,
         },
         {
           schedule: "CRON_TZ=Canada/Eastern 20 16 * * 0",
@@ -89,6 +92,7 @@ describe("WorkspaceSchedulePage", () => {
           timezone: "America/Central",
           autostopEnabled: true,
           ttl: 120,
+          ttl_bump: 0,
         },
         {
           schedule: "CRON_TZ=America/Central 30 09 * * 1-5",
@@ -109,6 +113,7 @@ describe("WorkspaceSchedulePage", () => {
           timezone: "",
           autostopEnabled: true,
           ttl: 60 * 8,
+          ttl_bump: 0,
         },
         {
           schedule: "00 09 * * *",
@@ -129,6 +134,7 @@ describe("WorkspaceSchedulePage", () => {
           timezone: "",
           autostopEnabled: true,
           ttl: 60 * 3,
+          ttl_bump: 0,
         },
         {
           schedule: "20 16 * * 1,3,5",
@@ -239,14 +245,17 @@ describe("WorkspaceSchedulePage", () => {
   describe("ttlMsToAutostop", () => {
     it.each([
       // empty case
-      [undefined, { autostopEnabled: false, ttl: 0 }],
+      [undefined, undefined, { autostopEnabled: false, ttl: 0, ttl_bump: 0 }],
       // zero
-      [0, { autostopEnabled: false, ttl: 0 }],
+      [0, 0, { autostopEnabled: false, ttl: 0, ttl_bump: 0 }],
       // basic case
-      [28_800_000, { autostopEnabled: true, ttl: 8 }],
-    ] as const)(`ttlMsToAutostop(%p) returns %p`, (ttlMs, autostop) => {
-      expect(ttlMsToAutostop(ttlMs)).toEqual(autostop);
-    });
+      [28_800_000, 3600, { autostopEnabled: true, ttl: 8, ttl_bump: 1 }],
+    ] as const)(
+      `ttlMsToAutostop(%p) returns %p`,
+      (ttlMs, ttlBumpMs, autostop) => {
+        expect(ttlMsToAutostop(ttlMs, ttlBumpMs)).toEqual(autostop);
+      },
+    );
   });
 
   describe("autostop", () => {

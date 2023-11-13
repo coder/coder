@@ -61,6 +61,7 @@ export const Language = {
   startTimeLabel: "Start time",
   timezoneLabel: "Timezone",
   ttlLabel: "Time until shutdown (hours)",
+  ttlBumpLabel: "Lifetime extended by activity (hours)",
   ttlCausesShutdownHelperText: "Your workspace will shut down",
   ttlCausesShutdownAfterStart:
     "after its next start. We delay shutdown by this time whenever we detect activity",
@@ -84,6 +85,7 @@ export interface WorkspaceScheduleFormProps {
   // for storybook
   initialTouched?: FormikTouched<WorkspaceScheduleFormValues>;
   defaultTTL: number;
+  defaultTTLBump: number;
 }
 
 export interface WorkspaceScheduleFormValues {
@@ -100,6 +102,7 @@ export interface WorkspaceScheduleFormValues {
 
   autostopEnabled: boolean;
   ttl: number;
+  ttl_bump: number;
 }
 
 export const validationSchema = Yup.object({
@@ -196,6 +199,7 @@ export const WorkspaceScheduleForm: FC<
   onSubmit,
   initialTouched,
   defaultTTL,
+  defaultTTLBump,
   enableAutoStop,
   enableAutoStart,
 }) => {
@@ -279,6 +283,7 @@ export const WorkspaceScheduleForm: FC<
         ...form.values,
         autostopEnabled: true,
         ttl: defaultTTL,
+        ttl_bump: defaultTTLBump,
       });
     }
   };
@@ -409,6 +414,18 @@ export const WorkspaceScheduleForm: FC<
             type="number"
             fullWidth
           />
+          <TextField
+            {...formHelpers(
+              "ttl_bump",
+              ttlBumpShutdownAt(form.values.ttl, form.values.ttl_bump),
+              "ttl_bump_ms",
+            )}
+            disabled={isLoading || !form.values.autostopEnabled}
+            inputProps={{ min: 0, step: 1 }}
+            label={Language.ttlBumpLabel}
+            type="number"
+            fullWidth
+          />
         </FormFields>
       </FormSection>
       <FormFooter onCancel={onCancel} isLoading={isLoading} />
@@ -424,5 +441,20 @@ export const ttlShutdownAt = (formTTL: number): string => {
     return `${Language.ttlCausesShutdownHelperText} ${dayjs
       .duration(formTTL, "hours")
       .humanize()} ${Language.ttlCausesShutdownAfterStart}.`;
+  }
+};
+
+export const ttlBumpShutdownAt = (
+  formTTL: number,
+  formTTLBump: number,
+): string => {
+  const ttlHuman = dayjs.duration(formTTL, "hours").humanize();
+  const ttlBumpHuman = dayjs.duration(formTTLBump, "hours").humanize();
+
+  if (formTTLBump < 1) {
+    // Passing an empty value for TTL in the form results in a number that is not zero but less than 1.
+    return `Defaults to the "Time until shutdown". Workspace activity will extend the lifetime of the workspace by ${ttlHuman}.`;
+  } else {
+    return `Workspace activity will extend the lifetime of the workspace by ${ttlBumpHuman}.`;
   }
 };
