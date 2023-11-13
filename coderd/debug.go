@@ -23,6 +23,17 @@ func (api *API) debugCoordinator(rw http.ResponseWriter, r *http.Request) {
 	(*api.TailnetCoordinator.Load()).ServeHTTPDebug(rw, r)
 }
 
+// @Summary Debug Info Tailnet
+// @ID debug-info-tailnet
+// @Security CoderSessionToken
+// @Produce text/html
+// @Tags Debug
+// @Success 200
+// @Router /debug/tailnet [get]
+func (api *API) debugTailnet(rw http.ResponseWriter, r *http.Request) {
+	api.agentProvider.ServeHTTPDebug(rw, r)
+}
+
 // @Summary Debug Info Deployment Health
 // @ID debug-info-deployment-health
 // @Security CoderSessionToken

@@ -955,6 +955,7 @@ func New(options *Options) *API {
 			)
 
 			r.Get("/coordinator", api.debugCoordinator)
+			r.Get("/tailnet", api.debugTailnet)
 			r.Get("/health", api.debugDeploymentHealth)
 			r.Get("/ws", (&healthcheck.WebsocketEchoServer{}).ServeHTTP)
 		})
