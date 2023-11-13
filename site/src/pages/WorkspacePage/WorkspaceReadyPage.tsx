@@ -40,6 +40,7 @@ import {
   deleteWorkspace,
   increaseDeadline,
   update,
+  stop,
 } from "api/queries/workspaces";
 import { getErrorMessage } from "api/errors";
 import { displaySuccess, displayError } from "components/GlobalSnackbar/utils";
@@ -190,6 +191,9 @@ export const WorkspaceReadyPage = ({
     activate(workspace, queryClient),
   );
 
+  // Stop workspace
+  const stopWorkspaceMutation = useMutation(stop(workspace, queryClient));
+
   return (
     <>
       <Helmet>
@@ -222,7 +226,9 @@ export const WorkspaceReadyPage = ({
         handleStart={(buildParameters) =>
           workspaceSend({ type: "START", buildParameters })
         }
-        handleStop={() => workspaceSend({ type: "STOP" })}
+        handleStop={() => {
+          stopWorkspaceMutation.mutate();
+        }}
         handleDelete={() => {
           setIsConfirmingDelete(true);
         }}

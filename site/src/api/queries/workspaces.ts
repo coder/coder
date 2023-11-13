@@ -170,6 +170,17 @@ export const deleteWorkspace = (
   };
 };
 
+export const stop = (workspace: Workspace, queryClient: QueryClient) => {
+  return {
+    mutationFn: () => {
+      return API.stopWorkspace(workspace.id);
+    },
+    onSuccess: async (build: WorkspaceBuild) => {
+      await updateWorkspaceBuild(build, queryClient);
+    },
+  };
+};
+
 export const activate = (workspace: Workspace, queryClient: QueryClient) => {
   return {
     mutationFn: () => {

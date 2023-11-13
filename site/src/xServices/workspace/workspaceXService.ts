@@ -30,7 +30,6 @@ export interface WorkspaceContext {
 
 export type WorkspaceEvent =
   | { type: "START"; buildParameters?: TypesGen.WorkspaceBuildParameter[] }
-  | { type: "STOP" }
   | { type: "CANCEL" }
   | { type: "RETRY_BUILD" };
 
@@ -68,17 +67,11 @@ export const workspaceMachine = createMachine(
               idle: {
                 on: {
                   START: "requestingStart",
-                  STOP: "requestingStop",
                   CANCEL: "requestingCancel",
                   RETRY_BUILD: [
                     {
                       target: "requestingStart",
                       cond: "lastBuildWasStarting",
-                      actions: ["enableDebugMode"],
-                    },
-                    {
-                      target: "requestingStop",
-                      cond: "lastBuildWasStopping",
                       actions: ["enableDebugMode"],
                     },
                   ],
@@ -89,25 +82,6 @@ export const workspaceMachine = createMachine(
                 invoke: {
                   src: "startWorkspace",
                   id: "startWorkspace",
-                  onDone: [
-                    {
-                      actions: ["assignBuild", "disableDebugMode"],
-                      target: "idle",
-                    },
-                  ],
-                  onError: [
-                    {
-                      actions: "assignBuildError",
-                      target: "idle",
-                    },
-                  ],
-                },
-              },
-              requestingStop: {
-                entry: ["clearBuildError"],
-                invoke: {
-                  src: "stopWorkspace",
-                  id: "stopWorkspace",
                   onDone: [
                     {
                       actions: ["assignBuild", "disableDebugMode"],
@@ -190,9 +164,6 @@ export const workspaceMachine = createMachine(
       lastBuildWasStarting: ({ workspace }) => {
         return workspace?.latest_build.transition === "start";
       },
-      lastBuildWasStopping: ({ workspace }) => {
-        return workspace?.latest_build.transition === "stop";
-      },
     },
     services: {
       startWorkspace: (context, data) => async () => {
@@ -207,18 +178,6 @@ export const workspaceMachine = createMachine(
           return startWorkspacePromise;
         } else {
           throw Error("Cannot start workspace without workspace id");
-        }
-      },
-      stopWorkspace: (context) => async () => {
-        if (context.workspace) {
-          const stopWorkspacePromise = await API.stopWorkspace(
-            context.workspace.id,
-            context.createBuildLogLevel,
-          );
-
-          return stopWorkspacePromise;
-        } else {
-          throw Error("Cannot stop workspace without workspace id");
         }
       },
       cancelWorkspace: (context) => async () => {
