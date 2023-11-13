@@ -85,7 +85,13 @@ export const WorkspaceSettingsForm: FC<{
               label="Update Policy"
               value={form.values.automatic_updates}
               select
-              disabled={form.isSubmitting}
+              disabled={
+                form.isSubmitting || workspace.template_require_active_version
+              }
+              helperText={
+                workspace.template_require_active_version &&
+                "The template for this workspace requires automatic updates."
+              }
             >
               {AutomaticUpdateses.map((value) => (
                 <MenuItem value={value} key={value}>
