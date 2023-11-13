@@ -490,8 +490,6 @@ SET
 FROM
 	templates
 WHERE
-	workspaces.template_id = templates.id
-AND
 	workspaces.id = $1
 RETURNING workspaces.*;
 

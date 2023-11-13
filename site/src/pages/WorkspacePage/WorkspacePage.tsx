@@ -9,7 +9,10 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { useOrganizationId } from "hooks";
 import { isAxiosError } from "axios";
 import { Margins } from "components/Margins/Margins";
-import { workspaceQuota } from "api/queries/workspaceQuota";
+import {
+  workspaceQuota,
+  workspaceResolveAutostart,
+} from "api/queries/workspaceQuota";
 import { useInfiniteQuery, useQuery } from "react-query";
 import { infiniteWorkspaceBuilds } from "api/queries/workspaceBuilds";
 
@@ -41,6 +44,12 @@ export const WorkspacePage: FC = () => {
     enabled: Boolean(workspace),
   });
 
+  const canAutostartResponse = useQuery(
+    workspaceResolveAutostart(workspace?.id ?? ""),
+  );
+
+  const canAutostart = !canAutostartResponse.data?.parameter_mismatch ?? false;
+
   if (pageError) {
     return (
       <Margins>
@@ -70,6 +79,7 @@ export const WorkspacePage: FC = () => {
           await buildsQuery.fetchNextPage();
         }}
         hasMoreBuilds={Boolean(buildsQuery.hasNextPage)}
+        canAutostart={canAutostart}
       />
     </RequirePermission>
   );

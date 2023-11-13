@@ -212,6 +212,14 @@ export const Outdated: Story = {
   },
 };
 
+export const CantAutostart: Story = {
+  args: {
+    ...Running.args,
+    canAutostart: false,
+    workspace: Mocks.MockOutdatedRunningWorkspaceRequireActiveVersion,
+  },
+};
+
 export const GetBuildsError: Story = {
   args: {
     ...Running.args,

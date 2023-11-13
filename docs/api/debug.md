@@ -53,7 +53,8 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
     "healthy": true,
     "latency": "string",
     "latency_ms": 0,
-    "reachable": true
+    "reachable": true,
+    "threshold_ms": 0
   },
   "derp": {
     "error": "string",

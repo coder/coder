@@ -38,6 +38,7 @@ import (
 	// Used for swagger docs.
 	_ "github.com/coder/coder/v2/coderd/apidoc"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/buildinfo"
@@ -398,10 +399,20 @@ func New(options *Options) *API {
 	if options.HealthcheckFunc == nil {
 		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *healthcheck.Report {
 			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
-				DB:        options.Database,
-				AccessURL: options.AccessURL,
-				DERPMap:   api.DERPMap(),
-				APIKey:    apiKey,
+				Database: healthcheck.DatabaseReportOptions{
+					DB:        options.Database,
+					Threshold: options.DeploymentValues.Healthcheck.ThresholdDatabase.Value(),
+				},
+				Websocket: healthcheck.WebsocketReportOptions{
+					AccessURL: options.AccessURL,
+					APIKey:    apiKey,
+				},
+				AccessURL: healthcheck.AccessURLReportOptions{
+					AccessURL: options.AccessURL,
+				},
+				DerpHealth: derphealth.ReportOptions{
+					DERPMap: api.DERPMap(),
+				},
 			})
 		}
 	}
@@ -409,7 +420,7 @@ func New(options *Options) *API {
 		options.HealthcheckTimeout = 30 * time.Second
 	}
 	if options.HealthcheckRefresh == 0 {
-		options.HealthcheckRefresh = 10 * time.Minute
+		options.HealthcheckRefresh = options.DeploymentValues.Healthcheck.Refresh.Value()
 	}
 
 	var oidcAuthURLParams map[string]string
