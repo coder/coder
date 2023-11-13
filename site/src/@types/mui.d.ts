@@ -3,7 +3,7 @@ import type {
   PaletteColorOptions,
   Theme,
 } from "@mui/material/styles";
-import { CoderTheme } from "theme/theme";
+import type { NewTheme } from "theme/experimental";
 
 declare module "@mui/styles/defaultTheme" {
   /**
@@ -13,10 +13,10 @@ declare module "@mui/styles/defaultTheme" {
 }
 
 declare module "@mui/material/styles" {
-  /**
-   * @deprecated
-   */
-  interface Theme {}
+  interface Theme {
+    experimental: NewTheme;
+  }
+
   interface TypeBackground {
     /**
      * @deprecated
@@ -36,5 +36,11 @@ declare module "@mui/material/styles" {
 declare module "@mui/material/Button" {
   interface ButtonPropsColorOverrides {
     neutral: true;
+  }
+}
+
+declare module "@mui/system" {
+  interface Theme {
+    experimental: NewTheme;
   }
 }

@@ -5,8 +5,8 @@ import { type FC } from "react";
 import type { WorkspaceBuild } from "api/typesGenerated";
 import { getDisplayWorkspaceBuildStatus } from "utils/workspace";
 import { Avatar, type AvatarProps } from "components/Avatar/Avatar";
-import type { PaletteIndex } from "theme/mui";
 import { BuildIcon } from "components/BuildIcon/BuildIcon";
+import type { PaletteIndex } from "theme/mui";
 
 interface StylesBadgeProps {
   type: PaletteIndex;

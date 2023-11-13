@@ -73,6 +73,7 @@ export interface WorkspaceProps {
   onLoadMoreBuilds: () => void;
   isLoadingMoreBuilds: boolean;
   hasMoreBuilds: boolean;
+  canAutostart: boolean;
 }
 
 /**
@@ -111,6 +112,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   onLoadMoreBuilds,
   isLoadingMoreBuilds,
   hasMoreBuilds,
+  canAutostart,
 }) => {
   const navigate = useNavigate();
   const serverVersion = buildInfo?.version || "";
@@ -168,6 +170,14 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
       clearTimeout(showTimer);
     };
   }, [workspace, now, showAlertPendingInQueue]);
+
+  const updateRequired =
+    (workspace.template_require_active_version ||
+      workspace.automatic_updates === "always") &&
+    workspace.outdated;
+  const autoStartFailing = workspace.autostart_schedule && !canAutostart;
+  const requiresManualUpdate = updateRequired && autoStartFailing;
+
   return (
     <>
       <FullWidthPageHeader>
@@ -220,12 +230,25 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 
       <Margins css={styles.content}>
         <Stack direction="column" css={styles.firstColumnSpacer} spacing={4}>
-          {workspace.outdated && (
-            <Alert severity="info">
-              <AlertTitle>An update is available for your workspace</AlertTitle>
-              {updateMessage && <AlertDetail>{updateMessage}</AlertDetail>}
-            </Alert>
-          )}
+          {workspace.outdated &&
+            (requiresManualUpdate ? (
+              <Alert severity="warning">
+                <AlertTitle>
+                  Autostart has been disabled for your workspace.
+                </AlertTitle>
+                <AlertDetail>
+                  Autostart is unable to automatically update your workspace.
+                  Manually update your workspace to reenable Autostart.
+                </AlertDetail>
+              </Alert>
+            ) : (
+              <Alert severity="info">
+                <AlertTitle>
+                  An update is available for your workspace
+                </AlertTitle>
+                {updateMessage && <AlertDetail>{updateMessage}</AlertDetail>}
+              </Alert>
+            ))}
           {buildError}
           {cancellationError}
           {workspace.latest_build.status === "running" &&

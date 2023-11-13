@@ -1,6 +1,6 @@
 import colors from "./tailwind";
 
-export interface CoderTheme {
+export interface NewTheme {
   l1: Role; // page background, things which sit at the "root level"
   l2: InteractiveRole; // sidebars, table headers, navigation
   l3: InteractiveRole; // buttons, inputs
@@ -30,13 +30,14 @@ export interface InteractiveRole extends Role {
   hover: Role;
 }
 
-export const dark = {
+export const dark: NewTheme = {
   l1: {
     background: colors.gray[950],
     outline: colors.gray[700],
     fill: "#f00",
     text: colors.white,
   },
+
   l2: {
     background: colors.gray[900],
     outline: colors.gray[700],
@@ -55,6 +56,7 @@ export const dark = {
       text: colors.white,
     },
   },
+
   l3: {
     background: colors.gray[800],
     outline: colors.gray[700],
@@ -73,6 +75,7 @@ export const dark = {
       text: colors.white,
     },
   },
+
   modal: {
     background: "#f00",
     outline: "#f00",
@@ -148,4 +151,4 @@ export const dark = {
       text: colors.sky[50],
     },
   },
-} satisfies CoderTheme;
+};

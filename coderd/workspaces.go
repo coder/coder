@@ -17,6 +17,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
@@ -1057,6 +1058,100 @@ func (api *API) putWorkspaceAutoupdates(rw http.ResponseWriter, r *http.Request)
 	aReq.New = newWorkspace
 
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+// @Summary Resolve workspace autostart by id.
+// @ID resolve-workspace-autostart-by-id
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Workspaces
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Success 200 {object} codersdk.ResolveAutostartResponse
+// @Router /workspaces/{workspace}/resolve-autostart [get]
+func (api *API) resolveAutostart(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx       = r.Context()
+		workspace = httpmw.WorkspaceParam(r)
+	)
+
+	template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	templateAccessControl := (*(api.AccessControlStore.Load())).GetTemplateAccessControl(template)
+	useActiveVersion := templateAccessControl.RequireActiveVersion || workspace.AutomaticUpdates == database.AutomaticUpdatesAlways
+	if !useActiveVersion {
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.ResolveAutostartResponse{})
+		return
+	}
+
+	build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching latest workspace build.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	if build.TemplateVersionID == template.ActiveVersionID {
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.ResolveAutostartResponse{})
+		return
+	}
+
+	version, err := api.Database.GetTemplateVersionByID(ctx, template.ActiveVersionID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching template version.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	dbVersionParams, err := api.Database.GetTemplateVersionParameters(ctx, version.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching template version parameters.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	dbBuildParams, err := api.Database.GetWorkspaceBuildParameters(ctx, build.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching latest workspace build parameters.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	versionParams, err := db2sdk.TemplateVersionParameters(dbVersionParams)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error converting template version parameters.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	resolver := codersdk.ParameterResolver{
+		Rich: db2sdk.WorkspaceBuildParameters(dbBuildParams),
+	}
+
+	var response codersdk.ResolveAutostartResponse
+	for _, param := range versionParams {
+		_, err := resolver.ValidateResolve(param, nil)
+		// There's a parameter mismatch if we get an error back from the
+		// resolver.
+		response.ParameterMismatch = err != nil
+		if response.ParameterMismatch {
+			break
+		}
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
 // @Summary Watch workspace by ID

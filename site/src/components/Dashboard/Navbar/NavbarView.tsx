@@ -1,27 +1,26 @@
 import Drawer from "@mui/material/Drawer";
 import IconButton from "@mui/material/IconButton";
-import MenuIcon from "@mui/icons-material/Menu";
-import { CoderIcon } from "components/Icons/CoderIcon";
-import { type FC, type ReactNode, useRef, useState } from "react";
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { colors } from "theme/colors";
-import * as TypesGen from "api/typesGenerated";
-import { navHeight } from "theme/constants";
-import { UserDropdown } from "./UserDropdown/UserDropdown";
+import Divider from "@mui/material/Divider";
+import Skeleton from "@mui/material/Skeleton";
 import Box from "@mui/material/Box";
 import Menu from "@mui/material/Menu";
 import Button from "@mui/material/Button";
 import MenuItem from "@mui/material/MenuItem";
 import KeyboardArrowDownOutlined from "@mui/icons-material/KeyboardArrowDownOutlined";
-import { ProxyContextValue } from "contexts/ProxyContext";
-import { displayError } from "components/GlobalSnackbar/utils";
-import Divider from "@mui/material/Divider";
-import Skeleton from "@mui/material/Skeleton";
-import { BUTTON_SM_HEIGHT } from "theme/mui";
-import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency";
-import { usePermissions } from "hooks/usePermissions";
+import MenuIcon from "@mui/icons-material/Menu";
 import Typography from "@mui/material/Typography";
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { type FC, type ReactNode, useRef, useState } from "react";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { colors } from "theme/colors";
+import { BUTTON_SM_HEIGHT, navHeight } from "theme/constants";
+import type * as TypesGen from "api/typesGenerated";
+import type { ProxyContextValue } from "contexts/ProxyContext";
+import { displayError } from "components/GlobalSnackbar/utils";
+import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency";
+import { CoderIcon } from "components/Icons/CoderIcon";
+import { usePermissions } from "hooks/usePermissions";
+import { UserDropdown } from "./UserDropdown/UserDropdown";
 
 export const USERS_LINK = `/users?filter=${encodeURIComponent(
   "status:active",
@@ -51,12 +50,12 @@ const styles = {
   desktopNavItems: (theme) => css`
     display: none;
 
-    ${theme.deprecated.breakpoints.up("md")} {
+    ${theme.breakpoints.up("md")} {
       display: flex;
     }
   `,
   mobileMenuButton: (theme) => css`
-    ${theme.deprecated.breakpoints.up("md")} {
+    ${theme.breakpoints.up("md")} {
       display: none;
     }
   `,
@@ -66,7 +65,7 @@ const styles = {
     justify-content: space-between;
     align-items: center;
 
-    ${theme.deprecated.breakpoints.up("md")} {
+    ${theme.breakpoints.up("md")} {
       justify-content: flex-start;
     }
   `,
@@ -79,7 +78,7 @@ const styles = {
     align-items: center;
     display: flex;
     height: ${navHeight}px;
-    color: ${theme.deprecated.palette.text.primary};
+    color: ${theme.palette.text.primary};
     padding: 16px;
 
     // svg is for the Coder logo, img is for custom images
@@ -107,15 +106,15 @@ const styles = {
     transition: background-color 0.15s ease-in-out;
 
     &.active {
-      color: ${theme.deprecated.palette.text.primary};
+      color: ${theme.palette.text.primary};
       font-weight: 500;
     }
 
     &:hover {
-      background-color: ${theme.deprecated.palette.action.hover};
+      background-color: ${theme.palette.action.hover};
     }
 
-    ${theme.deprecated.breakpoints.up("md")} {
+    ${theme.breakpoints.up("md")} {
       height: ${navHeight}px;
       padding: 0 24px;
     }
@@ -142,7 +141,7 @@ const NavItems: React.FC<NavItemsProps> = (props) => {
         css={[
           styles.link,
           location.pathname.startsWith("/@") && {
-            color: theme.deprecated.palette.text.primary,
+            color: theme.palette.text.primary,
             fontWeight: 500,
           },
         ]}
@@ -189,8 +188,8 @@ export const NavbarView: FC<NavbarViewProps> = ({
     <nav
       css={(theme) => ({
         height: navHeight,
-        background: theme.deprecated.palette.background.paper,
-        borderBottom: `1px solid ${theme.deprecated.palette.divider}`,
+        background: theme.palette.background.paper,
+        borderBottom: `1px solid ${theme.palette.divider}`,
       })}
     >
       <div css={styles.wrapper}>
