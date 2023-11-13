@@ -24,7 +24,7 @@ func (api *API) debugCoordinator(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Debug Info Tailnet
-// @ID debug-info-wireguard-coordinator
+// @ID debug-info-tailnet
 // @Security CoderSessionToken
 // @Produce text/html
 // @Tags Debug
