@@ -1555,17 +1555,9 @@ export const getInsightsTemplate = async (
   return response.data;
 };
 
-export interface Health {
-  healthy: boolean;
-  time: string;
-  coder_version: string;
-  access_url: { healthy: boolean };
-  database: { healthy: boolean };
-  derp: { healthy: boolean };
-  websocket: { healthy: boolean };
-}
-
 export const getHealth = async () => {
-  const response = await axios.get<Health>("/api/v2/debug/health");
+  const response = await axios.get<TypesGen.HealthcheckReport>(
+    "/api/v2/debug/health",
+  );
   return response.data;
 };

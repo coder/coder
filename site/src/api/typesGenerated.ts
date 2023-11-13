@@ -2104,9 +2104,7 @@ export interface HealthcheckReport {
   readonly time: string;
   readonly healthy: boolean;
   readonly failing_sections: string[];
-  // Named type "github.com/coder/coder/v2/coderd/healthcheck/derphealth.Report" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly derp: any;
+  readonly derp: DerphealthReport;
   readonly access_url: HealthcheckAccessURLReport;
   readonly websocket: HealthcheckWebsocketReport;
   readonly database: HealthcheckDatabaseReport;
@@ -2120,6 +2118,51 @@ export interface HealthcheckWebsocketReport {
   readonly code: number;
   readonly error?: string;
 }
+
+// The code below is generated from cli/clibase.
+
+// From clibase/clibase.go
+export type ClibaseAnnotations = Record<string, string>;
+
+// From clibase/clibase.go
+export interface ClibaseGroup {
+  readonly parent?: ClibaseGroup;
+  readonly name?: string;
+  readonly yaml?: string;
+  readonly description?: string;
+}
+
+// From clibase/option.go
+export interface ClibaseOption {
+  readonly name?: string;
+  readonly description?: string;
+  readonly required?: boolean;
+  readonly flag?: string;
+  readonly flag_shorthand?: string;
+  readonly env?: string;
+  readonly yaml?: string;
+  readonly default?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Golang interface, unable to resolve type.
+  readonly value?: any;
+  readonly annotations?: ClibaseAnnotations;
+  readonly group?: ClibaseGroup;
+  readonly use_instead?: ClibaseOption[];
+  readonly hidden?: boolean;
+  readonly value_source?: ClibaseValueSource;
+}
+
+// From clibase/option.go
+export type ClibaseOptionSet = ClibaseOption[];
+
+// From clibase/option.go
+export type ClibaseValueSource = "" | "default" | "env" | "flag" | "yaml";
+export const ClibaseValueSources: ClibaseValueSource[] = [
+  "",
+  "default",
+  "env",
+  "flag",
+  "yaml",
+];
 
 // The code below is generated from coderd/healthcheck/derphealth.
 
@@ -2170,48 +2213,3 @@ export interface DerphealthStunReport {
   readonly CanSTUN: boolean;
   readonly Error?: string;
 }
-
-// The code below is generated from cli/clibase.
-
-// From clibase/clibase.go
-export type ClibaseAnnotations = Record<string, string>;
-
-// From clibase/clibase.go
-export interface ClibaseGroup {
-  readonly parent?: ClibaseGroup;
-  readonly name?: string;
-  readonly yaml?: string;
-  readonly description?: string;
-}
-
-// From clibase/option.go
-export interface ClibaseOption {
-  readonly name?: string;
-  readonly description?: string;
-  readonly required?: boolean;
-  readonly flag?: string;
-  readonly flag_shorthand?: string;
-  readonly env?: string;
-  readonly yaml?: string;
-  readonly default?: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Golang interface, unable to resolve type.
-  readonly value?: any;
-  readonly annotations?: ClibaseAnnotations;
-  readonly group?: ClibaseGroup;
-  readonly use_instead?: ClibaseOption[];
-  readonly hidden?: boolean;
-  readonly value_source?: ClibaseValueSource;
-}
-
-// From clibase/option.go
-export type ClibaseOptionSet = ClibaseOption[];
-
-// From clibase/option.go
-export type ClibaseValueSource = "" | "default" | "env" | "flag" | "yaml";
-export const ClibaseValueSources: ClibaseValueSource[] = [
-  "",
-  "default",
-  "env",
-  "flag",
-  "yaml",
-];
