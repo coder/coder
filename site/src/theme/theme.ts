@@ -427,6 +427,26 @@ dark = createTheme(dark, {
     MuiCheckbox: {
       styleOverrides: {
         root: {
+          /**
+           * Adds focus styling to checkboxes (which doesn't exist normally, for
+           * some reason?).
+           *
+           * The checkbox component is a root span with a checkbox input inside
+           * it. MUI does not allow you to use selectors like (& input) to
+           * target the inner checkbox (even though you can use & td to style
+           * tables). Tried every combination of selector possible (including
+           * lots of !important), and the main issue seems to be that the
+           * styling just never gets processed for it to get injected into the
+           * CSSOM.
+           *
+           * Had to settle for adding styling to the span itself (which does
+           * make the styling more obvious, even if there's not much room for
+           * customization).
+           */
+          "&.Mui-focusVisible": {
+            boxShadow: `0 0 0 2px ${colors.blue[7]}`,
+          },
+
           "&.Mui-disabled": {
             color: colors.gray[11],
           },
@@ -434,8 +454,15 @@ dark = createTheme(dark, {
       },
     },
     MuiSwitch: {
-      defaultProps: {
-        color: "primary",
+      defaultProps: { color: "primary" },
+      styleOverrides: {
+        root: {
+          ".Mui-focusVisible .MuiSwitch-thumb": {
+            // Had to thicken outline to make sure that the focus color didn't
+            // bleed into the thumb and was still easily-visible
+            boxShadow: `0 0 0 3px ${colors.blue[7]}`,
+          },
+        },
       },
     },
     MuiAutocomplete: {
@@ -493,6 +520,16 @@ dark = createTheme(dark, {
         root: {
           fontSize: "inherit",
           marginBottom: 0,
+        },
+      },
+    },
+
+    MuiIconButton: {
+      styleOverrides: {
+        root: {
+          "&.Mui-focusVisible": {
+            boxShadow: `0 0 0 2px ${colors.blue[7]}`,
+          },
         },
       },
     },

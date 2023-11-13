@@ -3,8 +3,9 @@ package cli_test
 import (
 	"bytes"
 	"context"
-	"fmt"
-	"strings"
+	"database/sql"
+	"encoding/json"
+	"sort"
 	"testing"
 	"time"
 
@@ -14,372 +15,348 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/schedule/cron"
+	"github.com/coder/coder/v2/coderd/util/tz"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/testutil"
 )
 
+// setupTestSchedule creates 4 workspaces:
+// 1. a-owner-ws1: owned by owner, has both autostart and autostop enabled.
+// 2. b-owner-ws2: owned by owner, has only autostart enabled.
+// 3. c-member-ws3: owned by member, has only autostop enabled.
+// 4. d-member-ws4: owned by member, has neither autostart nor autostop enabled.
+// It returns the owner and member clients, the database, and the workspaces.
+// The workspaces are returned in the same order as they are created.
+func setupTestSchedule(t *testing.T, sched *cron.Schedule) (ownerClient, memberClient *codersdk.Client, db database.Store, ws []codersdk.Workspace) {
+	t.Helper()
+
+	ownerClient, db = coderdtest.NewWithDatabase(t, nil)
+	owner := coderdtest.CreateFirstUser(t, ownerClient)
+	memberClient, memberUser := coderdtest.CreateAnotherUserMutators(t, ownerClient, owner.OrganizationID, nil, func(r *codersdk.CreateUserRequest) {
+		r.Username = "testuser2" // ensure deterministic ordering
+	})
+	_, _ = dbfake.WorkspaceWithAgent(t, db, database.Workspace{
+		Name:              "a-owner",
+		OwnerID:           owner.UserID,
+		OrganizationID:    owner.OrganizationID,
+		AutostartSchedule: sql.NullString{String: sched.String(), Valid: true},
+		Ttl:               sql.NullInt64{Int64: 8 * time.Hour.Nanoseconds(), Valid: true},
+	})
+	_, _ = dbfake.WorkspaceWithAgent(t, db, database.Workspace{
+		Name:              "b-owner",
+		OwnerID:           owner.UserID,
+		OrganizationID:    owner.OrganizationID,
+		AutostartSchedule: sql.NullString{String: sched.String(), Valid: true},
+	})
+	_, _ = dbfake.WorkspaceWithAgent(t, db, database.Workspace{
+		Name:           "c-member",
+		OwnerID:        memberUser.ID,
+		OrganizationID: owner.OrganizationID,
+		Ttl:            sql.NullInt64{Int64: 8 * time.Hour.Nanoseconds(), Valid: true},
+	})
+	_, _ = dbfake.WorkspaceWithAgent(t, db, database.Workspace{
+		Name:           "d-member",
+		OwnerID:        memberUser.ID,
+		OrganizationID: owner.OrganizationID,
+	})
+
+	// Need this for LatestBuild.Deadline
+	resp, err := ownerClient.Workspaces(context.Background(), codersdk.WorkspaceFilter{})
+	require.NoError(t, err)
+	require.Len(t, resp.Workspaces, 4)
+	// Ensure same order as in CLI output
+	ws = resp.Workspaces
+	sort.Slice(ws, func(i, j int) bool {
+		a := ws[i].OwnerName + "/" + ws[i].Name
+		b := ws[j].OwnerName + "/" + ws[j].Name
+		return a < b
+	})
+
+	return ownerClient, memberClient, db, ws
+}
+
+//nolint:paralleltest // t.Setenv
 func TestScheduleShow(t *testing.T) {
-	t.Parallel()
-	t.Run("Enabled", func(t *testing.T) {
-		t.Parallel()
+	// Given
+	// Set timezone to Asia/Kolkata to surface any timezone-related bugs.
+	t.Setenv("TZ", "Asia/Kolkata")
+	loc, err := tz.TimezoneIANA()
+	require.NoError(t, err)
+	require.Equal(t, "Asia/Kolkata", loc.String())
+	sched, err := cron.Weekly("CRON_TZ=Europe/Dublin 30 7 * * Mon-Fri")
+	require.NoError(t, err, "invalid schedule")
+	ownerClient, memberClient, _, ws := setupTestSchedule(t, sched)
+	now := time.Now()
 
-		var (
-			tz        = "Europe/Dublin"
-			sched     = "30 7 * * 1-5"
-			schedCron = fmt.Sprintf("CRON_TZ=%s %s", tz, sched)
-			ttl       = 8 * time.Hour
-			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			user      = coderdtest.CreateFirstUser(t, client)
-			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			_         = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
-				cwr.AutostartSchedule = ptr.Ref(schedCron)
-				cwr.TTLMillis = ptr.Ref(ttl.Milliseconds())
-			})
-			_         = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-			cmdArgs   = []string{"schedule", "show", workspace.Name}
-			stdoutBuf = &bytes.Buffer{}
-		)
+	t.Run("OwnerNoArgs", func(t *testing.T) {
+		// When: owner specifies no args
+		inv, root := clitest.New(t, "schedule", "show")
+		//nolint:gocritic // Testing that owner user sees all
+		clitest.SetupConfig(t, ownerClient, root)
+		pty := ptytest.New(t).Attach(inv)
+		require.NoError(t, inv.Run())
 
-		inv, root := clitest.New(t, cmdArgs...)
-		clitest.SetupConfig(t, client, root)
-		inv.Stdout = stdoutBuf
-
-		err := inv.Run()
-		require.NoError(t, err, "unexpected error")
-		lines := strings.Split(strings.TrimSpace(stdoutBuf.String()), "\n")
-		if assert.Len(t, lines, 4) {
-			assert.Contains(t, lines[0], "Starts at    7:30AM Mon-Fri (Europe/Dublin)")
-			assert.Contains(t, lines[1], "Starts next  7:30AM")
-			// it should have either IST or GMT
-			if !strings.Contains(lines[1], "IST") && !strings.Contains(lines[1], "GMT") {
-				t.Error("expected either IST or GMT")
-			}
-			assert.Contains(t, lines[2], "Stops at     8h after start")
-			assert.NotContains(t, lines[3], "Stops next   -")
-		}
+		// Then: they should see their own workspaces.
+		// 1st workspace: a-owner-ws1 has both autostart and autostop enabled.
+		pty.ExpectMatch(ws[0].OwnerName + "/" + ws[0].Name)
+		pty.ExpectMatch(sched.Humanize())
+		pty.ExpectMatch(sched.Next(now).In(loc).Format(time.RFC3339))
+		pty.ExpectMatch("8h")
+		pty.ExpectMatch(ws[0].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
+		// 2nd workspace: b-owner-ws2 has only autostart enabled.
+		pty.ExpectMatch(ws[1].OwnerName + "/" + ws[1].Name)
+		pty.ExpectMatch(sched.Humanize())
+		pty.ExpectMatch(sched.Next(now).In(loc).Format(time.RFC3339))
 	})
 
-	t.Run("Manual", func(t *testing.T) {
-		t.Parallel()
+	t.Run("OwnerAll", func(t *testing.T) {
+		// When: owner lists all workspaces
+		inv, root := clitest.New(t, "schedule", "show", "--all")
+		//nolint:gocritic // Testing that owner user sees all
+		clitest.SetupConfig(t, ownerClient, root)
+		pty := ptytest.New(t).Attach(inv)
+		require.NoError(t, inv.Run())
 
-		var (
-			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			user      = coderdtest.CreateFirstUser(t, client)
-			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			_         = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
-				cwr.AutostartSchedule = nil
-				cwr.TTLMillis = nil
-			})
-			_         = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-			cmdArgs   = []string{"schedule", "show", workspace.Name}
-			stdoutBuf = &bytes.Buffer{}
-		)
-
-		inv, root := clitest.New(t, cmdArgs...)
-		clitest.SetupConfig(t, client, root)
-		inv.Stdout = stdoutBuf
-
-		err := inv.Run()
-		require.NoError(t, err, "unexpected error")
-		lines := strings.Split(strings.TrimSpace(stdoutBuf.String()), "\n")
-		if assert.Len(t, lines, 4) {
-			assert.Contains(t, lines[0], "Starts at    manual")
-			assert.Contains(t, lines[1], "Starts next  -")
-			assert.Contains(t, lines[2], "Stops at     manual")
-			assert.Contains(t, lines[3], "Stops next   -")
-		}
+		// Then: they should see all workspaces
+		// 1st workspace: a-owner-ws1 has both autostart and autostop enabled.
+		pty.ExpectMatch(ws[0].OwnerName + "/" + ws[0].Name)
+		pty.ExpectMatch(sched.Humanize())
+		pty.ExpectMatch(sched.Next(now).In(loc).Format(time.RFC3339))
+		pty.ExpectMatch("8h")
+		pty.ExpectMatch(ws[0].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
+		// 2nd workspace: b-owner-ws2 has only autostart enabled.
+		pty.ExpectMatch(ws[1].OwnerName + "/" + ws[1].Name)
+		pty.ExpectMatch(sched.Humanize())
+		pty.ExpectMatch(sched.Next(now).In(loc).Format(time.RFC3339))
+		// 3rd workspace: c-member-ws3 has only autostop enabled.
+		pty.ExpectMatch(ws[2].OwnerName + "/" + ws[2].Name)
+		pty.ExpectMatch("8h")
+		pty.ExpectMatch(ws[2].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
+		// 4th workspace: d-member-ws4 has neither autostart nor autostop enabled.
+		pty.ExpectMatch(ws[3].OwnerName + "/" + ws[3].Name)
 	})
 
-	t.Run("NotFound", func(t *testing.T) {
-		t.Parallel()
+	t.Run("OwnerSearchByName", func(t *testing.T) {
+		// When: owner specifies a search query
+		inv, root := clitest.New(t, "schedule", "show", "--search", "name:"+ws[1].Name)
+		//nolint:gocritic // Testing that owner user sees all
+		clitest.SetupConfig(t, ownerClient, root)
+		pty := ptytest.New(t).Attach(inv)
+		require.NoError(t, inv.Run())
 
-		var (
-			client  = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			user    = coderdtest.CreateFirstUser(t, client)
-			version = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			_       = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		)
-
-		inv, root := clitest.New(t, "schedule", "show", "doesnotexist")
-		clitest.SetupConfig(t, client, root)
-
-		err := inv.Run()
-		require.ErrorContains(t, err, "status code 404", "unexpected error")
+		// Then: they should see workspaces matching that query
+		// 2nd workspace: b-owner-ws2 has only autostart enabled.
+		pty.ExpectMatch(ws[1].OwnerName + "/" + ws[1].Name)
+		pty.ExpectMatch(sched.Humanize())
+		pty.ExpectMatch(sched.Next(now).In(loc).Format(time.RFC3339))
 	})
-}
 
-func TestScheduleStart(t *testing.T) {
-	t.Parallel()
+	t.Run("OwnerOneArg", func(t *testing.T) {
+		// When: owner asks for a specific workspace by name
+		inv, root := clitest.New(t, "schedule", "show", ws[2].OwnerName+"/"+ws[2].Name)
+		//nolint:gocritic // Testing that owner user sees all
+		clitest.SetupConfig(t, ownerClient, root)
+		pty := ptytest.New(t).Attach(inv)
+		require.NoError(t, inv.Run())
 
-	var (
-		ctx       = context.Background()
-		client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user      = coderdtest.CreateFirstUser(t, client)
-		version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_         = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
-			cwr.AutostartSchedule = nil
+		// Then: they should see that workspace
+		// 3rd workspace: c-member-ws3 has only autostop enabled.
+		pty.ExpectMatch(ws[2].OwnerName + "/" + ws[2].Name)
+		pty.ExpectMatch("8h")
+		pty.ExpectMatch(ws[2].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
+	})
+
+	t.Run("MemberNoArgs", func(t *testing.T) {
+		// When: a member specifies no args
+		inv, root := clitest.New(t, "schedule", "show")
+		clitest.SetupConfig(t, memberClient, root)
+		pty := ptytest.New(t).Attach(inv)
+		require.NoError(t, inv.Run())
+
+		// Then: they should see their own workspaces
+		// 1st workspace: c-member-ws3 has only autostop enabled.
+		pty.ExpectMatch(ws[2].OwnerName + "/" + ws[2].Name)
+		pty.ExpectMatch("8h")
+		pty.ExpectMatch(ws[2].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
+		// 2nd workspace: d-member-ws4 has neither autostart nor autostop enabled.
+		pty.ExpectMatch(ws[3].OwnerName + "/" + ws[3].Name)
+	})
+
+	t.Run("MemberAll", func(t *testing.T) {
+		// When: a member lists all workspaces
+		inv, root := clitest.New(t, "schedule", "show", "--all")
+		clitest.SetupConfig(t, memberClient, root)
+		pty := ptytest.New(t).Attach(inv)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		errC := make(chan error)
+		go func() {
+			errC <- inv.WithContext(ctx).Run()
+		}()
+		require.NoError(t, <-errC)
+
+		// Then: they should only see their own
+		// 1st workspace: c-member-ws3 has only autostop enabled.
+		pty.ExpectMatch(ws[2].OwnerName + "/" + ws[2].Name)
+		pty.ExpectMatch("8h")
+		pty.ExpectMatch(ws[2].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
+		// 2nd workspace: d-member-ws4 has neither autostart nor autostop enabled.
+		pty.ExpectMatch(ws[3].OwnerName + "/" + ws[3].Name)
+	})
+
+	t.Run("JSON", func(t *testing.T) {
+		// When: owner lists all workspaces in JSON format
+		inv, root := clitest.New(t, "schedule", "show", "--all", "--output", "json")
+		var buf bytes.Buffer
+		inv.Stdout = &buf
+		clitest.SetupConfig(t, ownerClient, root)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		errC := make(chan error)
+		go func() {
+			errC <- inv.WithContext(ctx).Run()
+		}()
+		assert.NoError(t, <-errC)
+
+		// Then: they should see all workspace schedules in JSON format
+		var parsed []map[string]string
+		require.NoError(t, json.Unmarshal(buf.Bytes(), &parsed))
+		require.Len(t, parsed, 4)
+		// Ensure same order as in CLI output
+		sort.Slice(parsed, func(i, j int) bool {
+			a := parsed[i]["workspace"]
+			b := parsed[j]["workspace"]
+			return a < b
 		})
-		_         = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-		tz        = "Europe/Dublin"
-		sched     = "CRON_TZ=Europe/Dublin 30 9 * * Mon-Fri"
-		stdoutBuf = &bytes.Buffer{}
-	)
-
-	// Set a well-specified autostart schedule
-	inv, root := clitest.New(t, "schedule", "start", workspace.Name, "9:30AM", "Mon-Fri", tz)
-	clitest.SetupConfig(t, client, root)
-	inv.Stdout = stdoutBuf
-
-	err := inv.Run()
-	assert.NoError(t, err, "unexpected error")
-	lines := strings.Split(strings.TrimSpace(stdoutBuf.String()), "\n")
-	if assert.Len(t, lines, 4) {
-		assert.Contains(t, lines[0], "Starts at    9:30AM Mon-Fri (Europe/Dublin)")
-		assert.Contains(t, lines[1], "Starts next  9:30AM")
-		// it should have either IST or GMT
-		if !strings.Contains(lines[1], "IST") && !strings.Contains(lines[1], "GMT") {
-			t.Error("expected either IST or GMT")
-		}
-	}
-
-	// Ensure autostart schedule updated
-	updated, err := client.Workspace(ctx, workspace.ID)
-	require.NoError(t, err, "fetch updated workspace")
-	require.Equal(t, sched, *updated.AutostartSchedule, "expected autostart schedule to be set")
-
-	// Reset stdout
-	stdoutBuf = &bytes.Buffer{}
-
-	// unset schedule
-	inv, root = clitest.New(t, "schedule", "start", workspace.Name, "manual")
-	clitest.SetupConfig(t, client, root)
-	inv.Stdout = stdoutBuf
-
-	err = inv.Run()
-	assert.NoError(t, err, "unexpected error")
-	lines = strings.Split(strings.TrimSpace(stdoutBuf.String()), "\n")
-	if assert.Len(t, lines, 4) {
-		assert.Contains(t, lines[0], "Starts at    manual")
-		assert.Contains(t, lines[1], "Starts next  -")
-	}
-}
-
-func TestScheduleStop(t *testing.T) {
-	t.Parallel()
-
-	var (
-		client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user      = coderdtest.CreateFirstUser(t, client)
-		version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_         = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		ttl       = 8*time.Hour + 30*time.Minute
-		workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
-		_         = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-		stdoutBuf = &bytes.Buffer{}
-	)
-
-	// Set the workspace TTL
-	inv, root := clitest.New(t, "schedule", "stop", workspace.Name, ttl.String())
-	clitest.SetupConfig(t, client, root)
-	inv.Stdout = stdoutBuf
-
-	err := inv.Run()
-	assert.NoError(t, err, "unexpected error")
-	lines := strings.Split(strings.TrimSpace(stdoutBuf.String()), "\n")
-	if assert.Len(t, lines, 4) {
-		assert.Contains(t, lines[2], "Stops at     8h30m after start")
-		// Should not be manual
-		assert.NotContains(t, lines[3], "Stops next   -")
-	}
-
-	// Reset stdout
-	stdoutBuf = &bytes.Buffer{}
-
-	// Unset the workspace TTL
-	inv, root = clitest.New(t, "schedule", "stop", workspace.Name, "manual")
-	clitest.SetupConfig(t, client, root)
-	inv.Stdout = stdoutBuf
-
-	err = inv.Run()
-	assert.NoError(t, err, "unexpected error")
-	lines = strings.Split(strings.TrimSpace(stdoutBuf.String()), "\n")
-	if assert.Len(t, lines, 4) {
-		assert.Contains(t, lines[2], "Stops at     manual")
-		// Deadline of a running workspace is not updated.
-		assert.NotContains(t, lines[3], "Stops next   -")
-	}
-}
-
-func TestScheduleOverride(t *testing.T) {
-	t.Parallel()
-
-	t.Run("OK", func(t *testing.T) {
-		t.Parallel()
-
-		// Given: we have a workspace
-		var (
-			err       error
-			ctx       = context.Background()
-			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			user      = coderdtest.CreateFirstUser(t, client)
-			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			_         = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
-			cmdArgs   = []string{"schedule", "override-stop", workspace.Name, "10h"}
-			stdoutBuf = &bytes.Buffer{}
-		)
-
-		// Given: we wait for the workspace to be built
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-		workspace, err = client.Workspace(ctx, workspace.ID)
-		require.NoError(t, err)
-		expectedDeadline := time.Now().Add(10 * time.Hour)
-
-		// Assert test invariant: workspace build has a deadline set equal to now plus ttl
-		initDeadline := time.Now().Add(time.Duration(*workspace.TTLMillis) * time.Millisecond)
-		require.WithinDuration(t, initDeadline, workspace.LatestBuild.Deadline.Time, time.Minute)
-
-		inv, root := clitest.New(t, cmdArgs...)
-		clitest.SetupConfig(t, client, root)
-		inv.Stdout = stdoutBuf
-
-		// When: we execute `coder schedule override workspace <number without units>`
-		err = inv.WithContext(ctx).Run()
-		require.NoError(t, err)
-
-		// Then: the deadline of the latest build is updated assuming the units are minutes
-		updated, err := client.Workspace(ctx, workspace.ID)
-		require.NoError(t, err)
-		require.WithinDuration(t, expectedDeadline, updated.LatestBuild.Deadline.Time, time.Minute)
-	})
-
-	t.Run("InvalidDuration", func(t *testing.T) {
-		t.Parallel()
-
-		// Given: we have a workspace
-		var (
-			err       error
-			ctx       = context.Background()
-			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			user      = coderdtest.CreateFirstUser(t, client)
-			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			_         = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
-			cmdArgs   = []string{"schedule", "override-stop", workspace.Name, "kwyjibo"}
-			stdoutBuf = &bytes.Buffer{}
-		)
-
-		// Given: we wait for the workspace to be built
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-		workspace, err = client.Workspace(ctx, workspace.ID)
-		require.NoError(t, err)
-
-		// Assert test invariant: workspace build has a deadline set equal to now plus ttl
-		initDeadline := time.Now().Add(time.Duration(*workspace.TTLMillis) * time.Millisecond)
-		require.WithinDuration(t, initDeadline, workspace.LatestBuild.Deadline.Time, time.Minute)
-
-		inv, root := clitest.New(t, cmdArgs...)
-		clitest.SetupConfig(t, client, root)
-		inv.Stdout = stdoutBuf
-
-		// When: we execute `coder bump workspace <not a number>`
-		err = inv.WithContext(ctx).Run()
-		// Then: the command fails
-		require.ErrorContains(t, err, "invalid duration")
-	})
-
-	t.Run("NoDeadline", func(t *testing.T) {
-		t.Parallel()
-
-		// Given: we have a workspace with no deadline set
-		var (
-			err       error
-			ctx       = context.Background()
-			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			user      = coderdtest.CreateFirstUser(t, client)
-			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			_         = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-			template  = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
-				cwr.TTLMillis = nil
-			})
-			cmdArgs   = []string{"schedule", "override-stop", workspace.Name, "1h"}
-			stdoutBuf = &bytes.Buffer{}
-		)
-		require.Zero(t, template.DefaultTTLMillis)
-		require.Empty(t, template.AutostopRequirement.DaysOfWeek)
-		require.EqualValues(t, 1, template.AutostopRequirement.Weeks)
-
-		// Unset the workspace TTL
-		err = client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{TTLMillis: nil})
-		require.NoError(t, err)
-		workspace, err = client.Workspace(ctx, workspace.ID)
-		require.NoError(t, err)
-		require.Nil(t, workspace.TTLMillis)
-
-		// Given: we wait for the workspace to build
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-		workspace, err = client.Workspace(ctx, workspace.ID)
-		require.NoError(t, err)
-
-		// NOTE(cian): need to stop and start the workspace as we do not update the deadline
-		//             see: https://github.com/coder/coder/issues/2224
-		coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
-		coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStop, database.WorkspaceTransitionStart)
-
-		// Assert test invariant: workspace has no TTL set
-		require.Zero(t, workspace.LatestBuild.Deadline)
-		require.NoError(t, err)
-
-		inv, root := clitest.New(t, cmdArgs...)
-		clitest.SetupConfig(t, client, root)
-		inv.Stdout = stdoutBuf
-
-		// When: we execute `coder bump workspace``
-		err = inv.WithContext(ctx).Run()
-		require.Error(t, err)
-
-		// Then: nothing happens and the deadline remains unset
-		updated, err := client.Workspace(ctx, workspace.ID)
-		require.NoError(t, err)
-		require.Zero(t, updated.LatestBuild.Deadline)
+		// 1st workspace: a-owner-ws1 has both autostart and autostop enabled.
+		assert.Equal(t, ws[0].OwnerName+"/"+ws[0].Name, parsed[0]["workspace"])
+		assert.Equal(t, sched.Humanize(), parsed[0]["starts_at"])
+		assert.Equal(t, sched.Next(now).In(loc).Format(time.RFC3339), parsed[0]["starts_next"])
+		assert.Equal(t, "8h", parsed[0]["stops_after"])
+		assert.Equal(t, ws[0].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339), parsed[0]["stops_next"])
+		// 2nd workspace: b-owner-ws2 has only autostart enabled.
+		assert.Equal(t, ws[1].OwnerName+"/"+ws[1].Name, parsed[1]["workspace"])
+		assert.Equal(t, sched.Humanize(), parsed[1]["starts_at"])
+		assert.Equal(t, sched.Next(now).In(loc).Format(time.RFC3339), parsed[1]["starts_next"])
+		assert.Empty(t, parsed[1]["stops_after"])
+		assert.Empty(t, parsed[1]["stops_next"])
+		// 3rd workspace: c-member-ws3 has only autostop enabled.
+		assert.Equal(t, ws[2].OwnerName+"/"+ws[2].Name, parsed[2]["workspace"])
+		assert.Empty(t, parsed[2]["starts_at"])
+		assert.Empty(t, parsed[2]["starts_next"])
+		assert.Equal(t, "8h", parsed[2]["stops_after"])
+		assert.Equal(t, ws[2].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339), parsed[2]["stops_next"])
+		// 4th workspace: d-member-ws4 has neither autostart nor autostop enabled.
+		assert.Equal(t, ws[3].OwnerName+"/"+ws[3].Name, parsed[3]["workspace"])
+		assert.Empty(t, parsed[3]["starts_at"])
+		assert.Empty(t, parsed[3]["starts_next"])
+		assert.Empty(t, parsed[3]["stops_after"])
 	})
 }
 
 //nolint:paralleltest // t.Setenv
-func TestScheduleStartDefaults(t *testing.T) {
-	t.Setenv("TZ", "Pacific/Tongatapu")
-	var (
-		client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user      = coderdtest.CreateFirstUser(t, client)
-		version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_         = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
-			cwr.AutostartSchedule = nil
-		})
-		stdoutBuf = &bytes.Buffer{}
+func TestScheduleModify(t *testing.T) {
+	// Given
+	// Set timezone to Asia/Kolkata to surface any timezone-related bugs.
+	t.Setenv("TZ", "Asia/Kolkata")
+	loc, err := tz.TimezoneIANA()
+	require.NoError(t, err)
+	require.Equal(t, "Asia/Kolkata", loc.String())
+	sched, err := cron.Weekly("CRON_TZ=Europe/Dublin 30 7 * * Mon-Fri")
+	require.NoError(t, err, "invalid schedule")
+	ownerClient, _, _, ws := setupTestSchedule(t, sched)
+	now := time.Now()
+
+	t.Run("SetStart", func(t *testing.T) {
+		// When: we set the start schedule
+		inv, root := clitest.New(t,
+			"schedule", "start", ws[3].OwnerName+"/"+ws[3].Name, "7:30AM", "Mon-Fri", "Europe/Dublin",
+		)
+		//nolint:gocritic // this workspace is not owned by the same user
+		clitest.SetupConfig(t, ownerClient, root)
+		pty := ptytest.New(t).Attach(inv)
+		require.NoError(t, inv.Run())
+
+		// Then: the updated schedule should be shown
+		pty.ExpectMatch(ws[3].OwnerName + "/" + ws[3].Name)
+		pty.ExpectMatch(sched.Humanize())
+		pty.ExpectMatch(sched.Next(now).In(loc).Format(time.RFC3339))
+	})
+
+	t.Run("SetStop", func(t *testing.T) {
+		// When: we set the stop schedule
+		inv, root := clitest.New(t,
+			"schedule", "stop", ws[2].OwnerName+"/"+ws[2].Name, "8h30m",
+		)
+		//nolint:gocritic // this workspace is not owned by the same user
+		clitest.SetupConfig(t, ownerClient, root)
+		pty := ptytest.New(t).Attach(inv)
+		require.NoError(t, inv.Run())
+
+		// Then: the updated schedule should be shown
+		pty.ExpectMatch(ws[2].OwnerName + "/" + ws[2].Name)
+		pty.ExpectMatch("8h30m")
+		pty.ExpectMatch(ws[2].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
+	})
+
+	t.Run("UnsetStart", func(t *testing.T) {
+		// When: we unset the start schedule
+		inv, root := clitest.New(t,
+			"schedule", "start", ws[1].OwnerName+"/"+ws[1].Name, "manual",
+		)
+		//nolint:gocritic // this workspace is owned by owner
+		clitest.SetupConfig(t, ownerClient, root)
+		pty := ptytest.New(t).Attach(inv)
+		require.NoError(t, inv.Run())
+
+		// Then: the updated schedule should be shown
+		pty.ExpectMatch(ws[1].OwnerName + "/" + ws[1].Name)
+	})
+
+	t.Run("UnsetStop", func(t *testing.T) {
+		// When: we unset the stop schedule
+		inv, root := clitest.New(t,
+			"schedule", "stop", ws[0].OwnerName+"/"+ws[0].Name, "manual",
+		)
+		//nolint:gocritic // this workspace is owned by owner
+		clitest.SetupConfig(t, ownerClient, root)
+		pty := ptytest.New(t).Attach(inv)
+		require.NoError(t, inv.Run())
+
+		// Then: the updated schedule should be shown
+		pty.ExpectMatch(ws[0].OwnerName + "/" + ws[0].Name)
+	})
+}
+
+//nolint:paralleltest // t.Setenv
+func TestScheduleOverride(t *testing.T) {
+	// Given
+	// Set timezone to Asia/Kolkata to surface any timezone-related bugs.
+	t.Setenv("TZ", "Asia/Kolkata")
+	loc, err := tz.TimezoneIANA()
+	require.NoError(t, err)
+	require.Equal(t, "Asia/Kolkata", loc.String())
+	sched, err := cron.Weekly("CRON_TZ=Europe/Dublin 30 7 * * Mon-Fri")
+	require.NoError(t, err, "invalid schedule")
+	ownerClient, _, _, ws := setupTestSchedule(t, sched)
+	now := time.Now()
+	// To avoid the likelihood of time-related flakes, only matching up to the hour.
+	expectedDeadline := time.Now().In(loc).Add(10 * time.Hour).Format("2006-01-02T15:")
+
+	// When: we override the stop schedule
+	inv, root := clitest.New(t,
+		"schedule", "override-stop", ws[0].OwnerName+"/"+ws[0].Name, "10h",
 	)
 
-	// Set an underspecified schedule
-	inv, root := clitest.New(t, "schedule", "start", workspace.Name, "9:30AM")
-	clitest.SetupConfig(t, client, root)
-	inv.Stdout = stdoutBuf
-	err := inv.Run()
-	require.NoError(t, err, "unexpected error")
-	lines := strings.Split(strings.TrimSpace(stdoutBuf.String()), "\n")
-	if assert.Len(t, lines, 4) {
-		assert.Contains(t, lines[0], "Starts at    9:30AM daily (Pacific/Tongatapu)")
-		assert.Contains(t, lines[1], "Starts next  9:30AM +13 on")
-		assert.Contains(t, lines[2], "Stops at     8h after start")
-	}
+	clitest.SetupConfig(t, ownerClient, root)
+	pty := ptytest.New(t).Attach(inv)
+	require.NoError(t, inv.Run())
+
+	// Then: the updated schedule should be shown
+	pty.ExpectMatch(ws[0].OwnerName + "/" + ws[0].Name)
+	pty.ExpectMatch(sched.Humanize())
+	pty.ExpectMatch(sched.Next(now).In(loc).Format(time.RFC3339))
+	pty.ExpectMatch("8h")
+	pty.ExpectMatch(expectedDeadline)
 }

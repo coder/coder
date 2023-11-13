@@ -22,7 +22,6 @@ import (
 	"net/http/pprof"
 	"net/url"
 	"os"
-	"os/signal"
 	"os/user"
 	"path/filepath"
 	"regexp"
@@ -333,7 +332,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			//
 			// To get out of a graceful shutdown, the user can send
 			// SIGQUIT with ctrl+\ or SIGKILL with `kill -9`.
-			notifyCtx, notifyStop := signal.NotifyContext(ctx, InterruptSignals...)
+			notifyCtx, notifyStop := inv.SignalNotifyContext(ctx, InterruptSignals...)
 			defer notifyStop()
 
 			cacheDir := vals.CacheDir.String()
@@ -1098,7 +1097,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 
-			ctx, cancel := signal.NotifyContext(ctx, InterruptSignals...)
+			ctx, cancel := inv.SignalNotifyContext(ctx, InterruptSignals...)
 			defer cancel()
 
 			url, closePg, err := startBuiltinPostgres(ctx, cfg, logger)
