@@ -19,8 +19,8 @@ type DatabaseReport struct {
 	Healthy     bool    `json:"healthy"`
 	Reachable   bool    `json:"reachable"`
 	Latency     string  `json:"latency"`
-	LatencyMs   int64   `json:"latency_ms"`
-	ThresholdMs int64   `json:"threshold_ms"`
+	LatencyMS   int64   `json:"latency_ms"`
+	ThresholdMS int64   `json:"threshold_ms"`
 	Error       *string `json:"error"`
 }
 
@@ -30,9 +30,9 @@ type DatabaseReportOptions struct {
 }
 
 func (r *DatabaseReport) Run(ctx context.Context, opts *DatabaseReportOptions) {
-	r.ThresholdMs = opts.Threshold.Milliseconds()
-	if r.ThresholdMs == 0 {
-		r.ThresholdMs = DatabaseDefaultThreshold.Milliseconds()
+	r.ThresholdMS = opts.Threshold.Milliseconds()
+	if r.ThresholdMS == 0 {
+		r.ThresholdMS = DatabaseDefaultThreshold.Milliseconds()
 	}
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -53,8 +53,8 @@ func (r *DatabaseReport) Run(ctx context.Context, opts *DatabaseReportOptions) {
 	// Take the median ping.
 	latency := pings[pingCount/2]
 	r.Latency = latency.String()
-	r.LatencyMs = latency.Milliseconds()
-	if r.LatencyMs < r.ThresholdMs {
+	r.LatencyMS = latency.Milliseconds()
+	if r.LatencyMS < r.ThresholdMS {
 		r.Healthy = true
 	}
 	r.Reachable = true
