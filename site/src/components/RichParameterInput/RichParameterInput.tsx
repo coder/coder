@@ -9,7 +9,6 @@ import { type FC } from "react";
 import { TemplateVersionParameter } from "api/typesGenerated";
 import { MemoizedMarkdown } from "components/Markdown/Markdown";
 import { Stack } from "components/Stack/Stack";
-import { colors } from "theme/colors";
 import { MultiTextField } from "./MultiTextField";
 
 const isBoolean = (parameter: TemplateVersionParameter) => {
