@@ -81,6 +81,15 @@ Use a YAML configuration file when your server launch become unwieldy.
           
           Write out the current server config as YAML to stdout.
 
+INTROSPECTION / HEALTH CHECK OPTIONS: 
+      --health-check-refresh duration, $CODER_HEALTH_CHECK_REFRESH (default: 10m0s)
+          Refresh interval for healthchecks.
+
+      --health-check-threshold-database duration, $CODER_HEALTH_CHECK_THRESHOLD_DATABASE (default: 15ms)
+          The threshold for the database health check. If the median latency of
+          the database exceeds this threshold over 5 attempts, the database is
+          considered unhealthy. The default value is 15ms.
+
 INTROSPECTION / LOGGING OPTIONS: 
       --enable-terraform-debug-mode bool, $CODER_ENABLE_TERRAFORM_DEBUG_MODE (default: false)
           Allow administrators to enable Terraform debug output.

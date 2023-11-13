@@ -72,6 +72,51 @@ func TestDebugHealth(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, res.StatusCode)
 	})
 
+	t.Run("Refresh", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			calls       = make(chan struct{})
+			callsDone   = make(chan struct{})
+			ctx, cancel = context.WithTimeout(context.Background(), testutil.WaitShort)
+			client      = coderdtest.New(t, &coderdtest.Options{
+				HealthcheckRefresh: time.Microsecond,
+				HealthcheckFunc: func(context.Context, string) *healthcheck.Report {
+					calls <- struct{}{}
+					return &healthcheck.Report{}
+				},
+			})
+			_ = coderdtest.CreateFirstUser(t, client)
+		)
+
+		defer cancel()
+
+		go func() {
+			defer close(callsDone)
+			<-calls
+			<-time.After(testutil.IntervalFast)
+			<-calls
+		}()
+
+		res, err := client.Request(ctx, "GET", "/api/v2/debug/health", nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		_, _ = io.ReadAll(res.Body)
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		res, err = client.Request(ctx, "GET", "/api/v2/debug/health", nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		_, _ = io.ReadAll(res.Body)
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		select {
+		case <-callsDone:
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for calls to finish")
+		}
+	})
+
 	t.Run("Deduplicated", func(t *testing.T) {
 		t.Parallel()
 

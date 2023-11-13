@@ -8,7 +8,7 @@ USAGE:
 SUBCOMMANDS:
     override-stop    Override the stop time of a currently running workspace
                      instance.
-    show             Show workspace schedule
+    show             Show workspace schedules
     start            Edit workspace start schedule
     stop             Edit workspace stop schedule
 
