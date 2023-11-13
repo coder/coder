@@ -2156,6 +2156,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       ]
     },
     "external_token_encryption_keys": ["string"],
+    "healthcheck": {
+      "refresh": 0,
+      "threshold_database": 0
+    },
     "http_address": "string",
     "in_memory_database": true,
     "job_hang_detector_interval": 0,
@@ -2527,6 +2531,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     ]
   },
   "external_token_encryption_keys": ["string"],
+  "healthcheck": {
+    "refresh": 0,
+    "threshold_database": 0
+  },
   "http_address": "string",
   "in_memory_database": true,
   "job_hang_detector_interval": 0,
@@ -2726,6 +2734,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `experiments`                        | array of string                                                                                      | false    |              |                                                                    |
 | `external_auth`                      | [clibase.Struct-array_codersdk_ExternalAuthConfig](#clibasestruct-array_codersdk_externalauthconfig) | false    |              |                                                                    |
 | `external_token_encryption_keys`     | array of string                                                                                      | false    |              |                                                                    |
+| `healthcheck`                        | [codersdk.HealthcheckConfig](#codersdkhealthcheckconfig)                                             | false    |              |                                                                    |
 | `http_address`                       | string                                                                                               | false    |              | Http address is a string because it may be set to zero to disable. |
 | `in_memory_database`                 | boolean                                                                                              | false    |              |                                                                    |
 | `job_hang_detector_interval`         | integer                                                                                              | false    |              |                                                                    |
@@ -3175,6 +3184,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `interval`  | integer | false    |              | Interval specifies the seconds between each health check.                                        |
 | `threshold` | integer | false    |              | Threshold specifies the number of consecutive failed health checks before returning "unhealthy". |
 | `url`       | string  | false    |              | URL specifies the endpoint to check for the app health.                                          |
+
+## codersdk.HealthcheckConfig
+
+```json
+{
+  "refresh": 0,
+  "threshold_database": 0
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description |
+| -------------------- | ------- | -------- | ------------ | ----------- |
+| `refresh`            | integer | false    |              |             |
+| `threshold_database` | integer | false    |              |             |
 
 ## codersdk.InsightsReportInterval
 
@@ -7444,19 +7469,21 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "healthy": true,
   "latency": "string",
   "latency_ms": 0,
-  "reachable": true
+  "reachable": true,
+  "threshold_ms": 0
 }
 ```
 
 ### Properties
 
-| Name         | Type    | Required | Restrictions | Description |
-| ------------ | ------- | -------- | ------------ | ----------- |
-| `error`      | string  | false    |              |             |
-| `healthy`    | boolean | false    |              |             |
-| `latency`    | string  | false    |              |             |
-| `latency_ms` | integer | false    |              |             |
-| `reachable`  | boolean | false    |              |             |
+| Name           | Type    | Required | Restrictions | Description |
+| -------------- | ------- | -------- | ------------ | ----------- |
+| `error`        | string  | false    |              |             |
+| `healthy`      | boolean | false    |              |             |
+| `latency`      | string  | false    |              |             |
+| `latency_ms`   | integer | false    |              |             |
+| `reachable`    | boolean | false    |              |             |
+| `threshold_ms` | integer | false    |              |             |
 
 ## healthcheck.Report
 
@@ -7476,7 +7503,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "healthy": true,
     "latency": "string",
     "latency_ms": 0,
-    "reachable": true
+    "reachable": true,
+    "threshold_ms": 0
   },
   "derp": {
     "error": "string",
