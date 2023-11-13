@@ -31,11 +31,6 @@ export const WorkspacePage: FC = () => {
       workspaceName,
       username,
     },
-    actions: {
-      refreshBuilds: async () => {
-        await buildsQuery.refetch();
-      },
-    },
   });
 
   const workspaceQueryOptions = workspaceByOwnerAndName(

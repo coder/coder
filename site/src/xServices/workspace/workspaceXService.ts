@@ -33,9 +33,6 @@ export type WorkspaceEvent =
   | { type: "START"; buildParameters?: TypesGen.WorkspaceBuildParameter[] }
   | { type: "STOP" }
   | { type: "CANCEL" }
-  | {
-      type: "REFRESH_TIMELINE";
-    }
   | { type: "RETRY_BUILD" };
 
 export const workspaceMachine = createMachine(
@@ -65,11 +62,6 @@ export const workspaceMachine = createMachine(
     states: {
       ready: {
         type: "parallel",
-        on: {
-          REFRESH_TIMELINE: {
-            actions: ["refreshBuilds"],
-          },
-        },
         states: {
           build: {
             initial: "idle",
@@ -204,7 +196,7 @@ export const workspaceMachine = createMachine(
       },
     },
     services: {
-      startWorkspace: (context, data) => async (send) => {
+      startWorkspace: (context, data) => async () => {
         if (context.workspace) {
           const startWorkspacePromise = await API.startWorkspace(
             context.workspace.id,
@@ -212,30 +204,30 @@ export const workspaceMachine = createMachine(
             context.createBuildLogLevel,
             "buildParameters" in data ? data.buildParameters : undefined,
           );
-          send({ type: "REFRESH_TIMELINE" });
+
           return startWorkspacePromise;
         } else {
           throw Error("Cannot start workspace without workspace id");
         }
       },
-      stopWorkspace: (context) => async (send) => {
+      stopWorkspace: (context) => async () => {
         if (context.workspace) {
           const stopWorkspacePromise = await API.stopWorkspace(
             context.workspace.id,
             context.createBuildLogLevel,
           );
-          send({ type: "REFRESH_TIMELINE" });
+
           return stopWorkspacePromise;
         } else {
           throw Error("Cannot stop workspace without workspace id");
         }
       },
-      cancelWorkspace: (context) => async (send) => {
+      cancelWorkspace: (context) => async () => {
         if (context.workspace) {
           const cancelWorkspacePromise = await API.cancelWorkspaceBuild(
             context.workspace.latest_build.id,
           );
-          send({ type: "REFRESH_TIMELINE" });
+
           return cancelWorkspacePromise;
         } else {
           throw Error("Cannot cancel workspace without build id");

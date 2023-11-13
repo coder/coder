@@ -11,6 +11,7 @@ import {
   type WorkspacesRequest,
   WorkspaceBuild,
 } from "api/typesGenerated";
+import { workspaceBuildsKey } from "./workspaceBuilds";
 
 export const workspaceByOwnerAndNameKey = (owner: string, name: string) => [
   "workspace",
@@ -138,8 +139,8 @@ export const changeVersion = (
     }) => {
       return API.changeWorkspaceVersion(workspace, versionId, buildParameters);
     },
-    onSuccess: (build: WorkspaceBuild) => {
-      updateWorkspaceBuild(build, queryClient);
+    onSuccess: async (build: WorkspaceBuild) => {
+      await updateWorkspaceBuild(build, queryClient);
     },
   };
 };
@@ -149,8 +150,8 @@ export const update = (workspace: Workspace, queryClient: QueryClient) => {
     mutationFn: (buildParameters?: WorkspaceBuildParameter[]) => {
       return API.updateWorkspace(workspace, buildParameters);
     },
-    onSuccess: (build: WorkspaceBuild) => {
-      updateWorkspaceBuild(build, queryClient);
+    onSuccess: async (build: WorkspaceBuild) => {
+      await updateWorkspaceBuild(build, queryClient);
     },
   };
 };
@@ -163,8 +164,8 @@ export const deleteWorkspace = (
     mutationFn: () => {
       return API.deleteWorkspace(workspace.id);
     },
-    onSuccess: (build: WorkspaceBuild) => {
-      updateWorkspaceBuild(build, queryClient);
+    onSuccess: async (build: WorkspaceBuild) => {
+      await updateWorkspaceBuild(build, queryClient);
     },
   };
 };
@@ -183,7 +184,7 @@ export const activate = (workspace: Workspace, queryClient: QueryClient) => {
   };
 };
 
-const updateWorkspaceBuild = (
+const updateWorkspaceBuild = async (
   build: WorkspaceBuild,
   queryClient: QueryClient,
 ) => {
@@ -195,5 +196,8 @@ const updateWorkspaceBuild = (
   queryClient.setQueryData(workspaceKey, {
     ...previousData,
     latest_build: build,
+  });
+  await queryClient.invalidateQueries({
+    queryKey: workspaceBuildsKey(build.workspace_id),
   });
 };
