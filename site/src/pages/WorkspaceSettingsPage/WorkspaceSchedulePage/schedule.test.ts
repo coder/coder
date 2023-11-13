@@ -51,7 +51,7 @@ describe("scheduleChanged", () => {
       expect(scheduleChanged(autostop, formValues)).toBe(true);
     });
     it("should be true if ttl values are different", () => {
-      const autostop = { autostopEnabled: true, ttl: 1000, ttl_bump: emptyTTL};
+      const autostop = { autostopEnabled: true, ttl: 1000, ttl_bump: emptyTTL };
       const formValues = {
         autostartEnabled: false,
         ...emptySchedule,
@@ -62,7 +62,7 @@ describe("scheduleChanged", () => {
       expect(scheduleChanged(autostop, formValues)).toBe(true);
     });
     it("should be true if ttl_bump values are different", () => {
-      const autostop = { autostopEnabled: true, ttl: 1000, ttl_bump: emptyTTL};
+      const autostop = { autostopEnabled: true, ttl: 1000, ttl_bump: emptyTTL };
       const formValues = {
         autostartEnabled: false,
         ...emptySchedule,
@@ -73,7 +73,7 @@ describe("scheduleChanged", () => {
       expect(scheduleChanged(autostop, formValues)).toBe(true);
     });
     it("should be false if all autostop values are the same", () => {
-      const autostop = { autostopEnabled: true, ttl: 1000, ttl_bump: emptyTTL};
+      const autostop = { autostopEnabled: true, ttl: 1000, ttl_bump: emptyTTL };
       const formValues = {
         autostartEnabled: false,
         ...emptySchedule,
