@@ -120,26 +120,20 @@ export const WorkspacePage: FC = () => {
   }
 
   return (
-    <RequirePermission
-      isFeatureVisible={
-        !(isAxiosError(pageError) && pageError.response?.status === 404)
-      }
-    >
-      <WorkspaceReadyPage
-        workspace={workspace}
-        template={template}
-        permissions={permissions}
-        workspaceState={workspaceState}
-        workspaceSend={workspaceSend}
-        builds={buildsQuery.data?.pages.flat()}
-        buildsError={buildsQuery.error}
-        isLoadingMoreBuilds={buildsQuery.isFetchingNextPage}
-        onLoadMoreBuilds={async () => {
-          await buildsQuery.fetchNextPage();
-        }}
-        hasMoreBuilds={Boolean(buildsQuery.hasNextPage)}
-      />
-    </RequirePermission>
+    <WorkspaceReadyPage
+      workspace={workspace}
+      template={template}
+      permissions={permissions}
+      workspaceState={workspaceState}
+      workspaceSend={workspaceSend}
+      builds={buildsQuery.data?.pages.flat()}
+      buildsError={buildsQuery.error}
+      isLoadingMoreBuilds={buildsQuery.isFetchingNextPage}
+      onLoadMoreBuilds={async () => {
+        await buildsQuery.fetchNextPage();
+      }}
+      hasMoreBuilds={Boolean(buildsQuery.hasNextPage)}
+    />
   );
 };
 
