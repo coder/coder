@@ -18,7 +18,7 @@ const styles = {
     borderRadius: 8,
     padding: 12,
     marginBottom: 20,
-    lineHeight: "18px",
+    lineHeight: "1.3em",
 
     "& .name": {
       fontSize: 18,
@@ -71,7 +71,6 @@ interface WorkspaceDeleteDialogProps {
 }
 export const WorkspaceDeleteDialog = (props: WorkspaceDeleteDialogProps) => {
   const { workspace, canUpdateTemplate, isOpen, onCancel, onConfirm } = props;
-
   const hookId = useId();
   const [userConfirmationText, setUserConfirmationText] = useState("");
   const [orphanWorkspace, setOrphanWorkspace] =
@@ -156,6 +155,7 @@ export const WorkspaceDeleteDialog = (props: WorkspaceDeleteDialogProps) => {
                     className="option"
                     name="orphan_resources"
                     checked={orphanWorkspace}
+                    data-testid="orphan-checkbox"
                   />
                 </div>
                 <div css={{ flexDirection: "column" }}>

@@ -104,6 +104,21 @@ describe("WorkspacePage", () => {
 
   it("orphans the workspace on delete if option is selected", async () => {
     const user = userEvent.setup({ delay: 0 });
+
+    // set permissions
+    server.use(
+      rest.post("/api/v2/authcheck", async (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            updateTemplates: true,
+            updateWorkspace: true,
+            updateTemplate: true,
+          }),
+        );
+      }),
+    );
+
     const deleteWorkspaceMock = jest
       .spyOn(api, "deleteWorkspace")
       .mockResolvedValueOnce(MockWorkspaceBuildDelete);
@@ -124,7 +139,10 @@ describe("WorkspacePage", () => {
     await user.type(textField, MockWorkspace.name);
 
     // check orphan option
-    const orphanCheckbox = screen.getByRole("checkbox");
+    const orphanCheckbox = within(
+      screen.getByTestId("orphan-checkbox"),
+    ).getByRole("checkbox");
+
     await user.click(orphanCheckbox);
 
     // confirm
@@ -134,11 +152,10 @@ describe("WorkspacePage", () => {
     });
     await user.click(confirmButton);
     // arguments are workspace.name, log level (undefined), and orphan
-    expect(deleteWorkspaceMock).toBeCalledWith(
-      MockWorkspace.id,
-      undefined,
-      true,
-    );
+    expect(deleteWorkspaceMock).toBeCalledWith(MockWorkspace.id, {
+      log_level: undefined,
+      orphan: true,
+    });
   });
 
   it("requests a start job when the user presses Start", async () => {
