@@ -37,6 +37,7 @@ import {
   changeVersion,
   decreaseDeadline,
   increaseDeadline,
+  update,
 } from "api/queries/workspaces";
 import { getErrorMessage } from "api/errors";
 import { displaySuccess, displayError } from "components/GlobalSnackbar/utils";
@@ -76,13 +77,11 @@ export const WorkspaceReadyPage = ({
   const queryClient = useQueryClient();
   const { buildInfo } = useDashboard();
   const featureVisibility = useFeatureVisibility();
-  const { buildError, cancellationError, missedParameters } =
-    workspaceState.context;
+  const { buildError, cancellationError } = workspaceState.context;
   if (workspace === undefined) {
     throw Error("Workspace is undefined");
   }
-  const canUpdateWorkspace = Boolean(permissions?.updateWorkspace);
-  const canUpdateTemplate = Boolean(permissions?.updateTemplate);
+
   const { data: deploymentValues } = useQuery({
     ...deploymentConfig(),
     enabled: permissions?.viewDeploymentValues,
@@ -90,7 +89,6 @@ export const WorkspaceReadyPage = ({
   const canRetryDebugMode = Boolean(
     deploymentValues?.config.enable_terraform_debug_mode,
   );
-  const [isConfirmingUpdate, setIsConfirmingUpdate] = useState(false);
 
   // Build logs
   const buildLogs = useWorkspaceBuildLogs(workspace.latest_build.id);
@@ -157,6 +155,7 @@ export const WorkspaceReadyPage = ({
   }, []);
 
   // Change version
+  const canChangeVersions = Boolean(permissions?.updateTemplate);
   const [changeVersionDialogOpen, setChangeVersionDialogOpen] = useState(false);
   const changeVersionMutation = useMutation(
     changeVersion(workspace, queryClient),
@@ -171,6 +170,11 @@ export const WorkspaceReadyPage = ({
     ...templateVersion(workspace.template_active_version_id),
     enabled: workspace.outdated,
   });
+
+  // Update workspace
+  const canUpdateWorkspace = Boolean(permissions?.updateWorkspace);
+  const [isConfirmingUpdate, setIsConfirmingUpdate] = useState(false);
+  const updateWorkspaceMutation = useMutation(update(workspace, queryClient));
 
   return (
     <>
@@ -198,7 +202,7 @@ export const WorkspaceReadyPage = ({
             deadline,
           ),
         }}
-        isUpdating={workspaceState.matches("ready.build.requestingUpdate")}
+        isUpdating={updateWorkspaceMutation.isLoading}
         isRestarting={isRestarting}
         workspace={workspace}
         handleStart={(buildParameters) =>
@@ -227,7 +231,7 @@ export const WorkspaceReadyPage = ({
         canUpdateWorkspace={canUpdateWorkspace}
         updateMessage={latestVersion?.message}
         canRetryDebugMode={canRetryDebugMode}
-        canChangeVersions={canUpdateTemplate}
+        canChangeVersions={canChangeVersions}
         hideSSHButton={featureVisibility["browser_only"]}
         hideVSCodeDesktopButton={featureVisibility["browser_only"]}
         workspaceErrors={{
@@ -277,15 +281,19 @@ export const WorkspaceReadyPage = ({
         }}
       />
       <UpdateBuildParametersDialog
-        missedParameters={missedParameters ?? []}
-        open={workspaceState.matches(
-          "ready.build.askingForMissedBuildParameters",
-        )}
+        missedParameters={
+          updateWorkspaceMutation.error instanceof MissingBuildParameters
+            ? updateWorkspaceMutation.error.parameters
+            : []
+        }
+        open={updateWorkspaceMutation.error instanceof MissingBuildParameters}
         onClose={() => {
-          workspaceSend({ type: "CANCEL" });
+          updateWorkspaceMutation.reset();
         }}
         onUpdate={(buildParameters) => {
-          workspaceSend({ type: "UPDATE", buildParameters });
+          if (updateWorkspaceMutation.error instanceof MissingBuildParameters) {
+            updateWorkspaceMutation.mutate(buildParameters);
+          }
         }}
       />
       <ChangeVersionDialog
@@ -306,7 +314,7 @@ export const WorkspaceReadyPage = ({
       <WarningDialog
         open={isConfirmingUpdate}
         onConfirm={() => {
-          workspaceSend({ type: "UPDATE" });
+          updateWorkspaceMutation.mutate(undefined);
           setIsConfirmingUpdate(false);
         }}
         onClose={() => setIsConfirmingUpdate(false)}

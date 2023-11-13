@@ -139,15 +139,33 @@ export const changeVersion = (
       return API.changeWorkspaceVersion(workspace, versionId, buildParameters);
     },
     onSuccess: (build: WorkspaceBuild) => {
-      const workspaceKey = workspaceByOwnerAndNameKey(
-        build.workspace_owner_name,
-        build.workspace_name,
-      );
-      const previousData = queryClient.getQueryData(workspaceKey) as Workspace;
-      queryClient.setQueryData(workspaceKey, {
-        ...previousData,
-        latest_build: build,
-      });
+      updateWorkspaceBuild(build, queryClient);
     },
   };
+};
+
+export const update = (workspace: Workspace, queryClient: QueryClient) => {
+  return {
+    mutationFn: (buildParameters?: WorkspaceBuildParameter[]) => {
+      return API.updateWorkspace(workspace, buildParameters);
+    },
+    onSuccess: (build: WorkspaceBuild) => {
+      updateWorkspaceBuild(build, queryClient);
+    },
+  };
+};
+
+const updateWorkspaceBuild = (
+  build: WorkspaceBuild,
+  queryClient: QueryClient,
+) => {
+  const workspaceKey = workspaceByOwnerAndNameKey(
+    build.workspace_owner_name,
+    build.workspace_name,
+  );
+  const previousData = queryClient.getQueryData(workspaceKey) as Workspace;
+  queryClient.setQueryData(workspaceKey, {
+    ...previousData,
+    latest_build: build,
+  });
 };

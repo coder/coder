@@ -19,7 +19,6 @@ export interface WorkspaceContext {
   // Builds
   builds?: TypesGen.WorkspaceBuild[];
   getBuildsError?: unknown;
-  missedParameters?: TypesGen.TemplateVersionParameter[];
   // error creating a new WorkspaceBuild
   buildError?: unknown;
   cancellationMessage?: TypesGen.Response;
@@ -37,7 +36,6 @@ export type WorkspaceEvent =
   | { type: "ASK_DELETE" }
   | { type: "DELETE" }
   | { type: "CANCEL_DELETE" }
-  | { type: "UPDATE"; buildParameters?: TypesGen.WorkspaceBuildParameter[] }
   | { type: "CANCEL" }
   | {
       type: "REFRESH_TIMELINE";
@@ -54,9 +52,6 @@ export const workspaceMachine = createMachine(
       context: {} as WorkspaceContext,
       events: {} as WorkspaceEvent,
       services: {} as {
-        updateWorkspace: {
-          data: TypesGen.WorkspaceBuild;
-        };
         startWorkspace: {
           data: TypesGen.WorkspaceBuild;
         };
@@ -92,7 +87,6 @@ export const workspaceMachine = createMachine(
                   START: "requestingStart",
                   STOP: "requestingStop",
                   ASK_DELETE: "askingDelete",
-                  UPDATE: "requestingUpdate",
                   CANCEL: "requestingCancel",
                   RETRY_BUILD: [
                     {
@@ -122,33 +116,6 @@ export const workspaceMachine = createMachine(
                   CANCEL_DELETE: {
                     target: "idle",
                   },
-                },
-              },
-              requestingUpdate: {
-                entry: ["clearBuildError"],
-                invoke: {
-                  src: "updateWorkspace",
-                  onDone: {
-                    target: "idle",
-                    actions: ["assignBuild"],
-                  },
-                  onError: [
-                    {
-                      target: "askingForMissedBuildParameters",
-                      cond: "isMissingBuildParameterError",
-                      actions: ["assignMissedParameters"],
-                    },
-                    {
-                      target: "idle",
-                      actions: ["assignBuildError"],
-                    },
-                  ],
-                },
-              },
-              askingForMissedBuildParameters: {
-                on: {
-                  CANCEL: "idle",
-                  UPDATE: [{ target: "requestingUpdate" }],
                 },
               },
               requestingStart: {
@@ -283,22 +250,12 @@ export const workspaceMachine = createMachine(
         const message = getErrorMessage(data, "Error activate workspace.");
         displayError(message);
       },
-      assignMissedParameters: assign({
-        missedParameters: (_, { data }) => {
-          if (!(data instanceof API.MissingBuildParameters)) {
-            throw new Error("data is not a MissingBuildParameters error");
-          }
-          return data.parameters;
-        },
-      }),
+
       // Debug mode when build fails
       enableDebugMode: assign({ createBuildLogLevel: (_) => "debug" as const }),
       disableDebugMode: assign({ createBuildLogLevel: (_) => undefined }),
     },
     guards: {
-      isMissingBuildParameterError: (_, { data }) => {
-        return data instanceof API.MissingBuildParameters;
-      },
       lastBuildWasStarting: ({ workspace }) => {
         return workspace?.latest_build.transition === "start";
       },
@@ -310,16 +267,6 @@ export const workspaceMachine = createMachine(
       },
     },
     services: {
-      updateWorkspace:
-        ({ workspace }, { buildParameters }) =>
-        async (send) => {
-          if (!workspace) {
-            throw new Error("Workspace is not set");
-          }
-          const build = await API.updateWorkspace(workspace, buildParameters);
-          send({ type: "REFRESH_TIMELINE" });
-          return build;
-        },
       startWorkspace: (context, data) => async (send) => {
         if (context.workspace) {
           const startWorkspacePromise = await API.startWorkspace(
