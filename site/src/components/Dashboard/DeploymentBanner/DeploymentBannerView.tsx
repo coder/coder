@@ -1,5 +1,4 @@
-import type { Health } from "api/api";
-import type { DeploymentStats, WorkspaceStatus } from "api/typesGenerated";
+import type { DeploymentStats, HealthcheckReport, WorkspaceStatus } from "api/typesGenerated";
 import {
   type FC,
   useMemo,
@@ -67,7 +66,7 @@ const styles = {
 } satisfies Record<string, Interpolation<Theme>>;
 
 export interface DeploymentBannerViewProps {
-  health?: Health;
+  health?: HealthcheckReport;
   stats?: DeploymentStats;
   fetchStats?: () => void;
 }
