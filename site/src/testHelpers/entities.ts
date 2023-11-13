@@ -1,7 +1,7 @@
 import {
   withDefaultFeatures,
   type GetLicensesResponse,
-  type DeploymentConfig
+  type DeploymentConfig,
 } from "api/api";
 import { FieldError } from "api/errors";
 import * as TypesGen from "api/typesGenerated";
@@ -2788,7 +2788,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
   websocket: {
     healthy: true,
     body: "",
-    code: 101
+    code: 101,
   },
   database: {
     healthy: true,

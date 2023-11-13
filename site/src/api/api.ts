@@ -1556,6 +1556,8 @@ export const getInsightsTemplate = async (
 };
 
 export const getHealth = async () => {
-  const response = await axios.get<TypesGen.HealthcheckReport>("/api/v2/debug/health");
+  const response = await axios.get<TypesGen.HealthcheckReport>(
+    "/api/v2/debug/health",
+  );
   return response.data;
 };

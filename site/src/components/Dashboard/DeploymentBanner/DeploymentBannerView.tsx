@@ -1,4 +1,8 @@
-import type { DeploymentStats, HealthcheckReport, WorkspaceStatus } from "api/typesGenerated";
+import type {
+  DeploymentStats,
+  HealthcheckReport,
+  WorkspaceStatus,
+} from "api/typesGenerated";
 import {
   type FC,
   useMemo,
