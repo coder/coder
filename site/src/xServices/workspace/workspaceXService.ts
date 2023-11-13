@@ -26,14 +26,11 @@ export interface WorkspaceContext {
   cancellationError?: unknown;
   // debug
   createBuildLogLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"];
-  // SSH Config
-  sshPrefix?: string;
   // Change version
   templateVersionIdToChange?: TypesGen.TemplateVersion["id"];
 }
 
 export type WorkspaceEvent =
-  | { type: "LOAD" }
   | { type: "REFRESH_WORKSPACE"; data: TypesGen.ServerSentEvent["data"] }
   | { type: "START"; buildParameters?: TypesGen.WorkspaceBuildParameter[] }
   | { type: "STOP" }
@@ -97,15 +94,8 @@ export const workspaceMachine = createMachine(
         };
       },
     },
-    initial: "loadInitialData",
+    initial: "ready",
     states: {
-      loadInitialData: {
-        on: {
-          LOAD: {
-            target: "ready",
-          },
-        },
-      },
       ready: {
         type: "parallel",
         on: {
@@ -334,30 +324,6 @@ export const workspaceMachine = createMachine(
               },
             },
           },
-          sshConfig: {
-            initial: "gettingSshConfig",
-            states: {
-              gettingSshConfig: {
-                invoke: {
-                  src: "getSSHPrefix",
-                  onDone: {
-                    target: "success",
-                    actions: ["assignSSHPrefix"],
-                  },
-                  onError: {
-                    target: "error",
-                    actions: ["displaySSHPrefixError"],
-                  },
-                },
-              },
-              error: {
-                type: "final",
-              },
-              success: {
-                type: "final",
-              },
-            },
-          },
         },
       },
       error: {
@@ -406,17 +372,6 @@ export const workspaceMachine = createMachine(
       }),
       logWatchWorkspaceWarning: (_, event) => {
         console.error("Watch workspace error:", event);
-      },
-      // SSH
-      assignSSHPrefix: assign({
-        sshPrefix: (_, { data }) => data.hostname_prefix,
-      }),
-      displaySSHPrefixError: (_, { data }) => {
-        const message = getErrorMessage(
-          data,
-          "Error getting the deployment ssh configuration.",
-        );
-        displayError(message);
       },
       displayActivateError: (_, { data }) => {
         const message = getErrorMessage(data, "Error activate workspace.");
@@ -584,9 +539,6 @@ export const workspaceMachine = createMachine(
         return () => {
           context.eventSource?.close();
         };
-      },
-      getSSHPrefix: async () => {
-        return API.getDeploymentSSHConfig();
       },
     },
   },

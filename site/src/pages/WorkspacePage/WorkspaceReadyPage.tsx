@@ -36,7 +36,7 @@ import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import { decreaseDeadline, increaseDeadline } from "api/queries/workspaces";
 import { getErrorMessage } from "api/errors";
 import { displaySuccess, displayError } from "components/GlobalSnackbar/utils";
-import { deploymentConfig } from "api/queries/deployment";
+import { deploymentConfig, deploymentSSHConfig } from "api/queries/deployment";
 import { WorkspacePermissions } from "./permissions";
 import { workspaceResolveAutostart } from "api/queries/workspaceQuota";
 
@@ -70,7 +70,7 @@ export const WorkspaceReadyPage = ({
 }: WorkspaceReadyPageProps): JSX.Element => {
   const { buildInfo } = useDashboard();
   const featureVisibility = useFeatureVisibility();
-  const { buildError, cancellationError, sshPrefix, missedParameters } =
+  const { buildError, cancellationError, missedParameters } =
     workspaceState.context;
   if (workspace === undefined) {
     throw Error("Workspace is undefined");
@@ -150,6 +150,8 @@ export const WorkspaceReadyPage = ({
   );
   const canAutostart = !canAutostartResponse.data?.parameter_mismatch ?? false;
 
+  const sshPrefixQuery = useQuery(deploymentSSHConfig());
+
   return (
     <>
       <Helmet>
@@ -214,7 +216,7 @@ export const WorkspaceReadyPage = ({
           [WorkspaceErrors.CANCELLATION_ERROR]: cancellationError,
         }}
         buildInfo={buildInfo}
-        sshPrefix={sshPrefix}
+        sshPrefix={sshPrefixQuery.data?.hostname_prefix}
         template={template}
         buildLogs={
           shouldDisplayBuildLogs && (
