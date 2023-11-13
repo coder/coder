@@ -1,8 +1,6 @@
-import { useMachine } from "@xstate/react";
 import { Loader } from "components/Loader/Loader";
 import { FC, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
-import { workspaceMachine } from "xServices/workspace/workspaceXService";
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { useOrganizationId } from "hooks";
@@ -25,14 +23,8 @@ export const WorkspacePage: FC = () => {
   const workspaceName = params.workspace;
   const username = params.username.replace("@", "");
   const orgId = useOrganizationId();
-  const [_, workspaceSend] = useMachine(workspaceMachine, {
-    context: {
-      orgId,
-      workspaceName,
-      username,
-    },
-  });
 
+  // Workspace
   const workspaceQueryOptions = workspaceByOwnerAndName(
     username,
     workspaceName,
@@ -40,12 +32,14 @@ export const WorkspacePage: FC = () => {
   const workspaceQuery = useQuery(workspaceQueryOptions);
   const workspace = workspaceQuery.data;
 
+  // Template
   const templateQuery = useQuery({
     ...templateByName(orgId, workspace?.template_name ?? ""),
     enabled: workspace !== undefined,
   });
   const template = templateQuery.data;
 
+  // Permissions
   const checks =
     workspace && template ? workspaceChecks(workspace, template) : {};
   const permissionsQuery = useQuery({
@@ -54,14 +48,11 @@ export const WorkspacePage: FC = () => {
   });
   const permissions = permissionsQuery.data as WorkspacePermissions | undefined;
 
+  // Builds
   const buildsQuery = useInfiniteQuery({
     ...infiniteWorkspaceBuilds(workspace?.id ?? ""),
     enabled: workspace !== undefined,
   });
-
-  const pageError =
-    workspaceQuery.error ?? templateQuery.error ?? permissionsQuery.error;
-  const isLoading = !workspace || !template || !permissions;
 
   // Watch workspace changes
   const workspaceEventSource = useRef<EventSource | null>(null);
@@ -100,6 +91,11 @@ export const WorkspacePage: FC = () => {
     };
   }, [buildsQuery, queryClient, workspace, workspaceQueryOptions.queryKey]);
 
+  // Page statuses
+  const pageError =
+    workspaceQuery.error ?? templateQuery.error ?? permissionsQuery.error;
+  const isLoading = !workspace || !template || !permissions;
+
   if (pageError) {
     return (
       <Margins>
@@ -117,7 +113,6 @@ export const WorkspacePage: FC = () => {
       workspace={workspace}
       template={template}
       permissions={permissions}
-      workspaceSend={workspaceSend}
       builds={buildsQuery.data?.pages.flat()}
       buildsError={buildsQuery.error}
       isLoadingMoreBuilds={buildsQuery.isFetchingNextPage}

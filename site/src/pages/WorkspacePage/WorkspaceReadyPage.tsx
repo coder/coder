@@ -14,7 +14,6 @@ import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { Workspace, WorkspaceErrors } from "./Workspace";
 import { pageTitle } from "utils/page";
 import { hasJobError } from "utils/workspace";
-import { WorkspaceEvent } from "xServices/workspace/workspaceXService";
 import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
 import { ChangeVersionDialog } from "./ChangeVersionDialog";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -50,7 +49,6 @@ interface WorkspaceReadyPageProps {
   template: TypesGen.Template;
   workspace: TypesGen.Workspace;
   permissions: WorkspacePermissions;
-  workspaceSend: (event: WorkspaceEvent) => void;
   builds: TypesGen.WorkspaceBuild[] | undefined;
   buildsError: unknown;
   onLoadMoreBuilds: () => void;
@@ -62,7 +60,6 @@ export const WorkspaceReadyPage = ({
   workspace,
   template,
   permissions,
-  workspaceSend,
   builds,
   buildsError,
   onLoadMoreBuilds,
@@ -236,7 +233,7 @@ export const WorkspaceReadyPage = ({
         }}
         handleCancel={cancelBuildMutation.mutate}
         handleSettings={() => navigate("settings")}
-        handleBuildRetry={() => workspaceSend({ type: "RETRY_BUILD" })}
+        handleBuildRetry={() => {}}
         handleChangeVersion={() => {
           setChangeVersionDialogOpen(true);
         }}
