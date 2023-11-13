@@ -102,11 +102,11 @@ export const WorkspaceDeleteDialog = (props: WorkspaceDeleteDialogProps) => {
       description={
         <>
           <div css={styles.workspaceInfo}>
-            <div css={{ flexDirection: "column" }}>
+            <div>
               <p className="name">{workspace.name}</p>
               <p className="label">workspace</p>
             </div>
-            <div css={{ flexDirection: "column" }}>
+            <div>
               <p className="info">{dayjs(workspace.created_at).fromNow()}</p>
               <p className="label">created</p>
             </div>
@@ -150,7 +150,7 @@ export const WorkspaceDeleteDialog = (props: WorkspaceDeleteDialogProps) => {
                     id="orphan_resources"
                     size="small"
                     color="warning"
-                    onChange={async () => {
+                    onChange={() => {
                       setOrphanWorkspace(!orphanWorkspace);
                     }}
                     className="option"

@@ -599,8 +599,10 @@ export const workspaceMachine = createMachine(
         if (context.workspace) {
           const deleteWorkspacePromise = await API.deleteWorkspace(
             context.workspace.id,
-            context.createBuildLogLevel,
-            data.orphan,
+            {
+              log_level: context.createBuildLogLevel,
+              orphan: data.orphan,
+            },
           );
           send({ type: "REFRESH_TIMELINE" });
           return deleteWorkspacePromise;

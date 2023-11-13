@@ -1,3 +1,4 @@
+import { type ComponentProps } from "react";
 import { Meta, StoryObj } from "@storybook/react";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 import { MockWorkspace } from "testHelpers/entities";
@@ -10,7 +11,7 @@ const meta: Meta<typeof WorkspaceDeleteDialog> = {
 export default meta;
 type Story = StoryObj<typeof WorkspaceDeleteDialog>;
 
-const args = {
+const args: ComponentProps<typeof WorkspaceDeleteDialog> = {
   workspace: MockWorkspace,
   canUpdateTemplate: false,
   isOpen: true,
