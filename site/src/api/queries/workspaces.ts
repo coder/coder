@@ -169,6 +169,20 @@ export const deleteWorkspace = (
   };
 };
 
+export const activate = (workspace: Workspace, queryClient: QueryClient) => {
+  return {
+    mutationFn: () => {
+      return API.updateWorkspaceDormancy(workspace.id, false);
+    },
+    onSuccess: (updatedWorkspace: Workspace) => {
+      queryClient.setQueryData(
+        workspaceByOwnerAndNameKey(workspace.owner_name, workspace.name),
+        updatedWorkspace,
+      );
+    },
+  };
+};
+
 const updateWorkspaceBuild = (
   build: WorkspaceBuild,
   queryClient: QueryClient,

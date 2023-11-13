@@ -34,6 +34,7 @@ import { Alert } from "components/Alert/Alert";
 import { Stack } from "components/Stack/Stack";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import {
+  activate,
   changeVersion,
   decreaseDeadline,
   deleteWorkspace,
@@ -184,6 +185,11 @@ export const WorkspaceReadyPage = ({
     deleteWorkspace(workspace, queryClient),
   );
 
+  // Activate workspace
+  const activateWorkspaceMutation = useMutation(
+    activate(workspace, queryClient),
+  );
+
   return (
     <>
       <Helmet>
@@ -232,7 +238,14 @@ export const WorkspaceReadyPage = ({
         handleChangeVersion={() => {
           setChangeVersionDialogOpen(true);
         }}
-        handleDormantActivate={() => workspaceSend({ type: "ACTIVATE" })}
+        handleDormantActivate={async () => {
+          try {
+            await activateWorkspaceMutation.mutateAsync();
+          } catch (e) {
+            const message = getErrorMessage(e, "Error activate workspace.");
+            displayError(message);
+          }
+        }}
         resources={workspace.latest_build.resources}
         builds={builds}
         onLoadMoreBuilds={onLoadMoreBuilds}

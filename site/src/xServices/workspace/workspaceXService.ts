@@ -1,8 +1,7 @@
-import { getErrorMessage } from "api/errors";
 import { assign, createMachine } from "xstate";
 import * as API from "api/api";
 import * as TypesGen from "api/typesGenerated";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
 
 export interface WorkspaceContext {
   // Initial data
@@ -37,8 +36,7 @@ export type WorkspaceEvent =
   | {
       type: "REFRESH_TIMELINE";
     }
-  | { type: "RETRY_BUILD" }
-  | { type: "ACTIVATE" };
+  | { type: "RETRY_BUILD" };
 
 export const workspaceMachine = createMachine(
   {
@@ -93,7 +91,6 @@ export const workspaceMachine = createMachine(
                       actions: ["enableDebugMode"],
                     },
                   ],
-                  ACTIVATE: "requestingActivate",
                 },
               },
               requestingStart: {
@@ -156,18 +153,6 @@ export const workspaceMachine = createMachine(
                   ],
                 },
               },
-              requestingActivate: {
-                entry: ["clearBuildError"],
-                invoke: {
-                  src: "activateWorkspace",
-                  id: "activateWorkspace",
-                  onDone: "idle",
-                  onError: {
-                    target: "idle",
-                    actions: ["displayActivateError"],
-                  },
-                },
-              },
             },
           },
         },
@@ -205,10 +190,6 @@ export const workspaceMachine = createMachine(
       clearCancellationError: assign({
         cancellationError: (_) => undefined,
       }),
-      displayActivateError: (_, { data }) => {
-        const message = getErrorMessage(data, "Error activate workspace.");
-        displayError(message);
-      },
 
       // Debug mode when build fails
       enableDebugMode: assign({ createBuildLogLevel: (_) => "debug" as const }),
@@ -258,18 +239,6 @@ export const workspaceMachine = createMachine(
           return cancelWorkspacePromise;
         } else {
           throw Error("Cannot cancel workspace without build id");
-        }
-      },
-      activateWorkspace: (context) => async (send) => {
-        if (context.workspace) {
-          const activateWorkspacePromise = await API.updateWorkspaceDormancy(
-            context.workspace.id,
-            false,
-          );
-          send({ type: "REFRESH_WORKSPACE", data: activateWorkspacePromise });
-          return activateWorkspacePromise;
-        } else {
-          throw Error("Cannot activate workspace without workspace id");
         }
       },
     },
