@@ -38,6 +38,7 @@ import { getErrorMessage } from "api/errors";
 import { displaySuccess, displayError } from "components/GlobalSnackbar/utils";
 import { deploymentConfig } from "api/queries/deployment";
 import { WorkspacePermissions } from "./permissions";
+import { workspaceResolveAutostart } from "api/queries/workspaceQuota";
 
 interface WorkspaceReadyPageProps {
   template: TypesGen.Template;
@@ -53,7 +54,6 @@ interface WorkspaceReadyPageProps {
   onLoadMoreBuilds: () => void;
   isLoadingMoreBuilds: boolean;
   hasMoreBuilds: boolean;
-  canAutostart: boolean;
 }
 
 export const WorkspaceReadyPage = ({
@@ -67,7 +67,6 @@ export const WorkspaceReadyPage = ({
   onLoadMoreBuilds,
   isLoadingMoreBuilds,
   hasMoreBuilds,
-  canAutostart,
 }: WorkspaceReadyPageProps): JSX.Element => {
   const { buildInfo } = useDashboard();
   const featureVisibility = useFeatureVisibility();
@@ -145,6 +144,11 @@ export const WorkspaceReadyPage = ({
     onSuccess: onDeadlineChangeSuccess,
     onError: onDeadlineChangeFails,
   });
+
+  const canAutostartResponse = useQuery(
+    workspaceResolveAutostart(workspace.id),
+  );
+  const canAutostart = !canAutostartResponse.data?.parameter_mismatch ?? false;
 
   return (
     <>
