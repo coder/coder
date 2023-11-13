@@ -14,7 +14,7 @@ import { StateFrom } from "xstate";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { Workspace, WorkspaceErrors } from "./Workspace";
 import { pageTitle } from "utils/page";
-import { getFaviconByStatus, hasJobError } from "utils/workspace";
+import { hasJobError } from "utils/workspace";
 import {
   WorkspaceEvent,
   workspaceMachine,
@@ -68,6 +68,7 @@ export const WorkspaceReadyPage = ({
   isLoadingMoreBuilds,
   hasMoreBuilds,
 }: WorkspaceReadyPageProps): JSX.Element => {
+  const navigate = useNavigate();
   const { buildInfo } = useDashboard();
   const featureVisibility = useFeatureVisibility();
   const { buildError, cancellationError, missedParameters } =
@@ -75,7 +76,6 @@ export const WorkspaceReadyPage = ({
   if (workspace === undefined) {
     throw Error("Workspace is undefined");
   }
-  const deadline = getDeadline(workspace);
   const canUpdateWorkspace = Boolean(permissions?.updateWorkspace);
   const canUpdateTemplate = Boolean(permissions?.updateTemplate);
   const { data: deploymentValues } = useQuery({
@@ -85,15 +85,10 @@ export const WorkspaceReadyPage = ({
   const canRetryDebugMode = Boolean(
     deploymentValues?.config.enable_terraform_debug_mode,
   );
-  const favicon = getFaviconByStatus(workspace.latest_build);
-  const navigate = useNavigate();
   const [changeVersionDialogOpen, setChangeVersionDialogOpen] = useState(false);
   const [isConfirmingUpdate, setIsConfirmingUpdate] = useState(false);
-  const [confirmingRestart, setConfirmingRestart] = useState<{
-    open: boolean;
-    buildParameters?: TypesGen.WorkspaceBuildParameter[];
-  }>({ open: false });
 
+  // Versions
   const { data: allVersions } = useQuery({
     ...templateVersions(workspace.template_id),
     enabled: changeVersionDialogOpen,
@@ -102,22 +97,20 @@ export const WorkspaceReadyPage = ({
     ...templateVersion(workspace.template_active_version_id),
     enabled: workspace.outdated,
   });
-  const [faviconTheme, setFaviconTheme] = useState<"light" | "dark">("dark");
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.matchMedia) {
-      return;
-    }
 
-    const isDark = window.matchMedia("(prefers-color-scheme: dark)");
-    // We want the favicon the opposite of the theme.
-    setFaviconTheme(isDark.matches ? "light" : "dark");
-  }, []);
+  // Build logs
   const buildLogs = useWorkspaceBuildLogs(workspace.latest_build.id);
   const shouldDisplayBuildLogs =
     hasJobError(workspace) ||
     ["canceling", "deleting", "pending", "starting", "stopping"].includes(
       workspace.latest_build.status,
     );
+
+  // Restart
+  const [confirmingRestart, setConfirmingRestart] = useState<{
+    open: boolean;
+    buildParameters?: TypesGen.WorkspaceBuildParameter[];
+  }>({ open: false });
   const {
     mutate: mutateRestartWorkspace,
     error: restartBuildError,
@@ -126,6 +119,8 @@ export const WorkspaceReadyPage = ({
     mutationFn: restartWorkspace,
   });
 
+  // Schedule controls
+  const deadline = getDeadline(workspace);
   const onDeadlineChangeSuccess = () => {
     displaySuccess("Updated workspace shutdown time.");
   };
@@ -145,12 +140,27 @@ export const WorkspaceReadyPage = ({
     onError: onDeadlineChangeFails,
   });
 
+  // Auto start
   const canAutostartResponse = useQuery(
     workspaceResolveAutostart(workspace.id),
   );
   const canAutostart = !canAutostartResponse.data?.parameter_mismatch ?? false;
 
+  // SSH Prefix
   const sshPrefixQuery = useQuery(deploymentSSHConfig());
+
+  // Favicon
+  const favicon = getFaviconByStatus(workspace.latest_build);
+  const [faviconTheme, setFaviconTheme] = useState<"light" | "dark">("dark");
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) {
+      return;
+    }
+
+    const isDark = window.matchMedia("(prefers-color-scheme: dark)");
+    // We want the favicon the opposite of the theme.
+    setFaviconTheme(isDark.matches ? "light" : "dark");
+  }, []);
 
   return (
     <>
@@ -319,4 +329,39 @@ const WarningDialog: FC<
   >
 > = (props) => {
   return <ConfirmDialog type="info" hideCancel={false} {...props} />;
+};
+
+// You can see the favicon designs here: https://www.figma.com/file/YIGBkXUcnRGz2ZKNmLaJQf/Coder-v2-Design?node-id=560%3A620
+type FaviconType =
+  | "favicon"
+  | "favicon-success"
+  | "favicon-error"
+  | "favicon-warning"
+  | "favicon-running";
+
+const getFaviconByStatus = (build: TypesGen.WorkspaceBuild): FaviconType => {
+  switch (build.status) {
+    case undefined:
+      return "favicon";
+    case "running":
+      return "favicon-success";
+    case "starting":
+      return "favicon-running";
+    case "stopping":
+      return "favicon-running";
+    case "stopped":
+      return "favicon";
+    case "deleting":
+      return "favicon";
+    case "deleted":
+      return "favicon";
+    case "canceling":
+      return "favicon-warning";
+    case "canceled":
+      return "favicon";
+    case "failed":
+      return "favicon-error";
+    case "pending":
+      return "favicon";
+  }
 };
