@@ -1,5 +1,4 @@
 import { Workspace, CreateWorkspaceBuildRequest } from "api/typesGenerated";
-import { usePermissions } from "hooks/usePermissions";
 import { useId, useState, FormEvent } from "react";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { type Interpolation, type Theme } from "@emotion/react";
@@ -65,14 +64,14 @@ const styles = {
 
 interface WorkspaceDeleteDialogProps {
   workspace: Workspace;
+  canUpdateTemplate: boolean;
   isOpen: boolean;
   onCancel: () => void;
   onConfirm: (arg: CreateWorkspaceBuildRequest["orphan"]) => void;
 }
 export const WorkspaceDeleteDialog = (props: WorkspaceDeleteDialogProps) => {
-  const { workspace, isOpen, onCancel, onConfirm } = props;
+  const { workspace, canUpdateTemplate, isOpen, onCancel, onConfirm } = props;
 
-  const permissions = usePermissions();
   const hookId = useId();
   const [userConfirmationText, setUserConfirmationText] = useState("");
   const [orphanWorkspace, setOrphanWorkspace] =
@@ -144,7 +143,7 @@ export const WorkspaceDeleteDialog = (props: WorkspaceDeleteDialogProps) => {
                 "data-testid": "delete-dialog-name-confirmation",
               }}
             />
-            {permissions.updateTemplates && (
+            {canUpdateTemplate && (
               <div css={styles.orphanContainer}>
                 <div css={{ flexDirection: "column" }}>
                   <Checkbox

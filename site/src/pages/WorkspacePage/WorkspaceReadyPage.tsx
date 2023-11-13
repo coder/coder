@@ -32,7 +32,7 @@ import { templateVersion, templateVersions } from "api/queries/templates";
 import { Alert } from "components/Alert/Alert";
 import { Stack } from "components/Stack/Stack";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
-import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog/WorkspaceDeleteDialog";
+import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 
 interface WorkspaceReadyPageProps {
   workspaceState: StateFrom<typeof workspaceMachine>;
@@ -211,6 +211,7 @@ export const WorkspaceReadyPage = ({
       />
       <WorkspaceDeleteDialog
         workspace={workspace}
+        canUpdateTemplate={canUpdateTemplate}
         isOpen={workspaceState.matches({ ready: { build: "askingDelete" } })}
         onCancel={() => workspaceSend({ type: "CANCEL_DELETE" })}
         onConfirm={(orphan) => {
