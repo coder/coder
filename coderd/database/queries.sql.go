@@ -10813,8 +10813,6 @@ SET
 FROM
 	templates
 WHERE
-	workspaces.template_id = templates.id
-AND
 	workspaces.id = $1
 RETURNING workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates
 `
