@@ -1,4 +1,4 @@
-import { ClibaseOption } from "api/typesGenerated";
+import type { ClibaseOption } from "api/typesGenerated";
 import {
   Badges,
   DisabledBadge,

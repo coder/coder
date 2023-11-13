@@ -42,7 +42,7 @@ export const ServiceBannerView: React.FC<ServiceBannerViewProps> = ({
         }
       `}
     >
-      {isPreview && <Pill text="Preview" type="info" lightBorder />}
+      {isPreview && <Pill text="Preview" type="info" />}
       <div
         css={css`
           margin-right: auto;

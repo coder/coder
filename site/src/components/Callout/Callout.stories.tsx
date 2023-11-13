@@ -58,14 +58,6 @@ export const Active: Story = {
   },
 };
 
-// export const InfoLight: Story = {
-//   args: {
-//     children: "Information",
-//     type: "info",
-//     lightBorder: true,
-//   },
-// };
-
 export const Default: Story = {
   args: {
     children: "Neutral/default",
@@ -77,11 +69,3 @@ export const DefaultLight: Story = {
     children: "Neutral/default",
   },
 };
-
-// export const WarningLight: Story = {
-//   args: {
-//     children: "Warning",
-//     type: "warning",
-//     lightBorder: true,
-//   },
-// };

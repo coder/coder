@@ -10,53 +10,41 @@ export type PillType =
   | "notice"
   | "info"
   | "success"
-  | "active"
-  | "neutral";
+  | "active";
 
 export interface PillProps {
   className?: string;
   icon?: ReactNode;
   text: ReactNode;
   type?: PillType;
-  lightBorder?: boolean;
   title?: string;
 }
 
 const themeOverrides = {
-  neutral: (lightBorder) => ({
+  neutral: {
     backgroundColor: colors.gray[13],
-    borderColor: lightBorder ? colors.gray[6] : colors.gray[9],
-  }),
-} satisfies Record<string, (lightBorder?: boolean) => Interpolation<Theme>>;
+    borderColor: colors.gray[6],
+  },
+} satisfies Record<string, Interpolation<Theme>>;
 
-const themeStyles =
-  (type: Exclude<PillType, "neutral">, lightBorder?: boolean) =>
-  (theme: Theme) => {
-    const palette = theme.experimental.roles[type];
-    return {
-      backgroundColor: palette.background,
-      borderColor: palette.outline,
-      color: palette.text,
-    };
+const themeStyles = (type: PillType) => (theme: Theme) => {
+  const palette = theme.experimental.roles[type];
+  return {
+    backgroundColor: palette.background,
+    borderColor: palette.outline,
   };
+};
 
 export const Pill: FC<PillProps> = forwardRef<HTMLDivElement, PillProps>(
   (props, ref) => {
-    const {
-      lightBorder,
-      icon,
-      text = null,
-      type = "neutral",
-      ...attrs
-    } = props;
+    const { icon, text = null, type = "neutral", ...attrs } = props;
 
     const typeStyles = useMemo(() => {
       if (type in themeOverrides) {
-        return themeOverrides[type as keyof typeof themeOverrides](lightBorder);
+        return themeOverrides[type as keyof typeof themeOverrides];
       }
-      // TODO: hack
-      return themeStyles(type as any, lightBorder);
-    }, [type, lightBorder]);
+      return themeStyles(type as PillType);
+    }, [type]);
 
     return (
       <div
