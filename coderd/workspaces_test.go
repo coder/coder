@@ -716,8 +716,10 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		templateTTL := 24 * time.Hour.Milliseconds()
+		templateTTLBump := time.Hour.Milliseconds()
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.DefaultTTLMillis = ptr.Ref(templateTTL)
+			ctr.DefaultTTLBumpMillis = ptr.Ref(templateTTLBump)
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
@@ -728,9 +730,9 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		// TTL should be set by the template
 		require.Equal(t, template.DefaultTTLMillis, templateTTL)
 		require.Equal(t, template.DefaultTTLMillis, *workspace.TTLMillis)
-		require.Equal(t, template.DefaultTTLBumpMillis, int64(0))
+		require.Equal(t, template.DefaultTTLBumpMillis, templateTTLBump)
 		// Workspace inherits template TTL bump
-		require.Equal(t, template.DefaultTTLBumpMillis, templateTTL)
+		require.Equal(t, template.DefaultTTLBumpMillis, workspace.TTLBumpMillis)
 	})
 
 	t.Run("TemplateCustomTTL", func(t *testing.T) {
