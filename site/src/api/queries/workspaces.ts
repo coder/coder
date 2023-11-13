@@ -18,10 +18,7 @@ export const workspaceByOwnerAndNameKey = (owner: string, name: string) => [
   "settings",
 ];
 
-export const workspaceByOwnerAndName = (
-  owner: string,
-  name: string,
-): QueryOptions<Workspace> => {
+export const workspaceByOwnerAndName = (owner: string, name: string) => {
   return {
     queryKey: workspaceByOwnerAndNameKey(owner, name),
     queryFn: () =>

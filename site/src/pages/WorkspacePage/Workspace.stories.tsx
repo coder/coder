@@ -747,10 +747,3 @@ function makeFailedBuildLogs(): ProvisionerJobLog[] {
     },
   ];
 }
-
-export const UnsupportedWorkspace: Story = {
-  args: {
-    ...Running.args,
-    templateWarnings: ["UNSUPPORTED_WORKSPACES"],
-  },
-};

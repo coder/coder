@@ -104,35 +104,6 @@ export const workspaceMachine = createMachine(
           },
         },
         states: {
-          listening: {
-            initial: "gettingEvents",
-            states: {
-              gettingEvents: {
-                entry: ["initializeEventSource"],
-                exit: "closeEventSource",
-                invoke: {
-                  src: "listening",
-                  id: "listening",
-                },
-                on: {
-                  REFRESH_WORKSPACE: {
-                    actions: ["refreshWorkspace"],
-                  },
-                  EVENT_SOURCE_ERROR: {
-                    target: "error",
-                  },
-                },
-              },
-              error: {
-                entry: "logWatchWorkspaceWarning",
-                after: {
-                  "2000": {
-                    target: "gettingEvents",
-                  },
-                },
-              },
-            },
-          },
           build: {
             initial: "idle",
             states: {
@@ -359,20 +330,6 @@ export const workspaceMachine = createMachine(
       clearCancellationError: assign({
         cancellationError: (_) => undefined,
       }),
-      // SSE related actions
-      // open a new EventSource so we can stream SSE
-      initializeEventSource: assign({
-        eventSource: (context) =>
-          context.workspace && API.watchWorkspace(context.workspace.id),
-      }),
-      closeEventSource: (context) =>
-        context.eventSource && context.eventSource.close(),
-      refreshWorkspace: assign({
-        workspace: (_, event) => event.data,
-      }),
-      logWatchWorkspaceWarning: (_, event) => {
-        console.error("Watch workspace error:", event);
-      },
       displayActivateError: (_, { data }) => {
         const message = getErrorMessage(data, "Error activate workspace.");
         displayError(message);
@@ -502,44 +459,7 @@ export const workspaceMachine = createMachine(
           throw Error("Cannot activate workspace without workspace id");
         }
       },
-      listening: (context) => (send) => {
-        if (!context.eventSource) {
-          send({ type: "EVENT_SOURCE_ERROR", error: "error initializing sse" });
-          return;
-        }
 
-        context.eventSource.addEventListener("data", (event) => {
-          const newWorkspaceData = JSON.parse(event.data) as TypesGen.Workspace;
-          // refresh our workspace with each SSE
-          send({ type: "REFRESH_WORKSPACE", data: newWorkspaceData });
-
-          const currentWorkspace = context.workspace!;
-          const hasNewBuild =
-            newWorkspaceData.latest_build.id !==
-            currentWorkspace.latest_build.id;
-          const lastBuildHasChanged =
-            newWorkspaceData.latest_build.status !==
-            currentWorkspace.latest_build.status;
-
-          if (hasNewBuild || lastBuildHasChanged) {
-            send({ type: "REFRESH_TIMELINE" });
-          }
-        });
-
-        // handle any error events returned by our sse
-        context.eventSource.addEventListener("error", (event) => {
-          send({ type: "EVENT_SOURCE_ERROR", error: event });
-        });
-
-        // handle any sse implementation exceptions
-        context.eventSource.onerror = () => {
-          send({ type: "EVENT_SOURCE_ERROR", error: "sse error" });
-        };
-
-        return () => {
-          context.eventSource?.close();
-        };
-      },
     },
   },
 );

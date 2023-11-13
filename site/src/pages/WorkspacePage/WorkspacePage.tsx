@@ -1,6 +1,6 @@
 import { useMachine } from "@xstate/react";
 import { Loader } from "components/Loader/Loader";
-import { FC } from "react";
+import { FC, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { workspaceMachine } from "xServices/workspace/workspaceXService";
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage";
@@ -9,14 +9,17 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { useOrganizationId } from "hooks";
 import { isAxiosError } from "axios";
 import { Margins } from "components/Margins/Margins";
-import { useInfiniteQuery, useQuery } from "react-query";
+import { useInfiniteQuery, useQuery, useQueryClient } from "react-query";
 import { infiniteWorkspaceBuilds } from "api/queries/workspaceBuilds";
 import { templateByName } from "api/queries/templates";
 import { workspaceByOwnerAndName } from "api/queries/workspaces";
 import { checkAuthorization } from "api/queries/authCheck";
 import { WorkspacePermissions, workspaceChecks } from "./permissions";
+import { watchWorkspace } from "api/api";
+import { Workspace } from "api/typesGenerated";
 
 export const WorkspacePage: FC = () => {
+  const queryClient = useQueryClient();
   const params = useParams() as {
     username: string;
     workspace: string;
@@ -37,9 +40,11 @@ export const WorkspacePage: FC = () => {
     },
   });
 
-  const workspaceQuery = useQuery(
-    workspaceByOwnerAndName(username, workspaceName),
+  const workspaceQueryOptions = workspaceByOwnerAndName(
+    username,
+    workspaceName,
   );
+  const workspaceQuery = useQuery(workspaceQueryOptions);
   const workspace = workspaceQuery.data;
 
   const templateQuery = useQuery({
@@ -64,6 +69,43 @@ export const WorkspacePage: FC = () => {
   const pageError =
     workspaceQuery.error ?? templateQuery.error ?? permissionsQuery.error;
   const isLoading = !workspace || !template || !permissions;
+
+  // Watch workspace changes
+  const workspaceEventSource = useRef<EventSource | null>(null);
+  useEffect(() => {
+    // If there is an event source, we are already watching the workspace
+    if (!workspace || workspaceEventSource.current) {
+      return;
+    }
+
+    const eventSource = watchWorkspace(workspace.id);
+    workspaceEventSource.current = eventSource;
+
+    eventSource.addEventListener("data", async (event) => {
+      const newWorkspaceData = JSON.parse(event.data) as Workspace;
+      queryClient.setQueryData(
+        workspaceQueryOptions.queryKey,
+        newWorkspaceData,
+      );
+
+      const hasNewBuild =
+        newWorkspaceData.latest_build.id !== workspace.latest_build.id;
+      const lastBuildHasChanged =
+        newWorkspaceData.latest_build.status !== workspace.latest_build.status;
+
+      if (hasNewBuild || lastBuildHasChanged) {
+        await buildsQuery.refetch();
+      }
+    });
+
+    eventSource.addEventListener("error", (event) => {
+      console.error("Error on getting workspace changes.", event);
+    });
+
+    return () => {
+      eventSource.close();
+    };
+  }, [buildsQuery, queryClient, workspace, workspaceQueryOptions.queryKey]);
 
   if (pageError) {
     return (
