@@ -59,6 +59,7 @@ export interface CreateTemplateData {
   display_name: string;
   description: string;
   icon: string;
+  default_ttl_bump_hours: number;
   default_ttl_hours: number;
   max_ttl_hours: number;
   autostart_requirement_days_of_week: TemplateAutostartRequirementDaysValue[];
@@ -105,6 +106,7 @@ const defaultInitialValues: CreateTemplateData = {
   description: "",
   icon: "",
   default_ttl_hours: 24,
+  default_ttl_bump_hours: 0,
   // max_ttl is an enterprise-only feature, and the server ignores the value if
   // you are not licensed. We hide the form value based on entitlements.
   //

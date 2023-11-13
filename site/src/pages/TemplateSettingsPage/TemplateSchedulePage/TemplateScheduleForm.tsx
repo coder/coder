@@ -27,6 +27,7 @@ import {
 import { TemplateScheduleFormValues, getValidationSchema } from "./formHelpers";
 import {
   DefaultTTLHelperText,
+  DefaultTTLBumpHelperText,
   DormancyAutoDeletionTTLHelperText,
   DormancyTTLHelperText,
   FailureTTLHelperText,
@@ -76,6 +77,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
     initialValues: {
       // on display, convert from ms => hours
       default_ttl_ms: template.default_ttl_ms / MS_HOUR_CONVERSION,
+      default_ttl_bump_ms: template.default_ttl_bump_ms / MS_HOUR_CONVERSION,
       // the API ignores these values, but to avoid tripping up validation set
       // it to zero if the user can't set the field.
       max_ttl_ms: allowAdvancedScheduling
@@ -205,6 +207,9 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       default_ttl_ms: form.values.default_ttl_ms
         ? form.values.default_ttl_ms * MS_HOUR_CONVERSION
         : undefined,
+      default_ttl_bump_ms: form.values.default_ttl_bump_ms
+        ? form.values.default_ttl_bump_ms * MS_HOUR_CONVERSION
+        : undefined,
       max_ttl_ms: form.values.max_ttl_ms
         ? form.values.max_ttl_ms * MS_HOUR_CONVERSION
         : undefined,
@@ -327,17 +332,34 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         description="Define when workspaces created from this template are stopped."
       >
         <Stack direction="row" css={styles.ttlFields}>
-          <TextField
-            {...getFieldHelpers(
-              "default_ttl_ms",
-              <DefaultTTLHelperText ttl={form.values.default_ttl_ms} />,
-            )}
-            disabled={isSubmitting}
-            fullWidth
-            inputProps={{ min: 0, step: 1 }}
-            label="Default autostop (hours)"
-            type="number"
-          />
+          <Stack direction="column">
+            <TextField
+              {...getFieldHelpers(
+                "default_ttl_ms",
+                <DefaultTTLHelperText ttl={form.values.default_ttl_ms} />,
+              )}
+              disabled={isSubmitting}
+              fullWidth
+              inputProps={{ min: 0, step: 1 }}
+              label="Default autostop (hours)"
+              type="number"
+            />
+
+            <TextField
+              {...getFieldHelpers(
+                "default_ttl_bump_ms",
+                <DefaultTTLBumpHelperText
+                  ttl={form.values.default_ttl_ms}
+                  ttl_bump={form.values.default_ttl_bump_ms}
+                />,
+              )}
+              disabled={isSubmitting}
+              fullWidth
+              inputProps={{ min: 0, step: 1 }}
+              label="Default activity bump (hours)"
+              type="number"
+            />
+          </Stack>
 
           {!allowAutostopRequirement && (
             <TextField

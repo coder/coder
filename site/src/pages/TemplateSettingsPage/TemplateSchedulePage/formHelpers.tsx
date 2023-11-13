@@ -29,6 +29,13 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
         24 * MAX_TTL_DAYS /* 30 days in hours */,
         "Please enter a limit that is less than or equal to 720 hours (30 days).",
       ),
+    default_ttl_bump_ms: Yup.number()
+      .integer()
+      .min(0, "Default activity bump duration must not be less than 0.")
+      .max(
+        24 * MAX_TTL_DAYS /* 30 days in hours */,
+        "Please enter a limit that is less than or equal to 720 hours (30 days).",
+      ),
     max_ttl_ms: Yup.number()
       .integer()
       .min(0, "Maximum time until autostop must not be less than 0.")

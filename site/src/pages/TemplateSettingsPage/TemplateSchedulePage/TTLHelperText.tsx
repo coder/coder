@@ -21,6 +21,35 @@ export const DefaultTTLHelperText = (props: { ttl?: number }) => {
   );
 };
 
+export const DefaultTTLBumpHelperText = (props: {
+  ttl?: number;
+  ttl_bump?: number;
+}) => {
+  const { ttl_bump = 0 } = props;
+  const { ttl = 0 } = props;
+
+  // Error will show once field is considered touched
+  if (ttl_bump < 0) {
+    return null;
+  }
+
+  if (ttl_bump === 0) {
+    return (
+      <span>
+        Workspace lifetime will default to being extended by the default
+        autostop duration of {ttl} {hours(ttl)} from workspace activity.
+      </span>
+    );
+  }
+
+  return (
+    <span>
+      Workspace lifetime will be extended by {ttl_bump} {hours(ttl_bump)} from
+      workspace activity.
+    </span>
+  );
+};
+
 export const MaxTTLHelperText = (props: { ttl?: number }) => {
   const { ttl = 0 } = props;
 

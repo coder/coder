@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -87,6 +88,33 @@ func TestTemplates(t *testing.T) {
 		require.Len(t, apiErr.Validations, 1)
 		require.Equal(t, apiErr.Validations[0].Field, "ttl_ms")
 		require.Contains(t, apiErr.Validations[0].Detail, "time until shutdown must be less than or equal to the template's maximum TTL")
+	})
+
+	t.Run("PatchTTLBump", func(t *testing.T) {
+		t.Parallel()
+		rootClient, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAdvancedTemplateScheduling: 1,
+				},
+			},
+		})
+		client, _ := coderdtest.CreateAnotherUser(t, rootClient, user.OrganizationID, rbac.RoleTemplateAdmin())
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.DefaultTTLMillis = ptr.Ref(5 * time.Hour.Milliseconds())
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		exp := 10 * time.Hour.Milliseconds()
+		found, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			DefaultTTLBumpMillis: exp,
+		})
+		require.NoError(t, err)
+		require.Equal(t, exp, found.DefaultTTLBumpMillis)
 	})
 
 	t.Run("BlockDisablingAutoOffWithMaxTTL", func(t *testing.T) {

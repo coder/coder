@@ -15,6 +15,7 @@ import TemplateSchedulePage from "./TemplateSchedulePage";
 
 const validFormValues: TemplateScheduleFormValues = {
   default_ttl_ms: 1,
+  default_ttl_bump_ms: 0,
   max_ttl_ms: 2,
   failure_ttl_ms: 7,
   time_til_dormant_ms: 180,
@@ -57,6 +58,7 @@ type FillAndSubmitConfig = {
 
 const fillAndSubmitForm = async ({
   default_ttl_ms,
+  default_ttl_bump_ms,
   max_ttl_ms,
   failure_ttl_ms,
   time_til_dormant_ms,
@@ -70,6 +72,14 @@ const fillAndSubmitForm = async ({
     );
     await user.clear(defaultTtlField);
     await user.type(defaultTtlField, default_ttl_ms.toString());
+  }
+
+  if (default_ttl_bump_ms) {
+    const defaultTtlBumpField = await screen.findByLabelText(
+      "Default activity bump (hours)",
+    );
+    await user.clear(defaultTtlBumpField);
+    await user.type(defaultTtlBumpField, default_ttl_bump_ms.toString());
   }
 
   if (max_ttl_ms) {
@@ -238,6 +248,16 @@ describe("TemplateSchedulePage", () => {
     expect(validate).toThrowError(
       "Please enter a limit that is less than or equal to 720 hours (30 days).",
     );
+  });
+
+  it("allows a default ttl bump of 1 hour", () => {
+    const values: TemplateScheduleFormValues = {
+      ...validFormValues,
+      default_ttl_ms: 24 * 7,
+      default_ttl_bump_ms: 1,
+    };
+    const validate = () => getValidationSchema().validateSync(values);
+    expect(validate).not.toThrowError();
   });
 
   it("allows a failure ttl of 7 days", () => {

@@ -14,6 +14,7 @@ const provisioner: ProvisionerType =
 export const newTemplate = (formData: CreateTemplateData) => {
   const {
     default_ttl_hours,
+    default_ttl_bump_hours,
     max_ttl_hours,
     parameter_values_by_name,
     allow_everyone_group_access,
@@ -27,6 +28,7 @@ export const newTemplate = (formData: CreateTemplateData) => {
     ...safeTemplateData,
     disable_everyone_group_access: !formData.allow_everyone_group_access,
     default_ttl_ms: formData.default_ttl_hours * 60 * 60 * 1000, // Convert hours to ms
+    default_ttl_bump_ms: formData.default_ttl_bump_hours * 60 * 60 * 1000, // Convert hours to ms
     max_ttl_ms: formData.max_ttl_hours * 60 * 60 * 1000, // Convert hours to ms
     autostop_requirement: {
       days_of_week: calculateAutostopRequirementDaysValue(

@@ -108,7 +108,8 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 		tpl.AutostopRequirementWeeks = 1
 	}
 
-	if int64(opts.DefaultTTL) == tpl.DefaultTTL &&
+	if int64(opts.DefaultTTLBump) == tpl.DefaultTTLBump &&
+		int64(opts.DefaultTTL) == tpl.DefaultTTL &&
 		int64(opts.MaxTTL) == tpl.MaxTTL &&
 		int16(opts.AutostopRequirement.DaysOfWeek) == tpl.AutostopRequirementDaysOfWeek &&
 		opts.AutostartRequirement.DaysOfWeek == tpl.AutostartAllowedDays() &&
