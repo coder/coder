@@ -219,9 +219,11 @@ export const WorkspaceReadyPage = ({
         isRestarting={isRestarting}
         workspace={workspace}
         handleStart={(buildParameters) => {
-          startWorkspaceMutation.mutate(buildParameters);
+          startWorkspaceMutation.mutate({ buildParameters });
         }}
-        handleStop={stopWorkspaceMutation.mutate}
+        handleStop={() => {
+          stopWorkspaceMutation.mutate({});
+        }}
         handleDelete={() => {
           setIsConfirmingDelete(true);
         }}
@@ -233,7 +235,19 @@ export const WorkspaceReadyPage = ({
         }}
         handleCancel={cancelBuildMutation.mutate}
         handleSettings={() => navigate("settings")}
-        handleBuildRetry={() => {}}
+        handleBuildRetry={() => {
+          switch (workspace.latest_build.transition) {
+            case "start":
+              startWorkspaceMutation.mutate({ logLevel: "debug" });
+              break;
+            case "stop":
+              stopWorkspaceMutation.mutate({ logLevel: "debug" });
+              break;
+            case "delete":
+              deleteWorkspaceMutation.mutate({ logLevel: "debug" });
+              break;
+          }
+        }}
         handleChangeVersion={() => {
           setChangeVersionDialogOpen(true);
         }}
@@ -287,7 +301,7 @@ export const WorkspaceReadyPage = ({
           setIsConfirmingDelete(false);
         }}
         onConfirm={() => {
-          deleteWorkspaceMutation.mutate();
+          deleteWorkspaceMutation.mutate({});
           setIsConfirmingDelete(false);
         }}
       />

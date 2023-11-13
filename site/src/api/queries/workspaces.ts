@@ -10,6 +10,7 @@ import {
   type WorkspacesResponse,
   type WorkspacesRequest,
   WorkspaceBuild,
+  ProvisionerLogLevel,
 } from "api/typesGenerated";
 import { workspaceBuildsKey } from "./workspaceBuilds";
 
@@ -161,8 +162,8 @@ export const deleteWorkspace = (
   queryClient: QueryClient,
 ) => {
   return {
-    mutationFn: () => {
-      return API.deleteWorkspace(workspace.id);
+    mutationFn: ({ logLevel }: { logLevel?: ProvisionerLogLevel }) => {
+      return API.deleteWorkspace(workspace.id, logLevel);
     },
     onSuccess: async (build: WorkspaceBuild) => {
       await updateWorkspaceBuild(build, queryClient);
@@ -172,8 +173,8 @@ export const deleteWorkspace = (
 
 export const stop = (workspace: Workspace, queryClient: QueryClient) => {
   return {
-    mutationFn: () => {
-      return API.stopWorkspace(workspace.id);
+    mutationFn: ({ logLevel }: { logLevel?: ProvisionerLogLevel }) => {
+      return API.stopWorkspace(workspace.id, logLevel);
     },
     onSuccess: async (build: WorkspaceBuild) => {
       await updateWorkspaceBuild(build, queryClient);
@@ -183,11 +184,17 @@ export const stop = (workspace: Workspace, queryClient: QueryClient) => {
 
 export const start = (workspace: Workspace, queryClient: QueryClient) => {
   return {
-    mutationFn: (buildParameters?: WorkspaceBuildParameter[]) => {
+    mutationFn: ({
+      buildParameters,
+      logLevel,
+    }: {
+      buildParameters?: WorkspaceBuildParameter[];
+      logLevel?: ProvisionerLogLevel;
+    }) => {
       return API.startWorkspace(
         workspace.id,
         workspace.latest_build.template_version_id,
-        undefined,
+        logLevel,
         buildParameters,
       );
     },

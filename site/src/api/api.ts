@@ -525,7 +525,7 @@ export const postWorkspaceBuild = async (
 export const startWorkspace = (
   workspaceId: string,
   templateVersionId: string,
-  logLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"],
+  logLevel?: TypesGen.ProvisionerLogLevel,
   buildParameters?: TypesGen.WorkspaceBuildParameter[],
 ) =>
   postWorkspaceBuild(workspaceId, {
@@ -536,7 +536,7 @@ export const startWorkspace = (
   });
 export const stopWorkspace = (
   workspaceId: string,
-  logLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"],
+  logLevel?: TypesGen.ProvisionerLogLevel,
 ) =>
   postWorkspaceBuild(workspaceId, {
     transition: "stop",
@@ -545,7 +545,7 @@ export const stopWorkspace = (
 
 export const deleteWorkspace = (
   workspaceId: string,
-  logLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"],
+  logLevel?: TypesGen.ProvisionerLogLevel,
 ) =>
   postWorkspaceBuild(workspaceId, {
     transition: "delete",
