@@ -1,11 +1,10 @@
-import { Theme } from "@mui/material/styles";
+import type { Theme } from "@emotion/react";
 import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
 import minMax from "dayjs/plugin/minMax";
 import utc from "dayjs/plugin/utc";
 import semver from "semver";
 import type * as TypesGen from "api/typesGenerated";
-import type { CoderTheme } from "theme/theme";
 import CircularProgress from "@mui/material/CircularProgress";
 import ErrorIcon from "@mui/icons-material/ErrorOutline";
 import StopIcon from "@mui/icons-material/StopOutlined";
@@ -30,26 +29,26 @@ const DisplayAgentVersionLanguage = {
 };
 
 export const getDisplayWorkspaceBuildStatus = (
-  theme: CoderTheme,
+  theme: Theme,
   build: TypesGen.WorkspaceBuild,
 ) => {
   switch (build.job.status) {
     case "succeeded":
       return {
         type: "success",
-        color: theme.roles.success.text,
+        color: theme.experimental.roles.success.text,
         status: DisplayWorkspaceBuildStatusLanguage.succeeded,
       } as const;
     case "pending":
       return {
         type: "secondary",
-        color: theme.roles.active.text,
+        color: theme.experimental.roles.active.text,
         status: DisplayWorkspaceBuildStatusLanguage.pending,
       } as const;
     case "running":
       return {
         type: "info",
-        color: theme.roles.active.text,
+        color: theme.experimental.roles.active.text,
         status: DisplayWorkspaceBuildStatusLanguage.running,
       } as const;
     // Just handle unknown as failed
@@ -57,19 +56,19 @@ export const getDisplayWorkspaceBuildStatus = (
     case "failed":
       return {
         type: "error",
-        color: theme.roles.error.text,
+        color: theme.experimental.roles.error.text,
         status: DisplayWorkspaceBuildStatusLanguage.failed,
       } as const;
     case "canceling":
       return {
         type: "warning",
-        color: theme.roles.warning.text,
+        color: theme.experimental.roles.warning.text,
         status: DisplayWorkspaceBuildStatusLanguage.canceling,
       } as const;
     case "canceled":
       return {
         type: "secondary",
-        color: theme.roles.warning.text,
+        color: theme.experimental.roles.warning.text,
         status: DisplayWorkspaceBuildStatusLanguage.canceled,
       } as const;
   }

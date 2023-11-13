@@ -1,7 +1,6 @@
 import { type FC, type ReactNode, useMemo, forwardRef } from "react";
 import { css, type Interpolation, type Theme } from "@emotion/react";
 import { colors } from "theme/colors";
-import { dark } from "theme/theme";
 
 // TODO: use a `ThemeRole` type or something
 export type PillType =
@@ -33,7 +32,7 @@ const themeOverrides = {
 const themeStyles =
   (type: Exclude<PillType, "neutral">, lightBorder?: boolean) =>
   (theme: Theme) => {
-    const palette = dark.roles[type];
+    const palette = theme.experimental.roles[type];
     return {
       backgroundColor: palette.background,
       borderColor: palette.outline,

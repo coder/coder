@@ -15,7 +15,7 @@ export const colors = {
     6: tw.gray[300],
     4: tw.gray[200],
     // 3: tw.gray[200],
-    // 2: tw.gray[100],
+    2: tw.gray[100],
     1: tw.gray[50],
   },
 

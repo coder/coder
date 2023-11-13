@@ -5,9 +5,7 @@ import {
   useId,
   useState,
 } from "react";
-import { useTheme } from "@emotion/react";
 import TextField from "@mui/material/TextField";
-import { dark } from "theme/theme";
 import { ConfirmDialog } from "../ConfirmDialog/ConfirmDialog";
 import { Callout } from "../../Callout/Callout";
 
@@ -31,7 +29,6 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
   confirmLoading,
 }) => {
   const hookId = useId();
-  const theme = useTheme();
 
   const [userConfirmationText, setUserConfirmationText] = useState("");
   const [isFocused, setIsFocused] = useState(false);
