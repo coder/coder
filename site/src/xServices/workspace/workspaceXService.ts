@@ -38,11 +38,6 @@ export type WorkspaceEvent =
   | { type: "DELETE" }
   | { type: "CANCEL_DELETE" }
   | { type: "UPDATE"; buildParameters?: TypesGen.WorkspaceBuildParameter[] }
-  | {
-      type: "CHANGE_VERSION";
-      templateVersionId: TypesGen.TemplateVersion["id"];
-      buildParameters?: TypesGen.WorkspaceBuildParameter[];
-    }
   | { type: "CANCEL" }
   | {
       type: "REFRESH_TIMELINE";
@@ -60,9 +55,6 @@ export const workspaceMachine = createMachine(
       events: {} as WorkspaceEvent,
       services: {} as {
         updateWorkspace: {
-          data: TypesGen.WorkspaceBuild;
-        };
-        changeWorkspaceVersion: {
           data: TypesGen.WorkspaceBuild;
         };
         startWorkspace: {
@@ -101,10 +93,6 @@ export const workspaceMachine = createMachine(
                   STOP: "requestingStop",
                   ASK_DELETE: "askingDelete",
                   UPDATE: "requestingUpdate",
-                  CHANGE_VERSION: {
-                    target: "requestingChangeVersion",
-                    actions: ["assignTemplateVersionIdToChange"],
-                  },
                   CANCEL: "requestingCancel",
                   RETRY_BUILD: [
                     {
@@ -157,37 +145,10 @@ export const workspaceMachine = createMachine(
                   ],
                 },
               },
-              requestingChangeVersion: {
-                entry: ["clearBuildError"],
-                invoke: {
-                  src: "changeWorkspaceVersion",
-                  onDone: {
-                    target: "idle",
-                    actions: ["assignBuild", "clearTemplateVersionIdToChange"],
-                  },
-                  onError: [
-                    {
-                      target: "askingForMissedBuildParameters",
-                      cond: "isMissingBuildParameterError",
-                      actions: ["assignMissedParameters"],
-                    },
-                    {
-                      target: "idle",
-                      actions: ["assignBuildError"],
-                    },
-                  ],
-                },
-              },
               askingForMissedBuildParameters: {
                 on: {
                   CANCEL: "idle",
-                  UPDATE: [
-                    {
-                      target: "requestingChangeVersion",
-                      cond: "isChangingVersion",
-                    },
-                    { target: "requestingUpdate" },
-                  ],
+                  UPDATE: [{ target: "requestingUpdate" }],
                 },
               },
               requestingStart: {
@@ -333,14 +294,6 @@ export const workspaceMachine = createMachine(
       // Debug mode when build fails
       enableDebugMode: assign({ createBuildLogLevel: (_) => "debug" as const }),
       disableDebugMode: assign({ createBuildLogLevel: (_) => undefined }),
-      // Change version
-      assignTemplateVersionIdToChange: assign({
-        templateVersionIdToChange: (_, { templateVersionId }) =>
-          templateVersionId,
-      }),
-      clearTemplateVersionIdToChange: assign({
-        templateVersionIdToChange: (_) => undefined,
-      }),
     },
     guards: {
       isMissingBuildParameterError: (_, { data }) => {
@@ -355,8 +308,6 @@ export const workspaceMachine = createMachine(
       lastBuildWasDeleting: ({ workspace }) => {
         return workspace?.latest_build.transition === "delete";
       },
-      isChangingVersion: ({ templateVersionIdToChange }) =>
-        Boolean(templateVersionIdToChange),
     },
     services: {
       updateWorkspace:
@@ -366,23 +317,6 @@ export const workspaceMachine = createMachine(
             throw new Error("Workspace is not set");
           }
           const build = await API.updateWorkspace(workspace, buildParameters);
-          send({ type: "REFRESH_TIMELINE" });
-          return build;
-        },
-      changeWorkspaceVersion:
-        ({ workspace, templateVersionIdToChange }, { buildParameters }) =>
-        async (send) => {
-          if (!workspace) {
-            throw new Error("Workspace is not set");
-          }
-          if (!templateVersionIdToChange) {
-            throw new Error("Template version id to change is not set");
-          }
-          const build = await API.changeWorkspaceVersion(
-            workspace,
-            templateVersionIdToChange,
-            buildParameters,
-          );
           send({ type: "REFRESH_TIMELINE" });
           return build;
         },

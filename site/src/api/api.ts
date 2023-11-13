@@ -1207,10 +1207,15 @@ export const removeLicense = async (licenseId: number): Promise<void> => {
 
 export class MissingBuildParameters extends Error {
   parameters: TypesGen.TemplateVersionParameter[] = [];
+  versionId: string;
 
-  constructor(parameters: TypesGen.TemplateVersionParameter[]) {
+  constructor(
+    parameters: TypesGen.TemplateVersionParameter[],
+    versionId: string,
+  ) {
     super("Missing build parameters.");
     this.parameters = parameters;
+    this.versionId = versionId;
   }
 }
 
@@ -1239,7 +1244,7 @@ export const changeWorkspaceVersion = async (
   );
 
   if (missingParameters.length > 0) {
-    throw new MissingBuildParameters(missingParameters);
+    throw new MissingBuildParameters(missingParameters, templateVersionId);
   }
 
   return postWorkspaceBuild(workspace.id, {
@@ -1277,7 +1282,7 @@ export const updateWorkspace = async (
   );
 
   if (missingParameters.length > 0) {
-    throw new MissingBuildParameters(missingParameters);
+    throw new MissingBuildParameters(missingParameters, activeVersionId);
   }
 
   return postWorkspaceBuild(workspace.id, {

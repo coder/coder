@@ -9,6 +9,7 @@ import {
   type CreateWorkspaceRequest,
   type WorkspacesResponse,
   type WorkspacesRequest,
+  WorkspaceBuild,
 } from "api/typesGenerated";
 
 export const workspaceByOwnerAndNameKey = (owner: string, name: string) => [
@@ -119,6 +120,34 @@ export const increaseDeadline = (workspace: Workspace) => {
         getMaxDeadline(workspace),
       );
       return putWorkspaceExtension(workspace.id, newDeadline);
+    },
+  };
+};
+
+export const changeVersion = (
+  workspace: Workspace,
+  queryClient: QueryClient,
+) => {
+  return {
+    mutationFn: ({
+      versionId,
+      buildParameters,
+    }: {
+      versionId: string;
+      buildParameters?: WorkspaceBuildParameter[];
+    }) => {
+      return API.changeWorkspaceVersion(workspace, versionId, buildParameters);
+    },
+    onSuccess: (build: WorkspaceBuild) => {
+      const workspaceKey = workspaceByOwnerAndNameKey(
+        build.workspace_owner_name,
+        build.workspace_name,
+      );
+      const previousData = queryClient.getQueryData(workspaceKey) as Workspace;
+      queryClient.setQueryData(workspaceKey, {
+        ...previousData,
+        latest_build: build,
+      });
     },
   };
 };

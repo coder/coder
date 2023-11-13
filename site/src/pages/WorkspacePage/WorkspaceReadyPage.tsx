@@ -21,8 +21,8 @@ import {
 } from "xServices/workspace/workspaceXService";
 import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
 import { ChangeVersionDialog } from "./ChangeVersionDialog";
-import { useMutation, useQuery } from "react-query";
-import { restartWorkspace } from "api/api";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { MissingBuildParameters, restartWorkspace } from "api/api";
 import {
   ConfirmDialog,
   ConfirmDialogProps,
@@ -33,7 +33,11 @@ import { templateVersion, templateVersions } from "api/queries/templates";
 import { Alert } from "components/Alert/Alert";
 import { Stack } from "components/Stack/Stack";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
-import { decreaseDeadline, increaseDeadline } from "api/queries/workspaces";
+import {
+  changeVersion,
+  decreaseDeadline,
+  increaseDeadline,
+} from "api/queries/workspaces";
 import { getErrorMessage } from "api/errors";
 import { displaySuccess, displayError } from "components/GlobalSnackbar/utils";
 import { deploymentConfig, deploymentSSHConfig } from "api/queries/deployment";
@@ -69,6 +73,7 @@ export const WorkspaceReadyPage = ({
   hasMoreBuilds,
 }: WorkspaceReadyPageProps): JSX.Element => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { buildInfo } = useDashboard();
   const featureVisibility = useFeatureVisibility();
   const { buildError, cancellationError, missedParameters } =
@@ -85,18 +90,7 @@ export const WorkspaceReadyPage = ({
   const canRetryDebugMode = Boolean(
     deploymentValues?.config.enable_terraform_debug_mode,
   );
-  const [changeVersionDialogOpen, setChangeVersionDialogOpen] = useState(false);
   const [isConfirmingUpdate, setIsConfirmingUpdate] = useState(false);
-
-  // Versions
-  const { data: allVersions } = useQuery({
-    ...templateVersions(workspace.template_id),
-    enabled: changeVersionDialogOpen,
-  });
-  const { data: latestVersion } = useQuery({
-    ...templateVersion(workspace.template_active_version_id),
-    enabled: workspace.outdated,
-  });
 
   // Build logs
   const buildLogs = useWorkspaceBuildLogs(workspace.latest_build.id);
@@ -161,6 +155,22 @@ export const WorkspaceReadyPage = ({
     // We want the favicon the opposite of the theme.
     setFaviconTheme(isDark.matches ? "light" : "dark");
   }, []);
+
+  // Change version
+  const [changeVersionDialogOpen, setChangeVersionDialogOpen] = useState(false);
+  const changeVersionMutation = useMutation(
+    changeVersion(workspace, queryClient),
+  );
+
+  // Versions
+  const { data: allVersions } = useQuery({
+    ...templateVersions(workspace.template_id),
+    enabled: changeVersionDialogOpen,
+  });
+  const { data: latestVersion } = useQuery({
+    ...templateVersion(workspace.template_active_version_id),
+    enabled: workspace.outdated,
+  });
 
   return (
     <>
@@ -248,6 +258,25 @@ export const WorkspaceReadyPage = ({
         }}
       />
       <UpdateBuildParametersDialog
+        missedParameters={
+          changeVersionMutation.error instanceof MissingBuildParameters
+            ? changeVersionMutation.error.parameters
+            : []
+        }
+        open={changeVersionMutation.error instanceof MissingBuildParameters}
+        onClose={() => {
+          changeVersionMutation.reset();
+        }}
+        onUpdate={(buildParameters) => {
+          if (changeVersionMutation.error instanceof MissingBuildParameters) {
+            changeVersionMutation.mutate({
+              versionId: changeVersionMutation.error.versionId,
+              buildParameters,
+            });
+          }
+        }}
+      />
+      <UpdateBuildParametersDialog
         missedParameters={missedParameters ?? []}
         open={workspaceState.matches(
           "ready.build.askingForMissedBuildParameters",
@@ -271,10 +300,7 @@ export const WorkspaceReadyPage = ({
         }}
         onConfirm={(templateVersion) => {
           setChangeVersionDialogOpen(false);
-          workspaceSend({
-            type: "CHANGE_VERSION",
-            templateVersionId: templateVersion.id,
-          });
+          changeVersionMutation.mutate({ versionId: templateVersion.id });
         }}
       />
       <WarningDialog

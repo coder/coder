@@ -201,10 +201,10 @@ describe("WorkspacePage", () => {
     const updateWorkspaceSpy = jest
       .spyOn(api, "updateWorkspace")
       .mockRejectedValueOnce(
-        new api.MissingBuildParameters([
-          MockTemplateVersionParameter1,
-          MockTemplateVersionParameter2,
-        ]),
+        new api.MissingBuildParameters(
+          [MockTemplateVersionParameter1, MockTemplateVersionParameter2],
+          MockOutdatedWorkspace.template_active_version_id,
+        ),
       );
 
     // Render
