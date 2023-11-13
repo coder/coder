@@ -172,17 +172,6 @@ An HTTP URL that is accessible by other replicas to relay DERP traffic. Required
 
 Addresses for STUN servers to establish P2P connections. It's recommended to have at least two STUN servers to give users the best chance of connecting P2P to workspaces. Each STUN server will get it's own DERP region, with region IDs starting at `--derp-server-region-id + 1`. Use special value 'disable' to turn off STUN completely.
 
-### --threshold-database
-
-|             |                                                          |
-| ----------- | -------------------------------------------------------- |
-| Type        | <code>duration</code>                                    |
-| Environment | <code>$CODER_HEALTH_CHECK_THRESHOLD_DATABASE</code>      |
-| YAML        | <code>introspection.healthcheck.thresholdDatabase</code> |
-| Default     | <code>15ms</code>                                        |
-
-The threshold for the database health check. If the median latency of the database exceeds this threshold over 5 attempts, the database is considered unhealthy. The default value is 15ms.
-
 ### --default-quiet-hours-schedule
 
 |             |                                                               |
@@ -316,18 +305,7 @@ Time to force cancel provisioning tasks that are stuck.
 
 HTTP bind address of the server. Unset to disable the HTTP endpoint.
 
-### --healthcheck-timeout
-
-|             |                                                |
-| ----------- | ---------------------------------------------- |
-| Type        | <code>duration</code>                          |
-| Environment | <code>$CODER_HEALTH_CHECK_TIMEOUT</code>       |
-| YAML        | <code>introspection.healthcheck.timeout</code> |
-| Default     | <code>30s</code>                               |
-
-Overall timeout for health checks.
-
-### --healthcheck-refresh
+### --health-check-refresh
 
 |             |                                                |
 | ----------- | ---------------------------------------------- |
@@ -337,6 +315,28 @@ Overall timeout for health checks.
 | Default     | <code>10m0s</code>                             |
 
 Refresh interval for healthchecks.
+
+### --health-check-threshold-database
+
+|             |                                                          |
+| ----------- | -------------------------------------------------------- |
+| Type        | <code>duration</code>                                    |
+| Environment | <code>$CODER_HEALTH_CHECK_THRESHOLD_DATABASE</code>      |
+| YAML        | <code>introspection.healthcheck.thresholdDatabase</code> |
+| Default     | <code>15ms</code>                                        |
+
+The threshold for the database health check. If the median latency of the database exceeds this threshold over 5 attempts, the database is considered unhealthy. The default value is 15ms.
+
+### --health-check-timeout
+
+|             |                                                |
+| ----------- | ---------------------------------------------- |
+| Type        | <code>duration</code>                          |
+| Environment | <code>$CODER_HEALTH_CHECK_TIMEOUT</code>       |
+| YAML        | <code>introspection.healthcheck.timeout</code> |
+| Default     | <code>30s</code>                               |
+
+Overall timeout for health checks.
 
 ### --log-human
 
