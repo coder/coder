@@ -44,13 +44,14 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
   const [searchParams] = searchParamsResult;
 
   const pagination = usePagination({ searchParamsResult });
-  const usersQuery = useQuery(
-    users({
+  const usersQuery = useQuery({
+    ...users({
       q: prepareQuery(searchParams.get("filter") ?? ""),
       limit: pagination.limit,
       offset: pagination.offset,
     }),
-  );
+    keepPreviousData: true,
+  });
 
   const organizationId = useOrganizationId();
   const groupsByUserIdQuery = useQuery(groupsByUserId(organizationId));
