@@ -55,15 +55,15 @@ else
 		sleep "${delay}"
 		annotate_grafana greedy_agent "${scenario}: Greedy agent"
 
-		# Produce load at about 1000MB/s.
+		# Produce load at about 1000MB/s (25MB/40ms).
 		set +e
 		coder exp scaletest workspace-traffic \
 			--template "${SCALETEST_PARAM_GREEDY_AGENT_TEMPLATE}" \
 			--timeout "$((delay))s" \
 			--job-timeout "$((delay))s" \
 			--output json:"${SCALETEST_RESULTS_DIR}/traffic-${type}-greedy-agent.json" \
-			--bytes-per-tick $((1024 * 1000)) \
-			--tick-interval 1ms \
+			--bytes-per-tick $((1024 * 1024 * 25)) \
+			--tick-interval 40ms \
 			"${args[@]}"
 		status=${?}
 

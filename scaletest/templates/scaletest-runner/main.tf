@@ -630,7 +630,7 @@ resource "kubernetes_pod" "main" {
   }
   # Set the pod delete timeout to termination_grace_period_seconds + 1m.
   timeouts {
-    delete = "${(local.workspace_pod_termination_grace_period_seconds + 120) / 60}s"
+    delete = "${(local.workspace_pod_termination_grace_period_seconds + 120)}s"
   }
   spec {
     security_context {
