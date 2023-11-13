@@ -43,7 +43,7 @@ UPDATE
 SET
 	updated_at = NOW(),
 	-- Never shorten a deadline with an activity bump.
-	deadline = MAX(wb.deadline, CASE
+	deadline = GREATEST(wb.deadline, CASE
 		WHEN l.build_max_deadline = '0001-01-01 00:00:00+00'
 		THEN NOW() + l.ttl_interval
 		ELSE LEAST(NOW() + l.ttl_interval, l.build_max_deadline)

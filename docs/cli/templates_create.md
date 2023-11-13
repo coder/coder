@@ -12,6 +12,15 @@ coder templates create [flags] [name]
 
 ## Options
 
+### --default-activity-bump
+
+|         |                       |
+| ------- | --------------------- |
+| Type    | <code>duration</code> |
+| Default | <code>0</code>        |
+
+Specify a default amount of time to bump the deadline for the workspaces based on workspace activity. By default, activity will extend the deadline for a workspace by the 'default-ttl' amount.
+
 ### --default-ttl
 
 |         |                       |

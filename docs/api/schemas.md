@@ -1574,6 +1574,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "days_of_week": ["monday"],
     "weeks": 0
   },
+  "default_ttl_bump_ms": 0,
   "default_ttl_ms": 0,
   "delete_ttl_ms": 0,
   "description": "string",
@@ -1598,6 +1599,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `allow_user_cancel_workspace_jobs`                                                                                                                                                        | boolean                                                                        | false    |              | Allow users to cancel in-progress workspace jobs. \*bool as the default value is "true".                                                                                                                                                                                                                            |
 | `autostart_requirement`                                                                                                                                                                   | [codersdk.TemplateAutostartRequirement](#codersdktemplateautostartrequirement) | false    |              | Autostart requirement allows optionally specifying the autostart allowed days for workspaces created from this template. This is an enterprise feature.                                                                                                                                                             |
 | `autostop_requirement`                                                                                                                                                                    | [codersdk.TemplateAutostopRequirement](#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement allows optionally specifying the autostop requirement for workspaces created from this template. This is an enterprise feature.                                                                                                                                                                |
+| `default_ttl_bump_ms`                                                                                                                                                                     | integer                                                                        | false    |              | Default ttl bump ms allows optionally specifying the default TTL bump based on workspace activity. If unset, the default TTL will be used as the bump amount.                                                                                                                                                       |
 | `default_ttl_ms`                                                                                                                                                                          | integer                                                                        | false    |              | Default ttl ms allows optionally specifying the default TTL for all workspaces created from this template.                                                                                                                                                                                                          |
 | `delete_ttl_ms`                                                                                                                                                                           | integer                                                                        | false    |              | Delete ttl ms allows optionally specifying the max lifetime before Coder permanently deletes dormant workspaces created from this template.                                                                                                                                                                         |
 | `description`                                                                                                                                                                             | string                                                                         | false    |              | Description is a description of what the template contains. It must be less than 128 bytes.                                                                                                                                                                                                                         |
@@ -1854,6 +1856,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+  "ttl_bump_ms": 0,
   "ttl_ms": 0
 }
 ```
@@ -1868,6 +1871,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `rich_parameter_values` | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              | Rich parameter values allows for additional parameters to be provided during the initial provision.     |
 | `template_id`           | string                                                                        | false    |              | Template ID specifies which template should be used for creating the workspace.                         |
 | `template_version_id`   | string                                                                        | false    |              | Template version ID can be used to specify a specific version of a template for creating the workspace. |
+| `ttl_bump_ms`           | integer                                                                       | false    |              |                                                                                                         |
 | `ttl_ms`                | integer                                                                       | false    |              |                                                                                                         |
 
 ## codersdk.DAUEntry
@@ -4386,6 +4390,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "created_at": "2019-08-24T14:15:22Z",
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
+  "default_ttl_bump_ms": 0,
   "default_ttl_ms": 0,
   "description": "string",
   "display_name": "string",
@@ -4418,6 +4423,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `created_at`                       | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `created_by_id`                    | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `created_by_name`                  | string                                                                         | false    |              |                                                                                                                                                                                                 |
+| `default_ttl_bump_ms`              | integer                                                                        | false    |              |                                                                                                                                                                                                 |
 | `default_ttl_ms`                   | integer                                                                        | false    |              |                                                                                                                                                                                                 |
 | `description`                      | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `display_name`                     | string                                                                         | false    |              |                                                                                                                                                                                                 |
@@ -5273,15 +5279,17 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "ttl_bump_ms": 0,
   "ttl_ms": 0
 }
 ```
 
 ### Properties
 
-| Name     | Type    | Required | Restrictions | Description |
-| -------- | ------- | -------- | ------------ | ----------- |
-| `ttl_ms` | integer | false    |              |             |
+| Name          | Type    | Required | Restrictions | Description |
+| ------------- | ------- | -------- | ------------ | ----------- |
+| `ttl_bump_ms` | integer | false    |              |             |
+| `ttl_ms`      | integer | false    |              |             |
 
 ## codersdk.UploadResponse
 
@@ -5791,6 +5799,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_name": "string",
   "template_require_active_version": true,
+  "ttl_bump_ms": 0,
   "ttl_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -5821,6 +5830,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `template_id`                               | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
 | `template_name`                             | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
 | `template_require_active_version`           | boolean                                                | false    |              |                                                                                                                                                                                                                                                       |
+| `ttl_bump_ms`                               | integer                                                | false    |              |                                                                                                                                                                                                                                                       |
 | `ttl_ms`                                    | integer                                                | false    |              |                                                                                                                                                                                                                                                       |
 | `updated_at`                                | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
 
@@ -7046,6 +7056,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
       "template_require_active_version": true,
+      "ttl_bump_ms": 0,
       "ttl_ms": 0,
       "updated_at": "2019-08-24T14:15:22Z"
     }

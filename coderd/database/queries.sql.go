@@ -55,11 +55,12 @@ UPDATE
 	workspace_builds wb
 SET
 	updated_at = NOW(),
-	deadline = CASE
+	-- Never shorten a deadline with an activity bump.
+	deadline = GREATEST(wb.deadline, CASE
 		WHEN l.build_max_deadline = '0001-01-01 00:00:00+00'
 		THEN NOW() + l.ttl_interval
 		ELSE LEAST(NOW() + l.ttl_interval, l.build_max_deadline)
-	END
+	END)
 FROM latest l
 WHERE wb.id = l.build_id
 AND l.job_completed_at IS NOT NULL

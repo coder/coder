@@ -7806,6 +7806,10 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "default_ttl_bump_ms": {
+                    "description": "DefaultTTLBumpMillis allows optionally specifying the default TTL\nbump based on workspace activity. If unset, the default TTL will be\nused as the bump amount.",
+                    "type": "integer"
+                },
                 "default_ttl_ms": {
                     "description": "DefaultTTLMillis allows optionally specifying the default TTL\nfor all workspaces created from this template.",
                     "type": "integer"
@@ -8155,6 +8159,9 @@ const docTemplate = `{
                     "description": "TemplateVersionID can be used to specify a specific version of a template for creating the workspace.",
                     "type": "string",
                     "format": "uuid"
+                },
+                "ttl_bump_ms": {
+                    "type": "integer"
                 },
                 "ttl_ms": {
                     "type": "integer"
@@ -10012,6 +10019,9 @@ const docTemplate = `{
                 "created_by_name": {
                     "type": "string"
                 },
+                "default_ttl_bump_ms": {
+                    "type": "integer"
+                },
                 "default_ttl_ms": {
                     "type": "integer"
                 },
@@ -10800,6 +10810,9 @@ const docTemplate = `{
         "codersdk.UpdateWorkspaceTTLRequest": {
             "type": "object",
             "properties": {
+                "ttl_bump_ms": {
+                    "type": "integer"
+                },
                 "ttl_ms": {
                     "type": "integer"
                 }
@@ -11176,6 +11189,9 @@ const docTemplate = `{
                 },
                 "template_require_active_version": {
                     "type": "boolean"
+                },
+                "ttl_bump_ms": {
+                    "type": "integer"
                 },
                 "ttl_ms": {
                     "type": "integer"

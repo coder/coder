@@ -717,6 +717,7 @@ test-postgres-docker:
 		--name test-postgres-docker \
 		--restart no \
 		--detach \
+		-v ~/.coder/data:/var/lib/postgresql/data \
 		gcr.io/coder-dev-1/postgres:13 \
 		-c shared_buffers=1GB \
 		-c work_mem=1GB \

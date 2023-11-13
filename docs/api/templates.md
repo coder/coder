@@ -51,6 +51,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "created_at": "2019-08-24T14:15:22Z",
     "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
     "created_by_name": "string",
+    "default_ttl_bump_ms": 0,
     "default_ttl_ms": 0,
     "description": "string",
     "display_name": "string",
@@ -100,6 +101,7 @@ Status Code **200**
 | `» created_at`                                                                        | string(date-time)                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» created_by_id`                                                                     | string(uuid)                                                                             | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» created_by_name`                                                                   | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» default_ttl_bump_ms`                                                               | integer                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» default_ttl_ms`                                                                    | integer                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» description`                                                                       | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» display_name`                                                                      | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
@@ -151,6 +153,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
     "days_of_week": ["monday"],
     "weeks": 0
   },
+  "default_ttl_bump_ms": 0,
   "default_ttl_ms": 0,
   "delete_ttl_ms": 0,
   "description": "string",
@@ -204,6 +207,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "created_at": "2019-08-24T14:15:22Z",
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
+  "default_ttl_bump_ms": 0,
   "default_ttl_ms": 0,
   "description": "string",
   "display_name": "string",
@@ -340,6 +344,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "created_at": "2019-08-24T14:15:22Z",
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
+  "default_ttl_bump_ms": 0,
   "default_ttl_ms": 0,
   "description": "string",
   "display_name": "string",
@@ -652,6 +657,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   "created_at": "2019-08-24T14:15:22Z",
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
+  "default_ttl_bump_ms": 0,
   "default_ttl_ms": 0,
   "description": "string",
   "display_name": "string",
@@ -771,6 +777,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "created_at": "2019-08-24T14:15:22Z",
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
+  "default_ttl_bump_ms": 0,
   "default_ttl_ms": 0,
   "description": "string",
   "display_name": "string",

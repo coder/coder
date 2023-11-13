@@ -47,6 +47,15 @@ Allow users to cancel in-progress workspace jobs.
 
 Edit the template autostart requirement weekdays - workspaces created from this template can only autostart on the given weekdays. To unset this value for the template (and allow autostart on all days), pass 'all'.
 
+### --default-activity-bump
+
+|         |                       |
+| ------- | --------------------- |
+| Type    | <code>duration</code> |
+| Default | <code>0</code>        |
+
+Specify a default amount of time to bump the deadline for the workspaces based on workspace activity. By default, activity will extend the deadline for a workspace by the 'default-ttl' amount.
+
 ### --default-ttl
 
 |      |                       |

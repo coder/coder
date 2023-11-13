@@ -211,6 +211,7 @@ export interface CreateTemplateRequest {
   readonly icon?: string;
   readonly template_version_id: string;
   readonly default_ttl_ms?: number;
+  readonly default_ttl_bump_ms?: number;
   readonly max_ttl_ms?: number;
   readonly autostop_requirement?: TemplateAutostopRequirement;
   readonly autostart_requirement?: TemplateAutostartRequirement;
@@ -296,6 +297,7 @@ export interface CreateWorkspaceRequest {
   readonly name: string;
   readonly autostart_schedule?: string;
   readonly ttl_ms?: number;
+  readonly ttl_bump_ms?: number;
   readonly rich_parameter_values?: WorkspaceBuildParameter[];
   readonly automatic_updates?: AutomaticUpdates;
 }
@@ -913,6 +915,7 @@ export interface Template {
   readonly description: string;
   readonly icon: string;
   readonly default_ttl_ms: number;
+  readonly default_ttl_bump_ms: number;
   readonly max_ttl_ms: number;
   readonly autostop_requirement: TemplateAutostopRequirement;
   readonly autostart_requirement: TemplateAutostartRequirement;
@@ -1164,6 +1167,7 @@ export interface UpdateTemplateMeta {
   readonly description?: string;
   readonly icon?: string;
   readonly default_ttl_ms?: number;
+  readonly default_ttl_bump_ms?: number;
   readonly max_ttl_ms?: number;
   readonly autostop_requirement?: TemplateAutostopRequirement;
   readonly autostart_requirement?: TemplateAutostartRequirement;
@@ -1223,6 +1227,7 @@ export interface UpdateWorkspaceRequest {
 // From codersdk/workspaces.go
 export interface UpdateWorkspaceTTLRequest {
   readonly ttl_ms?: number;
+  readonly ttl_bump_ms?: number;
 }
 
 // From codersdk/files.go
@@ -1364,6 +1369,7 @@ export interface Workspace {
   readonly name: string;
   readonly autostart_schedule?: string;
   readonly ttl_ms?: number;
+  readonly ttl_bump_ms?: number;
   readonly last_used_at: string;
   readonly deleting_at?: string;
   readonly dormant_at?: string;
