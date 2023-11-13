@@ -2,7 +2,7 @@ import type { PropsWithChildren, FC } from "react";
 import Tooltip from "@mui/material/Tooltip";
 import { type Interpolation, type Theme } from "@emotion/react";
 import { Stack } from "components/Stack/Stack";
-import { colors } from "theme/colors";
+import colors from "theme/tailwind";
 
 const styles = {
   badge: {
@@ -111,9 +111,9 @@ export const AlphaBadge: FC = () => {
       css={[
         styles.badge,
         {
-          border: `1px solid ${colors.violet[10]}`,
-          backgroundColor: colors.violet[14],
-          color: colors.violet[1],
+          border: `1px solid ${colors.violet[600]}`,
+          backgroundColor: colors.violet[950],
+          color: colors.violet[50],
         },
       ]}
     >

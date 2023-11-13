@@ -1,8 +1,7 @@
 import { Pill } from "components/Pill/Pill";
 import ReactMarkdown from "react-markdown";
 import { colors } from "theme/colors";
-import { useTheme } from "@mui/system";
-import { css } from "@emotion/react";
+import { css, useTheme } from "@emotion/react";
 import { readableForegroundColor } from "utils/colors";
 
 export interface ServiceBannerViewProps {

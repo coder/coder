@@ -7,7 +7,7 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import type { DeploymentValues, ExternalAuthConfig } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
-import { EnterpriseBadge } from "components/DeploySettingsLayout/Badges";
+import { EnterpriseBadge } from "components/Badges/Badges";
 import { Header } from "components/DeploySettingsLayout/Header";
 import { docs } from "utils/docs";
 

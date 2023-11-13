@@ -6,7 +6,7 @@ import {
   type PropsWithChildren,
   useContext,
 } from "react";
-import { AlphaBadge } from "components/DeploySettingsLayout/Badges";
+import { AlphaBadge } from "components/Badges/Badges";
 import { Stack } from "components/Stack/Stack";
 import {
   FormFooter as BaseFormFooter,

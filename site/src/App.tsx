@@ -1,7 +1,7 @@
 import CssBaseline from "@mui/material/CssBaseline";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { AuthProvider } from "components/AuthProvider/AuthProvider";
-import { FC, PropsWithChildren, ReactNode } from "react";
+import type { FC, PropsWithChildren, ReactNode } from "react";
 import { HelmetProvider } from "react-helmet-async";
 import { AppRouter } from "./AppRouter";
 import { ErrorBoundary } from "./components/ErrorBoundary/ErrorBoundary";

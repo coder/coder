@@ -1,26 +1,25 @@
+import InputAdornment from "@mui/material/InputAdornment";
+import Button from "@mui/material/Button";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import Switch from "@mui/material/Switch";
+import TextField from "@mui/material/TextField";
+import Link from "@mui/material/Link";
+import { useTheme } from "@emotion/react";
 import { useState } from "react";
+import { BlockPicker } from "react-color";
+import { useFormik } from "formik";
+import type { UpdateAppearanceConfig } from "api/typesGenerated";
 import { Header } from "components/DeploySettingsLayout/Header";
 import {
   Badges,
   DisabledBadge,
   EnterpriseBadge,
   EntitledBadge,
-} from "components/DeploySettingsLayout/Badges";
-import InputAdornment from "@mui/material/InputAdornment";
+} from "components/Badges/Badges";
 import { Fieldset } from "components/DeploySettingsLayout/Fieldset";
-import { getFormHelpers } from "utils/formUtils";
-import Button from "@mui/material/Button";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import { BlockPicker } from "react-color";
-import Switch from "@mui/material/Switch";
-import TextField from "@mui/material/TextField";
-import type { UpdateAppearanceConfig } from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
-import { useFormik } from "formik";
-import Link from "@mui/material/Link";
+import { getFormHelpers } from "utils/formUtils";
 import { colors } from "theme/colors";
-import { hslToHex } from "utils/colors";
-import { useTheme } from "@emotion/react";
 
 export type AppearanceSettingsPageViewProps = {
   appearance: UpdateAppearanceConfig;
@@ -31,7 +30,7 @@ export type AppearanceSettingsPageViewProps = {
   ) => void;
 };
 
-const fallbackBgColor = hslToHex(colors.blue[7]);
+const fallbackBgColor = colors.blue[7];
 
 export const AppearanceSettingsPageView = ({
   appearance,

@@ -9,38 +9,10 @@ const meta: Meta<typeof Pill> = {
 export default meta;
 type Story = StoryObj<typeof Pill>;
 
-export const Primary: Story = {
+export const Danger: Story = {
   args: {
-    text: "Primary",
-    type: "primary",
-  },
-};
-
-export const Secondary: Story = {
-  args: {
-    text: "Secondary",
-    type: "secondary",
-  },
-};
-
-export const Success: Story = {
-  args: {
-    text: "Success",
-    type: "success",
-  },
-};
-
-export const Info: Story = {
-  args: {
-    text: "Information",
-    type: "info",
-  },
-};
-
-export const Warning: Story = {
-  args: {
-    text: "Warning",
-    type: "warning",
+    text: "Danger",
+    type: "danger",
   },
 };
 
@@ -51,16 +23,43 @@ export const Error: Story = {
   },
 };
 
-export const Default: Story = {
-  args: {
-    text: "Default",
-  },
-};
-
-export const WarningLight: Story = {
+export const Warning: Story = {
   args: {
     text: "Warning",
     type: "warning",
-    lightBorder: true,
+  },
+};
+
+export const Notice: Story = {
+  args: {
+    text: "Notice",
+    type: "notice",
+  },
+};
+
+export const Info: Story = {
+  args: {
+    text: "Information",
+    type: "info",
+  },
+};
+
+export const Success: Story = {
+  args: {
+    text: "Success",
+    type: "success",
+  },
+};
+
+export const Active: Story = {
+  args: {
+    text: "Active",
+    type: "active",
+  },
+};
+
+export const Default: Story = {
+  args: {
+    text: "Neutral/default",
   },
 };

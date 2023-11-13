@@ -75,7 +75,7 @@ export function AvatarCard({
         src={imgUrl}
         alt={altText}
         size="md"
-        css={{ backgroundColor: colors.gray[7] }}
+        css={{ backgroundColor: colors.gray[9] }}
       >
         {header}
       </Avatar>
