@@ -290,7 +290,7 @@ func TestSSH(t *testing.T) {
 			})
 
 			// accept a single connection
-			msgs := make(chan string)
+			msgs := make(chan string, 1)
 			go func() {
 				conn, err := l.Accept()
 				if !assert.NoError(t, err) {
