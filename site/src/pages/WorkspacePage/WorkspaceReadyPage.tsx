@@ -36,6 +36,7 @@ import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import {
   changeVersion,
   decreaseDeadline,
+  deleteWorkspace,
   increaseDeadline,
   update,
 } from "api/queries/workspaces";
@@ -82,6 +83,7 @@ export const WorkspaceReadyPage = ({
     throw Error("Workspace is undefined");
   }
 
+  // Debug mode
   const { data: deploymentValues } = useQuery({
     ...deploymentConfig(),
     enabled: permissions?.viewDeploymentValues,
@@ -176,6 +178,12 @@ export const WorkspaceReadyPage = ({
   const [isConfirmingUpdate, setIsConfirmingUpdate] = useState(false);
   const updateWorkspaceMutation = useMutation(update(workspace, queryClient));
 
+  // Delete workspace
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const deleteWorkspaceMutation = useMutation(
+    deleteWorkspace(workspace, queryClient),
+  );
+
   return (
     <>
       <Helmet>
@@ -209,7 +217,9 @@ export const WorkspaceReadyPage = ({
           workspaceSend({ type: "START", buildParameters })
         }
         handleStop={() => workspaceSend({ type: "STOP" })}
-        handleDelete={() => workspaceSend({ type: "ASK_DELETE" })}
+        handleDelete={() => {
+          setIsConfirmingDelete(true);
+        }}
         handleRestart={(buildParameters) => {
           setConfirmingRestart({ open: true, buildParameters });
         }}
@@ -255,10 +265,13 @@ export const WorkspaceReadyPage = ({
         info={`This workspace was created ${dayjs(
           workspace.created_at,
         ).fromNow()}.`}
-        isOpen={workspaceState.matches({ ready: { build: "askingDelete" } })}
-        onCancel={() => workspaceSend({ type: "CANCEL_DELETE" })}
+        isOpen={isConfirmingDelete}
+        onCancel={() => {
+          setIsConfirmingDelete(false);
+        }}
         onConfirm={() => {
-          workspaceSend({ type: "DELETE" });
+          deleteWorkspaceMutation.mutate();
+          setIsConfirmingDelete(false);
         }}
       />
       <UpdateBuildParametersDialog

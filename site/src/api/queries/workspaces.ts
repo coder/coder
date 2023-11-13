@@ -155,6 +155,20 @@ export const update = (workspace: Workspace, queryClient: QueryClient) => {
   };
 };
 
+export const deleteWorkspace = (
+  workspace: Workspace,
+  queryClient: QueryClient,
+) => {
+  return {
+    mutationFn: () => {
+      return API.deleteWorkspace(workspace.id);
+    },
+    onSuccess: (build: WorkspaceBuild) => {
+      updateWorkspaceBuild(build, queryClient);
+    },
+  };
+};
+
 const updateWorkspaceBuild = (
   build: WorkspaceBuild,
   queryClient: QueryClient,

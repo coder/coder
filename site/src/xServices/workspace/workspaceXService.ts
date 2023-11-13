@@ -33,9 +33,6 @@ export type WorkspaceEvent =
   | { type: "REFRESH_WORKSPACE"; data: TypesGen.ServerSentEvent["data"] }
   | { type: "START"; buildParameters?: TypesGen.WorkspaceBuildParameter[] }
   | { type: "STOP" }
-  | { type: "ASK_DELETE" }
-  | { type: "DELETE" }
-  | { type: "CANCEL_DELETE" }
   | { type: "CANCEL" }
   | {
       type: "REFRESH_TIMELINE";
@@ -56,9 +53,6 @@ export const workspaceMachine = createMachine(
           data: TypesGen.WorkspaceBuild;
         };
         stopWorkspace: {
-          data: TypesGen.WorkspaceBuild;
-        };
-        deleteWorkspace: {
           data: TypesGen.WorkspaceBuild;
         };
         cancelWorkspace: {
@@ -86,7 +80,6 @@ export const workspaceMachine = createMachine(
                 on: {
                   START: "requestingStart",
                   STOP: "requestingStop",
-                  ASK_DELETE: "askingDelete",
                   CANCEL: "requestingCancel",
                   RETRY_BUILD: [
                     {
@@ -99,23 +92,8 @@ export const workspaceMachine = createMachine(
                       cond: "lastBuildWasStopping",
                       actions: ["enableDebugMode"],
                     },
-                    {
-                      target: "requestingDelete",
-                      cond: "lastBuildWasDeleting",
-                      actions: ["enableDebugMode"],
-                    },
                   ],
                   ACTIVATE: "requestingActivate",
-                },
-              },
-              askingDelete: {
-                on: {
-                  DELETE: {
-                    target: "requestingDelete",
-                  },
-                  CANCEL_DELETE: {
-                    target: "idle",
-                  },
                 },
               },
               requestingStart: {
@@ -142,25 +120,6 @@ export const workspaceMachine = createMachine(
                 invoke: {
                   src: "stopWorkspace",
                   id: "stopWorkspace",
-                  onDone: [
-                    {
-                      actions: ["assignBuild", "disableDebugMode"],
-                      target: "idle",
-                    },
-                  ],
-                  onError: [
-                    {
-                      actions: "assignBuildError",
-                      target: "idle",
-                    },
-                  ],
-                },
-              },
-              requestingDelete: {
-                entry: ["clearBuildError"],
-                invoke: {
-                  src: "deleteWorkspace",
-                  id: "deleteWorkspace",
                   onDone: [
                     {
                       actions: ["assignBuild", "disableDebugMode"],
@@ -262,9 +221,6 @@ export const workspaceMachine = createMachine(
       lastBuildWasStopping: ({ workspace }) => {
         return workspace?.latest_build.transition === "stop";
       },
-      lastBuildWasDeleting: ({ workspace }) => {
-        return workspace?.latest_build.transition === "delete";
-      },
     },
     services: {
       startWorkspace: (context, data) => async (send) => {
@@ -291,18 +247,6 @@ export const workspaceMachine = createMachine(
           return stopWorkspacePromise;
         } else {
           throw Error("Cannot stop workspace without workspace id");
-        }
-      },
-      deleteWorkspace: (context) => async (send) => {
-        if (context.workspace) {
-          const deleteWorkspacePromise = await API.deleteWorkspace(
-            context.workspace.id,
-            context.createBuildLogLevel,
-          );
-          send({ type: "REFRESH_TIMELINE" });
-          return deleteWorkspacePromise;
-        } else {
-          throw Error("Cannot delete workspace without workspace id");
         }
       },
       cancelWorkspace: (context) => async (send) => {
