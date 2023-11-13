@@ -34,6 +34,7 @@ import {
   MoreMenuContent,
   MoreMenuItem,
   MoreMenuTrigger,
+  ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
 
 type AddTemplateUserOrGroupProps = {
@@ -287,7 +288,9 @@ export const TemplatePermissionsPageView: FC<
                       <TableCell>
                         {canUpdatePermissions && (
                           <MoreMenu>
-                            <MoreMenuTrigger />
+                            <MoreMenuTrigger>
+                              <ThreeDotsButton />
+                            </MoreMenuTrigger>
                             <MoreMenuContent>
                               <MoreMenuItem
                                 danger
@@ -334,7 +337,9 @@ export const TemplatePermissionsPageView: FC<
                       <TableCell>
                         {canUpdatePermissions && (
                           <MoreMenu>
-                            <MoreMenuTrigger />
+                            <MoreMenuTrigger>
+                              <ThreeDotsButton />
+                            </MoreMenuTrigger>
                             <MoreMenuContent>
                               <MoreMenuItem
                                 danger

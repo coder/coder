@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/signal"
 	"time"
 
 	"github.com/google/uuid"
@@ -61,7 +60,7 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
-			notifyCtx, notifyStop := signal.NotifyContext(ctx, agpl.InterruptSignals...)
+			notifyCtx, notifyStop := inv.SignalNotifyContext(ctx, agpl.InterruptSignals...)
 			defer notifyStop()
 
 			tags, err := agpl.ParseProvisionerTags(rawTags)

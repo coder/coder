@@ -1,5 +1,4 @@
 import { getErrorMessage } from "api/errors";
-import { workspaceScheduleBannerMachine } from "xServices/workspaceSchedule/workspaceScheduleBannerXService";
 import { assign, createMachine } from "xstate";
 import * as API from "api/api";
 import * as TypesGen from "api/typesGenerated";
@@ -422,15 +421,6 @@ export const workspaceMachine = createMachine(
               },
             },
           },
-          schedule: {
-            invoke: {
-              id: "scheduleBannerMachine",
-              src: "scheduleBannerMachine",
-              data: {
-                workspace: (context: WorkspaceContext) => context.workspace,
-              },
-            },
-          },
         },
       },
       error: {
@@ -679,7 +669,6 @@ export const workspaceMachine = createMachine(
           context.eventSource?.close();
         };
       },
-      scheduleBannerMachine: workspaceScheduleBannerMachine,
       getSSHPrefix: async () => {
         return API.getDeploymentSSHConfig();
       },

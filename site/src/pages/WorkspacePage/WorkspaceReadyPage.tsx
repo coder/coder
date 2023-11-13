@@ -1,4 +1,3 @@
-import { useActor } from "@xstate/react";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
 import { useFeatureVisibility } from "hooks/useFeatureVisibility";
 import { FC, useEffect, useState } from "react";
@@ -32,6 +31,9 @@ import { templateVersion, templateVersions } from "api/queries/templates";
 import { Alert } from "components/Alert/Alert";
 import { Stack } from "components/Stack/Stack";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
+import { decreaseDeadline, increaseDeadline } from "api/queries/workspaces";
+import { getErrorMessage } from "api/errors";
+import { displaySuccess, displayError } from "components/GlobalSnackbar/utils";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 
 interface WorkspaceReadyPageProps {
@@ -43,6 +45,7 @@ interface WorkspaceReadyPageProps {
   onLoadMoreBuilds: () => void;
   isLoadingMoreBuilds: boolean;
   hasMoreBuilds: boolean;
+  canAutostart: boolean;
 }
 
 export const WorkspaceReadyPage = ({
@@ -54,10 +57,8 @@ export const WorkspaceReadyPage = ({
   onLoadMoreBuilds,
   isLoadingMoreBuilds,
   hasMoreBuilds,
+  canAutostart,
 }: WorkspaceReadyPageProps): JSX.Element => {
-  const [_, bannerSend] = useActor(
-    workspaceState.children["scheduleBannerMachine"],
-  );
   const { buildInfo } = useDashboard();
   const featureVisibility = useFeatureVisibility();
   const {
@@ -120,10 +121,25 @@ export const WorkspaceReadyPage = ({
   } = useMutation({
     mutationFn: restartWorkspace,
   });
-  // keep banner machine in sync with workspace
-  useEffect(() => {
-    bannerSend({ type: "REFRESH_WORKSPACE", workspace });
-  }, [bannerSend, workspace]);
+
+  const onDeadlineChangeSuccess = () => {
+    displaySuccess("Updated workspace shutdown time.");
+  };
+  const onDeadlineChangeFails = (error: unknown) => {
+    displayError(
+      getErrorMessage(error, "Failed to update workspace shutdown time."),
+    );
+  };
+  const decreaseMutation = useMutation({
+    ...decreaseDeadline(workspace),
+    onSuccess: onDeadlineChangeSuccess,
+    onError: onDeadlineChangeFails,
+  });
+  const increaseMutation = useMutation({
+    ...increaseDeadline(workspace),
+    onSuccess: onDeadlineChangeSuccess,
+    onError: onDeadlineChangeFails,
+  });
 
   return (
     <>
@@ -143,18 +159,8 @@ export const WorkspaceReadyPage = ({
 
       <Workspace
         scheduleProps={{
-          onDeadlineMinus: (hours: number) => {
-            bannerSend({
-              type: "DECREASE_DEADLINE",
-              hours,
-            });
-          },
-          onDeadlinePlus: (hours: number) => {
-            bannerSend({
-              type: "INCREASE_DEADLINE",
-              hours,
-            });
-          },
+          onDeadlineMinus: decreaseMutation.mutate,
+          onDeadlinePlus: increaseMutation.mutate,
           maxDeadlineDecrease: getMaxDeadlineChange(deadline, getMinDeadline()),
           maxDeadlineIncrease: getMaxDeadlineChange(
             getMaxDeadline(workspace),
@@ -208,6 +214,7 @@ export const WorkspaceReadyPage = ({
             <WorkspaceBuildLogsSection logs={buildLogs} />
           )
         }
+        canAutostart={canAutostart}
       />
       <WorkspaceDeleteDialog
         workspace={workspace}

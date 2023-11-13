@@ -5,13 +5,14 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import { FC, memo } from "react";
-import ReactMarkdown from "react-markdown";
+import { type Interpolation, type Theme } from "@emotion/react";
+import isEqual from "lodash/isEqual";
+import { type FC, memo } from "react";
+import ReactMarkdown, { type Options } from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import gfm from "remark-gfm";
 import { colors } from "theme/colors";
 import { darcula } from "react-syntax-highlighter/dist/cjs/styles/prism";
-import { type Interpolation, type Theme } from "@emotion/react";
 
 interface MarkdownProps {
   /**
@@ -20,10 +21,15 @@ interface MarkdownProps {
   children: string;
 
   className?: string;
+
+  /**
+   * Can override the behavior of the generated elements
+   */
+  components?: Options["components"];
 }
 
 export const Markdown: FC<MarkdownProps> = (props) => {
-  const { children, className } = props;
+  const { children, className, components = {} } = props;
 
   return (
     <ReactMarkdown
@@ -106,6 +112,8 @@ export const Markdown: FC<MarkdownProps> = (props) => {
         th: ({ children }) => {
           return <TableCell>{children}</TableCell>;
         },
+
+        ...components,
       }}
     >
       {children}
@@ -113,7 +121,65 @@ export const Markdown: FC<MarkdownProps> = (props) => {
   );
 };
 
-export const MemoizedMarkdown = memo(Markdown);
+interface MarkdownInlineProps {
+  /**
+   * The Markdown text to parse and render
+   */
+  children: string;
+
+  className?: string;
+
+  /**
+   * Can override the behavior of the generated elements
+   */
+  components?: Options["components"];
+}
+
+/**
+ * Supports a strict subset of Markdown that bahaves well as inline/confined content.
+ */
+export const InlineMarkdown: FC<MarkdownInlineProps> = (props) => {
+  const { children, className, components = {} } = props;
+
+  return (
+    <ReactMarkdown
+      className={className}
+      allowedElements={["p", "em", "strong", "a", "pre", "code"]}
+      unwrapDisallowed
+      components={{
+        p: ({ children }) => <>{children}</>,
+
+        a: ({ href, target, children }) => (
+          <Link href={href} target={target}>
+            {children}
+          </Link>
+        ),
+
+        code: ({ node, className, children, style, ...props }) => (
+          <code
+            css={(theme) => ({
+              padding: "1px 4px",
+              background: theme.palette.divider,
+              borderRadius: 4,
+              color: theme.palette.text.primary,
+              fontSize: 14,
+            })}
+            {...props}
+          >
+            {children}
+          </code>
+        ),
+
+        ...components,
+      }}
+    >
+      {children}
+    </ReactMarkdown>
+  );
+};
+
+export const MemoizedMarkdown = memo(Markdown, isEqual);
+export const MemoizedInlineMarkdown = memo(InlineMarkdown, isEqual);
 
 const markdownStyles: Interpolation<Theme> = (theme: Theme) => ({
   fontSize: 16,

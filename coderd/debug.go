@@ -32,12 +32,12 @@ func (api *API) debugCoordinator(rw http.ResponseWriter, r *http.Request) {
 // @Router /debug/health [get]
 func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APITokenFromRequest(r)
-	ctx, cancel := context.WithTimeout(r.Context(), api.HealthcheckTimeout)
+	ctx, cancel := context.WithTimeout(r.Context(), api.Options.HealthcheckTimeout)
 	defer cancel()
 
 	// Get cached report if it exists.
 	if report := api.healthCheckCache.Load(); report != nil {
-		if time.Since(report.Time) < api.HealthcheckRefresh {
+		if time.Since(report.Time) < api.Options.HealthcheckRefresh {
 			formatHealthcheck(ctx, rw, r, report)
 			return
 		}
@@ -45,7 +45,7 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 
 	resChan := api.healthCheckGroup.DoChan("", func() (*healthcheck.Report, error) {
 		// Create a new context not tied to the request.
-		ctx, cancel := context.WithTimeout(context.Background(), api.HealthcheckTimeout)
+		ctx, cancel := context.WithTimeout(context.Background(), api.Options.HealthcheckTimeout)
 		defer cancel()
 
 		report := api.HealthcheckFunc(ctx, apiKey)

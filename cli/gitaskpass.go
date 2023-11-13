@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os/signal"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -26,7 +25,7 @@ func (r *RootCmd) gitAskpass() *clibase.Cmd {
 		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
 
-			ctx, stop := signal.NotifyContext(ctx, InterruptSignals...)
+			ctx, stop := inv.SignalNotifyContext(ctx, InterruptSignals...)
 			defer stop()
 
 			user, host, err := gitauth.ParseAskpass(inv.Args[0])

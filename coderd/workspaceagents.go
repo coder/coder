@@ -1153,7 +1153,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 
 	err = ensureLatestBuild()
 	if err != nil {
-		api.Logger.Debug(ctx, "agent tried to connect from non-latest built",
+		api.Logger.Debug(ctx, "agent tried to connect from non-latest build",
 			slog.F("resource", resource),
 			slog.F("agent", workspaceAgent),
 		)
@@ -2452,7 +2452,8 @@ func createExternalAuthResponse(typ, token string, extra pqtype.NullRawMessage) 
 			Username: "oauth2",
 			Password: token,
 		}
-	case string(codersdk.EnhancedExternalAuthProviderBitBucket):
+	case string(codersdk.EnhancedExternalAuthProviderBitBucketCloud), string(codersdk.EnhancedExternalAuthProviderBitBucketServer):
+		// The string "bitbucket" was a legacy parameter that needs to still be supported.
 		// https://support.atlassian.com/bitbucket-cloud/docs/use-oauth-on-bitbucket-cloud/#Cloning-a-repository-with-an-access-token
 		resp = agentsdk.ExternalAuthResponse{
 			Username: "x-token-auth",

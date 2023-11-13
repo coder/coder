@@ -1,4 +1,14 @@
-import { useRef, useState, createContext, useContext, ReactNode } from "react";
+import {
+  useRef,
+  useState,
+  createContext,
+  useContext,
+  ReactNode,
+  cloneElement,
+  HTMLProps,
+  forwardRef,
+  ReactElement,
+} from "react";
 import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined";
 import Menu, { MenuProps } from "@mui/material/Menu";
 import MenuItem, { MenuItemProps } from "@mui/material/MenuItem";
@@ -44,22 +54,34 @@ const useMoreMenuContext = () => {
   return ctx;
 };
 
-export const MoreMenuTrigger = (props: IconButtonProps) => {
+export const MoreMenuTrigger = ({
+  children,
+  ...props
+}: HTMLProps<HTMLButtonElement>) => {
   const menu = useMoreMenuContext();
 
-  return (
-    <IconButton
-      aria-controls="more-options"
-      aria-label="More options"
-      aria-haspopup="true"
-      onClick={menu.open}
-      ref={menu.triggerRef}
-      {...props}
-    >
-      <MoreVertOutlined />
-    </IconButton>
-  );
+  return cloneElement(children as ReactElement, {
+    "aria-haspopup": "true",
+    ...props,
+    ref: menu.triggerRef,
+    onClick: menu.open,
+  });
 };
+
+export const ThreeDotsButton = forwardRef<HTMLButtonElement, IconButtonProps>(
+  (props, ref) => {
+    return (
+      <IconButton
+        aria-controls="more-options"
+        aria-label="More options"
+        ref={ref}
+        {...props}
+      >
+        <MoreVertOutlined />
+      </IconButton>
+    );
+  },
+);
 
 export const MoreMenuContent = (props: Omit<MenuProps, "open" | "onClose">) => {
   const menu = useMoreMenuContext();

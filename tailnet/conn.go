@@ -788,6 +788,7 @@ func (c *Conn) Close() error {
 	}
 
 	_ = c.netStack.Close()
+	c.logger.Debug(context.Background(), "closed netstack")
 	c.dialCancel()
 	_ = c.wireguardMonitor.Close()
 	_ = c.dialer.Close()

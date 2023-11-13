@@ -449,6 +449,23 @@ func (c *Client) WorkspaceQuota(ctx context.Context, userID string) (WorkspaceQu
 	return quota, json.NewDecoder(res.Body).Decode(&quota)
 }
 
+type ResolveAutostartResponse struct {
+	ParameterMismatch bool `json:"parameter_mismatch"`
+}
+
+func (c *Client) ResolveAutostart(ctx context.Context, workspaceID string) (ResolveAutostartResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/resolve-autostart", workspaceID), nil)
+	if err != nil {
+		return ResolveAutostartResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ResolveAutostartResponse{}, ReadBodyAsError(res)
+	}
+	var response ResolveAutostartResponse
+	return response, json.NewDecoder(res.Body).Decode(&response)
+}
+
 // WorkspaceNotifyChannel is the PostgreSQL NOTIFY
 // channel to listen for updates on. The payload is empty,
 // because the size of a workspace payload can be very large.

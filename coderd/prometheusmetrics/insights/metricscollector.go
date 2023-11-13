@@ -7,18 +7,21 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
 
 var (
 	templatesActiveUsersDesc     = prometheus.NewDesc("coderd_insights_templates_active_users", "The number of active users of the template.", []string{"template_name"}, nil)
 	applicationsUsageSecondsDesc = prometheus.NewDesc("coderd_insights_applications_usage_seconds", "The application usage per template.", []string{"template_name", "application_name", "slug"}, nil)
+	parametersDesc               = prometheus.NewDesc("coderd_insights_parameters", "The parameter usage per template.", []string{"template_name", "parameter_name", "parameter_type", "parameter_value"}, nil)
 )
 
 type MetricsCollector struct {
@@ -33,8 +36,18 @@ type MetricsCollector struct {
 type insightsData struct {
 	templates []database.GetTemplateInsightsByTemplateRow
 	apps      []database.GetTemplateAppInsightsByTemplateRow
+	params    []parameterRow
 
 	templateNames map[uuid.UUID]string
+}
+
+type parameterRow struct {
+	templateID uuid.UUID
+	name       string
+	aType      string
+	value      string
+
+	count int64
 }
 
 var _ prometheus.Collector = new(MetricsCollector)
@@ -75,10 +88,11 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 		// Phase 1: Fetch insights from database
 		// FIXME errorGroup will be used to fetch insights for apps and parameters
 		eg, egCtx := errgroup.WithContext(ctx)
-		eg.SetLimit(2)
+		eg.SetLimit(3)
 
 		var templateInsights []database.GetTemplateInsightsByTemplateRow
 		var appInsights []database.GetTemplateAppInsightsByTemplateRow
+		var paramInsights []parameterRow
 
 		eg.Go(func() error {
 			var err error
@@ -102,13 +116,25 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 			}
 			return err
 		})
+		eg.Go(func() error {
+			var err error
+			rows, err := mc.database.GetTemplateParameterInsights(egCtx, database.GetTemplateParameterInsightsParams{
+				StartTime: startTime,
+				EndTime:   endTime,
+			})
+			if err != nil {
+				mc.logger.Error(ctx, "unable to fetch parameter insights from database", slog.Error(err))
+			}
+			paramInsights = convertParameterInsights(rows)
+			return err
+		})
 		err := eg.Wait()
 		if err != nil {
 			return
 		}
 
 		// Phase 2: Collect template IDs, and fetch relevant details
-		templateIDs := uniqueTemplateIDs(templateInsights, appInsights)
+		templateIDs := uniqueTemplateIDs(templateInsights, appInsights, paramInsights)
 
 		templateNames := make(map[uuid.UUID]string, len(templateIDs))
 		if len(templateIDs) > 0 {
@@ -126,6 +152,7 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 		mc.data.Store(&insightsData{
 			templates: templateInsights,
 			apps:      appInsights,
+			params:    paramInsights,
 
 			templateNames: templateNames,
 		})
@@ -153,6 +180,7 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 func (*MetricsCollector) Describe(descCh chan<- *prometheus.Desc) {
 	descCh <- templatesActiveUsersDesc
 	descCh <- applicationsUsageSecondsDesc
+	descCh <- parametersDesc
 }
 
 func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
@@ -200,17 +228,25 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 	for _, templateRow := range data.templates {
 		metricsCh <- prometheus.MustNewConstMetric(templatesActiveUsersDesc, prometheus.GaugeValue, float64(templateRow.ActiveUsers), data.templateNames[templateRow.TemplateID])
 	}
+
+	// Parameters
+	for _, parameterRow := range data.params {
+		metricsCh <- prometheus.MustNewConstMetric(parametersDesc, prometheus.GaugeValue, float64(parameterRow.count), data.templateNames[parameterRow.templateID], parameterRow.name, parameterRow.aType, parameterRow.value)
+	}
 }
 
 // Helper functions below.
 
-func uniqueTemplateIDs(templateInsights []database.GetTemplateInsightsByTemplateRow, appInsights []database.GetTemplateAppInsightsByTemplateRow) []uuid.UUID {
+func uniqueTemplateIDs(templateInsights []database.GetTemplateInsightsByTemplateRow, appInsights []database.GetTemplateAppInsightsByTemplateRow, paramInsights []parameterRow) []uuid.UUID {
 	tids := map[uuid.UUID]bool{}
 	for _, t := range templateInsights {
 		tids[t.TemplateID] = true
 	}
 	for _, t := range appInsights {
 		tids[t.TemplateID] = true
+	}
+	for _, t := range paramInsights {
+		tids[t.templateID] = true
 	}
 
 	uniqueUUIDs := make([]uuid.UUID, len(tids))
@@ -228,4 +264,55 @@ func onlyTemplateNames(templates []database.Template) map[uuid.UUID]string {
 		m[t.ID] = t.Name
 	}
 	return m
+}
+
+func convertParameterInsights(rows []database.GetTemplateParameterInsightsRow) []parameterRow {
+	type uniqueKey struct {
+		templateID     uuid.UUID
+		parameterName  string
+		parameterType  string
+		parameterValue string
+	}
+
+	m := map[uniqueKey]int64{}
+	for _, r := range rows {
+		for _, t := range r.TemplateIDs {
+			key := uniqueKey{
+				templateID:     t,
+				parameterName:  r.Name,
+				parameterType:  r.Type,
+				parameterValue: r.Value,
+			}
+
+			if _, ok := m[key]; !ok {
+				m[key] = 0
+			}
+			m[key] = m[key] + r.Count
+		}
+	}
+
+	converted := make([]parameterRow, len(m))
+	var i int
+	for k, c := range m {
+		converted[i] = parameterRow{
+			templateID: k.templateID,
+			name:       k.parameterName,
+			aType:      k.parameterType,
+			value:      k.parameterValue,
+			count:      c,
+		}
+		i++
+	}
+
+	slices.SortFunc(converted, func(a, b parameterRow) int {
+		if a.templateID != b.templateID {
+			return slice.Ascending(a.templateID.String(), b.templateID.String())
+		}
+		if a.name != b.name {
+			return slice.Ascending(a.name, b.name)
+		}
+		return slice.Ascending(a.value, b.value)
+	})
+
+	return converted
 }

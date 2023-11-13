@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/exp/slices"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/parameter"
@@ -28,6 +29,19 @@ func WorkspaceBuildParameter(p database.WorkspaceBuildParameter) codersdk.Worksp
 		Name:  p.Name,
 		Value: p.Value,
 	}
+}
+
+func TemplateVersionParameters(params []database.TemplateVersionParameter) ([]codersdk.TemplateVersionParameter, error) {
+	out := make([]codersdk.TemplateVersionParameter, len(params))
+	var err error
+	for i, p := range params {
+		out[i], err = TemplateVersionParameter(p)
+		if err != nil {
+			return nil, xerrors.Errorf("convert template version parameter %q: %w", p.Name, err)
+		}
+	}
+
+	return out, nil
 }
 
 func TemplateVersionParameter(param database.TemplateVersionParameter) (codersdk.TemplateVersionParameter, error) {

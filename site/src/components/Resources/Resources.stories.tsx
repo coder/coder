@@ -58,6 +58,44 @@ const reallyLong = {
   sensitive: false,
 };
 
+export const Markdown: Story = {
+  args: {
+    resources: [
+      {
+        ...nullDevice,
+        type: "workspace",
+        id: "1",
+        name: "Workspace",
+        metadata: [
+          { key: "text", value: "hello", sensitive: false },
+          { key: "link", value: "[hello](#)", sensitive: false },
+          { key: "b/i", value: "_hello_, **friend**!", sensitive: false },
+          { key: "coder", value: "`beep boop`", sensitive: false },
+        ],
+      },
+
+      // bits of Markdown that are intentionally not supported here
+      {
+        ...nullDevice,
+        type: "unsupported",
+        id: "2",
+        name: "Unsupported",
+        metadata: [
+          {
+            key: "multiple paragraphs",
+            value: `home,
+
+home on the range`,
+            sensitive: false,
+          },
+          { key: "heading", value: "# HI", sensitive: false },
+          { key: "image", value: "![go](/icon/go.svg)", sensitive: false },
+        ],
+      },
+    ],
+  },
+};
+
 export const BunchOfDevicesWithMetadata: Story = {
   args: {
     resources: [
