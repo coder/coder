@@ -15,7 +15,7 @@ import TemplateSchedulePage from "./TemplateSchedulePage";
 
 const validFormValues: TemplateScheduleFormValues = {
   default_ttl_ms: 1,
-  default_ttl_bump_ms: 0,
+  default_ttl_bump_ms: 1,
   max_ttl_ms: 2,
   failure_ttl_ms: 7,
   time_til_dormant_ms: 180,
