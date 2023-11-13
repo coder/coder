@@ -417,7 +417,7 @@ func New(options *Options) *API {
 		}
 	}
 	if options.HealthcheckTimeout == 0 {
-		options.HealthcheckTimeout = options.DeploymentValues.Healthcheck.Timeout.Value()
+		options.HealthcheckTimeout = 30 * time.Second
 	}
 	if options.HealthcheckRefresh == 0 {
 		options.HealthcheckRefresh = options.DeploymentValues.Healthcheck.Refresh.Value()

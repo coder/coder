@@ -327,17 +327,6 @@ Refresh interval for healthchecks.
 
 The threshold for the database health check. If the median latency of the database exceeds this threshold over 5 attempts, the database is considered unhealthy. The default value is 15ms.
 
-### --health-check-timeout
-
-|             |                                                |
-| ----------- | ---------------------------------------------- |
-| Type        | <code>duration</code>                          |
-| Environment | <code>$CODER_HEALTH_CHECK_TIMEOUT</code>       |
-| YAML        | <code>introspection.healthcheck.timeout</code> |
-| Default     | <code>30s</code>                               |
-
-Overall timeout for health checks.
-
 ### --log-human
 
 |             |                                              |

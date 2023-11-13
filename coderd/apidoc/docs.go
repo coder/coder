@@ -8870,9 +8870,6 @@ const docTemplate = `{
                 },
                 "threshold_database": {
                     "type": "integer"
-                },
-                "timeout": {
-                    "type": "integer"
                 }
             }
         },

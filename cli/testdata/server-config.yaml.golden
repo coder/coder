@@ -233,9 +233,6 @@ introspection:
     # (default: false, type: bool)
     enableTerraformDebugMode: false
   healthcheck:
-    # Overall timeout for health checks.
-    # (default: 30s, type: duration)
-    timeout: 30s
     # Refresh interval for healthchecks.
     # (default: 10m0s, type: duration)
     refresh: 10m0s

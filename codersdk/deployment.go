@@ -398,7 +398,6 @@ type UserQuietHoursScheduleConfig struct {
 
 // HealthcheckConfig contains configuration for healthchecks.
 type HealthcheckConfig struct {
-	Timeout           clibase.Duration `json:"timeout" typescript:",notnull"`
 	Refresh           clibase.Duration `json:"refresh" typescript:",notnull"`
 	ThresholdDatabase clibase.Duration `json:"threshold_database" typescript:",notnull"`
 }
@@ -1813,16 +1812,6 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "webTerminalRenderer",
 		},
 		// Healthcheck Options
-		{
-			Name:        "Health Check Timeout",
-			Description: "Overall timeout for health checks.",
-			Flag:        "health-check-timeout",
-			Env:         "CODER_HEALTH_CHECK_TIMEOUT",
-			Default:     (30 * time.Second).String(),
-			Value:       &c.Healthcheck.Timeout,
-			Group:       &deploymentGroupIntrospectionHealthcheck,
-			YAML:        "timeout",
-		},
 		{
 			Name:        "Health Check Refresh",
 			Description: "Refresh interval for healthchecks.",

@@ -7972,9 +7972,6 @@
         },
         "threshold_database": {
           "type": "integer"
-        },
-        "timeout": {
-          "type": "integer"
         }
       }
     },
