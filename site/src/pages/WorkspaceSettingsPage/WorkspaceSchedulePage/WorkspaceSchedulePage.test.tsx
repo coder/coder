@@ -249,7 +249,7 @@ describe("WorkspaceSchedulePage", () => {
       // zero
       [0, 0, { autostopEnabled: false, ttl: 0, ttl_bump: 0 }],
       // basic case
-      [28_800_000, 3600, { autostopEnabled: true, ttl: 8, ttl_bump: 1 }],
+      [28_800_000, 3600, { autostopEnabled: true, ttl: 8, ttl_bump: 0 }],
     ] as const)(
       `ttlMsToAutostop(%p) returns %p`,
       (ttlMs, ttlBumpMs, autostop) => {

@@ -35,7 +35,7 @@ WITH latest AS (
 					END
 				ELSE
 					CASE
-						WHEN templates.ttl_bump > 0 THEN (templates.ttl_bump / 1000 / 1000 / 1000 || ' seconds')::interval
+						WHEN templates.default_ttl_bump > 0 THEN (templates.default_ttl_bump / 1000 / 1000 / 1000 || ' seconds')::interval
 						ELSE (templates.default_ttl / 1000 / 1000 / 1000 || ' seconds')::interval
 					END
 			END
