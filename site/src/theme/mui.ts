@@ -41,7 +41,7 @@ export let dark = createTheme({
     },
     text: {
       primary: colors.gray[1],
-      secondary: colors.gray[2],
+      secondary: colors.gray[4],
       disabled: colors.gray[9],
     },
     divider: colors.gray[13],
