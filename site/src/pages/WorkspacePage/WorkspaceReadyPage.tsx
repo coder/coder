@@ -34,9 +34,9 @@ import {
   decreaseDeadline,
   deleteWorkspace,
   increaseDeadline,
-  update,
-  stop,
-  start,
+  updateWorkspace,
+  stopWorkspace,
+  startWorkspace,
   cancelBuild,
 } from "api/queries/workspaces";
 import { getErrorMessage } from "api/errors";
@@ -167,7 +167,9 @@ export const WorkspaceReadyPage = ({
   // Update workspace
   const canUpdateWorkspace = Boolean(permissions?.updateWorkspace);
   const [isConfirmingUpdate, setIsConfirmingUpdate] = useState(false);
-  const updateWorkspaceMutation = useMutation(update(workspace, queryClient));
+  const updateWorkspaceMutation = useMutation(
+    updateWorkspace(workspace, queryClient),
+  );
 
   // Delete workspace
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
@@ -181,10 +183,14 @@ export const WorkspaceReadyPage = ({
   );
 
   // Stop workspace
-  const stopWorkspaceMutation = useMutation(stop(workspace, queryClient));
+  const stopWorkspaceMutation = useMutation(
+    stopWorkspace(workspace, queryClient),
+  );
 
   // Start workspace
-  const startWorkspaceMutation = useMutation(start(workspace, queryClient));
+  const startWorkspaceMutation = useMutation(
+    startWorkspace(workspace, queryClient),
+  );
 
   // Cancel build
   const cancelBuildMutation = useMutation(cancelBuild(workspace));

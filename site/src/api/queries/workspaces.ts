@@ -146,7 +146,10 @@ export const changeVersion = (
   };
 };
 
-export const update = (workspace: Workspace, queryClient: QueryClient) => {
+export const updateWorkspace = (
+  workspace: Workspace,
+  queryClient: QueryClient,
+) => {
   return {
     mutationFn: (buildParameters?: WorkspaceBuildParameter[]) => {
       return API.updateWorkspace(workspace, buildParameters);
@@ -171,7 +174,10 @@ export const deleteWorkspace = (
   };
 };
 
-export const stop = (workspace: Workspace, queryClient: QueryClient) => {
+export const stopWorkspace = (
+  workspace: Workspace,
+  queryClient: QueryClient,
+) => {
   return {
     mutationFn: ({ logLevel }: { logLevel?: ProvisionerLogLevel }) => {
       return API.stopWorkspace(workspace.id, logLevel);
@@ -182,7 +188,10 @@ export const stop = (workspace: Workspace, queryClient: QueryClient) => {
   };
 };
 
-export const start = (workspace: Workspace, queryClient: QueryClient) => {
+export const startWorkspace = (
+  workspace: Workspace,
+  queryClient: QueryClient,
+) => {
   return {
     mutationFn: ({
       buildParameters,
