@@ -193,7 +193,7 @@ export const WorkspaceReadyPage = ({
   );
 
   // Cancel build
-  const cancelBuildMutation = useMutation(cancelBuild(workspace));
+  const cancelBuildMutation = useMutation(cancelBuild(workspace, queryClient));
 
   return (
     <>

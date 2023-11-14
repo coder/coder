@@ -213,10 +213,15 @@ export const startWorkspace = (
   };
 };
 
-export const cancelBuild = (workspace: Workspace) => {
+export const cancelBuild = (workspace: Workspace, queryClient: QueryClient) => {
   return {
     mutationFn: () => {
       return API.cancelWorkspaceBuild(workspace.id);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: workspaceBuildsKey(workspace.id),
+      });
     },
   };
 };
