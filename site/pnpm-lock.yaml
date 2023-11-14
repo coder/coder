@@ -85,8 +85,8 @@ dependencies:
     specifier: 4.9.0
     version: 4.9.0
   cronstrue:
-    specifier: 2.41.0
-    version: 2.41.0
+    specifier: 2.43.0
+    version: 2.43.0
   date-fns:
     specifier: 2.30.0
     version: 2.30.0
@@ -6896,8 +6896,8 @@ packages:
       luxon: 3.3.0
     dev: false
 
-  /cronstrue@2.41.0:
-    resolution: {integrity: sha512-3ZS3eMJaxMRBGmDauKCKbyIRgVcph6uSpkhSbbZvvJWkelHiSTzGJbBqmu8io7Hspd2F45bQKnC1kzoNvtku2g==}
+  /cronstrue@2.43.0:
+    resolution: {integrity: sha512-FrL6gIbluwkr/d5ZhsEf13GVEgg8CYolfS/d2xZisZ/rOE3t73RKAmBbvT0Ng++9dNGZEFC8Yn26n6c3TmkLVw==}
     hasBin: true
     dev: false
 
@@ -13461,7 +13461,7 @@ packages:
     peerDependencies:
       eslint: '>=7'
       meow: ^9.0.0
-      optionator: ^0.9.1
+      optionator: 0.9.3
       stylelint: '>=13'
       typescript: '*'
       vite: '>=2.0.0'
