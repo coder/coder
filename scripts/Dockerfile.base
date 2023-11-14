@@ -11,6 +11,7 @@ RUN apk add --no-cache \
 		wget \
 		bash \
 		git \
+		openssl \
 		openssh-client && \
 	addgroup \
 		-g 1000 \
