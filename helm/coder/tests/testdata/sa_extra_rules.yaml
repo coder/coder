@@ -4,14 +4,14 @@ coder:
 
   serviceAccount:
     extraRules:
-     - apiGroups: [""]
-       resources: ["services"]
-       verbs:
-         - create
-         - delete
-         - deletecollection
-         - get
-         - list
-         - patch
-         - update
-         - watch
+      - apiGroups: [""]
+        resources: ["services"]
+        verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - list
+          - patch
+          - update
+          - watch
