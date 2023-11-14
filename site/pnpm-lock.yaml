@@ -172,8 +172,8 @@ dependencies:
     specifier: 7.5.3
     version: 7.5.3
   ts-proto:
-    specifier: 1.163.0
-    version: 1.163.0
+    specifier: 1.164.0
+    version: 1.164.0
   ts-prune:
     specifier: 0.10.3
     version: 0.10.3
@@ -12980,8 +12980,8 @@ packages:
       protobufjs: 7.2.4
     dev: false
 
-  /ts-proto@1.163.0:
-    resolution: {integrity: sha512-jpC4oA86NkN015R2YHGj9bhOJEYOuop4JddmADixRxBcBBcfCgkh7mhxA10BWrmk3/oyczI3T//UNK4x3P9/Sw==}
+  /ts-proto@1.164.0:
+    resolution: {integrity: sha512-yIyMucjcozS7Vxtyy5mH6C8ltbY4gEBVNW4ymZ0kWiKlyMxsvhyUZ63CbxcF7dCKQVjHR+fLJ3SiorfgyhQ+AQ==}
     hasBin: true
     dependencies:
       case-anything: 2.1.13
