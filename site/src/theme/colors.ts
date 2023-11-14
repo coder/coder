@@ -29,7 +29,10 @@ export const colors = {
 
   orange: {
     15: tw.amber[950],
+    14: tw.amber[900],
     12: tw.amber[800],
+    11: tw.amber[700],
+    10: tw.amber[600],
     9: tw.amber[500],
     7: tw.amber[400],
   },

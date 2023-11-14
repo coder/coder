@@ -48,9 +48,7 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
     display: flex;
     align-items: center;
     padding: 12px;
-    background-color: ${type === "error"
-      ? colors.red[12]
-      : theme.palette.warning.main};
+    background-color: ${type === "error" ? colors.red[10] : colors.orange[10]};
   `;
 
   if (messages.length === 1) {
