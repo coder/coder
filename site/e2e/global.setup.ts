@@ -3,7 +3,7 @@ import * as constants from "./constants";
 import { STORAGE_STATE } from "./playwright.config";
 import { Language } from "pages/CreateUserPage/CreateUserForm";
 
-test("create first user", async ({ page }) => {
+test("create first user.", async ({ page }) => {
   await page.goto("/", { waitUntil: "domcontentloaded" });
 
   await page.getByLabel(Language.usernameLabel).fill(constants.username);
