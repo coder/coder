@@ -91,7 +91,7 @@ require (
 	github.com/codeclysm/extract/v3 v3.1.1
 	github.com/coder/flog v1.1.0
 	github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0
-	github.com/coder/retry v1.4.0
+	github.com/coder/retry v1.5.1
 	github.com/coder/terraform-provider-coder v0.12.2
 	github.com/coder/wgtunnel v0.1.12
 	github.com/coreos/go-oidc/v3 v3.7.0
