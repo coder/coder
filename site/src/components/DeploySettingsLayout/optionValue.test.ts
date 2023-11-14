@@ -104,6 +104,24 @@ describe("optionValue", () => {
       additionalValues: ["single_tailnet", "deployment_health_page"],
       expected: { single_tailnet: true, deployment_health_page: true },
     },
+    {
+      option: {
+        ...defaultOption,
+        name: "Some Go Duration We Want To Show As A String",
+        value: 30 * 1e9,
+        annotations: { "format_duration_ns": "true" },
+      },
+      expected: "30s",
+    },
+    {
+      option: {
+        ...defaultOption,
+        name: "Some Other Go Duration We Want To Just Display As A Number",
+        value: 30 * 1e9,
+        annotations: { "format_duration_ns": "false" },
+      },
+      expected: "30000000000"
+    },
   ])(
     `[$option.name]optionValue($option.value)`,
     ({ option, expected, additionalValues }) => {
