@@ -31,7 +31,7 @@ type sqlcQuerier interface {
 	// We only bump if the raw interval is positive and non-zero.
 	// We only bump if workspace shutdown is manual.
 	// We only bump when 5% of the deadline has elapsed.
-	ActivityBumpWorkspace(ctx context.Context, workspaceID uuid.UUID) error
+	ActivityBumpWorkspace(ctx context.Context, arg ActivityBumpWorkspaceParams) error
 	// AllUserIDs returns all UserIDs regardless of user status or deletion.
 	AllUserIDs(ctx context.Context) ([]uuid.UUID, error)
 	// Archiving templates is a soft delete action, so is reversible.

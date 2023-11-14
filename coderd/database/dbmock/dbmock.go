@@ -69,7 +69,7 @@ func (mr *MockStoreMockRecorder) AcquireProvisionerJob(arg0, arg1 interface{}) *
 }
 
 // ActivityBumpWorkspace mocks base method.
-func (m *MockStore) ActivityBumpWorkspace(arg0 context.Context, arg1 uuid.UUID) error {
+func (m *MockStore) ActivityBumpWorkspace(arg0 context.Context, arg1 database.ActivityBumpWorkspaceParams) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ActivityBumpWorkspace", arg0, arg1)
 	ret0, _ := ret[0].(error)

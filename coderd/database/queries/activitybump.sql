@@ -12,9 +12,29 @@ WITH latest AS (
 		provisioner_jobs.completed_at::timestamp with time zone AS job_completed_at,
 		(
 			CASE
-				WHEN templates.allow_user_autostop
-				THEN (workspaces.ttl / 1000 / 1000 / 1000 || ' seconds')::interval
-				ELSE (templates.default_ttl / 1000 / 1000 / 1000 || ' seconds')::interval
+				-- If the extension would push us over the next_autostart
+				-- interval, then extend the deadline by the full ttl from
+				-- the autostart time. This will essentially be as if the
+				-- workspace auto started at the given time and the original
+				-- TTL was applied.
+				WHEN NOW() + ('60 minutes')::interval > @next_autostart :: timestamptz
+				    -- If the autostart is behind the created_at, then the
+					-- autostart schedule is either the 0 time and not provided,
+					-- or it was the autostart in the past, which is no longer
+					-- relevant. If a past autostart is being passed in,
+					-- that is a mistake by the caller.
+					AND @next_autostart > workspace_builds.created_at
+					THEN
+					-- Extend to the autostart, then add the TTL
+					((@next_autostart :: timestamptz) - NOW()) + CASE
+						WHEN templates.allow_user_autostop
+					    	THEN (workspaces.ttl / 1000 / 1000 / 1000 || ' seconds')::interval
+							ELSE (templates.default_ttl / 1000 / 1000 / 1000 || ' seconds')::interval
+					END
+
+				-- Default to 60 minutes.
+				ELSE
+					('60 minutes')::interval
 			END
 		) AS ttl_interval
 	FROM workspace_builds

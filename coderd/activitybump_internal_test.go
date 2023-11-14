@@ -42,6 +42,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 		templateTTL                   time.Duration
 		templateDisallowsUserAutostop bool
 		expectedBump                  time.Duration
+		nextAutostart                 time.Time
 	}{
 		{
 			name:                "NotFinishedYet",
@@ -72,7 +73,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			jobCompletedAt:      sql.NullTime{Valid: true, Time: dbtime.Now().Add(-24 * time.Minute)},
 			buildDeadlineOffset: ptr.Ref(8*time.Hour - 24*time.Minute),
 			workspaceTTL:        8 * time.Hour,
-			expectedBump:        8 * time.Hour,
+			expectedBump:        time.Hour, //8 * time.Hour,
 		},
 		{
 			name:                "MaxDeadline",
@@ -81,7 +82,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			buildDeadlineOffset: ptr.Ref(time.Minute), // last chance to bump!
 			maxDeadlineOffset:   ptr.Ref(time.Hour),
 			workspaceTTL:        8 * time.Hour,
-			expectedBump:        1 * time.Hour,
+			expectedBump:        time.Hour, //1 * time.Hour,
 		},
 		{
 			// A workspace that is still running, has passed its deadline, but has not
@@ -91,7 +92,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			jobCompletedAt:      sql.NullTime{Valid: true, Time: dbtime.Now().Add(-24 * time.Minute)},
 			buildDeadlineOffset: ptr.Ref(-time.Minute),
 			workspaceTTL:        8 * time.Hour,
-			expectedBump:        8 * time.Hour,
+			expectedBump:        time.Hour, //8 * time.Hour,
 		},
 		{
 			// A stopped workspace should never bump.
@@ -99,7 +100,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			transition:          database.WorkspaceTransitionStop,
 			jobCompletedAt:      sql.NullTime{Valid: true, Time: dbtime.Now().Add(-time.Minute)},
 			buildDeadlineOffset: ptr.Ref(-time.Minute),
-			workspaceTTL:        8 * time.Hour,
+			workspaceTTL:        time.Hour, //8 * time.Hour,
 		},
 		{
 			// A workspace built from a template that disallows user autostop should bump
@@ -111,7 +112,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			workspaceTTL:                  6 * time.Hour,
 			templateTTL:                   8 * time.Hour,
 			templateDisallowsUserAutostop: true,
-			expectedBump:                  8 * time.Hour,
+			expectedBump:                  time.Hour, //8 * time.Hour,
 		},
 	} {
 		tt := tt
@@ -215,7 +216,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 
 				// Bump duration is measured from the time of the bump, so we measure from here.
 				start := dbtime.Now()
-				activityBumpWorkspace(ctx, log, db, bld.WorkspaceID)
+				activityBumpWorkspace(ctx, log, db, bld.WorkspaceID, tt.nextAutostart)
 				end := dbtime.Now()
 
 				// Validate our state after bump
