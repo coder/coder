@@ -12,6 +12,8 @@ import (
 	"testing"
 	"unicode"
 
+	"cdr.dev/slog"
+
 	"github.com/spf13/pflag"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
@@ -170,6 +172,7 @@ func (c *Cmd) Invoke(args ...string) *Invocation {
 		Stdout:  io.Discard,
 		Stderr:  io.Discard,
 		Stdin:   strings.NewReader(""),
+		Logger:  slog.Make(),
 	}
 }
 
@@ -185,6 +188,7 @@ type Invocation struct {
 	Stdout  io.Writer
 	Stderr  io.Writer
 	Stdin   io.Reader
+	Logger  slog.Logger
 
 	// testing
 	signalNotifyContext func(parent context.Context, signals ...os.Signal) (ctx context.Context, stop context.CancelFunc)
