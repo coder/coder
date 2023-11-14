@@ -79,6 +79,8 @@ export function usePaginatedQuery<
   const pageSize = DEFAULT_RECORDS_PER_PAGE;
   const pageOffset = (currentPage - 1) * pageSize;
 
+  // Not using infinite query right now because that requires a fair bit of list
+  // virtualization as the lists get bigger (especially for the audit logs)
   const query = useQuery({
     ...otherOptions,
     queryFn: (queryCxt) => queryFn({ ...queryCxt, pageParam: currentPage }),
