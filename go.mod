@@ -78,15 +78,15 @@ require (
 	github.com/andybalholm/brotli v1.0.6
 	github.com/armon/circbuf v0.0.0-20190214190532-5111143e8da2
 	github.com/awalterschulze/gographviz v2.0.3+incompatible
+	github.com/aws/smithy-go v1.16.0
 	github.com/bgentry/speakeasy v0.1.1-0.20220910012023-760eaf8b6816
 	github.com/bramvdbogaerde/go-scp v1.2.1-0.20221219230748-977ee74ac37b
 	github.com/briandowns/spinner v1.18.1
 	github.com/cakturk/go-netstat v0.0.0-20200220111822-e5b49efee7a5
 	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/charmbracelet/glamour v0.6.0
-	// In later at least v0.7.1, lipgloss changes its terminal detection
-	// which breaks most of our CLI golden files tests.
-	github.com/charmbracelet/lipgloss v0.8.0 // indirect
+	github.com/chromedp/cdproto v0.0.0-20230802225258-3cf4e6d46a89
+	github.com/chromedp/chromedp v0.9.2
 	github.com/cli/safeexec v1.0.1
 	github.com/codeclysm/extract/v3 v3.1.1
 	github.com/coder/flog v1.1.0
@@ -137,6 +137,7 @@ require (
 	github.com/jedib0t/go-pretty/v6 v6.4.0
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/justinas/nosurf v1.1.1
+	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f
 	github.com/klauspost/compress v1.17.1
 	github.com/lib/pq v1.10.9
@@ -162,6 +163,7 @@ require (
 	github.com/stretchr/testify v1.8.4
 	github.com/swaggo/http-swagger/v2 v2.0.1
 	github.com/swaggo/swag v1.16.2
+	github.com/tidwall/gjson v1.17.0
 	github.com/u-root/u-root v0.11.0
 	github.com/unrolled/secure v1.13.0
 	github.com/valyala/fasthttp v1.51.0
@@ -198,14 +200,6 @@ require (
 	nhooyr.io/websocket v1.8.7
 	storj.io/drpc v0.0.33-0.20230420154621-9716137f6037
 	tailscale.com v1.46.1
-)
-
-require (
-	github.com/aws/smithy-go v1.16.0
-	github.com/chromedp/cdproto v0.0.0-20230802225258-3cf4e6d46a89
-	github.com/chromedp/chromedp v0.9.2
-	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
-	github.com/tidwall/gjson v1.17.0
 )
 
 require (
@@ -255,6 +249,9 @@ require (
 	github.com/bep/godartsass/v2 v2.0.0 // indirect
 	github.com/bep/golibsass v1.1.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
+	// In later at least v0.7.1, lipgloss changes its terminal detection
+	// which breaks most of our CLI golden files tests.
+	github.com/charmbracelet/lipgloss v0.8.0 // indirect
 	github.com/chromedp/sysutil v1.0.0 // indirect
 	github.com/clbanning/mxj/v2 v2.7.0 // indirect
 	github.com/cloudflare/circl v1.3.3 // indirect
