@@ -88,6 +88,7 @@ export const WorkspacePage: FC = () => {
 
     return () => {
       eventSource.close();
+      workspaceEventSource.current = null;
     };
   }, [buildsQuery, queryClient, workspace, workspaceQueryOptions.queryKey]);
 
