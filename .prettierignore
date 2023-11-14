@@ -23,7 +23,6 @@ yarn-error.log
 
 # Front-end ignore patterns.
 .next/
-site/**/*.typegen.ts
 site/build-storybook.log
 site/coverage/
 site/storybook-static/

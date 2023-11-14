@@ -98,9 +98,9 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 				return xerrors.Errorf("await agent: %w", err)
 			}
 
-			logger := slog.Make()
+			logger := inv.Logger
 			if r.verbose {
-				logger = slog.Make(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelDebug)
+				logger = logger.AppendSinks(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelDebug)
 			}
 
 			if r.disableDirect {

@@ -1092,7 +1092,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			ctx := inv.Context()
 
 			cfg := r.createConfig()
-			logger := slog.Make(sloghuman.Sink(inv.Stderr))
+			logger := inv.Logger.AppendSinks(sloghuman.Sink(inv.Stderr))
 			if ok, _ := inv.ParsedFlags().GetBool(varVerbose); ok {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
@@ -2063,7 +2063,7 @@ func BuildLogger(inv *clibase.Invocation, cfg *codersdk.DeploymentValues) (slog.
 		level = slog.LevelDebug
 	}
 
-	return slog.Make(filter).Leveled(level), func() {
+	return inv.Logger.AppendSinks(filter).Leveled(level), func() {
 		for _, closer := range closers {
 			_ = closer()
 		}

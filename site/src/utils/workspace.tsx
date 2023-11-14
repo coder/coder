@@ -147,44 +147,6 @@ export const defaultWorkspaceExtension = (
   };
 };
 
-// You can see the favicon designs here: https://www.figma.com/file/YIGBkXUcnRGz2ZKNmLaJQf/Coder-v2-Design?node-id=560%3A620
-
-type FaviconType =
-  | "favicon"
-  | "favicon-success"
-  | "favicon-error"
-  | "favicon-warning"
-  | "favicon-running";
-
-export const getFaviconByStatus = (
-  build: TypesGen.WorkspaceBuild,
-): FaviconType => {
-  switch (build.status) {
-    case undefined:
-      return "favicon";
-    case "running":
-      return "favicon-success";
-    case "starting":
-      return "favicon-running";
-    case "stopping":
-      return "favicon-running";
-    case "stopped":
-      return "favicon";
-    case "deleting":
-      return "favicon";
-    case "deleted":
-      return "favicon";
-    case "canceling":
-      return "favicon-warning";
-    case "canceled":
-      return "favicon";
-    case "failed":
-      return "favicon-error";
-    case "pending":
-      return "favicon";
-  }
-};
-
 export const getDisplayWorkspaceTemplateName = (
   workspace: TypesGen.Workspace,
 ): string => {

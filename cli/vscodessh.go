@@ -138,7 +138,7 @@ func (r *RootCmd) vscodeSSH() *clibase.Cmd {
 			// command via the ProxyCommand SSH option.
 			pid := os.Getppid()
 
-			logger := slog.Make()
+			logger := inv.Logger
 			if logDir != "" {
 				logFilePath := filepath.Join(logDir, fmt.Sprintf("%d.log", pid))
 				logFile, err := fs.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY, 0o600)
