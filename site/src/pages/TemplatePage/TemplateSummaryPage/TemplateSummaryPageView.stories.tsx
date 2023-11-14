@@ -2,7 +2,6 @@ import { Meta, StoryObj } from "@storybook/react";
 import {
   MockTemplate,
   MockTemplateVersion,
-  MockTemplateVersion3,
   MockWorkspaceResource,
   MockWorkspaceVolumeResource,
 } from "testHelpers/entities";
@@ -28,14 +27,6 @@ export const NoIcon: Story = {
   args: {
     template: { ...MockTemplate, icon: "" },
     activeVersion: MockTemplateVersion,
-    resources: [MockWorkspaceResource, MockWorkspaceVolumeResource],
-  },
-};
-
-export const WithDeprecatedParameters: Story = {
-  args: {
-    template: MockTemplate,
-    activeVersion: MockTemplateVersion3,
     resources: [MockWorkspaceResource, MockWorkspaceVolumeResource],
   },
 };

@@ -15,7 +15,6 @@ import {
   PageHeaderTitle,
   PageHeaderSubtitle,
 } from "components/PageHeader/FullWidthPageHeader";
-import { TemplateVersionWarnings } from "components/TemplateVersionWarnings/TemplateVersionWarnings";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { DormantWorkspaceBanner } from "components/WorkspaceDeletion";
 import { Avatar } from "components/Avatar/Avatar";
@@ -55,7 +54,6 @@ export interface WorkspaceProps {
   isRestarting: boolean;
   workspace: TypesGen.Workspace;
   resources?: TypesGen.WorkspaceResource[];
-  templateWarnings?: TypesGen.TemplateVersionWarning[];
   canUpdateWorkspace: boolean;
   updateMessage?: string;
   canRetryDebugMode: boolean;
@@ -105,9 +103,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   buildInfo,
   sshPrefix,
   template,
-  quotaBudget,
   handleBuildRetry,
-  templateWarnings,
   buildLogs,
   onLoadMoreBuilds,
   isLoadingMoreBuilds,
@@ -198,7 +194,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 
         <WorkspaceStats
           workspace={workspace}
-          quotaBudget={quotaBudget}
           handleUpdate={handleUpdate}
           canUpdateWorkspace={canUpdateWorkspace}
           maxDeadlineDecrease={scheduleProps.maxDeadlineDecrease}
@@ -293,8 +288,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
             }
             onDismiss={() => saveLocal("dismissedWorkspace", workspace.id)}
           />
-
-          <TemplateVersionWarnings warnings={templateWarnings} />
 
           {showAlertPendingInQueue && (
             <Alert severity="info">

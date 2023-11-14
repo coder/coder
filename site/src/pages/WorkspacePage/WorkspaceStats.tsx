@@ -24,6 +24,8 @@ import {
   PopoverTrigger,
   usePopover,
 } from "components/Popover/Popover";
+import { workspaceQuota } from "api/queries/workspaceQuota";
+import { useQuery } from "react-query";
 
 const Language = {
   workspaceDetails: "Workspace Details",
@@ -37,7 +39,6 @@ export interface WorkspaceStatsProps {
   maxDeadlineIncrease: number;
   maxDeadlineDecrease: number;
   canUpdateWorkspace: boolean;
-  quotaBudget?: number;
   onDeadlinePlus: (hours: number) => void;
   onDeadlineMinus: (hours: number) => void;
   handleUpdate: () => void;
@@ -45,7 +46,6 @@ export interface WorkspaceStatsProps {
 
 export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
   workspace,
-  quotaBudget,
   maxDeadlineDecrease,
   maxDeadlineIncrease,
   canUpdateWorkspace,
@@ -56,6 +56,8 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
   const displayTemplateName = getDisplayWorkspaceTemplateName(workspace);
   const deadlinePlusEnabled = maxDeadlineIncrease >= 1;
   const deadlineMinusEnabled = maxDeadlineDecrease >= 1;
+  const quotaQuery = useQuery(workspaceQuota(workspace.owner_name));
+  const quotaBudget = quotaQuery.data?.budget;
 
   const paperStyles = css`
     padding: 24px;
