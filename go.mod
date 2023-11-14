@@ -188,7 +188,7 @@ require (
 	golang.org/x/tools v0.15.0
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 	golang.zx2c4.com/wireguard v0.0.0-20230704135630-469159ecf7d1
-	google.golang.org/api v0.148.0
+	google.golang.org/api v0.150.0
 	google.golang.org/grpc v1.59.0
 	google.golang.org/protobuf v1.31.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.57.0
@@ -209,9 +209,9 @@ require (
 )
 
 require (
-	cloud.google.com/go/compute v1.23.0 // indirect
+	cloud.google.com/go/compute v1.23.1 // indirect
 	cloud.google.com/go/logging v1.8.1 // indirect
-	cloud.google.com/go/longrunning v0.5.1 // indirect
+	cloud.google.com/go/longrunning v0.5.2 // indirect
 	filippo.io/edwards25519 v1.0.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect
 	github.com/DataDog/appsec-internal-go v1.0.0 // indirect
@@ -299,7 +299,7 @@ require (
 	github.com/google/pprof v0.0.0-20230817174616-7a8ec2ada47b // indirect
 	github.com/google/s2a-go v0.1.7 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
-	github.com/googleapis/enterprise-certificate-proxy v0.3.1 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.3.2 // indirect
 	github.com/gorilla/css v1.0.0 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.18.0 // indirect
@@ -411,9 +411,9 @@ require (
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20230429144221-925a1e7659e6 // indirect
 	golang.zx2c4.com/wireguard/windows v0.5.3 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
-	google.golang.org/genproto v0.0.0-20231002182017-d307bd883b97 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20231002182017-d307bd883b97 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20231012201019-e917dd12ba7a // indirect
+	google.golang.org/genproto v0.0.0-20231016165738-49dd2c1f3d0b // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20231016165738-49dd2c1f3d0b // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20231030173426-d783a09b4405 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	howett.net/plist v1.0.0 // indirect
 	inet.af/netaddr v0.0.0-20230525184311-b8eac61e914a // indirect
