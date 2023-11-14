@@ -216,7 +216,7 @@ export const startWorkspace = (
 export const cancelBuild = (workspace: Workspace, queryClient: QueryClient) => {
   return {
     mutationFn: () => {
-      return API.cancelWorkspaceBuild(workspace.id);
+      return API.cancelWorkspaceBuild(workspace.latest_build.id);
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({
