@@ -74,7 +74,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
 
-			logger := slog.Make() // empty logger
+			logger := inv.Logger
 			defer func() {
 				if retErr != nil {
 					// catch and log all returned errors so we see them in the
