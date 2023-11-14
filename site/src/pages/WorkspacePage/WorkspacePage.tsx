@@ -1,5 +1,5 @@
 import { Loader } from "components/Loader/Loader";
-import { FC, useEffect, useRef } from "react";
+import { FC, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -13,6 +13,7 @@ import { checkAuthorization } from "api/queries/authCheck";
 import { WorkspacePermissions, workspaceChecks } from "./permissions";
 import { watchWorkspace } from "api/api";
 import { Workspace } from "api/typesGenerated";
+import { useEffectEvent } from "hooks/hookPolyfills";
 
 export const WorkspacePage: FC = () => {
   const queryClient = useQueryClient();
@@ -55,31 +56,34 @@ export const WorkspacePage: FC = () => {
   });
 
   // Watch workspace changes
-  const workspaceEventSource = useRef<EventSource | null>(null);
-  useEffect(() => {
-    // If there is an event source, we are already watching the workspace
-    if (!workspace || workspaceEventSource.current) {
-      return;
-    }
-
-    const eventSource = watchWorkspace(workspace.id);
-    workspaceEventSource.current = eventSource;
-
-    eventSource.addEventListener("data", async (event) => {
-      const newWorkspaceData = JSON.parse(event.data) as Workspace;
+  const updateWorkspaceData = useEffectEvent(
+    async (newWorkspaceData: Workspace) => {
       queryClient.setQueryData(
         workspaceQueryOptions.queryKey,
         newWorkspaceData,
       );
 
       const hasNewBuild =
-        newWorkspaceData.latest_build.id !== workspace.latest_build.id;
+        newWorkspaceData.latest_build.id !== workspace!.latest_build.id;
       const lastBuildHasChanged =
-        newWorkspaceData.latest_build.status !== workspace.latest_build.status;
+        newWorkspaceData.latest_build.status !== workspace!.latest_build.status;
 
       if (hasNewBuild || lastBuildHasChanged) {
         await buildsQuery.refetch();
       }
+    },
+  );
+  const workspaceId = workspace?.id;
+  useEffect(() => {
+    if (!workspaceId) {
+      return;
+    }
+
+    const eventSource = watchWorkspace(workspaceId);
+
+    eventSource.addEventListener("data", async (event) => {
+      const newWorkspaceData = JSON.parse(event.data) as Workspace;
+      await updateWorkspaceData(newWorkspaceData);
     });
 
     eventSource.addEventListener("error", (event) => {
@@ -88,9 +92,8 @@ export const WorkspacePage: FC = () => {
 
     return () => {
       eventSource.close();
-      workspaceEventSource.current = null;
     };
-  }, [buildsQuery, queryClient, workspace, workspaceQueryOptions.queryKey]);
+  }, [updateWorkspaceData, workspaceId]);
 
   // Page statuses
   const pageError =
