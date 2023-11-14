@@ -9,7 +9,6 @@ test("create first user", async ({ page }) => {
   await page.getByLabel(Language.usernameLabel).fill(constants.username);
   await page.getByLabel(Language.emailLabel).fill(constants.email);
   await page.getByLabel(Language.passwordLabel).fill(constants.password);
-  await page.getByTestId("trial").click();
   await page.getByTestId("create").click();
 
   await expect(page).toHaveURL(/\/workspaces.*/);
