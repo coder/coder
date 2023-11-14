@@ -74,7 +74,7 @@ coder_app.
 
 ![Autostop UI](./images/autostop.png)
 
-### Max lifetime
+### Max lifetime (Enterprise)
 
 Max lifetime is a template setting that determines the number of hours a
 workspace will run before Coder automatically stops it, regardless of any active
