@@ -16,11 +16,14 @@ export function optionValue(
         case "format_duration_ns":
           return formatDuration(
             // intervalToDuration takes ms, so convert nanoseconds to ms
-            intervalToDuration({ start: 0, end: option.value as number / 1e6 }),
-          )
+            intervalToDuration({
+              start: 0,
+              end: (option.value as number) / 1e6,
+            }),
+          );
         // Add additional cases here as needed.
       }
-    };
+    }
   }
 
   // If no format annotations are present, use the option name to format the value.
