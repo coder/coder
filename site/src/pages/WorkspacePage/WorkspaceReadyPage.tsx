@@ -35,6 +35,7 @@ import { decreaseDeadline, increaseDeadline } from "api/queries/workspaces";
 import { getErrorMessage } from "api/errors";
 import { displaySuccess, displayError } from "components/GlobalSnackbar/utils";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
+import dayjs from "dayjs";
 
 interface WorkspaceReadyPageProps {
   workspaceState: StateFrom<typeof workspaceMachine>;
@@ -224,6 +225,7 @@ export const WorkspaceReadyPage = ({
         onConfirm={(orphan) => {
           workspaceSend({ type: "DELETE", orphan });
         }}
+        workspaceBuildDateStr={dayjs(workspace.created_at).fromNow()}
       />
       <UpdateBuildParametersDialog
         missedParameters={missedParameters ?? []}

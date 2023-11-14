@@ -3,7 +3,6 @@ import { useId, useState, FormEvent } from "react";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { type Interpolation, type Theme } from "@emotion/react";
 import { colors } from "theme/colors";
-import dayjs from "dayjs";
 import TextField from "@mui/material/TextField";
 import { docs } from "utils/docs";
 import Link from "@mui/material/Link";
@@ -68,9 +67,17 @@ interface WorkspaceDeleteDialogProps {
   isOpen: boolean;
   onCancel: () => void;
   onConfirm: (arg: CreateWorkspaceBuildRequest["orphan"]) => void;
+  workspaceBuildDateStr: string;
 }
 export const WorkspaceDeleteDialog = (props: WorkspaceDeleteDialogProps) => {
-  const { workspace, canUpdateTemplate, isOpen, onCancel, onConfirm } = props;
+  const {
+    workspace,
+    canUpdateTemplate,
+    isOpen,
+    onCancel,
+    onConfirm,
+    workspaceBuildDateStr,
+  } = props;
   const hookId = useId();
   const [userConfirmationText, setUserConfirmationText] = useState("");
   const [orphanWorkspace, setOrphanWorkspace] =
@@ -106,7 +113,7 @@ export const WorkspaceDeleteDialog = (props: WorkspaceDeleteDialogProps) => {
               <p className="label">workspace</p>
             </div>
             <div>
-              <p className="info">{dayjs(workspace.created_at).fromNow()}</p>
+              <p className="info">{workspaceBuildDateStr}</p>
               <p className="label">created</p>
             </div>
           </div>

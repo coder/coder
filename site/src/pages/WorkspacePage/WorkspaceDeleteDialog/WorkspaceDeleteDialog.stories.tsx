@@ -17,6 +17,7 @@ const args: ComponentProps<typeof WorkspaceDeleteDialog> = {
   isOpen: true,
   onCancel: () => {},
   onConfirm: () => {},
+  workspaceBuildDateStr: "2 days ago",
 };
 
 export const NotTemplateAdmin: Story = {
