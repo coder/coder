@@ -1,5 +1,4 @@
 import { useDashboard } from "components/Dashboard/DashboardProvider";
-import dayjs from "dayjs";
 import { useFeatureVisibility } from "hooks/useFeatureVisibility";
 import { FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
@@ -10,7 +9,6 @@ import {
   getMaxDeadlineChange,
   getMinDeadline,
 } from "utils/schedule";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { Workspace, WorkspaceErrors } from "./Workspace";
 import { pageTitle } from "utils/page";
 import { hasJobError } from "utils/workspace";
@@ -44,6 +42,8 @@ import { displaySuccess, displayError } from "components/GlobalSnackbar/utils";
 import { deploymentConfig, deploymentSSHConfig } from "api/queries/deployment";
 import { WorkspacePermissions } from "./permissions";
 import { workspaceResolveAutostart } from "api/queries/workspaceQuota";
+import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
+import dayjs from "dayjs";
 
 interface WorkspaceReadyPageProps {
   template: TypesGen.Template;
@@ -172,6 +172,7 @@ export const WorkspaceReadyPage = ({
   );
 
   // Delete workspace
+  const canDeleteWorkspace = Boolean(permissions?.updateWorkspace);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const deleteWorkspaceMutation = useMutation(
     deleteWorkspace(workspace, queryClient),
@@ -296,20 +297,18 @@ export const WorkspaceReadyPage = ({
         }
         canAutostart={canAutostart}
       />
-      <DeleteDialog
-        entity="workspace"
-        name={workspace.name}
-        info={`This workspace was created ${dayjs(
-          workspace.created_at,
-        ).fromNow()}.`}
+      <WorkspaceDeleteDialog
+        workspace={workspace}
+        canUpdateTemplate={canDeleteWorkspace}
         isOpen={isConfirmingDelete}
         onCancel={() => {
           setIsConfirmingDelete(false);
         }}
-        onConfirm={() => {
-          deleteWorkspaceMutation.mutate({});
+        onConfirm={(orphan) => {
+          deleteWorkspaceMutation.mutate({ orphan });
           setIsConfirmingDelete(false);
         }}
+        workspaceBuildDateStr={dayjs(workspace.created_at).fromNow()}
       />
       <UpdateBuildParametersDialog
         missedParameters={

@@ -165,8 +165,8 @@ export const deleteWorkspace = (
   queryClient: QueryClient,
 ) => {
   return {
-    mutationFn: ({ logLevel }: { logLevel?: ProvisionerLogLevel }) => {
-      return API.deleteWorkspace(workspace.id, logLevel);
+    mutationFn: (options: API.DeleteWorkspaceOptions) => {
+      return API.deleteWorkspace(workspace.id, options);
     },
     onSuccess: async (build: WorkspaceBuild) => {
       await updateWorkspaceBuild(build, queryClient);
