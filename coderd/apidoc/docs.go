@@ -422,6 +422,28 @@ const docTemplate = `{
                 }
             }
         },
+        "/debug/tailnet": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "Debug"
+                ],
+                "summary": "Debug Info Tailnet",
+                "operationId": "debug-info-tailnet",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
         "/debug/ws": {
             "get": {
                 "security": [
@@ -8380,6 +8402,9 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "healthcheck": {
+                    "$ref": "#/definitions/codersdk.HealthcheckConfig"
+                },
                 "http_address": {
                     "description": "HTTPAddress is a string because it may be set to zero to disable.",
                     "type": "string"
@@ -8856,6 +8881,17 @@ const docTemplate = `{
                 "url": {
                     "description": "URL specifies the endpoint to check for the app health.",
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.HealthcheckConfig": {
+            "type": "object",
+            "properties": {
+                "refresh": {
+                    "type": "integer"
+                },
+                "threshold_database": {
+                    "type": "integer"
                 }
             }
         },
@@ -12186,6 +12222,9 @@ const docTemplate = `{
                 },
                 "reachable": {
                     "type": "boolean"
+                },
+                "threshold_ms": {
+                    "type": "integer"
                 }
             }
         },

@@ -16,9 +16,12 @@ import (
 	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/site"
 )
+
+var _ workspaceapps.AgentProvider = (*AgentProvider)(nil)
 
 type AgentProvider struct {
 	Cache *Cache
@@ -55,6 +58,8 @@ func (a *AgentProvider) ReverseProxy(targetURL *url.URL, dashboardURL *url.URL, 
 	proxy.Transport = transport
 	return proxy, release, nil
 }
+
+func (*AgentProvider) ServeHTTPDebug(http.ResponseWriter, *http.Request) {}
 
 func (a *AgentProvider) Close() error {
 	return a.Cache.Close()

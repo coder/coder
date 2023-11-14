@@ -38,7 +38,7 @@ jobs:
           echo "tag=${tag}" >> $GITHUB_OUTPUT
 
       - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v6
+        uses: DeterminateSystems/nix-installer-action@v7
 
       - name: Run the Magic Nix Cache
         uses: DeterminateSystems/magic-nix-cache-action@v2

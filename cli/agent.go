@@ -8,7 +8,6 @@ import (
 	"net/http/pprof"
 	"net/url"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -144,7 +143,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			// Note that we don't want to handle these signals in the
 			// process that runs as PID 1, that's why we do this after
 			// the reaper forked.
-			ctx, stopNotify := signal.NotifyContext(ctx, InterruptSignals...)
+			ctx, stopNotify := inv.SignalNotifyContext(ctx, InterruptSignals...)
 			defer stopNotify()
 
 			// DumpHandler does signal handling, so we call it after the

@@ -2795,6 +2795,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
     reachable: true,
     latency: "92570",
     latency_ms: 92570,
+    threshold_ms: 92570,
   },
   coder_version: "v0.27.1-devel+c575292",
 };
@@ -2826,6 +2827,7 @@ export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
     latency: "",
     latency_ms: 0,
     reachable: true,
+    threshold_ms: 92570,
   },
   derp: {
     healthy: false,

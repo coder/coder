@@ -16,11 +16,14 @@ import (
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
+	entaudit "github.com/coder/coder/v2/enterprise/audit"
+	"github.com/coder/coder/v2/enterprise/audit/backends"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/enterprise/coderd/schedule"
@@ -307,6 +310,84 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		// retrigger another lock action.
 		ws = coderdtest.MustWorkspace(t, client, ws.ID)
 		require.True(t, ws.LastUsedAt.After(lastUsedAt))
+	})
+
+	// This test serves as a regression prevention for generating
+	// audit logs in the same transaction the transition workspaces to
+	// the dormant state. The auditor that is passed to autobuild does
+	// not use the transaction when inserting an audit log which can
+	// cause a deadlock.
+	t.Run("NoDeadlock", func(t *testing.T) {
+		t.Parallel()
+
+		if !dbtestutil.WillUsePostgres() {
+			t.Skipf("Skipping non-postgres run")
+		}
+
+		var (
+			ticker      = make(chan time.Time)
+			statCh      = make(chan autobuild.Stats)
+			inactiveTTL = time.Minute
+		)
+
+		const (
+			maxConns      = 3
+			numWorkspaces = maxConns * 5
+		)
+		// This is a bit bizarre but necessary so that we can
+		// initialize our coderd with a real auditor and limit DB connections
+		// to simulate deadlock conditions.
+		db, pubsub, sdb := dbtestutil.NewDBWithSQLDB(t)
+		// Set MaxOpenConns so we can ensure we aren't inadvertently acquiring
+		// another connection from within a transaction.
+		sdb.SetMaxOpenConns(maxConns)
+		auditor := entaudit.NewAuditor(db, entaudit.DefaultFilter, backends.NewPostgres(db, true))
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				AutobuildTicker:          ticker,
+				AutobuildStats:           statCh,
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore()),
+				Database:                 db,
+				Pubsub:                   pubsub,
+				Auditor:                  auditor,
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
+			},
+		})
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ApplyComplete,
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.TimeTilDormantMillis = ptr.Ref[int64](inactiveTTL.Milliseconds())
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		workspaces := make([]codersdk.Workspace, 0, numWorkspaces)
+		for i := 0; i < numWorkspaces; i++ {
+			ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+			build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+			require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
+			workspaces = append(workspaces, ws)
+		}
+
+		// Simulate being inactive.
+		ticker <- time.Now().Add(time.Hour)
+		stats := <-statCh
+
+		// Expect workspace to transition to stopped state for breaching
+		// failure TTL.
+		require.Len(t, stats.Transitions, numWorkspaces)
+		for _, ws := range workspaces {
+			// The workspace should be dormant.
+			ws = coderdtest.MustWorkspace(t, client, ws.ID)
+			require.NotNil(t, ws.DormantAt)
+		}
 	})
 
 	t.Run("InactiveTTLTooEarly", func(t *testing.T) {

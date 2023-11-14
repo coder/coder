@@ -3,15 +3,10 @@ package healthcheck
 import (
 	"context"
 	"fmt"
-	"net/http"
-	"net/url"
 	"sync"
 	"time"
 
-	"tailscale.com/tailcfg"
-
 	"github.com/coder/coder/v2/buildinfo"
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 )
@@ -51,12 +46,10 @@ type Report struct {
 }
 
 type ReportOptions struct {
-	DB database.Store
-	// TODO: support getting this over HTTP?
-	DERPMap   *tailcfg.DERPMap
-	AccessURL *url.URL
-	Client    *http.Client
-	APIKey    string
+	AccessURL  AccessURLReportOptions
+	Database   DatabaseReportOptions
+	DerpHealth derphealth.ReportOptions
+	Websocket  WebsocketReportOptions
 
 	Checker Checker
 }
@@ -102,9 +95,7 @@ func Run(ctx context.Context, opts *ReportOptions) *Report {
 			}
 		}()
 
-		report.DERP = opts.Checker.DERP(ctx, &derphealth.ReportOptions{
-			DERPMap: opts.DERPMap,
-		})
+		report.DERP = opts.Checker.DERP(ctx, &opts.DerpHealth)
 	}()
 
 	wg.Add(1)
@@ -116,10 +107,7 @@ func Run(ctx context.Context, opts *ReportOptions) *Report {
 			}
 		}()
 
-		report.AccessURL = opts.Checker.AccessURL(ctx, &AccessURLReportOptions{
-			AccessURL: opts.AccessURL,
-			Client:    opts.Client,
-		})
+		report.AccessURL = opts.Checker.AccessURL(ctx, &opts.AccessURL)
 	}()
 
 	wg.Add(1)
@@ -131,10 +119,7 @@ func Run(ctx context.Context, opts *ReportOptions) *Report {
 			}
 		}()
 
-		report.Websocket = opts.Checker.Websocket(ctx, &WebsocketReportOptions{
-			APIKey:    opts.APIKey,
-			AccessURL: opts.AccessURL,
-		})
+		report.Websocket = opts.Checker.Websocket(ctx, &opts.Websocket)
 	}()
 
 	wg.Add(1)
@@ -146,9 +131,7 @@ func Run(ctx context.Context, opts *ReportOptions) *Report {
 			}
 		}()
 
-		report.Database = opts.Checker.Database(ctx, &DatabaseReportOptions{
-			DB: opts.DB,
-		})
+		report.Database = opts.Checker.Database(ctx, &opts.Database)
 	}()
 
 	report.CoderVersion = buildinfo.Version()

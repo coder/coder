@@ -62,6 +62,17 @@ func durationDisplay(d time.Duration) string {
 	return sign + durationDisplay
 }
 
+// timeDisplay formats a time in the local timezone
+// in RFC3339 format.
+func timeDisplay(t time.Time) string {
+	localTz, err := tz.TimezoneIANA()
+	if err != nil {
+		localTz = time.UTC
+	}
+
+	return t.In(localTz).Format(time.RFC3339)
+}
+
 // relative relativizes a duration with the prefix "ago" or "in"
 func relative(d time.Duration) string {
 	if d > 0 {
