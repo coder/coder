@@ -42,7 +42,10 @@ export type WorkspaceEvent =
   | { type: "START"; buildParameters?: TypesGen.WorkspaceBuildParameter[] }
   | { type: "STOP" }
   | { type: "ASK_DELETE" }
-  | { type: "DELETE" }
+  | {
+      type: "DELETE";
+      orphan: TypesGen.CreateWorkspaceBuildRequest["orphan"];
+    }
   | { type: "CANCEL_DELETE" }
   | { type: "UPDATE"; buildParameters?: TypesGen.WorkspaceBuildParameter[] }
   | {
@@ -57,7 +60,10 @@ export type WorkspaceEvent =
   | { type: "EVENT_SOURCE_ERROR"; error: unknown }
   | { type: "INCREASE_DEADLINE"; hours: number }
   | { type: "DECREASE_DEADLINE"; hours: number }
-  | { type: "RETRY_BUILD" }
+  | {
+      type: "RETRY_BUILD";
+      orphan?: TypesGen.CreateWorkspaceBuildRequest["orphan"];
+    }
   | { type: "ACTIVATE" };
 
 export const checks = {
@@ -589,11 +595,14 @@ export const workspaceMachine = createMachine(
           throw Error("Cannot stop workspace without workspace id");
         }
       },
-      deleteWorkspace: (context) => async (send) => {
+      deleteWorkspace: (context, data) => async (send) => {
         if (context.workspace) {
           const deleteWorkspacePromise = await API.deleteWorkspace(
             context.workspace.id,
-            context.createBuildLogLevel,
+            {
+              log_level: context.createBuildLogLevel,
+              orphan: data.orphan,
+            },
           );
           send({ type: "REFRESH_TIMELINE" });
           return deleteWorkspacePromise;
