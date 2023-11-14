@@ -28,6 +28,7 @@ import (
 
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/autobuild/notify"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -114,12 +115,13 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				if err != nil {
 					return xerrors.Errorf("error opening %s for logging: %w", logDirPath, err)
 				}
+				dc := cliutil.DiscardAfterClose(logFile)
 				go func() {
 					wg.Wait()
-					_ = logFile.Close()
+					_ = dc.Close()
 				}()
 
-				logger = slog.Make(sloghuman.Sink(logFile))
+				logger = logger.AppendSinks(sloghuman.Sink(dc))
 				if r.verbose {
 					logger = logger.Leveled(slog.LevelDebug)
 				}

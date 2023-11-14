@@ -21,6 +21,7 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 
 	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -137,15 +138,16 @@ func (r *RootCmd) vscodeSSH() *clibase.Cmd {
 			// command via the ProxyCommand SSH option.
 			pid := os.Getppid()
 
-			var logger slog.Logger
+			logger := slog.Make()
 			if logDir != "" {
 				logFilePath := filepath.Join(logDir, fmt.Sprintf("%d.log", pid))
 				logFile, err := fs.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY, 0o600)
 				if err != nil {
 					return xerrors.Errorf("open log file %q: %w", logFilePath, err)
 				}
-				defer logFile.Close()
-				logger = slog.Make(sloghuman.Sink(logFile)).Leveled(slog.LevelDebug)
+				dc := cliutil.DiscardAfterClose(logFile)
+				defer dc.Close()
+				logger = logger.AppendSinks(sloghuman.Sink(dc)).Leveled(slog.LevelDebug)
 			}
 			if r.disableDirect {
 				logger.Info(ctx, "direct connections disabled")
