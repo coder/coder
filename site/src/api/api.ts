@@ -525,7 +525,7 @@ export const postWorkspaceBuild = async (
 export const startWorkspace = (
   workspaceId: string,
   templateVersionId: string,
-  logLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"],
+  logLevel?: TypesGen.ProvisionerLogLevel,
   buildParameters?: TypesGen.WorkspaceBuildParameter[],
 ) =>
   postWorkspaceBuild(workspaceId, {
@@ -536,20 +536,25 @@ export const startWorkspace = (
   });
 export const stopWorkspace = (
   workspaceId: string,
-  logLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"],
+  logLevel?: TypesGen.ProvisionerLogLevel,
 ) =>
   postWorkspaceBuild(workspaceId, {
     transition: "stop",
     log_level: logLevel,
   });
 
+export type DeleteWorkspaceOptions = Pick<
+  TypesGen.CreateWorkspaceBuildRequest,
+  "log_level" & "orphan"
+>;
+
 export const deleteWorkspace = (
   workspaceId: string,
-  logLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"],
+  options?: DeleteWorkspaceOptions,
 ) =>
   postWorkspaceBuild(workspaceId, {
     transition: "delete",
-    log_level: logLevel,
+    ...options,
   });
 
 export const cancelWorkspaceBuild = async (
@@ -1207,10 +1212,15 @@ export const removeLicense = async (licenseId: number): Promise<void> => {
 
 export class MissingBuildParameters extends Error {
   parameters: TypesGen.TemplateVersionParameter[] = [];
+  versionId: string;
 
-  constructor(parameters: TypesGen.TemplateVersionParameter[]) {
+  constructor(
+    parameters: TypesGen.TemplateVersionParameter[],
+    versionId: string,
+  ) {
     super("Missing build parameters.");
     this.parameters = parameters;
+    this.versionId = versionId;
   }
 }
 
@@ -1239,7 +1249,7 @@ export const changeWorkspaceVersion = async (
   );
 
   if (missingParameters.length > 0) {
-    throw new MissingBuildParameters(missingParameters);
+    throw new MissingBuildParameters(missingParameters, templateVersionId);
   }
 
   return postWorkspaceBuild(workspace.id, {
@@ -1277,7 +1287,7 @@ export const updateWorkspace = async (
   );
 
   if (missingParameters.length > 0) {
-    throw new MissingBuildParameters(missingParameters);
+    throw new MissingBuildParameters(missingParameters, activeVersionId);
   }
 
   return postWorkspaceBuild(workspace.id, {

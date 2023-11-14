@@ -42,7 +42,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *clibase.Cmd {
 			}
 
 			cfg := r.createConfig()
-			logger := slog.Make(sloghuman.Sink(inv.Stderr))
+			logger := inv.Logger.AppendSinks(sloghuman.Sink(inv.Stderr))
 			if r.verbose {
 				logger = logger.Leveled(slog.LevelDebug)
 			}

@@ -48,10 +48,7 @@ func (r *RootCmd) speedtest() *clibase.Cmd {
 				return xerrors.Errorf("await agent: %w", err)
 			}
 
-			logger, ok := LoggerFromContext(ctx)
-			if !ok {
-				logger = slog.Make(sloghuman.Sink(inv.Stderr))
-			}
+			logger := inv.Logger.AppendSinks(sloghuman.Sink(inv.Stderr))
 			if r.verbose {
 				logger = logger.Leveled(slog.LevelDebug)
 			}

@@ -29,6 +29,11 @@ export const workspaceBuildByNumber = (
   };
 };
 
+export const workspaceBuildsKey = (workspaceId: string) => [
+  "workspaceBuilds",
+  workspaceId,
+];
+
 export const infiniteWorkspaceBuilds = (
   workspaceId: string,
   req?: WorkspaceBuildsRequest,
@@ -36,7 +41,7 @@ export const infiniteWorkspaceBuilds = (
   const limit = req?.limit ?? 25;
 
   return {
-    queryKey: ["workspaceBuilds", workspaceId, req],
+    queryKey: [...workspaceBuildsKey(workspaceId), req],
     getNextPageParam: (lastPage, pages) => {
       if (lastPage.length < limit) {
         return undefined;

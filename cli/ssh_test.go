@@ -215,6 +215,7 @@ func TestSSH(t *testing.T) {
 		inv.Stdin = clientOutput
 		inv.Stdout = serverInput
 		inv.Stderr = io.Discard
+
 		cmdDone := tGo(t, func() {
 			err := inv.WithContext(ctx).Run()
 			assert.NoError(t, err)
@@ -390,6 +391,7 @@ func TestSSH(t *testing.T) {
 		inv.Stdin = clientOutput
 		inv.Stdout = serverInput
 		inv.Stderr = io.Discard
+
 		cmdDone := tGo(t, func() {
 			err := inv.WithContext(ctx).Run()
 			assert.NoError(t, err)
