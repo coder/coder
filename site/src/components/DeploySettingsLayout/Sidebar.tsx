@@ -66,9 +66,6 @@ const SidebarNavItem: FC<
   );
 };
 
-// TODO: :axe:
-// do we really have like 5 of the same file?
-
 const SidebarNavItemIcon: FC<{ icon: ElementType }> = ({ icon: Icon }) => {
   return <Icon css={{ width: 16, height: 16 }} />;
 };
