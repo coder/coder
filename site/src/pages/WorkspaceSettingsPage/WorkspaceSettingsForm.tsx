@@ -83,7 +83,11 @@ export const WorkspaceSettingsForm: FC<{
               {...getFieldHelpers("automatic_updates")}
               id="automatic_updates"
               label="Update Policy"
-              value={form.values.automatic_updates}
+              value={
+                workspace.template_require_active_version
+                  ? "always"
+                  : form.values.automatic_updates
+              }
               select
               disabled={
                 form.isSubmitting || workspace.template_require_active_version
