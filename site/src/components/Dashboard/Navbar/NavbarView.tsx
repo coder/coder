@@ -1,27 +1,26 @@
 import Drawer from "@mui/material/Drawer";
 import IconButton from "@mui/material/IconButton";
-import MenuIcon from "@mui/icons-material/Menu";
-import { CoderIcon } from "components/Icons/CoderIcon";
-import { type FC, type ReactNode, useRef, useState } from "react";
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { colors } from "theme/colors";
-import * as TypesGen from "api/typesGenerated";
-import { navHeight } from "theme/constants";
-import { UserDropdown } from "./UserDropdown/UserDropdown";
+import Divider from "@mui/material/Divider";
+import Skeleton from "@mui/material/Skeleton";
 import Box from "@mui/material/Box";
 import Menu from "@mui/material/Menu";
 import Button from "@mui/material/Button";
 import MenuItem from "@mui/material/MenuItem";
 import KeyboardArrowDownOutlined from "@mui/icons-material/KeyboardArrowDownOutlined";
-import { ProxyContextValue } from "contexts/ProxyContext";
-import { displayError } from "components/GlobalSnackbar/utils";
-import Divider from "@mui/material/Divider";
-import Skeleton from "@mui/material/Skeleton";
-import { BUTTON_SM_HEIGHT } from "theme/theme";
-import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency";
-import { usePermissions } from "hooks/usePermissions";
+import MenuIcon from "@mui/icons-material/Menu";
 import Typography from "@mui/material/Typography";
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { type FC, type ReactNode, useRef, useState } from "react";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { colors } from "theme/colors";
+import type * as TypesGen from "api/typesGenerated";
+import { BUTTON_SM_HEIGHT, navHeight } from "theme/constants";
+import { ProxyContextValue } from "contexts/ProxyContext";
+import { displayError } from "components/GlobalSnackbar/utils";
+import { CoderIcon } from "components/Icons/CoderIcon";
+import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency";
+import { usePermissions } from "hooks/usePermissions";
+import { UserDropdown } from "./UserDropdown/UserDropdown";
 
 export const USERS_LINK = `/users?filter=${encodeURIComponent(
   "status:active",
