@@ -43,6 +43,7 @@ export const colors = {
 
   green: {
     15: tw.green[950],
+    13: tw.green[700],
     12: tw.green[600],
     11: tw.green[500],
     9: tw.green[400],

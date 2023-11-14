@@ -52,7 +52,7 @@ export let dark = createTheme({
     },
     success: {
       main: colors.green[11],
-      dark: colors.green[15],
+      dark: colors.green[12],
     },
     info: {
       light: colors.blue[7],
