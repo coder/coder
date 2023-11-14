@@ -18,12 +18,12 @@ WITH latest AS (
 				-- workspace auto started at the given time and the original
 				-- TTL was applied.
 				WHEN NOW() + ('60 minutes')::interval > @next_autostart :: timestamptz
-				    -- If the autostart is behind the created_at, then the
+				    -- If the autostart is behind now(), then the
 					-- autostart schedule is either the 0 time and not provided,
 					-- or it was the autostart in the past, which is no longer
 					-- relevant. If a past autostart is being passed in,
 					-- that is a mistake by the caller.
-					AND @next_autostart > workspace_builds.created_at
+					AND @next_autostart > NOW()
 					THEN
 					-- Extend to the autostart, then add the TTL
 					((@next_autostart :: timestamptz) - NOW()) + CASE
@@ -54,8 +54,9 @@ SET
 	updated_at = NOW(),
 	deadline = CASE
 		WHEN l.build_max_deadline = '0001-01-01 00:00:00+00'
-		THEN NOW() + l.ttl_interval
-		ELSE LEAST(NOW() + l.ttl_interval, l.build_max_deadline)
+		-- Never reduce the deadline from activity.
+		THEN GREATEST(wb.deadline, NOW() + l.ttl_interval)
+		ELSE LEAST(GREATEST(wb.deadline, NOW() + l.ttl_interval), l.build_max_deadline)
 	END
 FROM latest l
 WHERE wb.id = l.build_id
