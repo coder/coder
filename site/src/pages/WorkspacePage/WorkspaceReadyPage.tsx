@@ -274,7 +274,6 @@ export const WorkspaceReadyPage = ({
         hasMoreBuilds={hasMoreBuilds}
         canUpdateWorkspace={canUpdateWorkspace}
         updateMessage={latestVersion?.message}
-        canRetryDebugMode={canRetryDebugMode}
         canChangeVersions={canChangeVersions}
         hideSSHButton={featureVisibility["browser_only"]}
         hideVSCodeDesktopButton={featureVisibility["browser_only"]}

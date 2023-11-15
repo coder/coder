@@ -172,7 +172,6 @@ export const FailedWithRetry: Story = {
         },
       },
     },
-    canRetryDebugMode: true,
     buildLogs: <WorkspaceBuildLogsSection logs={makeFailedBuildLogs()} />,
   },
 };

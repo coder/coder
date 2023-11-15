@@ -58,7 +58,6 @@ export interface WorkspaceProps {
   resources?: TypesGen.WorkspaceResource[];
   canUpdateWorkspace: boolean;
   updateMessage?: string;
-  canRetryDebugMode: boolean;
   canChangeVersions: boolean;
   hideSSHButton?: boolean;
   hideVSCodeDesktopButton?: boolean;
@@ -97,7 +96,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   builds,
   canUpdateWorkspace,
   updateMessage,
-  canRetryDebugMode,
   canChangeVersions,
   workspaceErrors,
   hideSSHButton,
@@ -307,15 +305,9 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
             <Alert
               severity="error"
               actions={
-                canRetryDebugMode && (
-                  <Button
-                    onClick={handleBuildRetry}
-                    variant="text"
-                    size="small"
-                  >
-                    Try in debug mode
-                  </Button>
-                )
+                <Button onClick={handleBuildRetry} variant="text" size="small">
+                  Retry
+                </Button>
               }
             >
               <AlertTitle>Workspace build failed</AlertTitle>
