@@ -10,6 +10,19 @@ import {
 } from "api/typesGenerated";
 import { getAuthorizationKey } from "./authCheck";
 import { getMetadataAsJSON } from "utils/metadata";
+import { UsePaginatedQueryOptions } from "components/PaginationWidget/usePaginatedQuery";
+
+export function usersKey(req: UsersRequest) {
+  return ["users", req] as const;
+}
+
+export function paginatedUsers(req: UsersRequest) {
+  return {
+    queryKey: (pagination) => usersKey(pagination),
+    queryFn: () => API.getUsers(req),
+    cacheTime: 5 * 60 * 1000,
+  } as const satisfies UsePaginatedQueryOptions<GetUsersResponse>;
+}
 
 export const users = (req: UsersRequest): UseQueryOptions<GetUsersResponse> => {
   return {

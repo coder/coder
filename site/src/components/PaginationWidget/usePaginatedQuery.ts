@@ -7,6 +7,7 @@ import { clamp } from "lodash";
 
 import {
   type QueryFunction,
+  type QueryFunctionContext,
   type QueryKey,
   type UseQueryOptions,
   useQueryClient,
@@ -73,34 +74,35 @@ export function usePaginatedQuery<
 >(options: UsePaginatedQueryOptions<TQueryFnData, TError, TData, TQueryKey>) {
   const { queryKey, queryFn, ...otherOptions } = options;
   const [searchParams, setSearchParams] = useSearchParams();
-  const currentPage = parsePage(searchParams);
 
+  const currentPage = parsePage(searchParams);
   const pageSize = DEFAULT_RECORDS_PER_PAGE;
   const pageOffset = (currentPage - 1) * pageSize;
+
+  const queryOptionsFromPage = (pageNumber: number) => {
+    return {
+      queryFn: (queryCxt: QueryFunctionContext<TQueryKey>) => {
+        return queryFn({ ...queryCxt, pageParam: pageNumber });
+      },
+      queryKey: queryKey({
+        pageNumber: currentPage,
+        pageSize,
+        pageOffset,
+      }),
+    } as const;
+  };
 
   // Not using infinite query right now because that requires a fair bit of list
   // virtualization as the lists get bigger (especially for the audit logs)
   const query = useQuery({
+    ...queryOptionsFromPage(currentPage),
     ...otherOptions,
-    queryFn: (queryCxt) => queryFn({ ...queryCxt, pageParam: currentPage }),
-    queryKey: queryKey({
-      pageNumber: currentPage,
-      pageSize,
-      pageOffset,
-    }),
     keepPreviousData: true,
   });
 
   const queryClient = useQueryClient();
   const prefetchPage = useEffectEvent((newPage: number) => {
-    void queryClient.prefetchQuery({
-      queryFn: (queryCxt) => queryFn({ ...queryCxt, pageParam: newPage }),
-      queryKey: queryKey({
-        pageNumber: newPage,
-        pageSize,
-        pageOffset,
-      }),
-    });
+    return queryClient.prefetchQuery(queryOptionsFromPage(newPage));
   });
 
   const totalRecords = query.data?.count ?? 0;
@@ -113,13 +115,13 @@ export function usePaginatedQuery<
   // immediately ready on each render
   useEffect(() => {
     if (hasNextPage) {
-      prefetchPage(currentPage + 1);
+      void prefetchPage(currentPage + 1);
     }
   }, [prefetchPage, currentPage, hasNextPage]);
 
   useEffect(() => {
     if (hasPreviousPage) {
-      prefetchPage(currentPage - 1);
+      void prefetchPage(currentPage - 1);
     }
   }, [prefetchPage, currentPage, hasPreviousPage]);
 
