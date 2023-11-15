@@ -50,8 +50,10 @@ export function optionValue(
         break;
       }
 
+      // We show all experiments (including unsafe) that are currently enabled on a deployment
+      // but only show safe experiments that are not.
       for (const v of option.value) {
-        if (Object.hasOwn(experimentMap, v)) {
+        if (v !== "*") {
           experimentMap[v] = true;
         }
       }
