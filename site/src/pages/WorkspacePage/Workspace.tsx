@@ -201,6 +201,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               handleUpdate={handleUpdate}
               handleCancel={handleCancel}
               handleSettings={handleSettings}
+              handleRetry={handleBuildRetry}
               handleChangeVersion={handleChangeVersion}
               handleDormantActivate={handleDormantActivate}
               canChangeVersions={canChangeVersions}
@@ -308,7 +309,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               actions={
                 canRetryDebugMode && (
                   <Button
-                    key={0}
                     onClick={handleBuildRetry}
                     variant="text"
                     size="small"
