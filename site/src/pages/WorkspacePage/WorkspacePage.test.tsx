@@ -42,10 +42,12 @@ const renderWorkspacePage = async () => {
 };
 
 /**
- * Requests and responses related to workspace status are unrelated, so we can't test in the usual way.
- * Instead, test that button clicks produce the correct requests and that responses produce the correct UI.
- * We don't need to test the UI exhaustively because Storybook does that; just enough to prove that the
- * workspaceStatus was calculated correctly.
+ * Requests and responses related to workspace status are unrelated, so we can't
+ * test in the usual way. Instead, test that button clicks produce the correct
+ * requests and that responses produce the correct UI.
+ *
+ * We don't need to test the UI exhaustively because Storybook does that; just
+ * enough to prove that the workspaceStatus was calculated correctly.
  */
 const testButton = async (label: string, actionMock: jest.SpyInstance) => {
   const user = userEvent.setup();
