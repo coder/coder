@@ -142,6 +142,13 @@ func (m metricsStore) DeleteAllTailnetClientSubscriptions(ctx context.Context, a
 	return r0
 }
 
+func (m metricsStore) DeleteAllTailnetTunnels(ctx context.Context, arg database.DeleteAllTailnetTunnelsParams) error {
+	start := time.Now()
+	r0 := m.s.DeleteAllTailnetTunnels(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteAllTailnetTunnels").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
 	start := time.Now()
 	err := m.s.DeleteApplicationConnectAPIKeysByUserID(ctx, userID)
@@ -228,6 +235,20 @@ func (m metricsStore) DeleteTailnetClientSubscription(ctx context.Context, arg d
 	r0 := m.s.DeleteTailnetClientSubscription(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteTailnetClientSubscription").Observe(time.Since(start).Seconds())
 	return r0
+}
+
+func (m metricsStore) DeleteTailnetPeer(ctx context.Context, arg database.DeleteTailnetPeerParams) (database.DeleteTailnetPeerRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteTailnetPeer(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteTailnetPeer").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) DeleteTailnetTunnel(ctx context.Context, arg database.DeleteTailnetTunnelParams) (database.DeleteTailnetTunnelRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteTailnetTunnel(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteTailnetTunnel").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
@@ -653,6 +674,27 @@ func (m metricsStore) GetTailnetClientsForAgent(ctx context.Context, agentID uui
 	start := time.Now()
 	defer m.queryLatencies.WithLabelValues("GetTailnetClientsForAgent").Observe(time.Since(start).Seconds())
 	return m.s.GetTailnetClientsForAgent(ctx, agentID)
+}
+
+func (m metricsStore) GetTailnetPeers(ctx context.Context, id uuid.UUID) ([]database.TailnetPeer, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTailnetPeers(ctx, id)
+	m.queryLatencies.WithLabelValues("GetTailnetPeers").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) GetTailnetTunnelPeerBindings(ctx context.Context, srcID uuid.UUID) ([]database.GetTailnetTunnelPeerBindingsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTailnetTunnelPeerBindings(ctx, srcID)
+	m.queryLatencies.WithLabelValues("GetTailnetTunnelPeerBindings").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUID) ([]database.GetTailnetTunnelPeerIDsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTailnetTunnelPeerIDs(ctx, srcID)
+	m.queryLatencies.WithLabelValues("GetTailnetTunnelPeerIDs").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) GetTemplateAppInsights(ctx context.Context, arg database.GetTemplateAppInsightsParams) ([]database.GetTemplateAppInsightsRow, error) {
@@ -1875,6 +1917,20 @@ func (m metricsStore) UpsertTailnetCoordinator(ctx context.Context, id uuid.UUID
 	start := time.Now()
 	defer m.queryLatencies.WithLabelValues("UpsertTailnetCoordinator").Observe(time.Since(start).Seconds())
 	return m.s.UpsertTailnetCoordinator(ctx, id)
+}
+
+func (m metricsStore) UpsertTailnetPeer(ctx context.Context, arg database.UpsertTailnetPeerParams) (database.TailnetPeer, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertTailnetPeer(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertTailnetPeer").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) UpsertTailnetTunnel(ctx context.Context, arg database.UpsertTailnetTunnelParams) (database.TailnetTunnel, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertTailnetTunnel(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertTailnetTunnel").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.Template, error) {

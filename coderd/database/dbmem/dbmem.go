@@ -981,6 +981,15 @@ func (*FakeQuerier) DeleteAllTailnetClientSubscriptions(_ context.Context, arg d
 	return ErrUnimplemented
 }
 
+func (*FakeQuerier) DeleteAllTailnetTunnels(_ context.Context, arg database.DeleteAllTailnetTunnelsParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	return ErrUnimplemented
+}
+
 func (q *FakeQuerier) DeleteApplicationConnectAPIKeysByUserID(_ context.Context, userID uuid.UUID) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -1116,6 +1125,24 @@ func (*FakeQuerier) DeleteTailnetClient(context.Context, database.DeleteTailnetC
 
 func (*FakeQuerier) DeleteTailnetClientSubscription(context.Context, database.DeleteTailnetClientSubscriptionParams) error {
 	return ErrUnimplemented
+}
+
+func (*FakeQuerier) DeleteTailnetPeer(_ context.Context, arg database.DeleteTailnetPeerParams) (database.DeleteTailnetPeerRow, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.DeleteTailnetPeerRow{}, err
+	}
+
+	return database.DeleteTailnetPeerRow{}, ErrUnimplemented
+}
+
+func (*FakeQuerier) DeleteTailnetTunnel(_ context.Context, arg database.DeleteTailnetTunnelParams) (database.DeleteTailnetTunnelRow, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.DeleteTailnetTunnelRow{}, err
+	}
+
+	return database.DeleteTailnetTunnelRow{}, ErrUnimplemented
 }
 
 func (q *FakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIKey, error) {
@@ -2237,6 +2264,18 @@ func (*FakeQuerier) GetTailnetAgents(context.Context, uuid.UUID) ([]database.Tai
 }
 
 func (*FakeQuerier) GetTailnetClientsForAgent(context.Context, uuid.UUID) ([]database.TailnetClient, error) {
+	return nil, ErrUnimplemented
+}
+
+func (*FakeQuerier) GetTailnetPeers(context.Context, uuid.UUID) ([]database.TailnetPeer, error) {
+	return nil, ErrUnimplemented
+}
+
+func (*FakeQuerier) GetTailnetTunnelPeerBindings(context.Context, uuid.UUID) ([]database.GetTailnetTunnelPeerBindingsRow, error) {
+	return nil, ErrUnimplemented
+}
+
+func (*FakeQuerier) GetTailnetTunnelPeerIDs(context.Context, uuid.UUID) ([]database.GetTailnetTunnelPeerIDsRow, error) {
 	return nil, ErrUnimplemented
 }
 
@@ -6784,6 +6823,24 @@ func (*FakeQuerier) UpsertTailnetClientSubscription(context.Context, database.Up
 
 func (*FakeQuerier) UpsertTailnetCoordinator(context.Context, uuid.UUID) (database.TailnetCoordinator, error) {
 	return database.TailnetCoordinator{}, ErrUnimplemented
+}
+
+func (*FakeQuerier) UpsertTailnetPeer(_ context.Context, arg database.UpsertTailnetPeerParams) (database.TailnetPeer, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.TailnetPeer{}, err
+	}
+
+	return database.TailnetPeer{}, ErrUnimplemented
+}
+
+func (*FakeQuerier) UpsertTailnetTunnel(_ context.Context, arg database.UpsertTailnetTunnelParams) (database.TailnetTunnel, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.TailnetTunnel{}, err
+	}
+
+	return database.TailnetTunnel{}, ErrUnimplemented
 }
 
 func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.Template, error) {
