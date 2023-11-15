@@ -2,9 +2,7 @@ import { useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useEffectEvent } from "hooks/hookPolyfills";
 
-import { type Pagination } from "api/typesGenerated";
 import { DEFAULT_RECORDS_PER_PAGE } from "./utils";
-import { prepareQuery } from "utils/filters";
 import { clamp } from "lodash";
 
 import {
@@ -15,15 +13,19 @@ import {
   useQuery,
 } from "react-query";
 
-const PAGE_PARAMS_KEY = "page";
-const PAGE_FILTER_KEY = "filter";
+/**
+ * The key to use for getting/setting the page number from the search params
+ */
+const PAGE_NUMBER_PARAMS_KEY = "page";
 
-// Only omitting after_id for simplifying initial implementation; property
-// should probably be added back in down the line
-type PaginationInput = Omit<Pagination, "after_id"> & {
-  q: string;
-  limit: number;
-  offset: number;
+/**
+ * All arguments passed into the queryKey functions.
+ */
+type QueryKeyFnArgs = {
+  pageNumber: number;
+  pageSize: number;
+  pageOffset: number;
+  extraQuery?: string;
 };
 
 /**
@@ -54,11 +56,11 @@ export type UsePaginatedQueryOptions<
    * Must be a function so that it can be used for the active query, as well as
    * any prefetching.
    */
-  queryKey: (pagination: PaginationInput) => TQueryKey;
+  queryKey: (args: QueryKeyFnArgs) => TQueryKey;
 
   /**
-   * A version of queryFn that is required and that has access to the current
-   * page via the pageParams context property
+   * A version of queryFn that is required and that exposes page numbers through
+   * the pageParams context property
    */
   queryFn: QueryFunction<TQueryFnData, TQueryKey, number>;
 };
@@ -82,9 +84,9 @@ export function usePaginatedQuery<
     ...otherOptions,
     queryFn: (queryCxt) => queryFn({ ...queryCxt, pageParam: currentPage }),
     queryKey: queryKey({
-      q: preparePageQuery(searchParams, currentPage),
-      limit: pageSize,
-      offset: pageOffset,
+      pageNumber: currentPage,
+      pageSize,
+      pageOffset,
     }),
     keepPreviousData: true,
   });
@@ -94,9 +96,9 @@ export function usePaginatedQuery<
     void queryClient.prefetchQuery({
       queryFn: (queryCxt) => queryFn({ ...queryCxt, pageParam: newPage }),
       queryKey: queryKey({
-        q: preparePageQuery(searchParams, newPage),
-        limit: pageSize,
-        offset: pageOffset,
+        pageNumber: newPage,
+        pageSize,
+        pageOffset,
       }),
     });
   });
@@ -126,7 +128,7 @@ export function usePaginatedQuery<
     const clamped = clamp(currentPage, 1, totalPages);
 
     if (currentPage !== clamped) {
-      searchParams.set(PAGE_PARAMS_KEY, String(clamped));
+      searchParams.set(PAGE_NUMBER_PARAMS_KEY, String(clamped));
       setSearchParams(searchParams);
     }
   });
@@ -142,7 +144,7 @@ export function usePaginatedQuery<
       ? clamp(newPage, 1, totalPages)
       : 1;
 
-    searchParams.set(PAGE_PARAMS_KEY, String(safePage));
+    searchParams.set(PAGE_NUMBER_PARAMS_KEY, String(safePage));
     setSearchParams(searchParams);
   };
 
@@ -167,19 +169,4 @@ export function usePaginatedQuery<
 function parsePage(params: URLSearchParams): number {
   const parsed = Number(params.get("page"));
   return Number.isInteger(parsed) && parsed > 1 ? parsed : 1;
-}
-
-function preparePageQuery(searchParams: URLSearchParams, page: number) {
-  const paramsPage = Number(searchParams.get(PAGE_FILTER_KEY));
-
-  let queryText: string;
-  if (paramsPage === page) {
-    queryText = searchParams.toString();
-  } else {
-    const newParams = new URLSearchParams(searchParams);
-    newParams.set(PAGE_FILTER_KEY, String(page));
-    queryText = newParams.toString();
-  }
-
-  return prepareQuery(queryText);
 }
