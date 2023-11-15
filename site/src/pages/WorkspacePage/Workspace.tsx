@@ -113,7 +113,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   canAutostart,
 }) => {
   const navigate = useNavigate();
-  const serverVersion = buildInfo?.version || "";
   const { saveLocal, getLocal } = useLocalStorage();
 
   const [showAlertPendingInQueue, setShowAlertPendingInQueue] = useState(false);
@@ -346,7 +345,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
                   showBuiltinApps={canUpdateWorkspace}
                   hideSSHButton={hideSSHButton}
                   hideVSCodeDesktopButton={hideVSCodeDesktopButton}
-                  serverVersion={serverVersion}
+                  serverVersion={buildInfo?.version || ""}
                   onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
                 />
               )}
