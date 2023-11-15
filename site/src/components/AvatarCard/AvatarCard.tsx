@@ -6,6 +6,7 @@ type AvatarCardProps = {
   header: string;
   imgUrl: string;
   altText: string;
+  background?: boolean;
 
   subtitle?: ReactNode;
   maxWidth?: number | "none";
@@ -15,6 +16,7 @@ export function AvatarCard({
   header,
   imgUrl,
   altText,
+  background,
   subtitle,
   maxWidth = "none",
 }: AvatarCardProps) {
@@ -70,7 +72,7 @@ export function AvatarCard({
         )}
       </div>
 
-      <Avatar src={imgUrl} alt={altText} size="md">
+      <Avatar background={background} src={imgUrl} alt={altText} size="md">
         {header}
       </Avatar>
     </div>

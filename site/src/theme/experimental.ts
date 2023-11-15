@@ -149,7 +149,7 @@ export const dark: NewTheme = {
     active: {
       background: colors.sky[950],
       outline: colors.sky[500],
-      fill: "#f00",
+      fill: colors.sky[600],
       text: colors.sky[50],
     },
   },

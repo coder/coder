@@ -51,6 +51,7 @@ export function AccountUserGroups({
             {groups.map((group) => (
               <Grid item key={group.id} xs={1}>
                 <AvatarCard
+                  background
                   imgUrl={group.avatar_url}
                   altText={group.display_name || group.name}
                   header={group.display_name || group.name}
