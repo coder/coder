@@ -243,15 +243,16 @@ export const WorkspaceReadyPage = ({
         handleCancel={cancelBuildMutation.mutate}
         handleSettings={() => navigate("settings")}
         handleBuildRetry={() => {
+          const logLevel = canRetryDebugMode ? "debug" : undefined;
           switch (workspace.latest_build.transition) {
             case "start":
-              startWorkspaceMutation.mutate({ logLevel: "debug" });
+              startWorkspaceMutation.mutate({ logLevel });
               break;
             case "stop":
-              stopWorkspaceMutation.mutate({ logLevel: "debug" });
+              stopWorkspaceMutation.mutate({ logLevel });
               break;
             case "delete":
-              deleteWorkspaceMutation.mutate({ logLevel: "debug" });
+              deleteWorkspaceMutation.mutate({ logLevel });
               break;
           }
         }}
@@ -297,6 +298,7 @@ export const WorkspaceReadyPage = ({
         }
         canAutostart={canAutostart}
       />
+
       <WorkspaceDeleteDialog
         workspace={workspace}
         canUpdateTemplate={canDeleteWorkspace}
@@ -310,6 +312,7 @@ export const WorkspaceReadyPage = ({
         }}
         workspaceBuildDateStr={dayjs(workspace.created_at).fromNow()}
       />
+
       <UpdateBuildParametersDialog
         missedParameters={
           changeVersionMutation.error instanceof MissingBuildParameters
@@ -329,6 +332,7 @@ export const WorkspaceReadyPage = ({
           }
         }}
       />
+
       <UpdateBuildParametersDialog
         missedParameters={
           updateWorkspaceMutation.error instanceof MissingBuildParameters
@@ -345,6 +349,7 @@ export const WorkspaceReadyPage = ({
           }
         }}
       />
+
       <ChangeVersionDialog
         templateVersions={allVersions?.reverse()}
         template={template}
@@ -360,6 +365,7 @@ export const WorkspaceReadyPage = ({
           changeVersionMutation.mutate({ versionId: templateVersion.id });
         }}
       />
+
       <WarningDialog
         open={isConfirmingUpdate}
         onConfirm={() => {
