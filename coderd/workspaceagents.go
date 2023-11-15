@@ -19,6 +19,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/autobuild"
+
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/exp/maps"
@@ -1671,7 +1673,24 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 	)
 
 	if req.ConnectionCount > 0 {
-		activityBumpWorkspace(ctx, api.Logger.Named("activity_bump"), api.Database, workspace.ID, time.Time{})
+		var nextAutostart time.Time
+		if workspace.AutostartSchedule.String != "" {
+			templateSchedule, err := (*(api.TemplateScheduleStore.Load())).Get(ctx, api.Database, workspace.TemplateID)
+			// If the template schedule fails to load, just default to bumping without the next trasition and log it.
+			if err != nil {
+				api.Logger.Warn(ctx, "failed to load template schedule bumping activity",
+					slog.F("workspace_id", workspace.ID),
+					slog.F("template_id", workspace.TemplateID),
+					slog.Error(err),
+				)
+			} else {
+				next, allowed := autobuild.NextAutostartSchedule(time.Now(), workspace.AutostartSchedule.String, templateSchedule)
+				if allowed {
+					nextAutostart = next
+				}
+			}
+		}
+		activityBumpWorkspace(ctx, api.Logger.Named("activity_bump"), api.Database, workspace.ID, nextAutostart)
 	}
 
 	now := dbtime.Now()

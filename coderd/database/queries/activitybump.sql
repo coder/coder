@@ -1,7 +1,3 @@
--- We bump by the original TTL to prevent counter-intuitive behavior
--- as the TTL wraps. For example, if I set the TTL to 12 hours, sign off
--- work at midnight, come back at 10am, I would want another full day
--- of uptime.
 -- name: ActivityBumpWorkspace :exec
 WITH latest AS (
 	SELECT
