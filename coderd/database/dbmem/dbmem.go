@@ -828,8 +828,6 @@ func (q *FakeQuerier) ActivityBumpWorkspace(ctx context.Context, arg database.Ac
 			return err
 		}
 
-		var a, b, c = arg.NextAutostart.UTC(), now.Add(time.Hour), arg.NextAutostart.After(now)
-		fmt.Println(a, b, c)
 		var ttlDur time.Duration
 		if now.Add(time.Hour).After(arg.NextAutostart) && arg.NextAutostart.After(now) {
 			// Extend to TTL
