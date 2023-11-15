@@ -105,8 +105,11 @@ rules:
   import/no-named-as-default-member: "off"
   import/prefer-default-export: "off"
   jest/no-focused-tests: "error"
-  jsx-a11y/label-has-for: "off"
   jsx-a11y/no-autofocus: "off"
+  jsx-a11y/label-has-associated-control:
+    - error
+    - controlComponents:
+        - Checkbox
   no-console:
     - warn
     - allow:
