@@ -14,8 +14,10 @@ import (
 
 // @typescript-generate AccessURLReport
 type AccessURLReport struct {
+	Healthy  bool     `json:"healthy"`
+	Warnings []string `json:"warnings"`
+
 	AccessURL       string  `json:"access_url"`
-	Healthy         bool    `json:"healthy"`
 	Reachable       bool    `json:"reachable"`
 	StatusCode      int     `json:"status_code"`
 	HealthzResponse string  `json:"healthz_response"`
