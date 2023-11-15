@@ -22,7 +22,7 @@ const PAGE_NUMBER_PARAMS_KEY = "page";
 /**
  * All arguments passed into the queryKey functions.
  */
-type QueryKeyFnArgs = {
+type QueryPageParams = {
   pageNumber: number;
   pageSize: number;
   pageOffset: number;
@@ -57,13 +57,13 @@ export type UsePaginatedQueryOptions<
    * Must be a function so that it can be used for the active query, as well as
    * any prefetching.
    */
-  queryKey: (args: QueryKeyFnArgs) => TQueryKey;
+  queryKey: (args: QueryPageParams) => TQueryKey;
 
   /**
    * A version of queryFn that is required and that exposes page numbers through
    * the pageParams context property
    */
-  queryFn: QueryFunction<TQueryFnData, TQueryKey, number>;
+  queryFn: QueryFunction<TQueryFnData, TQueryKey, QueryPageParams>;
 };
 
 export function usePaginatedQuery<
@@ -72,7 +72,7 @@ export function usePaginatedQuery<
   TData extends PaginatedData = TQueryFnData,
   TQueryKey extends QueryKey = QueryKey,
 >(options: UsePaginatedQueryOptions<TQueryFnData, TError, TData, TQueryKey>) {
-  const { queryKey, queryFn } = options;
+  const { queryKey, queryFn, ...extraReactQueryOptions } = options;
   const [searchParams, setSearchParams] = useSearchParams();
 
   const currentPage = parsePage(searchParams);
@@ -80,21 +80,24 @@ export function usePaginatedQuery<
   const pageOffset = (currentPage - 1) * pageSize;
 
   const queryOptionsFromPage = (pageNumber: number) => {
+    const pageParam: QueryPageParams = {
+      pageNumber,
+      pageOffset,
+      pageSize,
+    };
+
     return {
-      queryFn: (queryCxt: QueryFunctionContext<TQueryKey>) => {
-        return queryFn({ ...queryCxt, pageParam: pageNumber });
+      queryKey: queryKey(pageParam),
+      queryFn: (qfc: QueryFunctionContext<TQueryKey>) => {
+        return queryFn({ ...qfc, pageParam });
       },
-      queryKey: queryKey({
-        pageNumber: currentPage,
-        pageSize,
-        pageOffset,
-      }),
     } as const;
   };
 
   // Not using infinite query right now because that requires a fair bit of list
   // virtualization as the lists get bigger (especially for the audit logs)
   const query = useQuery({
+    ...extraReactQueryOptions,
     ...queryOptionsFromPage(currentPage),
     keepPreviousData: true,
   });
