@@ -153,7 +153,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 				require.LessOrEqual(t, workspace.LatestBuild.Deadline.Time, workspace.LatestBuild.MaxDeadline.Time)
 				return
 			}
-			t.Logf("originDeadline: %s, deadline: %s, now %s", startingDeadline, workspace.LatestBuild.Deadline.Time, dbtime.Now())
+			t.Logf("originDeadline: %s, deadline: %s, now %s", startingDeadline.Time, workspace.LatestBuild.Deadline.Time, dbtime.Now())
 			require.WithinDuration(t, dbtime.Now().Add(ttl), workspace.LatestBuild.Deadline.Time, testutil.WaitShort)
 		}
 	}
