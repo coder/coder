@@ -2039,10 +2039,6 @@ func (c *Client) BuildInfo(ctx context.Context) (BuildInfoResponse, error) {
 type Experiment string
 
 const (
-	// ExperimentMoons enabled the workspace proxy endpoints and CRUD. This
-	// feature is not yet complete in functionality.
-	ExperimentMoons Experiment = "moons"
-
 	// https://github.com/coder/coder/milestone/19
 	ExperimentWorkspaceActions Experiment = "workspace_actions"
 
