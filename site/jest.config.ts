@@ -1,4 +1,4 @@
-module.exports = {
+export default {
   // Use a big timeout for CI.
   testTimeout: 20_000,
   maxWorkers: 8,
