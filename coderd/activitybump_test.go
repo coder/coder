@@ -195,7 +195,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 	t.Run("NotExceedMaxDeadline", func(t *testing.T) {
 		t.Parallel()
 
-		// Set the max deadline to be in 1 hour. We bump by 1 hour, so we
+		// Set the max deadline to be in 30min. We bump by 1 hour, so we
 		// should expect the deadline to match the max deadline exactly.
 		client, workspace, assertBumped := setupActivityTest(t, time.Minute*30)
 

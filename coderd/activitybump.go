@@ -16,7 +16,8 @@ import (
 // If the bump crosses over an autostart time, the workspace will be
 // bumped by the workspace ttl instead.
 //
-// Autostart is optional if bumping by 1 hour is sufficient.
+// If nextAutostart is the zero value or in the past, the workspace
+// will be bumped by 1 hour.
 // It handles the edge case in the example:
 //  1. Autostart is set to 9am.
 //  2. User works all day, and leaves a terminal open to the workspace overnight.

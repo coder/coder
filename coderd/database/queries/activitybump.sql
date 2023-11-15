@@ -23,7 +23,7 @@ WITH latest AS (
 				    -- If the autostart is behind now(), then the
 					-- autostart schedule is either the 0 time and not provided,
 					-- or it was the autostart in the past, which is no longer
-					-- relevant. If a past autostart is being passed in,
+					-- relevant. If autostart is > 0 and in the past, then
 					-- that is a mistake by the caller.
 					AND @next_autostart > NOW()
 					THEN
