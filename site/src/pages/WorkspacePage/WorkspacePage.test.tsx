@@ -22,7 +22,7 @@ import { server } from "testHelpers/server";
 import { WorkspacePage } from "./WorkspacePage";
 
 // It renders the workspace page and waits for it be loaded
-const renderWorkspacePage = async () => {
+const renderWorkspacePage = async (mockWorkspace = MockWorkspace) => {
   jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate);
   jest.spyOn(api, "getTemplateVersionRichParameters").mockResolvedValueOnce([]);
   jest
@@ -34,11 +34,13 @@ const renderWorkspacePage = async () => {
       options.onDone && options.onDone();
       return new WebSocket("");
     });
+
   renderWithAuth(<WorkspacePage />, {
-    route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
+    route: `/@${mockWorkspace.owner_name}/${mockWorkspace.name}`,
     path: "/:username/:workspace",
   });
-  await screen.findByText(MockWorkspace.name);
+
+  await screen.findByText(mockWorkspace.name);
 };
 
 /**
