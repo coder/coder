@@ -187,7 +187,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
                     spacing={0.5}
                     css={styles.optionText}
                   >
-                    Require the active template version for workspace builds.
+                    Require workspaces automatically update when started.
                     <HelpTooltip>
                       <HelpTooltipText>
                         This setting is not enforced for template admins.
@@ -196,7 +196,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
                   </Stack>
                   <span css={styles.optionHelperText}>
                     Workspaces that are manually started or auto-started will
-                    use the promoted template version.
+                    use the active template version.
                   </span>
                 </Stack>
               </Stack>
