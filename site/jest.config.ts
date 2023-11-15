@@ -68,4 +68,8 @@ module.exports = {
     "!<rootDir>/out/**/*.*",
     "!<rootDir>/storybook-static/**/*.*",
   ],
+  // https://mswjs.io/docs/migrations/1.x-to-2.x/#cannot-find-module-mswnode-jsdom
+  testEnvironmentOptions: {
+    customExportConditions: [""],
+  },
 };
