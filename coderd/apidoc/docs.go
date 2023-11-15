@@ -8597,7 +8597,6 @@ const docTemplate = `{
                 "single_tailnet",
                 "template_autostop_requirement",
                 "deployment_health_page",
-                "dashboard_theme",
                 "template_update_policies"
             ],
             "x-enum-varnames": [
@@ -8607,7 +8606,6 @@ const docTemplate = `{
                 "ExperimentSingleTailnet",
                 "ExperimentTemplateAutostopRequirement",
                 "ExperimentDeploymentHealthPage",
-                "ExperimentDashboardTheme",
                 "ExperimentTemplateUpdatePolicies"
             ]
         },
