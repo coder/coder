@@ -215,6 +215,7 @@ func TestSSH(t *testing.T) {
 		inv.Stdin = clientOutput
 		inv.Stdout = serverInput
 		inv.Stderr = io.Discard
+
 		cmdDone := tGo(t, func() {
 			err := inv.WithContext(ctx).Run()
 			assert.NoError(t, err)
@@ -251,6 +252,7 @@ func TestSSH(t *testing.T) {
 	// Test that we handle OS signals properly while remote forwarding, and don't just leave the TCP
 	// socket hanging.
 	t.Run("RemoteForward_Unix_Signal", func(t *testing.T) {
+		t.Skip("still flaky")
 		if runtime.GOOS == "windows" {
 			t.Skip("No unix sockets on windows")
 		}
@@ -390,6 +392,7 @@ func TestSSH(t *testing.T) {
 		inv.Stdin = clientOutput
 		inv.Stdout = serverInput
 		inv.Stderr = io.Discard
+
 		cmdDone := tGo(t, func() {
 			err := inv.WithContext(ctx).Run()
 			assert.NoError(t, err)

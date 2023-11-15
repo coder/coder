@@ -59,7 +59,7 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
           disabled={disabled}
           type="submit"
           css={[
-            type === "delete" && styles.errorButton,
+            type === "delete" && styles.warningButton,
             type === "success" && styles.successButton,
           ]}
         >
@@ -71,26 +71,26 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
 };
 
 const styles = {
-  errorButton: (theme) => ({
+  warningButton: (theme) => ({
     "&.MuiButton-contained": {
-      backgroundColor: colors.red[10],
-      borderColor: colors.red[9],
+      backgroundColor: colors.orange[12],
+      borderColor: colors.orange[9],
 
       "&:not(.MuiLoadingButton-loading)": {
         color: theme.palette.text.primary,
       },
 
       "&:hover:not(:disabled)": {
-        backgroundColor: colors.red[9],
-        borderColor: colors.red[9],
+        backgroundColor: colors.orange[9],
+        borderColor: colors.orange[9],
       },
 
       "&.Mui-disabled": {
-        backgroundColor: colors.red[15],
-        borderColor: colors.red[15],
+        backgroundColor: colors.orange[14],
+        borderColor: colors.orange[15],
 
         "&:not(.MuiLoadingButton-loading)": {
-          color: colors.red[9],
+          color: colors.orange[12],
         },
       },
     },

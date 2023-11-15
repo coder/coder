@@ -170,7 +170,6 @@
     "wsconncache",
     "wsjson",
     "xerrors",
-    "xstate",
     "yamux"
   ],
   "cSpell.ignorePaths": ["site/package.json", ".vscode/settings.json"],

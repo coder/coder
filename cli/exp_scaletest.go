@@ -882,7 +882,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 			reg := prometheus.NewRegistry()
 			metrics := workspacetraffic.NewMetrics(reg, "username", "workspace_name", "agent_name")
 
-			logger := slog.Make(sloghuman.Sink(io.Discard))
+			logger := inv.Logger
 			prometheusSrvClose := ServeHandler(ctx, logger, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}), prometheusFlags.Address, "prometheus")
 			defer prometheusSrvClose()
 
@@ -1075,7 +1075,7 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 				return xerrors.Errorf("--jitter must be less than --interval")
 			}
 			ctx := inv.Context()
-			logger := slog.Make(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelInfo)
+			logger := inv.Logger.AppendSinks(sloghuman.Sink(inv.Stdout))
 			if r.verbose {
 				logger = logger.Leveled(slog.LevelDebug)
 			}

@@ -101,10 +101,6 @@ updates:
       xterm:
         patterns:
           - "xterm*"
-      xstate:
-        patterns:
-          - "xstate"
-          - "@xstate*"
       mui:
         patterns:
           - "@mui*"
