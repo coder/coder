@@ -3,7 +3,7 @@ import { NavLink, NavLinkProps } from "react-router-dom";
 import { combineClasses } from "utils/combineClasses";
 import { Margins } from "components/Margins/Margins";
 import { css } from "@emotion/css";
-import { useTheme } from "@mui/material/styles";
+import { useTheme } from "@emotion/react";
 
 export const Tabs = ({ children }: { children: ReactNode }) => {
   return (

@@ -1,16 +1,16 @@
-import { Region, WorkspaceProxy } from "api/typesGenerated";
+import type { Region, WorkspaceProxy } from "api/typesGenerated";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { Avatar } from "components/Avatar/Avatar";
 import TableCell from "@mui/material/TableCell";
 import TableRow from "@mui/material/TableRow";
-import { FC, ReactNode } from "react";
+import type { FC, ReactNode } from "react";
 import {
   HealthyBadge,
   NotHealthyBadge,
   NotReachableBadge,
   NotRegisteredBadge,
-} from "components/DeploySettingsLayout/Badges";
-import { ProxyLatencyReport } from "contexts/useProxyLatency";
+} from "components/Badges/Badges";
+import type { ProxyLatencyReport } from "contexts/useProxyLatency";
 import { getLatencyColor } from "utils/latency";
 import Box from "@mui/material/Box";
 

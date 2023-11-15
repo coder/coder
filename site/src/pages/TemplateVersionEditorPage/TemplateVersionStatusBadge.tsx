@@ -39,9 +39,9 @@ export const getStatus = (
       };
     case "pending":
       return {
+        type: "info",
         text: "Pending",
         icon: <LoadingIcon />,
-        type: "info",
       };
     case "canceling":
       return {

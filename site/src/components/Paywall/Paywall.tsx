@@ -1,8 +1,8 @@
 import Box from "@mui/material/Box";
-import Chip from "@mui/material/Chip";
 import Typography from "@mui/material/Typography";
 import { type FC, type ReactNode } from "react";
 import { type Interpolation, type Theme } from "@emotion/react";
+import { EnterpriseBadge } from "components/Badges/Badges";
 import { Stack } from "components/Stack/Stack";
 
 export interface PaywallProps {
@@ -21,12 +21,7 @@ export const Paywall: FC<React.PropsWithChildren<PaywallProps>> = (props) => {
           <Typography variant="h5" css={styles.title}>
             {message}
           </Typography>
-          <Chip
-            css={styles.enterpriseChip}
-            label="Enterprise"
-            size="small"
-            color="primary"
-          />
+          <EnterpriseBadge />
         </Stack>
 
         {description && (
