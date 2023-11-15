@@ -1838,7 +1838,7 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 	// Allow us to interrupt watch via cancel.
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
-	r = r.WithContext(ctx) // Rewire context or SSE cancellation.
+	r = r.WithContext(ctx) // Rewire context for SSE cancellation.
 
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
 	log := api.Logger.Named("workspace_metadata_watcher").With(
@@ -1886,6 +1886,29 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 	}
 	defer cancelSub()
 
+	// We always use the original Request context because it contains
+	// the RBAC actor.
+	initialMD, err := api.Database.GetWorkspaceAgentMetadata(ctx, database.GetWorkspaceAgentMetadataParams{
+		WorkspaceAgentID: workspaceAgent.ID,
+		Keys:             nil,
+	})
+	if err != nil {
+		// If we can't successfully pull the initial metadata, pubsub
+		// updates will be no-op so we may as well terminate the
+		// connection early.
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	log.Debug(ctx, "got initial metadata", "num", len(initialMD))
+
+	metadataMap := make(map[string]database.WorkspaceAgentMetadatum, len(initialMD))
+	for _, datum := range initialMD {
+		metadataMap[datum.Key] = datum
+	}
+	//nolint:ineffassign // Release memory.
+	initialMD = nil
+
 	sseSendEvent, sseSenderClosed, err := httpapi.ServerSentEventSender(rw, r)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1908,29 +1931,6 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 			cancel()
 		}
 	}()
-
-	// We always use the original Request context because it contains
-	// the RBAC actor.
-	initialMD, err := api.Database.GetWorkspaceAgentMetadata(ctx, database.GetWorkspaceAgentMetadataParams{
-		WorkspaceAgentID: workspaceAgent.ID,
-		Keys:             nil,
-	})
-	if err != nil {
-		// If we can't successfully pull the initial metadata, pubsub
-		// updates will be no-op so we may as well terminate the
-		// connection early.
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-
-	log.Debug(ctx, "got initial metadata", "num", len(initialMD))
-
-	metadataMap := make(map[string]database.WorkspaceAgentMetadatum)
-	for _, datum := range initialMD {
-		metadataMap[datum.Key] = datum
-	}
-	//nolint:ineffassign // Release memory.
-	initialMD = nil
 
 	var lastSend time.Time
 	sendMetadata := func() {
@@ -1971,6 +1971,13 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 				if err != nil {
 					if !errors.Is(err, context.Canceled) {
 						log.Error(ctx, "failed to get metadata", slog.Error(err))
+						_ = sseSendEvent(ctx, codersdk.ServerSentEvent{
+							Type: codersdk.ServerSentEventTypeError,
+							Data: codersdk.Response{
+								Message: "Failed to get metadata.",
+								Detail:  err.Error(),
+							},
+						})
 					}
 					return
 				}
