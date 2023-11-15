@@ -17,6 +17,11 @@ const buttonTypes = [
   "activate",
   "activating",
 
+  // There's no need for a retrying state because retrying starts a transition
+  // into one of the starting, stopping, or deleting states (based on the
+  // WorkspaceTransition type)
+  "retry",
+
   // These are buttons that should be used with disabled UI elements
   "canceling",
   "deleted",
@@ -97,7 +102,7 @@ const statusToActions: Record<WorkspaceStatus, WorkspaceAbilities> = {
 
   // in the case of an error
   failed: {
-    actions: ["start", "stop"],
+    actions: ["retry"],
     canCancel: false,
     canAcceptJobs: true,
   },

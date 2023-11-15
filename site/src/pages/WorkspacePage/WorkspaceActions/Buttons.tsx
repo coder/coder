@@ -1,23 +1,25 @@
+import { type FC } from "react";
+import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
+import { BuildParametersPopover } from "./BuildParametersPopover";
+
 import Button from "@mui/material/Button";
-import BlockIcon from "@mui/icons-material/Block";
+import LoadingButton from "@mui/lab/LoadingButton";
+import ButtonGroup from "@mui/material/ButtonGroup";
 import CloudQueueIcon from "@mui/icons-material/CloudQueue";
 import CropSquareIcon from "@mui/icons-material/CropSquare";
 import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutline";
 import ReplayIcon from "@mui/icons-material/Replay";
-import { FC } from "react";
-import BlockOutlined from "@mui/icons-material/BlockOutlined";
-import ButtonGroup from "@mui/material/ButtonGroup";
-import { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
-import { BuildParametersPopover } from "./BuildParametersPopover";
+import BlockIcon from "@mui/icons-material/Block";
+import OutlinedBlockIcon from "@mui/icons-material/BlockOutlined";
 import PowerSettingsNewIcon from "@mui/icons-material/PowerSettingsNew";
-import LoadingButton from "@mui/lab/LoadingButton";
+import RetryIcon from "@mui/icons-material/BuildOutlined";
 
-interface WorkspaceAction {
+interface WorkspaceActionProps {
   loading?: boolean;
   handleAction: () => void;
 }
 
-export const UpdateButton: FC<WorkspaceAction> = ({
+export const UpdateButton: FC<WorkspaceActionProps> = ({
   handleAction,
   loading,
 }) => {
@@ -34,7 +36,7 @@ export const UpdateButton: FC<WorkspaceAction> = ({
   );
 };
 
-export const ActivateButton: FC<WorkspaceAction> = ({
+export const ActivateButton: FC<WorkspaceActionProps> = ({
   handleAction,
   loading,
 }) => {
@@ -51,7 +53,7 @@ export const ActivateButton: FC<WorkspaceAction> = ({
 };
 
 export const StartButton: FC<
-  Omit<WorkspaceAction, "handleAction"> & {
+  Omit<WorkspaceActionProps, "handleAction"> & {
     workspace: Workspace;
     handleAction: (buildParameters?: WorkspaceBuildParameter[]) => void;
   }
@@ -83,7 +85,10 @@ export const StartButton: FC<
   );
 };
 
-export const StopButton: FC<WorkspaceAction> = ({ handleAction, loading }) => {
+export const StopButton: FC<WorkspaceActionProps> = ({
+  handleAction,
+  loading,
+}) => {
   return (
     <LoadingButton
       loading={loading}
@@ -98,7 +103,7 @@ export const StopButton: FC<WorkspaceAction> = ({ handleAction, loading }) => {
 };
 
 export const RestartButton: FC<
-  Omit<WorkspaceAction, "handleAction"> & {
+  Omit<WorkspaceActionProps, "handleAction"> & {
     workspace: Workspace;
     handleAction: (buildParameters?: WorkspaceBuildParameter[]) => void;
   }
@@ -131,7 +136,7 @@ export const RestartButton: FC<
   );
 };
 
-export const CancelButton: FC<WorkspaceAction> = ({ handleAction }) => {
+export const CancelButton: FC<WorkspaceActionProps> = ({ handleAction }) => {
   return (
     <Button startIcon={<BlockIcon />} onClick={handleAction}>
       Cancel
@@ -145,7 +150,7 @@ interface DisabledProps {
 
 export const DisabledButton: FC<DisabledProps> = ({ label }) => {
   return (
-    <Button startIcon={<BlockOutlined />} disabled>
+    <Button startIcon={<OutlinedBlockIcon />} disabled>
       {label}
     </Button>
   );
@@ -162,3 +167,13 @@ export const ActionLoadingButton: FC<LoadingProps> = ({ label }) => {
     </LoadingButton>
   );
 };
+
+export function RetryButton({
+  handleAction,
+}: Omit<WorkspaceActionProps, "loading">) {
+  return (
+    <Button startIcon={<RetryIcon />} onClick={handleAction}>
+      Retry
+    </Button>
+  );
+}

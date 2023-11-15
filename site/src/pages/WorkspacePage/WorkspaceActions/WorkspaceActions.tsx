@@ -10,6 +10,7 @@ import {
   RestartButton,
   UpdateButton,
   ActivateButton,
+  RetryButton,
 } from "./Buttons";
 import { type ButtonType, actionsByWorkspaceStatus } from "./constants";
 
@@ -37,6 +38,7 @@ export interface WorkspaceActionsProps {
   handleCancel: () => void;
   handleSettings: () => void;
   handleChangeVersion: () => void;
+  handleRetry: () => void;
   handleDormantActivate: () => void;
   isUpdating: boolean;
   isRestarting: boolean;
@@ -53,6 +55,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   handleUpdate,
   handleCancel,
   handleSettings,
+  handleRetry,
   handleChangeVersion,
   handleDormantActivate: handleDormantActivate,
   isUpdating,
@@ -88,6 +91,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     pending: <ActionLoadingButton label="Pending..." />,
     activate: <ActivateButton handleAction={handleDormantActivate} />,
     activating: <ActivateButton loading handleAction={handleDormantActivate} />,
+    retry: <RetryButton handleAction={handleRetry} />,
   };
 
   const { actions, canCancel, canAcceptJobs } = actionsByWorkspaceStatus(
