@@ -134,7 +134,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 					workspace, err = client.Workspace(ctx, workspace.ID)
 					require.NoError(t, err)
 					updatedAfter = dbtime.Now()
-					if workspace.LatestBuild.Deadline.Time.Unix() == firstDeadline.Unix() {
+					if workspace.LatestBuild.Deadline.Time.Equal(firstDeadline) {
 						updatedAfter = time.Now()
 						return false
 					}
