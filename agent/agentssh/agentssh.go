@@ -309,7 +309,7 @@ func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, extraEnv 
 	}
 
 	if isPty {
-		return s.startPTYSession(session, magicTypeLabel, cmd, sshPty, windowSize)
+		return s.startPTYSession(logger, session, magicTypeLabel, cmd, sshPty, windowSize)
 	}
 	return s.startNonPTYSession(session, magicTypeLabel, cmd.AsExec())
 }
