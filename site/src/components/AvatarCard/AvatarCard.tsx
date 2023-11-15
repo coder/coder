@@ -1,7 +1,6 @@
 import { type ReactNode } from "react";
 import { Avatar } from "components/Avatar/Avatar";
 import { type CSSObject, useTheme } from "@emotion/react";
-import { colors } from "theme/colors";
 
 type AvatarCardProps = {
   header: string;
@@ -71,12 +70,7 @@ export function AvatarCard({
         )}
       </div>
 
-      <Avatar
-        src={imgUrl}
-        alt={altText}
-        size="md"
-        css={{ backgroundColor: colors.gray[9] }}
-      >
+      <Avatar src={imgUrl} alt={altText} size="md">
         {header}
       </Avatar>
     </div>

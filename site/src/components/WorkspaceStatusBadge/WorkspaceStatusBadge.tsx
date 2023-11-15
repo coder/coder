@@ -77,7 +77,7 @@ export const WorkspaceStatusText: FC<
             styles.root,
             (theme) => ({
               color: type
-                ? theme.experimental.roles[type].text
+                ? theme.experimental.roles[type].fill
                 : theme.experimental.l1.text,
             }),
           ]}
