@@ -30,6 +30,7 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -1671,7 +1672,24 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 	)
 
 	if req.ConnectionCount > 0 {
-		activityBumpWorkspace(ctx, api.Logger.Named("activity_bump"), api.Database, workspace.ID)
+		var nextAutostart time.Time
+		if workspace.AutostartSchedule.String != "" {
+			templateSchedule, err := (*(api.TemplateScheduleStore.Load())).Get(ctx, api.Database, workspace.TemplateID)
+			// If the template schedule fails to load, just default to bumping without the next trasition and log it.
+			if err != nil {
+				api.Logger.Warn(ctx, "failed to load template schedule bumping activity, defaulting to bumping by 60min",
+					slog.F("workspace_id", workspace.ID),
+					slog.F("template_id", workspace.TemplateID),
+					slog.Error(err),
+				)
+			} else {
+				next, allowed := autobuild.NextAutostartSchedule(time.Now(), workspace.AutostartSchedule.String, templateSchedule)
+				if allowed {
+					nextAutostart = next
+				}
+			}
+		}
+		activityBumpWorkspace(ctx, api.Logger.Named("activity_bump"), api.Database, workspace.ID, nextAutostart)
 	}
 
 	now := dbtime.Now()

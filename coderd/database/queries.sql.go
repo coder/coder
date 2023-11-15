@@ -25,9 +25,29 @@ WITH latest AS (
 		provisioner_jobs.completed_at::timestamp with time zone AS job_completed_at,
 		(
 			CASE
-				WHEN templates.allow_user_autostop
-				THEN (workspaces.ttl / 1000 / 1000 / 1000 || ' seconds')::interval
-				ELSE (templates.default_ttl / 1000 / 1000 / 1000 || ' seconds')::interval
+				-- If the extension would push us over the next_autostart
+				-- interval, then extend the deadline by the full ttl from
+				-- the autostart time. This will essentially be as if the
+				-- workspace auto started at the given time and the original
+				-- TTL was applied.
+				WHEN NOW() + ('60 minutes')::interval > $1 :: timestamptz
+				    -- If the autostart is behind now(), then the
+					-- autostart schedule is either the 0 time and not provided,
+					-- or it was the autostart in the past, which is no longer
+					-- relevant. If autostart is > 0 and in the past, then
+					-- that is a mistake by the caller.
+					AND $1 > NOW()
+					THEN
+					-- Extend to the autostart, then add the TTL
+					(($1 :: timestamptz) - NOW()) + CASE
+						WHEN templates.allow_user_autostop
+					    	THEN (workspaces.ttl / 1000 / 1000 / 1000 || ' seconds')::interval
+							ELSE (templates.default_ttl / 1000 / 1000 / 1000 || ' seconds')::interval
+					END
+
+				-- Default to 60 minutes.
+				ELSE
+					('60 minutes')::interval
 			END
 		) AS ttl_interval
 	FROM workspace_builds
@@ -37,7 +57,7 @@ WITH latest AS (
 		ON workspaces.id = workspace_builds.workspace_id
 	JOIN templates
 		ON templates.id = workspaces.template_id
-	WHERE workspace_builds.workspace_id = $1::uuid
+	WHERE workspace_builds.workspace_id = $2::uuid
 	ORDER BY workspace_builds.build_number DESC
 	LIMIT 1
 )
@@ -47,8 +67,9 @@ SET
 	updated_at = NOW(),
 	deadline = CASE
 		WHEN l.build_max_deadline = '0001-01-01 00:00:00+00'
-		THEN NOW() + l.ttl_interval
-		ELSE LEAST(NOW() + l.ttl_interval, l.build_max_deadline)
+		-- Never reduce the deadline from activity.
+		THEN GREATEST(wb.deadline, NOW() + l.ttl_interval)
+		ELSE LEAST(GREATEST(wb.deadline, NOW() + l.ttl_interval), l.build_max_deadline)
 	END
 FROM latest l
 WHERE wb.id = l.build_id
@@ -59,15 +80,22 @@ AND l.build_deadline != '0001-01-01 00:00:00+00'
 AND l.build_deadline - (l.ttl_interval * 0.95) < NOW()
 `
 
-// We bump by the original TTL to prevent counter-intuitive behavior
-// as the TTL wraps. For example, if I set the TTL to 12 hours, sign off
-// work at midnight, come back at 10am, I would want another full day
-// of uptime.
+type ActivityBumpWorkspaceParams struct {
+	NextAutostart time.Time `db:"next_autostart" json:"next_autostart"`
+	WorkspaceID   uuid.UUID `db:"workspace_id" json:"workspace_id"`
+}
+
+// Bumps the workspace deadline by 1 hour. If the workspace bump will
+// cross an autostart threshold, then the bump is autostart + TTL. This
+// is the deadline behavior if the workspace was to autostart from a stopped
+// state.
+// Max deadline is respected, and will never be bumped.
+// The deadline will never decrease.
 // We only bump if the raw interval is positive and non-zero.
 // We only bump if workspace shutdown is manual.
 // We only bump when 5% of the deadline has elapsed.
-func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, workspaceID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, activityBumpWorkspace, workspaceID)
+func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, arg ActivityBumpWorkspaceParams) error {
+	_, err := q.db.ExecContext(ctx, activityBumpWorkspace, arg.NextAutostart, arg.WorkspaceID)
 	return err
 }
 
