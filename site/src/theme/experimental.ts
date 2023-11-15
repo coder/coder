@@ -1,5 +1,7 @@
 import colors from "./tailwind";
 
+export type ThemeRole = keyof NewTheme["roles"];
+
 export interface NewTheme {
   l1: Role; // page background, things which sit at the "root level"
   l2: InteractiveRole; // sidebars, table headers, navigation

@@ -17,6 +17,7 @@ export const SelectedTemplate: FC<SelectedTemplateProps> = ({ template }) => {
       alignItems="center"
     >
       <Avatar
+        background={false}
         variant={template.icon ? "square" : undefined}
         fitImage={Boolean(template.icon)}
         src={template.icon}

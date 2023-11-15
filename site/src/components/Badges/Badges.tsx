@@ -20,16 +20,16 @@ const styles = {
   },
 
   enabledBadge: (theme) => ({
-    border: `1px solid ${theme.palette.success.light}`,
-    backgroundColor: theme.palette.success.dark,
+    border: `1px solid ${theme.experimental.roles.success.outline}`,
+    backgroundColor: theme.experimental.roles.success.background,
   }),
   errorBadge: (theme) => ({
-    border: `1px solid ${theme.palette.error.light}`,
-    backgroundColor: theme.palette.error.dark,
+    border: `1px solid ${theme.experimental.roles.error.outline}`,
+    backgroundColor: theme.experimental.roles.error.background,
   }),
   warnBadge: (theme) => ({
-    border: `1px solid ${theme.palette.warning.light}`,
-    backgroundColor: theme.palette.warning.dark,
+    border: `1px solid ${theme.experimental.roles.warning.outline}`,
+    backgroundColor: theme.experimental.roles.warning.background,
   }),
 } satisfies Record<string, Interpolation<Theme>>;
 
