@@ -100,19 +100,20 @@ export function usePaginatedQuery<
     keepPreviousData: true,
   });
 
-  const queryClient = useQueryClient();
-  const prefetchPage = useEffectEvent((newPage: number) => {
-    return queryClient.prefetchQuery(queryOptionsFromPage(newPage));
-  });
-
   const totalRecords = query.data?.count ?? 0;
   const totalPages = Math.ceil(totalRecords / pageSize);
   const hasNextPage = pageSize * pageOffset < totalRecords;
   const hasPreviousPage = currentPage > 1;
 
+  const queryClient = useQueryClient();
+  const prefetchPage = useEffectEvent((newPage: number) => {
+    return queryClient.prefetchQuery(queryOptionsFromPage(newPage));
+  });
+
   // Have to split hairs and sync on both the current page and the hasXPage
-  // variables because hasXPage values are derived from server values and aren't
-  // immediately ready on each render
+  // variables, because the page can change immediately client-side, but the
+  // hasXPage values are derived from the server and won't be immediately ready
+  // on the initial render
   useEffect(() => {
     if (hasNextPage) {
       void prefetchPage(currentPage + 1);
