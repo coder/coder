@@ -29,11 +29,13 @@ import { BuildsTable } from "./BuildsTable";
 import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
 import { WorkspaceStats } from "./WorkspaceStats";
 
-export enum WorkspaceErrors {
-  GET_BUILDS_ERROR = "getBuildsError",
-  BUILD_ERROR = "buildError",
-  CANCELLATION_ERROR = "cancellationError",
-}
+export type WorkspaceError =
+  | "getBuildsError"
+  | "buildError"
+  | "cancellationError";
+
+export type WorkspaceErrors = Partial<Record<WorkspaceError, unknown>>;
+
 export interface WorkspaceProps {
   scheduleProps: {
     onDeadlinePlus: (hours: number) => void;
@@ -60,7 +62,7 @@ export interface WorkspaceProps {
   canChangeVersions: boolean;
   hideSSHButton?: boolean;
   hideVSCodeDesktopButton?: boolean;
-  workspaceErrors: Partial<Record<WorkspaceErrors, unknown>>;
+  workspaceErrors: WorkspaceErrors;
   buildInfo?: TypesGen.BuildInfoResponse;
   sshPrefix?: string;
   template?: TypesGen.Template;
@@ -114,28 +116,12 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   const serverVersion = buildInfo?.version || "";
   const { saveLocal, getLocal } = useLocalStorage();
 
-  const buildError = Boolean(workspaceErrors[WorkspaceErrors.BUILD_ERROR]) && (
-    <ErrorAlert
-      error={workspaceErrors[WorkspaceErrors.BUILD_ERROR]}
-      dismissible
-    />
-  );
-
-  const cancellationError = Boolean(
-    workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR],
-  ) && (
-    <ErrorAlert
-      error={workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]}
-      dismissible
-    />
-  );
-
-  let transitionStats: TypesGen.TransitionStats | undefined = undefined;
-  if (template !== undefined) {
-    transitionStats = ActiveTransition(template, workspace);
-  }
-
   const [showAlertPendingInQueue, setShowAlertPendingInQueue] = useState(false);
+
+  // 2023-11-15 - MES - This effect will be called every single render because
+  // "now" will always change and invalidate the dependency array. Need to
+  // figure out if this effect really should run every render (possibly meaning
+  // no dependency array at all), or how to get the array stabilized (ideal)
   const now = dayjs();
   useEffect(() => {
     if (
@@ -173,6 +159,9 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
     workspace.outdated;
   const autoStartFailing = workspace.autostart_schedule && !canAutostart;
   const requiresManualUpdate = updateRequired && autoStartFailing;
+
+  const transitionStats =
+    template !== undefined ? ActiveTransition(template, workspace) : undefined;
 
   return (
     <>
@@ -244,8 +233,15 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
                 {updateMessage && <AlertDetail>{updateMessage}</AlertDetail>}
               </Alert>
             ))}
-          {buildError}
-          {cancellationError}
+
+          {Boolean(workspaceErrors.buildError) && (
+            <ErrorAlert error={workspaceErrors.buildError} dismissible />
+          )}
+
+          {Boolean(workspaceErrors.cancellationError) && (
+            <ErrorAlert error={workspaceErrors.cancellationError} dismissible />
+          )}
+
           {workspace.latest_build.status === "running" &&
             !workspace.health.healthy && (
               <Alert
@@ -357,10 +353,8 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
             />
           )}
 
-          {workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR] ? (
-            <ErrorAlert
-              error={workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR]}
-            />
+          {workspaceErrors.getBuildsError ? (
+            <ErrorAlert error={workspaceErrors.getBuildsError} />
           ) : (
             <BuildsTable
               builds={builds}

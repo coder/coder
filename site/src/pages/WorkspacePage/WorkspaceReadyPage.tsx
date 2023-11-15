@@ -9,7 +9,7 @@ import {
   getMaxDeadlineChange,
   getMinDeadline,
 } from "utils/schedule";
-import { Workspace, WorkspaceErrors } from "./Workspace";
+import { Workspace } from "./Workspace";
 import { pageTitle } from "utils/page";
 import { hasJobError } from "utils/workspace";
 import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
@@ -278,14 +278,14 @@ export const WorkspaceReadyPage = ({
         hideSSHButton={featureVisibility["browser_only"]}
         hideVSCodeDesktopButton={featureVisibility["browser_only"]}
         workspaceErrors={{
-          [WorkspaceErrors.GET_BUILDS_ERROR]: buildsError,
-          [WorkspaceErrors.BUILD_ERROR]:
+          getBuildsError: buildsError,
+          buildError:
             restartBuildError ??
             startWorkspaceMutation.error ??
             stopWorkspaceMutation.error ??
             deleteWorkspaceMutation.error ??
             updateWorkspaceMutation.error,
-          [WorkspaceErrors.CANCELLATION_ERROR]: cancelBuildMutation.error,
+          cancellationError: cancelBuildMutation.error,
         }}
         buildInfo={buildInfo}
         sshPrefix={sshPrefixQuery.data?.hostname_prefix}
