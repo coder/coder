@@ -1,6 +1,6 @@
 import { useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
 import { useEffectEvent } from "hooks/hookPolyfills";
+import { useSearchParams } from "react-router-dom";
 
 import { DEFAULT_RECORDS_PER_PAGE } from "./utils";
 import { clamp } from "lodash";
@@ -26,7 +26,11 @@ type QueryPageParams = {
   pageNumber: number;
   pageSize: number;
   pageOffset: number;
-  searchParamsQuery?: string;
+  searchParams: URLSearchParams;
+};
+
+type QueryPageParamsWithPayload<T = unknown> = QueryPageParams & {
+  payload: T;
 };
 
 /**
@@ -37,8 +41,9 @@ type PaginatedData = {
   count: number;
 };
 
-type QueryFnContext<TQueryKey extends QueryKey = QueryKey> = QueryPageParams &
-  Omit<QueryFunctionContext<TQueryKey>, "pageParam">;
+type QueryFnContext<TQueryKey extends QueryKey = QueryKey> =
+  QueryPageParamsWithPayload &
+    Omit<QueryFunctionContext<TQueryKey>, "pageParam">;
 
 /**
  * A more specialized version of UseQueryOptions built specifically for
@@ -50,14 +55,19 @@ export type UsePaginatedQueryOptions<
   TError = unknown,
   TData = TQueryFnData,
   TQueryKey extends QueryKey = QueryKey,
+  TQueryPayload = unknown,
 > = Omit<
   UseQueryOptions<TQueryFnData, TError, TData, TQueryKey>,
   "keepPreviousData" | "queryKey" | "queryFn"
 > & {
   /**
-   * The key to use for parsing additional query information
+   * A function for defining values that should be shared between queryKey and
+   * queryFn. The value will be exposed via the "payload" property in
+   * QueryPageParams.
+   *
+   * Mainly here for convenience and minimizing copy-and-pasting.
    */
-  searchParamsKey?: string;
+  queryPayload?: (params: QueryPageParams) => TQueryPayload;
 
   /**
    * A function that takes pagination information and produces a full query key.
@@ -65,7 +75,7 @@ export type UsePaginatedQueryOptions<
    * Must be a function so that it can be used for the active query, as well as
    * any prefetching.
    */
-  queryKey: (params: QueryPageParams) => TQueryKey;
+  queryKey: (params: QueryPageParamsWithPayload) => TQueryKey;
 
   /**
    * A version of queryFn that is required and that exposes the pagination
@@ -84,7 +94,7 @@ export function usePaginatedQuery<
 >(options: UsePaginatedQueryOptions<TQueryFnData, TError, TData, TQueryKey>) {
   const {
     queryKey,
-    searchParamsKey,
+    queryPayload,
     queryFn: outerQueryFn,
     ...extraOptions
   } = options;
@@ -95,22 +105,22 @@ export function usePaginatedQuery<
   const pageOffset = (currentPage - 1) * pageSize;
 
   const getQueryOptionsFromPage = (pageNumber: number) => {
-    const searchParamsQuery =
-      searchParamsKey !== undefined
-        ? searchParams.get(searchParamsKey) ?? undefined
-        : undefined;
-
     const pageParam: QueryPageParams = {
       pageNumber,
       pageOffset,
       pageSize,
-      searchParamsQuery,
+      searchParams,
+    };
+
+    const withPayload: QueryPageParamsWithPayload = {
+      ...pageParam,
+      payload: queryPayload?.(pageParam),
     };
 
     return {
-      queryKey: queryKey(pageParam),
+      queryKey: queryKey(withPayload),
       queryFn: (context: QueryFunctionContext<TQueryKey>) => {
-        return outerQueryFn({ ...context, ...pageParam });
+        return outerQueryFn({ ...context, ...withPayload });
       },
     } as const;
   };

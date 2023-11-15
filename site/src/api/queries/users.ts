@@ -19,25 +19,16 @@ export function usersKey(req: UsersRequest) {
 
 export function paginatedUsers() {
   return {
-    searchParamsKey: "filter",
-
-    queryKey: ({ pageSize, pageOffset, searchParamsQuery }) => {
-      return usersKey({
-        q: prepareQuery(searchParamsQuery ?? ""),
+    queryPayload: ({ pageSize, pageOffset, searchParams }) => {
+      return {
+        q: prepareQuery(searchParams.get("filter") ?? ""),
         limit: pageSize,
         offset: pageOffset,
-      });
+      };
     },
-    queryFn: ({ pageSize, pageOffset, searchParamsQuery, signal }) => {
-      return API.getUsers(
-        {
-          q: prepareQuery(searchParamsQuery ?? ""),
-          limit: pageSize,
-          offset: pageOffset,
-        },
-        signal,
-      );
-    },
+
+    queryKey: ({ payload }) => usersKey(payload),
+    queryFn: ({ payload, signal }) => API.getUsers(payload, signal),
     cacheTime: 5 * 60 * 1000,
   } as const satisfies UsePaginatedQueryOptions<GetUsersResponse>;
 }
