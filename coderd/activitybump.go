@@ -41,7 +41,7 @@ func activityBumpWorkspace(ctx context.Context, log slog.Logger, db database.Sto
 	ctx, cancel := context.WithTimeout(ctx, time.Second*15)
 	defer cancel()
 	if err := db.ActivityBumpWorkspace(ctx, database.ActivityBumpWorkspaceParams{
-		NextAutostart: nextAutostart,
+		NextAutostart: nextAutostart.UTC(),
 		WorkspaceID:   workspaceID,
 	}); err != nil {
 		if !xerrors.Is(err, context.Canceled) && !database.IsQueryCanceledError(err) {
