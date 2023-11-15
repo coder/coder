@@ -72,7 +72,7 @@ export function usePaginatedQuery<
   TData extends PaginatedData = TQueryFnData,
   TQueryKey extends QueryKey = QueryKey,
 >(options: UsePaginatedQueryOptions<TQueryFnData, TError, TData, TQueryKey>) {
-  const { queryKey, queryFn, ...otherOptions } = options;
+  const { queryKey, queryFn } = options;
   const [searchParams, setSearchParams] = useSearchParams();
 
   const currentPage = parsePage(searchParams);
@@ -96,7 +96,6 @@ export function usePaginatedQuery<
   // virtualization as the lists get bigger (especially for the audit logs)
   const query = useQuery({
     ...queryOptionsFromPage(currentPage),
-    ...otherOptions,
     keepPreviousData: true,
   });
 
