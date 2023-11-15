@@ -734,7 +734,7 @@
         },
         {
           "title": "schedule show",
-          "description": "Show workspace schedule",
+          "description": "Show workspace schedules",
           "path": "cli/schedule_show.md"
         },
         {

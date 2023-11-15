@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -22,24 +23,66 @@ func TestDebugHealth(t *testing.T) {
 		t.Parallel()
 
 		var (
+			calls        = atomic.Int64{}
 			ctx, cancel  = context.WithTimeout(context.Background(), testutil.WaitShort)
 			sessionToken string
 			client       = coderdtest.New(t, &coderdtest.Options{
 				HealthcheckFunc: func(_ context.Context, apiKey string) *healthcheck.Report {
+					calls.Add(1)
 					assert.Equal(t, sessionToken, apiKey)
-					return &healthcheck.Report{}
+					return &healthcheck.Report{
+						Time: time.Now(),
+					}
 				},
+				HealthcheckRefresh: time.Hour, // Avoid flakes.
 			})
 			_ = coderdtest.CreateFirstUser(t, client)
 		)
 		defer cancel()
 
 		sessionToken = client.SessionToken()
-		res, err := client.Request(ctx, "GET", "/api/v2/debug/health", nil)
-		require.NoError(t, err)
-		defer res.Body.Close()
-		_, _ = io.ReadAll(res.Body)
-		require.Equal(t, http.StatusOK, res.StatusCode)
+		for i := 0; i < 10; i++ {
+			res, err := client.Request(ctx, "GET", "/api/v2/debug/health", nil)
+			require.NoError(t, err)
+			_, _ = io.ReadAll(res.Body)
+			res.Body.Close()
+			require.Equal(t, http.StatusOK, res.StatusCode)
+		}
+		// The healthcheck should only have been called once.
+		require.EqualValues(t, 1, calls.Load())
+	})
+
+	t.Run("Forced", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			calls        = atomic.Int64{}
+			ctx, cancel  = context.WithTimeout(context.Background(), testutil.WaitShort)
+			sessionToken string
+			client       = coderdtest.New(t, &coderdtest.Options{
+				HealthcheckFunc: func(_ context.Context, apiKey string) *healthcheck.Report {
+					calls.Add(1)
+					assert.Equal(t, sessionToken, apiKey)
+					return &healthcheck.Report{
+						Time: time.Now(),
+					}
+				},
+				HealthcheckRefresh: time.Hour, // Avoid flakes.
+			})
+			_ = coderdtest.CreateFirstUser(t, client)
+		)
+		defer cancel()
+
+		sessionToken = client.SessionToken()
+		for i := 0; i < 10; i++ {
+			res, err := client.Request(ctx, "GET", "/api/v2/debug/health?force=true", nil)
+			require.NoError(t, err)
+			_, _ = io.ReadAll(res.Body)
+			res.Body.Close()
+			require.Equal(t, http.StatusOK, res.StatusCode)
+		}
+		// The healthcheck func should have been called each time.
+		require.EqualValues(t, 10, calls.Load())
 	})
 
 	t.Run("Timeout", func(t *testing.T) {
@@ -70,6 +113,51 @@ func TestDebugHealth(t *testing.T) {
 		defer res.Body.Close()
 		_, _ = io.ReadAll(res.Body)
 		require.Equal(t, http.StatusNotFound, res.StatusCode)
+	})
+
+	t.Run("Refresh", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			calls       = make(chan struct{})
+			callsDone   = make(chan struct{})
+			ctx, cancel = context.WithTimeout(context.Background(), testutil.WaitShort)
+			client      = coderdtest.New(t, &coderdtest.Options{
+				HealthcheckRefresh: time.Microsecond,
+				HealthcheckFunc: func(context.Context, string) *healthcheck.Report {
+					calls <- struct{}{}
+					return &healthcheck.Report{}
+				},
+			})
+			_ = coderdtest.CreateFirstUser(t, client)
+		)
+
+		defer cancel()
+
+		go func() {
+			defer close(callsDone)
+			<-calls
+			<-time.After(testutil.IntervalFast)
+			<-calls
+		}()
+
+		res, err := client.Request(ctx, "GET", "/api/v2/debug/health", nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		_, _ = io.ReadAll(res.Body)
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		res, err = client.Request(ctx, "GET", "/api/v2/debug/health", nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		_, _ = io.ReadAll(res.Body)
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		select {
+		case <-callsDone:
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for calls to finish")
+		}
 	})
 
 	t.Run("Deduplicated", func(t *testing.T) {

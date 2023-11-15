@@ -34,7 +34,6 @@ important ones:
 - [react-router](https://reactrouter.com/en/main) for routing
 - [TanStack Query v4](https://tanstack.com/query/v4/docs/react/overview) for
   fetching data
-- [XState](https://xstate.js.org/docs/) for handling complex state flows
 - [axios](https://github.com/axios/axios) as fetching lib
 - [Playwright](https://playwright.dev/) for end-to-end (E2E) testing
 - [Jest](https://jestjs.io/) for integration testing
@@ -96,13 +95,7 @@ a `*.stories.ts` file.
 
 We use
 [TanStack Query v4](https://tanstack.com/query/v4/docs/react/overview)(previously
-known as react-query) to fetch data from the API. We also use
-[XState](https://xstate.js.org/docs/) to handle complex flows with multiple
-states and transitions.
-
-> ℹ️ We recently changed how we are going to fetch data from the server so you
-> will see a lot of fetches being made using XState machines but feel free to
-> refactor it if you are already touching those files.
+known as react-query) to fetch data from the API.
 
 ### Where to fetch data
 
@@ -216,6 +209,23 @@ to test if the page is being rendered correctly, you should consider using the
 
 > ℹ️ For scenarios where you need to be authenticated, you can use
 > `test.use({ storageState: getStatePath("authState") })`.
+
+For ease of debugging, it's possible to run a Playwright test in headful mode
+running a Playwright server on your local machine, and executing the test inside
+your workspace.
+
+You can either run `scripts/remote_playwright.sh` from `coder/coder` on your
+local machine, or execute the following command if you don't have the repo
+available:
+
+```bash
+bash <(curl -sSL https://raw.githubusercontent.com/coder/coder/main/scripts/remote_playwright.sh) [workspace]
+```
+
+The `scripts/remote_playwright.sh` script will start a Playwright server on your
+local machine and forward the necessary ports to your workspace. At the end of
+the script, you will land _inside_ your workspace with environment variables set
+so you can simply execute the test (`pnpm run playwright:test`).
 
 ### Integration
 

@@ -22,7 +22,6 @@ import (
 	"net/http/pprof"
 	"net/url"
 	"os"
-	"os/signal"
 	"os/user"
 	"path/filepath"
 	"regexp"
@@ -333,7 +332,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			//
 			// To get out of a graceful shutdown, the user can send
 			// SIGQUIT with ctrl+\ or SIGKILL with `kill -9`.
-			notifyCtx, notifyStop := signal.NotifyContext(ctx, InterruptSignals...)
+			notifyCtx, notifyStop := inv.SignalNotifyContext(ctx, InterruptSignals...)
 			defer notifyStop()
 
 			cacheDir := vals.CacheDir.String()
@@ -1093,12 +1092,12 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			ctx := inv.Context()
 
 			cfg := r.createConfig()
-			logger := slog.Make(sloghuman.Sink(inv.Stderr))
+			logger := inv.Logger.AppendSinks(sloghuman.Sink(inv.Stderr))
 			if ok, _ := inv.ParsedFlags().GetBool(varVerbose); ok {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 
-			ctx, cancel := signal.NotifyContext(ctx, InterruptSignals...)
+			ctx, cancel := inv.SignalNotifyContext(ctx, InterruptSignals...)
 			defer cancel()
 
 			url, closePg, err := startBuiltinPostgres(ctx, cfg, logger)
@@ -2064,7 +2063,7 @@ func BuildLogger(inv *clibase.Invocation, cfg *codersdk.DeploymentValues) (slog.
 		level = slog.LevelDebug
 	}
 
-	return slog.Make(filter).Leveled(level), func() {
+	return inv.Logger.AppendSinks(filter).Leveled(level), func() {
 		for _, closer := range closers {
 			_ = closer()
 		}

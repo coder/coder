@@ -48,7 +48,7 @@ export const actionsByWorkspaceStatus = (
   }
   if (
     workspace.outdated &&
-    workspaceUpdatePolicy(workspace, canChangeVersions)
+    workspaceUpdatePolicy(workspace, canChangeVersions) === "always"
   ) {
     if (status === "running") {
       return {

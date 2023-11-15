@@ -15,7 +15,6 @@ import {
   PageHeaderTitle,
   PageHeaderSubtitle,
 } from "components/PageHeader/FullWidthPageHeader";
-import { TemplateVersionWarnings } from "components/TemplateVersionWarnings/TemplateVersionWarnings";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { DormantWorkspaceBanner } from "components/WorkspaceDeletion";
 import { Avatar } from "components/Avatar/Avatar";
@@ -57,7 +56,6 @@ export interface WorkspaceProps {
   isRestarting: boolean;
   workspace: TypesGen.Workspace;
   resources?: TypesGen.WorkspaceResource[];
-  templateWarnings?: TypesGen.TemplateVersionWarning[];
   canUpdateWorkspace: boolean;
   updateMessage?: string;
   canRetryDebugMode: boolean;
@@ -75,6 +73,7 @@ export interface WorkspaceProps {
   onLoadMoreBuilds: () => void;
   isLoadingMoreBuilds: boolean;
   hasMoreBuilds: boolean;
+  canAutostart: boolean;
 }
 
 /**
@@ -106,16 +105,16 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   buildInfo,
   sshPrefix,
   template,
-  quotaBudget,
   handleBuildRetry,
-  templateWarnings,
   buildLogs,
   onLoadMoreBuilds,
   isLoadingMoreBuilds,
   hasMoreBuilds,
+  canAutostart,
 }) => {
   const navigate = useNavigate();
   const { saveLocal, getLocal } = useLocalStorage();
+
   const [showAlertPendingInQueue, setShowAlertPendingInQueue] = useState(false);
 
   // 2023-11-08 - MES - This effect will be called every single render because
@@ -148,8 +147,17 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
       setShowAlertPendingInQueue(true);
     }, t);
 
-    return () => clearTimeout(showTimer);
+    return () => {
+      clearTimeout(showTimer);
+    };
   }, [workspace, now, showAlertPendingInQueue]);
+
+  const updateRequired =
+    (workspace.template_require_active_version ||
+      workspace.automatic_updates === "always") &&
+    workspace.outdated;
+  const autoStartFailing = workspace.autostart_schedule && !canAutostart;
+  const requiresManualUpdate = updateRequired && autoStartFailing;
 
   const transitionStats =
     template !== undefined ? ActiveTransition(template, workspace) : undefined;
@@ -174,7 +182,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 
         <WorkspaceStats
           workspace={workspace}
-          quotaBudget={quotaBudget}
           handleUpdate={handleUpdate}
           canUpdateWorkspace={canUpdateWorkspace}
           maxDeadlineDecrease={scheduleProps.maxDeadlineDecrease}
@@ -206,12 +213,25 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 
       <Margins css={styles.content}>
         <Stack direction="column" css={styles.firstColumnSpacer} spacing={4}>
-          {workspace.outdated && (
-            <Alert severity="info">
-              <AlertTitle>An update is available for your workspace</AlertTitle>
-              {updateMessage && <AlertDetail>{updateMessage}</AlertDetail>}
-            </Alert>
-          )}
+          {workspace.outdated &&
+            (requiresManualUpdate ? (
+              <Alert severity="warning">
+                <AlertTitle>
+                  Autostart has been disabled for your workspace.
+                </AlertTitle>
+                <AlertDetail>
+                  Autostart is unable to automatically update your workspace.
+                  Manually update your workspace to reenable Autostart.
+                </AlertDetail>
+              </Alert>
+            ) : (
+              <Alert severity="info">
+                <AlertTitle>
+                  An update is available for your workspace
+                </AlertTitle>
+                {updateMessage && <AlertDetail>{updateMessage}</AlertDetail>}
+              </Alert>
+            ))}
 
           {Boolean(workspaceErrors.buildError) && (
             <ErrorAlert error={workspaceErrors.buildError} dismissible />
@@ -264,8 +284,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
             onDismiss={() => saveLocal("dismissedWorkspace", workspace.id)}
           />
 
-          <TemplateVersionWarnings warnings={templateWarnings} />
-
           {showAlertPendingInQueue && (
             <Alert severity="info">
               <AlertTitle>Workspace build is pending</AlertTitle>
@@ -290,6 +308,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               actions={
                 canRetryDebugMode && (
                   <Button
+                    key={0}
                     onClick={handleBuildRetry}
                     variant="text"
                     size="small"

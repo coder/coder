@@ -256,3 +256,24 @@ func must[T any](value T, err error) T {
 	}
 	return value
 }
+
+func TestDeploymentValues_DurationFormatNanoseconds(t *testing.T) {
+	t.Parallel()
+
+	set := (&codersdk.DeploymentValues{}).Options()
+	for _, s := range set {
+		if s.Value.Type() != "duration" {
+			continue
+		}
+		// Just make sure the annotation is set.
+		// If someone wants to not format a duration, they can
+		// explicitly set the annotation to false.
+		if s.Annotations.IsSet("format_duration") {
+			continue
+		}
+		t.Logf("Option %q is a duration but does not have the format_duration annotation.", s.Name)
+		t.Logf("To fix this, add the following to the option declaration:")
+		t.Logf(`Annotations: clibase.Annotations{}.Mark(annotationFormatDurationNS, "true"),`)
+		t.FailNow()
+	}
+}

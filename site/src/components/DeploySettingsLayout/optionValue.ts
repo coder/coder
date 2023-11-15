@@ -6,13 +6,28 @@ export function optionValue(
   option: ClibaseOption,
   additionalValues?: string[],
 ) {
+  // If option annotations are present, use them to format the value.
+  if (option.annotations) {
+    for (const [k, v] of Object.entries(option.annotations)) {
+      if (v !== "true") {
+        continue; // skip if not explicitly true
+      }
+      switch (k) {
+        case "format_duration":
+          return formatDuration(
+            // intervalToDuration takes ms, so convert nanoseconds to ms
+            intervalToDuration({
+              start: 0,
+              end: (option.value as number) / 1e6,
+            }),
+          );
+        // Add additional cases here as needed.
+      }
+    }
+  }
+
+  // If no format annotations are present, use the option name to format the value.
   switch (option.name) {
-    case "Max Token Lifetime":
-    case "Session Duration":
-      // intervalToDuration takes ms, so convert nanoseconds to ms
-      return formatDuration(
-        intervalToDuration({ start: 0, end: (option.value as number) / 1e6 }),
-      );
     case "Strict-Transport-Security":
       if (option.value === 0) {
         return "Disabled";

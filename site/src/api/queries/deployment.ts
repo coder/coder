@@ -27,3 +27,10 @@ export const health = () => {
     queryFn: API.getHealth,
   };
 };
+
+export const deploymentSSHConfig = () => {
+  return {
+    queryKey: ["deployment", "sshConfig"],
+    queryFn: API.getDeploymentSSHConfig,
+  };
+};

@@ -28,7 +28,7 @@ import { prepareQuery } from "utils/filters";
 
 import { Helmet } from "react-helmet-async";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
-import { nonInitialPage } from "components/PaginationWidget/utils";
+import { isNonInitialPage } from "components/PaginationWidget/utils";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { ResetPasswordDialog } from "./ResetPasswordDialog";
 import { pageTitle } from "utils/page";
@@ -157,7 +157,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         isLoading={isLoading}
         canEditUsers={canEditUsers}
         canViewActivity={entitlements.features.audit_log.enabled}
-        isNonInitialPage={nonInitialPage(searchParams)}
+        isNonInitialPage={isNonInitialPage(searchParams)}
         actorID={me.id}
         filterProps={{
           filter: useFilterResult,

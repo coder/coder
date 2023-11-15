@@ -33,6 +33,12 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
 
 `GET /debug/health`
 
+### Parameters
+
+| Name    | In    | Type    | Required | Description                |
+| ------- | ----- | ------- | -------- | -------------------------- |
+| `force` | query | boolean | false    | Force a healthcheck to run |
+
 ### Example responses
 
 > 200 Response
@@ -53,7 +59,8 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
     "healthy": true,
     "latency": "string",
     "latency_ms": 0,
-    "reachable": true
+    "reachable": true,
+    "threshold_ms": 0
   },
   "derp": {
     "error": "string",
@@ -238,5 +245,25 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
 | Status | Meaning                                                 | Description | Schema                                             |
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [healthcheck.Report](schemas.md#healthcheckreport) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Debug Info Tailnet
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/debug/tailnet \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /debug/tailnet`
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema |
+| ------ | ------------------------------------------------------- | ----------- | ------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

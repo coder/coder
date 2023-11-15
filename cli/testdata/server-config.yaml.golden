@@ -232,6 +232,15 @@ introspection:
     # Allow administrators to enable Terraform debug output.
     # (default: false, type: bool)
     enableTerraformDebugMode: false
+  healthcheck:
+    # Refresh interval for healthchecks.
+    # (default: 10m0s, type: duration)
+    refresh: 10m0s
+    # The threshold for the database health check. If the median latency of the
+    # database exceeds this threshold over 5 attempts, the database is considered
+    # unhealthy. The default value is 15ms.
+    # (default: 15ms, type: duration)
+    thresholdDatabase: 15ms
 oauth2:
   github:
     # Client ID for Login with GitHub.
