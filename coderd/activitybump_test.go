@@ -109,7 +109,6 @@ func TestWorkspaceActivityBump(t *testing.T) {
 			require.True(t, workspace.LatestBuild.MaxDeadline.Time.IsZero())
 		}
 
-		startingDeadline := workspace.LatestBuild.Deadline
 		_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 		return client, workspace, func(want bool) {
@@ -154,9 +153,10 @@ func TestWorkspaceActivityBump(t *testing.T) {
 				return
 			}
 			now := dbtime.Now()
-			t.Logf("[Zone=%s] originDeadline: %s, deadline: %s, now %s, (now-deadline)=%s",
-				time.Local.String(),
-				startingDeadline.Time, workspace.LatestBuild.Deadline.Time, now,
+			zone, offset := time.Now().Zone()
+			t.Logf("[Zone=%s %d] originDeadline: %s, deadline: %s, now %s, (now-deadline)=%s",
+				zone, offset,
+				firstDeadline, workspace.LatestBuild.Deadline.Time, now,
 				now.Sub(workspace.LatestBuild.Deadline.Time),
 			)
 			require.WithinDuration(t, dbtime.Now().Add(ttl), workspace.LatestBuild.Deadline.Time, testutil.WaitShort)
