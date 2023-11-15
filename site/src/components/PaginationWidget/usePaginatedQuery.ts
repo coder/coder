@@ -48,8 +48,6 @@ export type UsePaginatedQueryOptions<
   UseQueryOptions<TQueryFnData, TError, TData, TQueryKey>,
   "keepPreviousData" | "queryKey"
 > & {
-  prefetch?: boolean;
-
   /**
    * A function that takes pagination information and produces a full query key.
    *
@@ -71,8 +69,7 @@ export function usePaginatedQuery<
   TData extends PaginatedData = TQueryFnData,
   TQueryKey extends QueryKey = QueryKey,
 >(options: UsePaginatedQueryOptions<TQueryFnData, TError, TData, TQueryKey>) {
-  const { queryKey, queryFn, prefetch = false, ...otherOptions } = options;
-
+  const { queryKey, queryFn, ...otherOptions } = options;
   const [searchParams, setSearchParams] = useSearchParams();
   const currentPage = parsePage(searchParams);
 
@@ -94,10 +91,6 @@ export function usePaginatedQuery<
 
   const queryClient = useQueryClient();
   const prefetchPage = useEffectEvent((newPage: number) => {
-    if (!prefetch) {
-      return;
-    }
-
     void queryClient.prefetchQuery({
       queryFn: (queryCxt) => queryFn({ ...queryCxt, pageParam: newPage }),
       queryKey: queryKey({
@@ -163,6 +156,10 @@ export function usePaginatedQuery<
     totalRecords,
     hasNextPage,
     hasPreviousPage,
+
+    // Have to hijack the isLoading property slightly because keepPreviousData
+    // is true; by default, isLoading will be false after the initial page
+    // loads, even if new pages are loading in
     isLoading: query.isLoading || query.isFetching,
   } as const;
 }
