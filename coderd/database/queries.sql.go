@@ -25,9 +25,29 @@ WITH latest AS (
 		provisioner_jobs.completed_at::timestamp with time zone AS job_completed_at,
 		(
 			CASE
-				WHEN templates.allow_user_autostop
-				THEN (workspaces.ttl / 1000 / 1000 / 1000 || ' seconds')::interval
-				ELSE (templates.default_ttl / 1000 / 1000 / 1000 || ' seconds')::interval
+				-- If the extension would push us over the next_autostart
+				-- interval, then extend the deadline by the full ttl from
+				-- the autostart time. This will essentially be as if the
+				-- workspace auto started at the given time and the original
+				-- TTL was applied.
+				WHEN NOW() + ('60 minutes')::interval > $1 :: timestamptz
+				    -- If the autostart is behind now(), then the
+					-- autostart schedule is either the 0 time and not provided,
+					-- or it was the autostart in the past, which is no longer
+					-- relevant. If autostart is > 0 and in the past, then
+					-- that is a mistake by the caller.
+					AND $1 > NOW()
+					THEN
+					-- Extend to the autostart, then add the TTL
+					(($1 :: timestamptz) - NOW()) + CASE
+						WHEN templates.allow_user_autostop
+					    	THEN (workspaces.ttl / 1000 / 1000 / 1000 || ' seconds')::interval
+							ELSE (templates.default_ttl / 1000 / 1000 / 1000 || ' seconds')::interval
+					END
+
+				-- Default to 60 minutes.
+				ELSE
+					('60 minutes')::interval
 			END
 		) AS ttl_interval
 	FROM workspace_builds
@@ -37,7 +57,7 @@ WITH latest AS (
 		ON workspaces.id = workspace_builds.workspace_id
 	JOIN templates
 		ON templates.id = workspaces.template_id
-	WHERE workspace_builds.workspace_id = $1::uuid
+	WHERE workspace_builds.workspace_id = $2::uuid
 	ORDER BY workspace_builds.build_number DESC
 	LIMIT 1
 )
@@ -47,8 +67,9 @@ SET
 	updated_at = NOW(),
 	deadline = CASE
 		WHEN l.build_max_deadline = '0001-01-01 00:00:00+00'
-		THEN NOW() + l.ttl_interval
-		ELSE LEAST(NOW() + l.ttl_interval, l.build_max_deadline)
+		-- Never reduce the deadline from activity.
+		THEN GREATEST(wb.deadline, NOW() + l.ttl_interval)
+		ELSE LEAST(GREATEST(wb.deadline, NOW() + l.ttl_interval), l.build_max_deadline)
 	END
 FROM latest l
 WHERE wb.id = l.build_id
@@ -59,15 +80,22 @@ AND l.build_deadline != '0001-01-01 00:00:00+00'
 AND l.build_deadline - (l.ttl_interval * 0.95) < NOW()
 `
 
-// We bump by the original TTL to prevent counter-intuitive behavior
-// as the TTL wraps. For example, if I set the TTL to 12 hours, sign off
-// work at midnight, come back at 10am, I would want another full day
-// of uptime.
+type ActivityBumpWorkspaceParams struct {
+	NextAutostart time.Time `db:"next_autostart" json:"next_autostart"`
+	WorkspaceID   uuid.UUID `db:"workspace_id" json:"workspace_id"`
+}
+
+// Bumps the workspace deadline by 1 hour. If the workspace bump will
+// cross an autostart threshold, then the bump is autostart + TTL. This
+// is the deadline behavior if the workspace was to autostart from a stopped
+// state.
+// Max deadline is respected, and will never be bumped.
+// The deadline will never decrease.
 // We only bump if the raw interval is positive and non-zero.
 // We only bump if workspace shutdown is manual.
 // We only bump when 5% of the deadline has elapsed.
-func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, workspaceID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, activityBumpWorkspace, workspaceID)
+func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, arg ActivityBumpWorkspaceParams) error {
+	_, err := q.db.ExecContext(ctx, activityBumpWorkspace, arg.NextAutostart, arg.WorkspaceID)
 	return err
 }
 
@@ -4478,6 +4506,22 @@ func (q *sqlQuerier) DeleteAllTailnetClientSubscriptions(ctx context.Context, ar
 	return err
 }
 
+const deleteAllTailnetTunnels = `-- name: DeleteAllTailnetTunnels :exec
+DELETE
+FROM tailnet_tunnels
+WHERE coordinator_id = $1 and src_id = $2
+`
+
+type DeleteAllTailnetTunnelsParams struct {
+	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
+	SrcID         uuid.UUID `db:"src_id" json:"src_id"`
+}
+
+func (q *sqlQuerier) DeleteAllTailnetTunnels(ctx context.Context, arg DeleteAllTailnetTunnelsParams) error {
+	_, err := q.db.ExecContext(ctx, deleteAllTailnetTunnels, arg.CoordinatorID, arg.SrcID)
+	return err
+}
+
 const deleteCoordinator = `-- name: DeleteCoordinator :exec
 DELETE
 FROM tailnet_coordinators
@@ -4552,6 +4596,56 @@ type DeleteTailnetClientSubscriptionParams struct {
 func (q *sqlQuerier) DeleteTailnetClientSubscription(ctx context.Context, arg DeleteTailnetClientSubscriptionParams) error {
 	_, err := q.db.ExecContext(ctx, deleteTailnetClientSubscription, arg.ClientID, arg.AgentID, arg.CoordinatorID)
 	return err
+}
+
+const deleteTailnetPeer = `-- name: DeleteTailnetPeer :one
+DELETE
+FROM tailnet_peers
+WHERE id = $1 and coordinator_id = $2
+RETURNING id, coordinator_id
+`
+
+type DeleteTailnetPeerParams struct {
+	ID            uuid.UUID `db:"id" json:"id"`
+	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
+}
+
+type DeleteTailnetPeerRow struct {
+	ID            uuid.UUID `db:"id" json:"id"`
+	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
+}
+
+func (q *sqlQuerier) DeleteTailnetPeer(ctx context.Context, arg DeleteTailnetPeerParams) (DeleteTailnetPeerRow, error) {
+	row := q.db.QueryRowContext(ctx, deleteTailnetPeer, arg.ID, arg.CoordinatorID)
+	var i DeleteTailnetPeerRow
+	err := row.Scan(&i.ID, &i.CoordinatorID)
+	return i, err
+}
+
+const deleteTailnetTunnel = `-- name: DeleteTailnetTunnel :one
+DELETE
+FROM tailnet_tunnels
+WHERE coordinator_id = $1 and src_id = $2 and dst_id = $3
+RETURNING coordinator_id, src_id, dst_id
+`
+
+type DeleteTailnetTunnelParams struct {
+	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
+	SrcID         uuid.UUID `db:"src_id" json:"src_id"`
+	DstID         uuid.UUID `db:"dst_id" json:"dst_id"`
+}
+
+type DeleteTailnetTunnelRow struct {
+	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
+	SrcID         uuid.UUID `db:"src_id" json:"src_id"`
+	DstID         uuid.UUID `db:"dst_id" json:"dst_id"`
+}
+
+func (q *sqlQuerier) DeleteTailnetTunnel(ctx context.Context, arg DeleteTailnetTunnelParams) (DeleteTailnetTunnelRow, error) {
+	row := q.db.QueryRowContext(ctx, deleteTailnetTunnel, arg.CoordinatorID, arg.SrcID, arg.DstID)
+	var i DeleteTailnetTunnelRow
+	err := row.Scan(&i.CoordinatorID, &i.SrcID, &i.DstID)
+	return i, err
 }
 
 const getAllTailnetAgents = `-- name: GetAllTailnetAgents :many
@@ -4700,6 +4794,125 @@ func (q *sqlQuerier) GetTailnetClientsForAgent(ctx context.Context, agentID uuid
 	return items, nil
 }
 
+const getTailnetPeers = `-- name: GetTailnetPeers :many
+SELECT id, coordinator_id, updated_at, node, status FROM tailnet_peers WHERE id = $1
+`
+
+func (q *sqlQuerier) GetTailnetPeers(ctx context.Context, id uuid.UUID) ([]TailnetPeer, error) {
+	rows, err := q.db.QueryContext(ctx, getTailnetPeers, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TailnetPeer
+	for rows.Next() {
+		var i TailnetPeer
+		if err := rows.Scan(
+			&i.ID,
+			&i.CoordinatorID,
+			&i.UpdatedAt,
+			&i.Node,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTailnetTunnelPeerBindings = `-- name: GetTailnetTunnelPeerBindings :many
+SELECT tailnet_tunnels.dst_id as peer_id, tailnet_peers.coordinator_id, tailnet_peers.updated_at, tailnet_peers.node
+FROM tailnet_tunnels
+INNER JOIN tailnet_peers ON tailnet_tunnels.dst_id = tailnet_peers.id
+WHERE tailnet_tunnels.src_id = $1
+UNION
+SELECT tailnet_tunnels.src_id as peer_id, tailnet_peers.coordinator_id, tailnet_peers.updated_at, tailnet_peers.node
+FROM tailnet_tunnels
+INNER JOIN tailnet_peers ON tailnet_tunnels.src_id = tailnet_peers.id
+WHERE tailnet_tunnels.dst_id = $1
+`
+
+type GetTailnetTunnelPeerBindingsRow struct {
+	PeerID        uuid.UUID `db:"peer_id" json:"peer_id"`
+	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
+	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
+	Node          []byte    `db:"node" json:"node"`
+}
+
+func (q *sqlQuerier) GetTailnetTunnelPeerBindings(ctx context.Context, srcID uuid.UUID) ([]GetTailnetTunnelPeerBindingsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTailnetTunnelPeerBindings, srcID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTailnetTunnelPeerBindingsRow
+	for rows.Next() {
+		var i GetTailnetTunnelPeerBindingsRow
+		if err := rows.Scan(
+			&i.PeerID,
+			&i.CoordinatorID,
+			&i.UpdatedAt,
+			&i.Node,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTailnetTunnelPeerIDs = `-- name: GetTailnetTunnelPeerIDs :many
+SELECT dst_id as peer_id, coordinator_id, updated_at
+FROM tailnet_tunnels
+WHERE tailnet_tunnels.src_id = $1
+UNION
+SELECT src_id as peer_id, coordinator_id, updated_at
+FROM tailnet_tunnels
+WHERE tailnet_tunnels.dst_id = $1
+`
+
+type GetTailnetTunnelPeerIDsRow struct {
+	PeerID        uuid.UUID `db:"peer_id" json:"peer_id"`
+	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
+	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUID) ([]GetTailnetTunnelPeerIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTailnetTunnelPeerIDs, srcID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTailnetTunnelPeerIDsRow
+	for rows.Next() {
+		var i GetTailnetTunnelPeerIDsRow
+		if err := rows.Scan(&i.PeerID, &i.CoordinatorID, &i.UpdatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const upsertTailnetAgent = `-- name: UpsertTailnetAgent :one
 INSERT INTO
 	tailnet_agents (
@@ -4822,6 +5035,89 @@ func (q *sqlQuerier) UpsertTailnetCoordinator(ctx context.Context, id uuid.UUID)
 	row := q.db.QueryRowContext(ctx, upsertTailnetCoordinator, id)
 	var i TailnetCoordinator
 	err := row.Scan(&i.ID, &i.HeartbeatAt)
+	return i, err
+}
+
+const upsertTailnetPeer = `-- name: UpsertTailnetPeer :one
+INSERT INTO
+	tailnet_peers (
+	id,
+	coordinator_id,
+	node,
+	status,
+	updated_at
+)
+VALUES
+	($1, $2, $3, $4, now() at time zone 'utc')
+ON CONFLICT (id, coordinator_id)
+DO UPDATE SET
+	id = $1,
+	coordinator_id = $2,
+	node = $3,
+	status = $4,
+	updated_at = now() at time zone 'utc'
+RETURNING id, coordinator_id, updated_at, node, status
+`
+
+type UpsertTailnetPeerParams struct {
+	ID            uuid.UUID     `db:"id" json:"id"`
+	CoordinatorID uuid.UUID     `db:"coordinator_id" json:"coordinator_id"`
+	Node          []byte        `db:"node" json:"node"`
+	Status        TailnetStatus `db:"status" json:"status"`
+}
+
+func (q *sqlQuerier) UpsertTailnetPeer(ctx context.Context, arg UpsertTailnetPeerParams) (TailnetPeer, error) {
+	row := q.db.QueryRowContext(ctx, upsertTailnetPeer,
+		arg.ID,
+		arg.CoordinatorID,
+		arg.Node,
+		arg.Status,
+	)
+	var i TailnetPeer
+	err := row.Scan(
+		&i.ID,
+		&i.CoordinatorID,
+		&i.UpdatedAt,
+		&i.Node,
+		&i.Status,
+	)
+	return i, err
+}
+
+const upsertTailnetTunnel = `-- name: UpsertTailnetTunnel :one
+INSERT INTO
+	tailnet_tunnels (
+	coordinator_id,
+	src_id,
+	dst_id,
+	updated_at
+)
+VALUES
+	($1, $2, $3, now() at time zone 'utc')
+ON CONFLICT (coordinator_id, src_id, dst_id)
+DO UPDATE SET
+	coordinator_id = $1,
+	src_id = $2,
+	dst_id = $3,
+	updated_at = now() at time zone 'utc'
+RETURNING coordinator_id, src_id, dst_id, updated_at
+`
+
+type UpsertTailnetTunnelParams struct {
+	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
+	SrcID         uuid.UUID `db:"src_id" json:"src_id"`
+	DstID         uuid.UUID `db:"dst_id" json:"dst_id"`
+}
+
+func (q *sqlQuerier) UpsertTailnetTunnel(ctx context.Context, arg UpsertTailnetTunnelParams) (TailnetTunnel, error) {
+	row := q.db.QueryRowContext(ctx, upsertTailnetTunnel, arg.CoordinatorID, arg.SrcID, arg.DstID)
+	var i TailnetTunnel
+	err := row.Scan(
+		&i.CoordinatorID,
+		&i.SrcID,
+		&i.DstID,
+		&i.UpdatedAt,
+	)
 	return i, err
 }
 
@@ -10387,7 +10683,7 @@ WHERE
 	-- workspaces since they are considered soft-deleted.
 	AND CASE
 		WHEN $10 :: text != '' THEN
-			dormant_at IS NOT NULL 
+			dormant_at IS NOT NULL
 		ELSE
 			dormant_at IS NULL
 	END

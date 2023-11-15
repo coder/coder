@@ -387,7 +387,6 @@ func TestExecutorAutostopNotEnabled(t *testing.T) {
 	t.Parallel()
 
 	var (
-		ctx     = context.Background()
 		tickCh  = make(chan time.Time)
 		statsCh = make(chan autobuild.Stats)
 		client  = coderdtest.New(t, &coderdtest.Options{
@@ -396,26 +395,23 @@ func TestExecutorAutostopNotEnabled(t *testing.T) {
 			AutobuildStats:           statsCh,
 		})
 		// Given: we have a user with a workspace
-		workspace = mustProvisionWorkspace(t, client)
+		workspace = mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.TTLMillis = nil
+		})
 	)
 
 	// Given: workspace has no TTL set
-	err := client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{TTLMillis: nil})
-	require.NoError(t, err)
-	workspace, err = client.Workspace(ctx, workspace.ID)
-	require.NoError(t, err)
+	workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
 	require.Nil(t, workspace.TTLMillis)
-
-	// TODO(cian): need to stop and start the workspace as we do not update the deadline. See: #2229
-	coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
-	coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStop, database.WorkspaceTransitionStart)
+	require.Zero(t, workspace.LatestBuild.Deadline)
+	require.NotZero(t, workspace.LatestBuild.Job.CompletedAt)
 
 	// Given: workspace is running
 	require.Equal(t, codersdk.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
 
-	// When: the autobuild executor ticks past the TTL
+	// When: the autobuild executor ticks a year in the future
 	go func() {
-		tickCh <- workspace.LatestBuild.Deadline.Time.Add(time.Minute)
+		tickCh <- workspace.LatestBuild.Job.CompletedAt.AddDate(1, 0, 0)
 		close(tickCh)
 	}()
 
@@ -504,6 +500,10 @@ func TestExecutorWorkspaceAutostopBeforeDeadline(t *testing.T) {
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
 	)
+
+	// Given: workspace is running and has a non-zero deadline
+	require.Equal(t, codersdk.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
+	require.NotZero(t, workspace.LatestBuild.Deadline)
 
 	// When: the autobuild executor ticks before the TTL
 	go func() {

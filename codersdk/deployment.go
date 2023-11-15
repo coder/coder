@@ -403,8 +403,9 @@ type HealthcheckConfig struct {
 }
 
 const (
-	annotationEnterpriseKey = "enterprise"
-	annotationSecretKey     = "secret"
+	annotationFormatDuration = "format_duration"
+	annotationEnterpriseKey  = "enterprise"
+	annotationSecretKey      = "secret"
 	// annotationExternalProxies is used to mark options that are used by workspace
 	// proxies. This is used to filter out options that are not relevant.
 	annotationExternalProxies = "external_workspace_proxies"
@@ -630,6 +631,7 @@ when required by your organization's security policy.`,
 			Default:     time.Minute.String(),
 			Value:       &c.AutobuildPollInterval,
 			YAML:        "autobuildPollInterval",
+			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Job Hang Detector Interval",
@@ -640,6 +642,7 @@ when required by your organization's security policy.`,
 			Default:     time.Minute.String(),
 			Value:       &c.JobHangDetectorInterval,
 			YAML:        "jobHangDetectorInterval",
+			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		httpAddress,
 		tlsBindAddress,
@@ -1333,6 +1336,7 @@ when required by your organization's security policy.`,
 			Value:       &c.Provisioner.DaemonPollInterval,
 			Group:       &deploymentGroupProvisioning,
 			YAML:        "daemonPollInterval",
+			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Poll Jitter",
@@ -1343,6 +1347,7 @@ when required by your organization's security policy.`,
 			Value:       &c.Provisioner.DaemonPollJitter,
 			Group:       &deploymentGroupProvisioning,
 			YAML:        "daemonPollJitter",
+			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Force Cancel Interval",
@@ -1353,6 +1358,7 @@ when required by your organization's security policy.`,
 			Value:       &c.Provisioner.ForceCancelInterval,
 			Group:       &deploymentGroupProvisioning,
 			YAML:        "forceCancelInterval",
+			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Provisioner Daemon Pre-shared Key (PSK)",
@@ -1502,10 +1508,11 @@ when required by your organization's security policy.`,
 			// The default value is essentially "forever", so just use 100 years.
 			// We have to add in the 25 leap days for the frontend to show the
 			// "100 years" correctly.
-			Default: ((100 * 365 * time.Hour * 24) + (25 * time.Hour * 24)).String(),
-			Value:   &c.MaxTokenLifetime,
-			Group:   &deploymentGroupNetworkingHTTP,
-			YAML:    "maxTokenLifetime",
+			Default:     ((100 * 365 * time.Hour * 24) + (25 * time.Hour * 24)).String(),
+			Value:       &c.MaxTokenLifetime,
+			Group:       &deploymentGroupNetworkingHTTP,
+			YAML:        "maxTokenLifetime",
+			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Enable swagger endpoint",
@@ -1613,6 +1620,7 @@ when required by your organization's security policy.`,
 			Hidden:      true,
 			Default:     time.Hour.String(),
 			Value:       &c.MetricsCacheRefreshInterval,
+			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Agent Stat Refresh Interval",
@@ -1622,6 +1630,7 @@ when required by your organization's security policy.`,
 			Hidden:      true,
 			Default:     (30 * time.Second).String(),
 			Value:       &c.AgentStatRefreshInterval,
+			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Agent Fallback Troubleshooting URL",
@@ -1688,6 +1697,7 @@ when required by your organization's security policy.`,
 			Value:       &c.SessionDuration,
 			Group:       &deploymentGroupNetworkingHTTP,
 			YAML:        "sessionDuration",
+			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Disable Session Expiry Refresh",
@@ -1790,6 +1800,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.ProxyHealthStatusInterval,
 			Group:       &deploymentGroupNetworkingHTTP,
 			YAML:        "proxyHealthInterval",
+			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Default Quiet Hours Schedule",
@@ -1821,6 +1832,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.Healthcheck.Refresh,
 			Group:       &deploymentGroupIntrospectionHealthcheck,
 			YAML:        "refresh",
+			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Health Check Threshold: Database",
@@ -1831,6 +1843,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.Healthcheck.ThresholdDatabase,
 			Group:       &deploymentGroupIntrospectionHealthcheck,
 			YAML:        "thresholdDatabase",
+			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 	}
 
