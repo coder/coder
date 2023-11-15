@@ -834,7 +834,7 @@ func (q *FakeQuerier) ActivityBumpWorkspace(ctx context.Context, arg database.Ac
 		if now.Add(time.Hour).After(arg.NextAutostart) && arg.NextAutostart.After(now) {
 			// Extend to TTL
 			add := arg.NextAutostart.Sub(now)
-			if workspace.Ttl.Valid {
+			if workspace.Ttl.Valid && template.AllowUserAutostop {
 				add += time.Duration(workspace.Ttl.Int64)
 			} else {
 				add += time.Duration(template.DefaultTTL)

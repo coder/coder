@@ -24,6 +24,12 @@ type sqlcQuerier interface {
 	// multiple provisioners from acquiring the same jobs. See:
 	// https://www.postgresql.org/docs/9.5/sql-select.html#SQL-FOR-UPDATE-SHARE
 	AcquireProvisionerJob(ctx context.Context, arg AcquireProvisionerJobParams) (ProvisionerJob, error)
+	// Bumps the workspace deadline by 1 hour. If the workspace bump will
+	// cross an autostart threshold, then the bump is autostart + TTL. This
+	// is the deadline behavior if the workspace was to autostart from a stopped
+	// state.
+	// Max deadline is respected, and will never be bumped.
+	// The deadline will never decrease.
 	// We only bump if the raw interval is positive and non-zero.
 	// We only bump if workspace shutdown is manual.
 	// We only bump when 5% of the deadline has elapsed.
