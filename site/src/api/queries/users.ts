@@ -1,6 +1,6 @@
 import { QueryClient, type UseQueryOptions } from "react-query";
 import * as API from "api/api";
-import {
+import type {
   AuthorizationRequest,
   GetUsersResponse,
   UpdateUserPasswordRequest,
@@ -11,15 +11,33 @@ import {
 import { getAuthorizationKey } from "./authCheck";
 import { getMetadataAsJSON } from "utils/metadata";
 import { UsePaginatedQueryOptions } from "components/PaginationWidget/usePaginatedQuery";
+import { prepareQuery } from "utils/filters";
 
 export function usersKey(req: UsersRequest) {
   return ["users", req] as const;
 }
 
-export function paginatedUsers(req: UsersRequest) {
+export function paginatedUsers() {
   return {
-    queryKey: (pagination) => usersKey(pagination),
-    queryFn: () => API.getUsers(req),
+    searchParamsKey: "filter",
+
+    queryKey: ({ pageSize, pageOffset, searchParamsQuery }) => {
+      return usersKey({
+        q: prepareQuery(searchParamsQuery ?? ""),
+        limit: pageSize,
+        offset: pageOffset,
+      });
+    },
+    queryFn: ({ pageSize, pageOffset, searchParamsQuery, signal }) => {
+      return API.getUsers(
+        {
+          q: prepareQuery(searchParamsQuery ?? ""),
+          limit: pageSize,
+          offset: pageOffset,
+        },
+        signal,
+      );
+    },
     cacheTime: 5 * 60 * 1000,
   } as const satisfies UsePaginatedQueryOptions<GetUsersResponse>;
 }

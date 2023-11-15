@@ -6,7 +6,6 @@ import { DEFAULT_RECORDS_PER_PAGE } from "./utils";
 import { clamp } from "lodash";
 
 import {
-  type QueryFunction,
   type QueryFunctionContext,
   type QueryKey,
   type UseQueryOptions,
@@ -20,22 +19,26 @@ import {
 const PAGE_NUMBER_PARAMS_KEY = "page";
 
 /**
- * All arguments passed into the queryKey functions.
+ * Information about a paginated request. Passed into both the queryKey and
+ * queryFn functions on each render
  */
 type QueryPageParams = {
   pageNumber: number;
   pageSize: number;
   pageOffset: number;
-  extraQuery?: string;
+  searchParamsQuery?: string;
 };
 
 /**
  * Any JSON-serializable object returned by the API that exposes the total
  * number of records that match a query
  */
-interface PaginatedData {
+type PaginatedData = {
   count: number;
-}
+};
+
+type QueryFnContext<TQueryKey extends QueryKey = QueryKey> = QueryPageParams &
+  Omit<QueryFunctionContext<TQueryKey>, "pageParam">;
 
 /**
  * A more specialized version of UseQueryOptions built specifically for
@@ -49,21 +52,28 @@ export type UsePaginatedQueryOptions<
   TQueryKey extends QueryKey = QueryKey,
 > = Omit<
   UseQueryOptions<TQueryFnData, TError, TData, TQueryKey>,
-  "keepPreviousData" | "queryKey"
+  "keepPreviousData" | "queryKey" | "queryFn"
 > & {
+  /**
+   * The key to use for parsing additional query information
+   */
+  searchParamsKey?: string;
+
   /**
    * A function that takes pagination information and produces a full query key.
    *
    * Must be a function so that it can be used for the active query, as well as
    * any prefetching.
    */
-  queryKey: (args: QueryPageParams) => TQueryKey;
+  queryKey: (params: QueryPageParams) => TQueryKey;
 
   /**
-   * A version of queryFn that is required and that exposes page numbers through
-   * the pageParams context property
+   * A version of queryFn that is required and that exposes the pagination
+   * information through the pageParams context property
    */
-  queryFn: QueryFunction<TQueryFnData, TQueryKey, QueryPageParams>;
+  queryFn: (
+    context: QueryFnContext<TQueryKey>,
+  ) => TQueryFnData | Promise<TQueryFnData>;
 };
 
 export function usePaginatedQuery<
@@ -72,33 +82,44 @@ export function usePaginatedQuery<
   TData extends PaginatedData = TQueryFnData,
   TQueryKey extends QueryKey = QueryKey,
 >(options: UsePaginatedQueryOptions<TQueryFnData, TError, TData, TQueryKey>) {
-  const { queryKey, queryFn, ...extraReactQueryOptions } = options;
-  const [searchParams, setSearchParams] = useSearchParams();
+  const {
+    queryKey,
+    searchParamsKey,
+    queryFn: outerQueryFn,
+    ...extraOptions
+  } = options;
 
+  const [searchParams, setSearchParams] = useSearchParams();
   const currentPage = parsePage(searchParams);
   const pageSize = DEFAULT_RECORDS_PER_PAGE;
   const pageOffset = (currentPage - 1) * pageSize;
 
-  const queryOptionsFromPage = (pageNumber: number) => {
+  const getQueryOptionsFromPage = (pageNumber: number) => {
+    const searchParamsQuery =
+      searchParamsKey !== undefined
+        ? searchParams.get(searchParamsKey) ?? undefined
+        : undefined;
+
     const pageParam: QueryPageParams = {
       pageNumber,
       pageOffset,
       pageSize,
+      searchParamsQuery,
     };
 
     return {
       queryKey: queryKey(pageParam),
-      queryFn: (qfc: QueryFunctionContext<TQueryKey>) => {
-        return queryFn({ ...qfc, pageParam });
+      queryFn: (context: QueryFunctionContext<TQueryKey>) => {
+        return outerQueryFn({ ...context, ...pageParam });
       },
     } as const;
   };
 
   // Not using infinite query right now because that requires a fair bit of list
   // virtualization as the lists get bigger (especially for the audit logs)
-  const query = useQuery({
-    ...extraReactQueryOptions,
-    ...queryOptionsFromPage(currentPage),
+  const query = useQuery<TQueryFnData, TError, TData, TQueryKey>({
+    ...extraOptions,
+    ...getQueryOptionsFromPage(currentPage),
     keepPreviousData: true,
   });
 
@@ -109,7 +130,7 @@ export function usePaginatedQuery<
 
   const queryClient = useQueryClient();
   const prefetchPage = useEffectEvent((newPage: number) => {
-    return queryClient.prefetchQuery(queryOptionsFromPage(newPage));
+    return queryClient.prefetchQuery(getQueryOptionsFromPage(newPage));
   });
 
   // Have to split hairs and sync on both the current page and the hasXPage
@@ -164,9 +185,11 @@ export function usePaginatedQuery<
     hasNextPage,
     hasPreviousPage,
 
-    // Have to hijack the isLoading property slightly because keepPreviousData
-    // is true; by default, isLoading will be false after the initial page
-    // loads, even if new pages are loading in
+    // Hijacking the isLoading property slightly because keepPreviousData is
+    // true; by default, isLoading will always be false after the initial page
+    // loads, even if new pages are loading in. Especially since
+    // keepPreviousData is an implementation detail, simplifying the API felt
+    // like the better option, at the risk of it becoming more "magical"
     isLoading: query.isLoading || query.isFetching,
   } as const;
 }
