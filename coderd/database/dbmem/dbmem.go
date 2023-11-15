@@ -678,6 +678,13 @@ func (q *FakeQuerier) GetActiveDBCryptKeys(_ context.Context) ([]database.DBCryp
 	return ks, nil
 }
 
+func maxTime(t, u time.Time) time.Time {
+	if t.After(u) {
+		return t
+	}
+	return u
+}
+
 func minTime(t, u time.Time) time.Time {
 	if t.Before(u) {
 		return t
@@ -821,16 +828,20 @@ func (q *FakeQuerier) ActivityBumpWorkspace(ctx context.Context, arg database.Ac
 			return err
 		}
 
+		var a, b, c = arg.NextAutostart.UTC(), now.Add(time.Hour), arg.NextAutostart.After(now)
+		fmt.Println(a, b, c)
 		var ttlDur time.Duration
-		if workspace.Ttl.Valid {
-			ttlDur = time.Duration(workspace.Ttl.Int64)
-		}
-		if !template.AllowUserAutostop {
-			ttlDur = time.Duration(template.DefaultTTL)
-		}
-		if ttlDur <= 0 {
-			// There's no TTL set anymore, so we don't know the bump duration.
-			return nil
+		if now.Add(time.Hour).After(arg.NextAutostart) && arg.NextAutostart.After(now) {
+			// Extend to TTL
+			add := arg.NextAutostart.Sub(now)
+			if workspace.Ttl.Valid {
+				add += time.Duration(workspace.Ttl.Int64)
+			} else {
+				add += time.Duration(template.DefaultTTL)
+			}
+			ttlDur = add
+		} else {
+			ttlDur = time.Hour
 		}
 
 		// Only bump if 5% of the deadline has passed.
@@ -842,6 +853,8 @@ func (q *FakeQuerier) ActivityBumpWorkspace(ctx context.Context, arg database.Ac
 
 		// Bump.
 		newDeadline := now.Add(ttlDur)
+		// Never decrease deadlines from a bump
+		newDeadline = maxTime(newDeadline, q.workspaceBuilds[i].Deadline)
 		q.workspaceBuilds[i].UpdatedAt = now
 		if !q.workspaceBuilds[i].MaxDeadline.IsZero() {
 			q.workspaceBuilds[i].Deadline = minTime(newDeadline, q.workspaceBuilds[i].MaxDeadline)
