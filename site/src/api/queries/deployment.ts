@@ -24,7 +24,7 @@ export const deploymentStats = () => {
 export const health = () => {
   return {
     queryKey: ["deployment", "health"],
-    queryFn: API.getHealth,
+    queryFn: () => API.getHealth(false),
   };
 };
 
