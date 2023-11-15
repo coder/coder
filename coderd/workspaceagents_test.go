@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
@@ -25,7 +26,9 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -1105,6 +1108,162 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 
 	unknownKeyMetadata := wantMetadata1
 	post("unknown", unknownKeyMetadata)
+}
+
+type testWAMErrorStore struct {
+	database.Store
+	err atomic.Pointer[error]
+}
+
+func (s *testWAMErrorStore) GetWorkspaceAgentMetadata(ctx context.Context, arg database.GetWorkspaceAgentMetadataParams) ([]database.WorkspaceAgentMetadatum, error) {
+	err := s.err.Load()
+	if err != nil {
+		return nil, *err
+	}
+	return s.Store.GetWorkspaceAgentMetadata(ctx, arg)
+}
+
+func TestWorkspaceAgent_Metadata_CatchMemoryLeak(t *testing.T) {
+	t.Parallel()
+
+	db := &testWAMErrorStore{Store: dbmem.New()}
+	psub := pubsub.NewInMemory()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("coderd").Leveled(slog.LevelDebug)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database:                 db,
+		Pubsub:                   psub,
+		IncludeProvisionerDaemon: true,
+		Logger:                   &logger,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+	authToken := uuid.NewString()
+	ws := dbfake.Workspace(t, db, database.Workspace{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	})
+	dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+		Name: "example",
+		Type: "aws_instance",
+		Agents: []*proto.Agent{{
+			Metadata: []*proto.Agent_Metadata{
+				{
+					DisplayName: "First Meta",
+					Key:         "foo1",
+					Script:      "echo hi",
+					Interval:    10,
+					Timeout:     3,
+				},
+				{
+					DisplayName: "Second Meta",
+					Key:         "foo2",
+					Script:      "echo bye",
+					Interval:    10,
+					Timeout:     3,
+				},
+			},
+			Id: uuid.NewString(),
+			Auth: &proto.Agent_Token{
+				Token: authToken,
+			},
+		}},
+	})
+	workspace, err := client.Workspace(context.Background(), ws.ID)
+	require.NoError(t, err)
+	for _, res := range workspace.LatestBuild.Resources {
+		for _, a := range res.Agents {
+			require.Equal(t, codersdk.WorkspaceAgentLifecycleCreated, a.LifecycleState)
+		}
+	}
+
+	agentClient := agentsdk.New(client.URL)
+	agentClient.SetSessionToken(authToken)
+
+	ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitSuperLong))
+
+	manifest, err := agentClient.Manifest(ctx)
+	require.NoError(t, err)
+
+	post := func(ctx context.Context, key, value string) error {
+		return agentClient.PostMetadata(ctx, agentsdk.PostMetadataRequest{
+			Metadata: []agentsdk.Metadata{
+				{
+					Key: key,
+					WorkspaceAgentMetadataResult: codersdk.WorkspaceAgentMetadataResult{
+						CollectedAt: time.Now(),
+						Value:       value,
+					},
+				},
+			},
+		})
+	}
+
+	workspace, err = client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err, "get workspace")
+
+	// Start the SSE connection.
+	metadata, errors := client.WatchWorkspaceAgentMetadata(ctx, manifest.AgentID)
+
+	// Discard the output, pretending to be a client consuming it.
+	wantErr := xerrors.New("test error")
+	metadataDone := testutil.Go(t, func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case _, ok := <-metadata:
+				if !ok {
+					return
+				}
+			case err := <-errors:
+				if err != nil && !strings.Contains(err.Error(), wantErr.Error()) {
+					assert.NoError(t, err, "watch metadata")
+				}
+				return
+			}
+		}
+	})
+
+	postDone := testutil.Go(t, func() {
+		for {
+			// We need to send two separate metadata updates to trigger the
+			// memory leak. foo2 will cause the number of foo1 to be doubled, etc.
+			err = post(ctx, "foo1", "hi")
+			if err != nil {
+				if !xerrors.Is(err, context.Canceled) {
+					assert.NoError(t, err, "post metadata foo1")
+				}
+				return
+			}
+			err = post(ctx, "foo2", "bye")
+			if err != nil {
+				if !xerrors.Is(err, context.Canceled) {
+					assert.NoError(t, err, "post metadata foo1")
+				}
+				return
+			}
+		}
+	})
+
+	// In a previously faulty implementation, this database error will trigger
+	// a close of the goroutine that consumes metadata updates for refreshing
+	// the metadata sent over SSE. As it was, the exit of the consumer was not
+	// detected as a trigger to close down the connection.
+	//
+	// Further, there was a memory leak in the pubsub subscription that cause
+	// ballooning of memory (almost double in size every received metadata).
+	//
+	// This db error should trigger a close of the SSE connection in the fixed
+	// implementation. The memory leak should not happen in either case, but
+	// testing it is not straightforward.
+	db.err.Store(&wantErr)
+
+	select {
+	case <-ctx.Done():
+		t.Fatal("timeout waiting for SSE to close")
+	case <-metadataDone:
+	}
+	cancel()
+	<-postDone
 }
 
 func TestWorkspaceAgent_Startup(t *testing.T) {
