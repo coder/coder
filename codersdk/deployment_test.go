@@ -268,10 +268,10 @@ func TestDeploymentValues_DurationFormatNanoseconds(t *testing.T) {
 		// Just make sure the annotation is set.
 		// If someone wants to not format a duration, they can
 		// explicitly set the annotation to false.
-		if s.Annotations.IsSet("format_duration_ns") {
+		if s.Annotations.IsSet("format_duration") {
 			continue
 		}
-		t.Logf("Option %q is a duration but does not have the format_duration_ns annotation.", s.Name)
+		t.Logf("Option %q is a duration but does not have the format_duration annotation.", s.Name)
 		t.Logf("To fix this, add the following to the option declaration:")
 		t.Logf(`Annotations: clibase.Annotations{}.Mark(annotationFormatDurationNS, "true"),`)
 		t.FailNow()

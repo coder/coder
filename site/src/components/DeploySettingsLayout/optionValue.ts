@@ -13,7 +13,7 @@ export function optionValue(
         continue; // skip if not explicitly true
       }
       switch (k) {
-        case "format_duration_ns":
+        case "format_duration":
           return formatDuration(
             // intervalToDuration takes ms, so convert nanoseconds to ms
             intervalToDuration({
