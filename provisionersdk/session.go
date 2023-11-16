@@ -4,7 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
-	"crypto/md5"
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"os"
@@ -260,8 +260,7 @@ func (s *Session) extractArchive() error {
 				return xerrors.Errorf("create file %q (mode %s): %w", headerPath, mode, err)
 			}
 
-			//nolint:gosec // Calculate the file checksum for debugging purposes if the file is corrupted
-			hash := md5.New()
+			hash := sha256.New()
 			hashReader := io.TeeReader(reader, hash)
 			// Max file size of 10MiB.
 			size, err := io.CopyN(file, hashReader, 10<<20)
