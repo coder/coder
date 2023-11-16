@@ -66,7 +66,9 @@ export interface WorkspaceProps {
   sshPrefix?: string;
   template?: TypesGen.Template;
   quotaBudget?: number;
+  canRetryDebugMode: boolean;
   handleBuildRetry: () => void;
+  handleBuildRetryDebug: () => void;
   buildLogs?: React.ReactNode;
   builds: TypesGen.WorkspaceBuild[] | undefined;
   onLoadMoreBuilds: () => void;
@@ -88,7 +90,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   handleCancel,
   handleSettings,
   handleChangeVersion,
-  handleDormantActivate: handleDormantActivate,
+  handleDormantActivate,
   workspace,
   isUpdating,
   isRestarting,
@@ -103,7 +105,9 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   buildInfo,
   sshPrefix,
   template,
+  canRetryDebugMode,
   handleBuildRetry,
+  handleBuildRetryDebug,
   buildLogs,
   onLoadMoreBuilds,
   isLoadingMoreBuilds,
@@ -200,8 +204,10 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               handleCancel={handleCancel}
               handleSettings={handleSettings}
               handleRetry={handleBuildRetry}
+              handleRetryDebug={handleBuildRetryDebug}
               handleChangeVersion={handleChangeVersion}
               handleDormantActivate={handleDormantActivate}
+              canRetryDebug={canRetryDebugMode}
               canChangeVersions={canChangeVersions}
               isUpdating={isUpdating}
               isRestarting={isRestarting}
@@ -305,8 +311,14 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
             <Alert
               severity="error"
               actions={
-                <Button onClick={handleBuildRetry} variant="text" size="small">
-                  Retry
+                <Button
+                  onClick={
+                    canRetryDebugMode ? handleBuildRetryDebug : handleBuildRetry
+                  }
+                  variant="text"
+                  size="small"
+                >
+                  Retry{canRetryDebugMode && " in debug mode"}
                 </Button>
               }
             >

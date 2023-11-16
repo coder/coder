@@ -39,11 +39,13 @@ export interface WorkspaceActionsProps {
   handleSettings: () => void;
   handleChangeVersion: () => void;
   handleRetry: () => void;
+  handleRetryDebug: () => void;
   handleDormantActivate: () => void;
   isUpdating: boolean;
   isRestarting: boolean;
   children?: ReactNode;
   canChangeVersions: boolean;
+  canRetryDebug: boolean;
 }
 
 export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
@@ -56,11 +58,13 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   handleCancel,
   handleSettings,
   handleRetry,
+  handleRetryDebug,
   handleChangeVersion,
-  handleDormantActivate: handleDormantActivate,
+  handleDormantActivate,
   isUpdating,
   isRestarting,
   canChangeVersions,
+  canRetryDebug,
 }) => {
   const { duplicateWorkspace, isDuplicationReady } =
     useWorkspaceDuplication(workspace);
@@ -92,13 +96,14 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     activate: <ActivateButton handleAction={handleDormantActivate} />,
     activating: <ActivateButton loading handleAction={handleDormantActivate} />,
     retry: <RetryButton handleAction={handleRetry} />,
+    retryDebug: <RetryButton debug handleAction={handleRetryDebug} />,
   };
 
   const { actions, canCancel, canAcceptJobs } = actionsByWorkspaceStatus(
     workspace,
-    workspace.latest_build.status,
-    canChangeVersions,
+    { canChangeVersions, canRetryDebug },
   );
+
   const canBeUpdated = workspace.outdated && canAcceptJobs;
 
   return (
@@ -106,12 +111,9 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
       css={{ display: "flex", alignItems: "center", gap: 12 }}
       data-testid="workspace-actions"
     >
-      {/*
-       * Parentheses important – if canBeUpdated is false, nothing should
-       * appear in the UI
-       */}
-      {canBeUpdated &&
-        (isUpdating ? buttonMapping.updating : buttonMapping.update)}
+      {canBeUpdated && (
+        <>{isUpdating ? buttonMapping.updating : buttonMapping.update}</>
+      )}
 
       {isRestarting
         ? buttonMapping.restarting

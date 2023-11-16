@@ -13,6 +13,7 @@ import BlockIcon from "@mui/icons-material/Block";
 import OutlinedBlockIcon from "@mui/icons-material/BlockOutlined";
 import PowerSettingsNewIcon from "@mui/icons-material/PowerSettingsNew";
 import RetryIcon from "@mui/icons-material/BuildOutlined";
+import RetryDebugIcon from "@mui/icons-material/BugReportOutlined";
 
 interface WorkspaceActionProps {
   loading?: boolean;
@@ -168,12 +169,17 @@ export const ActionLoadingButton: FC<LoadingProps> = ({ label }) => {
   );
 };
 
-export function RetryButton({
-  handleAction,
-}: Omit<WorkspaceActionProps, "loading">) {
+type DebugButtonProps = Omit<WorkspaceActionProps, "loading"> & {
+  debug?: boolean;
+};
+
+export function RetryButton({ handleAction, debug = false }: DebugButtonProps) {
   return (
-    <Button startIcon={<RetryIcon />} onClick={handleAction}>
-      Retry
+    <Button
+      startIcon={debug ? <RetryDebugIcon /> : <RetryIcon />}
+      onClick={handleAction}
+    >
+      Retry{debug && " (Debug)"}
     </Button>
   );
 }

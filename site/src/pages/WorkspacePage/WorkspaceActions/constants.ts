@@ -21,6 +21,7 @@ const buttonTypes = [
   // into one of the starting, stopping, or deleting states (based on the
   // WorkspaceTransition type)
   "retry",
+  "retryDebug",
 
   // These are buttons that should be used with disabled UI elements
   "canceling",
@@ -33,16 +34,20 @@ const buttonTypes = [
  */
 export type ButtonType = (typeof buttonTypes)[number];
 
-interface WorkspaceAbilities {
+type WorkspaceAbilities = {
   actions: readonly ButtonType[];
   canCancel: boolean;
   canAcceptJobs: boolean;
-}
+};
+
+type UserInfo = Readonly<{
+  canChangeVersions: boolean;
+  canRetryDebug: boolean;
+}>;
 
 export const actionsByWorkspaceStatus = (
   workspace: Workspace,
-  status: WorkspaceStatus,
-  canChangeVersions: boolean,
+  userInfo: UserInfo,
 ): WorkspaceAbilities => {
   if (workspace.dormant_at) {
     return {
@@ -51,10 +56,13 @@ export const actionsByWorkspaceStatus = (
       canAcceptJobs: false,
     };
   }
-  if (
+
+  const status = workspace.latest_build.status;
+  const mustUpdate =
     workspace.outdated &&
-    workspaceUpdatePolicy(workspace, canChangeVersions) === "always"
-  ) {
+    workspaceUpdatePolicy(workspace, userInfo.canChangeVersions) === "always";
+
+  if (mustUpdate) {
     if (status === "running") {
       return {
         actions: ["stop"],
@@ -62,6 +70,7 @@ export const actionsByWorkspaceStatus = (
         canAcceptJobs: true,
       };
     }
+
     if (status === "stopped") {
       return {
         actions: [],
@@ -70,6 +79,14 @@ export const actionsByWorkspaceStatus = (
       };
     }
   }
+
+  if (status === "failed" && userInfo.canRetryDebug) {
+    return {
+      ...statusToActions.failed,
+      actions: ["retry", "retryDebug"],
+    };
+  }
+
   return statusToActions[status];
 };
 

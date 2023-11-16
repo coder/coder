@@ -79,9 +79,6 @@ export const WorkspaceReadyPage = ({
     ...deploymentConfig(),
     enabled: permissions?.viewDeploymentValues,
   });
-  const canRetryDebugMode = Boolean(
-    deploymentValues?.config.enable_terraform_debug_mode,
-  );
 
   // Build logs
   const buildLogs = useWorkspaceBuildLogs(workspace.latest_build.id);
@@ -196,6 +193,22 @@ export const WorkspaceReadyPage = ({
   // Cancel build
   const cancelBuildMutation = useMutation(cancelBuild(workspace, queryClient));
 
+  const handleBuildRetry = (debug = false) => {
+    const logLevel = debug ? "debug" : undefined;
+
+    switch (workspace.latest_build.transition) {
+      case "start":
+        startWorkspaceMutation.mutate({ logLevel });
+        break;
+      case "stop":
+        stopWorkspaceMutation.mutate({ logLevel });
+        break;
+      case "delete":
+        deleteWorkspaceMutation.mutate({ logLevel });
+        break;
+    }
+  };
+
   return (
     <>
       <Helmet>
@@ -242,20 +255,11 @@ export const WorkspaceReadyPage = ({
         }}
         handleCancel={cancelBuildMutation.mutate}
         handleSettings={() => navigate("settings")}
-        handleBuildRetry={() => {
-          const logLevel = canRetryDebugMode ? "debug" : undefined;
-          switch (workspace.latest_build.transition) {
-            case "start":
-              startWorkspaceMutation.mutate({ logLevel });
-              break;
-            case "stop":
-              stopWorkspaceMutation.mutate({ logLevel });
-              break;
-            case "delete":
-              deleteWorkspaceMutation.mutate({ logLevel });
-              break;
-          }
-        }}
+        handleBuildRetry={() => handleBuildRetry(false)}
+        handleBuildRetryDebug={() => handleBuildRetry(true)}
+        canRetryDebugMode={
+          deploymentValues?.config.enable_terraform_debug_mode ?? false
+        }
         handleChangeVersion={() => {
           setChangeVersionDialogOpen(true);
         }}
