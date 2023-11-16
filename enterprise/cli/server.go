@@ -75,6 +75,9 @@ func (r *RootCmd) Server(_ func()) *clibase.Cmd {
 
 			CheckInactiveUsersCancelFunc: dormancy.CheckInactiveUsers(ctx, options.Logger, options.Database),
 		}
+		if o.DERPServerRelayAddress != "" {
+			o.Options.IgnoreRedirectHostnames = append(o.Options.IgnoreRedirectHostnames, o.DERPServerRelayAddress)
+		}
 
 		if encKeys := options.DeploymentValues.ExternalTokenEncryptionKeys.Value(); len(encKeys) != 0 {
 			keys := make([][]byte, 0, len(encKeys))

@@ -120,9 +120,10 @@ type Options struct {
 	RealIPConfig                   *httpmw.RealIPConfig
 	TrialGenerator                 func(ctx context.Context, email string) error
 	// TLSCertificates is used to mesh DERP servers securely.
-	TLSCertificates    []tls.Certificate
-	TailnetCoordinator tailnet.Coordinator
-	DERPServer         *derp.Server
+	TLSCertificates         []tls.Certificate
+	TailnetCoordinator      tailnet.Coordinator
+	IgnoreRedirectHostnames []string
+	DERPServer              *derp.Server
 	// BaseDERPMap is used as the base DERP map for all clients and agents.
 	// Proxies are added to this list.
 	BaseDERPMap                 *tailcfg.DERPMap

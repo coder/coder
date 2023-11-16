@@ -36,8 +36,9 @@ type Options struct {
 	TLSConfig       *tls.Config
 }
 
-// New registers the replica with the database and periodically updates to ensure
-// it's healthy. It contacts all other alive replicas to ensure they are reachable.
+// New registers the replica with the database and periodically updates to
+// ensure it's healthy. It contacts all other alive replicas to ensure they are
+// reachable.
 func New(ctx context.Context, logger slog.Logger, db database.Store, ps pubsub.Pubsub, options *Options) (*Manager, error) {
 	if options == nil {
 		options = &Options{}

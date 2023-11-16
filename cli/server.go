@@ -897,7 +897,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// the request is not to a local IP.
 			var handler http.Handler = coderAPI.RootHandler
 			if vals.RedirectToAccessURL {
-				handler = redirectToAccessURL(handler, vals.AccessURL.Value(), tunnel != nil, appHostnameRegex)
+				handler = redirectToAccessURL(handler, vals.AccessURL.Value(), tunnel != nil, appHostnameRegex, options.IgnoreRedirectHostnames...)
 			}
 
 			// ReadHeaderTimeout is purposefully not enabled. It caused some
@@ -1916,7 +1916,7 @@ func ConfigureHTTPClient(ctx context.Context, clientCertFile, clientKeyFile stri
 }
 
 // nolint:revive
-func redirectToAccessURL(handler http.Handler, accessURL *url.URL, tunnel bool, appHostnameRegex *regexp.Regexp) http.Handler {
+func redirectToAccessURL(handler http.Handler, accessURL *url.URL, tunnel bool, appHostnameRegex *regexp.Regexp, ignoreHosts ...string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		redirect := func() {
 			http.Redirect(w, r, accessURL.String(), http.StatusTemporaryRedirect)
@@ -1943,6 +1943,13 @@ func redirectToAccessURL(handler http.Handler, accessURL *url.URL, tunnel bool, 
 		if appHostnameRegex != nil && appHostnameRegex.MatchString(r.Host) {
 			handler.ServeHTTP(w, r)
 			return
+		}
+
+		for _, ignore := range ignoreHosts {
+			if r.Host == ignore {
+				handler.ServeHTTP(w, r)
+				return
+			}
 		}
 
 		redirect()

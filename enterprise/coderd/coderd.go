@@ -14,12 +14,11 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/xerrors"
-	"tailscale.com/tailcfg"
-
 	"github.com/cenkalti/backoff/v4"
 	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/xerrors"
+	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd"
