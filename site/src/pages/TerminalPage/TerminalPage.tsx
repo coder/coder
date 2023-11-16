@@ -15,7 +15,6 @@ import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { pageTitle } from "utils/page";
 import { useProxy } from "contexts/ProxyContext";
 import Box from "@mui/material/Box";
-import { useDashboard } from "components/Dashboard/DashboardProvider";
 import type { Region } from "api/typesGenerated";
 import { getLatencyColor } from "utils/latency";
 import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency";
@@ -68,7 +67,6 @@ const TerminalPage: FC = () => {
   const workspaceAgent = workspace.data
     ? getMatchingAgentOrFirst(workspace.data, workspaceNameParts?.[1])
     : undefined;
-  const dashboard = useDashboard();
   const proxyContext = useProxy();
   const selectedProxy = proxyContext.proxy.proxy;
   const latency = selectedProxy
