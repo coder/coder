@@ -25,7 +25,6 @@ func Test_ProxyCRUD(t *testing.T) {
 
 		dv := coderdtest.DeploymentValues(t)
 		dv.Experiments = []string{
-			string(codersdk.ExperimentMoons),
 			"*",
 		}
 
@@ -97,7 +96,6 @@ func Test_ProxyCRUD(t *testing.T) {
 
 		dv := coderdtest.DeploymentValues(t)
 		dv.Experiments = []string{
-			string(codersdk.ExperimentMoons),
 			"*",
 		}
 

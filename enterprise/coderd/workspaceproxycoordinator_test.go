@@ -33,7 +33,6 @@ func Test_agentIsLegacy(t *testing.T) {
 
 		dv := coderdtest.DeploymentValues(t)
 		dv.Experiments = []string{
-			string(codersdk.ExperimentMoons),
 			"*",
 		}
 
@@ -97,7 +96,6 @@ func Test_agentIsLegacy(t *testing.T) {
 
 		dv := coderdtest.DeploymentValues(t)
 		dv.Experiments = []string{
-			string(codersdk.ExperimentMoons),
 			"*",
 		}
 

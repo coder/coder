@@ -38,7 +38,6 @@ func TestRegions(t *testing.T) {
 
 		dv := coderdtest.DeploymentValues(t)
 		dv.Experiments = []string{
-			string(codersdk.ExperimentMoons),
 			"*",
 		}
 
@@ -81,7 +80,6 @@ func TestRegions(t *testing.T) {
 
 		dv := coderdtest.DeploymentValues(t)
 		dv.Experiments = []string{
-			string(codersdk.ExperimentMoons),
 			"*",
 		}
 
@@ -149,7 +147,6 @@ func TestRegions(t *testing.T) {
 
 		dv := coderdtest.DeploymentValues(t)
 		dv.Experiments = []string{
-			string(codersdk.ExperimentMoons),
 			"*",
 		}
 
@@ -176,7 +173,6 @@ func TestWorkspaceProxyCRUD(t *testing.T) {
 
 		dv := coderdtest.DeploymentValues(t)
 		dv.Experiments = []string{
-			string(codersdk.ExperimentMoons),
 			"*",
 		}
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
@@ -227,7 +223,6 @@ func TestWorkspaceProxyCRUD(t *testing.T) {
 
 		dv := coderdtest.DeploymentValues(t)
 		dv.Experiments = []string{
-			string(codersdk.ExperimentMoons),
 			"*",
 		}
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
@@ -263,7 +258,6 @@ func TestProxyRegisterDeregister(t *testing.T) {
 	setup := func(t *testing.T) (*codersdk.Client, database.Store) {
 		dv := coderdtest.DeploymentValues(t)
 		dv.Experiments = []string{
-			string(codersdk.ExperimentMoons),
 			"*",
 		}
 
@@ -611,7 +605,6 @@ func TestIssueSignedAppToken(t *testing.T) {
 
 	dv := coderdtest.DeploymentValues(t)
 	dv.Experiments = []string{
-		string(codersdk.ExperimentMoons),
 		"*",
 	}
 
@@ -708,7 +701,6 @@ func TestReconnectingPTYSignedToken(t *testing.T) {
 
 	dv := coderdtest.DeploymentValues(t)
 	dv.Experiments = []string{
-		string(codersdk.ExperimentMoons),
 		"*",
 	}
 
