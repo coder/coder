@@ -94,6 +94,19 @@ CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxx
 CODER_EXTERNAL_AUTH_0_AUTH_URL=https://bitbucket.domain.com/rest/oauth2/latest/authorize
 ```
 
+### Bitbucket Cloud
+
+Bitbucket Cloud requires the following environment variables:
+
+```env
+CODER_EXTERNAL_AUTH_0_TYPE="bitbucket-cloud"
+CODER_EXTERNAL_AUTH_0_ID=bitbucket
+CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxx
+CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxx
+CODER_EXTERNAL_AUTH_0_AUTH_URL=https://bitbucket.domain.com/site/oauth2/authorize
+CODER_EXTERNAL_AUTH_0_TOKEN_URL=https://bitbucket.domain.com/site/oauth2/access_token
+```
+
 ### Azure DevOps
 
 Azure DevOps requires the following environment variables:
