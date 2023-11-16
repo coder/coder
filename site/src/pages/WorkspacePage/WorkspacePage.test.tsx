@@ -1,3 +1,4 @@
+import { type Workspace } from "api/typesGenerated";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import EventSourceMock from "eventsourcemock";
@@ -5,6 +6,7 @@ import { rest } from "msw";
 import {
   MockTemplate,
   MockWorkspace,
+  MockFailedWorkspace,
   MockWorkspaceBuild,
   MockStoppedWorkspace,
   MockStartingWorkspace,
@@ -22,7 +24,7 @@ import { server } from "testHelpers/server";
 import { WorkspacePage } from "./WorkspacePage";
 
 // It renders the workspace page and waits for it be loaded
-const renderWorkspacePage = async (mockWorkspace = MockWorkspace) => {
+const renderWorkspacePage = async (workspace: Workspace) => {
   jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate);
   jest.spyOn(api, "getTemplateVersionRichParameters").mockResolvedValueOnce([]);
   jest
@@ -36,11 +38,11 @@ const renderWorkspacePage = async (mockWorkspace = MockWorkspace) => {
     });
 
   renderWithAuth(<WorkspacePage />, {
-    route: `/@${mockWorkspace.owner_name}/${mockWorkspace.name}`,
+    route: `/@${workspace.owner_name}/${workspace.name}`,
     path: "/:username/:workspace",
   });
 
-  await screen.findByText(mockWorkspace.name);
+  await screen.findByText(workspace.name);
 };
 
 /**
@@ -51,11 +53,17 @@ const renderWorkspacePage = async (mockWorkspace = MockWorkspace) => {
  * We don't need to test the UI exhaustively because Storybook does that; just
  * enough to prove that the workspaceStatus was calculated correctly.
  */
-const testButton = async (label: string, actionMock: jest.SpyInstance) => {
+const testButton = async (
+  workspace: Workspace,
+  label: string,
+  actionMock: jest.SpyInstance,
+) => {
   const user = userEvent.setup();
-  await renderWorkspacePage();
+  await renderWorkspacePage(workspace);
+
   const workspaceActions = screen.getByTestId("workspace-actions");
   const button = within(workspaceActions).getByRole("button", { name: label });
+
   await user.click(button);
   expect(actionMock).toBeCalled();
 };
@@ -82,7 +90,7 @@ describe("WorkspacePage", () => {
     const deleteWorkspaceMock = jest
       .spyOn(api, "deleteWorkspace")
       .mockResolvedValueOnce(MockWorkspaceBuild);
-    await renderWorkspacePage();
+    await renderWorkspacePage(MockWorkspace);
 
     // open the workspace action popover so we have access to all available ctas
     const trigger = screen.getByTestId("workspace-options-button");
@@ -125,7 +133,7 @@ describe("WorkspacePage", () => {
     const deleteWorkspaceMock = jest
       .spyOn(api, "deleteWorkspace")
       .mockResolvedValueOnce(MockWorkspaceBuildDelete);
-    await renderWorkspacePage();
+    await renderWorkspacePage(MockWorkspace);
 
     // open the workspace action popover so we have access to all available ctas
     const trigger = screen.getByTestId("workspace-options-button");
@@ -173,7 +181,7 @@ describe("WorkspacePage", () => {
     const startWorkspaceMock = jest
       .spyOn(api, "startWorkspace")
       .mockImplementation(() => Promise.resolve(MockWorkspaceBuild));
-    await testButton("Start", startWorkspaceMock);
+    await testButton(MockWorkspace, "Start", startWorkspaceMock);
   });
 
   it("requests a stop job when the user presses Stop", async () => {
@@ -181,7 +189,7 @@ describe("WorkspacePage", () => {
       .spyOn(api, "stopWorkspace")
       .mockResolvedValueOnce(MockWorkspaceBuild);
 
-    await testButton("Stop", stopWorkspaceMock);
+    await testButton(MockWorkspace, "Stop", stopWorkspaceMock);
   });
 
   it("requests a stop when the user presses Restart", async () => {
@@ -190,7 +198,7 @@ describe("WorkspacePage", () => {
       .mockResolvedValueOnce(MockWorkspaceBuild);
 
     // Render
-    await renderWorkspacePage();
+    await renderWorkspacePage(MockWorkspace);
 
     // Actions
     const user = userEvent.setup();
@@ -217,7 +225,7 @@ describe("WorkspacePage", () => {
       .spyOn(api, "cancelWorkspaceBuild")
       .mockImplementation(() => Promise.resolve({ message: "job canceled" }));
 
-    await renderWorkspacePage();
+    await renderWorkspacePage(MockWorkspace);
 
     const workspaceActions = screen.getByTestId("workspace-actions");
     const cancelButton = within(workspaceActions).getByRole("button", {
@@ -240,7 +248,7 @@ describe("WorkspacePage", () => {
       .mockResolvedValueOnce(MockWorkspaceBuild);
 
     // Render
-    await renderWorkspacePage();
+    await renderWorkspacePage(MockWorkspace);
 
     // Actions
     const user = userEvent.setup();
@@ -269,7 +277,7 @@ describe("WorkspacePage", () => {
       );
 
     // Render
-    await renderWorkspacePage();
+    await renderWorkspacePage(MockWorkspace);
 
     // Actions
     const user = userEvent.setup();
@@ -316,7 +324,7 @@ describe("WorkspacePage", () => {
   });
 
   it("shows the timeline build", async () => {
-    await renderWorkspacePage();
+    await renderWorkspacePage(MockWorkspace);
     const table = await screen.findByTestId("builds-table");
 
     // Wait for the results to be loaded
@@ -343,7 +351,7 @@ describe("WorkspacePage", () => {
     });
     const restartWorkspaceSpy = jest.spyOn(api, "restartWorkspace");
     const user = userEvent.setup();
-    await renderWorkspacePage();
+    await renderWorkspacePage(MockWorkspace);
     await user.click(screen.getByTestId("build-parameters-button"));
     const buildParametersForm = await screen.findByTestId(
       "build-parameters-form",
