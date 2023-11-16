@@ -198,7 +198,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		slog.F("remote_addr", session.RemoteAddr()),
 		slog.F("local_addr", session.LocalAddr()),
 		// Assigning a random uuid for each session is useful for tracking
-		// logs for the same ssh session in the logs.
+		// logs for the same ssh session.
 		slog.F("id", uuid.NewString()),
 	)
 	logger.Info(ctx, "handling ssh session")
