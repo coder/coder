@@ -6,6 +6,7 @@ import { rest } from "msw";
 import {
   MockTemplate,
   MockWorkspace,
+  MockFailedWorkspace,
   MockWorkspaceBuild,
   MockStoppedWorkspace,
   MockStartingWorkspace,
@@ -22,7 +23,7 @@ import { renderWithAuth } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
 import { WorkspacePage } from "./WorkspacePage";
 
-// It renders the workspace page and waits for it be loaded
+// Renders the workspace page and waits for it be loaded
 const renderWorkspacePage = async (workspace: Workspace) => {
   jest.spyOn(api, "getWorkspaceByOwnerAndName").mockResolvedValue(workspace);
   jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate);
@@ -366,6 +367,93 @@ describe("WorkspacePage", () => {
       expect(restartWorkspaceSpy).toBeCalledWith({
         workspace: MockWorkspace,
         buildParameters: [{ name: "rebuild", value: "true" }],
+      });
+    });
+  });
+
+  // Tried to get these wired up via describe.each to reduce repetition, but the
+  // syntax just got too convoluted because of the variance in what arguments
+  // each function gets called with
+  describe("Retrying failed workspaces", () => {
+    const retryButtonRe = /^Retry$/i;
+    const retryDebugButtonRe = /^Retry \(Debug\)$/i;
+
+    describe("Retries a failed 'Start' transition", () => {
+      const mockStart = jest.spyOn(api, "startWorkspace");
+      const failedStart: Workspace = {
+        ...MockFailedWorkspace,
+        latest_build: {
+          ...MockFailedWorkspace.latest_build,
+          transition: "start",
+        },
+      };
+
+      test("Retry with no debug", async () => {
+        await testButton(failedStart, retryButtonRe, mockStart);
+
+        expect(mockStart).toBeCalledWith(
+          failedStart.id,
+          failedStart.latest_build.template_version_id,
+          undefined,
+          undefined,
+        );
+      });
+
+      test("Retry with debug logs", async () => {
+        await testButton(failedStart, retryDebugButtonRe, mockStart);
+
+        expect(mockStart).toBeCalledWith(
+          failedStart.id,
+          failedStart.latest_build.template_version_id,
+          "debug",
+          undefined,
+        );
+      });
+    });
+
+    describe("Retries a failed 'Stop' transition", () => {
+      const mockStop = jest.spyOn(api, "stopWorkspace");
+      const failedStop: Workspace = {
+        ...MockFailedWorkspace,
+        latest_build: {
+          ...MockFailedWorkspace.latest_build,
+          transition: "stop",
+        },
+      };
+
+      test("Retry with no debug", async () => {
+        await testButton(failedStop, retryButtonRe, mockStop);
+        expect(mockStop).toBeCalledWith(failedStop.id, undefined);
+      });
+
+      test("Retry with debug logs", async () => {
+        await testButton(failedStop, retryDebugButtonRe, mockStop);
+        expect(mockStop).toBeCalledWith(failedStop.id, "debug");
+      });
+    });
+
+    describe("Retries a failed 'Delete' transition", () => {
+      const mockDelete = jest.spyOn(api, "deleteWorkspace");
+      const failedDelete: Workspace = {
+        ...MockFailedWorkspace,
+        latest_build: {
+          ...MockFailedWorkspace.latest_build,
+          transition: "delete",
+        },
+      };
+
+      test("Retry with no debug", async () => {
+        await testButton(failedDelete, retryButtonRe, mockDelete);
+        expect(mockDelete).toBeCalledWith(failedDelete.id, {
+          logLevel: undefined,
+        });
+      });
+
+      test("Retry with debug logs", async () => {
+        await testButton(failedDelete, retryDebugButtonRe, mockDelete);
+        expect(mockDelete).toBeCalledWith(failedDelete.id, {
+          logLevel: "debug",
+        });
       });
     });
   });
