@@ -26,7 +26,6 @@ import (
 	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/retry"
 )
 
 func TestRegions(t *testing.T) {
@@ -116,40 +115,39 @@ func TestRegions(t *testing.T) {
 		proxy, err := db.GetWorkspaceProxyByName(ctx, proxyName)
 		require.NoError(t, err)
 
-		// Refresh proxy health until it's healthy.
-		var regions []codersdk.Region
-		for r := retry.New(time.Millisecond*10, time.Second*5); r.Wait(ctx); {
-			err = api.ProxyHealth.ForceUpdate(ctx)
-			require.NoError(t, err)
-
-			regions, err = client.Regions(ctx)
-			require.NoError(t, err)
-			require.Len(t, regions, 2)
-
-			// All regions should be healthy, otherwise try updating again.
-			healthy := true
-			for _, region := range regions {
-				if region.Healthy {
-					continue
-				}
-
-				// Log the healthcheck failure reason.
-				wp, err := client.WorkspaceProxyByID(ctx, region.ID)
-				require.NoError(t, err)
-				t.Logf("region %q is not healthy yet, retrying healthcheck", region.Name)
-				for _, errMsg := range wp.Status.Report.Errors {
-					t.Logf(" - error: %s", errMsg)
-				}
-				for _, warnMsg := range wp.Status.Report.Warnings {
-					t.Logf(" - warning: %s", warnMsg)
-				}
-				healthy = false
-				break
+		// Wait for the proxy to become healthy.
+		require.Eventually(t, func() bool {
+			healthCtx := testutil.Context(t, testutil.WaitLong)
+			err := api.ProxyHealth.ForceUpdate(healthCtx)
+			if !assert.NoError(t, err) {
+				return false
 			}
-			if healthy {
-				break
+
+			wps, err := client.WorkspaceProxies(ctx)
+			if !assert.NoError(t, err) {
+				return false
 			}
-		}
+			if !assert.Len(t, wps.Regions, 2) {
+				return false
+			}
+			for _, wp := range wps.Regions {
+				if !wp.Healthy {
+					t.Logf("region %q is not healthy yet, retrying healthcheck", wp.Name)
+					for _, errMsg := range wp.Status.Report.Errors {
+						t.Logf(" - error: %s", errMsg)
+					}
+					for _, warnMsg := range wp.Status.Report.Warnings {
+						t.Logf(" - warning: %s", warnMsg)
+					}
+					return false
+				}
+			}
+			return true
+		}, testutil.WaitLong, testutil.IntervalMedium)
+
+		regions, err := client.Regions(ctx)
+		require.NoError(t, err)
+		require.Len(t, regions, 2)
 
 		// Region 0 is the primary	require.Len(t, regions, 1)
 		require.NotEqual(t, uuid.Nil, regions[0].ID)
