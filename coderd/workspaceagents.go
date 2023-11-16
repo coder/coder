@@ -1864,17 +1864,7 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 
 		select {
 		case prev := <-update:
-			// This update wasn't consumed yet, merge the keys.
-			prevKeysSet := make(map[string]struct{}, len(prev.Keys))
-			for _, key := range prev.Keys {
-				prevKeysSet[key] = struct{}{}
-			}
-			for _, key := range payload.Keys {
-				if _, ok := prevKeysSet[key]; !ok {
-					prev.Keys = append(prev.Keys, key)
-				}
-			}
-			payload.Keys = prev.Keys
+			payload.Keys = appendUnique(prev.Keys, payload.Keys)
 		default:
 		}
 		// This can never block since we pop and merge beforehand.
@@ -2021,6 +2011,21 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 
 		sendMetadata()
 	}
+}
+
+// appendUnique is like append and adds elements from src to dst,
+// skipping any elements that already exist in dst.
+func appendUnique[T comparable](dst, src []T) []T {
+	exists := make(map[T]struct{}, len(dst))
+	for _, key := range dst {
+		exists[key] = struct{}{}
+	}
+	for _, key := range src {
+		if _, ok := exists[key]; !ok {
+			dst = append(dst, key)
+		}
+	}
+	return dst
 }
 
 func convertWorkspaceAgentMetadata(db []database.WorkspaceAgentMetadatum) []codersdk.WorkspaceAgentMetadata {
