@@ -4,8 +4,8 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"os"
 	"path/filepath"
@@ -260,7 +260,7 @@ func (s *Session) extractArchive() error {
 				return xerrors.Errorf("create file %q (mode %s): %w", headerPath, mode, err)
 			}
 
-			hash := sha256.New()
+			hash := crc32.NewIEEE()
 			hashReader := io.TeeReader(reader, hash)
 			// Max file size of 10MiB.
 			size, err := io.CopyN(file, hashReader, 10<<20)
