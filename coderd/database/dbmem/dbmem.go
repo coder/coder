@@ -5905,6 +5905,7 @@ func (q *FakeQuerier) UpdateTemplateAccessControlByID(_ context.Context, arg dat
 			continue
 		}
 		q.templates[idx].RequireActiveVersion = arg.RequireActiveVersion
+		q.templates[idx].Deprecated = arg.Deprecated
 		return nil
 	}
 

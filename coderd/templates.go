@@ -584,6 +584,11 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	if req.AutostopRequirement.Weeks > schedule.MaxTemplateAutostopRequirementWeeks {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "autostop_requirement.weeks", Detail: fmt.Sprintf("Must be less than %d.", schedule.MaxTemplateAutostopRequirementWeeks)})
 	}
+	// Defaults to the existing.
+	deprecatedMessage := template.Deprecated
+	if req.DeprecatedMessage != nil {
+		deprecatedMessage = *req.DeprecatedMessage
+	}
 
 	// The minimum valid value for a dormant TTL is 1 minute. This is
 	// to ensure an uninformed user does not send an unintentionally
@@ -624,7 +629,8 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.FailureTTLMillis == time.Duration(template.FailureTTL).Milliseconds() &&
 			req.TimeTilDormantMillis == time.Duration(template.TimeTilDormant).Milliseconds() &&
 			req.TimeTilDormantAutoDeleteMillis == time.Duration(template.TimeTilDormantAutoDelete).Milliseconds() &&
-			req.RequireActiveVersion == template.RequireActiveVersion {
+			req.RequireActiveVersion == template.RequireActiveVersion &&
+			(deprecatedMessage == template.Deprecated) {
 			return nil
 		}
 
@@ -648,9 +654,10 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("update template metadata: %w", err)
 		}
 
-		if template.RequireActiveVersion != req.RequireActiveVersion {
+		if template.RequireActiveVersion != req.RequireActiveVersion || deprecatedMessage != template.Deprecated {
 			err = (*api.AccessControlStore.Load()).SetTemplateAccessControl(ctx, tx, template.ID, dbauthz.TemplateAccessControl{
 				RequireActiveVersion: req.RequireActiveVersion,
+				Deprecated:           deprecatedMessage,
 			})
 			if err != nil {
 				return xerrors.Errorf("set template access control: %w", err)
@@ -804,6 +811,7 @@ func (api *API) convertTemplates(templates []database.Template) []codersdk.Templ
 func (api *API) convertTemplate(
 	template database.Template,
 ) codersdk.Template {
+	templateAccessControl := (*(api.Options.AccessControlStore.Load())).GetTemplateAccessControl(template)
 	activeCount, _ := api.metricsCache.TemplateUniqueUsers(template.ID)
 
 	buildTimeStats := api.metricsCache.TemplateBuildTimeStats(template.ID)
@@ -843,6 +851,9 @@ func (api *API) convertTemplate(
 		AutostartRequirement: codersdk.TemplateAutostartRequirement{
 			DaysOfWeek: codersdk.BitmapToWeekdays(template.AutostartAllowedDays()),
 		},
-		RequireActiveVersion: template.RequireActiveVersion,
+		// These values depend on entitlements and come from the templateAccessControl
+		RequireActiveVersion: templateAccessControl.RequireActiveVersion,
+		Deprecated:           templateAccessControl.IsDeprecated(),
+		DeprecatedMessage:    templateAccessControl.Deprecated,
 	}
 }

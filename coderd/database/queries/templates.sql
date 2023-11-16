@@ -174,7 +174,8 @@ FROM build_times
 UPDATE
 	templates
 SET
-	require_active_version = $2
+	require_active_version = $2,
+	deprecated = $3
 WHERE
 	id = $1
 ;

@@ -18,6 +18,11 @@ type AccessControlStore interface {
 
 type TemplateAccessControl struct {
 	RequireActiveVersion bool
+	Deprecated           string
+}
+
+func (t TemplateAccessControl) IsDeprecated() bool {
+	return t.Deprecated != ""
 }
 
 // AGPLTemplateAccessControlStore always returns the defaults for access control
@@ -26,9 +31,14 @@ type AGPLTemplateAccessControlStore struct{}
 
 var _ AccessControlStore = AGPLTemplateAccessControlStore{}
 
-func (AGPLTemplateAccessControlStore) GetTemplateAccessControl(database.Template) TemplateAccessControl {
+func (AGPLTemplateAccessControlStore) GetTemplateAccessControl(t database.Template) TemplateAccessControl {
 	return TemplateAccessControl{
 		RequireActiveVersion: false,
+		// AGPL cannot set deprecated templates, but it should return
+		// existing deprecated templates. This is erroring on the safe side
+		// if a license expires, we should not allow deprecated templates
+		// to be used for new workspaces.
+		Deprecated: t.Deprecated,
 	}
 }
 

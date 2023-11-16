@@ -1966,6 +1966,7 @@ type Template struct {
 	AutostopRequirementWeeks      int64           `db:"autostop_requirement_weeks" json:"autostop_requirement_weeks"`
 	AutostartBlockDaysOfWeek      int16           `db:"autostart_block_days_of_week" json:"autostart_block_days_of_week"`
 	RequireActiveVersion          bool            `db:"require_active_version" json:"require_active_version"`
+	Deprecated                    string          `db:"deprecated" json:"deprecated"`
 	CreatedByAvatarURL            sql.NullString  `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 }
@@ -2005,6 +2006,8 @@ type TemplateTable struct {
 	// A bitmap of days of week that autostart of a workspace is not allowed. Default allows all days. This is intended as a cost savings measure to prevent auto start on weekends (for example).
 	AutostartBlockDaysOfWeek int16 `db:"autostart_block_days_of_week" json:"autostart_block_days_of_week"`
 	RequireActiveVersion     bool  `db:"require_active_version" json:"require_active_version"`
+	// If set to a non empty string, the template will no longer be able to be used. The message will be displayed to the user.
+	Deprecated string `db:"deprecated" json:"deprecated"`
 }
 
 // Joins in the username + avatar url of the created by user.

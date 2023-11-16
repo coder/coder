@@ -394,6 +394,17 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
+	templateAccessControl := (*(api.AccessControlStore.Load())).GetTemplateAccessControl(template)
+	if templateAccessControl.IsDeprecated() {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Template %q has been deprecated, and cannot be used to create a new workspace.", template.Name),
+			// Pass the deprecated message to the user.
+			Detail:      templateAccessControl.Deprecated,
+			Validations: nil,
+		})
+		return
+	}
+
 	if organization.ID != template.OrganizationID {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: fmt.Sprintf("Template is not in organization %q.", organization.Name),

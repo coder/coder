@@ -516,6 +516,29 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[4].Action)
 	})
 
+	t.Run("AGPL_Deprecated", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: false})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		req := codersdk.UpdateTemplateMeta{
+			DeprecatedMessage: ptr.Ref("APGL cannot deprecate"),
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.NoError(t, err)
+		assert.Greater(t, updated.UpdatedAt, template.UpdatedAt)
+		// AGPL cannot deprecate, expect no change
+		assert.False(t, updated.Deprecated)
+		assert.Empty(t, updated.DeprecatedMessage)
+	})
+
 	t.Run("NoDefaultTTL", func(t *testing.T) {
 		t.Parallel()
 
