@@ -6,7 +6,6 @@ import { rest } from "msw";
 import {
   MockTemplate,
   MockWorkspace,
-  MockFailedWorkspace,
   MockWorkspaceBuild,
   MockStoppedWorkspace,
   MockStartingWorkspace,
@@ -25,6 +24,7 @@ import { WorkspacePage } from "./WorkspacePage";
 
 // It renders the workspace page and waits for it be loaded
 const renderWorkspacePage = async (workspace: Workspace) => {
+  jest.spyOn(api, "getWorkspaceByOwnerAndName").mockResolvedValue(workspace);
   jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate);
   jest.spyOn(api, "getTemplateVersionRichParameters").mockResolvedValueOnce([]);
   jest
@@ -55,15 +55,14 @@ const renderWorkspacePage = async (workspace: Workspace) => {
  */
 const testButton = async (
   workspace: Workspace,
-  label: string,
+  name: string | RegExp,
   actionMock: jest.SpyInstance,
 ) => {
-  const user = userEvent.setup();
   await renderWorkspacePage(workspace);
-
   const workspaceActions = screen.getByTestId("workspace-actions");
-  const button = within(workspaceActions).getByRole("button", { name: label });
+  const button = within(workspaceActions).getByRole("button", { name });
 
+  const user = userEvent.setup();
   await user.click(button);
   expect(actionMock).toBeCalled();
 };
