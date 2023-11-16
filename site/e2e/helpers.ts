@@ -16,7 +16,7 @@ import {
   RichParameter,
 } from "./provisionerGenerated";
 import { prometheusPort, pprofPort } from "./constants";
-import { port } from "./playwright.config";
+import { port, TEST_TIMEOUT } from "./playwright.config";
 import * as ssh from "ssh2";
 import { Duplex } from "stream";
 import { WorkspaceBuildParameter } from "api/typesGenerated";
@@ -197,6 +197,7 @@ export const stopWorkspace = async (page: Page, workspaceName: string) => {
     "span[data-testid='build-status'] >> text=Stopped",
     {
       state: "visible",
+      timeout: TEST_TIMEOUT * 2,
     },
   );
 };

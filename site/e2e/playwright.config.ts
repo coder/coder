@@ -12,6 +12,8 @@ const coderMain = path.join(__dirname, "../../enterprise/cmd/coder");
 
 export const STORAGE_STATE = path.join(__dirname, ".auth.json");
 
+export const TEST_TIMEOUT = 60_000;
+
 const localURL = (port: number, path: string): string => {
   return `http://localhost:${port}${path}`;
 };
@@ -29,7 +31,7 @@ export default defineConfig({
       use: {
         storageState: STORAGE_STATE,
       },
-      timeout: 60000,
+      timeout: TEST_TIMEOUT,
     },
   ],
   reporter: [["./reporter.ts"]],
