@@ -31,3 +31,9 @@ export const SaveTemplateSettingsError: Story = {
     },
   },
 };
+
+export const NoEntitlements: Story = {
+  args: {
+    accessControlEnabled: false,
+  },
+};
