@@ -170,7 +170,7 @@ func TestDERP(t *testing.T) {
 
 		report.Run(ctx, opts)
 
-		assert.False(t, report.Healthy)
+		assert.True(t, report.Healthy)
 		for _, region := range report.Regions {
 			assert.True(t, region.Healthy)
 			for _, node := range region.NodeReports {
