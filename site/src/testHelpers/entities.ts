@@ -2376,6 +2376,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
   failing_sections: [],
   derp: {
     healthy: true,
+    warnings: [],
     regions: {
       "999": {
         healthy: true,
