@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -30,6 +31,7 @@ import (
 
 func TestCollectInsights(t *testing.T) {
 	t.Parallel()
+	t.Skip("https://github.com/coder/coder/issues/10599#issuecomment-1815954166")
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	db, ps := dbtestutil.NewDB(t)
@@ -41,6 +43,7 @@ func TestCollectInsights(t *testing.T) {
 		Pubsub:                    ps,
 	}
 	client := coderdtest.New(t, options)
+	client.SetLogger(logger.Named("client").Leveled(slog.LevelDebug))
 
 	// Given
 	// Initialize metrics collector

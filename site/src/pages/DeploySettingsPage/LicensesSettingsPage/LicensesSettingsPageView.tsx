@@ -1,6 +1,5 @@
-import { type Interpolation, type Theme } from "@emotion/react";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Button from "@mui/material/Button";
-import { useTheme } from "@mui/styles";
 import Skeleton from "@mui/material/Skeleton";
 import AddIcon from "@mui/icons-material/AddOutlined";
 import RefreshIcon from "@mui/icons-material/Refresh";

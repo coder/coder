@@ -8,12 +8,7 @@ import {
 import ScheduleIcon from "@mui/icons-material/TimerOutlined";
 import type { Workspace } from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
-import {
-  type FC,
-  type ComponentType,
-  type PropsWithChildren,
-  type ReactNode,
-} from "react";
+import { type FC, type PropsWithChildren, type ReactNode } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { combineClasses } from "utils/combineClasses";
 import GeneralIcon from "@mui/icons-material/SettingsOutlined";
@@ -74,13 +69,7 @@ const SidebarNavItem: FC<
   );
 };
 
-const SidebarNavItemIcon: FC<{
-  icon: ComponentType<{ className?: string }>;
-}> = ({ icon: Icon }) => {
-  return <Icon css={{ width: 16, height: 16 }} />;
-};
-
-export const Sidebar: React.FC<{ username: string; workspace: Workspace }> = ({
+export const Sidebar: FC<{ username: string; workspace: Workspace }> = ({
   username,
   workspace,
 }) => {
@@ -98,18 +87,21 @@ export const Sidebar: React.FC<{ username: string; workspace: Workspace }> = ({
         </Stack>
       </Stack>
 
-      <SidebarNavItem href="" icon={<SidebarNavItemIcon icon={GeneralIcon} />}>
+      <SidebarNavItem
+        href=""
+        icon={<GeneralIcon css={styles.sidebarItemIcon} />}
+      >
         General
       </SidebarNavItem>
       <SidebarNavItem
         href="parameters"
-        icon={<SidebarNavItemIcon icon={ParameterIcon} />}
+        icon={<ParameterIcon css={styles.sidebarItemIcon} />}
       >
         Parameters
       </SidebarNavItem>
       <SidebarNavItem
         href="schedule"
-        icon={<SidebarNavItemIcon icon={ScheduleIcon} />}
+        icon={<ScheduleIcon css={styles.sidebarItemIcon} />}
       >
         Schedule
       </SidebarNavItem>
@@ -121,6 +113,10 @@ const styles = {
   sidebar: {
     width: 245,
     flexShrink: 0,
+  },
+  sidebarItemIcon: {
+    width: 16,
+    height: 16,
   },
   workspaceInfo: (theme) => ({
     ...(theme.typography.body2 as CSSObject),

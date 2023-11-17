@@ -2319,12 +2319,7 @@ func ConfigureHTTPServers(logger slog.Logger, inv *clibase.Invocation, cfg *code
 			return nil, xerrors.New("tls address must be set if tls is enabled")
 		}
 
-		// DEPRECATED: This redirect used to default to true.
-		// It made more sense to have the redirect be opt-in.
-		if inv.Environ.Get("CODER_TLS_REDIRECT_HTTP") == "true" || inv.ParsedFlags().Changed("tls-redirect-http-to-https") {
-			logger.Warn(ctx, "--tls-redirect-http-to-https is deprecated, please use --redirect-to-access-url instead")
-			cfg.RedirectToAccessURL = cfg.TLS.RedirectHTTP
-		}
+		redirectHTTPToHTTPSDeprecation(ctx, logger, inv, cfg)
 
 		tlsConfig, err := configureServerTLS(
 			ctx,
@@ -2372,6 +2367,31 @@ func ConfigureHTTPServers(logger slog.Logger, inv *clibase.Invocation, cfg *code
 	}
 
 	return httpServers, nil
+}
+
+// redirectHTTPToHTTPSDeprecation handles deprecation of the --tls-redirect-http-to-https flag and
+// "related" environment variables.
+//
+// --tls-redirect-http-to-https used to default to true.
+// It made more sense to have the redirect be opt-in.
+//
+// Also, for a while we have been accepting the environment variable (but not the
+// corresponding flag!) "CODER_TLS_REDIRECT_HTTP", and it appeared in a configuration
+// example, so we keep accepting it to not break backward compat.
+func redirectHTTPToHTTPSDeprecation(ctx context.Context, logger slog.Logger, inv *clibase.Invocation, cfg *codersdk.DeploymentValues) {
+	truthy := func(s string) bool {
+		b, err := strconv.ParseBool(s)
+		if err != nil {
+			return false
+		}
+		return b
+	}
+	if truthy(inv.Environ.Get("CODER_TLS_REDIRECT_HTTP")) ||
+		truthy(inv.Environ.Get("CODER_TLS_REDIRECT_HTTP_TO_HTTPS")) ||
+		inv.ParsedFlags().Changed("tls-redirect-http-to-https") {
+		logger.Warn(ctx, "⚠️ --tls-redirect-http-to-https is deprecated, please use --redirect-to-access-url instead")
+		cfg.RedirectToAccessURL = cfg.TLS.RedirectHTTP
+	}
 }
 
 // ReadExternalAuthProvidersFromEnv is provided for compatibility purposes with

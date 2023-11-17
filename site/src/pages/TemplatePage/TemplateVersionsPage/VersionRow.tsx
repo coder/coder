@@ -80,13 +80,13 @@ export const VersionRow: React.FC<VersionRowProps> = ({
             {isLatest && <Pill text="Newest" type="info" />}
 
             {jobStatus === "pending" && (
-              <Pill text={<>Pending&hellip;</>} type="warning" lightBorder />
+              <Pill text={<>Pending&hellip;</>} type="warning" />
             )}
             {jobStatus === "running" && (
-              <Pill text={<>Building&hellip;</>} type="warning" lightBorder />
+              <Pill text={<>Building&hellip;</>} type="warning" />
             )}
             {(jobStatus === "canceling" || jobStatus === "canceled") && (
-              <Pill text="Canceled" type="neutral" lightBorder />
+              <Pill text="Canceled" type="neutral" />
             )}
             {jobStatus === "failed" && <Pill text="Failed" type="error" />}
 

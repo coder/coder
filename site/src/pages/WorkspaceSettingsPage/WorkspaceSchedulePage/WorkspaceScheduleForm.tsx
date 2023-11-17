@@ -31,6 +31,7 @@ import { getFormHelpers } from "utils/formUtils";
 import { timeZones } from "utils/timeZones";
 import { Pill } from "components/Pill/Pill";
 import Tooltip from "@mui/material/Tooltip";
+import { formatDuration, intervalToDuration } from "date-fns";
 
 // REMARK: some plugins depend on utc, so it's listed first. Otherwise they're
 //         sorted alphabetically.
@@ -61,11 +62,6 @@ export const Language = {
   startTimeLabel: "Start time",
   timezoneLabel: "Timezone",
   ttlLabel: "Time until shutdown (hours)",
-  ttlCausesShutdownHelperText: "Your workspace will shut down",
-  ttlCausesShutdownAfterStart:
-    "after its next start. We delay shutdown by this time whenever we detect activity",
-  ttlCausesNoShutdownHelperText:
-    "Your workspace will not automatically shut down.",
   formTitle: "Workspace schedule",
   startSection: "Start",
   startSwitch: "Enable Autostart",
@@ -173,7 +169,6 @@ export const validationSchema = Yup.object({
       }
     }),
   ttl: Yup.number()
-    .integer()
     .min(0)
     .max(24 * 30 /* 30 days */, Language.errorTtlMax)
     .test("positive-if-autostop", Language.errorNoStop, function (value) {
@@ -404,7 +399,7 @@ export const WorkspaceScheduleForm: FC<
           <TextField
             {...formHelpers("ttl", ttlShutdownAt(form.values.ttl), "ttl_ms")}
             disabled={isLoading || !form.values.autostopEnabled}
-            inputProps={{ min: 0, step: 1 }}
+            inputProps={{ min: 0, step: "any" }}
             label={Language.ttlLabel}
             type="number"
             fullWidth
@@ -417,12 +412,13 @@ export const WorkspaceScheduleForm: FC<
 };
 
 export const ttlShutdownAt = (formTTL: number): string => {
-  if (formTTL < 1) {
+  if (formTTL === 0) {
     // Passing an empty value for TTL in the form results in a number that is not zero but less than 1.
-    return Language.ttlCausesNoShutdownHelperText;
+    return "Your workspace will not automatically shut down.";
   } else {
-    return `${Language.ttlCausesShutdownHelperText} ${dayjs
-      .duration(formTTL, "hours")
-      .humanize()} ${Language.ttlCausesShutdownAfterStart}.`;
+    return `Your workspace will shut down ${formatDuration(
+      intervalToDuration({ start: 0, end: formTTL * 60 * 60 * 1000 }),
+      { delimiter: " and " },
+    )} after its next start. We delay shutdown by this time whenever we detect activity.`;
   }
 };

@@ -97,14 +97,14 @@ const styles = {
   }),
   successButton: (theme) => ({
     "&.MuiButton-contained": {
-      backgroundColor: theme.palette.success.main,
+      backgroundColor: theme.palette.success.dark,
 
       "&:not(.MuiLoadingButton-loading)": {
         color: theme.palette.primary.contrastText,
       },
 
       "&:hover": {
-        backgroundColor: theme.palette.success.dark,
+        backgroundColor: theme.palette.success.main,
 
         "@media (hover: none)": {
           backgroundColor: "transparent",

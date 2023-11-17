@@ -33,6 +33,12 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
 
 `GET /debug/health`
 
+### Parameters
+
+| Name    | In    | Type    | Required | Description                |
+| ------- | ----- | ------- | -------- | -------------------------- |
+| `force` | query | boolean | false    | Force a healthcheck to run |
+
 ### Example responses
 
 > 200 Response

@@ -1,7 +1,7 @@
 import { type Interpolation, type Theme } from "@emotion/react";
 import { type FC } from "react";
 import type { AuditLog } from "api/typesGenerated";
-import { colors } from "theme/colors";
+import colors from "theme/tailwind";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 
 const getDiffValue = (value: unknown): string => {
@@ -79,10 +79,10 @@ const styles = {
     overflowWrap: "anywhere",
   },
 
-  diffOld: (theme) => ({
-    backgroundColor: theme.palette.error.dark,
-    color: theme.palette.error.contrastText,
-  }),
+  diffOld: {
+    backgroundColor: colors.red[950],
+    color: colors.red[50],
+  },
 
   diffRow: {
     display: "flex",
@@ -103,10 +103,10 @@ const styles = {
     flexShrink: 0,
   }),
 
-  diffNew: (theme) => ({
-    backgroundColor: theme.palette.success.dark,
-    color: theme.palette.success.contrastText,
-  }),
+  diffNew: {
+    backgroundColor: colors.green[950],
+    color: colors.green[50],
+  },
 
   diffValue: {
     padding: 1,
@@ -114,10 +114,10 @@ const styles = {
   },
 
   diffValueOld: {
-    backgroundColor: colors.red[12],
+    backgroundColor: colors.red[800],
   },
 
   diffValueNew: {
-    backgroundColor: colors.green[12],
+    backgroundColor: colors.green[800],
   },
 } satisfies Record<string, Interpolation<Theme>>;

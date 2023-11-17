@@ -7,14 +7,21 @@ import { ThemeProvider as EmotionThemeProvider } from "@emotion/react";
 import { withRouter } from "storybook-addon-react-router-v6";
 import { HelmetProvider } from "react-helmet-async";
 import { dark } from "theme/mui";
+import { dark as experimental } from "theme/experimental";
+import colors from "theme/tailwind";
 import "theme/globalFonts";
 import { QueryClient, QueryClientProvider } from "react-query";
+
+const theme = {
+  ...dark,
+  experimental,
+};
 
 export const decorators = [
   (Story) => (
     <StyledEngineProvider injectFirst>
-      <MuiThemeProvider theme={dark}>
-        <EmotionThemeProvider theme={dark}>
+      <MuiThemeProvider theme={theme}>
+        <EmotionThemeProvider theme={theme}>
           <CssBaseline />
           <Story />
         </EmotionThemeProvider>
@@ -39,6 +46,19 @@ export const decorators = [
 ];
 
 export const parameters = {
+  backgrounds: {
+    default: "dark",
+    values: [
+      {
+        name: "dark",
+        value: colors.gray[950],
+      },
+      {
+        name: "light",
+        value: colors.gray[50],
+      },
+    ],
+  },
   actions: {
     argTypesRegex: "^(on|handler)[A-Z].*",
   },

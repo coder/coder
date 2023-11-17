@@ -709,7 +709,7 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 // with testing.
 func CreateTemplateVersion(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses, mutators ...func(*codersdk.CreateTemplateVersionRequest)) codersdk.TemplateVersion {
 	t.Helper()
-	data, err := echo.Tar(res)
+	data, err := echo.TarWithOptions(context.Background(), client.Logger(), res)
 	require.NoError(t, err)
 	file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, bytes.NewReader(data))
 	require.NoError(t, err)

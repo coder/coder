@@ -37,7 +37,9 @@ export const GroupAvatar: FC<GroupAvatarProps> = ({ name, avatarURL }) => {
       }}
       badgeContent={<Group />}
     >
-      <Avatar src={avatarURL}>{name}</Avatar>
+      <Avatar src={avatarURL} background>
+        {name}
+      </Avatar>
     </StyledBadge>
   );
 };
