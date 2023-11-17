@@ -7,6 +7,8 @@ const meta: Meta<typeof TemplateSettingsPageView> = {
   component: TemplateSettingsPageView,
   args: {
     template: MockTemplate,
+    accessControlEnabled: true,
+    templatePoliciesEnabled: true,
   },
 };
 

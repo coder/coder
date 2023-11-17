@@ -43,6 +43,7 @@ export const WithTemplates: Story = {
         name: "template-without-icon",
         display_name: "No Icon",
         description: "This one has no icon",
+        icon: "",
       },
       {
         ...MockTemplate,
@@ -51,6 +52,7 @@ export const WithTemplates: Story = {
         description: "This one has no icon and is deprecated",
         deprecated: true,
         deprecation_message: "This template is so old, it's deprecated",
+        icon: "",
       },
       {
         ...MockTemplate,
