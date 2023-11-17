@@ -2379,6 +2379,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
     regions: {
       "999": {
         healthy: true,
+        warnings: [],
         region: {
           EmbeddedRelay: true,
           RegionID: 999,
@@ -2548,6 +2549,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
       },
       "10008": {
         healthy: true,
+        warnings: [],
         region: {
           EmbeddedRelay: false,
           RegionID: 10008,
