@@ -85,7 +85,13 @@ export function HealthPageView({
             </PageHeaderTitle>
             <PageHeaderSubtitle>
               {healthStatus.healthy
-                ? "All systems operational"
+                ? Object.keys(sections).some(
+                    (key) =>
+                      healthStatus[key as keyof typeof sections]?.warnings
+                        .length > 0,
+                  )
+                  ? "All systems operational, but performance might be degraded"
+                  : "All systems operational"
                 : "Some issues have been detected"}
             </PageHeaderSubtitle>
           </div>
@@ -137,9 +143,10 @@ export function HealthPageView({
               .map((key) => {
                 const label = sections[key as keyof typeof sections];
                 const isActive = tab.value === key;
-                const isHealthy =
-                  healthStatus[key as keyof typeof sections].healthy;
-
+                const healthSection =
+                  healthStatus[key as keyof typeof sections];
+                const isHealthy = healthSection.healthy;
+                const isWarning = healthSection.warnings.length > 0;
                 return (
                   <Box
                     component="button"
@@ -171,13 +178,23 @@ export function HealthPageView({
                     }}
                   >
                     {isHealthy ? (
-                      <CheckCircleOutlined
-                        sx={{
-                          width: 16,
-                          height: 16,
-                          color: (theme) => theme.palette.success.light,
-                        }}
-                      />
+                      isWarning ? (
+                        <CheckCircleOutlined
+                          sx={{
+                            width: 16,
+                            height: 16,
+                            color: (theme) => theme.palette.warning.main,
+                          }}
+                        />
+                      ) : (
+                        <CheckCircleOutlined
+                          sx={{
+                            width: 16,
+                            height: 16,
+                            color: (theme) => theme.palette.success.light,
+                          }}
+                        />
+                      )
                     ) : (
                       <ErrorOutline
                         sx={{
