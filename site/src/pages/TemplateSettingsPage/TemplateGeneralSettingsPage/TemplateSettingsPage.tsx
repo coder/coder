@@ -10,7 +10,10 @@ import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateSettingsPageView } from "./TemplateSettingsPageView";
 import { templateByNameKey } from "api/queries/templates";
 import { useOrganizationId } from "hooks";
-import { useTemplatePoliciesEnabled } from "components/Dashboard/DashboardProvider";
+import {
+  useAccessControlEntitled,
+  useTemplatePoliciesEnabled,
+} from "components/Dashboard/DashboardProvider";
 
 export const TemplateSettingsPage: FC = () => {
   const { template: templateName } = useParams() as { template: string };
@@ -18,7 +21,8 @@ export const TemplateSettingsPage: FC = () => {
   const orgId = useOrganizationId();
   const { template } = useTemplateSettings();
   const queryClient = useQueryClient();
-  const accessControlEnabled = useTemplatePoliciesEnabled();
+  const accessControlEnabled = useAccessControlEntitled();
+  const templatePoliciesEnabled = useTemplatePoliciesEnabled();
 
   const {
     mutate: updateTemplate,
@@ -55,6 +59,7 @@ export const TemplateSettingsPage: FC = () => {
           });
         }}
         accessControlEnabled={accessControlEnabled}
+        templatePoliciesEnabled={templatePoliciesEnabled}
       />
     </>
   );
