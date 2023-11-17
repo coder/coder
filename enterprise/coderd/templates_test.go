@@ -113,13 +113,13 @@ func TestTemplates(t *testing.T) {
 		defer cancel()
 
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			DeprecatedMessage: ptr.Ref("Stop using this template"),
+			DeprecationMessage: ptr.Ref("Stop using this template"),
 		})
 		require.NoError(t, err)
 		assert.Greater(t, updated.UpdatedAt, template.UpdatedAt)
 		// AGPL cannot deprecate, expect no change
 		assert.True(t, updated.Deprecated)
-		assert.NotEmpty(t, updated.DeprecatedMessage)
+		assert.NotEmpty(t, updated.DeprecationMessage)
 
 		_, err = client.CreateWorkspace(ctx, user.OrganizationID, codersdk.Me, codersdk.CreateWorkspaceRequest{
 			TemplateID: template.ID,

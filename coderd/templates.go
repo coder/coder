@@ -604,9 +604,9 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "autostop_requirement.weeks", Detail: fmt.Sprintf("Must be less than %d.", schedule.MaxTemplateAutostopRequirementWeeks)})
 	}
 	// Defaults to the existing.
-	deprecatedMessage := template.Deprecated
-	if req.DeprecatedMessage != nil {
-		deprecatedMessage = *req.DeprecatedMessage
+	deprecationMessage := template.Deprecated
+	if req.DeprecationMessage != nil {
+		deprecationMessage = *req.DeprecationMessage
 	}
 
 	// The minimum valid value for a dormant TTL is 1 minute. This is
@@ -649,7 +649,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.TimeTilDormantMillis == time.Duration(template.TimeTilDormant).Milliseconds() &&
 			req.TimeTilDormantAutoDeleteMillis == time.Duration(template.TimeTilDormantAutoDelete).Milliseconds() &&
 			req.RequireActiveVersion == template.RequireActiveVersion &&
-			(deprecatedMessage == template.Deprecated) {
+			(deprecationMessage == template.Deprecated) {
 			return nil
 		}
 
@@ -673,10 +673,10 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("update template metadata: %w", err)
 		}
 
-		if template.RequireActiveVersion != req.RequireActiveVersion || deprecatedMessage != template.Deprecated {
+		if template.RequireActiveVersion != req.RequireActiveVersion || deprecationMessage != template.Deprecated {
 			err = (*api.AccessControlStore.Load()).SetTemplateAccessControl(ctx, tx, template.ID, dbauthz.TemplateAccessControl{
 				RequireActiveVersion: req.RequireActiveVersion,
-				Deprecated:           deprecatedMessage,
+				Deprecated:           deprecationMessage,
 			})
 			if err != nil {
 				return xerrors.Errorf("set template access control: %w", err)
@@ -873,6 +873,6 @@ func (api *API) convertTemplate(
 		// These values depend on entitlements and come from the templateAccessControl
 		RequireActiveVersion: templateAccessControl.RequireActiveVersion,
 		Deprecated:           templateAccessControl.IsDeprecated(),
-		DeprecatedMessage:    templateAccessControl.Deprecated,
+		DeprecationMessage:   templateAccessControl.Deprecated,
 	}
 }

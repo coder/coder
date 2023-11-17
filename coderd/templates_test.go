@@ -525,7 +525,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 		req := codersdk.UpdateTemplateMeta{
-			DeprecatedMessage: ptr.Ref("APGL cannot deprecate"),
+			DeprecationMessage: ptr.Ref("APGL cannot deprecate"),
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -536,7 +536,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Greater(t, updated.UpdatedAt, template.UpdatedAt)
 		// AGPL cannot deprecate, expect no change
 		assert.False(t, updated.Deprecated)
-		assert.Empty(t, updated.DeprecatedMessage)
+		assert.Empty(t, updated.DeprecationMessage)
 	})
 
 	t.Run("NoDefaultTTL", func(t *testing.T) {

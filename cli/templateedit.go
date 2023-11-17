@@ -33,7 +33,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 		allowUserAutostart             bool
 		allowUserAutostop              bool
 		requireActiveVersion           bool
-		deprecatedMessage              string
+		deprecationMessage             string
 	)
 	client := new(codersdk.Client)
 
@@ -126,7 +126,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 			var deprecated *string
 			opt := inv.Command.Options.ByName(deprecatedFlagName)
 			if !(opt.ValueSource == "" || opt.ValueSource == clibase.ValueSourceDefault) {
-				deprecated = &deprecatedMessage
+				deprecated = &deprecationMessage
 			}
 
 			// NOTE: coderd will ignore empty fields.
@@ -150,7 +150,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				AllowUserAutostart:           allowUserAutostart,
 				AllowUserAutostop:            allowUserAutostop,
 				RequireActiveVersion:         requireActiveVersion,
-				DeprecatedMessage:            deprecated,
+				DeprecationMessage:           deprecated,
 			}
 
 			_, err = client.UpdateTemplateMeta(inv.Context(), template.ID, req)
@@ -182,7 +182,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 			Name:        deprecatedFlagName,
 			Flag:        "deprecated",
 			Description: "Sets the template as deprecated. Must be a message explaining why the template is deprecated.",
-			Value:       clibase.StringOf(&deprecatedMessage),
+			Value:       clibase.StringOf(&deprecationMessage),
 		},
 		{
 			Flag:        "icon",

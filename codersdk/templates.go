@@ -24,13 +24,13 @@ type Template struct {
 	Provisioner     ProvisionerType `json:"provisioner" enums:"terraform"`
 	ActiveVersionID uuid.UUID       `json:"active_version_id" format:"uuid"`
 	// ActiveUserCount is set to -1 when loading.
-	ActiveUserCount   int                    `json:"active_user_count"`
-	BuildTimeStats    TemplateBuildTimeStats `json:"build_time_stats"`
-	Description       string                 `json:"description"`
-	Deprecated        bool                   `json:"deprecated"`
-	DeprecatedMessage string                 `json:"deprecated_message"`
-	Icon              string                 `json:"icon"`
-	DefaultTTLMillis  int64                  `json:"default_ttl_ms"`
+	ActiveUserCount    int                    `json:"active_user_count"`
+	BuildTimeStats     TemplateBuildTimeStats `json:"build_time_stats"`
+	Description        string                 `json:"description"`
+	Deprecated         bool                   `json:"deprecated"`
+	DeprecationMessage string                 `json:"deprecation_message"`
+	Icon               string                 `json:"icon"`
+	DefaultTTLMillis   int64                  `json:"default_ttl_ms"`
 	// TODO(@dean): remove max_ttl once autostop_requirement is matured
 	MaxTTLMillis int64 `json:"max_ttl_ms"`
 	// AutostopRequirement and AutostartRequirement are enterprise features. Its
@@ -231,11 +231,11 @@ type UpdateTemplateMeta struct {
 	// use the active version of the template. This option has no
 	// effect on template admins.
 	RequireActiveVersion bool `json:"require_active_version"`
-	// DeprecatedMessage if set, will mark the template as deprecated and block
+	// DeprecationMessage if set, will mark the template as deprecated and block
 	// any new workspaces from using this template.
 	// If passed an empty string, will remove the deprecated message, making
 	// the template usable for new workspaces again.
-	DeprecatedMessage *string `json:"deprecated_message"`
+	DeprecationMessage *string `json:"deprecation_message"`
 }
 
 type TemplateExample struct {
