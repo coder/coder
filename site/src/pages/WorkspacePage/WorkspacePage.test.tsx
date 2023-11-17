@@ -183,7 +183,7 @@ describe("WorkspacePage", () => {
       .spyOn(api, "startWorkspace")
       .mockImplementation(() => Promise.resolve(MockWorkspaceBuild));
 
-      await testButton(MockStoppedWorkspace, "Start", startWorkspaceMock);
+    await testButton(MockStoppedWorkspace, "Start", startWorkspaceMock);
   });
 
   it("requests a stop job when the user presses Stop", async () => {
