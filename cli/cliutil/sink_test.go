@@ -1,17 +1,17 @@
 package cliutil_test
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliutil"
 )
 
 func TestDiscardAfterClose(t *testing.T) {
 	t.Parallel()
-	exErr := errors.New("test")
+	exErr := xerrors.New("test")
 	fwc := &fakeWriteCloser{err: exErr}
 	uut := cliutil.DiscardAfterClose(fwc)
 
