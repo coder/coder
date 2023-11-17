@@ -172,7 +172,7 @@ func TestDERP(t *testing.T) {
 
 		assert.False(t, report.Healthy)
 		for _, region := range report.Regions {
-			assert.False(t, region.Healthy)
+			assert.True(t, region.Healthy)
 			for _, node := range region.NodeReports {
 				assert.True(t, node.Healthy)
 				assert.True(t, node.CanExchangeMessages)
