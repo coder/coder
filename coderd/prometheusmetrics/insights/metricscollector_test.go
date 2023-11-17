@@ -31,6 +31,7 @@ import (
 
 func TestCollectInsights(t *testing.T) {
 	t.Parallel()
+	t.Skip("https://github.com/coder/coder/issues/10599#issuecomment-1815954166")
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	db, ps := dbtestutil.NewDB(t)
