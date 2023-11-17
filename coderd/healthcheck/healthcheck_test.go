@@ -58,7 +58,7 @@ func TestHealthcheck(t *testing.T) {
 			},
 		},
 		healthy:         true,
-		failingSections: nil,
+		failingSections: []string{},
 	}, {
 		name: "DERPFail",
 		checker: &testChecker{
@@ -95,7 +95,7 @@ func TestHealthcheck(t *testing.T) {
 			},
 		},
 		healthy:         true,
-		failingSections: nil,
+		failingSections: []string{},
 	}, {
 		name: "AccessURLFail",
 		checker: &testChecker{

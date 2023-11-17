@@ -89,6 +89,7 @@ type ReportOptions struct {
 func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 	r.Healthy = true
 	r.Regions = map[int]*RegionReport{}
+	r.Warnings = []string{}
 
 	wg := &sync.WaitGroup{}
 	mu := sync.Mutex{}
