@@ -5,16 +5,15 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/v2/testutil"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 const (

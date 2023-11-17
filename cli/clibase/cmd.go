@@ -226,6 +226,15 @@ func (inv *Invocation) SignalNotifyContext(parent context.Context, signals ...os
 	return inv.signalNotifyContext(parent, signals...)
 }
 
+func (inv *Invocation) WithTestParsedFlags(
+	_ testing.TB, // ensure we only call this from tests
+	parsedFlags *pflag.FlagSet,
+) *Invocation {
+	return inv.with(func(i *Invocation) {
+		i.parsedFlags = parsedFlags
+	})
+}
+
 func (inv *Invocation) Context() context.Context {
 	if inv.ctx == nil {
 		return context.Background()
