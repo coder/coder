@@ -1,8 +1,8 @@
 import { css } from "@emotion/css";
 import { type Interpolation, type Theme } from "@emotion/react";
-import Link from "@mui/material/Link";
+import Link, { LinkProps } from "@mui/material/Link";
 import { WorkspaceOutdatedTooltip } from "components/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
-import { type FC } from "react";
+import { forwardRef, type FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import {
   getDisplayWorkspaceTemplateName,
@@ -26,6 +26,8 @@ import {
 } from "components/Popover/Popover";
 import { workspaceQuota } from "api/queries/workspaceQuota";
 import { useQuery } from "react-query";
+import Tooltip from "@mui/material/Tooltip";
+import _ from "lodash";
 
 const Language = {
   workspaceDetails: "Workspace Details",
@@ -120,16 +122,15 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
             css={styles.statsItem}
             label={getScheduleLabel(workspace)}
             value={
-              <span css={styles.scheduleValue}>
-                <Link
-                  component={RouterLink}
-                  to="settings/schedule"
-                  title="Schedule settings"
-                >
-                  {isWorkspaceOn(workspace)
-                    ? autostopDisplay(workspace)
-                    : autostartDisplay(workspace.autostart_schedule)}
-                </Link>
+              <div css={styles.scheduleValue}>
+                {isWorkspaceOn(workspace) ? (
+                  <AutoStopDisplay workspace={workspace} />
+                ) : (
+                  <ScheduleSettingsLink>
+                    {autostartDisplay(workspace.autostart_schedule)}
+                  </ScheduleSettingsLink>
+                )}
+
                 {canUpdateWorkspace && canEditDeadline(workspace) && (
                   <span css={styles.scheduleControls}>
                     <Popover>
@@ -178,7 +179,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
                     </Popover>
                   </span>
                 )}
-              </span>
+              </div>
             }
           />
         )}
@@ -220,6 +221,7 @@ const AddTimeContent = (props: {
         }}
       >
         <TextField
+          autoFocus
           name="hours"
           type="number"
           size="small"
@@ -268,6 +270,7 @@ export const DecreaseTimeContent = (props: {
         }}
       >
         <TextField
+          autoFocus
           name="hours"
           type="number"
           size="small"
@@ -292,6 +295,47 @@ export const DecreaseTimeContent = (props: {
   );
 };
 
+const AutoStopDisplay = (props: { workspace: Workspace }) => {
+  const { workspace } = props;
+  const display = autostopDisplay(workspace);
+
+  if (display.tooltip) {
+    return (
+      <Tooltip title={display.tooltip}>
+        <ScheduleSettingsLink
+          css={(theme) => ({
+            color: isShutdownSoon(workspace)
+              ? `${theme.palette.warning.light} !important`
+              : undefined,
+          })}
+        >
+          {display.message}
+        </ScheduleSettingsLink>
+      </Tooltip>
+    );
+  }
+
+  return <ScheduleSettingsLink>{display.message}</ScheduleSettingsLink>;
+};
+
+const ScheduleSettingsLink = forwardRef<HTMLAnchorElement, LinkProps>(
+  (props, ref) => {
+    return (
+      <Link
+        ref={ref}
+        component={RouterLink}
+        to="settings/schedule"
+        css={{
+          "&:first-letter": {
+            textTransform: "uppercase",
+          },
+        }}
+        {...props}
+      />
+    );
+  },
+);
+
 export const canEditDeadline = (workspace: Workspace): boolean => {
   return isWorkspaceOn(workspace) && Boolean(workspace.latest_build.deadline);
 };
@@ -307,7 +351,19 @@ export const shouldDisplayScheduleLabel = (workspace: Workspace): boolean => {
 };
 
 const getScheduleLabel = (workspace: Workspace) => {
-  return isWorkspaceOn(workspace) ? "Stops at" : "Starts at";
+  return isWorkspaceOn(workspace) ? "Stops" : "Starts at";
+};
+
+const isShutdownSoon = (workspace: Workspace): boolean => {
+  const deadline = workspace.latest_build.deadline;
+  if (!deadline) {
+    return false;
+  }
+  const deadlineDate = new Date(deadline);
+  const now = new Date();
+  const diff = deadlineDate.getTime() - now.getTime();
+  const oneHour = 1000 * 60 * 60;
+  return diff < oneHour;
 };
 
 const timePopoverFieldInputStyles = css`
@@ -369,6 +425,7 @@ const styles = {
 
   timePopoverTitle: {
     fontWeight: 600,
+    marginBottom: 8,
   },
 
   timePopoverDescription: (theme) => ({
@@ -380,6 +437,7 @@ const styles = {
     alignItems: "center",
     gap: 8,
     padding: "8px 0",
+    marginTop: 12,
   },
 
   timePopoverField: {
