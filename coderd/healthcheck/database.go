@@ -16,7 +16,9 @@ const (
 
 // @typescript-generate DatabaseReport
 type DatabaseReport struct {
-	Healthy     bool    `json:"healthy"`
+	Healthy  bool     `json:"healthy"`
+	Warnings []string `json:"warnings"`
+
 	Reachable   bool    `json:"reachable"`
 	Latency     string  `json:"latency"`
 	LatencyMS   int64   `json:"latency_ms"`

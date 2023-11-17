@@ -78,6 +78,25 @@ func TestHealthcheck(t *testing.T) {
 		healthy:         false,
 		failingSections: []string{healthcheck.SectionDERP},
 	}, {
+		name: "DERPWarning",
+		checker: &testChecker{
+			DERPReport: derphealth.Report{
+				Healthy:  true,
+				Warnings: []string{"foobar"},
+			},
+			AccessURLReport: healthcheck.AccessURLReport{
+				Healthy: true,
+			},
+			WebsocketReport: healthcheck.WebsocketReport{
+				Healthy: true,
+			},
+			DatabaseReport: healthcheck.DatabaseReport{
+				Healthy: true,
+			},
+		},
+		healthy:         true,
+		failingSections: nil,
+	}, {
 		name: "AccessURLFail",
 		checker: &testChecker{
 			DERPReport: derphealth.Report{
@@ -153,6 +172,7 @@ func TestHealthcheck(t *testing.T) {
 			assert.Equal(t, c.healthy, report.Healthy)
 			assert.Equal(t, c.failingSections, report.FailingSections)
 			assert.Equal(t, c.checker.DERPReport.Healthy, report.DERP.Healthy)
+			assert.Equal(t, c.checker.DERPReport.Warnings, report.DERP.Warnings)
 			assert.Equal(t, c.checker.AccessURLReport.Healthy, report.AccessURL.Healthy)
 			assert.Equal(t, c.checker.WebsocketReport.Healthy, report.Websocket.Healthy)
 			assert.NotZero(t, report.Time)
