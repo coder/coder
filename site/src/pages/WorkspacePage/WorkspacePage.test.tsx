@@ -178,10 +178,12 @@ describe("WorkspacePage", () => {
         },
       ),
     );
+
     const startWorkspaceMock = jest
       .spyOn(api, "startWorkspace")
       .mockImplementation(() => Promise.resolve(MockWorkspaceBuild));
-    await testButton(MockWorkspace, "Start", startWorkspaceMock);
+
+      await testButton(MockStoppedWorkspace, "Start", startWorkspaceMock);
   });
 
   it("requests a stop job when the user presses Stop", async () => {
@@ -221,20 +223,12 @@ describe("WorkspacePage", () => {
         },
       ),
     );
+
     const cancelWorkspaceMock = jest
       .spyOn(api, "cancelWorkspaceBuild")
       .mockImplementation(() => Promise.resolve({ message: "job canceled" }));
 
-    await renderWorkspacePage(MockWorkspace);
-
-    const workspaceActions = screen.getByTestId("workspace-actions");
-    const cancelButton = within(workspaceActions).getByRole("button", {
-      name: "Cancel",
-    });
-
-    await userEvent.click(cancelButton);
-
-    expect(cancelWorkspaceMock).toBeCalled();
+    await testButton(MockStartingWorkspace, "Cancel", cancelWorkspaceMock);
   });
 
   it("requests an update when the user presses Update", async () => {
