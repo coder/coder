@@ -55,7 +55,7 @@ const SidebarNavItem: FC<
       position: absolute;
       left: 0;
       top: 0;
-      background-color: ${theme.palette.secondary.dark};
+      background-color: ${theme.palette.primary.main};
       border-top-left-radius: 8px;
       border-bottom-left-radius: 8px;
     }

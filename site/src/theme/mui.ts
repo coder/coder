@@ -7,6 +7,8 @@ import {
   BUTTON_MD_HEIGHT,
   BUTTON_SM_HEIGHT,
 } from "./constants";
+// eslint-disable-next-line no-restricted-imports -- We need MUI here
+import { alertClasses } from "@mui/material/Alert";
 
 export type PaletteIndex =
   | "primary"
@@ -41,7 +43,7 @@ export let dark = createTheme({
     },
     text: {
       primary: colors.gray[1],
-      secondary: colors.gray[4],
+      secondary: colors.gray[6],
       disabled: colors.gray[9],
     },
     divider: colors.gray[13],
@@ -514,6 +516,21 @@ dark = createTheme(dark, {
         message: ({ theme }) => ({
           color: theme.palette.text.primary,
         }),
+        outlinedWarning: {
+          [`& .${alertClasses.icon}`]: {
+            color: dark.palette.warning.light,
+          },
+        },
+        outlinedInfo: {
+          [`& .${alertClasses.icon}`]: {
+            color: dark.palette.primary.light,
+          },
+        },
+        outlinedError: {
+          [`& .${alertClasses.icon}`]: {
+            color: dark.palette.error.light,
+          },
+        },
       },
     },
     MuiAlertTitle: {

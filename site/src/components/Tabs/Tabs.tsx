@@ -51,7 +51,7 @@ export const TabLink = (props: NavLinkProps) => {
       bottom: 0;
       height: 2px;
       width: 100%;
-      background: ${theme.palette.secondary.dark};
+      background: ${theme.palette.primary.main};
       position: absolute;
     }
   `;
