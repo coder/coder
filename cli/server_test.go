@@ -683,6 +683,12 @@ func TestServer(t *testing.T) {
 						require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 						require.Equal(t, c.expectRedirect, resp.Header.Get("Location"))
 					}
+
+					// We should never redirect DERP
+					respDERP, err := client.Request(ctx, http.MethodGet, "/derp", nil)
+					require.NoError(t, err)
+					defer respDERP.Body.Close()
+					require.Equal(t, http.StatusUpgradeRequired, respDERP.StatusCode)
 				}
 
 				// Verify TLS
