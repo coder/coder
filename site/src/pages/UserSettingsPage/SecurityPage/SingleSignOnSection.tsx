@@ -5,7 +5,6 @@ import Box from "@mui/material/Box";
 import GitHubIcon from "@mui/icons-material/GitHub";
 import KeyIcon from "@mui/icons-material/VpnKey";
 import Button from "@mui/material/Button";
-import Typography from "@mui/material/Typography";
 import { convertToOAUTH } from "api/api";
 import type {
   AuthMethods,
@@ -278,11 +277,11 @@ const ConfirmLoginTypeChangeModal = ({
       title="Change login type"
       confirmLoading={loading}
       description={
-        <Stack>
-          <Typography>
+        <Stack spacing={4}>
+          <p>
             After changing your login type, you will not be able to change it
             again. Are you sure you want to proceed and change your login type?
-          </Typography>
+          </p>
           <TextField
             autoFocus
             onKeyDown={(event) => {
