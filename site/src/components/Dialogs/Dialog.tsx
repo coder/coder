@@ -1,6 +1,5 @@
 import MuiDialog, { DialogProps as MuiDialogProps } from "@mui/material/Dialog";
 import { type ReactNode } from "react";
-import { colors } from "theme/colors";
 import { ConfirmDialogType } from "./types";
 import { type Interpolation, type Theme } from "@emotion/react";
 import LoadingButton, { LoadingButtonProps } from "@mui/lab/LoadingButton";
