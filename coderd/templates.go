@@ -437,6 +437,24 @@ func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
 
+	p := httpapi.NewQueryParamParser()
+	values := r.URL.Query()
+
+	deprecated := sql.NullBool{}
+	if values.Has("deprecated") {
+		deprecated = sql.NullBool{
+			Bool:  p.Boolean(values, false, "deprecated"),
+			Valid: true,
+		}
+	}
+	if len(p.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid query params.",
+			Validations: p.Errors,
+		})
+		return
+	}
+
 	prepared, err := api.HTTPAuth.AuthorizeSQLFilter(r, rbac.ActionRead, rbac.ResourceTemplate.Type)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -449,6 +467,7 @@ func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 	// Filter templates based on rbac permissions
 	templates, err := api.Database.GetAuthorizedTemplates(ctx, database.GetTemplatesWithFilterParams{
 		OrganizationID: organization.ID,
+		Deprecated:     deprecated,
 	}, prepared)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil

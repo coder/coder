@@ -5369,16 +5369,28 @@ WHERE
 			id = ANY($4)
 		ELSE true
 	END
+	-- Filter by deprecated
+	AND CASE
+		WHEN $5 :: boolean IS NOT NULL THEN
+			CASE
+				WHEN $5 :: boolean THEN
+					deprecated != ''
+				ELSE
+					deprecated = ''
+			END
+		ELSE true
+	END
   -- Authorize Filter clause will be injected below in GetAuthorizedTemplates
   -- @authorize_filter
 ORDER BY (name, id) ASC
 `
 
 type GetTemplatesWithFilterParams struct {
-	Deleted        bool        `db:"deleted" json:"deleted"`
-	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
-	ExactName      string      `db:"exact_name" json:"exact_name"`
-	IDs            []uuid.UUID `db:"ids" json:"ids"`
+	Deleted        bool         `db:"deleted" json:"deleted"`
+	OrganizationID uuid.UUID    `db:"organization_id" json:"organization_id"`
+	ExactName      string       `db:"exact_name" json:"exact_name"`
+	IDs            []uuid.UUID  `db:"ids" json:"ids"`
+	Deprecated     sql.NullBool `db:"deprecated" json:"deprecated"`
 }
 
 func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplatesWithFilterParams) ([]Template, error) {
@@ -5387,6 +5399,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 		arg.OrganizationID,
 		arg.ExactName,
 		pq.Array(arg.IDs),
+		arg.Deprecated,
 	)
 	if err != nil {
 		return nil, err

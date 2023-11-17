@@ -17,7 +17,8 @@ export const useTemplateFilterMenu = ({
     value,
     id: "template",
     getSelectedOption: async () => {
-      const templates = await getTemplates(orgId);
+      // Show all templates including deprecated
+      const templates = await getTemplates(orgId, undefined);
       const template = templates.find((template) => template.name === value);
       if (template) {
         return {
@@ -32,7 +33,8 @@ export const useTemplateFilterMenu = ({
       return null;
     },
     getOptions: async (query) => {
-      const templates = await getTemplates(orgId);
+      // Show all templates including deprecated
+      const templates = await getTemplates(orgId, undefined);
       const filteredTemplates = templates.filter(
         (template) =>
           template.name.toLowerCase().includes(query.toLowerCase()) ||
