@@ -1023,6 +1023,24 @@ func TestAuthorizeScope(t *testing.T) {
 	)
 }
 
+func TestCanceledPrepare(t *testing.T) {
+	t.Parallel()
+
+	authorizer := NewAuthorizer(prometheus.NewRegistry())
+	// This context is canceled intentionally to test the prepare error.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// The error should be a `context.Canceled` error.
+	// By default Rego throws a custom cancelled error.
+	_, err := authorizer.Prepare(ctx, Subject{
+		ID:    "foo",
+		Roles: RoleNames{RoleOwner()},
+		Scope: ScopeAll,
+	}, ActionRead, ResourceWorkspace.Type)
+	require.ErrorIs(t, err, context.Canceled, "expected canceled context")
+}
+
 // cases applies a given function to all test cases. This makes generalities easier to create.
 func cases(opt func(c authTestCase) authTestCase, cases []authTestCase) []authTestCase {
 	if opt == nil {
