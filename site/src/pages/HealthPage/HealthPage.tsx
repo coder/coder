@@ -103,7 +103,9 @@ export function HealthPageView({
               {healthStatus.healthy
                 ? Object.keys(sections).some(
                     (key) =>
-                      healthStatus[key as keyof typeof sections]?.warnings
+                      healthStatus[key as keyof typeof sections].warnings !==
+                        null &&
+                      healthStatus[key as keyof typeof sections].warnings
                         .length > 0,
                   )
                   ? "All systems operational, but performance might be degraded"
@@ -163,7 +165,7 @@ export function HealthPageView({
                 const healthSection =
                   healthStatus[key as keyof typeof sections];
                 const isHealthy = healthSection.healthy;
-                const isWarning = healthSection.warnings.length > 0;
+                const isWarning = healthSection.warnings?.length > 0;
                 return (
                   <Box
                     component="button"
