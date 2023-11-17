@@ -19,8 +19,8 @@ import {
 const PAGE_NUMBER_PARAMS_KEY = "page";
 
 /**
- * Information about a paginated request. Passed into both the queryKey and
- * queryFn functions on each render
+ * Information about a paginated request. This information is passed into the
+ * queryPayload, queryKey, and queryFn properties of the hook.
  */
 type QueryPageParams = {
   pageNumber: number;
@@ -41,7 +41,7 @@ type PaginatedData = {
   count: number;
 };
 
-type QueryFnContext<TQueryKey extends QueryKey = QueryKey> =
+type PaginatedQueryFnContext<TQueryKey extends QueryKey = QueryKey> =
   QueryPageParamsWithPayload &
     Omit<QueryFunctionContext<TQueryKey>, "pageParam">;
 
@@ -65,7 +65,8 @@ export type UsePaginatedQueryOptions<
    * queryFn. The value will be exposed via the "payload" property in
    * QueryPageParams.
    *
-   * Mainly here for convenience and minimizing copy-and-pasting.
+   * Mainly here for convenience and minimizing copy-and-pasting between
+   * queryKey and queryFn.
    */
   queryPayload?: (params: QueryPageParams) => TQueryPayload;
 
@@ -82,7 +83,7 @@ export type UsePaginatedQueryOptions<
    * information through the pageParams context property
    */
   queryFn: (
-    context: QueryFnContext<TQueryKey>,
+    context: PaginatedQueryFnContext<TQueryKey>,
   ) => TQueryFnData | Promise<TQueryFnData>;
 };
 
@@ -126,7 +127,8 @@ export function usePaginatedQuery<
   };
 
   // Not using infinite query right now because that requires a fair bit of list
-  // virtualization as the lists get bigger (especially for the audit logs)
+  // virtualization as the lists get bigger (especially for the audit logs).
+  // Keeping initial implementation simple.
   const query = useQuery<TQueryFnData, TError, TData, TQueryKey>({
     ...extraOptions,
     ...getQueryOptionsFromPage(currentPage),
