@@ -33,7 +33,11 @@ export const templateByName = (
   };
 };
 
-const getTemplatesQueryKey = (orgId: string, deprecated?: boolean) => [orgId, "templates", deprecated];
+const getTemplatesQueryKey = (orgId: string, deprecated?: boolean) => [
+  orgId,
+  "templates",
+  deprecated,
+];
 
 export const templates = (orgId: string, deprecated?: boolean) => {
   return {
