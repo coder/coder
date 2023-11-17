@@ -1,6 +1,5 @@
 import MuiDialog, { DialogProps as MuiDialogProps } from "@mui/material/Dialog";
 import { type ReactNode } from "react";
-import { colors } from "theme/colors";
 import { ConfirmDialogType } from "./types";
 import { type Interpolation, type Theme } from "@emotion/react";
 import LoadingButton, { LoadingButtonProps } from "@mui/lab/LoadingButton";
@@ -73,24 +72,24 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
 const styles = {
   warningButton: (theme) => ({
     "&.MuiButton-contained": {
-      backgroundColor: colors.orange[12],
-      borderColor: colors.orange[9],
+      backgroundColor: theme.palette.warning.main,
+      borderColor: theme.palette.warning.main,
 
       "&:not(.MuiLoadingButton-loading)": {
         color: theme.palette.text.primary,
       },
 
       "&:hover:not(:disabled)": {
-        backgroundColor: colors.orange[9],
-        borderColor: colors.orange[9],
+        backgroundColor: theme.palette.warning.main,
+        borderColor: theme.palette.warning.main,
       },
 
       "&.Mui-disabled": {
-        backgroundColor: colors.orange[14],
-        borderColor: colors.orange[15],
+        backgroundColor: theme.palette.warning.dark,
+        borderColor: theme.palette.warning.dark,
 
         "&:not(.MuiLoadingButton-loading)": {
-          color: colors.orange[12],
+          color: theme.palette.warning.main,
         },
       },
     },
