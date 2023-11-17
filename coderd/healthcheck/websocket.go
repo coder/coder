@@ -21,10 +21,12 @@ type WebsocketReportOptions struct {
 
 // @typescript-generate WebsocketReport
 type WebsocketReport struct {
-	Healthy bool    `json:"healthy"`
-	Body    string  `json:"body"`
-	Code    int     `json:"code"`
-	Error   *string `json:"error"`
+	Healthy  bool     `json:"healthy"`
+	Warnings []string `json:"warnings"`
+
+	Body  string  `json:"body"`
+	Code  int     `json:"code"`
+	Error *string `json:"error"`
 }
 
 func (r *WebsocketReport) Run(ctx context.Context, opts *WebsocketReportOptions) {

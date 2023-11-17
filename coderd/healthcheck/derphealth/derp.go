@@ -24,9 +24,14 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
+const (
+	warningNodeUsesWebsocket = `Node uses WebSockets because the "Upgrade: DERP" header may be blocked on the load balancer.`
+)
+
 // @typescript-generate Report
 type Report struct {
-	Healthy bool `json:"healthy"`
+	Healthy  bool     `json:"healthy"`
+	Warnings []string `json:"warnings"`
 
 	Regions map[int]*RegionReport `json:"regions"`
 
@@ -39,8 +44,9 @@ type Report struct {
 
 // @typescript-generate RegionReport
 type RegionReport struct {
-	mu      sync.Mutex
-	Healthy bool `json:"healthy"`
+	mu       sync.Mutex
+	Healthy  bool     `json:"healthy"`
+	Warnings []string `json:"warnings"`
 
 	Region      *tailcfg.DERPRegion `json:"region"`
 	NodeReports []*NodeReport       `json:"node_reports"`
@@ -52,8 +58,10 @@ type NodeReport struct {
 	mu            sync.Mutex
 	clientCounter int
 
-	Healthy bool              `json:"healthy"`
-	Node    *tailcfg.DERPNode `json:"node"`
+	Healthy  bool     `json:"healthy"`
+	Warnings []string `json:"warnings"`
+
+	Node *tailcfg.DERPNode `json:"node"`
 
 	ServerInfo          derp.ServerInfoMessage `json:"node_info"`
 	CanExchangeMessages bool                   `json:"can_exchange_messages"`
@@ -108,6 +116,10 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 			if !regionReport.Healthy {
 				r.Healthy = false
 			}
+
+			for _, w := range regionReport.Warnings {
+				r.Warnings = append(r.Warnings, fmt.Sprintf("[%s] %s", regionReport.Region.RegionName, w))
+			}
 			mu.Unlock()
 		}()
 	}
@@ -159,6 +171,10 @@ func (r *RegionReport) Run(ctx context.Context) {
 			if !nodeReport.Healthy {
 				r.Healthy = false
 			}
+
+			for _, w := range nodeReport.Warnings {
+				r.Warnings = append(r.Warnings, fmt.Sprintf("[%s] %s", nodeReport.Node.Name, w))
+			}
 			r.mu.Unlock()
 		}()
 	}
@@ -208,13 +224,13 @@ func (r *NodeReport) Run(ctx context.Context) {
 
 	// We can't exchange messages with the node,
 	if (!r.CanExchangeMessages && !r.Node.STUNOnly) ||
-		// A node may use websockets because `Upgrade: DERP` may be blocked on
-		// the load balancer. This is unhealthy because websockets are slower
-		// than the regular DERP protocol.
-		r.UsesWebsocket ||
 		// The node was marked as STUN compatible but the STUN test failed.
 		r.STUN.Error != nil {
 		r.Healthy = false
+	}
+
+	if r.UsesWebsocket {
+		r.Warnings = append(r.Warnings, warningNodeUsesWebsocket)
 	}
 }
 
