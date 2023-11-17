@@ -33,6 +33,7 @@ func (r *AccessURLReport) Run(ctx context.Context, opts *AccessURLReportOptions)
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
+	r.Warnings = []string{}
 	if opts.AccessURL == nil {
 		r.Error = ptr.Ref("access URL is nil")
 		return
