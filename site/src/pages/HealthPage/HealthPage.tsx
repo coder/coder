@@ -1,6 +1,6 @@
 import { type Interpolation, type Theme } from "@emotion/react";
 import Box from "@mui/material/Box";
-import { useQuery, useQueryClient } from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { getHealth } from "api/api";
 import { Loader } from "components/Loader/Loader";
 import { useTab } from "hooks";
@@ -22,6 +22,7 @@ import { DashboardFullPage } from "components/Dashboard/DashboardLayout";
 import { LoadingButton } from "@mui/lab";
 import ReplayIcon from "@mui/icons-material/Replay";
 import { FC } from "react";
+import { health, refreshHealth } from "api/queries/debug";
 
 const sections = {
   derp: "DERP",
@@ -33,16 +34,13 @@ const sections = {
 export default function HealthPage() {
   const tab = useTab("tab", "derp");
   const queryClient = useQueryClient();
-  const forceRefresh = async () => {
-    await queryClient.invalidateQueries(["health"]);
-  }
   const { data: healthStatus } = useQuery({
-    queryKey: ["health"],
-    // TODO: We don't want to set force=true each time.
-    // Only if the "refresh" button is clicked.
-    queryFn: async () => getHealth(true),
+    ...health(),
     refetchInterval: 30_000,
   });
+  const { mutate: forceRefresh, isLoading: isRefreshing } = useMutation(
+    refreshHealth(queryClient),
+  );
 
   return (
     <>
@@ -51,7 +49,12 @@ export default function HealthPage() {
       </Helmet>
 
       {healthStatus ? (
-        <HealthPageView healthStatus={healthStatus} tab={tab} forceRefresh={forceRefresh} />
+        <HealthPageView
+          tab={tab}
+          healthStatus={healthStatus}
+          forceRefresh={forceRefresh}
+          isRefreshing={isRefreshing}
+        />
       ) : (
         <Loader />
       )}
@@ -63,10 +66,12 @@ export function HealthPageView({
   healthStatus,
   tab,
   forceRefresh,
+  isRefreshing,
 }: {
   healthStatus: Awaited<ReturnType<typeof getHealth>>;
   tab: ReturnType<typeof useTab>;
-  forceRefresh: () => Promise<void>;
+  forceRefresh: () => void;
+  isRefreshing: boolean;
 }) {
   return (
     <DashboardFullPage>
@@ -114,15 +119,7 @@ export function HealthPageView({
             value={healthStatus.coder_version}
           />
         </Stats>
-        <RefreshButton
-          loading={false}
-          handleAction={async () => {
-            await forceRefresh().catch((e) => {
-              // handle error
-              console.log("error forcing refresh: "+ e)
-            })
-          }}
-        />
+        <RefreshButton loading={isRefreshing} handleAction={forceRefresh} />
       </FullWidthPageHeader>
       <Box
         sx={{
@@ -275,7 +272,7 @@ export const RefreshButton: FC<HealthcheckAction> = ({
       startIcon={<ReplayIcon />}
       onClick={handleAction}
     >
-      {loading ? <>Refreshing&hellip;</> : <>Refresh</>}
+      Refresh
     </LoadingButton>
   );
 };
