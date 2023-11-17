@@ -19,9 +19,8 @@ import {
 import { Stats, StatsItem } from "components/Stats/Stats";
 import { createDayString } from "utils/createDayString";
 import { DashboardFullPage } from "components/Dashboard/DashboardLayout";
-import { LoadingButton } from "@mui/lab";
 import ReplayIcon from "@mui/icons-material/Replay";
-import { FC } from "react";
+import IconButton from "@mui/material/IconButton";
 import { health, refreshHealth } from "api/queries/debug";
 
 const sections = {
@@ -111,7 +110,27 @@ export function HealthPageView({
           <StatsItem
             css={styles.statsItem}
             label="Last check"
-            value={createDayString(healthStatus.time)}
+            value={
+              <span css={styles.statsItem}>
+                {createDayString(healthStatus.time)}
+                <IconButton
+                  disabled={isRefreshing}
+                  size="small"
+                  title="Refresh health data"
+                  onClick={forceRefresh}
+                  sx={{
+                    width: 16,
+                    height: 16,
+                    "& svg.MuiSvgIcon-root": {
+                      width: 16,
+                      height: 16,
+                    },
+                  }}
+                >
+                  <ReplayIcon />
+                </IconButton>
+              </span>
+            }
           />
           <StatsItem
             css={styles.statsItem}
@@ -119,7 +138,6 @@ export function HealthPageView({
             value={healthStatus.coder_version}
           />
         </Stats>
-        <RefreshButton loading={isRefreshing} handleAction={forceRefresh} />
       </FullWidthPageHeader>
       <Box
         sx={{
@@ -254,25 +272,3 @@ const styles = {
     },
   },
 } satisfies Record<string, Interpolation<Theme>>;
-
-interface HealthcheckAction {
-  handleAction: () => void;
-  loading: boolean;
-}
-
-export const RefreshButton: FC<HealthcheckAction> = ({
-  handleAction,
-  loading,
-}) => {
-  return (
-    <LoadingButton
-      loading={loading}
-      loadingPosition="start"
-      data-testid="healthcheck-refresh-button"
-      startIcon={<ReplayIcon />}
-      onClick={handleAction}
-    >
-      Refresh
-    </LoadingButton>
-  );
-};
