@@ -37,7 +37,7 @@ export const useClickableTableRow = ({
       cursor: "pointer",
 
       "&:focus": {
-        outline: `1px solid ${theme.palette.secondary.dark}`,
+        outline: `1px solid ${theme.palette.primary.main}`,
         outlineOffset: -1,
       },
 
