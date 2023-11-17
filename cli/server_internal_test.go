@@ -6,11 +6,17 @@ import (
 	"crypto/tls"
 	"testing"
 
+	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"cdr.dev/slog/sloggers/slogtest"
+
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func Test_configureCipherSuites(t *testing.T) {
@@ -166,6 +172,74 @@ func Test_configureCipherSuites(t *testing.T) {
 					}
 				}
 			}
+		})
+	}
+}
+
+func TestRedirectHTTPToHTTPSDeprecation(t *testing.T) {
+	t.Parallel()
+
+	testcases := []struct {
+		name     string
+		environ  clibase.Environ
+		flags    []string
+		expected bool
+	}{
+		{
+			name:     "AllUnset",
+			environ:  clibase.Environ{},
+			flags:    []string{},
+			expected: false,
+		},
+		{
+			name:     "CODER_TLS_REDIRECT_HTTP=true",
+			environ:  clibase.Environ{{Name: "CODER_TLS_REDIRECT_HTTP", Value: "true"}},
+			flags:    []string{},
+			expected: true,
+		},
+		{
+			name:     "CODER_TLS_REDIRECT_HTTP_TO_HTTPS=true",
+			environ:  clibase.Environ{{Name: "CODER_TLS_REDIRECT_HTTP_TO_HTTPS", Value: "true"}},
+			flags:    []string{},
+			expected: true,
+		},
+		{
+			name:     "CODER_TLS_REDIRECT_HTTP=false",
+			environ:  clibase.Environ{{Name: "CODER_TLS_REDIRECT_HTTP", Value: "false"}},
+			flags:    []string{},
+			expected: false,
+		},
+		{
+			name:     "CODER_TLS_REDIRECT_HTTP_TO_HTTPS=false",
+			environ:  clibase.Environ{{Name: "CODER_TLS_REDIRECT_HTTP_TO_HTTPS", Value: "false"}},
+			flags:    []string{},
+			expected: false,
+		},
+		{
+			name:     "--tls-redirect-http-to-https",
+			environ:  clibase.Environ{},
+			flags:    []string{"--tls-redirect-http-to-https"},
+			expected: true,
+		},
+	}
+
+	for _, tc := range testcases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			logger := slogtest.Make(t, nil)
+			flags := pflag.NewFlagSet("test", pflag.ContinueOnError)
+			_ = flags.Bool("tls-redirect-http-to-https", true, "")
+			err := flags.Parse(tc.flags)
+			require.NoError(t, err)
+			inv := (&clibase.Invocation{Environ: tc.environ}).WithTestParsedFlags(t, flags)
+			cfg := &codersdk.DeploymentValues{}
+			opts := cfg.Options()
+			err = opts.SetDefaults()
+			require.NoError(t, err)
+			redirectHTTPToHTTPSDeprecation(ctx, logger, inv, cfg)
+			require.Equal(t, tc.expected, cfg.RedirectToAccessURL.Value())
 		})
 	}
 }
