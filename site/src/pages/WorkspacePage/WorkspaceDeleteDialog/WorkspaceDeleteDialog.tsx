@@ -166,10 +166,11 @@ export const WorkspaceDeleteDialog = (props: WorkspaceDeleteDialogProps) => {
                   />
                 </div>
                 <div css={{ flexDirection: "column" }}>
-                  <p className="info">Orphan resources</p>
+                  <p className="info">Orphan Resources</p>
                   <span css={{ fontSize: "11px" }}>
-                    Skip resource cleanup. Resources such as volumes and virtual
-                    machines will not be destroyed.&nbsp;
+                    As a template admin, you may skip resource cleanup.
+                    Resources such as volumes and virtual machines will not be
+                    destroyed.&nbsp;
                     <Link
                       href={docs("/workspaces#workspace-resources")}
                       target="_blank"
