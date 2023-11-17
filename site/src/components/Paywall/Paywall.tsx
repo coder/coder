@@ -51,12 +51,12 @@ const styles = {
     margin: 0,
   },
   description: (theme) => ({
-    marginTop: 14,
+    marginTop: 16,
     fontFamily: "inherit",
     maxWidth: 420,
     lineHeight: "160%",
     color: theme.palette.text.secondary,
-    fontSize: 16,
+    fontSize: 14,
   }),
   enterpriseChip: (theme) => ({
     background: theme.palette.success.dark,
