@@ -1,9 +1,10 @@
 import { useTheme } from "@emotion/react";
 import Editor, { loader } from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
-import { FC, useLayoutEffect, useMemo, useState } from "react";
+import { FC, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import type { editor } from "monaco-editor";
+import { registerHCLCompletionProvider } from "./HCLCompletionProvider";
 
 loader.config({ monaco });
 
@@ -29,6 +30,12 @@ export const MonacoEditor: FC<{
       window.removeEventListener("resize", resizeListener);
     };
   }, [editor]);
+
+  useEffect(() => {
+    if (path?.endsWith(".tf")) {
+      registerHCLCompletionProvider(monaco);
+    }
+  }, [path]);
 
   const language = useMemo(() => {
     if (path?.endsWith(".tf")) {
