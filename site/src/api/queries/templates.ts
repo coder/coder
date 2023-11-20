@@ -42,7 +42,7 @@ const getTemplatesQueryKey = (orgId: string, deprecated?: boolean) => [
 export const templates = (orgId: string, deprecated?: boolean) => {
   return {
     queryKey: getTemplatesQueryKey(orgId, deprecated),
-    queryFn: () => API.getTemplates(orgId, deprecated),
+    queryFn: () => API.getTemplates(orgId, {deprecated}),
   };
 };
 
