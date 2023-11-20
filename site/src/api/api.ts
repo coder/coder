@@ -220,7 +220,6 @@ export const getTemplate = async (
   return response.data;
 };
 
-
 export interface TemplateOptions {
   readonly deprecated?: boolean;
 }
