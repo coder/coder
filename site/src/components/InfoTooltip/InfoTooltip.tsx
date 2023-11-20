@@ -5,8 +5,7 @@ import {
   HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
 import InfoIcon from "@mui/icons-material/InfoOutlined";
-import { css } from "@emotion/css";
-import { useTheme } from "@emotion/react";
+import { Interpolation, Theme, css, useTheme } from "@emotion/react";
 
 interface InfoTooltipProps {
   // TODO: use a `ThemeRole` type or something
@@ -15,28 +14,32 @@ interface InfoTooltipProps {
   message: ReactNode;
 }
 
-export const InfoTooltip: FC<InfoTooltipProps> = (props) => {
-  const { title, message, type = "info" } = props;
-
+export const InfoTooltip: FC<InfoTooltipProps> = ({
+  title,
+  message,
+  type = "info",
+}) => {
   const theme = useTheme();
-  const iconColor = theme.experimental.roles[type].outline;
 
   return (
     <HelpTooltip
       size="small"
       icon={InfoIcon}
-      iconClassName={css`
-        color: ${iconColor};
-      `}
-      buttonClassName={css`
-        opacity: 1;
-        &:hover {
-          opacity: 1;
-        }
-      `}
+      iconStyles={{ color: theme.experimental.roles[type].outline }}
+      buttonStyles={styles.button}
     >
       <HelpTooltipTitle>{title}</HelpTooltipTitle>
       <HelpTooltipText>{message}</HelpTooltipText>
     </HelpTooltip>
   );
 };
+
+const styles = {
+  button: css`
+    opacity: 1;
+
+    &:hover {
+      opacity: 1;
+    }
+  `,
+} satisfies Record<string, Interpolation<Theme>>;

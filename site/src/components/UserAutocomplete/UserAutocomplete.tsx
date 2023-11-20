@@ -11,7 +11,6 @@ import {
   type FC,
   useState,
 } from "react";
-import Box from "@mui/material/Box";
 import { useDebouncedFunction } from "hooks/debounce";
 import { useQuery } from "react-query";
 import { users } from "api/queries/users";
@@ -90,13 +89,13 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
       }
       getOptionLabel={(option) => option.email}
       renderOption={(props, option) => (
-        <Box component="li" {...props}>
+        <li {...props}>
           <AvatarData
             title={option.username}
             subtitle={option.email}
             src={option.avatar_url}
           />
-        </Box>
+        </li>
       )}
       renderInput={(params) => (
         <TextField
@@ -126,12 +125,7 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
                 {params.InputProps.endAdornment}
               </>
             ),
-            classes: {
-              root: css`
-                padding-left: 14px !important; // Same padding left as input
-                gap: 4px;
-              `,
-            },
+            classes: { root },
           }}
           InputLabelProps={{
             shrink: true,
@@ -141,3 +135,8 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
     />
   );
 };
+
+const root = css`
+  padding-left: 14px !important; // Same padding left as input
+  gap: 4px;
+`;

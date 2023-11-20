@@ -50,16 +50,7 @@ export const MissingTemplateVariablesDialog: FC<
     >
       <DialogTitle
         id="update-build-parameters-title"
-        classes={{
-          root: css`
-            padding: 24px 40px;
-
-            & h2 {
-              font-size: 20px;
-              font-weight: 400;
-            }
-          `,
-        }}
+        classes={{ root: classNames.root }}
       >
         Template variables
       </DialogTitle>
@@ -111,6 +102,17 @@ export const MissingTemplateVariablesDialog: FC<
       </DialogActions>
     </Dialog>
   );
+};
+
+const classNames = {
+  root: css`
+    padding: 24px 40px;
+
+    & h2 {
+      font-size: 20px;
+      font-weight: 400;
+    }
+  `,
 };
 
 const styles = {
