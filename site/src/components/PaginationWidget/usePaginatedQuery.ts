@@ -29,8 +29,12 @@ type QueryPageParams = {
   searchParams: URLSearchParams;
 };
 
-type QueryPageParamsWithPayload<T = unknown> = QueryPageParams & {
-  payload: T;
+/**
+ * Query page params, plus the result of the queryPayload function.
+ * This type is passed to both queryKey and queryFn.
+ */
+type QueryPageParamsWithPayload<TPayload = never> = QueryPageParams & {
+  payload: [TPayload] extends [never] ? undefined : TPayload;
 };
 
 /**
@@ -41,9 +45,21 @@ type PaginatedData = {
   count: number;
 };
 
-type PaginatedQueryFnContext<TQueryKey extends QueryKey = QueryKey> =
-  QueryPageParamsWithPayload &
-    Omit<QueryFunctionContext<TQueryKey>, "pageParam">;
+type PaginatedQueryFnContext<
+  TQueryKey extends QueryKey = QueryKey,
+  TPayload = never,
+> = Omit<QueryFunctionContext<TQueryKey>, "pageParam"> &
+  QueryPageParamsWithPayload<TPayload>;
+
+type BasePaginationOptions<
+  TQueryFnData extends PaginatedData = PaginatedData,
+  TError = unknown,
+  TData = TQueryFnData,
+  TQueryKey extends QueryKey = QueryKey,
+> = Omit<
+  UseQueryOptions<TQueryFnData, TError, TData, TQueryKey>,
+  "keepPreviousData" | "queryKey" | "queryFn"
+>;
 
 /**
  * A more specialized version of UseQueryOptions built specifically for
@@ -52,47 +68,47 @@ type PaginatedQueryFnContext<TQueryKey extends QueryKey = QueryKey> =
 // All the type parameters just mirror the ones used by React Query
 export type UsePaginatedQueryOptions<
   TQueryFnData extends PaginatedData = PaginatedData,
+  TQueryPayload = never,
   TError = unknown,
   TData = TQueryFnData,
   TQueryKey extends QueryKey = QueryKey,
-  TQueryPayload = unknown,
-> = Omit<
-  UseQueryOptions<TQueryFnData, TError, TData, TQueryKey>,
-  "keepPreviousData" | "queryKey" | "queryFn"
-> & {
-  /**
-   * A function for defining values that should be shared between queryKey and
-   * queryFn. The value will be exposed via the "payload" property in
-   * QueryPageParams.
-   *
-   * Mainly here for convenience and minimizing copy-and-pasting between
-   * queryKey and queryFn.
-   */
-  queryPayload?: (params: QueryPageParams) => TQueryPayload;
+> = BasePaginationOptions<TQueryFnData, TError, TData, TQueryKey> &
+  ([TQueryPayload] extends [never]
+    ? { queryPayload?: never }
+    : { queryPayload: (params: QueryPageParams) => TQueryPayload }) & {
+    /**
+     * A function that takes pagination information and produces a full query
+     * key.
+     *
+     * Must be a function so that it can be used for the active query, as well
+     * as any prefetching.
+     */
+    queryKey: (params: QueryPageParamsWithPayload<TQueryPayload>) => TQueryKey;
 
-  /**
-   * A function that takes pagination information and produces a full query key.
-   *
-   * Must be a function so that it can be used for the active query, as well as
-   * any prefetching.
-   */
-  queryKey: (params: QueryPageParamsWithPayload) => TQueryKey;
-
-  /**
-   * A version of queryFn that is required and that exposes the pagination
-   * information through the pageParams context property
-   */
-  queryFn: (
-    context: PaginatedQueryFnContext<TQueryKey>,
-  ) => TQueryFnData | Promise<TQueryFnData>;
-};
+    /**
+     * A version of queryFn that is required and that exposes the pagination
+     * information through the pageParams context property
+     */
+    queryFn: (
+      context: PaginatedQueryFnContext<TQueryKey, TQueryPayload>,
+    ) => TQueryFnData | Promise<TQueryFnData>;
+  };
 
 export function usePaginatedQuery<
   TQueryFnData extends PaginatedData = PaginatedData,
   TError = unknown,
   TData extends PaginatedData = TQueryFnData,
   TQueryKey extends QueryKey = QueryKey,
->(options: UsePaginatedQueryOptions<TQueryFnData, TError, TData, TQueryKey>) {
+  TPayload = never,
+>(
+  options: UsePaginatedQueryOptions<
+    TQueryFnData,
+    TPayload,
+    TError,
+    TData,
+    TQueryKey
+  >,
+) {
   const {
     queryKey,
     queryPayload,
