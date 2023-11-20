@@ -11,7 +11,7 @@ import { TemplateSettingsPageView } from "./TemplateSettingsPageView";
 import { templateByNameKey } from "api/queries/templates";
 import { useOrganizationId } from "hooks";
 import {
-  useAccessControlEntitled,
+  useDashboard,
   useTemplatePoliciesEnabled,
 } from "components/Dashboard/DashboardProvider";
 
@@ -21,7 +21,8 @@ export const TemplateSettingsPage: FC = () => {
   const orgId = useOrganizationId();
   const { template } = useTemplateSettings();
   const queryClient = useQueryClient();
-  const accessControlEnabled = useAccessControlEntitled();
+  const { entitlements } = useDashboard();
+  const accessControlEnabled = entitlements.features.access_control.enabled;
   const templatePoliciesEnabled = useTemplatePoliciesEnabled();
 
   const {

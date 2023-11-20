@@ -129,8 +129,3 @@ export const useTemplatePoliciesEnabled = (): boolean => {
     experiments.includes("template_update_policies")
   );
 };
-
-export const useAccessControlEntitled = (): boolean => {
-  const { entitlements } = useDashboard();
-  return entitlements.features.access_control.enabled;
-};
