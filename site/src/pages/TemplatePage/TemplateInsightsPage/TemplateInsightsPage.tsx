@@ -791,7 +791,7 @@ function toISOLocal(d: Date, offset: number) {
 }
 
 function formatOffset(offset: number): string {
-  // A negative offset means the this is a positive timezone, e.g. GMT+2 = -120.
+  // A negative offset means that this is a positive timezone, e.g. GMT+2 = -120.
   const isPositiveTimezone = offset <= 0;
   const absoluteOffset = Math.abs(offset);
   const hours = Math.floor(absoluteOffset / 60);
