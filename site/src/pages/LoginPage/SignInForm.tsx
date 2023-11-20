@@ -1,15 +1,10 @@
 import { type Interpolation, type Theme } from "@emotion/react";
-import { type FormikTouched } from "formik";
-import { type FC, useState } from "react";
+import { type FC } from "react";
 import type { AuthMethods } from "api/typesGenerated";
 import { PasswordSignInForm } from "./PasswordSignInForm";
 import { OAuthSignInForm } from "./OAuthSignInForm";
-import { type BuiltInAuthFormValues } from "./SignInForm.types";
-import Button from "@mui/material/Button";
-import EmailIcon from "@mui/icons-material/EmailOutlined";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { getApplicationName } from "utils/appearance";
 
 export const Language = {
   emailLabel: "Email",
@@ -71,8 +66,6 @@ export interface SignInFormProps {
   info?: string;
   authMethods?: AuthMethods;
   onSubmit: (credentials: { email: string; password: string }) => void;
-  // initialTouched is only used for testing the error state of the form.
-  initialTouched?: FormikTouched<BuiltInAuthFormValues>;
 }
 
 export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
@@ -82,21 +75,15 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
   error,
   info,
   onSubmit,
-  initialTouched,
 }) => {
   const oAuthEnabled = Boolean(
     authMethods?.github.enabled || authMethods?.oidc.enabled,
   );
   const passwordEnabled = authMethods?.password.enabled ?? true;
-  // Hide password auth by default if any OAuth method is enabled
-  const [showPasswordAuth, setShowPasswordAuth] = useState(!oAuthEnabled);
-  const applicationName = getApplicationName();
 
   return (
     <div css={styles.root}>
-      <h1 css={styles.title}>
-        Sign in to <strong>{applicationName}</strong>
-      </h1>
+      <h1 css={styles.title}>Sign in</h1>
 
       {Boolean(error) && (
         <div css={styles.alert}>
@@ -110,22 +97,6 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
         </div>
       )}
 
-      {passwordEnabled && showPasswordAuth && (
-        <PasswordSignInForm
-          onSubmit={onSubmit}
-          initialTouched={initialTouched}
-          isSigningIn={isSigningIn}
-        />
-      )}
-
-      {passwordEnabled && showPasswordAuth && oAuthEnabled && (
-        <div css={styles.divider}>
-          <div css={styles.dividerLine} />
-          <div css={styles.dividerLabel}>Or</div>
-          <div css={styles.dividerLine} />
-        </div>
-      )}
-
       {oAuthEnabled && (
         <OAuthSignInForm
           isSigningIn={isSigningIn}
@@ -134,27 +105,24 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
         />
       )}
 
-      {!passwordEnabled && !oAuthEnabled && (
-        <Alert severity="error">No authentication methods configured!</Alert>
+      {passwordEnabled && oAuthEnabled && (
+        <div css={styles.divider}>
+          <div css={styles.dividerLine} />
+          <div css={styles.dividerLabel}>Or</div>
+          <div css={styles.dividerLine} />
+        </div>
       )}
 
-      {passwordEnabled && !showPasswordAuth && (
-        <>
-          <div css={styles.divider}>
-            <div css={styles.dividerLine} />
-            <div css={styles.dividerLabel}>Or</div>
-            <div css={styles.dividerLine} />
-          </div>
+      {passwordEnabled && (
+        <PasswordSignInForm
+          onSubmit={onSubmit}
+          autoFocus={!oAuthEnabled}
+          isSigningIn={isSigningIn}
+        />
+      )}
 
-          <Button
-            fullWidth
-            size="large"
-            onClick={() => setShowPasswordAuth(true)}
-            startIcon={<EmailIcon css={styles.icon} />}
-          >
-            Email and password
-          </Button>
-        </>
+      {!passwordEnabled && !oAuthEnabled && (
+        <Alert severity="error">No authentication methods configured!</Alert>
       )}
     </div>
   );

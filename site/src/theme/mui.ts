@@ -6,6 +6,7 @@ import {
   BUTTON_LG_HEIGHT,
   BUTTON_MD_HEIGHT,
   BUTTON_SM_HEIGHT,
+  BUTTON_XL_HEIGHT,
 } from "./constants";
 // eslint-disable-next-line no-restricted-imports -- We need MUI here
 import { alertClasses } from "@mui/material/Alert";
@@ -172,6 +173,9 @@ dark = createTheme(dark, {
         sizeLarge: {
           height: BUTTON_LG_HEIGHT,
         },
+        sizeXlarge: {
+          height: BUTTON_XL_HEIGHT,
+        },
         outlined: {
           ":hover": {
             border: `1px solid ${colors.gray[11]}`,
@@ -190,10 +194,10 @@ dark = createTheme(dark, {
           },
         },
         containedNeutral: {
-          borderColor: colors.gray[12],
-          backgroundColor: colors.gray[13],
+          backgroundColor: colors.gray[14],
+
           "&:hover": {
-            backgroundColor: colors.gray[12],
+            backgroundColor: colors.gray[13],
           },
         },
         iconSizeMedium: {

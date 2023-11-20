@@ -1,4 +1,3 @@
-import Link from "@mui/material/Link";
 import Button from "@mui/material/Button";
 import GitHubIcon from "@mui/icons-material/GitHub";
 import KeyIcon from "@mui/icons-material/VpnKey";
@@ -26,49 +25,47 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
   return (
     <Box display="grid" gap="16px">
       {authMethods?.github.enabled && (
-        <Link
+        <Button
+          component="a"
           href={`/api/v2/users/oauth2/github/callback?redirect=${encodeURIComponent(
             redirectTo,
           )}`}
+          variant="contained"
+          startIcon={<GitHubIcon css={iconStyles} />}
+          disabled={isSigningIn}
+          fullWidth
+          type="submit"
+          size="xlarge"
         >
-          <Button
-            startIcon={<GitHubIcon css={iconStyles} />}
-            disabled={isSigningIn}
-            fullWidth
-            type="submit"
-            size="large"
-          >
-            {Language.githubSignIn}
-          </Button>
-        </Link>
+          {Language.githubSignIn}
+        </Button>
       )}
 
       {authMethods?.oidc.enabled && (
-        <Link
+        <Button
+          component="a"
           href={`/api/v2/users/oidc/callback?redirect=${encodeURIComponent(
             redirectTo,
           )}`}
+          variant="contained"
+          size="xlarge"
+          startIcon={
+            authMethods.oidc.iconUrl ? (
+              <img
+                alt="Open ID Connect icon"
+                src={authMethods.oidc.iconUrl}
+                css={iconStyles}
+              />
+            ) : (
+              <KeyIcon css={iconStyles} />
+            )
+          }
+          disabled={isSigningIn}
+          fullWidth
+          type="submit"
         >
-          <Button
-            size="large"
-            startIcon={
-              authMethods.oidc.iconUrl ? (
-                <img
-                  alt="Open ID Connect icon"
-                  src={authMethods.oidc.iconUrl}
-                  css={iconStyles}
-                />
-              ) : (
-                <KeyIcon css={iconStyles} />
-              )
-            }
-            disabled={isSigningIn}
-            fullWidth
-            type="submit"
-          >
-            {authMethods.oidc.signInText || Language.oidcSignIn}
-          </Button>
-        </Link>
+          {authMethods.oidc.signInText || Language.oidcSignIn}
+        </Button>
       )}
     </Box>
   );
