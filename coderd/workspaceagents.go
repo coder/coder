@@ -1703,12 +1703,14 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		return nil
 	})
 	errGroup.Go(func() error {
-		err := api.Database.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
-			ID:         workspace.ID,
-			LastUsedAt: now,
-		})
-		if err != nil {
-			return xerrors.Errorf("can't update workspace LastUsedAt: %w", err)
+		if req.ConnectionCount > 0 {
+			err := api.Database.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
+				ID:         workspace.ID,
+				LastUsedAt: now,
+			})
+			if err != nil {
+				return xerrors.Errorf("can't update workspace LastUsedAt: %w", err)
+			}
 		}
 		return nil
 	})
