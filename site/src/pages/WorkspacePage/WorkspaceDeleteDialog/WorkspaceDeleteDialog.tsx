@@ -169,7 +169,7 @@ export const WorkspaceDeleteDialog = (props: WorkspaceDeleteDialogProps) => {
                 <div css={{ flexDirection: "column" }}>
                   <p className="info">Orphan Resources</p>
                   <span css={{ fontSize: 12, marginTop: 4, display: "block" }}>
-                    As a Template Admin, you may skip resource cleanup.
+                    As a Template Admin, you may skip resource cleanup to force remove a failed workspace.
                     Resources such as volumes and virtual machines will not be
                     destroyed.&nbsp;
                     <Link
