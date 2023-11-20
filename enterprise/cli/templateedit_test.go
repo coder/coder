@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -95,5 +96,76 @@ func TestTemplateEdit(t *testing.T) {
 		err := inv.Run()
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "your license is not entitled to use enterprise access control, so you cannot set --require-active-version")
+	})
+
+	t.Run("WorkspaceCleanup", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{
+			string(codersdk.ExperimentWorkspaceActions),
+		}
+
+		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAdvancedTemplateScheduling: 1,
+				},
+			},
+			Options: &coderdtest.Options{
+				DeploymentValues:         dv,
+				IncludeProvisionerDaemon: true,
+			},
+		})
+
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, templateAdmin, owner.OrganizationID, nil)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, version.ID)
+		template := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, version.ID)
+		require.False(t, template.RequireActiveVersion)
+
+		const (
+			expectedFailureTTL           = time.Hour * 3
+			expectedDormancyThreshold    = time.Hour * 4
+			expectedDormancyAutoDeletion = time.Minute * 10
+		)
+		inv, conf := newCLI(t, "templates",
+			"edit", template.Name,
+			"--failure-ttl="+expectedFailureTTL.String(),
+			"--dormancy-threshold="+expectedDormancyThreshold.String(),
+			"--dormancy-auto-deletion="+expectedDormancyAutoDeletion.String(),
+			"-y",
+		)
+
+		clitest.SetupConfig(t, templateAdmin, conf)
+
+		err := inv.Run()
+		require.NoError(t, err)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		template, err = templateAdmin.Template(ctx, template.ID)
+		require.NoError(t, err)
+		require.Equal(t, expectedFailureTTL.Milliseconds(), template.FailureTTLMillis)
+		require.Equal(t, expectedDormancyThreshold.Milliseconds(), template.TimeTilDormantMillis)
+		require.Equal(t, expectedDormancyAutoDeletion.Milliseconds(), template.TimeTilDormantAutoDeleteMillis)
+
+		inv, conf = newCLI(t, "templates",
+			"edit", template.Name,
+			"--display-name=idc",
+			"-y",
+		)
+
+		clitest.SetupConfig(t, templateAdmin, conf)
+
+		err = inv.Run()
+		require.NoError(t, err)
+
+		// Refetch the template to assert we haven't inadvertently updated
+		// the values to their default values.
+		template, err = templateAdmin.Template(ctx, template.ID)
+		require.NoError(t, err)
+		require.Equal(t, expectedFailureTTL.Milliseconds(), template.FailureTTLMillis)
+		require.Equal(t, expectedDormancyThreshold.Milliseconds(), template.TimeTilDormantMillis)
+		require.Equal(t, expectedDormancyAutoDeletion.Milliseconds(), template.TimeTilDormantAutoDeleteMillis)
 	})
 }
