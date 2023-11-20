@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useEffectEvent } from "hooks/hookPolyfills";
-import { useSearchParams } from "react-router-dom";
+import { type SetURLSearchParams, useSearchParams } from "react-router-dom";
 
 import { DEFAULT_RECORDS_PER_PAGE } from "./utils";
 import { clamp } from "lodash";
@@ -22,7 +22,6 @@ const PAGE_NUMBER_PARAMS_KEY = "page";
  * A more specialized version of UseQueryOptions built specifically for
  * paginated queries.
  */
-// All the type parameters just mirror the ones used by React Query
 export type UsePaginatedQueryOptions<
   TQueryFnData extends PaginatedData = PaginatedData,
   TQueryPayload = never,
@@ -56,19 +55,19 @@ export type UsePaginatedQueryOptions<
      * encountered, usePaginatedQuery will default to navigating the user to the
      * closest valid page.
      */
-    onInvalidPage?: (currentPage: number, totalPages: number) => void;
+    onInvalidPage?: (params: InvalidPageParams) => void;
   };
 
 export function usePaginatedQuery<
   TQueryFnData extends PaginatedData = PaginatedData,
+  TQueryPayload = never,
   TError = unknown,
   TData extends PaginatedData = TQueryFnData,
   TQueryKey extends QueryKey = QueryKey,
-  TPayload = never,
 >(
   options: UsePaginatedQueryOptions<
     TQueryFnData,
-    TPayload,
+    TQueryPayload,
     TError,
     TData,
     TQueryKey
@@ -88,20 +87,20 @@ export function usePaginatedQuery<
   const pageOffset = (currentPage - 1) * pageSize;
 
   const getQueryOptionsFromPage = (pageNumber: number) => {
-    const pageParam: QueryPageParams = {
+    const pageParams: QueryPageParams = {
       pageNumber,
       pageOffset,
       pageSize,
-      searchParams,
+      searchParams: searchParams,
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Have to do this because proving the type's soundness to the compiler will make the code so much more convoluted and harder to maintain
-    const payload = queryPayload?.(pageParam) as any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Have to do this because proving the type's soundness to the compiler will make this file even more convoluted than it is now
+    const payload = queryPayload?.(pageParams) as any;
 
     return {
-      queryKey: queryKey({ ...pageParam, payload }),
+      queryKey: queryKey({ ...pageParams, payload }),
       queryFn: (context: QueryFunctionContext<TQueryKey>) => {
-        return outerQueryFn({ ...context, ...pageParam, payload });
+        return outerQueryFn({ ...context, ...pageParams, payload });
       },
     } as const;
   };
@@ -149,7 +148,14 @@ export function usePaginatedQuery<
     }
 
     if (onInvalidPage !== undefined) {
-      onInvalidPage(currentPage, totalPages);
+      onInvalidPage({
+        pageOffset,
+        pageSize,
+        totalPages,
+        setSearchParams,
+        pageNumber: currentPage,
+        searchParams: searchParams,
+      });
     } else {
       searchParams.set(PAGE_NUMBER_PARAMS_KEY, String(clamped));
       setSearchParams(searchParams);
@@ -283,3 +289,11 @@ type BasePaginationOptions<
   UseQueryOptions<TQueryFnData, TError, TData, TQueryKey>,
   "keepPreviousData" | "queryKey" | "queryFn"
 >;
+
+/**
+ * The argument passed to a custom onInvalidPage callback.
+ */
+type InvalidPageParams = QueryPageParams & {
+  totalPages: number;
+  setSearchParams: SetURLSearchParams;
+};
