@@ -1721,7 +1721,6 @@ export const Entitlements: Entitlement[] = [
 
 // From codersdk/deployment.go
 export type Experiment =
-  | "dashboard_theme"
   | "deployment_health_page"
   | "moons"
   | "single_tailnet"
@@ -1730,7 +1729,6 @@ export type Experiment =
   | "template_update_policies"
   | "workspace_actions";
 export const Experiments: Experiment[] = [
-  "dashboard_theme",
   "deployment_health_page",
   "moons",
   "single_tailnet",
