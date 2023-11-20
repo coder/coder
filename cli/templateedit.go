@@ -118,7 +118,19 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				autostopRequirementDaysOfWeek = []string{}
 			}
 
-			// NOTE: coderd will ignore empty fields.
+			// Default values
+			if !userSetOption(inv, "description") {
+				description = template.Description
+			}
+
+			if !userSetOption(inv, "icon") {
+				icon = template.Icon
+			}
+
+			if !userSetOption(inv, "display-name") {
+				displayName = template.DisplayName
+			}
+
 			req := codersdk.UpdateTemplateMeta{
 				Name:             name,
 				DisplayName:      displayName,
