@@ -94,8 +94,11 @@ export function usePaginatedQuery<
       searchParams: searchParams,
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Have to do this because proving the type's soundness to the compiler will make this file even more convoluted than it is now
-    const payload = queryPayload?.(pageParams) as any;
+    type RuntimePayload = [TQueryPayload] extends [never]
+      ? undefined
+      : TQueryPayload;
+
+    const payload = queryPayload?.(pageParams) as RuntimePayload;
 
     return {
       queryKey: queryKey({ ...pageParams, payload }),
