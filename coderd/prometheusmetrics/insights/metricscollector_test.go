@@ -223,7 +223,9 @@ func provisionApplyWithAgentAndApp(authToken string) []*proto.Response {
 // in comparison with golden metrics using `assert.ObjectsAreEqualValues`.
 // Collected metrics must be patched as sometimes they may slip
 // due to timestamp truncation.
-// See: https://github.com/coder/coder/blob/92ef0baff3b632c52c2335aae1d643a3cc49e26a/coderd/database/dbmem/dbmem.go#L2463
+// See:
+// https://github.com/coder/coder/blob/92ef0baff3b632c52c2335aae1d643a3cc49e26a/coderd/database/dbmem/dbmem.go#L2463
+// https://github.com/coder/coder/blob/9b6433e3a7c788b7e87b7d8f539ea111957a0cf1/coderd/database/queries/insights.sql#L246
 func insightsMetricsAreEqual(golden, collected map[string]int) bool {
 	greaterOrEqualKeys := []string{
 		"coderd_insights_applications_usage_seconds[application_name=Golden Slug,slug=golden-slug,template_name=golden-template]",
