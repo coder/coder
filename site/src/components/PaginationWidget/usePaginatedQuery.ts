@@ -19,49 +19,6 @@ import {
 const PAGE_NUMBER_PARAMS_KEY = "page";
 
 /**
- * Information about a paginated request. This information is passed into the
- * queryPayload, queryKey, and queryFn properties of the hook.
- */
-type QueryPageParams = {
-  pageNumber: number;
-  pageSize: number;
-  pageOffset: number;
-  searchParams: URLSearchParams;
-};
-
-/**
- * Query page params, plus the result of the queryPayload function.
- * This type is passed to both queryKey and queryFn.
- */
-type QueryPageParamsWithPayload<TPayload = never> = QueryPageParams & {
-  payload: [TPayload] extends [never] ? undefined : TPayload;
-};
-
-/**
- * Any JSON-serializable object returned by the API that exposes the total
- * number of records that match a query
- */
-type PaginatedData = {
-  count: number;
-};
-
-type PaginatedQueryFnContext<
-  TQueryKey extends QueryKey = QueryKey,
-  TPayload = never,
-> = Omit<QueryFunctionContext<TQueryKey>, "pageParam"> &
-  QueryPageParamsWithPayload<TPayload>;
-
-type BasePaginationOptions<
-  TQueryFnData extends PaginatedData = PaginatedData,
-  TError = unknown,
-  TData = TQueryFnData,
-  TQueryKey extends QueryKey = QueryKey,
-> = Omit<
-  UseQueryOptions<TQueryFnData, TError, TData, TQueryKey>,
-  "keepPreviousData" | "queryKey" | "queryFn"
->;
-
-/**
  * A more specialized version of UseQueryOptions built specifically for
  * paginated queries.
  */
@@ -80,8 +37,8 @@ export type UsePaginatedQueryOptions<
      * A function that takes pagination information and produces a full query
      * key.
      *
-     * Must be a function so that it can be used for the active query, as well
-     * as any prefetching.
+     * Must be a function so that it can be used for the active query, and then
+     * reused for any prefetching queries.
      */
     queryKey: (params: QueryPageParamsWithPayload<TQueryPayload>) => TQueryKey;
 
@@ -129,15 +86,13 @@ export function usePaginatedQuery<
       searchParams,
     };
 
-    const withPayload: QueryPageParamsWithPayload = {
-      ...pageParam,
-      payload: queryPayload?.(pageParam),
-    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Have to do this because proving the type's soundness to the compiler will make the code so much more convoluted and harder to maintain
+    const payload = queryPayload?.(pageParam) as any;
 
     return {
-      queryKey: queryKey(withPayload),
+      queryKey: queryKey({ ...pageParam, payload }),
       queryFn: (context: QueryFunctionContext<TQueryKey>) => {
-        return outerQueryFn({ ...context, ...withPayload });
+        return outerQueryFn({ ...context, ...pageParam, payload });
       },
     } as const;
   };
@@ -226,3 +181,62 @@ function parsePage(params: URLSearchParams): number {
   const parsed = Number(params.get("page"));
   return Number.isInteger(parsed) && parsed > 1 ? parsed : 1;
 }
+
+/**
+ * Information about a paginated request. This information is passed into the
+ * queryPayload, queryKey, and queryFn properties of the hook.
+ */
+type QueryPageParams = {
+  pageNumber: number;
+  pageSize: number;
+  pageOffset: number;
+  searchParams: URLSearchParams;
+};
+
+/**
+ * The query page params, appended with the result of the queryPayload function.
+ * This type is passed to both queryKey and queryFn. If queryPayload is
+ * undefined, payload will always be undefined
+ */
+type QueryPageParamsWithPayload<TPayload = never> = QueryPageParams & {
+  payload: [TPayload] extends [never] ? undefined : TPayload;
+};
+
+/**
+ * Any JSON-serializable object returned by the API that exposes the total
+ * number of records that match a query
+ */
+type PaginatedData = {
+  count: number;
+};
+
+/**
+ * React Query's QueryFunctionContext (minus pageParam, which is weird and
+ * defaults to type any anyway), plus all properties from
+ * QueryPageParamsWithPayload.
+ */
+type PaginatedQueryFnContext<
+  TQueryKey extends QueryKey = QueryKey,
+  TPayload = never,
+> = Omit<QueryFunctionContext<TQueryKey>, "pageParam"> &
+  QueryPageParamsWithPayload<TPayload>;
+
+/**
+ * The set of React Query properties that UsePaginatedQueryOptions derives from.
+ *
+ * Three properties are stripped from it:
+ * - keepPreviousData - The value must always be true to keep pagination feeling
+ *   nice, so better to prevent someone from trying to touch it at all
+ * - queryFn - Removed to simplify replacing the type of its context argument
+ * - queryKey - Removed so that it can be replaced with the function form of
+ *   queryKey
+ */
+type BasePaginationOptions<
+  TQueryFnData extends PaginatedData = PaginatedData,
+  TError = unknown,
+  TData = TQueryFnData,
+  TQueryKey extends QueryKey = QueryKey,
+> = Omit<
+  UseQueryOptions<TQueryFnData, TError, TData, TQueryKey>,
+  "keepPreviousData" | "queryKey" | "queryFn"
+>;
