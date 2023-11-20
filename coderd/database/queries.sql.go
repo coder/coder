@@ -3917,9 +3917,10 @@ SET
 	wildcard_hostname = $2 :: text,
 	derp_enabled = $3 :: boolean,
 	derp_only = $4 :: boolean,
+	version = $5 :: text,
 	updated_at = Now()
 WHERE
-	id = $5
+	id = $6
 RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only, version
 `
 
@@ -3928,6 +3929,7 @@ type RegisterWorkspaceProxyParams struct {
 	WildcardHostname string    `db:"wildcard_hostname" json:"wildcard_hostname"`
 	DerpEnabled      bool      `db:"derp_enabled" json:"derp_enabled"`
 	DerpOnly         bool      `db:"derp_only" json:"derp_only"`
+	Version          string    `db:"version" json:"version"`
 	ID               uuid.UUID `db:"id" json:"id"`
 }
 
@@ -3937,6 +3939,7 @@ func (q *sqlQuerier) RegisterWorkspaceProxy(ctx context.Context, arg RegisterWor
 		arg.WildcardHostname,
 		arg.DerpEnabled,
 		arg.DerpOnly,
+		arg.Version,
 		arg.ID,
 	)
 	var i WorkspaceProxy

@@ -625,6 +625,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 			DerpEnabled:      req.DerpEnabled,
 			DerpOnly:         req.DerpOnly,
 			WildcardHostname: req.WildcardHostname,
+			Version:          req.Version,
 		})
 		if err != nil {
 			return xerrors.Errorf("register workspace proxy: %w", err)
