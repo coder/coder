@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -55,9 +56,9 @@ func TestReplica(t *testing.T) {
 		// Ensures that the replica reports a successful status for
 		// accessing all of its peers.
 		t.Parallel()
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		}))
+		dh := &derpyHandler{}
+		defer dh.requireOnlyDERPPaths(t)
+		srv := httptest.NewServer(dh)
 		defer srv.Close()
 		db, pubsub := dbtestutil.NewDB(t)
 		peer, err := db.InsertReplica(context.Background(), database.InsertReplicaParams{
@@ -98,9 +99,9 @@ func TestReplica(t *testing.T) {
 			ServerName:   "hello.org",
 			RootCAs:      pool,
 		}
-		srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		}))
+		dh := &derpyHandler{}
+		defer dh.requireOnlyDERPPaths(t)
+		srv := httptest.NewUnstartedServer(dh)
 		srv.TLS = tlsConfig
 		srv.StartTLS()
 		defer srv.Close()
@@ -167,9 +168,9 @@ func TestReplica(t *testing.T) {
 		server, err := replicasync.New(ctx, slogtest.Make(t, nil), db, pubsub, nil)
 		require.NoError(t, err)
 		defer server.Close()
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		}))
+		dh := &derpyHandler{}
+		defer dh.requireOnlyDERPPaths(t)
+		srv := httptest.NewServer(dh)
 		defer srv.Close()
 		peer, err := db.InsertReplica(ctx, database.InsertReplicaParams{
 			ID:           uuid.New(),
@@ -221,9 +222,9 @@ func TestReplica(t *testing.T) {
 		db := dbmem.New()
 		pubsub := pubsub.NewInMemory()
 		logger := slogtest.Make(t, nil)
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		}))
+		dh := &derpyHandler{}
+		defer dh.requireOnlyDERPPaths(t)
+		srv := httptest.NewServer(dh)
 		defer srv.Close()
 		var wg sync.WaitGroup
 		count := 20
@@ -254,4 +255,21 @@ func TestReplica(t *testing.T) {
 		}
 		wg.Wait()
 	})
+}
+
+type derpyHandler struct {
+	atomic.Uint32
+}
+
+func (d *derpyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/derp/latency-check" {
+		w.WriteHeader(http.StatusNotFound)
+		d.Add(1)
+		return
+	}
+	w.WriteHeader(http.StatusUpgradeRequired)
+}
+
+func (d *derpyHandler) requireOnlyDERPPaths(t *testing.T) {
+	require.Equal(t, uint32(0), d.Load())
 }

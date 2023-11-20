@@ -2079,8 +2079,9 @@ export type RegionTypes = Region | WorkspaceProxy;
 
 // From healthcheck/accessurl.go
 export interface HealthcheckAccessURLReport {
-  readonly access_url: string;
   readonly healthy: boolean;
+  readonly warnings: string[];
+  readonly access_url: string;
   readonly reachable: boolean;
   readonly status_code: number;
   readonly healthz_response: string;
@@ -2090,6 +2091,7 @@ export interface HealthcheckAccessURLReport {
 // From healthcheck/database.go
 export interface HealthcheckDatabaseReport {
   readonly healthy: boolean;
+  readonly warnings: string[];
   readonly reachable: boolean;
   readonly latency: string;
   readonly latency_ms: number;
@@ -2112,6 +2114,7 @@ export interface HealthcheckReport {
 // From healthcheck/websocket.go
 export interface HealthcheckWebsocketReport {
   readonly healthy: boolean;
+  readonly warnings: string[];
   readonly body: string;
   readonly code: number;
   readonly error?: string;
@@ -2167,6 +2170,7 @@ export const ClibaseValueSources: ClibaseValueSource[] = [
 // From derphealth/derp.go
 export interface DerphealthNodeReport {
   readonly healthy: boolean;
+  readonly warnings: string[];
   // Named type "tailscale.com/tailcfg.DERPNode" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly node?: any;
@@ -2186,6 +2190,7 @@ export interface DerphealthNodeReport {
 // From derphealth/derp.go
 export interface DerphealthRegionReport {
   readonly healthy: boolean;
+  readonly warnings: string[];
   // Named type "tailscale.com/tailcfg.DERPRegion" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly region?: any;
@@ -2196,6 +2201,7 @@ export interface DerphealthRegionReport {
 // From derphealth/derp.go
 export interface DerphealthReport {
   readonly healthy: boolean;
+  readonly warnings: string[];
   readonly regions: Record<number, DerphealthRegionReport>;
   // Named type "tailscale.com/net/netcheck.Report" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type

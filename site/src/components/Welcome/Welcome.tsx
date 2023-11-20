@@ -1,6 +1,5 @@
-import Typography from "@mui/material/Typography";
 import { type FC, type PropsWithChildren } from "react";
-import { css, useTheme } from "@emotion/react";
+import { useTheme } from "@emotion/react";
 import { CoderIcon } from "../Icons/CoderIcon";
 
 const Language = {
@@ -31,22 +30,23 @@ export const Welcome: FC<
           }}
         />
       </div>
-      <Typography
-        css={css`
-          text-align: center;
-          font-size: 32px;
-          font-weight: 400;
-          margin: 16px 0 32px;
-          line-height: 1.25;
+      <h1
+        css={{
+          textAlign: "center",
+          fontSize: 32,
+          fontWeight: 400,
+          margin: 0,
+          marginTop: 16,
+          marginBottom: 32,
+          lineHeight: 1.25,
 
-          & strong {
-            font-weight: 600;
-          }
-        `}
-        variant="h1"
+          "& strong": {
+            fontWeight: 600,
+          },
+        }}
       >
         {message}
-      </Typography>
+      </h1>
     </div>
   );
 };

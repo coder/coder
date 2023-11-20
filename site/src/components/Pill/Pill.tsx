@@ -1,65 +1,43 @@
 import { type FC, type ReactNode, useMemo, forwardRef } from "react";
 import { css, type Interpolation, type Theme } from "@emotion/react";
 import { colors } from "theme/colors";
+import type { ThemeRole } from "theme/experimental";
 
-export type PillType =
-  | "primary"
-  | "secondary"
-  | "error"
-  | "warning"
-  | "info"
-  | "success"
-  | "neutral";
+export type PillType = ThemeRole | keyof typeof themeOverrides;
 
 export interface PillProps {
   className?: string;
   icon?: ReactNode;
   text: ReactNode;
   type?: PillType;
-  lightBorder?: boolean;
   title?: string;
 }
 
 const themeOverrides = {
-  primary: (lightBorder) => ({
-    backgroundColor: colors.blue[13],
-    borderColor: lightBorder ? colors.blue[5] : colors.blue[7],
-  }),
-  secondary: (lightBorder) => ({
-    backgroundColor: colors.indigo[13],
-    borderColor: lightBorder ? colors.indigo[6] : colors.indigo[8],
-  }),
-  neutral: (lightBorder) => ({
+  neutral: {
     backgroundColor: colors.gray[13],
-    borderColor: lightBorder ? colors.gray[6] : colors.gray[8],
-  }),
-} satisfies Record<string, (lightBorder?: boolean) => Interpolation<Theme>>;
+    borderColor: colors.gray[6],
+  },
+} satisfies Record<string, Interpolation<Theme>>;
 
-const themeStyles =
-  (type: PillType, lightBorder?: boolean) => (theme: Theme) => {
-    const palette = theme.palette[type];
-    return {
-      backgroundColor: palette.dark,
-      borderColor: lightBorder ? palette.light : palette.main,
-    };
+const themeStyles = (type: ThemeRole) => (theme: Theme) => {
+  const palette = theme.experimental.roles[type];
+  return {
+    backgroundColor: palette.background,
+    borderColor: palette.outline,
   };
+};
 
 export const Pill: FC<PillProps> = forwardRef<HTMLDivElement, PillProps>(
   (props, ref) => {
-    const {
-      lightBorder,
-      icon,
-      text = null,
-      type = "neutral",
-      ...attrs
-    } = props;
+    const { icon, text = null, type = "neutral", ...attrs } = props;
 
     const typeStyles = useMemo(() => {
       if (type in themeOverrides) {
-        return themeOverrides[type as keyof typeof themeOverrides](lightBorder);
+        return themeOverrides[type as keyof typeof themeOverrides];
       }
-      return themeStyles(type, lightBorder);
-    }, [type, lightBorder]);
+      return themeStyles(type as ThemeRole);
+    }, [type]);
 
     return (
       <div

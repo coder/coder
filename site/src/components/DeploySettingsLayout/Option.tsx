@@ -3,20 +3,12 @@ import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import { css, useTheme } from "@emotion/react";
 import type { PropsWithChildren, FC } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
-import { DisabledBadge, EnabledBadge } from "./Badges";
+import { DisabledBadge, EnabledBadge } from "../Badges/Badges";
 
 export const OptionName: FC<PropsWithChildren> = (props) => {
   const { children } = props;
 
-  return (
-    <span
-      css={{
-        display: "block",
-      }}
-    >
-      {children}
-    </span>
-  );
+  return <span css={{ display: "block" }}>{children}</span>;
 };
 
 export const OptionDescription: FC<PropsWithChildren> = (props) => {

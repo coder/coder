@@ -189,14 +189,19 @@ const StatusOptionItem = ({
 };
 
 const StatusIndicator: FC<{ option: StatusOption }> = ({ option }) => {
+  const color = option.color === "notice" ? "warning" : option.color;
+
   return (
     <Box
       height={8}
       width={8}
       borderRadius={9999}
-      sx={{
-        backgroundColor: (theme) =>
-          (theme.palette[option.color as keyof Palette] as PaletteColor).light,
+      css={(theme) => {
+        return {
+          backgroundColor: (
+            theme.palette[color as keyof Palette] as PaletteColor
+          ).light,
+        };
       }}
     />
   );

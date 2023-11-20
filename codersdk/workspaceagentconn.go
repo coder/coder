@@ -18,6 +18,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
+	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/speedtest"
 
@@ -249,7 +250,7 @@ func (c *WorkspaceAgentConn) ReconnectingPTY(ctx context.Context, id uuid.UUID, 
 
 // SSH pipes the SSH protocol over the returned net.Conn.
 // This connects to the built-in SSH server in the workspace agent.
-func (c *WorkspaceAgentConn) SSH(ctx context.Context) (net.Conn, error) {
+func (c *WorkspaceAgentConn) SSH(ctx context.Context) (*gonet.TCPConn, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 

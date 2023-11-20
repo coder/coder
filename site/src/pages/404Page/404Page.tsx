@@ -1,4 +1,3 @@
-import Typography from "@mui/material/Typography";
 import { type FC } from "react";
 
 export const NotFoundPage: FC = () => {
@@ -20,9 +19,9 @@ export const NotFoundPage: FC = () => {
           borderRight: theme.palette.divider,
         })}
       >
-        <Typography variant="h4">404</Typography>
+        <h4>404</h4>
       </div>
-      <Typography variant="body2">This page could not be found.</Typography>
+      <p>This page could not be found.</p>
     </div>
   );
 };

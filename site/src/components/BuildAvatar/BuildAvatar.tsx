@@ -46,7 +46,7 @@ export const BuildAvatar: FC<BuildAvatarProps> = ({ build, size }) => {
       }}
       badgeContent={<div></div>}
     >
-      <Avatar size={size} colorScheme="darken">
+      <Avatar background size={size}>
         <BuildIcon transition={build.transition} />
       </Avatar>
     </StyledBadge>

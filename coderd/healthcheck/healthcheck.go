@@ -136,6 +136,7 @@ func Run(ctx context.Context, opts *ReportOptions) *Report {
 	wg.Wait()
 
 	report.Time = time.Now()
+	report.FailingSections = []string{}
 	if !report.DERP.Healthy {
 		report.FailingSections = append(report.FailingSections, SectionDERP)
 	}

@@ -12,8 +12,8 @@ import { Stack } from "components/Stack/Stack";
 import type { ElementType, FC, PropsWithChildren, ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
-import { useTheme } from "@mui/system";
 import { css } from "@emotion/css";
+import { useTheme } from "@emotion/react";
 
 const SidebarNavItem: FC<
   PropsWithChildren<{ href: string; icon: ReactNode }>
@@ -31,7 +31,7 @@ const SidebarNavItem: FC<
       position: absolute;
       left: 0;
       top: 0;
-      background-color: ${theme.palette.secondary.dark};
+      background-color: ${theme.palette.primary.main};
       border-top-left-radius: 8px;
       border-bottom-left-radius: 8px;
     }
@@ -74,11 +74,7 @@ export const Sidebar: React.FC = () => {
   const dashboard = useDashboard();
 
   return (
-    <nav
-      css={{
-        width: 245,
-      }}
-    >
+    <nav css={{ width: 245 }}>
       <SidebarNavItem
         href="general"
         icon={<SidebarNavItemIcon icon={LaunchOutlined} />}

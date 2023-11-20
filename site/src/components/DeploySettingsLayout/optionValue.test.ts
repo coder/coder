@@ -97,7 +97,11 @@ describe("optionValue", () => {
         value: ["moons"],
       },
       additionalValues: ["single_tailnet", "deployment_health_page"],
-      expected: { single_tailnet: false, deployment_health_page: false },
+      expected: {
+        single_tailnet: false,
+        deployment_health_page: false,
+        moons: true,
+      },
     },
     {
       option: {
@@ -107,6 +111,15 @@ describe("optionValue", () => {
       },
       additionalValues: ["single_tailnet", "deployment_health_page"],
       expected: { single_tailnet: true, deployment_health_page: true },
+    },
+    {
+      option: {
+        ...defaultOption,
+        name: "Experiments",
+        value: ["*", "moons", "single_tailnet"],
+      },
+      additionalValues: ["single_tailnet"],
+      expected: { moons: true, single_tailnet: true },
     },
     {
       option: {

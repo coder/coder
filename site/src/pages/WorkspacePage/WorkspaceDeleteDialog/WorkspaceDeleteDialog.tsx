@@ -12,26 +12,26 @@ const styles = {
   workspaceInfo: (theme) => ({
     display: "flex",
     justifyContent: "space-between",
-    backgroundColor: colors.gray[14],
+    backgroundColor: theme.palette.background.paperLight,
     border: `1px solid ${theme.palette.divider}`,
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: 6,
+    padding: 16,
     marginBottom: 20,
     lineHeight: "1.3em",
 
     "& .name": {
-      fontSize: 18,
-      fontWeight: 800,
+      fontSize: 16,
+      fontWeight: 600,
       color: theme.palette.text.primary,
     },
 
     "& .label": {
-      fontSize: 11,
+      fontSize: 12,
       color: theme.palette.text.secondary,
     },
 
     "& .info": {
-      fontSize: 14,
+      fontSize: 12,
       fontWeight: 500,
       color: theme.palette.text.primary,
     },
@@ -44,6 +44,7 @@ const styles = {
     border: `1px solid ${colors.orange[11]}`,
     borderRadius: 8,
     padding: 12,
+    gap: 8,
     lineHeight: "18px",
 
     "& .option": {
@@ -54,9 +55,8 @@ const styles = {
     },
 
     "& .info": {
-      fontSize: "14px",
-      color: colors.orange[10],
-      fontWeight: 500,
+      fontSize: 14,
+      fontWeight: 600,
     },
   }),
 } satisfies Record<string, Interpolation<Theme>>;
@@ -112,7 +112,7 @@ export const WorkspaceDeleteDialog = (props: WorkspaceDeleteDialogProps) => {
               <p className="name">{workspace.name}</p>
               <p className="label">workspace</p>
             </div>
-            <div>
+            <div css={{ textAlign: "right" }}>
               <p className="info">{workspaceBuildDateStr}</p>
               <p className="label">created</p>
             </div>
@@ -167,7 +167,7 @@ export const WorkspaceDeleteDialog = (props: WorkspaceDeleteDialogProps) => {
                 </div>
                 <div css={{ flexDirection: "column" }}>
                   <p className="info">Orphan resources</p>
-                  <span css={{ fontSize: "11px" }}>
+                  <span css={{ fontSize: 12, marginTop: 4, display: "block" }}>
                     Skip resource cleanup. Resources such as volumes and virtual
                     machines will not be destroyed.&nbsp;
                     <Link

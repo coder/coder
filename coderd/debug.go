@@ -41,16 +41,22 @@ func (api *API) debugTailnet(rw http.ResponseWriter, r *http.Request) {
 // @Tags Debug
 // @Success 200 {object} healthcheck.Report
 // @Router /debug/health [get]
+// @Param force query boolean false "Force a healthcheck to run"
 func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APITokenFromRequest(r)
 	ctx, cancel := context.WithTimeout(r.Context(), api.Options.HealthcheckTimeout)
 	defer cancel()
 
-	// Get cached report if it exists.
-	if report := api.healthCheckCache.Load(); report != nil {
-		if time.Since(report.Time) < api.Options.HealthcheckRefresh {
-			formatHealthcheck(ctx, rw, r, report)
-			return
+	// Check if the forced query parameter is set.
+	forced := r.URL.Query().Get("force") == "true"
+
+	// Get cached report if it exists and the requester did not force a refresh.
+	if !forced {
+		if report := api.healthCheckCache.Load(); report != nil {
+			if time.Since(report.Time) < api.Options.HealthcheckRefresh {
+				formatHealthcheck(ctx, rw, r, report)
+				return
+			}
 		}
 	}
 

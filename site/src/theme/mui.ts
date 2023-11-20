@@ -1,4 +1,4 @@
-import { colors, experimentalTheme } from "./colors";
+import { colors } from "./colors";
 import { createTheme, type ThemeOptions } from "@mui/material/styles";
 import {
   BODY_FONT_FAMILY,
@@ -6,7 +6,10 @@ import {
   BUTTON_LG_HEIGHT,
   BUTTON_MD_HEIGHT,
   BUTTON_SM_HEIGHT,
+  BUTTON_XL_HEIGHT,
 } from "./constants";
+// eslint-disable-next-line no-restricted-imports -- We need MUI here
+import { alertClasses } from "@mui/material/Alert";
 
 export type PaletteIndex =
   | "primary"
@@ -32,27 +35,27 @@ export let dark = createTheme({
     secondary: {
       main: colors.gray[11],
       contrastText: colors.gray[4],
-      dark: colors.indigo[7],
+      dark: colors.gray[9],
     },
     background: {
       default: colors.gray[17],
       paper: colors.gray[16],
-      paperLight: colors.gray[15],
+      paperLight: colors.gray[14],
     },
     text: {
       primary: colors.gray[1],
-      secondary: colors.gray[5],
-      disabled: colors.gray[7],
+      secondary: colors.gray[6],
+      disabled: colors.gray[9],
     },
     divider: colors.gray[13],
     warning: {
-      light: experimentalTheme ? colors.orange[9] : colors.orange[7],
-      main: experimentalTheme ? colors.orange[11] : colors.orange[9],
+      light: colors.orange[9],
+      main: colors.orange[12],
       dark: colors.orange[15],
     },
     success: {
       main: colors.green[11],
-      dark: colors.green[15],
+      dark: colors.green[12],
     },
     info: {
       light: colors.blue[7],
@@ -170,9 +173,12 @@ dark = createTheme(dark, {
         sizeLarge: {
           height: BUTTON_LG_HEIGHT,
         },
+        sizeXlarge: {
+          height: BUTTON_XL_HEIGHT,
+        },
         outlined: {
           ":hover": {
-            border: `1px solid ${colors.gray[10]}`,
+            border: `1px solid ${colors.gray[11]}`,
           },
         },
         outlinedNeutral: {
@@ -188,10 +194,10 @@ dark = createTheme(dark, {
           },
         },
         containedNeutral: {
-          borderColor: colors.gray[12],
-          backgroundColor: colors.gray[13],
+          backgroundColor: colors.gray[14],
+
           "&:hover": {
-            backgroundColor: colors.gray[12],
+            backgroundColor: colors.gray[13],
           },
         },
         iconSizeMedium: {
@@ -214,7 +220,7 @@ dark = createTheme(dark, {
         root: {
           ">button:hover+button": {
             // The !important is unfortunate, but necessary for the border.
-            borderLeftColor: `${colors.gray[10]} !important`,
+            borderLeftColor: `${colors.gray[11]} !important`,
           },
         },
       },
@@ -407,7 +413,7 @@ dark = createTheme(dark, {
           // The default outlined input color is white, which seemed jarring.
           "&:hover:not(.Mui-error):not(.Mui-focused) .MuiOutlinedInput-notchedOutline":
             {
-              borderColor: colors.gray[10],
+              borderColor: colors.gray[11],
             },
         },
       },
@@ -514,6 +520,21 @@ dark = createTheme(dark, {
         message: ({ theme }) => ({
           color: theme.palette.text.primary,
         }),
+        outlinedWarning: {
+          [`& .${alertClasses.icon}`]: {
+            color: dark.palette.warning.light,
+          },
+        },
+        outlinedInfo: {
+          [`& .${alertClasses.icon}`]: {
+            color: dark.palette.primary.light,
+          },
+        },
+        outlinedError: {
+          [`& .${alertClasses.icon}`]: {
+            color: dark.palette.error.light,
+          },
+        },
       },
     },
     MuiAlertTitle: {

@@ -15,7 +15,7 @@ import {
   TableLoaderSkeleton,
   TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
-import { EnterpriseBadge } from "components/DeploySettingsLayout/Badges";
+import { EnterpriseBadge } from "components/Badges/Badges";
 import HideSourceOutlined from "@mui/icons-material/HideSourceOutlined";
 import KeyOutlined from "@mui/icons-material/KeyOutlined";
 import GitHub from "@mui/icons-material/GitHub";

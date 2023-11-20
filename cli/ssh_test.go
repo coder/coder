@@ -249,10 +249,125 @@ func TestSSH(t *testing.T) {
 		<-cmdDone
 	})
 
+	t.Run("Stdio_RemoteForward_Signal", func(t *testing.T) {
+		t.Parallel()
+		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
+		_, _ = tGoContext(t, func(ctx context.Context) {
+			// Run this async so the SSH command has to wait for
+			// the build and agent to connect!
+			_ = agenttest.New(t, client.URL, agentToken)
+			<-ctx.Done()
+		})
+
+		clientOutput, clientInput := io.Pipe()
+		serverOutput, serverInput := io.Pipe()
+		defer func() {
+			for _, c := range []io.Closer{clientOutput, clientInput, serverOutput, serverInput} {
+				_ = c.Close()
+			}
+		}()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		inv, root := clitest.New(t, "ssh", "--stdio", workspace.Name)
+		fsn := clitest.NewFakeSignalNotifier(t)
+		inv = inv.WithTestSignalNotifyContext(t, fsn.NotifyContext)
+		clitest.SetupConfig(t, client, root)
+		inv.Stdin = clientOutput
+		inv.Stdout = serverInput
+		inv.Stderr = io.Discard
+
+		cmdDone := tGo(t, func() {
+			err := inv.WithContext(ctx).Run()
+			assert.NoError(t, err)
+		})
+
+		conn, channels, requests, err := ssh.NewClientConn(&stdioConn{
+			Reader: serverOutput,
+			Writer: clientInput,
+		}, "", &ssh.ClientConfig{
+			// #nosec
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		})
+		require.NoError(t, err)
+		defer conn.Close()
+
+		sshClient := ssh.NewClient(conn, channels, requests)
+
+		tmpdir := tempDirUnixSocket(t)
+
+		remoteSock := path.Join(tmpdir, "remote.sock")
+		_, err = sshClient.ListenUnix(remoteSock)
+		require.NoError(t, err)
+
+		fsn.Notify()
+		<-cmdDone
+		fsn.AssertStopped()
+		require.Eventually(t, func() bool {
+			_, err = os.Stat(remoteSock)
+			return xerrors.Is(err, os.ErrNotExist)
+		}, testutil.WaitShort, testutil.IntervalFast)
+	})
+
+	t.Run("Stdio_BrokenConn", func(t *testing.T) {
+		t.Parallel()
+		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
+		_, _ = tGoContext(t, func(ctx context.Context) {
+			// Run this async so the SSH command has to wait for
+			// the build and agent to connect!
+			_ = agenttest.New(t, client.URL, agentToken)
+			<-ctx.Done()
+		})
+
+		clientOutput, clientInput := io.Pipe()
+		serverOutput, serverInput := io.Pipe()
+		defer func() {
+			for _, c := range []io.Closer{clientOutput, clientInput, serverOutput, serverInput} {
+				_ = c.Close()
+			}
+		}()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		inv, root := clitest.New(t, "ssh", "--stdio", workspace.Name)
+		clitest.SetupConfig(t, client, root)
+		inv.Stdin = clientOutput
+		inv.Stdout = serverInput
+		inv.Stderr = io.Discard
+
+		cmdDone := tGo(t, func() {
+			err := inv.WithContext(ctx).Run()
+			assert.NoError(t, err)
+		})
+
+		conn, channels, requests, err := ssh.NewClientConn(&stdioConn{
+			Reader: serverOutput,
+			Writer: clientInput,
+		}, "", &ssh.ClientConfig{
+			// #nosec
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		})
+		require.NoError(t, err)
+		defer conn.Close()
+
+		sshClient := ssh.NewClient(conn, channels, requests)
+		_ = serverOutput.Close()
+		_ = clientInput.Close()
+		select {
+		case <-cmdDone:
+			// OK
+		case <-time.After(testutil.WaitShort):
+			t.Error("timeout waiting for command to exit")
+		}
+
+		_ = sshClient.Close()
+	})
+
 	// Test that we handle OS signals properly while remote forwarding, and don't just leave the TCP
 	// socket hanging.
 	t.Run("RemoteForward_Unix_Signal", func(t *testing.T) {
-		t.Skip("still flaky")
 		if runtime.GOOS == "windows" {
 			t.Skip("No unix sockets on windows")
 		}
@@ -578,12 +693,13 @@ func TestSSH(t *testing.T) {
 		l, err := net.Listen("unix", agentSock)
 		require.NoError(t, err)
 		defer l.Close()
+		remoteSock := filepath.Join(tmpdir, "remote.sock")
 
 		inv, root := clitest.New(t,
 			"ssh",
 			workspace.Name,
 			"--remote-forward",
-			"/tmp/test.sock:"+agentSock,
+			fmt.Sprintf("%s:%s", remoteSock, agentSock),
 		)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
@@ -598,7 +714,7 @@ func TestSSH(t *testing.T) {
 		_ = pty.Peek(ctx, 1)
 
 		// Download the test page
-		pty.WriteLine("ss -xl state listening src /tmp/test.sock | wc -l")
+		pty.WriteLine(fmt.Sprintf("ss -xl state listening src %s | wc -l", remoteSock))
 		pty.ExpectMatch("2")
 
 		// And we're done.

@@ -42,6 +42,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 		templateTTL                   time.Duration
 		templateDisallowsUserAutostop bool
 		expectedBump                  time.Duration
+		nextAutostart                 time.Time
 	}{
 		{
 			name:                "NotFinishedYet",
@@ -67,21 +68,40 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			expectedBump:        0,
 		},
 		{
+			// Expected bump is 0 because the original deadline is more than 1 hour
+			// out, so a bump would decrease the deadline.
+			name:                "BumpLessThanDeadline",
+			transition:          database.WorkspaceTransitionStart,
+			jobCompletedAt:      sql.NullTime{Valid: true, Time: dbtime.Now().Add(-30 * time.Minute)},
+			buildDeadlineOffset: ptr.Ref(8*time.Hour - 30*time.Minute),
+			workspaceTTL:        8 * time.Hour,
+			expectedBump:        0,
+		},
+		{
 			name:                "TimeToBump",
 			transition:          database.WorkspaceTransitionStart,
-			jobCompletedAt:      sql.NullTime{Valid: true, Time: dbtime.Now().Add(-24 * time.Minute)},
-			buildDeadlineOffset: ptr.Ref(8*time.Hour - 24*time.Minute),
+			jobCompletedAt:      sql.NullTime{Valid: true, Time: dbtime.Now().Add(-30 * time.Minute)},
+			buildDeadlineOffset: ptr.Ref(-30 * time.Minute),
 			workspaceTTL:        8 * time.Hour,
-			expectedBump:        8 * time.Hour,
+			expectedBump:        time.Hour,
+		},
+		{
+			name:                "TimeToBumpNextAutostart",
+			transition:          database.WorkspaceTransitionStart,
+			jobCompletedAt:      sql.NullTime{Valid: true, Time: dbtime.Now().Add(-30 * time.Minute)},
+			buildDeadlineOffset: ptr.Ref(-30 * time.Minute),
+			workspaceTTL:        8 * time.Hour,
+			expectedBump:        8*time.Hour + 30*time.Minute,
+			nextAutostart:       time.Now().Add(time.Minute * 30),
 		},
 		{
 			name:                "MaxDeadline",
 			transition:          database.WorkspaceTransitionStart,
 			jobCompletedAt:      sql.NullTime{Valid: true, Time: dbtime.Now().Add(-24 * time.Minute)},
 			buildDeadlineOffset: ptr.Ref(time.Minute), // last chance to bump!
-			maxDeadlineOffset:   ptr.Ref(time.Hour),
+			maxDeadlineOffset:   ptr.Ref(time.Minute * 30),
 			workspaceTTL:        8 * time.Hour,
-			expectedBump:        1 * time.Hour,
+			expectedBump:        time.Minute * 30,
 		},
 		{
 			// A workspace that is still running, has passed its deadline, but has not
@@ -91,7 +111,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			jobCompletedAt:      sql.NullTime{Valid: true, Time: dbtime.Now().Add(-24 * time.Minute)},
 			buildDeadlineOffset: ptr.Ref(-time.Minute),
 			workspaceTTL:        8 * time.Hour,
-			expectedBump:        8 * time.Hour,
+			expectedBump:        time.Hour,
 		},
 		{
 			// A stopped workspace should never bump.
@@ -106,12 +126,13 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			// by the template TTL instead.
 			name:                          "TemplateDisallowsUserAutostop",
 			transition:                    database.WorkspaceTransitionStart,
-			jobCompletedAt:                sql.NullTime{Valid: true, Time: dbtime.Now().Add(-24 * time.Minute)},
-			buildDeadlineOffset:           ptr.Ref(8*time.Hour - 24*time.Minute),
-			workspaceTTL:                  6 * time.Hour,
-			templateTTL:                   8 * time.Hour,
+			jobCompletedAt:                sql.NullTime{Valid: true, Time: dbtime.Now().Add(-7 * time.Hour)},
+			buildDeadlineOffset:           ptr.Ref(-30 * time.Minute),
+			workspaceTTL:                  2 * time.Hour,
+			templateTTL:                   10 * time.Hour,
 			templateDisallowsUserAutostop: true,
-			expectedBump:                  8 * time.Hour,
+			expectedBump:                  10*time.Hour + (time.Minute * 30),
+			nextAutostart:                 time.Now().Add(time.Minute * 30),
 		},
 	} {
 		tt := tt
@@ -215,7 +236,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 
 				// Bump duration is measured from the time of the bump, so we measure from here.
 				start := dbtime.Now()
-				activityBumpWorkspace(ctx, log, db, bld.WorkspaceID)
+				activityBumpWorkspace(ctx, log, db, bld.WorkspaceID, tt.nextAutostart)
 				end := dbtime.Now()
 
 				// Validate our state after bump
@@ -233,9 +254,9 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 					return
 				}
 
-				// Assert that the bump occurred between start and end.
-				expectedDeadlineStart := start.Add(tt.expectedBump)
-				expectedDeadlineEnd := end.Add(tt.expectedBump)
+				// Assert that the bump occurred between start and end. 1min buffer on either side.
+				expectedDeadlineStart := start.Add(tt.expectedBump).Add(time.Minute * -1)
+				expectedDeadlineEnd := end.Add(tt.expectedBump).Add(time.Minute)
 				require.GreaterOrEqual(t, updatedBuild.Deadline, expectedDeadlineStart, "new deadline should be greater than or equal to start")
 				require.LessOrEqual(t, updatedBuild.Deadline, expectedDeadlineEnd, "new deadline should be lesser than or equal to end")
 			})
