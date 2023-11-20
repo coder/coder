@@ -19,11 +19,11 @@ export function usersKey(req: UsersRequest) {
 
 export function paginatedUsers() {
   return {
-    queryPayload: ({ pageSize, pageOffset, searchParams }) => {
+    queryPayload: ({ limit, offset, searchParams }) => {
       return {
+        limit,
+        offset,
         q: prepareQuery(searchParams.get("filter") ?? ""),
-        limit: pageSize,
-        offset: pageOffset,
       };
     },
 

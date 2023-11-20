@@ -101,15 +101,15 @@ export function usePaginatedQuery<
 
   const [searchParams, setSearchParams] = useSearchParams();
   const currentPage = parsePage(searchParams);
-  const pageSize = DEFAULT_RECORDS_PER_PAGE;
-  const pageOffset = (currentPage - 1) * pageSize;
+  const limit = DEFAULT_RECORDS_PER_PAGE;
+  const offset = (currentPage - 1) * limit;
 
   const getQueryOptionsFromPage = (pageNumber: number) => {
     const pageParams: QueryPageParams = {
       pageNumber,
-      pageOffset,
-      pageSize,
-      searchParams: searchParams,
+      offset,
+      limit,
+      searchParams,
     };
 
     const payload = queryPayload?.(pageParams) as RuntimePayload<TQueryPayload>;
@@ -132,8 +132,8 @@ export function usePaginatedQuery<
   });
 
   const totalRecords = query.data?.count ?? 0;
-  const totalPages = Math.ceil(totalRecords / pageSize);
-  const hasNextPage = pageSize * pageOffset < totalRecords;
+  const totalPages = Math.ceil(totalRecords / limit);
+  const hasNextPage = limit * offset < totalRecords;
   const hasPreviousPage = currentPage > 1;
 
   const queryClient = useQueryClient();
@@ -169,8 +169,8 @@ export function usePaginatedQuery<
       setSearchParams(searchParams);
     } else {
       const params: InvalidPageParams = {
-        pageOffset,
-        pageSize,
+        offset: offset,
+        limit: limit,
         totalPages,
         setSearchParams,
         pageNumber: currentPage,
@@ -202,7 +202,7 @@ export function usePaginatedQuery<
     goToPreviousPage: () => onPageChange(currentPage - 1),
     goToNextPage: () => onPageChange(currentPage + 1),
     currentPage,
-    pageSize,
+    pageSize: limit,
     totalRecords,
     hasNextPage,
     hasPreviousPage,
@@ -254,9 +254,29 @@ type QueryPayloadExtender<TQueryPayload = never> = [TQueryPayload] extends [
  * queryPayload, queryKey, and queryFn properties of the hook.
  */
 type QueryPageParams = {
+  /**
+   * The page number used when evaluating queryKey and queryFn. pageNumber will
+   * be the current page during rendering, but will be the next/previous pages
+   * for any prefetching.
+   */
   pageNumber: number;
-  pageSize: number;
-  pageOffset: number;
+
+  /**
+   * The number of data records to pull per query. Currently hard-coded based
+   * off the value from PaginationWidget's utils file
+   */
+  limit: number;
+
+  /**
+   * The page offset to use for querying. Just here for convenience; can also be
+   * derived from pageNumber and limit
+   */
+  offset: number;
+
+  /**
+   * The current URL search params. Useful for letting you grab certain search
+   * terms from the URL
+   */
   searchParams: URLSearchParams;
 };
 
