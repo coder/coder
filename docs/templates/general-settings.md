@@ -26,7 +26,7 @@ mandatory for template admins to ensure template iteration is still possible.
 
 While this setting applies to both manual starts and
 [autostarts](../workspaces.md), promoting a template version that requires
-manual intervention by the user (such as mandatory new template paremeters) will
+manual intervention by the user (such as mandatory new template parameters) will
 result in autostart being disabled for all incompatible workspaces until a
 manual update is performed by the user.
 
