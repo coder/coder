@@ -88,7 +88,12 @@ export const isShuttingDown = (
   return isWorkspaceOn(workspace) && now.isAfter(deadline);
 };
 
-export const autostopDisplay = (workspace: Workspace): string => {
+export const autostopDisplay = (
+  workspace: Workspace,
+): {
+  message: string;
+  tooltip?: string;
+} => {
   const ttl = workspace.ttl_ms;
 
   if (isWorkspaceOn(workspace) && workspace.latest_build.deadline) {
@@ -100,19 +105,29 @@ export const autostopDisplay = (workspace: Workspace): string => {
 
     const deadline = dayjs(workspace.latest_build.deadline).utc();
     if (isShuttingDown(workspace, deadline)) {
-      return Language.workspaceShuttingDownLabel;
+      return {
+        message: Language.workspaceShuttingDownLabel,
+      };
     } else {
-      return deadline.tz(dayjs.tz.guess()).format("MMMM D, YYYY h:mm A");
+      const deadlineTz = deadline.tz(dayjs.tz.guess());
+      return {
+        message: deadlineTz.fromNow(),
+        tooltip: deadlineTz.format("MMMM D, YYYY h:mm A"),
+      };
     }
   } else if (!ttl || ttl < 1) {
     // If the workspace is not on, and the ttl is 0 or undefined, then the
     // workspace is set to manually shutdown.
-    return Language.manual;
+    return {
+      message: Language.manual,
+    };
   } else {
     // The workspace has a ttl set, but is either in an unknown state or is
     // not running. Therefore, we derive from workspace.ttl.
     const duration = dayjs.duration(ttl, "milliseconds");
-    return `${duration.humanize()} ${Language.afterStart}`;
+    return {
+      message: `${duration.humanize()} ${Language.afterStart}`,
+    };
   }
 };
 

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -274,7 +275,19 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 		wg.Add(1)
 		go func(peer database.Replica) {
 			defer wg.Done()
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, peer.RelayAddress, nil)
+			ra, err := url.Parse(peer.RelayAddress)
+			if err != nil {
+				m.logger.Warn(ctx, "could not parse relay address",
+					slog.F("relay_address", peer.RelayAddress), slog.Error(err))
+				return
+			}
+			target, err := ra.Parse("/derp/latency-check")
+			if err != nil {
+				m.logger.Warn(ctx, "could not resolve /derp/latency-check endpoint",
+					slog.F("relay_address", peer.RelayAddress), slog.Error(err))
+				return
+			}
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
 			if err != nil {
 				m.logger.Warn(ctx, "create http request for relay probe",
 					slog.F("relay_address", peer.RelayAddress), slog.Error(err))

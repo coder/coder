@@ -2378,9 +2378,11 @@ export const MockHealth: TypesGen.HealthcheckReport = {
   failing_sections: [],
   derp: {
     healthy: true,
+    warnings: [],
     regions: {
       "999": {
         healthy: true,
+        warnings: [],
         region: {
           EmbeddedRelay: true,
           RegionID: 999,
@@ -2406,6 +2408,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
         node_reports: [
           {
             healthy: true,
+            warnings: [],
             node: {
               Name: "999stun0",
               RegionID: 999,
@@ -2430,6 +2433,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
           },
           {
             healthy: true,
+            warnings: [],
             node: {
               Name: "999b",
               RegionID: 999,
@@ -2463,6 +2467,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
       },
       "10007": {
         healthy: true,
+        warnings: [],
         region: {
           EmbeddedRelay: false,
           RegionID: 10007,
@@ -2488,6 +2493,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
         node_reports: [
           {
             healthy: true,
+            warnings: [],
             node: {
               Name: "10007stun0",
               RegionID: 10007,
@@ -2512,6 +2518,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
           },
           {
             healthy: true,
+            warnings: [],
             node: {
               Name: "10007a",
               RegionID: 10007,
@@ -2545,6 +2552,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
       },
       "10008": {
         healthy: true,
+        warnings: [],
         region: {
           EmbeddedRelay: false,
           RegionID: 10008,
@@ -2570,6 +2578,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
         node_reports: [
           {
             healthy: true,
+            warnings: [],
             node: {
               Name: "10008stun0",
               RegionID: 10008,
@@ -2594,6 +2603,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
           },
           {
             healthy: true,
+            warnings: [],
             node: {
               Name: "10008a",
               RegionID: 10008,
@@ -2627,6 +2637,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
       },
       "10009": {
         healthy: true,
+        warnings: [],
         region: {
           EmbeddedRelay: false,
           RegionID: 10009,
@@ -2652,6 +2663,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
         node_reports: [
           {
             healthy: true,
+            warnings: [],
             node: {
               Name: "10009stun0",
               RegionID: 10009,
@@ -2676,6 +2688,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
           },
           {
             healthy: true,
+            warnings: [],
             node: {
               Name: "10009a",
               RegionID: 10009,
@@ -2753,19 +2766,22 @@ export const MockHealth: TypesGen.HealthcheckReport = {
     ],
   },
   access_url: {
-    access_url: "https://dev.coder.com",
     healthy: true,
+    warnings: [],
+    access_url: "https://dev.coder.com",
     reachable: true,
     status_code: 200,
     healthz_response: "OK",
   },
   websocket: {
     healthy: true,
+    warnings: [],
     body: "",
     code: 101,
   },
   database: {
     healthy: true,
+    warnings: [],
     reachable: true,
     latency: "92570",
     latency_ms: 92570,
@@ -2790,6 +2806,7 @@ export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
   coder_version: "v2.3.0-devel+8cca4915a",
   access_url: {
     healthy: true,
+    warnings: [],
     access_url: "",
     healthz_response: "",
     reachable: true,
@@ -2797,6 +2814,7 @@ export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
   },
   database: {
     healthy: false,
+    warnings: [],
     latency: "",
     latency_ms: 0,
     reachable: true,
@@ -2804,11 +2822,13 @@ export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
   },
   derp: {
     healthy: false,
+    warnings: [],
     regions: [],
     netcheck_logs: [],
   },
   websocket: {
     healthy: false,
+    warnings: [],
     body: "",
     code: 0,
   },

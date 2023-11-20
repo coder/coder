@@ -51,7 +51,8 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
     "healthy": true,
     "healthz_response": "string",
     "reachable": true,
-    "status_code": 0
+    "status_code": 0,
+    "warnings": ["string"]
   },
   "coder_version": "string",
   "database": {
@@ -60,7 +61,8 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
     "latency": "string",
     "latency_ms": 0,
     "reachable": true,
-    "threshold_ms": 0
+    "threshold_ms": 0,
+    "warnings": ["string"]
   },
   "derp": {
     "error": "string",
@@ -134,7 +136,8 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
               "enabled": true,
               "error": "string"
             },
-            "uses_websocket": true
+            "uses_websocket": true,
+            "warnings": ["string"]
           }
         ],
         "region": {
@@ -160,7 +163,8 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
           "regionCode": "string",
           "regionID": 0,
           "regionName": "string"
-        }
+        },
+        "warnings": ["string"]
       },
       "property2": {
         "error": "string",
@@ -198,7 +202,8 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
               "enabled": true,
               "error": "string"
             },
-            "uses_websocket": true
+            "uses_websocket": true,
+            "warnings": ["string"]
           }
         ],
         "region": {
@@ -224,9 +229,11 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
           "regionCode": "string",
           "regionID": 0,
           "regionName": "string"
-        }
+        },
+        "warnings": ["string"]
       }
-    }
+    },
+    "warnings": ["string"]
   },
   "failing_sections": ["string"],
   "healthy": true,
@@ -235,7 +242,8 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
     "body": "string",
     "code": 0,
     "error": "string",
-    "healthy": true
+    "healthy": true,
+    "warnings": ["string"]
   }
 }
 ```

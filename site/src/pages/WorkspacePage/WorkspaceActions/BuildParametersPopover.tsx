@@ -37,6 +37,14 @@ export const BuildParametersPopover = ({
   disabled?: boolean;
   onSubmit: (buildParameters: WorkspaceBuildParameter[]) => void;
 }) => {
+  const { data: parameters } = useQuery({
+    queryKey: ["workspace", workspace.id, "parameters"],
+    queryFn: () => getWorkspaceParameters(workspace),
+  });
+  const ephemeralParameters = parameters
+    ? parameters.templateVersionRichParameters.filter((p) => p.ephemeral)
+    : undefined;
+
   return (
     <Popover>
       <PopoverTrigger>
@@ -54,7 +62,8 @@ export const BuildParametersPopover = ({
         css={{ ".MuiPaper-root": { width: 304 } }}
       >
         <BuildParametersPopoverContent
-          workspace={workspace}
+          ephemeralParameters={ephemeralParameters}
+          buildParameters={parameters?.buildParameters}
           onSubmit={onSubmit}
         />
       </PopoverContent>
@@ -63,25 +72,19 @@ export const BuildParametersPopover = ({
 };
 
 const BuildParametersPopoverContent = ({
-  workspace,
   onSubmit,
+  ephemeralParameters,
+  buildParameters,
 }: {
-  workspace: Workspace;
   onSubmit: (buildParameters: WorkspaceBuildParameter[]) => void;
+  ephemeralParameters?: TemplateVersionParameter[];
+  buildParameters?: WorkspaceBuildParameter[];
 }) => {
   const popover = usePopover();
-  const { data: parameters } = useQuery({
-    queryKey: ["workspace", workspace.id, "parameters"],
-    queryFn: () => getWorkspaceParameters(workspace),
-    enabled: popover.isOpen,
-  });
-  const ephemeralParameters = parameters
-    ? parameters.templateVersionRichParameters.filter((p) => p.ephemeral)
-    : undefined;
 
   return (
     <>
-      {parameters && parameters.buildParameters && ephemeralParameters ? (
+      {buildParameters && ephemeralParameters ? (
         ephemeralParameters.length > 0 ? (
           <>
             <Box
@@ -103,7 +106,7 @@ const BuildParametersPopoverContent = ({
                   popover.setIsOpen(false);
                 }}
                 ephemeralParameters={ephemeralParameters}
-                buildParameters={parameters.buildParameters}
+                buildParameters={buildParameters}
               />
             </Box>
           </>

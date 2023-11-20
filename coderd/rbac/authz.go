@@ -395,6 +395,7 @@ func (a RegoAuthorizer) Prepare(ctx context.Context, subject Subject, action Act
 
 	prepared, err := a.newPartialAuthorizer(ctx, subject, action, objectType)
 	if err != nil {
+		err = correctCancelError(err)
 		return nil, xerrors.Errorf("new partial authorizer: %w", err)
 	}
 

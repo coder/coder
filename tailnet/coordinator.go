@@ -22,6 +22,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/tailnet/proto"
 )
 
 // Coordinator exchanges nodes with agents to establish connections.
@@ -46,6 +47,17 @@ type Coordinator interface {
 	Close() error
 
 	ServeMultiAgent(id uuid.UUID) MultiAgentConn
+}
+
+// CoordinatorV2 is the interface for interacting with the coordinator via the 2.0 tailnet API.
+type CoordinatorV2 interface {
+	// ServeHTTPDebug serves a debug webpage that shows the internal state of
+	// the coordinator.
+	ServeHTTPDebug(w http.ResponseWriter, r *http.Request)
+	// Node returns a node by peer ID, if known to the coordinator.  Returns nil if unknown.
+	Node(id uuid.UUID) *Node
+	Close() error
+	Coordinate(ctx context.Context, id uuid.UUID, name string, a TunnelAuth) (chan<- *proto.CoordinateRequest, <-chan *proto.CoordinateResponse)
 }
 
 // Node represents a node in the network.

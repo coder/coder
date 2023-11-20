@@ -180,7 +180,7 @@ export const WorkspacesPageView = ({
                 </MoreMenuItem>
                 <Divider />
                 <MoreMenuItem danger onClick={onDeleteAll}>
-                  <DeleteOutlined /> Delete
+                  <DeleteOutlined /> Delete&hellip;
                 </MoreMenuItem>
               </MoreMenuContent>
             </MoreMenu>

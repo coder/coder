@@ -47,7 +47,7 @@ const SidebarNavItem: FC<
       position: "absolute",
       left: 0,
       top: 0,
-      backgroundColor: theme.palette.secondary.dark,
+      backgroundColor: theme.palette.primary.main,
       borderTopLeftRadius: 8,
       borderBottomLeftRadius: 8,
     },

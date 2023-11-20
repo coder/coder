@@ -14,8 +14,10 @@ import (
 
 // @typescript-generate AccessURLReport
 type AccessURLReport struct {
+	Healthy  bool     `json:"healthy"`
+	Warnings []string `json:"warnings"`
+
 	AccessURL       string  `json:"access_url"`
-	Healthy         bool    `json:"healthy"`
 	Reachable       bool    `json:"reachable"`
 	StatusCode      int     `json:"status_code"`
 	HealthzResponse string  `json:"healthz_response"`
@@ -31,6 +33,7 @@ func (r *AccessURLReport) Run(ctx context.Context, opts *AccessURLReportOptions)
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
+	r.Warnings = []string{}
 	if opts.AccessURL == nil {
 		r.Error = ptr.Ref("access URL is nil")
 		return

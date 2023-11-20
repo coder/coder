@@ -2863,7 +2863,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `single_tailnet`                |
 | `template_autostop_requirement` |
 | `deployment_health_page`        |
-| `dashboard_theme`               |
 | `template_update_policies`      |
 
 ## codersdk.ExternalAuth
@@ -7142,7 +7141,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "enabled": true,
     "error": "string"
   },
-  "uses_websocket": true
+  "uses_websocket": true,
+  "warnings": ["string"]
 }
 ```
 
@@ -7161,6 +7161,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `round_trip_ping_ms`    | integer                                          | false    |              |             |
 | `stun`                  | [derphealth.StunReport](#derphealthstunreport)   | false    |              |             |
 | `uses_websocket`        | boolean                                          | false    |              |             |
+| `warnings`              | array of string                                  | false    |              |             |
 
 ## derphealth.RegionReport
 
@@ -7201,7 +7202,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "enabled": true,
         "error": "string"
       },
-      "uses_websocket": true
+      "uses_websocket": true,
+      "warnings": ["string"]
     }
   ],
   "region": {
@@ -7227,7 +7229,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "regionCode": "string",
     "regionID": 0,
     "regionName": "string"
-  }
+  },
+  "warnings": ["string"]
 }
 ```
 
@@ -7239,6 +7242,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `healthy`      | boolean                                                 | false    |              |             |
 | `node_reports` | array of [derphealth.NodeReport](#derphealthnodereport) | false    |              |             |
 | `region`       | [tailcfg.DERPRegion](#tailcfgderpregion)                | false    |              |             |
+| `warnings`     | array of string                                         | false    |              |             |
 
 ## derphealth.Report
 
@@ -7315,7 +7319,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "enabled": true,
             "error": "string"
           },
-          "uses_websocket": true
+          "uses_websocket": true,
+          "warnings": ["string"]
         }
       ],
       "region": {
@@ -7341,7 +7346,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "regionCode": "string",
         "regionID": 0,
         "regionName": "string"
-      }
+      },
+      "warnings": ["string"]
     },
     "property2": {
       "error": "string",
@@ -7379,7 +7385,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "enabled": true,
             "error": "string"
           },
-          "uses_websocket": true
+          "uses_websocket": true,
+          "warnings": ["string"]
         }
       ],
       "region": {
@@ -7405,9 +7412,11 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "regionCode": "string",
         "regionID": 0,
         "regionName": "string"
-      }
+      },
+      "warnings": ["string"]
     }
-  }
+  },
+  "warnings": ["string"]
 }
 ```
 
@@ -7422,6 +7431,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `netcheck_logs`    | array of string                                    | false    |              |             |
 | `regions`          | object                                             | false    |              |             |
 | » `[any property]` | [derphealth.RegionReport](#derphealthregionreport) | false    |              |             |
+| `warnings`         | array of string                                    | false    |              |             |
 
 ## derphealth.StunReport
 
@@ -7450,20 +7460,22 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "healthy": true,
   "healthz_response": "string",
   "reachable": true,
-  "status_code": 0
+  "status_code": 0,
+  "warnings": ["string"]
 }
 ```
 
 ### Properties
 
-| Name               | Type    | Required | Restrictions | Description |
-| ------------------ | ------- | -------- | ------------ | ----------- |
-| `access_url`       | string  | false    |              |             |
-| `error`            | string  | false    |              |             |
-| `healthy`          | boolean | false    |              |             |
-| `healthz_response` | string  | false    |              |             |
-| `reachable`        | boolean | false    |              |             |
-| `status_code`      | integer | false    |              |             |
+| Name               | Type            | Required | Restrictions | Description |
+| ------------------ | --------------- | -------- | ------------ | ----------- |
+| `access_url`       | string          | false    |              |             |
+| `error`            | string          | false    |              |             |
+| `healthy`          | boolean         | false    |              |             |
+| `healthz_response` | string          | false    |              |             |
+| `reachable`        | boolean         | false    |              |             |
+| `status_code`      | integer         | false    |              |             |
+| `warnings`         | array of string | false    |              |             |
 
 ## healthcheck.DatabaseReport
 
@@ -7474,20 +7486,22 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "latency": "string",
   "latency_ms": 0,
   "reachable": true,
-  "threshold_ms": 0
+  "threshold_ms": 0,
+  "warnings": ["string"]
 }
 ```
 
 ### Properties
 
-| Name           | Type    | Required | Restrictions | Description |
-| -------------- | ------- | -------- | ------------ | ----------- |
-| `error`        | string  | false    |              |             |
-| `healthy`      | boolean | false    |              |             |
-| `latency`      | string  | false    |              |             |
-| `latency_ms`   | integer | false    |              |             |
-| `reachable`    | boolean | false    |              |             |
-| `threshold_ms` | integer | false    |              |             |
+| Name           | Type            | Required | Restrictions | Description |
+| -------------- | --------------- | -------- | ------------ | ----------- |
+| `error`        | string          | false    |              |             |
+| `healthy`      | boolean         | false    |              |             |
+| `latency`      | string          | false    |              |             |
+| `latency_ms`   | integer         | false    |              |             |
+| `reachable`    | boolean         | false    |              |             |
+| `threshold_ms` | integer         | false    |              |             |
+| `warnings`     | array of string | false    |              |             |
 
 ## healthcheck.Report
 
@@ -7499,7 +7513,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "healthy": true,
     "healthz_response": "string",
     "reachable": true,
-    "status_code": 0
+    "status_code": 0,
+    "warnings": ["string"]
   },
   "coder_version": "string",
   "database": {
@@ -7508,7 +7523,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "latency": "string",
     "latency_ms": 0,
     "reachable": true,
-    "threshold_ms": 0
+    "threshold_ms": 0,
+    "warnings": ["string"]
   },
   "derp": {
     "error": "string",
@@ -7582,7 +7598,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "enabled": true,
               "error": "string"
             },
-            "uses_websocket": true
+            "uses_websocket": true,
+            "warnings": ["string"]
           }
         ],
         "region": {
@@ -7608,7 +7625,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "regionCode": "string",
           "regionID": 0,
           "regionName": "string"
-        }
+        },
+        "warnings": ["string"]
       },
       "property2": {
         "error": "string",
@@ -7646,7 +7664,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "enabled": true,
               "error": "string"
             },
-            "uses_websocket": true
+            "uses_websocket": true,
+            "warnings": ["string"]
           }
         ],
         "region": {
@@ -7672,9 +7691,11 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "regionCode": "string",
           "regionID": 0,
           "regionName": "string"
-        }
+        },
+        "warnings": ["string"]
       }
-    }
+    },
+    "warnings": ["string"]
   },
   "failing_sections": ["string"],
   "healthy": true,
@@ -7683,7 +7704,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "body": "string",
     "code": 0,
     "error": "string",
-    "healthy": true
+    "healthy": true,
+    "warnings": ["string"]
   }
 }
 ```
@@ -7708,18 +7730,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "body": "string",
   "code": 0,
   "error": "string",
-  "healthy": true
+  "healthy": true,
+  "warnings": ["string"]
 }
 ```
 
 ### Properties
 
-| Name      | Type    | Required | Restrictions | Description |
-| --------- | ------- | -------- | ------------ | ----------- |
-| `body`    | string  | false    |              |             |
-| `code`    | integer | false    |              |             |
-| `error`   | string  | false    |              |             |
-| `healthy` | boolean | false    |              |             |
+| Name       | Type            | Required | Restrictions | Description |
+| ---------- | --------------- | -------- | ------------ | ----------- |
+| `body`     | string          | false    |              |             |
+| `code`     | integer         | false    |              |             |
+| `error`    | string          | false    |              |             |
+| `healthy`  | boolean         | false    |              |             |
+| `warnings` | array of string | false    |              |             |
 
 ## netcheck.Report
 

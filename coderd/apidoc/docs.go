@@ -8605,7 +8605,6 @@ const docTemplate = `{
                 "single_tailnet",
                 "template_autostop_requirement",
                 "deployment_health_page",
-                "dashboard_theme",
                 "template_update_policies"
             ],
             "x-enum-varnames": [
@@ -8615,7 +8614,6 @@ const docTemplate = `{
                 "ExperimentSingleTailnet",
                 "ExperimentTemplateAutostopRequirement",
                 "ExperimentDeploymentHealthPage",
-                "ExperimentDashboardTheme",
                 "ExperimentTemplateUpdatePolicies"
             ]
         },
@@ -12121,6 +12119,12 @@ const docTemplate = `{
                 },
                 "uses_websocket": {
                     "type": "boolean"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -12141,6 +12145,12 @@ const docTemplate = `{
                 },
                 "region": {
                     "$ref": "#/definitions/tailcfg.DERPRegion"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -12169,6 +12179,12 @@ const docTemplate = `{
                     "type": "object",
                     "additionalProperties": {
                         "$ref": "#/definitions/derphealth.RegionReport"
+                    }
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
                     }
                 }
             }
@@ -12207,6 +12223,12 @@ const docTemplate = `{
                 },
                 "status_code": {
                     "type": "integer"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -12230,6 +12252,12 @@ const docTemplate = `{
                 },
                 "threshold_ms": {
                     "type": "integer"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -12283,6 +12311,12 @@ const docTemplate = `{
                 },
                 "healthy": {
                     "type": "boolean"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },

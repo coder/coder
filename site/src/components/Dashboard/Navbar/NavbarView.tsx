@@ -8,7 +8,6 @@ import Button from "@mui/material/Button";
 import MenuItem from "@mui/material/MenuItem";
 import KeyboardArrowDownOutlined from "@mui/icons-material/KeyboardArrowDownOutlined";
 import MenuIcon from "@mui/icons-material/Menu";
-import Typography from "@mui/material/Typography";
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import { type FC, type ReactNode, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
@@ -360,31 +359,30 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
             lineHeight: "140%",
           }}
         >
-          <Typography
-            component="h4"
-            sx={{
+          <h4
+            css={{
               fontSize: "inherit",
               fontWeight: 600,
               lineHeight: "inherit",
               margin: 0,
+              marginBottom: 4,
             }}
           >
             Select a region nearest to you
-          </Typography>
-          <Typography
-            component="p"
-            sx={{
+          </h4>
+          <p
+            css={(theme) => ({
               fontSize: 13,
-              color: (theme) => theme.palette.text.secondary,
+              color: theme.palette.text.secondary,
               lineHeight: "inherit",
               marginTop: 0.5,
-            }}
+            })}
           >
             Workspace proxies improve terminal and web app connections to
             workspaces. This does not apply to CLI connections. A region must be
             manually selected, otherwise the default primary region will be
             used.
-          </Typography>
+          </p>
         </Box>
         <Divider sx={{ borderColor: (theme) => theme.palette.divider }} />
         {proxyContextValue.proxies

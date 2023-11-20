@@ -1,9 +1,10 @@
 import { type FC } from "react";
 import { useQuery } from "react-query";
-import { deploymentStats, health } from "api/queries/deployment";
+import { deploymentStats } from "api/queries/deployment";
 import { usePermissions } from "hooks/usePermissions";
 import { DeploymentBannerView } from "./DeploymentBannerView";
 import { useDashboard } from "../DashboardProvider";
+import { health } from "api/queries/debug";
 
 export const DeploymentBanner: FC = () => {
   const dashboard = useDashboard();

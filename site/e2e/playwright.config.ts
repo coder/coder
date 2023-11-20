@@ -29,7 +29,7 @@ export default defineConfig({
       use: {
         storageState: STORAGE_STATE,
       },
-      timeout: 60000,
+      timeout: 60_000,
     },
   ],
   reporter: [["./reporter.ts"]],
