@@ -34,7 +34,7 @@ export function paginatedUsers() {
 
 export const users = (req: UsersRequest): UseQueryOptions<GetUsersResponse> => {
   return {
-    queryKey: ["users", req],
+    queryKey: usersKey(req),
     queryFn: ({ signal }) => API.getUsers(req, signal),
   };
 };
