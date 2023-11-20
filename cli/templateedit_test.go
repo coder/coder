@@ -228,6 +228,9 @@ func TestTemplateEdit(t *testing.T) {
 			"templates",
 			"edit",
 			template.Name,
+			"--description", "",
+			"--display-name", "",
+			"--icon", "",
 		}
 		inv, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, templateAdmin, root)
