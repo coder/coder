@@ -15,7 +15,7 @@ paid license. [Contact Sales](https://coder.com/contact) for pricing or
 | Governance      | [Browser Only Connections](./networking/#browser-only-connections-enterprise)                       |     ❌      |     ✅     |
 | Governance      | [Groups & Template RBAC](./admin/rbac.md)                                                           |     ❌      |     ✅     |
 | Cost Control    | [Quotas](./admin/quotas.md)                                                                         |     ❌      |     ✅     |
-| Cost Control    | [Max Workspace Lifetime](./workspaces#max-lifetime)                                                 |     ❌      |     ✅     |
+| Cost Control    | [Max Workspace Lifetime](./workspaces.md#max-lifetime)                                              |     ❌      |     ✅     |
 | User Management | [Groups](./admin/groups.md)                                                                         |     ❌      |     ✅     |
 | User Management | [Group & role sync](./admin/auth.md#group-sync-enterprise)                                          |     ❌      |     ✅     |
 | User Management | [SCIM](./admin/auth.md#scim)                                                                        |     ❌      |     ✅     |
