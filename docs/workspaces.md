@@ -81,6 +81,18 @@ workspace will run before Coder automatically stops it, regardless of any active
 connections. Use this setting to ensure that workspaces do not run in perpetuity
 when connections are left open inadvertently.
 
+### Automatic Updates
+
+It can be tedious to manually update a workspace everytime an update is pushed
+to a template. Users can choose to opt-in to automatic updates to update to the
+active template version whenever the workspace is started.
+
+Note: If a template is updated such that new parameter inputs are required from
+the user, autostart will be disabled for the workspace until the user has
+manually updated the workspace.
+
+![Automatic Updates](./images/workspace-automatic-updates.png)
+
 ## Updating workspaces
 
 After updating the default version of the template that a workspace was created
