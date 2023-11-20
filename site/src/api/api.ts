@@ -220,11 +220,27 @@ export const getTemplate = async (
   return response.data;
 };
 
+export interface TemplateOptions {
+  readonly deprecated?: boolean;
+}
+
 export const getTemplates = async (
   organizationId: string,
+  options?: TemplateOptions,
 ): Promise<TypesGen.Template[]> => {
+  const params = {} as Record<string, string>;
+  if (options && options.deprecated !== undefined) {
+    // Just want to check if it isn't undefined. If it has
+    // a boolean value, convert it to a string and include
+    // it as a param.
+    params["deprecated"] = String(options.deprecated);
+  }
+
   const response = await axios.get<TypesGen.Template[]>(
     `/api/v2/organizations/${organizationId}/templates`,
+    {
+      params,
+    },
   );
   return response.data;
 };

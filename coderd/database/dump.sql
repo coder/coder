@@ -805,7 +805,8 @@ CREATE TABLE templates (
     autostop_requirement_days_of_week smallint DEFAULT 0 NOT NULL,
     autostop_requirement_weeks bigint DEFAULT 0 NOT NULL,
     autostart_block_days_of_week smallint DEFAULT 0 NOT NULL,
-    require_active_version boolean DEFAULT false NOT NULL
+    require_active_version boolean DEFAULT false NOT NULL,
+    deprecated text DEFAULT ''::text NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -823,6 +824,8 @@ COMMENT ON COLUMN templates.autostop_requirement_days_of_week IS 'A bitmap of da
 COMMENT ON COLUMN templates.autostop_requirement_weeks IS 'The number of weeks between restarts. 0 or 1 weeks means "every week", 2 week means "every second week", etc. Weeks are counted from January 2, 2023, which is the first Monday of 2023. This is to ensure workspaces are started consistently for all customers on the same n-week cycles.';
 
 COMMENT ON COLUMN templates.autostart_block_days_of_week IS 'A bitmap of days of week that autostart of a workspace is not allowed. Default allows all days. This is intended as a cost savings measure to prevent auto start on weekends (for example).';
+
+COMMENT ON COLUMN templates.deprecated IS 'If set to a non empty string, the template will no longer be able to be used. The message will be displayed to the user.';
 
 CREATE VIEW template_with_users AS
  SELECT templates.id,
@@ -851,6 +854,7 @@ CREATE VIEW template_with_users AS
     templates.autostop_requirement_weeks,
     templates.autostart_block_days_of_week,
     templates.require_active_version,
+    templates.deprecated,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username
    FROM (public.templates

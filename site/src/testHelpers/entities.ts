@@ -452,6 +452,8 @@ export const MockTemplate: TypesGen.Template = {
   allow_user_autostart: true,
   allow_user_autostop: true,
   require_active_version: false,
+  deprecated: false,
+  deprecation_message: "",
 };
 
 export const MockTemplateVersionFiles: TemplateVersionFiles = {

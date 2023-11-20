@@ -55,6 +55,14 @@ Edit the template autostart requirement weekdays - workspaces created from this 
 
 Edit the template default time before shutdown - workspaces created from this template default to this value. Maps to "Default autostop" in the UI.
 
+### --deprecated
+
+|      |                     |
+| ---- | ------------------- |
+| Type | <code>string</code> |
+
+Sets the template as deprecated. Must be a message explaining why the template is deprecated.
+
 ### --description
 
 |      |                     |

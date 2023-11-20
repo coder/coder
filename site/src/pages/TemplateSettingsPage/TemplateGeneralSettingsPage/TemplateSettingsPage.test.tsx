@@ -12,7 +12,10 @@ import { getValidationSchema } from "./TemplateSettingsForm";
 import { TemplateSettingsPage } from "./TemplateSettingsPage";
 
 type FormValues = Required<
-  Omit<UpdateTemplateMeta, "default_ttl_ms" | "max_ttl_ms">
+  Omit<
+    UpdateTemplateMeta,
+    "default_ttl_ms" | "max_ttl_ms" | "deprecation_message"
+  >
 >;
 
 const validFormValues: FormValues = {

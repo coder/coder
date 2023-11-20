@@ -16,7 +16,9 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -516,6 +518,66 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[4].Action)
 	})
 
+	t.Run("AGPL_Deprecated", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: false})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		req := codersdk.UpdateTemplateMeta{
+			DeprecationMessage: ptr.Ref("APGL cannot deprecate"),
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.NoError(t, err)
+		assert.Greater(t, updated.UpdatedAt, template.UpdatedAt)
+		// AGPL cannot deprecate, expect no change
+		assert.False(t, updated.Deprecated)
+		assert.Empty(t, updated.DeprecationMessage)
+	})
+
+	// AGPL cannot deprecate, but it can be unset
+	t.Run("AGPL_Unset_Deprecated", func(t *testing.T) {
+		t.Parallel()
+
+		owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: false})
+		user := coderdtest.CreateFirstUser(t, owner)
+		client, tplAdmin := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		// nolint:gocritic // Setting up unit test data
+		err := db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(tplAdmin)), database.UpdateTemplateAccessControlByIDParams{
+			ID:                   template.ID,
+			RequireActiveVersion: false,
+			Deprecated:           "Some deprecated message",
+		})
+		require.NoError(t, err)
+
+		// Check that it is deprecated
+		got, err := client.Template(ctx, template.ID)
+		require.NoError(t, err)
+		require.NotEmpty(t, got.DeprecationMessage, "template is deprecated to start")
+		require.True(t, got.Deprecated, "template is deprecated to start")
+
+		req := codersdk.UpdateTemplateMeta{
+			DeprecationMessage: ptr.Ref(""),
+		}
+
+		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.NoError(t, err)
+		assert.Greater(t, updated.UpdatedAt, template.UpdatedAt)
+		assert.False(t, updated.Deprecated)
+		assert.Empty(t, updated.DeprecationMessage)
+	})
+
 	t.Run("NoDefaultTTL", func(t *testing.T) {
 		t.Parallel()
 
@@ -543,6 +605,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 		require.NoError(t, err)
 		assert.Greater(t, updated.UpdatedAt, template.UpdatedAt)
 		assert.Equal(t, req.DefaultTTLMillis, updated.DefaultTTLMillis)
+		assert.Empty(t, updated.DeprecationMessage)
+		assert.False(t, updated.Deprecated)
 	})
 
 	t.Run("DefaultTTLTooLow", func(t *testing.T) {
@@ -569,6 +633,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, updated.UpdatedAt, template.UpdatedAt)
 		assert.Equal(t, updated.DefaultTTLMillis, template.DefaultTTLMillis)
+		assert.Empty(t, updated.DeprecationMessage)
+		assert.False(t, updated.Deprecated)
 	})
 
 	t.Run("MaxTTL", func(t *testing.T) {
@@ -634,6 +700,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 			require.EqualValues(t, 2, atomic.LoadInt64(&setCalled))
 			require.EqualValues(t, 0, got.DefaultTTLMillis)
 			require.Equal(t, maxTTL.Milliseconds(), got.MaxTTLMillis)
+			require.Empty(t, got.DeprecationMessage)
+			require.False(t, got.Deprecated)
 		})
 
 		t.Run("DefaultTTLBigger", func(t *testing.T) {
@@ -692,6 +760,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, defaultTTL.Milliseconds(), got.DefaultTTLMillis)
 			require.Zero(t, got.MaxTTLMillis)
+			require.Empty(t, got.DeprecationMessage)
+			require.False(t, got.Deprecated)
 		})
 	})
 
@@ -785,6 +855,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 			require.Zero(t, got.FailureTTLMillis)
 			require.Zero(t, got.TimeTilDormantMillis)
 			require.Zero(t, got.TimeTilDormantAutoDeleteMillis)
+			require.Empty(t, got.DeprecationMessage)
+			require.False(t, got.Deprecated)
 		})
 	})
 
@@ -1036,6 +1108,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, []string{"friday", "saturday"}, template.AutostopRequirement.DaysOfWeek)
 			require.EqualValues(t, 2, template.AutostopRequirement.Weeks)
+			require.Empty(t, template.DeprecationMessage)
+			require.False(t, template.Deprecated)
 		})
 
 		t.Run("Unset", func(t *testing.T) {
@@ -1146,6 +1220,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 			require.NoError(t, err)
 			require.Empty(t, template.AutostopRequirement.DaysOfWeek)
 			require.EqualValues(t, 1, template.AutostopRequirement.Weeks)
+			require.Empty(t, template.DeprecationMessage)
+			require.False(t, template.Deprecated)
 		})
 	})
 }

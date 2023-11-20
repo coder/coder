@@ -16,6 +16,7 @@ import (
 )
 
 func (r *RootCmd) templateEdit() *clibase.Cmd {
+	const deprecatedFlagName = "deprecated"
 	var (
 		name                           string
 		displayName                    string
@@ -32,6 +33,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 		allowUserAutostart             bool
 		allowUserAutostop              bool
 		requireActiveVersion           bool
+		deprecationMessage             string
 	)
 	client := new(codersdk.Client)
 
@@ -118,6 +120,15 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				autostopRequirementDaysOfWeek = []string{}
 			}
 
+			// Only pass explicitly set deprecated values since the empty string
+			// removes the deprecated message. By default if we pass a nil,
+			// there is no change to this field.
+			var deprecated *string
+			opt := inv.Command.Options.ByName(deprecatedFlagName)
+			if !(opt.ValueSource == "" || opt.ValueSource == clibase.ValueSourceDefault) {
+				deprecated = &deprecationMessage
+			}
+
 			// NOTE: coderd will ignore empty fields.
 			req := codersdk.UpdateTemplateMeta{
 				Name:             name,
@@ -139,6 +150,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				AllowUserAutostart:           allowUserAutostart,
 				AllowUserAutostop:            allowUserAutostop,
 				RequireActiveVersion:         requireActiveVersion,
+				DeprecationMessage:           deprecated,
 			}
 
 			_, err = client.UpdateTemplateMeta(inv.Context(), template.ID, req)
@@ -165,6 +177,12 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 			Flag:        "description",
 			Description: "Edit the template description.",
 			Value:       clibase.StringOf(&description),
+		},
+		{
+			Name:        deprecatedFlagName,
+			Flag:        "deprecated",
+			Description: "Sets the template as deprecated. Must be a message explaining why the template is deprecated.",
+			Value:       clibase.StringOf(&deprecationMessage),
 		},
 		{
 			Flag:        "icon",

@@ -10057,6 +10057,12 @@ const docTemplate = `{
                 "default_ttl_ms": {
                     "type": "integer"
                 },
+                "deprecated": {
+                    "type": "boolean"
+                },
+                "deprecation_message": {
+                    "type": "string"
+                },
                 "description": {
                     "type": "string"
                 },

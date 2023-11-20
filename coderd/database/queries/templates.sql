@@ -34,6 +34,17 @@ WHERE
 			id = ANY(@ids)
 		ELSE true
 	END
+	-- Filter by deprecated
+	AND CASE
+		WHEN sqlc.narg('deprecated') :: boolean IS NOT NULL THEN
+			CASE
+				WHEN sqlc.narg('deprecated') :: boolean THEN
+					deprecated != ''
+				ELSE
+					deprecated = ''
+			END
+		ELSE true
+	END
   -- Authorize Filter clause will be injected below in GetAuthorizedTemplates
   -- @authorize_filter
 ORDER BY (name, id) ASC
@@ -174,7 +185,8 @@ FROM build_times
 UPDATE
 	templates
 SET
-	require_active_version = $2
+	require_active_version = $2,
+	deprecated = $3
 WHERE
 	id = $1
 ;
