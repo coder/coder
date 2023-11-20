@@ -17,7 +17,7 @@ While this can be helpful for cases where a build is unlikely to finish, it also
 carries the risk of potentially corrupting your workspace. The setting is
 disabled by default.
 
-### Require automatic updates
+### Require automatic updates (Enterprise)
 
 Admins can require all workspaces update to the latest active template version
 when they're started. This can be used to enforce security patches or other
