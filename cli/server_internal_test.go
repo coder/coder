@@ -243,3 +243,56 @@ func TestRedirectHTTPToHTTPSDeprecation(t *testing.T) {
 		})
 	}
 }
+
+func TestIsDERPPath(t *testing.T) {
+	t.Parallel()
+
+	testcases := []struct {
+		path     string
+		expected bool
+	}{
+		//{
+		//	path:     "/derp",
+		//	expected: true,
+		//},
+		{
+			path:     "/derp/",
+			expected: true,
+		},
+		{
+			path:     "/derp/latency-check",
+			expected: true,
+		},
+		{
+			path:     "/derp/latency-check/",
+			expected: true,
+		},
+		{
+			path:     "",
+			expected: false,
+		},
+		{
+			path:     "/",
+			expected: false,
+		},
+		{
+			path:     "/derptastic",
+			expected: false,
+		},
+		{
+			path:     "/api/v2/derp",
+			expected: false,
+		},
+		{
+			path:     "//",
+			expected: false,
+		},
+	}
+	for _, tc := range testcases {
+		tc := tc
+		t.Run(tc.path, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.expected, isDERPPath(tc.path))
+		})
+	}
+}
