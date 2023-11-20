@@ -2,7 +2,6 @@ import { type FC, useState } from "react";
 import { useCustomEvent } from "hooks/events";
 import { EnterpriseSnackbar } from "./EnterpriseSnackbar";
 import { ErrorIcon } from "../Icons/ErrorIcon";
-import { Typography } from "../Typography/Typography";
 import {
   type AdditionalMessage,
   isNotificationList,
@@ -52,9 +51,7 @@ export const GlobalSnackbar: FC = () => {
           )}
 
           <div css={styles.message}>
-            <Typography variant="body1" css={styles.messageTitle}>
-              {notification.msg}
-            </Typography>
+            <span css={styles.messageTitle}>{notification.msg}</span>
 
             {notification.additionalMsgs &&
               notification.additionalMsgs.map((msg, index) => (
@@ -92,18 +89,14 @@ const styles = {
 
 function AdditionalMessageDisplay({ message }: { message: AdditionalMessage }) {
   if (isNotificationText(message)) {
-    return (
-      <Typography gutterBottom variant="body2" css={styles.messageSubtitle}>
-        {message}
-      </Typography>
-    );
+    return <span css={styles.messageSubtitle}>{message}</span>;
   }
 
   if (isNotificationTextPrefixed(message)) {
     return (
-      <Typography gutterBottom variant="body2" css={styles.messageSubtitle}>
+      <span css={styles.messageSubtitle}>
         <strong>{message.prefix}:</strong> {message.text}
-      </Typography>
+      </span>
     );
   }
 
@@ -112,9 +105,7 @@ function AdditionalMessageDisplay({ message }: { message: AdditionalMessage }) {
       <ul css={styles.list}>
         {message.map((item, idx) => (
           <li key={idx}>
-            <Typography variant="body2" css={styles.messageSubtitle}>
-              {item}
-            </Typography>
+            <span css={styles.messageSubtitle}>{item}</span>
           </li>
         ))}
       </ul>

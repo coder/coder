@@ -1922,6 +1922,18 @@ func redirectToAccessURL(handler http.Handler, accessURL *url.URL, tunnel bool, 
 			http.Redirect(w, r, accessURL.String(), http.StatusTemporaryRedirect)
 		}
 
+		// Exception: DERP
+		// We use this endpoint when creating a DERP-mesh in the enterprise version to directly
+		// dial other Coderd derpers.  Redirecting to the access URL breaks direct dial since the
+		// access URL will be load-balanced in a multi-replica deployment.
+		//
+		// It's totally fine to access DERP over TLS, but we also don't need to redirect HTTP to
+		// HTTPS as DERP is itself an encrypted protocol.
+		if isDERPPath(r.URL.Path) {
+			handler.ServeHTTP(w, r)
+			return
+		}
+
 		// Only do this if we aren't tunneling.
 		// If we are tunneling, we want to allow the request to go through
 		// because the tunnel doesn't proxy with TLS.
@@ -1947,6 +1959,14 @@ func redirectToAccessURL(handler http.Handler, accessURL *url.URL, tunnel bool, 
 
 		redirect()
 	})
+}
+
+func isDERPPath(p string) bool {
+	segments := strings.SplitN(p, "/", 3)
+	if len(segments) < 2 {
+		return false
+	}
+	return segments[1] == "derp"
 }
 
 // IsLocalhost returns true if the host points to the local machine. Intended to
