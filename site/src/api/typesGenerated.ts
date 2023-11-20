@@ -918,6 +918,8 @@ export interface Template {
   readonly active_user_count: number;
   readonly build_time_stats: TemplateBuildTimeStats;
   readonly description: string;
+  readonly deprecated: boolean;
+  readonly deprecation_message: string;
   readonly icon: string;
   readonly default_ttl_ms: number;
   readonly max_ttl_ms: number;
@@ -1183,6 +1185,7 @@ export interface UpdateTemplateMeta {
   readonly update_workspace_last_used_at: boolean;
   readonly update_workspace_dormant_at: boolean;
   readonly require_active_version: boolean;
+  readonly deprecation_message?: string;
 }
 
 // From codersdk/users.go
@@ -1721,7 +1724,6 @@ export const Entitlements: Entitlement[] = [
 
 // From codersdk/deployment.go
 export type Experiment =
-  | "dashboard_theme"
   | "deployment_health_page"
   | "moons"
   | "single_tailnet"
@@ -1730,7 +1732,6 @@ export type Experiment =
   | "template_update_policies"
   | "workspace_actions";
 export const Experiments: Experiment[] = [
-  "dashboard_theme",
   "deployment_health_page",
   "moons",
   "single_tailnet",

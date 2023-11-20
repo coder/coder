@@ -8605,7 +8605,6 @@ const docTemplate = `{
                 "single_tailnet",
                 "template_autostop_requirement",
                 "deployment_health_page",
-                "dashboard_theme",
                 "template_update_policies"
             ],
             "x-enum-varnames": [
@@ -8615,7 +8614,6 @@ const docTemplate = `{
                 "ExperimentSingleTailnet",
                 "ExperimentTemplateAutostopRequirement",
                 "ExperimentDeploymentHealthPage",
-                "ExperimentDashboardTheme",
                 "ExperimentTemplateUpdatePolicies"
             ]
         },
@@ -10058,6 +10056,12 @@ const docTemplate = `{
                 },
                 "default_ttl_ms": {
                     "type": "integer"
+                },
+                "deprecated": {
+                    "type": "boolean"
+                },
+                "deprecation_message": {
+                    "type": "string"
                 },
                 "description": {
                     "type": "string"

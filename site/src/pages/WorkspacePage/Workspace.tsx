@@ -328,6 +328,13 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
             </Alert>
           )}
 
+          {template?.deprecated && (
+            <Alert severity="warning">
+              <AlertTitle>Workspace using deprecated template</AlertTitle>
+              <AlertDetail>{template?.deprecation_message}</AlertDetail>
+            </Alert>
+          )}
+
           {transitionStats !== undefined && (
             <WorkspaceBuildProgress
               workspace={workspace}

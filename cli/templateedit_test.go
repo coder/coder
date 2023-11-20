@@ -1085,5 +1085,6 @@ func TestTemplateEdit(t *testing.T) {
 		assert.Equal(t, template.Icon, updated.Icon)
 		assert.Equal(t, template.DisplayName, updated.DisplayName)
 		assert.Equal(t, template.Description, updated.Description)
+		assert.Equal(t, template.DeprecationMessage, updated.DeprecationMessage)
 	})
 }

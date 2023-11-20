@@ -24,6 +24,7 @@ import {
   HelpTooltip,
   HelpTooltipText,
 } from "components/HelpTooltip/HelpTooltip";
+import { EnterpriseBadge } from "components/Badges/Badges";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 
@@ -49,6 +50,7 @@ export interface TemplateSettingsForm {
   // Helpful to show field errors on Storybook
   initialTouched?: FormikTouched<UpdateTemplateMeta>;
   accessControlEnabled: boolean;
+  templatePoliciesEnabled: boolean;
 }
 
 export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
@@ -59,6 +61,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
   isSubmitting,
   initialTouched,
   accessControlEnabled,
+  templatePoliciesEnabled,
 }) => {
   const validationSchema = getValidationSchema();
   const form: FormikContextType<UpdateTemplateMeta> =
@@ -73,6 +76,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         update_workspace_last_used_at: false,
         update_workspace_dormant_at: false,
         require_active_version: template.require_active_version,
+        deprecation_message: template.deprecation_message,
       },
       validationSchema,
       onSubmit,
@@ -170,7 +174,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
               </Stack>
             </Stack>
           </label>
-          {accessControlEnabled && (
+          {templatePoliciesEnabled && (
             <label htmlFor="require_active_version">
               <Stack direction="row" spacing={1}>
                 <Checkbox
@@ -203,6 +207,45 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
             </label>
           )}
         </Stack>
+      </FormSection>
+
+      <FormSection
+        title="Deprecate"
+        description="Deprecating a template prevents any new workspaces from being created. Existing workspaces will continue to function."
+      >
+        <FormFields>
+          <Stack direction="column" spacing={0.5}>
+            <Stack
+              direction="row"
+              alignItems="center"
+              spacing={0.5}
+              css={styles.optionText}
+            >
+              Deprecation Message
+            </Stack>
+            <span css={styles.optionHelperText}>
+              Leave the message empty to keep the template active. Any message
+              provided will mark the template as deprecated. Use this message to
+              inform users of the deprecation and how to migrate to a new
+              template.
+            </span>
+          </Stack>
+          <TextField
+            {...getFieldHelpers("deprecation_message")}
+            disabled={isSubmitting || !accessControlEnabled}
+            autoFocus
+            fullWidth
+            label="Deprecation Message"
+          />
+          {!accessControlEnabled && (
+            <Stack direction="row">
+              <EnterpriseBadge />
+              <span css={styles.optionHelperText}>
+                Enterprise license required to deprecate templates.
+              </span>
+            </Stack>
+          )}
+        </FormFields>
       </FormSection>
 
       <FormFooter onCancel={onCancel} isLoading={isSubmitting} />

@@ -5905,6 +5905,7 @@ func (q *FakeQuerier) UpdateTemplateAccessControlByID(_ context.Context, arg dat
 			continue
 		}
 		q.templates[idx].RequireActiveVersion = arg.RequireActiveVersion
+		q.templates[idx].Deprecated = arg.Deprecated
 		return nil
 	}
 
@@ -6885,6 +6886,9 @@ func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.G
 		}
 
 		if arg.ExactName != "" && !strings.EqualFold(template.Name, arg.ExactName) {
+			continue
+		}
+		if arg.Deprecated.Valid && arg.Deprecated.Bool == (template.Deprecated != "") {
 			continue
 		}
 

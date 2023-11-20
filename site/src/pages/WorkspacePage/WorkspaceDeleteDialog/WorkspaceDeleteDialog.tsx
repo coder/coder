@@ -36,7 +36,7 @@ const styles = {
       color: theme.palette.text.primary,
     },
   }),
-  orphanContainer: () => ({
+  orphanContainer: (theme) => ({
     marginTop: 24,
     display: "flex",
     backgroundColor: colors.orange[15],
@@ -57,6 +57,7 @@ const styles = {
     "& .info": {
       fontSize: 14,
       fontWeight: 600,
+      color: theme.experimental.roles.danger.text,
     },
   }),
 } satisfies Record<string, Interpolation<Theme>>;
@@ -166,10 +167,11 @@ export const WorkspaceDeleteDialog = (props: WorkspaceDeleteDialogProps) => {
                   />
                 </div>
                 <div css={{ flexDirection: "column" }}>
-                  <p className="info">Orphan resources</p>
+                  <p className="info">Orphan Resources</p>
                   <span css={{ fontSize: 12, marginTop: 4, display: "block" }}>
-                    Skip resource cleanup. Resources such as volumes and virtual
-                    machines will not be destroyed.&nbsp;
+                    As a Template Admin, you may skip resource cleanup to force
+                    remove a failed workspace. Resources such as volumes and
+                    virtual machines will not be destroyed.&nbsp;
                     <Link
                       href={docs("/workspaces#workspace-resources")}
                       target="_blank"
