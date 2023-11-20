@@ -49,6 +49,15 @@ export type UsePaginatedQueryOptions<
     queryFn: (
       context: PaginatedQueryFnContext<TQueryKey, TQueryPayload>,
     ) => TQueryFnData | Promise<TQueryFnData>;
+
+    /**
+     * A custom, optional function for handling what happens if the user
+     * navigates to a page that doesn't exist for the paginated data.
+     *
+     * If this function is not defined/provided, usePaginatedQuery will navigate
+     * the user to the closest valid page.
+     */
+    onInvalidPage?: (currentPage: number, totalPages: number) => void;
   };
 
 export function usePaginatedQuery<
@@ -69,6 +78,7 @@ export function usePaginatedQuery<
   const {
     queryKey,
     queryPayload,
+    onInvalidPage,
     queryFn: outerQueryFn,
     ...extraOptions
   } = options;
@@ -134,8 +144,12 @@ export function usePaginatedQuery<
 
   // Mainly here to catch user if they navigate to a page directly via URL
   const updatePageIfInvalid = useEffectEvent(() => {
-    const clamped = clamp(currentPage, 1, totalPages);
+    if (onInvalidPage !== undefined) {
+      onInvalidPage(currentPage, totalPages);
+      return;
+    }
 
+    const clamped = clamp(currentPage, 1, totalPages);
     if (currentPage !== clamped) {
       searchParams.set(PAGE_NUMBER_PARAMS_KEY, String(clamped));
       setSearchParams(searchParams);
