@@ -636,6 +636,8 @@ func TestSSH(t *testing.T) {
 		defer httpServer.Close()
 
 		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
+		_ = agenttest.New(t, client.URL, agentToken)
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 		inv, root := clitest.New(t,
 			"ssh",
@@ -644,32 +646,36 @@ func TestSSH(t *testing.T) {
 			"8222:"+httpServer.Listener.Addr().String(),
 		)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
-		inv.Stderr = pty.Output()
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
 		cmdDone := tGo(t, func() {
 			err := inv.WithContext(ctx).Run()
-			assert.NoError(t, err, "ssh command failed")
+			// fails because we cancel context to close
+			assert.Error(t, err, "ssh command should fail")
 		})
 
-		// Agent is still starting
-		pty.ExpectMatch("Waiting")
-
-		_ = agenttest.New(t, client.URL, agentToken)
-		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-
-		// Startup script has just finished
-		pty.ExpectMatch(startupScriptPattern)
-
-		// Download the test page
-		pty.WriteLine("curl localhost:8222")
-		pty.ExpectMatch("hello world")
+		require.Eventually(t, func() bool {
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://localhost:8222/", nil)
+			if !assert.NoError(t, err) {
+				// true exits the loop.
+				return true
+			}
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Logf("HTTP GET http://localhost:8222/ %s", err)
+				return false
+			}
+			defer resp.Body.Close()
+			body, err := io.ReadAll(resp.Body)
+			assert.NoError(t, err)
+			assert.EqualValues(t, "hello world", body)
+			return true
+		}, testutil.WaitLong, testutil.IntervalFast)
 
 		// And we're done.
-		pty.WriteLine("exit")
+		cancel()
 		<-cmdDone
 	})
 
