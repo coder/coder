@@ -36,7 +36,7 @@ export type UsePaginatedQueryOptions<
      * key.
      *
      * Must be a function so that it can be used for the active query, and then
-     * reused for any prefetching queries.
+     * reused for any prefetching queries (swapping the page number out).
      */
     queryKey: (params: QueryPageParamsWithPayload<TQueryPayload>) => TQueryKey;
 
@@ -211,7 +211,17 @@ type QueryPayloadExtender<TQueryPayload = never> = [TQueryPayload] extends [
   never,
 ]
   ? { queryPayload?: never }
-  : { queryPayload: (params: QueryPageParams) => TQueryPayload };
+  : {
+      /**
+       * An optional function for defining reusable "patterns" for taking
+       * pagination data (current page, etc.), which will be evaluated and
+       * passed to queryKey and queryFn for active queries and prefetch queries.
+       *
+       * queryKey and queryFn can each access the result of queryPayload
+       * by accessing the "payload" property from their main function argument
+       */
+      queryPayload: (params: QueryPageParams) => TQueryPayload;
+    };
 
 /**
  * Information about a paginated request. This information is passed into the
@@ -258,7 +268,8 @@ type PaginatedQueryFnContext<
  * Three properties are stripped from it:
  * - keepPreviousData - The value must always be true to keep pagination feeling
  *   nice, so better to prevent someone from trying to touch it at all
- * - queryFn - Removed to simplify replacing the type of its context argument
+ * - queryFn - Removed to make it easier to swap in a custom queryFn type
+ *   definition with a custom context argument
  * - queryKey - Removed so that it can be replaced with the function form of
  *   queryKey
  */
