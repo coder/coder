@@ -52,8 +52,9 @@ export type UsePaginatedQueryOptions<
      * A custom, optional function for handling what happens if the user
      * navigates to a page that doesn't exist for the paginated data.
      *
-     * If this function is not defined/provided, usePaginatedQuery will navigate
-     * the user to the closest valid page.
+     * If this function is not defined/provided when an invalid page is
+     * encountered, usePaginatedQuery will default to navigating the user to the
+     * closest valid page.
      */
     onInvalidPage?: (currentPage: number, totalPages: number) => void;
   };
