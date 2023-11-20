@@ -29,7 +29,6 @@ export function paginatedUsers() {
 
     queryKey: ({ payload }) => usersKey(payload),
     queryFn: ({ payload, signal }) => API.getUsers(payload, signal),
-    cacheTime: 5 * 60 * 1000,
   } as const satisfies UsePaginatedQueryOptions<GetUsersResponse, UsersRequest>;
 }
 
@@ -37,7 +36,6 @@ export const users = (req: UsersRequest): UseQueryOptions<GetUsersResponse> => {
   return {
     queryKey: ["users", req],
     queryFn: ({ signal }) => API.getUsers(req, signal),
-    cacheTime: 5 * 60 * 1000,
   };
 };
 
