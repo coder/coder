@@ -126,6 +126,18 @@ func TestTemplates(t *testing.T) {
 			Name:       "foobar",
 		})
 		require.ErrorContains(t, err, "deprecated")
+
+		// Unset deprecated and try again
+		updated, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{DeprecationMessage: ptr.Ref("")})
+		require.NoError(t, err)
+		assert.False(t, updated.Deprecated)
+		assert.Empty(t, updated.DeprecationMessage)
+
+		_, err = client.CreateWorkspace(ctx, user.OrganizationID, codersdk.Me, codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       "foobar",
+		})
+		require.NoError(t, err)
 	})
 
 	t.Run("BlockDisablingAutoOffWithMaxTTL", func(t *testing.T) {
@@ -232,6 +244,8 @@ func TestTemplates(t *testing.T) {
 		template, err = anotherClient.Template(ctx, template.ID)
 		require.NoError(t, err)
 		require.Equal(t, []string{"monday", "saturday"}, template.AutostartRequirement.DaysOfWeek)
+		require.Empty(t, template.DeprecationMessage)
+		require.False(t, template.Deprecated)
 	})
 
 	t.Run("SetInvalidAutostartRequirement", func(t *testing.T) {
@@ -265,6 +279,8 @@ func TestTemplates(t *testing.T) {
 			},
 		})
 		require.Error(t, err)
+		require.Empty(t, template.DeprecationMessage)
+		require.False(t, template.Deprecated)
 	})
 
 	t.Run("SetAutostopRequirement", func(t *testing.T) {
@@ -309,6 +325,8 @@ func TestTemplates(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, []string{"monday", "saturday"}, template.AutostopRequirement.DaysOfWeek)
 		require.EqualValues(t, 3, template.AutostopRequirement.Weeks)
+		require.Empty(t, template.DeprecationMessage)
+		require.False(t, template.Deprecated)
 	})
 
 	t.Run("CleanupTTLs", func(t *testing.T) {
@@ -666,6 +684,8 @@ func TestTemplates(t *testing.T) {
 		template, err = anotherClient.Template(ctx, template.ID)
 		require.NoError(t, err)
 		require.Equal(t, updatedTemplate, template)
+		require.Empty(t, template.DeprecationMessage)
+		require.False(t, template.Deprecated)
 	})
 }
 
