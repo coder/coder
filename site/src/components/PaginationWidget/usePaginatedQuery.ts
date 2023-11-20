@@ -11,6 +11,7 @@ import {
   type UseQueryOptions,
   useQueryClient,
   useQuery,
+  UseQueryResult,
 } from "react-query";
 
 /**
@@ -58,6 +59,23 @@ export type UsePaginatedQueryOptions<
     onInvalidPage?: (params: InvalidPageParams) => void;
   };
 
+export type UsePaginatedQueryResult<TData = unknown, TError = unknown> = Omit<
+  UseQueryResult<TData, TError>,
+  "isLoading"
+> & {
+  isLoading: boolean;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+
+  currentPage: number;
+  pageSize: number;
+  totalRecords: number;
+
+  onPageChange: (newPage: number) => void;
+  goToPreviousPage: () => void;
+  goToNextPage: () => void;
+};
+
 export function usePaginatedQuery<
   TQueryFnData extends PaginatedData = PaginatedData,
   TQueryPayload = never,
@@ -72,7 +90,7 @@ export function usePaginatedQuery<
     TData,
     TQueryKey
   >,
-) {
+): UsePaginatedQueryResult<TData, TError> {
   const {
     queryKey,
     queryPayload,
@@ -94,11 +112,7 @@ export function usePaginatedQuery<
       searchParams: searchParams,
     };
 
-    type RuntimePayload = [TQueryPayload] extends [never]
-      ? undefined
-      : TQueryPayload;
-
-    const payload = queryPayload?.(pageParams) as RuntimePayload;
+    const payload = queryPayload?.(pageParams) as RuntimePayload<TQueryPayload>;
 
     return {
       queryKey: queryKey({ ...pageParams, payload }),
@@ -150,18 +164,20 @@ export function usePaginatedQuery<
       return;
     }
 
-    if (onInvalidPage !== undefined) {
-      onInvalidPage({
+    if (onInvalidPage === undefined) {
+      searchParams.set(PAGE_NUMBER_PARAMS_KEY, String(clamped));
+      setSearchParams(searchParams);
+    } else {
+      const params: InvalidPageParams = {
         pageOffset,
         pageSize,
         totalPages,
         setSearchParams,
         pageNumber: currentPage,
         searchParams: searchParams,
-      });
-    } else {
-      searchParams.set(PAGE_NUMBER_PARAMS_KEY, String(clamped));
-      setSearchParams(searchParams);
+      };
+
+      onInvalidPage(params);
     }
   });
 
@@ -245,12 +261,21 @@ type QueryPageParams = {
 };
 
 /**
+ * Weird, hard-to-describe type definition, but it's necessary for making sure
+ * that the type information involving the queryPayload function narrows
+ * properly.
+ */
+type RuntimePayload<TPayload = never> = [TPayload] extends [never]
+  ? undefined
+  : TPayload;
+
+/**
  * The query page params, appended with the result of the queryPayload function.
  * This type is passed to both queryKey and queryFn. If queryPayload is
  * undefined, payload will always be undefined
  */
 type QueryPageParamsWithPayload<TPayload = never> = QueryPageParams & {
-  payload: [TPayload] extends [never] ? undefined : TPayload;
+  payload: RuntimePayload<TPayload>;
 };
 
 /**
