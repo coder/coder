@@ -154,7 +154,7 @@ export const MockWorkspaceProxies: TypesGen.WorkspaceProxy[] = [
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     deleted: false,
-  version: "v2.34.5-test+nowildcard",
+    version: "v2.34.5-test+nowildcard",
     status: {
       status: "ok",
       checked_at: new Date().toISOString(),
