@@ -1,4 +1,4 @@
-# Permissions
+# Permissions (Enterprise)
 
 ![Template Permissions](../images/templates/permissions.png)
 
