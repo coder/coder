@@ -59,6 +59,10 @@ export type UsePaginatedQueryOptions<
     onInvalidPage?: (params: InvalidPageParams) => void;
   };
 
+/**
+ * The result of calling usePaginatedQuery. Mirrors the result of the base
+ * useQuery as closely as possible, while adding extra pagination properties
+ */
 export type UsePaginatedQueryResult<TData = unknown, TError = unknown> = Omit<
   UseQueryResult<TData, TError>,
   "isLoading"
@@ -188,11 +192,12 @@ export function usePaginatedQuery<
   }, [updatePageIfInvalid, query.isFetching]);
 
   const onPageChange = (newPage: number) => {
-    const safePage = Number.isInteger(newPage)
-      ? clamp(newPage, 1, totalPages)
-      : 1;
+    const cleanedInput = clamp(Math.trunc(newPage), 1, totalPages);
+    if (!Number.isInteger(cleanedInput) || cleanedInput <= 0) {
+      return;
+    }
 
-    searchParams.set(PAGE_NUMBER_PARAMS_KEY, String(safePage));
+    searchParams.set(PAGE_NUMBER_PARAMS_KEY, String(cleanedInput));
     setSearchParams(searchParams);
   };
 
