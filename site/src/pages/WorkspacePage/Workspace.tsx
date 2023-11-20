@@ -329,7 +329,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           )}
 
           {template?.deprecated && (
-            <Alert severity="error">
+            <Alert severity="warning">
               <AlertTitle>Workspace using deprecated template</AlertTitle>
               <AlertDetail>{template?.deprecation_message}</AlertDetail>
             </Alert>
