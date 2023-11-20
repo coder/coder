@@ -2,9 +2,10 @@ import Button from "@mui/material/Button";
 import GitHubIcon from "@mui/icons-material/GitHub";
 import KeyIcon from "@mui/icons-material/VpnKey";
 import Box from "@mui/material/Box";
-import { useId, type FC } from "react";
+import { useId, type FC, CSSProperties } from "react";
 import { Language } from "./SignInForm";
 import { type AuthMethods } from "api/typesGenerated";
+import { visuallyHidden } from "@mui/utils";
 
 type OAuthSignInFormProps = {
   isSigningIn: boolean;
@@ -81,7 +82,9 @@ function OidcIcon({ iconUrl }: OidcIconProps) {
   return (
     <>
       <img alt="" src={iconUrl} css={iconStyles} aria-labelledby={oidcId} />
-      <div id={oidcId}>Open ID Connect</div>
+      <div id={oidcId} css={{ ...visuallyHidden }}>
+        Open ID Connect
+      </div>
     </>
   );
 }
