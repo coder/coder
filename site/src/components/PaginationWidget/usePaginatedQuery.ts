@@ -42,7 +42,7 @@ export type UsePaginatedQueryOptions<
 
     /**
      * A version of queryFn that is required and that exposes the pagination
-     * information through the pageParams context property
+     * information through its query function context argument
      */
     queryFn: (
       context: PaginatedQueryFnContext<TQueryKey, TQueryPayload>,
