@@ -30,9 +30,7 @@ export type UsePaginatedQueryOptions<
   TData = TQueryFnData,
   TQueryKey extends QueryKey = QueryKey,
 > = BasePaginationOptions<TQueryFnData, TError, TData, TQueryKey> &
-  ([TQueryPayload] extends [never]
-    ? { queryPayload?: never }
-    : { queryPayload: (params: QueryPageParams) => TQueryPayload }) & {
+  QueryPayloadExtender<TQueryPayload> & {
     /**
      * A function that takes pagination information and produces a full query
      * key.
@@ -144,13 +142,14 @@ export function usePaginatedQuery<
 
   // Mainly here to catch user if they navigate to a page directly via URL
   const updatePageIfInvalid = useEffectEvent(() => {
-    if (onInvalidPage !== undefined) {
-      onInvalidPage(currentPage, totalPages);
+    const clamped = clamp(currentPage, 1, totalPages);
+    if (currentPage === clamped) {
       return;
     }
 
-    const clamped = clamp(currentPage, 1, totalPages);
-    if (currentPage !== clamped) {
+    if (onInvalidPage !== undefined) {
+      onInvalidPage(currentPage, totalPages);
+    } else {
       searchParams.set(PAGE_NUMBER_PARAMS_KEY, String(clamped));
       setSearchParams(searchParams);
     }
@@ -195,6 +194,24 @@ function parsePage(params: URLSearchParams): number {
   const parsed = Number(params.get("page"));
   return Number.isInteger(parsed) && parsed > 1 ? parsed : 1;
 }
+
+/**
+ * Papers over how the queryPayload function is defined at the type level, so
+ * that UsePaginatedQueryOptions doesn't look as scary.
+ *
+ * You're going to see these tuple types in a few different spots in this file;
+ * it's a "hack" to get around the function contravariance that pops up when you
+ * normally try to share the TQueryPayload between queryPayload, queryKey, and
+ * queryFn via the direct/"obvious" way. By throwing the types into tuples
+ * (which are naturally covariant), it's a lot easier to share the types without
+ * TypeScript complaining all the time or getting so confused that it degrades
+ * the type definitions into a bunch of "any" types
+ */
+type QueryPayloadExtender<TQueryPayload = never> = [TQueryPayload] extends [
+  never,
+]
+  ? { queryPayload?: never }
+  : { queryPayload: (params: QueryPageParams) => TQueryPayload };
 
 /**
  * Information about a paginated request. This information is passed into the
