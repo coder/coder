@@ -2364,7 +2364,8 @@ type WorkspaceProxy struct {
 	RegionID          int32  `db:"region_id" json:"region_id"`
 	DerpEnabled       bool   `db:"derp_enabled" json:"derp_enabled"`
 	// Disables app/terminal proxying for this proxy and only acts as a DERP relay.
-	DerpOnly bool `db:"derp_only" json:"derp_only"`
+	DerpOnly bool   `db:"derp_only" json:"derp_only"`
+	Version  string `db:"version" json:"version"`
 }
 
 type WorkspaceResource struct {
