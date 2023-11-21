@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useEffectEvent } from "hooks/hookPolyfills";
+import { useEffectEvent } from "./hookPolyfills";
 import { type SetURLSearchParams, useSearchParams } from "react-router-dom";
 import { clamp } from "lodash";
 
