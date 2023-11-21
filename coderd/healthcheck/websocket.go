@@ -11,6 +11,8 @@ import (
 
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
+
+	"github.com/coder/coder/v2/coderd/healthcheck/model"
 )
 
 type WebsocketReportOptions struct {
@@ -21,9 +23,7 @@ type WebsocketReportOptions struct {
 
 // @typescript-generate WebsocketReport
 type WebsocketReport struct {
-	Healthy  bool     `json:"healthy"`
-	Severity Severity `json:"severity" enums:"ok,warning,error"`
-	Warnings []string `json:"warnings"`
+	model.HealthSummary
 
 	Body  string  `json:"body"`
 	Code  int     `json:"code"`

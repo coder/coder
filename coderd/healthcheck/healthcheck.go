@@ -8,6 +8,7 @@ import (
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
+	"github.com/coder/coder/v2/coderd/healthcheck/model"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
@@ -17,14 +18,6 @@ const (
 	SectionWebsocket string = "Websocket"
 	SectionDatabase  string = "Database"
 )
-
-const (
-	SeverityOK      Severity = "ok"
-	SeverityWarning Severity = "warning"
-	SeverityError   Severity = "error"
-)
-
-type Severity string
 
 type Checker interface {
 	DERP(ctx context.Context, opts *derphealth.ReportOptions) derphealth.Report
@@ -40,7 +33,7 @@ type Report struct {
 	// Healthy is true if the report returns no errors.
 	Healthy bool `json:"healthy"`
 	// Severity indicates the status of Coder health.
-	Severity Severity `json:"severity" enums:"ok,warning,error"`
+	Severity model.Severity `json:"severity" enums:"ok,warning,error"`
 	// FailingSections is a list of sections that have failed their healthcheck.
 	FailingSections []string `json:"failing_sections"`
 

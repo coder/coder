@@ -21,6 +21,7 @@ import (
 	"tailscale.com/types/key"
 	tslogger "tailscale.com/types/logger"
 
+	"github.com/coder/coder/v2/coderd/healthcheck/model"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
@@ -29,20 +30,9 @@ const (
 	oneNodeUnhealthy         = "Region is operational, but performance might be degraded as one node is unhealthy."
 )
 
-const (
-	SeverityOK      Severity = "ok"
-	SeverityWarning Severity = "warning"
-	SeverityError   Severity = "error"
-)
-
-// @typescript-generate Severity
-type Severity string
-
 // @typescript-generate Report
 type Report struct {
-	Healthy  bool     `json:"healthy"`
-	Severity Severity `json:"severity" enums:"ok,warning,error"`
-	Warnings []string `json:"warnings"`
+	model.HealthSummary
 
 	Regions map[int]*RegionReport `json:"regions"`
 
@@ -57,9 +47,7 @@ type Report struct {
 type RegionReport struct {
 	mu sync.Mutex
 
-	Healthy  bool     `json:"healthy"`
-	Severity Severity `json:"severity" enums:"ok,warning,error"`
-	Warnings []string `json:"warnings"`
+	model.HealthSummary
 
 	Region      *tailcfg.DERPRegion `json:"region"`
 	NodeReports []*NodeReport       `json:"node_reports"`
@@ -71,9 +59,7 @@ type NodeReport struct {
 	mu            sync.Mutex
 	clientCounter int
 
-	Healthy  bool     `json:"healthy"`
-	Severity Severity `json:"severity" enums:"ok,warning,error"`
-	Warnings []string `json:"warnings"`
+	model.HealthSummary
 
 	Node *tailcfg.DERPNode `json:"node"`
 
@@ -167,8 +153,10 @@ func (r *RegionReport) Run(ctx context.Context) {
 		var (
 			node       = node
 			nodeReport = NodeReport{
-				Node:    node,
-				Healthy: true,
+				Node: node,
+				HealthSummary: model.HealthSummary{
+					Healthy: true,
+				},
 			}
 		)
 

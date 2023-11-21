@@ -8,6 +8,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/healthcheck/model"
 )
 
 const (
@@ -16,9 +17,7 @@ const (
 
 // @typescript-generate DatabaseReport
 type DatabaseReport struct {
-	Healthy  bool     `json:"healthy"`
-	Severity Severity `json:"severity" enums:"ok,warning,error"`
-	Warnings []string `json:"warnings"`
+	model.HealthSummary
 
 	Reachable   bool    `json:"reachable"`
 	Latency     string  `json:"latency"`
