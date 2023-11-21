@@ -2379,13 +2379,16 @@ export const MockLicenseResponse: GetLicensesResponse[] = [
 export const MockHealth: TypesGen.HealthcheckReport = {
   time: "2023-08-01T16:51:03.29792825Z",
   healthy: true,
+  severity: "ok",
   failing_sections: [],
   derp: {
     healthy: true,
+    severity: "ok",
     warnings: [],
     regions: {
       "999": {
         healthy: true,
+        severity: "ok",
         warnings: [],
         region: {
           EmbeddedRelay: true,
@@ -2412,6 +2415,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
         node_reports: [
           {
             healthy: true,
+            severity: "ok",
             warnings: [],
             node: {
               Name: "999stun0",
@@ -2437,6 +2441,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
           },
           {
             healthy: true,
+            severity: "ok",
             warnings: [],
             node: {
               Name: "999b",
@@ -2471,6 +2476,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
       },
       "10007": {
         healthy: true,
+        severity: "ok",
         warnings: [],
         region: {
           EmbeddedRelay: false,
@@ -2497,6 +2503,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
         node_reports: [
           {
             healthy: true,
+            severity: "ok",
             warnings: [],
             node: {
               Name: "10007stun0",
@@ -2522,6 +2529,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
           },
           {
             healthy: true,
+            severity: "ok",
             warnings: [],
             node: {
               Name: "10007a",
@@ -2556,6 +2564,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
       },
       "10008": {
         healthy: true,
+        severity: "ok",
         warnings: [],
         region: {
           EmbeddedRelay: false,
@@ -2582,6 +2591,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
         node_reports: [
           {
             healthy: true,
+            severity: "ok",
             warnings: [],
             node: {
               Name: "10008stun0",
@@ -2607,6 +2617,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
           },
           {
             healthy: true,
+            severity: "ok",
             warnings: [],
             node: {
               Name: "10008a",
@@ -2641,6 +2652,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
       },
       "10009": {
         healthy: true,
+        severity: "ok",
         warnings: [],
         region: {
           EmbeddedRelay: false,
@@ -2667,6 +2679,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
         node_reports: [
           {
             healthy: true,
+            severity: "ok",
             warnings: [],
             node: {
               Name: "10009stun0",
@@ -2692,6 +2705,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
           },
           {
             healthy: true,
+            severity: "ok",
             warnings: [],
             node: {
               Name: "10009a",
@@ -2771,6 +2785,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
   },
   access_url: {
     healthy: true,
+    severity: "ok",
     warnings: [],
     access_url: "https://dev.coder.com",
     reachable: true,
@@ -2779,12 +2794,14 @@ export const MockHealth: TypesGen.HealthcheckReport = {
   },
   websocket: {
     healthy: true,
+    severity: "ok",
     warnings: [],
     body: "",
     code: 101,
   },
   database: {
     healthy: true,
+    severity: "ok",
     warnings: [],
     reachable: true,
     latency: "92570",
@@ -2805,11 +2822,13 @@ export const MockListeningPortsResponse: TypesGen.WorkspaceAgentListeningPortsRe
 
 export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
   healthy: false,
+  severity: "ok",
   failing_sections: [], // apparently this property is not used at all?
   time: "2023-10-12T23:15:00.000000000Z",
   coder_version: "v2.3.0-devel+8cca4915a",
   access_url: {
     healthy: true,
+    severity: "ok",
     warnings: [],
     access_url: "",
     healthz_response: "",
@@ -2818,6 +2837,7 @@ export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
   },
   database: {
     healthy: false,
+    severity: "ok",
     warnings: [],
     latency: "",
     latency_ms: 0,
@@ -2826,12 +2846,14 @@ export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
   },
   derp: {
     healthy: false,
+    severity: "ok",
     warnings: [],
     regions: [],
     netcheck_logs: [],
   },
   websocket: {
     healthy: false,
+    severity: "ok",
     warnings: [],
     body: "",
     code: 0,
