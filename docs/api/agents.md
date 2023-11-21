@@ -614,7 +614,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/report-stats \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Workspace agent DRPC API
+## Workspace agent RPC API
 
 ### Code samples
 

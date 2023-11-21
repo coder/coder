@@ -44,6 +44,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/tailnet"
+	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 )
 
 // @Summary Get workspace agent by ID
@@ -156,7 +157,7 @@ func (api *API) workspaceAgentAPI(workspaceAgent database.WorkspaceAgent) *Agent
 		tailnetCoordinator:              &api.TailnetCoordinator,
 		templateScheduleStore:           api.TemplateScheduleStore,
 		statsBatcher:                    api.statsBatcher,
-		publishWorkspaceUpdate:          api.publishWorkspaceUpdate,
+		publishWorkspaceUpdateFn:        api.publishWorkspaceUpdate,
 		publishWorkspaceAgentLogsUpdate: api.publishWorkspaceAgentLogsUpdate,
 		updateAgentMetrics:              api.UpdateAgentMetrics,
 	}
@@ -443,68 +444,9 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
-	apiAgent, err := convertWorkspaceAgent(
-		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, nil, nil, nil, api.AgentInactiveDisconnectTimeout,
-		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
-	)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error reading workspace agent.",
-			Detail:  err.Error(),
-		})
-		return
-	}
+	agentAPI := api.workspaceAgentAPI(workspaceAgent)
 
-	var (
-		dbApps    []database.WorkspaceApp
-		scripts   []database.WorkspaceAgentScript
-		metadata  []database.WorkspaceAgentMetadatum
-		resource  database.WorkspaceResource
-		build     database.WorkspaceBuild
-		workspace database.Workspace
-		owner     database.User
-	)
-
-	var eg errgroup.Group
-	eg.Go(func() (err error) {
-		dbApps, err = api.Database.GetWorkspaceAppsByAgentID(ctx, workspaceAgent.ID)
-		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-			return err
-		}
-		return nil
-	})
-	eg.Go(func() (err error) {
-		// nolint:gocritic // This is necessary to fetch agent scripts!
-		scripts, err = api.Database.GetWorkspaceAgentScriptsByAgentIDs(dbauthz.AsSystemRestricted(ctx), []uuid.UUID{workspaceAgent.ID})
-		return err
-	})
-	eg.Go(func() (err error) {
-		metadata, err = api.Database.GetWorkspaceAgentMetadata(ctx, database.GetWorkspaceAgentMetadataParams{
-			WorkspaceAgentID: workspaceAgent.ID,
-			Keys:             nil,
-		})
-		return err
-	})
-	eg.Go(func() (err error) {
-		resource, err = api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
-		if err != nil {
-			return xerrors.Errorf("getting resource by id: %w", err)
-		}
-		build, err = api.Database.GetWorkspaceBuildByJobID(ctx, resource.JobID)
-		if err != nil {
-			return xerrors.Errorf("getting workspace build by job id: %w", err)
-		}
-		workspace, err = api.Database.GetWorkspaceByID(ctx, build.WorkspaceID)
-		if err != nil {
-			return xerrors.Errorf("getting workspace by id: %w", err)
-		}
-		owner, err = api.Database.GetUserByID(ctx, workspace.OwnerID)
-		if err != nil {
-			return xerrors.Errorf("getting workspace owner by id: %w", err)
-		}
-		return err
-	})
-	err = eg.Wait()
+	manifest, err := agentAPI.GetManifest(ctx, &agentproto.GetManifestRequest{})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace agent manifest.",
@@ -513,40 +455,37 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	appHost := httpapi.ApplicationURL{
-		AppSlugOrPort: "{{port}}",
-		AgentName:     workspaceAgent.Name,
-		WorkspaceName: workspace.Name,
-		Username:      owner.Username,
-	}
-	vscodeProxyURI := api.AccessURL.Scheme + "://" + strings.ReplaceAll(api.AppHostname, "*", appHost.String())
-	if api.AppHostname == "" {
-		vscodeProxyURI += api.AccessURL.Hostname()
-	}
-	if api.AccessURL.Port() != "" {
-		vscodeProxyURI += fmt.Sprintf(":%s", api.AccessURL.Port())
+	apps, err := agentproto.SDKAppsFromProto(manifest.Apps)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error converting workspace agent apps.",
+			Detail:  err.Error(),
+		})
+		return
 	}
 
-	gitAuthConfigs := 0
-	for _, cfg := range api.ExternalAuthConfigs {
-		if codersdk.EnhancedExternalAuthProvider(cfg.Type).Git() {
-			gitAuthConfigs++
-		}
+	scripts, err := agentproto.SDKAgentScriptsFromProto(manifest.Scripts)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error converting workspace agent scripts.",
+			Detail:  err.Error(),
+		})
+		return
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.Manifest{
-		AgentID:                  apiAgent.ID,
-		Apps:                     convertApps(dbApps, workspaceAgent, owner.Username, workspace),
-		Scripts:                  convertScripts(scripts),
-		DERPMap:                  api.DERPMap(),
-		DERPForceWebSockets:      api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
-		GitAuthConfigs:           gitAuthConfigs,
-		EnvironmentVariables:     apiAgent.EnvironmentVariables,
-		Directory:                apiAgent.Directory,
-		VSCodePortProxyURI:       vscodeProxyURI,
-		MOTDFile:                 workspaceAgent.MOTDFile,
-		DisableDirectConnections: api.DeploymentValues.DERP.Config.BlockDirect.Value(),
-		Metadata:                 convertWorkspaceAgentMetadataDesc(metadata),
+		AgentID:                  workspaceAgent.ID,
+		Apps:                     apps,
+		Scripts:                  scripts,
+		DERPMap:                  tailnetproto.DERPMapFromProto(manifest.DerpMap),
+		DERPForceWebSockets:      manifest.DerpForceWebsockets,
+		GitAuthConfigs:           int(manifest.GitAuthConfigs),
+		EnvironmentVariables:     manifest.EnvironmentVariables,
+		Directory:                manifest.Directory,
+		VSCodePortProxyURI:       manifest.VsCodePortProxyUri,
+		MOTDFile:                 manifest.MotdPath,
+		DisableDirectConnections: manifest.DisableDirectConnections,
+		Metadata:                 agentproto.SDKAgentMetadataDescriptionsFromProto(manifest.Metadata),
 	})
 }
 

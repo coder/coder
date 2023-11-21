@@ -5088,8 +5088,8 @@ const docTemplate = `{
                 "tags": [
                     "Agents"
                 ],
-                "summary": "Workspace agent DRPC API",
-                "operationId": "workspace-agent-drpc-api",
+                "summary": "Workspace agent RPC API",
+                "operationId": "workspace-agent-rpc-api",
                 "responses": {
                     "101": {
                         "description": "Switching Protocols"

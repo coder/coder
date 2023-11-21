@@ -62,7 +62,7 @@ type AgentAPI struct {
 	tailnetCoordinator              *atomic.Pointer[tailnet.Coordinator]
 	templateScheduleStore           *atomic.Pointer[schedule.TemplateScheduleStore]
 	statsBatcher                    *batchstats.Batcher
-	publishWorkspaceUpdate          func(ctx context.Context, workspaceID uuid.UUID)
+	publishWorkspaceUpdateFn        func(ctx context.Context, workspaceID uuid.UUID)
 	publishWorkspaceAgentLogsUpdate func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage)
 
 	// Optional:
@@ -149,6 +149,16 @@ func (a *AgentAPI) workspaceID(ctx context.Context, agent *database.WorkspaceAge
 	a.cachedWorkspaceID = build.WorkspaceID
 	a.mu.Unlock()
 	return build.WorkspaceID, nil
+}
+
+func (a *AgentAPI) publishWorkspaceUpdate(ctx context.Context, agent *database.WorkspaceAgent) error {
+	workspaceID, err := a.workspaceID(ctx, agent)
+	if err != nil {
+		return err
+	}
+
+	a.publishWorkspaceUpdateFn(ctx, workspaceID)
+	return nil
 }
 
 func (a *AgentAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifestRequest) (*agentproto.Manifest, error) {
@@ -257,7 +267,7 @@ func (a *AgentAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifestReq
 	}, nil
 }
 
-func (a *AgentAPI) GetServiceBanner(ctx context.Context, req *agentproto.GetServiceBannerRequest) (*agentproto.ServiceBanner, error) {
+func (a *AgentAPI) GetServiceBanner(ctx context.Context, _ *agentproto.GetServiceBannerRequest) (*agentproto.ServiceBanner, error) {
 	serviceBannerJSON, err := a.database.GetServiceBanner(ctx)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return nil, xerrors.Errorf("get service banner: %w", err)
@@ -435,7 +445,10 @@ func (a *AgentAPI) UpdateLifecycle(ctx context.Context, req *agentproto.UpdateLi
 		return nil, xerrors.Errorf("update workspace agent lifecycle state: %w", err)
 	}
 
-	a.publishWorkspaceUpdate(ctx, a.workspaceID)
+	err = a.publishWorkspaceUpdate(ctx, &workspaceAgent)
+	if err != nil {
+		return nil, xerrors.Errorf("publish workspace update: %w", err)
+	}
 
 	return req.Lifecycle, nil
 }
@@ -493,11 +506,11 @@ func (a *AgentAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.Ba
 			return nil, xerrors.Errorf("unknown health status %q for app %q (%q)", update.Health, updateID, old.Slug)
 		}
 
-		// Don't save if the value hasn't changed
+		// Don't bother updating if the value hasn't changed.
 		if old.Health == newHealth {
 			continue
 		}
-		old.Health = database.WorkspaceAppHealth(newHealth)
+		old.Health = newHealth
 
 		newApps = append(newApps, *old)
 	}
@@ -512,7 +525,10 @@ func (a *AgentAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.Ba
 		}
 	}
 
-	a.publishWorkspaceUpdate(ctx, a.workspaceID)
+	err = a.publishWorkspaceUpdate(ctx, &workspaceAgent)
+	if err != nil {
+		return nil, xerrors.Errorf("publish workspace update: %w", err)
+	}
 	return &agentproto.BatchUpdateAppHealthResponse{}, nil
 }
 
@@ -535,7 +551,7 @@ func (a *AgentAPI) UpdateStartup(ctx context.Context, req *agentproto.UpdateStar
 	}
 
 	// Validate subsystems.
-	dbSubsystems := make([]database.WorkspaceAgentSubsystem, len(req.Startup.Subsystems))
+	dbSubsystems := make([]database.WorkspaceAgentSubsystem, 0, len(req.Startup.Subsystems))
 	seenSubsystems := make(map[database.WorkspaceAgentSubsystem]struct{}, len(req.Startup.Subsystems))
 	for _, s := range req.Startup.Subsystems {
 		var dbSubsystem database.WorkspaceAgentSubsystem
@@ -738,8 +754,10 @@ func (a *AgentAPI) BatchCreateLogs(ctx context.Context, req *agentproto.BatchCre
 			a.log.Warn(ctx, "failed to update workspace agent log overflow", slog.Error(err))
 		}
 
-		a.publishWorkspaceUpdate(ctx, a.workspaceID)
-
+		err = a.publishWorkspaceUpdate(ctx, &workspaceAgent)
+		if err != nil {
+			return nil, xerrors.Errorf("publish workspace update: %w", err)
+		}
 		return nil, xerrors.New("workspace agent log limit exceeded")
 	}
 
@@ -753,7 +771,10 @@ func (a *AgentAPI) BatchCreateLogs(ctx context.Context, req *agentproto.BatchCre
 	if workspaceAgent.LogsLength == 0 {
 		// If these are the first logs being appended, we publish a UI update
 		// to notify the UI that logs are now available.
-		a.publishWorkspaceUpdate(ctx, a.workspaceID)
+		err = a.publishWorkspaceUpdate(ctx, &workspaceAgent)
+		if err != nil {
+			return nil, xerrors.Errorf("publish workspace update: %w", err)
+		}
 	}
 
 	return &agentproto.BatchCreateLogsResponse{}, nil

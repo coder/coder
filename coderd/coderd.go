@@ -35,8 +35,8 @@ import (
 	"tailscale.com/types/key"
 	"tailscale.com/util/singleflight"
 
-	// Used for swagger docs.
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	// Used for swagger docs.
 	_ "github.com/coder/coder/v2/coderd/apidoc"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
