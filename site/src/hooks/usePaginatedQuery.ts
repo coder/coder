@@ -34,6 +34,14 @@ export type UsePaginatedQueryOptions<
 > = BasePaginationOptions<TQueryFnData, TError, TData, TQueryKey> &
   QueryPayloadExtender<TQueryPayload> & {
     /**
+     * An optional dependency for React Router's URLSearchParams.
+     *
+     * It's annoying that this is necessary, but this helps avoid searchParams
+     * from other parts of a component from de-syncing
+     */
+    searchParams?: URLSearchParams;
+
+    /**
      * A function that takes pagination information and produces a full query
      * key.
      *
@@ -89,11 +97,14 @@ export function usePaginatedQuery<
     queryKey,
     queryPayload,
     onInvalidPageChange,
+    searchParams: outerSearchParams,
     queryFn: outerQueryFn,
     ...extraOptions
   } = options;
 
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [innerSearchParams, setSearchParams] = useSearchParams();
+  const searchParams = outerSearchParams ?? innerSearchParams;
+
   const currentPage = parsePage(searchParams);
   const limit = DEFAULT_RECORDS_PER_PAGE;
   const offset = (currentPage - 1) * limit;

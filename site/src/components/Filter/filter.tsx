@@ -45,7 +45,7 @@ type UseFilterConfig = {
   onUpdate?: (newValue: string) => void;
 };
 
-const useFilterParamsKey = "filter";
+export const useFilterParamsKey = "filter";
 
 export const useFilter = ({
   fallbackFilter = "",
