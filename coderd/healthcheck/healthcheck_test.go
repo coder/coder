@@ -43,7 +43,7 @@ func TestHealthcheck(t *testing.T) {
 	}{{
 		name: "OK",
 		checker: &testChecker{
-			DERPReport: derphealth.Report{
+			DERPReport: healthcheck.DERPReport{
 				Healthy: true,
 			},
 			AccessURLReport: healthcheck.AccessURLReport{
@@ -61,7 +61,7 @@ func TestHealthcheck(t *testing.T) {
 	}, {
 		name: "DERPFail",
 		checker: &testChecker{
-			DERPReport: derphealth.Report{
+			DERPReport: healthcheck.DERPReport{
 				Healthy: false,
 			},
 			AccessURLReport: healthcheck.AccessURLReport{
@@ -79,7 +79,7 @@ func TestHealthcheck(t *testing.T) {
 	}, {
 		name: "DERPWarning",
 		checker: &testChecker{
-			DERPReport: derphealth.Report{
+			DERPReport: healthcheck.DERPReport{
 				Healthy:  true,
 				Warnings: []string{"foobar"},
 			},
@@ -98,7 +98,7 @@ func TestHealthcheck(t *testing.T) {
 	}, {
 		name: "AccessURLFail",
 		checker: &testChecker{
-			DERPReport: derphealth.Report{
+			DERPReport: healthcheck.DERPReport{
 				Healthy: true,
 			},
 			AccessURLReport: healthcheck.AccessURLReport{
@@ -116,7 +116,7 @@ func TestHealthcheck(t *testing.T) {
 	}, {
 		name: "WebsocketFail",
 		checker: &testChecker{
-			DERPReport: derphealth.Report{
+			DERPReport: healthcheck.DERPReport{
 				Healthy: true,
 			},
 			AccessURLReport: healthcheck.AccessURLReport{
@@ -134,7 +134,7 @@ func TestHealthcheck(t *testing.T) {
 	}, {
 		name: "DatabaseFail",
 		checker: &testChecker{
-			DERPReport: derphealth.Report{
+			DERPReport: healthcheck.DERPReport{
 				Healthy: true,
 			},
 			AccessURLReport: healthcheck.AccessURLReport{
