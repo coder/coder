@@ -1,22 +1,28 @@
 import { type CSSObject, type Interpolation, type Theme } from "@emotion/react";
-import Box from "@mui/material/Box";
-import { ReactNode, type ComponentProps, type FC } from "react";
+import { type FC, type HTMLAttributes, type ReactNode } from "react";
 
-export const Stats: FC<ComponentProps<typeof Box>> = (props) => {
-  return <Box {...props} css={styles.stats} />;
+export const Stats: FC<HTMLAttributes<HTMLDivElement>> = ({
+  children,
+  ...attrs
+}) => {
+  return (
+    <div css={styles.stats} {...attrs}>
+      {children}
+    </div>
+  );
 };
 
-export const StatsItem: FC<
-  {
-    label: string;
-    value: ReactNode;
-  } & ComponentProps<typeof Box>
-> = ({ label, value, ...divProps }) => {
+interface StatsItemProps extends HTMLAttributes<HTMLDivElement> {
+  label: string;
+  value: ReactNode;
+}
+
+export const StatsItem: FC<StatsItemProps> = ({ label, value, ...attrs }) => {
   return (
-    <Box {...divProps} css={styles.statItem}>
+    <div css={styles.statItem} {...attrs}>
       <span css={styles.statsLabel}>{label}:</span>
       <span css={styles.statsValue}>{value}</span>
-    </Box>
+    </div>
   );
 };
 

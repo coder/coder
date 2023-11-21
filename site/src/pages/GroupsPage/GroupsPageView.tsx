@@ -27,7 +27,6 @@ import type { Group } from "api/typesGenerated";
 import { GroupAvatar } from "components/GroupAvatar/GroupAvatar";
 import { docs } from "utils/docs";
 import Skeleton from "@mui/material/Skeleton";
-import { Box } from "@mui/system";
 import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
 
 export type GroupsPageViewProps = {
@@ -156,7 +155,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
                             <AvatarGroup
                               max={10}
                               total={group.members.length}
-                              sx={{ justifyContent: "flex-end" }}
+                              css={{ justifyContent: "flex-end" }}
                             >
                               {group.members.map((member) => (
                                 <UserAvatar
@@ -192,9 +191,9 @@ const TableLoader = () => {
     <TableLoaderSkeleton>
       <TableRowSkeleton>
         <TableCell>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <div css={{ display: "flex", alignItems: "center", gap: 8 }}>
             <AvatarDataSkeleton />
-          </Box>
+          </div>
         </TableCell>
         <TableCell>
           <Skeleton variant="text" width="25%" />

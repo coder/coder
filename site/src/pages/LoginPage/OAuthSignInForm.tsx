@@ -1,21 +1,20 @@
 import Button from "@mui/material/Button";
 import GitHubIcon from "@mui/icons-material/GitHub";
 import KeyIcon from "@mui/icons-material/VpnKey";
-import Box from "@mui/material/Box";
-import { useId, type FC } from "react";
+import { type FC, useId } from "react";
 import { Language } from "./SignInForm";
-import { type AuthMethods } from "api/typesGenerated";
+import type { AuthMethods } from "api/typesGenerated";
 import { visuallyHidden } from "@mui/utils";
+
+const iconStyles = {
+  width: 16,
+  height: 16,
+};
 
 type OAuthSignInFormProps = {
   isSigningIn: boolean;
   redirectTo: string;
   authMethods?: AuthMethods;
-};
-
-const iconStyles = {
-  width: 16,
-  height: 16,
 };
 
 export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
@@ -24,7 +23,7 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
   authMethods,
 }) => {
   return (
-    <Box display="grid" gap="16px">
+    <div css={{ display: "grid", gap: "16px" }}>
       {authMethods?.github.enabled && (
         <Button
           component="a"
@@ -64,7 +63,7 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
           {authMethods.oidc.signInText || Language.oidcSignIn}
         </Button>
       )}
-    </Box>
+    </div>
   );
 };
 
@@ -72,7 +71,7 @@ type OidcIconProps = {
   iconUrl: string;
 };
 
-function OidcIcon({ iconUrl }: OidcIconProps) {
+const OidcIcon: FC<OidcIconProps> = ({ iconUrl }) => {
   const hookId = useId();
   const oidcId = `${hookId}-oidc`;
 
@@ -87,4 +86,4 @@ function OidcIcon({ iconUrl }: OidcIconProps) {
       </div>
     </>
   );
-}
+};

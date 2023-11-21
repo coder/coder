@@ -397,13 +397,11 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                   <div>
                     <Alert
                       severity="error"
-                      sx={{
+                      css={{
                         borderRadius: 0,
                         border: 0,
-                        borderBottom: (theme) =>
-                          `1px solid ${theme.palette.divider}`,
-                        borderLeft: (theme) =>
-                          `2px solid ${theme.palette.error.main}`,
+                        borderBottom: `1px solid ${theme.palette.divider}`,
+                        borderLeft: `2px solid ${theme.palette.error.main}`,
                       }}
                     >
                       <AlertTitle>Error during the build</AlertTitle>
@@ -414,7 +412,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 
                 {buildLogs && buildLogs.length > 0 && (
                   <WorkspaceBuildLogs
-                    sx={{ borderRadius: 0, border: 0 }}
+                    css={{ borderRadius: 0, border: 0 }}
                     hideTimestamps
                     logs={buildLogs}
                   />

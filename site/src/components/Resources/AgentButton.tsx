@@ -1,18 +1,17 @@
-import Button, { ButtonProps } from "@mui/material/Button";
-import { FC, forwardRef } from "react";
+import Button, { type ButtonProps } from "@mui/material/Button";
+import { useTheme } from "@emotion/react";
+import { type FC, forwardRef } from "react";
 
-export const PrimaryAgentButton: FC<ButtonProps> = ({
-  className,
-  ...props
-}) => {
+export const PrimaryAgentButton: FC<ButtonProps> = ({ children, ...attrs }) => {
+  const theme = useTheme();
+
   return (
     <Button
       color="neutral"
-      {...props}
-      sx={{
-        backgroundColor: (theme) => theme.palette.background.default,
+      css={{
+        backgroundColor: theme.palette.background.default,
         "&:hover": {
-          backgroundColor: (theme) => theme.palette.background.paper,
+          backgroundColor: theme.palette.background.paper,
         },
         // Making them smaller since those icons don't have a padding around them
         "& .MuiButton-startIcon": {
@@ -20,15 +19,22 @@ export const PrimaryAgentButton: FC<ButtonProps> = ({
           height: 12,
           "& svg": { width: "100%", height: "100%" },
         },
-        ...props.sx,
       }}
-    />
+      {...attrs}
+    >
+      {children}
+    </Button>
   );
 };
 
 // eslint-disable-next-line react/display-name -- Name is inferred from variable name
 export const SecondaryAgentButton = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, ...props }, ref) => {
-    return <Button ref={ref} className={className} {...props} />;
+  (props, ref) => {
+    const { children, ...attrs } = props;
+    return (
+      <Button ref={ref} {...attrs}>
+        {children}
+      </Button>
+    );
   },
 );

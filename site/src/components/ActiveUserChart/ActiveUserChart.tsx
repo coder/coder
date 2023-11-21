@@ -1,6 +1,3 @@
-import Box from "@mui/material/Box";
-import { Theme } from "@mui/material/styles";
-import useTheme from "@mui/styles/useTheme";
 import {
   CategoryScale,
   Chart as ChartJS,
@@ -22,7 +19,8 @@ import {
   HelpTooltipText,
 } from "components/HelpTooltip/HelpTooltip";
 import dayjs from "dayjs";
-import { FC } from "react";
+import { useTheme } from "@emotion/react";
+import { type FC } from "react";
 import { Line } from "react-chartjs-2";
 import annotationPlugin from "chartjs-plugin-annotation";
 
@@ -42,7 +40,7 @@ ChartJS.register(
 const USER_LIMIT_DISPLAY_THRESHOLD = 60;
 
 export interface ActiveUserChartProps {
-  data: { date: string; amount: number }[];
+  data: Array<{ date: string; amount: number }>;
   interval: "day" | "week";
   userLimit: number | undefined;
 }
@@ -52,7 +50,7 @@ export const ActiveUserChart: FC<ActiveUserChartProps> = ({
   interval,
   userLimit,
 }) => {
-  const theme: Theme = useTheme();
+  const theme = useTheme();
 
   const labels = data.map((val) => dayjs(val.date).format("YYYY-MM-DD"));
   const chartData = data.map((val) => val.amount);
@@ -137,9 +135,9 @@ export const ActiveUserChart: FC<ActiveUserChartProps> = ({
   );
 };
 
-export const ActiveUsersTitle = () => {
+export const ActiveUsersTitle: FC = () => {
   return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+    <div css={{ display: "flex", alignItems: "center", gap: 8 }}>
       Active Users
       <HelpTooltip size="small">
         <HelpTooltipTitle>How do we calculate active users?</HelpTooltipTitle>
@@ -148,7 +146,7 @@ export const ActiveUsersTitle = () => {
           considered an active user. e.g. apps, web terminal, SSH
         </HelpTooltipText>
       </HelpTooltip>
-    </Box>
+    </div>
   );
 };
 

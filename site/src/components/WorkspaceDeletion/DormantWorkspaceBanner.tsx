@@ -1,26 +1,29 @@
-import { Workspace } from "api/typesGenerated";
-import { useIsWorkspaceActionsEnabled } from "components/Dashboard/DashboardProvider";
-import { Alert } from "components/Alert/Alert";
 import { formatDistanceToNow } from "date-fns";
 import Link from "@mui/material/Link";
+import { type FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
+import type { Workspace } from "api/typesGenerated";
+import { useIsWorkspaceActionsEnabled } from "components/Dashboard/DashboardProvider";
+import { Alert } from "components/Alert/Alert";
 
 export enum Count {
   Singular,
   Multiple,
 }
 
-export const DormantWorkspaceBanner = ({
-  workspaces,
-  onDismiss,
-  shouldRedisplayBanner,
-  count = Count.Singular,
-}: {
+interface DormantWorkspaceBannerProps {
   workspaces?: Workspace[];
   onDismiss: () => void;
   shouldRedisplayBanner: boolean;
   count?: Count;
-}): JSX.Element | null => {
+}
+
+export const DormantWorkspaceBanner: FC<DormantWorkspaceBannerProps> = ({
+  workspaces,
+  onDismiss,
+  shouldRedisplayBanner,
+  count = Count.Singular,
+}) => {
   const experimentEnabled = useIsWorkspaceActionsEnabled();
 
   if (!workspaces) {

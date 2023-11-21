@@ -40,7 +40,6 @@
     "@mui/icons-material": "5.14.0",
     "@mui/lab": "5.0.0-alpha.129",
     "@mui/material": "5.14.0",
-    "@mui/styles": "5.14.0",
     "@mui/system": "5.14.0",
     "@mui/utils": "5.14.11",
     "@vitejs/plugin-react": "4.1.0",

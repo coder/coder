@@ -1,5 +1,4 @@
-import { type Interpolation, type Theme } from "@emotion/react";
-import Box from "@mui/material/Box";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { getHealth } from "api/api";
 import { Loader } from "components/Loader/Loader";
@@ -21,7 +20,7 @@ import { createDayString } from "utils/createDayString";
 import { DashboardFullPage } from "components/Dashboard/DashboardLayout";
 import { LoadingButton } from "@mui/lab";
 import ReplayIcon from "@mui/icons-material/Replay";
-import { FC } from "react";
+import { type FC } from "react";
 import { health, refreshHealth } from "api/queries/debug";
 
 const sections = {
@@ -62,35 +61,39 @@ export default function HealthPage() {
   );
 }
 
-export function HealthPageView({
-  healthStatus,
-  tab,
-  forceRefresh,
-  isRefreshing,
-}: {
+interface HealthPageView {
   healthStatus: Awaited<ReturnType<typeof getHealth>>;
   tab: ReturnType<typeof useTab>;
   forceRefresh: () => void;
   isRefreshing: boolean;
-}) {
+}
+
+export const HealthPageView: FC<HealthPageView> = ({
+  healthStatus,
+  tab,
+  forceRefresh,
+  isRefreshing,
+}) => {
+  const theme = useTheme();
+
   return (
     <DashboardFullPage>
       <FullWidthPageHeader sticky={false}>
         <Stack direction="row" spacing={2} alignItems="center">
           {healthStatus.healthy ? (
             <CheckCircleOutlined
-              sx={{
+              css={{
                 width: 32,
                 height: 32,
-                color: (theme) => theme.palette.success.light,
+                color: theme.palette.success.light,
               }}
             />
           ) : (
             <ErrorOutline
-              sx={{
+              css={{
                 width: 32,
                 height: 32,
-                color: (theme) => theme.palette.error.main,
+                color: theme.palette.error.main,
               }}
             />
           )}
@@ -129,34 +132,34 @@ export function HealthPageView({
         </Stats>
         <RefreshButton loading={isRefreshing} handleAction={forceRefresh} />
       </FullWidthPageHeader>
-      <Box
-        sx={{
+      <div
+        css={{
           display: "flex",
           flexBasis: 0,
           flex: 1,
           overflow: "hidden",
         }}
       >
-        <Box
-          sx={{
+        <div
+          css={{
             width: 256,
             flexShrink: 0,
-            borderRight: (theme) => `1px solid ${theme.palette.divider}`,
+            borderRight: `1px solid ${theme.palette.divider}`,
           }}
         >
-          <Box
-            sx={{
+          <div
+            css={{
               fontSize: 10,
               textTransform: "uppercase",
               fontWeight: 500,
-              color: (theme) => theme.palette.text.secondary,
+              color: theme.palette.text.secondary,
               padding: "12px 24px",
               letterSpacing: "0.5px",
             }}
           >
             Health
-          </Box>
-          <Box component="nav">
+          </div>
+          <nav>
             {Object.keys(sections)
               .sort()
               .map((key) => {
@@ -167,70 +170,42 @@ export function HealthPageView({
                 const isHealthy = healthSection.healthy;
                 const isWarning = healthSection.warnings?.length > 0;
                 return (
-                  <Box
-                    component="button"
+                  <button
                     key={key}
                     onClick={() => {
                       tab.set(key);
                     }}
-                    sx={{
-                      background: isActive ? colors.gray[13] : "none",
-                      border: "none",
-                      fontSize: 14,
-                      width: "100%",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 1,
-                      textAlign: "left",
-                      height: 36,
-                      padding: "0 24px",
-                      cursor: "pointer",
-                      pointerEvents: isActive ? "none" : "auto",
-                      color: (theme) =>
-                        isActive
-                          ? theme.palette.text.primary
-                          : theme.palette.text.secondary,
-                      "&:hover": {
-                        background: (theme) => theme.palette.action.hover,
-                        color: (theme) => theme.palette.text.primary,
-                      },
-                    }}
+                    css={[
+                      styles.sectionLink,
+                      isActive && styles.activeSectionLink,
+                    ]}
                   >
                     {isHealthy ? (
-                      isWarning ? (
-                        <CheckCircleOutlined
-                          sx={{
-                            width: 16,
-                            height: 16,
-                            color: (theme) => theme.palette.warning.main,
-                          }}
-                        />
-                      ) : (
-                        <CheckCircleOutlined
-                          sx={{
-                            width: 16,
-                            height: 16,
-                            color: (theme) => theme.palette.success.light,
-                          }}
-                        />
-                      )
-                    ) : (
-                      <ErrorOutline
-                        sx={{
+                      <CheckCircleOutlined
+                        css={{
                           width: 16,
                           height: 16,
-                          color: (theme) => theme.palette.error.main,
+                          color: isWarning
+                            ? theme.palette.warning.main
+                            : theme.palette.success.light,
+                        }}
+                      />
+                    ) : (
+                      <ErrorOutline
+                        css={{
+                          width: 16,
+                          height: 16,
+                          color: theme.palette.error.main,
                         }}
                       />
                     )}
                     {label}
-                  </Box>
+                  </button>
                 );
               })}
-          </Box>
-        </Box>
-        {/* 62px - navbar and 36px - the bottom bar */}
-        <Box sx={{ overflowY: "auto", width: "100%" }} data-chromatic="ignore">
+          </nav>
+        </div>
+        <div css={{ overflowY: "auto", width: "100%" }} data-chromatic="ignore">
           <SyntaxHighlighter
             language="json"
             editorProps={{ height: "100%" }}
@@ -240,11 +215,11 @@ export function HealthPageView({
               2,
             )}
           />
-        </Box>
-      </Box>
+        </div>
+      </div>
     </DashboardFullPage>
   );
-}
+};
 
 const styles = {
   stats: (theme) => ({
@@ -272,6 +247,31 @@ const styles = {
       fontWeight: 500,
     },
   },
+
+  sectionLink: (theme) => ({
+    background: "none",
+    border: "none",
+    fontSize: 14,
+    width: "100%",
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    textAlign: "left",
+    height: 36,
+    padding: "0 24px",
+    cursor: "pointer",
+    color: theme.palette.text.secondary,
+    "&:hover": {
+      background: theme.palette.action.hover,
+      color: theme.palette.text.primary,
+    },
+  }),
+
+  activeSectionLink: (theme) => ({
+    background: colors.gray[13],
+    pointerEvents: "none",
+    color: theme.palette.text.primary,
+  }),
 } satisfies Record<string, Interpolation<Theme>>;
 
 interface HealthcheckAction {

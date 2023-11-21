@@ -5,10 +5,6 @@ import type {
 } from "@mui/material/styles";
 import type { NewTheme } from "theme/experimental";
 
-declare module "@mui/styles/defaultTheme" {
-  interface DefaultTheme extends Theme {}
-}
-
 declare module "@mui/material/styles" {
   interface Theme {
     experimental: NewTheme;

@@ -1,15 +1,14 @@
+import { Stack } from "@mui/system";
 import { type FC } from "react";
+import { useQuery } from "react-query";
+import { useOrganizationId } from "hooks";
 import { useMe } from "hooks/useMe";
 import { usePermissions } from "hooks/usePermissions";
-import { useQuery } from "react-query";
 import { groupsForUser } from "api/queries/groups";
-import { useOrganizationId } from "hooks";
 import { useAuth } from "components/AuthProvider/AuthProvider";
-
-import { Stack } from "@mui/system";
+import { Section } from "components/SettingsLayout/Section";
 import { AccountUserGroups } from "./AccountUserGroups";
 import { AccountForm } from "./AccountForm";
-import { Section } from "components/SettingsLayout/Section";
 
 export const AccountPage: FC = () => {
   const { updateProfile, updateProfileError, isUpdatingProfile } = useAuth();

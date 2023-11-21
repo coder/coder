@@ -51,7 +51,7 @@ export function UserGroupsCell({ userGroups }: GroupsCellProps) {
                 css={{ columnGap: 8, alignItems: "center" }}
               >
                 <GroupIcon
-                  sx={{
+                  css={{
                     width: "1rem",
                     height: "1rem",
                     opacity: userGroups.length > 0 ? 0.8 : 0.5,
