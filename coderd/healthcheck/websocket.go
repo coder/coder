@@ -22,6 +22,7 @@ type WebsocketReportOptions struct {
 // @typescript-generate WebsocketReport
 type WebsocketReport struct {
 	Healthy  bool     `json:"healthy"`
+	Severity Severity `json:"severity" enums:"ok,warning,error"`
 	Warnings []string `json:"warnings"`
 
 	Body  string  `json:"body"`

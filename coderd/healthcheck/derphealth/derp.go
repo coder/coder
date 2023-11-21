@@ -55,8 +55,10 @@ type Report struct {
 
 // @typescript-generate RegionReport
 type RegionReport struct {
-	mu       sync.Mutex
+	mu sync.Mutex
+
 	Healthy  bool     `json:"healthy"`
+	Severity Severity `json:"severity" enums:"ok,warning,error"`
 	Warnings []string `json:"warnings"`
 
 	Region      *tailcfg.DERPRegion `json:"region"`
@@ -70,6 +72,7 @@ type NodeReport struct {
 	clientCounter int
 
 	Healthy  bool     `json:"healthy"`
+	Severity Severity `json:"severity" enums:"ok,warning,error"`
 	Warnings []string `json:"warnings"`
 
 	Node *tailcfg.DERPNode `json:"node"`

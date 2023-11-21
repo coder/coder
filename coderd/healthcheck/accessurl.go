@@ -15,6 +15,7 @@ import (
 // @typescript-generate AccessURLReport
 type AccessURLReport struct {
 	Healthy  bool     `json:"healthy"`
+	Severity Severity `json:"severity" enums:"ok,warning,error"`
 	Warnings []string `json:"warnings"`
 
 	AccessURL       string  `json:"access_url"`

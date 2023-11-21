@@ -18,6 +18,14 @@ const (
 	SectionDatabase  string = "Database"
 )
 
+const (
+	SeverityOK      Severity = "ok"
+	SeverityWarning Severity = "warning"
+	SeverityError   Severity = "error"
+)
+
+type Severity string
+
 type Checker interface {
 	DERP(ctx context.Context, opts *derphealth.ReportOptions) derphealth.Report
 	AccessURL(ctx context.Context, opts *AccessURLReportOptions) AccessURLReport
@@ -31,6 +39,8 @@ type Report struct {
 	Time time.Time `json:"time"`
 	// Healthy is true if the report returns no errors.
 	Healthy bool `json:"healthy"`
+	// Severity indicates the status of Coder health.
+	Severity Severity `json:"severity" enums:"ok,warning,error"`
 	// FailingSections is a list of sections that have failed their healthcheck.
 	FailingSections []string `json:"failing_sections"`
 
