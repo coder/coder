@@ -129,7 +129,7 @@ func SingleNodeUpdate(id uuid.UUID, node *Node, reason string) (*proto.Coordinat
 		PeerUpdates: []*proto.CoordinateResponse_PeerUpdate{
 			{
 				Kind:   proto.CoordinateResponse_PeerUpdate_NODE,
-				Uuid:   UUIDToByteSlice(id),
+				Id:     UUIDToByteSlice(id),
 				Node:   p,
 				Reason: reason,
 			},

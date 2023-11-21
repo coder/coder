@@ -7,12 +7,12 @@ import "google/protobuf/timestamp.proto";
 
 message DERPMap {
 	message HomeParams {
-		map<int32, double> region_score = 1;
+		map<int64, double> region_score = 1;
 	}
 	HomeParams home_params = 1;
 
 	message Region {
-		int32 region_id = 1;
+		int64 region_id = 1;
 		bool embedded_relay = 2;
 		string region_code = 3;
 		string region_name = 4;
@@ -20,7 +20,7 @@ message DERPMap {
 
 		message Node {
 			string name = 1;
-			int32 region_id = 2;
+			int64 region_id = 2;
 			string host_name = 3;
 			string cert_name = 4;
 			string ipv4 = 5;
@@ -35,7 +35,7 @@ message DERPMap {
 		}
 		repeated Node nodes = 6;
 	}
-	map<int32, Region> regions = 2;
+	map<int64, Region> regions = 2;
 }
 
 message StreamDERPMapsRequest {}
@@ -64,7 +64,7 @@ message CoordinateRequest {
 	Disconnect disconnect = 2;
 
 	message Tunnel {
-		bytes uuid = 1;
+		bytes id = 1;
 	}
 	Tunnel add_tunnel = 3;
 	Tunnel remove_tunnel = 4;
@@ -72,7 +72,7 @@ message CoordinateRequest {
 
 message CoordinateResponse {
 	message PeerUpdate {
-		bytes uuid = 1;
+		bytes id = 1;
 		Node node = 2;
 
 		enum Kind {

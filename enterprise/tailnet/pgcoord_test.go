@@ -868,7 +868,7 @@ func newTestPeer(ctx context.Context, t testing.TB, coord agpl.CoordinatorV2, na
 
 func (p *testPeer) addTunnel(other uuid.UUID) {
 	p.t.Helper()
-	req := &proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{Uuid: agpl.UUIDToByteSlice(other)}}
+	req := &proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{Id: agpl.UUIDToByteSlice(other)}}
 	select {
 	case <-p.ctx.Done():
 		p.t.Errorf("timeout adding tunnel for %s", p.name)
@@ -907,7 +907,7 @@ func (p *testPeer) assertEventuallyHasDERP(other uuid.UUID, derp int32) {
 				return
 			}
 			for _, update := range resp.PeerUpdates {
-				id, err := uuid.FromBytes(update.Uuid)
+				id, err := uuid.FromBytes(update.Id)
 				if !assert.NoError(p.t, err) {
 					return
 				}

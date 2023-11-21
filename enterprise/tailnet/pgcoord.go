@@ -189,11 +189,11 @@ func (c *pgCoord) ServeMultiAgent(id uuid.UUID) agpl.MultiAgentConn {
 			}
 		},
 		OnSubscribe: func(enq agpl.Queue, agent uuid.UUID) (*agpl.Node, error) {
-			err := sendCtx(ctx, reqs, &proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{Uuid: agpl.UUIDToByteSlice(agent)}})
+			err := sendCtx(ctx, reqs, &proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{Id: agpl.UUIDToByteSlice(agent)}})
 			return c.Node(agent), err
 		},
 		OnUnsubscribe: func(enq agpl.Queue, agent uuid.UUID) error {
-			err := sendCtx(ctx, reqs, &proto.CoordinateRequest{RemoveTunnel: &proto.CoordinateRequest_Tunnel{Uuid: agpl.UUIDToByteSlice(agent)}})
+			err := sendCtx(ctx, reqs, &proto.CoordinateRequest{RemoveTunnel: &proto.CoordinateRequest_Tunnel{Id: agpl.UUIDToByteSlice(agent)}})
 			return err
 		},
 		OnNodeUpdate: func(id uuid.UUID, node *agpl.Node) error {
@@ -266,7 +266,7 @@ func (c *pgCoord) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) erro
 	defer cancel()
 	reqs, resps := c.Coordinate(ctx, id, id.String(), agpl.ClientTunnelAuth{AgentID: agent})
 	err := sendCtx(ctx, reqs, &proto.CoordinateRequest{
-		AddTunnel: &proto.CoordinateRequest_Tunnel{Uuid: agpl.UUIDToByteSlice(agent)},
+		AddTunnel: &proto.CoordinateRequest_Tunnel{Id: agpl.UUIDToByteSlice(agent)},
 	})
 	if err != nil {
 		// can only be a context error, no need to log here.
@@ -274,7 +274,7 @@ func (c *pgCoord) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) erro
 	}
 	defer func() {
 		_ = sendCtx(ctx, reqs, &proto.CoordinateRequest{
-			RemoveTunnel: &proto.CoordinateRequest_Tunnel{Uuid: agpl.UUIDToByteSlice(agent)},
+			RemoveTunnel: &proto.CoordinateRequest_Tunnel{Id: agpl.UUIDToByteSlice(agent)},
 		})
 	}()
 
@@ -832,7 +832,7 @@ func (m *mapper) nodesToUpdate(nodes map[uuid.UUID]*proto.Node) *proto.Coordinat
 		sn, ok := m.sent[k]
 		if !ok {
 			resp.PeerUpdates = append(resp.PeerUpdates, &proto.CoordinateResponse_PeerUpdate{
-				Uuid:   agpl.UUIDToByteSlice(k),
+				Id:     agpl.UUIDToByteSlice(k),
 				Node:   n,
 				Kind:   proto.CoordinateResponse_PeerUpdate_NODE,
 				Reason: "new",
@@ -845,7 +845,7 @@ func (m *mapper) nodesToUpdate(nodes map[uuid.UUID]*proto.Node) *proto.Coordinat
 		}
 		if !eq {
 			resp.PeerUpdates = append(resp.PeerUpdates, &proto.CoordinateResponse_PeerUpdate{
-				Uuid:   agpl.UUIDToByteSlice(k),
+				Id:     agpl.UUIDToByteSlice(k),
 				Node:   n,
 				Kind:   proto.CoordinateResponse_PeerUpdate_NODE,
 				Reason: "update",
@@ -857,7 +857,7 @@ func (m *mapper) nodesToUpdate(nodes map[uuid.UUID]*proto.Node) *proto.Coordinat
 	for k := range m.sent {
 		if _, ok := nodes[k]; !ok {
 			resp.PeerUpdates = append(resp.PeerUpdates, &proto.CoordinateResponse_PeerUpdate{
-				Uuid:   agpl.UUIDToByteSlice(k),
+				Id:     agpl.UUIDToByteSlice(k),
 				Kind:   proto.CoordinateResponse_PeerUpdate_DISCONNECTED,
 				Reason: "disconnected",
 			})

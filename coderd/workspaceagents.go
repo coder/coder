@@ -30,6 +30,7 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -1696,7 +1697,44 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 
 	var errGroup errgroup.Group
 	errGroup.Go(func() error {
-		if err := api.statsBatcher.Add(time.Now(), workspaceAgent.ID, workspace.TemplateID, workspace.OwnerID, workspace.ID, req); err != nil {
+		protoStats := &agentproto.Stats{
+			ConnectionsByProto:          req.ConnectionsByProto,
+			ConnectionCount:             req.ConnectionCount,
+			ConnectionMedianLatencyMs:   req.ConnectionMedianLatencyMS,
+			RxPackets:                   req.RxPackets,
+			RxBytes:                     req.RxBytes,
+			TxPackets:                   req.TxPackets,
+			TxBytes:                     req.TxBytes,
+			SessionCountVscode:          req.SessionCountVSCode,
+			SessionCountJetbrains:       req.SessionCountJetBrains,
+			SessionCountReconnectingPty: req.SessionCountReconnectingPTY,
+			SessionCountSsh:             req.SessionCountSSH,
+			Metrics:                     make([]*agentproto.Stats_Metric, len(req.Metrics)),
+		}
+		for i, metric := range req.Metrics {
+			metricType := agentproto.Stats_Metric_TYPE_UNSPECIFIED
+			switch metric.Type {
+			case agentsdk.AgentMetricTypeCounter:
+				metricType = agentproto.Stats_Metric_COUNTER
+			case agentsdk.AgentMetricTypeGauge:
+				metricType = agentproto.Stats_Metric_GAUGE
+			}
+
+			protoStats.Metrics[i] = &agentproto.Stats_Metric{
+				Name:   metric.Name,
+				Type:   metricType,
+				Value:  metric.Value,
+				Labels: make([]*agentproto.Stats_Metric_Label, len(metric.Labels)),
+			}
+			for j, label := range metric.Labels {
+				protoStats.Metrics[i].Labels[j] = &agentproto.Stats_Metric_Label{
+					Name:  label.Name,
+					Value: label.Value,
+				}
+			}
+		}
+
+		if err := api.statsBatcher.Add(time.Now(), workspaceAgent.ID, workspace.TemplateID, workspace.OwnerID, workspace.ID, protoStats); err != nil {
 			api.Logger.Error(ctx, "failed to add stats to batcher", slog.Error(err))
 			return xerrors.Errorf("can't insert workspace agent stat: %w", err)
 		}

@@ -111,22 +111,22 @@ func TestOnlyNodeUpdates(t *testing.T) {
 	resp := &proto.CoordinateResponse{
 		PeerUpdates: []*proto.CoordinateResponse_PeerUpdate{
 			{
-				Uuid: []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+				Id:   []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
 				Kind: proto.CoordinateResponse_PeerUpdate_NODE,
 				Node: p,
 			},
 			{
-				Uuid:   []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2},
+				Id:     []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2},
 				Kind:   proto.CoordinateResponse_PeerUpdate_DISCONNECTED,
 				Reason: "disconnected",
 			},
 			{
-				Uuid:   []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3},
+				Id:     []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3},
 				Kind:   proto.CoordinateResponse_PeerUpdate_LOST,
 				Reason: "disconnected",
 			},
 			{
-				Uuid: []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+				Id: []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},
 			},
 		},
 	}
@@ -145,7 +145,7 @@ func TestSingleNodeUpdate(t *testing.T) {
 	require.Len(t, resp.PeerUpdates, 1)
 	up := resp.PeerUpdates[0]
 	require.Equal(t, proto.CoordinateResponse_PeerUpdate_NODE, up.Kind)
-	u2, err := uuid.FromBytes(up.Uuid)
+	u2, err := uuid.FromBytes(up.Id)
 	require.NoError(t, err)
 	require.Equal(t, u, u2)
 	require.Equal(t, "unit test", up.Reason)
