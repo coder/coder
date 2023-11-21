@@ -11,7 +11,7 @@ import { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { BuildParametersPopover } from "./BuildParametersPopover";
 import PowerSettingsNewIcon from "@mui/icons-material/PowerSettingsNew";
 import LoadingButton from "@mui/lab/LoadingButton";
-import { Tooltip } from "@mui/material";
+import Tooltip from "@mui/material/Tooltip";
 
 interface WorkspaceAction {
   loading?: boolean;
