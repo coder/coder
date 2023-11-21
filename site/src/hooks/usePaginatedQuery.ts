@@ -39,6 +39,10 @@ export type UsePaginatedQueryOptions<
      * It's annoying that this is necessary, but it helps avoid URL de-syncs if
      * useSearchParams is called multiple times in the same component (likely in
      * multiple custom hooks)
+     *
+     * @todo Wrangle React Router's useSearchParams so that URL state can be
+     * shared between multiple components/hooks more directly without making you
+     * jump through so many hoops (it's affecting our filter logic, too)
      */
     searchParams?: URLSearchParams;
 
