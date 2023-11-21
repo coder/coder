@@ -1,6 +1,6 @@
 import LinearProgress from "@mui/material/LinearProgress";
 import Box from "@mui/material/Box";
-import { styled, useTheme } from "@mui/material/styles";
+import { styled } from "@mui/material/styles";
 import { BoxProps } from "@mui/system";
 import { useQuery } from "react-query";
 import {
@@ -20,7 +20,7 @@ import { colors } from "theme/colors";
 import { Helmet } from "react-helmet-async";
 import { getTemplatePageTitle } from "../utils";
 import { Loader } from "components/Loader/Loader";
-import {
+import type {
   Entitlements,
   Template,
   TemplateAppUsage,
@@ -30,7 +30,8 @@ import {
   UserActivityInsightsResponse,
   UserLatencyInsightsResponse,
 } from "api/typesGenerated";
-import { ComponentProps, ReactNode } from "react";
+import { useTheme } from "@emotion/react";
+import { type ComponentProps, type ReactNode } from "react";
 import { subDays, addWeeks, format } from "date-fns";
 import "react-date-range/dist/styles.css";
 import "react-date-range/dist/theme/default.css";
@@ -790,14 +791,14 @@ function toISOLocal(d: Date, offset: number) {
 }
 
 function formatOffset(offset: number): string {
-  const isPositive = offset >= 0;
+  // A negative offset means that this is a positive timezone, e.g. GMT+2 = -120.
+  const isPositiveTimezone = offset <= 0;
   const absoluteOffset = Math.abs(offset);
   const hours = Math.floor(absoluteOffset / 60);
   const minutes = Math.abs(offset) % 60;
-  const formattedHours = `${isPositive ? "+" : "-"}${String(hours).padStart(
-    2,
-    "0",
-  )}`;
+  const formattedHours = `${isPositiveTimezone ? "+" : "-"}${String(
+    hours,
+  ).padStart(2, "0")}`;
   const formattedMinutes = String(minutes).padStart(2, "0");
   return `${formattedHours}:${formattedMinutes}`;
 }

@@ -52,7 +52,7 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
         email: "",
         password: "",
         username: "",
-        trial: true,
+        trial: false,
       },
       validationSchema,
       onSubmit,
@@ -129,7 +129,7 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
             <Checkbox
               id="trial"
               name="trial"
-              value={form.values.trial}
+              checked={form.values.trial}
               onChange={form.handleChange}
               data-testid="trial"
               size="small"

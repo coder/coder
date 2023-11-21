@@ -21,7 +21,7 @@ export const TimelineEntry = forwardRef(function TimelineEntry(
             outlineStyle: "solid",
             outlineOffset: -1,
             outlineWidth: 2,
-            outlineColor: theme.palette.secondary.dark,
+            outlineColor: theme.palette.primary.main,
           },
           "& td:before": {
             position: "absolute",

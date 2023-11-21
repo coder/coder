@@ -12,6 +12,8 @@ import (
 	"testing"
 	"unicode"
 
+	"cdr.dev/slog"
+
 	"github.com/spf13/pflag"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
@@ -170,6 +172,7 @@ func (c *Cmd) Invoke(args ...string) *Invocation {
 		Stdout:  io.Discard,
 		Stderr:  io.Discard,
 		Stdin:   strings.NewReader(""),
+		Logger:  slog.Make(),
 	}
 }
 
@@ -185,6 +188,7 @@ type Invocation struct {
 	Stdout  io.Writer
 	Stderr  io.Writer
 	Stdin   io.Reader
+	Logger  slog.Logger
 
 	// testing
 	signalNotifyContext func(parent context.Context, signals ...os.Signal) (ctx context.Context, stop context.CancelFunc)
@@ -220,6 +224,15 @@ func (inv *Invocation) SignalNotifyContext(parent context.Context, signals ...os
 		return signal.NotifyContext(parent, signals...)
 	}
 	return inv.signalNotifyContext(parent, signals...)
+}
+
+func (inv *Invocation) WithTestParsedFlags(
+	_ testing.TB, // ensure we only call this from tests
+	parsedFlags *pflag.FlagSet,
+) *Invocation {
+	return inv.with(func(i *Invocation) {
+		i.parsedFlags = parsedFlags
+	})
 }
 
 func (inv *Invocation) Context() context.Context {

@@ -24,14 +24,16 @@ type sqlcQuerier interface {
 	// multiple provisioners from acquiring the same jobs. See:
 	// https://www.postgresql.org/docs/9.5/sql-select.html#SQL-FOR-UPDATE-SHARE
 	AcquireProvisionerJob(ctx context.Context, arg AcquireProvisionerJobParams) (ProvisionerJob, error)
-	// We bump by the original TTL to prevent counter-intuitive behavior
-	// as the TTL wraps. For example, if I set the TTL to 12 hours, sign off
-	// work at midnight, come back at 10am, I would want another full day
-	// of uptime.
+	// Bumps the workspace deadline by 1 hour. If the workspace bump will
+	// cross an autostart threshold, then the bump is autostart + TTL. This
+	// is the deadline behavior if the workspace was to autostart from a stopped
+	// state.
+	// Max deadline is respected, and will never be bumped.
+	// The deadline will never decrease.
 	// We only bump if the raw interval is positive and non-zero.
 	// We only bump if workspace shutdown is manual.
 	// We only bump when 5% of the deadline has elapsed.
-	ActivityBumpWorkspace(ctx context.Context, workspaceID uuid.UUID) error
+	ActivityBumpWorkspace(ctx context.Context, arg ActivityBumpWorkspaceParams) error
 	// AllUserIDs returns all UserIDs regardless of user status or deletion.
 	AllUserIDs(ctx context.Context) ([]uuid.UUID, error)
 	// Archiving templates is a soft delete action, so is reversible.
@@ -44,6 +46,7 @@ type sqlcQuerier interface {
 	DeleteAPIKeyByID(ctx context.Context, id string) error
 	DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
 	DeleteAllTailnetClientSubscriptions(ctx context.Context, arg DeleteAllTailnetClientSubscriptionsParams) error
+	DeleteAllTailnetTunnels(ctx context.Context, arg DeleteAllTailnetTunnelsParams) error
 	DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
 	DeleteCoordinator(ctx context.Context, id uuid.UUID) error
 	DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error
@@ -59,6 +62,8 @@ type sqlcQuerier interface {
 	DeleteTailnetAgent(ctx context.Context, arg DeleteTailnetAgentParams) (DeleteTailnetAgentRow, error)
 	DeleteTailnetClient(ctx context.Context, arg DeleteTailnetClientParams) (DeleteTailnetClientRow, error)
 	DeleteTailnetClientSubscription(ctx context.Context, arg DeleteTailnetClientSubscriptionParams) error
+	DeleteTailnetPeer(ctx context.Context, arg DeleteTailnetPeerParams) (DeleteTailnetPeerRow, error)
+	DeleteTailnetTunnel(ctx context.Context, arg DeleteTailnetTunnelParams) (DeleteTailnetTunnelRow, error)
 	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
 	// there is no unique constraint on empty token names
 	GetAPIKeyByName(ctx context.Context, arg GetAPIKeyByNameParams) (APIKey, error)
@@ -128,6 +133,9 @@ type sqlcQuerier interface {
 	GetServiceBanner(ctx context.Context) (string, error)
 	GetTailnetAgents(ctx context.Context, id uuid.UUID) ([]TailnetAgent, error)
 	GetTailnetClientsForAgent(ctx context.Context, agentID uuid.UUID) ([]TailnetClient, error)
+	GetTailnetPeers(ctx context.Context, id uuid.UUID) ([]TailnetPeer, error)
+	GetTailnetTunnelPeerBindings(ctx context.Context, srcID uuid.UUID) ([]GetTailnetTunnelPeerBindingsRow, error)
+	GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUID) ([]GetTailnetTunnelPeerIDsRow, error)
 	// GetTemplateAppInsights returns the aggregate usage of each app in a given
 	// timeframe. The result can be filtered on template_ids, meaning only user data
 	// from workspaces based on those templates will be included.
@@ -356,6 +364,8 @@ type sqlcQuerier interface {
 	UpsertTailnetClient(ctx context.Context, arg UpsertTailnetClientParams) (TailnetClient, error)
 	UpsertTailnetClientSubscription(ctx context.Context, arg UpsertTailnetClientSubscriptionParams) error
 	UpsertTailnetCoordinator(ctx context.Context, id uuid.UUID) (TailnetCoordinator, error)
+	UpsertTailnetPeer(ctx context.Context, arg UpsertTailnetPeerParams) (TailnetPeer, error)
+	UpsertTailnetTunnel(ctx context.Context, arg UpsertTailnetTunnelParams) (TailnetTunnel, error)
 }
 
 var _ sqlcQuerier = (*sqlQuerier)(nil)

@@ -243,6 +243,17 @@ export const CancellationError: Story = {
   },
 };
 
+export const Deprecated: Story = {
+  args: {
+    ...Running.args,
+    template: {
+      ...Mocks.MockTemplate,
+      deprecated: true,
+      deprecation_message: "Template deprecated due to reasons",
+    },
+  },
+};
+
 export const Unhealthy: Story = {
   args: {
     ...Running.args,
@@ -747,10 +758,3 @@ function makeFailedBuildLogs(): ProvisionerJobLog[] {
     },
   ];
 }
-
-export const UnsupportedWorkspace: Story = {
-  args: {
-    ...Running.args,
-    templateWarnings: ["UNSUPPORTED_WORKSPACES"],
-  },
-};

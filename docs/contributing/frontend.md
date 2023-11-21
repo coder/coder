@@ -34,7 +34,6 @@ important ones:
 - [react-router](https://reactrouter.com/en/main) for routing
 - [TanStack Query v4](https://tanstack.com/query/v4/docs/react/overview) for
   fetching data
-- [XState](https://xstate.js.org/docs/) for handling complex state flows
 - [axios](https://github.com/axios/axios) as fetching lib
 - [Playwright](https://playwright.dev/) for end-to-end (E2E) testing
 - [Jest](https://jestjs.io/) for integration testing
@@ -96,13 +95,7 @@ a `*.stories.ts` file.
 
 We use
 [TanStack Query v4](https://tanstack.com/query/v4/docs/react/overview)(previously
-known as react-query) to fetch data from the API. We also use
-[XState](https://xstate.js.org/docs/) to handle complex flows with multiple
-states and transitions.
-
-> ℹ️ We recently changed how we are going to fetch data from the server so you
-> will see a lot of fetches being made using XState machines but feel free to
-> refactor it if you are already touching those files.
+known as react-query) to fetch data from the API.
 
 ### Where to fetch data
 

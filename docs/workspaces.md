@@ -74,12 +74,24 @@ coder_app.
 
 ![Autostop UI](./images/autostop.png)
 
-### Max lifetime
+### Max lifetime (Enterprise)
 
 Max lifetime is a template setting that determines the number of hours a
 workspace will run before Coder automatically stops it, regardless of any active
 connections. Use this setting to ensure that workspaces do not run in perpetuity
 when connections are left open inadvertently.
+
+### Automatic Updates
+
+It can be tedious to manually update a workspace everytime an update is pushed
+to a template. Users can choose to opt-in to automatic updates to update to the
+active template version whenever the workspace is started.
+
+Note: If a template is updated such that new parameter inputs are required from
+the user, autostart will be disabled for the workspace until the user has
+manually updated the workspace.
+
+![Automatic Updates](./images/workspace-automatic-updates.png)
 
 ## Updating workspaces
 
@@ -115,7 +127,12 @@ though the exact behavior depends on the template. For more information, see
 > You can use `coder show <workspace-name>` to see which resources are
 > persistent and which are ephemeral.
 
-When a workspace is deleted, all of the workspace's resources are deleted.
+Typically, when a workspace is deleted, all of the workspace's resources are
+deleted along with it. Rarely, one may wish to delete a workspace without
+deleting its resources, e.g. a workspace in a broken state. Users with the
+Template Admin role have the option to do so both in the UI, and also in the CLI
+by running the `delete` command with the `--orphan` flag. This option should be
+considered cautiously as orphaning may lead to unaccounted cloud resources.
 
 ## Repairing workspaces
 

@@ -1,11 +1,12 @@
 import RefreshIcon from "@mui/icons-material/Refresh";
-import { type FC } from "react";
 import InfoIcon from "@mui/icons-material/InfoOutlined";
-import { useQuery } from "react-query";
 import Box from "@mui/material/Box";
 import Skeleton from "@mui/material/Skeleton";
 import Link from "@mui/material/Link";
+import { type FC } from "react";
+import { useQuery } from "react-query";
 import { css } from "@emotion/css";
+import { useTheme } from "@emotion/react";
 import { templateVersion } from "api/queries/templates";
 import {
   HelpTooltip,
@@ -14,7 +15,6 @@ import {
   HelpTooltipText,
   HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
-import { colors } from "theme/colors";
 
 export const Language = {
   outdatedLabel: "Outdated",
@@ -37,13 +37,14 @@ export const WorkspaceOutdatedTooltip: FC<TooltipProps> = ({
   templateName,
 }) => {
   const { data: activeVersion } = useQuery(templateVersion(latestVersionId));
+  const theme = useTheme();
 
   return (
     <HelpTooltip
       size="small"
       icon={InfoIcon}
       iconClassName={css`
-        color: ${colors.yellow[5]};
+        color: ${theme.experimental.roles.notice.outline};
       `}
       buttonClassName={css`
         opacity: 1;

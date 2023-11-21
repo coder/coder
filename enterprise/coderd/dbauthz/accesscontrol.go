@@ -15,6 +15,7 @@ type EnterpriseTemplateAccessControlStore struct{}
 func (EnterpriseTemplateAccessControlStore) GetTemplateAccessControl(t database.Template) agpldbz.TemplateAccessControl {
 	return agpldbz.TemplateAccessControl{
 		RequireActiveVersion: t.RequireActiveVersion,
+		Deprecated:           t.Deprecated,
 	}
 }
 
@@ -22,6 +23,7 @@ func (EnterpriseTemplateAccessControlStore) SetTemplateAccessControl(ctx context
 	err := store.UpdateTemplateAccessControlByID(ctx, database.UpdateTemplateAccessControlByIDParams{
 		ID:                   id,
 		RequireActiveVersion: opts.RequireActiveVersion,
+		Deprecated:           opts.Deprecated,
 	})
 	if err != nil {
 		return xerrors.Errorf("update template access control: %w", err)

@@ -1,5 +1,4 @@
 import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
 import type { FC, ReactNode } from "react";
 
 export interface EmptyStateProps {
@@ -40,24 +39,21 @@ export const EmptyState: FC<React.PropsWithChildren<EmptyStateProps>> = (
       }}
       {...boxProps}
     >
-      <Typography variant="h5" css={{ fontSize: 24 }}>
-        {message}
-      </Typography>
+      <h5 css={{ fontSize: 24, fontWeight: 400, margin: 0 }}>{message}</h5>
       {description && (
-        <Typography
-          variant="body2"
-          color="textSecondary"
-          css={{
-            marginTop: 12,
+        <p
+          css={(theme) => ({
+            marginTop: 16,
             fontSize: 16,
             lineHeight: "140%",
             maxWidth: 480,
-          }}
+            color: theme.palette.text.secondary,
+          })}
         >
           {description}
-        </Typography>
+        </p>
       )}
-      {cta && <div css={{ marginTop: 32 }}>{cta}</div>}
+      {cta && <div css={{ marginTop: 24 }}>{cta}</div>}
       {image}
     </Box>
   );

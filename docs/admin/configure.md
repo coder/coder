@@ -29,7 +29,7 @@ export CODER_TLS_ENABLE=true
 export CODER_TLS_ADDRESS=0.0.0.0:443
 
 ## Redirect from HTTP to HTTPS
-export CODER_TLS_REDIRECT_HTTP=true
+export CODER_REDIRECT_TO_ACCESS_URL=true
 
 # Start the Coder server
 coder server

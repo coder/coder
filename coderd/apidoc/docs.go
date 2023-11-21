@@ -412,12 +412,42 @@ const docTemplate = `{
                 ],
                 "summary": "Debug Info Deployment Health",
                 "operationId": "debug-info-deployment-health",
+                "parameters": [
+                    {
+                        "type": "boolean",
+                        "description": "Force a healthcheck to run",
+                        "name": "force",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/healthcheck.Report"
                         }
+                    }
+                }
+            }
+        },
+        "/debug/tailnet": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "Debug"
+                ],
+                "summary": "Debug Info Tailnet",
+                "operationId": "debug-info-tailnet",
+                "responses": {
+                    "200": {
+                        "description": "OK"
                     }
                 }
             }
@@ -8575,7 +8605,6 @@ const docTemplate = `{
                 "single_tailnet",
                 "template_autostop_requirement",
                 "deployment_health_page",
-                "dashboard_theme",
                 "template_update_policies"
             ],
             "x-enum-varnames": [
@@ -8585,7 +8614,6 @@ const docTemplate = `{
                 "ExperimentSingleTailnet",
                 "ExperimentTemplateAutostopRequirement",
                 "ExperimentDeploymentHealthPage",
-                "ExperimentDashboardTheme",
                 "ExperimentTemplateUpdatePolicies"
             ]
         },
@@ -10028,6 +10056,12 @@ const docTemplate = `{
                 },
                 "default_ttl_ms": {
                     "type": "integer"
+                },
+                "deprecated": {
+                    "type": "boolean"
+                },
+                "deprecation_message": {
+                    "type": "string"
                 },
                 "description": {
                     "type": "string"
@@ -11864,6 +11898,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "version": {
+                    "type": "string"
+                },
                 "wildcard_hostname": {
                     "description": "WildcardHostname is the wildcard hostname for subdomain apps.\nE.g. *.us.example.com\nE.g. *--suffix.au.example.com\nOptional. Does not need to be on the same domain as PathAppURL.",
                     "type": "string"
@@ -12085,6 +12122,12 @@ const docTemplate = `{
                 },
                 "uses_websocket": {
                     "type": "boolean"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -12105,6 +12148,12 @@ const docTemplate = `{
                 },
                 "region": {
                     "$ref": "#/definitions/tailcfg.DERPRegion"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -12133,6 +12182,12 @@ const docTemplate = `{
                     "type": "object",
                     "additionalProperties": {
                         "$ref": "#/definitions/derphealth.RegionReport"
+                    }
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
                     }
                 }
             }
@@ -12171,6 +12226,12 @@ const docTemplate = `{
                 },
                 "status_code": {
                     "type": "integer"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -12194,6 +12255,12 @@ const docTemplate = `{
                 },
                 "threshold_ms": {
                     "type": "integer"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -12247,6 +12314,12 @@ const docTemplate = `{
                 },
                 "healthy": {
                     "type": "boolean"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },

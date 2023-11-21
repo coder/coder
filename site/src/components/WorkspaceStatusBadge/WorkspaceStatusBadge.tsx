@@ -73,7 +73,14 @@ export const WorkspaceStatusText: FC<
           role="status"
           data-testid="build-status"
           className={className}
-          css={[styles.root, styles[`type-${type}`]]}
+          css={[
+            styles.root,
+            (theme) => ({
+              color: type
+                ? theme.experimental.roles[type].fill
+                : theme.experimental.l1.text,
+            }),
+          ]}
         >
           {text}
         </span>

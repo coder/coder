@@ -492,6 +492,11 @@ func (c *Client) WatchWorkspaceAgentMetadata(ctx context.Context, id uuid.UUID) 
 				firstEvent = false
 			}
 
+			// Ignore pings.
+			if sse.Type == ServerSentEventTypePing {
+				continue
+			}
+
 			b, ok := sse.Data.([]byte)
 			if !ok {
 				return xerrors.Errorf("unexpected data type: %T", sse.Data)

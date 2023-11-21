@@ -24,9 +24,15 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
+const (
+	warningNodeUsesWebsocket = `Node uses WebSockets because the "Upgrade: DERP" header may be blocked on the load balancer.`
+	oneNodeUnhealthy         = "Region is operational, but performance might be degraded as one node is unhealthy."
+)
+
 // @typescript-generate Report
 type Report struct {
-	Healthy bool `json:"healthy"`
+	Healthy  bool     `json:"healthy"`
+	Warnings []string `json:"warnings"`
 
 	Regions map[int]*RegionReport `json:"regions"`
 
@@ -39,8 +45,9 @@ type Report struct {
 
 // @typescript-generate RegionReport
 type RegionReport struct {
-	mu      sync.Mutex
-	Healthy bool `json:"healthy"`
+	mu       sync.Mutex
+	Healthy  bool     `json:"healthy"`
+	Warnings []string `json:"warnings"`
 
 	Region      *tailcfg.DERPRegion `json:"region"`
 	NodeReports []*NodeReport       `json:"node_reports"`
@@ -52,8 +59,10 @@ type NodeReport struct {
 	mu            sync.Mutex
 	clientCounter int
 
-	Healthy bool              `json:"healthy"`
-	Node    *tailcfg.DERPNode `json:"node"`
+	Healthy  bool     `json:"healthy"`
+	Warnings []string `json:"warnings"`
+
+	Node *tailcfg.DERPNode `json:"node"`
 
 	ServerInfo          derp.ServerInfoMessage `json:"node_info"`
 	CanExchangeMessages bool                   `json:"can_exchange_messages"`
@@ -81,6 +90,7 @@ type ReportOptions struct {
 func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 	r.Healthy = true
 	r.Regions = map[int]*RegionReport{}
+	r.Warnings = []string{}
 
 	wg := &sync.WaitGroup{}
 	mu := sync.Mutex{}
@@ -108,6 +118,10 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 			if !regionReport.Healthy {
 				r.Healthy = false
 			}
+
+			for _, w := range regionReport.Warnings {
+				r.Warnings = append(r.Warnings, fmt.Sprintf("[%s] %s", regionReport.Region.RegionName, w))
+			}
 			mu.Unlock()
 		}()
 	}
@@ -133,6 +147,7 @@ func (r *RegionReport) Run(ctx context.Context) {
 	r.NodeReports = []*NodeReport{}
 
 	wg := &sync.WaitGroup{}
+	var healthyNodes int // atomic.Int64 is not mandatory as we depend on RegionReport mutex.
 
 	wg.Add(len(r.Region.Nodes))
 	for _, node := range r.Region.Nodes {
@@ -156,14 +171,24 @@ func (r *RegionReport) Run(ctx context.Context) {
 
 			r.mu.Lock()
 			r.NodeReports = append(r.NodeReports, &nodeReport)
-			if !nodeReport.Healthy {
-				r.Healthy = false
+			if nodeReport.Healthy {
+				healthyNodes++
+			}
+
+			for _, w := range nodeReport.Warnings {
+				r.Warnings = append(r.Warnings, fmt.Sprintf("[%s] %s", nodeReport.Node.Name, w))
 			}
 			r.mu.Unlock()
 		}()
 	}
-
 	wg.Wait()
+
+	// Coder allows for 1 unhealthy node in the region, unless there is only 1 node.
+	if len(r.Region.Nodes) == 1 {
+		r.Healthy = healthyNodes == len(r.Region.Nodes)
+	} else if healthyNodes < len(r.Region.Nodes) {
+		r.Warnings = append(r.Warnings, oneNodeUnhealthy)
+	}
 }
 
 func (r *NodeReport) derpURL() *url.URL {
@@ -208,13 +233,13 @@ func (r *NodeReport) Run(ctx context.Context) {
 
 	// We can't exchange messages with the node,
 	if (!r.CanExchangeMessages && !r.Node.STUNOnly) ||
-		// A node may use websockets because `Upgrade: DERP` may be blocked on
-		// the load balancer. This is unhealthy because websockets are slower
-		// than the regular DERP protocol.
-		r.UsesWebsocket ||
 		// The node was marked as STUN compatible but the STUN test failed.
 		r.STUN.Error != nil {
 		r.Healthy = false
+	}
+
+	if r.UsesWebsocket {
+		r.Warnings = append(r.Warnings, warningNodeUsesWebsocket)
 	}
 }
 

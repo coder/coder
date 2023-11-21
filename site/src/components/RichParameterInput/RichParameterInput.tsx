@@ -9,7 +9,6 @@ import { type FC } from "react";
 import { TemplateVersionParameter } from "api/typesGenerated";
 import { MemoizedMarkdown } from "components/Markdown/Markdown";
 import { Stack } from "components/Stack/Stack";
-import { colors } from "theme/colors";
 import { MultiTextField } from "./MultiTextField";
 
 const isBoolean = (parameter: TemplateVersionParameter) => {
@@ -43,11 +42,6 @@ const styles = {
       fontSize: 14,
     },
   }),
-  labelImmutable: {
-    marginTop: 4,
-    marginBottom: 4,
-    color: colors.yellow[7],
-  },
   textField: {
     ".small & .MuiInputBase-root": {
       height: 36,

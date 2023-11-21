@@ -1513,6 +1513,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceproxies \
           "status": "ok"
         },
         "updated_at": "2019-08-24T14:15:22Z",
+        "version": "string",
         "wildcard_hostname": "string"
       }
     ]
@@ -1551,6 +1552,7 @@ Status Code **200**
 | `»»»» warnings`        | array                                                                    | false    |              | Warnings do not prevent the workspace proxy from being healthy, but should be addressed.                                                                                           |
 | `»»» status`           | [codersdk.ProxyHealthStatus](schemas.md#codersdkproxyhealthstatus)       | false    |              |                                                                                                                                                                                    |
 | `»» updated_at`        | string(date-time)                                                        | false    |              |                                                                                                                                                                                    |
+| `»» version`           | string                                                                   | false    |              |                                                                                                                                                                                    |
 | `»» wildcard_hostname` | string                                                                   | false    |              | Wildcard hostname is the wildcard hostname for subdomain apps. E.g. _.us.example.com E.g. _--suffix.au.example.com Optional. Does not need to be on the same domain as PathAppURL. |
 
 #### Enumerated Values
@@ -1619,6 +1621,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceproxies \
     "status": "ok"
   },
   "updated_at": "2019-08-24T14:15:22Z",
+  "version": "string",
   "wildcard_hostname": "string"
 }
 ```
@@ -1675,6 +1678,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy} \
     "status": "ok"
   },
   "updated_at": "2019-08-24T14:15:22Z",
+  "version": "string",
   "wildcard_hostname": "string"
 }
 ```
@@ -1789,6 +1793,7 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy} 
     "status": "ok"
   },
   "updated_at": "2019-08-24T14:15:22Z",
+  "version": "string",
   "wildcard_hostname": "string"
 }
 ```

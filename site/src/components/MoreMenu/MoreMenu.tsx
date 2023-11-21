@@ -113,7 +113,7 @@ export const MoreMenuItem = (
       {...menuItemProps}
       css={(theme) => ({
         fontSize: 14,
-        color: danger ? theme.palette.error.light : undefined,
+        color: danger ? theme.palette.warning.light : undefined,
         "& .MuiSvgIcon-root": {
           width: 16,
           height: 16,

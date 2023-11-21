@@ -86,11 +86,7 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
                   target="_blank"
                   rel="noreferrer"
                 >
-                  <Avatar
-                    size="sm"
-                    src={install.account.avatar_url}
-                    colorScheme="darken"
-                  >
+                  <Avatar size="sm" src={install.account.avatar_url}>
                     {install.account.login}
                   </Avatar>
                 </Link>

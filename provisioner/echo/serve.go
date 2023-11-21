@@ -13,6 +13,8 @@ import (
 	"golang.org/x/xerrors"
 	protobuf "google.golang.org/protobuf/proto"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
@@ -211,6 +213,15 @@ type Responses struct {
 
 // Tar returns a tar archive of responses to provisioner operations.
 func Tar(responses *Responses) ([]byte, error) {
+	logger := slog.Make()
+	return TarWithOptions(context.Background(), logger, responses)
+}
+
+// TarWithOptions returns a tar archive of responses to provisioner operations,
+// but it gives more insight into the archiving process.
+func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Responses) ([]byte, error) {
+	logger = logger.Named("echo_tar")
+
 	if responses == nil {
 		responses = &Responses{
 			ParseComplete, ApplyComplete, PlanComplete,
@@ -242,6 +253,7 @@ func Tar(responses *Responses) ([]byte, error) {
 		if err != nil {
 			return err
 		}
+		logger.Debug(ctx, "write proto", slog.F("name", name), slog.F("message", string(data)))
 
 		err = writer.WriteHeader(&tar.Header{
 			Name: name,
@@ -252,10 +264,11 @@ func Tar(responses *Responses) ([]byte, error) {
 			return err
 		}
 
-		_, err = writer.Write(data)
+		n, err := writer.Write(data)
 		if err != nil {
 			return err
 		}
+		logger.Debug(context.Background(), "proto written", slog.F("name", name), slog.F("bytes_written", n))
 
 		return nil
 	}
