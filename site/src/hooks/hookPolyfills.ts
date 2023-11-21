@@ -6,7 +6,7 @@
  * They do not have the same ESLinter exceptions baked in that the official
  * hooks do, especially for dependency arrays.
  */
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useLayoutEffect, useRef } from "react";
 
 /**
  * A DIY version of useEffectEvent.
@@ -35,7 +35,10 @@ export function useEffectEvent<TArgs extends unknown[], TReturn = unknown>(
   callback: (...args: TArgs) => TReturn,
 ) {
   const callbackRef = useRef(callback);
-  useEffect(() => {
+
+  // useLayoutEffect should be overkill here 99% of the time, but it ensures it
+  // will run before any other layout effects that need this custom hook
+  useLayoutEffect(() => {
     callbackRef.current = callback;
   }, [callback]);
 
