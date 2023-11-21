@@ -185,11 +185,13 @@ export function usePaginatedQuery<
   }, [updatePageIfInvalid, query.isFetching, totalPages]);
 
   const onPageChange = (newPage: number) => {
-    if (totalPages === undefined) {
+    // Page 1 is the only page that can be safely navigated to without knowing
+    // totalPages; no reliance on server data for math calculations
+    if (totalPages === undefined && newPage !== 1) {
       return;
     }
 
-    const cleanedInput = clamp(Math.trunc(newPage), 1, totalPages);
+    const cleanedInput = clamp(Math.trunc(newPage), 1, totalPages ?? 1);
     if (!Number.isInteger(cleanedInput) || cleanedInput <= 0) {
       return;
     }
