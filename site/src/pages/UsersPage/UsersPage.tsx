@@ -6,13 +6,13 @@ import { groupsByUserId } from "api/queries/groups";
 import { getErrorMessage } from "api/errors";
 import { deploymentConfig } from "api/queries/deployment";
 import {
+  paginatedUsers,
   suspendUser,
   activateUser,
   deleteUser,
   updatePassword,
   updateRoles,
   authMethods,
-  paginatedUsers,
 } from "api/queries/users";
 
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -58,7 +58,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
   const usersQuery = usePaginatedQuery(paginatedUsers());
   const useFilterResult = useFilter({
     searchParamsResult,
-    onUpdate: () => usersQuery.onPageChange(1),
+    onUpdate: usersQuery.goToFirstPage,
   });
 
   const statusMenu = useStatusFilterMenu({

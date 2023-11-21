@@ -200,27 +200,27 @@ export function usePaginatedQuery<
     setSearchParams(searchParams);
   };
 
-  const goToPreviousPage = () => {
-    if (hasPreviousPage) {
-      onPageChange(currentPage - 1);
-    }
-  };
-
-  const goToNextPage = () => {
-    if (hasNextPage) {
-      onPageChange(currentPage + 1);
-    }
-  };
-
-  // Have to do a type assertion at the end to make React Query's internal types
-  // happy; splitting type definitions up to limit risk of the type assertion
-  // silencing type warnings we actually want to pay attention to
+  // Have to do a type assertion for final return type to make React Query's
+  // internal types happy; splitting type definitions up to limit risk of the
+  // type assertion silencing type warnings we actually want to pay attention to
   const info: PaginationResultInfo = {
     limit,
     currentPage,
     onPageChange,
-    goToPreviousPage,
-    goToNextPage,
+    goToFirstPage: () => onPageChange(1),
+
+    goToPreviousPage: () => {
+      if (hasPreviousPage) {
+        onPageChange(currentPage - 1);
+      }
+    },
+
+    goToNextPage: () => {
+      if (hasNextPage) {
+        onPageChange(currentPage + 1);
+      }
+    },
+
     ...(query.isSuccess
       ? {
           isSuccess: true,
@@ -256,6 +256,7 @@ type PaginationResultInfo = {
   onPageChange: (newPage: number) => void;
   goToPreviousPage: () => void;
   goToNextPage: () => void;
+  goToFirstPage: () => void;
 } & (
   | {
       isSuccess: false;
