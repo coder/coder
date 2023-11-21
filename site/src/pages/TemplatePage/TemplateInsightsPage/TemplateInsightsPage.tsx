@@ -522,13 +522,14 @@ const TemplateParametersUsagePanel: FC<TemplateParametersUsagePanelProps> = ({
                   display: "flex",
                   alignItems: "start",
                   padding: 24,
-                  marginLeft: -3,
-                  marginRight: -3,
+                  marginLeft: -24,
+                  marginRight: -24,
                   borderTop: `1px solid ${theme.palette.divider}`,
                   width: "calc(100% + 48px)",
                   "&:first-child": {
                     borderTop: 0,
                   },
+                  gap: 24,
                 }}
               >
                 <div css={{ flex: 1 }}>
@@ -544,7 +545,7 @@ const TemplateParametersUsagePanel: FC<TemplateParametersUsagePanelProps> = ({
                     {parameter.description}
                   </p>
                 </div>
-                <div css={{ flex: 1, fontSize: 14 }}>
+                <div css={{ flex: 1, fontSize: 14, flexGrow: 2 }}>
                   <ParameterUsageRow
                     css={{
                       color: theme.palette.text.secondary,
@@ -605,7 +606,6 @@ const ParameterUsageRow: FC<HTMLAttributes<HTMLDivElement>> = ({
         alignItems: "baseline",
         justifyContent: "space-between",
         padding: "4px 0",
-        gap: 320, // TODO: is this right????
       }}
       {...attrs}
     >
@@ -710,7 +710,7 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
         css={{
           display: "flex",
           alignItems: "center",
-          gap: 1,
+          gap: 8,
         }}
       >
         {usage.value === "false" ? (
