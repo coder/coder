@@ -33,7 +33,7 @@ func TestRun(t *testing.T) {
 	}
 
 	//nolint:dupl
-	t.Run("PTY", func(t *testing.T) {
+	t.Run("RPTY", func(t *testing.T) {
 		t.Parallel()
 		// We need to stand up an in-memory coderd and run a fake workspace.
 		var (
@@ -91,7 +91,6 @@ func TestRun(t *testing.T) {
 		var (
 			bytesPerTick = 1024
 			tickInterval = 1000 * time.Millisecond
-			fudgeWrite   = 12 // The ReconnectingPTY payload incurs some overhead
 			readMetrics  = &testMetrics{}
 			writeMetrics = &testMetrics{}
 		)
@@ -103,6 +102,7 @@ func TestRun(t *testing.T) {
 			ReadMetrics:  readMetrics,
 			WriteMetrics: writeMetrics,
 			SSH:          false,
+			Echo:         false,
 		})
 
 		var logs strings.Builder
@@ -139,7 +139,7 @@ func TestRun(t *testing.T) {
 		t.Logf("bytes written total: %.0f\n", writeMetrics.Total())
 
 		// We want to ensure the metrics are somewhat accurate.
-		assert.InDelta(t, bytesPerTick+fudgeWrite, writeMetrics.Total(), 0.1)
+		assert.InDelta(t, bytesPerTick, writeMetrics.Total(), 0.1)
 		// Read is highly variable, depending on how far we read before stopping.
 		// Just ensure it's not zero.
 		assert.NotZero(t, readMetrics.Total())
@@ -211,7 +211,6 @@ func TestRun(t *testing.T) {
 		var (
 			bytesPerTick = 1024
 			tickInterval = 1000 * time.Millisecond
-			fudgeWrite   = 2 // We send \r\n, which is two bytes
 			readMetrics  = &testMetrics{}
 			writeMetrics = &testMetrics{}
 		)
@@ -223,6 +222,7 @@ func TestRun(t *testing.T) {
 			ReadMetrics:  readMetrics,
 			WriteMetrics: writeMetrics,
 			SSH:          true,
+			Echo:         true,
 		})
 
 		var logs strings.Builder
@@ -259,7 +259,7 @@ func TestRun(t *testing.T) {
 		t.Logf("bytes written total: %.0f\n", writeMetrics.Total())
 
 		// We want to ensure the metrics are somewhat accurate.
-		assert.InDelta(t, bytesPerTick+fudgeWrite, writeMetrics.Total(), 0.1)
+		assert.InDelta(t, bytesPerTick, writeMetrics.Total(), 0.1)
 		// Read is highly variable, depending on how far we read before stopping.
 		// Just ensure it's not zero.
 		assert.NotZero(t, readMetrics.Total())

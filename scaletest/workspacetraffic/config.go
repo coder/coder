@@ -25,6 +25,12 @@ type Config struct {
 	WriteMetrics ConnMetrics `json:"-"`
 
 	SSH bool `json:"ssh"`
+
+	// Echo controls whether the agent should echo the data it receives.
+	// If false, the agent will discard the data. Note that setting this
+	// to true will double the amount of data read from the agent for
+	// PTYs (e.g. reconnecting pty or SSH connections that request PTY).
+	Echo bool `json:"echo"`
 }
 
 func (c Config) Validate() error {
