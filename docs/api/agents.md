@@ -614,6 +614,26 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/report-stats \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Workspace agent DRPC API
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/rpc \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaceagents/me/rpc`
+
+### Responses
+
+| Status | Meaning                                                                  | Description         | Schema |
+| ------ | ------------------------------------------------------------------------ | ------------------- | ------ |
+| 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Removed: Patch workspace agent logs
 
 ### Code samples

@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net"
 	"net/url"
 	"strings"
 	"sync/atomic"
@@ -15,6 +17,8 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"storj.io/drpc/drpcmux"
+	"storj.io/drpc/drpcserver"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
@@ -27,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
@@ -58,6 +63,34 @@ type AgentAPI struct {
 
 var _ agentproto.DRPCAgentServer = &AgentAPI{}
 
+func (a *AgentAPI) Server(ctx context.Context) (*drpcserver.Server, error) {
+	mux := drpcmux.New()
+	err := agentproto.DRPCRegisterAgent(mux, a)
+	if err != nil {
+		return nil, xerrors.Errorf("register agent API protocol in DRPC mux: %w", err)
+	}
+
+	return drpcserver.NewWithOptions(&tracing.DRPCHandler{Handler: mux},
+		drpcserver.Options{
+			Log: func(err error) {
+				if xerrors.Is(err, io.EOF) {
+					return
+				}
+				a.log.Debug(ctx, "drpc server error", slog.Error(err))
+			},
+		},
+	), nil
+}
+
+func (a *AgentAPI) Serve(ctx context.Context, l net.Listener) error {
+	server, err := a.Server(ctx)
+	if err != nil {
+		return xerrors.Errorf("create agent API server: %w", err)
+	}
+
+	return server.Serve(ctx, l)
+}
+
 func (a *AgentAPI) agent(ctx context.Context) (database.WorkspaceAgent, error) {
 	agent, err := a.database.GetWorkspaceAgentByID(ctx, a.agentID)
 	if err != nil {
@@ -66,7 +99,7 @@ func (a *AgentAPI) agent(ctx context.Context) (database.WorkspaceAgent, error) {
 	return agent, nil
 }
 
-func (a *AgentAPI) GetManifest(ctx context.Context, req *agentproto.GetManifestRequest) (*agentproto.Manifest, error) {
+func (a *AgentAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifestRequest) (*agentproto.Manifest, error) {
 	workspaceAgent, err := a.agent(ctx)
 	if err != nil {
 		return nil, err

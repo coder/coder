@@ -5078,6 +5078,25 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/me/rpc": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Workspace agent DRPC API",
+                "operationId": "workspace-agent-drpc-api",
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    }
+                }
+            }
+        },
         "/workspaceagents/me/startup": {
             "post": {
                 "security": [
