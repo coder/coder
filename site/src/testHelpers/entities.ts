@@ -1053,6 +1053,17 @@ export const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspac
     },
   };
 
+export const MockOutdatedRunningWorkspaceAlwaysUpdate: TypesGen.Workspace = {
+  ...MockWorkspace,
+  id: "test-outdated-workspace-always-update",
+  outdated: true,
+  automatic_updates: "always",
+  latest_build: {
+    ...MockWorkspaceBuild,
+    status: "running",
+  },
+};
+
 export const MockOutdatedStoppedWorkspaceRequireActiveVersion: TypesGen.Workspace =
   {
     ...MockOutdatedRunningWorkspaceRequireActiveVersion,
@@ -1061,6 +1072,14 @@ export const MockOutdatedStoppedWorkspaceRequireActiveVersion: TypesGen.Workspac
       status: "stopped",
     },
   };
+
+export const MockOutdatedStoppedWorkspaceAlwaysUpdate: TypesGen.Workspace = {
+  ...MockOutdatedRunningWorkspaceAlwaysUpdate,
+  latest_build: {
+    ...MockWorkspaceBuild,
+    status: "stopped",
+  },
+};
 
 export const MockPendingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
