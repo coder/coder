@@ -245,6 +245,7 @@ func (r *NodeReport) Run(ctx context.Context) {
 
 	if r.UsesWebsocket {
 		r.Warnings = append(r.Warnings, warningNodeUsesWebsocket)
+		// FIXME
 	}
 }
 
