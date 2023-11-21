@@ -58,6 +58,7 @@ func (api *API) userDebugOIDC(rw http.ResponseWriter, r *http.Request) {
 			Message: "Failed to get user links.",
 			Detail:  err.Error(),
 		})
+		return
 	}
 
 	// This will encode properly because it is a json.RawMessage.
