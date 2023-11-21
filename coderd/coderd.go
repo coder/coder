@@ -36,6 +36,7 @@ import (
 	"tailscale.com/util/singleflight"
 
 	// Used for swagger docs.
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	_ "github.com/coder/coder/v2/coderd/apidoc"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
@@ -64,7 +65,6 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/wsconncache"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/site"
@@ -167,7 +167,7 @@ type Options struct {
 
 	HTTPClient *http.Client
 
-	UpdateAgentMetrics func(ctx context.Context, username, workspaceName, agentName string, metrics []agentsdk.AgentMetric)
+	UpdateAgentMetrics func(ctx context.Context, username, workspaceName, agentName string, metrics []*agentproto.Stats_Metric)
 	StatsBatcher       *batchstats.Batcher
 
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions

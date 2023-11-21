@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/mod/semver"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -28,17 +29,20 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/tailnet"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 )
 
 type AgentAPI struct {
-	agentID uuid.UUID
+	agentID     uuid.UUID
+	workspaceID uuid.UUID
 
 	accessURL                       *url.URL
 	appHostname                     string
@@ -47,15 +51,19 @@ type AgentAPI struct {
 	agentStatsRefreshInterval       time.Duration
 	disableDirectConnections        bool
 	derpForceWebSockets             bool
+	derpMapUpdateFrequency          time.Duration
 	externalAuthConfigs             []*externalauth.Config
 
-	log                    slog.Logger
-	database               database.Store
-	derpMapFn              func() *tailcfg.DERPMap
-	tailnetCoordinator     *atomic.Pointer[tailnet.Coordinator]
-	templateScheduleStore  *atomic.Pointer[schedule.TemplateScheduleStore]
-	statsBatcher           *batchstats.Batcher
-	publishWorkspaceUpdate func(ctx context.Context, workspaceID uuid.UUID)
+	ctx                             context.Context
+	log                             slog.Logger
+	database                        database.Store
+	pubsub                          pubsub.Pubsub
+	derpMapFn                       func() *tailcfg.DERPMap
+	tailnetCoordinator              *atomic.Pointer[tailnet.Coordinator]
+	templateScheduleStore           *atomic.Pointer[schedule.TemplateScheduleStore]
+	statsBatcher                    *batchstats.Batcher
+	publishWorkspaceUpdate          func(ctx context.Context, workspaceID uuid.UUID)
+	publishWorkspaceAgentLogsUpdate func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage)
 
 	// Optional:
 	updateAgentMetrics func(ctx context.Context, username, workspaceName, agentName string, metrics []*agentproto.Stats_Metric)
@@ -317,14 +325,10 @@ func (a *AgentAPI) UpdateLifecycle(ctx context.Context, req *agentproto.UpdateLi
 	if err != nil {
 		return nil, err
 	}
-	workspace, err := a.database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
-	if err != nil {
-		return nil, xerrors.Errorf("get workspace by agent ID %q: %w", workspaceAgent.ID, err)
-	}
 
 	logger := a.log.With(
 		slog.F("workspace_agent_id", workspaceAgent.ID),
-		slog.F("workspace_id", workspace.ID),
+		slog.F("workspace_id", a.workspaceID),
 		slog.F("payload", req),
 	)
 	logger.Debug(ctx, "workspace agent state report")
@@ -387,37 +391,360 @@ func (a *AgentAPI) UpdateLifecycle(ctx context.Context, req *agentproto.UpdateLi
 		return nil, xerrors.Errorf("update workspace agent lifecycle state: %w", err)
 	}
 
-	a.publishWorkspaceUpdate(ctx, workspace.ID)
+	a.publishWorkspaceUpdate(ctx, a.workspaceID)
 
 	return req.Lifecycle, nil
 }
 
 func (a *AgentAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.BatchUpdateAppHealthRequest) (*agentproto.BatchUpdateAppHealthResponse, error) {
-	// TODO: implement this
-	panic("unimplemented")
+	workspaceAgent, err := a.agent(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(req.Updates) == 0 {
+		return &agentproto.BatchUpdateAppHealthResponse{}, nil
+	}
+
+	apps, err := a.database.GetWorkspaceAppsByAgentID(ctx, workspaceAgent.ID)
+	if err != nil {
+		return nil, xerrors.Errorf("get workspace apps by agent ID %q: %w", workspaceAgent.ID, err)
+	}
+
+	var newApps []database.WorkspaceApp
+	for _, update := range req.Updates {
+		updateID, err := uuid.FromBytes(update.Id)
+		if err != nil {
+			return nil, xerrors.Errorf("parse workspace app ID %q: %w", update.Id, err)
+		}
+
+		old := func() *database.WorkspaceApp {
+			for _, app := range apps {
+				if app.ID == updateID {
+					return &app
+				}
+			}
+
+			return nil
+		}()
+		if old == nil {
+			return nil, xerrors.Errorf("workspace app ID %q not found", updateID)
+		}
+
+		if old.HealthcheckUrl == "" {
+			return nil, xerrors.Errorf("workspace app %q (%q) does not have healthchecks enabled", updateID, old.Slug)
+		}
+
+		var newHealth database.WorkspaceAppHealth
+		switch update.Health {
+		case agentproto.AppHealth_DISABLED:
+			newHealth = database.WorkspaceAppHealthDisabled
+		case agentproto.AppHealth_INITIALIZING:
+			newHealth = database.WorkspaceAppHealthInitializing
+		case agentproto.AppHealth_HEALTHY:
+			newHealth = database.WorkspaceAppHealthHealthy
+		case agentproto.AppHealth_UNHEALTHY:
+			newHealth = database.WorkspaceAppHealthUnhealthy
+		default:
+			return nil, xerrors.Errorf("unknown health status %q for app %q (%q)", update.Health, updateID, old.Slug)
+		}
+
+		// Don't save if the value hasn't changed
+		if old.Health == newHealth {
+			continue
+		}
+		old.Health = database.WorkspaceAppHealth(newHealth)
+
+		newApps = append(newApps, *old)
+	}
+
+	for _, app := range newApps {
+		err = a.database.UpdateWorkspaceAppHealthByID(ctx, database.UpdateWorkspaceAppHealthByIDParams{
+			ID:     app.ID,
+			Health: app.Health,
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("update workspace app health for app %q (%q): %w", err, app.ID, app.Slug)
+		}
+	}
+
+	a.publishWorkspaceUpdate(ctx, a.workspaceID)
+	return &agentproto.BatchUpdateAppHealthResponse{}, nil
 }
 
 func (a *AgentAPI) UpdateStartup(ctx context.Context, req *agentproto.UpdateStartupRequest) (*agentproto.Startup, error) {
-	// TODO: implement this
-	panic("unimplemented")
+	workspaceAgent, err := a.agent(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	a.log.Debug(
+		ctx,
+		"post workspace agent version",
+		slog.F("agent_id", workspaceAgent.ID),
+		slog.F("workspace_id", a.workspaceID),
+		slog.F("agent_version", req.Startup.Version),
+	)
+
+	if !semver.IsValid(req.Startup.Version) {
+		return nil, xerrors.Errorf("invalid agent semver version %q", req.Startup.Version)
+	}
+
+	// Validate subsystems.
+	dbSubsystems := make([]database.WorkspaceAgentSubsystem, len(req.Startup.Subsystems))
+	seenSubsystems := make(map[database.WorkspaceAgentSubsystem]struct{}, len(req.Startup.Subsystems))
+	for _, s := range req.Startup.Subsystems {
+		var dbSubsystem database.WorkspaceAgentSubsystem
+		switch s {
+		case agentproto.Startup_ENVBOX:
+			dbSubsystem = database.WorkspaceAgentSubsystemEnvbox
+		case agentproto.Startup_ENVBUILDER:
+			dbSubsystem = database.WorkspaceAgentSubsystemEnvbuilder
+		case agentproto.Startup_EXECTRACE:
+			dbSubsystem = database.WorkspaceAgentSubsystemExectrace
+		default:
+			return nil, xerrors.Errorf("invalid agent subsystem %q", s)
+		}
+
+		if _, ok := seenSubsystems[dbSubsystem]; !ok {
+			seenSubsystems[dbSubsystem] = struct{}{}
+			dbSubsystems = append(dbSubsystems, dbSubsystem)
+		}
+	}
+
+	err = a.database.UpdateWorkspaceAgentStartupByID(ctx, database.UpdateWorkspaceAgentStartupByIDParams{
+		ID:                workspaceAgent.ID,
+		Version:           req.Startup.Version,
+		ExpandedDirectory: req.Startup.ExpandedDirectory,
+		Subsystems:        dbSubsystems,
+		APIVersion:        AgentAPIVersionREST,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("update workspace agent startup in database: %w", err)
+	}
+
+	return req.Startup, nil
 }
 
 func (a *AgentAPI) BatchUpdateMetadata(ctx context.Context, req *agentproto.BatchUpdateMetadataRequest) (*agentproto.BatchUpdateMetadataResponse, error) {
-	// TODO: implement this
-	panic("unimplemented")
+	const (
+		// maxValueLen is set to 2048 to stay under the 8000 byte Postgres
+		// NOTIFY limit. Since both value and error can be set, the real
+		// payload limit is 2 * 2048 * 4/3 <base64 expansion> = 5461 bytes + a few hundred bytes for JSON
+		// syntax, key names, and metadata.
+		maxValueLen = 2048
+		maxErrorLen = maxValueLen
+	)
+
+	workspaceAgent, err := a.agent(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	collectedAt := time.Now()
+	datum := database.UpdateWorkspaceAgentMetadataParams{
+		WorkspaceAgentID: workspaceAgent.ID,
+		Key:              make([]string, 0, len(req.Metadata)),
+		Value:            make([]string, 0, len(req.Metadata)),
+		Error:            make([]string, 0, len(req.Metadata)),
+		CollectedAt:      make([]time.Time, 0, len(req.Metadata)),
+	}
+
+	for _, md := range req.Metadata {
+		metadataError := md.Result.Error
+
+		// We overwrite the error if the provided payload is too long.
+		if len(md.Result.Value) > maxValueLen {
+			metadataError = fmt.Sprintf("value of %d bytes exceeded %d bytes", len(md.Result.Value), maxValueLen)
+			md.Result.Value = md.Result.Value[:maxValueLen]
+		}
+
+		if len(md.Result.Error) > maxErrorLen {
+			metadataError = fmt.Sprintf("error of %d bytes exceeded %d bytes", len(md.Result.Error), maxErrorLen)
+			md.Result.Error = ""
+		}
+
+		// We don't want a misconfigured agent to fill the database.
+		datum.Key = append(datum.Key, md.Key)
+		datum.Value = append(datum.Value, md.Result.Value)
+		datum.Error = append(datum.Error, metadataError)
+		// We ignore the CollectedAt from the agent to avoid bugs caused by
+		// clock skew.
+		datum.CollectedAt = append(datum.CollectedAt, collectedAt)
+
+		a.log.Debug(
+			ctx, "accepted metadata report",
+			slog.F("workspace_agent_id", workspaceAgent.ID),
+			slog.F("collected_at", collectedAt),
+			slog.F("original_collected_at", collectedAt),
+			slog.F("key", md.Key),
+			slog.F("value", ellipse(md.Result.Value, 16)),
+		)
+	}
+
+	payload, err := json.Marshal(workspaceAgentMetadataChannelPayload{
+		CollectedAt: collectedAt,
+		Keys:        datum.Key,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("marshal workspace agent metadata channel payload: %w", err)
+	}
+
+	err = a.database.UpdateWorkspaceAgentMetadata(ctx, datum)
+	if err != nil {
+		return nil, xerrors.Errorf("update workspace agent metadata in database: %w", err)
+	}
+
+	err = a.pubsub.Publish(watchWorkspaceAgentMetadataChannel(workspaceAgent.ID), payload)
+	if err != nil {
+		return nil, xerrors.Errorf("publish workspace agent metadata: %w", err)
+	}
+
+	return &agentproto.BatchUpdateMetadataResponse{}, nil
 }
 
 func (a *AgentAPI) BatchCreateLogs(ctx context.Context, req *agentproto.BatchCreateLogsRequest) (*agentproto.BatchCreateLogsResponse, error) {
-	// TODO: implement this
-	panic("unimplemented")
+	workspaceAgent, err := a.agent(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(req.Logs) == 0 {
+		return &agentproto.BatchCreateLogsResponse{}, nil
+	}
+	logSourceID, err := uuid.FromBytes(req.LogSourceId)
+	if err != nil {
+		return nil, xerrors.Errorf("parse log source ID %q: %w", req.LogSourceId, err)
+	}
+
+	// This is to support the legacy API where the log source ID was
+	// not provided in the request body. We default to the external
+	// log source in this case.
+	if logSourceID == uuid.Nil {
+		// Use the external log source
+		externalSources, err := a.database.InsertWorkspaceAgentLogSources(ctx, database.InsertWorkspaceAgentLogSourcesParams{
+			WorkspaceAgentID: workspaceAgent.ID,
+			CreatedAt:        dbtime.Now(),
+			ID:               []uuid.UUID{agentsdk.ExternalLogSourceID},
+			DisplayName:      []string{"External"},
+			Icon:             []string{"/emojis/1f310.png"},
+		})
+		if database.IsUniqueViolation(err, database.UniqueWorkspaceAgentLogSourcesPkey) {
+			err = nil
+			logSourceID = agentsdk.ExternalLogSourceID
+		}
+		if err != nil {
+			return nil, xerrors.Errorf("insert external workspace agent log source: %w", err)
+		}
+		if len(externalSources) == 1 {
+			logSourceID = externalSources[0].ID
+		}
+	}
+
+	output := make([]string, 0)
+	level := make([]database.LogLevel, 0)
+	outputLength := 0
+	for _, logEntry := range req.Logs {
+		output = append(output, logEntry.Output)
+		outputLength += len(logEntry.Output)
+
+		var dbLevel database.LogLevel
+		switch logEntry.Level {
+		case agentproto.Log_TRACE:
+			dbLevel = database.LogLevelTrace
+		case agentproto.Log_DEBUG:
+			dbLevel = database.LogLevelDebug
+		case agentproto.Log_INFO:
+			dbLevel = database.LogLevelInfo
+		case agentproto.Log_WARN:
+			dbLevel = database.LogLevelWarn
+		case agentproto.Log_ERROR:
+			dbLevel = database.LogLevelError
+		default:
+			// Default to "info" to support older clients that didn't have the
+			// level field.
+			dbLevel = database.LogLevelInfo
+		}
+		level = append(level, dbLevel)
+	}
+
+	logs, err := a.database.InsertWorkspaceAgentLogs(ctx, database.InsertWorkspaceAgentLogsParams{
+		AgentID:      workspaceAgent.ID,
+		CreatedAt:    dbtime.Now(),
+		Output:       output,
+		Level:        level,
+		LogSourceID:  logSourceID,
+		OutputLength: int32(outputLength),
+	})
+	if err != nil {
+		if !database.IsWorkspaceAgentLogsLimitError(err) {
+			return nil, xerrors.Errorf("insert workspace agent logs: %w", err)
+		}
+		if workspaceAgent.LogsOverflowed {
+			return nil, xerrors.New("workspace agent logs overflowed")
+		}
+		err := a.database.UpdateWorkspaceAgentLogOverflowByID(ctx, database.UpdateWorkspaceAgentLogOverflowByIDParams{
+			ID:             workspaceAgent.ID,
+			LogsOverflowed: true,
+		})
+		if err != nil {
+			// We don't want to return here, because the agent will retry on
+			// failure and this isn't a huge deal. The overflow state is just a
+			// hint to the user that the logs are incomplete.
+			a.log.Warn(ctx, "failed to update workspace agent log overflow", slog.Error(err))
+		}
+
+		a.publishWorkspaceUpdate(ctx, a.workspaceID)
+
+		return nil, xerrors.New("workspace agent log limit exceeded")
+	}
+
+	// Publish by the lowest log ID inserted so the log stream will fetch
+	// everything from that point.
+	lowestLogID := logs[0].ID
+	a.publishWorkspaceAgentLogsUpdate(ctx, workspaceAgent.ID, agentsdk.LogsNotifyMessage{
+		CreatedAfter: lowestLogID - 1,
+	})
+
+	if workspaceAgent.LogsLength == 0 {
+		// If these are the first logs being appended, we publish a UI update
+		// to notify the UI that logs are now available.
+		a.publishWorkspaceUpdate(ctx, a.workspaceID)
+	}
+
+	return &agentproto.BatchCreateLogsResponse{}, nil
 }
 
-func (a *AgentAPI) StreamDERPMaps(req *tailnetproto.StreamDERPMapsRequest, stream agentproto.DRPCAgent_StreamDERPMapsStream) error {
-	// TODO: implement this
-	panic("unimplemented")
+func (a *AgentAPI) StreamDERPMaps(_ *tailnetproto.StreamDERPMapsRequest, stream agentproto.DRPCAgent_StreamDERPMapsStream) error {
+	defer stream.Close()
+
+	ticker := time.NewTicker(a.derpMapUpdateFrequency)
+	defer ticker.Stop()
+
+	var lastDERPMap *tailcfg.DERPMap
+	for {
+		derpMap := a.derpMapFn()
+		if lastDERPMap == nil || !tailnet.CompareDERPMaps(lastDERPMap, derpMap) {
+			protoDERPMap := tailnetproto.DERPMapToProto(derpMap)
+			err := stream.Send(protoDERPMap)
+			if err != nil {
+				return xerrors.Errorf("send derp map: %w", err)
+			}
+			lastDERPMap = derpMap
+		}
+
+		ticker.Reset(a.derpMapUpdateFrequency)
+		select {
+		case <-stream.Context().Done():
+			return nil
+		case <-a.ctx.Done():
+			return nil
+		case <-ticker.C:
+		}
+	}
 }
 
-func (a *AgentAPI) CoordinateTailnet(stream agentproto.DRPCAgent_CoordinateTailnetStream) error {
+func (*AgentAPI) CoordinateTailnet(_ agentproto.DRPCAgent_CoordinateTailnetStream) error {
 	// TODO: implement this
-	panic("unimplemented")
+	return xerrors.New("CoordinateTailnet is unimplemented")
 }

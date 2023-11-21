@@ -349,6 +349,7 @@ func (api *API) workspaceAgentDRPC(rw http.ResponseWriter, r *http.Request) {
 
 	agentAPI := &AgentAPI{
 		agentID:                         workspaceAgent.ID,
+		workspaceID:                     build.WorkspaceID,
 		accessURL:                       api.AccessURL,
 		appHostname:                     api.AppHostname,
 		agentInactiveDisconnectTimeout:  api.AgentInactiveDisconnectTimeout,
@@ -356,16 +357,19 @@ func (api *API) workspaceAgentDRPC(rw http.ResponseWriter, r *http.Request) {
 		agentStatsRefreshInterval:       api.AgentStatsRefreshInterval,
 		disableDirectConnections:        api.DeploymentValues.DERP.Config.BlockDirect.Value(),
 		derpForceWebSockets:             api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
+		derpMapUpdateFrequency:          api.Options.DERPMapUpdateFrequency,
 		externalAuthConfigs:             api.ExternalAuthConfigs,
+		ctx:                             api.ctx,
 		log:                             api.Logger.Named("agentapi"),
 		database:                        api.Database,
+		pubsub:                          api.Pubsub,
 		derpMapFn:                       api.DERPMap,
 		tailnetCoordinator:              &api.TailnetCoordinator,
 		templateScheduleStore:           api.TemplateScheduleStore,
 		statsBatcher:                    api.statsBatcher,
 		publishWorkspaceUpdate:          api.publishWorkspaceUpdate,
-		// TODO: fix this
-		//updateAgentMetrics: api.UpdateAgentMetrics,
+		publishWorkspaceAgentLogsUpdate: api.publishWorkspaceAgentLogsUpdate,
+		updateAgentMetrics:              api.UpdateAgentMetrics,
 	}
 
 	closeChan := make(chan struct{})
@@ -1984,47 +1988,47 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 	}
 
 	now := dbtime.Now()
+	protoStats := &agentproto.Stats{
+		ConnectionsByProto:          req.ConnectionsByProto,
+		ConnectionCount:             req.ConnectionCount,
+		ConnectionMedianLatencyMs:   req.ConnectionMedianLatencyMS,
+		RxPackets:                   req.RxPackets,
+		RxBytes:                     req.RxBytes,
+		TxPackets:                   req.TxPackets,
+		TxBytes:                     req.TxBytes,
+		SessionCountVscode:          req.SessionCountVSCode,
+		SessionCountJetbrains:       req.SessionCountJetBrains,
+		SessionCountReconnectingPty: req.SessionCountReconnectingPTY,
+		SessionCountSsh:             req.SessionCountSSH,
+		Metrics:                     make([]*agentproto.Stats_Metric, len(req.Metrics)),
+	}
+	for i, metric := range req.Metrics {
+		metricType := agentproto.Stats_Metric_TYPE_UNSPECIFIED
+		switch metric.Type {
+		case agentsdk.AgentMetricTypeCounter:
+			metricType = agentproto.Stats_Metric_COUNTER
+		case agentsdk.AgentMetricTypeGauge:
+			metricType = agentproto.Stats_Metric_GAUGE
+		}
+
+		protoStats.Metrics[i] = &agentproto.Stats_Metric{
+			Name:   metric.Name,
+			Type:   metricType,
+			Value:  metric.Value,
+			Labels: make([]*agentproto.Stats_Metric_Label, len(metric.Labels)),
+		}
+		for j, label := range metric.Labels {
+			protoStats.Metrics[i].Labels[j] = &agentproto.Stats_Metric_Label{
+				Name:  label.Name,
+				Value: label.Value,
+			}
+		}
+	}
 
 	var errGroup errgroup.Group
 	errGroup.Go(func() error {
-		protoStats := &agentproto.Stats{
-			ConnectionsByProto:          req.ConnectionsByProto,
-			ConnectionCount:             req.ConnectionCount,
-			ConnectionMedianLatencyMs:   req.ConnectionMedianLatencyMS,
-			RxPackets:                   req.RxPackets,
-			RxBytes:                     req.RxBytes,
-			TxPackets:                   req.TxPackets,
-			TxBytes:                     req.TxBytes,
-			SessionCountVscode:          req.SessionCountVSCode,
-			SessionCountJetbrains:       req.SessionCountJetBrains,
-			SessionCountReconnectingPty: req.SessionCountReconnectingPTY,
-			SessionCountSsh:             req.SessionCountSSH,
-			Metrics:                     make([]*agentproto.Stats_Metric, len(req.Metrics)),
-		}
-		for i, metric := range req.Metrics {
-			metricType := agentproto.Stats_Metric_TYPE_UNSPECIFIED
-			switch metric.Type {
-			case agentsdk.AgentMetricTypeCounter:
-				metricType = agentproto.Stats_Metric_COUNTER
-			case agentsdk.AgentMetricTypeGauge:
-				metricType = agentproto.Stats_Metric_GAUGE
-			}
-
-			protoStats.Metrics[i] = &agentproto.Stats_Metric{
-				Name:   metric.Name,
-				Type:   metricType,
-				Value:  metric.Value,
-				Labels: make([]*agentproto.Stats_Metric_Label, len(metric.Labels)),
-			}
-			for j, label := range metric.Labels {
-				protoStats.Metrics[i].Labels[j] = &agentproto.Stats_Metric_Label{
-					Name:  label.Name,
-					Value: label.Value,
-				}
-			}
-		}
-
-		if err := api.statsBatcher.Add(time.Now(), workspaceAgent.ID, workspace.TemplateID, workspace.OwnerID, workspace.ID, protoStats); err != nil {
+		err := api.statsBatcher.Add(time.Now(), workspaceAgent.ID, workspace.TemplateID, workspace.OwnerID, workspace.ID, protoStats)
+		if err != nil {
 			api.Logger.Error(ctx, "failed to add stats to batcher", slog.Error(err))
 			return xerrors.Errorf("can't insert workspace agent stat: %w", err)
 		}
@@ -2047,7 +2051,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 				return xerrors.Errorf("can't get user: %w", err)
 			}
 
-			api.Options.UpdateAgentMetrics(ctx, user.Username, workspace.Name, workspaceAgent.Name, req.Metrics)
+			api.Options.UpdateAgentMetrics(ctx, user.Username, workspace.Name, workspaceAgent.Name, protoStats.Metrics)
 			return nil
 		})
 	}
