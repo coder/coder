@@ -6,7 +6,7 @@ import { useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { AuditPageView } from "./AuditPageView";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
-import { useFilter, useFilterParamsKey } from "components/Filter/filter";
+import { useFilter } from "components/Filter/filter";
 import { useActionFilterMenu, useResourceTypeFilterMenu } from "./AuditFilter";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import { paginatedAudits } from "api/queries/audits";
@@ -22,10 +22,7 @@ const AuditPage: FC = () => {
    * and hooks can share the result of useSearchParams directly)
    */
   const [searchParams, setSearchParams] = useSearchParams();
-  const auditsQuery = usePaginatedQuery(
-    paginatedAudits(searchParams, useFilterParamsKey),
-  );
-
+  const auditsQuery = usePaginatedQuery(paginatedAudits(searchParams));
   const filter = useFilter({
     searchParamsResult: [searchParams, setSearchParams],
     onUpdate: auditsQuery.goToFirstPage,
