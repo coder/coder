@@ -83,6 +83,7 @@ func TestDERP(t *testing.T) {
 
 	t.Run("HealthyWithNodeDegraded", func(t *testing.T) {
 		t.Parallel()
+		t.Skip("https://github.com/coder/coder/issues/10824")
 
 		healthyDerpSrv := derp.NewServer(key.NewNode(), func(format string, args ...any) { t.Logf(format, args...) })
 		defer healthyDerpSrv.Close()
