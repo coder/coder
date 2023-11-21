@@ -1,5 +1,4 @@
-import { css } from "@emotion/css";
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { type Interpolation, type Theme } from "@emotion/react";
 import IconButton from "@mui/material/IconButton";
 import { EditSquare } from "components/Icons/EditSquare";
 import { type FC } from "react";
@@ -17,6 +16,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "components/Popover/Popover";
+import { type ClassName, useClassName } from "hooks/useClassName";
 
 const roleDescriptions: Record<string, string> = {
   owner:
@@ -28,13 +28,21 @@ const roleDescriptions: Record<string, string> = {
     "Everybody is a member. This is a shared and default role for all users.",
 };
 
-const Option: React.FC<{
+interface OptionProps {
   value: string;
   name: string;
   description: string;
   isChecked: boolean;
   onChange: (roleName: string) => void;
-}> = ({ value, name, description, isChecked, onChange }) => {
+}
+
+const Option: FC<OptionProps> = ({
+  value,
+  name,
+  description,
+  isChecked,
+  onChange,
+}) => {
   return (
     <label htmlFor={name} css={styles.option}>
       <Stack direction="row" alignItems="flex-start">
@@ -76,7 +84,7 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
   userLoginType,
   oidcRoleSync,
 }) => {
-  const theme = useTheme();
+  const paper = useClassName(classNames.paper, []);
 
   const handleChange = (roleName: string) => {
     if (selectedRoleNames.has(roleName)) {
@@ -114,15 +122,7 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
         </IconButton>
       </PopoverTrigger>
 
-      <PopoverContent
-        classes={{
-          paper: css`
-            width: 360px;
-            margin-top: 8px;
-            background: ${theme.palette.background.paperLight};
-          `,
-        }}
-      >
+      <PopoverContent classes={{ paper }}>
         <fieldset
           css={styles.fieldset}
           disabled={isLoading}
@@ -156,6 +156,14 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
     </Popover>
   );
 };
+
+const classNames = {
+  paper: (css, theme) => css`
+    width: 360px;
+    margin-top: 8px;
+    background: ${theme.palette.background.paperLight};
+  `,
+} satisfies Record<string, ClassName>;
 
 const styles = {
   editButton: (theme) => ({
