@@ -395,7 +395,7 @@ type QueryPageParamsWithPayload<TPayload = never> = QueryPageParams & {
  * Any JSON-serializable object returned by the API that exposes the total
  * number of records that match a query
  */
-type PaginatedData = {
+export type PaginatedData = {
   count: number;
 };
 
