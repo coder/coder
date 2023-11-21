@@ -146,6 +146,7 @@ func (r *RegionReport) Run(ctx context.Context) {
 	r.NodeReports = []*NodeReport{}
 
 	wg := &sync.WaitGroup{}
+	var healthyNodes int // atomic.Int64 is not mandatory as we depend on RegionReport mutex.
 
 	wg.Add(len(r.Region.Nodes))
 	for _, node := range r.Region.Nodes {
@@ -169,8 +170,8 @@ func (r *RegionReport) Run(ctx context.Context) {
 
 			r.mu.Lock()
 			r.NodeReports = append(r.NodeReports, &nodeReport)
-			if !nodeReport.Healthy {
-				r.Healthy = false
+			if nodeReport.Healthy {
+				healthyNodes++
 			}
 
 			for _, w := range nodeReport.Warnings {
@@ -179,8 +180,13 @@ func (r *RegionReport) Run(ctx context.Context) {
 			r.mu.Unlock()
 		}()
 	}
-
 	wg.Wait()
+
+	// Coder allows for 1 unhealthy node in the region, unless there is only 1 node.
+	if len(r.Region.Nodes) == 1 && healthyNodes == 0 ||
+		healthyNodes+1 >= len(r.Region.Nodes) {
+		r.Healthy = false
+	}
 }
 
 func (r *NodeReport) derpURL() *url.URL {
