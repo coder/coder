@@ -184,9 +184,9 @@ func (r *RegionReport) Run(ctx context.Context) {
 	wg.Wait()
 
 	// Coder allows for 1 unhealthy node in the region, unless there is only 1 node.
-	if len(r.Region.Nodes) == 1 && healthyNodes == 0 || healthyNodes+1 < len(r.Region.Nodes) {
-		r.Healthy = false
-	} else if healthyNodes+1 == len(r.Region.Nodes) {
+	if len(r.Region.Nodes) == 1 {
+		r.Healthy = healthyNodes == len(r.Region.Nodes)
+	} else if healthyNodes < len(r.Region.Nodes) {
 		r.Warnings = append(r.Warnings, oneNodeUnhealthy)
 	}
 }
