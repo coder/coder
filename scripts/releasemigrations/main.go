@@ -24,26 +24,42 @@ func main() {
 	var includeMajors bool
 	var afterV2 bool
 	var listMigs bool
+	var migrationDirectory string
+	var versionList string
+
 	// If you only run with --patches, the upgrades that are minors are excluded.
 	// Example being 1.0.0 -> 1.1.0 is a minor upgrade, so it's not included.
 	flag.BoolVar(&includePatches, "patches", false, "Include patches releases")
 	flag.BoolVar(&includeMinors, "minors", false, "Include minor releases")
 	flag.BoolVar(&includeMajors, "majors", false, "Include major releases")
+	flag.StringVar(&versionList, "versions", "", "Comma separated list of versions to use. This skips uses git tag to find tags.")
 	flag.BoolVar(&afterV2, "after-v2", false, "Only include releases after v2.0.0")
 	flag.BoolVar(&listMigs, "list", false, "List migrations")
+	flag.StringVar(&migrationDirectory, "dir", "coderd/database/migrations", "Migration directory")
 	flag.Parse()
 
-	if !includePatches && !includeMinors && !includeMajors {
+	if !includePatches && !includeMinors && !includeMajors && versionList == "" {
 		usage()
 		return
 	}
 
+	var vList []string
+	if versionList != "" {
+		// Include all for printing purposes.
+		includeMajors = true
+		includeMinors = true
+		includePatches = true
+		vList = strings.Split(versionList, ",")
+	}
+
 	err := run(Options{
-		IncludePatches: includePatches,
-		IncludeMinors:  includeMinors,
-		IncludeMajors:  includeMajors,
-		AfterV2:        afterV2,
-		ListMigrations: listMigs,
+		VersionList:        vList,
+		IncludePatches:     includePatches,
+		IncludeMinors:      includeMinors,
+		IncludeMajors:      includeMajors,
+		AfterV2:            afterV2,
+		ListMigrations:     listMigs,
+		MigrationDirectory: migrationDirectory,
 	})
 	if err != nil {
 		log.Fatal(err)
@@ -53,14 +69,17 @@ func main() {
 func usage() {
 	fmt.Println("Usage: releasemigrations [--patches] [--minors] [--majors]")
 	fmt.Println("Choose at lease one of --patches, --minors, or --majors. You can choose all!")
+	fmt.Println("Must be run from the coder repo at the root.")
 }
 
 type Options struct {
-	IncludePatches bool
-	IncludeMinors  bool
-	IncludeMajors  bool
-	AfterV2        bool
-	ListMigrations bool
+	VersionList        []string
+	IncludePatches     bool
+	IncludeMinors      bool
+	IncludeMajors      bool
+	AfterV2            bool
+	ListMigrations     bool
+	MigrationDirectory string
 }
 
 func (o Options) Filter(tags []string) []string {
@@ -108,11 +127,17 @@ func (o Options) Filter(tags []string) []string {
 }
 
 func run(opts Options) error {
-	tags, err := gitTags()
-	if err != nil {
-		return xerrors.Errorf("gitTags: %w", err)
+	var tags []string
+	if len(opts.VersionList) > 0 {
+		tags = opts.VersionList
+	} else {
+		var err error
+		tags, err = gitTags()
+		if err != nil {
+			return xerrors.Errorf("gitTags: %w", err)
+		}
+		tags = opts.Filter(tags)
 	}
-	tags = opts.Filter(tags)
 
 	patches := make([]string, 0)
 	minors := make([]string, 0)
@@ -125,7 +150,7 @@ func run(opts Options) error {
 		a := tags[i]
 		b := tags[i+1]
 
-		migrations, err := hasMigrationDiff(a, b)
+		migrations, err := hasMigrationDiff(opts.MigrationDirectory, a, b)
 		if err != nil {
 			return xerrors.Errorf("hasMigrationDiff %q->%q: %w", a, b, err)
 		}
@@ -159,7 +184,7 @@ func run(opts Options) error {
 		}
 
 		if migrations != nil {
-			log.Printf("[%s] %d migrations added between %s and %s\n", vDiffType, len(migrations)/2, a, b)
+			log.Printf("[%s] %d migrations added between %s and %s\n", vDiffType, len(migrations), a, b)
 			if opts.ListMigrations {
 				for _, migration := range migrations {
 					log.Printf("\t%s", migration)
@@ -188,12 +213,12 @@ func versionDiff(a, b string) string {
 	return "patch"
 }
 
-func hasMigrationDiff(a, b string) ([]string, error) {
+func hasMigrationDiff(dir string, a, b string) ([]string, error) {
 	cmd := exec.Command("git", "diff",
 		// Only added files
 		"--diff-filter=A",
 		"--name-only",
-		a, b, "coderd/database/migrations")
+		a, b, dir)
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, xerrors.Errorf("%s\n%s", strings.Join(cmd.Args, " "), err)
@@ -203,7 +228,19 @@ func hasMigrationDiff(a, b string) ([]string, error) {
 	}
 
 	migrations := strings.Split(strings.TrimSpace(string(output)), "\n")
-	return migrations, nil
+	filtered := make([]string, 0, len(migrations))
+	for _, migration := range migrations {
+		migration := migration
+		if strings.Contains(migration, "fixtures") {
+			continue
+		}
+		// Only show the ups
+		if strings.HasSuffix(migration, ".down.sql") {
+			continue
+		}
+		filtered = append(filtered, migration)
+	}
+	return filtered, nil
 }
 
 func gitTags() ([]string, error) {
