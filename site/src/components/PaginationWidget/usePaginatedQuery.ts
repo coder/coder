@@ -7,9 +7,9 @@ import {
   type QueryFunctionContext,
   type QueryKey,
   type UseQueryOptions,
+  type UseQueryResult,
   useQueryClient,
   useQuery,
-  UseQueryResult,
 } from "react-query";
 
 const DEFAULT_RECORDS_PER_PAGE = 25;
@@ -24,6 +24,8 @@ const PAGE_NUMBER_PARAMS_KEY = "page";
  * paginated queries.
  */
 export type UsePaginatedQueryOptions<
+  // Aside from TQueryPayload, all type parameters come from the base React
+  // Query type definition, and are here for compatibility
   TQueryFnData extends PaginatedData = PaginatedData,
   TQueryPayload = never,
   TError = unknown,
@@ -242,6 +244,10 @@ function parsePage(params: URLSearchParams): number {
   return Number.isInteger(parsed) && parsed > 1 ? parsed : 1;
 }
 
+/**
+ * All the pagination-properties for UsePaginatedQueryResult. Split up so that
+ * the types can be used separately in multiple spots.
+ */
 type PaginationResultInfo = {
   currentPage: number;
   limit: number;
