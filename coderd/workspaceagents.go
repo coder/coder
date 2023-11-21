@@ -136,13 +136,39 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, apiAgent)
 }
 
-// @Summary Workspace agent DRPC API
-// @ID workspace-agent-drpc-api
+func (api *API) workspaceAgentAPI(workspaceAgent database.WorkspaceAgent) *AgentAPI {
+	return &AgentAPI{
+		agentID:                         workspaceAgent.ID,
+		accessURL:                       api.AccessURL,
+		appHostname:                     api.AppHostname,
+		agentInactiveDisconnectTimeout:  api.AgentInactiveDisconnectTimeout,
+		agentFallbackTroubleshootingURL: api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+		agentStatsRefreshInterval:       api.AgentStatsRefreshInterval,
+		disableDirectConnections:        api.DeploymentValues.DERP.Config.BlockDirect.Value(),
+		derpForceWebSockets:             api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
+		derpMapUpdateFrequency:          api.Options.DERPMapUpdateFrequency,
+		externalAuthConfigs:             api.ExternalAuthConfigs,
+		ctx:                             api.ctx,
+		log:                             api.Logger.Named("agentapi"),
+		database:                        api.Database,
+		pubsub:                          api.Pubsub,
+		derpMapFn:                       api.DERPMap,
+		tailnetCoordinator:              &api.TailnetCoordinator,
+		templateScheduleStore:           api.TemplateScheduleStore,
+		statsBatcher:                    api.statsBatcher,
+		publishWorkspaceUpdate:          api.publishWorkspaceUpdate,
+		publishWorkspaceAgentLogsUpdate: api.publishWorkspaceAgentLogsUpdate,
+		updateAgentMetrics:              api.UpdateAgentMetrics,
+	}
+}
+
+// @Summary Workspace agent RPC API
+// @ID workspace-agent-rpc-api
 // @Security CoderSessionToken
 // @Tags Agents
 // @Success 101
 // @Router /workspaceagents/me/rpc [get]
-func (api *API) workspaceAgentDRPC(rw http.ResponseWriter, r *http.Request) {
+func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	api.WebsocketWaitMutex.Lock()
@@ -347,30 +373,8 @@ func (api *API) workspaceAgentDRPC(rw http.ResponseWriter, r *http.Request) {
 
 	defer conn.Close(websocket.StatusNormalClosure, "")
 
-	agentAPI := &AgentAPI{
-		agentID:                         workspaceAgent.ID,
-		workspaceID:                     build.WorkspaceID,
-		accessURL:                       api.AccessURL,
-		appHostname:                     api.AppHostname,
-		agentInactiveDisconnectTimeout:  api.AgentInactiveDisconnectTimeout,
-		agentFallbackTroubleshootingURL: api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
-		agentStatsRefreshInterval:       api.AgentStatsRefreshInterval,
-		disableDirectConnections:        api.DeploymentValues.DERP.Config.BlockDirect.Value(),
-		derpForceWebSockets:             api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
-		derpMapUpdateFrequency:          api.Options.DERPMapUpdateFrequency,
-		externalAuthConfigs:             api.ExternalAuthConfigs,
-		ctx:                             api.ctx,
-		log:                             api.Logger.Named("agentapi"),
-		database:                        api.Database,
-		pubsub:                          api.Pubsub,
-		derpMapFn:                       api.DERPMap,
-		tailnetCoordinator:              &api.TailnetCoordinator,
-		templateScheduleStore:           api.TemplateScheduleStore,
-		statsBatcher:                    api.statsBatcher,
-		publishWorkspaceUpdate:          api.publishWorkspaceUpdate,
-		publishWorkspaceAgentLogsUpdate: api.publishWorkspaceAgentLogsUpdate,
-		updateAgentMetrics:              api.UpdateAgentMetrics,
-	}
+	agentAPI := api.workspaceAgentAPI(workspaceAgent)
+	agentAPI.cachedWorkspaceID = workspace.ID // saves the extra lookup later
 
 	closeChan := make(chan struct{})
 	go func() {

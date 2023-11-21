@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/url"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -41,8 +42,7 @@ import (
 )
 
 type AgentAPI struct {
-	agentID     uuid.UUID
-	workspaceID uuid.UUID
+	agentID uuid.UUID
 
 	accessURL                       *url.URL
 	appHostname                     string
@@ -67,6 +67,10 @@ type AgentAPI struct {
 
 	// Optional:
 	updateAgentMetrics func(ctx context.Context, username, workspaceName, agentName string, metrics []*agentproto.Stats_Metric)
+
+	// Protected:
+	mu                sync.Mutex
+	cachedWorkspaceID uuid.UUID
 }
 
 var _ agentproto.DRPCAgentServer = &AgentAPI{}
@@ -105,6 +109,46 @@ func (a *AgentAPI) agent(ctx context.Context) (database.WorkspaceAgent, error) {
 		return database.WorkspaceAgent{}, xerrors.Errorf("get workspace agent by id %q: %w", a.agentID, err)
 	}
 	return agent, nil
+}
+
+// SetWorkspaceID avoids a future lookup to find the workspace ID by setting the
+// cache in advance.
+func (a *AgentAPI) SetWorkspaceID(workspaceID uuid.UUID) {
+	a.mu.Lock()
+	a.cachedWorkspaceID = workspaceID
+	a.mu.Unlock()
+}
+
+func (a *AgentAPI) workspaceID(ctx context.Context, agent *database.WorkspaceAgent) (uuid.UUID, error) {
+	a.mu.Lock()
+	if a.cachedWorkspaceID != uuid.Nil {
+		id := a.cachedWorkspaceID
+		a.mu.Unlock()
+		return id, nil
+	}
+
+	if agent == nil {
+		agnt, err := a.agent(ctx)
+		if err != nil {
+			return uuid.Nil, err
+		}
+		agent = &agnt
+	}
+
+	resource, err := a.database.GetWorkspaceResourceByID(ctx, agent.ResourceID)
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf("get workspace agent resource by id %q: %w", agent.ResourceID, err)
+	}
+
+	build, err := a.database.GetWorkspaceBuildByJobID(ctx, resource.JobID)
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf("get workspace build by job id %q: %w", resource.JobID, err)
+	}
+
+	a.mu.Lock()
+	a.cachedWorkspaceID = build.WorkspaceID
+	a.mu.Unlock()
+	return build.WorkspaceID, nil
 }
 
 func (a *AgentAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifestRequest) (*agentproto.Manifest, error) {

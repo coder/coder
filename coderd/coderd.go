@@ -829,7 +829,7 @@ func New(options *Options) *API {
 					DB:       options.Database,
 					Optional: false,
 				}))
-				r.Get("/rpc", api.workspaceAgentDRPC)
+				r.Get("/rpc", api.workspaceAgentRPC)
 				r.Get("/manifest", api.workspaceAgentManifest)
 				// This route is deprecated and will be removed in a future release.
 				// New agents will use /me/manifest instead.
