@@ -154,7 +154,8 @@ export function usePaginatedQuery<
     }
   }, [prefetchPage, currentPage, hasPreviousPage]);
 
-  // Mainly here to catch user if they navigate to a page directly via URL
+  // Mainly here to catch user if they navigate to a page directly via URL;
+  // totalPages parameterized to insulate function from fetch status changes
   const updatePageIfInvalid = useEffectEvent(async (totalPages: number) => {
     // If totalPages is 0, that's a sign that the currentPage overshot, and the
     // API returned a count of 0 because it didn't know how to process the query
@@ -167,7 +168,7 @@ export function usePaginatedQuery<
       fixedTotalPages = Math.ceil(firstPageResult.count / limit);
     }
 
-    const clamped = clamp(currentPage, 1, fixedTotalPages || 1);
+    const clamped = clamp(currentPage, 1, fixedTotalPages);
     if (currentPage === clamped) {
       return;
     }
