@@ -69,7 +69,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		})
-		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+		dbfake.NewWorkspaceBuildBuilder(t, db, ws).Resource(&proto.Resource{
 			Name: "somename",
 			Type: "someinstance",
 			Agents: []*proto.Agent{{
@@ -77,7 +77,7 @@ func TestWorkspaceAgent(t *testing.T) {
 					InstanceId: instanceID,
 				},
 			}},
-		})
+		}).Do()
 
 		inv, _ := clitest.New(t, "agent", "--auth", "azure-instance-identity", "--agent-url", client.URL.String())
 		inv = inv.WithContext(
@@ -112,7 +112,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		})
-		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+		dbfake.NewWorkspaceBuildBuilder(t, db, ws).Resource(&proto.Resource{
 			Name: "somename",
 			Type: "someinstance",
 			Agents: []*proto.Agent{{
@@ -120,7 +120,7 @@ func TestWorkspaceAgent(t *testing.T) {
 					InstanceId: instanceID,
 				},
 			}},
-		})
+		}).Do()
 
 		inv, _ := clitest.New(t, "agent", "--auth", "aws-instance-identity", "--agent-url", client.URL.String())
 		inv = inv.WithContext(
@@ -156,7 +156,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        memberUser.ID,
 		})
-		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+		dbfake.NewWorkspaceBuildBuilder(t, db, ws).Resource(&proto.Resource{
 			Name: "somename",
 			Type: "someinstance",
 			Agents: []*proto.Agent{{
@@ -164,7 +164,7 @@ func TestWorkspaceAgent(t *testing.T) {
 					InstanceId: instanceID,
 				},
 			}},
-		})
+		}).Do()
 		inv, cfg := clitest.New(t, "agent", "--auth", "google-instance-identity", "--agent-url", client.URL.String())
 		clitest.SetupConfig(t, member, cfg)
 
