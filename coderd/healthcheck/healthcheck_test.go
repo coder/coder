@@ -11,10 +11,11 @@ import (
 )
 
 type testChecker struct {
-	DERPReport      derphealth.Report
-	AccessURLReport healthcheck.AccessURLReport
-	WebsocketReport healthcheck.WebsocketReport
-	DatabaseReport  healthcheck.DatabaseReport
+	DERPReport           derphealth.Report
+	AccessURLReport      healthcheck.AccessURLReport
+	WebsocketReport      healthcheck.WebsocketReport
+	DatabaseReport       healthcheck.DatabaseReport
+	WorkspaceProxyReport healthcheck.WorkspaceProxyReport
 }
 
 func (c *testChecker) DERP(context.Context, *derphealth.ReportOptions) derphealth.Report {
@@ -31,6 +32,10 @@ func (c *testChecker) Websocket(context.Context, *healthcheck.WebsocketReportOpt
 
 func (c *testChecker) Database(context.Context, *healthcheck.DatabaseReportOptions) healthcheck.DatabaseReport {
 	return c.DatabaseReport
+}
+
+func (c *testChecker) WorkspaceProxy(context.Context, *healthcheck.WorkspaceProxyReportOptions) healthcheck.WorkspaceProxyReport {
+	return c.WorkspaceProxyReport
 }
 
 func TestHealthcheck(t *testing.T) {
@@ -56,6 +61,9 @@ func TestHealthcheck(t *testing.T) {
 			DatabaseReport: healthcheck.DatabaseReport{
 				Healthy: true,
 			},
+			WorkspaceProxyReport: healthcheck.WorkspaceProxyReport{
+				Healthy: true,
+			},
 		},
 		healthy:         true,
 		failingSections: []string{},
@@ -72,6 +80,9 @@ func TestHealthcheck(t *testing.T) {
 				Healthy: true,
 			},
 			DatabaseReport: healthcheck.DatabaseReport{
+				Healthy: true,
+			},
+			WorkspaceProxyReport: healthcheck.WorkspaceProxyReport{
 				Healthy: true,
 			},
 		},
@@ -93,6 +104,9 @@ func TestHealthcheck(t *testing.T) {
 			DatabaseReport: healthcheck.DatabaseReport{
 				Healthy: true,
 			},
+			WorkspaceProxyReport: healthcheck.WorkspaceProxyReport{
+				Healthy: true,
+			},
 		},
 		healthy:         true,
 		failingSections: []string{},
@@ -109,6 +123,9 @@ func TestHealthcheck(t *testing.T) {
 				Healthy: true,
 			},
 			DatabaseReport: healthcheck.DatabaseReport{
+				Healthy: true,
+			},
+			WorkspaceProxyReport: healthcheck.WorkspaceProxyReport{
 				Healthy: true,
 			},
 		},
@@ -129,6 +146,9 @@ func TestHealthcheck(t *testing.T) {
 			DatabaseReport: healthcheck.DatabaseReport{
 				Healthy: true,
 			},
+			WorkspaceProxyReport: healthcheck.WorkspaceProxyReport{
+				Healthy: true,
+			},
 		},
 		healthy:         false,
 		failingSections: []string{healthcheck.SectionWebsocket},
@@ -147,9 +167,33 @@ func TestHealthcheck(t *testing.T) {
 			DatabaseReport: healthcheck.DatabaseReport{
 				Healthy: false,
 			},
+			WorkspaceProxyReport: healthcheck.WorkspaceProxyReport{
+				Healthy: true,
+			},
 		},
 		healthy:         false,
 		failingSections: []string{healthcheck.SectionDatabase},
+	}, {
+		name: "ProxyFail",
+		checker: &testChecker{
+			DERPReport: derphealth.Report{
+				Healthy: true,
+			},
+			AccessURLReport: healthcheck.AccessURLReport{
+				Healthy: true,
+			},
+			WebsocketReport: healthcheck.WebsocketReport{
+				Healthy: true,
+			},
+			DatabaseReport: healthcheck.DatabaseReport{
+				Healthy: true,
+			},
+			WorkspaceProxyReport: healthcheck.WorkspaceProxyReport{
+				Healthy: false,
+			},
+		},
+		healthy:         false,
+		failingSections: []string{healthcheck.SectionWorkspaceProxy},
 	}, {
 		name:    "AllFail",
 		checker: &testChecker{},
@@ -159,6 +203,7 @@ func TestHealthcheck(t *testing.T) {
 			healthcheck.SectionAccessURL,
 			healthcheck.SectionWebsocket,
 			healthcheck.SectionDatabase,
+			healthcheck.SectionWorkspaceProxy,
 		},
 	}} {
 		c := c
@@ -175,6 +220,8 @@ func TestHealthcheck(t *testing.T) {
 			assert.Equal(t, c.checker.DERPReport.Warnings, report.DERP.Warnings)
 			assert.Equal(t, c.checker.AccessURLReport.Healthy, report.AccessURL.Healthy)
 			assert.Equal(t, c.checker.WebsocketReport.Healthy, report.Websocket.Healthy)
+			assert.Equal(t, c.checker.WorkspaceProxyReport.Healthy, report.WorkspaceProxy.Healthy)
+			assert.Equal(t, c.checker.WorkspaceProxyReport.Warnings, report.WorkspaceProxy.Warnings)
 			assert.NotZero(t, report.Time)
 			assert.NotZero(t, report.CoderVersion)
 		})
