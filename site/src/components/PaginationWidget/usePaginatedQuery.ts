@@ -66,28 +66,7 @@ export type UsePaginatedQueryOptions<
 export type UsePaginatedQueryResult<
   TData = unknown,
   TError = unknown,
-> = UseQueryResult<TData, TError> & {
-  currentPage: number;
-  limit: number;
-  onPageChange: (newPage: number) => void;
-  goToPreviousPage: () => void;
-  goToNextPage: () => void;
-} & (
-    | {
-        isSuccess: true;
-        hasNextPage: false;
-        hasPreviousPage: false;
-        totalRecords: undefined;
-        totalPages: undefined;
-      }
-    | {
-        isSuccess: false;
-        hasNextPage: boolean;
-        hasPreviousPage: boolean;
-        totalRecords: number;
-        totalPages: number;
-      }
-  );
+> = UseQueryResult<TData, TError> & PaginationResultInfo;
 
 export function usePaginatedQuery<
   TQueryFnData extends PaginatedData = PaginatedData,
@@ -229,38 +208,62 @@ export function usePaginatedQuery<
     }
   };
 
-  return {
-    ...query,
+  // Have to do a type assertion at the end to make React Query's internal types
+  // happy; splitting type definitions up to limit risk of the type assertion
+  // silencing type warnings we actually want to pay attention to
+  const info: PaginationResultInfo = {
     limit,
     currentPage,
     onPageChange,
     goToPreviousPage,
     goToNextPage,
-
     ...(query.isSuccess
       ? {
+          isSuccess: true,
           hasNextPage,
           hasPreviousPage,
           totalRecords: totalRecords as number,
           totalPages: totalPages as number,
         }
       : {
+          isSuccess: false,
           hasNextPage: false,
           hasPreviousPage: false,
           totalRecords: undefined,
           totalPages: undefined,
         }),
+  };
 
-    // Have to do assertion to make TypeScript happy with React Query internal
-    // type, but this means that you won't get feedback from the compiler if you
-    // set up a property the wrong way
-  } as UsePaginatedQueryResult<TData, TError>;
+  return { ...query, ...info } as UsePaginatedQueryResult<TData, TError>;
 }
 
 function parsePage(params: URLSearchParams): number {
   const parsed = Number(params.get("page"));
   return Number.isInteger(parsed) && parsed > 1 ? parsed : 1;
 }
+
+type PaginationResultInfo = {
+  currentPage: number;
+  limit: number;
+  onPageChange: (newPage: number) => void;
+  goToPreviousPage: () => void;
+  goToNextPage: () => void;
+} & (
+  | {
+      isSuccess: false;
+      hasNextPage: false;
+      hasPreviousPage: false;
+      totalRecords: undefined;
+      totalPages: undefined;
+    }
+  | {
+      isSuccess: true;
+      hasNextPage: boolean;
+      hasPreviousPage: boolean;
+      totalRecords: number;
+      totalPages: number;
+    }
+);
 
 /**
  * Papers over how the queryPayload function is defined at the type level, so
