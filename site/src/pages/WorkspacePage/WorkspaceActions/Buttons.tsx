@@ -58,13 +58,7 @@ export const StartButton: FC<
     workspace: Workspace;
     handleAction: (buildParameters?: WorkspaceBuildParameter[]) => void;
   }
-> = ({
-  handleAction,
-  workspace,
-  loading,
-  disabled = false,
-  tooltipText = "",
-}) => {
+> = ({ handleAction, workspace, loading, disabled, tooltipText }) => {
   const buttonContent = (
     <ButtonGroup
       variant="outlined"
@@ -74,6 +68,7 @@ export const StartButton: FC<
           borderLeft: "1px solid #FFF",
         },
       }}
+      disabled={disabled}
     >
       <LoadingButton
         loading={loading}
@@ -118,13 +113,7 @@ export const RestartButton: FC<
     workspace: Workspace;
     handleAction: (buildParameters?: WorkspaceBuildParameter[]) => void;
   }
-> = ({
-  handleAction,
-  loading,
-  workspace,
-  disabled = false,
-  tooltipText = "",
-}) => {
+> = ({ handleAction, loading, workspace, disabled, tooltipText }) => {
   const buttonContent = (
     <ButtonGroup
       variant="outlined"
@@ -134,6 +123,7 @@ export const RestartButton: FC<
           borderLeft: "1px solid #FFF",
         },
       }}
+      disabled={disabled}
     >
       <LoadingButton
         loading={loading}
