@@ -21,7 +21,7 @@ import (
 	"tailscale.com/types/key"
 	tslogger "tailscale.com/types/logger"
 
-	"github.com/coder/coder/v2/coderd/healthcheck/model"
+	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
@@ -32,7 +32,9 @@ const (
 
 // @typescript-generate Report
 type Report struct {
-	model.HealthSummary
+	Healthy  bool            `json:"healthy"`
+	Severity health.Severity `json:"severity" enums:"ok,warning,error"`
+	Warnings []string        `json:"warnings"`
 
 	Regions map[int]*RegionReport `json:"regions"`
 
@@ -47,7 +49,9 @@ type Report struct {
 type RegionReport struct {
 	mu sync.Mutex
 
-	model.HealthSummary
+	Healthy  bool            `json:"healthy"`
+	Severity health.Severity `json:"severity" enums:"ok,warning,error"`
+	Warnings []string        `json:"warnings"`
 
 	Region      *tailcfg.DERPRegion `json:"region"`
 	NodeReports []*NodeReport       `json:"node_reports"`
@@ -59,7 +63,9 @@ type NodeReport struct {
 	mu            sync.Mutex
 	clientCounter int
 
-	model.HealthSummary
+	Healthy  bool            `json:"healthy"`
+	Severity health.Severity `json:"severity" enums:"ok,warning,error"`
+	Warnings []string        `json:"warnings"`
 
 	Node *tailcfg.DERPNode `json:"node"`
 
@@ -153,10 +159,8 @@ func (r *RegionReport) Run(ctx context.Context) {
 		var (
 			node       = node
 			nodeReport = NodeReport{
-				Node: node,
-				HealthSummary: model.HealthSummary{
-					Healthy: true,
-				},
+				Node:    node,
+				Healthy: true,
 			}
 		)
 

@@ -8,7 +8,7 @@ import (
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
-	"github.com/coder/coder/v2/coderd/healthcheck/model"
+	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
@@ -33,7 +33,7 @@ type Report struct {
 	// Healthy is true if the report returns no errors.
 	Healthy bool `json:"healthy"`
 	// Severity indicates the status of Coder health.
-	Severity model.Severity `json:"severity" enums:"ok,warning,error"`
+	Severity health.Severity `json:"severity" enums:"ok,warning,error"`
 	// FailingSections is a list of sections that have failed their healthcheck.
 	FailingSections []string `json:"failing_sections"`
 

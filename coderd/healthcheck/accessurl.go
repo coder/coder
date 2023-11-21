@@ -9,13 +9,15 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/healthcheck/model"
+	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
 // @typescript-generate AccessURLReport
 type AccessURLReport struct {
-	model.HealthSummary
+	Healthy  bool            `json:"healthy"`
+	Severity health.Severity `json:"severity" enums:"ok,warning,error"`
+	Warnings []string        `json:"warnings"`
 
 	AccessURL       string  `json:"access_url"`
 	Reachable       bool    `json:"reachable"`
