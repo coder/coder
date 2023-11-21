@@ -1581,6 +1581,7 @@ export interface WorkspaceProxy extends Region {
   readonly created_at: string;
   readonly updated_at: string;
   readonly deleted: boolean;
+  readonly version: string;
 }
 
 // From codersdk/deployment.go
