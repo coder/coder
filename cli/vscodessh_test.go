@@ -22,7 +22,7 @@ import (
 func TestVSCodeSSH(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
-	client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
+	client, workspace, agentToken := setupWorkspaceForAgent(t)
 	user, err := client.User(ctx, codersdk.Me)
 	require.NoError(t, err)
 
