@@ -207,6 +207,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"derp_enabled":        ActionTrack,
 		"derp_only":           ActionTrack,
 		"region_id":           ActionTrack,
+		"version":             ActionTrack,
 	},
 }
 

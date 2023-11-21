@@ -81,6 +81,56 @@ func TestDERP(t *testing.T) {
 		}
 	})
 
+	t.Run("HealthyWithNodeDegraded", func(t *testing.T) {
+		t.Parallel()
+
+		healthyDerpSrv := derp.NewServer(key.NewNode(), func(format string, args ...any) { t.Logf(format, args...) })
+		defer healthyDerpSrv.Close()
+		healthySrv := httptest.NewServer(derphttp.Handler(healthyDerpSrv))
+		defer healthySrv.Close()
+
+		var (
+			ctx        = context.Background()
+			report     = derphealth.Report{}
+			derpURL, _ = url.Parse(healthySrv.URL)
+			opts       = &derphealth.ReportOptions{
+				DERPMap: &tailcfg.DERPMap{Regions: map[int]*tailcfg.DERPRegion{
+					1: {
+						EmbeddedRelay: true,
+						RegionID:      999,
+						Nodes: []*tailcfg.DERPNode{{
+							Name:             "1a",
+							RegionID:         999,
+							HostName:         derpURL.Host,
+							IPv4:             derpURL.Host,
+							STUNPort:         -1,
+							InsecureForTests: true,
+							ForceHTTP:        true,
+						}, {
+							Name:             "1b",
+							RegionID:         999,
+							HostName:         "derp.is.dead.tld",
+							IPv4:             "derp.is.dead.tld",
+							STUNPort:         -1,
+							InsecureForTests: true,
+							ForceHTTP:        true,
+						}},
+					},
+				}},
+			}
+		)
+
+		report.Run(ctx, opts)
+
+		assert.True(t, report.Healthy)
+		for _, region := range report.Regions {
+			assert.True(t, region.Healthy)
+			assert.True(t, region.NodeReports[0].Healthy)
+			assert.False(t, region.NodeReports[1].Healthy)
+			assert.Len(t, region.Warnings, 1)
+		}
+	})
+
 	t.Run("Tailscale/Dallas/OK", func(t *testing.T) {
 		t.Parallel()
 
