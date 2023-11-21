@@ -23,12 +23,14 @@ func main() {
 	var includeMinors bool
 	var includeMajors bool
 	var afterV2 bool
+	var listMigs bool
 	// If you only run with --patches, the upgrades that are minors are excluded.
 	// Example being 1.0.0 -> 1.1.0 is a minor upgrade, so it's not included.
 	flag.BoolVar(&includePatches, "patches", false, "Include patches releases")
 	flag.BoolVar(&includeMinors, "minors", false, "Include minor releases")
 	flag.BoolVar(&includeMajors, "majors", false, "Include major releases")
 	flag.BoolVar(&afterV2, "after-v2", false, "Only include releases after v2.0.0")
+	flag.BoolVar(&listMigs, "list", false, "List migrations")
 	flag.Parse()
 
 	if !includePatches && !includeMinors && !includeMajors {
@@ -41,6 +43,7 @@ func main() {
 		IncludeMinors:  includeMinors,
 		IncludeMajors:  includeMajors,
 		AfterV2:        afterV2,
+		ListMigrations: listMigs,
 	})
 	if err != nil {
 		log.Fatal(err)
@@ -57,6 +60,7 @@ type Options struct {
 	IncludeMinors  bool
 	IncludeMajors  bool
 	AfterV2        bool
+	ListMigrations bool
 }
 
 func (o Options) Filter(tags []string) []string {
@@ -156,9 +160,11 @@ func run(opts Options) error {
 
 		if migrations != nil {
 			log.Printf("[%s] %d migrations added between %s and %s\n", vDiffType, len(migrations)/2, a, b)
-			//for _, migration := range migrations {
-			//	log.Printf("  %s\n", migration)
-			//}
+			if opts.ListMigrations {
+				for _, migration := range migrations {
+					log.Printf("\t%s", migration)
+				}
+			}
 		} else {
 			log.Printf("[%s] No migrations added between %s and %s\n", vDiffType, a, b)
 		}
@@ -191,13 +197,12 @@ func hasMigrationDiff(a, b string) ([]string, error) {
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, xerrors.Errorf("%s\n%s", strings.Join(cmd.Args, " "), err)
-		return nil, err
 	}
 	if len(output) == 0 {
 		return nil, nil
 	}
 
-	migrations := strings.Split(string(output), "\n")
+	migrations := strings.Split(strings.TrimSpace(string(output)), "\n")
 	return migrations, nil
 }
 
