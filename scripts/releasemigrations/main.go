@@ -22,11 +22,13 @@ func main() {
 	var includePatches bool
 	var includeMinors bool
 	var includeMajors bool
+	var afterV2 bool
 	// If you only run with --patches, the upgrades that are minors are excluded.
 	// Example being 1.0.0 -> 1.1.0 is a minor upgrade, so it's not included.
 	flag.BoolVar(&includePatches, "patches", false, "Include patches releases")
 	flag.BoolVar(&includeMinors, "minors", false, "Include minor releases")
 	flag.BoolVar(&includeMajors, "majors", false, "Include major releases")
+	flag.BoolVar(&afterV2, "after-v2", false, "Only include releases after v2.0.0")
 	flag.Parse()
 
 	if !includePatches && !includeMinors && !includeMajors {
@@ -38,6 +40,7 @@ func main() {
 		IncludePatches: includePatches,
 		IncludeMinors:  includeMinors,
 		IncludeMajors:  includeMajors,
+		AfterV2:        afterV2,
 	})
 	if err != nil {
 		log.Fatal(err)
@@ -53,9 +56,19 @@ type Options struct {
 	IncludePatches bool
 	IncludeMinors  bool
 	IncludeMajors  bool
+	AfterV2        bool
 }
 
 func (o Options) Filter(tags []string) []string {
+	if o.AfterV2 {
+		for i, tag := range tags {
+			if tag == "v2.0.0" {
+				tags = tags[i:]
+				break
+			}
+		}
+	}
+
 	if o.IncludeMajors && o.IncludeMinors && o.IncludePatches {
 		return tags
 	}
