@@ -36,8 +36,9 @@ export type UsePaginatedQueryOptions<
     /**
      * An optional dependency for React Router's URLSearchParams.
      *
-     * It's annoying that this is necessary, but this helps avoid searchParams
-     * from other parts of a component from de-syncing
+     * It's annoying that this is necessary, but it helps avoid URL de-syncs if
+     * useSearchParams is called multiple times in the same component (likely in
+     * multiple custom hooks)
      */
     searchParams?: URLSearchParams;
 

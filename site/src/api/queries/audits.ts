@@ -6,9 +6,7 @@ import { type UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
 export function paginatedAudits(searchParams: URLSearchParams) {
   return {
     searchParams,
-    queryPayload: ({ searchParams }) => {
-      return searchParams.get(useFilterParamsKey) ?? "";
-    },
+    queryPayload: () => searchParams.get(useFilterParamsKey) ?? "",
     queryKey: ({ payload, pageNumber }) => {
       return ["auditLogs", payload, pageNumber] as const;
     },
