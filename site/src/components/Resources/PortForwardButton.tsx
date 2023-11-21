@@ -156,7 +156,11 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
           <Button
             type="submit"
             variant="text"
-            css={{ paddingLeft: 8, paddingRight: 8, minWidth: 0 }}
+            css={{
+              paddingLeft: 12,
+              paddingRight: 12,
+              minWidth: 0,
+            }}
             size="small"
           >
             <OpenInNewOutlined
