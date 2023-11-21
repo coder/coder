@@ -1,10 +1,11 @@
 import { renderHookWithAuth } from "testHelpers/renderHelpers";
+import { waitFor } from "@testing-library/react";
+
 import {
   type PaginatedData,
   type UsePaginatedQueryOptions,
   usePaginatedQuery,
 } from "./usePaginatedQuery";
-import { waitFor } from "@testing-library/react";
 
 beforeAll(() => {
   jest.useFakeTimers();
@@ -36,11 +37,13 @@ function render<
   );
 }
 
-describe(usePaginatedQuery.name, () => {
+/**
+ * There are a lot of test cases in this file. Scoping mocking to inner describe
+ * function calls to limit cognitive load of maintaining this file.
+ */
+describe(`${usePaginatedQuery.name} - Overall functionality`, () => {
   describe("queryPayload method", () => {
-    const mockQueryFn = jest.fn(() => {
-      return { count: 0 };
-    });
+    const mockQueryFn = jest.fn(() => Promise.resolve({ count: 0 }));
 
     it("Passes along an undefined payload if queryPayload is not used", async () => {
       const mockQueryKey = jest.fn(() => ["mockQuery"]);
@@ -167,11 +170,11 @@ describe(usePaginatedQuery.name, () => {
       expect.hasAssertions();
     });
 
-    it("Auto-redirects user to closest page if request page overshoots", async () => {
+    it("Auto-redirects user to closest page if requested page overshoots", async () => {
       expect.hasAssertions();
     });
 
-    it("Auto-redirects user to first page if request page goes below 1", async () => {
+    it("Auto-redirects user to first page if requested page goes below 1", async () => {
       expect.hasAssertions();
     });
 
@@ -189,6 +192,38 @@ describe(usePaginatedQuery.name, () => {
       expect.hasAssertions();
     });
   });
+});
 
-  describe("Returned properties", () => {});
+describe(`${usePaginatedQuery.name} - Returned properties`, () => {
+  describe("Conditional render output", () => {
+    it("Always has select properties be defined regardless of fetch status", async () => {
+      expect.hasAssertions();
+    });
+
+    it("Flips other properties to be defined after on-mount fetch succeeds", async () => {
+      expect.hasAssertions();
+    });
+  });
+
+  describe("Page change methods", () => {
+    test("goToFirstPage always succeeds regardless of fetch status", async () => {
+      expect.hasAssertions();
+    });
+
+    test("goToNextPage works only if hasNextPage is true", async () => {
+      expect.hasAssertions();
+    });
+
+    test("goToPreviousPage works only if hasPreviousPage is true", async () => {
+      expect.hasAssertions();
+    });
+
+    test("onPageChange cleans 'corrupt' numeric values before navigating", async () => {
+      expect.hasAssertions();
+    });
+
+    test("onPageChange rejects impossible numeric values and does nothing", async () => {
+      expect.hasAssertions();
+    });
+  });
 });
