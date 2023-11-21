@@ -101,9 +101,9 @@ export function usePaginatedQuery<
   const getQueryOptionsFromPage = (pageNumber: number) => {
     const pageParams: QueryPageParams = {
       pageNumber,
-      offset,
       limit,
-      searchParams,
+      offset: (pageNumber - 1) * limit,
+      searchParams: getParamsWithoutPage(searchParams),
     };
 
     const payload = queryPayload?.(pageParams) as RuntimePayload<TQueryPayload>;
@@ -155,22 +155,34 @@ export function usePaginatedQuery<
   }, [prefetchPage, currentPage, hasPreviousPage]);
 
   // Mainly here to catch user if they navigate to a page directly via URL
-  const updatePageIfInvalid = useEffectEvent((totalPages: number) => {
-    const clamped = clamp(currentPage, 1, totalPages);
+  const updatePageIfInvalid = useEffectEvent(async (totalPages: number) => {
+    // If totalPages is 0, that's a sign that the currentPage overshot, and the
+    // API returned a count of 0 because it didn't know how to process the query
+    let fixedTotalPages: number;
+    if (totalPages !== 0) {
+      fixedTotalPages = totalPages;
+    } else {
+      const firstPageOptions = getQueryOptionsFromPage(1);
+      const firstPageResult = await queryClient.fetchQuery(firstPageOptions);
+      fixedTotalPages = Math.ceil(firstPageResult.count / limit);
+    }
+
+    const clamped = clamp(currentPage, 1, fixedTotalPages || 1);
     if (currentPage === clamped) {
       return;
     }
 
+    const withoutPage = getParamsWithoutPage(searchParams);
     if (onInvalidPageChange === undefined) {
-      searchParams.set(PAGE_NUMBER_PARAMS_KEY, String(clamped));
-      setSearchParams(searchParams);
+      withoutPage.set(PAGE_NUMBER_PARAMS_KEY, String(clamped));
+      setSearchParams(withoutPage);
     } else {
       const params: InvalidPageParams = {
         offset,
         limit,
-        totalPages,
-        searchParams,
         setSearchParams,
+        searchParams: withoutPage,
+        totalPages: fixedTotalPages,
         pageNumber: currentPage,
       };
 
@@ -180,7 +192,7 @@ export function usePaginatedQuery<
 
   useEffect(() => {
     if (!query.isFetching && totalPages !== undefined) {
-      updatePageIfInvalid(totalPages);
+      void updatePageIfInvalid(totalPages);
     }
   }, [updatePageIfInvalid, query.isFetching, totalPages]);
 
@@ -244,6 +256,17 @@ export function usePaginatedQuery<
 function parsePage(params: URLSearchParams): number {
   const parsed = Number(params.get("page"));
   return Number.isInteger(parsed) && parsed > 1 ? parsed : 1;
+}
+
+/**
+ * Strips out the page number from a query so that there aren't mismatches
+ * between it and usePaginatedQuery's currentPage property (especially for
+ * prefetching)
+ */
+function getParamsWithoutPage(params: URLSearchParams): URLSearchParams {
+  const withoutPage = new URLSearchParams(params);
+  withoutPage.delete(PAGE_NUMBER_PARAMS_KEY);
+  return withoutPage;
 }
 
 /**
