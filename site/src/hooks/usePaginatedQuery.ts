@@ -415,6 +415,7 @@ type PaginatedQueryFnContext<
  *   definition with a custom context argument
  * - queryKey - Removed so that it can be replaced with the function form of
  *   queryKey
+ * - onSuccess/onError - APIs are deprecated and removed in React Query v5
  */
 type BasePaginationOptions<
   TQueryFnData extends PaginatedData = PaginatedData,
@@ -423,7 +424,7 @@ type BasePaginationOptions<
   TQueryKey extends QueryKey = QueryKey,
 > = Omit<
   UseQueryOptions<TQueryFnData, TError, TData, TQueryKey>,
-  "keepPreviousData" | "queryKey" | "queryFn"
+  "keepPreviousData" | "queryKey" | "queryFn" | "onSuccess" | "onError"
 >;
 
 /**
