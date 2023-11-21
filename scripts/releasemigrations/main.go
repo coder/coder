@@ -67,9 +67,9 @@ func main() {
 }
 
 func usage() {
-	fmt.Println("Usage: releasemigrations [--patches] [--minors] [--majors]")
-	fmt.Println("Choose at lease one of --patches, --minors, or --majors. You can choose all!")
-	fmt.Println("Must be run from the coder repo at the root.")
+	_, _ = fmt.Println("Usage: releasemigrations [--patches] [--minors] [--majors]")
+	_, _ = fmt.Println("Choose at lease one of --patches, --minors, or --majors. You can choose all!")
+	_, _ = fmt.Println("Must be run from the coder repo at the root.")
 }
 
 type Options struct {
