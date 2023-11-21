@@ -1,8 +1,6 @@
 import { useEffect } from "react";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { type SetURLSearchParams, useSearchParams } from "react-router-dom";
-
-import { DEFAULT_RECORDS_PER_PAGE } from "./utils";
 import { clamp } from "lodash";
 
 import {
@@ -13,6 +11,8 @@ import {
   useQuery,
   UseQueryResult,
 } from "react-query";
+
+const DEFAULT_RECORDS_PER_PAGE = 25;
 
 /**
  * The key to use for getting/setting the page number from the search params
@@ -56,29 +56,38 @@ export type UsePaginatedQueryOptions<
      * encountered, usePaginatedQuery will default to navigating the user to the
      * closest valid page.
      */
-    onInvalidPage?: (params: InvalidPageParams) => void;
+    onInvalidPageChange?: (params: InvalidPageParams) => void;
   };
 
 /**
  * The result of calling usePaginatedQuery. Mirrors the result of the base
  * useQuery as closely as possible, while adding extra pagination properties
  */
-export type UsePaginatedQueryResult<TData = unknown, TError = unknown> = Omit<
-  UseQueryResult<TData, TError>,
-  "isLoading"
-> & {
-  isLoading: boolean;
-  hasNextPage: boolean;
-  hasPreviousPage: boolean;
-
+export type UsePaginatedQueryResult<
+  TData = unknown,
+  TError = unknown,
+> = UseQueryResult<TData, TError> & {
   currentPage: number;
-  pageSize: number;
-  totalRecords: number;
-
+  limit: number;
   onPageChange: (newPage: number) => void;
   goToPreviousPage: () => void;
   goToNextPage: () => void;
-};
+} & (
+    | {
+        isSuccess: true;
+        hasNextPage: false;
+        hasPreviousPage: false;
+        totalRecords: undefined;
+        totalPages: undefined;
+      }
+    | {
+        isSuccess: false;
+        hasNextPage: boolean;
+        hasPreviousPage: boolean;
+        totalRecords: number;
+        totalPages: number;
+      }
+  );
 
 export function usePaginatedQuery<
   TQueryFnData extends PaginatedData = PaginatedData,
@@ -98,7 +107,7 @@ export function usePaginatedQuery<
   const {
     queryKey,
     queryPayload,
-    onInvalidPage,
+    onInvalidPageChange,
     queryFn: outerQueryFn,
     ...extraOptions
   } = options;
@@ -135,10 +144,13 @@ export function usePaginatedQuery<
     keepPreviousData: true,
   });
 
-  const totalRecords = query.data?.count ?? 0;
-  const totalPages = Math.ceil(totalRecords / limit);
-  const hasNextPage = limit * offset < totalRecords;
-  const hasPreviousPage = currentPage > 1;
+  const totalRecords = query.data?.count;
+  const totalPages =
+    totalRecords !== undefined ? Math.ceil(totalRecords / limit) : undefined;
+
+  const hasPreviousPage = totalPages !== undefined && currentPage > 1;
+  const hasNextPage =
+    totalRecords !== undefined && limit * offset < totalRecords;
 
   const queryClient = useQueryClient();
   const prefetchPage = useEffectEvent((newPage: number) => {
@@ -162,36 +174,40 @@ export function usePaginatedQuery<
   }, [prefetchPage, currentPage, hasPreviousPage]);
 
   // Mainly here to catch user if they navigate to a page directly via URL
-  const updatePageIfInvalid = useEffectEvent(() => {
+  const updatePageIfInvalid = useEffectEvent((totalPages: number) => {
     const clamped = clamp(currentPage, 1, totalPages);
     if (currentPage === clamped) {
       return;
     }
 
-    if (onInvalidPage === undefined) {
+    if (onInvalidPageChange === undefined) {
       searchParams.set(PAGE_NUMBER_PARAMS_KEY, String(clamped));
       setSearchParams(searchParams);
     } else {
       const params: InvalidPageParams = {
-        offset: offset,
-        limit: limit,
+        offset,
+        limit,
         totalPages,
+        searchParams,
         setSearchParams,
         pageNumber: currentPage,
-        searchParams: searchParams,
       };
 
-      onInvalidPage(params);
+      onInvalidPageChange(params);
     }
   });
 
   useEffect(() => {
-    if (!query.isFetching) {
-      updatePageIfInvalid();
+    if (!query.isFetching && totalPages !== undefined) {
+      updatePageIfInvalid(totalPages);
     }
-  }, [updatePageIfInvalid, query.isFetching]);
+  }, [updatePageIfInvalid, query.isFetching, totalPages]);
 
   const onPageChange = (newPage: number) => {
+    if (totalPages === undefined) {
+      return;
+    }
+
     const cleanedInput = clamp(Math.trunc(newPage), 1, totalPages);
     if (!Number.isInteger(cleanedInput) || cleanedInput <= 0) {
       return;
@@ -201,24 +217,44 @@ export function usePaginatedQuery<
     setSearchParams(searchParams);
   };
 
+  const goToPreviousPage = () => {
+    if (hasPreviousPage) {
+      onPageChange(currentPage - 1);
+    }
+  };
+
+  const goToNextPage = () => {
+    if (hasNextPage) {
+      onPageChange(currentPage + 1);
+    }
+  };
+
   return {
     ...query,
-    onPageChange,
-    goToPreviousPage: () => onPageChange(currentPage - 1),
-    goToNextPage: () => onPageChange(currentPage + 1),
+    limit,
     currentPage,
-    pageSize: limit,
-    totalRecords,
-    hasNextPage,
-    hasPreviousPage,
+    onPageChange,
+    goToPreviousPage,
+    goToNextPage,
 
-    // Hijacking the isLoading property slightly because keepPreviousData is
-    // true; by default, isLoading will always be false after the initial page
-    // loads, even if new pages are loading in. Especially since
-    // keepPreviousData is an implementation detail, simplifying the API felt
-    // like the better option, at the risk of it becoming more "magical"
-    isLoading: query.isLoading || query.isFetching,
-  } as const;
+    ...(query.isSuccess
+      ? {
+          hasNextPage,
+          hasPreviousPage,
+          totalRecords: totalRecords as number,
+          totalPages: totalPages as number,
+        }
+      : {
+          hasNextPage: false,
+          hasPreviousPage: false,
+          totalRecords: undefined,
+          totalPages: undefined,
+        }),
+
+    // Have to do assertion to make TypeScript happy with React Query internal
+    // type, but this means that you won't get feedback from the compiler if you
+    // set up a property the wrong way
+  } as UsePaginatedQueryResult<TData, TError>;
 }
 
 function parsePage(params: URLSearchParams): number {
@@ -344,7 +380,7 @@ type BasePaginationOptions<
 >;
 
 /**
- * The argument passed to a custom onInvalidPage callback.
+ * The argument passed to a custom onInvalidPageChange callback.
  */
 type InvalidPageParams = QueryPageParams & {
   totalPages: number;
