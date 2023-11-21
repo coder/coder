@@ -91,6 +91,10 @@ Use the following `make` commands and scripts in development:
 
 ### Deploying a PR
 
+> You need to be a member or collaborator of the of
+> [coder](https://github.com/coder) GitHub organization to be able to deploy a
+> PR.
+
 You can test your changes by creating a PR deployment. There are two ways to do
 this:
 
@@ -112,10 +116,6 @@ this:
 
 > Note: PR deployment will be re-deployed automatically when the PR is updated.
 > It will use the last values automatically for redeployment.
-
-> You need to be a member or collaborator of the of
-> [coder](https://github.com/coder) GitHub organization to be able to deploy a
-> PR.
 
 Once the deployment is finished, a unique link and credentials will be posted in
 the [#pr-deployments](https://codercom.slack.com/archives/C05DNE982E8) Slack
