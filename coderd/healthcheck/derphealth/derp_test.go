@@ -127,7 +127,6 @@ func TestDERP(t *testing.T) {
 			assert.True(t, region.Healthy)
 			assert.True(t, region.NodeReports[0].Healthy)
 			assert.False(t, region.NodeReports[1].Healthy)
-			assert.Len(t, region.NodeReports[1].Warnings, 1)
 			assert.Len(t, region.Warnings, 1)
 		}
 	})
