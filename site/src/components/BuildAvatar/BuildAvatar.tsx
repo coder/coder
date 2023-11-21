@@ -29,10 +29,7 @@ export const BuildAvatar: FC<BuildAvatarProps> = ({ build, size }) => {
       aria-label={status}
       title={status}
       overlap="circular"
-      anchorOrigin={{
-        vertical: "bottom",
-        horizontal: "right",
-      }}
+      anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
       badgeContent={<div></div>}
       classes={{ badge: cx(classNames.badge, badgeType) }}
     >
