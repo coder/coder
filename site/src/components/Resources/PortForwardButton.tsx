@@ -153,13 +153,17 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
             required
             css={styles.newPortInput}
           />
-          <Button type="submit" variant="text">
+          <Button
+            type="submit"
+            variant="text"
+            css={{ paddingLeft: 8, paddingRight: 8, minWidth: 0 }}
+            size="small"
+          >
             <OpenInNewOutlined
               css={{
                 flexShrink: 0,
                 width: 14,
                 height: 14,
-                marginRight: 12,
                 color: theme.palette.text.primary,
               }}
             />
