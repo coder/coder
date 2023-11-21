@@ -157,6 +157,5 @@ func convertError(err error) *string {
 	if err != nil {
 		return ptr.Ref(err.Error())
 	}
-
 	return nil
 }
