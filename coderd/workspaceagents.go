@@ -1702,8 +1702,8 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		}
 		return nil
 	})
-	errGroup.Go(func() error {
-		if req.ConnectionCount > 0 {
+	if req.SessionCount() > 0 {
+		errGroup.Go(func() error {
 			err := api.Database.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
 				ID:         workspace.ID,
 				LastUsedAt: now,
@@ -1711,9 +1711,9 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 			if err != nil {
 				return xerrors.Errorf("can't update workspace LastUsedAt: %w", err)
 			}
-		}
-		return nil
-	})
+			return nil
+		})
+	}
 	if api.Options.UpdateAgentMetrics != nil {
 		errGroup.Go(func() error {
 			user, err := api.Database.GetUserByID(ctx, workspace.OwnerID)
