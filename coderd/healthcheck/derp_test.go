@@ -1,4 +1,4 @@
-package derphealth_test
+package healthcheck_test
 
 import (
 	"context"
@@ -17,7 +17,7 @@ import (
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 
-	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
+	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -38,9 +38,9 @@ func TestDERP(t *testing.T) {
 
 		var (
 			ctx        = context.Background()
-			report     = derphealth.Report{}
+			report     = healthcheck.DERPReport{}
 			derpURL, _ = url.Parse(srv.URL)
-			opts       = &derphealth.ReportOptions{
+			opts       = &healthcheck.DERPReportOptions{
 				DERPMap: &tailcfg.DERPMap{Regions: map[int]*tailcfg.DERPRegion{
 					1: {
 						EmbeddedRelay: true,
@@ -91,9 +91,9 @@ func TestDERP(t *testing.T) {
 
 		var (
 			ctx        = context.Background()
-			report     = derphealth.Report{}
+			report     = healthcheck.DERPReport{}
 			derpURL, _ = url.Parse(healthySrv.URL)
-			opts       = &derphealth.ReportOptions{
+			opts       = &healthcheck.DERPReportOptions{
 				DERPMap: &tailcfg.DERPMap{Regions: map[int]*tailcfg.DERPRegion{
 					1: {
 						EmbeddedRelay: true,
@@ -145,8 +145,8 @@ func TestDERP(t *testing.T) {
 
 		var (
 			ctx    = context.Background()
-			report = derphealth.Report{}
-			opts   = &derphealth.ReportOptions{
+			report = healthcheck.DERPReport{}
+			opts   = &healthcheck.DERPReportOptions{
 				DERPMap: tsDERPMap(ctx, t),
 			}
 		)
@@ -197,9 +197,9 @@ func TestDERP(t *testing.T) {
 
 		var (
 			ctx        = context.Background()
-			report     = derphealth.Report{}
+			report     = healthcheck.DERPReport{}
 			derpURL, _ = url.Parse(srv.URL)
-			opts       = &derphealth.ReportOptions{
+			opts       = &healthcheck.DERPReportOptions{
 				DERPMap: &tailcfg.DERPMap{Regions: map[int]*tailcfg.DERPRegion{
 					1: {
 						EmbeddedRelay: true,
@@ -250,8 +250,8 @@ func TestDERP(t *testing.T) {
 
 		var (
 			ctx    = context.Background()
-			report = derphealth.Report{}
-			opts   = &derphealth.ReportOptions{
+			report = healthcheck.DERPReport{}
+			opts   = &healthcheck.DERPReportOptions{
 				DERPMap: &tailcfg.DERPMap{Regions: map[int]*tailcfg.DERPRegion{
 					1: {
 						EmbeddedRelay: true,

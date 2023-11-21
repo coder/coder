@@ -38,7 +38,6 @@ import (
 	// Used for swagger docs.
 	_ "github.com/coder/coder/v2/coderd/apidoc"
 	"github.com/coder/coder/v2/coderd/externalauth"
-	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/buildinfo"
@@ -410,7 +409,7 @@ func New(options *Options) *API {
 				AccessURL: healthcheck.AccessURLReportOptions{
 					AccessURL: options.AccessURL,
 				},
-				DerpHealth: derphealth.ReportOptions{
+				DerpHealth: healthcheck.DERPReportOptions{
 					DERPMap: api.DERPMap(),
 				},
 			})

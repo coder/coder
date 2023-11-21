@@ -1,4 +1,4 @@
-package derphealth
+package healthcheck
 
 import (
 	"context"
@@ -29,8 +29,8 @@ const (
 	oneNodeUnhealthy         = "Region is operational, but performance might be degraded as one node is unhealthy."
 )
 
-// @typescript-generate Report
-type Report struct {
+// @typescript-generate DERPReport
+type DERPReport struct {
 	Healthy  bool     `json:"healthy"`
 	Warnings []string `json:"warnings"`
 
@@ -83,11 +83,11 @@ type StunReport struct {
 	Error   *string
 }
 
-type ReportOptions struct {
+type DERPReportOptions struct {
 	DERPMap *tailcfg.DERPMap
 }
 
-func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
+func (r *DERPReport) Run(ctx context.Context, opts *DERPReportOptions) {
 	r.Healthy = true
 	r.Regions = map[int]*RegionReport{}
 	r.Warnings = []string{}
@@ -483,12 +483,4 @@ func (r *NodeReport) recvData(client *derphttp.Client) (derp.ReceivedPacket, err
 			// Drop all others!
 		}
 	}
-}
-
-func convertError(err error) *string {
-	if err != nil {
-		return ptr.Ref(err.Error())
-	}
-
-	return nil
 }

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/coder/coder/v2/buildinfo"
-	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
@@ -19,7 +18,7 @@ const (
 )
 
 type Checker interface {
-	DERP(ctx context.Context, opts *derphealth.ReportOptions) derphealth.Report
+	DERP(ctx context.Context, opts *DERPReportOptions) DERPReport
 	AccessURL(ctx context.Context, opts *AccessURLReportOptions) AccessURLReport
 	Websocket(ctx context.Context, opts *WebsocketReportOptions) WebsocketReport
 	Database(ctx context.Context, opts *DatabaseReportOptions) DatabaseReport
@@ -34,10 +33,10 @@ type Report struct {
 	// FailingSections is a list of sections that have failed their healthcheck.
 	FailingSections []string `json:"failing_sections"`
 
-	DERP      derphealth.Report `json:"derp"`
-	AccessURL AccessURLReport   `json:"access_url"`
-	Websocket WebsocketReport   `json:"websocket"`
-	Database  DatabaseReport    `json:"database"`
+	DERP      DERPReport      `json:"derp"`
+	AccessURL AccessURLReport `json:"access_url"`
+	Websocket WebsocketReport `json:"websocket"`
+	Database  DatabaseReport  `json:"database"`
 
 	// The Coder version of the server that the report was generated on.
 	CoderVersion string `json:"coder_version"`
@@ -46,7 +45,7 @@ type Report struct {
 type ReportOptions struct {
 	AccessURL  AccessURLReportOptions
 	Database   DatabaseReportOptions
-	DerpHealth derphealth.ReportOptions
+	DerpHealth DERPReportOptions
 	Websocket  WebsocketReportOptions
 
 	Checker Checker
@@ -54,7 +53,7 @@ type ReportOptions struct {
 
 type defaultChecker struct{}
 
-func (defaultChecker) DERP(ctx context.Context, opts *derphealth.ReportOptions) (report derphealth.Report) {
+func (defaultChecker) DERP(ctx context.Context, opts *DERPReportOptions) (report DERPReport) {
 	report.Run(ctx, opts)
 	return report
 }

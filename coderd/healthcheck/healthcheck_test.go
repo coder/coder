@@ -7,17 +7,16 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/coder/coder/v2/coderd/healthcheck"
-	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 )
 
 type testChecker struct {
-	DERPReport      derphealth.Report
+	DERPReport      healthcheck.DERPReport
 	AccessURLReport healthcheck.AccessURLReport
 	WebsocketReport healthcheck.WebsocketReport
 	DatabaseReport  healthcheck.DatabaseReport
 }
 
-func (c *testChecker) DERP(context.Context, *derphealth.ReportOptions) derphealth.Report {
+func (c *testChecker) DERP(context.Context, *healthcheck.DERPReportOptions) healthcheck.DERPReport {
 	return c.DERPReport
 }
 

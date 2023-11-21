@@ -12075,7 +12075,100 @@ const docTemplate = `{
                 }
             }
         },
-        "derphealth.NodeReport": {
+        "healthcheck.AccessURLReport": {
+            "type": "object",
+            "properties": {
+                "access_url": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "healthy": {
+                    "type": "boolean"
+                },
+                "healthz_response": {
+                    "type": "string"
+                },
+                "reachable": {
+                    "type": "boolean"
+                },
+                "status_code": {
+                    "type": "integer"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "healthcheck.DERPReport": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "healthy": {
+                    "type": "boolean"
+                },
+                "netcheck": {
+                    "$ref": "#/definitions/netcheck.Report"
+                },
+                "netcheck_err": {
+                    "type": "string"
+                },
+                "netcheck_logs": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "regions": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/healthcheck.RegionReport"
+                    }
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "healthcheck.DatabaseReport": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "healthy": {
+                    "type": "boolean"
+                },
+                "latency": {
+                    "type": "string"
+                },
+                "latency_ms": {
+                    "type": "integer"
+                },
+                "reachable": {
+                    "type": "boolean"
+                },
+                "threshold_ms": {
+                    "type": "integer"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "healthcheck.NodeReport": {
             "type": "object",
             "properties": {
                 "can_exchange_messages": {
@@ -12118,7 +12211,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "stun": {
-                    "$ref": "#/definitions/derphealth.StunReport"
+                    "$ref": "#/definitions/healthcheck.StunReport"
                 },
                 "uses_websocket": {
                     "type": "boolean"
@@ -12131,7 +12224,7 @@ const docTemplate = `{
                 }
             }
         },
-        "derphealth.RegionReport": {
+        "healthcheck.RegionReport": {
             "type": "object",
             "properties": {
                 "error": {
@@ -12143,118 +12236,11 @@ const docTemplate = `{
                 "node_reports": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/derphealth.NodeReport"
+                        "$ref": "#/definitions/healthcheck.NodeReport"
                     }
                 },
                 "region": {
                     "$ref": "#/definitions/tailcfg.DERPRegion"
-                },
-                "warnings": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
-        "derphealth.Report": {
-            "type": "object",
-            "properties": {
-                "error": {
-                    "type": "string"
-                },
-                "healthy": {
-                    "type": "boolean"
-                },
-                "netcheck": {
-                    "$ref": "#/definitions/netcheck.Report"
-                },
-                "netcheck_err": {
-                    "type": "string"
-                },
-                "netcheck_logs": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "regions": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "$ref": "#/definitions/derphealth.RegionReport"
-                    }
-                },
-                "warnings": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
-        "derphealth.StunReport": {
-            "type": "object",
-            "properties": {
-                "canSTUN": {
-                    "type": "boolean"
-                },
-                "enabled": {
-                    "type": "boolean"
-                },
-                "error": {
-                    "type": "string"
-                }
-            }
-        },
-        "healthcheck.AccessURLReport": {
-            "type": "object",
-            "properties": {
-                "access_url": {
-                    "type": "string"
-                },
-                "error": {
-                    "type": "string"
-                },
-                "healthy": {
-                    "type": "boolean"
-                },
-                "healthz_response": {
-                    "type": "string"
-                },
-                "reachable": {
-                    "type": "boolean"
-                },
-                "status_code": {
-                    "type": "integer"
-                },
-                "warnings": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
-        "healthcheck.DatabaseReport": {
-            "type": "object",
-            "properties": {
-                "error": {
-                    "type": "string"
-                },
-                "healthy": {
-                    "type": "boolean"
-                },
-                "latency": {
-                    "type": "string"
-                },
-                "latency_ms": {
-                    "type": "integer"
-                },
-                "reachable": {
-                    "type": "boolean"
-                },
-                "threshold_ms": {
-                    "type": "integer"
                 },
                 "warnings": {
                     "type": "array",
@@ -12278,7 +12264,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/healthcheck.DatabaseReport"
                 },
                 "derp": {
-                    "$ref": "#/definitions/derphealth.Report"
+                    "$ref": "#/definitions/healthcheck.DERPReport"
                 },
                 "failing_sections": {
                     "description": "FailingSections is a list of sections that have failed their healthcheck.",
@@ -12297,6 +12283,20 @@ const docTemplate = `{
                 },
                 "websocket": {
                     "$ref": "#/definitions/healthcheck.WebsocketReport"
+                }
+            }
+        },
+        "healthcheck.StunReport": {
+            "type": "object",
+            "properties": {
+                "canSTUN": {
+                    "type": "boolean"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "error": {
+                    "type": "string"
                 }
             }
         },
