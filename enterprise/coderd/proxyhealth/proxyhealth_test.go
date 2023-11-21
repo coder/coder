@@ -31,6 +31,7 @@ func insertProxy(t *testing.T, db database.Store, url string) database.Workspace
 		Url:              url,
 		WildcardHostname: "",
 		ID:               proxy.ID,
+		Version:          `v2.34.5-test+beefcake`,
 	})
 	require.NoError(t, err, "failed to update proxy")
 	return proxy

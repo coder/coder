@@ -4086,6 +4086,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "status": "ok"
       },
       "updated_at": "2019-08-24T14:15:22Z",
+      "version": "string",
       "wildcard_hostname": "string"
     }
   ]
@@ -6649,6 +6650,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "status": "ok"
   },
   "updated_at": "2019-08-24T14:15:22Z",
+  "version": "string",
   "wildcard_hostname": "string"
 }
 ```
@@ -6669,6 +6671,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `path_app_url`      | string                                                         | false    |              | Path app URL is the URL to the base path for path apps. Optional unless wildcard_hostname is set. E.g. https://us.example.com                                                      |
 | `status`            | [codersdk.WorkspaceProxyStatus](#codersdkworkspaceproxystatus) | false    |              | Status is the latest status check of the proxy. This will be empty for deleted proxies. This value can be used to determine if a workspace proxy is healthy and ready to use.      |
 | `updated_at`        | string                                                         | false    |              |                                                                                                                                                                                    |
+| `version`           | string                                                         | false    |              |                                                                                                                                                                                    |
 | `wildcard_hostname` | string                                                         | false    |              | Wildcard hostname is the wildcard hostname for subdomain apps. E.g. _.us.example.com E.g. _--suffix.au.example.com Optional. Does not need to be on the same domain as PathAppURL. |
 
 ## codersdk.WorkspaceProxyStatus

@@ -1127,7 +1127,8 @@ CREATE TABLE workspace_proxies (
     token_hashed_secret bytea NOT NULL,
     region_id integer NOT NULL,
     derp_enabled boolean DEFAULT true NOT NULL,
-    derp_only boolean DEFAULT false NOT NULL
+    derp_only boolean DEFAULT false NOT NULL,
+    version text DEFAULT ''::text NOT NULL
 );
 
 COMMENT ON COLUMN workspace_proxies.icon IS 'Expects an emoji character. (/emojis/1f1fa-1f1f8.png)';

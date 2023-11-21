@@ -120,16 +120,24 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				autostopRequirementDaysOfWeek = []string{}
 			}
 
-			// Only pass explicitly set deprecated values since the empty string
-			// removes the deprecated message. By default if we pass a nil,
-			// there is no change to this field.
+			// Default values
+			if !userSetOption(inv, "description") {
+				description = template.Description
+			}
+
+			if !userSetOption(inv, "icon") {
+				icon = template.Icon
+			}
+
+			if !userSetOption(inv, "display-name") {
+				displayName = template.DisplayName
+			}
+
 			var deprecated *string
-			opt := inv.Command.Options.ByName(deprecatedFlagName)
-			if !(opt.ValueSource == "" || opt.ValueSource == clibase.ValueSourceDefault) {
+			if !userSetOption(inv, "deprecated") {
 				deprecated = &deprecationMessage
 			}
 
-			// NOTE: coderd will ignore empty fields.
 			req := codersdk.UpdateTemplateMeta{
 				Name:             name,
 				DisplayName:      displayName,

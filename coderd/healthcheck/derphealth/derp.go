@@ -26,6 +26,7 @@ import (
 
 const (
 	warningNodeUsesWebsocket = `Node uses WebSockets because the "Upgrade: DERP" header may be blocked on the load balancer.`
+	oneNodeUnhealthy         = "Region is operational, but performance might be degraded as one node is unhealthy."
 )
 
 // @typescript-generate Report
@@ -146,6 +147,7 @@ func (r *RegionReport) Run(ctx context.Context) {
 	r.NodeReports = []*NodeReport{}
 
 	wg := &sync.WaitGroup{}
+	var healthyNodes int // atomic.Int64 is not mandatory as we depend on RegionReport mutex.
 
 	wg.Add(len(r.Region.Nodes))
 	for _, node := range r.Region.Nodes {
@@ -169,8 +171,8 @@ func (r *RegionReport) Run(ctx context.Context) {
 
 			r.mu.Lock()
 			r.NodeReports = append(r.NodeReports, &nodeReport)
-			if !nodeReport.Healthy {
-				r.Healthy = false
+			if nodeReport.Healthy {
+				healthyNodes++
 			}
 
 			for _, w := range nodeReport.Warnings {
@@ -179,8 +181,14 @@ func (r *RegionReport) Run(ctx context.Context) {
 			r.mu.Unlock()
 		}()
 	}
-
 	wg.Wait()
+
+	// Coder allows for 1 unhealthy node in the region, unless there is only 1 node.
+	if len(r.Region.Nodes) == 1 {
+		r.Healthy = healthyNodes == len(r.Region.Nodes)
+	} else if healthyNodes < len(r.Region.Nodes) {
+		r.Warnings = append(r.Warnings, oneNodeUnhealthy)
+	}
 }
 
 func (r *NodeReport) derpURL() *url.URL {

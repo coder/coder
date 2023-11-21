@@ -625,6 +625,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 			DerpEnabled:      req.DerpEnabled,
 			DerpOnly:         req.DerpOnly,
 			WildcardHostname: req.WildcardHostname,
+			Version:          req.Version,
 		})
 		if err != nil {
 			return xerrors.Errorf("register workspace proxy: %w", err)
@@ -951,6 +952,7 @@ func convertProxy(p database.WorkspaceProxy, status proxyhealth.ProxyStatus) cod
 		CreatedAt:   p.CreatedAt,
 		UpdatedAt:   p.UpdatedAt,
 		Deleted:     p.Deleted,
+		Version:     p.Version,
 		Status: codersdk.WorkspaceProxyStatus{
 			Status:    codersdk.ProxyHealthStatus(status.Status),
 			Report:    status.Report,
