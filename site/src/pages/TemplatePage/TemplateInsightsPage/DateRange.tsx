@@ -1,6 +1,5 @@
-import Box from "@mui/material/Box";
-import { styled } from "@mui/material/styles";
-import { ComponentProps, useRef, useState } from "react";
+import { type Interpolation, type Theme } from "@emotion/react";
+import { type ComponentProps, type FC, useRef, useState } from "react";
 import "react-date-range/dist/styles.css";
 import "react-date-range/dist/theme/default.css";
 import Button from "@mui/material/Button";
@@ -37,13 +36,12 @@ type RangesState = NonNullable<
   ComponentProps<typeof DateRangePicker>["ranges"]
 >;
 
-export const DateRange = ({
-  value,
-  onChange,
-}: {
+interface DateRangeProps {
   value: DateRangeValue;
   onChange: (value: DateRangeValue) => void;
-}) => {
+}
+
+export const DateRange: FC<DateRangeProps> = ({ value, onChange }) => {
   const selectionStatusRef = useRef<"idle" | "selecting">("idle");
   const [ranges, setRanges] = useState<RangesState>([
     {
@@ -63,13 +61,15 @@ export const DateRange = ({
           <PopoverTrigger>
             <Button>
               <span>{format(currentRange.startDate, "MMM d, Y")}</span>
-              <ArrowRightAltOutlined sx={{ width: 16, height: 16, mx: 1 }} />
+              <ArrowRightAltOutlined
+                css={{ width: 16, height: 16, marginLeft: 8, marginRight: 8 }}
+              />
               <span>{format(currentRange.endDate, "MMM d, Y")}</span>
             </Button>
           </PopoverTrigger>
           <PopoverContent>
-            <DateRangePickerWrapper
-              component={DateRangePicker}
+            <DateRangePicker
+              css={styles.wrapper}
               onChange={(item) => {
                 const range = item.selection;
                 setRanges([range]);
@@ -143,93 +143,95 @@ export const DateRange = ({
   );
 };
 
-const DateRangePickerWrapper: typeof Box = styled(Box)(({ theme }) => ({
-  "& .rdrDefinedRangesWrapper": {
-    background: theme.palette.background.paper,
-    borderColor: theme.palette.divider,
-  },
+const styles = {
+  wrapper: (theme) => ({
+    "& .rdrDefinedRangesWrapper": {
+      background: theme.palette.background.paper,
+      borderColor: theme.palette.divider,
+    },
 
-  "& .rdrStaticRange": {
-    background: theme.palette.background.paper,
-    border: 0,
-    fontSize: 14,
-    color: theme.palette.text.secondary,
+    "& .rdrStaticRange": {
+      background: theme.palette.background.paper,
+      border: 0,
+      fontSize: 14,
+      color: theme.palette.text.secondary,
 
-    "&:hover .rdrStaticRangeLabel": {
-      background: theme.palette.background.paperLight,
+      "&:hover .rdrStaticRangeLabel": {
+        background: theme.palette.background.paperLight,
+        color: theme.palette.text.primary,
+      },
+
+      "&.rdrStaticRangeSelected": {
+        color: `${theme.palette.text.primary} !important`,
+      },
+    },
+
+    "& .rdrInputRanges": {
+      display: "none",
+    },
+
+    "& .rdrDateDisplayWrapper": {
+      backgroundColor: theme.palette.background.paper,
+    },
+
+    "& .rdrCalendarWrapper": {
+      backgroundColor: theme.palette.background.paperLight,
+    },
+
+    "& .rdrDateDisplayItem": {
+      background: "transparent",
+      borderColor: theme.palette.divider,
+
+      "& input": {
+        color: theme.palette.text.secondary,
+      },
+
+      "&.rdrDateDisplayItemActive": {
+        borderColor: theme.palette.text.primary,
+        backgroundColor: theme.palette.background.paperLight,
+
+        "& input": {
+          color: theme.palette.text.primary,
+        },
+      },
+    },
+
+    "& .rdrMonthPicker select, & .rdrYearPicker select": {
       color: theme.palette.text.primary,
+      appearance: "auto",
+      background: "transparent",
     },
 
-    "&.rdrStaticRangeSelected": {
-      color: `${theme.palette.text.primary} !important`,
-    },
-  },
-
-  "& .rdrInputRanges": {
-    display: "none",
-  },
-
-  "& .rdrDateDisplayWrapper": {
-    backgroundColor: theme.palette.background.paper,
-  },
-
-  "& .rdrCalendarWrapper": {
-    backgroundColor: theme.palette.background.paperLight,
-  },
-
-  "& .rdrDateDisplayItem": {
-    background: "transparent",
-    borderColor: theme.palette.divider,
-
-    "& input": {
+    "& .rdrMonthName, & .rdrWeekDay": {
       color: theme.palette.text.secondary,
     },
 
-    "&.rdrDateDisplayItemActive": {
-      borderColor: theme.palette.text.primary,
-      backgroundColor: theme.palette.background.paperLight,
-
-      "& input": {
-        color: theme.palette.text.primary,
-      },
-    },
-  },
-
-  "& .rdrMonthPicker select, & .rdrYearPicker select": {
-    color: theme.palette.text.primary,
-    appearance: "auto",
-    background: "transparent",
-  },
-
-  "& .rdrMonthName, & .rdrWeekDay": {
-    color: theme.palette.text.secondary,
-  },
-
-  "& .rdrDayPassive .rdrDayNumber span": {
-    color: theme.palette.text.disabled,
-  },
-
-  "& .rdrDayNumber span": {
-    color: theme.palette.text.primary,
-  },
-
-  "& .rdrDayToday .rdrDayNumber span": {
-    fontWeight: 900,
-
-    "&:after": {
-      display: "none",
-    },
-  },
-
-  "& .rdrInRange, & .rdrEndEdge, & .rdrStartEdge": {
-    color: theme.palette.primary.main,
-  },
-
-  "& .rdrDayDisabled": {
-    backgroundColor: "transparent",
-
-    "& .rdrDayNumber span": {
+    "& .rdrDayPassive .rdrDayNumber span": {
       color: theme.palette.text.disabled,
     },
-  },
-}));
+
+    "& .rdrDayNumber span": {
+      color: theme.palette.text.primary,
+    },
+
+    "& .rdrDayToday .rdrDayNumber span": {
+      fontWeight: 900,
+
+      "&:after": {
+        display: "none",
+      },
+    },
+
+    "& .rdrInRange, & .rdrEndEdge, & .rdrStartEdge": {
+      color: theme.palette.primary.main,
+    },
+
+    "& .rdrDayDisabled": {
+      backgroundColor: "transparent",
+
+      "& .rdrDayNumber span": {
+        color: theme.palette.text.disabled,
+      },
+    },
+  }),
+} satisfies Record<string, Interpolation<Theme>>;
