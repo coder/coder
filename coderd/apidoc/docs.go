@@ -12184,6 +12184,18 @@ const docTemplate = `{
                         "$ref": "#/definitions/derphealth.RegionReport"
                     }
                 },
+                "severity": {
+                    "enum": [
+                        "ok",
+                        "warning",
+                        "error"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/derphealth.Severity"
+                        }
+                    ]
+                },
                 "warnings": {
                     "type": "array",
                     "items": {
@@ -12191,6 +12203,19 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "derphealth.Severity": {
+            "type": "string",
+            "enum": [
+                "ok",
+                "warning",
+                "error"
+            ],
+            "x-enum-varnames": [
+                "SeverityOK",
+                "SeverityWarning",
+                "SeverityError"
+            ]
         },
         "derphealth.StunReport": {
             "type": "object",

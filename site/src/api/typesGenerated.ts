@@ -2205,6 +2205,7 @@ export interface DerphealthRegionReport {
 // From derphealth/derp.go
 export interface DerphealthReport {
   readonly healthy: boolean;
+  readonly severity: DerphealthSeverity;
   readonly warnings: string[];
   readonly regions: Record<number, DerphealthRegionReport>;
   // Named type "tailscale.com/net/netcheck.Report" unknown, using "any"
@@ -2221,3 +2222,11 @@ export interface DerphealthStunReport {
   readonly CanSTUN: boolean;
   readonly Error?: string;
 }
+
+// From derphealth/derp.go
+export type DerphealthSeverity = "error" | "ok" | "warning";
+export const DerphealthSeveritys: DerphealthSeverity[] = [
+  "error",
+  "ok",
+  "warning",
+];

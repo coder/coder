@@ -7419,6 +7419,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "warnings": ["string"]
     }
   },
+  "severity": "ok",
   "warnings": ["string"]
 }
 ```
@@ -7434,7 +7435,32 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `netcheck_logs`    | array of string                                    | false    |              |             |
 | `regions`          | object                                             | false    |              |             |
 | » `[any property]` | [derphealth.RegionReport](#derphealthregionreport) | false    |              |             |
+| `severity`         | [derphealth.Severity](#derphealthseverity)         | false    |              |             |
 | `warnings`         | array of string                                    | false    |              |             |
+
+#### Enumerated Values
+
+| Property   | Value     |
+| ---------- | --------- |
+| `severity` | `ok`      |
+| `severity` | `warning` |
+| `severity` | `error`   |
+
+## derphealth.Severity
+
+```json
+"ok"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value     |
+| --------- |
+| `ok`      |
+| `warning` |
+| `error`   |
 
 ## derphealth.StunReport
 
@@ -7698,6 +7724,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "warnings": ["string"]
       }
     },
+    "severity": "ok",
     "warnings": ["string"]
   },
   "failing_sections": ["string"],

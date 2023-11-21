@@ -233,6 +233,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
         "warnings": ["string"]
       }
     },
+    "severity": "ok",
     "warnings": ["string"]
   },
   "failing_sections": ["string"],
