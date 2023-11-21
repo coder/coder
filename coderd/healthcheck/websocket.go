@@ -9,9 +9,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
+
+	"github.com/coder/coder/v2/coderd/healthcheck/health"
 )
 
 type WebsocketReportOptions struct {
