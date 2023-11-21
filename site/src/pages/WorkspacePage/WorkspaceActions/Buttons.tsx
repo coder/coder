@@ -11,10 +11,13 @@ import { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { BuildParametersPopover } from "./BuildParametersPopover";
 import PowerSettingsNewIcon from "@mui/icons-material/PowerSettingsNew";
 import LoadingButton from "@mui/lab/LoadingButton";
+import { Tooltip } from "@mui/material";
 
 interface WorkspaceAction {
   loading?: boolean;
   handleAction: () => void;
+  disabled?: boolean;
+  tooltipText?: string;
 }
 
 export const UpdateButton: FC<WorkspaceAction> = ({
@@ -55,8 +58,14 @@ export const StartButton: FC<
     workspace: Workspace;
     handleAction: (buildParameters?: WorkspaceBuildParameter[]) => void;
   }
-> = ({ handleAction, workspace, loading }) => {
-  return (
+> = ({
+  handleAction,
+  workspace,
+  loading,
+  disabled = false,
+  tooltipText = "",
+}) => {
+  const buttonContent = (
     <ButtonGroup
       variant="outlined"
       sx={{
@@ -71,6 +80,7 @@ export const StartButton: FC<
         loadingPosition="start"
         startIcon={<PlayCircleOutlineIcon />}
         onClick={() => handleAction()}
+        disabled={disabled}
       >
         {loading ? <>Starting&hellip;</> : "Start"}
       </LoadingButton>
@@ -80,6 +90,12 @@ export const StartButton: FC<
         onSubmit={handleAction}
       />
     </ButtonGroup>
+  );
+
+  return tooltipText ? (
+    <Tooltip title={tooltipText}>{buttonContent}</Tooltip>
+  ) : (
+    buttonContent
   );
 };
 
@@ -102,8 +118,14 @@ export const RestartButton: FC<
     workspace: Workspace;
     handleAction: (buildParameters?: WorkspaceBuildParameter[]) => void;
   }
-> = ({ handleAction, loading, workspace }) => {
-  return (
+> = ({
+  handleAction,
+  loading,
+  workspace,
+  disabled = false,
+  tooltipText = "",
+}) => {
+  const buttonContent = (
     <ButtonGroup
       variant="outlined"
       sx={{
@@ -119,6 +141,7 @@ export const RestartButton: FC<
         startIcon={<ReplayIcon />}
         onClick={() => handleAction()}
         data-testid="workspace-restart-button"
+        disabled={disabled}
       >
         {loading ? <>Restarting&hellip;</> : <>Restart&hellip;</>}
       </LoadingButton>
@@ -128,6 +151,12 @@ export const RestartButton: FC<
         onSubmit={handleAction}
       />
     </ButtonGroup>
+  );
+
+  return tooltipText ? (
+    <Tooltip title={tooltipText}>{buttonContent}</Tooltip>
+  ) : (
+    buttonContent
   );
 };
 

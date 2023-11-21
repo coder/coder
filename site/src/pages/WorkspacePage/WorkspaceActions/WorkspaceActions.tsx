@@ -30,6 +30,7 @@ import {
   MoreMenuTrigger,
   ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
+import { workspaceUpdatePolicy } from "utils/workspace";
 
 export interface WorkspaceActionsProps {
   workspace: Workspace;
@@ -67,14 +68,27 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     canCancel,
     canAcceptJobs,
     actions: actionsByStatus,
-  } = actionsByWorkspaceStatus(
-    workspace,
-    workspace.latest_build.status,
-    canChangeVersions,
-  );
+  } = actionsByWorkspaceStatus(workspace, workspace.latest_build.status);
   const canBeUpdated = workspace.outdated && canAcceptJobs;
   const { duplicateWorkspace, isDuplicationReady } =
     useWorkspaceDuplication(workspace);
+
+  const disabled =
+    workspaceUpdatePolicy(workspace, canChangeVersions) === "always" &&
+    workspace.outdated;
+
+  const tooltipText = ((): string => {
+    if (!disabled) {
+      return "";
+    }
+    if (workspace.template_require_active_version) {
+      return "This template requires automatic updates";
+    }
+    if (workspace.automatic_updates === "always") {
+      return "You have enabled automatic updates for this workspace";
+    }
+    return "";
+  })();
 
   // A mapping of button type to the corresponding React component
   const buttonMapping: ButtonMapping = {
@@ -83,23 +97,41 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
       <UpdateButton loading handleAction={handleUpdate} />
     ),
     [ButtonTypesEnum.start]: (
-      <StartButton workspace={workspace} handleAction={handleStart} />
+      <StartButton
+        workspace={workspace}
+        handleAction={handleStart}
+        disabled={disabled}
+        tooltipText={tooltipText}
+      />
     ),
     [ButtonTypesEnum.starting]: (
-      <StartButton loading workspace={workspace} handleAction={handleStart} />
+      <StartButton
+        loading
+        workspace={workspace}
+        handleAction={handleStart}
+        disabled={disabled}
+        tooltipText={tooltipText}
+      />
     ),
     [ButtonTypesEnum.stop]: <StopButton handleAction={handleStop} />,
     [ButtonTypesEnum.stopping]: (
       <StopButton loading handleAction={handleStop} />
     ),
     [ButtonTypesEnum.restart]: (
-      <RestartButton workspace={workspace} handleAction={handleRestart} />
+      <RestartButton
+        workspace={workspace}
+        handleAction={handleRestart}
+        disabled={disabled}
+        tooltipText={tooltipText}
+      />
     ),
     [ButtonTypesEnum.restarting]: (
       <RestartButton
         loading
         workspace={workspace}
         handleAction={handleRestart}
+        disabled={disabled}
+        tooltipText={tooltipText}
       />
     ),
     [ButtonTypesEnum.deleting]: <ActionLoadingButton label="Deleting" />,
