@@ -856,6 +856,32 @@ func TestWorkspaceAgentReportStats(t *testing.T) {
 		agentClient.SetSessionToken(authToken)
 
 		_, err := agentClient.PostStats(context.Background(), &agentsdk.Stats{
+			ConnectionsByProto: map[string]int64{"TCP": 1},
+			// Set connection count to 1 but all session counts to zero to
+			// assert we aren't updating last_used_at for a connections that may
+			// be spawned passively by the dashboard.
+			ConnectionCount:             1,
+			RxPackets:                   1,
+			RxBytes:                     1,
+			TxPackets:                   1,
+			TxBytes:                     1,
+			SessionCountVSCode:          0,
+			SessionCountJetBrains:       0,
+			SessionCountReconnectingPTY: 0,
+			SessionCountSSH:             0,
+			ConnectionMedianLatencyMS:   10,
+		})
+		require.NoError(t, err)
+
+		newWorkspace, err := client.Workspace(context.Background(), ws.ID)
+		require.NoError(t, err)
+
+		assert.True(t,
+			newWorkspace.LastUsedAt.Equal(ws.LastUsedAt),
+			"%s and %s should not differ", newWorkspace.LastUsedAt, ws.LastUsedAt,
+		)
+
+		_, err = agentClient.PostStats(context.Background(), &agentsdk.Stats{
 			ConnectionsByProto:          map[string]int64{"TCP": 1},
 			ConnectionCount:             1,
 			RxPackets:                   1,
@@ -863,14 +889,14 @@ func TestWorkspaceAgentReportStats(t *testing.T) {
 			TxPackets:                   1,
 			TxBytes:                     1,
 			SessionCountVSCode:          1,
-			SessionCountJetBrains:       1,
-			SessionCountReconnectingPTY: 1,
-			SessionCountSSH:             1,
+			SessionCountJetBrains:       0,
+			SessionCountReconnectingPTY: 0,
+			SessionCountSSH:             0,
 			ConnectionMedianLatencyMS:   10,
 		})
 		require.NoError(t, err)
 
-		newWorkspace, err := client.Workspace(context.Background(), ws.ID)
+		newWorkspace, err = client.Workspace(context.Background(), ws.ID)
 		require.NoError(t, err)
 
 		assert.True(t,

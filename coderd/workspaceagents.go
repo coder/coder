@@ -1702,16 +1702,18 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		}
 		return nil
 	})
-	errGroup.Go(func() error {
-		err := api.Database.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
-			ID:         workspace.ID,
-			LastUsedAt: now,
+	if req.SessionCount() > 0 {
+		errGroup.Go(func() error {
+			err := api.Database.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
+				ID:         workspace.ID,
+				LastUsedAt: now,
+			})
+			if err != nil {
+				return xerrors.Errorf("can't update workspace LastUsedAt: %w", err)
+			}
+			return nil
 		})
-		if err != nil {
-			return xerrors.Errorf("can't update workspace LastUsedAt: %w", err)
-		}
-		return nil
-	})
+	}
 	if api.Options.UpdateAgentMetrics != nil {
 		errGroup.Go(func() error {
 			user, err := api.Database.GetUserByID(ctx, workspace.OwnerID)
