@@ -95,6 +95,7 @@ func (n FeatureName) AlwaysEnable() bool {
 		FeatureExternalProvisionerDaemons: true,
 		FeatureAppearance:                 true,
 		FeatureWorkspaceBatchActions:      true,
+		FeatureHighAvailability:           true,
 	}[n]
 }
 
