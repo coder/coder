@@ -437,6 +437,24 @@ func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
 
+	p := httpapi.NewQueryParamParser()
+	values := r.URL.Query()
+
+	deprecated := sql.NullBool{}
+	if values.Has("deprecated") {
+		deprecated = sql.NullBool{
+			Bool:  p.Boolean(values, false, "deprecated"),
+			Valid: true,
+		}
+	}
+	if len(p.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid query params.",
+			Validations: p.Errors,
+		})
+		return
+	}
+
 	prepared, err := api.HTTPAuth.AuthorizeSQLFilter(r, rbac.ActionRead, rbac.ResourceTemplate.Type)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -449,6 +467,7 @@ func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 	// Filter templates based on rbac permissions
 	templates, err := api.Database.GetAuthorizedTemplates(ctx, database.GetTemplatesWithFilterParams{
 		OrganizationID: organization.ID,
+		Deprecated:     deprecated,
 	}, prepared)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
@@ -584,6 +603,11 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	if req.AutostopRequirement.Weeks > schedule.MaxTemplateAutostopRequirementWeeks {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "autostop_requirement.weeks", Detail: fmt.Sprintf("Must be less than %d.", schedule.MaxTemplateAutostopRequirementWeeks)})
 	}
+	// Defaults to the existing.
+	deprecationMessage := template.Deprecated
+	if req.DeprecationMessage != nil {
+		deprecationMessage = *req.DeprecationMessage
+	}
 
 	// The minimum valid value for a dormant TTL is 1 minute. This is
 	// to ensure an uninformed user does not send an unintentionally
@@ -624,7 +648,8 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.FailureTTLMillis == time.Duration(template.FailureTTL).Milliseconds() &&
 			req.TimeTilDormantMillis == time.Duration(template.TimeTilDormant).Milliseconds() &&
 			req.TimeTilDormantAutoDeleteMillis == time.Duration(template.TimeTilDormantAutoDelete).Milliseconds() &&
-			req.RequireActiveVersion == template.RequireActiveVersion {
+			req.RequireActiveVersion == template.RequireActiveVersion &&
+			(deprecationMessage == template.Deprecated) {
 			return nil
 		}
 
@@ -648,9 +673,10 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("update template metadata: %w", err)
 		}
 
-		if template.RequireActiveVersion != req.RequireActiveVersion {
+		if template.RequireActiveVersion != req.RequireActiveVersion || deprecationMessage != template.Deprecated {
 			err = (*api.AccessControlStore.Load()).SetTemplateAccessControl(ctx, tx, template.ID, dbauthz.TemplateAccessControl{
 				RequireActiveVersion: req.RequireActiveVersion,
+				Deprecated:           deprecationMessage,
 			})
 			if err != nil {
 				return xerrors.Errorf("set template access control: %w", err)
@@ -804,6 +830,7 @@ func (api *API) convertTemplates(templates []database.Template) []codersdk.Templ
 func (api *API) convertTemplate(
 	template database.Template,
 ) codersdk.Template {
+	templateAccessControl := (*(api.Options.AccessControlStore.Load())).GetTemplateAccessControl(template)
 	activeCount, _ := api.metricsCache.TemplateUniqueUsers(template.ID)
 
 	buildTimeStats := api.metricsCache.TemplateBuildTimeStats(template.ID)
@@ -843,6 +870,9 @@ func (api *API) convertTemplate(
 		AutostartRequirement: codersdk.TemplateAutostartRequirement{
 			DaysOfWeek: codersdk.BitmapToWeekdays(template.AutostartAllowedDays()),
 		},
-		RequireActiveVersion: template.RequireActiveVersion,
+		// These values depend on entitlements and come from the templateAccessControl
+		RequireActiveVersion: templateAccessControl.RequireActiveVersion,
+		Deprecated:           templateAccessControl.IsDeprecated(),
+		DeprecationMessage:   templateAccessControl.Deprecated,
 	}
 }

@@ -10,62 +10,50 @@ const meta: Meta<typeof Avatar> = {
 export default meta;
 type Story = StoryObj<typeof Avatar>;
 
-export const Letter: Story = {
+export const WithLetter: Story = {
   args: {
     children: "Coder",
   },
 };
 
-export const LetterXL = {
+export const WithLetterXL = {
   args: {
     children: "Coder",
     size: "xl",
   },
 };
 
-export const LetterDarken = {
-  args: {
-    children: "Coder",
-    colorScheme: "darken",
-  },
-};
-
-export const Image = {
+export const WithImage = {
   args: {
     src: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
   },
 };
 
-export const ImageXL = {
+export const WithImageXL = {
   args: {
     src: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
     size: "xl",
   },
 };
 
-export const MuiIcon = {
+export const WithMuiIcon = {
   args: {
+    background: true,
     children: <PauseIcon />,
   },
 };
 
-export const MuiIconDarken = {
+export const WithMuiIconXL = {
   args: {
-    children: <PauseIcon />,
-    colorScheme: "darken",
-  },
-};
-
-export const MuiIconXL = {
-  args: {
+    background: true,
     children: <PauseIcon />,
     size: "xl",
   },
 };
 
-export const AvatarIconDarken = {
+export const WithAvatarIcon = {
   args: {
+    background: true,
     children: <AvatarIcon src="/icon/database.svg" alt="Database" />,
-    colorScheme: "darken",
   },
 };

@@ -86,6 +86,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"time_til_dormant":                  ActionTrack,
 		"time_til_dormant_autodelete":       ActionTrack,
 		"require_active_version":            ActionTrack,
+		"deprecated":                        ActionTrack,
 	},
 	&database.TemplateVersion{}: {
 		"id":                      ActionTrack,
@@ -206,6 +207,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"derp_enabled":        ActionTrack,
 		"derp_only":           ActionTrack,
 		"region_id":           ActionTrack,
+		"version":             ActionTrack,
 	},
 }
 

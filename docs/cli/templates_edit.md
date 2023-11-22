@@ -55,6 +55,14 @@ Edit the template autostart requirement weekdays - workspaces created from this 
 
 Edit the template default time before shutdown - workspaces created from this template default to this value. Maps to "Default autostop" in the UI.
 
+### --deprecated
+
+|      |                     |
+| ---- | ------------------- |
+| Type | <code>string</code> |
+
+Sets the template as deprecated. Must be a message explaining why the template is deprecated.
+
 ### --description
 
 |      |                     |
@@ -70,6 +78,24 @@ Edit the template description.
 | Type | <code>string</code> |
 
 Edit the template display name.
+
+### --dormancy-auto-deletion
+
+|         |                       |
+| ------- | --------------------- |
+| Type    | <code>duration</code> |
+| Default | <code>0h</code>       |
+
+Specify a duration workspaces may be in the dormant state prior to being deleted. This licensed feature's default is 0h (off). Maps to "Dormancy Auto-Deletion" in the UI.
+
+### --dormancy-threshold
+
+|         |                       |
+| ------- | --------------------- |
+| Type    | <code>duration</code> |
+| Default | <code>0h</code>       |
+
+Specify a duration workspaces may be inactive prior to being moved to the dormant state. This licensed feature's default is 0h (off). Maps to "Dormancy threshold" in the UI.
 
 ### --failure-ttl
 
@@ -87,15 +113,6 @@ Specify a failure TTL for workspaces created from this template. It is the amoun
 | Type | <code>string</code> |
 
 Edit the template icon path.
-
-### --inactivity-ttl
-
-|         |                       |
-| ------- | --------------------- |
-| Type    | <code>duration</code> |
-| Default | <code>0h</code>       |
-
-Specify an inactivity TTL for workspaces created from this template. It is the amount of time the workspace is not used before it is be stopped and auto-locked. This includes across multiple builds (e.g. auto-starts and stops). This licensed feature's default is 0h (off). Maps to "Dormancy threshold" in the UI.
 
 ### --max-ttl
 

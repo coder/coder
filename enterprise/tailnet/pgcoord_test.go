@@ -3,7 +3,6 @@ package tailnet_test
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"io"
 	"net"
 	"sync"
@@ -17,6 +16,7 @@ import (
 	"go.uber.org/goleak"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
+	gProto "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/enterprise/tailnet"
 	agpl "github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -52,17 +53,17 @@ func TestPGCoordinatorSingle_ClientWithoutAgent(t *testing.T) {
 	defer client.close()
 	client.sendNode(&agpl.Node{PreferredDERP: 10})
 	require.Eventually(t, func() bool {
-		clients, err := store.GetTailnetClientsForAgent(ctx, agentID)
+		clients, err := store.GetTailnetTunnelPeerBindings(ctx, agentID)
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 			t.Fatalf("database error: %v", err)
 		}
 		if len(clients) == 0 {
 			return false
 		}
-		var node agpl.Node
-		err = json.Unmarshal(clients[0].Node, &node)
+		node := new(proto.Node)
+		err = gProto.Unmarshal(clients[0].Node, node)
 		assert.NoError(t, err)
-		assert.Equal(t, 10, node.PreferredDERP)
+		assert.EqualValues(t, 10, node.PreferredDerp)
 		return true
 	}, testutil.WaitShort, testutil.IntervalFast)
 
@@ -90,17 +91,17 @@ func TestPGCoordinatorSingle_AgentWithoutClients(t *testing.T) {
 	defer agent.close()
 	agent.sendNode(&agpl.Node{PreferredDERP: 10})
 	require.Eventually(t, func() bool {
-		agents, err := store.GetTailnetAgents(ctx, agent.id)
+		agents, err := store.GetTailnetPeers(ctx, agent.id)
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 			t.Fatalf("database error: %v", err)
 		}
 		if len(agents) == 0 {
 			return false
 		}
-		var node agpl.Node
-		err = json.Unmarshal(agents[0].Node, &node)
+		node := new(proto.Node)
+		err = gProto.Unmarshal(agents[0].Node, node)
 		assert.NoError(t, err)
-		assert.Equal(t, 10, node.PreferredDERP)
+		assert.EqualValues(t, 10, node.PreferredDerp)
 		return true
 	}, testutil.WaitShort, testutil.IntervalFast)
 	err = agent.close()
@@ -342,39 +343,51 @@ func TestPGCoordinatorDual_Mainline(t *testing.T) {
 
 	agent1 := newTestAgent(t, coord1, "agent1")
 	defer agent1.close()
+	t.Logf("agent1=%s", agent1.id)
 	agent2 := newTestAgent(t, coord2, "agent2")
 	defer agent2.close()
+	t.Logf("agent2=%s", agent2.id)
 
 	client11 := newTestClient(t, coord1, agent1.id)
 	defer client11.close()
+	t.Logf("client11=%s", client11.id)
 	client12 := newTestClient(t, coord1, agent2.id)
 	defer client12.close()
+	t.Logf("client12=%s", client12.id)
 	client21 := newTestClient(t, coord2, agent1.id)
 	defer client21.close()
+	t.Logf("client21=%s", client21.id)
 	client22 := newTestClient(t, coord2, agent2.id)
 	defer client22.close()
+	t.Logf("client22=%s", client22.id)
 
+	t.Logf("client11 -> Node 11")
 	client11.sendNode(&agpl.Node{PreferredDERP: 11})
 	assertEventuallyHasDERPs(ctx, t, agent1, 11)
 
+	t.Logf("client21 -> Node 21")
 	client21.sendNode(&agpl.Node{PreferredDERP: 21})
-	assertEventuallyHasDERPs(ctx, t, agent1, 21, 11)
+	assertEventuallyHasDERPs(ctx, t, agent1, 21)
 
+	t.Logf("client22 -> Node 22")
 	client22.sendNode(&agpl.Node{PreferredDERP: 22})
 	assertEventuallyHasDERPs(ctx, t, agent2, 22)
 
+	t.Logf("agent2 -> Node 2")
 	agent2.sendNode(&agpl.Node{PreferredDERP: 2})
 	assertEventuallyHasDERPs(ctx, t, client22, 2)
 	assertEventuallyHasDERPs(ctx, t, client12, 2)
 
+	t.Logf("client12 -> Node 12")
 	client12.sendNode(&agpl.Node{PreferredDERP: 12})
-	assertEventuallyHasDERPs(ctx, t, agent2, 12, 22)
+	assertEventuallyHasDERPs(ctx, t, agent2, 12)
 
+	t.Logf("agent1 -> Node 1")
 	agent1.sendNode(&agpl.Node{PreferredDERP: 1})
 	assertEventuallyHasDERPs(ctx, t, client21, 1)
 	assertEventuallyHasDERPs(ctx, t, client11, 1)
 
-	// let's close coord2
+	t.Logf("close coord2")
 	err = coord2.Close()
 	require.NoError(t, err)
 
@@ -386,18 +399,9 @@ func TestPGCoordinatorDual_Mainline(t *testing.T) {
 	err = client21.recvErr(ctx, t)
 	require.ErrorIs(t, err, io.EOF)
 
-	// agent1 will see an update that drops client21.
-	// In this case the update is superfluous because client11's node hasn't changed, and agents don't deprogram clients
-	// from the dataplane even if they are missing.  Suppressing this kind of update would require the coordinator to
-	// store all the data its sent to each connection, so we don't bother.
-	assertEventuallyHasDERPs(ctx, t, agent1, 11)
-
-	// note that although agent2 is disconnected, client12 does NOT get an update because we suppress empty updates.
-	// (Its easy to tell these are superfluous.)
-
 	assertEventuallyNoAgents(ctx, t, store, agent2.id)
 
-	// Close coord1
+	t.Logf("close coord1")
 	err = coord1.Close()
 	require.NoError(t, err)
 	// this closes agent1, client12, client11
@@ -541,9 +545,12 @@ func TestPGCoordinator_Unhealthy(t *testing.T) {
 		Return(database.TailnetCoordinator{}, nil)
 	// extra calls we don't particularly care about for this test
 	mStore.EXPECT().CleanTailnetCoordinators(gomock.Any()).AnyTimes().Return(nil)
-	mStore.EXPECT().GetTailnetClientsForAgent(gomock.Any(), gomock.Any()).AnyTimes().Return(nil, nil)
-	mStore.EXPECT().DeleteTailnetAgent(gomock.Any(), gomock.Any()).
-		AnyTimes().Return(database.DeleteTailnetAgentRow{}, nil)
+	mStore.EXPECT().GetTailnetTunnelPeerIDs(gomock.Any(), gomock.Any()).AnyTimes().Return(nil, nil)
+	mStore.EXPECT().GetTailnetTunnelPeerBindings(gomock.Any(), gomock.Any()).
+		AnyTimes().Return(nil, nil)
+	mStore.EXPECT().DeleteTailnetPeer(gomock.Any(), gomock.Any()).
+		AnyTimes().Return(database.DeleteTailnetPeerRow{}, nil)
+	mStore.EXPECT().DeleteAllTailnetTunnels(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 	mStore.EXPECT().DeleteCoordinator(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 
 	uut, err := tailnet.NewPGCoord(ctx, logger, ps, mStore)
@@ -587,6 +594,34 @@ func TestPGCoordinator_Unhealthy(t *testing.T) {
 	case <-time.After(time.Second):
 		// OK
 	}
+}
+
+// TestPGCoordinator_BidirectionalTunnels tests when peers create tunnels to each other.  We don't
+// do this now, but it's schematically possible, so we should make sure it doesn't break anything.
+func TestPGCoordinator_BidirectionalTunnels(t *testing.T) {
+	t.Parallel()
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("test only with postgres")
+	}
+	store, ps := dbtestutil.NewDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+	defer cancel()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	coordinator, err := tailnet.NewPGCoordV2(ctx, logger, ps, store)
+	require.NoError(t, err)
+	defer coordinator.Close()
+
+	p1 := newTestPeer(ctx, t, coordinator, "p1")
+	defer p1.close(ctx)
+	p2 := newTestPeer(ctx, t, coordinator, "p2")
+	defer p2.close(ctx)
+	p1.addTunnel(p2.id)
+	p2.addTunnel(p1.id)
+	p1.updateDERP(1)
+	p2.updateDERP(2)
+
+	p1.assertEventuallyHasDERP(p2.id, 2)
+	p2.assertEventuallyHasDERP(p1.id, 1)
 }
 
 type testConn struct {
@@ -779,7 +814,7 @@ func assertMultiAgentNeverHasDERPs(ctx context.Context, t *testing.T, ma agpl.Mu
 
 func assertEventuallyNoAgents(ctx context.Context, t *testing.T, store database.Store, agentID uuid.UUID) {
 	assert.Eventually(t, func() bool {
-		agents, err := store.GetTailnetAgents(ctx, agentID)
+		agents, err := store.GetTailnetPeers(ctx, agentID)
 		if xerrors.Is(err, sql.ErrNoRows) {
 			return true
 		}
@@ -793,7 +828,7 @@ func assertEventuallyNoAgents(ctx context.Context, t *testing.T, store database.
 func assertEventuallyNoClientsForAgent(ctx context.Context, t *testing.T, store database.Store, agentID uuid.UUID) {
 	t.Helper()
 	assert.Eventually(t, func() bool {
-		clients, err := store.GetTailnetClientsForAgent(ctx, agentID)
+		clients, err := store.GetTailnetTunnelPeerIDs(ctx, agentID)
 		if xerrors.Is(err, sql.ErrNoRows) {
 			return true
 		}
@@ -802,6 +837,108 @@ func assertEventuallyNoClientsForAgent(ctx context.Context, t *testing.T, store 
 		}
 		return len(clients) == 0
 	}, testutil.WaitShort, testutil.IntervalFast)
+}
+
+type testPeer struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+	t      testing.TB
+	id     uuid.UUID
+	name   string
+	resps  <-chan *proto.CoordinateResponse
+	reqs   chan<- *proto.CoordinateRequest
+	derps  map[uuid.UUID]int32
+}
+
+func newTestPeer(ctx context.Context, t testing.TB, coord agpl.CoordinatorV2, name string, id ...uuid.UUID) *testPeer {
+	p := &testPeer{t: t, name: name, derps: make(map[uuid.UUID]int32)}
+	p.ctx, p.cancel = context.WithCancel(ctx)
+	if len(id) > 1 {
+		t.Fatal("too many")
+	}
+	if len(id) == 1 {
+		p.id = id[0]
+	} else {
+		p.id = uuid.New()
+	}
+	// SingleTailnetTunnelAuth allows connections to arbitrary peers
+	p.reqs, p.resps = coord.Coordinate(p.ctx, p.id, name, agpl.SingleTailnetTunnelAuth{})
+	return p
+}
+
+func (p *testPeer) addTunnel(other uuid.UUID) {
+	p.t.Helper()
+	req := &proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{Uuid: agpl.UUIDToByteSlice(other)}}
+	select {
+	case <-p.ctx.Done():
+		p.t.Errorf("timeout adding tunnel for %s", p.name)
+		return
+	case p.reqs <- req:
+		return
+	}
+}
+
+func (p *testPeer) updateDERP(derp int32) {
+	p.t.Helper()
+	req := &proto.CoordinateRequest{UpdateSelf: &proto.CoordinateRequest_UpdateSelf{Node: &proto.Node{PreferredDerp: derp}}}
+	select {
+	case <-p.ctx.Done():
+		p.t.Errorf("timeout updating node for %s", p.name)
+		return
+	case p.reqs <- req:
+		return
+	}
+}
+
+func (p *testPeer) assertEventuallyHasDERP(other uuid.UUID, derp int32) {
+	p.t.Helper()
+	for {
+		d, ok := p.derps[other]
+		if ok && d == derp {
+			return
+		}
+		select {
+		case <-p.ctx.Done():
+			p.t.Errorf("timeout waiting for response for %s", p.name)
+			return
+		case resp, ok := <-p.resps:
+			if !ok {
+				p.t.Errorf("responses closed for %s", p.name)
+				return
+			}
+			for _, update := range resp.PeerUpdates {
+				id, err := uuid.FromBytes(update.Uuid)
+				if !assert.NoError(p.t, err) {
+					return
+				}
+				switch update.Kind {
+				case proto.CoordinateResponse_PeerUpdate_NODE:
+					p.derps[id] = update.Node.PreferredDerp
+				case proto.CoordinateResponse_PeerUpdate_DISCONNECTED:
+					delete(p.derps, id)
+				default:
+					p.t.Errorf("unhandled update kind %s", update.Kind)
+				}
+			}
+		}
+	}
+}
+
+func (p *testPeer) close(ctx context.Context) {
+	p.t.Helper()
+	p.cancel()
+	for {
+		select {
+		case <-ctx.Done():
+			p.t.Errorf("timeout waiting for responses to close for %s", p.name)
+			return
+		case _, ok := <-p.resps:
+			if ok {
+				continue
+			}
+			return
+		}
+	}
 }
 
 type fakeCoordinator struct {
@@ -819,12 +956,15 @@ func (c *fakeCoordinator) heartbeat() {
 
 func (c *fakeCoordinator) agentNode(agentID uuid.UUID, node *agpl.Node) {
 	c.t.Helper()
-	nodeRaw, err := json.Marshal(node)
+	pNode, err := agpl.NodeToProto(node)
 	require.NoError(c.t, err)
-	_, err = c.store.UpsertTailnetAgent(c.ctx, database.UpsertTailnetAgentParams{
+	nodeRaw, err := gProto.Marshal(pNode)
+	require.NoError(c.t, err)
+	_, err = c.store.UpsertTailnetPeer(c.ctx, database.UpsertTailnetPeerParams{
 		ID:            agentID,
 		CoordinatorID: c.id,
 		Node:          nodeRaw,
+		Status:        database.TailnetStatusOk,
 	})
 	require.NoError(c.t, err)
 }

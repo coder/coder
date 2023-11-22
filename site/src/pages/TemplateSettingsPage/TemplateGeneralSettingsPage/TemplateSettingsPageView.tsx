@@ -13,6 +13,7 @@ export interface TemplateSettingsPageViewProps {
     typeof TemplateSettingsForm
   >["initialTouched"];
   accessControlEnabled: boolean;
+  templatePoliciesEnabled: boolean;
 }
 
 export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
@@ -23,6 +24,7 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
   submitError,
   initialTouched,
   accessControlEnabled,
+  templatePoliciesEnabled,
 }) => {
   return (
     <>
@@ -38,6 +40,7 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
         onCancel={onCancel}
         error={submitError}
         accessControlEnabled={accessControlEnabled}
+        templatePoliciesEnabled={templatePoliciesEnabled}
       />
     </>
   );

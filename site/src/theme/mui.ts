@@ -6,7 +6,10 @@ import {
   BUTTON_LG_HEIGHT,
   BUTTON_MD_HEIGHT,
   BUTTON_SM_HEIGHT,
+  BUTTON_XL_HEIGHT,
 } from "./constants";
+// eslint-disable-next-line no-restricted-imports -- We need MUI here
+import { alertClasses } from "@mui/material/Alert";
 
 export type PaletteIndex =
   | "primary"
@@ -41,7 +44,7 @@ export let dark = createTheme({
     },
     text: {
       primary: colors.gray[1],
-      secondary: colors.gray[4],
+      secondary: colors.gray[6],
       disabled: colors.gray[9],
     },
     divider: colors.gray[13],
@@ -52,7 +55,7 @@ export let dark = createTheme({
     },
     success: {
       main: colors.green[11],
-      dark: colors.green[15],
+      dark: colors.green[12],
     },
     info: {
       light: colors.blue[7],
@@ -170,6 +173,9 @@ dark = createTheme(dark, {
         sizeLarge: {
           height: BUTTON_LG_HEIGHT,
         },
+        sizeXlarge: {
+          height: BUTTON_XL_HEIGHT,
+        },
         outlined: {
           ":hover": {
             border: `1px solid ${colors.gray[11]}`,
@@ -188,10 +194,10 @@ dark = createTheme(dark, {
           },
         },
         containedNeutral: {
-          borderColor: colors.gray[12],
-          backgroundColor: colors.gray[13],
+          backgroundColor: colors.gray[14],
+
           "&:hover": {
-            backgroundColor: colors.gray[12],
+            backgroundColor: colors.gray[13],
           },
         },
         iconSizeMedium: {
@@ -514,6 +520,21 @@ dark = createTheme(dark, {
         message: ({ theme }) => ({
           color: theme.palette.text.primary,
         }),
+        outlinedWarning: {
+          [`& .${alertClasses.icon}`]: {
+            color: dark.palette.warning.light,
+          },
+        },
+        outlinedInfo: {
+          [`& .${alertClasses.icon}`]: {
+            color: dark.palette.primary.light,
+          },
+        },
+        outlinedError: {
+          [`& .${alertClasses.icon}`]: {
+            color: dark.palette.error.light,
+          },
+        },
       },
     },
     MuiAlertTitle: {

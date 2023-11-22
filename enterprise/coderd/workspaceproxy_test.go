@@ -115,9 +115,35 @@ func TestRegions(t *testing.T) {
 		proxy, err := db.GetWorkspaceProxyByName(ctx, proxyName)
 		require.NoError(t, err)
 
-		// Refresh proxy health.
-		err = api.ProxyHealth.ForceUpdate(ctx)
-		require.NoError(t, err)
+		// Wait for the proxy to become healthy.
+		require.Eventually(t, func() bool {
+			healthCtx := testutil.Context(t, testutil.WaitLong)
+			err := api.ProxyHealth.ForceUpdate(healthCtx)
+			if !assert.NoError(t, err) {
+				return false
+			}
+
+			wps, err := client.WorkspaceProxies(ctx)
+			if !assert.NoError(t, err) {
+				return false
+			}
+			if !assert.Len(t, wps.Regions, 2) {
+				return false
+			}
+			for _, wp := range wps.Regions {
+				if !wp.Healthy {
+					t.Logf("region %q is not healthy yet, retrying healthcheck", wp.Name)
+					for _, errMsg := range wp.Status.Report.Errors {
+						t.Logf(" - error: %s", errMsg)
+					}
+					for _, warnMsg := range wp.Status.Report.Warnings {
+						t.Logf(" - warning: %s", warnMsg)
+					}
+					return false
+				}
+			}
+			return true
+		}, testutil.WaitLong, testutil.IntervalMedium)
 
 		regions, err := client.Regions(ctx)
 		require.NoError(t, err)

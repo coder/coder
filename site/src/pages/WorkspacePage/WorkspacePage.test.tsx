@@ -12,9 +12,9 @@ import {
   MockTemplateVersionParameter1,
   MockTemplateVersionParameter2,
   MockBuilds,
-  MockTemplateVersion3,
   MockUser,
   MockDeploymentConfig,
+  MockWorkspaceBuildDelete,
 } from "testHelpers/entities";
 import * as api from "api/api";
 import { renderWithAuth } from "testHelpers/renderHelpers";
@@ -90,7 +90,7 @@ describe("WorkspacePage", () => {
 
     // Get dialog and confirm
     const dialog = await screen.findByTestId("dialog");
-    const labelText = "Name of the workspace to delete";
+    const labelText = "Workspace name";
     const textField = within(dialog).getByLabelText(labelText);
     await user.type(textField, MockWorkspace.name);
     const confirmButton = within(dialog).getByRole("button", {
@@ -99,6 +99,62 @@ describe("WorkspacePage", () => {
     });
     await user.click(confirmButton);
     expect(deleteWorkspaceMock).toBeCalled();
+  });
+
+  it("orphans the workspace on delete if option is selected", async () => {
+    const user = userEvent.setup({ delay: 0 });
+
+    // set permissions
+    server.use(
+      rest.post("/api/v2/authcheck", async (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            updateTemplates: true,
+            updateWorkspace: true,
+            updateTemplate: true,
+          }),
+        );
+      }),
+    );
+
+    const deleteWorkspaceMock = jest
+      .spyOn(api, "deleteWorkspace")
+      .mockResolvedValueOnce(MockWorkspaceBuildDelete);
+    await renderWorkspacePage();
+
+    // open the workspace action popover so we have access to all available ctas
+    const trigger = screen.getByTestId("workspace-options-button");
+    await user.click(trigger);
+
+    // Click on delete
+    const button = await screen.findByTestId("delete-button");
+    await user.click(button);
+
+    // Get dialog and enter confirmation text
+    const dialog = await screen.findByTestId("dialog");
+    const labelText = "Workspace name";
+    const textField = within(dialog).getByLabelText(labelText);
+    await user.type(textField, MockWorkspace.name);
+
+    // check orphan option
+    const orphanCheckbox = within(
+      screen.getByTestId("orphan-checkbox"),
+    ).getByRole("checkbox");
+
+    await user.click(orphanCheckbox);
+
+    // confirm
+    const confirmButton = within(dialog).getByRole("button", {
+      name: "Delete",
+      hidden: false,
+    });
+    await user.click(confirmButton);
+    // arguments are workspace.name, log level (undefined), and orphan
+    expect(deleteWorkspaceMock).toBeCalledWith(MockWorkspace.id, {
+      log_level: undefined,
+      orphan: true,
+    });
   });
 
   it("requests a start job when the user presses Start", async () => {
@@ -202,10 +258,10 @@ describe("WorkspacePage", () => {
     const updateWorkspaceSpy = jest
       .spyOn(api, "updateWorkspace")
       .mockRejectedValueOnce(
-        new api.MissingBuildParameters([
-          MockTemplateVersionParameter1,
-          MockTemplateVersionParameter2,
-        ]),
+        new api.MissingBuildParameters(
+          [MockTemplateVersionParameter1, MockTemplateVersionParameter2],
+          MockOutdatedWorkspace.template_active_version_id,
+        ),
       );
 
     // Render
@@ -265,20 +321,6 @@ describe("WorkspacePage", () => {
       // Added +1 because of the date row
       expect(rows).toHaveLength(MockBuilds.length + 1);
     });
-  });
-
-  it("shows the template warning", async () => {
-    server.use(
-      rest.get(
-        "/api/v2/templateversions/:templateVersionId",
-        async (req, res, ctx) => {
-          return res(ctx.status(200), ctx.json(MockTemplateVersion3));
-        },
-      ),
-    );
-
-    await renderWorkspacePage();
-    await screen.findByTestId("error-unsupported-workspaces");
   });
 
   it("restart the workspace with one time parameters when having the confirmation dialog", async () => {

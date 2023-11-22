@@ -52,6 +52,7 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 		arg.OrganizationID,
 		arg.ExactName,
 		pq.Array(arg.IDs),
+		arg.Deprecated,
 	)
 	if err != nil {
 		return nil, err
@@ -87,6 +88,7 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 			&i.AutostopRequirementWeeks,
 			&i.AutostartBlockDaysOfWeek,
 			&i.RequireActiveVersion,
+			&i.Deprecated,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 		); err != nil {

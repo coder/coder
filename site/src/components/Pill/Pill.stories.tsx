@@ -9,6 +9,12 @@ const meta: Meta<typeof Pill> = {
 export default meta;
 type Story = StoryObj<typeof Pill>;
 
+export const Default: Story = {
+  args: {
+    text: "Default",
+  },
+};
+
 export const Danger: Story = {
   args: {
     text: "Danger",
@@ -55,11 +61,5 @@ export const Active: Story = {
   args: {
     text: "Active",
     type: "active",
-  },
-};
-
-export const Default: Story = {
-  args: {
-    text: "Neutral/default",
   },
 };

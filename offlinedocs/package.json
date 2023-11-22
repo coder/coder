@@ -27,7 +27,7 @@
     "next": "14.0.1",
     "react": "18.2.0",
     "react-dom": "18.2.0",
-    "react-icons": "4.11.0",
+    "react-icons": "4.12.0",
     "react-markdown": "8.0.3",
     "rehype-raw": "6.1.1",
     "remark-gfm": "3.0.1"
@@ -40,7 +40,7 @@
     "@types/react-dom": "18.2.7",
     "eslint": "8.52.0",
     "eslint-config-next": "14.0.1",
-    "prettier": "3.0.0",
+    "prettier": "3.1.0",
     "typescript": "5.1.6"
   },
   "engines": {

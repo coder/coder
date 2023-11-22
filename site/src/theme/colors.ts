@@ -4,17 +4,17 @@ export const colors = {
   white: "#fff",
 
   gray: {
-    17: tw.gray[950],
-    16: tw.gray[900],
-    14: tw.gray[800],
-    13: tw.gray[700],
-    12: tw.gray[600],
-    11: tw.gray[500],
-    9: tw.gray[400],
-    6: tw.gray[300],
-    4: tw.gray[200],
-    2: tw.gray[100],
-    1: tw.gray[50],
+    17: tw.zinc[950],
+    16: tw.zinc[900],
+    14: tw.zinc[800],
+    13: tw.zinc[700],
+    12: tw.zinc[600],
+    11: tw.zinc[500],
+    9: tw.zinc[400],
+    6: tw.zinc[300],
+    4: tw.zinc[200],
+    2: tw.zinc[100],
+    1: tw.zinc[50],
   },
 
   red: {
@@ -29,7 +29,10 @@ export const colors = {
 
   orange: {
     15: tw.amber[950],
+    14: tw.amber[900],
     12: tw.amber[800],
+    11: tw.amber[700],
+    10: tw.amber[600],
     9: tw.amber[500],
     7: tw.amber[400],
   },
@@ -40,6 +43,7 @@ export const colors = {
 
   green: {
     15: tw.green[950],
+    13: tw.green[700],
     12: tw.green[600],
     11: tw.green[500],
     9: tw.green[400],

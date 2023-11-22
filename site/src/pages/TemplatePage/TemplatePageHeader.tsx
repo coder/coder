@@ -34,6 +34,7 @@ import {
   ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
 import Divider from "@mui/material/Divider";
+import { Pill } from "components/Pill/Pill";
 
 type TemplateMenuProps = {
   templateName: string;
@@ -172,14 +173,16 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
       <PageHeader
         actions={
           <>
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              component={RouterLink}
-              to={`/templates/${template.name}/workspace`}
-            >
-              Create Workspace
-            </Button>
+            {!template.deprecated && (
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                component={RouterLink}
+                to={`/templates/${template.name}/workspace`}
+              >
+                Create Workspace
+              </Button>
+            )}
 
             {permissions.canUpdateTemplate && (
               <TemplateMenu
@@ -212,6 +215,8 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
               </PageHeaderSubtitle>
             )}
           </div>
+
+          {template.deprecated && <Pill text="Deprecated" type="warning" />}
         </Stack>
       </PageHeader>
     </Margins>

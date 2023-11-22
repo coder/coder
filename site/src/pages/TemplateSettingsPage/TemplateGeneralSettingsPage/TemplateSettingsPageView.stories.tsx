@@ -7,6 +7,8 @@ const meta: Meta<typeof TemplateSettingsPageView> = {
   component: TemplateSettingsPageView,
   args: {
     template: MockTemplate,
+    accessControlEnabled: true,
+    templatePoliciesEnabled: true,
   },
 };
 
@@ -29,5 +31,11 @@ export const SaveTemplateSettingsError: Story = {
     initialTouched: {
       allow_user_cancel_workspace_jobs: true,
     },
+  },
+};
+
+export const NoEntitlements: Story = {
+  args: {
+    accessControlEnabled: false,
   },
 };

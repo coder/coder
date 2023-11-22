@@ -46,9 +46,9 @@ func (r *RootCmd) ping() *clibase.Cmd {
 				return err
 			}
 
-			var logger slog.Logger
+			logger := inv.Logger
 			if r.verbose {
-				logger = slog.Make(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelDebug)
+				logger = logger.AppendSinks(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelDebug)
 			}
 
 			if r.disableDirect {

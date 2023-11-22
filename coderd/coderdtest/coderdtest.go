@@ -614,6 +614,21 @@ func CreateAnotherUserMutators(t testing.TB, client *codersdk.Client, organizati
 	return createAnotherUserRetry(t, client, organizationID, 5, roles, mutators...)
 }
 
+// AuthzUserSubject does not include the user's groups.
+func AuthzUserSubject(user codersdk.User) rbac.Subject {
+	roles := make(rbac.RoleNames, 0, len(user.Roles))
+	for _, r := range user.Roles {
+		roles = append(roles, r.Name)
+	}
+
+	return rbac.Subject{
+		ID:     user.ID.String(),
+		Roles:  roles,
+		Groups: []string{},
+		Scope:  rbac.ScopeAll,
+	}
+}
+
 func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, retries int, roles []string, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
 	req := codersdk.CreateUserRequest{
 		Email:          namesgenerator.GetRandomName(10) + "@coder.com",
@@ -689,7 +704,7 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 			siteRoles = append(siteRoles, r.Name)
 		}
 
-		_, err := client.UpdateUserRoles(context.Background(), user.ID.String(), codersdk.UpdateRoles{Roles: siteRoles})
+		user, err = client.UpdateUserRoles(context.Background(), user.ID.String(), codersdk.UpdateRoles{Roles: siteRoles})
 		require.NoError(t, err, "update site roles")
 
 		// Update org roles
@@ -709,7 +724,7 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 // with testing.
 func CreateTemplateVersion(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses, mutators ...func(*codersdk.CreateTemplateVersionRequest)) codersdk.TemplateVersion {
 	t.Helper()
-	data, err := echo.Tar(res)
+	data, err := echo.TarWithOptions(context.Background(), client.Logger(), res)
 	require.NoError(t, err)
 	file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, bytes.NewReader(data))
 	require.NoError(t, err)

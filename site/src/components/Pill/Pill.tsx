@@ -1,16 +1,9 @@
 import { type FC, type ReactNode, useMemo, forwardRef } from "react";
 import { css, type Interpolation, type Theme } from "@emotion/react";
 import { colors } from "theme/colors";
+import type { ThemeRole } from "theme/experimental";
 
-// TODO: use a `ThemeRole` type or something
-export type PillType =
-  | "danger"
-  | "error"
-  | "warning"
-  | "notice"
-  | "info"
-  | "success"
-  | "active";
+export type PillType = ThemeRole | keyof typeof themeOverrides;
 
 export interface PillProps {
   className?: string;
@@ -27,7 +20,7 @@ const themeOverrides = {
   },
 } satisfies Record<string, Interpolation<Theme>>;
 
-const themeStyles = (type: PillType) => (theme: Theme) => {
+const themeStyles = (type: ThemeRole) => (theme: Theme) => {
   const palette = theme.experimental.roles[type];
   return {
     backgroundColor: palette.background,
@@ -43,7 +36,7 @@ export const Pill: FC<PillProps> = forwardRef<HTMLDivElement, PillProps>(
       if (type in themeOverrides) {
         return themeOverrides[type as keyof typeof themeOverrides];
       }
-      return themeStyles(type as PillType);
+      return themeStyles(type as ThemeRole);
     }, [type]);
 
     return (

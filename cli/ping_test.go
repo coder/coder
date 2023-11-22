@@ -19,7 +19,7 @@ func TestPing(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
 		inv, root := clitest.New(t, "ping", workspace.Name)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)

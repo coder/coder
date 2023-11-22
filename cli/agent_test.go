@@ -20,7 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
-	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestWorkspaceAgent(t *testing.T) {
@@ -44,17 +44,17 @@ func TestWorkspaceAgent(t *testing.T) {
 			"--log-dir", logDir,
 		)
 
-		pty := ptytest.New(t).Attach(inv)
-
 		clitest.Start(t, inv)
-		ctx := inv.Context()
-		pty.ExpectMatchContext(ctx, "agent is starting now")
 
 		coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
 
-		info, err := os.Stat(filepath.Join(logDir, "coder-agent.log"))
-		require.NoError(t, err)
-		require.Greater(t, info.Size(), int64(0))
+		require.Eventually(t, func() bool {
+			info, err := os.Stat(filepath.Join(logDir, "coder-agent.log"))
+			if err != nil {
+				return false
+			}
+			return info.Size() > 0
+		}, testutil.WaitLong, testutil.IntervalMedium)
 	})
 
 	t.Run("Azure", func(t *testing.T) {
@@ -69,7 +69,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		})
-		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+		dbfake.NewWorkspaceBuildBuilder(t, db, ws).Resource(&proto.Resource{
 			Name: "somename",
 			Type: "someinstance",
 			Agents: []*proto.Agent{{
@@ -77,13 +77,14 @@ func TestWorkspaceAgent(t *testing.T) {
 					InstanceId: instanceID,
 				},
 			}},
-		})
+		}).Do()
 
 		inv, _ := clitest.New(t, "agent", "--auth", "azure-instance-identity", "--agent-url", client.URL.String())
 		inv = inv.WithContext(
 			//nolint:revive,staticcheck
 			context.WithValue(inv.Context(), "azure-client", metadataClient),
 		)
+
 		ctx := inv.Context()
 		clitest.Start(t, inv)
 		coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
@@ -111,7 +112,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		})
-		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+		dbfake.NewWorkspaceBuildBuilder(t, db, ws).Resource(&proto.Resource{
 			Name: "somename",
 			Type: "someinstance",
 			Agents: []*proto.Agent{{
@@ -119,13 +120,14 @@ func TestWorkspaceAgent(t *testing.T) {
 					InstanceId: instanceID,
 				},
 			}},
-		})
+		}).Do()
 
 		inv, _ := clitest.New(t, "agent", "--auth", "aws-instance-identity", "--agent-url", client.URL.String())
 		inv = inv.WithContext(
 			//nolint:revive,staticcheck
 			context.WithValue(inv.Context(), "aws-client", metadataClient),
 		)
+
 		clitest.Start(t, inv)
 		ctx := inv.Context()
 		coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
@@ -154,7 +156,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        memberUser.ID,
 		})
-		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+		dbfake.NewWorkspaceBuildBuilder(t, db, ws).Resource(&proto.Resource{
 			Name: "somename",
 			Type: "someinstance",
 			Agents: []*proto.Agent{{
@@ -162,10 +164,10 @@ func TestWorkspaceAgent(t *testing.T) {
 					InstanceId: instanceID,
 				},
 			}},
-		})
+		}).Do()
 		inv, cfg := clitest.New(t, "agent", "--auth", "google-instance-identity", "--agent-url", client.URL.String())
-		ptytest.New(t).Attach(inv)
 		clitest.SetupConfig(t, member, cfg)
+
 		clitest.Start(t,
 			inv.WithContext(
 				//nolint:revive,staticcheck
@@ -223,10 +225,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		// Set the subsystems for the agent.
 		inv.Environ.Set(agent.EnvAgentSubsystem, fmt.Sprintf("%s,%s", codersdk.AgentSubsystemExectrace, codersdk.AgentSubsystemEnvbox))
 
-		pty := ptytest.New(t).Attach(inv)
-
 		clitest.Start(t, inv)
-		pty.ExpectMatchContext(inv.Context(), "agent is starting now")
 
 		resources := coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
 		require.Len(t, resources, 1)

@@ -52,6 +52,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
     "created_by_name": "string",
     "default_ttl_ms": 0,
+    "deprecated": true,
+    "deprecation_message": "string",
     "description": "string",
     "display_name": "string",
     "failure_ttl_ms": 0,
@@ -101,6 +103,8 @@ Status Code **200**
 | `» created_by_id`                                                                     | string(uuid)                                                                             | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» created_by_name`                                                                   | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» default_ttl_ms`                                                                    | integer                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» deprecated`                                                                        | boolean                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» deprecation_message`                                                               | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» description`                                                                       | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» display_name`                                                                      | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» failure_ttl_ms`                                                                    | integer                                                                                  | false    |              | Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature.                                                                                                                |
@@ -205,6 +209,8 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
   "default_ttl_ms": 0,
+  "deprecated": true,
+  "deprecation_message": "string",
   "description": "string",
   "display_name": "string",
   "failure_ttl_ms": 0,
@@ -341,6 +347,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
   "default_ttl_ms": 0,
+  "deprecated": true,
+  "deprecation_message": "string",
   "description": "string",
   "display_name": "string",
   "failure_ttl_ms": 0,
@@ -653,6 +661,8 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
   "default_ttl_ms": 0,
+  "deprecated": true,
+  "deprecation_message": "string",
   "description": "string",
   "display_name": "string",
   "failure_ttl_ms": 0,
@@ -772,6 +782,8 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
   "default_ttl_ms": 0,
+  "deprecated": true,
+  "deprecation_message": "string",
   "description": "string",
   "display_name": "string",
   "failure_ttl_ms": 0,
