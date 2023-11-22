@@ -99,6 +99,8 @@ type ReportOptions struct {
 
 func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 	r.Healthy = true
+	r.Severity = health.SeverityOK
+
 	r.Regions = map[int]*RegionReport{}
 	r.Warnings = []string{}
 
@@ -150,6 +152,13 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 	r.NetcheckErr = convertError(netcheckErr)
 
 	wg.Wait()
+
+	// Review region reports and select the highest severity.
+	for _, regionReport := range r.Regions {
+		if regionReport.Severity.Value() > r.Severity.Value() {
+			r.Severity = regionReport.Severity
+		}
+	}
 }
 
 func (r *RegionReport) Run(ctx context.Context) {
@@ -203,14 +212,19 @@ func (r *RegionReport) Run(ctx context.Context) {
 	// Coder allows for 1 unhealthy node in the region, unless there is only 1 node.
 	if len(r.Region.Nodes) == 1 {
 		r.Healthy = healthyNodes == len(r.Region.Nodes)
-	} else if healthyNodes < len(r.Region.Nodes) {
+		r.Severity = r.NodeReports[0].Severity
+	} else if healthyNodes+1 == len(r.Region.Nodes) {
+		// r.Healthy = true (by default)
+		r.Severity = health.SeverityWarning
 		r.Warnings = append(r.Warnings, oneNodeUnhealthy)
-	}
+	} else if healthyNodes+1 < len(r.Region.Nodes) {
+		r.Healthy = false
 
-	// Review node reports and select the highest severing.
-	for _, nodeReport := range r.NodeReports {
-		if nodeReport.Severity.Value() > r.Severity.Value() {
-			r.Severity = nodeReport.Severity
+		// Review node reports and select the highest severity.
+		for _, nodeReport := range r.NodeReports {
+			if nodeReport.Severity.Value() > r.Severity.Value() {
+				r.Severity = nodeReport.Severity
+			}
 		}
 	}
 }
