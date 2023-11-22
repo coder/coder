@@ -1,6 +1,7 @@
 import HelpOutline from "@mui/icons-material/HelpOutline";
 import Box from "@mui/material/Box";
 import Tooltip from "@mui/material/Tooltip";
+import { useTheme } from "@emotion/react";
 import { type FC } from "react";
 import { getLatencyColor } from "utils/latency";
 import CircularProgress from "@mui/material/CircularProgress";
@@ -9,7 +10,8 @@ export const ProxyStatusLatency: FC<{
   latency?: number;
   isLoading?: boolean;
 }> = ({ latency, isLoading }) => {
-  const color = getLatencyColor(latency);
+  const theme = useTheme();
+  const color = getLatencyColor(theme, latency);
 
   if (isLoading) {
     return (
@@ -18,7 +20,7 @@ export const ProxyStatusLatency: FC<{
           size={14}
           sx={{
             // Always use the no latency color for loading.
-            color: getLatencyColor(undefined),
+            color: getLatencyColor(theme, undefined),
             marginLeft: "auto",
           }}
         />

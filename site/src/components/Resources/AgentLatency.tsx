@@ -25,7 +25,7 @@ const getDisplayLatency = (theme: Theme, agent: WorkspaceAgent) => {
 
   return {
     ...latency,
-    color: getLatencyColor(latency.latency_ms),
+    color: getLatencyColor(theme, latency.latency_ms),
   };
 };
 

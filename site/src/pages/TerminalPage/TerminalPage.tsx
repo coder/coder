@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme } from "@emotion/react";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -327,7 +327,8 @@ const TerminalPage: FC = () => {
 };
 
 const BottomBar = ({ proxy, latency }: { proxy: Region; latency?: number }) => {
-  const color = getLatencyColor(latency);
+  const theme = useTheme();
+  const color = getLatencyColor(theme, latency);
 
   return (
     <Box

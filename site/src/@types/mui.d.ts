@@ -1,13 +1,7 @@
 import type { PaletteColor, PaletteColorOptions } from "@mui/material/styles";
-import type { NewTheme } from "theme/experimental";
 
 declare module "@mui/material/styles" {
-  interface Theme {
-    experimental: NewTheme;
-  }
-
   interface TypeBackground {
-    /** @deprecated */
     paperLight: string;
   }
 
@@ -27,11 +21,5 @@ declare module "@mui/material/Button" {
 
   interface ButtonPropsSizeOverrides {
     xlarge: true;
-  }
-}
-
-declare module "@mui/system" {
-  interface Theme {
-    experimental: NewTheme;
   }
 }
