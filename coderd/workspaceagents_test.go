@@ -21,6 +21,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -551,7 +552,9 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 				},
 			}},
 		}).Do()
-		_ = agenttest.New(t, client.URL, authToken)
+		_ = agenttest.New(t, client.URL, authToken, func(o *agent.Options) {
+			o.PortCacheDuration = time.Millisecond
+		})
 		resources := coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
 		return client, uint16(coderdPort), resources[0].Agents[0].ID
 	}
@@ -670,15 +673,21 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 
 			// Close the listener and check that the port is no longer in the response.
 			require.NoError(t, l.Close())
-			time.Sleep(2 * time.Second) // avoid cache
-			res, err = client.WorkspaceAgentListeningPorts(ctx, agentID)
-			require.NoError(t, err)
-
-			for _, port := range res.Ports {
-				if port.Network == "tcp" && port.Port == lPort {
-					t.Fatalf("expected to not find TCP port %d in response", lPort)
+			t.Log("checking for ports after listener close:")
+			require.Eventually(t, func() bool {
+				res, err = client.WorkspaceAgentListeningPorts(ctx, agentID)
+				if !assert.NoError(t, err) {
+					return false
 				}
-			}
+
+				for _, port := range res.Ports {
+					if port.Network == "tcp" && port.Port == lPort {
+						t.Logf("expected to not find TCP port %d in response", lPort)
+						return false
+					}
+				}
+				return true
+			}, testutil.WaitLong, testutil.IntervalMedium)
 		})
 
 		t.Run("Filter", func(t *testing.T) {
