@@ -110,9 +110,9 @@ export function usePaginatedQuery<
   const [innerSearchParams, setSearchParams] = useSearchParams();
   const searchParams = outerSearchParams ?? innerSearchParams;
 
-  const currentPage = parsePage(searchParams);
   const limit = DEFAULT_RECORDS_PER_PAGE;
-  const offset = (currentPage - 1) * limit;
+  const currentPage = parsePage(searchParams);
+  const currentPageOffset = (currentPage - 1) * limit;
 
   const getQueryOptionsFromPage = (pageNumber: number) => {
     const pageParams: QueryPageParams = {
@@ -145,9 +145,12 @@ export function usePaginatedQuery<
   const totalPages =
     totalRecords !== undefined ? Math.ceil(totalRecords / limit) : undefined;
 
-  const hasPreviousPage = totalPages !== undefined && currentPage > 1;
   const hasNextPage =
-    totalRecords !== undefined && limit * offset < totalRecords;
+    totalRecords !== undefined && limit + currentPageOffset < totalRecords;
+  const hasPreviousPage =
+    totalRecords !== undefined &&
+    currentPage > 1 &&
+    currentPageOffset - limit < totalRecords;
 
   const queryClient = useQueryClient();
   const prefetchPage = useEffectEvent((newPage: number) => {
@@ -196,7 +199,7 @@ export function usePaginatedQuery<
       setSearchParams(withoutPage);
     } else {
       const params: InvalidPageParams = {
-        offset,
+        offset: currentPageOffset,
         limit,
         setSearchParams,
         searchParams: withoutPage,

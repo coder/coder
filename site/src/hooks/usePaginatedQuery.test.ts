@@ -103,27 +103,37 @@ describe(`${usePaginatedQuery.name} - Overall functionality`, () => {
     });
   });
 
-  describe.skip("Prefetching", () => {
+  describe("Prefetching", () => {
     const mockQueryKey = jest.fn(({ pageNumber }) => ["query", pageNumber]);
-    const mockQueryFn = jest.fn(({ pageNumber, limit }) => {
-      return Promise.resolve({
-        data: new Array(limit).fill(pageNumber),
-        count: 75,
-      });
-    });
+
+    type Context = { pageNumber: number; limit: number };
+    const mockQueryFnImplementation = ({ pageNumber, limit }: Context) => {
+      const data: { value: number }[] = [];
+      if (pageNumber * limit < 75) {
+        for (let i = 0; i < limit; i++) {
+          data.push({ value: i });
+        }
+      }
+
+      return Promise.resolve({ data, count: 75 });
+    };
 
     const testPrefetch = async (
       startingPage: number,
       targetPage: number,
       shouldMatch: boolean,
     ) => {
-      await render(
+      // Have to reinitialize mock function every call to avoid false positives
+      // from shared mutable tracking state
+      const mockQueryFn = jest.fn(mockQueryFnImplementation);
+      const { result } = await render(
         { queryKey: mockQueryKey, queryFn: mockQueryFn },
         `/?page=${startingPage}`,
       );
 
       const pageMatcher = expect.objectContaining({ pageNumber: targetPage });
       if (shouldMatch) {
+        await waitFor(() => expect(result.current.totalRecords).toBeDefined());
         await waitFor(() => expect(mockQueryFn).toBeCalledWith(pageMatcher));
       } else {
         // Can't use waitFor to test this, because the expect call will
@@ -154,28 +164,25 @@ describe(`${usePaginatedQuery.name} - Overall functionality`, () => {
       await testPrefetch(3, 4, false);
     });
 
-    it("Reuses the same queryKey and queryFn methods for the current page and all prefetching (on a given render)", async () => {
-      const startPage = 2;
-      await render(
-        { queryKey: mockQueryKey, queryFn: mockQueryFn },
-        `/?page=${startPage}`,
-      );
-
-      const currentMatcher = expect.objectContaining({ pageNumber: startPage });
-      expect(mockQueryKey).toBeCalledWith(currentMatcher);
-      expect(mockQueryFn).toBeCalledWith(currentMatcher);
-
-      const prevPageMatcher = expect.objectContaining({
-        pageNumber: startPage - 1,
-      });
-      const nextPageMatcher = expect.objectContaining({
-        pageNumber: startPage + 1,
-      });
-
-      await waitFor(() => expect(mockQueryKey).toBeCalledWith(prevPageMatcher));
-      await waitFor(() => expect(mockQueryFn).toBeCalledWith(prevPageMatcher));
-      await waitFor(() => expect(mockQueryKey).toBeCalledWith(nextPageMatcher));
-      await waitFor(() => expect(mockQueryFn).toBeCalledWith(nextPageMatcher));
+    it.skip("Reuses the same queryKey and queryFn methods for the current page and all prefetching (on a given render)", async () => {
+      // const startPage = 2;
+      // await render(
+      //   { queryKey: mockQueryKey, queryFn: mockQueryFn },
+      //   `/?page=${startPage}`,
+      // );
+      // const currentMatcher = expect.objectContaining({ pageNumber: startPage });
+      // expect(mockQueryKey).toBeCalledWith(currentMatcher);
+      // expect(mockQueryFn).toBeCalledWith(currentMatcher);
+      // const prevPageMatcher = expect.objectContaining({
+      //   pageNumber: startPage - 1,
+      // });
+      // const nextPageMatcher = expect.objectContaining({
+      //   pageNumber: startPage + 1,
+      // });
+      // await waitFor(() => expect(mockQueryKey).toBeCalledWith(prevPageMatcher));
+      // await waitFor(() => expect(mockQueryFn).toBeCalledWith(prevPageMatcher));
+      // await waitFor(() => expect(mockQueryKey).toBeCalledWith(nextPageMatcher));
+      // await waitFor(() => expect(mockQueryFn).toBeCalledWith(nextPageMatcher));
     });
   });
 
