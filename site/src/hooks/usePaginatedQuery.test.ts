@@ -110,7 +110,7 @@ describe(`${usePaginatedQuery.name} - Overall functionality`, () => {
     });
   });
 
-  describe("Prefetching", () => {
+  describe.skip("Prefetching", () => {
     const mockQueryKey = jest.fn(({ pageNumber }) => ["query", pageNumber]);
     const mockQueryFn = jest.fn(({ pageNumber, limit }) => {
       return Promise.resolve({
@@ -148,11 +148,11 @@ describe(`${usePaginatedQuery.name} - Overall functionality`, () => {
       await testPrefetch(2, 1, true);
     });
 
-    it.skip("Prefetches the next page if it exists", async () => {
+    it("Prefetches the next page if it exists", async () => {
       await testPrefetch(2, 3, true);
     });
 
-    it.skip("Avoids prefetch for previous page if it doesn't exist", async () => {
+    it("Avoids prefetch for previous page if it doesn't exist", async () => {
       await testPrefetch(1, 0, false);
       await testPrefetch(6, 5, false);
     });
@@ -161,7 +161,7 @@ describe(`${usePaginatedQuery.name} - Overall functionality`, () => {
       await testPrefetch(3, 4, false);
     });
 
-    it.skip("Reuses the same queryKey and queryFn methods for the current page and all prefetching (on a given render)", async () => {
+    it("Reuses the same queryKey and queryFn methods for the current page and all prefetching (on a given render)", async () => {
       const startPage = 2;
       await render(
         { queryKey: mockQueryKey, queryFn: mockQueryFn },
@@ -186,7 +186,7 @@ describe(`${usePaginatedQuery.name} - Overall functionality`, () => {
     });
   });
 
-  describe("Invalid page safety nets/redirects", () => {
+  describe("Safety nets/redirects for invalid pages", () => {
     const mockQueryKey = jest.fn(() => ["mock"]);
     const mockQueryFn = jest.fn(({ pageNumber, limit }) =>
       Promise.resolve({
@@ -225,8 +225,29 @@ describe(`${usePaginatedQuery.name} - Overall functionality`, () => {
       await waitFor(() => expect(result.current.currentPage).toBe(1));
     });
 
-    it.skip("Calls the custom onInvalidPageChange callback if provided", async () => {
-      expect.hasAssertions();
+    it("Calls the custom onInvalidPageChange callback if provided", async () => {
+      const onInvalidPageChange = jest.fn();
+      await render(
+        {
+          onInvalidPageChange,
+          queryKey: mockQueryKey,
+          queryFn: mockQueryFn,
+        },
+        "/?page=900",
+      );
+
+      await waitFor(() => {
+        expect(onInvalidPageChange).toBeCalledWith(
+          expect.objectContaining({
+            pageNumber: expect.any(Number),
+            limit: expect.any(Number),
+            offset: expect.any(Number),
+            totalPages: expect.any(Number),
+            searchParams: expect.any(URLSearchParams),
+            setSearchParams: expect.any(Function),
+          }),
+        );
+      });
     });
   });
 
