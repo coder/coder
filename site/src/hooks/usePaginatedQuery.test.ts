@@ -164,25 +164,30 @@ describe(`${usePaginatedQuery.name} - Overall functionality`, () => {
       await testPrefetch(3, 4, false);
     });
 
-    it.skip("Reuses the same queryKey and queryFn methods for the current page and all prefetching (on a given render)", async () => {
-      // const startPage = 2;
-      // await render(
-      //   { queryKey: mockQueryKey, queryFn: mockQueryFn },
-      //   `/?page=${startPage}`,
-      // );
-      // const currentMatcher = expect.objectContaining({ pageNumber: startPage });
-      // expect(mockQueryKey).toBeCalledWith(currentMatcher);
-      // expect(mockQueryFn).toBeCalledWith(currentMatcher);
-      // const prevPageMatcher = expect.objectContaining({
-      //   pageNumber: startPage - 1,
-      // });
-      // const nextPageMatcher = expect.objectContaining({
-      //   pageNumber: startPage + 1,
-      // });
-      // await waitFor(() => expect(mockQueryKey).toBeCalledWith(prevPageMatcher));
-      // await waitFor(() => expect(mockQueryFn).toBeCalledWith(prevPageMatcher));
-      // await waitFor(() => expect(mockQueryKey).toBeCalledWith(nextPageMatcher));
-      // await waitFor(() => expect(mockQueryFn).toBeCalledWith(nextPageMatcher));
+    it("Reuses the same queryKey and queryFn methods for the current page and all prefetching (on a given render)", async () => {
+      const startPage = 2;
+      const mockQueryFn = jest.fn(mockQueryFnImplementation);
+
+      await render(
+        { queryKey: mockQueryKey, queryFn: mockQueryFn },
+        `/?page=${startPage}`,
+      );
+
+      const currentMatcher = expect.objectContaining({ pageNumber: startPage });
+      expect(mockQueryKey).toBeCalledWith(currentMatcher);
+      expect(mockQueryFn).toBeCalledWith(currentMatcher);
+
+      const prevPageMatcher = expect.objectContaining({
+        pageNumber: startPage - 1,
+      });
+      await waitFor(() => expect(mockQueryKey).toBeCalledWith(prevPageMatcher));
+      await waitFor(() => expect(mockQueryFn).toBeCalledWith(prevPageMatcher));
+
+      const nextPageMatcher = expect.objectContaining({
+        pageNumber: startPage + 1,
+      });
+      await waitFor(() => expect(mockQueryKey).toBeCalledWith(nextPageMatcher));
+      await waitFor(() => expect(mockQueryFn).toBeCalledWith(nextPageMatcher));
     });
   });
 
@@ -195,7 +200,7 @@ describe(`${usePaginatedQuery.name} - Overall functionality`, () => {
       }),
     );
 
-    it("Synchronously defaults to page 1 if params are corrupt/invalid (no custom callback)", async () => {
+    it("No custom callback: synchronously defaults to page 1 if params are corrupt/invalid", async () => {
       const { result } = await render(
         {
           queryKey: mockQueryKey,
@@ -207,7 +212,7 @@ describe(`${usePaginatedQuery.name} - Overall functionality`, () => {
       expect(result.current.currentPage).toBe(1);
     });
 
-    it("Auto-redirects user to last page if requested page overshoots total pages (no custom callback)", async () => {
+    it("No custom callback: auto-redirects user to last page if requested page overshoots total pages", async () => {
       const { result } = await render(
         { queryKey: mockQueryKey, queryFn: mockQueryFn },
         "/?page=35",
@@ -216,7 +221,7 @@ describe(`${usePaginatedQuery.name} - Overall functionality`, () => {
       await waitFor(() => expect(result.current.currentPage).toBe(4));
     });
 
-    it("Auto-redirects user to first page if requested page goes below 1 (no custom callback)", async () => {
+    it("No custom callback: auto-redirects user to first page if requested page goes below 1", async () => {
       const { result } = await render(
         { queryKey: mockQueryKey, queryFn: mockQueryFn },
         "/?page=-9999",
@@ -225,7 +230,7 @@ describe(`${usePaginatedQuery.name} - Overall functionality`, () => {
       await waitFor(() => expect(result.current.currentPage).toBe(1));
     });
 
-    it("Calls the custom onInvalidPageChange callback if provided (instead of updating search params automatically)", async () => {
+    it("With custom callback: Calls callback and does not update search params automatically", async () => {
       const testControl = new URLSearchParams({
         page: "1000",
       });
@@ -366,7 +371,7 @@ describe(`${usePaginatedQuery.name} - Returned properties`, () => {
       await waitFor(() => expect(result.current.currentPage).toBe(2));
     });
 
-    test("onPageChange cleans 'corrupt' numeric values before navigating", async () => {
+    test("onPageChange accounts for floats and truncates numeric values before navigating", async () => {
       const { result } = await render({
         queryKey: mockQueryKey,
         queryFn: mockQueryFn,
