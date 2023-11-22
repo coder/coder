@@ -8,12 +8,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -87,6 +89,55 @@ func TestTemplates(t *testing.T) {
 		require.Len(t, apiErr.Validations, 1)
 		require.Equal(t, apiErr.Validations[0].Field, "ttl_ms")
 		require.Contains(t, apiErr.Validations[0].Detail, "time until shutdown must be less than or equal to the template's maximum TTL")
+	})
+
+	t.Run("Deprecated", func(t *testing.T) {
+		t.Parallel()
+
+		owner, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAccessControl: 1,
+				},
+			},
+		})
+		client, _ := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			DeprecationMessage: ptr.Ref("Stop using this template"),
+		})
+		require.NoError(t, err)
+		assert.Greater(t, updated.UpdatedAt, template.UpdatedAt)
+		// AGPL cannot deprecate, expect no change
+		assert.True(t, updated.Deprecated)
+		assert.NotEmpty(t, updated.DeprecationMessage)
+
+		_, err = client.CreateWorkspace(ctx, user.OrganizationID, codersdk.Me, codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       "foobar",
+		})
+		require.ErrorContains(t, err, "deprecated")
+
+		// Unset deprecated and try again
+		updated, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{DeprecationMessage: ptr.Ref("")})
+		require.NoError(t, err)
+		assert.False(t, updated.Deprecated)
+		assert.Empty(t, updated.DeprecationMessage)
+
+		_, err = client.CreateWorkspace(ctx, user.OrganizationID, codersdk.Me, codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       "foobar",
+		})
+		require.NoError(t, err)
 	})
 
 	t.Run("BlockDisablingAutoOffWithMaxTTL", func(t *testing.T) {
@@ -193,6 +244,8 @@ func TestTemplates(t *testing.T) {
 		template, err = anotherClient.Template(ctx, template.ID)
 		require.NoError(t, err)
 		require.Equal(t, []string{"monday", "saturday"}, template.AutostartRequirement.DaysOfWeek)
+		require.Empty(t, template.DeprecationMessage)
+		require.False(t, template.Deprecated)
 	})
 
 	t.Run("SetInvalidAutostartRequirement", func(t *testing.T) {
@@ -226,6 +279,8 @@ func TestTemplates(t *testing.T) {
 			},
 		})
 		require.Error(t, err)
+		require.Empty(t, template.DeprecationMessage)
+		require.False(t, template.Deprecated)
 	})
 
 	t.Run("SetAutostopRequirement", func(t *testing.T) {
@@ -270,6 +325,8 @@ func TestTemplates(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, []string{"monday", "saturday"}, template.AutostopRequirement.DaysOfWeek)
 		require.EqualValues(t, 3, template.AutostopRequirement.Weeks)
+		require.Empty(t, template.DeprecationMessage)
+		require.False(t, template.Deprecated)
 	})
 
 	t.Run("CleanupTTLs", func(t *testing.T) {
@@ -627,6 +684,8 @@ func TestTemplates(t *testing.T) {
 		template, err = anotherClient.Template(ctx, template.ID)
 		require.NoError(t, err)
 		require.Equal(t, updatedTemplate, template)
+		require.Empty(t, template.DeprecationMessage)
+		require.False(t, template.Deprecated)
 	})
 }
 

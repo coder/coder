@@ -1,5 +1,4 @@
 import { type Workspace, type WorkspaceStatus } from "api/typesGenerated";
-import { workspaceUpdatePolicy } from "utils/workspace";
 
 /**
  * An iterable of all button types supported by the workspace actions UI
@@ -40,14 +39,9 @@ type WorkspaceAbilities = {
   canAcceptJobs: boolean;
 };
 
-type UserInfo = Readonly<{
-  canChangeVersions: boolean;
-  canRetryDebug: boolean;
-}>;
-
 export const actionsByWorkspaceStatus = (
   workspace: Workspace,
-  userInfo: UserInfo,
+  canRetryDebug: boolean,
 ): WorkspaceAbilities => {
   if (workspace.dormant_at) {
     return {
@@ -58,29 +52,7 @@ export const actionsByWorkspaceStatus = (
   }
 
   const status = workspace.latest_build.status;
-  const mustUpdate =
-    workspace.outdated &&
-    workspaceUpdatePolicy(workspace, userInfo.canChangeVersions) === "always";
-
-  if (mustUpdate) {
-    if (status === "running") {
-      return {
-        actions: ["stop"],
-        canCancel: false,
-        canAcceptJobs: true,
-      };
-    }
-
-    if (status === "stopped") {
-      return {
-        actions: [],
-        canCancel: false,
-        canAcceptJobs: true,
-      };
-    }
-  }
-
-  if (status === "failed" && userInfo.canRetryDebug) {
+  if (status === "failed" && canRetryDebug) {
     return {
       ...statusToActions.failed,
       actions: ["retry", "retryDebug"],

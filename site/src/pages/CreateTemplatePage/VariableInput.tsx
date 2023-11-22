@@ -102,8 +102,8 @@ const VariableField: React.FC<VariableInputProps> = ({
         variable.type === "number"
           ? "number"
           : variable.sensitive
-          ? "password"
-          : "string"
+            ? "password"
+            : "string"
       }
     />
   );

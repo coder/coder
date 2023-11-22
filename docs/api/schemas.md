@@ -2863,7 +2863,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `single_tailnet`                |
 | `template_autostop_requirement` |
 | `deployment_health_page`        |
-| `dashboard_theme`               |
 | `template_update_policies`      |
 
 ## codersdk.ExternalAuth
@@ -4087,6 +4086,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "status": "ok"
       },
       "updated_at": "2019-08-24T14:15:22Z",
+      "version": "string",
       "wildcard_hostname": "string"
     }
   ]
@@ -4412,6 +4412,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
   "default_ttl_ms": 0,
+  "deprecated": true,
+  "deprecation_message": "string",
   "description": "string",
   "display_name": "string",
   "failure_ttl_ms": 0,
@@ -4444,6 +4446,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `created_by_id`                    | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `created_by_name`                  | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `default_ttl_ms`                   | integer                                                                        | false    |              |                                                                                                                                                                                                 |
+| `deprecated`                       | boolean                                                                        | false    |              |                                                                                                                                                                                                 |
+| `deprecation_message`              | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `description`                      | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `display_name`                     | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `failure_ttl_ms`                   | integer                                                                        | false    |              | Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature. |
@@ -6646,6 +6650,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "status": "ok"
   },
   "updated_at": "2019-08-24T14:15:22Z",
+  "version": "string",
   "wildcard_hostname": "string"
 }
 ```
@@ -6666,6 +6671,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `path_app_url`      | string                                                         | false    |              | Path app URL is the URL to the base path for path apps. Optional unless wildcard_hostname is set. E.g. https://us.example.com                                                      |
 | `status`            | [codersdk.WorkspaceProxyStatus](#codersdkworkspaceproxystatus) | false    |              | Status is the latest status check of the proxy. This will be empty for deleted proxies. This value can be used to determine if a workspace proxy is healthy and ready to use.      |
 | `updated_at`        | string                                                         | false    |              |                                                                                                                                                                                    |
+| `version`           | string                                                         | false    |              |                                                                                                                                                                                    |
 | `wildcard_hostname` | string                                                         | false    |              | Wildcard hostname is the wildcard hostname for subdomain apps. E.g. _.us.example.com E.g. _--suffix.au.example.com Optional. Does not need to be on the same domain as PathAppURL. |
 
 ## codersdk.WorkspaceProxyStatus
@@ -7138,7 +7144,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "enabled": true,
     "error": "string"
   },
-  "uses_websocket": true
+  "uses_websocket": true,
+  "warnings": ["string"]
 }
 ```
 
@@ -7157,6 +7164,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `round_trip_ping_ms`    | integer                                          | false    |              |             |
 | `stun`                  | [derphealth.StunReport](#derphealthstunreport)   | false    |              |             |
 | `uses_websocket`        | boolean                                          | false    |              |             |
+| `warnings`              | array of string                                  | false    |              |             |
 
 ## derphealth.RegionReport
 
@@ -7197,7 +7205,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "enabled": true,
         "error": "string"
       },
-      "uses_websocket": true
+      "uses_websocket": true,
+      "warnings": ["string"]
     }
   ],
   "region": {
@@ -7223,7 +7232,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "regionCode": "string",
     "regionID": 0,
     "regionName": "string"
-  }
+  },
+  "warnings": ["string"]
 }
 ```
 
@@ -7235,6 +7245,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `healthy`      | boolean                                                 | false    |              |             |
 | `node_reports` | array of [derphealth.NodeReport](#derphealthnodereport) | false    |              |             |
 | `region`       | [tailcfg.DERPRegion](#tailcfgderpregion)                | false    |              |             |
+| `warnings`     | array of string                                         | false    |              |             |
 
 ## derphealth.Report
 
@@ -7311,7 +7322,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "enabled": true,
             "error": "string"
           },
-          "uses_websocket": true
+          "uses_websocket": true,
+          "warnings": ["string"]
         }
       ],
       "region": {
@@ -7337,7 +7349,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "regionCode": "string",
         "regionID": 0,
         "regionName": "string"
-      }
+      },
+      "warnings": ["string"]
     },
     "property2": {
       "error": "string",
@@ -7375,7 +7388,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "enabled": true,
             "error": "string"
           },
-          "uses_websocket": true
+          "uses_websocket": true,
+          "warnings": ["string"]
         }
       ],
       "region": {
@@ -7401,9 +7415,11 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "regionCode": "string",
         "regionID": 0,
         "regionName": "string"
-      }
+      },
+      "warnings": ["string"]
     }
-  }
+  },
+  "warnings": ["string"]
 }
 ```
 
@@ -7418,6 +7434,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `netcheck_logs`    | array of string                                    | false    |              |             |
 | `regions`          | object                                             | false    |              |             |
 | » `[any property]` | [derphealth.RegionReport](#derphealthregionreport) | false    |              |             |
+| `warnings`         | array of string                                    | false    |              |             |
 
 ## derphealth.StunReport
 
@@ -7446,20 +7463,22 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "healthy": true,
   "healthz_response": "string",
   "reachable": true,
-  "status_code": 0
+  "status_code": 0,
+  "warnings": ["string"]
 }
 ```
 
 ### Properties
 
-| Name               | Type    | Required | Restrictions | Description |
-| ------------------ | ------- | -------- | ------------ | ----------- |
-| `access_url`       | string  | false    |              |             |
-| `error`            | string  | false    |              |             |
-| `healthy`          | boolean | false    |              |             |
-| `healthz_response` | string  | false    |              |             |
-| `reachable`        | boolean | false    |              |             |
-| `status_code`      | integer | false    |              |             |
+| Name               | Type            | Required | Restrictions | Description |
+| ------------------ | --------------- | -------- | ------------ | ----------- |
+| `access_url`       | string          | false    |              |             |
+| `error`            | string          | false    |              |             |
+| `healthy`          | boolean         | false    |              |             |
+| `healthz_response` | string          | false    |              |             |
+| `reachable`        | boolean         | false    |              |             |
+| `status_code`      | integer         | false    |              |             |
+| `warnings`         | array of string | false    |              |             |
 
 ## healthcheck.DatabaseReport
 
@@ -7470,20 +7489,22 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "latency": "string",
   "latency_ms": 0,
   "reachable": true,
-  "threshold_ms": 0
+  "threshold_ms": 0,
+  "warnings": ["string"]
 }
 ```
 
 ### Properties
 
-| Name           | Type    | Required | Restrictions | Description |
-| -------------- | ------- | -------- | ------------ | ----------- |
-| `error`        | string  | false    |              |             |
-| `healthy`      | boolean | false    |              |             |
-| `latency`      | string  | false    |              |             |
-| `latency_ms`   | integer | false    |              |             |
-| `reachable`    | boolean | false    |              |             |
-| `threshold_ms` | integer | false    |              |             |
+| Name           | Type            | Required | Restrictions | Description |
+| -------------- | --------------- | -------- | ------------ | ----------- |
+| `error`        | string          | false    |              |             |
+| `healthy`      | boolean         | false    |              |             |
+| `latency`      | string          | false    |              |             |
+| `latency_ms`   | integer         | false    |              |             |
+| `reachable`    | boolean         | false    |              |             |
+| `threshold_ms` | integer         | false    |              |             |
+| `warnings`     | array of string | false    |              |             |
 
 ## healthcheck.Report
 
@@ -7495,7 +7516,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "healthy": true,
     "healthz_response": "string",
     "reachable": true,
-    "status_code": 0
+    "status_code": 0,
+    "warnings": ["string"]
   },
   "coder_version": "string",
   "database": {
@@ -7504,7 +7526,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "latency": "string",
     "latency_ms": 0,
     "reachable": true,
-    "threshold_ms": 0
+    "threshold_ms": 0,
+    "warnings": ["string"]
   },
   "derp": {
     "error": "string",
@@ -7578,7 +7601,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "enabled": true,
               "error": "string"
             },
-            "uses_websocket": true
+            "uses_websocket": true,
+            "warnings": ["string"]
           }
         ],
         "region": {
@@ -7604,7 +7628,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "regionCode": "string",
           "regionID": 0,
           "regionName": "string"
-        }
+        },
+        "warnings": ["string"]
       },
       "property2": {
         "error": "string",
@@ -7642,7 +7667,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "enabled": true,
               "error": "string"
             },
-            "uses_websocket": true
+            "uses_websocket": true,
+            "warnings": ["string"]
           }
         ],
         "region": {
@@ -7668,9 +7694,11 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "regionCode": "string",
           "regionID": 0,
           "regionName": "string"
-        }
+        },
+        "warnings": ["string"]
       }
-    }
+    },
+    "warnings": ["string"]
   },
   "failing_sections": ["string"],
   "healthy": true,
@@ -7679,7 +7707,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "body": "string",
     "code": 0,
     "error": "string",
-    "healthy": true
+    "healthy": true,
+    "warnings": ["string"]
   }
 }
 ```
@@ -7704,18 +7733,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "body": "string",
   "code": 0,
   "error": "string",
-  "healthy": true
+  "healthy": true,
+  "warnings": ["string"]
 }
 ```
 
 ### Properties
 
-| Name      | Type    | Required | Restrictions | Description |
-| --------- | ------- | -------- | ------------ | ----------- |
-| `body`    | string  | false    |              |             |
-| `code`    | integer | false    |              |             |
-| `error`   | string  | false    |              |             |
-| `healthy` | boolean | false    |              |             |
+| Name       | Type            | Required | Restrictions | Description |
+| ---------- | --------------- | -------- | ------------ | ----------- |
+| `body`     | string          | false    |              |             |
+| `code`     | integer         | false    |              |             |
+| `error`    | string          | false    |              |             |
+| `healthy`  | boolean         | false    |              |             |
+| `warnings` | array of string | false    |              |             |
 
 ## netcheck.Report
 

@@ -220,11 +220,27 @@ export const getTemplate = async (
   return response.data;
 };
 
+export interface TemplateOptions {
+  readonly deprecated?: boolean;
+}
+
 export const getTemplates = async (
   organizationId: string,
+  options?: TemplateOptions,
 ): Promise<TypesGen.Template[]> => {
+  const params = {} as Record<string, string>;
+  if (options && options.deprecated !== undefined) {
+    // Just want to check if it isn't undefined. If it has
+    // a boolean value, convert it to a string and include
+    // it as a param.
+    params["deprecated"] = String(options.deprecated);
+  }
+
   const response = await axios.get<TypesGen.Template[]>(
     `/api/v2/organizations/${organizationId}/templates`,
+    {
+      params,
+    },
   );
   return response.data;
 };
@@ -764,9 +780,8 @@ export const updateUserPassword = async (
   axios.put(`/api/v2/users/${userId}/password`, updatePassword);
 
 export const getRoles = async (): Promise<Array<TypesGen.AssignableRoles>> => {
-  const response = await axios.get<Array<TypesGen.AssignableRoles>>(
-    `/api/v2/users/roles`,
-  );
+  const response =
+    await axios.get<Array<TypesGen.AssignableRoles>>(`/api/v2/users/roles`);
   return response.data;
 };
 
@@ -1094,9 +1109,10 @@ export const getFile = async (fileId: string): Promise<ArrayBuffer> => {
 export const getWorkspaceProxyRegions = async (): Promise<
   TypesGen.RegionsResponse<TypesGen.Region>
 > => {
-  const response = await axios.get<TypesGen.RegionsResponse<TypesGen.Region>>(
-    `/api/v2/regions`,
-  );
+  const response =
+    await axios.get<TypesGen.RegionsResponse<TypesGen.Region>>(
+      `/api/v2/regions`,
+    );
   return response.data;
 };
 
@@ -1277,9 +1293,8 @@ export const updateWorkspace = async (
     getWorkspaceBuildParameters(workspace.latest_build.id),
   ]);
   const activeVersionId = template.active_version_id;
-  const templateParameters = await getTemplateVersionRichParameters(
-    activeVersionId,
-  );
+  const templateParameters =
+    await getTemplateVersionRichParameters(activeVersionId);
   const missingParameters = getMissingParameters(
     oldBuildParameters,
     newBuildParameters,
@@ -1565,9 +1580,10 @@ export const getInsightsTemplate = async (
   return response.data;
 };
 
-export const getHealth = async () => {
+export const getHealth = async (force: boolean = false) => {
+  const params = new URLSearchParams({ force: force.toString() });
   const response = await axios.get<TypesGen.HealthcheckReport>(
-    "/api/v2/debug/health",
+    `/api/v2/debug/health?${params}`,
   );
   return response.data;
 };

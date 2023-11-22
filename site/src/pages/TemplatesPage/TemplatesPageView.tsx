@@ -44,6 +44,7 @@ import { docs } from "utils/docs";
 import Skeleton from "@mui/material/Skeleton";
 import { Box } from "@mui/system";
 import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
+import { Pill } from "components/Pill/Pill";
 
 export const Language = {
   developerCount: (activeCount: number): string => {
@@ -118,19 +119,23 @@ const TemplateRow: FC<{ template: Template }> = ({ template }) => {
       </TableCell>
 
       <TableCell css={styles.actionCell}>
-        <Button
-          size="small"
-          css={styles.actionButton}
-          className="actionButton"
-          startIcon={<ArrowForwardOutlined />}
-          title={`Create a workspace using the ${template.display_name} template`}
-          onClick={(e) => {
-            e.stopPropagation();
-            navigate(`/templates/${template.name}/workspace`);
-          }}
-        >
-          Create Workspace
-        </Button>
+        {template.deprecated ? (
+          <Pill text="Deprecated" type="warning" />
+        ) : (
+          <Button
+            size="small"
+            css={styles.actionButton}
+            className="actionButton"
+            startIcon={<ArrowForwardOutlined />}
+            title={`Create a workspace using the ${template.display_name} template`}
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate(`/templates/${template.name}/workspace`);
+            }}
+          >
+            Create Workspace
+          </Button>
+        )}
       </TableCell>
     </TableRow>
   );

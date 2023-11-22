@@ -10,7 +10,7 @@ export const AuditPaywall: FC = () => {
   return (
     <Paywall
       message="Audit logs"
-      description="Audit Logs allows Auditors to monitor user operations in their deployment. To use this feature, you have to upgrade your account."
+      description="Audit Logs allows Auditors to monitor user operations in their deployment. To use this feature, you need an Enterprise license."
       cta={
         <Stack direction="row" alignItems="center">
           <Link href={docs("/admin/upgrade")} target="_blank" rel="noreferrer">

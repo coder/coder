@@ -123,11 +123,7 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
         // If a transition is set, there is a moment on new load where the
         // bar accelerates to progressValue and then rapidly decelerates, which
         // is not indicative of true progress.
-        classes={{
-          bar: css`
-            transition: none;
-          `,
-        }}
+        classes={{ bar: classNames.bar }}
       />
       <div css={styles.barHelpers}>
         <div css={styles.label}>
@@ -139,6 +135,12 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
       </div>
     </div>
   );
+};
+
+const classNames = {
+  bar: css`
+    transition: none;
+  `,
 };
 
 const styles = {

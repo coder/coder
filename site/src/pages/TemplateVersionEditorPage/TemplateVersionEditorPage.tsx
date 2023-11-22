@@ -121,9 +121,8 @@ export const TemplateVersionEditorPage: FC = () => {
               tarFile,
               newFileTree,
             );
-            const serverFile = await uploadFileMutation.mutateAsync(
-              newVersionFile,
-            );
+            const serverFile =
+              await uploadFileMutation.mutateAsync(newVersionFile);
             const newVersion = await createTemplateVersionMutation.mutateAsync({
               provisioner: "terraform",
               storage_method: "file",

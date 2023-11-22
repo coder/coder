@@ -149,6 +149,11 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					return xerrors.Errorf("get workspace by id: %w", err)
 				}
 
+				user, err := tx.GetUserByID(e.ctx, ws.OwnerID)
+				if err != nil {
+					return xerrors.Errorf("get user by id: %w", err)
+				}
+
 				// Determine the workspace state based on its latest build.
 				latestBuild, err := tx.GetLatestWorkspaceBuildByWorkspaceID(e.ctx, ws.ID)
 				if err != nil {
@@ -172,7 +177,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 
 				accessControl := (*(e.accessControlStore.Load())).GetTemplateAccessControl(template)
 
-				nextTransition, reason, err := getNextTransition(ws, latestBuild, latestJob, templateSchedule, currentTick)
+				nextTransition, reason, err := getNextTransition(user, ws, latestBuild, latestJob, templateSchedule, currentTick)
 				if err != nil {
 					log.Debug(e.ctx, "skipping workspace", slog.Error(err))
 					// err is used to indicate that a workspace is not eligible
@@ -300,6 +305,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 // may be "transitioning" to a new state (such as an inactive, stopped
 // workspace transitioning to the dormant state).
 func getNextTransition(
+	user database.User,
 	ws database.Workspace,
 	latestBuild database.WorkspaceBuild,
 	latestJob database.ProvisionerJob,
@@ -313,7 +319,7 @@ func getNextTransition(
 	switch {
 	case isEligibleForAutostop(ws, latestBuild, latestJob, currentTick):
 		return database.WorkspaceTransitionStop, database.BuildReasonAutostop, nil
-	case isEligibleForAutostart(ws, latestBuild, latestJob, templateSchedule, currentTick):
+	case isEligibleForAutostart(user, ws, latestBuild, latestJob, templateSchedule, currentTick):
 		return database.WorkspaceTransitionStart, database.BuildReasonAutostart, nil
 	case isEligibleForFailedStop(latestBuild, latestJob, templateSchedule, currentTick):
 		return database.WorkspaceTransitionStop, database.BuildReasonAutostop, nil
@@ -334,7 +340,12 @@ func getNextTransition(
 }
 
 // isEligibleForAutostart returns true if the workspace should be autostarted.
-func isEligibleForAutostart(ws database.Workspace, build database.WorkspaceBuild, job database.ProvisionerJob, templateSchedule schedule.TemplateScheduleOptions, currentTick time.Time) bool {
+func isEligibleForAutostart(user database.User, ws database.Workspace, build database.WorkspaceBuild, job database.ProvisionerJob, templateSchedule schedule.TemplateScheduleOptions, currentTick time.Time) bool {
+	// Don't attempt to autostart workspaces for suspended users.
+	if user.Status != database.UserStatusActive {
+		return false
+	}
+
 	// Don't attempt to autostart failed workspaces.
 	if job.JobStatus == database.ProvisionerJobStatusFailed {
 		return false

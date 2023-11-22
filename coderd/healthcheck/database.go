@@ -16,7 +16,9 @@ const (
 
 // @typescript-generate DatabaseReport
 type DatabaseReport struct {
-	Healthy     bool    `json:"healthy"`
+	Healthy  bool     `json:"healthy"`
+	Warnings []string `json:"warnings"`
+
 	Reachable   bool    `json:"reachable"`
 	Latency     string  `json:"latency"`
 	LatencyMS   int64   `json:"latency_ms"`
@@ -30,6 +32,7 @@ type DatabaseReportOptions struct {
 }
 
 func (r *DatabaseReport) Run(ctx context.Context, opts *DatabaseReportOptions) {
+	r.Warnings = []string{}
 	r.ThresholdMS = opts.Threshold.Milliseconds()
 	if r.ThresholdMS == 0 {
 		r.ThresholdMS = DatabaseDefaultThreshold.Milliseconds()

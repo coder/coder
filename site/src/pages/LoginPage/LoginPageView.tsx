@@ -75,7 +75,7 @@ const styles = {
 
   container: {
     width: "100%",
-    maxWidth: 385,
+    maxWidth: 320,
     display: "flex",
     flexDirection: "column",
     alignItems: "center",

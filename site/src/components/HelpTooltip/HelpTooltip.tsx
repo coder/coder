@@ -1,7 +1,7 @@
 import Link from "@mui/material/Link";
 // This is used as base for the main HelpTooltip component
 // eslint-disable-next-line no-restricted-imports -- Read above
-import Popover, { PopoverProps } from "@mui/material/Popover";
+import Popover, { type PopoverProps } from "@mui/material/Popover";
 import HelpIcon from "@mui/icons-material/HelpOutline";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import {
@@ -9,25 +9,19 @@ import {
   useContext,
   useRef,
   useState,
-  FC,
-  PropsWithChildren,
+  type FC,
+  type PropsWithChildren,
+  type HTMLAttributes,
+  type ReactNode,
 } from "react";
 import { Stack } from "components/Stack/Stack";
-import Box, { BoxProps } from "@mui/material/Box";
-import { type CSSObject, css as className } from "@emotion/css";
+import type { CSSObject } from "@emotion/css";
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { type ClassName, useClassName } from "hooks/useClassName";
 
 type Icon = typeof HelpIcon;
 
 type Size = "small" | "medium";
-export interface HelpTooltipProps {
-  // Useful to test on storybook
-  open?: boolean;
-  size?: Size;
-  icon?: Icon;
-  iconClassName?: string;
-  buttonClassName?: string;
-}
 
 export const HelpTooltipContext = createContext<
   { open: boolean; onClose: () => void } | undefined
@@ -45,27 +39,24 @@ const useHelpTooltip = () => {
   return helpTooltipContext;
 };
 
-export const HelpPopover: FC<
-  PopoverProps & { onOpen: () => void; onClose: () => void }
-> = ({ onOpen, onClose, children, ...props }) => {
-  const theme = useTheme();
+interface HelpPopoverProps extends PopoverProps {
+  onOpen: () => void;
+  onClose: () => void;
+}
+
+export const HelpPopover: FC<HelpPopoverProps> = ({
+  onOpen,
+  onClose,
+  children,
+  ...props
+}) => {
+  const popover = useClassName(classNames.popover, []);
+  const paper = useClassName(classNames.paper, []);
 
   return (
     <Popover
-      className={className`
-        pointer-events: none;
-      `}
-      classes={{
-        paper: className`
-          ${theme.typography.body2 as CSSObject}
-
-          margin-top: 4px;
-          width: 304px;
-          padding: 20px;
-          color: ${theme.palette.text.secondary};
-          pointer-events: auto;
-        `,
-      }}
+      className={popover}
+      classes={{ paper }}
       onClose={onClose}
       anchorOrigin={{
         vertical: "bottom",
@@ -86,13 +77,23 @@ export const HelpPopover: FC<
   );
 };
 
-export const HelpTooltip: FC<PropsWithChildren<HelpTooltipProps>> = ({
+export interface HelpTooltipProps {
+  // Useful to test on storybook
+  open?: boolean;
+  size?: Size;
+  icon?: Icon;
+  buttonStyles?: Interpolation<Theme>;
+  iconStyles?: Interpolation<Theme>;
+  children?: ReactNode;
+}
+
+export const HelpTooltip: FC<HelpTooltipProps> = ({
   children,
   open = false,
   size = "medium",
   icon: Icon = HelpIcon,
-  iconClassName,
-  buttonClassName,
+  buttonStyles,
+  iconStyles,
 }) => {
   const theme = useTheme();
   const anchorRef = useRef<HTMLButtonElement>(null);
@@ -108,24 +109,26 @@ export const HelpTooltip: FC<PropsWithChildren<HelpTooltipProps>> = ({
       <button
         ref={anchorRef}
         aria-describedby={id}
-        css={css`
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: ${theme.spacing(getButtonSpacingFromSize(size))};
-          height: ${theme.spacing(getButtonSpacingFromSize(size))};
-          padding: 0;
-          border: 0;
-          background: transparent;
-          color: ${theme.palette.text.primary};
-          opacity: 0.5;
-          cursor: pointer;
+        css={[
+          css`
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: ${theme.spacing(getButtonSpacingFromSize(size))};
+            height: ${theme.spacing(getButtonSpacingFromSize(size))};
+            padding: 0;
+            border: 0;
+            background: transparent;
+            color: ${theme.palette.text.primary};
+            opacity: 0.5;
+            cursor: pointer;
 
-          &:hover {
-            opacity: 0.75;
-          }
-        `}
-        className={buttonClassName}
+            &:hover {
+              opacity: 0.75;
+            }
+          `,
+          buttonStyles,
+        ]}
         onClick={(event) => {
           event.stopPropagation();
           setIsOpen(true);
@@ -139,11 +142,13 @@ export const HelpTooltip: FC<PropsWithChildren<HelpTooltipProps>> = ({
         aria-label="More info"
       >
         <Icon
-          css={{
-            width: theme.spacing(getIconSpacingFromSize(size)),
-            height: theme.spacing(getIconSpacingFromSize(size)),
-          }}
-          className={iconClassName}
+          css={[
+            {
+              width: theme.spacing(getIconSpacingFromSize(size)),
+              height: theme.spacing(getIconSpacingFromSize(size)),
+            },
+            iconStyles,
+          ]}
         />
       </button>
       <HelpPopover
@@ -161,12 +166,26 @@ export const HelpTooltip: FC<PropsWithChildren<HelpTooltipProps>> = ({
   );
 };
 
-export const HelpTooltipTitle: FC<PropsWithChildren> = ({ children }) => {
-  return <h4 css={styles.title}>{children}</h4>;
+export const HelpTooltipTitle: FC<HTMLAttributes<HTMLHeadingElement>> = ({
+  children,
+  ...attrs
+}) => {
+  return (
+    <h4 css={styles.title} {...attrs}>
+      {children}
+    </h4>
+  );
 };
 
-export const HelpTooltipText = (props: BoxProps) => {
-  return <Box component="p" css={styles.text} {...props} />;
+export const HelpTooltipText: FC<HTMLAttributes<HTMLParagraphElement>> = ({
+  children,
+  ...attrs
+}) => {
+  return (
+    <p css={styles.text} {...attrs}>
+      {children}
+    </p>
+  );
 };
 
 export const HelpTooltipLink: FC<PropsWithChildren<{ href: string }>> = ({
@@ -181,13 +200,19 @@ export const HelpTooltipLink: FC<PropsWithChildren<{ href: string }>> = ({
   );
 };
 
-export const HelpTooltipAction: FC<
-  PropsWithChildren<{
-    icon: Icon;
-    onClick: () => void;
-    ariaLabel?: string;
-  }>
-> = ({ children, icon: Icon, onClick, ariaLabel }) => {
+interface HelpTooltipActionProps {
+  children?: ReactNode;
+  icon: Icon;
+  onClick: () => void;
+  ariaLabel?: string;
+}
+
+export const HelpTooltipAction: FC<HelpTooltipActionProps> = ({
+  children,
+  icon: Icon,
+  onClick,
+  ariaLabel,
+}) => {
   const tooltip = useHelpTooltip();
 
   return (
@@ -206,9 +231,7 @@ export const HelpTooltipAction: FC<
   );
 };
 
-export const HelpTooltipLinksGroup: FC<PropsWithChildren<unknown>> = ({
-  children,
-}) => {
+export const HelpTooltipLinksGroup: FC<PropsWithChildren> = ({ children }) => {
   return (
     <Stack spacing={1} css={styles.linksGroup}>
       {children}
@@ -235,6 +258,22 @@ const getIconSpacingFromSize = (size?: Size): number => {
       return 2;
   }
 };
+
+const classNames = {
+  popover: (css) => css`
+    pointer-events: none;
+  `,
+
+  paper: (css, theme) => css`
+    ${theme.typography.body2 as CSSObject}
+
+    margin-top: 4px;
+    width: 304px;
+    padding: 20px;
+    color: ${theme.palette.text.secondary};
+    pointer-events: auto;
+  `,
+} satisfies Record<string, ClassName>;
 
 const styles = {
   title: (theme) => ({

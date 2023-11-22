@@ -5563,6 +5563,7 @@ func (q *FakeQuerier) RegisterWorkspaceProxy(_ context.Context, arg database.Reg
 			p.WildcardHostname = arg.WildcardHostname
 			p.DerpEnabled = arg.DerpEnabled
 			p.DerpOnly = arg.DerpOnly
+			p.Version = arg.Version
 			p.UpdatedAt = dbtime.Now()
 			q.workspaceProxies[i] = p
 			return p, nil
@@ -5905,6 +5906,7 @@ func (q *FakeQuerier) UpdateTemplateAccessControlByID(_ context.Context, arg dat
 			continue
 		}
 		q.templates[idx].RequireActiveVersion = arg.RequireActiveVersion
+		q.templates[idx].Deprecated = arg.Deprecated
 		return nil
 	}
 
@@ -6885,6 +6887,9 @@ func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.G
 		}
 
 		if arg.ExactName != "" && !strings.EqualFold(template.Name, arg.ExactName) {
+			continue
+		}
+		if arg.Deprecated.Valid && arg.Deprecated.Bool == (template.Deprecated != "") {
 			continue
 		}
 

@@ -1,5 +1,7 @@
 import colors from "./tailwind";
 
+export type ThemeRole = keyof NewTheme["roles"];
+
 export interface NewTheme {
   l1: Role; // page background, things which sit at the "root level"
   l2: InteractiveRole; // sidebars, table headers, navigation
@@ -34,7 +36,7 @@ export const dark: NewTheme = {
   l1: {
     background: colors.gray[950],
     outline: colors.gray[700],
-    fill: "#f00",
+    fill: colors.gray[600],
     text: colors.white,
   },
 
@@ -60,7 +62,7 @@ export const dark: NewTheme = {
   l3: {
     background: colors.gray[800],
     outline: colors.gray[700],
-    fill: "#f00",
+    fill: colors.gray[600],
     text: colors.white,
     disabled: {
       background: "#f00",
@@ -117,7 +119,7 @@ export const dark: NewTheme = {
     notice: {
       background: colors.yellow[950],
       outline: colors.yellow[200],
-      fill: "#f00",
+      fill: colors.yellow[500],
       text: colors.yellow[50],
     },
     info: {
@@ -147,7 +149,7 @@ export const dark: NewTheme = {
     active: {
       background: colors.sky[950],
       outline: colors.sky[500],
-      fill: "#f00",
+      fill: colors.sky[600],
       text: colors.sky[50],
     },
   },

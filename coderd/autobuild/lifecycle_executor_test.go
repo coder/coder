@@ -265,6 +265,50 @@ func TestExecutorAutostartNotEnabled(t *testing.T) {
 	require.Len(t, stats.Transitions, 0)
 }
 
+func TestExecutorAutostartUserSuspended(t *testing.T) {
+	t.Parallel()
+
+	var (
+		ctx     = testutil.Context(t, testutil.WaitShort)
+		sched   = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan autobuild.Stats)
+		client  = coderdtest.New(t, &coderdtest.Options{
+			AutobuildTicker:          tickCh,
+			IncludeProvisionerDaemon: true,
+			AutobuildStats:           statsCh,
+		})
+	)
+
+	admin := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
+	template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	userClient, user := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+	workspace := coderdtest.CreateWorkspace(t, userClient, admin.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+		cwr.AutostartSchedule = ptr.Ref(sched.String())
+	})
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, workspace.LatestBuild.ID)
+	workspace = coderdtest.MustWorkspace(t, userClient, workspace.ID)
+
+	// Given: workspace is stopped, and the user is suspended.
+	workspace = coderdtest.MustTransitionWorkspace(t, userClient, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+
+	_, err := client.UpdateUserStatus(ctx, user.ID.String(), codersdk.UserStatusSuspended)
+	require.NoError(t, err, "update user status")
+
+	// When: the autobuild executor ticks after the scheduled time
+	go func() {
+		tickCh <- sched.Next(workspace.LatestBuild.CreatedAt)
+		close(tickCh)
+	}()
+
+	// Then: nothing should happen
+	stats := testutil.RequireRecvCtx(ctx, t, statsCh)
+	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Transitions, 0)
+}
+
 func TestExecutorAutostopOK(t *testing.T) {
 	t.Parallel()
 

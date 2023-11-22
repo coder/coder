@@ -199,7 +199,7 @@ coder:
       value: "false"
     # Only use relayed connections
     - name: "CODER_DERP_SERVER_STUN_ADDRESSES"
-      value: ""
+      value: "disable"
     # You must set up an external PostgreSQL database
     - name: "CODER_PG_CONNECTION_URL"
       value: ""

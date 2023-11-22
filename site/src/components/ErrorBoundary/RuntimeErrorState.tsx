@@ -3,8 +3,7 @@ import Link from "@mui/material/Link";
 import RefreshOutlined from "@mui/icons-material/RefreshOutlined";
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
-import { css } from "@emotion/css";
-import { type Interpolation, type Theme } from "@emotion/react";
+import { css, type Interpolation, type Theme } from "@emotion/react";
 import type { BuildInfoResponse } from "api/typesGenerated";
 import { CopyButton } from "components/CopyButton/CopyButton";
 import { CoderIcon } from "components/Icons/CoderIcon";
@@ -97,20 +96,7 @@ export const RuntimeErrorState: FC<RuntimeErrorStateProps> = ({ error }) => {
                 <div css={styles.stackHeader}>
                   Stacktrace
                   <CopyButton
-                    buttonClassName={css`
-                      background-color: transparent;
-                      border: 0;
-                      border-radius: 999px;
-                      min-height: 32px;
-                      min-width: 32px;
-                      height: 32px;
-                      width: 32px;
-
-                      & svg {
-                        width: 16px;
-                        height: 16px;
-                      }
-                    `}
+                    buttonStyles={styles.copyButton}
                     text={error.stack}
                     tooltipTitle="Copy stacktrace"
                   />
@@ -209,4 +195,19 @@ const styles = {
     fontSize: 12,
     color: theme.palette.text.secondary,
   }),
+
+  copyButton: css`
+    background-color: transparent;
+    border: 0;
+    border-radius: 999px;
+    min-height: 32px;
+    min-width: 32px;
+    height: 32px;
+    width: 32px;
+
+    & svg {
+      width: 16px;
+      height: 16px;
+    }
+  `,
 } satisfies Record<string, Interpolation<Theme>>;

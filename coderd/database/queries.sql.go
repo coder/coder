@@ -3667,7 +3667,7 @@ func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, a
 
 const getWorkspaceProxies = `-- name: GetWorkspaceProxies :many
 SELECT
-	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only, version
 FROM
 	workspace_proxies
 WHERE
@@ -3697,6 +3697,7 @@ func (q *sqlQuerier) GetWorkspaceProxies(ctx context.Context) ([]WorkspaceProxy,
 			&i.RegionID,
 			&i.DerpEnabled,
 			&i.DerpOnly,
+			&i.Version,
 		); err != nil {
 			return nil, err
 		}
@@ -3713,7 +3714,7 @@ func (q *sqlQuerier) GetWorkspaceProxies(ctx context.Context) ([]WorkspaceProxy,
 
 const getWorkspaceProxyByHostname = `-- name: GetWorkspaceProxyByHostname :one
 SELECT
-	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only, version
 FROM
 	workspace_proxies
 WHERE
@@ -3772,13 +3773,14 @@ func (q *sqlQuerier) GetWorkspaceProxyByHostname(ctx context.Context, arg GetWor
 		&i.RegionID,
 		&i.DerpEnabled,
 		&i.DerpOnly,
+		&i.Version,
 	)
 	return i, err
 }
 
 const getWorkspaceProxyByID = `-- name: GetWorkspaceProxyByID :one
 SELECT
-	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only, version
 FROM
 	workspace_proxies
 WHERE
@@ -3804,13 +3806,14 @@ func (q *sqlQuerier) GetWorkspaceProxyByID(ctx context.Context, id uuid.UUID) (W
 		&i.RegionID,
 		&i.DerpEnabled,
 		&i.DerpOnly,
+		&i.Version,
 	)
 	return i, err
 }
 
 const getWorkspaceProxyByName = `-- name: GetWorkspaceProxyByName :one
 SELECT
-	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only, version
 FROM
 	workspace_proxies
 WHERE
@@ -3837,6 +3840,7 @@ func (q *sqlQuerier) GetWorkspaceProxyByName(ctx context.Context, name string) (
 		&i.RegionID,
 		&i.DerpEnabled,
 		&i.DerpOnly,
+		&i.Version,
 	)
 	return i, err
 }
@@ -3858,7 +3862,7 @@ INSERT INTO
 		deleted
 	)
 VALUES
-	($1, '', '', $2, $3, $4, $5, $6, $7, $8, $9, false) RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only
+	($1, '', '', $2, $3, $4, $5, $6, $7, $8, $9, false) RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only, version
 `
 
 type InsertWorkspaceProxyParams struct {
@@ -3900,6 +3904,7 @@ func (q *sqlQuerier) InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspa
 		&i.RegionID,
 		&i.DerpEnabled,
 		&i.DerpOnly,
+		&i.Version,
 	)
 	return i, err
 }
@@ -3912,10 +3917,11 @@ SET
 	wildcard_hostname = $2 :: text,
 	derp_enabled = $3 :: boolean,
 	derp_only = $4 :: boolean,
+	version = $5 :: text,
 	updated_at = Now()
 WHERE
-	id = $5
-RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only
+	id = $6
+RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only, version
 `
 
 type RegisterWorkspaceProxyParams struct {
@@ -3923,6 +3929,7 @@ type RegisterWorkspaceProxyParams struct {
 	WildcardHostname string    `db:"wildcard_hostname" json:"wildcard_hostname"`
 	DerpEnabled      bool      `db:"derp_enabled" json:"derp_enabled"`
 	DerpOnly         bool      `db:"derp_only" json:"derp_only"`
+	Version          string    `db:"version" json:"version"`
 	ID               uuid.UUID `db:"id" json:"id"`
 }
 
@@ -3932,6 +3939,7 @@ func (q *sqlQuerier) RegisterWorkspaceProxy(ctx context.Context, arg RegisterWor
 		arg.WildcardHostname,
 		arg.DerpEnabled,
 		arg.DerpOnly,
+		arg.Version,
 		arg.ID,
 	)
 	var i WorkspaceProxy
@@ -3949,6 +3957,7 @@ func (q *sqlQuerier) RegisterWorkspaceProxy(ctx context.Context, arg RegisterWor
 		&i.RegionID,
 		&i.DerpEnabled,
 		&i.DerpOnly,
+		&i.Version,
 	)
 	return i, err
 }
@@ -3971,7 +3980,7 @@ SET
 	updated_at = Now()
 WHERE
 	id = $5
-RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only
+RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only, version
 `
 
 type UpdateWorkspaceProxyParams struct {
@@ -4006,6 +4015,7 @@ func (q *sqlQuerier) UpdateWorkspaceProxy(ctx context.Context, arg UpdateWorkspa
 		&i.RegionID,
 		&i.DerpEnabled,
 		&i.DerpOnly,
+		&i.Version,
 	)
 	return i, err
 }
@@ -5183,7 +5193,7 @@ func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg GetTem
 
 const getTemplateByID = `-- name: GetTemplateByID :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, created_by_avatar_url, created_by_username
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, created_by_avatar_url, created_by_username
 FROM
 	template_with_users
 WHERE
@@ -5222,6 +5232,7 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.AutostopRequirementWeeks,
 		&i.AutostartBlockDaysOfWeek,
 		&i.RequireActiveVersion,
+		&i.Deprecated,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 	)
@@ -5230,7 +5241,7 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 
 const getTemplateByOrganizationAndName = `-- name: GetTemplateByOrganizationAndName :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, created_by_avatar_url, created_by_username
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, created_by_avatar_url, created_by_username
 FROM
 	template_with_users AS templates
 WHERE
@@ -5277,6 +5288,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.AutostopRequirementWeeks,
 		&i.AutostartBlockDaysOfWeek,
 		&i.RequireActiveVersion,
+		&i.Deprecated,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 	)
@@ -5284,7 +5296,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 }
 
 const getTemplates = `-- name: GetTemplates :many
-SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, created_by_avatar_url, created_by_username FROM template_with_users AS templates
+SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, created_by_avatar_url, created_by_username FROM template_with_users AS templates
 ORDER BY (name, id) ASC
 `
 
@@ -5324,6 +5336,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 			&i.AutostopRequirementWeeks,
 			&i.AutostartBlockDaysOfWeek,
 			&i.RequireActiveVersion,
+			&i.Deprecated,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 		); err != nil {
@@ -5342,7 +5355,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 
 const getTemplatesWithFilter = `-- name: GetTemplatesWithFilter :many
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, created_by_avatar_url, created_by_username
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, created_by_avatar_url, created_by_username
 FROM
 	template_with_users AS templates
 WHERE
@@ -5366,16 +5379,28 @@ WHERE
 			id = ANY($4)
 		ELSE true
 	END
+	-- Filter by deprecated
+	AND CASE
+		WHEN $5 :: boolean IS NOT NULL THEN
+			CASE
+				WHEN $5 :: boolean THEN
+					deprecated != ''
+				ELSE
+					deprecated = ''
+			END
+		ELSE true
+	END
   -- Authorize Filter clause will be injected below in GetAuthorizedTemplates
   -- @authorize_filter
 ORDER BY (name, id) ASC
 `
 
 type GetTemplatesWithFilterParams struct {
-	Deleted        bool        `db:"deleted" json:"deleted"`
-	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
-	ExactName      string      `db:"exact_name" json:"exact_name"`
-	IDs            []uuid.UUID `db:"ids" json:"ids"`
+	Deleted        bool         `db:"deleted" json:"deleted"`
+	OrganizationID uuid.UUID    `db:"organization_id" json:"organization_id"`
+	ExactName      string       `db:"exact_name" json:"exact_name"`
+	IDs            []uuid.UUID  `db:"ids" json:"ids"`
+	Deprecated     sql.NullBool `db:"deprecated" json:"deprecated"`
 }
 
 func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplatesWithFilterParams) ([]Template, error) {
@@ -5384,6 +5409,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 		arg.OrganizationID,
 		arg.ExactName,
 		pq.Array(arg.IDs),
+		arg.Deprecated,
 	)
 	if err != nil {
 		return nil, err
@@ -5419,6 +5445,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 			&i.AutostopRequirementWeeks,
 			&i.AutostartBlockDaysOfWeek,
 			&i.RequireActiveVersion,
+			&i.Deprecated,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 		); err != nil {
@@ -5519,7 +5546,8 @@ const updateTemplateAccessControlByID = `-- name: UpdateTemplateAccessControlByI
 UPDATE
 	templates
 SET
-	require_active_version = $2
+	require_active_version = $2,
+	deprecated = $3
 WHERE
 	id = $1
 `
@@ -5527,10 +5555,11 @@ WHERE
 type UpdateTemplateAccessControlByIDParams struct {
 	ID                   uuid.UUID `db:"id" json:"id"`
 	RequireActiveVersion bool      `db:"require_active_version" json:"require_active_version"`
+	Deprecated           string    `db:"deprecated" json:"deprecated"`
 }
 
 func (q *sqlQuerier) UpdateTemplateAccessControlByID(ctx context.Context, arg UpdateTemplateAccessControlByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateTemplateAccessControlByID, arg.ID, arg.RequireActiveVersion)
+	_, err := q.db.ExecContext(ctx, updateTemplateAccessControlByID, arg.ID, arg.RequireActiveVersion, arg.Deprecated)
 	return err
 }
 

@@ -16,16 +16,20 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -47,13 +51,13 @@ func TestWorkspaceAgent(t *testing.T) {
 			OrganizationID: user.OrganizationID,
 			OwnerID:        anotherUser.ID,
 		})
-		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+		dbfake.NewWorkspaceBuildBuilder(t, db, ws).Resource(&proto.Resource{
 			Name: "aws_instance",
 			Agents: []*proto.Agent{{
 				Id:        uuid.NewString(),
 				Directory: tmpDir,
 			}},
-		})
+		}).Do()
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		workspace, err := anotherClient.Workspace(ctx, ws.ID)
@@ -72,13 +76,13 @@ func TestWorkspaceAgent(t *testing.T) {
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		})
-		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+		dbfake.NewWorkspaceBuildBuilder(t, db, ws).Resource(&proto.Resource{
 			Name: "aws_instance",
 			Agents: []*proto.Agent{{
 				Id:        uuid.NewString(),
 				Directory: tmpDir,
 			}},
-		})
+		}).Do()
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 		defer cancel()
@@ -104,7 +108,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			OwnerID:        user.UserID,
 			OrganizationID: user.OrganizationID,
 		})
-		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+		dbfake.NewWorkspaceBuildBuilder(t, db, ws).Resource(&proto.Resource{
 			Name: "example",
 			Type: "aws_instance",
 			Agents: []*proto.Agent{{
@@ -116,7 +120,7 @@ func TestWorkspaceAgent(t *testing.T) {
 				ConnectionTimeoutSeconds: 1,
 				TroubleshootingUrl:       wantTroubleshootingURL,
 			}},
-		})
+		}).Do()
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 		defer cancel()
@@ -153,7 +157,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			PortForwardingHelper: true,
 			SshHelper:            true,
 		}
-		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+		dbfake.NewWorkspaceBuildBuilder(t, db, ws).Resource(&proto.Resource{
 			Agents: []*proto.Agent{
 				{
 					Directory: tmpDir,
@@ -163,7 +167,7 @@ func TestWorkspaceAgent(t *testing.T) {
 					DisplayApps: apps,
 				},
 			},
-		})
+		}).Do()
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -193,7 +197,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		})
-		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+		dbfake.NewWorkspaceBuildBuilder(t, db, ws).Resource(&proto.Resource{
 			Agents: []*proto.Agent{
 				{
 					Directory: tmpDir,
@@ -203,7 +207,7 @@ func TestWorkspaceAgent(t *testing.T) {
 					DisplayApps: apps,
 				},
 			},
-		})
+		}).Do()
 		workspace, err = client.Workspace(ctx, ws.ID)
 		require.NoError(t, err)
 
@@ -540,15 +544,17 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 			OwnerID:        user.UserID,
 		})
 		authToken := uuid.NewString()
-		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+		dbfake.NewWorkspaceBuildBuilder(t, db, ws).Resource(&proto.Resource{
 			Agents: []*proto.Agent{{
 				Apps: apps,
 				Auth: &proto.Agent_Token{
 					Token: authToken,
 				},
 			}},
+		}).Do()
+		_ = agenttest.New(t, client.URL, authToken, func(o *agent.Options) {
+			o.PortCacheDuration = time.Millisecond
 		})
-		_ = agenttest.New(t, client.URL, authToken)
 		resources := coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
 		return client, uint16(coderdPort), resources[0].Agents[0].ID
 	}
@@ -667,15 +673,21 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 
 			// Close the listener and check that the port is no longer in the response.
 			require.NoError(t, l.Close())
-			time.Sleep(2 * time.Second) // avoid cache
-			res, err = client.WorkspaceAgentListeningPorts(ctx, agentID)
-			require.NoError(t, err)
-
-			for _, port := range res.Ports {
-				if port.Network == "tcp" && port.Port == lPort {
-					t.Fatalf("expected to not find TCP port %d in response", lPort)
+			t.Log("checking for ports after listener close:")
+			require.Eventually(t, func() bool {
+				res, err = client.WorkspaceAgentListeningPorts(ctx, agentID)
+				if !assert.NoError(t, err) {
+					return false
 				}
-			}
+
+				for _, port := range res.Ports {
+					if port.Network == "tcp" && port.Port == lPort {
+						t.Logf("expected to not find TCP port %d in response", lPort)
+						return false
+					}
+				}
+				return true
+			}, testutil.WaitLong, testutil.IntervalMedium)
 		})
 
 		t.Run("Filter", func(t *testing.T) {
@@ -773,7 +785,7 @@ func TestWorkspaceAgentAppHealth(t *testing.T) {
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
 	})
-	dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+	dbfake.NewWorkspaceBuildBuilder(t, db, ws).Resource(&proto.Resource{
 		Name: "example",
 		Type: "aws_instance",
 		Agents: []*proto.Agent{{
@@ -783,7 +795,7 @@ func TestWorkspaceAgentAppHealth(t *testing.T) {
 			},
 			Apps: apps,
 		}},
-	})
+	}).Do()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
@@ -853,6 +865,32 @@ func TestWorkspaceAgentReportStats(t *testing.T) {
 		agentClient.SetSessionToken(authToken)
 
 		_, err := agentClient.PostStats(context.Background(), &agentsdk.Stats{
+			ConnectionsByProto: map[string]int64{"TCP": 1},
+			// Set connection count to 1 but all session counts to zero to
+			// assert we aren't updating last_used_at for a connections that may
+			// be spawned passively by the dashboard.
+			ConnectionCount:             1,
+			RxPackets:                   1,
+			RxBytes:                     1,
+			TxPackets:                   1,
+			TxBytes:                     1,
+			SessionCountVSCode:          0,
+			SessionCountJetBrains:       0,
+			SessionCountReconnectingPTY: 0,
+			SessionCountSSH:             0,
+			ConnectionMedianLatencyMS:   10,
+		})
+		require.NoError(t, err)
+
+		newWorkspace, err := client.Workspace(context.Background(), ws.ID)
+		require.NoError(t, err)
+
+		assert.True(t,
+			newWorkspace.LastUsedAt.Equal(ws.LastUsedAt),
+			"%s and %s should not differ", newWorkspace.LastUsedAt, ws.LastUsedAt,
+		)
+
+		_, err = agentClient.PostStats(context.Background(), &agentsdk.Stats{
 			ConnectionsByProto:          map[string]int64{"TCP": 1},
 			ConnectionCount:             1,
 			RxPackets:                   1,
@@ -860,14 +898,14 @@ func TestWorkspaceAgentReportStats(t *testing.T) {
 			TxPackets:                   1,
 			TxBytes:                     1,
 			SessionCountVSCode:          1,
-			SessionCountJetBrains:       1,
-			SessionCountReconnectingPTY: 1,
-			SessionCountSSH:             1,
+			SessionCountJetBrains:       0,
+			SessionCountReconnectingPTY: 0,
+			SessionCountSSH:             0,
 			ConnectionMedianLatencyMS:   10,
 		})
 		require.NoError(t, err)
 
-		newWorkspace, err := client.Workspace(context.Background(), ws.ID)
+		newWorkspace, err = client.Workspace(context.Background(), ws.ID)
 		require.NoError(t, err)
 
 		assert.True(t,
@@ -955,7 +993,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
 	})
-	dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+	dbfake.NewWorkspaceBuildBuilder(t, db, ws).Resource(&proto.Resource{
 		Name: "example",
 		Type: "aws_instance",
 		Agents: []*proto.Agent{{
@@ -987,7 +1025,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 				Token: authToken,
 			},
 		}},
-	})
+	}).Do()
 	workspace, err := client.Workspace(context.Background(), ws.ID)
 	require.NoError(t, err)
 	for _, res := range workspace.LatestBuild.Resources {
@@ -1011,7 +1049,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	require.EqualValues(t, 10, manifest.Metadata[0].Interval)
 	require.EqualValues(t, 3, manifest.Metadata[0].Timeout)
 
-	post := func(key string, mr codersdk.WorkspaceAgentMetadataResult) {
+	post := func(ctx context.Context, key string, mr codersdk.WorkspaceAgentMetadataResult) {
 		err := agentClient.PostMetadata(ctx, agentsdk.PostMetadataRequest{
 			Metadata: []agentsdk.Metadata{
 				{
@@ -1035,8 +1073,11 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 		Value:       "bar",
 	}
 
+	// Setup is complete, reset the context.
+	ctx = testutil.Context(t, testutil.WaitMedium)
+
 	// Initial post must come before the Watch is established.
-	post("foo1", wantMetadata1)
+	post(ctx, "foo1", wantMetadata1)
 
 	updates, errors := client.WatchWorkspaceAgentMetadata(ctx, agentID)
 
@@ -1078,14 +1119,14 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	require.Zero(t, update[1].Result.CollectedAt)
 
 	wantMetadata2 := wantMetadata1
-	post("foo2", wantMetadata2)
+	post(ctx, "foo2", wantMetadata2)
 	update = recvUpdate()
 	require.Len(t, update, 3)
 	check(wantMetadata1, update[0], true)
 	check(wantMetadata2, update[1], true)
 
 	wantMetadata1.Error = "error"
-	post("foo1", wantMetadata1)
+	post(ctx, "foo1", wantMetadata1)
 	update = recvUpdate()
 	require.Len(t, update, 3)
 	check(wantMetadata1, update[0], true)
@@ -1095,7 +1136,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	tooLongValueMetadata.Value = strings.Repeat("a", maxValueLen*2)
 	tooLongValueMetadata.Error = ""
 	tooLongValueMetadata.CollectedAt = time.Now()
-	post("foo3", tooLongValueMetadata)
+	post(ctx, "foo3", tooLongValueMetadata)
 	got := recvUpdate()[2]
 	for i := 0; i < 2 && len(got.Result.Value) != maxValueLen; i++ {
 		got = recvUpdate()[2]
@@ -1104,7 +1145,163 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	require.NotEmpty(t, got.Result.Error)
 
 	unknownKeyMetadata := wantMetadata1
-	post("unknown", unknownKeyMetadata)
+	post(ctx, "unknown", unknownKeyMetadata)
+}
+
+type testWAMErrorStore struct {
+	database.Store
+	err atomic.Pointer[error]
+}
+
+func (s *testWAMErrorStore) GetWorkspaceAgentMetadata(ctx context.Context, arg database.GetWorkspaceAgentMetadataParams) ([]database.WorkspaceAgentMetadatum, error) {
+	err := s.err.Load()
+	if err != nil {
+		return nil, *err
+	}
+	return s.Store.GetWorkspaceAgentMetadata(ctx, arg)
+}
+
+func TestWorkspaceAgent_Metadata_CatchMemoryLeak(t *testing.T) {
+	t.Parallel()
+
+	db := &testWAMErrorStore{Store: dbmem.New()}
+	psub := pubsub.NewInMemory()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("coderd").Leveled(slog.LevelDebug)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database:                 db,
+		Pubsub:                   psub,
+		IncludeProvisionerDaemon: true,
+		Logger:                   &logger,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+	authToken := uuid.NewString()
+	ws := dbfake.Workspace(t, db, database.Workspace{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	})
+	dbfake.NewWorkspaceBuildBuilder(t, db, ws).Resource(&proto.Resource{
+		Name: "example",
+		Type: "aws_instance",
+		Agents: []*proto.Agent{{
+			Metadata: []*proto.Agent_Metadata{
+				{
+					DisplayName: "First Meta",
+					Key:         "foo1",
+					Script:      "echo hi",
+					Interval:    10,
+					Timeout:     3,
+				},
+				{
+					DisplayName: "Second Meta",
+					Key:         "foo2",
+					Script:      "echo bye",
+					Interval:    10,
+					Timeout:     3,
+				},
+			},
+			Id: uuid.NewString(),
+			Auth: &proto.Agent_Token{
+				Token: authToken,
+			},
+		}},
+	}).Do()
+	workspace, err := client.Workspace(context.Background(), ws.ID)
+	require.NoError(t, err)
+	for _, res := range workspace.LatestBuild.Resources {
+		for _, a := range res.Agents {
+			require.Equal(t, codersdk.WorkspaceAgentLifecycleCreated, a.LifecycleState)
+		}
+	}
+
+	agentClient := agentsdk.New(client.URL)
+	agentClient.SetSessionToken(authToken)
+
+	ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitSuperLong))
+
+	manifest, err := agentClient.Manifest(ctx)
+	require.NoError(t, err)
+
+	post := func(ctx context.Context, key, value string) error {
+		return agentClient.PostMetadata(ctx, agentsdk.PostMetadataRequest{
+			Metadata: []agentsdk.Metadata{
+				{
+					Key: key,
+					WorkspaceAgentMetadataResult: codersdk.WorkspaceAgentMetadataResult{
+						CollectedAt: time.Now(),
+						Value:       value,
+					},
+				},
+			},
+		})
+	}
+
+	workspace, err = client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err, "get workspace")
+
+	// Start the SSE connection.
+	metadata, errors := client.WatchWorkspaceAgentMetadata(ctx, manifest.AgentID)
+
+	// Discard the output, pretending to be a client consuming it.
+	wantErr := xerrors.New("test error")
+	metadataDone := testutil.Go(t, func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case _, ok := <-metadata:
+				if !ok {
+					return
+				}
+			case err := <-errors:
+				if err != nil && !strings.Contains(err.Error(), wantErr.Error()) {
+					assert.NoError(t, err, "watch metadata")
+				}
+				return
+			}
+		}
+	})
+
+	postDone := testutil.Go(t, func() {
+		for {
+			// We need to send two separate metadata updates to trigger the
+			// memory leak. foo2 will cause the number of foo1 to be doubled, etc.
+			err = post(ctx, "foo1", "hi")
+			if err != nil {
+				if !xerrors.Is(err, context.Canceled) {
+					assert.NoError(t, err, "post metadata foo1")
+				}
+				return
+			}
+			err = post(ctx, "foo2", "bye")
+			if err != nil {
+				if !xerrors.Is(err, context.Canceled) {
+					assert.NoError(t, err, "post metadata foo1")
+				}
+				return
+			}
+		}
+	})
+
+	// In a previously faulty implementation, this database error will trigger
+	// a close of the goroutine that consumes metadata updates for refreshing
+	// the metadata sent over SSE. As it was, the exit of the consumer was not
+	// detected as a trigger to close down the connection.
+	//
+	// Further, there was a memory leak in the pubsub subscription that cause
+	// ballooning of memory (almost double in size every received metadata).
+	//
+	// This db error should trigger a close of the SSE connection in the fixed
+	// implementation. The memory leak should not happen in either case, but
+	// testing it is not straightforward.
+	db.err.Store(&wantErr)
+
+	select {
+	case <-ctx.Done():
+		t.Fatal("timeout waiting for SSE to close")
+	case <-metadataDone:
+	}
+	cancel()
+	<-postDone
 }
 
 func TestWorkspaceAgent_Startup(t *testing.T) {

@@ -228,6 +228,9 @@ func TestTemplateEdit(t *testing.T) {
 			"templates",
 			"edit",
 			template.Name,
+			"--description", "",
+			"--display-name", "",
+			"--icon", "",
 		}
 		inv, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, templateAdmin, root)
@@ -1046,5 +1049,42 @@ func TestTemplateEdit(t *testing.T) {
 		err := inv.WithContext(ctx).Run()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "appears to be an AGPL deployment")
+	})
+	t.Run("DefaultValues", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.Name = "random"
+			ctr.Icon = "/icon/foobar.png"
+			ctr.DisplayName = "Foobar"
+			ctr.Description = "Some description"
+		})
+
+		// We need to change some field to get a db write.
+		cmdArgs := []string{
+			"templates",
+			"edit",
+			template.Name,
+			"--name", "something-new",
+		}
+		inv, root := clitest.New(t, cmdArgs...)
+		//nolint
+		clitest.SetupConfig(t, client, root)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		updated, err := client.Template(context.Background(), template.ID)
+		require.NoError(t, err)
+		assert.Equal(t, "something-new", updated.Name)
+		assert.Equal(t, template.Icon, updated.Icon)
+		assert.Equal(t, template.DisplayName, updated.DisplayName)
+		assert.Equal(t, template.Description, updated.Description)
+		assert.Equal(t, template.DeprecationMessage, updated.DeprecationMessage)
 	})
 }

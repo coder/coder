@@ -918,6 +918,8 @@ export interface Template {
   readonly active_user_count: number;
   readonly build_time_stats: TemplateBuildTimeStats;
   readonly description: string;
+  readonly deprecated: boolean;
+  readonly deprecation_message: string;
   readonly icon: string;
   readonly default_ttl_ms: number;
   readonly max_ttl_ms: number;
@@ -1183,6 +1185,7 @@ export interface UpdateTemplateMeta {
   readonly update_workspace_last_used_at: boolean;
   readonly update_workspace_dormant_at: boolean;
   readonly require_active_version: boolean;
+  readonly deprecation_message?: string;
 }
 
 // From codersdk/users.go
@@ -1578,6 +1581,7 @@ export interface WorkspaceProxy extends Region {
   readonly created_at: string;
   readonly updated_at: string;
   readonly deleted: boolean;
+  readonly version: string;
 }
 
 // From codersdk/deployment.go
@@ -1721,7 +1725,6 @@ export const Entitlements: Entitlement[] = [
 
 // From codersdk/deployment.go
 export type Experiment =
-  | "dashboard_theme"
   | "deployment_health_page"
   | "moons"
   | "single_tailnet"
@@ -1730,7 +1733,6 @@ export type Experiment =
   | "template_update_policies"
   | "workspace_actions";
 export const Experiments: Experiment[] = [
-  "dashboard_theme",
   "deployment_health_page",
   "moons",
   "single_tailnet",
@@ -2081,8 +2083,9 @@ export type RegionTypes = Region | WorkspaceProxy;
 
 // From healthcheck/accessurl.go
 export interface HealthcheckAccessURLReport {
-  readonly access_url: string;
   readonly healthy: boolean;
+  readonly warnings: string[];
+  readonly access_url: string;
   readonly reachable: boolean;
   readonly status_code: number;
   readonly healthz_response: string;
@@ -2092,6 +2095,7 @@ export interface HealthcheckAccessURLReport {
 // From healthcheck/database.go
 export interface HealthcheckDatabaseReport {
   readonly healthy: boolean;
+  readonly warnings: string[];
   readonly reachable: boolean;
   readonly latency: string;
   readonly latency_ms: number;
@@ -2114,6 +2118,7 @@ export interface HealthcheckReport {
 // From healthcheck/websocket.go
 export interface HealthcheckWebsocketReport {
   readonly healthy: boolean;
+  readonly warnings: string[];
   readonly body: string;
   readonly code: number;
   readonly error?: string;
@@ -2169,6 +2174,7 @@ export const ClibaseValueSources: ClibaseValueSource[] = [
 // From derphealth/derp.go
 export interface DerphealthNodeReport {
   readonly healthy: boolean;
+  readonly warnings: string[];
   // Named type "tailscale.com/tailcfg.DERPNode" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly node?: any;
@@ -2188,6 +2194,7 @@ export interface DerphealthNodeReport {
 // From derphealth/derp.go
 export interface DerphealthRegionReport {
   readonly healthy: boolean;
+  readonly warnings: string[];
   // Named type "tailscale.com/tailcfg.DERPRegion" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly region?: any;
@@ -2198,6 +2205,7 @@ export interface DerphealthRegionReport {
 // From derphealth/derp.go
 export interface DerphealthReport {
   readonly healthy: boolean;
+  readonly warnings: string[];
   readonly regions: Record<number, DerphealthRegionReport>;
   // Named type "tailscale.com/net/netcheck.Report" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type

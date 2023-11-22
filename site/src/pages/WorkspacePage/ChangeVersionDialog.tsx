@@ -2,7 +2,6 @@ import { type FC, useRef, useState } from "react";
 import TextField from "@mui/material/TextField";
 import Autocomplete from "@mui/material/Autocomplete";
 import CircularProgress from "@mui/material/CircularProgress";
-import Box from "@mui/material/Box";
 import AlertTitle from "@mui/material/AlertTitle";
 import InfoIcon from "@mui/icons-material/InfoOutlined";
 import { css } from "@emotion/css";
@@ -80,7 +79,7 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
                   ) => option.id === value.id}
                   getOptionLabel={(option) => option.name}
                   renderOption={(props, option: TemplateVersion) => (
-                    <Box component="li" {...props}>
+                    <li {...props}>
                       <AvatarData
                         avatar={
                           <Avatar src={option.created_by.avatar_url}>
@@ -100,7 +99,7 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
                             >
                               {option.name}
                               {option.message && (
-                                <InfoIcon sx={{ width: 12, height: 12 }} />
+                                <InfoIcon css={{ width: 12, height: 12 }} />
                               )}
                             </Stack>
                             {template?.active_version_id === option.id && (
@@ -110,7 +109,7 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
                         }
                         subtitle={createDayString(option.created_at)}
                       />
-                    </Box>
+                    </li>
                   )}
                   renderInput={(params) => (
                     <>
@@ -128,12 +127,7 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
                               {params.InputProps.endAdornment}
                             </>
                           ),
-                          classes: {
-                            // Same `padding-left` as input
-                            root: css`
-                              padding-left: 14px !important;
-                            `,
-                          },
+                          classes: { root: classNames.root },
                         }}
                       />
                     </>
@@ -158,4 +152,11 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
       }
     />
   );
+};
+
+const classNames = {
+  // Same `padding-left` as input
+  root: css`
+    padding-left: 14px !important;
+  `,
 };

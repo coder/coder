@@ -37,9 +37,6 @@ export const WithError: Story = {
         },
       ],
     }),
-    initialTouched: {
-      password: true,
-    },
   },
 };
 

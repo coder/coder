@@ -78,7 +78,7 @@ provision:
       # Ensure Coder has permissions on /var/run/docker.socket
       usermod -aG docker coder
       # Ensure coder listens on all interfaces
-      sed -i 's/CODER_ADDRESS=.*/CODER_ADDRESS=0.0.0.0:3000/' /etc/coder.d/coder.env
+      sed -i 's/CODER_HTTP_ADDRESS=.*/CODER_HTTP_ADDRESS=0.0.0.0:3000/' /etc/coder.d/coder.env
       # Also set the access URL to host.lima.internal for fast deployments
       sed -i 's#CODER_ACCESS_URL=.*#CODER_ACCESS_URL=http://host.lima.internal:3000#' /etc/coder.d/coder.env
       # Ensure coder starts on boot

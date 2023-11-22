@@ -2,6 +2,7 @@ import { type FC } from "react";
 import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { BuildParametersPopover } from "./BuildParametersPopover";
 
+import Tooltip from "@mui/material/Tooltip";
 import Button from "@mui/material/Button";
 import LoadingButton from "@mui/lab/LoadingButton";
 import ButtonGroup from "@mui/material/ButtonGroup";
@@ -18,6 +19,8 @@ import RetryDebugIcon from "@mui/icons-material/BugReportOutlined";
 interface WorkspaceActionProps {
   loading?: boolean;
   handleAction: () => void;
+  disabled?: boolean;
+  tooltipText?: string;
 }
 
 export const UpdateButton: FC<WorkspaceActionProps> = ({
@@ -58,22 +61,24 @@ export const StartButton: FC<
     workspace: Workspace;
     handleAction: (buildParameters?: WorkspaceBuildParameter[]) => void;
   }
-> = ({ handleAction, workspace, loading }) => {
-  return (
+> = ({ handleAction, workspace, loading, disabled, tooltipText }) => {
+  const buttonContent = (
     <ButtonGroup
       variant="outlined"
       sx={{
-        // Workaround to make the border transitions smmothly on button groups
+        // Workaround to make the border transitions smoothly on button groups
         "& > button:hover + button": {
           borderLeft: "1px solid #FFF",
         },
       }}
+      disabled={disabled}
     >
       <LoadingButton
         loading={loading}
         loadingPosition="start"
         startIcon={<PlayCircleOutlineIcon />}
         onClick={() => handleAction()}
+        disabled={disabled}
       >
         {loading ? <>Starting&hellip;</> : "Start"}
       </LoadingButton>
@@ -83,6 +88,12 @@ export const StartButton: FC<
         onSubmit={handleAction}
       />
     </ButtonGroup>
+  );
+
+  return tooltipText ? (
+    <Tooltip title={tooltipText}>{buttonContent}</Tooltip>
+  ) : (
+    buttonContent
   );
 };
 
@@ -108,16 +119,17 @@ export const RestartButton: FC<
     workspace: Workspace;
     handleAction: (buildParameters?: WorkspaceBuildParameter[]) => void;
   }
-> = ({ handleAction, loading, workspace }) => {
-  return (
+> = ({ handleAction, loading, workspace, disabled, tooltipText }) => {
+  const buttonContent = (
     <ButtonGroup
       variant="outlined"
       sx={{
-        // Workaround to make the border transitions smmothly on button groups
+        // Workaround to make the border transitions smoothly on button groups
         "& > button:hover + button": {
           borderLeft: "1px solid #FFF",
         },
       }}
+      disabled={disabled}
     >
       <LoadingButton
         loading={loading}
@@ -125,6 +137,7 @@ export const RestartButton: FC<
         startIcon={<ReplayIcon />}
         onClick={() => handleAction()}
         data-testid="workspace-restart-button"
+        disabled={disabled}
       >
         {loading ? <>Restarting&hellip;</> : <>Restart&hellip;</>}
       </LoadingButton>
@@ -134,6 +147,12 @@ export const RestartButton: FC<
         onSubmit={handleAction}
       />
     </ButtonGroup>
+  );
+
+  return tooltipText ? (
+    <Tooltip title={tooltipText}>{buttonContent}</Tooltip>
+  ) : (
+    buttonContent
   );
 };
 
@@ -173,7 +192,10 @@ type DebugButtonProps = Omit<WorkspaceActionProps, "loading"> & {
   debug?: boolean;
 };
 
-export function RetryButton({ handleAction, debug = false }: DebugButtonProps) {
+export const RetryButton = ({
+  handleAction,
+  debug = false,
+}: DebugButtonProps) => {
   return (
     <Button
       startIcon={debug ? <RetryDebugIcon /> : <RetryIcon />}
@@ -182,4 +204,4 @@ export function RetryButton({ handleAction, debug = false }: DebugButtonProps) {
       Retry{debug && " (Debug)"}
     </Button>
   );
-}
+};

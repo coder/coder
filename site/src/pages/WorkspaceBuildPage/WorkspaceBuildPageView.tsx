@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme } from "@emotion/react";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import { BuildAvatar } from "components/BuildAvatar/BuildAvatar";
 import { type FC } from "react";
 import { ProvisionerJobLog, WorkspaceBuild } from "api/typesGenerated";
@@ -17,12 +17,7 @@ import {
   getDisplayWorkspaceBuildInitiatedBy,
   getDisplayWorkspaceBuildStatus,
 } from "utils/workspace";
-import Box from "@mui/material/Box";
-import {
-  Sidebar,
-  SidebarCaption,
-  SidebarItem,
-} from "components/Sidebar/Sidebar";
+import { Sidebar, SidebarCaption, SidebarItem } from "./Sidebar";
 import { BuildIcon } from "components/BuildIcon/BuildIcon";
 import Skeleton from "@mui/material/Skeleton";
 import { Alert } from "components/Alert/Alert";
@@ -48,6 +43,8 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
   builds,
   activeBuildNumber,
 }) => {
+  const theme = useTheme();
+
   if (!build) {
     return <Loader />;
   }
@@ -94,16 +91,16 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
             css={styles.statsItem}
             label="Action"
             value={
-              <Box component="span" sx={{ textTransform: "capitalize" }}>
+              <span css={{ textTransform: "capitalize" }}>
                 {build.transition}
-              </Box>
+              </span>
             }
           />
         </Stats>
       </FullWidthPageHeader>
 
-      <Box
-        sx={{
+      <div
+        css={{
           display: "flex",
           alignItems: "start",
           overflow: "hidden",
@@ -127,79 +124,78 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
           ))}
         </Sidebar>
 
-        <Box sx={{ height: "100%", overflowY: "auto", width: "100%" }}>
+        <div css={{ height: "100%", overflowY: "auto", width: "100%" }}>
           {build.transition === "delete" && build.job.status === "failed" && (
             <Alert
               severity="error"
-              sx={{
+              css={{
                 borderRadius: 0,
                 border: 0,
-                background: (theme) => theme.palette.error.dark,
-                borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
+                background: theme.palette.error.dark,
+                borderBottom: `1px solid ${theme.palette.divider}`,
               }}
             >
-              <Box>
+              <div>
                 The workspace may have failed to delete due to a Terraform state
                 mismatch. A template admin may run{" "}
-                <Box
-                  component="code"
-                  display="inline-block"
-                  width="fit-content"
-                  fontWeight={600}
+                <code
+                  css={{
+                    display: "inline-block",
+                    width: "fit-content",
+                    fontWeight: 600,
+                  }}
                 >
-                  `
                   {`coder rm ${
                     build.workspace_owner_name + "/" + build.workspace_name
                   } --orphan`}
-                  `
-                </Box>{" "}
+                </code>{" "}
                 to delete the workspace skipping resource destruction.
-              </Box>
+              </div>
             </Alert>
           )}
           {logs ? (
             <WorkspaceBuildLogs
-              sx={{ border: 0 }}
+              css={{ border: 0 }}
               logs={sortLogsByCreatedAt(logs)}
             />
           ) : (
             <Loader />
           )}
-        </Box>
-      </Box>
+        </div>
+      </div>
     </DashboardFullPage>
   );
 };
 
-const BuildSidebarItem = ({
-  build,
-  active,
-}: {
+interface BuildSidebarItemProps {
   build: WorkspaceBuild;
   active: boolean;
-}) => {
+}
+
+const BuildSidebarItem: FC<BuildSidebarItemProps> = ({ build, active }) => {
+  const theme = useTheme();
+  const statusType = getDisplayWorkspaceBuildStatus(theme, build).type;
+
   return (
     <Link
       key={build.id}
       to={`/@${build.workspace_owner_name}/${build.workspace_name}/builds/${build.build_number}`}
     >
       <SidebarItem active={active}>
-        <Box sx={{ display: "flex", alignItems: "start", gap: 1 }}>
+        <div css={{ display: "flex", alignItems: "start", gap: 8 }}>
           <BuildIcon
             transition={build.transition}
-            sx={{
+            css={{
               width: 16,
               height: 16,
-              color: (theme) =>
-                theme.palette[getDisplayWorkspaceBuildStatus(theme, build).type]
-                  .light,
+              color: theme.palette[statusType].light,
             }}
           />
-          <Box sx={{ overflow: "hidden" }}>
-            <Box
-              sx={{
+          <div css={{ overflow: "hidden" }}>
+            <div
+              css={{
                 textTransform: "capitalize",
-                color: (theme) => theme.palette.text.primary,
+                color: theme.palette.text.primary,
                 textOverflow: "ellipsis",
                 overflow: "hidden",
                 whiteSpace: "nowrap",
@@ -207,33 +203,38 @@ const BuildSidebarItem = ({
             >
               {build.transition} by{" "}
               <strong>{getDisplayWorkspaceBuildInitiatedBy(build)}</strong>
-            </Box>
-            <Box
-              sx={{
+            </div>
+            <div
+              css={{
                 fontSize: 12,
-                color: (theme) => theme.palette.text.secondary,
-                mt: 0.25,
+                color: theme.palette.text.secondary,
+                marginTop: 2,
               }}
             >
               {displayWorkspaceBuildDuration(build)}
-            </Box>
-          </Box>
-        </Box>
+            </div>
+          </div>
+        </div>
       </SidebarItem>
     </Link>
   );
 };
 
-const BuildSidebarItemSkeleton = () => {
+const BuildSidebarItemSkeleton: FC = () => {
   return (
     <SidebarItem>
-      <Box sx={{ display: "flex", alignItems: "start", gap: 1 }}>
+      <div css={{ display: "flex", alignItems: "start", gap: 8 }}>
         <Skeleton variant="circular" width={16} height={16} />
-        <Box>
+        <div>
           <Skeleton variant="text" width={94} height={16} />
-          <Skeleton variant="text" width={60} height={14} sx={{ mt: 0.25 }} />
-        </Box>
-      </Box>
+          <Skeleton
+            variant="text"
+            width={60}
+            height={14}
+            css={{ marginTop: 2 }}
+          />
+        </div>
+      </div>
     </SidebarItem>
   );
 };
