@@ -34,15 +34,9 @@ export type UsePaginatedQueryOptions<
 > = BasePaginationOptions<TQueryFnData, TError, TData, TQueryKey> &
   QueryPayloadExtender<TQueryPayload> & {
     /**
-     * An optional dependency for React Router's URLSearchParams.
-     *
-     * It's annoying that this is necessary, but it helps avoid URL de-syncs if
-     * useSearchParams is called multiple times in the same component (likely in
-     * multiple custom hooks)
-     *
-     * @todo Wrangle React Router's useSearchParams so that URL state can be
-     * shared between multiple components/hooks more directly without making you
-     * jump through so many hoops (it's affecting our filter logic, too)
+     * An optional dependency for React Router's URLSearchParams. If this is
+     * provided, all URL state changes will go through this object instead of
+     * an internal value.
      */
     searchParams?: URLSearchParams;
 
@@ -199,9 +193,9 @@ export function usePaginatedQuery<
       setSearchParams(withoutPage);
     } else {
       const params: InvalidPageParams = {
-        offset: currentPageOffset,
         limit,
         setSearchParams,
+        offset: currentPageOffset,
         searchParams: withoutPage,
         totalPages: fixedTotalPages,
         pageNumber: currentPage,
