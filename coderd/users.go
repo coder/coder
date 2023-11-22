@@ -34,7 +34,6 @@ import (
 // @Produce json
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
-// @Success 200 {object} any
 // @Router /debug/{user}/debug-link [get]
 func (api *API) userDebugOIDC(rw http.ResponseWriter, r *http.Request) {
 	var (
