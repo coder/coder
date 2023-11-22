@@ -151,13 +151,14 @@ export function usePaginatedQuery<
 
   const queryClient = useQueryClient();
   const prefetchPage = useEffectEvent((newPage: number) => {
-    return queryClient.prefetchQuery(getQueryOptionsFromPage(newPage));
+    const options = getQueryOptionsFromPage(newPage);
+    return queryClient.prefetchQuery(options);
   });
 
   // Have to split hairs and sync on both the current page and the hasXPage
   // variables, because the page can change immediately client-side, but the
-  // hasXPage values are derived from the server and won't be immediately ready
-  // on the initial render
+  // hasXPage values are derived from the server and won't always be immediately
+  // ready on the initial render
   useEffect(() => {
     if (hasNextPage) {
       void prefetchPage(currentPage + 1);
@@ -181,7 +182,7 @@ export function usePaginatedQuery<
     } else {
       const firstPageOptions = getQueryOptionsFromPage(1);
       const firstPageResult = await queryClient.fetchQuery(firstPageOptions);
-      fixedTotalPages = Math.ceil(firstPageResult.count / limit);
+      fixedTotalPages = Math.ceil(firstPageResult.count / limit) || 1;
     }
 
     const clamped = clamp(currentPage, 1, fixedTotalPages);
