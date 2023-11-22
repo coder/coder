@@ -112,7 +112,7 @@ func TestDatabase(t *testing.T) {
 
 		report.Run(ctx, &healthcheck.DatabaseReportOptions{DB: db, Threshold: time.Second})
 
-		assert.False(t, report.Healthy)
+		assert.True(t, report.Healthy)
 		assert.True(t, report.Reachable)
 		assert.Equal(t, health.SeverityWarning, report.Severity)
 		assert.Equal(t, time.Second.String(), report.Latency)
