@@ -142,7 +142,7 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		},
 		ReversePortForwardingCallback: func(ctx ssh.Context, bindHost string, bindPort uint32) bool {
 			// Allow reverse port forwarding all!
-			s.logger.Debug(ctx, "local port forward",
+			s.logger.Debug(ctx, "reverse port forward",
 				slog.F("bind_host", bindHost),
 				slog.F("bind_port", bindPort))
 			return true
