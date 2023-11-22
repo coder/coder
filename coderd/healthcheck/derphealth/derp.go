@@ -154,6 +154,7 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 
 func (r *RegionReport) Run(ctx context.Context) {
 	r.Healthy = true
+	r.Severity = health.SeverityOK
 	r.NodeReports = []*NodeReport{}
 
 	wg := &sync.WaitGroup{}
@@ -204,6 +205,13 @@ func (r *RegionReport) Run(ctx context.Context) {
 		r.Healthy = healthyNodes == len(r.Region.Nodes)
 	} else if healthyNodes < len(r.Region.Nodes) {
 		r.Warnings = append(r.Warnings, oneNodeUnhealthy)
+	}
+
+	// Review node reports and select the highest severing.
+	for _, nodeReport := range r.NodeReports {
+		if nodeReport.Severity.Value() > r.Severity.Value() {
+			r.Severity = nodeReport.Severity
+		}
 	}
 }
 
