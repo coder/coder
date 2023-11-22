@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 	"tailscale.com/derp"
 	"tailscale.com/derp/derphttp"
@@ -22,6 +23,7 @@ import (
 	tslogger "tailscale.com/types/logger"
 
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
 const (
@@ -182,6 +184,11 @@ func (r *RegionReport) Run(ctx context.Context) {
 		}()
 	}
 	wg.Wait()
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.NodeReports = sortedNodeReports(r.NodeReports)
 
 	// Coder allows for 1 unhealthy node in the region, unless there is only 1 node.
 	if len(r.Region.Nodes) == 1 {
@@ -491,4 +498,14 @@ func convertError(err error) *string {
 	}
 
 	return nil
+}
+
+func sortedNodeReports(reports []*NodeReport) []*NodeReport {
+	sorted := make([]*NodeReport, len(reports))
+	copy(sorted, reports)
+
+	slices.SortFunc(sorted, func(a, b *NodeReport) int {
+		return slice.Ascending(a.Node.Name, b.Node.Name)
+	})
+	return sorted
 }
