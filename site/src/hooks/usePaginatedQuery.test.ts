@@ -20,26 +20,19 @@ function render<
   TQueryFnData extends PaginatedData = PaginatedData,
   TQueryPayload = never,
 >(
-  queryOptions: UsePaginatedQueryOptions<TQueryFnData, TQueryPayload>,
+  options: UsePaginatedQueryOptions<TQueryFnData, TQueryPayload>,
   route?: `/?page=${string}`,
 ) {
-  type Props = { options: typeof queryOptions };
-
-  return renderHookWithAuth(
-    ({ options }: Props) => usePaginatedQuery(options),
-    {
-      route,
-      path: "/",
-      initialProps: {
-        options: queryOptions,
-      },
-    },
-  );
+  return renderHookWithAuth(({ options }) => usePaginatedQuery(options), {
+    route,
+    path: "/",
+    initialProps: { options },
+  });
 }
 
 /**
  * There are a lot of test cases in this file. Scoping mocking to inner describe
- * function calls to limit cognitive load of maintaining this file.
+ * function calls to limit the cognitive load of maintaining all this stuff
  */
 describe(`${usePaginatedQuery.name} - Overall functionality`, () => {
   describe("queryPayload method", () => {
@@ -225,7 +218,7 @@ describe(`${usePaginatedQuery.name} - Overall functionality`, () => {
       await waitFor(() => expect(result.current.currentPage).toBe(1));
     });
 
-    it("Calls the custom onInvalidPageChange callback if provided (and does not update search params automatically)", async () => {
+    it("Calls the custom onInvalidPageChange callback if provided (instead of updating search params automatically)", async () => {
       const testControl = new URLSearchParams({
         page: "1000",
       });
@@ -255,7 +248,7 @@ describe(`${usePaginatedQuery.name} - Overall functionality`, () => {
     });
   });
 
-  describe("Passing outside value for URLSearchParams", () => {
+  describe("Passing in searchParams property", () => {
     const mockQueryKey = jest.fn(() => ["mock"]);
     const mockQueryFn = jest.fn(({ pageNumber, limit }) =>
       Promise.resolve({
@@ -278,7 +271,7 @@ describe(`${usePaginatedQuery.name} - Overall functionality`, () => {
       expect(result.current.currentPage).toBe(2);
     });
 
-    it("Flushes state changes via provided searchParams property", async () => {
+    it("Flushes state changes via provided searchParams property instead of internal searchParams", async () => {
       const searchParams = new URLSearchParams({
         page: "2",
       });
@@ -297,12 +290,52 @@ describe(`${usePaginatedQuery.name} - Overall functionality`, () => {
 
 describe(`${usePaginatedQuery.name} - Returned properties`, () => {
   describe("Page change methods", () => {
-    test.skip("goToFirstPage always succeeds regardless of fetch status", async () => {
-      expect.hasAssertions();
+    type Data = PaginatedData & {
+      data: readonly number[];
+    };
+
+    const mockQueryKey = jest.fn(() => ["mock"]);
+    const mockQueryFn = jest.fn(({ pageNumber, limit }) => {
+      return new Promise<Data>((resolve) => {
+        setTimeout(() => {
+          resolve({
+            data: new Array(limit).fill(pageNumber),
+            count: 100,
+          });
+        }, 10_000);
+      });
     });
 
-    test.skip("goToNextPage works only if hasNextPage is true", async () => {
-      expect.hasAssertions();
+    test("goToFirstPage always succeeds regardless of fetch status", async () => {
+      const queryFns = [mockQueryFn, jest.fn(() => Promise.reject("Too bad"))];
+
+      for (const queryFn of queryFns) {
+        const { result, unmount } = await render(
+          { queryFn, queryKey: mockQueryKey },
+          "/?page=5",
+        );
+
+        expect(result.current.currentPage).toBe(5);
+        result.current.goToFirstPage();
+        await waitFor(() => expect(result.current.currentPage).toBe(1));
+        unmount();
+      }
+    });
+
+    test("goToNextPage works only if hasNextPage is true", async () => {
+      const { result } = await render({
+        queryKey: mockQueryKey,
+        queryFn: mockQueryFn,
+      });
+
+      expect(result.current.hasNextPage).toBe(false);
+      result.current.goToNextPage();
+      expect(result.current.currentPage).toBe(1);
+
+      await jest.runAllTimersAsync();
+      await waitFor(() => expect(result.current.hasNextPage).toBe(true));
+      result.current.goToNextPage();
+      await waitFor(() => expect(result.current.currentPage).toBe(2));
     });
 
     test.skip("goToPreviousPage works only if hasPreviousPage is true", async () => {
