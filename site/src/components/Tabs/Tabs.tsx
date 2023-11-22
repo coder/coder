@@ -43,7 +43,9 @@ export const TabLink: FC<TabLinkProps> = ({
         cx([tabLink, isActive && activeTabLink, className])
       }
       {...linkProps}
-    />
+    >
+      {children}
+    </NavLink>
   );
 };
 
