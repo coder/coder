@@ -30,6 +30,24 @@ Specify a default TTL for workspaces created from this template. It is the defau
 
 Specify the directory to create from, use '-' to read tar from stdin.
 
+### --dormancy-auto-deletion
+
+|         |                       |
+| ------- | --------------------- |
+| Type    | <code>duration</code> |
+| Default | <code>0h</code>       |
+
+Specify a duration workspaces may be in the dormant state prior to being deleted. This licensed feature's default is 0h (off). Maps to "Dormancy Auto-Deletion" in the UI.
+
+### --dormancy-threshold
+
+|         |                       |
+| ------- | --------------------- |
+| Type    | <code>duration</code> |
+| Default | <code>0h</code>       |
+
+Specify a duration workspaces may be inactive prior to being moved to the dormant state. This licensed feature's default is 0h (off). Maps to "Dormancy threshold" in the UI.
+
 ### --failure-ttl
 
 |         |                       |
@@ -47,15 +65,6 @@ Specify a failure TTL for workspaces created from this template. It is the amoun
 | Default | <code>false</code> |
 
 Ignore warnings about not having a .terraform.lock.hcl file present in the template.
-
-### --inactivity-ttl
-
-|         |                       |
-| ------- | --------------------- |
-| Type    | <code>duration</code> |
-| Default | <code>0h</code>       |
-
-Specify an inactivity TTL for workspaces created from this template. It is the amount of time the workspace is not used before it is be stopped and auto-locked. This includes across multiple builds (e.g. auto-starts and stops). This licensed feature's default is 0h (off). Maps to "Dormancy threshold" in the UI.
 
 ### --max-ttl
 
