@@ -60,6 +60,7 @@ func TestDatabase(t *testing.T) {
 
 		assert.False(t, report.Healthy)
 		assert.False(t, report.Reachable)
+		assert.Equal(t, health.SeverityError, report.Severity)
 		assert.Zero(t, report.Latency)
 		require.NotNil(t, report.Error)
 		assert.Equal(t, healthcheck.DatabaseDefaultThreshold.Milliseconds(), report.ThresholdMS)
@@ -86,6 +87,7 @@ func TestDatabase(t *testing.T) {
 
 		assert.True(t, report.Healthy)
 		assert.True(t, report.Reachable)
+		assert.Equal(t, health.SeverityOK, report.Severity)
 		assert.Equal(t, time.Millisecond.String(), report.Latency)
 		assert.EqualValues(t, 1, report.LatencyMS)
 		assert.Equal(t, healthcheck.DatabaseDefaultThreshold.Milliseconds(), report.ThresholdMS)
@@ -112,6 +114,7 @@ func TestDatabase(t *testing.T) {
 
 		assert.False(t, report.Healthy)
 		assert.True(t, report.Reachable)
+		assert.Equal(t, health.SeverityWarning, report.Severity)
 		assert.Equal(t, time.Second.String(), report.Latency)
 		assert.EqualValues(t, 1000, report.LatencyMS)
 		assert.Equal(t, time.Second.Milliseconds(), report.ThresholdMS)
