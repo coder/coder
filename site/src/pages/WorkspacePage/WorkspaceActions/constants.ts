@@ -3,7 +3,7 @@ import { type Workspace, type WorkspaceStatus } from "api/typesGenerated";
 /**
  * An iterable of all button types supported by the workspace actions UI
  */
-const buttonTypes = [
+export const buttonTypes = [
   "start",
   "starting",
   "stop",
