@@ -151,7 +151,7 @@ func TestSSH(t *testing.T) {
 		pty.WriteLine("echo hell'o'")
 		pty.ExpectMatchContext(ctx, "hello")
 
-		_ = dbfake.WorkspaceBuildBuilder(t, store, workspace).
+		_ = dbfake.NewWorkspaceBuildBuilder(t, store, workspace).
 			Seed(database.WorkspaceBuild{
 				Transition:  database.WorkspaceTransitionStop,
 				BuildNumber: 2,
@@ -520,7 +520,7 @@ func TestSSH(t *testing.T) {
 		err = session.Shell()
 		require.NoError(t, err)
 
-		_ = dbfake.WorkspaceBuildBuilder(t, store, workspace).
+		_ = dbfake.NewWorkspaceBuildBuilder(t, store, workspace).
 			Seed(database.WorkspaceBuild{
 				Transition:  database.WorkspaceTransitionStop,
 				BuildNumber: 2,

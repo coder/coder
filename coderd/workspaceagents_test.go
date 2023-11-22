@@ -51,13 +51,13 @@ func TestWorkspaceAgent(t *testing.T) {
 			OrganizationID: user.OrganizationID,
 			OwnerID:        anotherUser.ID,
 		})
-		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+		dbfake.NewWorkspaceBuildBuilder(t, db, ws).Resource(&proto.Resource{
 			Name: "aws_instance",
 			Agents: []*proto.Agent{{
 				Id:        uuid.NewString(),
 				Directory: tmpDir,
 			}},
-		})
+		}).Do()
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		workspace, err := anotherClient.Workspace(ctx, ws.ID)
@@ -76,13 +76,13 @@ func TestWorkspaceAgent(t *testing.T) {
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		})
-		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+		dbfake.NewWorkspaceBuildBuilder(t, db, ws).Resource(&proto.Resource{
 			Name: "aws_instance",
 			Agents: []*proto.Agent{{
 				Id:        uuid.NewString(),
 				Directory: tmpDir,
 			}},
-		})
+		}).Do()
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 		defer cancel()
@@ -108,7 +108,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			OwnerID:        user.UserID,
 			OrganizationID: user.OrganizationID,
 		})
-		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+		dbfake.NewWorkspaceBuildBuilder(t, db, ws).Resource(&proto.Resource{
 			Name: "example",
 			Type: "aws_instance",
 			Agents: []*proto.Agent{{
@@ -120,7 +120,7 @@ func TestWorkspaceAgent(t *testing.T) {
 				ConnectionTimeoutSeconds: 1,
 				TroubleshootingUrl:       wantTroubleshootingURL,
 			}},
-		})
+		}).Do()
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 		defer cancel()
@@ -157,7 +157,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			PortForwardingHelper: true,
 			SshHelper:            true,
 		}
-		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+		dbfake.NewWorkspaceBuildBuilder(t, db, ws).Resource(&proto.Resource{
 			Agents: []*proto.Agent{
 				{
 					Directory: tmpDir,
@@ -167,7 +167,7 @@ func TestWorkspaceAgent(t *testing.T) {
 					DisplayApps: apps,
 				},
 			},
-		})
+		}).Do()
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -197,7 +197,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		})
-		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+		dbfake.NewWorkspaceBuildBuilder(t, db, ws).Resource(&proto.Resource{
 			Agents: []*proto.Agent{
 				{
 					Directory: tmpDir,
@@ -207,7 +207,7 @@ func TestWorkspaceAgent(t *testing.T) {
 					DisplayApps: apps,
 				},
 			},
-		})
+		}).Do()
 		workspace, err = client.Workspace(ctx, ws.ID)
 		require.NoError(t, err)
 
@@ -544,14 +544,14 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 			OwnerID:        user.UserID,
 		})
 		authToken := uuid.NewString()
-		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+		dbfake.NewWorkspaceBuildBuilder(t, db, ws).Resource(&proto.Resource{
 			Agents: []*proto.Agent{{
 				Apps: apps,
 				Auth: &proto.Agent_Token{
 					Token: authToken,
 				},
 			}},
-		})
+		}).Do()
 		_ = agenttest.New(t, client.URL, authToken, func(o *agent.Options) {
 			o.PortCacheDuration = time.Millisecond
 		})
@@ -785,7 +785,7 @@ func TestWorkspaceAgentAppHealth(t *testing.T) {
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
 	})
-	dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+	dbfake.NewWorkspaceBuildBuilder(t, db, ws).Resource(&proto.Resource{
 		Name: "example",
 		Type: "aws_instance",
 		Agents: []*proto.Agent{{
@@ -795,7 +795,7 @@ func TestWorkspaceAgentAppHealth(t *testing.T) {
 			},
 			Apps: apps,
 		}},
-	})
+	}).Do()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
@@ -993,7 +993,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
 	})
-	dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+	dbfake.NewWorkspaceBuildBuilder(t, db, ws).Resource(&proto.Resource{
 		Name: "example",
 		Type: "aws_instance",
 		Agents: []*proto.Agent{{
@@ -1025,7 +1025,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 				Token: authToken,
 			},
 		}},
-	})
+	}).Do()
 	workspace, err := client.Workspace(context.Background(), ws.ID)
 	require.NoError(t, err)
 	for _, res := range workspace.LatestBuild.Resources {
@@ -1176,7 +1176,7 @@ func TestWorkspaceAgent_Metadata_CatchMemoryLeak(t *testing.T) {
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
 	})
-	dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
+	dbfake.NewWorkspaceBuildBuilder(t, db, ws).Resource(&proto.Resource{
 		Name: "example",
 		Type: "aws_instance",
 		Agents: []*proto.Agent{{
@@ -1201,7 +1201,7 @@ func TestWorkspaceAgent_Metadata_CatchMemoryLeak(t *testing.T) {
 				Token: authToken,
 			},
 		}},
-	})
+	}).Do()
 	workspace, err := client.Workspace(context.Background(), ws.ID)
 	require.NoError(t, err)
 	for _, res := range workspace.LatestBuild.Resources {
