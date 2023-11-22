@@ -35,6 +35,7 @@ type DatabaseReportOptions struct {
 
 func (r *DatabaseReport) Run(ctx context.Context, opts *DatabaseReportOptions) {
 	r.Warnings = []string{}
+	r.Severity = health.SeverityOK
 	r.ThresholdMS = opts.Threshold.Milliseconds()
 	if r.ThresholdMS == 0 {
 		r.ThresholdMS = DatabaseDefaultThreshold.Milliseconds()
@@ -49,6 +50,7 @@ func (r *DatabaseReport) Run(ctx context.Context, opts *DatabaseReportOptions) {
 		pong, err := opts.DB.Ping(ctx)
 		if err != nil {
 			r.Error = convertError(xerrors.Errorf("ping: %w", err))
+			r.Severity = health.SeverityError
 			return
 		}
 		pings = append(pings, pong)
@@ -59,8 +61,9 @@ func (r *DatabaseReport) Run(ctx context.Context, opts *DatabaseReportOptions) {
 	latency := pings[pingCount/2]
 	r.Latency = latency.String()
 	r.LatencyMS = latency.Milliseconds()
-	if r.LatencyMS < r.ThresholdMS {
-		r.Healthy = true
+	if r.LatencyMS >= r.ThresholdMS {
+		r.Severity = health.SeverityWarning
 	}
+	r.Healthy = true
 	r.Reachable = true
 }

@@ -12,6 +12,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/healthcheck"
+	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -35,6 +36,7 @@ func TestDatabase(t *testing.T) {
 
 		assert.True(t, report.Healthy)
 		assert.True(t, report.Reachable)
+		assert.Equal(t, health.SeverityOK, report.Severity)
 		assert.Equal(t, ping.String(), report.Latency)
 		assert.Equal(t, ping.Milliseconds(), report.LatencyMS)
 		assert.Equal(t, healthcheck.DatabaseDefaultThreshold.Milliseconds(), report.ThresholdMS)
