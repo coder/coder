@@ -800,7 +800,8 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	// UserInfo endpoint, so we allow users to disable it and only rely on the
 	// ID token.
 	userInfoClaims := make(map[string]interface{})
-	mergedClaims := make(map[string]interface{})
+	// If user info is skipped, the idtokenClaims are the claims.
+	mergedClaims := idtokenClaims
 	if !api.OIDCConfig.IgnoreUserInfo {
 		userInfo, err := api.OIDCConfig.Provider.UserInfo(ctx, oauth2.StaticTokenSource(state.Token))
 		if err == nil {
