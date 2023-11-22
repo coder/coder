@@ -195,7 +195,7 @@ describe(`${usePaginatedQuery.name} - Overall functionality`, () => {
       }),
     );
 
-    it("Immediately/synchronously defaults to page 1 if params are corrupt/invalid", async () => {
+    it("Synchronously defaults to page 1 if params are corrupt/invalid (no custom callback)", async () => {
       const { result } = await render(
         {
           queryKey: mockQueryKey,
@@ -207,7 +207,7 @@ describe(`${usePaginatedQuery.name} - Overall functionality`, () => {
       expect(result.current.currentPage).toBe(1);
     });
 
-    it("Auto-redirects user to last page if requested page overshoots total pages", async () => {
+    it("Auto-redirects user to last page if requested page overshoots total pages (no custom callback)", async () => {
       const { result } = await render(
         { queryKey: mockQueryKey, queryFn: mockQueryFn },
         "/?page=35",
@@ -216,7 +216,7 @@ describe(`${usePaginatedQuery.name} - Overall functionality`, () => {
       await waitFor(() => expect(result.current.currentPage).toBe(4));
     });
 
-    it("Auto-redirects user to first page if requested page goes below 1", async () => {
+    it("Auto-redirects user to first page if requested page goes below 1 (no custom callback)", async () => {
       const { result } = await render(
         { queryKey: mockQueryKey, queryFn: mockQueryFn },
         "/?page=-9999",
@@ -296,16 +296,6 @@ describe(`${usePaginatedQuery.name} - Overall functionality`, () => {
 });
 
 describe(`${usePaginatedQuery.name} - Returned properties`, () => {
-  describe("Conditional render output", () => {
-    it.skip("Always has select properties be defined regardless of fetch status", async () => {
-      expect.hasAssertions();
-    });
-
-    it.skip("Flips other properties to be defined after on-mount fetch succeeds", async () => {
-      expect.hasAssertions();
-    });
-  });
-
   describe("Page change methods", () => {
     test.skip("goToFirstPage always succeeds regardless of fetch status", async () => {
       expect.hasAssertions();
