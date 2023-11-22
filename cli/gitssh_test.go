@@ -48,18 +48,21 @@ func prepareTestGitSSH(ctx context.Context, t *testing.T) (*agentsdk.Client, str
 	require.NoError(t, err)
 
 	// setup template
-	ws, agentToken := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
-		OrganizationID: user.OrganizationID,
-		OwnerID:        user.UserID,
-	})
+	r := dbfake.NewWorkspaceBuilder(t, db).
+		Seed(database.Workspace{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).
+		WithAgent().
+		Do()
 	// start workspace agent
 	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(agentToken)
-	_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
+	agentClient.SetSessionToken(r.AgentToken)
+	_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
 		o.Client = agentClient
 	})
-	_ = coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
-	return agentClient, agentToken, pubkey
+	_ = coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
+	return agentClient, r.AgentToken, pubkey
 }
 
 func serveSSHForGitSSH(t *testing.T, handler func(ssh.Session), pubkeys ...gossh.PublicKey) *net.TCPAddr {
