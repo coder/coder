@@ -1,5 +1,4 @@
-import { css } from "@emotion/css";
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { type Interpolation, type Theme } from "@emotion/react";
 import { type FC, type PropsWithChildren } from "react";
 import {
   HelpTooltipLink,
@@ -7,14 +6,15 @@ import {
   HelpTooltipText,
 } from "components/HelpTooltip/HelpTooltip";
 import { docs } from "utils/docs";
-import { CodeExample } from "../../CodeExample/CodeExample";
-import { Stack } from "../../Stack/Stack";
-import { SecondaryAgentButton } from "../AgentButton";
+import { type ClassName, useClassName } from "hooks/useClassName";
+import { CodeExample } from "components/CodeExample/CodeExample";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "components/Popover/Popover";
+import { Stack } from "components/Stack/Stack";
+import { SecondaryAgentButton } from "../AgentButton";
 
 export interface SSHButtonProps {
   workspaceName: string;
@@ -29,7 +29,7 @@ export const SSHButton: FC<PropsWithChildren<SSHButtonProps>> = ({
   isDefaultOpen = false,
   sshPrefix,
 }) => {
-  const theme = useTheme();
+  const paper = useClassName(classNames.paper, []);
 
   return (
     <Popover isDefaultOpen={isDefaultOpen}>
@@ -37,17 +37,7 @@ export const SSHButton: FC<PropsWithChildren<SSHButtonProps>> = ({
         <SecondaryAgentButton>SSH</SecondaryAgentButton>
       </PopoverTrigger>
 
-      <PopoverContent
-        horizontal="right"
-        classes={{
-          paper: css`
-            padding: 16px 24px 24px;
-            width: 304px;
-            color: ${theme.palette.text.secondary};
-            margin-top: 2px;
-          `,
-        }}
-      >
+      <PopoverContent horizontal="right" classes={{ paper }}>
         <HelpTooltipText>
           Run the following commands to connect with SSH:
         </HelpTooltipText>
@@ -92,6 +82,15 @@ export const SSHButton: FC<PropsWithChildren<SSHButtonProps>> = ({
     </Popover>
   );
 };
+
+const classNames = {
+  paper: (css, theme) => css`
+    padding: 16px 24px 24px;
+    width: 304px;
+    color: ${theme.palette.text.secondary};
+    margin-top: 2px;
+  `,
+} satisfies Record<string, ClassName>;
 
 const styles = {
   codeExamples: {

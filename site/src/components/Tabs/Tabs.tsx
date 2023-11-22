@@ -1,11 +1,10 @@
-import { ReactNode } from "react";
+import { cx } from "@emotion/css";
+import { type FC, type PropsWithChildren } from "react";
 import { NavLink, NavLinkProps } from "react-router-dom";
-import { combineClasses } from "utils/combineClasses";
 import { Margins } from "components/Margins/Margins";
-import { css } from "@emotion/css";
-import { useTheme } from "@emotion/react";
+import { type ClassName, useClassName } from "hooks/useClassName";
 
-export const Tabs = ({ children }: { children: ReactNode }) => {
+export const Tabs: FC<PropsWithChildren> = ({ children }) => {
   return (
     <div
       css={(theme) => ({
@@ -26,10 +25,30 @@ export const Tabs = ({ children }: { children: ReactNode }) => {
   );
 };
 
-export const TabLink = (props: NavLinkProps) => {
-  const theme = useTheme();
+interface TabLinkProps extends NavLinkProps {
+  className?: string;
+}
 
-  const baseTabLink = css`
+export const TabLink: FC<TabLinkProps> = ({
+  className,
+  children,
+  ...linkProps
+}) => {
+  const tabLink = useClassName(classNames.tabLink, []);
+  const activeTabLink = useClassName(classNames.activeTabLink, []);
+
+  return (
+    <NavLink
+      className={({ isActive }) =>
+        cx([tabLink, isActive && activeTabLink, className])
+      }
+      {...linkProps}
+    />
+  );
+};
+
+const classNames = {
+  tabLink: (css, theme) => css`
     text-decoration: none;
     color: ${theme.palette.text.secondary};
     font-size: 14px;
@@ -39,9 +58,8 @@ export const TabLink = (props: NavLinkProps) => {
     &:hover {
       color: ${theme.palette.text.primary};
     }
-  `;
-
-  const activeTabLink = css`
+  `,
+  activeTabLink: (css, theme) => css`
     color: ${theme.palette.text.primary};
     position: relative;
 
@@ -54,18 +72,5 @@ export const TabLink = (props: NavLinkProps) => {
       background: ${theme.palette.primary.main};
       position: absolute;
     }
-  `;
-
-  return (
-    <NavLink
-      className={({ isActive }) =>
-        combineClasses([
-          baseTabLink,
-          isActive ? activeTabLink : undefined,
-          props.className as string,
-        ])
-      }
-      {...props}
-    />
-  );
-};
+  `,
+} satisfies Record<string, ClassName>;

@@ -31,10 +31,11 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 		disableEveryone      bool
 		requireActiveVersion bool
 
-		defaultTTL    time.Duration
-		failureTTL    time.Duration
-		inactivityTTL time.Duration
-		maxTTL        time.Duration
+		defaultTTL           time.Duration
+		failureTTL           time.Duration
+		dormancyThreshold    time.Duration
+		dormancyAutoDeletion time.Duration
+		maxTTL               time.Duration
 
 		uploadFlags templateUploadFlags
 	)
@@ -47,10 +48,10 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
-			isTemplateSchedulingOptionsSet := failureTTL != 0 || inactivityTTL != 0 || maxTTL != 0
+			isTemplateSchedulingOptionsSet := failureTTL != 0 || dormancyThreshold != 0 || dormancyAutoDeletion != 0 || maxTTL != 0
 
 			if isTemplateSchedulingOptionsSet || requireActiveVersion {
-				if failureTTL != 0 || inactivityTTL != 0 {
+				if failureTTL != 0 || dormancyThreshold != 0 || dormancyAutoDeletion != 0 {
 					// This call can be removed when workspace_actions is no longer experimental
 					experiments, exErr := client.Experiments(inv.Context())
 					if exErr != nil {
@@ -58,7 +59,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 					}
 
 					if !experiments.Enabled(codersdk.ExperimentWorkspaceActions) {
-						return xerrors.Errorf("--failure-ttl and --inactivity-ttl are experimental features. Use the workspace_actions CODER_EXPERIMENTS flag to set these configuration values.")
+						return xerrors.Errorf("--failure-ttl, --dormancy-threshold, and --dormancy-auto-deletion are experimental features. Use the workspace_actions CODER_EXPERIMENTS flag to set these configuration values.")
 					}
 				}
 
@@ -153,14 +154,15 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 			}
 
 			createReq := codersdk.CreateTemplateRequest{
-				Name:                       templateName,
-				VersionID:                  job.ID,
-				DefaultTTLMillis:           ptr.Ref(defaultTTL.Milliseconds()),
-				FailureTTLMillis:           ptr.Ref(failureTTL.Milliseconds()),
-				MaxTTLMillis:               ptr.Ref(maxTTL.Milliseconds()),
-				TimeTilDormantMillis:       ptr.Ref(inactivityTTL.Milliseconds()),
-				DisableEveryoneGroupAccess: disableEveryone,
-				RequireActiveVersion:       requireActiveVersion,
+				Name:                           templateName,
+				VersionID:                      job.ID,
+				DefaultTTLMillis:               ptr.Ref(defaultTTL.Milliseconds()),
+				FailureTTLMillis:               ptr.Ref(failureTTL.Milliseconds()),
+				MaxTTLMillis:                   ptr.Ref(maxTTL.Milliseconds()),
+				TimeTilDormantMillis:           ptr.Ref(dormancyThreshold.Milliseconds()),
+				TimeTilDormantAutoDeleteMillis: ptr.Ref(dormancyAutoDeletion.Milliseconds()),
+				DisableEveryoneGroupAccess:     disableEveryone,
+				RequireActiveVersion:           requireActiveVersion,
 			}
 
 			_, err = client.CreateTemplate(inv.Context(), organization.ID, createReq)
@@ -220,11 +222,18 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 			Value:       clibase.DurationOf(&failureTTL),
 		},
 		{
-			Flag:        "inactivity-ttl",
-			Description: "Specify an inactivity TTL for workspaces created from this template. It is the amount of time the workspace is not used before it is be stopped and auto-locked. This includes across multiple builds (e.g. auto-starts and stops). This licensed feature's default is 0h (off). Maps to \"Dormancy threshold\" in the UI.",
+			Flag:        "dormancy-threshold",
+			Description: "Specify a duration workspaces may be inactive prior to being moved to the dormant state. This licensed feature's default is 0h (off). Maps to \"Dormancy threshold\" in the UI.",
 			Default:     "0h",
-			Value:       clibase.DurationOf(&inactivityTTL),
+			Value:       clibase.DurationOf(&dormancyThreshold),
 		},
+		{
+			Flag:        "dormancy-auto-deletion",
+			Description: "Specify a duration workspaces may be in the dormant state prior to being deleted. This licensed feature's default is 0h (off). Maps to \"Dormancy Auto-Deletion\" in the UI.",
+			Default:     "0h",
+			Value:       clibase.DurationOf(&dormancyAutoDeletion),
+		},
+
 		{
 			Flag:        "max-ttl",
 			Description: "Edit the template maximum time before shutdown - workspaces created from this template must shutdown within the given duration after starting. This is an enterprise-only feature.",

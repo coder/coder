@@ -1,4 +1,4 @@
-import { type FC, type ReactNode, type PropsWithChildren } from "react";
+import { type FC, type ReactNode } from "react";
 import { type Interpolation, type Theme } from "@emotion/react";
 
 type SectionLayout = "fixed" | "fluid";
@@ -15,9 +15,7 @@ export interface SectionProps {
   children?: ReactNode;
 }
 
-type SectionFC = FC<PropsWithChildren<SectionProps>>;
-
-export const Section: SectionFC = ({
+export const Section: FC<SectionProps> = ({
   id,
   title,
   description,

@@ -61,16 +61,6 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
   const quotaQuery = useQuery(workspaceQuota(workspace.owner_name));
   const quotaBudget = quotaQuery.data?.budget;
 
-  const paperStyles = css`
-    padding: 24px;
-    max-width: 288px;
-    margin-top: ${8};
-    border-radius: 4px;
-    display: flex;
-    flex-direction: column;
-    gap: ${8};
-  `;
-
   return (
     <>
       <Stats aria-label={Language.workspaceDetails} css={styles.stats}>
@@ -146,7 +136,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
                       </PopoverTrigger>
                       <PopoverContent
                         id="schedule-sub"
-                        classes={{ paper: paperStyles }}
+                        classes={{ paper: classNames.paper }}
                         horizontal="right"
                       >
                         <DecreaseTimeContent
@@ -168,7 +158,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
                       </PopoverTrigger>
                       <PopoverContent
                         id="schedule-add"
-                        classes={{ paper: paperStyles }}
+                        classes={{ paper: classNames.paper }}
                         horizontal="right"
                       >
                         <AddTimeContent
@@ -197,9 +187,14 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
   );
 };
 
-const AddTimeContent = (props: {
+interface AddTimeContentProps {
   maxDeadlineIncrease: number;
   onDeadlinePlus: (value: number) => void;
+}
+
+const AddTimeContent: FC<AddTimeContentProps> = ({
+  maxDeadlineIncrease,
+  onDeadlinePlus,
 }) => {
   const popover = usePopover();
 
@@ -216,7 +211,7 @@ const AddTimeContent = (props: {
           e.preventDefault();
           const formData = new FormData(e.currentTarget);
           const hours = Number(formData.get("hours"));
-          props.onDeadlinePlus(hours);
+          onDeadlinePlus(hours);
           popover.setIsOpen(false);
         }}
       >
@@ -227,12 +222,10 @@ const AddTimeContent = (props: {
           size="small"
           fullWidth
           css={styles.timePopoverField}
-          InputProps={{
-            className: timePopoverFieldInputStyles,
-          }}
+          InputProps={{ className: classNames.deadlineFormInput }}
           inputProps={{
             min: 0,
-            max: props.maxDeadlineIncrease,
+            max: maxDeadlineIncrease,
             step: 1,
             defaultValue: 1,
           }}
@@ -246,9 +239,14 @@ const AddTimeContent = (props: {
   );
 };
 
-export const DecreaseTimeContent = (props: {
-  onDeadlineMinus: (hours: number) => void;
+interface DecreaseTimeContentProps {
   maxDeadlineDecrease: number;
+  onDeadlineMinus: (hours: number) => void;
+}
+
+export const DecreaseTimeContent: FC<DecreaseTimeContentProps> = ({
+  maxDeadlineDecrease,
+  onDeadlineMinus,
 }) => {
   const popover = usePopover();
 
@@ -265,7 +263,7 @@ export const DecreaseTimeContent = (props: {
           e.preventDefault();
           const formData = new FormData(e.currentTarget);
           const hours = Number(formData.get("hours"));
-          props.onDeadlineMinus(hours);
+          onDeadlineMinus(hours);
           popover.setIsOpen(false);
         }}
       >
@@ -276,12 +274,10 @@ export const DecreaseTimeContent = (props: {
           size="small"
           fullWidth
           css={styles.timePopoverField}
-          InputProps={{
-            className: timePopoverFieldInputStyles,
-          }}
+          InputProps={{ className: classNames.deadlineFormInput }}
           inputProps={{
             min: 0,
-            max: props.maxDeadlineDecrease,
+            max: maxDeadlineDecrease,
             step: 1,
             defaultValue: 1,
           }}
@@ -295,8 +291,11 @@ export const DecreaseTimeContent = (props: {
   );
 };
 
-const AutoStopDisplay = (props: { workspace: Workspace }) => {
-  const { workspace } = props;
+interface AutoStopDisplayProps {
+  workspace: Workspace;
+}
+
+const AutoStopDisplay: FC<AutoStopDisplayProps> = ({ workspace }) => {
   const display = autostopDisplay(workspace);
 
   if (display.tooltip) {
@@ -366,11 +365,23 @@ const isShutdownSoon = (workspace: Workspace): boolean => {
   return diff < oneHour;
 };
 
-const timePopoverFieldInputStyles = css`
-  font-size: 14px;
-  padding: 0px;
-  border-radius: 4px;
-`;
+const classNames = {
+  paper: css`
+    padding: 24px;
+    max-width: 288px;
+    margin-top: 8px;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  `,
+
+  deadlineFormInput: css`
+    font-size: 14px;
+    padding: 0px;
+    border-radius: 4px;
+  `,
+};
 
 const styles = {
   stats: (theme) => ({

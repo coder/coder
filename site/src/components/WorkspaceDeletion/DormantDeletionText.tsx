@@ -1,14 +1,15 @@
-import { Workspace } from "api/typesGenerated";
+import { type FC } from "react";
+import type { Workspace } from "api/typesGenerated";
 import { displayDormantDeletion } from "./utils";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
-import styled from "@emotion/styled";
-import { Theme as MaterialUITheme } from "@mui/material/styles";
 
-export const DormantDeletionText = ({
-  workspace,
-}: {
+interface DormantDeletionTextProps {
   workspace: Workspace;
-}): JSX.Element | null => {
+}
+
+export const DormantDeletionText: FC<DormantDeletionTextProps> = ({
+  workspace,
+}) => {
   const { entitlements, experiments } = useDashboard();
   const allowAdvancedScheduling =
     entitlements.features["advanced_template_scheduling"].enabled;
@@ -25,10 +26,16 @@ export const DormantDeletionText = ({
   ) {
     return null;
   }
-  return <StyledSpan role="status">Impending deletion</StyledSpan>;
-};
 
-const StyledSpan = styled.span<{ theme?: MaterialUITheme }>`
-  color: ${(props) => props.theme.palette.warning.light};
-  font-weight: 600;
-`;
+  return (
+    <span
+      role="status"
+      css={(theme) => ({
+        color: theme.palette.warning.light,
+        fontWeight: 600,
+      })}
+    >
+      Impending deletion
+    </span>
+  );
+};

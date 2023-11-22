@@ -59,15 +59,15 @@ func WorkspaceWithAgent(
 		agents = m(agents)
 	}
 	ws := Workspace(t, db, seed)
-	WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &sdkproto.Resource{
+	NewWorkspaceBuildBuilder(t, db, ws).Resource(&sdkproto.Resource{
 		Name:   "example",
 		Type:   "aws_instance",
 		Agents: agents,
-	})
+	}).Do()
 	return ws, authToken
 }
 
-type BuildBuilder struct {
+type WorkspaceBuildBuilder struct {
 	t         testing.TB
 	db        database.Store
 	ps        pubsub.Pubsub
@@ -76,29 +76,29 @@ type BuildBuilder struct {
 	resources []*sdkproto.Resource
 }
 
-func WorkspaceBuildBuilder(t testing.TB, db database.Store, ws database.Workspace) BuildBuilder {
-	return BuildBuilder{t: t, db: db, ws: ws}
+func NewWorkspaceBuildBuilder(t testing.TB, db database.Store, ws database.Workspace) WorkspaceBuildBuilder {
+	return WorkspaceBuildBuilder{t: t, db: db, ws: ws}
 }
 
-func (b BuildBuilder) Pubsub(ps pubsub.Pubsub) BuildBuilder {
+func (b WorkspaceBuildBuilder) Pubsub(ps pubsub.Pubsub) WorkspaceBuildBuilder {
 	//nolint: revive // returns modified struct
 	b.ps = ps
 	return b
 }
 
-func (b BuildBuilder) Seed(seed database.WorkspaceBuild) BuildBuilder {
+func (b WorkspaceBuildBuilder) Seed(seed database.WorkspaceBuild) WorkspaceBuildBuilder {
 	//nolint: revive // returns modified struct
 	b.seed = seed
 	return b
 }
 
-func (b BuildBuilder) Resource(resource *sdkproto.Resource) BuildBuilder {
+func (b WorkspaceBuildBuilder) Resource(resource ...*sdkproto.Resource) WorkspaceBuildBuilder {
 	//nolint: revive // returns modified struct
-	b.resources = append(b.resources, resource)
+	b.resources = append(b.resources, resource...)
 	return b
 }
 
-func (b BuildBuilder) Do() database.WorkspaceBuild {
+func (b WorkspaceBuildBuilder) Do() database.WorkspaceBuild {
 	b.t.Helper()
 	jobID := uuid.New()
 	b.seed.ID = uuid.New()
@@ -175,15 +175,6 @@ func (b BuildBuilder) Do() database.WorkspaceBuild {
 		require.NoError(b.t, err)
 	}
 	return build
-}
-
-// WorkspaceBuild inserts a build and a successful job into the database.
-func WorkspaceBuild(t testing.TB, db database.Store, ws database.Workspace, seed database.WorkspaceBuild, resources ...*sdkproto.Resource) database.WorkspaceBuild {
-	b := WorkspaceBuildBuilder(t, db, ws).Seed(seed)
-	for _, r := range resources {
-		b = b.Resource(r)
-	}
-	return b.Do()
 }
 
 // ProvisionerJobResources inserts a series of resources into a provisioner job.
