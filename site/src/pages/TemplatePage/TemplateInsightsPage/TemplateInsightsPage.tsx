@@ -25,7 +25,14 @@ import {
   useId,
 } from "react";
 import chroma from "chroma-js";
-import { subDays, addWeeks, format, startOfDay } from "date-fns";
+import {
+  subDays,
+  addWeeks,
+  format,
+  startOfDay,
+  startOfHour,
+  addHours,
+} from "date-fns";
 import { useSearchParams } from "react-router-dom";
 import "react-date-range/dist/styles.css";
 import "react-date-range/dist/theme/default.css";
@@ -152,7 +159,8 @@ const getDateRange = (
     const today = new Date();
     return {
       startDate: startOfDay(subDays(today, 6)),
-      endDate: today,
+      // Add one hour to endDate to include real-time data for today.
+      endDate: addHours(startOfHour(today), 1),
     };
   }
 
