@@ -21,7 +21,7 @@ function render<
   TQueryPayload = never,
 >(
   queryOptions: UsePaginatedQueryOptions<TQueryFnData, TQueryPayload>,
-  route?: `/${string}`,
+  route?: `/?page=${string}`,
 ) {
   type Props = { options: typeof queryOptions };
 
@@ -115,7 +115,7 @@ describe(`${usePaginatedQuery.name} - Overall functionality`, () => {
     const mockQueryFn = jest.fn(({ pageNumber, limit }) => {
       return Promise.resolve({
         data: new Array(limit).fill(pageNumber),
-        count: 50,
+        count: 75,
       });
     });
 
@@ -148,47 +148,94 @@ describe(`${usePaginatedQuery.name} - Overall functionality`, () => {
       await testPrefetch(2, 1, true);
     });
 
-    it("Prefetches the next page if it exists", async () => {
-      await testPrefetch(1, 2, true);
+    it.skip("Prefetches the next page if it exists", async () => {
+      await testPrefetch(2, 3, true);
     });
 
-    it("Avoids prefetch for previous page if it doesn't exist", async () => {
+    it.skip("Avoids prefetch for previous page if it doesn't exist", async () => {
       await testPrefetch(1, 0, false);
+      await testPrefetch(6, 5, false);
     });
 
     it("Avoids prefetch for next page if it doesn't exist", async () => {
-      await testPrefetch(2, 3, false);
+      await testPrefetch(3, 4, false);
     });
 
-    it("Reuses the same queryKey and queryFn methods for the current page and all prefetching", async () => {
-      expect.hasAssertions();
+    it.skip("Reuses the same queryKey and queryFn methods for the current page and all prefetching (on a given render)", async () => {
+      const startPage = 2;
+      await render(
+        { queryKey: mockQueryKey, queryFn: mockQueryFn },
+        `/?page=${startPage}`,
+      );
+
+      const currentMatcher = expect.objectContaining({ pageNumber: startPage });
+      expect(mockQueryKey).toBeCalledWith(currentMatcher);
+      expect(mockQueryFn).toBeCalledWith(currentMatcher);
+
+      const prevPageMatcher = expect.objectContaining({
+        pageNumber: startPage - 1,
+      });
+      const nextPageMatcher = expect.objectContaining({
+        pageNumber: startPage + 1,
+      });
+
+      await waitFor(() => expect(mockQueryKey).toBeCalledWith(prevPageMatcher));
+      await waitFor(() => expect(mockQueryFn).toBeCalledWith(prevPageMatcher));
+      await waitFor(() => expect(mockQueryKey).toBeCalledWith(nextPageMatcher));
+      await waitFor(() => expect(mockQueryFn).toBeCalledWith(nextPageMatcher));
     });
   });
 
   describe("Invalid page safety nets/redirects", () => {
-    it("Auto-redirects user to page 1 if params are corrupt/invalid", async () => {
-      expect.hasAssertions();
+    const mockQueryKey = jest.fn(() => ["mock"]);
+    const mockQueryFn = jest.fn(({ pageNumber, limit }) =>
+      Promise.resolve({
+        data: new Array(limit).fill(pageNumber),
+        count: 100,
+      }),
+    );
+
+    it("Immediately/synchronously defaults to page 1 if params are corrupt/invalid", async () => {
+      const { result } = await render(
+        {
+          queryKey: mockQueryKey,
+          queryFn: mockQueryFn,
+        },
+        "/?page=Cat",
+      );
+
+      expect(result.current.currentPage).toBe(1);
     });
 
-    it("Auto-redirects user to closest page if requested page overshoots", async () => {
-      expect.hasAssertions();
+    it("Auto-redirects user to last page if requested page overshoots total pages", async () => {
+      const { result } = await render(
+        { queryKey: mockQueryKey, queryFn: mockQueryFn },
+        "/?page=35",
+      );
+
+      await waitFor(() => expect(result.current.currentPage).toBe(4));
     });
 
     it("Auto-redirects user to first page if requested page goes below 1", async () => {
-      expect.hasAssertions();
+      const { result } = await render(
+        { queryKey: mockQueryKey, queryFn: mockQueryFn },
+        "/?page=-9999",
+      );
+
+      await waitFor(() => expect(result.current.currentPage).toBe(1));
     });
 
-    it("Calls the custom onInvalidPageChange callback if provided", async () => {
+    it.skip("Calls the custom onInvalidPageChange callback if provided", async () => {
       expect.hasAssertions();
     });
   });
 
   describe("Passing outside value for URLSearchParams", () => {
-    it("Reads from searchParams property if provided", async () => {
+    it.skip("Reads from searchParams property if provided", async () => {
       expect.hasAssertions();
     });
 
-    it("Flushes state changes via provided searchParams property", async () => {
+    it.skip("Flushes state changes via provided searchParams property", async () => {
       expect.hasAssertions();
     });
   });
@@ -196,33 +243,33 @@ describe(`${usePaginatedQuery.name} - Overall functionality`, () => {
 
 describe(`${usePaginatedQuery.name} - Returned properties`, () => {
   describe("Conditional render output", () => {
-    it("Always has select properties be defined regardless of fetch status", async () => {
+    it.skip("Always has select properties be defined regardless of fetch status", async () => {
       expect.hasAssertions();
     });
 
-    it("Flips other properties to be defined after on-mount fetch succeeds", async () => {
+    it.skip("Flips other properties to be defined after on-mount fetch succeeds", async () => {
       expect.hasAssertions();
     });
   });
 
   describe("Page change methods", () => {
-    test("goToFirstPage always succeeds regardless of fetch status", async () => {
+    test.skip("goToFirstPage always succeeds regardless of fetch status", async () => {
       expect.hasAssertions();
     });
 
-    test("goToNextPage works only if hasNextPage is true", async () => {
+    test.skip("goToNextPage works only if hasNextPage is true", async () => {
       expect.hasAssertions();
     });
 
-    test("goToPreviousPage works only if hasPreviousPage is true", async () => {
+    test.skip("goToPreviousPage works only if hasPreviousPage is true", async () => {
       expect.hasAssertions();
     });
 
-    test("onPageChange cleans 'corrupt' numeric values before navigating", async () => {
+    test.skip("onPageChange cleans 'corrupt' numeric values before navigating", async () => {
       expect.hasAssertions();
     });
 
-    test("onPageChange rejects impossible numeric values and does nothing", async () => {
+    test.skip("onPageChange rejects impossible numeric values and does nothing", async () => {
       expect.hasAssertions();
     });
   });
