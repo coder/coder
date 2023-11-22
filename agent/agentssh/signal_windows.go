@@ -8,8 +8,7 @@ import (
 
 func osSignalFrom(sig ssh.Signal) os.Signal {
 	switch sig {
-	case ssh.SIGINT:
-		return os.Interrupt
+	// Signals are not supported on Windows.
 	default:
 		return os.Kill
 	}

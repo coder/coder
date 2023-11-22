@@ -142,7 +142,7 @@ func TestNewServer_CloseActiveConnections(t *testing.T) {
 		defer wg.Done()
 		c := sshClient(t, ln.Addr().String())
 		sess, err := c.NewSession()
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		sess.Stdin = pty.Input()
 		sess.Stdout = pty.Output()
 		sess.Stderr = pty.Output()
@@ -259,6 +259,8 @@ func TestNewServer_Signal(t *testing.T) {
 
 		c := sshClient(t, ln.Addr().String())
 
+		pty := ptytest.New(t)
+
 		sess, err := c.NewSession()
 		require.NoError(t, err)
 		r, err := sess.StdoutPipe()
@@ -266,6 +268,9 @@ func TestNewServer_Signal(t *testing.T) {
 
 		// Note, we request pty but don't use ptytest here because we can't
 		// easily test for no text before EOF.
+		sess.Stdin = pty.Input()
+		sess.Stderr = pty.Output()
+
 		err = sess.RequestPty("xterm", 80, 80, nil)
 		require.NoError(t, err)
 

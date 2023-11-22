@@ -491,10 +491,10 @@ func (s *Server) handleSignal(logger slog.Logger, ssig ssh.Signal, signaler inte
 	ctx := context.Background()
 	sig := osSignalFrom(ssig)
 	logger = logger.With(slog.F("ssh_signal", ssig), slog.F("signal", sig.String()))
-	logger.Info(ctx, "received signal")
+	logger.Info(ctx, "received signal from client")
 	err := signaler.Signal(sig)
 	if err != nil {
-		logger.Warn(ctx, "signal failed", slog.Error(err))
+		logger.Warn(ctx, "signaling the process failed", slog.Error(err))
 		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "signal").Add(1)
 	}
 }
