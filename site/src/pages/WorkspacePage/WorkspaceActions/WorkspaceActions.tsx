@@ -77,11 +77,11 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     canRetryDebug,
   );
 
-  const disabled =
+  const mustUpdate =
     workspaceUpdatePolicy(workspace, canChangeVersions) === "always" &&
     workspace.outdated;
 
-  const tooltipText = getTooltipText(workspace, disabled);
+  const tooltipText = getTooltipText(workspace, mustUpdate);
   const canBeUpdated = workspace.outdated && canAcceptJobs;
 
   // A mapping of button type to the corresponding React component
@@ -92,7 +92,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
       <StartButton
         workspace={workspace}
         handleAction={handleStart}
-        disabled={disabled}
+        disabled={mustUpdate}
         tooltipText={tooltipText}
       />
     ),
@@ -101,7 +101,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
         loading
         workspace={workspace}
         handleAction={handleStart}
-        disabled={disabled}
+        disabled={mustUpdate}
         tooltipText={tooltipText}
       />
     ),
@@ -111,7 +111,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
       <RestartButton
         workspace={workspace}
         handleAction={handleRestart}
-        disabled={disabled}
+        disabled={mustUpdate}
         tooltipText={tooltipText}
       />
     ),
@@ -120,7 +120,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
         loading
         workspace={workspace}
         handleAction={handleRestart}
-        disabled={disabled}
+        disabled={mustUpdate}
         tooltipText={tooltipText}
       />
     ),
