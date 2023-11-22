@@ -198,7 +198,7 @@ coder:
     # Disable automatic update checks
     - name: "CODER_UPDATE_CHECK"
       value: "false"
-    # force SSH traffic through control plane's DERP proxy  
+    # force SSH traffic through control plane's DERP proxy
     - name: CODER_BLOCK_DIRECT
       value: "true"
     # Only use relayed connections
