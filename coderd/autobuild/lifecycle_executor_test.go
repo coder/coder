@@ -269,7 +269,7 @@ func TestExecutorAutostartUserSuspended(t *testing.T) {
 	t.Parallel()
 
 	var (
-		ctx     = context.Background()
+		ctx     = testutil.Context(t, testutil.WaitShort)
 		sched   = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
 		tickCh  = make(chan time.Time)
 		statsCh = make(chan autobuild.Stats)
@@ -304,7 +304,7 @@ func TestExecutorAutostartUserSuspended(t *testing.T) {
 	}()
 
 	// Then: nothing should happen
-	stats := <-statsCh
+	stats := testutil.RequireRecvCtx(ctx, t, statsCh)
 	assert.NoError(t, stats.Error)
 	assert.Len(t, stats.Transitions, 0)
 }
