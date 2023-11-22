@@ -290,12 +290,11 @@ describe(`${usePaginatedQuery.name} - Overall functionality`, () => {
 
 describe(`${usePaginatedQuery.name} - Returned properties`, () => {
   describe("Page change methods", () => {
-    type Data = PaginatedData & {
-      data: readonly number[];
-    };
-
     const mockQueryKey = jest.fn(() => ["mock"]);
+
     const mockQueryFn = jest.fn(({ pageNumber, limit }) => {
+      type Data = PaginatedData & { data: readonly number[] };
+
       return new Promise<Data>((resolve) => {
         setTimeout(() => {
           resolve({
@@ -323,10 +322,13 @@ describe(`${usePaginatedQuery.name} - Returned properties`, () => {
     });
 
     test("goToNextPage works only if hasNextPage is true", async () => {
-      const { result } = await render({
-        queryKey: mockQueryKey,
-        queryFn: mockQueryFn,
-      });
+      const { result } = await render(
+        {
+          queryKey: mockQueryKey,
+          queryFn: mockQueryFn,
+        },
+        "/?page=1",
+      );
 
       expect(result.current.hasNextPage).toBe(false);
       result.current.goToNextPage();
@@ -338,16 +340,56 @@ describe(`${usePaginatedQuery.name} - Returned properties`, () => {
       await waitFor(() => expect(result.current.currentPage).toBe(2));
     });
 
-    test.skip("goToPreviousPage works only if hasPreviousPage is true", async () => {
-      expect.hasAssertions();
+    test("goToPreviousPage works only if hasPreviousPage is true", async () => {
+      const { result } = await render(
+        {
+          queryKey: mockQueryKey,
+          queryFn: mockQueryFn,
+        },
+        "/?page=3",
+      );
+
+      expect(result.current.hasPreviousPage).toBe(false);
+      result.current.goToPreviousPage();
+      expect(result.current.currentPage).toBe(3);
+
+      await jest.runAllTimersAsync();
+      await waitFor(() => expect(result.current.hasPreviousPage).toBe(true));
+      result.current.goToPreviousPage();
+      await waitFor(() => expect(result.current.currentPage).toBe(2));
     });
 
-    test.skip("onPageChange cleans 'corrupt' numeric values before navigating", async () => {
-      expect.hasAssertions();
+    test("onPageChange cleans 'corrupt' numeric values before navigating", async () => {
+      const { result } = await render({
+        queryKey: mockQueryKey,
+        queryFn: mockQueryFn,
+      });
+
+      await jest.runAllTimersAsync();
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      result.current.onPageChange(2.5);
+
+      await waitFor(() => expect(result.current.currentPage).toBe(2));
     });
 
-    test.skip("onPageChange rejects impossible numeric values and does nothing", async () => {
-      expect.hasAssertions();
+    test("onPageChange rejects impossible numeric values and does nothing", async () => {
+      const { result } = await render({
+        queryKey: mockQueryKey,
+        queryFn: mockQueryFn,
+      });
+
+      await jest.runAllTimersAsync();
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      result.current.onPageChange(NaN);
+      result.current.onPageChange(Infinity);
+      result.current.onPageChange(-Infinity);
+
+      setTimeout(() => {
+        expect(result.current.currentPage).toBe(1);
+      }, 1000);
+
+      jest.runAllTimers();
     });
   });
 });
