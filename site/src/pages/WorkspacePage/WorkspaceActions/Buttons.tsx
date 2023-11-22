@@ -53,16 +53,20 @@ export const ActivateButton: FC<WorkspaceAction> = ({
   );
 };
 
-export const StartButton: FC<
-  Omit<WorkspaceAction, "handleAction"> & {
-    workspace: Workspace;
-    handleAction: (buildParameters?: WorkspaceBuildParameter[]) => void;
-  }
-> = ({ handleAction, workspace, loading, disabled, tooltipText }) => {
-  const buttonContent = (
+type StartButtonProps = Omit<WorkspaceAction, "handleAction"> & {
+  workspace: Workspace;
+  handleAction: (buildParameters?: WorkspaceBuildParameter[]) => void;
+};
+
+export const StartButton: FC<StartButtonProps> = ({
+  handleAction,
+  workspace,
+  loading,
+}) => {
+  return (
     <ButtonGroup
       variant="outlined"
-      sx={{
+      css={{
         // Workaround to make the border transitions smmothly on button groups
         "& > button:hover + button": {
           borderLeft: "1px solid #FFF",
@@ -108,16 +112,20 @@ export const StopButton: FC<WorkspaceAction> = ({ handleAction, loading }) => {
   );
 };
 
-export const RestartButton: FC<
-  Omit<WorkspaceAction, "handleAction"> & {
-    workspace: Workspace;
-    handleAction: (buildParameters?: WorkspaceBuildParameter[]) => void;
-  }
-> = ({ handleAction, loading, workspace, disabled, tooltipText }) => {
-  const buttonContent = (
+type RestartButtonProps = Omit<WorkspaceAction, "handleAction"> & {
+  workspace: Workspace;
+  handleAction: (buildParameters?: WorkspaceBuildParameter[]) => void;
+};
+
+export const RestartButton: FC<RestartButtonProps> = ({
+  handleAction,
+  loading,
+  workspace,
+}) => {
+  return (
     <ButtonGroup
       variant="outlined"
-      sx={{
+      css={{
         // Workaround to make the border transitions smmothly on button groups
         "& > button:hover + button": {
           borderLeft: "1px solid #FFF",

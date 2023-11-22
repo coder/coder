@@ -4,16 +4,18 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import { Template, Workspace } from "api/typesGenerated";
-import { FC, ReactNode } from "react";
+import Checkbox from "@mui/material/Checkbox";
+import Skeleton from "@mui/material/Skeleton";
+import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
+import { useTheme } from "@emotion/react";
+import { type FC, type ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
+import type { Template, Workspace } from "api/typesGenerated";
 import {
   TableLoaderSkeleton,
   TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
-import { useNavigate } from "react-router-dom";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
-import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
-import Box from "@mui/material/Box";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { Avatar } from "components/Avatar/Avatar";
 import { Stack } from "components/Stack/Stack";
@@ -21,9 +23,7 @@ import { LastUsed } from "pages/WorkspacesPage/LastUsed";
 import { WorkspaceOutdatedTooltip } from "components/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
 import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge";
 import { getDisplayWorkspaceTemplateName } from "utils/workspace";
-import Checkbox from "@mui/material/Checkbox";
 import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
-import Skeleton from "@mui/material/Skeleton";
 import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
 
@@ -49,18 +49,20 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
   templates,
   canCreateTemplate,
 }) => {
+  const theme = useTheme();
+
   return (
     <TableContainer>
       <Table>
         <TableHead>
           <TableRow>
             <TableCell width="40%">
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <div css={{ display: "flex", alignItems: "center", gap: 8 }}>
                 {canCheckWorkspaces && (
                   <Checkbox
                     // Remove the extra padding added for the first cell in the
                     // table
-                    sx={{ marginLeft: "-20px" }}
+                    css={{ marginLeft: "-20px" }}
                     disabled={!workspaces || workspaces.length === 0}
                     checked={checkedWorkspaces.length === workspaces?.length}
                     size="small"
@@ -78,7 +80,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                   />
                 )}
                 Name
-              </Box>
+              </div>
             </TableCell>
             <TableCell width="25%">Template</TableCell>
             <TableCell width="20%">Last used</TableCell>
@@ -109,12 +111,14 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                   checked={checked}
                 >
                   <TableCell>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <div
+                      css={{ display: "flex", alignItems: "center", gap: 8 }}
+                    >
                       {canCheckWorkspaces && (
                         <Checkbox
                           // Remove the extra padding added for the first cell in the
                           // table
-                          sx={{ marginLeft: "-20px" }}
+                          css={{ marginLeft: "-20px" }}
                           data-testid={`checkbox-${workspace.id}`}
                           size="small"
                           disabled={cantBeChecked(workspace)}
@@ -169,7 +173,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                           </Avatar>
                         }
                       />
-                    </Box>
+                    </div>
                   </TableCell>
 
                   <TableCell>
@@ -181,7 +185,9 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                   </TableCell>
 
                   <TableCell>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <div
+                      css={{ display: "flex", alignItems: "center", gap: 8 }}
+                    >
                       <WorkspaceStatusBadge workspace={workspace} />
                       {workspace.latest_build.status === "running" &&
                         !workspace.health.healthy && (
@@ -191,19 +197,19 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                             message="Your workspace is running but some agents are unhealthy."
                           />
                         )}
-                    </Box>
+                    </div>
                   </TableCell>
 
                   <TableCell>
-                    <Box css={{ display: "flex", paddingLeft: 16 }}>
+                    <div css={{ display: "flex", paddingLeft: 16 }}>
                       <KeyboardArrowRight
-                        sx={{
-                          color: (theme) => theme.palette.text.secondary,
+                        css={{
+                          color: theme.palette.text.secondary,
                           width: 20,
                           height: 20,
                         }}
                       />
-                    </Box>
+                    </div>
                   </TableCell>
                 </WorkspacesRow>
               );
@@ -214,12 +220,19 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
   );
 };
 
-const WorkspacesRow: FC<{
+interface WorkspacesRowProps {
   workspace: Workspace;
-  children: ReactNode;
+  children?: ReactNode;
   checked: boolean;
-}> = ({ workspace, children, checked }) => {
+}
+
+const WorkspacesRow: FC<WorkspacesRowProps> = ({
+  workspace,
+  children,
+  checked,
+}) => {
   const navigate = useNavigate();
+  const theme = useTheme();
 
   const workspacePageLink = `/@${workspace.owner_name}/${workspace.name}`;
   const openLinkInNewTab = () => window.open(workspacePageLink, "_blank");
@@ -245,9 +258,8 @@ const WorkspacesRow: FC<{
     <TableRow
       {...clickableProps}
       data-testid={`workspace-${workspace.id}`}
-      sx={{
-        backgroundColor: (theme) =>
-          checked ? theme.palette.action.hover : undefined,
+      css={{
+        backgroundColor: checked ? theme.palette.action.hover : undefined,
       }}
     >
       {children}
@@ -255,21 +267,21 @@ const WorkspacesRow: FC<{
   );
 };
 
-const TableLoader = ({
-  canCheckWorkspaces,
-}: {
-  canCheckWorkspaces: boolean;
-}) => {
+interface TableLoaderProps {
+  canCheckWorkspaces?: boolean;
+}
+
+const TableLoader: FC<TableLoaderProps> = ({ canCheckWorkspaces }) => {
   return (
     <TableLoaderSkeleton>
       <TableRowSkeleton>
         <TableCell width="40%">
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <div css={{ display: "flex", alignItems: "center", gap: 8 }}>
             {canCheckWorkspaces && (
-              <Checkbox size="small" disabled sx={{ marginLeft: "-20px" }} />
+              <Checkbox size="small" disabled css={{ marginLeft: "-20px" }} />
             )}
             <AvatarDataSkeleton />
-          </Box>
+          </div>
         </TableCell>
         <TableCell>
           <Skeleton variant="text" width="25%" />

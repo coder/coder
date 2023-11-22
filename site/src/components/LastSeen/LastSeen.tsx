@@ -1,11 +1,12 @@
-import Box, { type BoxProps } from "@mui/material/Box";
 import { useTheme } from "@emotion/react";
 import dayjs from "dayjs";
+import { type FC, type HTMLAttributes } from "react";
 
-export const LastSeen = ({
-  value,
-  ...boxProps
-}: { value: string } & BoxProps) => {
+interface LastSeenProps extends HTMLAttributes<HTMLSpanElement> {
+  value: string;
+}
+
+export const LastSeen: FC<LastSeenProps> = ({ value, ...attrs }) => {
   const theme = useTheme();
   const t = dayjs(value);
   const now = dayjs();
@@ -29,13 +30,8 @@ export const LastSeen = ({
   }
 
   return (
-    <Box
-      component="span"
-      data-chromatic="ignore"
-      {...boxProps}
-      sx={{ color, ...boxProps.sx }}
-    >
+    <span data-chromatic="ignore" css={{ color }} {...attrs}>
       {message}
-    </Box>
+    </span>
   );
 };

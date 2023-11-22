@@ -5,7 +5,6 @@ import MuiAvatar, {
 } from "@mui/material/Avatar";
 import { type FC, useId } from "react";
 import { css, type Interpolation, type Theme } from "@emotion/react";
-import { Box } from "@mui/system";
 import { visuallyHidden } from "@mui/utils";
 
 export type AvatarProps = MuiAvatarProps & {
@@ -80,6 +79,8 @@ export const AvatarIcon: FC<AvatarIconProps> = ({ src, alt }) => {
   const hookId = useId();
   const avatarId = `${hookId}-avatar`;
 
+  // We use a `visuallyHidden` element instead of setting `alt` to avoid
+  // splatting the text out on the screen if the image fails to load.
   return (
     <>
       <img
@@ -88,9 +89,9 @@ export const AvatarIcon: FC<AvatarIconProps> = ({ src, alt }) => {
         css={{ maxWidth: "50%" }}
         aria-labelledby={avatarId}
       />
-      <Box id={avatarId} sx={visuallyHidden}>
+      <div id={avatarId} css={{ ...visuallyHidden }}>
         {alt}
-      </Box>
+      </div>
     </>
   );
 };

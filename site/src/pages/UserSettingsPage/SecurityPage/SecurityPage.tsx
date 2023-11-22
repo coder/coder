@@ -57,16 +57,18 @@ export const SecurityPage: FC = () => {
   );
 };
 
-export const SecurityPageView = ({
-  security,
-  oidc,
-}: {
+interface SecurityPageViewProps {
   security: {
     form: ComponentProps<typeof SecurityForm>;
   };
   oidc?: {
     section: ComponentProps<typeof SingleSignOnSection>;
   };
+}
+
+export const SecurityPageView: FC<SecurityPageViewProps> = ({
+  security,
+  oidc,
 }) => {
   return (
     <Stack spacing={6}>

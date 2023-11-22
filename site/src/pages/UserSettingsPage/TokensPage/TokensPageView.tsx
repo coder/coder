@@ -8,7 +8,7 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import dayjs from "dayjs";
-import { type FC } from "react";
+import { type FC, type ReactNode } from "react";
 import type { APIKeyWithOwner } from "api/typesGenerated";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -32,11 +32,10 @@ export interface TokensPageViewProps {
   hasLoaded: boolean;
   onDelete: (token: APIKeyWithOwner) => void;
   deleteTokenError?: unknown;
+  children?: ReactNode;
 }
 
-export const TokensPageView: FC<
-  React.PropsWithChildren<TokensPageViewProps>
-> = ({
+export const TokensPageView: FC<TokensPageViewProps> = ({
   tokens,
   getTokensError,
   isLoading,

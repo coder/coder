@@ -1,29 +1,34 @@
+import dayjs from "dayjs";
+import Skeleton from "@mui/material/Skeleton";
+import Tooltip from "@mui/material/Tooltip";
+import { type Interpolation, type Theme } from "@emotion/react";
+import {
+  createContext,
+  type FC,
+  type HTMLAttributes,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { watchAgentMetadata } from "api/api";
 import type {
   WorkspaceAgent,
   WorkspaceAgentMetadata,
 } from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
-import dayjs from "dayjs";
-import {
-  createContext,
-  FC,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
-import Skeleton from "@mui/material/Skeleton";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
-import Tooltip from "@mui/material/Tooltip";
-import Box, { BoxProps } from "@mui/material/Box";
-import { type Interpolation, type Theme } from "@emotion/react";
 
 type ItemStatus = "stale" | "valid" | "loading";
 
 export const WatchAgentMetadataContext = createContext(watchAgentMetadata);
 
-const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
+interface MetadataItemProps {
+  item: WorkspaceAgentMetadata;
+}
+
+const MetadataItem: FC<MetadataItemProps> = ({ item }) => {
   if (item.result === undefined) {
     throw new Error("Metadata item result is undefined");
   }
@@ -79,7 +84,7 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
   return (
     <div css={styles.metadata}>
       <div css={styles.metadataLabel}>{item.description.display_name}</div>
-      <Box>{value}</Box>
+      <div>{value}</div>
     </div>
   );
 };
@@ -106,10 +111,15 @@ export const AgentMetadataView: FC<AgentMetadataViewProps> = ({ metadata }) => {
   );
 };
 
-export const AgentMetadata: FC<{
+interface AgentMetadataProps {
   agent: WorkspaceAgent;
   storybookMetadata?: WorkspaceAgentMetadata[];
-}> = ({ agent, storybookMetadata }) => {
+}
+
+export const AgentMetadata: FC<AgentMetadataProps> = ({
+  agent,
+  storybookMetadata,
+}) => {
   const [metadata, setMetadata] = useState<
     WorkspaceAgentMetadata[] | undefined
   >(undefined);
@@ -182,10 +192,13 @@ export const AgentMetadataSkeleton: FC = () => {
   );
 };
 
-const StaticWidth = (props: BoxProps) => {
+const StaticWidth: FC<HTMLAttributes<HTMLDivElement>> = ({
+  children,
+  ...attrs
+}) => {
   const ref = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     // Ignore this in storybook
     if (!ref.current || process.env.STORYBOOK === "true") {
       return;
@@ -196,9 +209,13 @@ const StaticWidth = (props: BoxProps) => {
     const autoWidth = ref.current.getBoundingClientRect().width;
     ref.current.style.width =
       autoWidth > currentWidth ? `${autoWidth}px` : `${currentWidth}px`;
-  }, [props.children]);
+  }, [children]);
 
-  return <Box {...props} ref={ref} />;
+  return (
+    <div ref={ref} {...attrs}>
+      {children}
+    </div>
+  );
 };
 
 // These are more or less copied from
