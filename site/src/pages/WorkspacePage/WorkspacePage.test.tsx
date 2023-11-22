@@ -1,3 +1,4 @@
+import { type Workspace } from "api/typesGenerated";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import EventSourceMock from "eventsourcemock";
@@ -5,6 +6,7 @@ import { rest } from "msw";
 import {
   MockTemplate,
   MockWorkspace,
+  MockFailedWorkspace,
   MockWorkspaceBuild,
   MockStoppedWorkspace,
   MockStartingWorkspace,
@@ -21,8 +23,9 @@ import { renderWithAuth } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
 import { WorkspacePage } from "./WorkspacePage";
 
-// It renders the workspace page and waits for it be loaded
-const renderWorkspacePage = async () => {
+// Renders the workspace page and waits for it be loaded
+const renderWorkspacePage = async (workspace: Workspace) => {
+  jest.spyOn(api, "getWorkspaceByOwnerAndName").mockResolvedValue(workspace);
   jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate);
   jest.spyOn(api, "getTemplateVersionRichParameters").mockResolvedValueOnce([]);
   jest
@@ -34,24 +37,33 @@ const renderWorkspacePage = async () => {
       options.onDone && options.onDone();
       return new WebSocket("");
     });
+
   renderWithAuth(<WorkspacePage />, {
-    route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
+    route: `/@${workspace.owner_name}/${workspace.name}`,
     path: "/:username/:workspace",
   });
-  await screen.findByText(MockWorkspace.name);
+
+  await screen.findByText(workspace.name);
 };
 
 /**
- * Requests and responses related to workspace status are unrelated, so we can't test in the usual way.
- * Instead, test that button clicks produce the correct requests and that responses produce the correct UI.
- * We don't need to test the UI exhaustively because Storybook does that; just enough to prove that the
- * workspaceStatus was calculated correctly.
+ * Requests and responses related to workspace status are unrelated, so we can't
+ * test in the usual way. Instead, test that button clicks produce the correct
+ * requests and that responses produce the correct UI.
+ *
+ * We don't need to test the UI exhaustively because Storybook does that; just
+ * enough to prove that the workspaceStatus was calculated correctly.
  */
-const testButton = async (label: string, actionMock: jest.SpyInstance) => {
-  const user = userEvent.setup();
-  await renderWorkspacePage();
+const testButton = async (
+  workspace: Workspace,
+  name: string | RegExp,
+  actionMock: jest.SpyInstance,
+) => {
+  await renderWorkspacePage(workspace);
   const workspaceActions = screen.getByTestId("workspace-actions");
-  const button = within(workspaceActions).getByRole("button", { name: label });
+  const button = within(workspaceActions).getByRole("button", { name });
+
+  const user = userEvent.setup();
   await user.click(button);
   expect(actionMock).toBeCalled();
 };
@@ -78,7 +90,7 @@ describe("WorkspacePage", () => {
     const deleteWorkspaceMock = jest
       .spyOn(api, "deleteWorkspace")
       .mockResolvedValueOnce(MockWorkspaceBuild);
-    await renderWorkspacePage();
+    await renderWorkspacePage(MockWorkspace);
 
     // open the workspace action popover so we have access to all available ctas
     const trigger = screen.getByTestId("workspace-options-button");
@@ -121,7 +133,7 @@ describe("WorkspacePage", () => {
     const deleteWorkspaceMock = jest
       .spyOn(api, "deleteWorkspace")
       .mockResolvedValueOnce(MockWorkspaceBuildDelete);
-    await renderWorkspacePage();
+    await renderWorkspacePage(MockWorkspace);
 
     // open the workspace action popover so we have access to all available ctas
     const trigger = screen.getByTestId("workspace-options-button");
@@ -166,10 +178,12 @@ describe("WorkspacePage", () => {
         },
       ),
     );
+
     const startWorkspaceMock = jest
       .spyOn(api, "startWorkspace")
       .mockImplementation(() => Promise.resolve(MockWorkspaceBuild));
-    await testButton("Start", startWorkspaceMock);
+
+    await testButton(MockStoppedWorkspace, "Start", startWorkspaceMock);
   });
 
   it("requests a stop job when the user presses Stop", async () => {
@@ -177,7 +191,7 @@ describe("WorkspacePage", () => {
       .spyOn(api, "stopWorkspace")
       .mockResolvedValueOnce(MockWorkspaceBuild);
 
-    await testButton("Stop", stopWorkspaceMock);
+    await testButton(MockWorkspace, "Stop", stopWorkspaceMock);
   });
 
   it("requests a stop when the user presses Restart", async () => {
@@ -186,7 +200,7 @@ describe("WorkspacePage", () => {
       .mockResolvedValueOnce(MockWorkspaceBuild);
 
     // Render
-    await renderWorkspacePage();
+    await renderWorkspacePage(MockWorkspace);
 
     // Actions
     const user = userEvent.setup();
@@ -209,20 +223,12 @@ describe("WorkspacePage", () => {
         },
       ),
     );
+
     const cancelWorkspaceMock = jest
       .spyOn(api, "cancelWorkspaceBuild")
       .mockImplementation(() => Promise.resolve({ message: "job canceled" }));
 
-    await renderWorkspacePage();
-
-    const workspaceActions = screen.getByTestId("workspace-actions");
-    const cancelButton = within(workspaceActions).getByRole("button", {
-      name: "Cancel",
-    });
-
-    await userEvent.click(cancelButton);
-
-    expect(cancelWorkspaceMock).toBeCalled();
+    await testButton(MockStartingWorkspace, "Cancel", cancelWorkspaceMock);
   });
 
   it("requests an update when the user presses Update", async () => {
@@ -236,7 +242,7 @@ describe("WorkspacePage", () => {
       .mockResolvedValueOnce(MockWorkspaceBuild);
 
     // Render
-    await renderWorkspacePage();
+    await renderWorkspacePage(MockWorkspace);
 
     // Actions
     const user = userEvent.setup();
@@ -265,7 +271,7 @@ describe("WorkspacePage", () => {
       );
 
     // Render
-    await renderWorkspacePage();
+    await renderWorkspacePage(MockWorkspace);
 
     // Actions
     const user = userEvent.setup();
@@ -312,7 +318,7 @@ describe("WorkspacePage", () => {
   });
 
   it("shows the timeline build", async () => {
-    await renderWorkspacePage();
+    await renderWorkspacePage(MockWorkspace);
     const table = await screen.findByTestId("builds-table");
 
     // Wait for the results to be loaded
@@ -339,7 +345,7 @@ describe("WorkspacePage", () => {
     });
     const restartWorkspaceSpy = jest.spyOn(api, "restartWorkspace");
     const user = userEvent.setup();
-    await renderWorkspacePage();
+    await renderWorkspacePage(MockWorkspace);
     await user.click(screen.getByTestId("build-parameters-button"));
     const buildParametersForm = await screen.findByTestId(
       "build-parameters-form",
@@ -355,6 +361,93 @@ describe("WorkspacePage", () => {
       expect(restartWorkspaceSpy).toBeCalledWith({
         workspace: MockWorkspace,
         buildParameters: [{ name: "rebuild", value: "true" }],
+      });
+    });
+  });
+
+  // Tried to get these wired up via describe.each to reduce repetition, but the
+  // syntax just got too convoluted because of the variance in what arguments
+  // each function gets called with
+  describe("Retrying failed workspaces", () => {
+    const retryButtonRe = /^Retry$/i;
+    const retryDebugButtonRe = /^Retry \(Debug\)$/i;
+
+    describe("Retries a failed 'Start' transition", () => {
+      const mockStart = jest.spyOn(api, "startWorkspace");
+      const failedStart: Workspace = {
+        ...MockFailedWorkspace,
+        latest_build: {
+          ...MockFailedWorkspace.latest_build,
+          transition: "start",
+        },
+      };
+
+      test("Retry with no debug", async () => {
+        await testButton(failedStart, retryButtonRe, mockStart);
+
+        expect(mockStart).toBeCalledWith(
+          failedStart.id,
+          failedStart.latest_build.template_version_id,
+          undefined,
+          undefined,
+        );
+      });
+
+      test("Retry with debug logs", async () => {
+        await testButton(failedStart, retryDebugButtonRe, mockStart);
+
+        expect(mockStart).toBeCalledWith(
+          failedStart.id,
+          failedStart.latest_build.template_version_id,
+          "debug",
+          undefined,
+        );
+      });
+    });
+
+    describe("Retries a failed 'Stop' transition", () => {
+      const mockStop = jest.spyOn(api, "stopWorkspace");
+      const failedStop: Workspace = {
+        ...MockFailedWorkspace,
+        latest_build: {
+          ...MockFailedWorkspace.latest_build,
+          transition: "stop",
+        },
+      };
+
+      test("Retry with no debug", async () => {
+        await testButton(failedStop, retryButtonRe, mockStop);
+        expect(mockStop).toBeCalledWith(failedStop.id, undefined);
+      });
+
+      test("Retry with debug logs", async () => {
+        await testButton(failedStop, retryDebugButtonRe, mockStop);
+        expect(mockStop).toBeCalledWith(failedStop.id, "debug");
+      });
+    });
+
+    describe("Retries a failed 'Delete' transition", () => {
+      const mockDelete = jest.spyOn(api, "deleteWorkspace");
+      const failedDelete: Workspace = {
+        ...MockFailedWorkspace,
+        latest_build: {
+          ...MockFailedWorkspace.latest_build,
+          transition: "delete",
+        },
+      };
+
+      test("Retry with no debug", async () => {
+        await testButton(failedDelete, retryButtonRe, mockDelete);
+        expect(mockDelete).toBeCalledWith(failedDelete.id, {
+          logLevel: undefined,
+        });
+      });
+
+      test("Retry with debug logs", async () => {
+        await testButton(failedDelete, retryDebugButtonRe, mockDelete);
+        expect(mockDelete).toBeCalledWith(failedDelete.id, {
+          logLevel: "debug",
+        });
       });
     });
   });

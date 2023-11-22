@@ -9,7 +9,7 @@ import {
   getMaxDeadlineChange,
   getMinDeadline,
 } from "utils/schedule";
-import { Workspace, WorkspaceErrors } from "./Workspace";
+import { Workspace } from "./Workspace";
 import { pageTitle } from "utils/page";
 import { hasJobError } from "utils/workspace";
 import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
@@ -79,9 +79,6 @@ export const WorkspaceReadyPage = ({
     ...deploymentConfig(),
     enabled: permissions?.viewDeploymentValues,
   });
-  const canRetryDebugMode = Boolean(
-    deploymentValues?.config.enable_terraform_debug_mode,
-  );
 
   // Build logs
   const buildLogs = useWorkspaceBuildLogs(workspace.latest_build.id);
@@ -196,6 +193,22 @@ export const WorkspaceReadyPage = ({
   // Cancel build
   const cancelBuildMutation = useMutation(cancelBuild(workspace, queryClient));
 
+  const handleBuildRetry = (debug = false) => {
+    const logLevel = debug ? "debug" : undefined;
+
+    switch (workspace.latest_build.transition) {
+      case "start":
+        startWorkspaceMutation.mutate({ logLevel });
+        break;
+      case "stop":
+        stopWorkspaceMutation.mutate({ logLevel });
+        break;
+      case "delete":
+        deleteWorkspaceMutation.mutate({ logLevel });
+        break;
+    }
+  };
+
   return (
     <>
       <Helmet>
@@ -242,19 +255,11 @@ export const WorkspaceReadyPage = ({
         }}
         handleCancel={cancelBuildMutation.mutate}
         handleSettings={() => navigate("settings")}
-        handleBuildRetry={() => {
-          switch (workspace.latest_build.transition) {
-            case "start":
-              startWorkspaceMutation.mutate({ logLevel: "debug" });
-              break;
-            case "stop":
-              stopWorkspaceMutation.mutate({ logLevel: "debug" });
-              break;
-            case "delete":
-              deleteWorkspaceMutation.mutate({ logLevel: "debug" });
-              break;
-          }
-        }}
+        handleBuildRetry={() => handleBuildRetry(false)}
+        handleBuildRetryDebug={() => handleBuildRetry(true)}
+        canRetryDebugMode={
+          deploymentValues?.config.enable_terraform_debug_mode ?? false
+        }
         handleChangeVersion={() => {
           setChangeVersionDialogOpen(true);
         }}
@@ -273,19 +278,18 @@ export const WorkspaceReadyPage = ({
         hasMoreBuilds={hasMoreBuilds}
         canUpdateWorkspace={canUpdateWorkspace}
         updateMessage={latestVersion?.message}
-        canRetryDebugMode={canRetryDebugMode}
         canChangeVersions={canChangeVersions}
         hideSSHButton={featureVisibility["browser_only"]}
         hideVSCodeDesktopButton={featureVisibility["browser_only"]}
         workspaceErrors={{
-          [WorkspaceErrors.GET_BUILDS_ERROR]: buildsError,
-          [WorkspaceErrors.BUILD_ERROR]:
+          getBuildsError: buildsError,
+          buildError:
             restartBuildError ??
             startWorkspaceMutation.error ??
             stopWorkspaceMutation.error ??
             deleteWorkspaceMutation.error ??
             updateWorkspaceMutation.error,
-          [WorkspaceErrors.CANCELLATION_ERROR]: cancelBuildMutation.error,
+          cancellationError: cancelBuildMutation.error,
         }}
         buildInfo={buildInfo}
         sshPrefix={sshPrefixQuery.data?.hostname_prefix}
@@ -297,6 +301,7 @@ export const WorkspaceReadyPage = ({
         }
         canAutostart={canAutostart}
       />
+
       <WorkspaceDeleteDialog
         workspace={workspace}
         canUpdateTemplate={canDeleteWorkspace}
@@ -310,6 +315,7 @@ export const WorkspaceReadyPage = ({
         }}
         workspaceBuildDateStr={dayjs(workspace.created_at).fromNow()}
       />
+
       <UpdateBuildParametersDialog
         missedParameters={
           changeVersionMutation.error instanceof MissingBuildParameters
@@ -329,6 +335,7 @@ export const WorkspaceReadyPage = ({
           }
         }}
       />
+
       <UpdateBuildParametersDialog
         missedParameters={
           updateWorkspaceMutation.error instanceof MissingBuildParameters
@@ -345,6 +352,7 @@ export const WorkspaceReadyPage = ({
           }
         }}
       />
+
       <ChangeVersionDialog
         templateVersions={allVersions?.reverse()}
         template={template}
@@ -360,6 +368,7 @@ export const WorkspaceReadyPage = ({
           changeVersionMutation.mutate({ versionId: templateVersion.id });
         }}
       />
+
       <WarningDialog
         open={isConfirmingUpdate}
         onConfirm={() => {
