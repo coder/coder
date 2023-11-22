@@ -11024,6 +11024,7 @@
           "type": "string"
         },
         "healthy": {
+          "description": "Healthy is left for backward compatibility purposes, use `Severity` instead.",
           "type": "boolean"
         },
         "node": {
@@ -11067,6 +11068,7 @@
           "type": "string"
         },
         "healthy": {
+          "description": "Healthy is left for backward compatibility purposes, use `Severity` instead.",
           "type": "boolean"
         },
         "node_reports": {
@@ -11101,6 +11103,7 @@
           "type": "string"
         },
         "healthy": {
+          "description": "Healthy is left for backward compatibility purposes, use `Severity` instead.",
           "type": "boolean"
         },
         "netcheck": {
@@ -11166,6 +11169,7 @@
           "type": "string"
         },
         "healthy": {
+          "description": "Healthy is left for backward compatibility purposes, use `Severity` instead.",
           "type": "boolean"
         },
         "healthz_response": {
@@ -11200,6 +11204,7 @@
           "type": "string"
         },
         "healthy": {
+          "description": "Healthy is left for backward compatibility purposes, use `Severity` instead.",
           "type": "boolean"
         },
         "latency": {
@@ -11288,6 +11293,7 @@
           "type": "string"
         },
         "healthy": {
+          "description": "Healthy is left for backward compatibility purposes, use `Severity` instead.",
           "type": "boolean"
         },
         "severity": {

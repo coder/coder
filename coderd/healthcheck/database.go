@@ -17,6 +17,7 @@ const (
 
 // @typescript-generate DatabaseReport
 type DatabaseReport struct {
+	// Healthy is left for backward compatibility purposes, use `Severity` instead.
 	Healthy  bool            `json:"healthy"`
 	Severity health.Severity `json:"severity" enums:"ok,warning,error"`
 	Warnings []string        `json:"warnings"`

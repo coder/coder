@@ -34,6 +34,7 @@ const (
 
 // @typescript-generate Report
 type Report struct {
+	// Healthy is left for backward compatibility purposes, use `Severity` instead.
 	Healthy  bool            `json:"healthy"`
 	Severity health.Severity `json:"severity" enums:"ok,warning,error"`
 	Warnings []string        `json:"warnings"`
@@ -51,6 +52,7 @@ type Report struct {
 type RegionReport struct {
 	mu sync.Mutex
 
+	// Healthy is left for backward compatibility purposes, use `Severity` instead.
 	Healthy  bool            `json:"healthy"`
 	Severity health.Severity `json:"severity" enums:"ok,warning,error"`
 	Warnings []string        `json:"warnings"`
@@ -65,6 +67,7 @@ type NodeReport struct {
 	mu            sync.Mutex
 	clientCounter int
 
+	// Healthy is left for backward compatibility purposes, use `Severity` instead.
 	Healthy  bool            `json:"healthy"`
 	Severity health.Severity `json:"severity" enums:"ok,warning,error"`
 	Warnings []string        `json:"warnings"`
@@ -171,6 +174,7 @@ func (r *RegionReport) Run(ctx context.Context) {
 			defer func() {
 				if err := recover(); err != nil {
 					nodeReport.Error = ptr.Ref(fmt.Sprint(err))
+					nodeReport.Severity = health.SeverityError
 				}
 			}()
 
@@ -226,6 +230,7 @@ func (r *NodeReport) Run(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
+	r.Severity = health.SeverityOK
 	r.ClientLogs = [][]string{}
 	r.ClientErrs = [][]string{}
 
@@ -248,11 +253,12 @@ func (r *NodeReport) Run(ctx context.Context) {
 		// The node was marked as STUN compatible but the STUN test failed.
 		r.STUN.Error != nil {
 		r.Healthy = false
+		r.Severity = health.SeverityError
 	}
 
 	if r.UsesWebsocket {
 		r.Warnings = append(r.Warnings, warningNodeUsesWebsocket)
-		// FIXME
+		r.Severity = health.SeverityWarning
 	}
 }
 
