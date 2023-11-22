@@ -225,12 +225,15 @@ func TestDERP(t *testing.T) {
 		report.Run(ctx, opts)
 
 		assert.True(t, report.Healthy)
+		assert.Equal(t, health.SeverityWarning, report.Severity)
 		assert.NotEmpty(t, report.Warnings)
 		for _, region := range report.Regions {
 			assert.True(t, region.Healthy)
+			assert.Equal(t, health.SeverityWarning, region.Severity)
 			assert.NotEmpty(t, region.Warnings)
 			for _, node := range region.NodeReports {
 				assert.True(t, node.Healthy)
+				assert.Equal(t, health.SeverityWarning, node.Severity)
 				assert.NotEmpty(t, node.Warnings)
 				assert.True(t, node.CanExchangeMessages)
 				assert.NotEmpty(t, node.RoundTripPing)
