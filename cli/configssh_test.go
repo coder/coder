@@ -696,7 +696,7 @@ func TestConfigSSH_Hostnames(t *testing.T) {
 				OrganizationID: owner.OrganizationID,
 				OwnerID:        memberUser.ID,
 			})
-			dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, resources...)
+			dbfake.NewWorkspaceBuildBuilder(t, db, ws).Resource(resources...).Do()
 			sshConfigFile := sshConfigFileName(t)
 
 			inv, root := clitest.New(t, "config-ssh", "--ssh-config-file", sshConfigFile)
