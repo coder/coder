@@ -1049,7 +1049,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	require.EqualValues(t, 10, manifest.Metadata[0].Interval)
 	require.EqualValues(t, 3, manifest.Metadata[0].Timeout)
 
-	post := func(key string, mr codersdk.WorkspaceAgentMetadataResult) {
+	post := func(ctx context.Context, key string, mr codersdk.WorkspaceAgentMetadataResult) {
 		err := agentClient.PostMetadata(ctx, agentsdk.PostMetadataRequest{
 			Metadata: []agentsdk.Metadata{
 				{
@@ -1073,8 +1073,11 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 		Value:       "bar",
 	}
 
+	// Setup is complete, reset the context.
+	ctx = testutil.Context(t, testutil.WaitMedium)
+
 	// Initial post must come before the Watch is established.
-	post("foo1", wantMetadata1)
+	post(ctx, "foo1", wantMetadata1)
 
 	updates, errors := client.WatchWorkspaceAgentMetadata(ctx, agentID)
 
@@ -1116,14 +1119,14 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	require.Zero(t, update[1].Result.CollectedAt)
 
 	wantMetadata2 := wantMetadata1
-	post("foo2", wantMetadata2)
+	post(ctx, "foo2", wantMetadata2)
 	update = recvUpdate()
 	require.Len(t, update, 3)
 	check(wantMetadata1, update[0], true)
 	check(wantMetadata2, update[1], true)
 
 	wantMetadata1.Error = "error"
-	post("foo1", wantMetadata1)
+	post(ctx, "foo1", wantMetadata1)
 	update = recvUpdate()
 	require.Len(t, update, 3)
 	check(wantMetadata1, update[0], true)
@@ -1133,7 +1136,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	tooLongValueMetadata.Value = strings.Repeat("a", maxValueLen*2)
 	tooLongValueMetadata.Error = ""
 	tooLongValueMetadata.CollectedAt = time.Now()
-	post("foo3", tooLongValueMetadata)
+	post(ctx, "foo3", tooLongValueMetadata)
 	got := recvUpdate()[2]
 	for i := 0; i < 2 && len(got.Result.Value) != maxValueLen; i++ {
 		got = recvUpdate()[2]
@@ -1142,7 +1145,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	require.NotEmpty(t, got.Result.Error)
 
 	unknownKeyMetadata := wantMetadata1
-	post("unknown", unknownKeyMetadata)
+	post(ctx, "unknown", unknownKeyMetadata)
 }
 
 type testWAMErrorStore struct {
