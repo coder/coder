@@ -225,16 +225,18 @@ describe(`${usePaginatedQuery.name} - Overall functionality`, () => {
       await waitFor(() => expect(result.current.currentPage).toBe(1));
     });
 
-    it("Calls the custom onInvalidPageChange callback if provided", async () => {
+    it("Calls the custom onInvalidPageChange callback if provided (and does not update search params automatically)", async () => {
+      const testControl = new URLSearchParams({
+        page: "1000",
+      });
+
       const onInvalidPageChange = jest.fn();
-      await render(
-        {
-          onInvalidPageChange,
-          queryKey: mockQueryKey,
-          queryFn: mockQueryFn,
-        },
-        "/?page=900",
-      );
+      await render({
+        onInvalidPageChange,
+        queryKey: mockQueryKey,
+        queryFn: mockQueryFn,
+        searchParams: testControl,
+      });
 
       await waitFor(() => {
         expect(onInvalidPageChange).toBeCalledWith(
@@ -248,16 +250,47 @@ describe(`${usePaginatedQuery.name} - Overall functionality`, () => {
           }),
         );
       });
+
+      expect(testControl.get("page")).toBe("1000");
     });
   });
 
   describe("Passing outside value for URLSearchParams", () => {
-    it.skip("Reads from searchParams property if provided", async () => {
-      expect.hasAssertions();
+    const mockQueryKey = jest.fn(() => ["mock"]);
+    const mockQueryFn = jest.fn(({ pageNumber, limit }) =>
+      Promise.resolve({
+        data: new Array(limit).fill(pageNumber),
+        count: 100,
+      }),
+    );
+
+    it("Reads from searchParams property if provided", async () => {
+      const searchParams = new URLSearchParams({
+        page: "2",
+      });
+
+      const { result } = await render({
+        searchParams,
+        queryKey: mockQueryKey,
+        queryFn: mockQueryFn,
+      });
+
+      expect(result.current.currentPage).toBe(2);
     });
 
-    it.skip("Flushes state changes via provided searchParams property", async () => {
-      expect.hasAssertions();
+    it("Flushes state changes via provided searchParams property", async () => {
+      const searchParams = new URLSearchParams({
+        page: "2",
+      });
+
+      const { result } = await render({
+        searchParams,
+        queryKey: mockQueryKey,
+        queryFn: mockQueryFn,
+      });
+
+      result.current.goToFirstPage();
+      expect(searchParams.get("page")).toBe("1");
     });
   });
 });
