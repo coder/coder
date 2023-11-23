@@ -11,6 +11,8 @@ import (
 
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
+
+	"github.com/coder/coder/v2/coderd/healthcheck/health"
 )
 
 type WebsocketReportOptions struct {
@@ -21,8 +23,10 @@ type WebsocketReportOptions struct {
 
 // @typescript-generate WebsocketReport
 type WebsocketReport struct {
-	Healthy  bool     `json:"healthy"`
-	Warnings []string `json:"warnings"`
+	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
+	Healthy  bool            `json:"healthy"`
+	Severity health.Severity `json:"severity" enums:"ok,warning,error"`
+	Warnings []string        `json:"warnings"`
 
 	Body  string  `json:"body"`
 	Code  int     `json:"code"`
@@ -33,10 +37,12 @@ func (r *WebsocketReport) Run(ctx context.Context, opts *WebsocketReportOptions)
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
+	r.Severity = health.SeverityOK
 	r.Warnings = []string{}
 	u, err := opts.AccessURL.Parse("/api/v2/debug/ws")
 	if err != nil {
 		r.Error = convertError(xerrors.Errorf("parse access url: %w", err))
+		r.Severity = health.SeverityError
 		return
 	}
 	if u.Scheme == "https" {
@@ -64,6 +70,7 @@ func (r *WebsocketReport) Run(ctx context.Context, opts *WebsocketReportOptions)
 	}
 	if err != nil {
 		r.Error = convertError(xerrors.Errorf("websocket dial: %w", err))
+		r.Severity = health.SeverityError
 		return
 	}
 	defer c.Close(websocket.StatusGoingAway, "goodbye")
@@ -73,22 +80,26 @@ func (r *WebsocketReport) Run(ctx context.Context, opts *WebsocketReportOptions)
 		err := c.Write(ctx, websocket.MessageText, []byte(msg))
 		if err != nil {
 			r.Error = convertError(xerrors.Errorf("write message: %w", err))
+			r.Severity = health.SeverityError
 			return
 		}
 
 		ty, got, err := c.Read(ctx)
 		if err != nil {
 			r.Error = convertError(xerrors.Errorf("read message: %w", err))
+			r.Severity = health.SeverityError
 			return
 		}
 
 		if ty != websocket.MessageText {
 			r.Error = convertError(xerrors.Errorf("received incorrect message type: %v", ty))
+			r.Severity = health.SeverityError
 			return
 		}
 
 		if string(got) != msg {
 			r.Error = convertError(xerrors.Errorf("received incorrect message: wanted %q, got %q", msg, string(got)))
+			r.Severity = health.SeverityError
 			return
 		}
 	}

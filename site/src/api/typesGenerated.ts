@@ -2084,6 +2084,7 @@ export type RegionTypes = Region | WorkspaceProxy;
 // From healthcheck/accessurl.go
 export interface HealthcheckAccessURLReport {
   readonly healthy: boolean;
+  readonly severity: HealthSeverity;
   readonly warnings: string[];
   readonly access_url: string;
   readonly reachable: boolean;
@@ -2095,6 +2096,7 @@ export interface HealthcheckAccessURLReport {
 // From healthcheck/database.go
 export interface HealthcheckDatabaseReport {
   readonly healthy: boolean;
+  readonly severity: HealthSeverity;
   readonly warnings: string[];
   readonly reachable: boolean;
   readonly latency: string;
@@ -2107,6 +2109,7 @@ export interface HealthcheckDatabaseReport {
 export interface HealthcheckReport {
   readonly time: string;
   readonly healthy: boolean;
+  readonly severity: HealthSeverity;
   readonly failing_sections: string[];
   readonly derp: DerphealthReport;
   readonly access_url: HealthcheckAccessURLReport;
@@ -2118,6 +2121,7 @@ export interface HealthcheckReport {
 // From healthcheck/websocket.go
 export interface HealthcheckWebsocketReport {
   readonly healthy: boolean;
+  readonly severity: HealthSeverity;
   readonly warnings: string[];
   readonly body: string;
   readonly code: number;
@@ -2169,11 +2173,19 @@ export const ClibaseValueSources: ClibaseValueSource[] = [
   "yaml",
 ];
 
+// The code below is generated from coderd/healthcheck/health.
+
+// From health/model.go
+export type HealthSeverity = "error" | "ok" | "warning";
+export const HealthSeveritys: HealthSeverity[] = ["error", "ok", "warning"];
+
 // The code below is generated from coderd/healthcheck/derphealth.
 
 // From derphealth/derp.go
 export interface DerphealthNodeReport {
   readonly healthy: boolean;
+  // This is likely an enum in an external package ("github.com/coder/coder/v2/coderd/healthcheck/health.Severity")
+  readonly severity: string;
   readonly warnings: string[];
   // Named type "tailscale.com/tailcfg.DERPNode" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
@@ -2194,6 +2206,8 @@ export interface DerphealthNodeReport {
 // From derphealth/derp.go
 export interface DerphealthRegionReport {
   readonly healthy: boolean;
+  // This is likely an enum in an external package ("github.com/coder/coder/v2/coderd/healthcheck/health.Severity")
+  readonly severity: string;
   readonly warnings: string[];
   // Named type "tailscale.com/tailcfg.DERPRegion" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
@@ -2205,6 +2219,8 @@ export interface DerphealthRegionReport {
 // From derphealth/derp.go
 export interface DerphealthReport {
   readonly healthy: boolean;
+  // This is likely an enum in an external package ("github.com/coder/coder/v2/coderd/healthcheck/health.Severity")
+  readonly severity: string;
   readonly warnings: string[];
   readonly regions: Record<number, DerphealthRegionReport>;
   // Named type "tailscale.com/net/netcheck.Report" unknown, using "any"

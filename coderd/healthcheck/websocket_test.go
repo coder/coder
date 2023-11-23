@@ -12,6 +12,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/healthcheck"
+	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -63,6 +64,7 @@ func TestWebsocket(t *testing.T) {
 		})
 
 		require.NotNil(t, wsReport.Error)
+		require.Equal(t, health.SeverityError, wsReport.Severity)
 		assert.Equal(t, wsReport.Body, "test error")
 		assert.Equal(t, wsReport.Code, http.StatusBadRequest)
 	})
