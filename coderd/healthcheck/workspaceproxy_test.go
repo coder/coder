@@ -6,8 +6,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -20,11 +18,8 @@ func TestWorkspaceProxies(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
-		log := slogtest.Make(t, nil)
 		rpt := healthcheck.WorkspaceProxyReport{}
-		rpt.Run(ctx, &healthcheck.WorkspaceProxyReportOptions{
-			Logger: log,
-		})
+		rpt.Run(ctx, &healthcheck.WorkspaceProxyReportOptions{})
 
 		require.True(t, rpt.Healthy, "expected report to be healthy")
 		require.Empty(t, rpt.Warnings, "expected no warnings")
@@ -35,7 +30,6 @@ func TestWorkspaceProxies(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
-		log := slogtest.Make(t, nil)
 		rpt := healthcheck.WorkspaceProxyReport{}
 		rpt.Run(ctx, &healthcheck.WorkspaceProxyReportOptions{
 			CurrentVersion: "v2.34.5",
@@ -45,7 +39,6 @@ func TestWorkspaceProxies(t *testing.T) {
 				}, nil
 			},
 			UpdateProxyHealth: func(context.Context) error { return nil },
-			Logger:            log,
 		})
 
 		require.True(t, rpt.Healthy, "expected report to be healthy")
@@ -57,7 +50,6 @@ func TestWorkspaceProxies(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
-		log := slogtest.Make(t, nil)
 		rpt := healthcheck.WorkspaceProxyReport{}
 		rpt.Run(ctx, &healthcheck.WorkspaceProxyReportOptions{
 			CurrentVersion: "v2.34.5",
@@ -70,7 +62,6 @@ func TestWorkspaceProxies(t *testing.T) {
 				}, nil
 			},
 			UpdateProxyHealth: func(context.Context) error { return nil },
-			Logger:            log,
 		})
 
 		require.True(t, rpt.Healthy, "expected report to be healthy")
@@ -82,7 +73,6 @@ func TestWorkspaceProxies(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
-		log := slogtest.Make(t, nil)
 		rpt := healthcheck.WorkspaceProxyReport{}
 		rpt.Run(ctx, &healthcheck.WorkspaceProxyReportOptions{
 			CurrentVersion: "v2.35.0",
@@ -94,7 +84,6 @@ func TestWorkspaceProxies(t *testing.T) {
 					},
 				}, nil
 			},
-			Logger:            log,
 			UpdateProxyHealth: func(context.Context) error { return nil },
 		})
 
@@ -108,7 +97,6 @@ func TestWorkspaceProxies(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
-		log := slogtest.Make(t, nil)
 		rpt := healthcheck.WorkspaceProxyReport{}
 		rpt.Run(ctx, &healthcheck.WorkspaceProxyReportOptions{
 			CurrentVersion: "v2.35.0",
@@ -120,7 +108,6 @@ func TestWorkspaceProxies(t *testing.T) {
 					},
 				}, nil
 			},
-			Logger:            log,
 			UpdateProxyHealth: func(context.Context) error { return nil },
 		})
 
