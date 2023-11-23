@@ -413,7 +413,8 @@ func New(options *Options) *API {
 
 	if options.HealthcheckFunc == nil {
 		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *healthcheck.Report {
-			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
+			authCtx := dbauthz.AsSystemRestricted(ctx) //nolint:gocritic // internal function
+			return healthcheck.Run(authCtx, &healthcheck.ReportOptions{
 				Database: healthcheck.DatabaseReportOptions{
 					DB:        options.Database,
 					Threshold: options.DeploymentValues.Healthcheck.ThresholdDatabase.Value(),
