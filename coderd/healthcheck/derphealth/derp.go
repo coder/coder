@@ -210,7 +210,7 @@ func (r *RegionReport) Run(ctx context.Context) {
 	sortNodeReports(r.NodeReports)
 
 	if len(r.Region.Nodes) == 1 {
-		r.Healthy = !(r.NodeReports[0].Severity == health.SeverityError)
+		r.Healthy = r.NodeReports[0].Severity != health.SeverityError
 		r.Severity = r.NodeReports[0].Severity
 	} else if unhealthyNodes == 1 {
 		// r.Healthy = true (by default)
