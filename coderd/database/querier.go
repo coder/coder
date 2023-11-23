@@ -89,7 +89,6 @@ type sqlcQuerier interface {
 	GetDeploymentID(ctx context.Context) (string, error)
 	GetDeploymentWorkspaceAgentStats(ctx context.Context, createdAt time.Time) (GetDeploymentWorkspaceAgentStatsRow, error)
 	GetDeploymentWorkspaceStats(ctx context.Context) (GetDeploymentWorkspaceStatsRow, error)
-	GetDismissedHealthchecks(ctx context.Context) (string, error)
 	GetExternalAuthLink(ctx context.Context, arg GetExternalAuthLinkParams) (ExternalAuthLink, error)
 	GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]ExternalAuthLink, error)
 	GetFileByHashAndCreator(ctx context.Context, arg GetFileByHashAndCreatorParams) (File, error)
@@ -103,6 +102,7 @@ type sqlcQuerier interface {
 	// If it is the "Everyone" group, then we need to check the organization_members table.
 	GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]User, error)
 	GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]Group, error)
+	GetHealthSettings(ctx context.Context) (string, error)
 	GetHungProvisionerJobs(ctx context.Context, updatedAt time.Time) ([]ProvisionerJob, error)
 	GetLastUpdateCheck(ctx context.Context) (string, error)
 	GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (WorkspaceBuild, error)
@@ -357,7 +357,7 @@ type sqlcQuerier interface {
 	// So we need to store it's configuration here for display purposes.
 	// The functional values are immutable and controlled implicitly.
 	UpsertDefaultProxy(ctx context.Context, arg UpsertDefaultProxyParams) error
-	UpsertDismissedHealthchecks(ctx context.Context, value string) error
+	UpsertHealthSettings(ctx context.Context, value string) error
 	UpsertLastUpdateCheck(ctx context.Context, value string) error
 	UpsertLogoURL(ctx context.Context, value string) error
 	UpsertOAuthSigningKey(ctx context.Context, value string) error

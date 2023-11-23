@@ -71,9 +71,9 @@ SELECT value FROM site_configs WHERE key = 'oauth_signing_key';
 INSERT INTO site_configs (key, value) VALUES ('oauth_signing_key', $1)
 ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'oauth_signing_key';
 
--- name: GetDismissedHealthchecks :one
-SELECT value FROM site_configs WHERE key = 'dismissed_healthchecks';
+-- name: GetHealthSettings :one
+SELECT COALESCE(value, '{}') FROM site_configs WHERE key = 'health_settings';
 
--- name: UpsertDismissedHealthchecks :exec
-INSERT INTO site_configs (key, value) VALUES ('dismissed_healthchecks', $1)
-ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'dismissed_healthchecks';
+-- name: UpsertHealthSettings :exec
+INSERT INTO site_configs (key, value) VALUES ('health_settings', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'health_settings';

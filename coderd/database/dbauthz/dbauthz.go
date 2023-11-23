@@ -948,11 +948,6 @@ func (q *querier) GetDeploymentWorkspaceStats(ctx context.Context) (database.Get
 	return q.db.GetDeploymentWorkspaceStats(ctx)
 }
 
-func (q *querier) GetDismissedHealthchecks(ctx context.Context) (string, error) {
-	// No authz checks
-	return q.db.GetDismissedHealthchecks(ctx)
-}
-
 func (q *querier) GetExternalAuthLink(ctx context.Context, arg database.GetExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	return fetch(q.log, q.auth, q.db.GetExternalAuthLink)(ctx, arg)
 }
@@ -1024,6 +1019,11 @@ func (q *querier) GetGroupMembers(ctx context.Context, id uuid.UUID) ([]database
 
 func (q *querier) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.Group, error) {
 	return fetchWithPostFilter(q.auth, q.db.GetGroupsByOrganizationID)(ctx, organizationID)
+}
+
+func (q *querier) GetHealthSettings(ctx context.Context) (string, error) {
+	// No authz checks
+	return q.db.GetHealthSettings(ctx)
 }
 
 // TODO: We need to create a ProvisionerJob resource type
@@ -2963,11 +2963,11 @@ func (q *querier) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDef
 	return q.db.UpsertDefaultProxy(ctx, arg)
 }
 
-func (q *querier) UpsertDismissedHealthchecks(ctx context.Context, value string) error {
+func (q *querier) UpsertHealthSettings(ctx context.Context, value string) error {
 	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceDeploymentValues); err != nil {
 		return err
 	}
-	return q.db.UpsertDismissedHealthchecks(ctx, value)
+	return q.db.UpsertHealthSettings(ctx, value)
 }
 
 func (q *querier) UpsertLastUpdateCheck(ctx context.Context, value string) error {

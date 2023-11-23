@@ -159,7 +159,7 @@ type data struct {
 	derpMeshKey             string
 	lastUpdateCheck         []byte
 	serviceBanner           []byte
-	dismissedHealthchecks   []byte
+	healthSettings          []byte
 	applicationName         string
 	logoURL                 string
 	appSecurityKey          string
@@ -1592,17 +1592,6 @@ func (q *FakeQuerier) GetDeploymentWorkspaceStats(ctx context.Context) (database
 	return stat, nil
 }
 
-func (q *FakeQuerier) GetDismissedHealthchecks(_ context.Context) (string, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	if q.dismissedHealthchecks == nil {
-		return "", sql.ErrNoRows
-	}
-
-	return string(q.dismissedHealthchecks), nil
-}
-
 func (q *FakeQuerier) GetExternalAuthLink(_ context.Context, arg database.GetExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.ExternalAuthLink{}, err
@@ -1781,6 +1770,17 @@ func (q *FakeQuerier) GetGroupsByOrganizationID(_ context.Context, id uuid.UUID)
 	}
 
 	return groups, nil
+}
+
+func (q *FakeQuerier) GetHealthSettings(_ context.Context) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if q.healthSettings == nil {
+		return "", sql.ErrNoRows
+	}
+
+	return string(q.healthSettings), nil
 }
 
 func (q *FakeQuerier) GetHungProvisionerJobs(_ context.Context, hungSince time.Time) ([]database.ProvisionerJob, error) {
@@ -6802,11 +6802,11 @@ func (q *FakeQuerier) UpsertDefaultProxy(_ context.Context, arg database.UpsertD
 	return nil
 }
 
-func (q *FakeQuerier) UpsertDismissedHealthchecks(_ context.Context, data string) error {
+func (q *FakeQuerier) UpsertHealthSettings(_ context.Context, data string) error {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	q.dismissedHealthchecks = []byte(data)
+	q.healthSettings = []byte(data)
 	return nil
 }
 

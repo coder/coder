@@ -742,21 +742,6 @@ func (mr *MockStoreMockRecorder) GetDeploymentWorkspaceStats(arg0 interface{}) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDeploymentWorkspaceStats", reflect.TypeOf((*MockStore)(nil).GetDeploymentWorkspaceStats), arg0)
 }
 
-// GetDismissedHealthchecks mocks base method.
-func (m *MockStore) GetDismissedHealthchecks(arg0 context.Context) (string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetDismissedHealthchecks", arg0)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetDismissedHealthchecks indicates an expected call of GetDismissedHealthchecks.
-func (mr *MockStoreMockRecorder) GetDismissedHealthchecks(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDismissedHealthchecks", reflect.TypeOf((*MockStore)(nil).GetDismissedHealthchecks), arg0)
-}
-
 // GetExternalAuthLink mocks base method.
 func (m *MockStore) GetExternalAuthLink(arg0 context.Context, arg1 database.GetExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	m.ctrl.T.Helper()
@@ -905,6 +890,21 @@ func (m *MockStore) GetGroupsByOrganizationID(arg0 context.Context, arg1 uuid.UU
 func (mr *MockStoreMockRecorder) GetGroupsByOrganizationID(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGroupsByOrganizationID", reflect.TypeOf((*MockStore)(nil).GetGroupsByOrganizationID), arg0, arg1)
+}
+
+// GetHealthSettings mocks base method.
+func (m *MockStore) GetHealthSettings(arg0 context.Context) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetHealthSettings", arg0)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetHealthSettings indicates an expected call of GetHealthSettings.
+func (mr *MockStoreMockRecorder) GetHealthSettings(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHealthSettings", reflect.TypeOf((*MockStore)(nil).GetHealthSettings), arg0)
 }
 
 // GetHungProvisionerJobs mocks base method.
@@ -3932,18 +3932,18 @@ func (mr *MockStoreMockRecorder) UpsertDefaultProxy(arg0, arg1 interface{}) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertDefaultProxy", reflect.TypeOf((*MockStore)(nil).UpsertDefaultProxy), arg0, arg1)
 }
 
-// UpsertDismissedHealthchecks mocks base method.
-func (m *MockStore) UpsertDismissedHealthchecks(arg0 context.Context, arg1 string) error {
+// UpsertHealthSettings mocks base method.
+func (m *MockStore) UpsertHealthSettings(arg0 context.Context, arg1 string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertDismissedHealthchecks", arg0, arg1)
+	ret := m.ctrl.Call(m, "UpsertHealthSettings", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// UpsertDismissedHealthchecks indicates an expected call of UpsertDismissedHealthchecks.
-func (mr *MockStoreMockRecorder) UpsertDismissedHealthchecks(arg0, arg1 interface{}) *gomock.Call {
+// UpsertHealthSettings indicates an expected call of UpsertHealthSettings.
+func (mr *MockStoreMockRecorder) UpsertHealthSettings(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertDismissedHealthchecks", reflect.TypeOf((*MockStore)(nil).UpsertDismissedHealthchecks), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertHealthSettings", reflect.TypeOf((*MockStore)(nil).UpsertHealthSettings), arg0, arg1)
 }
 
 // UpsertLastUpdateCheck mocks base method.
