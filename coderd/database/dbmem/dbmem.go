@@ -159,6 +159,7 @@ type data struct {
 	derpMeshKey             string
 	lastUpdateCheck         []byte
 	serviceBanner           []byte
+	dismissedHealthchecks   []byte
 	applicationName         string
 	logoURL                 string
 	appSecurityKey          string
@@ -1592,7 +1593,14 @@ func (q *FakeQuerier) GetDeploymentWorkspaceStats(ctx context.Context) (database
 }
 
 func (q *FakeQuerier) GetDismissedHealthchecks(ctx context.Context) (string, error) {
-	panic("not implemented")
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if q.dismissedHealthchecks == nil {
+		return "", sql.ErrNoRows
+	}
+
+	return string(q.dismissedHealthchecks), nil
 }
 
 func (q *FakeQuerier) GetExternalAuthLink(_ context.Context, arg database.GetExternalAuthLinkParams) (database.ExternalAuthLink, error) {
@@ -6794,8 +6802,12 @@ func (q *FakeQuerier) UpsertDefaultProxy(_ context.Context, arg database.UpsertD
 	return nil
 }
 
-func (q *FakeQuerier) UpsertDismissedHealthchecks(ctx context.Context, value string) error {
-	panic("not implemented")
+func (q *FakeQuerier) UpsertDismissedHealthchecks(ctx context.Context, data string) error {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	q.dismissedHealthchecks = []byte(data)
+	return nil
 }
 
 func (q *FakeQuerier) UpsertLastUpdateCheck(_ context.Context, data string) error {
