@@ -165,7 +165,8 @@ services:
     # ...
   environment:
     CODER_TELEMETRY_ENABLE: "false" # Disable telemetry
-    CODER_DERP_SERVER_STUN_ADDRESSES: "" # Only use relayed connections
+    CODER_BLOCK_DIRECT: "true" # force SSH traffic through control plane's DERP proxy
+    CODER_DERP_SERVER_STUN_ADDRESSES: "disable" # Only use relayed connections
     CODER_UPDATE_CHECK: "false" # Disable automatic update checks
   database:
     image: registry.example.com/postgres:13
@@ -197,6 +198,9 @@ coder:
     # Disable automatic update checks
     - name: "CODER_UPDATE_CHECK"
       value: "false"
+    # force SSH traffic through control plane's DERP proxy
+    - name: CODER_BLOCK_DIRECT
+      value: "true"
     # Only use relayed connections
     - name: "CODER_DERP_SERVER_STUN_ADDRESSES"
       value: "disable"
@@ -236,3 +240,19 @@ Coder is installed.
 - open-vsx.org (optional if someone would use code-server)
 - registry.terraform.io (to create and push template)
 - v2-licensor.coder.com (developing Coder in Coder)
+
+## JetBrains IDEs
+
+Gateway, JetBrains' remote development product that works with Coder,
+[has documented offline deployment steps.](../ides/gateway.md#jetbrains-gateway-in-an-offline-environment)
+
+## Microsoft VS Code Remote - SSH
+
+Installation of the
+[Visual Studio Code Remote - SSH extension](https://code.visualstudio.com/docs/remote/ssh)
+(for connecting a local VS Code to a remote Coder workspace) requires that your
+local machine has outbound HTTPS (port 443) connectivity to:
+
+- update.code.visualstudio.com
+- vscode.blob.core.windows.net
+- \*.vo.msecnd.net
