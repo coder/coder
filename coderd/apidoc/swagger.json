@@ -11024,7 +11024,7 @@
           "type": "string"
         },
         "healthy": {
-          "description": "Healthy is left for backward compatibility purposes, use `Severity` instead.",
+          "description": "Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.",
           "type": "boolean"
         },
         "node": {
@@ -11068,7 +11068,7 @@
           "type": "string"
         },
         "healthy": {
-          "description": "Healthy is left for backward compatibility purposes, use `Severity` instead.",
+          "description": "Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.",
           "type": "boolean"
         },
         "node_reports": {
@@ -11103,7 +11103,7 @@
           "type": "string"
         },
         "healthy": {
-          "description": "Healthy is left for backward compatibility purposes, use `Severity` instead.",
+          "description": "Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.",
           "type": "boolean"
         },
         "netcheck": {
@@ -11169,7 +11169,7 @@
           "type": "string"
         },
         "healthy": {
-          "description": "Healthy is left for backward compatibility purposes, use `Severity` instead.",
+          "description": "Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.",
           "type": "boolean"
         },
         "healthz_response": {
@@ -11204,7 +11204,7 @@
           "type": "string"
         },
         "healthy": {
-          "description": "Healthy is left for backward compatibility purposes, use `Severity` instead.",
+          "description": "Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.",
           "type": "boolean"
         },
         "latency": {
@@ -11259,7 +11259,7 @@
           }
         },
         "healthy": {
-          "description": "Healthy is true if the report returns no errors.",
+          "description": "Healthy is true if the report returns no errors.\nDeprecated: use `Severity` instead",
           "type": "boolean"
         },
         "severity": {
@@ -11293,7 +11293,7 @@
           "type": "string"
         },
         "healthy": {
-          "description": "Healthy is left for backward compatibility purposes, use `Severity` instead.",
+          "description": "Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.",
           "type": "boolean"
         },
         "severity": {

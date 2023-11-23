@@ -31,6 +31,7 @@ type Report struct {
 	// Time is the time the report was generated at.
 	Time time.Time `json:"time"`
 	// Healthy is true if the report returns no errors.
+	// Deprecated: use `Severity` instead
 	Healthy bool `json:"healthy"`
 	// Severity indicates the status of Coder health.
 	Severity health.Severity `json:"severity" enums:"ok,warning,error"`

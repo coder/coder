@@ -12103,7 +12103,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "healthy": {
-                    "description": "Healthy is left for backward compatibility purposes, use ` + "`" + `Severity` + "`" + ` instead.",
+                    "description": "Healthy is deprecated and left for backward compatibility purposes, use ` + "`" + `Severity` + "`" + ` instead.",
                     "type": "boolean"
                 },
                 "node": {
@@ -12151,7 +12151,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "healthy": {
-                    "description": "Healthy is left for backward compatibility purposes, use ` + "`" + `Severity` + "`" + ` instead.",
+                    "description": "Healthy is deprecated and left for backward compatibility purposes, use ` + "`" + `Severity` + "`" + ` instead.",
                     "type": "boolean"
                 },
                 "node_reports": {
@@ -12190,7 +12190,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "healthy": {
-                    "description": "Healthy is left for backward compatibility purposes, use ` + "`" + `Severity` + "`" + ` instead.",
+                    "description": "Healthy is deprecated and left for backward compatibility purposes, use ` + "`" + `Severity` + "`" + ` instead.",
                     "type": "boolean"
                 },
                 "netcheck": {
@@ -12268,7 +12268,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "healthy": {
-                    "description": "Healthy is left for backward compatibility purposes, use ` + "`" + `Severity` + "`" + ` instead.",
+                    "description": "Healthy is deprecated and left for backward compatibility purposes, use ` + "`" + `Severity` + "`" + ` instead.",
                     "type": "boolean"
                 },
                 "healthz_response": {
@@ -12307,7 +12307,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "healthy": {
-                    "description": "Healthy is left for backward compatibility purposes, use ` + "`" + `Severity` + "`" + ` instead.",
+                    "description": "Healthy is deprecated and left for backward compatibility purposes, use ` + "`" + `Severity` + "`" + ` instead.",
                     "type": "boolean"
                 },
                 "latency": {
@@ -12366,7 +12366,7 @@ const docTemplate = `{
                     }
                 },
                 "healthy": {
-                    "description": "Healthy is true if the report returns no errors.",
+                    "description": "Healthy is true if the report returns no errors.\nDeprecated: use ` + "`" + `Severity` + "`" + ` instead",
                     "type": "boolean"
                 },
                 "severity": {
@@ -12404,7 +12404,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "healthy": {
-                    "description": "Healthy is left for backward compatibility purposes, use ` + "`" + `Severity` + "`" + ` instead.",
+                    "description": "Healthy is deprecated and left for backward compatibility purposes, use ` + "`" + `Severity` + "`" + ` instead.",
                     "type": "boolean"
                 },
                 "severity": {

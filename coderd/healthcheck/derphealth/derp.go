@@ -34,7 +34,7 @@ const (
 
 // @typescript-generate Report
 type Report struct {
-	// Healthy is left for backward compatibility purposes, use `Severity` instead.
+	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
 	Healthy  bool            `json:"healthy"`
 	Severity health.Severity `json:"severity" enums:"ok,warning,error"`
 	Warnings []string        `json:"warnings"`
@@ -52,7 +52,7 @@ type Report struct {
 type RegionReport struct {
 	mu sync.Mutex
 
-	// Healthy is left for backward compatibility purposes, use `Severity` instead.
+	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
 	Healthy  bool            `json:"healthy"`
 	Severity health.Severity `json:"severity" enums:"ok,warning,error"`
 	Warnings []string        `json:"warnings"`
@@ -67,7 +67,7 @@ type NodeReport struct {
 	mu            sync.Mutex
 	clientCounter int
 
-	// Healthy is left for backward compatibility purposes, use `Severity` instead.
+	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
 	Healthy  bool            `json:"healthy"`
 	Severity health.Severity `json:"severity" enums:"ok,warning,error"`
 	Warnings []string        `json:"warnings"`
