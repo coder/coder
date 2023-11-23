@@ -18,6 +18,7 @@ import (
 	"tailscale.com/types/key"
 
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
+	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -123,10 +124,13 @@ func TestDERP(t *testing.T) {
 		report.Run(ctx, opts)
 
 		assert.True(t, report.Healthy)
+		assert.Equal(t, health.SeverityWarning, report.Severity)
 		for _, region := range report.Regions {
 			assert.True(t, region.Healthy)
 			assert.True(t, region.NodeReports[0].Healthy)
+			assert.Equal(t, health.SeverityOK, region.NodeReports[0].Severity)
 			assert.False(t, region.NodeReports[1].Healthy)
+			assert.Equal(t, health.SeverityError, region.NodeReports[1].Severity)
 			assert.Len(t, region.Warnings, 1)
 		}
 	})
@@ -221,12 +225,15 @@ func TestDERP(t *testing.T) {
 		report.Run(ctx, opts)
 
 		assert.True(t, report.Healthy)
+		assert.Equal(t, health.SeverityWarning, report.Severity)
 		assert.NotEmpty(t, report.Warnings)
 		for _, region := range report.Regions {
 			assert.True(t, region.Healthy)
+			assert.Equal(t, health.SeverityWarning, region.Severity)
 			assert.NotEmpty(t, region.Warnings)
 			for _, node := range region.NodeReports {
 				assert.True(t, node.Healthy)
+				assert.Equal(t, health.SeverityWarning, node.Severity)
 				assert.NotEmpty(t, node.Warnings)
 				assert.True(t, node.CanExchangeMessages)
 				assert.NotEmpty(t, node.RoundTripPing)

@@ -22,6 +22,7 @@ import (
 	"tailscale.com/types/key"
 	tslogger "tailscale.com/types/logger"
 
+	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
@@ -29,12 +30,15 @@ import (
 const (
 	warningNodeUsesWebsocket = `Node uses WebSockets because the "Upgrade: DERP" header may be blocked on the load balancer.`
 	oneNodeUnhealthy         = "Region is operational, but performance might be degraded as one node is unhealthy."
+	missingNodeReport        = "Missing node health report, probably a developer error."
 )
 
 // @typescript-generate Report
 type Report struct {
-	Healthy  bool     `json:"healthy"`
-	Warnings []string `json:"warnings"`
+	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
+	Healthy  bool            `json:"healthy"`
+	Severity health.Severity `json:"severity" enums:"ok,warning,error"`
+	Warnings []string        `json:"warnings"`
 
 	Regions map[int]*RegionReport `json:"regions"`
 
@@ -47,9 +51,12 @@ type Report struct {
 
 // @typescript-generate RegionReport
 type RegionReport struct {
-	mu       sync.Mutex
-	Healthy  bool     `json:"healthy"`
-	Warnings []string `json:"warnings"`
+	mu sync.Mutex
+
+	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
+	Healthy  bool            `json:"healthy"`
+	Severity health.Severity `json:"severity" enums:"ok,warning,error"`
+	Warnings []string        `json:"warnings"`
 
 	Region      *tailcfg.DERPRegion `json:"region"`
 	NodeReports []*NodeReport       `json:"node_reports"`
@@ -61,8 +68,10 @@ type NodeReport struct {
 	mu            sync.Mutex
 	clientCounter int
 
-	Healthy  bool     `json:"healthy"`
-	Warnings []string `json:"warnings"`
+	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
+	Healthy  bool            `json:"healthy"`
+	Severity health.Severity `json:"severity" enums:"ok,warning,error"`
+	Warnings []string        `json:"warnings"`
 
 	Node *tailcfg.DERPNode `json:"node"`
 
@@ -91,6 +100,8 @@ type ReportOptions struct {
 
 func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 	r.Healthy = true
+	r.Severity = health.SeverityOK
+
 	r.Regions = map[int]*RegionReport{}
 	r.Warnings = []string{}
 
@@ -142,14 +153,22 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 	r.NetcheckErr = convertError(netcheckErr)
 
 	wg.Wait()
+
+	// Review region reports and select the highest severity.
+	for _, regionReport := range r.Regions {
+		if regionReport.Severity.Value() > r.Severity.Value() {
+			r.Severity = regionReport.Severity
+		}
+	}
 }
 
 func (r *RegionReport) Run(ctx context.Context) {
 	r.Healthy = true
+	r.Severity = health.SeverityOK
 	r.NodeReports = []*NodeReport{}
 
 	wg := &sync.WaitGroup{}
-	var healthyNodes int // atomic.Int64 is not mandatory as we depend on RegionReport mutex.
+	var unhealthyNodes int // atomic.Int64 is not mandatory as we depend on RegionReport mutex.
 
 	wg.Add(len(r.Region.Nodes))
 	for _, node := range r.Region.Nodes {
@@ -166,6 +185,7 @@ func (r *RegionReport) Run(ctx context.Context) {
 			defer func() {
 				if err := recover(); err != nil {
 					nodeReport.Error = ptr.Ref(fmt.Sprint(err))
+					nodeReport.Severity = health.SeverityError
 				}
 			}()
 
@@ -173,8 +193,8 @@ func (r *RegionReport) Run(ctx context.Context) {
 
 			r.mu.Lock()
 			r.NodeReports = append(r.NodeReports, &nodeReport)
-			if nodeReport.Healthy {
-				healthyNodes++
+			if nodeReport.Severity != health.SeverityOK {
+				unhealthyNodes++
 			}
 
 			for _, w := range nodeReport.Warnings {
@@ -190,11 +210,29 @@ func (r *RegionReport) Run(ctx context.Context) {
 
 	sortNodeReports(r.NodeReports)
 
-	// Coder allows for 1 unhealthy node in the region, unless there is only 1 node.
+	if len(r.Region.Nodes) != len(r.NodeReports) {
+		r.Healthy = false
+		r.Severity = health.SeverityError
+		r.Error = ptr.Ref(missingNodeReport)
+		return
+	}
+
 	if len(r.Region.Nodes) == 1 {
-		r.Healthy = healthyNodes == len(r.Region.Nodes)
-	} else if healthyNodes < len(r.Region.Nodes) {
+		r.Healthy = r.NodeReports[0].Severity != health.SeverityError
+		r.Severity = r.NodeReports[0].Severity
+	} else if unhealthyNodes == 1 {
+		// r.Healthy = true (by default)
+		r.Severity = health.SeverityWarning
 		r.Warnings = append(r.Warnings, oneNodeUnhealthy)
+	} else if unhealthyNodes > 1 {
+		r.Healthy = false
+
+		// Review node reports and select the highest severity.
+		for _, nodeReport := range r.NodeReports {
+			if nodeReport.Severity.Value() > r.Severity.Value() {
+				r.Severity = nodeReport.Severity
+			}
+		}
 	}
 }
 
@@ -221,6 +259,7 @@ func (r *NodeReport) Run(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
+	r.Severity = health.SeverityOK
 	r.ClientLogs = [][]string{}
 	r.ClientErrs = [][]string{}
 
@@ -243,10 +282,12 @@ func (r *NodeReport) Run(ctx context.Context) {
 		// The node was marked as STUN compatible but the STUN test failed.
 		r.STUN.Error != nil {
 		r.Healthy = false
+		r.Severity = health.SeverityError
 	}
 
 	if r.UsesWebsocket {
 		r.Warnings = append(r.Warnings, warningNodeUsesWebsocket)
+		r.Severity = health.SeverityWarning
 	}
 }
 

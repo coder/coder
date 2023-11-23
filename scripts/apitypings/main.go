@@ -34,7 +34,7 @@ var (
 	// Do not include things like "Database", as that would break the idea
 	// of splitting db and api types.
 	// Only include dirs that are client facing packages.
-	externalTypeDirs = [...]string{"./cli/clibase", "./coderd/healthcheck/derphealth"}
+	externalTypeDirs = [...]string{"./cli/clibase", "./coderd/healthcheck/health", "./coderd/healthcheck/derphealth"}
 	indent           = "  "
 )
 

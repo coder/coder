@@ -13,6 +13,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/healthcheck"
+	"github.com/coder/coder/v2/coderd/healthcheck/health"
 )
 
 func TestAccessURL(t *testing.T) {
@@ -34,6 +35,7 @@ func TestAccessURL(t *testing.T) {
 
 		assert.True(t, report.Healthy)
 		assert.True(t, report.Reachable)
+		assert.Equal(t, health.SeverityOK, report.Severity)
 		assert.Equal(t, http.StatusOK, report.StatusCode)
 		assert.Equal(t, "OK", report.HealthzResponse)
 		assert.Nil(t, report.Error)
@@ -64,6 +66,7 @@ func TestAccessURL(t *testing.T) {
 
 		assert.False(t, report.Healthy)
 		assert.True(t, report.Reachable)
+		assert.Equal(t, health.SeverityWarning, report.Severity)
 		assert.Equal(t, http.StatusNotFound, report.StatusCode)
 		assert.Equal(t, string(resp), report.HealthzResponse)
 		assert.Nil(t, report.Error)
@@ -100,6 +103,7 @@ func TestAccessURL(t *testing.T) {
 
 		assert.False(t, report.Healthy)
 		assert.False(t, report.Reachable)
+		assert.Equal(t, health.SeverityError, report.Severity)
 		assert.Equal(t, 0, report.StatusCode)
 		assert.Equal(t, "", report.HealthzResponse)
 		require.NotNil(t, report.Error)

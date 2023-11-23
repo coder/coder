@@ -51,6 +51,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
     "healthy": true,
     "healthz_response": "string",
     "reachable": true,
+    "severity": "ok",
     "status_code": 0,
     "warnings": ["string"]
   },
@@ -61,6 +62,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
     "latency": "string",
     "latency_ms": 0,
     "reachable": true,
+    "severity": "ok",
     "threshold_ms": 0,
     "warnings": ["string"]
   },
@@ -131,6 +133,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
             },
             "round_trip_ping": "string",
             "round_trip_ping_ms": 0,
+            "severity": "ok",
             "stun": {
               "canSTUN": true,
               "enabled": true,
@@ -164,6 +167,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
           "regionID": 0,
           "regionName": "string"
         },
+        "severity": "ok",
         "warnings": ["string"]
       },
       "property2": {
@@ -197,6 +201,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
             },
             "round_trip_ping": "string",
             "round_trip_ping_ms": 0,
+            "severity": "ok",
             "stun": {
               "canSTUN": true,
               "enabled": true,
@@ -230,19 +235,23 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
           "regionID": 0,
           "regionName": "string"
         },
+        "severity": "ok",
         "warnings": ["string"]
       }
     },
+    "severity": "ok",
     "warnings": ["string"]
   },
   "failing_sections": ["string"],
   "healthy": true,
+  "severity": "ok",
   "time": "string",
   "websocket": {
     "body": "string",
     "code": 0,
     "error": "string",
     "healthy": true,
+    "severity": "ok",
     "warnings": ["string"]
   }
 }

@@ -7139,6 +7139,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   },
   "round_trip_ping": "string",
   "round_trip_ping_ms": 0,
+  "severity": "ok",
   "stun": {
     "canSTUN": true,
     "enabled": true,
@@ -7151,20 +7152,29 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                    | Type                                             | Required | Restrictions | Description |
-| ----------------------- | ------------------------------------------------ | -------- | ------------ | ----------- |
-| `can_exchange_messages` | boolean                                          | false    |              |             |
-| `client_errs`           | array of array                                   | false    |              |             |
-| `client_logs`           | array of array                                   | false    |              |             |
-| `error`                 | string                                           | false    |              |             |
-| `healthy`               | boolean                                          | false    |              |             |
-| `node`                  | [tailcfg.DERPNode](#tailcfgderpnode)             | false    |              |             |
-| `node_info`             | [derp.ServerInfoMessage](#derpserverinfomessage) | false    |              |             |
-| `round_trip_ping`       | string                                           | false    |              |             |
-| `round_trip_ping_ms`    | integer                                          | false    |              |             |
-| `stun`                  | [derphealth.StunReport](#derphealthstunreport)   | false    |              |             |
-| `uses_websocket`        | boolean                                          | false    |              |             |
-| `warnings`              | array of string                                  | false    |              |             |
+| Name                    | Type                                             | Required | Restrictions | Description                                                                                 |
+| ----------------------- | ------------------------------------------------ | -------- | ------------ | ------------------------------------------------------------------------------------------- |
+| `can_exchange_messages` | boolean                                          | false    |              |                                                                                             |
+| `client_errs`           | array of array                                   | false    |              |                                                                                             |
+| `client_logs`           | array of array                                   | false    |              |                                                                                             |
+| `error`                 | string                                           | false    |              |                                                                                             |
+| `healthy`               | boolean                                          | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
+| `node`                  | [tailcfg.DERPNode](#tailcfgderpnode)             | false    |              |                                                                                             |
+| `node_info`             | [derp.ServerInfoMessage](#derpserverinfomessage) | false    |              |                                                                                             |
+| `round_trip_ping`       | string                                           | false    |              |                                                                                             |
+| `round_trip_ping_ms`    | integer                                          | false    |              |                                                                                             |
+| `severity`              | [health.Severity](#healthseverity)               | false    |              |                                                                                             |
+| `stun`                  | [derphealth.StunReport](#derphealthstunreport)   | false    |              |                                                                                             |
+| `uses_websocket`        | boolean                                          | false    |              |                                                                                             |
+| `warnings`              | array of string                                  | false    |              |                                                                                             |
+
+#### Enumerated Values
+
+| Property   | Value     |
+| ---------- | --------- |
+| `severity` | `ok`      |
+| `severity` | `warning` |
+| `severity` | `error`   |
 
 ## derphealth.RegionReport
 
@@ -7200,6 +7210,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       },
       "round_trip_ping": "string",
       "round_trip_ping_ms": 0,
+      "severity": "ok",
       "stun": {
         "canSTUN": true,
         "enabled": true,
@@ -7233,19 +7244,29 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "regionID": 0,
     "regionName": "string"
   },
+  "severity": "ok",
   "warnings": ["string"]
 }
 ```
 
 ### Properties
 
-| Name           | Type                                                    | Required | Restrictions | Description |
-| -------------- | ------------------------------------------------------- | -------- | ------------ | ----------- |
-| `error`        | string                                                  | false    |              |             |
-| `healthy`      | boolean                                                 | false    |              |             |
-| `node_reports` | array of [derphealth.NodeReport](#derphealthnodereport) | false    |              |             |
-| `region`       | [tailcfg.DERPRegion](#tailcfgderpregion)                | false    |              |             |
-| `warnings`     | array of string                                         | false    |              |             |
+| Name           | Type                                                    | Required | Restrictions | Description                                                                                 |
+| -------------- | ------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
+| `error`        | string                                                  | false    |              |                                                                                             |
+| `healthy`      | boolean                                                 | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
+| `node_reports` | array of [derphealth.NodeReport](#derphealthnodereport) | false    |              |                                                                                             |
+| `region`       | [tailcfg.DERPRegion](#tailcfgderpregion)                | false    |              |                                                                                             |
+| `severity`     | [health.Severity](#healthseverity)                      | false    |              |                                                                                             |
+| `warnings`     | array of string                                         | false    |              |                                                                                             |
+
+#### Enumerated Values
+
+| Property   | Value     |
+| ---------- | --------- |
+| `severity` | `ok`      |
+| `severity` | `warning` |
+| `severity` | `error`   |
 
 ## derphealth.Report
 
@@ -7317,6 +7338,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           },
           "round_trip_ping": "string",
           "round_trip_ping_ms": 0,
+          "severity": "ok",
           "stun": {
             "canSTUN": true,
             "enabled": true,
@@ -7350,6 +7372,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "regionID": 0,
         "regionName": "string"
       },
+      "severity": "ok",
       "warnings": ["string"]
     },
     "property2": {
@@ -7383,6 +7406,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           },
           "round_trip_ping": "string",
           "round_trip_ping_ms": 0,
+          "severity": "ok",
           "stun": {
             "canSTUN": true,
             "enabled": true,
@@ -7416,25 +7440,36 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "regionID": 0,
         "regionName": "string"
       },
+      "severity": "ok",
       "warnings": ["string"]
     }
   },
+  "severity": "ok",
   "warnings": ["string"]
 }
 ```
 
 ### Properties
 
-| Name               | Type                                               | Required | Restrictions | Description |
-| ------------------ | -------------------------------------------------- | -------- | ------------ | ----------- |
-| `error`            | string                                             | false    |              |             |
-| `healthy`          | boolean                                            | false    |              |             |
-| `netcheck`         | [netcheck.Report](#netcheckreport)                 | false    |              |             |
-| `netcheck_err`     | string                                             | false    |              |             |
-| `netcheck_logs`    | array of string                                    | false    |              |             |
-| `regions`          | object                                             | false    |              |             |
-| » `[any property]` | [derphealth.RegionReport](#derphealthregionreport) | false    |              |             |
-| `warnings`         | array of string                                    | false    |              |             |
+| Name               | Type                                               | Required | Restrictions | Description                                                                                 |
+| ------------------ | -------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
+| `error`            | string                                             | false    |              |                                                                                             |
+| `healthy`          | boolean                                            | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
+| `netcheck`         | [netcheck.Report](#netcheckreport)                 | false    |              |                                                                                             |
+| `netcheck_err`     | string                                             | false    |              |                                                                                             |
+| `netcheck_logs`    | array of string                                    | false    |              |                                                                                             |
+| `regions`          | object                                             | false    |              |                                                                                             |
+| » `[any property]` | [derphealth.RegionReport](#derphealthregionreport) | false    |              |                                                                                             |
+| `severity`         | [health.Severity](#healthseverity)                 | false    |              |                                                                                             |
+| `warnings`         | array of string                                    | false    |              |                                                                                             |
+
+#### Enumerated Values
+
+| Property   | Value     |
+| ---------- | --------- |
+| `severity` | `ok`      |
+| `severity` | `warning` |
+| `severity` | `error`   |
 
 ## derphealth.StunReport
 
@@ -7454,6 +7489,22 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `enabled` | boolean | false    |              |             |
 | `error`   | string  | false    |              |             |
 
+## health.Severity
+
+```json
+"ok"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value     |
+| --------- |
+| `ok`      |
+| `warning` |
+| `error`   |
+
 ## healthcheck.AccessURLReport
 
 ```json
@@ -7463,6 +7514,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "healthy": true,
   "healthz_response": "string",
   "reachable": true,
+  "severity": "ok",
   "status_code": 0,
   "warnings": ["string"]
 }
@@ -7470,15 +7522,24 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name               | Type            | Required | Restrictions | Description |
-| ------------------ | --------------- | -------- | ------------ | ----------- |
-| `access_url`       | string          | false    |              |             |
-| `error`            | string          | false    |              |             |
-| `healthy`          | boolean         | false    |              |             |
-| `healthz_response` | string          | false    |              |             |
-| `reachable`        | boolean         | false    |              |             |
-| `status_code`      | integer         | false    |              |             |
-| `warnings`         | array of string | false    |              |             |
+| Name               | Type                               | Required | Restrictions | Description                                                                                 |
+| ------------------ | ---------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
+| `access_url`       | string                             | false    |              |                                                                                             |
+| `error`            | string                             | false    |              |                                                                                             |
+| `healthy`          | boolean                            | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
+| `healthz_response` | string                             | false    |              |                                                                                             |
+| `reachable`        | boolean                            | false    |              |                                                                                             |
+| `severity`         | [health.Severity](#healthseverity) | false    |              |                                                                                             |
+| `status_code`      | integer                            | false    |              |                                                                                             |
+| `warnings`         | array of string                    | false    |              |                                                                                             |
+
+#### Enumerated Values
+
+| Property   | Value     |
+| ---------- | --------- |
+| `severity` | `ok`      |
+| `severity` | `warning` |
+| `severity` | `error`   |
 
 ## healthcheck.DatabaseReport
 
@@ -7489,6 +7550,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "latency": "string",
   "latency_ms": 0,
   "reachable": true,
+  "severity": "ok",
   "threshold_ms": 0,
   "warnings": ["string"]
 }
@@ -7496,15 +7558,24 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name           | Type            | Required | Restrictions | Description |
-| -------------- | --------------- | -------- | ------------ | ----------- |
-| `error`        | string          | false    |              |             |
-| `healthy`      | boolean         | false    |              |             |
-| `latency`      | string          | false    |              |             |
-| `latency_ms`   | integer         | false    |              |             |
-| `reachable`    | boolean         | false    |              |             |
-| `threshold_ms` | integer         | false    |              |             |
-| `warnings`     | array of string | false    |              |             |
+| Name           | Type                               | Required | Restrictions | Description                                                                                 |
+| -------------- | ---------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
+| `error`        | string                             | false    |              |                                                                                             |
+| `healthy`      | boolean                            | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
+| `latency`      | string                             | false    |              |                                                                                             |
+| `latency_ms`   | integer                            | false    |              |                                                                                             |
+| `reachable`    | boolean                            | false    |              |                                                                                             |
+| `severity`     | [health.Severity](#healthseverity) | false    |              |                                                                                             |
+| `threshold_ms` | integer                            | false    |              |                                                                                             |
+| `warnings`     | array of string                    | false    |              |                                                                                             |
+
+#### Enumerated Values
+
+| Property   | Value     |
+| ---------- | --------- |
+| `severity` | `ok`      |
+| `severity` | `warning` |
+| `severity` | `error`   |
 
 ## healthcheck.Report
 
@@ -7516,6 +7587,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "healthy": true,
     "healthz_response": "string",
     "reachable": true,
+    "severity": "ok",
     "status_code": 0,
     "warnings": ["string"]
   },
@@ -7526,6 +7598,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "latency": "string",
     "latency_ms": 0,
     "reachable": true,
+    "severity": "ok",
     "threshold_ms": 0,
     "warnings": ["string"]
   },
@@ -7596,6 +7669,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             },
             "round_trip_ping": "string",
             "round_trip_ping_ms": 0,
+            "severity": "ok",
             "stun": {
               "canSTUN": true,
               "enabled": true,
@@ -7629,6 +7703,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "regionID": 0,
           "regionName": "string"
         },
+        "severity": "ok",
         "warnings": ["string"]
       },
       "property2": {
@@ -7662,6 +7737,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             },
             "round_trip_ping": "string",
             "round_trip_ping_ms": 0,
+            "severity": "ok",
             "stun": {
               "canSTUN": true,
               "enabled": true,
@@ -7695,19 +7771,23 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "regionID": 0,
           "regionName": "string"
         },
+        "severity": "ok",
         "warnings": ["string"]
       }
     },
+    "severity": "ok",
     "warnings": ["string"]
   },
   "failing_sections": ["string"],
   "healthy": true,
+  "severity": "ok",
   "time": "string",
   "websocket": {
     "body": "string",
     "code": 0,
     "error": "string",
     "healthy": true,
+    "severity": "ok",
     "warnings": ["string"]
   }
 }
@@ -7715,16 +7795,25 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name               | Type                                                       | Required | Restrictions | Description                                                                |
-| ------------------ | ---------------------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------- |
-| `access_url`       | [healthcheck.AccessURLReport](#healthcheckaccessurlreport) | false    |              |                                                                            |
-| `coder_version`    | string                                                     | false    |              | The Coder version of the server that the report was generated on.          |
-| `database`         | [healthcheck.DatabaseReport](#healthcheckdatabasereport)   | false    |              |                                                                            |
-| `derp`             | [derphealth.Report](#derphealthreport)                     | false    |              |                                                                            |
-| `failing_sections` | array of string                                            | false    |              | Failing sections is a list of sections that have failed their healthcheck. |
-| `healthy`          | boolean                                                    | false    |              | Healthy is true if the report returns no errors.                           |
-| `time`             | string                                                     | false    |              | Time is the time the report was generated at.                              |
-| `websocket`        | [healthcheck.WebsocketReport](#healthcheckwebsocketreport) | false    |              |                                                                            |
+| Name               | Type                                                       | Required | Restrictions | Description                                                                         |
+| ------------------ | ---------------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------- |
+| `access_url`       | [healthcheck.AccessURLReport](#healthcheckaccessurlreport) | false    |              |                                                                                     |
+| `coder_version`    | string                                                     | false    |              | The Coder version of the server that the report was generated on.                   |
+| `database`         | [healthcheck.DatabaseReport](#healthcheckdatabasereport)   | false    |              |                                                                                     |
+| `derp`             | [derphealth.Report](#derphealthreport)                     | false    |              |                                                                                     |
+| `failing_sections` | array of string                                            | false    |              | Failing sections is a list of sections that have failed their healthcheck.          |
+| `healthy`          | boolean                                                    | false    |              | Healthy is true if the report returns no errors. Deprecated: use `Severity` instead |
+| `severity`         | [health.Severity](#healthseverity)                         | false    |              | Severity indicates the status of Coder health.                                      |
+| `time`             | string                                                     | false    |              | Time is the time the report was generated at.                                       |
+| `websocket`        | [healthcheck.WebsocketReport](#healthcheckwebsocketreport) | false    |              |                                                                                     |
+
+#### Enumerated Values
+
+| Property   | Value     |
+| ---------- | --------- |
+| `severity` | `ok`      |
+| `severity` | `warning` |
+| `severity` | `error`   |
 
 ## healthcheck.WebsocketReport
 
@@ -7734,19 +7823,29 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "code": 0,
   "error": "string",
   "healthy": true,
+  "severity": "ok",
   "warnings": ["string"]
 }
 ```
 
 ### Properties
 
-| Name       | Type            | Required | Restrictions | Description |
-| ---------- | --------------- | -------- | ------------ | ----------- |
-| `body`     | string          | false    |              |             |
-| `code`     | integer         | false    |              |             |
-| `error`    | string          | false    |              |             |
-| `healthy`  | boolean         | false    |              |             |
-| `warnings` | array of string | false    |              |             |
+| Name       | Type                               | Required | Restrictions | Description                                                                                 |
+| ---------- | ---------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
+| `body`     | string                             | false    |              |                                                                                             |
+| `code`     | integer                            | false    |              |                                                                                             |
+| `error`    | string                             | false    |              |                                                                                             |
+| `healthy`  | boolean                            | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
+| `severity` | [health.Severity](#healthseverity) | false    |              |                                                                                             |
+| `warnings` | array of string                    | false    |              |                                                                                             |
+
+#### Enumerated Values
+
+| Property   | Value     |
+| ---------- | --------- |
+| `severity` | `ok`      |
+| `severity` | `warning` |
+| `severity` | `error`   |
 
 ## netcheck.Report
 

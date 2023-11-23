@@ -8,6 +8,7 @@ import (
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
+	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
@@ -30,7 +31,10 @@ type Report struct {
 	// Time is the time the report was generated at.
 	Time time.Time `json:"time"`
 	// Healthy is true if the report returns no errors.
+	// Deprecated: use `Severity` instead
 	Healthy bool `json:"healthy"`
+	// Severity indicates the status of Coder health.
+	Severity health.Severity `json:"severity" enums:"ok,warning,error"`
 	// FailingSections is a list of sections that have failed their healthcheck.
 	FailingSections []string `json:"failing_sections"`
 
@@ -151,6 +155,22 @@ func Run(ctx context.Context, opts *ReportOptions) *Report {
 	}
 
 	report.Healthy = len(report.FailingSections) == 0
+
+	// Review healthcheck sub-reports.
+	report.Severity = health.SeverityOK
+
+	if report.DERP.Severity.Value() > report.Severity.Value() {
+		report.Severity = report.DERP.Severity
+	}
+	if report.AccessURL.Severity.Value() > report.Severity.Value() {
+		report.Severity = report.AccessURL.Severity
+	}
+	if report.Websocket.Severity.Value() > report.Severity.Value() {
+		report.Severity = report.Websocket.Severity
+	}
+	if report.Database.Severity.Value() > report.Severity.Value() {
+		report.Severity = report.Database.Severity
+	}
 	return &report
 }
 
