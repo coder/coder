@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/dbauthz"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -374,6 +375,10 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		// Use proxy health to return the healthy workspace proxy hostnames.
 		f := api.ProxyHealth.ProxyHosts
 		api.AGPL.WorkspaceProxyHostsFn.Store(&f)
+
+		// Wire this up to healthcheck.
+		api.AGPL.FetchWorkspaceProxiesFunc.Store(ptr.Ref(api.fetchWorkspaceProxies))
+		api.AGPL.UpdateProxyHealthFunc.Store(ptr.Ref(api.ProxyHealth.ForceUpdate))
 	}
 
 	err = api.PrometheusRegistry.Register(&api.licenseMetricsCollector)

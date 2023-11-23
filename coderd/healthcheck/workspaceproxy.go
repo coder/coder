@@ -10,16 +10,16 @@ import (
 )
 
 type WorkspaceProxyReportOptions struct {
+	// CurrentVersion is the current server version.
+	// We pass this in to make it easier to test.
+	CurrentVersion string
+	// FetchWorkspaceProxies is a function that returns the available workspace proxies.
+	FetchWorkspaceProxies func(context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error)
 	// UpdateProxyHealth is a function called when healthcheck is run.
 	// This would normally be ProxyHealth.ForceUpdate().
 	// We do this because if someone mashes the healthcheck refresh button
 	// they would expect up-to-date data.
 	UpdateProxyHealth func(context.Context) error
-	// FetchWorkspaceProxies is a function that returns the available workspace proxies.
-	FetchWorkspaceProxies func(context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error)
-	// CurrentVersion is the current server version.
-	// We pass this in to make it easier to test.
-	CurrentVersion string
 }
 
 // @typescript-generate Report
