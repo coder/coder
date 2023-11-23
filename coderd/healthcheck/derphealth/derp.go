@@ -30,6 +30,7 @@ import (
 const (
 	warningNodeUsesWebsocket = `Node uses WebSockets because the "Upgrade: DERP" header may be blocked on the load balancer.`
 	oneNodeUnhealthy         = "Region is operational, but performance might be degraded as one node is unhealthy."
+	missingNodeReport        = "Missing node health report, probably a developer error."
 )
 
 // @typescript-generate Report
@@ -208,6 +209,13 @@ func (r *RegionReport) Run(ctx context.Context) {
 	defer r.mu.Unlock()
 
 	sortNodeReports(r.NodeReports)
+
+	if len(r.Region.Nodes) != len(r.NodeReports) {
+		r.Healthy = false
+		r.Severity = health.SeverityError
+		r.Error = ptr.Ref(missingNodeReport)
+		return
+	}
 
 	if len(r.Region.Nodes) == 1 {
 		r.Healthy = r.NodeReports[0].Severity != health.SeverityError
