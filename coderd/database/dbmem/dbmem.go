@@ -1592,7 +1592,7 @@ func (q *FakeQuerier) GetDeploymentWorkspaceStats(ctx context.Context) (database
 	return stat, nil
 }
 
-func (q *FakeQuerier) GetDismissedHealthchecks(ctx context.Context) (string, error) {
+func (q *FakeQuerier) GetDismissedHealthchecks(_ context.Context) (string, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
