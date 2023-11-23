@@ -1777,7 +1777,7 @@ func (q *FakeQuerier) GetHealthSettings(_ context.Context) (string, error) {
 	defer q.mutex.RUnlock()
 
 	if q.healthSettings == nil {
-		return "", sql.ErrNoRows
+		return "{}", nil
 	}
 
 	return string(q.healthSettings), nil

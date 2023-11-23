@@ -4345,14 +4345,15 @@ func (q *sqlQuerier) GetDeploymentID(ctx context.Context) (string, error) {
 }
 
 const getHealthSettings = `-- name: GetHealthSettings :one
-SELECT COALESCE(value, '{}') FROM site_configs WHERE key = 'health_settings'
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'health_settings'), '{}') :: text AS health_settings
 `
 
 func (q *sqlQuerier) GetHealthSettings(ctx context.Context) (string, error) {
 	row := q.db.QueryRowContext(ctx, getHealthSettings)
-	var value string
-	err := row.Scan(&value)
-	return value, err
+	var health_settings string
+	err := row.Scan(&health_settings)
+	return health_settings, err
 }
 
 const getLastUpdateCheck = `-- name: GetLastUpdateCheck :one
