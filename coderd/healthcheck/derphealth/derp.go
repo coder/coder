@@ -167,7 +167,7 @@ func (r *RegionReport) Run(ctx context.Context) {
 	r.NodeReports = []*NodeReport{}
 
 	wg := &sync.WaitGroup{}
-	var healthyNodes int // atomic.Int64 is not mandatory as we depend on RegionReport mutex.
+	var unhealthyNodes int // atomic.Int64 is not mandatory as we depend on RegionReport mutex.
 
 	wg.Add(len(r.Region.Nodes))
 	for _, node := range r.Region.Nodes {
@@ -192,8 +192,8 @@ func (r *RegionReport) Run(ctx context.Context) {
 
 			r.mu.Lock()
 			r.NodeReports = append(r.NodeReports, &nodeReport)
-			if nodeReport.Healthy {
-				healthyNodes++
+			if nodeReport.Severity != health.SeverityOK {
+				unhealthyNodes++
 			}
 
 			for _, w := range nodeReport.Warnings {
@@ -209,15 +209,14 @@ func (r *RegionReport) Run(ctx context.Context) {
 
 	sortNodeReports(r.NodeReports)
 
-	// Coder allows for 1 unhealthy node in the region, unless there is only 1 node.
 	if len(r.Region.Nodes) == 1 {
-		r.Healthy = healthyNodes == len(r.Region.Nodes)
+		r.Healthy = !(r.NodeReports[0].Severity == health.SeverityError)
 		r.Severity = r.NodeReports[0].Severity
-	} else if healthyNodes+1 == len(r.Region.Nodes) {
+	} else if unhealthyNodes == 1 {
 		// r.Healthy = true (by default)
 		r.Severity = health.SeverityWarning
 		r.Warnings = append(r.Warnings, oneNodeUnhealthy)
-	} else if healthyNodes+1 < len(r.Region.Nodes) {
+	} else if unhealthyNodes > 1 {
 		r.Healthy = false
 
 		// Review node reports and select the highest severity.
