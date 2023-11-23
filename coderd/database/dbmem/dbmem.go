@@ -6802,7 +6802,7 @@ func (q *FakeQuerier) UpsertDefaultProxy(_ context.Context, arg database.UpsertD
 	return nil
 }
 
-func (q *FakeQuerier) UpsertDismissedHealthchecks(ctx context.Context, data string) error {
+func (q *FakeQuerier) UpsertDismissedHealthchecks(_ context.Context, data string) error {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
