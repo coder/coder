@@ -195,6 +195,9 @@ func Run(ctx context.Context, opts *ReportOptions) *Report {
 	if report.Database.Severity.Value() > report.Severity.Value() {
 		report.Severity = report.Database.Severity
 	}
+	if report.WorkspaceProxy.Severity.Value() > report.Severity.Value() {
+		report.Severity = report.WorkspaceProxy.Severity
+	}
 	return &report
 }
 

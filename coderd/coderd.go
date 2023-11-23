@@ -430,8 +430,8 @@ func New(options *Options) *API {
 				},
 				WorkspaceProxy: healthcheck.WorkspaceProxyReportOptions{
 					CurrentVersion:        buildinfo.Version(),
-					FetchWorkspaceProxies: *options.FetchWorkspaceProxiesFunc.Load(),
-					UpdateProxyHealth:     *options.UpdateProxyHealthFunc.Load(),
+					FetchWorkspaceProxies: options.FetchWorkspaceProxiesFunc.Load(),
+					UpdateProxyHealth:     options.UpdateProxyHealthFunc.Load(),
 				},
 			})
 		}
