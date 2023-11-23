@@ -892,6 +892,21 @@ func (mr *MockStoreMockRecorder) GetGroupsByOrganizationID(arg0, arg1 interface{
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGroupsByOrganizationID", reflect.TypeOf((*MockStore)(nil).GetGroupsByOrganizationID), arg0, arg1)
 }
 
+// GetHealthSettings mocks base method.
+func (m *MockStore) GetHealthSettings(arg0 context.Context) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetHealthSettings", arg0)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetHealthSettings indicates an expected call of GetHealthSettings.
+func (mr *MockStoreMockRecorder) GetHealthSettings(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHealthSettings", reflect.TypeOf((*MockStore)(nil).GetHealthSettings), arg0)
+}
+
 // GetHungProvisionerJobs mocks base method.
 func (m *MockStore) GetHungProvisionerJobs(arg0 context.Context, arg1 time.Time) ([]database.ProvisionerJob, error) {
 	m.ctrl.T.Helper()
@@ -3915,6 +3930,20 @@ func (m *MockStore) UpsertDefaultProxy(arg0 context.Context, arg1 database.Upser
 func (mr *MockStoreMockRecorder) UpsertDefaultProxy(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertDefaultProxy", reflect.TypeOf((*MockStore)(nil).UpsertDefaultProxy), arg0, arg1)
+}
+
+// UpsertHealthSettings mocks base method.
+func (m *MockStore) UpsertHealthSettings(arg0 context.Context, arg1 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertHealthSettings", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertHealthSettings indicates an expected call of UpsertHealthSettings.
+func (mr *MockStoreMockRecorder) UpsertHealthSettings(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertHealthSettings", reflect.TypeOf((*MockStore)(nil).UpsertHealthSettings), arg0, arg1)
 }
 
 // UpsertLastUpdateCheck mocks base method.

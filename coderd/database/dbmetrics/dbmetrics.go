@@ -461,6 +461,13 @@ func (m metricsStore) GetGroupsByOrganizationID(ctx context.Context, organizatio
 	return groups, err
 }
 
+func (m metricsStore) GetHealthSettings(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetHealthSettings(ctx)
+	m.queryLatencies.WithLabelValues("GetHealthSettings").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetHungProvisionerJobs(ctx context.Context, hungSince time.Time) ([]database.ProvisionerJob, error) {
 	start := time.Now()
 	jobs, err := m.s.GetHungProvisionerJobs(ctx, hungSince)
@@ -1863,6 +1870,13 @@ func (m metricsStore) UpsertDefaultProxy(ctx context.Context, arg database.Upser
 	start := time.Now()
 	r0 := m.s.UpsertDefaultProxy(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertDefaultProxy").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m metricsStore) UpsertHealthSettings(ctx context.Context, value string) error {
+	start := time.Now()
+	r0 := m.s.UpsertHealthSettings(ctx, value)
+	m.queryLatencies.WithLabelValues("UpsertHealthSettings").Observe(time.Since(start).Seconds())
 	return r0
 }
 
