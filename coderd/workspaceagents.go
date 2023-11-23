@@ -1979,7 +1979,7 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 					Keys:             payload.Keys,
 				})
 				if err != nil {
-					if !errors.Is(err, context.Canceled) {
+					if !database.IsQueryCanceledError(err) {
 						log.Error(ctx, "failed to get metadata", slog.Error(err))
 						_ = sseSendEvent(ctx, codersdk.ServerSentEvent{
 							Type: codersdk.ServerSentEventTypeError,
