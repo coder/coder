@@ -4344,6 +4344,17 @@ func (q *sqlQuerier) GetDeploymentID(ctx context.Context) (string, error) {
 	return value, err
 }
 
+const getDismissedHealthchecks = `-- name: GetDismissedHealthchecks :one
+SELECT value FROM site_configs WHERE key = 'dismissed_healthchecks'
+`
+
+func (q *sqlQuerier) GetDismissedHealthchecks(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getDismissedHealthchecks)
+	var value string
+	err := row.Scan(&value)
+	return value, err
+}
+
 const getLastUpdateCheck = `-- name: GetLastUpdateCheck :one
 SELECT value FROM site_configs WHERE key = 'last_update_check'
 `
@@ -4446,6 +4457,16 @@ type UpsertDefaultProxyParams struct {
 // The functional values are immutable and controlled implicitly.
 func (q *sqlQuerier) UpsertDefaultProxy(ctx context.Context, arg UpsertDefaultProxyParams) error {
 	_, err := q.db.ExecContext(ctx, upsertDefaultProxy, arg.DisplayName, arg.IconUrl)
+	return err
+}
+
+const upsertDismissedHealthchecks = `-- name: UpsertDismissedHealthchecks :exec
+INSERT INTO site_configs (key, value) VALUES ('dismissed_healthchecks', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'dismissed_healthchecks'
+`
+
+func (q *sqlQuerier) UpsertDismissedHealthchecks(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertDismissedHealthchecks, value)
 	return err
 }
 

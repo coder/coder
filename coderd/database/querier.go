@@ -89,6 +89,7 @@ type sqlcQuerier interface {
 	GetDeploymentID(ctx context.Context) (string, error)
 	GetDeploymentWorkspaceAgentStats(ctx context.Context, createdAt time.Time) (GetDeploymentWorkspaceAgentStatsRow, error)
 	GetDeploymentWorkspaceStats(ctx context.Context) (GetDeploymentWorkspaceStatsRow, error)
+	GetDismissedHealthchecks(ctx context.Context) (string, error)
 	GetExternalAuthLink(ctx context.Context, arg GetExternalAuthLinkParams) (ExternalAuthLink, error)
 	GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]ExternalAuthLink, error)
 	GetFileByHashAndCreator(ctx context.Context, arg GetFileByHashAndCreatorParams) (File, error)
@@ -356,6 +357,7 @@ type sqlcQuerier interface {
 	// So we need to store it's configuration here for display purposes.
 	// The functional values are immutable and controlled implicitly.
 	UpsertDefaultProxy(ctx context.Context, arg UpsertDefaultProxyParams) error
+	UpsertDismissedHealthchecks(ctx context.Context, value string) error
 	UpsertLastUpdateCheck(ctx context.Context, value string) error
 	UpsertLogoURL(ctx context.Context, value string) error
 	UpsertOAuthSigningKey(ctx context.Context, value string) error

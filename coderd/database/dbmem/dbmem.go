@@ -1591,6 +1591,10 @@ func (q *FakeQuerier) GetDeploymentWorkspaceStats(ctx context.Context) (database
 	return stat, nil
 }
 
+func (q *FakeQuerier) GetDismissedHealthchecks(ctx context.Context) (string, error) {
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) GetExternalAuthLink(_ context.Context, arg database.GetExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.ExternalAuthLink{}, err
@@ -6788,6 +6792,10 @@ func (q *FakeQuerier) UpsertDefaultProxy(_ context.Context, arg database.UpsertD
 	q.defaultProxyDisplayName = arg.DisplayName
 	q.defaultProxyIconURL = arg.IconUrl
 	return nil
+}
+
+func (q *FakeQuerier) UpsertDismissedHealthchecks(ctx context.Context, value string) error {
+	panic("not implemented")
 }
 
 func (q *FakeQuerier) UpsertLastUpdateCheck(_ context.Context, data string) error {

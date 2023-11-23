@@ -391,6 +391,13 @@ func (m metricsStore) GetDeploymentWorkspaceStats(ctx context.Context) (database
 	return row, err
 }
 
+func (m metricsStore) GetDismissedHealthchecks(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetDismissedHealthchecks(ctx)
+	m.queryLatencies.WithLabelValues("GetDismissedHealthchecks").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetExternalAuthLink(ctx context.Context, arg database.GetExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	start := time.Now()
 	link, err := m.s.GetExternalAuthLink(ctx, arg)
@@ -1863,6 +1870,13 @@ func (m metricsStore) UpsertDefaultProxy(ctx context.Context, arg database.Upser
 	start := time.Now()
 	r0 := m.s.UpsertDefaultProxy(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertDefaultProxy").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m metricsStore) UpsertDismissedHealthchecks(ctx context.Context, value string) error {
+	start := time.Now()
+	r0 := m.s.UpsertDismissedHealthchecks(ctx, value)
+	m.queryLatencies.WithLabelValues("UpsertDismissedHealthchecks").Observe(time.Since(start).Seconds())
 	return r0
 }
 

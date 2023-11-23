@@ -948,6 +948,10 @@ func (q *querier) GetDeploymentWorkspaceStats(ctx context.Context) (database.Get
 	return q.db.GetDeploymentWorkspaceStats(ctx)
 }
 
+func (q *querier) GetDismissedHealthchecks(ctx context.Context) (string, error) {
+	panic("not implemented")
+}
+
 func (q *querier) GetExternalAuthLink(ctx context.Context, arg database.GetExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	return fetch(q.log, q.auth, q.db.GetExternalAuthLink)(ctx, arg)
 }
@@ -2956,6 +2960,10 @@ func (q *querier) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDef
 		return err
 	}
 	return q.db.UpsertDefaultProxy(ctx, arg)
+}
+
+func (q *querier) UpsertDismissedHealthchecks(ctx context.Context, value string) error {
+	panic("not implemented")
 }
 
 func (q *querier) UpsertLastUpdateCheck(ctx context.Context, value string) error {
