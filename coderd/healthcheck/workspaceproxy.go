@@ -79,7 +79,7 @@ func (r *WorkspaceProxyReport) Run(ctx context.Context, opts *WorkspaceProxyRepo
 	})
 
 	var total, healthy int
-	errs := make([]string, 0)
+	var errs []string
 	for _, proxy := range r.WorkspaceProxies.Regions {
 		total++
 		if proxy.Healthy {
