@@ -377,8 +377,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		api.AGPL.WorkspaceProxyHostsFn.Store(&f)
 
 		// Wire this up to healthcheck.
-		var fetchUpdater healthcheck.WorkspaceProxiesFetchUpdater //nolint:gosimple
-		fetchUpdater = &workspaceProxiesFetchUpdater{
+		var fetchUpdater healthcheck.WorkspaceProxiesFetchUpdater = &workspaceProxiesFetchUpdater{
 			fetchFunc:  api.fetchWorkspaceProxies,
 			updateFunc: api.ProxyHealth.ForceUpdate,
 		}

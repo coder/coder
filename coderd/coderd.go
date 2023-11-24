@@ -401,8 +401,7 @@ func New(options *Options) *API {
 
 	if options.WorkspaceProxiesFetchUpdater == nil {
 		options.WorkspaceProxiesFetchUpdater = &atomic.Pointer[healthcheck.WorkspaceProxiesFetchUpdater]{}
-		var wpfu healthcheck.WorkspaceProxiesFetchUpdater //nolint:gosimple
-		wpfu = &healthcheck.AGPLWorkspaceProxiesFetchUpdater{}
+		var wpfu healthcheck.WorkspaceProxiesFetchUpdater = &healthcheck.AGPLWorkspaceProxiesFetchUpdater{}
 		options.WorkspaceProxiesFetchUpdater.Store(&wpfu)
 	}
 
