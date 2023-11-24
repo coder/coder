@@ -258,12 +258,12 @@ type DialWorkspaceAgentOptions struct {
 	BlockEndpoints bool
 }
 
-func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, options *DialWorkspaceAgentOptions) (agentConn *WorkspaceAgentConn, err error) {
+func (c *Client) DialWorkspaceAgent(dialCtx context.Context, agentID uuid.UUID, options *DialWorkspaceAgentOptions) (agentConn *WorkspaceAgentConn, err error) {
 	if options == nil {
 		options = &DialWorkspaceAgentOptions{}
 	}
 
-	connInfo, err := c.WorkspaceAgentConnectionInfo(ctx, agentID)
+	connInfo, err := c.WorkspaceAgentConnectionInfo(dialCtx, agentID)
 	if err != nil {
 		return nil, xerrors.Errorf("get connection info: %w", err)
 	}
@@ -302,7 +302,10 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 		tokenHeader = c.SessionTokenHeader
 	}
 	headers.Set(tokenHeader, c.SessionToken())
-	ctx, cancel := context.WithCancel(ctx)
+
+	// New context, separate from dialCtx. We don't want to cancel the
+	// connection if dialCtx is canceled.
+	ctx, cancel := context.WithCancel(context.Background())
 	defer func() {
 		if err != nil {
 			cancel()
@@ -317,6 +320,7 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 	firstCoordinator := make(chan error)
 	go func() {
 		defer close(closedCoordinator)
+		firstCoordinator := firstCoordinator // Shadowed so it can be reassigned outside goroutine.
 		isFirst := true
 		for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
 			options.Logger.Debug(ctx, "connecting")
@@ -369,6 +373,7 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 	firstDerpMap := make(chan error)
 	go func() {
 		defer close(closedDerpMap)
+		firstDerpMap := firstDerpMap // Shadowed so it can be reassigned outside goroutine.
 		isFirst := true
 		for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
 			options.Logger.Debug(ctx, "connecting to server for derp map updates")
@@ -420,13 +425,21 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 		}
 	}()
 
-	err = <-firstCoordinator
-	if err != nil {
-		return nil, err
-	}
-	err = <-firstDerpMap
-	if err != nil {
-		return nil, err
+	for firstCoordinator != nil || firstDerpMap != nil {
+		select {
+		case <-dialCtx.Done():
+			return nil, dialCtx.Err()
+		case err = <-firstCoordinator:
+			if err != nil {
+				return nil, err
+			}
+			firstCoordinator = nil
+		case err = <-firstDerpMap:
+			if err != nil {
+				return nil, err
+			}
+			firstDerpMap = nil
+		}
 	}
 
 	agentConn = NewWorkspaceAgentConn(conn, WorkspaceAgentConnOptions{
@@ -444,7 +457,7 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 		},
 	})
 
-	if !agentConn.AwaitReachable(ctx) {
+	if !agentConn.AwaitReachable(dialCtx) {
 		_ = agentConn.Close()
 		return nil, xerrors.Errorf("timed out waiting for agent to become reachable: %w", ctx.Err())
 	}
