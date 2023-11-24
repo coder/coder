@@ -12,8 +12,7 @@ const styles = {
   workspaceInfo: (theme) => ({
     display: "flex",
     justifyContent: "space-between",
-    backgroundColor: theme.palette.background.paperLight,
-    border: `1px solid ${theme.palette.divider}`,
+    backgroundColor: theme.palette.divider,
     borderRadius: 6,
     padding: 16,
     marginBottom: 20,
