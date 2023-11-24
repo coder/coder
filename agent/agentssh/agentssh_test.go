@@ -229,7 +229,11 @@ func TestNewServer_Signal(t *testing.T) {
 		err = sess.Wait()
 		exitErr := &ssh.ExitError{}
 		require.ErrorAs(t, err, &exitErr)
-		require.Equal(t, 255, exitErr.ExitStatus())
+		wantCode := 255
+		if runtime.GOOS == "windows" {
+			wantCode = 1
+		}
+		require.Equal(t, wantCode, exitErr.ExitStatus())
 	})
 	t.Run("PTY", func(t *testing.T) {
 		t.Parallel()
@@ -304,7 +308,11 @@ func TestNewServer_Signal(t *testing.T) {
 		err = sess.Wait()
 		exitErr := &ssh.ExitError{}
 		require.ErrorAs(t, err, &exitErr)
-		require.Equal(t, 255, exitErr.ExitStatus())
+		wantCode := 255
+		if runtime.GOOS == "windows" {
+			wantCode = 1
+		}
+		require.Equal(t, wantCode, exitErr.ExitStatus())
 	})
 }
 
