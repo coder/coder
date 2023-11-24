@@ -216,7 +216,7 @@ func TestNewServer_Signal(t *testing.T) {
 		}
 		require.NoError(t, sc.Err())
 
-		err = sess.Signal(ssh.SIGINT)
+		err = sess.Signal(ssh.SIGKILL)
 		require.NoError(t, err)
 
 		// Assumption, signal propagates and the command exists, closing stdout.
@@ -289,7 +289,7 @@ func TestNewServer_Signal(t *testing.T) {
 		}
 		require.NoError(t, sc.Err())
 
-		err = sess.Signal(ssh.SIGINT)
+		err = sess.Signal(ssh.SIGKILL)
 		require.NoError(t, err)
 
 		// Assumption, signal propagates and the command exists, closing stdout.
