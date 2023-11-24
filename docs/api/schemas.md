@@ -7789,23 +7789,57 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "healthy": true,
     "severity": "ok",
     "warnings": ["string"]
+  },
+  "workspace_proxy": {
+    "error": "string",
+    "healthy": true,
+    "severity": "ok",
+    "warnings": ["string"],
+    "workspace_proxies": {
+      "regions": [
+        {
+          "created_at": "2019-08-24T14:15:22Z",
+          "deleted": true,
+          "derp_enabled": true,
+          "derp_only": true,
+          "display_name": "string",
+          "healthy": true,
+          "icon_url": "string",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "name": "string",
+          "path_app_url": "string",
+          "status": {
+            "checked_at": "2019-08-24T14:15:22Z",
+            "report": {
+              "errors": ["string"],
+              "warnings": ["string"]
+            },
+            "status": "ok"
+          },
+          "updated_at": "2019-08-24T14:15:22Z",
+          "version": "string",
+          "wildcard_hostname": "string"
+        }
+      ]
+    }
   }
 }
 ```
 
 ### Properties
 
-| Name               | Type                                                       | Required | Restrictions | Description                                                                         |
-| ------------------ | ---------------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------- |
-| `access_url`       | [healthcheck.AccessURLReport](#healthcheckaccessurlreport) | false    |              |                                                                                     |
-| `coder_version`    | string                                                     | false    |              | The Coder version of the server that the report was generated on.                   |
-| `database`         | [healthcheck.DatabaseReport](#healthcheckdatabasereport)   | false    |              |                                                                                     |
-| `derp`             | [derphealth.Report](#derphealthreport)                     | false    |              |                                                                                     |
-| `failing_sections` | array of string                                            | false    |              | Failing sections is a list of sections that have failed their healthcheck.          |
-| `healthy`          | boolean                                                    | false    |              | Healthy is true if the report returns no errors. Deprecated: use `Severity` instead |
-| `severity`         | [health.Severity](#healthseverity)                         | false    |              | Severity indicates the status of Coder health.                                      |
-| `time`             | string                                                     | false    |              | Time is the time the report was generated at.                                       |
-| `websocket`        | [healthcheck.WebsocketReport](#healthcheckwebsocketreport) | false    |              |                                                                                     |
+| Name               | Type                                                                 | Required | Restrictions | Description                                                                         |
+| ------------------ | -------------------------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------- |
+| `access_url`       | [healthcheck.AccessURLReport](#healthcheckaccessurlreport)           | false    |              |                                                                                     |
+| `coder_version`    | string                                                               | false    |              | The Coder version of the server that the report was generated on.                   |
+| `database`         | [healthcheck.DatabaseReport](#healthcheckdatabasereport)             | false    |              |                                                                                     |
+| `derp`             | [derphealth.Report](#derphealthreport)                               | false    |              |                                                                                     |
+| `failing_sections` | array of string                                                      | false    |              | Failing sections is a list of sections that have failed their healthcheck.          |
+| `healthy`          | boolean                                                              | false    |              | Healthy is true if the report returns no errors. Deprecated: use `Severity` instead |
+| `severity`         | [health.Severity](#healthseverity)                                   | false    |              | Severity indicates the status of Coder health.                                      |
+| `time`             | string                                                               | false    |              | Time is the time the report was generated at.                                       |
+| `websocket`        | [healthcheck.WebsocketReport](#healthcheckwebsocketreport)           | false    |              |                                                                                     |
+| `workspace_proxy`  | [healthcheck.WorkspaceProxyReport](#healthcheckworkspaceproxyreport) | false    |              |                                                                                     |
 
 #### Enumerated Values
 
@@ -7846,6 +7880,54 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `severity` | `ok`      |
 | `severity` | `warning` |
 | `severity` | `error`   |
+
+## healthcheck.WorkspaceProxyReport
+
+```json
+{
+  "error": "string",
+  "healthy": true,
+  "severity": "ok",
+  "warnings": ["string"],
+  "workspace_proxies": {
+    "regions": [
+      {
+        "created_at": "2019-08-24T14:15:22Z",
+        "deleted": true,
+        "derp_enabled": true,
+        "derp_only": true,
+        "display_name": "string",
+        "healthy": true,
+        "icon_url": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string",
+        "path_app_url": "string",
+        "status": {
+          "checked_at": "2019-08-24T14:15:22Z",
+          "report": {
+            "errors": ["string"],
+            "warnings": ["string"]
+          },
+          "status": "ok"
+        },
+        "updated_at": "2019-08-24T14:15:22Z",
+        "version": "string",
+        "wildcard_hostname": "string"
+      }
+    ]
+  }
+}
+```
+
+### Properties
+
+| Name                | Type                                                                                                 | Required | Restrictions | Description |
+| ------------------- | ---------------------------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `error`             | string                                                                                               | false    |              |             |
+| `healthy`           | boolean                                                                                              | false    |              |             |
+| `severity`          | [health.Severity](#healthseverity)                                                                   | false    |              |             |
+| `warnings`          | array of string                                                                                      | false    |              |             |
+| `workspace_proxies` | [codersdk.RegionsResponse-codersdk_WorkspaceProxy](#codersdkregionsresponse-codersdk_workspaceproxy) | false    |              |             |
 
 ## netcheck.Report
 

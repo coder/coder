@@ -867,6 +867,10 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			return TypescriptType{ValueType: "Record<string, string>"}, nil
 		case "github.com/coder/coder/v2/cli/clibase.URL":
 			return TypescriptType{ValueType: "string"}, nil
+		// XXX: For some reason, the type generator generates this as `any`
+		//      so explicitly specifying the correct generic TS type.
+		case "github.com/coder/coder/v2/codersdk.RegionsResponse[github.com/coder/coder/v2/codersdk.WorkspaceProxy]":
+			return TypescriptType{ValueType: "RegionsResponse<WorkspaceProxy>"}, nil
 		}
 
 		// Some hard codes are a bit trickier.
