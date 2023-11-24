@@ -256,8 +256,9 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		)
 
 		// TODO(mafredri): For signal exit, there's also an "exit-signal"
-		// request (session.Exit sends "exit-status"), however, the
-		// implementation seems incomplete.
+		// request (session.Exit sends "exit-status"), however, since it's
+		// not implemented on the session interface and not used by
+		// OpenSSH, we'll leave it for now.
 		_ = session.Exit(code)
 		return
 	}
