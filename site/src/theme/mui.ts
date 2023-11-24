@@ -40,7 +40,6 @@ export let dark = createTheme({
     background: {
       default: colors.gray[17],
       paper: colors.gray[16],
-      paperLight: colors.gray[14],
     },
     text: {
       primary: colors.gray[1],
