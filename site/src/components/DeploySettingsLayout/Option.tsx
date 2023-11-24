@@ -127,9 +127,7 @@ interface OptionConfigProps extends BoxProps {
 export const OptionConfig = (props: OptionConfigProps) => {
   const { source, sx, ...attrs } = props;
   const theme = useTheme();
-  const borderColor = source
-    ? theme.palette.primary.main
-    : theme.palette.divider;
+  const borderColor = source ? undefined : theme.palette.divider;
 
   return (
     <Box
@@ -139,9 +137,7 @@ export const OptionConfig = (props: OptionConfigProps) => {
         fontFamily: MONOSPACE_FONT_FAMILY,
         fontWeight: 600,
         backgroundColor: (theme) =>
-          source
-            ? theme.palette.primary.dark
-            : theme.palette.background.paperLight,
+          source ? theme.palette.primary.dark : theme.palette.background.paper,
         display: "inline-flex",
         alignItems: "center",
         borderRadius: 0.25,

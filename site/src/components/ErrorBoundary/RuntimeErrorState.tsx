@@ -160,7 +160,6 @@ const styles = {
   }),
 
   stack: (theme) => ({
-    backgroundColor: theme.palette.background.paper,
     border: `1px solid ${theme.palette.divider}`,
     borderRadius: 4,
     marginTop: 64,
@@ -174,7 +173,7 @@ const styles = {
     fontWeight: 600,
     letterSpacing: 1,
     padding: "8px 8px 8px 16px",
-    backgroundColor: theme.palette.background.paperLight,
+    backgroundColor: theme.palette.background.paper,
     borderBottom: `1px solid ${theme.palette.divider}`,
     color: theme.palette.text.secondary,
     display: "flex",

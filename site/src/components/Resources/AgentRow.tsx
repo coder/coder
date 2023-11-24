@@ -513,7 +513,7 @@ const useAgentLogs = (
 
 const styles = {
   agentRow: (theme) => ({
-    backgroundColor: theme.palette.background.paperLight,
+    backgroundColor: theme.palette.background.paper,
     fontSize: 16,
     borderLeft: `2px solid ${theme.palette.text.secondary}`,
 
