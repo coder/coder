@@ -178,8 +178,12 @@ export function usePaginatedQuery<
       fixedTotalPages = totalPages;
     } else {
       const firstPageOptions = getQueryOptionsFromPage(1);
-      const firstPageResult = await queryClient.fetchQuery(firstPageOptions);
-      fixedTotalPages = Math.ceil(firstPageResult.count / limit) || 1;
+      try {
+        const firstPageResult = await queryClient.fetchQuery(firstPageOptions);
+        fixedTotalPages = Math.ceil(firstPageResult?.count ?? 0 / limit) || 1;
+      } catch (err) {
+        fixedTotalPages = 1;
+      }
     }
 
     const clamped = clamp(currentPage, 1, fixedTotalPages);

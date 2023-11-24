@@ -63,7 +63,7 @@ const AuditPage: FC = () => {
 
       <AuditPageView
         auditLogs={auditsQuery.data?.audit_logs}
-        count={auditsQuery.data?.count}
+        count={auditsQuery.totalRecords}
         page={auditsQuery.currentPage}
         limit={auditsQuery.limit}
         onPageChange={auditsQuery.onPageChange}
