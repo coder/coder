@@ -2906,7 +2906,7 @@ export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
             status: "unreachable",
             report: {
               errors: ["some error"],
-              warnings: null,
+              warnings: [],
             },
             checked_at: "2023-11-24T12:14:05.743303497Z",
           },
