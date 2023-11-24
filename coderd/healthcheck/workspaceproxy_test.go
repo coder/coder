@@ -35,47 +35,25 @@ func TestWorkspaceProxies(t *testing.T) {
 			expectedSeverity: health.SeverityOK,
 		},
 		{
-			name: "Enabled/NoProxies",
-			fetchWorkspaceProxies: ptr.Ref(func(ctx context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
-				return codersdk.RegionsResponse[codersdk.WorkspaceProxy]{
-					Regions: []codersdk.WorkspaceProxy{},
-				}, nil
-			}),
-			updateProxyHealth: ptr.Ref(func(ctx context.Context) error {
-				return nil
-			}),
-			expectedHealthy:  true,
-			expectedSeverity: health.SeverityOK,
+			name:                  "Enabled/NoProxies",
+			fetchWorkspaceProxies: fakeFetchWorkspaceProxies(),
+			updateProxyHealth:     fakeUpdateProxyHealth(nil),
+			expectedHealthy:       true,
+			expectedSeverity:      health.SeverityOK,
 		},
 		{
-			name: "Enabled/OneHealthy",
-			fetchWorkspaceProxies: ptr.Ref(func(ctx context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
-				return codersdk.RegionsResponse[codersdk.WorkspaceProxy]{
-					Regions: []codersdk.WorkspaceProxy{
-						fakeWorkspaceProxy("alpha", true, currentVersion),
-					},
-				}, nil
-			}),
-			updateProxyHealth: ptr.Ref(func(ctx context.Context) error {
-				return nil
-			}),
-			expectedHealthy:  true,
-			expectedSeverity: health.SeverityOK,
+			name:                  "Enabled/OneHealthy",
+			fetchWorkspaceProxies: fakeFetchWorkspaceProxies(fakeWorkspaceProxy("alpha", true, currentVersion)),
+			updateProxyHealth:     fakeUpdateProxyHealth(nil),
+			expectedHealthy:       true,
+			expectedSeverity:      health.SeverityOK,
 		},
 		{
-			name: "Enabled/OneUnhealthy",
-			fetchWorkspaceProxies: ptr.Ref(func(ctx context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
-				return codersdk.RegionsResponse[codersdk.WorkspaceProxy]{
-					Regions: []codersdk.WorkspaceProxy{
-						fakeWorkspaceProxy("alpha", false, currentVersion),
-					},
-				}, nil
-			}),
-			updateProxyHealth: ptr.Ref(func(ctx context.Context) error {
-				return nil
-			}),
-			expectedHealthy:  false,
-			expectedSeverity: health.SeverityError,
+			name:                  "Enabled/OneUnhealthy",
+			fetchWorkspaceProxies: fakeFetchWorkspaceProxies(fakeWorkspaceProxy("alpha", false, currentVersion)),
+			updateProxyHealth:     fakeUpdateProxyHealth(nil),
+			expectedHealthy:       false,
+			expectedSeverity:      health.SeverityError,
 		},
 		{
 			name: "Enabled/OneUnreachable",
@@ -100,23 +78,17 @@ func TestWorkspaceProxies(t *testing.T) {
 					},
 				}, nil
 			}),
-			updateProxyHealth: ptr.Ref(func(ctx context.Context) error {
-				return nil
-			}),
-			expectedHealthy:  false,
-			expectedSeverity: health.SeverityError,
-			expectedError:    "connect: connection refused",
+			updateProxyHealth: fakeUpdateProxyHealth(nil),
+			expectedHealthy:   false,
+			expectedSeverity:  health.SeverityError,
+			expectedError:     "connect: connection refused",
 		},
 		{
 			name: "Enabled/AllHealthy",
-			fetchWorkspaceProxies: ptr.Ref(func(ctx context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
-				return codersdk.RegionsResponse[codersdk.WorkspaceProxy]{
-					Regions: []codersdk.WorkspaceProxy{
-						fakeWorkspaceProxy("alpha", true, currentVersion),
-						fakeWorkspaceProxy("beta", true, currentVersion),
-					},
-				}, nil
-			}),
+			fetchWorkspaceProxies: fakeFetchWorkspaceProxies(
+				fakeWorkspaceProxy("alpha", true, currentVersion),
+				fakeWorkspaceProxy("beta", true, currentVersion),
+			),
 			updateProxyHealth: ptr.Ref(func(ctx context.Context) error {
 				return nil
 			}),
@@ -125,106 +97,68 @@ func TestWorkspaceProxies(t *testing.T) {
 		},
 		{
 			name: "Enabled/OneHealthyOneUnhealthy",
-			fetchWorkspaceProxies: ptr.Ref(func(ctx context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
-				return codersdk.RegionsResponse[codersdk.WorkspaceProxy]{
-					Regions: []codersdk.WorkspaceProxy{
-						fakeWorkspaceProxy("alpha", true, currentVersion),
-						fakeWorkspaceProxy("beta", false, currentVersion),
-					},
-				}, nil
-			}),
-			updateProxyHealth: ptr.Ref(func(ctx context.Context) error {
-				return nil
-			}),
-			expectedHealthy:  true,
-			expectedSeverity: health.SeverityWarning,
+			fetchWorkspaceProxies: fakeFetchWorkspaceProxies(
+				fakeWorkspaceProxy("alpha", false, currentVersion),
+				fakeWorkspaceProxy("beta", true, currentVersion),
+			),
+			updateProxyHealth: fakeUpdateProxyHealth(nil),
+			expectedHealthy:   true,
+			expectedSeverity:  health.SeverityWarning,
 		},
 		{
 			name: "Enabled/AllUnhealthy",
-			fetchWorkspaceProxies: ptr.Ref(func(ctx context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
-				return codersdk.RegionsResponse[codersdk.WorkspaceProxy]{
-					Regions: []codersdk.WorkspaceProxy{
-						fakeWorkspaceProxy("alpha", false, currentVersion),
-						fakeWorkspaceProxy("beta", false, currentVersion),
-					},
-				}, nil
-			}),
-			updateProxyHealth: ptr.Ref(func(ctx context.Context) error {
-				return nil
-			}),
-			expectedHealthy:  false,
-			expectedSeverity: health.SeverityError,
+			fetchWorkspaceProxies: fakeFetchWorkspaceProxies(
+				fakeWorkspaceProxy("alpha", false, currentVersion),
+				fakeWorkspaceProxy("beta", false, currentVersion),
+			),
+			updateProxyHealth: fakeUpdateProxyHealth(nil),
+			expectedHealthy:   false,
+			expectedSeverity:  health.SeverityError,
 		},
 		{
 			name: "Enabled/OneOutOfDate",
-			fetchWorkspaceProxies: ptr.Ref(func(ctx context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
-				return codersdk.RegionsResponse[codersdk.WorkspaceProxy]{
-					Regions: []codersdk.WorkspaceProxy{
-						fakeWorkspaceProxy("alpha", true, currentVersion),
-						fakeWorkspaceProxy("beta", true, olderVersion),
-					},
-				}, nil
-			}),
-			updateProxyHealth: ptr.Ref(func(ctx context.Context) error {
-				return nil
-			}),
-			expectedHealthy:  false,
-			expectedSeverity: health.SeverityError,
-			expectedError:    `proxy "beta" version "v2.33.0" does not match primary server version "v2.34.5"`,
+			fetchWorkspaceProxies: fakeFetchWorkspaceProxies(
+				fakeWorkspaceProxy("alpha", true, currentVersion),
+				fakeWorkspaceProxy("beta", true, olderVersion),
+			),
+			updateProxyHealth: fakeUpdateProxyHealth(nil),
+			expectedHealthy:   false,
+			expectedSeverity:  health.SeverityError,
+			expectedError:     `proxy "beta" version "v2.33.0" does not match primary server version "v2.34.5"`,
 		},
 		{
 			name: "Enabled/OneSlightlyNewerButStillOK",
-			fetchWorkspaceProxies: ptr.Ref(func(ctx context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
-				return codersdk.RegionsResponse[codersdk.WorkspaceProxy]{
-					Regions: []codersdk.WorkspaceProxy{
-						fakeWorkspaceProxy("alpha", true, currentVersion),
-						fakeWorkspaceProxy("beta", true, newerPatchVersion),
-					},
-				}, nil
-			}),
-			updateProxyHealth: ptr.Ref(func(ctx context.Context) error {
-				return nil
-			}),
-			expectedHealthy:  true,
-			expectedSeverity: health.SeverityOK,
+			fetchWorkspaceProxies: fakeFetchWorkspaceProxies(
+				fakeWorkspaceProxy("alpha", true, currentVersion),
+				fakeWorkspaceProxy("beta", true, newerPatchVersion),
+			),
+			updateProxyHealth: fakeUpdateProxyHealth(nil),
+			expectedHealthy:   true,
+			expectedSeverity:  health.SeverityOK,
 		},
 		{
 			name: "Enabled/NotConnectedYet",
-			fetchWorkspaceProxies: ptr.Ref(func(ctx context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
-				return codersdk.RegionsResponse[codersdk.WorkspaceProxy]{
-					Regions: []codersdk.WorkspaceProxy{
-						fakeWorkspaceProxy("slowpoke", true, ""),
-					},
-				}, nil
-			}),
-			updateProxyHealth: ptr.Ref(func(ctx context.Context) error {
-				return nil
-			}),
-			expectedHealthy:  true,
-			expectedSeverity: health.SeverityOK,
+			fetchWorkspaceProxies: fakeFetchWorkspaceProxies(
+				fakeWorkspaceProxy("slowpoke", true, ""),
+			),
+			updateProxyHealth: fakeUpdateProxyHealth(nil),
+			expectedHealthy:   true,
+			expectedSeverity:  health.SeverityOK,
 		},
 		{
-			name: "Enabled/ErrFetchWorkspaceProxy",
-			fetchWorkspaceProxies: ptr.Ref(func(ctx context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
-				return codersdk.RegionsResponse[codersdk.WorkspaceProxy]{}, assert.AnError
-			}),
-			updateProxyHealth: ptr.Ref(func(ctx context.Context) error {
-				return nil
-			}),
-			expectedHealthy:  false,
-			expectedSeverity: health.SeverityError,
-			expectedError:    assert.AnError.Error(),
+			name:                  "Enabled/ErrFetchWorkspaceProxy",
+			fetchWorkspaceProxies: fakeFetchWorkspaceProxiesErr(assert.AnError),
+			updateProxyHealth:     fakeUpdateProxyHealth(nil),
+			expectedHealthy:       false,
+			expectedSeverity:      health.SeverityError,
+			expectedError:         assert.AnError.Error(),
 		},
 		{
-			name: "Enabled/ErrUpdateProxyHealth",
-			fetchWorkspaceProxies: ptr.Ref(func(ctx context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
-				return codersdk.RegionsResponse[codersdk.WorkspaceProxy]{}, nil
-			}),
-			updateProxyHealth: ptr.Ref(func(ctx context.Context) error {
-				return assert.AnError
-			}),
-			expectedHealthy:  true,
-			expectedSeverity: health.SeverityWarning,
+			name:                  "Enabled/ErrUpdateProxyHealth",
+			fetchWorkspaceProxies: fakeFetchWorkspaceProxies(fakeWorkspaceProxy("alpha", true, currentVersion)),
+			updateProxyHealth:     fakeUpdateProxyHealth(assert.AnError),
+			expectedHealthy:       true,
+			expectedSeverity:      health.SeverityWarning,
 		},
 	} {
 		tt := tt
@@ -260,4 +194,29 @@ func fakeWorkspaceProxy(name string, healthy bool, version string) codersdk.Work
 		},
 		Version: version,
 	}
+}
+
+func fakeFetchWorkspaceProxies(ps ...codersdk.WorkspaceProxy) *func(context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
+	fn := func(context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
+		return codersdk.RegionsResponse[codersdk.WorkspaceProxy]{
+			Regions: ps,
+		}, nil
+	}
+	return ptr.Ref(fn)
+}
+
+func fakeFetchWorkspaceProxiesErr(err error) *func(context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
+	fn := func(context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
+		return codersdk.RegionsResponse[codersdk.WorkspaceProxy]{
+			Regions: []codersdk.WorkspaceProxy{},
+		}, err
+	}
+	return ptr.Ref(fn)
+}
+
+func fakeUpdateProxyHealth(err error) *func(context.Context) error {
+	fn := func(context.Context) error {
+		return err
+	}
+	return ptr.Ref(fn)
 }

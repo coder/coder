@@ -137,8 +137,6 @@ type Options struct {
 	// workspace applications. It consists of both a signing and encryption key.
 	AppSecurityKey workspaceapps.SecurityKey
 
-	// The following two functions are dependencies of HealthcheckFunc but are only implemented
-	// in enterprise. Stubbing them out here.
 	FetchWorkspaceProxiesFunc *atomic.Pointer[func(context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error)]
 	UpdateProxyHealthFunc     *atomic.Pointer[func(context.Context) error]
 
@@ -403,6 +401,8 @@ func New(options *Options) *API {
 		)
 	}
 
+	// The following two functions are dependencies of HealthcheckFunc but are only implemented
+	// in enterprise. Stubbing them out here.
 	if options.FetchWorkspaceProxiesFunc == nil {
 		options.FetchWorkspaceProxiesFunc = &atomic.Pointer[func(context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error)]{}
 	}
