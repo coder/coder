@@ -2,6 +2,7 @@ package healthcheck
 
 import (
 	"context"
+	"errors"
 	"sort"
 
 	"golang.org/x/xerrors"
@@ -10,8 +11,6 @@ import (
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
-
-	"github.com/hashicorp/go-multierror"
 )
 
 type WorkspaceProxyReportOptions struct {
@@ -102,14 +101,16 @@ func (r *WorkspaceProxyReport) Run(ctx context.Context, opts *WorkspaceProxyRepo
 	}
 }
 
-// appendError multierror-appends err onto r.Error.
+// appendError appends errs onto r.Error.
 // We only have one error, so multiple errors need to be squashed in there.
 func (r *WorkspaceProxyReport) appendError(errs ...error) {
-	var prevErr error
-	if r.Error != nil {
-		prevErr = xerrors.New(*r.Error)
+	if len(errs) == 0 {
+		return
 	}
-	r.Error = ptr.Ref(multierror.Append(prevErr, errs...).Error())
+	if r.Error != nil {
+		errs = append([]error{xerrors.New(*r.Error)}, errs...)
+	}
+	r.Error = ptr.Ref(errors.Join(errs...).Error())
 }
 
 func checkVersion(proxy codersdk.WorkspaceProxy, currentVersion string) error {
