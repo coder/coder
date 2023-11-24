@@ -2827,6 +2827,14 @@ export const MockHealth: TypesGen.HealthcheckReport = {
     latency_ms: 92570,
     threshold_ms: 92570,
   },
+  workspace_proxy: {
+    healthy: true,
+    severity: "ok",
+    warnings: [],
+    workspace_proxies: {
+      regions: [],
+    },
+  },
   coder_version: "v0.27.1-devel+c575292",
 };
 
