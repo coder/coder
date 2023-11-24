@@ -3166,6 +3166,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `user` |
 | `oidc` |
 
+## codersdk.HealthSettings
+
+```json
+{
+  "dismissed_healthchecks": ["string"]
+}
+```
+
+### Properties
+
+| Name                     | Type            | Required | Restrictions | Description |
+| ------------------------ | --------------- | -------- | ------------ | ----------- |
+| `dismissed_healthchecks` | array of string | false    |              |             |
+
 ## codersdk.Healthcheck
 
 ```json
@@ -5156,6 +5170,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `current` | boolean | false    |              | Current indicates whether the server version is the same as the latest. |
 | `url`     | string  | false    |              | URL to download the latest release of Coder.                            |
 | `version` | string  | false    |              | Version is the semantic version for the latest release of Coder.        |
+
+## codersdk.UpdateHealthSettings
+
+```json
+{
+  "dismissed_healthchecks": ["string"]
+}
+```
+
+### Properties
+
+| Name                     | Type            | Required | Restrictions | Description |
+| ------------------------ | --------------- | -------- | ------------ | ----------- |
+| `dismissed_healthchecks` | array of string | false    |              |             |
 
 ## codersdk.UpdateRoles
 
