@@ -82,6 +82,30 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// @Summary Get health settings
+// @ID get-health-settings
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Debug
+// @Success 200 {object} codersdk.HealthSettings
+// @Router /debug/health/settings [get]
+func (api *API) deploymentHealthSettings(rw http.ResponseWriter, r *http.Request) {
+	// TODO
+}
+
+// @Summary Update health settings
+// @ID update-health-settings
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Debug
+// @Param request body codersdk.UpdateHealthSettings true "Update health settings"
+// @Success 200 {object} codersdk.UpdateHealthSettings
+// @Router /debug/health/settings [put]
+func (api *API) putDeploymentHealthSettings(rw http.ResponseWriter, r *http.Request) {
+	// TODO
+}
+
 func formatHealthcheck(ctx context.Context, rw http.ResponseWriter, r *http.Request, hc *healthcheck.Report) {
 	format := r.URL.Query().Get("format")
 	switch format {

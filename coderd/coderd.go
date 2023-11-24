@@ -956,7 +956,13 @@ func New(options *Options) *API {
 
 			r.Get("/coordinator", api.debugCoordinator)
 			r.Get("/tailnet", api.debugTailnet)
-			r.Get("/health", api.debugDeploymentHealth)
+			r.Route("/health", func(r chi.Router) {
+				r.Get("/", api.debugDeploymentHealth)
+				r.Route("/settings", func(r chi.Router) {
+					r.Get("/", api.deploymentHealthSettings)
+					r.Put("/", api.putDeploymentHealthSettings)
+				})
+			})
 			r.Get("/ws", (&healthcheck.WebsocketEchoServer{}).ServeHTTP)
 		})
 	})
