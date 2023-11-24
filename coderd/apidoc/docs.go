@@ -9673,7 +9673,8 @@ const docTemplate = `{
                 "deployment_stats",
                 "replicas",
                 "debug_info",
-                "system"
+                "system",
+                "template_insights"
             ],
             "x-enum-varnames": [
                 "ResourceWorkspace",
@@ -9697,7 +9698,8 @@ const docTemplate = `{
                 "ResourceDeploymentStats",
                 "ResourceReplicas",
                 "ResourceDebugInfo",
-                "ResourceSystem"
+                "ResourceSystem",
+                "ResourceTemplateInsights"
             ]
         },
         "codersdk.RateLimitConfig": {

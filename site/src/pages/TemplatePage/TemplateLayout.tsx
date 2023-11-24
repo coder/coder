@@ -24,6 +24,12 @@ const templatePermissions = (
     },
     action: "update",
   },
+  canReadInsights: {
+    object: {
+      resource_type: "template_insights",
+    },
+    action: "read",
+  },
 });
 
 const fetchTemplate = async (orgId: string, templateName: string) => {
@@ -68,7 +74,7 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
     queryKey: ["template", templateName],
     queryFn: () => fetchTemplate(orgId, templateName),
   });
-  const shouldShowInsights = data?.permissions?.canUpdateTemplate;
+  const shouldShowInsights = (data?.permissions?.canUpdateTemplate || data?.permissions?.canReadInsights);
 
   if (error) {
     return (

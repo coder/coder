@@ -20,6 +20,7 @@ func AllResources() []Object {
 		ResourceSystem,
 		ResourceTailnetCoordinator,
 		ResourceTemplate,
+		ResourceTemplateInsights,
 		ResourceUser,
 		ResourceUserData,
 		ResourceWildcard,
