@@ -19,7 +19,6 @@ type Story = StoryObj<typeof HealthPageView>;
 
 export const Example: Story = {};
 
-
 export const AccessURLUnhealthy: Story = {
   args: {
     healthStatus: {
@@ -33,7 +32,7 @@ export const AccessURLUnhealthy: Story = {
       },
     },
   },
-}
+};
 
 export const AccessURLWarning: Story = {
   args: {
@@ -48,7 +47,7 @@ export const AccessURLWarning: Story = {
       },
     },
   },
-}
+};
 
 export const DatabaseUnhealthy: Story = {
   args: {
@@ -63,7 +62,7 @@ export const DatabaseUnhealthy: Story = {
       },
     },
   },
-}
+};
 
 export const DatabaseWarning: Story = {
   args: {
@@ -78,7 +77,7 @@ export const DatabaseWarning: Story = {
       },
     },
   },
-}
+};
 
 export const WebsocketUnhealthy: Story = {
   args: {
@@ -93,7 +92,7 @@ export const WebsocketUnhealthy: Story = {
       },
     },
   },
-}
+};
 
 export const WebsocketWarning: Story = {
   args: {
@@ -108,7 +107,7 @@ export const WebsocketWarning: Story = {
       },
     },
   },
-}
+};
 
 export const UnhealthyDERP: Story = {
   args: {
@@ -148,11 +147,10 @@ export const ProxyUnhealthy: Story = {
         ...MockHealth.workspace_proxy,
         healthy: false,
         error: "ouch",
-      }
-    }
-  }
-}
-
+      },
+    },
+  },
+};
 
 export const ProxyWarning: Story = {
   args: {
@@ -162,7 +160,7 @@ export const ProxyWarning: Story = {
       workspace_proxy: {
         ...MockHealth.workspace_proxy,
         warnings: ["foobar"],
-      }
-    }
-  }
-}
+      },
+    },
+  },
+};
