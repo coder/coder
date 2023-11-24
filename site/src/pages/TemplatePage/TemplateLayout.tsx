@@ -74,6 +74,8 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
     queryKey: ["template", templateName],
     queryFn: () => fetchTemplate(orgId, templateName),
   });
+  // Auditors should also be able to view insights, but do not automatically
+  // have permission to update templates. Need both checks.
   const shouldShowInsights =
     data?.permissions?.canUpdateTemplate || data?.permissions?.canReadInsights;
 
