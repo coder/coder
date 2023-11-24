@@ -165,10 +165,11 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		Site: Permissions(map[string][]Action{
 			// Should be able to read all template details, even in orgs they
 			// are not in.
-			ResourceTemplate.Type: {ActionRead},
-			ResourceAuditLog.Type: {ActionRead},
-			ResourceUser.Type:     {ActionRead},
-			ResourceGroup.Type:    {ActionRead},
+			ResourceTemplate.Type:         {ActionRead},
+			ResourceTemplateInsights.Type: {ActionRead},
+			ResourceAuditLog.Type:         {ActionRead},
+			ResourceUser.Type:             {ActionRead},
+			ResourceGroup.Type:            {ActionRead},
 			// Allow auditors to query deployment stats and insights.
 			ResourceDeploymentStats.Type:  {ActionRead},
 			ResourceDeploymentValues.Type: {ActionRead},
@@ -195,6 +196,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			ResourceGroup.Type:        {ActionRead},
 			// Org roles are not really used yet, so grant the perm at the site level.
 			ResourceOrganizationMember.Type: {ActionRead},
+			// Template admins can read all template insights data
+			ResourceTemplateInsights.Type: {ActionRead},
 		}),
 		Org:  map[string][]Permission{},
 		User: []Permission{},

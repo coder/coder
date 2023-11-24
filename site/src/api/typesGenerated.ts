@@ -1882,6 +1882,7 @@ export type RBACResource =
   | "replicas"
   | "system"
   | "template"
+  | "template_insights"
   | "user"
   | "user_data"
   | "workspace"
@@ -1905,6 +1906,7 @@ export const RBACResources: RBACResource[] = [
   "replicas",
   "system",
   "template",
+  "template_insights",
   "user",
   "user_data",
   "workspace",

@@ -8701,7 +8701,8 @@
         "deployment_stats",
         "replicas",
         "debug_info",
-        "system"
+        "system",
+        "template_insights"
       ],
       "x-enum-varnames": [
         "ResourceWorkspace",
@@ -8725,7 +8726,8 @@
         "ResourceDeploymentStats",
         "ResourceReplicas",
         "ResourceDebugInfo",
-        "ResourceSystem"
+        "ResourceSystem",
+        "ResourceTemplateInsights"
       ]
     },
     "codersdk.RateLimitConfig": {

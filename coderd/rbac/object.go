@@ -193,6 +193,11 @@ var (
 	ResourceTailnetCoordinator = Object{
 		Type: "tailnet_coordinator",
 	}
+
+	// ResourceTemplateInsights is a pseudo-resource for reading template insights data.
+	ResourceTemplateInsights = Object{
+		Type: "template_insights",
+	}
 )
 
 // ResourceUserObject is a helper function to create a user object for authz checks.

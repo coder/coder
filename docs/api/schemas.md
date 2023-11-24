@@ -3994,6 +3994,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `replicas`            |
 | `debug_info`          |
 | `system`              |
+| `template_insights`   |
 
 ## codersdk.RateLimitConfig
 
