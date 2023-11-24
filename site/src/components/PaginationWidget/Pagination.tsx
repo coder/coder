@@ -4,9 +4,12 @@ import {
   useEffect,
   useLayoutEffect,
   useRef,
+  useMemo,
 } from "react";
 
 import { PaginationWidgetBase } from "./PaginationWidgetBase";
+import { throttle } from "lodash";
+import { useEffectEvent } from "hooks/hookPolyfills";
 
 type PaginationProps = PropsWithChildren<{
   currentPage: number;
@@ -42,61 +45,53 @@ export const Pagination: FC<PaginationProps> = ({
   showingPreviousData = false,
 }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const scrollAfterDataLoadsRef = useRef(false);
+  const scrollCanceledRef = useRef(false);
 
-  // Manages event handlers for canceling scrolling if the user interacts with
-  // the page in any way while new data is loading in. Don't want to scroll and
-  // hijack their browser if they're in the middle of something else!
+  /**
+   * @todo Probably better just to make a useThrottledFunction custom hook,
+   * rather than the weird useEffectEvent+useMemo approach. Cannot use throttle
+   * inside the render path directly; it will create a new stateful function
+   * every single render, and there won't be a single throttle state
+   */
+  const cancelScroll = useEffectEvent(() => {
+    if (showingPreviousData) {
+      scrollCanceledRef.current = true;
+    }
+  });
+
+  const throttledCancelScroll = useMemo(() => {
+    return throttle(cancelScroll, 200);
+  }, [cancelScroll]);
+
   useEffect(() => {
-    const cancelScroll = () => {
-      scrollAfterDataLoadsRef.current = false;
-    };
-
     for (const event of userInteractionEvents) {
-      window.addEventListener(event, cancelScroll);
+      window.addEventListener(event, throttledCancelScroll);
     }
 
     return () => {
       for (const event of userInteractionEvents) {
-        window.removeEventListener(event, cancelScroll);
+        window.removeEventListener(event, throttledCancelScroll);
       }
     };
-  }, []);
+  }, [throttledCancelScroll]);
 
-  // Syncs scroll tracking to page changes. Wanted to handle these changes via a
-  // click event handler, but that got overly complicated between making sure
-  // that events didn't bubble all the way to the window (where they would
-  // immediately be canceled by window), and needing to update all downstream
-  // click handlers to be aware of event objects. Must be layout effect in order
-  // to fire before layout effect defined below
-  const mountedRef = useRef(false);
   useLayoutEffect(() => {
-    // Never want to turn scrolling on for initial mount. Tried avoiding ref and
-    // checking things like viewport, but they all seemed unreliable (especially
-    // if the user can interact with the page while JS is still loading in)
-    if (mountedRef.current) {
-      mountedRef.current = true;
+    scrollCanceledRef.current = false;
+  }, [currentPage]);
+
+  useLayoutEffect(() => {
+    if (showingPreviousData) {
       return;
     }
 
-    scrollAfterDataLoadsRef.current = true;
-  }, [currentPage]);
-
-  // Jumps the user to the top of the paginated container each time new data
-  // loads in. Has no dependency array, because you can't sync based off of
-  // showingPreviousData. If its value is always false (via default params),
-  // an effect synced with it will never fire beyond the on-mount call
-  useLayoutEffect(() => {
-    const shouldScroll =
-      autoScroll && !showingPreviousData && scrollAfterDataLoadsRef.current;
-
+    const shouldScroll = autoScroll && !scrollCanceledRef.current;
     if (shouldScroll) {
       scrollContainerRef.current?.scrollIntoView({
         block: "start",
         behavior: "instant",
       });
     }
-  });
+  }, [autoScroll, showingPreviousData]);
 
   return (
     <div ref={scrollContainerRef}>
