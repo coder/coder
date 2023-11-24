@@ -2129,6 +2129,17 @@ export interface HealthcheckWebsocketReport {
   readonly error?: string;
 }
 
+// From healthcheck/workspaceproxy.go
+export interface HealthcheckWorkspaceProxyReport {
+  readonly healthy: boolean;
+  readonly severity: HealthSeverity;
+  readonly warnings: string[];
+  readonly error?: string;
+  // Named type "github.com/coder/coder/v2/codersdk.RegionsResponse[github.com/coder/coder/v2/codersdk.WorkspaceProxy]" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
+  readonly WorkspaceProxies: any;
+}
+
 // The code below is generated from cli/clibase.
 
 // From clibase/clibase.go

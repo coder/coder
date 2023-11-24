@@ -2,6 +2,7 @@ package healthcheck
 
 import (
 	"context"
+	"sort"
 
 	"golang.org/x/xerrors"
 
@@ -69,6 +70,10 @@ func (r *WorkspaceProxyReport) Run(ctx context.Context, opts *WorkspaceProxyRepo
 	}
 
 	r.WorkspaceProxies = proxies
+	// Stable sort based on create timestamp.
+	sort.Slice(r.WorkspaceProxies.Regions, func(i int, j int) bool {
+		return r.WorkspaceProxies.Regions[i].CreatedAt.Before(r.WorkspaceProxies.Regions[j].CreatedAt)
+	})
 
 	var total, healthy int
 	for _, proxy := range r.WorkspaceProxies.Regions {
