@@ -12448,7 +12448,7 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
-                "workspaceProxies": {
+                "workspace_proxies": {
                     "$ref": "#/definitions/codersdk.RegionsResponse-codersdk_WorkspaceProxy"
                 }
             }

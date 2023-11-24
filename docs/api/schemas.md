@@ -7795,7 +7795,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "healthy": true,
     "severity": "ok",
     "warnings": ["string"],
-    "workspaceProxies": {
+    "workspace_proxies": {
       "regions": [
         {
           "created_at": "2019-08-24T14:15:22Z",
@@ -7889,7 +7889,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "healthy": true,
   "severity": "ok",
   "warnings": ["string"],
-  "workspaceProxies": {
+  "workspace_proxies": {
     "regions": [
       {
         "created_at": "2019-08-24T14:15:22Z",
@@ -7921,13 +7921,13 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name               | Type                                                                                                 | Required | Restrictions | Description |
-| ------------------ | ---------------------------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `error`            | string                                                                                               | false    |              |             |
-| `healthy`          | boolean                                                                                              | false    |              |             |
-| `severity`         | [health.Severity](#healthseverity)                                                                   | false    |              |             |
-| `warnings`         | array of string                                                                                      | false    |              |             |
-| `workspaceProxies` | [codersdk.RegionsResponse-codersdk_WorkspaceProxy](#codersdkregionsresponse-codersdk_workspaceproxy) | false    |              |             |
+| Name                | Type                                                                                                 | Required | Restrictions | Description |
+| ------------------- | ---------------------------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `error`             | string                                                                                               | false    |              |             |
+| `healthy`           | boolean                                                                                              | false    |              |             |
+| `severity`          | [health.Severity](#healthseverity)                                                                   | false    |              |             |
+| `warnings`          | array of string                                                                                      | false    |              |             |
+| `workspace_proxies` | [codersdk.RegionsResponse-codersdk_WorkspaceProxy](#codersdkregionsresponse-codersdk_workspaceproxy) | false    |              |             |
 
 ## netcheck.Report
 

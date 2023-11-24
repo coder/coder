@@ -34,7 +34,7 @@ type WorkspaceProxyReport struct {
 	Warnings []string        `json:"warnings"`
 	Error    *string         `json:"error"`
 
-	WorkspaceProxies codersdk.RegionsResponse[codersdk.WorkspaceProxy]
+	WorkspaceProxies codersdk.RegionsResponse[codersdk.WorkspaceProxy] `json:"workspace_proxies"`
 }
 
 func (r *WorkspaceProxyReport) Run(ctx context.Context, opts *WorkspaceProxyReportOptions) {

@@ -259,7 +259,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
     "healthy": true,
     "severity": "ok",
     "warnings": ["string"],
-    "workspaceProxies": {
+    "workspace_proxies": {
       "regions": [
         {
           "created_at": "2019-08-24T14:15:22Z",
