@@ -92,6 +92,7 @@ export const Pagination: FC<PaginationProps> = ({
 
     if (shouldScroll) {
       scrollContainerRef.current?.scrollIntoView({
+        block: "start",
         behavior: "instant",
       });
     }

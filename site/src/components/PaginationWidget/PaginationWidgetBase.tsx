@@ -38,7 +38,7 @@ export const PaginationWidgetBase = ({
         alignItems: "center",
         display: "flex",
         flexDirection: "row",
-        padding: "20px",
+        padding: "0 20px",
         columnGap: "6px",
       }}
     >

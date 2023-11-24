@@ -159,6 +159,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         page={usersQuery.currentPage}
         limit={usersQuery.limit}
         onPageChange={usersQuery.onPageChange}
+        showingPreviousData={usersQuery.isPreviousData}
       />
 
       <DeleteDialog

@@ -8,7 +8,7 @@ import {
   PaginationStatus,
   TableToolbar,
 } from "components/TableToolbar/TableToolbar";
-import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
+import { Pagination } from "components/PaginationWidget/Pagination";
 
 export interface UsersPageViewProps {
   users?: TypesGen.User[];
@@ -39,6 +39,7 @@ export interface UsersPageViewProps {
   page: number;
   limit: number;
   onPageChange: (page: number) => void;
+  showingPreviousData: boolean;
 }
 
 export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
@@ -65,6 +66,7 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
   onPageChange,
   page,
   groupsByUserId,
+  showingPreviousData,
 }) => {
   return (
     <>
@@ -79,35 +81,34 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
         />
       </TableToolbar>
 
-      <UsersTable
-        users={users}
-        roles={roles}
-        groupsByUserId={groupsByUserId}
-        onSuspendUser={onSuspendUser}
-        onDeleteUser={onDeleteUser}
-        onListWorkspaces={onListWorkspaces}
-        onViewActivity={onViewActivity}
-        onActivateUser={onActivateUser}
-        onResetUserPassword={onResetUserPassword}
-        onUpdateUserRoles={onUpdateUserRoles}
-        isUpdatingUserRoles={isUpdatingUserRoles}
-        canEditUsers={canEditUsers}
-        oidcRoleSyncEnabled={oidcRoleSyncEnabled}
-        canViewActivity={canViewActivity}
-        isLoading={isLoading}
-        isNonInitialPage={isNonInitialPage}
-        actorID={actorID}
-        authMethods={authMethods}
-      />
-
-      {count !== undefined && (
-        <PaginationWidgetBase
-          totalRecords={count}
-          pageSize={limit}
-          onPageChange={onPageChange}
-          currentPage={page}
+      <Pagination
+        totalRecords={count}
+        pageSize={limit}
+        currentPage={page}
+        showingPreviousData={showingPreviousData}
+        onPageChange={onPageChange}
+      >
+        <UsersTable
+          users={users}
+          roles={roles}
+          groupsByUserId={groupsByUserId}
+          onSuspendUser={onSuspendUser}
+          onDeleteUser={onDeleteUser}
+          onListWorkspaces={onListWorkspaces}
+          onViewActivity={onViewActivity}
+          onActivateUser={onActivateUser}
+          onResetUserPassword={onResetUserPassword}
+          onUpdateUserRoles={onUpdateUserRoles}
+          isUpdatingUserRoles={isUpdatingUserRoles}
+          canEditUsers={canEditUsers}
+          oidcRoleSyncEnabled={oidcRoleSyncEnabled}
+          canViewActivity={canViewActivity}
+          isLoading={isLoading}
+          isNonInitialPage={isNonInitialPage}
+          actorID={actorID}
+          authMethods={authMethods}
         />
-      )}
+      </Pagination>
     </>
   );
 };
