@@ -379,7 +379,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 
 			err = sshSession.Wait()
 			if err != nil {
-				if exitErr := &gossh.ExitError{}; errors.As(err, &exitErr) {
+				if exitErr := (&gossh.ExitError{}); errors.As(err, &exitErr) {
 					// Clear the error since it's not useful beyond
 					// reporting status.
 					return ExitError(exitErr.ExitStatus(), nil)
