@@ -166,6 +166,7 @@ func (r *RegionReport) Run(ctx context.Context) {
 	r.Healthy = true
 	r.Severity = health.SeverityOK
 	r.NodeReports = []*NodeReport{}
+	r.Warnings = []string{}
 
 	wg := &sync.WaitGroup{}
 	var unhealthyNodes int // atomic.Int64 is not mandatory as we depend on RegionReport mutex.
@@ -262,6 +263,7 @@ func (r *NodeReport) Run(ctx context.Context) {
 	r.Severity = health.SeverityOK
 	r.ClientLogs = [][]string{}
 	r.ClientErrs = [][]string{}
+	r.Warnings = []string{}
 
 	wg := &sync.WaitGroup{}
 
