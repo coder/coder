@@ -2115,6 +2115,7 @@ export interface HealthcheckReport {
   readonly access_url: HealthcheckAccessURLReport;
   readonly websocket: HealthcheckWebsocketReport;
   readonly database: HealthcheckDatabaseReport;
+  readonly workspace_proxy: HealthcheckWorkspaceProxyReport;
   readonly coder_version: string;
 }
 

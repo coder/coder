@@ -26,7 +26,7 @@ type WorkspaceProxyReportOptions struct {
 	UpdateProxyHealth *func(context.Context) error
 }
 
-// @typescript-generate Report
+// @typescript-generate WorkspaceProxyReport
 type WorkspaceProxyReport struct {
 	Healthy  bool            `json:"healthy"`
 	Severity health.Severity `json:"severity"`
