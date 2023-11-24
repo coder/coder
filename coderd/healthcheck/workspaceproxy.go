@@ -16,14 +16,8 @@ import (
 type WorkspaceProxyReportOptions struct {
 	// CurrentVersion is the current server version.
 	// We pass this in to make it easier to test.
-	CurrentVersion string
-	// FetchWorkspaceProxies is a function that returns the available workspace proxies.
-	FetchWorkspaceProxies *func(context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error)
-	// UpdateProxyHealth is a function called when healthcheck is run.
-	// This would normally be ProxyHealth.ForceUpdate().
-	// We do this because if someone mashes the healthcheck refresh button
-	// they would expect up-to-date data.
-	UpdateProxyHealth *func(context.Context) error
+	CurrentVersion               string
+	WorkspaceProxiesFetchUpdater WorkspaceProxiesFetchUpdater
 }
 
 // @typescript-generate WorkspaceProxyReport
@@ -36,31 +30,40 @@ type WorkspaceProxyReport struct {
 	WorkspaceProxies codersdk.RegionsResponse[codersdk.WorkspaceProxy] `json:"workspace_proxies"`
 }
 
+type WorkspaceProxiesFetchUpdater interface {
+	Fetch(context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error)
+	Update(context.Context) error
+}
+
+// AGPLWorkspaceProxiesFetchUpdater implements WorkspaceProxiesFetchUpdater
+// to the extent required by AGPL code. Which isn't that much.
+type AGPLWorkspaceProxiesFetchUpdater struct{}
+
+func (*AGPLWorkspaceProxiesFetchUpdater) Fetch(context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
+	return codersdk.RegionsResponse[codersdk.WorkspaceProxy]{}, nil
+}
+
+func (*AGPLWorkspaceProxiesFetchUpdater) Update(context.Context) error {
+	return nil
+}
+
 func (r *WorkspaceProxyReport) Run(ctx context.Context, opts *WorkspaceProxyReportOptions) {
 	r.Healthy = true
 	r.Severity = health.SeverityOK
 	r.Warnings = []string{}
 
-	if opts.FetchWorkspaceProxies == nil {
-		return
+	if opts.WorkspaceProxiesFetchUpdater == nil {
+		opts.WorkspaceProxiesFetchUpdater = &AGPLWorkspaceProxiesFetchUpdater{}
 	}
-	fetchWorkspaceProxiesFunc := *opts.FetchWorkspaceProxies
-
-	if opts.UpdateProxyHealth == nil {
-		err := "opts.UpdateProxyHealth must not be nil if opts.FetchWorkspaceProxies is not nil"
-		r.Error = ptr.Ref(err)
-		return
-	}
-	updateProxyHealthFunc := *opts.UpdateProxyHealth
 
 	// If this fails, just mark it as a warning. It is still updated in the background.
-	if err := updateProxyHealthFunc(ctx); err != nil {
+	if err := opts.WorkspaceProxiesFetchUpdater.Update(ctx); err != nil {
 		r.Severity = health.SeverityWarning
 		r.Warnings = append(r.Warnings, xerrors.Errorf("update proxy health: %w", err).Error())
 		return
 	}
 
-	proxies, err := fetchWorkspaceProxiesFunc(ctx)
+	proxies, err := opts.WorkspaceProxiesFetchUpdater.Fetch(ctx)
 	if err != nil {
 		r.Healthy = false
 		r.Severity = health.SeverityError

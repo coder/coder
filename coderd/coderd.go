@@ -137,12 +137,10 @@ type Options struct {
 	// workspace applications. It consists of both a signing and encryption key.
 	AppSecurityKey workspaceapps.SecurityKey
 
-	FetchWorkspaceProxiesFunc *atomic.Pointer[func(context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error)]
-	UpdateProxyHealthFunc     *atomic.Pointer[func(context.Context) error]
-
-	HealthcheckFunc    func(ctx context.Context, apiKey string) *healthcheck.Report
-	HealthcheckTimeout time.Duration
-	HealthcheckRefresh time.Duration
+	HealthcheckFunc              func(ctx context.Context, apiKey string) *healthcheck.Report
+	HealthcheckTimeout           time.Duration
+	HealthcheckRefresh           time.Duration
+	WorkspaceProxiesFetchUpdater *atomic.Pointer[healthcheck.WorkspaceProxiesFetchUpdater]
 
 	// OAuthSigningKey is the crypto key used to sign and encrypt state strings
 	// related to OAuth. This is a symmetric secret key using hmac to sign payloads.
@@ -401,14 +399,11 @@ func New(options *Options) *API {
 		)
 	}
 
-	// The following two functions are dependencies of HealthcheckFunc but are only implemented
-	// in enterprise. Stubbing them out here.
-	if options.FetchWorkspaceProxiesFunc == nil {
-		options.FetchWorkspaceProxiesFunc = &atomic.Pointer[func(context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error)]{}
-	}
-
-	if options.UpdateProxyHealthFunc == nil {
-		options.UpdateProxyHealthFunc = &atomic.Pointer[func(context.Context) error]{}
+	if options.WorkspaceProxiesFetchUpdater == nil {
+		options.WorkspaceProxiesFetchUpdater = &atomic.Pointer[healthcheck.WorkspaceProxiesFetchUpdater]{}
+		var wpfu healthcheck.WorkspaceProxiesFetchUpdater //nolint:gosimple
+		wpfu = &healthcheck.AGPLWorkspaceProxiesFetchUpdater{}
+		options.WorkspaceProxiesFetchUpdater.Store(&wpfu)
 	}
 
 	if options.HealthcheckFunc == nil {
@@ -430,9 +425,8 @@ func New(options *Options) *API {
 					DERPMap: api.DERPMap(),
 				},
 				WorkspaceProxy: healthcheck.WorkspaceProxyReportOptions{
-					CurrentVersion:        buildinfo.Version(),
-					FetchWorkspaceProxies: options.FetchWorkspaceProxiesFunc.Load(),
-					UpdateProxyHealth:     options.UpdateProxyHealthFunc.Load(),
+					CurrentVersion:               buildinfo.Version(),
+					WorkspaceProxiesFetchUpdater: *(options.WorkspaceProxiesFetchUpdater).Load(),
 				},
 			})
 		}

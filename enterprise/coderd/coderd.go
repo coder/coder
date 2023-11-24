@@ -25,11 +25,11 @@ import (
 	"github.com/coder/coder/v2/coderd"
 	agplaudit "github.com/coder/coder/v2/coderd/audit"
 	agpldbauthz "github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/dbauthz"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -377,8 +377,12 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		api.AGPL.WorkspaceProxyHostsFn.Store(&f)
 
 		// Wire this up to healthcheck.
-		api.AGPL.FetchWorkspaceProxiesFunc.Store(ptr.Ref(api.fetchWorkspaceProxies))
-		api.AGPL.UpdateProxyHealthFunc.Store(ptr.Ref(api.ProxyHealth.ForceUpdate))
+		var fetchUpdater healthcheck.WorkspaceProxiesFetchUpdater //nolint:gosimple
+		fetchUpdater = &workspaceProxiesFetchUpdater{
+			fetchFunc:  api.fetchWorkspaceProxies,
+			updateFunc: api.ProxyHealth.ForceUpdate,
+		}
+		api.AGPL.WorkspaceProxiesFetchUpdater.Store(&fetchUpdater)
 	}
 
 	err = api.PrometheusRegistry.Register(&api.licenseMetricsCollector)

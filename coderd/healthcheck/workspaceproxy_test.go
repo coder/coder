@@ -8,7 +8,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -23,8 +22,8 @@ func TestWorkspaceProxies(t *testing.T) {
 
 	for _, tt := range []struct {
 		name                  string
-		fetchWorkspaceProxies *func(context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error)
-		updateProxyHealth     *func(context.Context) error
+		fetchWorkspaceProxies func(context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error)
+		updateProxyHealth     func(context.Context) error
 		expectedHealthy       bool
 		expectedError         string
 		expectedSeverity      health.Severity
@@ -57,7 +56,7 @@ func TestWorkspaceProxies(t *testing.T) {
 		},
 		{
 			name: "Enabled/OneUnreachable",
-			fetchWorkspaceProxies: ptr.Ref(func(ctx context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
+			fetchWorkspaceProxies: func(ctx context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
 				return codersdk.RegionsResponse[codersdk.WorkspaceProxy]{
 					Regions: []codersdk.WorkspaceProxy{
 						{
@@ -77,7 +76,7 @@ func TestWorkspaceProxies(t *testing.T) {
 						},
 					},
 				}, nil
-			}),
+			},
 			updateProxyHealth: fakeUpdateProxyHealth(nil),
 			expectedHealthy:   false,
 			expectedSeverity:  health.SeverityError,
@@ -89,9 +88,9 @@ func TestWorkspaceProxies(t *testing.T) {
 				fakeWorkspaceProxy("alpha", true, currentVersion),
 				fakeWorkspaceProxy("beta", true, currentVersion),
 			),
-			updateProxyHealth: ptr.Ref(func(ctx context.Context) error {
+			updateProxyHealth: func(ctx context.Context) error {
 				return nil
-			}),
+			},
 			expectedHealthy:  true,
 			expectedSeverity: health.SeverityOK,
 		},
@@ -167,8 +166,14 @@ func TestWorkspaceProxies(t *testing.T) {
 			var rpt healthcheck.WorkspaceProxyReport
 			var opts healthcheck.WorkspaceProxyReportOptions
 			opts.CurrentVersion = currentVersion
-			opts.FetchWorkspaceProxies = tt.fetchWorkspaceProxies
-			opts.UpdateProxyHealth = tt.updateProxyHealth
+			if tt.fetchWorkspaceProxies != nil && tt.updateProxyHealth != nil {
+				opts.WorkspaceProxiesFetchUpdater = &fakeWorkspaceProxyFetchUpdater{
+					fetchFunc:  tt.fetchWorkspaceProxies,
+					updateFunc: tt.updateProxyHealth,
+				}
+			} else {
+				opts.WorkspaceProxiesFetchUpdater = &healthcheck.AGPLWorkspaceProxiesFetchUpdater{}
+			}
 
 			rpt.Run(context.Background(), &opts)
 
@@ -186,6 +191,20 @@ func TestWorkspaceProxies(t *testing.T) {
 	}
 }
 
+// yet another implementation of the thing
+type fakeWorkspaceProxyFetchUpdater struct {
+	fetchFunc  func(context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error)
+	updateFunc func(context.Context) error
+}
+
+func (u *fakeWorkspaceProxyFetchUpdater) Fetch(ctx context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
+	return u.fetchFunc(ctx)
+}
+
+func (u *fakeWorkspaceProxyFetchUpdater) Update(ctx context.Context) error {
+	return u.updateFunc(ctx)
+}
+
 func fakeWorkspaceProxy(name string, healthy bool, version string) codersdk.WorkspaceProxy {
 	return codersdk.WorkspaceProxy{
 		Region: codersdk.Region{
@@ -196,27 +215,24 @@ func fakeWorkspaceProxy(name string, healthy bool, version string) codersdk.Work
 	}
 }
 
-func fakeFetchWorkspaceProxies(ps ...codersdk.WorkspaceProxy) *func(context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
-	fn := func(context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
+func fakeFetchWorkspaceProxies(ps ...codersdk.WorkspaceProxy) func(context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
+	return func(context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
 		return codersdk.RegionsResponse[codersdk.WorkspaceProxy]{
 			Regions: ps,
 		}, nil
 	}
-	return ptr.Ref(fn)
 }
 
-func fakeFetchWorkspaceProxiesErr(err error) *func(context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
-	fn := func(context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
+func fakeFetchWorkspaceProxiesErr(err error) func(context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
+	return func(context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
 		return codersdk.RegionsResponse[codersdk.WorkspaceProxy]{
 			Regions: []codersdk.WorkspaceProxy{},
 		}, err
 	}
-	return ptr.Ref(fn)
 }
 
-func fakeUpdateProxyHealth(err error) *func(context.Context) error {
-	fn := func(context.Context) error {
+func fakeUpdateProxyHealth(err error) func(context.Context) error {
+	return func(context.Context) error {
 		return err
 	}
-	return ptr.Ref(fn)
 }
