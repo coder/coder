@@ -74,7 +74,8 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
     queryKey: ["template", templateName],
     queryFn: () => fetchTemplate(orgId, templateName),
   });
-  const shouldShowInsights = (data?.permissions?.canUpdateTemplate || data?.permissions?.canReadInsights);
+  const shouldShowInsights =
+    data?.permissions?.canUpdateTemplate || data?.permissions?.canReadInsights;
 
   if (error) {
     return (
