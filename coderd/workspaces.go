@@ -1219,7 +1219,6 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 				Type: codersdk.ServerSentEventTypeError,
 				Data: codersdk.Response{
 					Message: "Forbidden reading template of selected workspace.",
-					Detail:  err.Error(),
 				},
 			})
 			return
