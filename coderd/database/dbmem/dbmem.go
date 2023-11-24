@@ -159,6 +159,7 @@ type data struct {
 	derpMeshKey             string
 	lastUpdateCheck         []byte
 	serviceBanner           []byte
+	healthSettings          []byte
 	applicationName         string
 	logoURL                 string
 	appSecurityKey          string
@@ -1769,6 +1770,17 @@ func (q *FakeQuerier) GetGroupsByOrganizationID(_ context.Context, id uuid.UUID)
 	}
 
 	return groups, nil
+}
+
+func (q *FakeQuerier) GetHealthSettings(_ context.Context) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if q.healthSettings == nil {
+		return "{}", nil
+	}
+
+	return string(q.healthSettings), nil
 }
 
 func (q *FakeQuerier) GetHungProvisionerJobs(_ context.Context, hungSince time.Time) ([]database.ProvisionerJob, error) {
@@ -6787,6 +6799,14 @@ func (q *FakeQuerier) UpsertApplicationName(_ context.Context, data string) erro
 func (q *FakeQuerier) UpsertDefaultProxy(_ context.Context, arg database.UpsertDefaultProxyParams) error {
 	q.defaultProxyDisplayName = arg.DisplayName
 	q.defaultProxyIconURL = arg.IconUrl
+	return nil
+}
+
+func (q *FakeQuerier) UpsertHealthSettings(_ context.Context, data string) error {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	q.healthSettings = []byte(data)
 	return nil
 }
 
