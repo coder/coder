@@ -90,7 +90,7 @@ func (r *WorkspaceProxyReport) Run(ctx context.Context, opts *WorkspaceProxyRepo
 	}
 
 	r.Severity = calculateSeverity(total, healthy)
-	r.Healthy = r.Severity != health.SeverityError
+	r.Healthy = r.Severity.Value() < health.SeverityError.Value()
 
 	// Versions _must_ match. Perform this check last. This will clobber any other severity.
 	for _, proxy := range r.WorkspaceProxies.Regions {
