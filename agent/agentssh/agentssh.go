@@ -237,8 +237,29 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	err := s.sessionStart(logger, session, extraEnv)
 	var exitError *exec.ExitError
 	if xerrors.As(err, &exitError) {
-		logger.Info(ctx, "ssh session returned", slog.Error(exitError))
-		_ = session.Exit(exitError.ExitCode())
+		code := exitError.ExitCode()
+		if code == -1 {
+			// If we return -1 here, it will be transmitted as an
+			// uint32(4294967295). This exit code is nonsense, so
+			// instead we return 255 (same as OpenSSH). This is
+			// also the same exit code that the shell returns for
+			// -1.
+			//
+			// For signals, we could consider sending 128+signal
+			// instead (however, OpenSSH doesn't seem to do this).
+			code = 255
+		}
+		logger.Info(ctx, "ssh session returned",
+			slog.Error(exitError),
+			slog.F("process_exit_code", exitError.ExitCode()),
+			slog.F("exit_code", code),
+		)
+
+		// TODO(mafredri): For signal exit, there's also an "exit-signal"
+		// request (session.Exit sends "exit-status"), however, since it's
+		// not implemented on the session interface and not used by
+		// OpenSSH, we'll leave it for now.
+		_ = session.Exit(code)
 		return
 	}
 	if err != nil {
