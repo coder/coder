@@ -2135,9 +2135,7 @@ export interface HealthcheckWorkspaceProxyReport {
   readonly severity: HealthSeverity;
   readonly warnings: string[];
   readonly error?: string;
-  // Named type "github.com/coder/coder/v2/codersdk.RegionsResponse[github.com/coder/coder/v2/codersdk.WorkspaceProxy]" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly workspace_proxies: any;
+  readonly workspace_proxies: RegionsResponse<WorkspaceProxy>;
 }
 
 // The code below is generated from cli/clibase.
