@@ -46,11 +46,11 @@ export const Pagination: FC<PaginationProps> = ({
   ...delegatedProps
 }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const deferredScrollIsCanceled = useRef(true);
+  const isDeferredScrollActiveRef = useRef(false);
 
   useEffect(() => {
     const cancelScroll = () => {
-      deferredScrollIsCanceled.current = true;
+      isDeferredScrollActiveRef.current = false;
     };
 
     for (const event of userInteractionEvents) {
@@ -75,7 +75,7 @@ export const Pagination: FC<PaginationProps> = ({
 
   const handlePageChange = useEffectEvent(() => {
     if (showingPreviousData) {
-      deferredScrollIsCanceled.current = false;
+      isDeferredScrollActiveRef.current = true;
     } else {
       scroll();
     }
@@ -86,7 +86,7 @@ export const Pagination: FC<PaginationProps> = ({
   }, [handlePageChange, currentPage]);
 
   useLayoutEffect(() => {
-    if (!showingPreviousData && !deferredScrollIsCanceled.current) {
+    if (!showingPreviousData && isDeferredScrollActiveRef.current) {
       scroll();
     }
   }, [scroll, showingPreviousData]);
