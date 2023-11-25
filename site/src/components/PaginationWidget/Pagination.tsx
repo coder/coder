@@ -1,6 +1,6 @@
 import {
   type FC,
-  type PropsWithChildren,
+  type HTMLAttributes,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -9,21 +9,22 @@ import {
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { PaginationWidgetBase } from "./PaginationWidgetBase";
 
-type PaginationProps = PropsWithChildren<{
+type PaginationProps = HTMLAttributes<HTMLDivElement> & {
   currentPage: number;
   pageSize: number;
   totalRecords: number | undefined;
   onPageChange: (newPage: number) => void;
   autoScroll?: boolean;
+  scrollBehavior?: ScrollBehavior;
 
   /**
-   * Meant to interface with useQuery's isPreviousData property
+   * Meant to interface with useQuery's isPreviousData property.
    *
    * Indicates whether data for a previous query is being shown while a new
    * query is loading in
    */
-  showingPreviousData?: boolean;
-}>;
+  showingPreviousData: boolean;
+};
 
 const userInteractionEvents: (keyof WindowEventMap)[] = [
   "click",
@@ -38,20 +39,20 @@ export const Pagination: FC<PaginationProps> = ({
   currentPage,
   pageSize,
   totalRecords,
+  showingPreviousData,
   onPageChange,
   autoScroll = true,
-  showingPreviousData = false,
+  scrollBehavior = "instant",
+  ...delegatedProps
 }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const scrollCanceledRef = useRef(false);
-
-  const cancelScroll = useEffectEvent(() => {
-    if (showingPreviousData) {
-      scrollCanceledRef.current = true;
-    }
-  });
+  const deferredScrollIsCanceled = useRef(true);
 
   useEffect(() => {
+    const cancelScroll = () => {
+      deferredScrollIsCanceled.current = true;
+    };
+
     for (const event of userInteractionEvents) {
       window.addEventListener(event, cancelScroll);
     }
@@ -61,22 +62,23 @@ export const Pagination: FC<PaginationProps> = ({
         window.removeEventListener(event, cancelScroll);
       }
     };
-  }, [cancelScroll]);
+  }, []);
+
+  const scroll = useEffectEvent(() => {
+    if (autoScroll) {
+      scrollContainerRef.current?.scrollIntoView({
+        block: "start",
+        behavior: scrollBehavior,
+      });
+    }
+  });
 
   const handlePageChange = useEffectEvent(() => {
     if (showingPreviousData) {
-      scrollCanceledRef.current = false;
-      return;
+      deferredScrollIsCanceled.current = false;
+    } else {
+      scroll();
     }
-
-    if (!autoScroll) {
-      return;
-    }
-
-    scrollContainerRef.current?.scrollIntoView({
-      block: "start",
-      behavior: "instant",
-    });
   });
 
   useLayoutEffect(() => {
@@ -84,16 +86,10 @@ export const Pagination: FC<PaginationProps> = ({
   }, [handlePageChange, currentPage]);
 
   useLayoutEffect(() => {
-    const shouldScroll =
-      autoScroll && !showingPreviousData && !scrollCanceledRef.current;
-
-    if (shouldScroll) {
-      scrollContainerRef.current?.scrollIntoView({
-        block: "start",
-        behavior: "instant",
-      });
+    if (!showingPreviousData && !deferredScrollIsCanceled.current) {
+      scroll();
     }
-  }, [autoScroll, showingPreviousData]);
+  }, [scroll, showingPreviousData]);
 
   return (
     <div ref={scrollContainerRef}>
@@ -103,6 +99,7 @@ export const Pagination: FC<PaginationProps> = ({
           flexFlow: "column nowrap",
           rowGap: "24px",
         }}
+        {...delegatedProps}
       >
         {children}
         {totalRecords !== undefined && (
