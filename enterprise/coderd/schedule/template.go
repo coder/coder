@@ -81,6 +81,7 @@ func (s *EnterpriseTemplateScheduleStore) Get(ctx context.Context, db database.S
 		UserAutostopEnabled:    tpl.AllowUserAutostop,
 		DefaultTTL:             time.Duration(tpl.DefaultTTL),
 		MaxTTL:                 time.Duration(tpl.MaxTTL),
+		ActivityBumpBy1Hour:    tpl.ActivityBumpBy1h,
 		UseAutostopRequirement: s.UseAutostopRequirement.Load(),
 		AutostopRequirement: agpl.TemplateAutostopRequirement{
 			DaysOfWeek: uint8(tpl.AutostopRequirementDaysOfWeek),
@@ -109,6 +110,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 
 	if int64(opts.DefaultTTL) == tpl.DefaultTTL &&
 		int64(opts.MaxTTL) == tpl.MaxTTL &&
+		opts.ActivityBumpBy1Hour == tpl.ActivityBumpBy1h &&
 		int16(opts.AutostopRequirement.DaysOfWeek) == tpl.AutostopRequirementDaysOfWeek &&
 		opts.AutostartRequirement.DaysOfWeek == tpl.AutostartAllowedDays() &&
 		opts.AutostopRequirement.Weeks == tpl.AutostopRequirementWeeks &&
@@ -143,6 +145,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 			AllowUserAutostop:             opts.UserAutostopEnabled,
 			DefaultTTL:                    int64(opts.DefaultTTL),
 			MaxTTL:                        int64(opts.MaxTTL),
+			ActivityBumpBy1h:              opts.ActivityBumpBy1Hour,
 			AutostopRequirementDaysOfWeek: int16(opts.AutostopRequirement.DaysOfWeek),
 			AutostopRequirementWeeks:      opts.AutostopRequirement.Weeks,
 			// Database stores the inverse of the allowed days of the week.

@@ -1967,6 +1967,7 @@ type Template struct {
 	AutostartBlockDaysOfWeek      int16           `db:"autostart_block_days_of_week" json:"autostart_block_days_of_week"`
 	RequireActiveVersion          bool            `db:"require_active_version" json:"require_active_version"`
 	Deprecated                    string          `db:"deprecated" json:"deprecated"`
+	ActivityBumpBy1h              bool            `db:"activity_bump_by_1h" json:"activity_bump_by_1h"`
 	CreatedByAvatarURL            sql.NullString  `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 }
@@ -2007,7 +2008,8 @@ type TemplateTable struct {
 	AutostartBlockDaysOfWeek int16 `db:"autostart_block_days_of_week" json:"autostart_block_days_of_week"`
 	RequireActiveVersion     bool  `db:"require_active_version" json:"require_active_version"`
 	// If set to a non empty string, the template will no longer be able to be used. The message will be displayed to the user.
-	Deprecated string `db:"deprecated" json:"deprecated"`
+	Deprecated       string `db:"deprecated" json:"deprecated"`
+	ActivityBumpBy1h bool   `db:"activity_bump_by_1h" json:"activity_bump_by_1h"`
 }
 
 // Joins in the username + avatar url of the created by user.

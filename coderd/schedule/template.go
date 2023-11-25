@@ -120,6 +120,11 @@ type TemplateScheduleOptions struct {
 	// TODO(@dean): remove MaxTTL once autostop_requirement is matured and the
 	// default
 	MaxTTL time.Duration `json:"max_ttl"`
+	// ActivityBumpBy1Hour determines whether we bump workspace deadlines by 1h
+	// or by the workspace's TTL when the workspace is active. If
+	// UserAutostopEnabled is false, we will bump by the template's DefaultTTL
+	// instead. If neither value is set, we will never bump the deadline.
+	ActivityBumpBy1Hour bool `json:"activity_bump_by_1_hour"`
 	// UseAutostopRequirement dictates whether the autostop requirement should
 	// be used instead of MaxTTL. This is governed by the feature flag and
 	// licensing.
@@ -186,6 +191,7 @@ func (*agplTemplateScheduleStore) Get(ctx context.Context, db database.Store, te
 		// Disregard the values in the database, since AutostopRequirement,
 		// FailureTTL, TimeTilDormant, and TimeTilDormantAutoDelete are enterprise features.
 		UseAutostopRequirement: false,
+		ActivityBumpBy1Hour:    false,
 		MaxTTL:                 0,
 		AutostartRequirement: TemplateAutostartRequirement{
 			// Default to allowing all days for AGPL
@@ -221,6 +227,7 @@ func (*agplTemplateScheduleStore) Set(ctx context.Context, db database.Store, tp
 			// Don't allow changing these settings, but keep the value in the DB (to
 			// avoid clearing settings if the license has an issue).
 			MaxTTL:                        tpl.MaxTTL,
+			ActivityBumpBy1h:              tpl.ActivityBumpBy1h,
 			AutostopRequirementDaysOfWeek: tpl.AutostopRequirementDaysOfWeek,
 			AutostopRequirementWeeks:      tpl.AutostopRequirementWeeks,
 			AutostartBlockDaysOfWeek:      tpl.AutostartBlockDaysOfWeek,

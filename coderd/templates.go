@@ -313,6 +313,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		dbTemplate database.Template
 		template   codersdk.Template
 
+		activityBumpBy1h             = ptr.NilToDefault(createTemplate.ActivityBumpBy1Hour, false)
 		allowUserCancelWorkspaceJobs = ptr.NilToDefault(createTemplate.AllowUserCancelWorkspaceJobs, false)
 		allowUserAutostart           = ptr.NilToDefault(createTemplate.AllowUserAutostart, true)
 		allowUserAutostop            = ptr.NilToDefault(createTemplate.AllowUserAutostop, true)
@@ -366,6 +367,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			UserAutostopEnabled:  allowUserAutostop,
 			DefaultTTL:           defaultTTL,
 			MaxTTL:               maxTTL,
+			ActivityBumpBy1Hour:  activityBumpBy1h,
 			// Some of these values are enterprise-only, but the
 			// TemplateScheduleStore will handle avoiding setting them if
 			// unlicensed.
@@ -642,6 +644,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.AllowUserCancelWorkspaceJobs == template.AllowUserCancelWorkspaceJobs &&
 			req.DefaultTTLMillis == time.Duration(template.DefaultTTL).Milliseconds() &&
 			req.MaxTTLMillis == time.Duration(template.MaxTTL).Milliseconds() &&
+			req.ActivityBumpBy1Hour == template.ActivityBumpBy1h &&
 			autostopRequirementDaysOfWeekParsed == scheduleOpts.AutostopRequirement.DaysOfWeek &&
 			autostartRequirementDaysOfWeekParsed == scheduleOpts.AutostartRequirement.DaysOfWeek &&
 			req.AutostopRequirement.Weeks == scheduleOpts.AutostopRequirement.Weeks &&
@@ -696,6 +699,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 
 		if defaultTTL != time.Duration(template.DefaultTTL) ||
 			maxTTL != time.Duration(template.MaxTTL) ||
+			req.ActivityBumpBy1Hour != template.ActivityBumpBy1h ||
 			autostopRequirementDaysOfWeekParsed != scheduleOpts.AutostopRequirement.DaysOfWeek ||
 			autostartRequirementDaysOfWeekParsed != scheduleOpts.AutostartRequirement.DaysOfWeek ||
 			req.AutostopRequirement.Weeks != scheduleOpts.AutostopRequirement.Weeks ||
@@ -712,6 +716,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 				UserAutostopEnabled:  req.AllowUserAutostop,
 				DefaultTTL:           defaultTTL,
 				MaxTTL:               maxTTL,
+				ActivityBumpBy1Hour:  req.ActivityBumpBy1Hour,
 				AutostopRequirement: schedule.TemplateAutostopRequirement{
 					DaysOfWeek: autostopRequirementDaysOfWeekParsed,
 					Weeks:      req.AutostopRequirement.Weeks,
@@ -855,6 +860,7 @@ func (api *API) convertTemplate(
 		Icon:                           template.Icon,
 		DefaultTTLMillis:               time.Duration(template.DefaultTTL).Milliseconds(),
 		MaxTTLMillis:                   time.Duration(template.MaxTTL).Milliseconds(),
+		ActivityBumpBy1Hour:            template.ActivityBumpBy1h,
 		CreatedByID:                    template.CreatedBy,
 		CreatedByName:                  template.CreatedByUsername,
 		AllowUserAutostart:             template.AllowUserAutostart,

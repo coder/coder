@@ -25,12 +25,26 @@ WITH latest AS (
 		provisioner_jobs.completed_at::timestamp with time zone AS job_completed_at,
 		(
 			CASE
+				WHEN templates.allow_user_autostop
+				THEN (workspaces.ttl / 1000 / 1000 / 1000 || ' seconds')::interval
+				ELSE (templates.default_ttl / 1000 / 1000 / 1000 || ' seconds')::interval
+			END
+		) AS ttl_interval_base,
+		(
+			CASE
+				WHEN templates.activity_bump_by_1h
+				THEN ('1 hour')::interval
+				ELSE ttl_interval_base
+			END
+		) AS ttl_interval,
+		(
+			CASE
 				-- If the extension would push us over the next_autostart
 				-- interval, then extend the deadline by the full ttl from
 				-- the autostart time. This will essentially be as if the
 				-- workspace auto started at the given time and the original
 				-- TTL was applied.
-				WHEN NOW() + ('60 minutes')::interval > $1 :: timestamptz
+				WHEN NOW() + ttl_interval > $1 :: timestamptz
 				    -- If the autostart is behind now(), then the
 					-- autostart schedule is either the 0 time and not provided,
 					-- or it was the autostart in the past, which is no longer
@@ -38,18 +52,11 @@ WITH latest AS (
 					-- that is a mistake by the caller.
 					AND $1 > NOW()
 					THEN
-					-- Extend to the autostart, then add the TTL
-					(($1 :: timestamptz) - NOW()) + CASE
-						WHEN templates.allow_user_autostop
-					    	THEN (workspaces.ttl / 1000 / 1000 / 1000 || ' seconds')::interval
-							ELSE (templates.default_ttl / 1000 / 1000 / 1000 || ' seconds')::interval
-					END
-
-				-- Default to 60 minutes.
-				ELSE
-					('60 minutes')::interval
+					-- Extend to the autostart, then add the original TTL
+					(($1 :: timestamptz) - NOW()) + ttl_interval_base
+				ELSE ttl_interval
 			END
-		) AS ttl_interval
+		) AS extended_ttl_interval
 	FROM workspace_builds
 	JOIN provisioner_jobs
 		ON provisioner_jobs.id = workspace_builds.job_id
@@ -68,16 +75,16 @@ SET
 	deadline = CASE
 		WHEN l.build_max_deadline = '0001-01-01 00:00:00+00'
 		-- Never reduce the deadline from activity.
-		THEN GREATEST(wb.deadline, NOW() + l.ttl_interval)
-		ELSE LEAST(GREATEST(wb.deadline, NOW() + l.ttl_interval), l.build_max_deadline)
+		THEN GREATEST(wb.deadline, NOW() + l.extended_ttl_interval)
+		ELSE LEAST(GREATEST(wb.deadline, NOW() + l.extended_ttl_interval), l.build_max_deadline)
 	END
 FROM latest l
 WHERE wb.id = l.build_id
 AND l.job_completed_at IS NOT NULL
 AND l.build_transition = 'start'
-AND l.ttl_interval > '0 seconds'::interval
+AND l.ttl_interval_base > '0 seconds'::interval
 AND l.build_deadline != '0001-01-01 00:00:00+00'
-AND l.build_deadline - (l.ttl_interval * 0.95) < NOW()
+AND l.build_deadline - (l.extended_ttl_interval * 0.95) < NOW()
 `
 
 type ActivityBumpWorkspaceParams struct {
@@ -85,12 +92,17 @@ type ActivityBumpWorkspaceParams struct {
 	WorkspaceID   uuid.UUID `db:"workspace_id" json:"workspace_id"`
 }
 
-// Bumps the workspace deadline by 1 hour. If the workspace bump will
-// cross an autostart threshold, then the bump is autostart + TTL. This
-// is the deadline behavior if the workspace was to autostart from a stopped
-// state.
-// Max deadline is respected, and will never be bumped.
-// The deadline will never decrease.
+// Bumps the workspace deadline by the TTL of the workspace template (or the
+// template's default_ttl if the template doesn't allow_user_autostop), OR by 1h
+// if the template has activity_bump_by_1h set to true.
+//
+// If the workspace bump will cross an autostart threshold, then the bump is
+// autostart + TTL. This is the deadline behavior if the workspace was to
+// autostart from a stopped state.
+//
+// Max deadline is respected, and will never be bumped. The deadline will never
+// decrease.
+//
 // We only bump if the raw interval is positive and non-zero.
 // We only bump if workspace shutdown is manual.
 // We only bump when 5% of the deadline has elapsed.
@@ -5215,7 +5227,7 @@ func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg GetTem
 
 const getTemplateByID = `-- name: GetTemplateByID :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, created_by_avatar_url, created_by_username
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump_by_1h, created_by_avatar_url, created_by_username
 FROM
 	template_with_users
 WHERE
@@ -5255,6 +5267,7 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.AutostartBlockDaysOfWeek,
 		&i.RequireActiveVersion,
 		&i.Deprecated,
+		&i.ActivityBumpBy1h,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 	)
@@ -5263,7 +5276,7 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 
 const getTemplateByOrganizationAndName = `-- name: GetTemplateByOrganizationAndName :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, created_by_avatar_url, created_by_username
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump_by_1h, created_by_avatar_url, created_by_username
 FROM
 	template_with_users AS templates
 WHERE
@@ -5311,6 +5324,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.AutostartBlockDaysOfWeek,
 		&i.RequireActiveVersion,
 		&i.Deprecated,
+		&i.ActivityBumpBy1h,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 	)
@@ -5318,7 +5332,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 }
 
 const getTemplates = `-- name: GetTemplates :many
-SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, created_by_avatar_url, created_by_username FROM template_with_users AS templates
+SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump_by_1h, created_by_avatar_url, created_by_username FROM template_with_users AS templates
 ORDER BY (name, id) ASC
 `
 
@@ -5359,6 +5373,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 			&i.AutostartBlockDaysOfWeek,
 			&i.RequireActiveVersion,
 			&i.Deprecated,
+			&i.ActivityBumpBy1h,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 		); err != nil {
@@ -5377,7 +5392,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 
 const getTemplatesWithFilter = `-- name: GetTemplatesWithFilter :many
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, created_by_avatar_url, created_by_username
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump_by_1h, created_by_avatar_url, created_by_username
 FROM
 	template_with_users AS templates
 WHERE
@@ -5468,6 +5483,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 			&i.AutostartBlockDaysOfWeek,
 			&i.RequireActiveVersion,
 			&i.Deprecated,
+			&i.ActivityBumpBy1h,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 		); err != nil {
@@ -5673,12 +5689,13 @@ SET
 	allow_user_autostop = $4,
 	default_ttl = $5,
 	max_ttl = $6,
-	autostop_requirement_days_of_week = $7,
-	autostop_requirement_weeks = $8,
-	autostart_block_days_of_week = $9,
-	failure_ttl = $10,
-	time_til_dormant = $11,
-	time_til_dormant_autodelete = $12
+	activity_bump_by_1h = $7,
+	autostop_requirement_days_of_week = $8,
+	autostop_requirement_weeks = $9,
+	autostart_block_days_of_week = $10,
+	failure_ttl = $11,
+	time_til_dormant = $12,
+	time_til_dormant_autodelete = $13
 WHERE
 	id = $1
 `
@@ -5690,6 +5707,7 @@ type UpdateTemplateScheduleByIDParams struct {
 	AllowUserAutostop             bool      `db:"allow_user_autostop" json:"allow_user_autostop"`
 	DefaultTTL                    int64     `db:"default_ttl" json:"default_ttl"`
 	MaxTTL                        int64     `db:"max_ttl" json:"max_ttl"`
+	ActivityBumpBy1h              bool      `db:"activity_bump_by_1h" json:"activity_bump_by_1h"`
 	AutostopRequirementDaysOfWeek int16     `db:"autostop_requirement_days_of_week" json:"autostop_requirement_days_of_week"`
 	AutostopRequirementWeeks      int64     `db:"autostop_requirement_weeks" json:"autostop_requirement_weeks"`
 	AutostartBlockDaysOfWeek      int16     `db:"autostart_block_days_of_week" json:"autostart_block_days_of_week"`
@@ -5706,6 +5724,7 @@ func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateT
 		arg.AllowUserAutostop,
 		arg.DefaultTTL,
 		arg.MaxTTL,
+		arg.ActivityBumpBy1h,
 		arg.AutostopRequirementDaysOfWeek,
 		arg.AutostopRequirementWeeks,
 		arg.AutostartBlockDaysOfWeek,

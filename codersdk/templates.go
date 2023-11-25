@@ -33,6 +33,9 @@ type Template struct {
 	DefaultTTLMillis   int64                  `json:"default_ttl_ms"`
 	// TODO(@dean): remove max_ttl once autostop_requirement is matured
 	MaxTTLMillis int64 `json:"max_ttl_ms"`
+	// ActivityBumpBy1Hour determines whether the activity bump duration to be
+	// 1h instead of the workspace's computed TTL.
+	ActivityBumpBy1Hour bool `json:"activity_bump_by_1_hour,omitempty"`
 	// AutostopRequirement and AutostartRequirement are enterprise features. Its
 	// value is only used if your license is entitled to use the advanced template
 	// scheduling feature.
@@ -207,6 +210,9 @@ type UpdateTemplateMeta struct {
 	DefaultTTLMillis int64  `json:"default_ttl_ms,omitempty"`
 	// TODO(@dean): remove max_ttl once autostop_requirement is matured
 	MaxTTLMillis int64 `json:"max_ttl_ms,omitempty"`
+	// ActivityBumpBy1Hour changes the activity bump duration to be 1h instead
+	// of the workspace's computed TTL.
+	ActivityBumpBy1Hour bool `json:"activity_bump_by_1_hour,omitempty"`
 	// AutostopRequirement and AutostartRequirement can only be set if your license
 	// includes the advanced template scheduling feature. If you attempt to set this
 	// value while unlicensed, it will be ignored.

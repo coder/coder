@@ -86,6 +86,9 @@ type CreateTemplateRequest struct {
 	DefaultTTLMillis *int64 `json:"default_ttl_ms,omitempty"`
 	// TODO(@dean): remove max_ttl once autostop_requirement is matured
 	MaxTTLMillis *int64 `json:"max_ttl_ms,omitempty"`
+	// ActivityBumpBy1Hour changes the activity bump duration to be 1h instead
+	// of the workspace's computed TTL.
+	ActivityBumpBy1Hour *bool `json:"activity_bump_by_1_hour,omitempty"`
 	// AutostopRequirement allows optionally specifying the autostop requirement
 	// for workspaces created from this template. This is an enterprise feature.
 	AutostopRequirement *TemplateAutostopRequirement `json:"autostop_requirement,omitempty"`
