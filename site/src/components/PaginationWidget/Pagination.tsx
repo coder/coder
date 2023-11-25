@@ -4,12 +4,10 @@ import {
   useEffect,
   useLayoutEffect,
   useRef,
-  useMemo,
 } from "react";
 
-import { PaginationWidgetBase } from "./PaginationWidgetBase";
-import { throttle } from "lodash";
 import { useEffectEvent } from "hooks/hookPolyfills";
+import { PaginationWidgetBase } from "./PaginationWidgetBase";
 
 type PaginationProps = PropsWithChildren<{
   currentPage: number;
@@ -47,44 +45,48 @@ export const Pagination: FC<PaginationProps> = ({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const scrollCanceledRef = useRef(false);
 
-  /**
-   * @todo Probably better just to make a useThrottledFunction custom hook,
-   * rather than the weird useEffectEvent+useMemo approach. Cannot use throttle
-   * inside the render path directly; it will create a new stateful function
-   * every single render, and there won't be a single throttle state
-   */
   const cancelScroll = useEffectEvent(() => {
     if (showingPreviousData) {
       scrollCanceledRef.current = true;
     }
   });
 
-  const throttledCancelScroll = useMemo(() => {
-    return throttle(cancelScroll, 200);
-  }, [cancelScroll]);
-
   useEffect(() => {
     for (const event of userInteractionEvents) {
-      window.addEventListener(event, throttledCancelScroll);
+      window.addEventListener(event, cancelScroll);
     }
 
     return () => {
       for (const event of userInteractionEvents) {
-        window.removeEventListener(event, throttledCancelScroll);
+        window.removeEventListener(event, cancelScroll);
       }
     };
-  }, [throttledCancelScroll]);
+  }, [cancelScroll]);
 
-  useLayoutEffect(() => {
-    scrollCanceledRef.current = false;
-  }, [currentPage]);
-
-  useLayoutEffect(() => {
+  const handlePageChange = useEffectEvent(() => {
     if (showingPreviousData) {
+      scrollCanceledRef.current = false;
       return;
     }
 
-    const shouldScroll = autoScroll && !scrollCanceledRef.current;
+    if (!autoScroll) {
+      return;
+    }
+
+    scrollContainerRef.current?.scrollIntoView({
+      block: "start",
+      behavior: "instant",
+    });
+  });
+
+  useLayoutEffect(() => {
+    handlePageChange();
+  }, [handlePageChange, currentPage]);
+
+  useLayoutEffect(() => {
+    const shouldScroll =
+      autoScroll && !showingPreviousData && !scrollCanceledRef.current;
+
     if (shouldScroll) {
       scrollContainerRef.current?.scrollIntoView({
         block: "start",
