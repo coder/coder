@@ -12,7 +12,7 @@ import ReactMarkdown, { type Options } from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import gfm from "remark-gfm";
 import colors from "theme/tailwind";
-import { darcula } from "react-syntax-highlighter/dist/cjs/styles/prism";
+import { dracula } from "react-syntax-highlighter/dist/cjs/styles/prism";
 
 interface MarkdownProps {
   /**
@@ -44,6 +44,9 @@ export const Markdown: FC<MarkdownProps> = (props) => {
         ),
 
         pre: ({ node, children }) => {
+          if (!node || !node.children) {
+            return <pre>{children}</pre>;
+          }
           const firstChild = node.children[0];
           // When pre is wrapping a code, the SyntaxHighlighter is already going
           // to wrap it with a pre so we don't need it
@@ -53,19 +56,16 @@ export const Markdown: FC<MarkdownProps> = (props) => {
           return <pre>{children}</pre>;
         },
 
-        code: ({ node, inline, className, children, style, ...props }) => {
+        code: ({ node, className, children, style, ref, ...restProps }) => {
           const match = /language-(\w+)/.exec(className || "");
 
-          return !inline && match ? (
+          return match ? (
             <SyntaxHighlighter
-              style={darcula}
-              // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- this can be undefined
+              style={dracula}
               language={match[1].toLowerCase() ?? "language-shell"}
               useInlineStyles={false}
-              // Use inline styles does not work correctly
-              // https://github.com/react-syntax-highlighter/react-syntax-highlighter/issues/329
               codeTagProps={{ style: {} }}
-              {...props}
+              {...restProps} // Exclude 'ref' from being passed here
             >
               {String(children)}
             </SyntaxHighlighter>
@@ -136,7 +136,7 @@ interface MarkdownInlineProps {
 }
 
 /**
- * Supports a strict subset of Markdown that bahaves well as inline/confined content.
+ * Supports a strict subset of Markdown that behaves well as inline/confined content.
  */
 export const InlineMarkdown: FC<MarkdownInlineProps> = (props) => {
   const { children, className, components = {} } = props;

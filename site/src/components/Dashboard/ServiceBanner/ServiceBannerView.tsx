@@ -57,7 +57,6 @@ export const ServiceBannerView: React.FC<ServiceBannerViewProps> = ({
       >
         <ReactMarkdown
           allowedElements={markdownElementsAllowed}
-          linkTarget="_blank"
           unwrapDisallowed
         >
           {message}
