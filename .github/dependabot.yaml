@@ -51,6 +51,9 @@ updates:
       golang-x:
         patterns:
           - "golang.org/x/*"
+      go:
+        patterns:
+          - "*"
 
   # Update our Dockerfile.
   - package-ecosystem: "docker"
@@ -94,26 +97,9 @@ updates:
           - version-update:semver-major
     open-pull-requests-limit: 15
     groups:
-      react:
+      site:
         patterns:
-          - "react*"
-          - "@types/react*"
-      xterm:
-        patterns:
-          - "xterm*"
-      mui:
-        patterns:
-          - "@mui*"
-      storybook:
-        patterns:
-          - "@storybook*"
-          - "storybook*"
-      eslint:
-        patterns:
-          - "eslint*"
-          - "@eslint*"
-          - "@typescript-eslint/eslint-plugin"
-          - "@typescript-eslint/parser"
+          - "*"
 
   - package-ecosystem: "npm"
     directory: "/offlinedocs/"
@@ -136,6 +122,10 @@ updates:
       - dependency-name: "@types/node"
         update-types:
           - version-update:semver-major
+    groups:
+      offlinedocs:
+        patterns:
+          - "*"
 
   # Update dogfood.
   - package-ecosystem: "terraform"
