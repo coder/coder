@@ -57,16 +57,16 @@ func TestPluginCache_Golden(t *testing.T) {
 
 		// given
 		// This plugin is older than 30 days.
-		addPluginFile(t, fs, coderPluginPath, "terraform-provider-coder_v0.11.1", now, now.Add(-63*24*time.Hour))
-		addPluginFile(t, fs, coderPluginPath, "LICENSE", now, now.Add(-33*24*time.Hour))
-		addPluginFile(t, fs, coderPluginPath, "README.md", now, now.Add(-31*24*time.Hour))
-		addPluginFolder(t, fs, coderPluginPath, "new_folder", now, now.Add(-31*24*time.Hour))
-		addPluginFile(t, fs, coderPluginPath, filepath.Join("new_folder", "foobar.tf"), now, now.Add(-43*24*time.Hour))
+		addPluginFile(t, fs, coderPluginPath, "terraform-provider-coder_v0.11.1", now.Add(-63*24*time.Hour))
+		addPluginFile(t, fs, coderPluginPath, "LICENSE", now.Add(-33*24*time.Hour))
+		addPluginFile(t, fs, coderPluginPath, "README.md", now.Add(-31*24*time.Hour))
+		addPluginFolder(t, fs, coderPluginPath, "new_folder", now.Add(-31*24*time.Hour))
+		addPluginFile(t, fs, coderPluginPath, filepath.Join("new_folder", "foobar.tf"), now.Add(-43*24*time.Hour))
 
 		// This plugin is older than 30 days.
-		addPluginFile(t, fs, dockerPluginPath, "terraform-provider-docker_v2.25.0", now, now.Add(-31*24*time.Hour))
-		addPluginFile(t, fs, dockerPluginPath, "LICENSE", now, now.Add(-32*24*time.Hour))
-		addPluginFile(t, fs, dockerPluginPath, "README.md", now, now.Add(-33*24*time.Hour))
+		addPluginFile(t, fs, dockerPluginPath, "terraform-provider-docker_v2.25.0", now.Add(-31*24*time.Hour))
+		addPluginFile(t, fs, dockerPluginPath, "LICENSE", now.Add(-32*24*time.Hour))
+		addPluginFile(t, fs, dockerPluginPath, "README.md", now.Add(-33*24*time.Hour))
 
 		// when
 		terraform.CleanStaleTerraformPlugins(ctx, cachePath, fs, now, logger)
@@ -84,16 +84,16 @@ func TestPluginCache_Golden(t *testing.T) {
 		fs, logger := prepare()
 
 		// given
-		addPluginFile(t, fs, coderPluginPath, "terraform-provider-coder_v0.11.1", now, now.Add(-2*time.Hour))
-		addPluginFile(t, fs, coderPluginPath, "LICENSE", now, now.Add(-3*time.Hour))
-		addPluginFile(t, fs, coderPluginPath, "README.md", now, now.Add(-4*time.Hour))
-		addPluginFolder(t, fs, coderPluginPath, "new_folder", now, now.Add(-5*time.Hour))
-		addPluginFile(t, fs, coderPluginPath, filepath.Join("new_folder", "foobar.tf"), now, now.Add(-4*time.Hour))
+		addPluginFile(t, fs, coderPluginPath, "terraform-provider-coder_v0.11.1", now.Add(-2*time.Hour))
+		addPluginFile(t, fs, coderPluginPath, "LICENSE", now.Add(-3*time.Hour))
+		addPluginFile(t, fs, coderPluginPath, "README.md", now.Add(-4*time.Hour))
+		addPluginFolder(t, fs, coderPluginPath, "new_folder", now.Add(-5*time.Hour))
+		addPluginFile(t, fs, coderPluginPath, filepath.Join("new_folder", "foobar.tf"), now.Add(-4*time.Hour))
 
 		// This plugin is older than 30 days.
-		addPluginFile(t, fs, dockerPluginPath, "terraform-provider-docker_v2.25.0", now, now.Add(-31*24*time.Hour))
-		addPluginFile(t, fs, dockerPluginPath, "LICENSE", now, now.Add(-32*24*time.Hour))
-		addPluginFile(t, fs, dockerPluginPath, "README.md", now, now.Add(-33*24*time.Hour))
+		addPluginFile(t, fs, dockerPluginPath, "terraform-provider-docker_v2.25.0", now.Add(-31*24*time.Hour))
+		addPluginFile(t, fs, dockerPluginPath, "LICENSE", now.Add(-32*24*time.Hour))
+		addPluginFile(t, fs, dockerPluginPath, "README.md", now.Add(-33*24*time.Hour))
 
 		// when
 		terraform.CleanStaleTerraformPlugins(ctx, cachePath, fs, now, logger)
@@ -111,15 +111,15 @@ func TestPluginCache_Golden(t *testing.T) {
 		fs, logger := prepare()
 
 		// given
-		addPluginFile(t, fs, coderPluginPath, "terraform-provider-coder_v0.11.1", now, now.Add(-63*24*time.Hour))
-		addPluginFile(t, fs, coderPluginPath, "LICENSE", now, now.Add(-33*24*time.Hour))
-		addPluginFile(t, fs, coderPluginPath, "README.md", now, now.Add(-31*24*time.Hour))
-		addPluginFolder(t, fs, coderPluginPath, "new_folder", now, now.Add(-43*24*time.Hour))
-		addPluginFile(t, fs, coderPluginPath, filepath.Join("new_folder", "foobar.tf"), now, now.Add(-4*time.Hour)) // touched
+		addPluginFile(t, fs, coderPluginPath, "terraform-provider-coder_v0.11.1", now.Add(-63*24*time.Hour))
+		addPluginFile(t, fs, coderPluginPath, "LICENSE", now.Add(-33*24*time.Hour))
+		addPluginFile(t, fs, coderPluginPath, "README.md", now.Add(-31*24*time.Hour))
+		addPluginFolder(t, fs, coderPluginPath, "new_folder", now.Add(-43*24*time.Hour))
+		addPluginFile(t, fs, coderPluginPath, filepath.Join("new_folder", "foobar.tf"), now.Add(-4*time.Hour)) // touched
 
-		addPluginFile(t, fs, dockerPluginPath, "terraform-provider-docker_v2.25.0", now, now.Add(-31*24*time.Hour))
-		addPluginFile(t, fs, dockerPluginPath, "LICENSE", now, now.Add(-2*time.Hour)) // also touched
-		addPluginFile(t, fs, dockerPluginPath, "README.md", now, now.Add(-33*24*time.Hour))
+		addPluginFile(t, fs, dockerPluginPath, "terraform-provider-docker_v2.25.0", now.Add(-31*24*time.Hour))
+		addPluginFile(t, fs, dockerPluginPath, "LICENSE", now.Add(-2*time.Hour)) // also touched
+		addPluginFile(t, fs, dockerPluginPath, "README.md", now.Add(-33*24*time.Hour))
 
 		// when
 		terraform.CleanStaleTerraformPlugins(ctx, cachePath, fs, now, logger)
@@ -129,17 +129,17 @@ func TestPluginCache_Golden(t *testing.T) {
 	})
 }
 
-func addPluginFile(t *testing.T, fs afero.Fs, pluginPath string, resourcePath string, atime, mtime time.Time) {
+func addPluginFile(t *testing.T, fs afero.Fs, pluginPath string, resourcePath string, mtime time.Time) {
 	err := fs.MkdirAll(filepath.Join(cachePath, pluginPath), 0o755)
 	require.NoError(t, err, "can't create test folder for plugin file")
 
-	err = fs.Chtimes(filepath.Join(cachePath, pluginPath), atime, mtime)
+	err = fs.Chtimes(filepath.Join(cachePath, pluginPath), now, mtime)
 	require.NoError(t, err, "can't set times")
 
 	err = afero.WriteFile(fs, filepath.Join(cachePath, pluginPath, resourcePath), []byte("foo"), 0o644)
 	require.NoError(t, err, "can't create test file")
 
-	err = fs.Chtimes(filepath.Join(cachePath, pluginPath, resourcePath), atime, mtime)
+	err = fs.Chtimes(filepath.Join(cachePath, pluginPath, resourcePath), now, mtime)
 	require.NoError(t, err, "can't set times")
 
 	// as creating a file will update mtime of parent, we also want to
@@ -148,15 +148,15 @@ func addPluginFile(t *testing.T, fs afero.Fs, pluginPath string, resourcePath st
 	parentInfo, err := fs.Stat(parent)
 	require.NoError(t, err, "can't stat parent")
 	if parentInfo.ModTime().After(mtime) {
-		require.NoError(t, fs.Chtimes(parent, atime, mtime), "can't set mtime of parent to match child")
+		require.NoError(t, fs.Chtimes(parent, now, mtime), "can't set mtime of parent to match child")
 	}
 }
 
-func addPluginFolder(t *testing.T, fs afero.Fs, pluginPath string, folderPath string, atime, mtime time.Time) {
+func addPluginFolder(t *testing.T, fs afero.Fs, pluginPath string, folderPath string, mtime time.Time) {
 	err := fs.MkdirAll(filepath.Join(cachePath, pluginPath, folderPath), 0o755)
 	require.NoError(t, err, "can't create plugin folder")
 
-	err = fs.Chtimes(filepath.Join(cachePath, pluginPath, folderPath), atime, mtime)
+	err = fs.Chtimes(filepath.Join(cachePath, pluginPath, folderPath), now, mtime)
 	require.NoError(t, err, "can't set times")
 }
 
