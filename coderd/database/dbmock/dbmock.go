@@ -3318,21 +3318,6 @@ func (mr *MockStoreMockRecorder) UpdateProvisionerJobWithCompleteByID(arg0, arg1
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateProvisionerJobWithCompleteByID", reflect.TypeOf((*MockStore)(nil).UpdateProvisionerJobWithCompleteByID), arg0, arg1)
 }
 
-// UpsertReplica mocks base method.
-func (m *MockStore) UpsertReplica(arg0 context.Context, arg1 database.UpsertReplicaParams) (database.Replica, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertReplica", arg0, arg1)
-	ret0, _ := ret[0].(database.Replica)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpsertReplica indicates an expected call of UpsertReplica.
-func (mr *MockStoreMockRecorder) UpsertReplica(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertReplica", reflect.TypeOf((*MockStore)(nil).UpsertReplica), arg0, arg1)
-}
-
 // UpdateTemplateACLByID mocks base method.
 func (m *MockStore) UpdateTemplateACLByID(arg0 context.Context, arg1 database.UpdateTemplateACLByIDParams) error {
 	m.ctrl.T.Helper()
@@ -3986,6 +3971,21 @@ func (m *MockStore) UpsertOAuthSigningKey(arg0 context.Context, arg1 string) err
 func (mr *MockStoreMockRecorder) UpsertOAuthSigningKey(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertOAuthSigningKey", reflect.TypeOf((*MockStore)(nil).UpsertOAuthSigningKey), arg0, arg1)
+}
+
+// UpsertReplica mocks base method.
+func (m *MockStore) UpsertReplica(arg0 context.Context, arg1 database.UpsertReplicaParams) (database.Replica, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertReplica", arg0, arg1)
+	ret0, _ := ret[0].(database.Replica)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertReplica indicates an expected call of UpsertReplica.
+func (mr *MockStoreMockRecorder) UpsertReplica(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertReplica", reflect.TypeOf((*MockStore)(nil).UpsertReplica), arg0, arg1)
 }
 
 // UpsertServiceBanner mocks base method.
