@@ -14,7 +14,7 @@ import {
   PopoverTrigger,
 } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
-import { SecondaryAgentButton } from "../AgentButton";
+import { AgentButton } from "../AgentButton";
 
 export interface SSHButtonProps {
   workspaceName: string;
@@ -34,7 +34,7 @@ export const SSHButton: FC<PropsWithChildren<SSHButtonProps>> = ({
   return (
     <Popover isDefaultOpen={isDefaultOpen}>
       <PopoverTrigger>
-        <SecondaryAgentButton>SSH</SecondaryAgentButton>
+        <AgentButton>SSH</AgentButton>
       </PopoverTrigger>
 
       <PopoverContent horizontal="right" classes={{ paper }}>

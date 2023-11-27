@@ -20,7 +20,7 @@ import {
   HelpTooltipText,
   HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
-import { SecondaryAgentButton } from "components/Resources/AgentButton";
+import { AgentButton } from "components/Resources/AgentButton";
 import {
   Popover,
   PopoverContent,
@@ -49,14 +49,14 @@ export const PortForwardButton: FC<PortForwardButtonProps> = (props) => {
   return (
     <Popover>
       <PopoverTrigger>
-        <SecondaryAgentButton disabled={!portsQuery.data}>
+        <AgentButton disabled={!portsQuery.data}>
           Ports
           {portsQuery.data ? (
             <div css={styles.portCount}>{portsQuery.data.ports.length}</div>
           ) : (
             <CircularProgress size={10} css={{ marginLeft: 8 }} />
           )}
-        </SecondaryAgentButton>
+        </AgentButton>
       </PopoverTrigger>
       <PopoverContent horizontal="right" classes={{ paper }}>
         <PortForwardPopoverView {...props} ports={portsQuery.data?.ports} />
