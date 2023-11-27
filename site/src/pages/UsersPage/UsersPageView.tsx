@@ -4,8 +4,10 @@ import { type GroupsByUserId } from "api/queries/groups";
 
 import { UsersTable } from "./UsersTable/UsersTable";
 import { UsersFilter } from "./UsersFilter";
-import { Pagination } from "components/PaginationWidget/Pagination";
-import { UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
+import {
+  Pagination,
+  type PaginationResult,
+} from "components/PaginationWidget/Pagination";
 
 export interface UsersPageViewProps {
   users?: TypesGen.User[];
@@ -30,7 +32,7 @@ export interface UsersPageViewProps {
   isNonInitialPage: boolean;
   actorID: string;
   groupsByUserId: GroupsByUserId | undefined;
-  paginationResult: UsePaginatedQueryResult;
+  paginationResult: PaginationResult;
 }
 
 export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({

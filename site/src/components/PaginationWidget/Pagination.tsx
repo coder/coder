@@ -10,13 +10,17 @@ import {
 
 import { useTheme } from "@emotion/react";
 import { useEffectEvent } from "hooks/hookPolyfills";
-import { type UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
+import { type PaginationResultInfo } from "hooks/usePaginatedQuery";
 
 import { PaginationWidgetBase } from "./PaginationWidgetBase";
 import Skeleton from "@mui/material/Skeleton";
 
+export type PaginationResult = PaginationResultInfo & {
+  isPreviousData: boolean;
+};
+
 type PaginationProps = HTMLAttributes<HTMLDivElement> & {
-  paginationResult: UsePaginatedQueryResult;
+  paginationResult: PaginationResult;
   paginationUnitLabel: string;
 
   /**
@@ -25,14 +29,6 @@ type PaginationProps = HTMLAttributes<HTMLDivElement> & {
    */
   autoScroll?: boolean;
 };
-
-const userInteractionEvents: (keyof WindowEventMap)[] = [
-  "click",
-  "scroll",
-  "pointerenter",
-  "touchstart",
-  "keydown",
-];
 
 export const Pagination: FC<PaginationProps> = ({
   children,
@@ -80,7 +76,7 @@ export const Pagination: FC<PaginationProps> = ({
 };
 
 type PaginationHeaderProps = {
-  paginationResult: UsePaginatedQueryResult;
+  paginationResult: PaginationResult;
   paginationUnitLabel: string;
 };
 
@@ -126,6 +122,15 @@ const PaginationHeader: FC<PaginationHeaderProps> = ({
     </div>
   );
 };
+
+// Events to listen to for canceling queued scrolls
+const userInteractionEvents: (keyof WindowEventMap)[] = [
+  "click",
+  "scroll",
+  "pointerenter",
+  "touchstart",
+  "keydown",
+];
 
 /**
  * Splitting this into a custom hook because there's a lot of convoluted logic
@@ -179,8 +184,9 @@ function useScrollOnPageChange(
     isScrollingQueuedRef.current = false;
   });
 
-  // Tracking whether we're on the first render, because calling the effects
-  // unconditionally will just hijack the user and feel absolutely awful
+  // Reminder: effects always run on mount, no matter what's in the dependency
+  // array. Not doing anything on initial render because unconditionally
+  // scrolling and hijacking the user's page will feel absolutely awful
   const isOnFirstRenderRef = useRef(true);
   const syncPageChange = useEffectEvent(() => {
     if (isOnFirstRenderRef.current) {
@@ -216,15 +222,15 @@ function useScrollOnPageChange(
    * 1. User uses keyboard/mouse to change page
    * 2. Event handler dispatches state changes to React
    * 3. Even though flushing a state change is async, React will still flush
-   *    and re-render before the event is allowed to travel further up
+   *    and re-render before the event is allowed to bubble further up
    * 4. The current page triggers the layout effect, queuing a scroll
    * 5. The event resumes bubbling up and reaches the window object
    * 6. The window object unconditionally cancels the scroll, immediately and
    *    always undoing any kind of scroll queuing you try to do
    *
-   * One alternative was reaching deeper within the event handlers for the inner
-   * components and passing the events directly through multiple layers. Tried
-   * it, but it got clunky fast. Better to have the ugliness in one spot
+   * One alternative was micro-managing the events from the individual button
+   * elements, but that got clunky and seemed even more fragile. Better to have
+   * the ugliness in a single, consolidated spot
    */
   const stopInternalEventBubbling = (
     event: ReactMouseEvent<unknown, MouseEvent> | ReactKeyboardEvent<unknown>,

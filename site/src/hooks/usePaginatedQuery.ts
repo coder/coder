@@ -294,7 +294,7 @@ function getParamsWithoutPage(params: URLSearchParams): URLSearchParams {
  * All the pagination-properties for UsePaginatedQueryResult. Split up so that
  * the types can be used separately in multiple spots.
  */
-type PaginationResultInfo = {
+export type PaginationResultInfo = {
   currentPage: number;
   limit: number;
   onPageChange: (newPage: number) => void;
