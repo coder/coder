@@ -2,8 +2,9 @@ package healthcheck
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"sort"
+	"strings"
 
 	"golang.org/x/xerrors"
 
@@ -78,6 +79,7 @@ func (r *WorkspaceProxyReport) Run(ctx context.Context, opts *WorkspaceProxyRepo
 	})
 
 	var total, healthy int
+	var errs []string
 	for _, proxy := range r.WorkspaceProxies.Regions {
 		total++
 		if proxy.Healthy {
@@ -86,34 +88,40 @@ func (r *WorkspaceProxyReport) Run(ctx context.Context, opts *WorkspaceProxyRepo
 
 		if len(proxy.Status.Report.Errors) > 0 {
 			for _, err := range proxy.Status.Report.Errors {
-				r.appendError(xerrors.New(err))
+				errs = append(errs, fmt.Sprintf("%s: %s", proxy.Name, err))
 			}
 		}
 	}
 
 	r.Severity = calculateSeverity(total, healthy)
 	r.Healthy = r.Severity.Value() < health.SeverityError.Value()
+	switch r.Severity {
+	case health.SeverityWarning, health.SeverityOK:
+		r.Warnings = append(r.Warnings, errs...)
+	case health.SeverityError:
+		r.appendError(errs...)
+	}
 
 	// Versions _must_ match. Perform this check last. This will clobber any other severity.
 	for _, proxy := range r.WorkspaceProxies.Regions {
 		if vErr := checkVersion(proxy, opts.CurrentVersion); vErr != nil {
 			r.Healthy = false
 			r.Severity = health.SeverityError
-			r.appendError(vErr)
+			r.appendError(fmt.Sprintf("%s: %s", proxy.Name, vErr.Error()))
 		}
 	}
 }
 
 // appendError appends errs onto r.Error.
 // We only have one error, so multiple errors need to be squashed in there.
-func (r *WorkspaceProxyReport) appendError(errs ...error) {
-	if len(errs) == 0 {
+func (r *WorkspaceProxyReport) appendError(es ...string) {
+	if len(es) == 0 {
 		return
 	}
 	if r.Error != nil {
-		errs = append([]error{xerrors.New(*r.Error)}, errs...)
+		es = append([]string{*r.Error}, es...)
 	}
-	r.Error = ptr.Ref(errors.Join(errs...).Error())
+	r.Error = ptr.Ref(strings.Join(es, "\n"))
 }
 
 func checkVersion(proxy codersdk.WorkspaceProxy, currentVersion string) error {

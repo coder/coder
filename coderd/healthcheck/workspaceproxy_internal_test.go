@@ -9,8 +9,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"golang.org/x/xerrors"
 )
 
 func Test_WorkspaceProxyReport_appendErrors(t *testing.T) {
@@ -20,7 +18,7 @@ func Test_WorkspaceProxyReport_appendErrors(t *testing.T) {
 		name     string
 		expected string
 		prevErr  string
-		errs     []error
+		errs     []string
 	}{
 		{
 			name: "nil",
@@ -29,24 +27,24 @@ func Test_WorkspaceProxyReport_appendErrors(t *testing.T) {
 		{
 			name:     "one error",
 			expected: assert.AnError.Error(),
-			errs:     []error{assert.AnError},
+			errs:     []string{assert.AnError.Error()},
 		},
 		{
 			name:     "one error, one prev",
 			prevErr:  "previous error",
 			expected: "previous error\n" + assert.AnError.Error(),
-			errs:     []error{assert.AnError},
+			errs:     []string{assert.AnError.Error()},
 		},
 		{
 			name:     "two errors",
 			expected: assert.AnError.Error() + "\nanother error",
-			errs:     []error{assert.AnError, xerrors.Errorf("another error")},
+			errs:     []string{assert.AnError.Error(), "another error"},
 		},
 		{
 			name:     "two errors, one prev",
 			prevErr:  "previous error",
 			expected: "previous error\n" + assert.AnError.Error() + "\nanother error",
-			errs:     []error{assert.AnError, xerrors.Errorf("another error")},
+			errs:     []string{assert.AnError.Error(), "another error"},
 		},
 	} {
 		tt := tt

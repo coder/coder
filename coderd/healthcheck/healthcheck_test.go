@@ -239,6 +239,34 @@ func TestHealthcheck(t *testing.T) {
 		healthy:         false,
 		failingSections: []string{healthcheck.SectionWorkspaceProxy},
 	}, {
+		name: "ProxyWarn",
+		checker: &testChecker{
+			DERPReport: derphealth.Report{
+				Healthy:  true,
+				Severity: health.SeverityOK,
+			},
+			AccessURLReport: healthcheck.AccessURLReport{
+				Healthy:  true,
+				Severity: health.SeverityOK,
+			},
+			WebsocketReport: healthcheck.WebsocketReport{
+				Healthy:  true,
+				Severity: health.SeverityOK,
+			},
+			DatabaseReport: healthcheck.DatabaseReport{
+				Healthy:  true,
+				Severity: health.SeverityOK,
+			},
+			WorkspaceProxyReport: healthcheck.WorkspaceProxyReport{
+				Healthy:  true,
+				Warnings: []string{"foobar"},
+				Severity: health.SeverityWarning,
+			},
+		},
+		severity:        health.SeverityWarning,
+		healthy:         true,
+		failingSections: []string{},
+	}, {
 		name:    "AllFail",
 		healthy: false,
 		checker: &testChecker{
