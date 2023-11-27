@@ -66,6 +66,12 @@ func (b WorkspaceBuilder) WithAgent(mutations ...func([]*sdkproto.Agent) []*sdkp
 	return b
 }
 
+func (b WorkspaceBuilder) Resource(resource ...*sdkproto.Resource) WorkspaceBuilder {
+	//nolint: revive // returns modified struct
+	b.resources = append(b.resources, resource...)
+	return b
+}
+
 func (b WorkspaceBuilder) Do() WorkspaceResponse {
 	var r WorkspaceResponse
 	// This intentionally fulfills the minimum requirements of the schema.
@@ -82,6 +88,8 @@ func (b WorkspaceBuilder) Do() WorkspaceResponse {
 	r.Workspace = dbgen.Workspace(b.t, b.db, b.seed)
 	if b.agentToken != "" {
 		r.AgentToken = b.agentToken
+	}
+	if len(b.resources) > 0 {
 		r.Build = WorkspaceBuild(b.t, b.db, r.Workspace).
 			Resource(b.resources...).
 			Do()
