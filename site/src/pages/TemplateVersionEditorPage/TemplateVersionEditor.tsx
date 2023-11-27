@@ -471,7 +471,6 @@ const styles = {
     alignItems: "center",
     justifyContent: "space-between",
     height: topbarHeight,
-    background: theme.palette.background.paper,
   }),
   topbarSides: {
     display: "flex",
@@ -486,7 +485,6 @@ const styles = {
   },
   sidebar: (theme) => ({
     minWidth: 256,
-    backgroundColor: theme.palette.background.paper,
     borderRight: `1px solid ${theme.palette.divider}`,
   }),
   sidebarTitle: (theme) => ({

@@ -103,7 +103,7 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
 const styles = {
   agentRow: (theme) => ({
     padding: "16px 32px",
-    backgroundColor: theme.palette.background.paperLight,
+    backgroundColor: theme.palette.background.paper,
     fontSize: 16,
     position: "relative",
 

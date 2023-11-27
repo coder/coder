@@ -40,7 +40,6 @@ export let dark = createTheme({
     background: {
       default: colors.gray[17],
       paper: colors.gray[16],
-      paperLight: colors.gray[14],
     },
     text: {
       primary: colors.gray[1],
@@ -244,7 +243,6 @@ dark = createTheme(dark, {
         root: ({ theme }) => ({
           borderCollapse: "unset",
           border: "none",
-          background: dark.palette.background.paper,
           boxShadow: `0 0 0 1px ${dark.palette.background.default} inset`,
           overflow: "hidden",
 
@@ -266,7 +264,7 @@ dark = createTheme(dark, {
           fontSize: 14,
           color: dark.palette.text.secondary,
           fontWeight: 600,
-          background: dark.palette.background.paperLight,
+          background: dark.palette.background.paper,
         },
         root: {
           fontSize: 16,

@@ -112,7 +112,7 @@ export default ({
         borderWidth: 0,
         borderBottomWidth: 1,
         borderBottomColor: (theme) => theme.palette.divider,
-        backgroundColor: (theme) => theme.palette.background.paperLight,
+        backgroundColor: (theme) => theme.palette.background.paper,
         borderLeft: (theme) => `3px solid ${theme.palette[severity].light}`,
         marginBottom: 1,
       }}
