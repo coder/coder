@@ -62,6 +62,29 @@ export const Pagination: FC<PaginationProps> = ({
     };
   }, []);
 
+  /**
+   * This function is mainly accounting for five different triggers for the
+   * below useLayoutEffect call:
+   *
+   * 1. Initial render – We don't want anything to run on the initial render to
+   *    avoid hijacking the user's browser and also make sure the UI doesn't
+   *    feel janky. showingPreviousData should always be false, and currentPage
+   *    should generally be 1.
+   * 2. Current page doesn’t change, but showingPreviousData becomes true - Also
+   *    do nothing.
+   * 3. Current page doesn’t change, but showingPreviousData becomes false - The
+   *    data for the current page has finally come in; scroll if a scroll is
+   *    queued from a previous render
+   * 4. Current page changes and showingPreviousData is false – we have cached
+   *    data for whatever page we just jumped to. Scroll immediately (and reset
+   *    the scrolling state just to be on the safe side)
+   * 5. Current page changes and showingPreviousData is false – Cache miss.
+   *    Queue up a scroll, but do nothing else. If the user does anything at all
+   *    while the new data is loading in, cancel the scroll.
+   *
+   * Set up as an effect event because currentPage and showingPreviousData
+   * should be the only two cues for syncing scroll position
+   */
   const syncScrollChange = useEffectEvent(() => {
     if (showingPreviousData) {
       isScrollingQueuedRef.current = true;
