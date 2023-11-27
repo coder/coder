@@ -187,11 +187,11 @@ func (b WorkspaceBuildBuilder) Do() database.WorkspaceBuild {
 				Valid: true,
 			},
 		})
-		ProvisionerJobResources(b.t, b.db, jobID, b.seed.Transition, b.resources...)
+		NewProvisionerJobResourcesBuilder(b.t, b.db, jobID, b.seed.Transition, b.resources...).Do()
 		b.seed.TemplateVersionID = templateVersion.ID
 	}
 	build := dbgen.WorkspaceBuild(b.t, b.db, b.seed)
-	ProvisionerJobResources(b.t, b.db, job.ID, b.seed.Transition, b.resources...)
+	NewProvisionerJobResourcesBuilder(b.t, b.db, job.ID, b.seed.Transition, b.resources...).Do()
 	if b.ps != nil {
 		err = b.ps.Publish(codersdk.WorkspaceNotifyChannel(build.WorkspaceID), []byte{})
 		require.NoError(b.t, err)
@@ -199,16 +199,37 @@ func (b WorkspaceBuildBuilder) Do() database.WorkspaceBuild {
 	return build
 }
 
-// ProvisionerJobResources inserts a series of resources into a provisioner job.
-func ProvisionerJobResources(t testing.TB, db database.Store, job uuid.UUID, transition database.WorkspaceTransition, resources ...*sdkproto.Resource) {
-	t.Helper()
+type ProvisionerJobResourcesBuilder struct {
+	t          testing.TB
+	db         database.Store
+	jobID      uuid.UUID
+	transition database.WorkspaceTransition
+	resources  []*sdkproto.Resource
+}
+
+// NewProvisionerJobResourcesBuilder inserts a series of resources into a provisioner job.
+func NewProvisionerJobResourcesBuilder(
+	t testing.TB, db database.Store, jobID uuid.UUID, transition database.WorkspaceTransition, resources ...*sdkproto.Resource,
+) ProvisionerJobResourcesBuilder {
+	return ProvisionerJobResourcesBuilder{
+		t:          t,
+		db:         db,
+		jobID:      jobID,
+		transition: transition,
+		resources:  resources,
+	}
+}
+
+func (b ProvisionerJobResourcesBuilder) Do() {
+	b.t.Helper()
+	transition := b.transition
 	if transition == "" {
 		// Default to start!
 		transition = database.WorkspaceTransitionStart
 	}
-	for _, resource := range resources {
+	for _, resource := range b.resources {
 		//nolint:gocritic // This is only used by tests.
-		err := provisionerdserver.InsertWorkspaceResource(dbauthz.AsSystemRestricted(context.Background()), db, job, transition, resource, &telemetry.Snapshot{})
-		require.NoError(t, err)
+		err := provisionerdserver.InsertWorkspaceResource(dbauthz.AsSystemRestricted(context.Background()), b.db, b.jobID, transition, resource, &telemetry.Snapshot{})
+		require.NoError(b.t, err)
 	}
 }
