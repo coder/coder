@@ -445,17 +445,18 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 	_ = agenttest.New(t, client.URL, authToken)
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
-		Logger: slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
-	})
+	conn, err := func() (*codersdk.WorkspaceAgentConn, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel() // Connection should remain open even if the dial context is canceled.
+
+		return client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
+			Logger: slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
+		})
+	}()
 	require.NoError(t, err)
 	defer conn.Close()
 
-	// Connection should remain open even if the dial context is canceled.
-	cancel()
-	ctx, cancel = context.WithTimeout(context.Background(), testutil.WaitLong)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
 	sshClient, err := conn.SSHClient(ctx)
@@ -1422,20 +1423,22 @@ func TestWorkspaceAgent_UpdatedDERP(t *testing.T) {
 	agentID := resources[0].Agents[0].ID
 
 	// Connect from a client.
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-	conn1, err := client.DialWorkspaceAgent(ctx, agentID, &codersdk.DialWorkspaceAgentOptions{
-		Logger: logger.Named("client1"),
-	})
+	conn1, err := func() (*codersdk.WorkspaceAgentConn, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel() // Connection should remain open even if the dial context is canceled.
+
+		return client.DialWorkspaceAgent(ctx, agentID, &codersdk.DialWorkspaceAgentOptions{
+			Logger: logger.Named("client1"),
+		})
+	}()
 	require.NoError(t, err)
 	defer conn1.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
 	ok := conn1.AwaitReachable(ctx)
 	require.True(t, ok)
-
-	// Connection should remain open even if the dial context is canceled.
-	cancel()
-	ctx, cancel = context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
 
 	// Change the DERP map and change the region ID.
 	newDerpMap, _ := tailnettest.RunDERPAndSTUN(t)
