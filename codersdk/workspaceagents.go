@@ -430,15 +430,15 @@ func (c *Client) DialWorkspaceAgent(dialCtx context.Context, agentID uuid.UUID, 
 	for firstCoordinator != nil || firstDerpMap != nil {
 		select {
 		case <-dialCtx.Done():
-			return nil, dialCtx.Err()
+			return nil, xerrors.Errorf("timed out waiting for coordinator and derp map: %w", dialCtx.Err())
 		case err = <-firstCoordinator:
 			if err != nil {
-				return nil, err
+				return nil, xerrors.Errorf("start coordinator: %w", err)
 			}
 			firstCoordinator = nil
 		case err = <-firstDerpMap:
 			if err != nil {
-				return nil, err
+				return nil, xerrors.Errorf("receive derp map: %w", err)
 			}
 			firstDerpMap = nil
 		}
@@ -461,7 +461,7 @@ func (c *Client) DialWorkspaceAgent(dialCtx context.Context, agentID uuid.UUID, 
 
 	if !agentConn.AwaitReachable(dialCtx) {
 		_ = agentConn.Close()
-		return nil, xerrors.Errorf("timed out waiting for agent to become reachable: %w", ctx.Err())
+		return nil, xerrors.Errorf("timed out waiting for agent to become reachable: %w", dialCtx.Err())
 	}
 
 	return agentConn, nil
