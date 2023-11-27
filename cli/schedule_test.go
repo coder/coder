@@ -38,30 +38,30 @@ func setupTestSchedule(t *testing.T, sched *cron.Schedule) (ownerClient, memberC
 	memberClient, memberUser := coderdtest.CreateAnotherUserMutators(t, ownerClient, owner.OrganizationID, nil, func(r *codersdk.CreateUserRequest) {
 		r.Username = "testuser2" // ensure deterministic ordering
 	})
-	_, _ = dbfake.WorkspaceWithAgent(t, db, database.Workspace{
+	_ = dbfake.NewWorkspaceBuilder(t, db).Seed(database.Workspace{
 		Name:              "a-owner",
 		OwnerID:           owner.UserID,
 		OrganizationID:    owner.OrganizationID,
 		AutostartSchedule: sql.NullString{String: sched.String(), Valid: true},
 		Ttl:               sql.NullInt64{Int64: 8 * time.Hour.Nanoseconds(), Valid: true},
-	})
-	_, _ = dbfake.WorkspaceWithAgent(t, db, database.Workspace{
+	}).WithAgent().Do()
+	_ = dbfake.NewWorkspaceBuilder(t, db).Seed(database.Workspace{
 		Name:              "b-owner",
 		OwnerID:           owner.UserID,
 		OrganizationID:    owner.OrganizationID,
 		AutostartSchedule: sql.NullString{String: sched.String(), Valid: true},
-	})
-	_, _ = dbfake.WorkspaceWithAgent(t, db, database.Workspace{
+	}).WithAgent().Do()
+	_ = dbfake.NewWorkspaceBuilder(t, db).Seed(database.Workspace{
 		Name:           "c-member",
 		OwnerID:        memberUser.ID,
 		OrganizationID: owner.OrganizationID,
 		Ttl:            sql.NullInt64{Int64: 8 * time.Hour.Nanoseconds(), Valid: true},
-	})
-	_, _ = dbfake.WorkspaceWithAgent(t, db, database.Workspace{
+	}).WithAgent().Do()
+	_ = dbfake.NewWorkspaceBuilder(t, db).Seed(database.Workspace{
 		Name:           "d-member",
 		OwnerID:        memberUser.ID,
 		OrganizationID: owner.OrganizationID,
-	})
+	}).WithAgent().Do()
 
 	// Need this for LatestBuild.Deadline
 	resp, err := ownerClient.Workspaces(context.Background(), codersdk.WorkspaceFilter{})

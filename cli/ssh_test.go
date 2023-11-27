@@ -52,12 +52,15 @@ func setupWorkspaceForAgent(t *testing.T, mutations ...func([]*proto.Agent) []*p
 	client.SetLogger(slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug))
 	first := coderdtest.CreateFirstUser(t, client)
 	userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-	workspace, agentToken := dbfake.WorkspaceWithAgent(t, store, database.Workspace{
-		OrganizationID: first.OrganizationID,
-		OwnerID:        user.ID,
-	}, mutations...)
+	r := dbfake.NewWorkspaceBuilder(t, store).
+		Seed(database.Workspace{
+			OrganizationID: first.OrganizationID,
+			OwnerID:        user.ID,
+		}).
+		WithAgent(mutations...).
+		Do()
 
-	return userClient, workspace, agentToken
+	return userClient, r.Workspace, r.AgentToken
 }
 
 func TestSSH(t *testing.T) {
@@ -127,11 +130,11 @@ func TestSSH(t *testing.T) {
 		client.SetLogger(slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug))
 		first := coderdtest.CreateFirstUser(t, client)
 		userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-		workspace, agentToken := dbfake.WorkspaceWithAgent(t, store, database.Workspace{
+		r := dbfake.NewWorkspaceBuilder(t, store).Seed(database.Workspace{
 			OrganizationID: first.OrganizationID,
 			OwnerID:        user.ID,
-		})
-		inv, root := clitest.New(t, "ssh", workspace.Name)
+		}).WithAgent().Do()
+		inv, root := clitest.New(t, "ssh", r.Workspace.Name)
 		clitest.SetupConfig(t, userClient, root)
 		pty := ptytest.New(t).Attach(inv)
 
@@ -144,14 +147,14 @@ func TestSSH(t *testing.T) {
 		})
 		pty.ExpectMatch("Waiting")
 
-		_ = agenttest.New(t, client.URL, agentToken)
-		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+		_ = agenttest.New(t, client.URL, r.AgentToken)
+		coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
 
 		// Ensure the agent is connected.
 		pty.WriteLine("echo hell'o'")
 		pty.ExpectMatchContext(ctx, "hello")
 
-		_ = dbfake.NewWorkspaceBuildBuilder(t, store, workspace).
+		_ = dbfake.NewWorkspaceBuildBuilder(t, store, r.Workspace).
 			Seed(database.WorkspaceBuild{
 				Transition:  database.WorkspaceTransitionStop,
 				BuildNumber: 2,
@@ -466,15 +469,15 @@ func TestSSH(t *testing.T) {
 		client.SetLogger(slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug))
 		first := coderdtest.CreateFirstUser(t, client)
 		userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-		workspace, agentToken := dbfake.WorkspaceWithAgent(t, store, database.Workspace{
+		r := dbfake.NewWorkspaceBuilder(t, store).Seed(database.Workspace{
 			OrganizationID: first.OrganizationID,
 			OwnerID:        user.ID,
-		})
+		}).WithAgent().Do()
 
 		_, _ = tGoContext(t, func(ctx context.Context) {
 			// Run this async so the SSH command has to wait for
 			// the build and agent to connect.
-			_ = agenttest.New(t, client.URL, agentToken)
+			_ = agenttest.New(t, client.URL, r.AgentToken)
 			<-ctx.Done()
 		})
 
@@ -489,7 +492,7 @@ func TestSSH(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		inv, root := clitest.New(t, "ssh", "--stdio", workspace.Name)
+		inv, root := clitest.New(t, "ssh", "--stdio", r.Workspace.Name)
 		clitest.SetupConfig(t, userClient, root)
 		inv.Stdin = clientOutput
 		inv.Stdout = serverInput
@@ -520,7 +523,7 @@ func TestSSH(t *testing.T) {
 		err = session.Shell()
 		require.NoError(t, err)
 
-		_ = dbfake.NewWorkspaceBuildBuilder(t, store, workspace).
+		_ = dbfake.NewWorkspaceBuildBuilder(t, store, r.Workspace).
 			Seed(database.WorkspaceBuild{
 				Transition:  database.WorkspaceTransitionStop,
 				BuildNumber: 2,

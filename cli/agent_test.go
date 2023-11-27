@@ -31,22 +31,25 @@ func TestWorkspaceAgent(t *testing.T) {
 
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		ws, authToken := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
-			OrganizationID: user.OrganizationID,
-			OwnerID:        user.UserID,
-		})
+		r := dbfake.NewWorkspaceBuilder(t, db).
+			Seed(database.Workspace{
+				OrganizationID: user.OrganizationID,
+				OwnerID:        user.UserID,
+			}).
+			WithAgent().
+			Do()
 		logDir := t.TempDir()
 		inv, _ := clitest.New(t,
 			"agent",
 			"--auth", "token",
-			"--agent-token", authToken,
+			"--agent-token", r.AgentToken,
 			"--agent-url", client.URL.String(),
 			"--log-dir", logDir,
 		)
 
 		clitest.Start(t, inv)
 
-		coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
+		coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
 
 		require.Eventually(t, func() bool {
 			info, err := os.Stat(filepath.Join(logDir, "coder-agent.log"))
@@ -209,16 +212,19 @@ func TestWorkspaceAgent(t *testing.T) {
 
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		ws, authToken := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
-			OrganizationID: user.OrganizationID,
-			OwnerID:        user.UserID,
-		})
+		r := dbfake.NewWorkspaceBuilder(t, db).
+			Seed(database.Workspace{
+				OrganizationID: user.OrganizationID,
+				OwnerID:        user.UserID,
+			}).
+			WithAgent().
+			Do()
 
 		logDir := t.TempDir()
 		inv, _ := clitest.New(t,
 			"agent",
 			"--auth", "token",
-			"--agent-token", authToken,
+			"--agent-token", r.AgentToken,
 			"--agent-url", client.URL.String(),
 			"--log-dir", logDir,
 		)
@@ -227,7 +233,7 @@ func TestWorkspaceAgent(t *testing.T) {
 
 		clitest.Start(t, inv)
 
-		resources := coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
+		resources := coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
 		require.Len(t, resources, 1)
 		require.Len(t, resources[0].Agents, 1)
 		require.Len(t, resources[0].Agents[0].Subsystems, 2)

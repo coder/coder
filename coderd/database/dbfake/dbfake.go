@@ -96,19 +96,6 @@ func Workspace(t testing.TB, db database.Store, seed database.Workspace) databas
 	return r.Workspace
 }
 
-// WorkspaceWithAgent is a helper that generates a workspace with a single resource
-// that has an agent attached to it. The agent token is returned.
-func WorkspaceWithAgent(
-	t testing.TB, db database.Store, seed database.Workspace,
-	mutations ...func([]*sdkproto.Agent) []*sdkproto.Agent,
-) (
-	database.Workspace, string,
-) {
-	t.Helper()
-	r := NewWorkspaceBuilder(t, db).Seed(seed).WithAgent(mutations...).Do()
-	return r.Workspace, r.AgentToken
-}
-
 type WorkspaceBuildBuilder struct {
 	t         testing.TB
 	db        database.Store
