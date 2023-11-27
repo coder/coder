@@ -21,22 +21,79 @@ import (
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 )
 
+type WorkspaceBuilder struct {
+	t          testing.TB
+	db         database.Store
+	seed       database.Workspace
+	resources  []*sdkproto.Resource
+	agentToken string
+}
+
+type WorkspaceResponse struct {
+	Workspace  database.Workspace
+	Template   database.Template
+	Build      database.WorkspaceBuild
+	AgentToken string
+}
+
+func NewWorkspaceBuilder(t testing.TB, db database.Store) WorkspaceBuilder {
+	return WorkspaceBuilder{t: t, db: db}
+}
+
+func (b WorkspaceBuilder) Seed(seed database.Workspace) WorkspaceBuilder {
+	//nolint: revive // returns modified struct
+	b.seed = seed
+	return b
+}
+
+func (b WorkspaceBuilder) WithAgent(mutations ...func([]*sdkproto.Agent) []*sdkproto.Agent) WorkspaceBuilder {
+	//nolint: revive // returns modified struct
+	b.agentToken = uuid.NewString()
+	agents := []*sdkproto.Agent{{
+		Id: uuid.NewString(),
+		Auth: &sdkproto.Agent_Token{
+			Token: b.agentToken,
+		},
+	}}
+	for _, m := range mutations {
+		agents = m(agents)
+	}
+	b.resources = append(b.resources, &sdkproto.Resource{
+		Name:   "example",
+		Type:   "aws_instance",
+		Agents: agents,
+	})
+	return b
+}
+
+func (b WorkspaceBuilder) Do() WorkspaceResponse {
+	var r WorkspaceResponse
+	// This intentionally fulfills the minimum requirements of the schema.
+	// Tests can provide a custom template ID if necessary.
+	if b.seed.TemplateID == uuid.Nil {
+		r.Template = dbgen.Template(b.t, b.db, database.Template{
+			OrganizationID: b.seed.OrganizationID,
+			CreatedBy:      b.seed.OwnerID,
+		})
+		b.seed.TemplateID = r.Template.ID
+		b.seed.OwnerID = r.Template.CreatedBy
+		b.seed.OrganizationID = r.Template.OrganizationID
+	}
+	r.Workspace = dbgen.Workspace(b.t, b.db, b.seed)
+	if b.agentToken != "" {
+		r.AgentToken = b.agentToken
+		r.Build = NewWorkspaceBuildBuilder(b.t, b.db, r.Workspace).
+			Resource(b.resources...).
+			Do()
+	}
+	return r
+}
+
 // Workspace inserts a workspace into the database.
 func Workspace(t testing.TB, db database.Store, seed database.Workspace) database.Workspace {
 	t.Helper()
-
-	// This intentionally fulfills the minimum requirements of the schema.
-	// Tests can provide a custom template ID if necessary.
-	if seed.TemplateID == uuid.Nil {
-		template := dbgen.Template(t, db, database.Template{
-			OrganizationID: seed.OrganizationID,
-			CreatedBy:      seed.OwnerID,
-		})
-		seed.TemplateID = template.ID
-		seed.OwnerID = template.CreatedBy
-		seed.OrganizationID = template.OrganizationID
-	}
-	return dbgen.Workspace(t, db, seed)
+	r := NewWorkspaceBuilder(t, db).Seed(seed).Do()
+	return r.Workspace
 }
 
 // WorkspaceWithAgent is a helper that generates a workspace with a single resource
@@ -48,23 +105,8 @@ func WorkspaceWithAgent(
 	database.Workspace, string,
 ) {
 	t.Helper()
-	authToken := uuid.NewString()
-	agents := []*sdkproto.Agent{{
-		Id: uuid.NewString(),
-		Auth: &sdkproto.Agent_Token{
-			Token: authToken,
-		},
-	}}
-	for _, m := range mutations {
-		agents = m(agents)
-	}
-	ws := Workspace(t, db, seed)
-	NewWorkspaceBuildBuilder(t, db, ws).Resource(&sdkproto.Resource{
-		Name:   "example",
-		Type:   "aws_instance",
-		Agents: agents,
-	}).Do()
-	return ws, authToken
+	r := NewWorkspaceBuilder(t, db).Seed(seed).WithAgent(mutations...).Do()
+	return r.Workspace, r.AgentToken
 }
 
 type WorkspaceBuildBuilder struct {
