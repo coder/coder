@@ -695,11 +695,11 @@ func TestConfigSSH_Hostnames(t *testing.T) {
 			owner := coderdtest.CreateFirstUser(t, client)
 			member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
-			ws := dbfake.Workspace(t, db, database.Workspace{
+			r := dbfake.NewWorkspaceBuilder(t, db).Seed(database.Workspace{
 				OrganizationID: owner.OrganizationID,
 				OwnerID:        memberUser.ID,
-			})
-			dbfake.NewWorkspaceBuildBuilder(t, db, ws).Resource(resources...).Do()
+			}).Do()
+			dbfake.NewWorkspaceBuildBuilder(t, db, r.Workspace).Resource(resources...).Do()
 			sshConfigFile := sshConfigFileName(t)
 
 			inv, root := clitest.New(t, "config-ssh", "--ssh-config-file", sshConfigFile)
@@ -724,7 +724,7 @@ func TestConfigSSH_Hostnames(t *testing.T) {
 
 			var expectedHosts []string
 			for _, hostnamePattern := range tt.expected {
-				hostname := strings.ReplaceAll(hostnamePattern, "@", ws.Name)
+				hostname := strings.ReplaceAll(hostnamePattern, "@", r.Workspace.Name)
 				expectedHosts = append(expectedHosts, hostname)
 			}
 
