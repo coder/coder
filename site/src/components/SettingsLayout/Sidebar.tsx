@@ -26,7 +26,6 @@ export const Sidebar: React.FC<{ user: User }> = ({ user }) => {
         title={user.username}
         subtitle={user.email}
       />
-      ;
       <SidebarNavItem href="account" icon={AccountIcon}>
         Account
       </SidebarNavItem>
