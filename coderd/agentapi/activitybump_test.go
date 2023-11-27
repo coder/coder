@@ -1,4 +1,4 @@
-package coderd
+package agentapi_test
 
 import (
 	"database/sql"
@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -236,7 +237,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 
 				// Bump duration is measured from the time of the bump, so we measure from here.
 				start := dbtime.Now()
-				activityBumpWorkspace(ctx, log, db, bld.WorkspaceID, tt.nextAutostart)
+				agentapi.ActivityBumpWorkspace(ctx, log, db, bld.WorkspaceID, tt.nextAutostart)
 				end := dbtime.Now()
 
 				// Validate our state after bump

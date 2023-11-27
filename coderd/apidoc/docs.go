@@ -5094,6 +5094,9 @@ const docTemplate = `{
                     "101": {
                         "description": "Switching Protocols"
                     }
+                },
+                "x-apidocgen": {
+                    "skip": true
                 }
             }
         },

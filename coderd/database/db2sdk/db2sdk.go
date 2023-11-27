@@ -3,17 +3,22 @@ package db2sdk
 
 import (
 	"encoding/json"
+	"fmt"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
+	"tailscale.com/tailcfg"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/parameter"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/tailnet"
 )
 
 func WorkspaceBuildParameters(params []database.WorkspaceBuildParameter) []codersdk.WorkspaceBuildParameter {
@@ -191,4 +196,133 @@ func templateVersionParameterOptions(rawOptions json.RawMessage) ([]codersdk.Tem
 		})
 	}
 	return options, nil
+}
+
+func convertDisplayApps(apps []database.DisplayApp) []codersdk.DisplayApp {
+	dapps := make([]codersdk.DisplayApp, 0, len(apps))
+	for _, app := range apps {
+		switch codersdk.DisplayApp(app) {
+		case codersdk.DisplayAppVSCodeDesktop, codersdk.DisplayAppVSCodeInsiders, codersdk.DisplayAppPortForward, codersdk.DisplayAppWebTerminal, codersdk.DisplayAppSSH:
+			dapps = append(dapps, codersdk.DisplayApp(app))
+		}
+	}
+
+	return dapps
+}
+
+func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
+	dbAgent database.WorkspaceAgent, apps []codersdk.WorkspaceApp, scripts []codersdk.WorkspaceAgentScript, logSources []codersdk.WorkspaceAgentLogSource,
+	agentInactiveDisconnectTimeout time.Duration, agentFallbackTroubleshootingURL string,
+) (codersdk.WorkspaceAgent, error) {
+	var envs map[string]string
+	if dbAgent.EnvironmentVariables.Valid {
+		err := json.Unmarshal(dbAgent.EnvironmentVariables.RawMessage, &envs)
+		if err != nil {
+			return codersdk.WorkspaceAgent{}, xerrors.Errorf("unmarshal env vars: %w", err)
+		}
+	}
+	troubleshootingURL := agentFallbackTroubleshootingURL
+	if dbAgent.TroubleshootingURL != "" {
+		troubleshootingURL = dbAgent.TroubleshootingURL
+	}
+	subsystems := make([]codersdk.AgentSubsystem, len(dbAgent.Subsystems))
+	for i, subsystem := range dbAgent.Subsystems {
+		subsystems[i] = codersdk.AgentSubsystem(subsystem)
+	}
+
+	legacyStartupScriptBehavior := codersdk.WorkspaceAgentStartupScriptBehaviorNonBlocking
+	for _, script := range scripts {
+		if !script.RunOnStart {
+			continue
+		}
+		if !script.StartBlocksLogin {
+			continue
+		}
+		legacyStartupScriptBehavior = codersdk.WorkspaceAgentStartupScriptBehaviorBlocking
+	}
+
+	workspaceAgent := codersdk.WorkspaceAgent{
+		ID:                       dbAgent.ID,
+		CreatedAt:                dbAgent.CreatedAt,
+		UpdatedAt:                dbAgent.UpdatedAt,
+		ResourceID:               dbAgent.ResourceID,
+		InstanceID:               dbAgent.AuthInstanceID.String,
+		Name:                     dbAgent.Name,
+		Architecture:             dbAgent.Architecture,
+		OperatingSystem:          dbAgent.OperatingSystem,
+		Scripts:                  scripts,
+		StartupScriptBehavior:    legacyStartupScriptBehavior,
+		LogsLength:               dbAgent.LogsLength,
+		LogsOverflowed:           dbAgent.LogsOverflowed,
+		LogSources:               logSources,
+		Version:                  dbAgent.Version,
+		APIVersion:               dbAgent.APIVersion,
+		EnvironmentVariables:     envs,
+		Directory:                dbAgent.Directory,
+		ExpandedDirectory:        dbAgent.ExpandedDirectory,
+		Apps:                     apps,
+		ConnectionTimeoutSeconds: dbAgent.ConnectionTimeoutSeconds,
+		TroubleshootingURL:       troubleshootingURL,
+		LifecycleState:           codersdk.WorkspaceAgentLifecycle(dbAgent.LifecycleState),
+		Subsystems:               subsystems,
+		DisplayApps:              convertDisplayApps(dbAgent.DisplayApps),
+	}
+	node := coordinator.Node(dbAgent.ID)
+	if node != nil {
+		workspaceAgent.DERPLatency = map[string]codersdk.DERPRegion{}
+		for rawRegion, latency := range node.DERPLatency {
+			regionParts := strings.SplitN(rawRegion, "-", 2)
+			regionID, err := strconv.Atoi(regionParts[0])
+			if err != nil {
+				return codersdk.WorkspaceAgent{}, xerrors.Errorf("convert derp region id %q: %w", rawRegion, err)
+			}
+			region, found := derpMap.Regions[regionID]
+			if !found {
+				// It's possible that a workspace agent is using an old DERPMap
+				// and reports regions that do not exist. If that's the case,
+				// report the region as unknown!
+				region = &tailcfg.DERPRegion{
+					RegionID:   regionID,
+					RegionName: fmt.Sprintf("Unnamed %d", regionID),
+				}
+			}
+			workspaceAgent.DERPLatency[region.RegionName] = codersdk.DERPRegion{
+				Preferred:           node.PreferredDERP == regionID,
+				LatencyMilliseconds: latency * 1000,
+			}
+		}
+	}
+
+	status := dbAgent.Status(agentInactiveDisconnectTimeout)
+	workspaceAgent.Status = codersdk.WorkspaceAgentStatus(status.Status)
+	workspaceAgent.FirstConnectedAt = status.FirstConnectedAt
+	workspaceAgent.LastConnectedAt = status.LastConnectedAt
+	workspaceAgent.DisconnectedAt = status.DisconnectedAt
+
+	if dbAgent.StartedAt.Valid {
+		workspaceAgent.StartedAt = &dbAgent.StartedAt.Time
+	}
+	if dbAgent.ReadyAt.Valid {
+		workspaceAgent.ReadyAt = &dbAgent.ReadyAt.Time
+	}
+
+	switch {
+	case workspaceAgent.Status != codersdk.WorkspaceAgentConnected && workspaceAgent.LifecycleState == codersdk.WorkspaceAgentLifecycleOff:
+		workspaceAgent.Health.Reason = "agent is not running"
+	case workspaceAgent.Status == codersdk.WorkspaceAgentTimeout:
+		workspaceAgent.Health.Reason = "agent is taking too long to connect"
+	case workspaceAgent.Status == codersdk.WorkspaceAgentDisconnected:
+		workspaceAgent.Health.Reason = "agent has lost connection"
+	// Note: We could also handle codersdk.WorkspaceAgentLifecycleStartTimeout
+	// here, but it's more of a soft issue, so we don't want to mark the agent
+	// as unhealthy.
+	case workspaceAgent.LifecycleState == codersdk.WorkspaceAgentLifecycleStartError:
+		workspaceAgent.Health.Reason = "agent startup script exited with an error"
+	case workspaceAgent.LifecycleState.ShuttingDown():
+		workspaceAgent.Health.Reason = "agent is shutting down"
+	default:
+		workspaceAgent.Health.Healthy = true
+	}
+
+	return workspaceAgent, nil
 }

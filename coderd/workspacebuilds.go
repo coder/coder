@@ -908,7 +908,7 @@ func (api *API) convertWorkspaceBuild(
 			apps := appsByAgentID[agent.ID]
 			scripts := scriptsByAgentID[agent.ID]
 			logSources := logSourcesByAgentID[agent.ID]
-			apiAgent, err := convertWorkspaceAgent(
+			apiAgent, err := db2sdk.WorkspaceAgent(
 				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, convertApps(apps, agent, ownerName, workspace), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
 				api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 			)
