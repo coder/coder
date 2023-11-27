@@ -155,11 +155,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
           error: usersQuery.error,
           menus: { status: statusMenu },
         }}
-        count={usersQuery.totalRecords}
-        page={usersQuery.currentPage}
-        limit={usersQuery.limit}
-        onPageChange={usersQuery.onPageChange}
-        showingPreviousData={usersQuery.isPreviousData}
+        paginationResult={usersQuery}
       />
 
       <DeleteDialog

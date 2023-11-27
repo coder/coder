@@ -4,11 +4,8 @@ import { type GroupsByUserId } from "api/queries/groups";
 
 import { UsersTable } from "./UsersTable/UsersTable";
 import { UsersFilter } from "./UsersFilter";
-import {
-  PaginationStatus,
-  TableToolbar,
-} from "components/TableToolbar/TableToolbar";
 import { Pagination } from "components/PaginationWidget/Pagination";
+import { UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
 
 export interface UsersPageViewProps {
   users?: TypesGen.User[];
@@ -33,13 +30,7 @@ export interface UsersPageViewProps {
   isNonInitialPage: boolean;
   actorID: string;
   groupsByUserId: GroupsByUserId | undefined;
-
-  // Pagination
-  count?: number;
-  page: number;
-  limit: number;
-  onPageChange: (page: number) => void;
-  showingPreviousData: boolean;
+  paginationResult: UsePaginatedQueryResult;
 }
 
 export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
@@ -61,32 +52,16 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
   isNonInitialPage,
   actorID,
   authMethods,
-  count,
-  limit,
-  onPageChange,
-  page,
   groupsByUserId,
-  showingPreviousData,
+  paginationResult,
 }) => {
   return (
     <>
       <UsersFilter {...filterProps} />
 
-      <TableToolbar>
-        <PaginationStatus
-          isLoading={Boolean(isLoading)}
-          showing={users?.length ?? 0}
-          total={count ?? 0}
-          label="users"
-        />
-      </TableToolbar>
-
       <Pagination
-        totalRecords={count}
-        pageSize={limit}
-        currentPage={page}
-        showingPreviousData={showingPreviousData}
-        onPageChange={onPageChange}
+        paginationResult={paginationResult}
+        paginationUnitLabel="users"
       >
         <UsersTable
           users={users}

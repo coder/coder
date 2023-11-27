@@ -8,12 +8,21 @@ import {
   useRef,
 } from "react";
 
-import { type UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
+import { useTheme } from "@emotion/react";
 import { useEffectEvent } from "hooks/hookPolyfills";
+import { type UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
+
 import { PaginationWidgetBase } from "./PaginationWidgetBase";
+import Skeleton from "@mui/material/Skeleton";
 
 type PaginationProps = HTMLAttributes<HTMLDivElement> & {
   paginationResult: UsePaginatedQueryResult;
+  paginationUnitLabel: string;
+
+  /**
+   * Mainly here to simplify Storybook integrations. This should almost always
+   * be true in production
+   */
   autoScroll?: boolean;
 };
 
@@ -28,6 +37,7 @@ const userInteractionEvents: (keyof WindowEventMap)[] = [
 export const Pagination: FC<PaginationProps> = ({
   children,
   paginationResult,
+  paginationUnitLabel,
   autoScroll = true,
   ...delegatedProps
 }) => {
@@ -39,11 +49,16 @@ export const Pagination: FC<PaginationProps> = ({
 
   return (
     <div {...scrollContainerProps}>
+      <PaginationHeader
+        paginationResult={paginationResult}
+        paginationUnitLabel={paginationUnitLabel}
+      />
+
       <div
         css={{
           display: "flex",
           flexFlow: "column nowrap",
-          rowGap: "24px",
+          rowGap: "16px",
         }}
         {...delegatedProps}
       >
@@ -60,6 +75,54 @@ export const Pagination: FC<PaginationProps> = ({
           />
         )}
       </div>
+    </div>
+  );
+};
+
+type PaginationHeaderProps = {
+  paginationResult: UsePaginatedQueryResult;
+  paginationUnitLabel: string;
+};
+
+const PaginationHeader: FC<PaginationHeaderProps> = ({
+  paginationResult,
+  paginationUnitLabel,
+}) => {
+  const theme = useTheme();
+  const endBound = Math.min(
+    paginationResult.limit - 1,
+    (paginationResult.totalRecords ?? 0) - (paginationResult.currentChunk ?? 0),
+  );
+
+  return (
+    <div
+      css={{
+        display: "flex",
+        flexFlow: "row nowrap",
+        alignItems: "center",
+        margin: 0,
+        fontSize: "13px",
+        paddingBottom: "8px",
+        color: theme.palette.text.secondary,
+        height: "36px", // The size of a small button
+        "& strong": {
+          color: theme.palette.text.primary,
+        },
+      }}
+    >
+      {!paginationResult.isSuccess ? (
+        <Skeleton variant="text" width={160} height={16} />
+      ) : (
+        <div>
+          Showing {paginationUnitLabel}{" "}
+          <strong>
+            {paginationResult.currentChunk}&ndash;
+            {paginationResult.currentChunk + endBound}
+          </strong>{" "}
+          (<strong>{paginationResult.totalRecords}</strong>{" "}
+          {paginationUnitLabel} total)
+        </div>
+      )}
     </div>
   );
 };
@@ -106,19 +169,13 @@ function useScrollOnPageChange(
   }, [autoScroll]);
 
   const scrollToTop = useEffectEvent(() => {
-    const scrollMargin = 48;
     const newVerticalPosition =
       (scrollContainerRef.current?.getBoundingClientRect().top ?? 0) +
-      window.scrollY -
-      scrollMargin;
+      window.scrollY;
 
-    // Not using element.scrollIntoView because it gives no control over scroll
-    // offsets/margins
-    window.scrollTo({
-      top: Math.max(0, newVerticalPosition),
-      behavior: "instant",
-    });
-
+    // Not using element.scrollIntoView for testing reasons; much easier to mock
+    // the global window object
+    window.scrollTo({ top: newVerticalPosition, behavior: "instant" });
     isScrollingQueuedRef.current = false;
   });
 

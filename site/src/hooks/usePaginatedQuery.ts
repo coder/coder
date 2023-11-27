@@ -259,6 +259,7 @@ export function usePaginatedQuery<
           hasPreviousPage,
           totalRecords: totalRecords as number,
           totalPages: totalPages as number,
+          currentChunk: currentPageOffset + 1,
         }
       : {
           isSuccess: false,
@@ -266,6 +267,7 @@ export function usePaginatedQuery<
           hasPreviousPage: false,
           totalRecords: undefined,
           totalPages: undefined,
+          currentChunk: undefined,
         }),
   };
 
@@ -306,6 +308,7 @@ type PaginationResultInfo = {
       hasPreviousPage: false;
       totalRecords: undefined;
       totalPages: undefined;
+      currentChunk: undefined;
     }
   | {
       isSuccess: true;
@@ -313,6 +316,7 @@ type PaginationResultInfo = {
       hasPreviousPage: boolean;
       totalRecords: number;
       totalPages: number;
+      currentChunk: number;
     }
 );
 

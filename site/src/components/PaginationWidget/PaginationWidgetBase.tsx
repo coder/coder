@@ -12,6 +12,9 @@ export type PaginationWidgetBaseProps = {
   pageSize: number;
   totalRecords: number;
   onPageChange: (newPage: number) => void;
+
+  hasPreviousPage?: boolean;
+  hasNextPage?: boolean;
 };
 
 export const PaginationWidgetBase = ({
@@ -19,6 +22,8 @@ export const PaginationWidgetBase = ({
   pageSize,
   totalRecords,
   onPageChange,
+  hasPreviousPage,
+  hasNextPage,
 }: PaginationWidgetBaseProps) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
@@ -28,8 +33,12 @@ export const PaginationWidgetBase = ({
     return null;
   }
 
-  const onFirstPage = currentPage <= 1;
-  const onLastPage = currentPage >= totalPages;
+  // Ugly stopgap hack to make sure that the PaginationBase can be used for both
+  // the old and new pagination implementations while the transition is
+  // happening - without breaking existing Storybook tests
+  const currentPageOffset = (currentPage - 1) * pageSize;
+  hasPreviousPage ??= currentPage > 1;
+  hasNextPage ??= pageSize + currentPageOffset < totalRecords;
 
   return (
     <div
@@ -44,10 +53,10 @@ export const PaginationWidgetBase = ({
     >
       <PaginationNavButton
         disabledMessage="You are already on the first page"
-        disabled={onFirstPage}
+        disabled={hasPreviousPage}
         aria-label="Previous page"
         onClick={() => {
-          if (!onFirstPage) {
+          if (hasPreviousPage) {
             onPageChange(currentPage - 1);
           }
         }}
@@ -71,10 +80,10 @@ export const PaginationWidgetBase = ({
 
       <PaginationNavButton
         disabledMessage="You are already on the last page"
-        disabled={onLastPage}
+        disabled={hasNextPage}
         aria-label="Next page"
         onClick={() => {
-          if (!onLastPage) {
+          if (hasNextPage) {
             onPageChange(currentPage + 1);
           }
         }}
