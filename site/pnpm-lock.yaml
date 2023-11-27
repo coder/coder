@@ -27,12 +27,12 @@ dependencies:
   '@fastly/performance-observer-polyfill':
     specifier: 2.0.0
     version: 2.0.0
+  '@fontsource-variable/inter':
+    specifier: 5.0.15
+    version: 5.0.15
   '@fontsource/ibm-plex-mono':
     specifier: 5.0.5
     version: 5.0.5
-  '@fontsource/inter':
-    specifier: 5.0.2
-    version: 5.0.2
   '@monaco-editor/react':
     specifier: 4.6.0
     version: 4.6.0(monaco-editor@0.44.0)(react-dom@18.2.0)(react@18.2.0)
@@ -2453,12 +2453,12 @@ packages:
     resolution: {integrity: sha512-OfX7E2oUDYxtBvsuS4e/jSn4Q9Qb6DzgeYtsAdkPZ47znpoNsMgZw0+tVijiv3uGNR6dgNlty6r9rzIzHjtd/A==}
     dev: true
 
-  /@fontsource/ibm-plex-mono@5.0.5:
-    resolution: {integrity: sha512-A1rDiQB7X7oOgsZbjeSQV3r/ZOBEZDjKEnlLvWqd4sMBZwGKTDnCxQYoqedY/8if2NXyiQoLXPdV5RpQ/3BerQ==}
+  /@fontsource-variable/inter@5.0.15:
+    resolution: {integrity: sha512-CdQPQQgOVxg6ifmbrqYZeUqtQf7p2wPn6EvJ4M+vdNnsmYZgYwPPPQDNlIOU7LCUlSGaN26v6H0uA030WKn61g==}
     dev: false
 
-  /@fontsource/inter@5.0.2:
-    resolution: {integrity: sha512-pQ1ms5nbprD+7Dnu5h0T9XOSJi5pvOanLCxi6mA9/5wclXFkkzvZo31ddoD8/Urncx11967qTnvGglPeWEOT+Q==}
+  /@fontsource/ibm-plex-mono@5.0.5:
+    resolution: {integrity: sha512-A1rDiQB7X7oOgsZbjeSQV3r/ZOBEZDjKEnlLvWqd4sMBZwGKTDnCxQYoqedY/8if2NXyiQoLXPdV5RpQ/3BerQ==}
     dev: false
 
   /@humanwhocodes/config-array@0.11.13:
@@ -13444,7 +13444,7 @@ packages:
     peerDependencies:
       eslint: '>=7'
       meow: ^9.0.0
-      optionator: 0.9.3
+      optionator: ^0.9.1
       stylelint: '>=13'
       typescript: '*'
       vite: '>=2.0.0'
