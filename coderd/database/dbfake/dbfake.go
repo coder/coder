@@ -89,13 +89,6 @@ func (b WorkspaceBuilder) Do() WorkspaceResponse {
 	return r
 }
 
-// Workspace inserts a workspace into the database.
-func Workspace(t testing.TB, db database.Store, seed database.Workspace) database.Workspace {
-	t.Helper()
-	r := NewWorkspaceBuilder(t, db).Seed(seed).Do()
-	return r.Workspace
-}
-
 type WorkspaceBuildBuilder struct {
 	t         testing.TB
 	db        database.Store
