@@ -46,7 +46,13 @@ export const Pagination: FC<PaginationProps> = ({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isScrollingQueuedRef = useRef(false);
 
+  // Sets up event handlers for canceling queued scrolls in response to
+  // literally any user behavior
   useEffect(() => {
+    if (!autoScroll) {
+      return;
+    }
+
     const cancelScroll = () => {
       isScrollingQueuedRef.current = false;
     };
@@ -60,7 +66,7 @@ export const Pagination: FC<PaginationProps> = ({
         window.removeEventListener(event, cancelScroll);
       }
     };
-  }, []);
+  }, [autoScroll]);
 
   /**
    * Have to account for for five different triggers to determine when the
@@ -83,7 +89,8 @@ export const Pagination: FC<PaginationProps> = ({
    *    while the new data is loading in, cancel the scroll.
    *
    * currentPage and showingPreviousData should be the only two cues for syncing
-   * the scroll position
+   * the scroll position. There's not a lot of code, but it's obnoxious because
+   * this use case doesn't line up that well with useEffect's API
    */
   const syncScrollPosition = useEffectEvent(() => {
     if (autoScroll) {
@@ -96,16 +103,23 @@ export const Pagination: FC<PaginationProps> = ({
     isScrollingQueuedRef.current = false;
   });
 
-  // Would've liked to consolidate these effects into a single useLayoutEffect
-  // call, but they kept messing each other up when grouped together
+  const isOnFirstRenderRef = useRef(true);
   const syncPageChange = useEffectEvent(() => {
+    if (isOnFirstRenderRef.current) {
+      isOnFirstRenderRef.current = false;
+      return;
+    }
+
     if (showingPreviousData) {
       isScrollingQueuedRef.current = true;
-    } else {
-      syncScrollPosition();
+      return;
     }
+
+    syncScrollPosition();
   });
 
+  // Would've liked to consolidate these effects into a single useLayoutEffect
+  // call, but they kept messing each other up when grouped together
   useLayoutEffect(() => {
     syncPageChange();
   }, [syncPageChange, currentPage]);
