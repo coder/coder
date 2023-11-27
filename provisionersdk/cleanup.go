@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/djherbis/times"
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
@@ -27,13 +26,9 @@ func CleanStaleSessions(ctx context.Context, workDirectory string, fs afero.Fs, 
 		if fi.IsDir() && isValidSessionDir(dirName) {
 			sessionDirPath := filepath.Join(workDirectory, dirName)
 
-			accessTime := fi.ModTime() // fallback to modTime if accessTime is not available (afero)
-			if fi.Sys() != nil {
-				timeSpec := times.Get(fi)
-				accessTime = timeSpec.AccessTime()
-			}
+			modTime := fi.ModTime() // fallback to modTime if modTime is not available (afero)
 
-			if accessTime.Add(staleSessionRetention).After(now) {
+			if modTime.Add(staleSessionRetention).After(now) {
 				continue
 			}
 
