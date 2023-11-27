@@ -71,7 +71,7 @@ func Prompt(inv *clibase.Invocation, opts PromptOptions) (string, error) {
 		} else {
 			renderedNo = Bold(ConfirmNo)
 		}
-		pretty.Fprintf(inv.Stdout, DefaultStyles.Placeholder, "(%s/%s)", renderedYes, renderedNo)
+		pretty.Fprintf(inv.Stdout, DefaultStyles.Placeholder, "(%s/%s) ", renderedYes, renderedNo)
 	} else if opts.Default != "" {
 		_, _ = fmt.Fprint(inv.Stdout, pretty.Sprint(DefaultStyles.Placeholder, "("+opts.Default+") "))
 	}
