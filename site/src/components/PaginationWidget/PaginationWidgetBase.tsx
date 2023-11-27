@@ -70,7 +70,7 @@ export const PaginationWidgetBase = ({
       )}
 
       <PaginationNavButton
-        disabledMessage="You're already on the last page"
+        disabledMessage="You are already on the last page"
         disabled={onLastPage}
         aria-label="Next page"
         onClick={() => {
