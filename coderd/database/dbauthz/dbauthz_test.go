@@ -1434,10 +1434,10 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			ID: uuid.New(),
 		}).Asserts(rbac.ResourceSystem, rbac.ActionCreate)
 	}))
-	s.Run("UpdateReplica", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("UpsertReplica", s.Subtest(func(db database.Store, check *expects) {
 		replica, err := db.InsertReplica(context.Background(), database.InsertReplicaParams{ID: uuid.New()})
 		require.NoError(s.T(), err)
-		check.Args(database.UpdateReplicaParams{
+		check.Args(database.UpsertReplicaParams{
 			ID:              replica.ID,
 			DatabaseLatency: 100,
 		}).Asserts(rbac.ResourceSystem, rbac.ActionUpdate)

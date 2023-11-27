@@ -435,7 +435,7 @@ func TestProxyRegisterDeregister(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	t.Run("ReregisterUpdateReplica", func(t *testing.T) {
+	t.Run("ReregisterUpsertReplica", func(t *testing.T) {
 		t.Parallel()
 
 		client, db := setup(t)

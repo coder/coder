@@ -3318,19 +3318,19 @@ func (mr *MockStoreMockRecorder) UpdateProvisionerJobWithCompleteByID(arg0, arg1
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateProvisionerJobWithCompleteByID", reflect.TypeOf((*MockStore)(nil).UpdateProvisionerJobWithCompleteByID), arg0, arg1)
 }
 
-// UpdateReplica mocks base method.
-func (m *MockStore) UpdateReplica(arg0 context.Context, arg1 database.UpdateReplicaParams) (database.Replica, error) {
+// UpsertReplica mocks base method.
+func (m *MockStore) UpsertReplica(arg0 context.Context, arg1 database.UpsertReplicaParams) (database.Replica, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateReplica", arg0, arg1)
+	ret := m.ctrl.Call(m, "UpsertReplica", arg0, arg1)
 	ret0, _ := ret[0].(database.Replica)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// UpdateReplica indicates an expected call of UpdateReplica.
-func (mr *MockStoreMockRecorder) UpdateReplica(arg0, arg1 interface{}) *gomock.Call {
+// UpsertReplica indicates an expected call of UpsertReplica.
+func (mr *MockStoreMockRecorder) UpsertReplica(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateReplica", reflect.TypeOf((*MockStore)(nil).UpdateReplica), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertReplica", reflect.TypeOf((*MockStore)(nil).UpsertReplica), arg0, arg1)
 }
 
 // UpdateTemplateACLByID mocks base method.

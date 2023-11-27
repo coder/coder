@@ -644,7 +644,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 				return xerrors.Errorf("replica %s is marked stopped", replica.ID)
 			}
 
-			replica, err = db.UpdateReplica(ctx, database.UpdateReplicaParams{
+			replica, err = db.UpsertReplica(ctx, database.UpsertReplicaParams{
 				ID:              replica.ID,
 				UpdatedAt:       now,
 				StartedAt:       replica.StartedAt,
@@ -759,7 +759,7 @@ func (api *API) workspaceProxyDeregister(rw http.ResponseWriter, r *http.Request
 			return xerrors.Errorf("replica %s is already marked stopped", replica.ID)
 		}
 
-		replica, err = db.UpdateReplica(ctx, database.UpdateReplicaParams{
+		replica, err = db.UpsertReplica(ctx, database.UpsertReplicaParams{
 			ID:        replica.ID,
 			UpdatedAt: now,
 			StartedAt: replica.StartedAt,
