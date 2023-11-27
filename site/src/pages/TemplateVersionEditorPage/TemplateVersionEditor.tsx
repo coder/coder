@@ -43,6 +43,8 @@ import AlertTitle from "@mui/material/AlertTitle";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
 import CloseOutlined from "@mui/icons-material/CloseOutlined";
+import { MONOSPACE_FONT_FAMILY } from "theme/constants";
+import { Loader } from "components/Loader/Loader";
 
 type Tab = "logs" | "resources" | undefined; // Undefined is to hide the tab
 export interface TemplateVersionEditorProps {
@@ -155,7 +157,6 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
       ["running", "pending"].includes(previousVersion.current.job.status) &&
       templateVersion.job.status === "succeeded"
     ) {
-      setSelectedTab("resources");
       setDirty(false);
     }
     previousVersion.current = templateVersion;
@@ -163,9 +164,13 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 
   const editorValue = getFileContent(activePath ?? "", fileTree) as string;
 
+  // Auto scroll
+  const buildLogsRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    window.dispatchEvent(new Event("resize"));
-  }, [selectedTab]);
+    if (buildLogsRef.current) {
+      buildLogsRef.current.scrollTop = buildLogsRef.current.scrollHeight;
+    }
+  }, [buildLogs]);
 
   return (
     <>
@@ -465,7 +470,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                   }}
                 >
                   <button
-                    disabled={!buildLogs || buildLogs.length === 0}
+                    disabled={!buildLogs}
                     css={styles.tab}
                     className={selectedTab === "logs" ? "active" : ""}
                     onClick={() => {
@@ -487,22 +492,25 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                   </button>
                 </div>
 
-                <IconButton
-                  onClick={() => {
-                    setSelectedTab(undefined);
-                  }}
-                  css={{
-                    marginLeft: "auto",
-                    width: 36,
-                    height: 36,
-                    borderRadius: 0,
-                  }}
-                >
-                  <CloseOutlined css={{ width: 16, height: 16 }} />
-                </IconButton>
+                {selectedTab && (
+                  <IconButton
+                    onClick={() => {
+                      setSelectedTab(undefined);
+                    }}
+                    css={{
+                      marginLeft: "auto",
+                      width: 36,
+                      height: 36,
+                      borderRadius: 0,
+                    }}
+                  >
+                    <CloseOutlined css={{ width: 16, height: 16 }} />
+                  </IconButton>
+                )}
               </div>
 
               <div
+                ref={buildLogsRef}
                 css={{
                   display: selectedTab !== "logs" ? "none" : "flex",
                   flexDirection: "column",
@@ -529,11 +537,38 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                   </div>
                 )}
 
+                {buildLogs && buildLogs.length === 0 && (
+                  <Loader css={{ height: "100%" }} />
+                )}
+
                 {buildLogs && buildLogs.length > 0 && (
                   <WorkspaceBuildLogs
                     css={{
                       borderRadius: 0,
                       border: 0,
+
+                      // Hack to update logs header and lines
+                      "& .logs-header": {
+                        border: 0,
+                        padding: "0 16px",
+                        fontFamily: MONOSPACE_FONT_FAMILY,
+
+                        "&:first-child": {
+                          paddingTop: 16,
+                        },
+
+                        "&:last-child": {
+                          paddingBottom: 16,
+                        },
+                      },
+
+                      "& .logs-line": {
+                        paddingLeft: 16,
+                      },
+
+                      "& .logs-container": {
+                        border: "0 !important",
+                      },
                     }}
                     hideTimestamps
                     logs={buildLogs}
@@ -611,7 +646,9 @@ const TopbarButton = (props: ButtonProps) => {
 
 const styles = {
   tab: (theme) => ({
-    cursor: "pointer",
+    "&:not(:disabled)": {
+      cursor: "pointer",
+    },
     padding: 12,
     fontSize: 10,
     textTransform: "uppercase",
@@ -646,8 +683,12 @@ const styles = {
       },
     },
 
-    "&:hover": {
+    "&:not(:disabled):hover": {
       color: theme.palette.text.primary,
+    },
+
+    "&:disabled": {
+      color: theme.palette.text.disabled,
     },
   }),
   tabBar: (theme) => ({
