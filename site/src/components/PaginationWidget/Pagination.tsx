@@ -63,8 +63,8 @@ export const Pagination: FC<PaginationProps> = ({
   }, []);
 
   /**
-   * This function is mainly accounting for five different triggers for the
-   * below useLayoutEffect call:
+   * Have to account for for five different triggers to determine when the
+   * component should scroll the user to the top of the container:
    *
    * 1. Initial render – We don't want anything to run on the initial render to
    *    avoid hijacking the user's browser and also make sure the UI doesn't
@@ -82,15 +82,10 @@ export const Pagination: FC<PaginationProps> = ({
    *    Queue up a scroll, but do nothing else. If the user does anything at all
    *    while the new data is loading in, cancel the scroll.
    *
-   * Set up as an effect event because currentPage and showingPreviousData
-   * should be the only two cues for syncing scroll position
+   * currentPage and showingPreviousData should be the only two cues for syncing
+   * the scroll position
    */
-  const syncScrollChange = useEffectEvent(() => {
-    if (showingPreviousData) {
-      isScrollingQueuedRef.current = true;
-      return;
-    }
-
+  const scroll = useEffectEvent(() => {
     if (autoScroll && isScrollingQueuedRef.current) {
       scrollContainerRef.current?.scrollIntoView({
         block: "start",
@@ -101,9 +96,21 @@ export const Pagination: FC<PaginationProps> = ({
     isScrollingQueuedRef.current = false;
   });
 
+  const syncPageChange = useEffectEvent(() => {
+    if (showingPreviousData) {
+      isScrollingQueuedRef.current = true;
+    } else {
+      scroll();
+    }
+  });
+
   useLayoutEffect(() => {
-    syncScrollChange();
-  }, [syncScrollChange, currentPage, showingPreviousData]);
+    syncPageChange();
+  }, [syncPageChange, currentPage]);
+
+  useLayoutEffect(() => {
+    scroll();
+  }, [scroll, showingPreviousData]);
 
   return (
     <div ref={scrollContainerRef}>
