@@ -91,9 +91,24 @@ coder:
     # It is recommended to keep this on if you are using Kubernetes templates
     # within Coder.
     workspacePerms: true
-    # coder.serviceAccount.enableDeployments -- Provides the service account permission
-    # to manage Kubernetes deployments.
+    # coder.serviceAccount.enableDeployments -- Provides the service account
+    # permission to manage Kubernetes deployments. Depends on workspacePerms.
     enableDeployments: true
+    # coder.serviceAccount.extraRules -- Additional permissions added to the SA
+    # role. Depends on workspacePerms.
+    extraRules: []
+    # - apiGroups: [""]
+    #   resources: ["services"]
+    #   verbs:
+    #     - create
+    #     - delete
+    #     - deletecollection
+    #     - get
+    #     - list
+    #     - patch
+    #     - update
+    #     - watch
+
     # coder.serviceAccount.annotations -- The Coder service account annotations.
     annotations: {}
     # coder.serviceAccount.name -- The service account name
