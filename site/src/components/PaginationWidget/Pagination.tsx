@@ -15,7 +15,6 @@ type PaginationProps = HTMLAttributes<HTMLDivElement> & {
   totalRecords: number | undefined;
   onPageChange: (newPage: number) => void;
   autoScroll?: boolean;
-  scrollBehavior?: ScrollBehavior;
 
   /**
    * Meant to interface with useQuery's isPreviousData property.
@@ -42,15 +41,14 @@ export const Pagination: FC<PaginationProps> = ({
   showingPreviousData,
   onPageChange,
   autoScroll = true,
-  scrollBehavior = "instant",
   ...delegatedProps
 }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const isDeferredScrollActiveRef = useRef(false);
+  const isScrollingQueuedRef = useRef(false);
 
   useEffect(() => {
     const cancelScroll = () => {
-      isDeferredScrollActiveRef.current = false;
+      isScrollingQueuedRef.current = false;
     };
 
     for (const event of userInteractionEvents) {
@@ -64,32 +62,25 @@ export const Pagination: FC<PaginationProps> = ({
     };
   }, []);
 
-  const scroll = useEffectEvent(() => {
-    if (autoScroll) {
+  const syncScrollChange = useEffectEvent(() => {
+    if (showingPreviousData) {
+      isScrollingQueuedRef.current = true;
+      return;
+    }
+
+    if (autoScroll && isScrollingQueuedRef.current) {
       scrollContainerRef.current?.scrollIntoView({
         block: "start",
-        behavior: scrollBehavior,
+        behavior: "instant",
       });
     }
-  });
 
-  const handlePageChange = useEffectEvent(() => {
-    if (showingPreviousData) {
-      isDeferredScrollActiveRef.current = true;
-    } else {
-      scroll();
-    }
+    isScrollingQueuedRef.current = false;
   });
 
   useLayoutEffect(() => {
-    handlePageChange();
-  }, [handlePageChange, currentPage]);
-
-  useLayoutEffect(() => {
-    if (!showingPreviousData && isDeferredScrollActiveRef.current) {
-      scroll();
-    }
-  }, [scroll, showingPreviousData]);
+    syncScrollChange();
+  }, [syncScrollChange, currentPage, showingPreviousData]);
 
   return (
     <div ref={scrollContainerRef}>
