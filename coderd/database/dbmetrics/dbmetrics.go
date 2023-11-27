@@ -1572,10 +1572,10 @@ func (m metricsStore) UpdateProvisionerJobWithCompleteByID(ctx context.Context, 
 	return err
 }
 
-func (m metricsStore) UpdateReplica(ctx context.Context, arg database.UpdateReplicaParams) (database.Replica, error) {
+func (m metricsStore) UpsertReplica(ctx context.Context, arg database.UpsertReplicaParams) (database.Replica, error) {
 	start := time.Now()
-	replica, err := m.s.UpdateReplica(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateReplica").Observe(time.Since(start).Seconds())
+	replica, err := m.s.UpsertReplica(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertReplica").Observe(time.Since(start).Seconds())
 	return replica, err
 }
 

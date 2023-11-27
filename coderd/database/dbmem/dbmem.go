@@ -5856,7 +5856,7 @@ func (q *FakeQuerier) UpdateProvisionerJobWithCompleteByID(_ context.Context, ar
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateReplica(_ context.Context, arg database.UpdateReplicaParams) (database.Replica, error) {
+func (q *FakeQuerier) UpsertReplica(_ context.Context, arg database.UpsertReplicaParams) (database.Replica, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.Replica{}, err
 	}

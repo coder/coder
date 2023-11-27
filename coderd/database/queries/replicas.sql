@@ -18,19 +18,30 @@ INSERT INTO replicas (
 	"primary"
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;
 
--- name: UpdateReplica :one
-UPDATE replicas SET
+-- name: UpsertReplica :one
+INSERT INTO replicas (
+    id,
+    updated_at,
+    created_at,
+    started_at,
+    hostname,
+    region_id,
+    relay_address,
+    version,
+    database_latency,
+	"primary"
+) VALUES ($1, $2, $2, $3, $5, $6, $7, $8, $10, $11) ON CONFLICT (id) DO UPDATE SET
     updated_at = $2,
     started_at = $3,
     stopped_at = $4,
-    relay_address = $5,
+    hostname = $5,
     region_id = $6,
-    hostname = $7,
+    relay_address = $7,
     version = $8,
     error = $9,
     database_latency = $10,
 	"primary" = $11
-WHERE id = $1 RETURNING *;
+RETURNING *;
 
 -- name: DeleteReplicasUpdatedBefore :exec
 DELETE FROM replicas WHERE updated_at < $1;

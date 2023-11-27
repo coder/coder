@@ -2535,11 +2535,11 @@ func (q *querier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, arg 
 	return q.db.UpdateProvisionerJobWithCompleteByID(ctx, arg)
 }
 
-func (q *querier) UpdateReplica(ctx context.Context, arg database.UpdateReplicaParams) (database.Replica, error) {
+func (q *querier) UpsertReplica(ctx context.Context, arg database.UpsertReplicaParams) (database.Replica, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return database.Replica{}, err
 	}
-	return q.db.UpdateReplica(ctx, arg)
+	return q.db.UpsertReplica(ctx, arg)
 }
 
 func (q *querier) UpdateTemplateACLByID(ctx context.Context, arg database.UpdateTemplateACLByIDParams) error {

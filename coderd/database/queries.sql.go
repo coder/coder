@@ -4221,44 +4221,55 @@ func (q *sqlQuerier) InsertReplica(ctx context.Context, arg InsertReplicaParams)
 	return i, err
 }
 
-const updateReplica = `-- name: UpdateReplica :one
-UPDATE replicas SET
+const UpsertReplica = `-- name: UpsertReplica :one
+INSERT INTO replicas (
+    id,
+    updated_at,
+    created_at,
+    started_at,
+    hostname,
+    region_id,
+    relay_address,
+    version,
+    database_latency,
+	"primary"
+) VALUES ($1, $2, $2, $3, $5, $6, $7, $8, $10, $11) ON CONFLICT (id) DO UPDATE SET
     updated_at = $2,
     started_at = $3,
     stopped_at = $4,
-    relay_address = $5,
+    hostname = $5,
     region_id = $6,
-    hostname = $7,
+    relay_address = $7,
     version = $8,
     error = $9,
     database_latency = $10,
 	"primary" = $11
-WHERE id = $1 RETURNING id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error, "primary"
+RETURNING id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error, "primary"
 `
 
-type UpdateReplicaParams struct {
+type UpsertReplicaParams struct {
 	ID              uuid.UUID    `db:"id" json:"id"`
 	UpdatedAt       time.Time    `db:"updated_at" json:"updated_at"`
 	StartedAt       time.Time    `db:"started_at" json:"started_at"`
 	StoppedAt       sql.NullTime `db:"stopped_at" json:"stopped_at"`
-	RelayAddress    string       `db:"relay_address" json:"relay_address"`
-	RegionID        int32        `db:"region_id" json:"region_id"`
 	Hostname        string       `db:"hostname" json:"hostname"`
+	RegionID        int32        `db:"region_id" json:"region_id"`
+	RelayAddress    string       `db:"relay_address" json:"relay_address"`
 	Version         string       `db:"version" json:"version"`
 	Error           string       `db:"error" json:"error"`
 	DatabaseLatency int32        `db:"database_latency" json:"database_latency"`
 	Primary         bool         `db:"primary" json:"primary"`
 }
 
-func (q *sqlQuerier) UpdateReplica(ctx context.Context, arg UpdateReplicaParams) (Replica, error) {
-	row := q.db.QueryRowContext(ctx, updateReplica,
+func (q *sqlQuerier) UpsertReplica(ctx context.Context, arg UpsertReplicaParams) (Replica, error) {
+	row := q.db.QueryRowContext(ctx, UpsertReplica,
 		arg.ID,
 		arg.UpdatedAt,
 		arg.StartedAt,
 		arg.StoppedAt,
-		arg.RelayAddress,
-		arg.RegionID,
 		arg.Hostname,
+		arg.RegionID,
+		arg.RelayAddress,
 		arg.Version,
 		arg.Error,
 		arg.DatabaseLatency,

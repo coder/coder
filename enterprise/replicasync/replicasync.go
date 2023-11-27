@@ -317,7 +317,7 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	// nolint:gocritic // Updating a replica is a system function.
-	replica, err := m.db.UpdateReplica(dbauthz.AsSystemRestricted(ctx), database.UpdateReplicaParams{
+	replica, err := m.db.UpsertReplica(dbauthz.AsSystemRestricted(ctx), database.UpsertReplicaParams{
 		ID:              m.self.ID,
 		UpdatedAt:       dbtime.Now(),
 		StartedAt:       m.self.StartedAt,
@@ -425,7 +425,7 @@ func (m *Manager) Close() error {
 	ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelFunc()
 	// nolint:gocritic // Updating a replica is a system function.
-	_, err := m.db.UpdateReplica(dbauthz.AsSystemRestricted(ctx), database.UpdateReplicaParams{
+	_, err := m.db.UpsertReplica(dbauthz.AsSystemRestricted(ctx), database.UpsertReplicaParams{
 		ID:        m.self.ID,
 		UpdatedAt: dbtime.Now(),
 		StartedAt: m.self.StartedAt,
