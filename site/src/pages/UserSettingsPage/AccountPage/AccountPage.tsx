@@ -5,6 +5,7 @@ import { useQuery } from "react-query";
 import { groupsForUser } from "api/queries/groups";
 import { useOrganizationId } from "hooks";
 import { useAuth } from "components/AuthProvider/AuthProvider";
+import { useDashboard } from "components/Dashboard/DashboardProvider";
 
 import { Stack } from "@mui/system";
 import { AccountUserGroups } from "./AccountUserGroups";
@@ -12,12 +13,17 @@ import { AccountForm } from "./AccountForm";
 import { Section } from "components/SettingsLayout/Section";
 
 export const AccountPage: FC = () => {
-  const { updateProfile, updateProfileError, isUpdatingProfile } = useAuth();
-  const permissions = usePermissions();
-
   const me = useMe();
+  const permissions = usePermissions();
   const organizationId = useOrganizationId();
-  const groupsQuery = useQuery(groupsForUser(organizationId, me.id));
+  const { updateProfile, updateProfileError, isUpdatingProfile } = useAuth();
+  const { entitlements } = useDashboard();
+
+  const hasGroupsFeature = entitlements.features.user_role_management.enabled;
+  const groupsQuery = useQuery({
+    ...groupsForUser(organizationId, me.id),
+    enabled: hasGroupsFeature,
+  });
 
   return (
     <Stack spacing={6}>
@@ -33,11 +39,13 @@ export const AccountPage: FC = () => {
       </Section>
 
       {/* Has <Section> embedded inside because its description is dynamic */}
-      <AccountUserGroups
-        groups={groupsQuery.data}
-        loading={groupsQuery.isLoading}
-        error={groupsQuery.error}
-      />
+      {hasGroupsFeature && (
+        <AccountUserGroups
+          groups={groupsQuery.data}
+          loading={groupsQuery.isLoading}
+          error={groupsQuery.error}
+        />
+      )}
     </Stack>
   );
 };
