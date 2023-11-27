@@ -31,6 +31,15 @@ import (
 // userDebugOIDC returns the OIDC debug context for the user.
 // Not going to expose this via swagger as the return payload is not guaranteed
 // to be consistent between releases.
+//
+// @Summary Debug OIDC context for a user
+// @ID debug-oidc-context-for-a-user
+// @Security CoderSessionToken
+// @Tags Agents
+// @Success 200 "Success"
+// @Param user path string true "User ID, name, or me"
+// @Router /debug/{user}/debug-link [get]
+// @x-apidocgen {"skip": true}
 func (api *API) userDebugOIDC(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx  = r.Context()
