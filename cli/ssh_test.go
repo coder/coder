@@ -52,7 +52,7 @@ func setupWorkspaceForAgent(t *testing.T, mutations ...func([]*proto.Agent) []*p
 	client.SetLogger(slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug))
 	first := coderdtest.CreateFirstUser(t, client)
 	userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-	r := dbfake.NewWorkspaceBuilder(t, store).
+	r := dbfake.Workspace(t, store).
 		Seed(database.Workspace{
 			OrganizationID: first.OrganizationID,
 			OwnerID:        user.ID,
@@ -130,7 +130,7 @@ func TestSSH(t *testing.T) {
 		client.SetLogger(slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug))
 		first := coderdtest.CreateFirstUser(t, client)
 		userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-		r := dbfake.NewWorkspaceBuilder(t, store).Seed(database.Workspace{
+		r := dbfake.Workspace(t, store).Seed(database.Workspace{
 			OrganizationID: first.OrganizationID,
 			OwnerID:        user.ID,
 		}).WithAgent().Do()
@@ -154,7 +154,7 @@ func TestSSH(t *testing.T) {
 		pty.WriteLine("echo hell'o'")
 		pty.ExpectMatchContext(ctx, "hello")
 
-		_ = dbfake.NewWorkspaceBuildBuilder(t, store, r.Workspace).
+		_ = dbfake.WorkspaceBuild(t, store, r.Workspace).
 			Seed(database.WorkspaceBuild{
 				Transition:  database.WorkspaceTransitionStop,
 				BuildNumber: 2,
@@ -469,7 +469,7 @@ func TestSSH(t *testing.T) {
 		client.SetLogger(slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug))
 		first := coderdtest.CreateFirstUser(t, client)
 		userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-		r := dbfake.NewWorkspaceBuilder(t, store).Seed(database.Workspace{
+		r := dbfake.Workspace(t, store).Seed(database.Workspace{
 			OrganizationID: first.OrganizationID,
 			OwnerID:        user.ID,
 		}).WithAgent().Do()
@@ -523,7 +523,7 @@ func TestSSH(t *testing.T) {
 		err = session.Shell()
 		require.NoError(t, err)
 
-		_ = dbfake.NewWorkspaceBuildBuilder(t, store, r.Workspace).
+		_ = dbfake.WorkspaceBuild(t, store, r.Workspace).
 			Seed(database.WorkspaceBuild{
 				Transition:  database.WorkspaceTransitionStop,
 				BuildNumber: 2,
