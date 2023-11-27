@@ -9746,7 +9746,8 @@ const docTemplate = `{
                 "deployment_stats",
                 "replicas",
                 "debug_info",
-                "system"
+                "system",
+                "template_insights"
             ],
             "x-enum-varnames": [
                 "ResourceWorkspace",
@@ -9770,7 +9771,8 @@ const docTemplate = `{
                 "ResourceDeploymentStats",
                 "ResourceReplicas",
                 "ResourceDebugInfo",
-                "ResourceSystem"
+                "ResourceSystem",
+                "ResourceTemplateInsights"
             ]
         },
         "codersdk.RateLimitConfig": {
@@ -12472,6 +12474,9 @@ const docTemplate = `{
                 },
                 "websocket": {
                     "$ref": "#/definitions/healthcheck.WebsocketReport"
+                },
+                "workspace_proxy": {
+                    "$ref": "#/definitions/healthcheck.WorkspaceProxyReport"
                 }
             }
         },
@@ -12508,6 +12513,29 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "healthcheck.WorkspaceProxyReport": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "healthy": {
+                    "type": "boolean"
+                },
+                "severity": {
+                    "$ref": "#/definitions/health.Severity"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "workspace_proxies": {
+                    "$ref": "#/definitions/codersdk.RegionsResponse-codersdk_WorkspaceProxy"
                 }
             }
         },

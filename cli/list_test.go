@@ -25,10 +25,10 @@ func TestList(t *testing.T) {
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-		ws, _ := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
+		r := dbfake.NewWorkspaceBuilder(t, db).Seed(database.Workspace{
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        memberUser.ID,
-		})
+		}).WithAgent().Do()
 		inv, root := clitest.New(t, "ls")
 		clitest.SetupConfig(t, member, root)
 		pty := ptytest.New(t).Attach(inv)
@@ -41,7 +41,7 @@ func TestList(t *testing.T) {
 			assert.NoError(t, errC)
 			close(done)
 		}()
-		pty.ExpectMatch(ws.Name)
+		pty.ExpectMatch(r.Workspace.Name)
 		pty.ExpectMatch("Started")
 		cancelFunc()
 		<-done
@@ -52,10 +52,10 @@ func TestList(t *testing.T) {
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-		dbfake.WorkspaceWithAgent(t, db, database.Workspace{
+		dbfake.NewWorkspaceBuilder(t, db).Seed(database.Workspace{
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        memberUser.ID,
-		})
+		}).WithAgent().Do()
 
 		inv, root := clitest.New(t, "list", "--output=json")
 		clitest.SetupConfig(t, member, root)

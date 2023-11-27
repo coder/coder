@@ -135,10 +135,12 @@ type Options struct {
 	AccessControlStore          *atomic.Pointer[dbauthz.AccessControlStore]
 	// AppSecurityKey is the crypto key used to sign and encrypt tokens related to
 	// workspace applications. It consists of both a signing and encryption key.
-	AppSecurityKey     workspaceapps.SecurityKey
-	HealthcheckFunc    func(ctx context.Context, apiKey string) *healthcheck.Report
-	HealthcheckTimeout time.Duration
-	HealthcheckRefresh time.Duration
+	AppSecurityKey workspaceapps.SecurityKey
+
+	HealthcheckFunc              func(ctx context.Context, apiKey string) *healthcheck.Report
+	HealthcheckTimeout           time.Duration
+	HealthcheckRefresh           time.Duration
+	WorkspaceProxiesFetchUpdater *atomic.Pointer[healthcheck.WorkspaceProxiesFetchUpdater]
 
 	// OAuthSigningKey is the crypto key used to sign and encrypt state strings
 	// related to OAuth. This is a symmetric secret key using hmac to sign payloads.
@@ -396,6 +398,13 @@ func New(options *Options) *API {
 			*options.UpdateCheckOptions,
 		)
 	}
+
+	if options.WorkspaceProxiesFetchUpdater == nil {
+		options.WorkspaceProxiesFetchUpdater = &atomic.Pointer[healthcheck.WorkspaceProxiesFetchUpdater]{}
+		var wpfu healthcheck.WorkspaceProxiesFetchUpdater = &healthcheck.AGPLWorkspaceProxiesFetchUpdater{}
+		options.WorkspaceProxiesFetchUpdater.Store(&wpfu)
+	}
+
 	if options.HealthcheckFunc == nil {
 		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *healthcheck.Report {
 			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
@@ -413,9 +422,14 @@ func New(options *Options) *API {
 				DerpHealth: derphealth.ReportOptions{
 					DERPMap: api.DERPMap(),
 				},
+				WorkspaceProxy: healthcheck.WorkspaceProxyReportOptions{
+					CurrentVersion:               buildinfo.Version(),
+					WorkspaceProxiesFetchUpdater: *(options.WorkspaceProxiesFetchUpdater).Load(),
+				},
 			})
 		}
 	}
+
 	if options.HealthcheckTimeout == 0 {
 		options.HealthcheckTimeout = 30 * time.Second
 	}

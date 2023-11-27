@@ -1892,6 +1892,7 @@ export type RBACResource =
   | "replicas"
   | "system"
   | "template"
+  | "template_insights"
   | "user"
   | "user_data"
   | "workspace"
@@ -1915,6 +1916,7 @@ export const RBACResources: RBACResource[] = [
   "replicas",
   "system",
   "template",
+  "template_insights",
   "user",
   "user_data",
   "workspace",
@@ -2125,6 +2127,7 @@ export interface HealthcheckReport {
   readonly access_url: HealthcheckAccessURLReport;
   readonly websocket: HealthcheckWebsocketReport;
   readonly database: HealthcheckDatabaseReport;
+  readonly workspace_proxy: HealthcheckWorkspaceProxyReport;
   readonly coder_version: string;
 }
 
@@ -2136,6 +2139,15 @@ export interface HealthcheckWebsocketReport {
   readonly body: string;
   readonly code: number;
   readonly error?: string;
+}
+
+// From healthcheck/workspaceproxy.go
+export interface HealthcheckWorkspaceProxyReport {
+  readonly healthy: boolean;
+  readonly severity: HealthSeverity;
+  readonly warnings: string[];
+  readonly error?: string;
+  readonly workspace_proxies: RegionsResponse<WorkspaceProxy>;
 }
 
 // The code below is generated from cli/clibase.

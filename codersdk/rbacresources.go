@@ -25,6 +25,7 @@ const (
 	ResourceReplicas                    RBACResource = "replicas"
 	ResourceDebugInfo                   RBACResource = "debug_info"
 	ResourceSystem                      RBACResource = "system"
+	ResourceTemplateInsights            RBACResource = "template_insights"
 )
 
 const (
@@ -58,6 +59,7 @@ var (
 		ResourceReplicas,
 		ResourceDebugInfo,
 		ResourceSystem,
+		ResourceTemplateInsights,
 	}
 
 	AllRBACActions = []string{

@@ -2827,6 +2827,14 @@ export const MockHealth: TypesGen.HealthcheckReport = {
     latency_ms: 92570,
     threshold_ms: 92570,
   },
+  workspace_proxy: {
+    healthy: true,
+    severity: "ok",
+    warnings: [],
+    workspace_proxies: {
+      regions: [],
+    },
+  },
   coder_version: "v0.27.1-devel+c575292",
 };
 
@@ -2876,5 +2884,38 @@ export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
     warnings: [],
     body: "",
     code: 0,
+  },
+  workspace_proxy: {
+    healthy: false,
+    error: "some error",
+    severity: "error",
+    warnings: [],
+    workspace_proxies: {
+      regions: [
+        {
+          id: "df7e4b2b-2d40-47e5-a021-e5d08b219c77",
+          name: "unhealthy",
+          display_name: "unhealthy",
+          icon_url: "/emojis/1f5fa.png",
+          healthy: false,
+          path_app_url: "http://127.0.0.1:3001",
+          wildcard_hostname: "",
+          derp_enabled: true,
+          derp_only: false,
+          status: {
+            status: "unreachable",
+            report: {
+              errors: ["some error"],
+              warnings: [],
+            },
+            checked_at: "2023-11-24T12:14:05.743303497Z",
+          },
+          created_at: "2023-11-23T15:37:25.513213Z",
+          updated_at: "2023-11-23T18:09:19.734747Z",
+          deleted: false,
+          version: "v2.4.0-devel+89bae7eff",
+        },
+      ],
+    },
   },
 };

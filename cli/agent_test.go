@@ -31,22 +31,25 @@ func TestWorkspaceAgent(t *testing.T) {
 
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		ws, authToken := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
-			OrganizationID: user.OrganizationID,
-			OwnerID:        user.UserID,
-		})
+		r := dbfake.NewWorkspaceBuilder(t, db).
+			Seed(database.Workspace{
+				OrganizationID: user.OrganizationID,
+				OwnerID:        user.UserID,
+			}).
+			WithAgent().
+			Do()
 		logDir := t.TempDir()
 		inv, _ := clitest.New(t,
 			"agent",
 			"--auth", "token",
-			"--agent-token", authToken,
+			"--agent-token", r.AgentToken,
 			"--agent-url", client.URL.String(),
 			"--log-dir", logDir,
 		)
 
 		clitest.Start(t, inv)
 
-		coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
+		coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
 
 		require.Eventually(t, func() bool {
 			info, err := os.Stat(filepath.Join(logDir, "coder-agent.log"))
@@ -65,18 +68,12 @@ func TestWorkspaceAgent(t *testing.T) {
 			AzureCertificates: certificates,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
-		ws := dbfake.Workspace(t, db, database.Workspace{
+		r := dbfake.NewWorkspaceBuilder(t, db).Seed(database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
-		})
-		dbfake.NewWorkspaceBuildBuilder(t, db, ws).Resource(&proto.Resource{
-			Name: "somename",
-			Type: "someinstance",
-			Agents: []*proto.Agent{{
-				Auth: &proto.Agent_InstanceId{
-					InstanceId: instanceID,
-				},
-			}},
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			agents[0].Auth = &proto.Agent_InstanceId{InstanceId: instanceID}
+			return agents
 		}).Do()
 
 		inv, _ := clitest.New(t, "agent", "--auth", "azure-instance-identity", "--agent-url", client.URL.String())
@@ -87,8 +84,8 @@ func TestWorkspaceAgent(t *testing.T) {
 
 		ctx := inv.Context()
 		clitest.Start(t, inv)
-		coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
-		workspace, err := client.Workspace(ctx, ws.ID)
+		coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
+		workspace, err := client.Workspace(ctx, r.Workspace.ID)
 		require.NoError(t, err)
 		resources := workspace.LatestBuild.Resources
 		if assert.NotEmpty(t, workspace.LatestBuild.Resources) && assert.NotEmpty(t, resources[0].Agents) {
@@ -108,18 +105,12 @@ func TestWorkspaceAgent(t *testing.T) {
 			AWSCertificates: certificates,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
-		ws := dbfake.Workspace(t, db, database.Workspace{
+		r := dbfake.NewWorkspaceBuilder(t, db).Seed(database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
-		})
-		dbfake.NewWorkspaceBuildBuilder(t, db, ws).Resource(&proto.Resource{
-			Name: "somename",
-			Type: "someinstance",
-			Agents: []*proto.Agent{{
-				Auth: &proto.Agent_InstanceId{
-					InstanceId: instanceID,
-				},
-			}},
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			agents[0].Auth = &proto.Agent_InstanceId{InstanceId: instanceID}
+			return agents
 		}).Do()
 
 		inv, _ := clitest.New(t, "agent", "--auth", "aws-instance-identity", "--agent-url", client.URL.String())
@@ -130,8 +121,8 @@ func TestWorkspaceAgent(t *testing.T) {
 
 		clitest.Start(t, inv)
 		ctx := inv.Context()
-		coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
-		workspace, err := client.Workspace(ctx, ws.ID)
+		coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
+		workspace, err := client.Workspace(ctx, r.Workspace.ID)
 		require.NoError(t, err)
 		resources := workspace.LatestBuild.Resources
 		if assert.NotEmpty(t, resources) && assert.NotEmpty(t, resources[0].Agents) {
@@ -152,19 +143,14 @@ func TestWorkspaceAgent(t *testing.T) {
 		})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-		ws := dbfake.Workspace(t, db, database.Workspace{
+		r := dbfake.NewWorkspaceBuilder(t, db).Seed(database.Workspace{
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        memberUser.ID,
-		})
-		dbfake.NewWorkspaceBuildBuilder(t, db, ws).Resource(&proto.Resource{
-			Name: "somename",
-			Type: "someinstance",
-			Agents: []*proto.Agent{{
-				Auth: &proto.Agent_InstanceId{
-					InstanceId: instanceID,
-				},
-			}},
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			agents[0].Auth = &proto.Agent_InstanceId{InstanceId: instanceID}
+			return agents
 		}).Do()
+
 		inv, cfg := clitest.New(t, "agent", "--auth", "google-instance-identity", "--agent-url", client.URL.String())
 		clitest.SetupConfig(t, member, cfg)
 
@@ -176,8 +162,8 @@ func TestWorkspaceAgent(t *testing.T) {
 		)
 
 		ctx := inv.Context()
-		coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
-		workspace, err := client.Workspace(ctx, ws.ID)
+		coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
+		workspace, err := client.Workspace(ctx, r.Workspace.ID)
 		require.NoError(t, err)
 		resources := workspace.LatestBuild.Resources
 		if assert.NotEmpty(t, resources) && assert.NotEmpty(t, resources[0].Agents) {
@@ -209,16 +195,19 @@ func TestWorkspaceAgent(t *testing.T) {
 
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		ws, authToken := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
-			OrganizationID: user.OrganizationID,
-			OwnerID:        user.UserID,
-		})
+		r := dbfake.NewWorkspaceBuilder(t, db).
+			Seed(database.Workspace{
+				OrganizationID: user.OrganizationID,
+				OwnerID:        user.UserID,
+			}).
+			WithAgent().
+			Do()
 
 		logDir := t.TempDir()
 		inv, _ := clitest.New(t,
 			"agent",
 			"--auth", "token",
-			"--agent-token", authToken,
+			"--agent-token", r.AgentToken,
 			"--agent-url", client.URL.String(),
 			"--log-dir", logDir,
 		)
@@ -227,7 +216,7 @@ func TestWorkspaceAgent(t *testing.T) {
 
 		clitest.Start(t, inv)
 
-		resources := coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
+		resources := coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
 		require.Len(t, resources, 1)
 		require.Len(t, resources[0].Agents, 1)
 		require.Len(t, resources[0].Agents[0].Subsystems, 2)

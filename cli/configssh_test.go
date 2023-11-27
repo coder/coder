@@ -77,12 +77,15 @@ func TestConfigSSH(t *testing.T) {
 	})
 	owner := coderdtest.CreateFirstUser(t, client)
 	member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-	ws, authToken := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
-		OrganizationID: owner.OrganizationID,
-		OwnerID:        memberUser.ID,
-	})
-	_ = agenttest.New(t, client.URL, authToken)
-	resources := coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
+	r := dbfake.NewWorkspaceBuilder(t, db).
+		Seed(database.Workspace{
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        memberUser.ID,
+		}).
+		WithAgent().
+		Do()
+	_ = agenttest.New(t, client.URL, r.AgentToken)
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
 	agentConn, err := client.DialWorkspaceAgent(context.Background(), resources[0].Agents[0].ID, nil)
 	require.NoError(t, err)
 	defer agentConn.Close()
@@ -153,7 +156,7 @@ func TestConfigSSH(t *testing.T) {
 
 	home := filepath.Dir(filepath.Dir(sshConfigFile))
 	// #nosec
-	sshCmd := exec.Command("ssh", "-F", sshConfigFile, hostname+ws.Name, "echo", "test")
+	sshCmd := exec.Command("ssh", "-F", sshConfigFile, hostname+r.Workspace.Name, "echo", "test")
 	pty = ptytest.New(t)
 	// Set HOME because coder config is included from ~/.ssh/coder.
 	sshCmd.Env = append(sshCmd.Env, fmt.Sprintf("HOME=%s", home))
@@ -572,10 +575,10 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			client, db := coderdtest.NewWithDatabase(t, nil)
 			user := coderdtest.CreateFirstUser(t, client)
 			if tt.hasAgent {
-				_, _ = dbfake.WorkspaceWithAgent(t, db, database.Workspace{
+				_ = dbfake.NewWorkspaceBuilder(t, db).Seed(database.Workspace{
 					OrganizationID: user.OrganizationID,
 					OwnerID:        user.UserID,
-				})
+				}).WithAgent().Do()
 			}
 
 			// Prepare ssh config files.
@@ -692,11 +695,11 @@ func TestConfigSSH_Hostnames(t *testing.T) {
 			owner := coderdtest.CreateFirstUser(t, client)
 			member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
-			ws := dbfake.Workspace(t, db, database.Workspace{
+			r := dbfake.NewWorkspaceBuilder(t, db).Seed(database.Workspace{
 				OrganizationID: owner.OrganizationID,
 				OwnerID:        memberUser.ID,
-			})
-			dbfake.NewWorkspaceBuildBuilder(t, db, ws).Resource(resources...).Do()
+			}).Do()
+			dbfake.NewWorkspaceBuildBuilder(t, db, r.Workspace).Resource(resources...).Do()
 			sshConfigFile := sshConfigFileName(t)
 
 			inv, root := clitest.New(t, "config-ssh", "--ssh-config-file", sshConfigFile)
@@ -721,7 +724,7 @@ func TestConfigSSH_Hostnames(t *testing.T) {
 
 			var expectedHosts []string
 			for _, hostnamePattern := range tt.expected {
-				hostname := strings.ReplaceAll(hostnamePattern, "@", ws.Name)
+				hostname := strings.ReplaceAll(hostnamePattern, "@", r.Workspace.Name)
 				expectedHosts = append(expectedHosts, hostname)
 			}
 
