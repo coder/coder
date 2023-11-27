@@ -67,7 +67,7 @@ func main() {
 }
 
 func usage() {
-	_, _ = fmt.Println("Usage: releasemigrations [--patches] [--minors] [--majors]")
+	_, _ = fmt.Println("Usage: releasemigrations [--patches] [--minors] [--majors] [--list]")
 	_, _ = fmt.Println("Choose at lease one of --patches, --minors, or --majors. You can choose all!")
 	_, _ = fmt.Println("Must be run from the coder repo at the root.")
 }
