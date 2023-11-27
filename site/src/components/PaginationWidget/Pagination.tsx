@@ -14,7 +14,6 @@ type PaginationProps = HTMLAttributes<HTMLDivElement> & {
   pageSize: number;
   totalRecords: number | undefined;
   onPageChange: (newPage: number) => void;
-  autoScroll?: boolean;
 
   /**
    * Meant to interface with useQuery's isPreviousData property.
@@ -40,7 +39,6 @@ export const Pagination: FC<PaginationProps> = ({
   totalRecords,
   showingPreviousData,
   onPageChange,
-  autoScroll = true,
   ...delegatedProps
 }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -49,10 +47,6 @@ export const Pagination: FC<PaginationProps> = ({
   // Sets up event handlers for canceling queued scrolls in response to
   // literally any user behavior
   useEffect(() => {
-    if (!autoScroll) {
-      return;
-    }
-
     const cancelScroll = () => {
       isScrollingQueuedRef.current = false;
     };
@@ -66,7 +60,7 @@ export const Pagination: FC<PaginationProps> = ({
         window.removeEventListener(event, cancelScroll);
       }
     };
-  }, [autoScroll]);
+  }, []);
 
   /**
    * Have to account for for five different triggers to determine when the
@@ -93,12 +87,10 @@ export const Pagination: FC<PaginationProps> = ({
    * this use case doesn't line up that well with useEffect's API
    */
   const syncScrollPosition = useEffectEvent(() => {
-    if (autoScroll) {
-      scrollContainerRef.current?.scrollIntoView({
-        block: "start",
-        behavior: "instant",
-      });
-    }
+    scrollContainerRef.current?.scrollIntoView({
+      block: "start",
+      behavior: "instant",
+    });
 
     isScrollingQueuedRef.current = false;
   });
