@@ -1,32 +1,19 @@
 import {
   type FC,
   type HTMLAttributes,
+  type MouseEvent as ReactMouseEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   useEffect,
   useLayoutEffect,
   useRef,
-  MouseEvent as ReactMouseEvent,
-  KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 
+import { type UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { PaginationWidgetBase } from "./PaginationWidgetBase";
 
 type PaginationProps = HTMLAttributes<HTMLDivElement> & {
-  currentPage: number;
-  pageSize: number;
-  totalRecords: number | undefined;
-  onPageChange: (newPage: number) => void;
-
-  /**
-   * Meant to interface with useQuery's isPreviousData property.
-   *
-   * Indicates whether data for a previous query is being shown while a new
-   * query is loading in
-   */
-  showingPreviousData: boolean;
-
-  // Mainly here for Storybook integration; autoScroll should almost always be
-  // flipped to true in production
+  paginationResult: UsePaginatedQueryResult;
   autoScroll?: boolean;
 };
 
@@ -40,17 +27,13 @@ const userInteractionEvents: (keyof WindowEventMap)[] = [
 
 export const Pagination: FC<PaginationProps> = ({
   children,
-  currentPage,
-  pageSize,
-  totalRecords,
-  showingPreviousData,
-  onPageChange,
+  paginationResult,
   autoScroll = true,
   ...delegatedProps
 }) => {
   const scrollContainerProps = useScrollOnPageChange(
-    currentPage,
-    showingPreviousData,
+    paginationResult.currentPage,
+    paginationResult.isPreviousData,
     autoScroll,
   );
 
@@ -65,12 +48,15 @@ export const Pagination: FC<PaginationProps> = ({
         {...delegatedProps}
       >
         {children}
-        {totalRecords !== undefined && (
+
+        {paginationResult.isSuccess && (
           <PaginationWidgetBase
-            currentPage={currentPage}
-            pageSize={pageSize}
-            totalRecords={totalRecords}
-            onPageChange={onPageChange}
+            totalRecords={paginationResult.totalRecords}
+            currentPage={paginationResult.currentPage}
+            pageSize={paginationResult.limit}
+            onPageChange={paginationResult.onPageChange}
+            hasPreviousPage={paginationResult.hasPreviousPage}
+            hasNextPage={paginationResult.hasNextPage}
           />
         )}
       </div>
@@ -81,13 +67,13 @@ export const Pagination: FC<PaginationProps> = ({
 /**
  * Splitting this into a custom hook because there's a lot of convoluted logic
  * here (the use case doesn't line up super well with useEffect, even though
- * it's the only tool that solves the problem). Do not export this; it should be
- * treated as an internal implementation detail
+ * it's the only tool that solves the problem). Please do not export this; it
+ * should be treated as an internal implementation detail
  *
  * Scrolls the user to the top of the pagination container when the current
  * page changes (accounting for old data being shown during loading transitions)
  *
- * See component test file for all cases this is meant to handle
+ * See Pagination test file for all cases this is meant to handle
  */
 function useScrollOnPageChange(
   currentPage: number,
@@ -120,8 +106,16 @@ function useScrollOnPageChange(
   }, [autoScroll]);
 
   const scrollToTop = useEffectEvent(() => {
-    scrollContainerRef.current?.scrollIntoView({
-      block: "start",
+    const scrollMargin = 48;
+    const newVerticalPosition =
+      (scrollContainerRef.current?.getBoundingClientRect().top ?? 0) +
+      window.scrollY -
+      scrollMargin;
+
+    // Not using element.scrollIntoView because it gives no control over scroll
+    // offsets/margins
+    window.scrollTo({
+      top: Math.max(0, newVerticalPosition),
       behavior: "instant",
     });
 
@@ -129,7 +123,7 @@ function useScrollOnPageChange(
   });
 
   // Tracking whether we're on the first render, because calling the effects
-  // unconditionally will just hijack the user and make pages feel janky
+  // unconditionally will just hijack the user and feel absolutely awful
   const isOnFirstRenderRef = useRef(true);
   const syncPageChange = useEffectEvent(() => {
     if (isOnFirstRenderRef.current) {
