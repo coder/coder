@@ -12,7 +12,7 @@ export const FullWidthPageHeader: FC<
         {
           ...(theme.typography.body2 as CSSObject),
           padding: 24,
-          background: theme.palette.background.paper,
+          background: theme.palette.background.default,
           borderBottom: `1px solid ${theme.palette.divider}`,
           display: "flex",
           alignItems: "center",

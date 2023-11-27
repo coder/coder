@@ -243,7 +243,7 @@ WHERE
 	-- workspaces since they are considered soft-deleted.
 	AND CASE
 		WHEN @is_dormant :: text != '' THEN
-			dormant_at IS NOT NULL 
+			dormant_at IS NOT NULL
 		ELSE
 			dormant_at IS NULL
 	END
@@ -488,8 +488,6 @@ SET
 FROM
 	templates
 WHERE
-	workspaces.template_id = templates.id
-AND
 	workspaces.id = $1
 RETURNING workspaces.*;
 

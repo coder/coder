@@ -23,6 +23,17 @@ func (api *API) debugCoordinator(rw http.ResponseWriter, r *http.Request) {
 	(*api.TailnetCoordinator.Load()).ServeHTTPDebug(rw, r)
 }
 
+// @Summary Debug Info Tailnet
+// @ID debug-info-tailnet
+// @Security CoderSessionToken
+// @Produce text/html
+// @Tags Debug
+// @Success 200
+// @Router /debug/tailnet [get]
+func (api *API) debugTailnet(rw http.ResponseWriter, r *http.Request) {
+	api.agentProvider.ServeHTTPDebug(rw, r)
+}
+
 // @Summary Debug Info Deployment Health
 // @ID debug-info-deployment-health
 // @Security CoderSessionToken
@@ -30,22 +41,28 @@ func (api *API) debugCoordinator(rw http.ResponseWriter, r *http.Request) {
 // @Tags Debug
 // @Success 200 {object} healthcheck.Report
 // @Router /debug/health [get]
+// @Param force query boolean false "Force a healthcheck to run"
 func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APITokenFromRequest(r)
-	ctx, cancel := context.WithTimeout(r.Context(), api.HealthcheckTimeout)
+	ctx, cancel := context.WithTimeout(r.Context(), api.Options.HealthcheckTimeout)
 	defer cancel()
 
-	// Get cached report if it exists.
-	if report := api.healthCheckCache.Load(); report != nil {
-		if time.Since(report.Time) < api.HealthcheckRefresh {
-			formatHealthcheck(ctx, rw, r, report)
-			return
+	// Check if the forced query parameter is set.
+	forced := r.URL.Query().Get("force") == "true"
+
+	// Get cached report if it exists and the requester did not force a refresh.
+	if !forced {
+		if report := api.healthCheckCache.Load(); report != nil {
+			if time.Since(report.Time) < api.Options.HealthcheckRefresh {
+				formatHealthcheck(ctx, rw, r, report)
+				return
+			}
 		}
 	}
 
 	resChan := api.healthCheckGroup.DoChan("", func() (*healthcheck.Report, error) {
 		// Create a new context not tied to the request.
-		ctx, cancel := context.WithTimeout(context.Background(), api.HealthcheckTimeout)
+		ctx, cancel := context.WithTimeout(context.Background(), api.Options.HealthcheckTimeout)
 		defer cancel()
 
 		report := api.HealthcheckFunc(ctx, apiKey)

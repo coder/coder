@@ -1,8 +1,8 @@
 import { css } from "@emotion/css";
 import { type Interpolation, type Theme } from "@emotion/react";
-import Link from "@mui/material/Link";
+import Link, { LinkProps } from "@mui/material/Link";
 import { WorkspaceOutdatedTooltip } from "components/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
-import { type FC } from "react";
+import { forwardRef, type FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import {
   getDisplayWorkspaceTemplateName,
@@ -24,6 +24,10 @@ import {
   PopoverTrigger,
   usePopover,
 } from "components/Popover/Popover";
+import { workspaceQuota } from "api/queries/workspaceQuota";
+import { useQuery } from "react-query";
+import Tooltip from "@mui/material/Tooltip";
+import _ from "lodash";
 
 const Language = {
   workspaceDetails: "Workspace Details",
@@ -37,7 +41,6 @@ export interface WorkspaceStatsProps {
   maxDeadlineIncrease: number;
   maxDeadlineDecrease: number;
   canUpdateWorkspace: boolean;
-  quotaBudget?: number;
   onDeadlinePlus: (hours: number) => void;
   onDeadlineMinus: (hours: number) => void;
   handleUpdate: () => void;
@@ -45,7 +48,6 @@ export interface WorkspaceStatsProps {
 
 export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
   workspace,
-  quotaBudget,
   maxDeadlineDecrease,
   maxDeadlineIncrease,
   canUpdateWorkspace,
@@ -56,16 +58,8 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
   const displayTemplateName = getDisplayWorkspaceTemplateName(workspace);
   const deadlinePlusEnabled = maxDeadlineIncrease >= 1;
   const deadlineMinusEnabled = maxDeadlineDecrease >= 1;
-
-  const paperStyles = css`
-    padding: 24px;
-    max-width: 288px;
-    margin-top: ${8};
-    border-radius: 4px;
-    display: flex;
-    flex-direction: column;
-    gap: ${8};
-  `;
+  const quotaQuery = useQuery(workspaceQuota(workspace.owner_name));
+  const quotaBudget = quotaQuery.data?.budget;
 
   return (
     <>
@@ -118,16 +112,15 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
             css={styles.statsItem}
             label={getScheduleLabel(workspace)}
             value={
-              <span css={styles.scheduleValue}>
-                <Link
-                  component={RouterLink}
-                  to="settings/schedule"
-                  title="Schedule settings"
-                >
-                  {isWorkspaceOn(workspace)
-                    ? autostopDisplay(workspace)
-                    : autostartDisplay(workspace.autostart_schedule)}
-                </Link>
+              <div css={styles.scheduleValue}>
+                {isWorkspaceOn(workspace) ? (
+                  <AutoStopDisplay workspace={workspace} />
+                ) : (
+                  <ScheduleSettingsLink>
+                    {autostartDisplay(workspace.autostart_schedule)}
+                  </ScheduleSettingsLink>
+                )}
+
                 {canUpdateWorkspace && canEditDeadline(workspace) && (
                   <span css={styles.scheduleControls}>
                     <Popover>
@@ -143,7 +136,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
                       </PopoverTrigger>
                       <PopoverContent
                         id="schedule-sub"
-                        classes={{ paper: paperStyles }}
+                        classes={{ paper: classNames.paper }}
                         horizontal="right"
                       >
                         <DecreaseTimeContent
@@ -165,7 +158,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
                       </PopoverTrigger>
                       <PopoverContent
                         id="schedule-add"
-                        classes={{ paper: paperStyles }}
+                        classes={{ paper: classNames.paper }}
                         horizontal="right"
                       >
                         <AddTimeContent
@@ -176,7 +169,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
                     </Popover>
                   </span>
                 )}
-              </span>
+              </div>
             }
           />
         )}
@@ -194,9 +187,14 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
   );
 };
 
-const AddTimeContent = (props: {
+interface AddTimeContentProps {
   maxDeadlineIncrease: number;
   onDeadlinePlus: (value: number) => void;
+}
+
+const AddTimeContent: FC<AddTimeContentProps> = ({
+  maxDeadlineIncrease,
+  onDeadlinePlus,
 }) => {
   const popover = usePopover();
 
@@ -213,22 +211,21 @@ const AddTimeContent = (props: {
           e.preventDefault();
           const formData = new FormData(e.currentTarget);
           const hours = Number(formData.get("hours"));
-          props.onDeadlinePlus(hours);
+          onDeadlinePlus(hours);
           popover.setIsOpen(false);
         }}
       >
         <TextField
+          autoFocus
           name="hours"
           type="number"
           size="small"
           fullWidth
           css={styles.timePopoverField}
-          InputProps={{
-            className: timePopoverFieldInputStyles,
-          }}
+          InputProps={{ className: classNames.deadlineFormInput }}
           inputProps={{
             min: 0,
-            max: props.maxDeadlineIncrease,
+            max: maxDeadlineIncrease,
             step: 1,
             defaultValue: 1,
           }}
@@ -242,9 +239,14 @@ const AddTimeContent = (props: {
   );
 };
 
-export const DecreaseTimeContent = (props: {
-  onDeadlineMinus: (hours: number) => void;
+interface DecreaseTimeContentProps {
   maxDeadlineDecrease: number;
+  onDeadlineMinus: (hours: number) => void;
+}
+
+export const DecreaseTimeContent: FC<DecreaseTimeContentProps> = ({
+  maxDeadlineDecrease,
+  onDeadlineMinus,
 }) => {
   const popover = usePopover();
 
@@ -261,22 +263,21 @@ export const DecreaseTimeContent = (props: {
           e.preventDefault();
           const formData = new FormData(e.currentTarget);
           const hours = Number(formData.get("hours"));
-          props.onDeadlineMinus(hours);
+          onDeadlineMinus(hours);
           popover.setIsOpen(false);
         }}
       >
         <TextField
+          autoFocus
           name="hours"
           type="number"
           size="small"
           fullWidth
           css={styles.timePopoverField}
-          InputProps={{
-            className: timePopoverFieldInputStyles,
-          }}
+          InputProps={{ className: classNames.deadlineFormInput }}
           inputProps={{
             min: 0,
-            max: props.maxDeadlineDecrease,
+            max: maxDeadlineDecrease,
             step: 1,
             defaultValue: 1,
           }}
@@ -289,6 +290,50 @@ export const DecreaseTimeContent = (props: {
     </>
   );
 };
+
+interface AutoStopDisplayProps {
+  workspace: Workspace;
+}
+
+const AutoStopDisplay: FC<AutoStopDisplayProps> = ({ workspace }) => {
+  const display = autostopDisplay(workspace);
+
+  if (display.tooltip) {
+    return (
+      <Tooltip title={display.tooltip}>
+        <ScheduleSettingsLink
+          css={(theme) => ({
+            color: isShutdownSoon(workspace)
+              ? `${theme.palette.warning.light} !important`
+              : undefined,
+          })}
+        >
+          {display.message}
+        </ScheduleSettingsLink>
+      </Tooltip>
+    );
+  }
+
+  return <ScheduleSettingsLink>{display.message}</ScheduleSettingsLink>;
+};
+
+const ScheduleSettingsLink = forwardRef<HTMLAnchorElement, LinkProps>(
+  (props, ref) => {
+    return (
+      <Link
+        ref={ref}
+        component={RouterLink}
+        to="settings/schedule"
+        css={{
+          "&:first-letter": {
+            textTransform: "uppercase",
+          },
+        }}
+        {...props}
+      />
+    );
+  },
+);
 
 export const canEditDeadline = (workspace: Workspace): boolean => {
   return isWorkspaceOn(workspace) && Boolean(workspace.latest_build.deadline);
@@ -305,14 +350,38 @@ export const shouldDisplayScheduleLabel = (workspace: Workspace): boolean => {
 };
 
 const getScheduleLabel = (workspace: Workspace) => {
-  return isWorkspaceOn(workspace) ? "Stops at" : "Starts at";
+  return isWorkspaceOn(workspace) ? "Stops" : "Starts at";
 };
 
-const timePopoverFieldInputStyles = css`
-  font-size: 14px;
-  padding: 0px;
-  border-radius: 4px;
-`;
+const isShutdownSoon = (workspace: Workspace): boolean => {
+  const deadline = workspace.latest_build.deadline;
+  if (!deadline) {
+    return false;
+  }
+  const deadlineDate = new Date(deadline);
+  const now = new Date();
+  const diff = deadlineDate.getTime() - now.getTime();
+  const oneHour = 1000 * 60 * 60;
+  return diff < oneHour;
+};
+
+const classNames = {
+  paper: css`
+    padding: 24px;
+    max-width: 288px;
+    margin-top: 8px;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  `,
+
+  deadlineFormInput: css`
+    font-size: 14px;
+    padding: 0px;
+    border-radius: 4px;
+  `,
+};
 
 const styles = {
   stats: (theme) => ({
@@ -367,6 +436,7 @@ const styles = {
 
   timePopoverTitle: {
     fontWeight: 600,
+    marginBottom: 8,
   },
 
   timePopoverDescription: (theme) => ({
@@ -378,6 +448,7 @@ const styles = {
     alignItems: "center",
     gap: 8,
     padding: "8px 0",
+    marginTop: 12,
   },
 
   timePopoverField: {

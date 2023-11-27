@@ -1,11 +1,15 @@
-import { colors, experimentalTheme } from "./colors";
+import { colors } from "./colors";
 import { createTheme, type ThemeOptions } from "@mui/material/styles";
-import { BODY_FONT_FAMILY, borderRadius } from "./constants";
-
-// MUI does not have aligned heights for buttons and inputs so we have to "hack" it a little bit
-export const BUTTON_LG_HEIGHT = 40;
-export const BUTTON_MD_HEIGHT = 36;
-export const BUTTON_SM_HEIGHT = 32;
+import {
+  BODY_FONT_FAMILY,
+  borderRadius,
+  BUTTON_LG_HEIGHT,
+  BUTTON_MD_HEIGHT,
+  BUTTON_SM_HEIGHT,
+  BUTTON_XL_HEIGHT,
+} from "./constants";
+// eslint-disable-next-line no-restricted-imports -- We need MUI here
+import { alertClasses } from "@mui/material/Alert";
 
 export type PaletteIndex =
   | "primary"
@@ -31,27 +35,26 @@ export let dark = createTheme({
     secondary: {
       main: colors.gray[11],
       contrastText: colors.gray[4],
-      dark: colors.indigo[7],
+      dark: colors.gray[9],
     },
     background: {
       default: colors.gray[17],
       paper: colors.gray[16],
-      paperLight: colors.gray[15],
     },
     text: {
       primary: colors.gray[1],
-      secondary: colors.gray[5],
-      disabled: colors.gray[7],
+      secondary: colors.gray[6],
+      disabled: colors.gray[9],
     },
     divider: colors.gray[13],
     warning: {
-      light: experimentalTheme ? colors.orange[9] : colors.orange[7],
-      main: experimentalTheme ? colors.orange[11] : colors.orange[9],
+      light: colors.orange[9],
+      main: colors.orange[12],
       dark: colors.orange[15],
     },
     success: {
       main: colors.green[11],
-      dark: colors.green[15],
+      dark: colors.green[12],
     },
     info: {
       light: colors.blue[7],
@@ -169,9 +172,12 @@ dark = createTheme(dark, {
         sizeLarge: {
           height: BUTTON_LG_HEIGHT,
         },
+        sizeXlarge: {
+          height: BUTTON_XL_HEIGHT,
+        },
         outlined: {
           ":hover": {
-            border: `1px solid ${colors.gray[10]}`,
+            border: `1px solid ${colors.gray[11]}`,
           },
         },
         outlinedNeutral: {
@@ -187,10 +193,10 @@ dark = createTheme(dark, {
           },
         },
         containedNeutral: {
-          borderColor: colors.gray[12],
-          backgroundColor: colors.gray[13],
+          backgroundColor: colors.gray[14],
+
           "&:hover": {
-            backgroundColor: colors.gray[12],
+            backgroundColor: colors.gray[13],
           },
         },
         iconSizeMedium: {
@@ -213,7 +219,7 @@ dark = createTheme(dark, {
         root: {
           ">button:hover+button": {
             // The !important is unfortunate, but necessary for the border.
-            borderLeftColor: `${colors.gray[10]} !important`,
+            borderLeftColor: `${colors.gray[11]} !important`,
           },
         },
       },
@@ -237,7 +243,6 @@ dark = createTheme(dark, {
         root: ({ theme }) => ({
           borderCollapse: "unset",
           border: "none",
-          background: dark.palette.background.paper,
           boxShadow: `0 0 0 1px ${dark.palette.background.default} inset`,
           overflow: "hidden",
 
@@ -259,7 +264,7 @@ dark = createTheme(dark, {
           fontSize: 14,
           color: dark.palette.text.secondary,
           fontWeight: 600,
-          background: dark.palette.background.paperLight,
+          background: dark.palette.background.paper,
         },
         root: {
           fontSize: 16,
@@ -406,7 +411,7 @@ dark = createTheme(dark, {
           // The default outlined input color is white, which seemed jarring.
           "&:hover:not(.Mui-error):not(.Mui-focused) .MuiOutlinedInput-notchedOutline":
             {
-              borderColor: colors.gray[10],
+              borderColor: colors.gray[11],
             },
         },
       },
@@ -427,6 +432,26 @@ dark = createTheme(dark, {
     MuiCheckbox: {
       styleOverrides: {
         root: {
+          /**
+           * Adds focus styling to checkboxes (which doesn't exist normally, for
+           * some reason?).
+           *
+           * The checkbox component is a root span with a checkbox input inside
+           * it. MUI does not allow you to use selectors like (& input) to
+           * target the inner checkbox (even though you can use & td to style
+           * tables). Tried every combination of selector possible (including
+           * lots of !important), and the main issue seems to be that the
+           * styling just never gets processed for it to get injected into the
+           * CSSOM.
+           *
+           * Had to settle for adding styling to the span itself (which does
+           * make the styling more obvious, even if there's not much room for
+           * customization).
+           */
+          "&.Mui-focusVisible": {
+            boxShadow: `0 0 0 2px ${colors.blue[7]}`,
+          },
+
           "&.Mui-disabled": {
             color: colors.gray[11],
           },
@@ -434,8 +459,15 @@ dark = createTheme(dark, {
       },
     },
     MuiSwitch: {
-      defaultProps: {
-        color: "primary",
+      defaultProps: { color: "primary" },
+      styleOverrides: {
+        root: {
+          ".Mui-focusVisible .MuiSwitch-thumb": {
+            // Had to thicken outline to make sure that the focus color didn't
+            // bleed into the thumb and was still easily-visible
+            boxShadow: `0 0 0 3px ${colors.blue[7]}`,
+          },
+        },
       },
     },
     MuiAutocomplete: {
@@ -486,6 +518,21 @@ dark = createTheme(dark, {
         message: ({ theme }) => ({
           color: theme.palette.text.primary,
         }),
+        outlinedWarning: {
+          [`& .${alertClasses.icon}`]: {
+            color: dark.palette.warning.light,
+          },
+        },
+        outlinedInfo: {
+          [`& .${alertClasses.icon}`]: {
+            color: dark.palette.primary.light,
+          },
+        },
+        outlinedError: {
+          [`& .${alertClasses.icon}`]: {
+            color: dark.palette.error.light,
+          },
+        },
       },
     },
     MuiAlertTitle: {
@@ -493,6 +540,16 @@ dark = createTheme(dark, {
         root: {
           fontSize: "inherit",
           marginBottom: 0,
+        },
+      },
+    },
+
+    MuiIconButton: {
+      styleOverrides: {
+        root: {
+          "&.Mui-focusVisible": {
+            boxShadow: `0 0 0 2px ${colors.blue[7]}`,
+          },
         },
       },
     },

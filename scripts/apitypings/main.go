@@ -28,13 +28,13 @@ import (
 
 var (
 	// baseDirs are the directories to introspect for types to generate.
-	baseDirs = [...]string{"./codersdk", "./coderd/healthcheck", "./coderd/healthcheck/derphealth"}
+	baseDirs = [...]string{"./codersdk", "./coderd/healthcheck"}
 	// externalTypes are types that are not in the baseDirs, but we want to
 	// support. These are usually types that are used in the baseDirs.
 	// Do not include things like "Database", as that would break the idea
 	// of splitting db and api types.
 	// Only include dirs that are client facing packages.
-	externalTypeDirs = [...]string{"./cli/clibase"}
+	externalTypeDirs = [...]string{"./cli/clibase", "./coderd/healthcheck/health", "./coderd/healthcheck/derphealth"}
 	indent           = "  "
 )
 
@@ -867,6 +867,10 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			return TypescriptType{ValueType: "Record<string, string>"}, nil
 		case "github.com/coder/coder/v2/cli/clibase.URL":
 			return TypescriptType{ValueType: "string"}, nil
+		// XXX: For some reason, the type generator generates this as `any`
+		//      so explicitly specifying the correct generic TS type.
+		case "github.com/coder/coder/v2/codersdk.RegionsResponse[github.com/coder/coder/v2/codersdk.WorkspaceProxy]":
+			return TypescriptType{ValueType: "RegionsResponse<WorkspaceProxy>"}, nil
 		}
 
 		// Some hard codes are a bit trickier.

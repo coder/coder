@@ -22,7 +22,6 @@ import (
 	"net/http/pprof"
 	"net/url"
 	"os"
-	"os/signal"
 	"os/user"
 	"path/filepath"
 	"regexp"
@@ -333,7 +332,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			//
 			// To get out of a graceful shutdown, the user can send
 			// SIGQUIT with ctrl+\ or SIGKILL with `kill -9`.
-			notifyCtx, notifyStop := signal.NotifyContext(ctx, InterruptSignals...)
+			notifyCtx, notifyStop := inv.SignalNotifyContext(ctx, InterruptSignals...)
 			defer notifyStop()
 
 			cacheDir := vals.CacheDir.String()
@@ -1093,12 +1092,12 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			ctx := inv.Context()
 
 			cfg := r.createConfig()
-			logger := slog.Make(sloghuman.Sink(inv.Stderr))
+			logger := inv.Logger.AppendSinks(sloghuman.Sink(inv.Stderr))
 			if ok, _ := inv.ParsedFlags().GetBool(varVerbose); ok {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 
-			ctx, cancel := signal.NotifyContext(ctx, InterruptSignals...)
+			ctx, cancel := inv.SignalNotifyContext(ctx, InterruptSignals...)
 			defer cancel()
 
 			url, closePg, err := startBuiltinPostgres(ctx, cfg, logger)
@@ -1923,6 +1922,18 @@ func redirectToAccessURL(handler http.Handler, accessURL *url.URL, tunnel bool, 
 			http.Redirect(w, r, accessURL.String(), http.StatusTemporaryRedirect)
 		}
 
+		// Exception: DERP
+		// We use this endpoint when creating a DERP-mesh in the enterprise version to directly
+		// dial other Coderd derpers.  Redirecting to the access URL breaks direct dial since the
+		// access URL will be load-balanced in a multi-replica deployment.
+		//
+		// It's totally fine to access DERP over TLS, but we also don't need to redirect HTTP to
+		// HTTPS as DERP is itself an encrypted protocol.
+		if isDERPPath(r.URL.Path) {
+			handler.ServeHTTP(w, r)
+			return
+		}
+
 		// Only do this if we aren't tunneling.
 		// If we are tunneling, we want to allow the request to go through
 		// because the tunnel doesn't proxy with TLS.
@@ -1948,6 +1959,14 @@ func redirectToAccessURL(handler http.Handler, accessURL *url.URL, tunnel bool, 
 
 		redirect()
 	})
+}
+
+func isDERPPath(p string) bool {
+	segments := strings.SplitN(p, "/", 3)
+	if len(segments) < 2 {
+		return false
+	}
+	return segments[1] == "derp"
 }
 
 // IsLocalhost returns true if the host points to the local machine. Intended to
@@ -2064,7 +2083,7 @@ func BuildLogger(inv *clibase.Invocation, cfg *codersdk.DeploymentValues) (slog.
 		level = slog.LevelDebug
 	}
 
-	return slog.Make(filter).Leveled(level), func() {
+	return inv.Logger.AppendSinks(filter).Leveled(level), func() {
 		for _, closer := range closers {
 			_ = closer()
 		}
@@ -2320,12 +2339,7 @@ func ConfigureHTTPServers(logger slog.Logger, inv *clibase.Invocation, cfg *code
 			return nil, xerrors.New("tls address must be set if tls is enabled")
 		}
 
-		// DEPRECATED: This redirect used to default to true.
-		// It made more sense to have the redirect be opt-in.
-		if inv.Environ.Get("CODER_TLS_REDIRECT_HTTP") == "true" || inv.ParsedFlags().Changed("tls-redirect-http-to-https") {
-			logger.Warn(ctx, "--tls-redirect-http-to-https is deprecated, please use --redirect-to-access-url instead")
-			cfg.RedirectToAccessURL = cfg.TLS.RedirectHTTP
-		}
+		redirectHTTPToHTTPSDeprecation(ctx, logger, inv, cfg)
 
 		tlsConfig, err := configureServerTLS(
 			ctx,
@@ -2373,6 +2387,31 @@ func ConfigureHTTPServers(logger slog.Logger, inv *clibase.Invocation, cfg *code
 	}
 
 	return httpServers, nil
+}
+
+// redirectHTTPToHTTPSDeprecation handles deprecation of the --tls-redirect-http-to-https flag and
+// "related" environment variables.
+//
+// --tls-redirect-http-to-https used to default to true.
+// It made more sense to have the redirect be opt-in.
+//
+// Also, for a while we have been accepting the environment variable (but not the
+// corresponding flag!) "CODER_TLS_REDIRECT_HTTP", and it appeared in a configuration
+// example, so we keep accepting it to not break backward compat.
+func redirectHTTPToHTTPSDeprecation(ctx context.Context, logger slog.Logger, inv *clibase.Invocation, cfg *codersdk.DeploymentValues) {
+	truthy := func(s string) bool {
+		b, err := strconv.ParseBool(s)
+		if err != nil {
+			return false
+		}
+		return b
+	}
+	if truthy(inv.Environ.Get("CODER_TLS_REDIRECT_HTTP")) ||
+		truthy(inv.Environ.Get("CODER_TLS_REDIRECT_HTTP_TO_HTTPS")) ||
+		inv.ParsedFlags().Changed("tls-redirect-http-to-https") {
+		logger.Warn(ctx, "⚠️ --tls-redirect-http-to-https is deprecated, please use --redirect-to-access-url instead")
+		cfg.RedirectToAccessURL = cfg.TLS.RedirectHTTP
+	}
 }
 
 // ReadExternalAuthProvidersFromEnv is provided for compatibility purposes with

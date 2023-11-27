@@ -109,24 +109,22 @@ kubectl apply -n coder-workspaces -f - <<EOF
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  # Must be different than the Coder control plane service account, so prevent duplicates.
-  name: coder-2
+  name: coder-v2
 ---
 apiVersion: v1
 kind: Secret
 metadata:
-  name: coder-service-account-token
+  name: coder-v2
   annotations:
-    kubernetes.io/service-account.name: coder
+    kubernetes.io/service-account.name: coder-v2
 type: kubernetes.io/service-account-token
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  # Must be different than the Coder control plane service account, so prevent duplicates.
-  name: coder-2
+  name: coder-v2
 rules:
-  - apiGroups: ["", "apps", "networking.k8s.io"] # "" indicates the core API group
+  - apiGroups: ["", "apps", "networking.k8s.io"]
     resources: ["persistentvolumeclaims", "pods", "deployments", "services", "secrets", "pods/exec","pods/log", "events", "networkpolicies", "serviceaccounts"]
     verbs: ["create", "get", "list", "watch", "update", "patch", "delete", "deletecollection"]
   - apiGroups: ["metrics.k8s.io", "storage.k8s.io"]
@@ -136,14 +134,13 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  # Must be different than the Coder control plane service account, so prevent duplicates.
-  name: coder-2
+  name: coder-v2
 subjects:
   - kind: ServiceAccount
-    name: coder
+    name: coder-v2
 roleRef:
   kind: Role
-  name: coder
+  name: coder-v2
   apiGroup: rbac.authorization.k8s.io
 EOF
 ```
@@ -151,10 +148,10 @@ EOF
 The output should be similar to:
 
 ```text
-serviceaccount/coder created
-secret/coder-service-account-token created
-role.rbac.authorization.k8s.io/coder created
-rolebinding.rbac.authorization.k8s.io/coder created
+serviceaccount/coder-v2 created
+secret/coder-v2 created
+role.rbac.authorization.k8s.io/coder-v2 created
+rolebinding.rbac.authorization.k8s.io/coder-v2 created
 ```
 
 ### 2. Modify the Kubernetes template
@@ -206,9 +203,9 @@ export CLUSTER_ADDRESS=https://example.domain:6443
 To fetch the CA certificate and token:
 
 ```shell
-export CLUSTER_CA_CERTIFICATE=$(kubectl get secrets coder-service-account-token -n coder-workspaces -o jsonpath="{.data.ca\.crt}")
+export CLUSTER_CA_CERTIFICATE=$(kubectl get secrets coder-v2 -n coder-workspaces -o jsonpath="{.data.ca\.crt}")
 
-export CLUSTER_SERVICEACCOUNT_TOKEN=$(kubectl get secrets coder-service-account-token -n coder-workspaces -o jsonpath="{.data.token}")
+export CLUSTER_SERVICEACCOUNT_TOKEN=$(kubectl get secrets coder-v2 -n coder-workspaces -o jsonpath="{.data.token}")
 ```
 
 Create the template with these values:

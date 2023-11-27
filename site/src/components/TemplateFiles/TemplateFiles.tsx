@@ -132,7 +132,7 @@ const styles = {
       width: "100%",
       bottom: 0,
       left: 0,
-      backgroundColor: theme.palette.secondary.dark,
+      backgroundColor: theme.palette.primary.main,
       position: "absolute",
     },
   }),
@@ -146,7 +146,7 @@ const styles = {
   }),
 
   codeWrapper: (theme) => ({
-    background: theme.palette.background.paperLight,
+    background: theme.palette.background.paper,
   }),
 
   files: (theme) => ({

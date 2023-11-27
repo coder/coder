@@ -117,7 +117,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Workspaces
-// @Param q query string false "Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, deleting_by."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, is-dormant, last_used_after, last_used_before."
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
 // @Success 200 {object} codersdk.WorkspacesResponse
@@ -390,6 +390,17 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	if template.Deleted {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: fmt.Sprintf("Template %q has been deleted!", template.Name),
+		})
+		return
+	}
+
+	templateAccessControl := (*(api.AccessControlStore.Load())).GetTemplateAccessControl(template)
+	if templateAccessControl.IsDeprecated() {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Template %q has been deprecated, and cannot be used to create a new workspace.", template.Name),
+			// Pass the deprecated message to the user.
+			Detail:      templateAccessControl.Deprecated,
+			Validations: nil,
 		})
 		return
 	}
@@ -1208,7 +1219,6 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 				Type: codersdk.ServerSentEventTypeError,
 				Data: codersdk.Response{
 					Message: "Forbidden reading template of selected workspace.",
-					Detail:  err.Error(),
 				},
 			})
 			return

@@ -2,7 +2,6 @@ import {
   withDefaultFeatures,
   type GetLicensesResponse,
   type DeploymentConfig,
-  type Health,
 } from "api/api";
 import { FieldError } from "api/errors";
 import * as TypesGen from "api/typesGenerated";
@@ -86,6 +85,7 @@ export const MockPrimaryWorkspaceProxy: TypesGen.WorkspaceProxy = {
   derp_only: false,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
+  version: "v2.34.5-test+primary",
   deleted: false,
   status: {
     status: "ok",
@@ -106,6 +106,7 @@ export const MockHealthyWildWorkspaceProxy: TypesGen.WorkspaceProxy = {
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
   deleted: false,
+  version: "v2.34.5-test+haswildcard",
   status: {
     status: "ok",
     checked_at: new Date().toISOString(),
@@ -124,6 +125,7 @@ export const MockUnhealthyWildWorkspaceProxy: TypesGen.WorkspaceProxy = {
   derp_only: true,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
+  version: "v2.34.5-test+unhealthy",
   deleted: false,
   status: {
     status: "unhealthy",
@@ -152,6 +154,7 @@ export const MockWorkspaceProxies: TypesGen.WorkspaceProxy[] = [
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     deleted: false,
+    version: "v2.34.5-test+nowildcard",
     status: {
       status: "ok",
       checked_at: new Date().toISOString(),
@@ -401,20 +404,6 @@ You can add instructions here
   archived: false,
 };
 
-export const MockTemplateVersion3: TypesGen.TemplateVersion = {
-  id: "test-template-version-3",
-  created_at: "2022-05-17T17:39:01.382927298Z",
-  updated_at: "2022-05-17T17:39:01.382927298Z",
-  template_id: "test-template",
-  job: MockProvisionerJob,
-  name: "test-version-3",
-  message: "first version",
-  readme: "README",
-  created_by: MockUser,
-  warnings: ["UNSUPPORTED_WORKSPACES"],
-  archived: false,
-};
-
 export const MockTemplate: TypesGen.Template = {
   id: "test-template",
   created_at: "2022-05-17T17:39:01.382927298Z",
@@ -467,6 +456,8 @@ export const MockTemplate: TypesGen.Template = {
   allow_user_autostart: true,
   allow_user_autostop: true,
   require_active_version: false,
+  deprecated: false,
+  deprecation_message: "",
 };
 
 export const MockTemplateVersionFiles: TemplateVersionFiles = {
@@ -1066,6 +1057,17 @@ export const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspac
     },
   };
 
+export const MockOutdatedRunningWorkspaceAlwaysUpdate: TypesGen.Workspace = {
+  ...MockWorkspace,
+  id: "test-outdated-workspace-always-update",
+  outdated: true,
+  automatic_updates: "always",
+  latest_build: {
+    ...MockWorkspaceBuild,
+    status: "running",
+  },
+};
+
 export const MockOutdatedStoppedWorkspaceRequireActiveVersion: TypesGen.Workspace =
   {
     ...MockOutdatedRunningWorkspaceRequireActiveVersion,
@@ -1074,6 +1076,14 @@ export const MockOutdatedStoppedWorkspaceRequireActiveVersion: TypesGen.Workspac
       status: "stopped",
     },
   };
+
+export const MockOutdatedStoppedWorkspaceAlwaysUpdate: TypesGen.Workspace = {
+  ...MockOutdatedRunningWorkspaceAlwaysUpdate,
+  latest_build: {
+    ...MockWorkspaceBuild,
+    status: "stopped",
+  },
+};
 
 export const MockPendingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
@@ -2385,15 +2395,20 @@ export const MockLicenseResponse: GetLicensesResponse[] = [
   },
 ];
 
-export const MockHealth = {
+export const MockHealth: TypesGen.HealthcheckReport = {
   time: "2023-08-01T16:51:03.29792825Z",
   healthy: true,
-  failing_sections: null,
+  severity: "ok",
+  failing_sections: [],
   derp: {
     healthy: true,
+    severity: "ok",
+    warnings: [],
     regions: {
       "999": {
         healthy: true,
+        severity: "ok",
+        warnings: [],
         region: {
           EmbeddedRelay: true,
           RegionID: 999,
@@ -2419,6 +2434,8 @@ export const MockHealth = {
         node_reports: [
           {
             healthy: true,
+            severity: "ok",
+            warnings: [],
             node: {
               Name: "999stun0",
               RegionID: 999,
@@ -2431,19 +2448,20 @@ export const MockHealth = {
               TokenBucketBytesBurst: 0,
             },
             can_exchange_messages: false,
-            round_trip_ping: 0,
+            round_trip_ping: "0",
+            round_trip_ping_ms: 0,
             uses_websocket: false,
             client_logs: [],
             client_errs: [],
-            error: null,
             stun: {
               Enabled: true,
               CanSTUN: true,
-              Error: null,
             },
           },
           {
             healthy: true,
+            severity: "ok",
+            warnings: [],
             node: {
               Name: "999b",
               RegionID: 999,
@@ -2456,7 +2474,8 @@ export const MockHealth = {
               TokenBucketBytesBurst: 0,
             },
             can_exchange_messages: true,
-            round_trip_ping: 7674330,
+            round_trip_ping: "7674330",
+            round_trip_ping_ms: 7674330,
             uses_websocket: false,
             client_logs: [
               [
@@ -2467,18 +2486,17 @@ export const MockHealth = {
               ],
             ],
             client_errs: [[], []],
-            error: null,
             stun: {
               Enabled: false,
               CanSTUN: false,
-              Error: null,
             },
           },
         ],
-        error: null,
       },
       "10007": {
         healthy: true,
+        severity: "ok",
+        warnings: [],
         region: {
           EmbeddedRelay: false,
           RegionID: 10007,
@@ -2504,6 +2522,8 @@ export const MockHealth = {
         node_reports: [
           {
             healthy: true,
+            severity: "ok",
+            warnings: [],
             node: {
               Name: "10007stun0",
               RegionID: 10007,
@@ -2516,19 +2536,20 @@ export const MockHealth = {
               TokenBucketBytesBurst: 0,
             },
             can_exchange_messages: false,
-            round_trip_ping: 0,
+            round_trip_ping: "0",
+            round_trip_ping_ms: 0,
             uses_websocket: false,
             client_logs: [],
             client_errs: [],
-            error: null,
             stun: {
               Enabled: true,
               CanSTUN: true,
-              Error: null,
             },
           },
           {
             healthy: true,
+            severity: "ok",
+            warnings: [],
             node: {
               Name: "10007a",
               RegionID: 10007,
@@ -2541,7 +2562,8 @@ export const MockHealth = {
               TokenBucketBytesBurst: 0,
             },
             can_exchange_messages: true,
-            round_trip_ping: 170527034,
+            round_trip_ping: "170527034",
+            round_trip_ping_ms: 170527034,
             uses_websocket: false,
             client_logs: [
               [
@@ -2552,18 +2574,17 @@ export const MockHealth = {
               ],
             ],
             client_errs: [[], []],
-            error: null,
             stun: {
               Enabled: false,
               CanSTUN: false,
-              Error: null,
             },
           },
         ],
-        error: null,
       },
       "10008": {
         healthy: true,
+        severity: "ok",
+        warnings: [],
         region: {
           EmbeddedRelay: false,
           RegionID: 10008,
@@ -2589,6 +2610,8 @@ export const MockHealth = {
         node_reports: [
           {
             healthy: true,
+            severity: "ok",
+            warnings: [],
             node: {
               Name: "10008stun0",
               RegionID: 10008,
@@ -2601,19 +2624,20 @@ export const MockHealth = {
               TokenBucketBytesBurst: 0,
             },
             can_exchange_messages: false,
-            round_trip_ping: 0,
+            round_trip_ping: "0",
+            round_trip_ping_ms: 0,
             uses_websocket: false,
             client_logs: [],
             client_errs: [],
-            error: null,
             stun: {
               Enabled: true,
               CanSTUN: true,
-              Error: null,
             },
           },
           {
             healthy: true,
+            severity: "ok",
+            warnings: [],
             node: {
               Name: "10008a",
               RegionID: 10008,
@@ -2626,7 +2650,8 @@ export const MockHealth = {
               TokenBucketBytesBurst: 0,
             },
             can_exchange_messages: true,
-            round_trip_ping: 111329690,
+            round_trip_ping: "111329690",
+            round_trip_ping_ms: 111329690,
             uses_websocket: false,
             client_logs: [
               [
@@ -2637,18 +2662,17 @@ export const MockHealth = {
               ],
             ],
             client_errs: [[], []],
-            error: null,
             stun: {
               Enabled: false,
               CanSTUN: false,
-              Error: null,
             },
           },
         ],
-        error: null,
       },
       "10009": {
         healthy: true,
+        severity: "ok",
+        warnings: [],
         region: {
           EmbeddedRelay: false,
           RegionID: 10009,
@@ -2674,6 +2698,8 @@ export const MockHealth = {
         node_reports: [
           {
             healthy: true,
+            severity: "ok",
+            warnings: [],
             node: {
               Name: "10009stun0",
               RegionID: 10009,
@@ -2686,19 +2712,20 @@ export const MockHealth = {
               TokenBucketBytesBurst: 0,
             },
             can_exchange_messages: false,
-            round_trip_ping: 0,
+            round_trip_ping: "0",
+            round_trip_ping_ms: 0,
             uses_websocket: false,
             client_logs: [],
             client_errs: [],
-            error: null,
             stun: {
               Enabled: true,
               CanSTUN: true,
-              Error: null,
             },
           },
           {
             healthy: true,
+            severity: "ok",
+            warnings: [],
             node: {
               Name: "10009a",
               RegionID: 10009,
@@ -2711,7 +2738,8 @@ export const MockHealth = {
               TokenBucketBytesBurst: 0,
             },
             can_exchange_messages: true,
-            round_trip_ping: 138185506,
+            round_trip_ping: "138185506",
+            round_trip_ping_ms: 138185506,
             uses_websocket: false,
             client_logs: [
               [
@@ -2722,15 +2750,12 @@ export const MockHealth = {
               ],
             ],
             client_errs: [[], []],
-            error: null,
             stun: {
               Enabled: false,
               CanSTUN: false,
-              Error: null,
             },
           },
         ],
-        error: null,
       },
     },
     netcheck: {
@@ -2764,7 +2789,6 @@ export const MockHealth = {
       GlobalV6: "",
       CaptivePortal: null,
     },
-    netcheck_err: null,
     netcheck_logs: [
       "netcheck: netcheck.runProbe: got STUN response for 10007stun0 from 34.71.26.24:55368 (9b07930007da49dd7df79bc7) in 1.791799ms",
       "netcheck: netcheck.runProbe: got STUN response for 999stun0 from 34.71.26.24:55368 (7397fec097f1d5b01364566b) in 1.791529ms",
@@ -2777,29 +2801,39 @@ export const MockHealth = {
       "netcheck: [v1] measureAllICMPLatency: listen ip4:icmp 0.0.0.0: socket: operation not permitted",
       "netcheck: [v1] report: udp=true v6=false v6os=true mapvarydest=false hair= portmap= v4a=34.71.26.24:55368 derp=999 derpdist=999v4:2ms,10007v4:175ms,10008v4:112ms,10009v4:139ms",
     ],
-    error: null,
   },
   access_url: {
-    access_url: "https://dev.coder.com",
     healthy: true,
+    severity: "ok",
+    warnings: [],
+    access_url: "https://dev.coder.com",
     reachable: true,
     status_code: 200,
     healthz_response: "OK",
-    error: null,
   },
   websocket: {
     healthy: true,
-    response: {
-      body: "",
-      code: 101,
-    },
-    error: null,
+    severity: "ok",
+    warnings: [],
+    body: "",
+    code: 101,
   },
   database: {
     healthy: true,
+    severity: "ok",
+    warnings: [],
     reachable: true,
-    latency: 92570,
-    error: null,
+    latency: "92570",
+    latency_ms: 92570,
+    threshold_ms: 92570,
+  },
+  workspace_proxy: {
+    healthy: true,
+    severity: "ok",
+    warnings: [],
+    workspace_proxies: {
+      regions: [],
+    },
   },
   coder_version: "v0.27.1-devel+c575292",
 };
@@ -2813,12 +2847,75 @@ export const MockListeningPortsResponse: TypesGen.WorkspaceAgentListeningPortsRe
     ],
   };
 
-export const DeploymentHealthUnhealthy: Health = {
+export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
   healthy: false,
+  severity: "ok",
+  failing_sections: [], // apparently this property is not used at all?
   time: "2023-10-12T23:15:00.000000000Z",
   coder_version: "v2.3.0-devel+8cca4915a",
-  access_url: { healthy: true },
-  database: { healthy: false },
-  derp: { healthy: false },
-  websocket: { healthy: false },
+  access_url: {
+    healthy: true,
+    severity: "ok",
+    warnings: [],
+    access_url: "",
+    healthz_response: "",
+    reachable: true,
+    status_code: 0,
+  },
+  database: {
+    healthy: false,
+    severity: "ok",
+    warnings: [],
+    latency: "",
+    latency_ms: 0,
+    reachable: true,
+    threshold_ms: 92570,
+  },
+  derp: {
+    healthy: false,
+    severity: "ok",
+    warnings: [],
+    regions: [],
+    netcheck_logs: [],
+  },
+  websocket: {
+    healthy: false,
+    severity: "ok",
+    warnings: [],
+    body: "",
+    code: 0,
+  },
+  workspace_proxy: {
+    healthy: false,
+    error: "some error",
+    severity: "error",
+    warnings: [],
+    workspace_proxies: {
+      regions: [
+        {
+          id: "df7e4b2b-2d40-47e5-a021-e5d08b219c77",
+          name: "unhealthy",
+          display_name: "unhealthy",
+          icon_url: "/emojis/1f5fa.png",
+          healthy: false,
+          path_app_url: "http://127.0.0.1:3001",
+          wildcard_hostname: "",
+          derp_enabled: true,
+          derp_only: false,
+          status: {
+            status: "unreachable",
+            report: {
+              errors: ["some error"],
+              warnings: [],
+            },
+            checked_at: "2023-11-24T12:14:05.743303497Z",
+          },
+          created_at: "2023-11-23T15:37:25.513213Z",
+          updated_at: "2023-11-23T18:09:19.734747Z",
+          deleted: false,
+          version: "v2.4.0-devel+89bae7eff",
+        },
+      ],
+    },
+  },
 };

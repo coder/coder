@@ -30,7 +30,6 @@ import (
 
 	"github.com/coder/pretty"
 
-	"cdr.dev/slog"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
@@ -137,14 +136,22 @@ func (r *RootCmd) RunMain(subcommands []*clibase.Cmd) {
 	}
 	err = cmd.Invoke().WithOS().Run()
 	if err != nil {
+		code := 1
+		var exitErr *exitError
+		if errors.As(err, &exitErr) {
+			code = exitErr.code
+			err = exitErr.err
+		}
 		if errors.Is(err, cliui.Canceled) {
 			//nolint:revive
-			os.Exit(1)
+			os.Exit(code)
 		}
 		f := prettyErrorFormatter{w: os.Stderr, verbose: r.verbose}
-		f.format(err)
+		if err != nil {
+			f.format(err)
+		}
 		//nolint:revive
-		os.Exit(1)
+		os.Exit(code)
 	}
 }
 
@@ -440,21 +447,6 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 	}
 
 	return cmd, nil
-}
-
-type contextKey int
-
-const (
-	contextKeyLogger contextKey = iota
-)
-
-func ContextWithLogger(ctx context.Context, l slog.Logger) context.Context {
-	return context.WithValue(ctx, contextKeyLogger, l)
-}
-
-func LoggerFromContext(ctx context.Context) (slog.Logger, bool) {
-	l, ok := ctx.Value(contextKeyLogger).(slog.Logger)
-	return l, ok
 }
 
 // RootCmd contains parameters and helpers useful to all commands.
@@ -967,6 +959,30 @@ func DumpHandler(ctx context.Context) {
 			os.Exit(1)
 		}
 	}
+}
+
+type exitError struct {
+	code int
+	err  error
+}
+
+var _ error = (*exitError)(nil)
+
+func (e *exitError) Error() string {
+	if e.err != nil {
+		return fmt.Sprintf("exit code %d: %v", e.code, e.err)
+	}
+	return fmt.Sprintf("exit code %d", e.code)
+}
+
+func (e *exitError) Unwrap() error {
+	return e.err
+}
+
+// ExitError returns an error that will cause the CLI to exit with the given
+// exit code. If err is non-nil, it will be wrapped by the returned error.
+func ExitError(code int, err error) error {
+	return &exitError{code: code, err: err}
 }
 
 // IiConnectionErr is a convenience function for checking if the source of an

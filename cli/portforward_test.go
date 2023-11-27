@@ -305,17 +305,17 @@ func runAgent(t *testing.T, client *codersdk.Client, owner uuid.UUID, db databas
 	require.NoError(t, err, "specified user does not exist")
 	require.Greater(t, len(user.OrganizationIDs), 0, "user has no organizations")
 	orgID := user.OrganizationIDs[0]
-	ws, agentToken := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
+	r := dbfake.NewWorkspaceBuilder(t, db).Seed(database.Workspace{
 		OrganizationID: orgID,
 		OwnerID:        owner,
-	})
-	_ = agenttest.New(t, client.URL, agentToken,
+	}).WithAgent().Do()
+	_ = agenttest.New(t, client.URL, r.AgentToken,
 		func(o *agent.Options) {
 			o.SSHMaxTimeout = 60 * time.Second
 		},
 	)
-	coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
-	return ws
+	coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
+	return r.Workspace
 }
 
 // setupTestListener starts accepting connections and echoing a single packet.

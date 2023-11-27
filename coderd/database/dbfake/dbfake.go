@@ -14,27 +14,79 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/codersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 )
 
-// Workspace inserts a workspace into the database.
-func Workspace(t testing.TB, db database.Store, seed database.Workspace) database.Workspace {
-	t.Helper()
+type WorkspaceBuilder struct {
+	t          testing.TB
+	db         database.Store
+	seed       database.Workspace
+	resources  []*sdkproto.Resource
+	agentToken string
+}
 
+type WorkspaceResponse struct {
+	Workspace  database.Workspace
+	Template   database.Template
+	Build      database.WorkspaceBuild
+	AgentToken string
+}
+
+func NewWorkspaceBuilder(t testing.TB, db database.Store) WorkspaceBuilder {
+	return WorkspaceBuilder{t: t, db: db}
+}
+
+func (b WorkspaceBuilder) Seed(seed database.Workspace) WorkspaceBuilder {
+	//nolint: revive // returns modified struct
+	b.seed = seed
+	return b
+}
+
+func (b WorkspaceBuilder) WithAgent(mutations ...func([]*sdkproto.Agent) []*sdkproto.Agent) WorkspaceBuilder {
+	//nolint: revive // returns modified struct
+	b.agentToken = uuid.NewString()
+	agents := []*sdkproto.Agent{{
+		Id: uuid.NewString(),
+		Auth: &sdkproto.Agent_Token{
+			Token: b.agentToken,
+		},
+	}}
+	for _, m := range mutations {
+		agents = m(agents)
+	}
+	b.resources = append(b.resources, &sdkproto.Resource{
+		Name:   "example",
+		Type:   "aws_instance",
+		Agents: agents,
+	})
+	return b
+}
+
+func (b WorkspaceBuilder) Do() WorkspaceResponse {
+	var r WorkspaceResponse
 	// This intentionally fulfills the minimum requirements of the schema.
 	// Tests can provide a custom template ID if necessary.
-	if seed.TemplateID == uuid.Nil {
-		template := dbgen.Template(t, db, database.Template{
-			OrganizationID: seed.OrganizationID,
-			CreatedBy:      seed.OwnerID,
+	if b.seed.TemplateID == uuid.Nil {
+		r.Template = dbgen.Template(b.t, b.db, database.Template{
+			OrganizationID: b.seed.OrganizationID,
+			CreatedBy:      b.seed.OwnerID,
 		})
-		seed.TemplateID = template.ID
-		seed.OwnerID = template.CreatedBy
-		seed.OrganizationID = template.OrganizationID
+		b.seed.TemplateID = r.Template.ID
+		b.seed.OwnerID = r.Template.CreatedBy
+		b.seed.OrganizationID = r.Template.OrganizationID
 	}
-	return dbgen.Workspace(t, db, seed)
+	r.Workspace = dbgen.Workspace(b.t, b.db, b.seed)
+	if b.agentToken != "" {
+		r.AgentToken = b.agentToken
+		r.Build = NewWorkspaceBuildBuilder(b.t, b.db, r.Workspace).
+			Resource(b.resources...).
+			Do()
+	}
+	return r
 }
 
 func TemplateWithVersion(t testing.TB, db database.Store, tpl database.Template, tv database.TemplateVersion, job database.ProvisionerJob, resources ...*sdkproto.Resource) (database.Template, database.TemplateVersion) {
@@ -95,57 +147,57 @@ func TemplateVersionWithParams(t testing.TB, db database.Store, tv database.Temp
 	return version, tvps
 }
 
-// WorkspaceWithAgent is a helper that generates a workspace with a single resource
-// that has an agent attached to it. The agent token is returned.
-func WorkspaceWithAgent(t testing.TB, db database.Store, seed database.Workspace) (database.Workspace, string) {
-	t.Helper()
-	authToken := uuid.NewString()
-	ws := Workspace(t, db, seed)
-	WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &sdkproto.Resource{
-		Name: "example",
-		Type: "aws_instance",
-		Agents: []*sdkproto.Agent{{
-			Id: uuid.NewString(),
-			Auth: &sdkproto.Agent_Token{
-				Token: authToken,
-			},
-		}},
-	})
-	return ws, authToken
+type WorkspaceBuildBuilder struct {
+	t         testing.TB
+	db        database.Store
+	ps        pubsub.Pubsub
+	ws        database.Workspace
+	seed      database.WorkspaceBuild
+	resources []*sdkproto.Resource
 }
 
-func WorkspaceBuildWithParameters(t testing.TB, db database.Store, ws database.Workspace, build database.WorkspaceBuild, params []database.WorkspaceBuildParameter, resources ...*sdkproto.Resource) (database.WorkspaceBuild, []database.WorkspaceBuildParameter) {
-	t.Helper()
-
-	b := WorkspaceBuild(t, db, ws, build, resources...)
-
-	for i, param := range params {
-		if param.WorkspaceBuildID == uuid.Nil {
-			params[i].WorkspaceBuildID = b.ID
-		}
-	}
-	return b, dbgen.WorkspaceBuildParameters(t, db, params)
+func NewWorkspaceBuildBuilder(t testing.TB, db database.Store, ws database.Workspace) WorkspaceBuildBuilder {
+	return WorkspaceBuildBuilder{t: t, db: db, ws: ws}
 }
 
-// WorkspaceBuild inserts a build and a successful job into the database.
-func WorkspaceBuild(t testing.TB, db database.Store, ws database.Workspace, seed database.WorkspaceBuild, resources ...*sdkproto.Resource) database.WorkspaceBuild {
-	t.Helper()
+func (b WorkspaceBuildBuilder) Pubsub(ps pubsub.Pubsub) WorkspaceBuildBuilder {
+	//nolint: revive // returns modified struct
+	b.ps = ps
+	return b
+}
+
+func (b WorkspaceBuildBuilder) Seed(seed database.WorkspaceBuild) WorkspaceBuildBuilder {
+	//nolint: revive // returns modified struct
+	b.seed = seed
+	return b
+}
+
+func (b WorkspaceBuildBuilder) Resource(resource ...*sdkproto.Resource) WorkspaceBuildBuilder {
+	//nolint: revive // returns modified struct
+	b.resources = append(b.resources, resource...)
+	return b
+}
+
+func (b WorkspaceBuildBuilder) Do() database.WorkspaceBuild {
+	b.t.Helper()
 	jobID := uuid.New()
-	seed.ID = uuid.New()
-	seed.JobID = jobID
-	seed.WorkspaceID = ws.ID
+	b.seed.ID = uuid.New()
+	b.seed.JobID = jobID
+	b.seed.WorkspaceID = b.ws.ID
 
 	// Create a provisioner job for the build!
 	payload, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-		WorkspaceBuildID: seed.ID,
+		WorkspaceBuildID: b.seed.ID,
 	})
-	require.NoError(t, err)
-	job, err := db.InsertProvisionerJob(dbgen.Ctx, database.InsertProvisionerJobParams{
+	require.NoError(b.t, err)
+	//nolint:gocritic // This is only used by tests.
+	ctx := dbauthz.AsSystemRestricted(context.Background())
+	job, err := b.db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 		ID:             jobID,
 		CreatedAt:      dbtime.Now(),
 		UpdatedAt:      dbtime.Now(),
-		OrganizationID: ws.OrganizationID,
-		InitiatorID:    ws.OwnerID,
+		OrganizationID: b.ws.OrganizationID,
+		InitiatorID:    b.ws.OwnerID,
 		Provisioner:    database.ProvisionerTypeEcho,
 		StorageMethod:  database.ProvisionerStorageMethodFile,
 		FileID:         uuid.New(),
@@ -154,8 +206,8 @@ func WorkspaceBuild(t testing.TB, db database.Store, ws database.Workspace, seed
 		Tags:           nil,
 		TraceMetadata:  pqtype.NullRawMessage{},
 	})
-	require.NoError(t, err, "insert job")
-	err = db.UpdateProvisionerJobWithCompleteByID(dbgen.Ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
+	require.NoError(b.t, err, "insert job")
+	err = b.db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 		ID:        job.ID,
 		UpdatedAt: dbtime.Now(),
 		Error:     sql.NullString{},
@@ -165,36 +217,77 @@ func WorkspaceBuild(t testing.TB, db database.Store, ws database.Workspace, seed
 			Valid: true,
 		},
 	})
-	require.NoError(t, err, "complete job")
+	require.NoError(b.t, err, "complete job")
 
 	// This intentionally fulfills the minimum requirements of the schema.
 	// Tests can provide a custom version ID if necessary.
-	if seed.TemplateVersionID == uuid.Nil {
-		templateVersion := TemplateVersion(t, db, database.TemplateVersion{
-			OrganizationID: ws.OrganizationID,
-			CreatedBy:      ws.OwnerID,
+	if b.seed.TemplateVersionID == uuid.Nil {
+		jobID := uuid.New()
+		templateVersion := dbgen.TemplateVersion(b.t, b.db, database.TemplateVersion{
+			JobID:          jobID,
+			OrganizationID: b.ws.OrganizationID,
+			CreatedBy:      b.ws.OwnerID,
 			TemplateID: uuid.NullUUID{
-				UUID:  ws.TemplateID,
+				UUID:  b.ws.TemplateID,
 				Valid: true,
 			},
-		}, database.ProvisionerJob{})
-		seed.TemplateVersionID = templateVersion.ID
+		})
+		payload, _ := json.Marshal(provisionerdserver.TemplateVersionImportJob{
+			TemplateVersionID: templateVersion.ID,
+		})
+		dbgen.ProvisionerJob(b.t, b.db, nil, database.ProvisionerJob{
+			ID:             jobID,
+			OrganizationID: b.ws.OrganizationID,
+			Input:          payload,
+			Type:           database.ProvisionerJobTypeTemplateVersionImport,
+			CompletedAt: sql.NullTime{
+				Time:  dbtime.Now(),
+				Valid: true,
+			},
+		})
+		NewProvisionerJobResourcesBuilder(b.t, b.db, jobID, b.seed.Transition, b.resources...).Do()
+		b.seed.TemplateVersionID = templateVersion.ID
 	}
-	build := dbgen.WorkspaceBuild(t, db, seed)
-	ProvisionerJobResources(t, db, job.ID, seed.Transition, resources...)
+	build := dbgen.WorkspaceBuild(b.t, b.db, b.seed)
+	NewProvisionerJobResourcesBuilder(b.t, b.db, job.ID, b.seed.Transition, b.resources...).Do()
+	if b.ps != nil {
+		err = b.ps.Publish(codersdk.WorkspaceNotifyChannel(build.WorkspaceID), []byte{})
+		require.NoError(b.t, err)
+	}
 	return build
 }
 
-// ProvisionerJobResources inserts a series of resources into a provisioner job.
-func ProvisionerJobResources(t testing.TB, db database.Store, job uuid.UUID, transition database.WorkspaceTransition, resources ...*sdkproto.Resource) {
-	t.Helper()
+type ProvisionerJobResourcesBuilder struct {
+	t          testing.TB
+	db         database.Store
+	jobID      uuid.UUID
+	transition database.WorkspaceTransition
+	resources  []*sdkproto.Resource
+}
+
+// NewProvisionerJobResourcesBuilder inserts a series of resources into a provisioner job.
+func NewProvisionerJobResourcesBuilder(
+	t testing.TB, db database.Store, jobID uuid.UUID, transition database.WorkspaceTransition, resources ...*sdkproto.Resource,
+) ProvisionerJobResourcesBuilder {
+	return ProvisionerJobResourcesBuilder{
+		t:          t,
+		db:         db,
+		jobID:      jobID,
+		transition: transition,
+		resources:  resources,
+	}
+}
+
+func (b ProvisionerJobResourcesBuilder) Do() {
+	b.t.Helper()
+	transition := b.transition
 	if transition == "" {
 		// Default to start!
 		transition = database.WorkspaceTransitionStart
 	}
-	for _, resource := range resources {
+	for _, resource := range b.resources {
 		//nolint:gocritic // This is only used by tests.
-		err := provisionerdserver.InsertWorkspaceResource(dbauthz.AsSystemRestricted(context.Background()), db, job, transition, resource, &telemetry.Snapshot{})
-		require.NoError(t, err)
+		err := provisionerdserver.InsertWorkspaceResource(dbauthz.AsSystemRestricted(context.Background()), b.db, b.jobID, transition, resource, &telemetry.Snapshot{})
+		require.NoError(b.t, err)
 	}
 }

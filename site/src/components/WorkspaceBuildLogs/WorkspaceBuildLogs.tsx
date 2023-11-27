@@ -1,7 +1,7 @@
 import dayjs from "dayjs";
 import { type ComponentProps, type FC, Fragment } from "react";
 import type { ProvisionerJobLog } from "api/typesGenerated";
-import { MONOSPACE_FONT_FAMILY } from "theme/constants";
+import { BODY_FONT_FAMILY, MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { Logs } from "./Logs";
 import Box from "@mui/material/Box";
 import { type Interpolation, type Theme } from "@emotion/react";
@@ -100,7 +100,7 @@ const styles = {
     padding: "4px 24px",
     display: "flex",
     alignItems: "center",
-    fontFamily: "Inter",
+    fontFamily: BODY_FONT_FAMILY,
     borderBottom: `1px solid ${theme.palette.divider}`,
     background: theme.palette.background.default,
 

@@ -6,6 +6,8 @@ export const port = process.env.CODER_E2E_PORT
   ? Number(process.env.CODER_E2E_PORT)
   : defaultPort;
 
+export const wsEndpoint = process.env.CODER_E2E_WS_ENDPOINT;
+
 const coderMain = path.join(__dirname, "../../enterprise/cmd/coder");
 
 export const STORAGE_STATE = path.join(__dirname, ".auth.json");
@@ -27,16 +29,24 @@ export default defineConfig({
       use: {
         storageState: STORAGE_STATE,
       },
-      timeout: 60000,
+      timeout: 60_000,
     },
   ],
   reporter: [["./reporter.ts"]],
   use: {
     baseURL: `http://localhost:${port}`,
     video: "retain-on-failure",
-    launchOptions: {
-      args: ["--disable-webgl"],
-    },
+    ...(wsEndpoint
+      ? {
+          connectOptions: {
+            wsEndpoint: wsEndpoint,
+          },
+        }
+      : {
+          launchOptions: {
+            args: ["--disable-webgl"],
+          },
+        }),
   },
   webServer: {
     url: `http://localhost:${port}/api/v2/deployment/config`,

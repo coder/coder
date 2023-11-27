@@ -8,7 +8,7 @@ import { visuallyHidden } from "@mui/utils";
 
 export type AvatarProps = MuiAvatarProps & {
   size?: "xs" | "sm" | "md" | "xl";
-  colorScheme?: "light" | "darken";
+  background?: boolean;
   fitImage?: boolean;
 };
 
@@ -33,14 +33,6 @@ const sizeStyles = {
   },
 } satisfies Record<string, Interpolation<Theme>>;
 
-const colorStyles = {
-  light: {},
-  darken: (theme) => ({
-    background: theme.palette.divider,
-    color: theme.palette.text.primary,
-  }),
-} satisfies Record<string, Interpolation<Theme>>;
-
 const fitImageStyles = css`
   & .MuiAvatar-img {
     object-fit: contain;
@@ -49,18 +41,24 @@ const fitImageStyles = css`
 
 export const Avatar: FC<AvatarProps> = ({
   size = "md",
-  colorScheme = "light",
   fitImage,
   children,
+  background,
   ...muiProps
 }) => {
+  const fromName = !muiProps.src && typeof children === "string";
+
   return (
     <MuiAvatar
       {...muiProps}
       css={[
         sizeStyles[size],
-        colorStyles[colorScheme],
         fitImage && fitImageStyles,
+        (theme) => ({
+          background:
+            background || fromName ? theme.palette.divider : undefined,
+          color: theme.palette.text.primary,
+        }),
       ]}
     >
       {typeof children === "string" ? firstLetter(children) : children}

@@ -1966,6 +1966,7 @@ type Template struct {
 	AutostopRequirementWeeks      int64           `db:"autostop_requirement_weeks" json:"autostop_requirement_weeks"`
 	AutostartBlockDaysOfWeek      int16           `db:"autostart_block_days_of_week" json:"autostart_block_days_of_week"`
 	RequireActiveVersion          bool            `db:"require_active_version" json:"require_active_version"`
+	Deprecated                    string          `db:"deprecated" json:"deprecated"`
 	CreatedByAvatarURL            sql.NullString  `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 }
@@ -2005,6 +2006,8 @@ type TemplateTable struct {
 	// A bitmap of days of week that autostart of a workspace is not allowed. Default allows all days. This is intended as a cost savings measure to prevent auto start on weekends (for example).
 	AutostartBlockDaysOfWeek int16 `db:"autostart_block_days_of_week" json:"autostart_block_days_of_week"`
 	RequireActiveVersion     bool  `db:"require_active_version" json:"require_active_version"`
+	// If set to a non empty string, the template will no longer be able to be used. The message will be displayed to the user.
+	Deprecated string `db:"deprecated" json:"deprecated"`
 }
 
 // Joins in the username + avatar url of the created by user.
@@ -2124,6 +2127,8 @@ type UserLink struct {
 	OAuthAccessTokenKeyID sql.NullString `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
 	// The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted
 	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
+	// Debug information includes information like id_token and userinfo claims.
+	DebugContext json.RawMessage `db:"debug_context" json:"debug_context"`
 }
 
 // Visible fields of users are allowed to be joined with other tables for including context of other resources.
@@ -2361,7 +2366,8 @@ type WorkspaceProxy struct {
 	RegionID          int32  `db:"region_id" json:"region_id"`
 	DerpEnabled       bool   `db:"derp_enabled" json:"derp_enabled"`
 	// Disables app/terminal proxying for this proxy and only acts as a DERP relay.
-	DerpOnly bool `db:"derp_only" json:"derp_only"`
+	DerpOnly bool   `db:"derp_only" json:"derp_only"`
+	Version  string `db:"version" json:"version"`
 }
 
 type WorkspaceResource struct {

@@ -2,7 +2,7 @@ import type { PropsWithChildren, FC } from "react";
 import Tooltip from "@mui/material/Tooltip";
 import { type Interpolation, type Theme } from "@emotion/react";
 import { Stack } from "components/Stack/Stack";
-import { colors } from "theme/colors";
+import colors from "theme/tailwind";
 
 const styles = {
   badge: {
@@ -20,16 +20,16 @@ const styles = {
   },
 
   enabledBadge: (theme) => ({
-    border: `1px solid ${theme.palette.success.light}`,
-    backgroundColor: theme.palette.success.dark,
+    border: `1px solid ${theme.experimental.roles.success.outline}`,
+    backgroundColor: theme.experimental.roles.success.background,
   }),
   errorBadge: (theme) => ({
-    border: `1px solid ${theme.palette.error.light}`,
-    backgroundColor: theme.palette.error.dark,
+    border: `1px solid ${theme.experimental.roles.error.outline}`,
+    backgroundColor: theme.experimental.roles.error.background,
   }),
   warnBadge: (theme) => ({
-    border: `1px solid ${theme.palette.warning.light}`,
-    backgroundColor: theme.palette.warning.dark,
+    border: `1px solid ${theme.experimental.roles.warning.outline}`,
+    backgroundColor: theme.experimental.roles.warning.background,
   }),
 } satisfies Record<string, Interpolation<Theme>>;
 
@@ -111,9 +111,9 @@ export const AlphaBadge: FC = () => {
       css={[
         styles.badge,
         {
-          border: `1px solid ${colors.violet[10]}`,
-          backgroundColor: colors.violet[14],
-          color: colors.violet[1],
+          border: `1px solid ${colors.violet[600]}`,
+          backgroundColor: colors.violet[950],
+          color: colors.violet[50],
         },
       ]}
     >

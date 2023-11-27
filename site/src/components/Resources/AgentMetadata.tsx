@@ -207,7 +207,6 @@ const styles = {
   root: (theme) => ({
     padding: "20px 32px",
     borderTop: `1px solid ${theme.palette.divider}`,
-    background: theme.palette.background.paper,
     overflowX: "auto",
     scrollPadding: "0 32px",
   }),

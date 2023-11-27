@@ -28,6 +28,47 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// userDebugOIDC returns the OIDC debug context for the user.
+// Not going to expose this via swagger as the return payload is not guaranteed
+// to be consistent between releases.
+//
+// @Summary Debug OIDC context for a user
+// @ID debug-oidc-context-for-a-user
+// @Security CoderSessionToken
+// @Tags Agents
+// @Success 200 "Success"
+// @Param user path string true "User ID, name, or me"
+// @Router /debug/{user}/debug-link [get]
+// @x-apidocgen {"skip": true}
+func (api *API) userDebugOIDC(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx  = r.Context()
+		user = httpmw.UserParam(r)
+	)
+
+	if user.LoginType != database.LoginTypeOIDC {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "User is not an OIDC user.",
+		})
+		return
+	}
+
+	link, err := api.Database.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
+		UserID:    user.ID,
+		LoginType: database.LoginTypeOIDC,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get user links.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// This will encode properly because it is a json.RawMessage.
+	httpapi.Write(ctx, rw, http.StatusOK, link.DebugContext)
+}
+
 // Returns whether the initial user has been created or not.
 //
 // @Summary Check initial user created

@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -19,7 +20,7 @@ import (
 func TestTemplateCreate(t *testing.T) {
 	t.Parallel()
 
-	t.Run("OK", func(t *testing.T) {
+	t.Run("RequireActiveVersion", func(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
@@ -62,6 +63,62 @@ func TestTemplateCreate(t *testing.T) {
 		template, err := templateAdmin.TemplateByName(ctx, user.OrganizationID, "new")
 		require.NoError(t, err)
 		require.True(t, template.RequireActiveVersion)
+	})
+
+	t.Run("WorkspaceCleanup", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{
+			string(codersdk.ExperimentWorkspaceActions),
+		}
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAdvancedTemplateScheduling: 1,
+				},
+			},
+			Options: &coderdtest.Options{
+				DeploymentValues:         dv,
+				IncludeProvisionerDaemon: true,
+			},
+		})
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleTemplateAdmin())
+
+		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ApplyComplete,
+		})
+
+		const (
+			expectedFailureTTL           = time.Hour * 3
+			expectedDormancyThreshold    = time.Hour * 4
+			expectedDormancyAutoDeletion = time.Minute * 10
+		)
+
+		inv, conf := newCLI(t, "templates",
+			"create", "new",
+			"--directory", source,
+			"--test.provisioner", string(database.ProvisionerTypeEcho),
+			"--failure-ttl="+expectedFailureTTL.String(),
+			"--dormancy-threshold="+expectedDormancyThreshold.String(),
+			"--dormancy-auto-deletion="+expectedDormancyAutoDeletion.String(),
+			"-y",
+			"--",
+		)
+
+		clitest.SetupConfig(t, templateAdmin, conf)
+
+		err := inv.Run()
+		require.NoError(t, err)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		template, err := templateAdmin.TemplateByName(ctx, user.OrganizationID, "new")
+		require.NoError(t, err)
+		require.Equal(t, expectedFailureTTL.Milliseconds(), template.FailureTTLMillis)
+		require.Equal(t, expectedDormancyThreshold.Milliseconds(), template.TimeTilDormantMillis)
+		require.Equal(t, expectedDormancyAutoDeletion.Milliseconds(), template.TimeTilDormantAutoDeleteMillis)
 	})
 
 	t.Run("NotEntitled", func(t *testing.T) {

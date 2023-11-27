@@ -29,7 +29,6 @@ export const Fieldset: FC<FieldsetProps> = (props) => {
       css={{
         borderRadius: 8,
         border: `1px solid ${theme.palette.divider}`,
-        background: theme.palette.background.paper,
         marginTop: 32,
       }}
       onSubmit={onSubmit}
@@ -63,7 +62,7 @@ export const Fieldset: FC<FieldsetProps> = (props) => {
         css={[
           theme.typography.body2 as CSSObject,
           {
-            background: theme.palette.background.paperLight,
+            background: theme.palette.background.paper,
             padding: "16px 24px",
             display: "flex",
             alignItems: "center",

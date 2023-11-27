@@ -34,6 +34,7 @@ export const SyntaxHighlighter: FC<{
 
   return (
     <div
+      data-chromatic="ignore"
       css={(theme) => ({
         padding: "8px 0",
         background: theme.palette.background.paper,

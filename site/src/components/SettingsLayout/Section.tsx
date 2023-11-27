@@ -1,6 +1,4 @@
-import Typography from "@mui/material/Typography";
-import { type FC, type ReactNode, type PropsWithChildren } from "react";
-import { SectionAction } from "./SectionAction";
+import { type FC, type ReactNode } from "react";
 import { type Interpolation, type Theme } from "@emotion/react";
 
 type SectionLayout = "fixed" | "fluid";
@@ -17,11 +15,7 @@ export interface SectionProps {
   children?: ReactNode;
 }
 
-type SectionFC = FC<PropsWithChildren<SectionProps>> & {
-  Action: typeof SectionAction;
-};
-
-export const Section: SectionFC = ({
+export const Section: FC<SectionProps> = ({
   id,
   title,
   description,
@@ -38,12 +32,19 @@ export const Section: SectionFC = ({
           <div css={styles.header}>
             <div>
               {title && (
-                <Typography variant="h4" sx={{ fontSize: 24 }}>
+                <h4
+                  css={{
+                    fontSize: 24,
+                    fontWeight: 500,
+                    margin: 0,
+                    marginBottom: 8,
+                  }}
+                >
                   {title}
-                </Typography>
+                </h4>
               )}
               {description && typeof description === "string" && (
-                <Typography css={styles.description}>{description}</Typography>
+                <p css={styles.description}>{description}</p>
               )}
               {description && typeof description !== "string" && (
                 <div css={styles.description}>{description}</div>
@@ -58,9 +59,6 @@ export const Section: SectionFC = ({
     </section>
   );
 };
-
-// Sub-components
-Section.Action = SectionAction;
 
 const styles = {
   header: {

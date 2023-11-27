@@ -39,7 +39,7 @@ export const ResourceAvatar: FC<ResourceAvatarProps> = ({ resource }) => {
     : getIconPathResource(resource.type);
 
   return (
-    <Avatar colorScheme="darken">
+    <Avatar background>
       <AvatarIcon src={avatarSrc} alt={resource.name} />
     </Avatar>
   );

@@ -1,8 +1,7 @@
 import Box from "@mui/material/Box";
-import Chip from "@mui/material/Chip";
-import Typography from "@mui/material/Typography";
 import { type FC, type ReactNode } from "react";
 import { type Interpolation, type Theme } from "@emotion/react";
+import { EnterpriseBadge } from "components/Badges/Badges";
 import { Stack } from "components/Stack/Stack";
 
 export interface PaywallProps {
@@ -18,26 +17,11 @@ export const Paywall: FC<React.PropsWithChildren<PaywallProps>> = (props) => {
     <Box css={styles.root}>
       <div css={styles.header}>
         <Stack direction="row" alignItems="center" justifyContent="center">
-          <Typography variant="h5" css={styles.title}>
-            {message}
-          </Typography>
-          <Chip
-            css={styles.enterpriseChip}
-            label="Enterprise"
-            size="small"
-            color="primary"
-          />
+          <h5 css={styles.title}>{message}</h5>
+          <EnterpriseBadge />
         </Stack>
 
-        {description && (
-          <Typography
-            variant="body2"
-            color="textSecondary"
-            css={styles.description}
-          >
-            {description}
-          </Typography>
-        )}
+        {description && <p css={styles.description}>{description}</p>}
       </div>
       {cta}
     </Box>
@@ -63,13 +47,17 @@ const styles = {
   title: {
     fontWeight: 600,
     fontFamily: "inherit",
+    fontSize: 24,
+    margin: 0,
   },
-  description: {
-    marginTop: 8,
+  description: (theme) => ({
+    marginTop: 16,
     fontFamily: "inherit",
     maxWidth: 420,
     lineHeight: "160%",
-  },
+    color: theme.palette.text.secondary,
+    fontSize: 14,
+  }),
   enterpriseChip: (theme) => ({
     background: theme.palette.success.dark,
     color: theme.palette.success.contrastText,

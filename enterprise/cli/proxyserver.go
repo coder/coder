@@ -10,7 +10,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
-	"os/signal"
 	"regexp"
 	rpprof "runtime/pprof"
 	"time"
@@ -142,7 +141,7 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 			//
 			// To get out of a graceful shutdown, the user can send
 			// SIGQUIT with ctrl+\ or SIGKILL with `kill -9`.
-			notifyCtx, notifyStop := signal.NotifyContext(ctx, cli.InterruptSignals...)
+			notifyCtx, notifyStop := inv.SignalNotifyContext(ctx, cli.InterruptSignals...)
 			defer notifyStop()
 
 			// Clean up idle connections at the end, e.g.

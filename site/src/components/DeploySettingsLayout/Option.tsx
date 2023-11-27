@@ -1,23 +1,14 @@
+import Box, { type BoxProps } from "@mui/material/Box";
+import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
+import { css, useTheme } from "@emotion/react";
 import type { PropsWithChildren, FC } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
-import Box, { BoxProps } from "@mui/material/Box";
-import { useTheme } from "@mui/system";
-import { DisabledBadge, EnabledBadge } from "./Badges";
-import { css } from "@emotion/react";
-import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
+import { DisabledBadge, EnabledBadge } from "../Badges/Badges";
 
 export const OptionName: FC<PropsWithChildren> = (props) => {
   const { children } = props;
 
-  return (
-    <span
-      css={{
-        display: "block",
-      }}
-    >
-      {children}
-    </span>
-  );
+  return <span css={{ display: "block" }}>{children}</span>;
 };
 
 export const OptionDescription: FC<PropsWithChildren> = (props) => {
@@ -136,9 +127,7 @@ interface OptionConfigProps extends BoxProps {
 export const OptionConfig = (props: OptionConfigProps) => {
   const { source, sx, ...attrs } = props;
   const theme = useTheme();
-  const borderColor = source
-    ? theme.palette.primary.main
-    : theme.palette.divider;
+  const borderColor = source ? undefined : theme.palette.divider;
 
   return (
     <Box
@@ -148,9 +137,7 @@ export const OptionConfig = (props: OptionConfigProps) => {
         fontFamily: MONOSPACE_FONT_FAMILY,
         fontWeight: 600,
         backgroundColor: (theme) =>
-          source
-            ? theme.palette.primary.dark
-            : theme.palette.background.paperLight,
+          source ? theme.palette.primary.dark : theme.palette.background.paper,
         display: "inline-flex",
         alignItems: "center",
         borderRadius: 0.25,

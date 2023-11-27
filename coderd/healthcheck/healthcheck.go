@@ -3,24 +3,21 @@ package healthcheck
 import (
 	"context"
 	"fmt"
-	"net/http"
-	"net/url"
 	"sync"
 	"time"
 
-	"tailscale.com/tailcfg"
-
 	"github.com/coder/coder/v2/buildinfo"
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
+	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
 const (
-	SectionDERP      string = "DERP"
-	SectionAccessURL string = "AccessURL"
-	SectionWebsocket string = "Websocket"
-	SectionDatabase  string = "Database"
+	SectionDERP           string = "DERP"
+	SectionAccessURL      string = "AccessURL"
+	SectionWebsocket      string = "Websocket"
+	SectionDatabase       string = "Database"
+	SectionWorkspaceProxy string = "WorkspaceProxy"
 )
 
 type Checker interface {
@@ -28,6 +25,7 @@ type Checker interface {
 	AccessURL(ctx context.Context, opts *AccessURLReportOptions) AccessURLReport
 	Websocket(ctx context.Context, opts *WebsocketReportOptions) WebsocketReport
 	Database(ctx context.Context, opts *DatabaseReportOptions) DatabaseReport
+	WorkspaceProxy(ctx context.Context, opts *WorkspaceProxyReportOptions) WorkspaceProxyReport
 }
 
 // @typescript-generate Report
@@ -35,26 +33,29 @@ type Report struct {
 	// Time is the time the report was generated at.
 	Time time.Time `json:"time"`
 	// Healthy is true if the report returns no errors.
+	// Deprecated: use `Severity` instead
 	Healthy bool `json:"healthy"`
+	// Severity indicates the status of Coder health.
+	Severity health.Severity `json:"severity" enums:"ok,warning,error"`
 	// FailingSections is a list of sections that have failed their healthcheck.
 	FailingSections []string `json:"failing_sections"`
 
-	DERP      derphealth.Report `json:"derp"`
-	AccessURL AccessURLReport   `json:"access_url"`
-	Websocket WebsocketReport   `json:"websocket"`
-	Database  DatabaseReport    `json:"database"`
+	DERP           derphealth.Report    `json:"derp"`
+	AccessURL      AccessURLReport      `json:"access_url"`
+	Websocket      WebsocketReport      `json:"websocket"`
+	Database       DatabaseReport       `json:"database"`
+	WorkspaceProxy WorkspaceProxyReport `json:"workspace_proxy"`
 
 	// The Coder version of the server that the report was generated on.
 	CoderVersion string `json:"coder_version"`
 }
 
 type ReportOptions struct {
-	DB database.Store
-	// TODO: support getting this over HTTP?
-	DERPMap   *tailcfg.DERPMap
-	AccessURL *url.URL
-	Client    *http.Client
-	APIKey    string
+	AccessURL      AccessURLReportOptions
+	Database       DatabaseReportOptions
+	DerpHealth     derphealth.ReportOptions
+	Websocket      WebsocketReportOptions
+	WorkspaceProxy WorkspaceProxyReportOptions
 
 	Checker Checker
 }
@@ -81,6 +82,11 @@ func (defaultChecker) Database(ctx context.Context, opts *DatabaseReportOptions)
 	return report
 }
 
+func (defaultChecker) WorkspaceProxy(ctx context.Context, opts *WorkspaceProxyReportOptions) (report WorkspaceProxyReport) {
+	report.Run(ctx, opts)
+	return report
+}
+
 func Run(ctx context.Context, opts *ReportOptions) *Report {
 	var (
 		wg     sync.WaitGroup
@@ -100,9 +106,7 @@ func Run(ctx context.Context, opts *ReportOptions) *Report {
 			}
 		}()
 
-		report.DERP = opts.Checker.DERP(ctx, &derphealth.ReportOptions{
-			DERPMap: opts.DERPMap,
-		})
+		report.DERP = opts.Checker.DERP(ctx, &opts.DerpHealth)
 	}()
 
 	wg.Add(1)
@@ -114,10 +118,7 @@ func Run(ctx context.Context, opts *ReportOptions) *Report {
 			}
 		}()
 
-		report.AccessURL = opts.Checker.AccessURL(ctx, &AccessURLReportOptions{
-			AccessURL: opts.AccessURL,
-			Client:    opts.Client,
-		})
+		report.AccessURL = opts.Checker.AccessURL(ctx, &opts.AccessURL)
 	}()
 
 	wg.Add(1)
@@ -129,10 +130,7 @@ func Run(ctx context.Context, opts *ReportOptions) *Report {
 			}
 		}()
 
-		report.Websocket = opts.Checker.Websocket(ctx, &WebsocketReportOptions{
-			APIKey:    opts.APIKey,
-			AccessURL: opts.AccessURL,
-		})
+		report.Websocket = opts.Checker.Websocket(ctx, &opts.Websocket)
 	}()
 
 	wg.Add(1)
@@ -144,15 +142,26 @@ func Run(ctx context.Context, opts *ReportOptions) *Report {
 			}
 		}()
 
-		report.Database = opts.Checker.Database(ctx, &DatabaseReportOptions{
-			DB: opts.DB,
-		})
+		report.Database = opts.Checker.Database(ctx, &opts.Database)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer func() {
+			if err := recover(); err != nil {
+				report.WorkspaceProxy.Error = ptr.Ref(fmt.Sprint(err))
+			}
+		}()
+
+		report.WorkspaceProxy = opts.Checker.WorkspaceProxy(ctx, &opts.WorkspaceProxy)
 	}()
 
 	report.CoderVersion = buildinfo.Version()
 	wg.Wait()
 
 	report.Time = time.Now()
+	report.FailingSections = []string{}
 	if !report.DERP.Healthy {
 		report.FailingSections = append(report.FailingSections, SectionDERP)
 	}
@@ -165,8 +174,30 @@ func Run(ctx context.Context, opts *ReportOptions) *Report {
 	if !report.Database.Healthy {
 		report.FailingSections = append(report.FailingSections, SectionDatabase)
 	}
+	if !report.WorkspaceProxy.Healthy {
+		report.FailingSections = append(report.FailingSections, SectionWorkspaceProxy)
+	}
 
 	report.Healthy = len(report.FailingSections) == 0
+
+	// Review healthcheck sub-reports.
+	report.Severity = health.SeverityOK
+
+	if report.DERP.Severity.Value() > report.Severity.Value() {
+		report.Severity = report.DERP.Severity
+	}
+	if report.AccessURL.Severity.Value() > report.Severity.Value() {
+		report.Severity = report.AccessURL.Severity
+	}
+	if report.Websocket.Severity.Value() > report.Severity.Value() {
+		report.Severity = report.Websocket.Severity
+	}
+	if report.Database.Severity.Value() > report.Severity.Value() {
+		report.Severity = report.Database.Severity
+	}
+	if report.WorkspaceProxy.Severity.Value() > report.Severity.Value() {
+		report.Severity = report.WorkspaceProxy.Severity
+	}
 	return &report
 }
 

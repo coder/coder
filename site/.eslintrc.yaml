@@ -139,6 +139,9 @@ rules:
           message:
             "You should use the Popover component provided on
             components/Popover/Popover"
+        - name: "@mui/material/Typography"
+          message:
+            "You should use the native HTML elements as span, p, h1, h2, h3..."
   no-unused-vars: "off"
   "object-curly-spacing": "off"
   react-hooks/exhaustive-deps: warn

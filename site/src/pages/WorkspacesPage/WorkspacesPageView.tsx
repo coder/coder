@@ -180,7 +180,7 @@ export const WorkspacesPageView = ({
                 </MoreMenuItem>
                 <Divider />
                 <MoreMenuItem danger onClick={onDeleteAll}>
-                  <DeleteOutlined /> Delete
+                  <DeleteOutlined /> Delete&hellip;
                 </MoreMenuItem>
               </MoreMenuContent>
             </MoreMenu>
@@ -208,10 +208,10 @@ export const WorkspacesPageView = ({
 
       {count !== undefined && (
         <PaginationWidgetBase
-          count={count}
-          limit={limit}
-          onChange={onPageChange}
-          page={page}
+          totalRecords={count}
+          pageSize={limit}
+          onPageChange={onPageChange}
+          currentPage={page}
         />
       )}
     </Margins>

@@ -11,7 +11,7 @@ import { type FC, memo } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import gfm from "remark-gfm";
-import { colors } from "theme/colors";
+import colors from "theme/tailwind";
 import { darcula } from "react-syntax-highlighter/dist/cjs/styles/prism";
 
 interface MarkdownProps {
@@ -217,7 +217,7 @@ const markdownStyles: Interpolation<Theme> = (theme: Theme) => ({
   },
 
   "& .prismjs": {
-    background: theme.palette.background.paperLight,
+    background: theme.palette.background.paper,
     borderRadius: 8,
     padding: "16px 24px",
     overflowX: "auto",
@@ -227,7 +227,7 @@ const markdownStyles: Interpolation<Theme> = (theme: Theme) => ({
     },
 
     "& .key, & .property, & .inserted, .keyword": {
-      color: colors.turquoise[7],
+      color: colors.teal[300],
     },
 
     "& .deleted": {

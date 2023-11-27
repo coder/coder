@@ -2,11 +2,10 @@ import Badge from "@mui/material/Badge";
 import { type FC, type PropsWithChildren } from "react";
 import { colors } from "theme/colors";
 import type * as TypesGen from "api/typesGenerated";
-import { navHeight } from "theme/constants";
+import { BUTTON_SM_HEIGHT, navHeight } from "theme/constants";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { UserDropdownContent } from "./UserDropdownContent";
-import { BUTTON_SM_HEIGHT } from "theme/theme";
 import { css } from "@emotion/react";
 import {
   Popover,

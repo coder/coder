@@ -43,7 +43,7 @@ const WorkspacesPage: FC = () => {
   const pagination = usePagination({ searchParamsResult });
 
   const organizationId = useOrganizationId();
-  const templatesQuery = useQuery(templates(organizationId));
+  const templatesQuery = useQuery(templates(organizationId, false));
 
   const filterProps = useWorkspacesFilter({
     searchParamsResult,

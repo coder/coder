@@ -805,7 +805,8 @@ CREATE TABLE templates (
     autostop_requirement_days_of_week smallint DEFAULT 0 NOT NULL,
     autostop_requirement_weeks bigint DEFAULT 0 NOT NULL,
     autostart_block_days_of_week smallint DEFAULT 0 NOT NULL,
-    require_active_version boolean DEFAULT false NOT NULL
+    require_active_version boolean DEFAULT false NOT NULL,
+    deprecated text DEFAULT ''::text NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -823,6 +824,8 @@ COMMENT ON COLUMN templates.autostop_requirement_days_of_week IS 'A bitmap of da
 COMMENT ON COLUMN templates.autostop_requirement_weeks IS 'The number of weeks between restarts. 0 or 1 weeks means "every week", 2 week means "every second week", etc. Weeks are counted from January 2, 2023, which is the first Monday of 2023. This is to ensure workspaces are started consistently for all customers on the same n-week cycles.';
 
 COMMENT ON COLUMN templates.autostart_block_days_of_week IS 'A bitmap of days of week that autostart of a workspace is not allowed. Default allows all days. This is intended as a cost savings measure to prevent auto start on weekends (for example).';
+
+COMMENT ON COLUMN templates.deprecated IS 'If set to a non empty string, the template will no longer be able to be used. The message will be displayed to the user.';
 
 CREATE VIEW template_with_users AS
  SELECT templates.id,
@@ -851,6 +854,7 @@ CREATE VIEW template_with_users AS
     templates.autostop_requirement_weeks,
     templates.autostart_block_days_of_week,
     templates.require_active_version,
+    templates.deprecated,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username
    FROM (public.templates
@@ -866,12 +870,15 @@ CREATE TABLE user_links (
     oauth_refresh_token text DEFAULT ''::text NOT NULL,
     oauth_expiry timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
     oauth_access_token_key_id text,
-    oauth_refresh_token_key_id text
+    oauth_refresh_token_key_id text,
+    debug_context jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
 COMMENT ON COLUMN user_links.oauth_access_token_key_id IS 'The ID of the key used to encrypt the OAuth access token. If this is NULL, the access token is not encrypted';
 
 COMMENT ON COLUMN user_links.oauth_refresh_token_key_id IS 'The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted';
+
+COMMENT ON COLUMN user_links.debug_context IS 'Debug information includes information like id_token and userinfo claims.';
 
 CREATE TABLE workspace_agent_log_sources (
     workspace_agent_id uuid NOT NULL,
@@ -1123,7 +1130,8 @@ CREATE TABLE workspace_proxies (
     token_hashed_secret bytea NOT NULL,
     region_id integer NOT NULL,
     derp_enabled boolean DEFAULT true NOT NULL,
-    derp_only boolean DEFAULT false NOT NULL
+    derp_only boolean DEFAULT false NOT NULL,
+    version text DEFAULT ''::text NOT NULL
 );
 
 COMMENT ON COLUMN workspace_proxies.icon IS 'Expects an emoji character. (/emojis/1f1fa-1f1f8.png)';

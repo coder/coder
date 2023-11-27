@@ -573,6 +573,10 @@ type Stats struct {
 	Metrics []AgentMetric `json:"metrics"`
 }
 
+func (s Stats) SessionCount() int64 {
+	return s.SessionCountVSCode + s.SessionCountJetBrains + s.SessionCountReconnectingPTY + s.SessionCountSSH
+}
+
 type AgentMetricType string
 
 const (

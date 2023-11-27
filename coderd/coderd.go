@@ -38,6 +38,7 @@ import (
 	// Used for swagger docs.
 	_ "github.com/coder/coder/v2/coderd/apidoc"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/buildinfo"
@@ -134,10 +135,12 @@ type Options struct {
 	AccessControlStore          *atomic.Pointer[dbauthz.AccessControlStore]
 	// AppSecurityKey is the crypto key used to sign and encrypt tokens related to
 	// workspace applications. It consists of both a signing and encryption key.
-	AppSecurityKey     workspaceapps.SecurityKey
-	HealthcheckFunc    func(ctx context.Context, apiKey string) *healthcheck.Report
-	HealthcheckTimeout time.Duration
-	HealthcheckRefresh time.Duration
+	AppSecurityKey workspaceapps.SecurityKey
+
+	HealthcheckFunc              func(ctx context.Context, apiKey string) *healthcheck.Report
+	HealthcheckTimeout           time.Duration
+	HealthcheckRefresh           time.Duration
+	WorkspaceProxiesFetchUpdater *atomic.Pointer[healthcheck.WorkspaceProxiesFetchUpdater]
 
 	// OAuthSigningKey is the crypto key used to sign and encrypt state strings
 	// related to OAuth. This is a symmetric secret key using hmac to sign payloads.
@@ -395,21 +398,43 @@ func New(options *Options) *API {
 			*options.UpdateCheckOptions,
 		)
 	}
+
+	if options.WorkspaceProxiesFetchUpdater == nil {
+		options.WorkspaceProxiesFetchUpdater = &atomic.Pointer[healthcheck.WorkspaceProxiesFetchUpdater]{}
+		var wpfu healthcheck.WorkspaceProxiesFetchUpdater = &healthcheck.AGPLWorkspaceProxiesFetchUpdater{}
+		options.WorkspaceProxiesFetchUpdater.Store(&wpfu)
+	}
+
 	if options.HealthcheckFunc == nil {
 		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *healthcheck.Report {
 			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
-				DB:        options.Database,
-				AccessURL: options.AccessURL,
-				DERPMap:   api.DERPMap(),
-				APIKey:    apiKey,
+				Database: healthcheck.DatabaseReportOptions{
+					DB:        options.Database,
+					Threshold: options.DeploymentValues.Healthcheck.ThresholdDatabase.Value(),
+				},
+				Websocket: healthcheck.WebsocketReportOptions{
+					AccessURL: options.AccessURL,
+					APIKey:    apiKey,
+				},
+				AccessURL: healthcheck.AccessURLReportOptions{
+					AccessURL: options.AccessURL,
+				},
+				DerpHealth: derphealth.ReportOptions{
+					DERPMap: api.DERPMap(),
+				},
+				WorkspaceProxy: healthcheck.WorkspaceProxyReportOptions{
+					CurrentVersion:               buildinfo.Version(),
+					WorkspaceProxiesFetchUpdater: *(options.WorkspaceProxiesFetchUpdater).Load(),
+				},
 			})
 		}
 	}
+
 	if options.HealthcheckTimeout == 0 {
 		options.HealthcheckTimeout = 30 * time.Second
 	}
 	if options.HealthcheckRefresh == 0 {
-		options.HealthcheckRefresh = 10 * time.Minute
+		options.HealthcheckRefresh = options.DeploymentValues.Healthcheck.Refresh.Value()
 	}
 
 	var oidcAuthURLParams map[string]string
@@ -944,8 +969,13 @@ func New(options *Options) *API {
 			)
 
 			r.Get("/coordinator", api.debugCoordinator)
+			r.Get("/tailnet", api.debugTailnet)
 			r.Get("/health", api.debugDeploymentHealth)
 			r.Get("/ws", (&healthcheck.WebsocketEchoServer{}).ServeHTTP)
+			r.Route("/{user}", func(r chi.Router) {
+				r.Use(httpmw.ExtractUserParam(options.Database))
+				r.Get("/debug-link", api.userDebugOIDC)
+			})
 		})
 	})
 

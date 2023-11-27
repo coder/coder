@@ -255,6 +255,9 @@ resource "aws_instance" "dev" {
     # Required if you are using our example policy, see template README
     Coder_Provisioned = "true"
   }
+  lifecycle {
+    ignore_changes = [ami]
+  }
 }
 
 resource "coder_metadata" "workspace_info" {

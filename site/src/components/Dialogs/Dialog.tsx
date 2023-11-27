@@ -1,6 +1,5 @@
 import MuiDialog, { DialogProps as MuiDialogProps } from "@mui/material/Dialog";
 import { type ReactNode } from "react";
-import { colors } from "theme/colors";
 import { ConfirmDialogType } from "./types";
 import { type Interpolation, type Theme } from "@emotion/react";
 import LoadingButton, { LoadingButtonProps } from "@mui/lab/LoadingButton";
@@ -59,7 +58,7 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
           disabled={disabled}
           type="submit"
           css={[
-            type === "delete" && styles.errorButton,
+            type === "delete" && styles.warningButton,
             type === "success" && styles.successButton,
           ]}
         >
@@ -71,40 +70,40 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
 };
 
 const styles = {
-  errorButton: (theme) => ({
+  warningButton: (theme) => ({
     "&.MuiButton-contained": {
-      backgroundColor: colors.red[10],
-      borderColor: colors.red[9],
+      backgroundColor: theme.palette.warning.main,
+      borderColor: theme.palette.warning.main,
 
       "&:not(.MuiLoadingButton-loading)": {
         color: theme.palette.text.primary,
       },
 
       "&:hover:not(:disabled)": {
-        backgroundColor: colors.red[9],
-        borderColor: colors.red[9],
+        backgroundColor: theme.palette.warning.main,
+        borderColor: theme.palette.warning.main,
       },
 
       "&.Mui-disabled": {
-        backgroundColor: colors.red[15],
-        borderColor: colors.red[15],
+        backgroundColor: theme.palette.warning.dark,
+        borderColor: theme.palette.warning.dark,
 
         "&:not(.MuiLoadingButton-loading)": {
-          color: colors.red[9],
+          color: theme.palette.warning.main,
         },
       },
     },
   }),
   successButton: (theme) => ({
     "&.MuiButton-contained": {
-      backgroundColor: theme.palette.success.main,
+      backgroundColor: theme.palette.success.dark,
 
       "&:not(.MuiLoadingButton-loading)": {
         color: theme.palette.primary.contrastText,
       },
 
       "&:hover": {
-        backgroundColor: theme.palette.success.dark,
+        backgroundColor: theme.palette.success.main,
 
         "@media (hover: none)": {
           backgroundColor: "transparent",

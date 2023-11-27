@@ -660,9 +660,9 @@ func (q *querier) AcquireProvisionerJob(ctx context.Context, arg database.Acquir
 	return q.db.AcquireProvisionerJob(ctx, arg)
 }
 
-func (q *querier) ActivityBumpWorkspace(ctx context.Context, arg uuid.UUID) error {
-	fetch := func(ctx context.Context, arg uuid.UUID) (database.Workspace, error) {
-		return q.db.GetWorkspaceByID(ctx, arg)
+func (q *querier) ActivityBumpWorkspace(ctx context.Context, arg database.ActivityBumpWorkspaceParams) error {
+	fetch := func(ctx context.Context, arg database.ActivityBumpWorkspaceParams) (database.Workspace, error) {
+		return q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
 	}
 	return update(q.log, q.auth, fetch, q.db.ActivityBumpWorkspace)(ctx, arg)
 }
@@ -713,6 +713,13 @@ func (q *querier) DeleteAllTailnetClientSubscriptions(ctx context.Context, arg d
 		return err
 	}
 	return q.db.DeleteAllTailnetClientSubscriptions(ctx, arg)
+}
+
+func (q *querier) DeleteAllTailnetTunnels(ctx context.Context, arg database.DeleteAllTailnetTunnelsParams) error {
+	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
+		return err
+	}
+	return q.db.DeleteAllTailnetTunnels(ctx, arg)
 }
 
 func (q *querier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
@@ -809,6 +816,20 @@ func (q *querier) DeleteTailnetClientSubscription(ctx context.Context, arg datab
 		return err
 	}
 	return q.db.DeleteTailnetClientSubscription(ctx, arg)
+}
+
+func (q *querier) DeleteTailnetPeer(ctx context.Context, arg database.DeleteTailnetPeerParams) (database.DeleteTailnetPeerRow, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
+		return database.DeleteTailnetPeerRow{}, err
+	}
+	return q.db.DeleteTailnetPeer(ctx, arg)
+}
+
+func (q *querier) DeleteTailnetTunnel(ctx context.Context, arg database.DeleteTailnetTunnelParams) (database.DeleteTailnetTunnelRow, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
+		return database.DeleteTailnetTunnelRow{}, err
+	}
+	return q.db.DeleteTailnetTunnel(ctx, arg)
 }
 
 func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
@@ -998,6 +1019,11 @@ func (q *querier) GetGroupMembers(ctx context.Context, id uuid.UUID) ([]database
 
 func (q *querier) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.Group, error) {
 	return fetchWithPostFilter(q.auth, q.db.GetGroupsByOrganizationID)(ctx, organizationID)
+}
+
+func (q *querier) GetHealthSettings(ctx context.Context) (string, error) {
+	// No authz checks
+	return q.db.GetHealthSettings(ctx)
 }
 
 // TODO: We need to create a ProvisionerJob resource type
@@ -1246,27 +1272,53 @@ func (q *querier) GetTailnetClientsForAgent(ctx context.Context, agentID uuid.UU
 	return q.db.GetTailnetClientsForAgent(ctx, agentID)
 }
 
-func (q *querier) GetTemplateAppInsights(ctx context.Context, arg database.GetTemplateAppInsightsParams) ([]database.GetTemplateAppInsightsRow, error) {
-	for _, templateID := range arg.TemplateIDs {
-		template, err := q.db.GetTemplateByID(ctx, templateID)
-		if err != nil {
-			return nil, err
-		}
-
-		if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
-			return nil, err
-		}
+func (q *querier) GetTailnetPeers(ctx context.Context, id uuid.UUID) ([]database.TailnetPeer, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
+		return nil, err
 	}
-	if len(arg.TemplateIDs) == 0 {
-		if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
-			return nil, err
+	return q.db.GetTailnetPeers(ctx, id)
+}
+
+func (q *querier) GetTailnetTunnelPeerBindings(ctx context.Context, srcID uuid.UUID) ([]database.GetTailnetTunnelPeerBindingsRow, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
+		return nil, err
+	}
+	return q.db.GetTailnetTunnelPeerBindings(ctx, srcID)
+}
+
+func (q *querier) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUID) ([]database.GetTailnetTunnelPeerIDsRow, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
+		return nil, err
+	}
+	return q.db.GetTailnetTunnelPeerIDs(ctx, srcID)
+}
+
+func (q *querier) GetTemplateAppInsights(ctx context.Context, arg database.GetTemplateAppInsightsParams) ([]database.GetTemplateAppInsightsRow, error) {
+	// Used by TemplateAppInsights endpoint
+	// For auditors, check read template_insights, and fall back to update template.
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplateInsights); IsNotAuthorizedError(err) {
+		for _, templateID := range arg.TemplateIDs {
+			template, err := q.db.GetTemplateByID(ctx, templateID)
+			if err != nil {
+				return nil, err
+			}
+
+			if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
+				return nil, err
+			}
+		}
+		if len(arg.TemplateIDs) == 0 {
+			if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return q.db.GetTemplateAppInsights(ctx, arg)
 }
 
 func (q *querier) GetTemplateAppInsightsByTemplate(ctx context.Context, arg database.GetTemplateAppInsightsByTemplateParams) ([]database.GetTemplateAppInsightsByTemplateRow, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
+	// Only used by prometheus metrics, so we don't strictly need to check update template perms.
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplateInsights); err != nil {
 		return nil, err
 	}
 	return q.db.GetTemplateAppInsightsByTemplate(ctx, arg)
@@ -1297,64 +1349,77 @@ func (q *querier) GetTemplateDAUs(ctx context.Context, arg database.GetTemplateD
 }
 
 func (q *querier) GetTemplateInsights(ctx context.Context, arg database.GetTemplateInsightsParams) (database.GetTemplateInsightsRow, error) {
-	for _, templateID := range arg.TemplateIDs {
-		template, err := q.db.GetTemplateByID(ctx, templateID)
-		if err != nil {
-			return database.GetTemplateInsightsRow{}, err
-		}
+	// Used by TemplateInsights endpoint
+	// For auditors, check read template_insights, and fall back to update template.
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplateInsights); IsNotAuthorizedError(err) {
+		for _, templateID := range arg.TemplateIDs {
+			template, err := q.db.GetTemplateByID(ctx, templateID)
+			if err != nil {
+				return database.GetTemplateInsightsRow{}, err
+			}
 
-		if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
-			return database.GetTemplateInsightsRow{}, err
+			if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
+				return database.GetTemplateInsightsRow{}, err
+			}
 		}
-	}
-	if len(arg.TemplateIDs) == 0 {
-		if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
-			return database.GetTemplateInsightsRow{}, err
+		if len(arg.TemplateIDs) == 0 {
+			if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
+				return database.GetTemplateInsightsRow{}, err
+			}
 		}
 	}
 	return q.db.GetTemplateInsights(ctx, arg)
 }
 
 func (q *querier) GetTemplateInsightsByInterval(ctx context.Context, arg database.GetTemplateInsightsByIntervalParams) ([]database.GetTemplateInsightsByIntervalRow, error) {
-	for _, templateID := range arg.TemplateIDs {
-		template, err := q.db.GetTemplateByID(ctx, templateID)
-		if err != nil {
-			return nil, err
-		}
+	// Used by TemplateInsights endpoint
+	// For auditors, check read template_insights, and fall back to update template.
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplateInsights); IsNotAuthorizedError(err) {
+		for _, templateID := range arg.TemplateIDs {
+			template, err := q.db.GetTemplateByID(ctx, templateID)
+			if err != nil {
+				return nil, err
+			}
 
-		if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
-			return nil, err
+			if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
+				return nil, err
+			}
 		}
-	}
-	if len(arg.TemplateIDs) == 0 {
-		if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
-			return nil, err
+		if len(arg.TemplateIDs) == 0 {
+			if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return q.db.GetTemplateInsightsByInterval(ctx, arg)
 }
 
 func (q *querier) GetTemplateInsightsByTemplate(ctx context.Context, arg database.GetTemplateInsightsByTemplateParams) ([]database.GetTemplateInsightsByTemplateRow, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
+	// Only used by prometheus metrics collector. No need to check update template perms.
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplateInsights); err != nil {
 		return nil, err
 	}
 	return q.db.GetTemplateInsightsByTemplate(ctx, arg)
 }
 
 func (q *querier) GetTemplateParameterInsights(ctx context.Context, arg database.GetTemplateParameterInsightsParams) ([]database.GetTemplateParameterInsightsRow, error) {
-	for _, templateID := range arg.TemplateIDs {
-		template, err := q.db.GetTemplateByID(ctx, templateID)
-		if err != nil {
-			return nil, err
-		}
+	// Used by both insights endpoint and prometheus collector.
+	// For auditors, check read template_insights, and fall back to update template.
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplateInsights); IsNotAuthorizedError(err) {
+		for _, templateID := range arg.TemplateIDs {
+			template, err := q.db.GetTemplateByID(ctx, templateID)
+			if err != nil {
+				return nil, err
+			}
 
-		if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
-			return nil, err
+			if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
+				return nil, err
+			}
 		}
-	}
-	if len(arg.TemplateIDs) == 0 {
-		if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
-			return nil, err
+		if len(arg.TemplateIDs) == 0 {
+			if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return q.db.GetTemplateParameterInsights(ctx, arg)
@@ -1512,19 +1577,22 @@ func (q *querier) GetUnexpiredLicenses(ctx context.Context) ([]database.License,
 }
 
 func (q *querier) GetUserActivityInsights(ctx context.Context, arg database.GetUserActivityInsightsParams) ([]database.GetUserActivityInsightsRow, error) {
-	for _, templateID := range arg.TemplateIDs {
-		template, err := q.db.GetTemplateByID(ctx, templateID)
-		if err != nil {
-			return nil, err
-		}
+	// Used by insights endpoints. Need to check both for auditors and for regular users with template acl perms.
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplateInsights); IsNotAuthorizedError(err) {
+		for _, templateID := range arg.TemplateIDs {
+			template, err := q.db.GetTemplateByID(ctx, templateID)
+			if err != nil {
+				return nil, err
+			}
 
-		if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
-			return nil, err
+			if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
+				return nil, err
+			}
 		}
-	}
-	if len(arg.TemplateIDs) == 0 {
-		if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
-			return nil, err
+		if len(arg.TemplateIDs) == 0 {
+			if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return q.db.GetUserActivityInsights(ctx, arg)
@@ -1546,19 +1614,22 @@ func (q *querier) GetUserCount(ctx context.Context) (int64, error) {
 }
 
 func (q *querier) GetUserLatencyInsights(ctx context.Context, arg database.GetUserLatencyInsightsParams) ([]database.GetUserLatencyInsightsRow, error) {
-	for _, templateID := range arg.TemplateIDs {
-		template, err := q.db.GetTemplateByID(ctx, templateID)
-		if err != nil {
-			return nil, err
-		}
+	// Used by insights endpoints. Need to check both for auditors and for regular users with template acl perms.
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplateInsights); IsNotAuthorizedError(err) {
+		for _, templateID := range arg.TemplateIDs {
+			template, err := q.db.GetTemplateByID(ctx, templateID)
+			if err != nil {
+				return nil, err
+			}
 
-		if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
-			return nil, err
+			if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
+				return nil, err
+			}
 		}
-	}
-	if len(arg.TemplateIDs) == 0 {
-		if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
-			return nil, err
+		if len(arg.TemplateIDs) == 0 {
+			if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return q.db.GetUserLatencyInsights(ctx, arg)
@@ -2916,6 +2987,13 @@ func (q *querier) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDef
 	return q.db.UpsertDefaultProxy(ctx, arg)
 }
 
+func (q *querier) UpsertHealthSettings(ctx context.Context, value string) error {
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceDeploymentValues); err != nil {
+		return err
+	}
+	return q.db.UpsertHealthSettings(ctx, value)
+}
+
 func (q *querier) UpsertLastUpdateCheck(ctx context.Context, value string) error {
 	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err
@@ -2970,6 +3048,20 @@ func (q *querier) UpsertTailnetCoordinator(ctx context.Context, id uuid.UUID) (d
 		return database.TailnetCoordinator{}, err
 	}
 	return q.db.UpsertTailnetCoordinator(ctx, id)
+}
+
+func (q *querier) UpsertTailnetPeer(ctx context.Context, arg database.UpsertTailnetPeerParams) (database.TailnetPeer, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceTailnetCoordinator); err != nil {
+		return database.TailnetPeer{}, err
+	}
+	return q.db.UpsertTailnetPeer(ctx, arg)
+}
+
+func (q *querier) UpsertTailnetTunnel(ctx context.Context, arg database.UpsertTailnetTunnelParams) (database.TailnetTunnel, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceTailnetCoordinator); err != nil {
+		return database.TailnetTunnel{}, err
+	}
+	return q.db.UpsertTailnetTunnel(ctx, arg)
 }
 
 func (q *querier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, _ rbac.PreparedAuthorized) ([]database.Template, error) {

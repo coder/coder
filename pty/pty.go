@@ -3,6 +3,7 @@ package pty
 import (
 	"io"
 	"log"
+	"os"
 
 	"github.com/gliderlabs/ssh"
 	"golang.org/x/xerrors"
@@ -69,6 +70,11 @@ type Process interface {
 
 	// Kill the command process.  Returned error is as for os.Process.Kill()
 	Kill() error
+
+	// Signal sends a signal to the command process. On non-windows systems, the
+	// returned error is as for os.Process.Signal(), on Windows it's
+	// as for os.Process.Kill().
+	Signal(sig os.Signal) error
 }
 
 // WithFlags represents a PTY whose flags can be inspected, in particular

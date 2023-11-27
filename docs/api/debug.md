@@ -33,6 +33,12 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
 
 `GET /debug/health`
 
+### Parameters
+
+| Name    | In    | Type    | Required | Description                |
+| ------- | ----- | ------- | -------- | -------------------------- |
+| `force` | query | boolean | false    | Force a healthcheck to run |
+
 ### Example responses
 
 > 200 Response
@@ -45,7 +51,9 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
     "healthy": true,
     "healthz_response": "string",
     "reachable": true,
-    "status_code": 0
+    "severity": "ok",
+    "status_code": 0,
+    "warnings": ["string"]
   },
   "coder_version": "string",
   "database": {
@@ -53,7 +61,10 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
     "healthy": true,
     "latency": "string",
     "latency_ms": 0,
-    "reachable": true
+    "reachable": true,
+    "severity": "ok",
+    "threshold_ms": 0,
+    "warnings": ["string"]
   },
   "derp": {
     "error": "string",
@@ -122,12 +133,14 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
             },
             "round_trip_ping": "string",
             "round_trip_ping_ms": 0,
+            "severity": "ok",
             "stun": {
               "canSTUN": true,
               "enabled": true,
               "error": "string"
             },
-            "uses_websocket": true
+            "uses_websocket": true,
+            "warnings": ["string"]
           }
         ],
         "region": {
@@ -153,7 +166,9 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
           "regionCode": "string",
           "regionID": 0,
           "regionName": "string"
-        }
+        },
+        "severity": "ok",
+        "warnings": ["string"]
       },
       "property2": {
         "error": "string",
@@ -186,12 +201,14 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
             },
             "round_trip_ping": "string",
             "round_trip_ping_ms": 0,
+            "severity": "ok",
             "stun": {
               "canSTUN": true,
               "enabled": true,
               "error": "string"
             },
-            "uses_websocket": true
+            "uses_websocket": true,
+            "warnings": ["string"]
           }
         ],
         "region": {
@@ -217,18 +234,58 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
           "regionCode": "string",
           "regionID": 0,
           "regionName": "string"
-        }
+        },
+        "severity": "ok",
+        "warnings": ["string"]
       }
-    }
+    },
+    "severity": "ok",
+    "warnings": ["string"]
   },
   "failing_sections": ["string"],
   "healthy": true,
+  "severity": "ok",
   "time": "string",
   "websocket": {
     "body": "string",
     "code": 0,
     "error": "string",
-    "healthy": true
+    "healthy": true,
+    "severity": "ok",
+    "warnings": ["string"]
+  },
+  "workspace_proxy": {
+    "error": "string",
+    "healthy": true,
+    "severity": "ok",
+    "warnings": ["string"],
+    "workspace_proxies": {
+      "regions": [
+        {
+          "created_at": "2019-08-24T14:15:22Z",
+          "deleted": true,
+          "derp_enabled": true,
+          "derp_only": true,
+          "display_name": "string",
+          "healthy": true,
+          "icon_url": "string",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "name": "string",
+          "path_app_url": "string",
+          "status": {
+            "checked_at": "2019-08-24T14:15:22Z",
+            "report": {
+              "errors": ["string"],
+              "warnings": ["string"]
+            },
+            "status": "ok"
+          },
+          "updated_at": "2019-08-24T14:15:22Z",
+          "version": "string",
+          "wildcard_hostname": "string"
+        }
+      ]
+    }
   }
 }
 ```
@@ -238,5 +295,25 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
 | Status | Meaning                                                 | Description | Schema                                             |
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [healthcheck.Report](schemas.md#healthcheckreport) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Debug Info Tailnet
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/debug/tailnet \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /debug/tailnet`
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema |
+| ------ | ------------------------------------------------------- | ----------- | ------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

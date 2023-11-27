@@ -140,42 +140,50 @@ func (e *Executor) runOnce(t time.Time) Stats {
 
 		eg.Go(func() error {
 			var job *database.ProvisionerJob
+			var auditLog *auditParams
 			err := e.db.InTx(func(tx database.Store) error {
 				// Re-check eligibility since the first check was outside the
 				// transaction and the workspace settings may have changed.
 				ws, err := tx.GetWorkspaceByID(e.ctx, wsID)
 				if err != nil {
-					log.Error(e.ctx, "get workspace autostart failed", slog.Error(err))
-					return nil
+					return xerrors.Errorf("get workspace by id: %w", err)
+				}
+
+				user, err := tx.GetUserByID(e.ctx, ws.OwnerID)
+				if err != nil {
+					return xerrors.Errorf("get user by id: %w", err)
 				}
 
 				// Determine the workspace state based on its latest build.
 				latestBuild, err := tx.GetLatestWorkspaceBuildByWorkspaceID(e.ctx, ws.ID)
 				if err != nil {
-					log.Warn(e.ctx, "get latest workspace build", slog.Error(err))
-					return nil
+					return xerrors.Errorf("get latest workspace build: %w", err)
 				}
+
+				latestJob, err := tx.GetProvisionerJobByID(e.ctx, latestBuild.JobID)
+				if err != nil {
+					return xerrors.Errorf("get latest provisioner job: %w", err)
+				}
+
 				templateSchedule, err := (*(e.templateScheduleStore.Load())).Get(e.ctx, tx, ws.TemplateID)
 				if err != nil {
-					log.Warn(e.ctx, "get template schedule options", slog.Error(err))
-					return nil
+					return xerrors.Errorf("get template scheduling options: %w", err)
 				}
 
 				template, err := tx.GetTemplateByID(e.ctx, ws.TemplateID)
 				if err != nil {
-					log.Warn(e.ctx, "get template by id", slog.Error(err))
+					return xerrors.Errorf("get template by ID: %w", err)
 				}
+
 				accessControl := (*(e.accessControlStore.Load())).GetTemplateAccessControl(template)
 
-				latestJob, err := tx.GetProvisionerJobByID(e.ctx, latestBuild.JobID)
-				if err != nil {
-					log.Warn(e.ctx, "get last provisioner job for workspace %q: %w", slog.Error(err))
-					return nil
-				}
-
-				nextTransition, reason, err := getNextTransition(ws, latestBuild, latestJob, templateSchedule, currentTick)
+				nextTransition, reason, err := getNextTransition(user, ws, latestBuild, latestJob, templateSchedule, currentTick)
 				if err != nil {
 					log.Debug(e.ctx, "skipping workspace", slog.Error(err))
+					// err is used to indicate that a workspace is not eligible
+					// so returning nil here is ok although ultimately the distinction
+					// doesn't matter since the transaction is  read-only up to
+					// this point.
 					return nil
 				}
 
@@ -193,17 +201,16 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					}
 
 					build, job, err = builder.Build(e.ctx, tx, nil, audit.WorkspaceBuildBaggage{IP: "127.0.0.1"})
-
 					if err != nil {
 						log.Error(e.ctx, "unable to transition workspace",
 							slog.F("transition", nextTransition),
 							slog.Error(err),
 						)
-						return nil
+						return xerrors.Errorf("build workspace: %w", err)
 					}
 				}
 
-				//  Transition the workspace to dormant if it has breached the template's
+				// Transition the workspace to dormant if it has breached the template's
 				// threshold for inactivity.
 				if reason == database.BuildReasonAutolock {
 					wsOld := ws
@@ -215,21 +222,15 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						},
 					})
 
-					auditBuild(e.ctx, e.log, *e.auditor.Load(), auditParams{
-						Build:   build,
-						Job:     latestJob,
-						Reason:  reason,
-						Old:     wsOld,
-						New:     ws,
-						Success: err == nil,
-					})
-
+					auditLog = &auditParams{
+						Build:  build,
+						Job:    latestJob,
+						Reason: reason,
+						Old:    wsOld,
+						New:    ws,
+					}
 					if err != nil {
-						log.Error(e.ctx, "unable to transition workspace to dormant",
-							slog.F("transition", nextTransition),
-							slog.Error(err),
-						)
-						return nil
+						return xerrors.Errorf("update workspace dormant deleting at: %w", err)
 					}
 
 					log.Info(e.ctx, "dormant workspace",
@@ -267,6 +268,12 @@ func (e *Executor) runOnce(t time.Time) Stats {
 			if err != nil {
 				log.Error(e.ctx, "workspace scheduling failed", slog.Error(err))
 			}
+			if auditLog != nil {
+				// If the transition didn't succeed then updating the workspace
+				// to indicate dormant didn't either.
+				auditLog.Success = err == nil
+				auditBuild(e.ctx, e.log, *e.auditor.Load(), *auditLog)
+			}
 			if job != nil && err == nil {
 				// Note that we can't refactor such that posting the job happens inside wsbuilder because it's called
 				// with an outer transaction like this, and we need to make sure the outer transaction commits before
@@ -298,6 +305,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 // may be "transitioning" to a new state (such as an inactive, stopped
 // workspace transitioning to the dormant state).
 func getNextTransition(
+	user database.User,
 	ws database.Workspace,
 	latestBuild database.WorkspaceBuild,
 	latestJob database.ProvisionerJob,
@@ -311,7 +319,7 @@ func getNextTransition(
 	switch {
 	case isEligibleForAutostop(ws, latestBuild, latestJob, currentTick):
 		return database.WorkspaceTransitionStop, database.BuildReasonAutostop, nil
-	case isEligibleForAutostart(ws, latestBuild, latestJob, templateSchedule, currentTick):
+	case isEligibleForAutostart(user, ws, latestBuild, latestJob, templateSchedule, currentTick):
 		return database.WorkspaceTransitionStart, database.BuildReasonAutostart, nil
 	case isEligibleForFailedStop(latestBuild, latestJob, templateSchedule, currentTick):
 		return database.WorkspaceTransitionStop, database.BuildReasonAutostop, nil
@@ -332,7 +340,12 @@ func getNextTransition(
 }
 
 // isEligibleForAutostart returns true if the workspace should be autostarted.
-func isEligibleForAutostart(ws database.Workspace, build database.WorkspaceBuild, job database.ProvisionerJob, templateSchedule schedule.TemplateScheduleOptions, currentTick time.Time) bool {
+func isEligibleForAutostart(user database.User, ws database.Workspace, build database.WorkspaceBuild, job database.ProvisionerJob, templateSchedule schedule.TemplateScheduleOptions, currentTick time.Time) bool {
+	// Don't attempt to autostart workspaces for suspended users.
+	if user.Status != database.UserStatusActive {
+		return false
+	}
+
 	// Don't attempt to autostart failed workspaces.
 	if job.JobStatus == database.ProvisionerJobStatusFailed {
 		return false
@@ -355,13 +368,27 @@ func isEligibleForAutostart(ws database.Workspace, build database.WorkspaceBuild
 		return false
 	}
 
-	sched, err := cron.Weekly(ws.AutostartSchedule.String)
-	if err != nil {
+	nextTransition, allowed := NextAutostartSchedule(build.CreatedAt, ws.AutostartSchedule.String, templateSchedule)
+	if !allowed {
 		return false
 	}
+
+	// Must use '.Before' vs '.After' so equal times are considered "valid for autostart".
+	return !currentTick.Before(nextTransition)
+}
+
+// NextAutostartSchedule takes the workspace and template schedule and returns the next autostart schedule
+// after "at". The boolean returned is if the autostart should be allowed to start based on the template
+// schedule.
+func NextAutostartSchedule(at time.Time, wsSchedule string, templateSchedule schedule.TemplateScheduleOptions) (time.Time, bool) {
+	sched, err := cron.Weekly(wsSchedule)
+	if err != nil {
+		return time.Time{}, false
+	}
+
 	// Round down to the nearest minute, as this is the finest granularity cron supports.
 	// Truncate is probably not necessary here, but doing it anyway to be sure.
-	nextTransition := sched.Next(build.CreatedAt).Truncate(time.Minute)
+	nextTransition := sched.Next(at).Truncate(time.Minute)
 
 	// The nextTransition is when the auto start should kick off. If it lands on a
 	// forbidden day, do not allow the auto start. We use the time location of the
@@ -369,12 +396,8 @@ func isEligibleForAutostart(ws database.Workspace, build database.WorkspaceBuild
 	// definition of "Saturday" depends on the location of the schedule.
 	zonedTransition := nextTransition.In(sched.Location())
 	allowed := templateSchedule.AutostartRequirement.DaysMap()[zonedTransition.Weekday()]
-	if !allowed {
-		return false
-	}
 
-	// Must used '.Before' vs '.After' so equal times are considered "valid for autostart".
-	return !currentTick.Before(nextTransition)
+	return zonedTransition, allowed
 }
 
 // isEligibleForAutostart returns true if the workspace should be autostopped.
