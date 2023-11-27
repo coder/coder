@@ -314,6 +314,27 @@ func (m metricsStore) GetAllTailnetClients(ctx context.Context) ([]database.GetA
 	return r0, r1
 }
 
+func (m metricsStore) GetAllTailnetCoordinators(ctx context.Context) ([]database.TailnetCoordinator, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAllTailnetCoordinators(ctx)
+	m.queryLatencies.WithLabelValues("GetAllTailnetCoordinators").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) GetAllTailnetPeers(ctx context.Context) ([]database.TailnetPeer, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAllTailnetPeers(ctx)
+	m.queryLatencies.WithLabelValues("GetAllTailnetPeers").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) GetAllTailnetTunnels(ctx context.Context) ([]database.TailnetTunnel, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAllTailnetTunnels(ctx)
+	m.queryLatencies.WithLabelValues("GetAllTailnetTunnels").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetAppSecurityKey(ctx context.Context) (string, error) {
 	start := time.Now()
 	key, err := m.s.GetAppSecurityKey(ctx)

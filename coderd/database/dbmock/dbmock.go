@@ -532,6 +532,51 @@ func (mr *MockStoreMockRecorder) GetAllTailnetClients(arg0 interface{}) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllTailnetClients", reflect.TypeOf((*MockStore)(nil).GetAllTailnetClients), arg0)
 }
 
+// GetAllTailnetCoordinators mocks base method.
+func (m *MockStore) GetAllTailnetCoordinators(arg0 context.Context) ([]database.TailnetCoordinator, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAllTailnetCoordinators", arg0)
+	ret0, _ := ret[0].([]database.TailnetCoordinator)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAllTailnetCoordinators indicates an expected call of GetAllTailnetCoordinators.
+func (mr *MockStoreMockRecorder) GetAllTailnetCoordinators(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllTailnetCoordinators", reflect.TypeOf((*MockStore)(nil).GetAllTailnetCoordinators), arg0)
+}
+
+// GetAllTailnetPeers mocks base method.
+func (m *MockStore) GetAllTailnetPeers(arg0 context.Context) ([]database.TailnetPeer, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAllTailnetPeers", arg0)
+	ret0, _ := ret[0].([]database.TailnetPeer)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAllTailnetPeers indicates an expected call of GetAllTailnetPeers.
+func (mr *MockStoreMockRecorder) GetAllTailnetPeers(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllTailnetPeers", reflect.TypeOf((*MockStore)(nil).GetAllTailnetPeers), arg0)
+}
+
+// GetAllTailnetTunnels mocks base method.
+func (m *MockStore) GetAllTailnetTunnels(arg0 context.Context) ([]database.TailnetTunnel, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAllTailnetTunnels", arg0)
+	ret0, _ := ret[0].([]database.TailnetTunnel)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAllTailnetTunnels indicates an expected call of GetAllTailnetTunnels.
+func (mr *MockStoreMockRecorder) GetAllTailnetTunnels(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllTailnetTunnels", reflect.TypeOf((*MockStore)(nil).GetAllTailnetTunnels), arg0)
+}
+
 // GetAppSecurityKey mocks base method.
 func (m *MockStore) GetAppSecurityKey(arg0 context.Context) (string, error) {
 	m.ctrl.T.Helper()
