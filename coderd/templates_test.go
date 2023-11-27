@@ -525,6 +525,9 @@ func TestPatchTemplateMeta(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		// It is unfortunate we need to sleep, but the test can fail if the
+		// updatedAt is too close together.
+		time.Sleep(time.Millisecond * 5)
 
 		req := codersdk.UpdateTemplateMeta{
 			DeprecationMessage: ptr.Ref("APGL cannot deprecate"),
@@ -550,6 +553,9 @@ func TestPatchTemplateMeta(t *testing.T) {
 		client, tplAdmin := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.RoleTemplateAdmin())
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		// It is unfortunate we need to sleep, but the test can fail if the
+		// updatedAt is too close together.
+		time.Sleep(time.Millisecond * 5)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -587,6 +593,10 @@ func TestPatchTemplateMeta(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
 		})
+		// It is unfortunate we need to sleep, but the test can fail if the
+		// updatedAt is too close together.
+		time.Sleep(time.Millisecond * 5)
+
 		req := codersdk.UpdateTemplateMeta{
 			DefaultTTLMillis: 0,
 		}
@@ -618,6 +628,10 @@ func TestPatchTemplateMeta(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
 		})
+		// It is unfortunate we need to sleep, but the test can fail if the
+		// updatedAt is too close together.
+		time.Sleep(time.Millisecond * 5)
+
 		req := codersdk.UpdateTemplateMeta{
 			DefaultTTLMillis: -1,
 		}
