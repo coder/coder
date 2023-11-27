@@ -317,10 +317,11 @@ func (c *Client) DialWorkspaceAgent(dialCtx context.Context, agentID uuid.UUID, 
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
 	closedCoordinator := make(chan struct{})
-	firstCoordinator := make(chan error)
+	// Must only ever be used once, send error OR close to avoid
+	// reassignment race. Buffered so we don't hang in goroutine.
+	firstCoordinator := make(chan error, 1)
 	go func() {
 		defer close(closedCoordinator)
-		firstCoordinator := firstCoordinator // Shadowed so it can be reassigned outside goroutine.
 		isFirst := true
 		for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
 			options.Logger.Debug(ctx, "connecting")
@@ -370,10 +371,11 @@ func (c *Client) DialWorkspaceAgent(dialCtx context.Context, agentID uuid.UUID, 
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
 	closedDerpMap := make(chan struct{})
-	firstDerpMap := make(chan error)
+	// Must only ever be used once, send error OR close to avoid
+	// reassignment race. Buffered so we don't hang in goroutine.
+	firstDerpMap := make(chan error, 1)
 	go func() {
 		defer close(closedDerpMap)
-		firstDerpMap := firstDerpMap // Shadowed so it can be reassigned outside goroutine.
 		isFirst := true
 		for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
 			options.Logger.Debug(ctx, "connecting to server for derp map updates")
