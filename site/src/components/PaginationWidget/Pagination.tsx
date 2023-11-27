@@ -85,8 +85,8 @@ export const Pagination: FC<PaginationProps> = ({
    * currentPage and showingPreviousData should be the only two cues for syncing
    * the scroll position
    */
-  const scroll = useEffectEvent(() => {
-    if (autoScroll && isScrollingQueuedRef.current) {
+  const syncScrollPosition = useEffectEvent(() => {
+    if (autoScroll) {
       scrollContainerRef.current?.scrollIntoView({
         block: "start",
         behavior: "instant",
@@ -96,11 +96,13 @@ export const Pagination: FC<PaginationProps> = ({
     isScrollingQueuedRef.current = false;
   });
 
+  // Would've liked to consolidate these effects into a single useLayoutEffect
+  // call, but they kept messing each other up when grouped together
   const syncPageChange = useEffectEvent(() => {
     if (showingPreviousData) {
       isScrollingQueuedRef.current = true;
     } else {
-      scroll();
+      syncScrollPosition();
     }
   });
 
@@ -109,8 +111,10 @@ export const Pagination: FC<PaginationProps> = ({
   }, [syncPageChange, currentPage]);
 
   useLayoutEffect(() => {
-    scroll();
-  }, [scroll, showingPreviousData]);
+    if (!showingPreviousData && isScrollingQueuedRef.current) {
+      syncScrollPosition();
+    }
+  }, [syncScrollPosition, showingPreviousData]);
 
   return (
     <div ref={scrollContainerRef}>
