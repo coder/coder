@@ -57,7 +57,7 @@ test("Use custom name, message and set it as active when publishing", async () =
       return jest.fn() as never;
     });
   const buildButton = within(topbar).getByRole("button", {
-    name: "Build template",
+    name: "Build",
   });
   await user.click(buildButton);
 
@@ -70,7 +70,7 @@ test("Use custom name, message and set it as active when publishing", async () =
     .mockResolvedValue({ message: "" });
   await within(topbar).findByText("Success");
   const publishButton = within(topbar).getByRole("button", {
-    name: "Publish version",
+    name: "Publish",
   });
   await user.click(publishButton);
   const publishDialog = await screen.findByTestId("dialog");
@@ -120,7 +120,7 @@ test("Do not mark as active if promote is not checked", async () => {
       return jest.fn() as never;
     });
   const buildButton = within(topbar).getByRole("button", {
-    name: "Build template",
+    name: "Build",
   });
   await user.click(buildButton);
 
@@ -133,7 +133,7 @@ test("Do not mark as active if promote is not checked", async () => {
     .mockResolvedValue({ message: "" });
   await within(topbar).findByText("Success");
   const publishButton = within(topbar).getByRole("button", {
-    name: "Publish version",
+    name: "Publish",
   });
   await user.click(publishButton);
   const publishDialog = await screen.findByTestId("dialog");
@@ -185,7 +185,7 @@ test("Patch request is not send when there are no changes", async () => {
       return jest.fn() as never;
     });
   const buildButton = within(topbar).getByRole("button", {
-    name: "Build template",
+    name: "Build",
   });
   await user.click(buildButton);
 
@@ -195,11 +195,11 @@ test("Patch request is not send when there are no changes", async () => {
     .mockResolvedValue(MockTemplateVersionWithEmptyMessage);
   await within(topbar).findByText("Success");
   const publishButton = within(topbar).getByRole("button", {
-    name: "Publish version",
+    name: "Publish",
   });
   await user.click(publishButton);
   const publishDialog = await screen.findByTestId("dialog");
-  // It is using the name from the template version
+  // It is using the name from the template
   const nameField = within(publishDialog).getByLabelText("Version name");
   expect(nameField).toHaveValue(MockTemplateVersionWithEmptyMessage.name);
   // Publish
