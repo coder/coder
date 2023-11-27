@@ -104,10 +104,9 @@ export const Pagination: FC<PaginationProps> = ({
 
     if (showingPreviousData) {
       isScrollingQueuedRef.current = true;
-      return;
+    } else {
+      syncScrollPosition();
     }
-
-    syncScrollPosition();
   });
 
   // Would've liked to consolidate these effects into a single useLayoutEffect
