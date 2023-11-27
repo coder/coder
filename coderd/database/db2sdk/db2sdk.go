@@ -14,6 +14,7 @@ import (
 	"tailscale.com/tailcfg"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/parameter"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
@@ -325,4 +326,50 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 	}
 
 	return workspaceAgent, nil
+}
+
+func AppSubdomain(dbApp database.WorkspaceApp, agentName, workspaceName, ownerName string) string {
+	if !dbApp.Subdomain || agentName == "" || ownerName == "" || workspaceName == "" {
+		return ""
+	}
+
+	appSlug := dbApp.Slug
+	if appSlug == "" {
+		appSlug = dbApp.DisplayName
+	}
+	return httpapi.ApplicationURL{
+		// We never generate URLs with a prefix. We only allow prefixes when
+		// parsing URLs from the hostname. Users that want this feature can
+		// write out their own URLs.
+		Prefix:        "",
+		AppSlugOrPort: appSlug,
+		AgentName:     agentName,
+		WorkspaceName: workspaceName,
+		Username:      ownerName,
+	}.String()
+}
+
+func Apps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, ownerName string, workspace database.Workspace) []codersdk.WorkspaceApp {
+	apps := make([]codersdk.WorkspaceApp, 0)
+	for _, dbApp := range dbApps {
+		apps = append(apps, codersdk.WorkspaceApp{
+			ID:            dbApp.ID,
+			URL:           dbApp.Url.String,
+			External:      dbApp.External,
+			Slug:          dbApp.Slug,
+			DisplayName:   dbApp.DisplayName,
+			Command:       dbApp.Command.String,
+			Icon:          dbApp.Icon,
+			Subdomain:     dbApp.Subdomain,
+			SubdomainName: AppSubdomain(dbApp, agent.Name, workspace.Name, ownerName),
+			SharingLevel:  codersdk.WorkspaceAppSharingLevel(dbApp.SharingLevel),
+			Healthcheck: codersdk.Healthcheck{
+				URL:       dbApp.HealthcheckUrl,
+				Interval:  dbApp.HealthcheckInterval,
+				Threshold: dbApp.HealthcheckThreshold,
+			},
+			Health: codersdk.WorkspaceAppHealth(dbApp.Health),
+		})
+	}
+	return apps
 }

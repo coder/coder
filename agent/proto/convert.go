@@ -1,6 +1,7 @@
 package proto
 
 import (
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -8,7 +9,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -99,53 +100,27 @@ func SDKAgentScriptFromProto(protoScript *WorkspaceAgentScript) (codersdk.Worksp
 	}, nil
 }
 
-func DBAppsToProto(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, ownerName string, workspace database.Workspace) []*WorkspaceApp {
+func DBAppsToProto(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, ownerName string, workspace database.Workspace) ([]*WorkspaceApp, error) {
 	ret := make([]*WorkspaceApp, len(dbApps))
 	for i, dbApp := range dbApps {
-		ret[i] = DBAppToProto(dbApp, agent, ownerName, workspace)
+		var err error
+		ret[i], err = DBAppToProto(dbApp, agent, ownerName, workspace)
+		if err != nil {
+			return nil, xerrors.Errorf("parse app %v (%q): %w", i, dbApp.Slug, err)
+		}
 	}
-	return ret
+	return ret, nil
 }
 
-func DBAppToProto(dbApp database.WorkspaceApp, agent database.WorkspaceAgent, ownerName string, workspace database.Workspace) *WorkspaceApp {
-	var subdomainName string
-	if dbApp.Subdomain && agent.Name != "" && ownerName != "" && workspace.Name != "" {
-		appSlug := dbApp.Slug
-		if appSlug == "" {
-			appSlug = dbApp.DisplayName
-		}
-		subdomainName = httpapi.ApplicationURL{
-			// We never generate URLs with a prefix. We only allow prefixes
-			// when parsing URLs from the hostname. Users that want this
-			// feature can write out their own URLs.
-			Prefix:        "",
-			AppSlugOrPort: appSlug,
-			AgentName:     agent.Name,
-			WorkspaceName: workspace.Name,
-			Username:      ownerName,
-		}.String()
+func DBAppToProto(dbApp database.WorkspaceApp, agent database.WorkspaceAgent, ownerName string, workspace database.Workspace) (*WorkspaceApp, error) {
+	sharingLevelRaw, ok := WorkspaceApp_SharingLevel_value[strings.ToUpper(string(dbApp.SharingLevel))]
+	if !ok {
+		return nil, xerrors.Errorf("unknown app sharing level: %q", dbApp.SharingLevel)
 	}
 
-	sharingLevel := WorkspaceApp_SHARING_LEVEL_UNSPECIFIED
-	switch dbApp.SharingLevel {
-	case database.AppSharingLevelOwner:
-		sharingLevel = WorkspaceApp_OWNER
-	case database.AppSharingLevelAuthenticated:
-		sharingLevel = WorkspaceApp_AUTHENTICATED
-	case database.AppSharingLevelPublic:
-		sharingLevel = WorkspaceApp_PUBLIC
-	}
-
-	health := WorkspaceApp_HEALTH_UNSPECIFIED
-	switch dbApp.Health {
-	case database.WorkspaceAppHealthDisabled:
-		health = WorkspaceApp_DISABLED
-	case database.WorkspaceAppHealthInitializing:
-		health = WorkspaceApp_INITIALIZING
-	case database.WorkspaceAppHealthHealthy:
-		health = WorkspaceApp_HEALTHY
-	case database.WorkspaceAppHealthUnhealthy:
-		health = WorkspaceApp_UNHEALTHY
+	healthRaw, ok := WorkspaceApp_Health_value[strings.ToUpper(string(dbApp.Health))]
+	if !ok {
+		return nil, xerrors.Errorf("unknown app health: %q", dbApp.SharingLevel)
 	}
 
 	return &WorkspaceApp{
@@ -157,15 +132,15 @@ func DBAppToProto(dbApp database.WorkspaceApp, agent database.WorkspaceAgent, ow
 		Command:       dbApp.Command.String,
 		Icon:          dbApp.Icon,
 		Subdomain:     dbApp.Subdomain,
-		SubdomainName: subdomainName,
-		SharingLevel:  sharingLevel,
+		SubdomainName: db2sdk.AppSubdomain(dbApp, agent.Name, workspace.Name, ownerName),
+		SharingLevel:  WorkspaceApp_SharingLevel(sharingLevelRaw),
 		Healthcheck: &WorkspaceApp_Healthcheck{
 			Url:       dbApp.HealthcheckUrl,
 			Interval:  durationpb.New(time.Duration(dbApp.HealthcheckInterval) * time.Second),
 			Threshold: dbApp.HealthcheckThreshold,
 		},
-		Health: health,
-	}
+		Health: WorkspaceApp_Health(healthRaw),
+	}, nil
 }
 
 func SDKAppsFromProto(protoApps []*WorkspaceApp) ([]codersdk.WorkspaceApp, error) {
@@ -186,30 +161,14 @@ func SDKAppFromProto(protoApp *WorkspaceApp) (codersdk.WorkspaceApp, error) {
 		return codersdk.WorkspaceApp{}, xerrors.Errorf("parse id: %w", err)
 	}
 
-	var sharingLevel codersdk.WorkspaceAppSharingLevel
-	switch protoApp.SharingLevel {
-	case WorkspaceApp_OWNER:
-		sharingLevel = codersdk.WorkspaceAppSharingLevelOwner
-	case WorkspaceApp_AUTHENTICATED:
-		sharingLevel = codersdk.WorkspaceAppSharingLevelAuthenticated
-	case WorkspaceApp_PUBLIC:
-		sharingLevel = codersdk.WorkspaceAppSharingLevelPublic
-	default:
-		return codersdk.WorkspaceApp{}, xerrors.Errorf("unknown sharing level: %v", protoApp.SharingLevel)
+	var sharingLevel codersdk.WorkspaceAppSharingLevel = codersdk.WorkspaceAppSharingLevel(strings.ToLower(protoApp.SharingLevel.String()))
+	if _, ok := codersdk.MapWorkspaceAppSharingLevels[sharingLevel]; !ok {
+		return codersdk.WorkspaceApp{}, xerrors.Errorf("unknown app sharing level: %v (%q)", protoApp.SharingLevel, protoApp.SharingLevel.String())
 	}
 
-	var health codersdk.WorkspaceAppHealth
-	switch protoApp.Health {
-	case WorkspaceApp_DISABLED:
-		health = codersdk.WorkspaceAppHealthDisabled
-	case WorkspaceApp_INITIALIZING:
-		health = codersdk.WorkspaceAppHealthInitializing
-	case WorkspaceApp_HEALTHY:
-		health = codersdk.WorkspaceAppHealthHealthy
-	case WorkspaceApp_UNHEALTHY:
-		health = codersdk.WorkspaceAppHealthUnhealthy
-	default:
-		return codersdk.WorkspaceApp{}, xerrors.Errorf("unknown health: %v", protoApp.Health)
+	var health codersdk.WorkspaceAppHealth = codersdk.WorkspaceAppHealth(strings.ToLower(protoApp.Health.String()))
+	if _, ok := codersdk.MapWorkspaceAppHealths[health]; !ok {
+		return codersdk.WorkspaceApp{}, xerrors.Errorf("unknown app health: %v (%q)", protoApp.Health, protoApp.Health.String())
 	}
 
 	return codersdk.WorkspaceApp{

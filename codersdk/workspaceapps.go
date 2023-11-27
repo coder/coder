@@ -13,6 +13,12 @@ const (
 	WorkspaceAppHealthUnhealthy    WorkspaceAppHealth = "unhealthy"
 )
 
+var MapWorkspaceAppHealths = map[WorkspaceAppHealth]struct{}{
+	WorkspaceAppHealthDisabled:     {},
+	WorkspaceAppHealthInitializing: {},
+	WorkspaceAppHealthHealthy:      {},
+}
+
 type WorkspaceAppSharingLevel string
 
 const (
@@ -20,6 +26,12 @@ const (
 	WorkspaceAppSharingLevelAuthenticated WorkspaceAppSharingLevel = "authenticated"
 	WorkspaceAppSharingLevelPublic        WorkspaceAppSharingLevel = "public"
 )
+
+var MapWorkspaceAppSharingLevels = map[WorkspaceAppSharingLevel]struct{}{
+	WorkspaceAppSharingLevelOwner:         {},
+	WorkspaceAppSharingLevelAuthenticated: {},
+	WorkspaceAppSharingLevelPublic:        {},
+}
 
 type WorkspaceApp struct {
 	ID uuid.UUID `json:"id" format:"uuid"`

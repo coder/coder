@@ -129,6 +129,11 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		}
 	}
 
+	apps, err := agentproto.DBAppsToProto(dbApps, workspaceAgent, owner.Username, workspace)
+	if err != nil {
+		return nil, xerrors.Errorf("converting workspace apps: %w", err)
+	}
+
 	return &agentproto.Manifest{
 		AgentId:                  workspaceAgent.ID[:],
 		GitAuthConfigs:           gitAuthConfigs,
@@ -141,7 +146,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 
 		DerpMap:  tailnetproto.DERPMapToProto(a.DerpMapFn()),
 		Scripts:  agentproto.DBAgentScriptsToProto(scripts),
-		Apps:     agentproto.DBAppsToProto(dbApps, workspaceAgent, owner.Username, workspace),
+		Apps:     apps,
 		Metadata: agentproto.DBAgentMetadataToProtoDescription(metadata),
 	}, nil
 }

@@ -1,7 +1,9 @@
 package tailnet_test
 
 import (
+	"encoding/json"
 	"net/netip"
+	"os"
 	"testing"
 	"time"
 
@@ -150,4 +152,58 @@ func TestSingleNodeUpdate(t *testing.T) {
 	require.Equal(t, u, u2)
 	require.Equal(t, "unit test", up.Reason)
 	require.EqualValues(t, 1, up.Node.Id)
+}
+
+func TestDERPMap(t *testing.T) {
+	t.Parallel()
+
+	// Tailscale DERP map on 2023-11-20 for testing purposes.
+	tailscaleDERPMap, err := os.ReadFile("testdata/tailscale_derpmap.json")
+	require.NoError(t, err)
+
+	derpMap := &tailcfg.DERPMap{}
+	err = json.Unmarshal([]byte(tailscaleDERPMap), derpMap)
+	require.NoError(t, err)
+
+	// The tailscale DERPMap doesn't have HomeParams.
+	derpMap.HomeParams = &tailcfg.DERPHomeParams{
+		RegionScore: map[int]float64{
+			1: 2,
+			2: 3,
+		},
+	}
+
+	// Add a region and node that uses every single field.
+	derpMap.Regions[999] = &tailcfg.DERPRegion{
+		RegionID:      999,
+		EmbeddedRelay: true,
+		RegionCode:    "zzz",
+		RegionName:    "Cool Region",
+		Avoid:         true,
+
+		Nodes: []*tailcfg.DERPNode{
+			{
+				Name:             "zzz1",
+				RegionID:         999,
+				HostName:         "coolderp.com",
+				IPv4:             "1.2.3.4",
+				IPv6:             "2001:db8::1",
+				STUNPort:         1234,
+				STUNOnly:         true,
+				DERPPort:         5678,
+				InsecureForTests: true,
+				ForceHTTP:        true,
+				STUNTestIP:       "5.6.7.8",
+				CanPort80:        true,
+			},
+		},
+	}
+
+	protoMap := tailnet.DERPMapToProto(derpMap)
+	require.NotNil(t, protoMap)
+
+	derpMap2 := tailnet.DERPMapFromProto(protoMap)
+	require.NotNil(t, derpMap2)
+
+	require.Equal(t, derpMap, derpMap2)
 }
