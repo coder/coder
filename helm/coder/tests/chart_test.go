@@ -194,7 +194,7 @@ func updateHelmDependencies(t testing.TB, helmPath, chartDir string) error {
 	}
 
 	// Regenerate the chart dependencies.
-	cmd := exec.Command(helmPath, "dependency", "update", ".")
+	cmd := exec.Command(helmPath, "dependency", "update", "--skip-refresh", ".")
 	cmd.Dir = chartDir
 	t.Logf("exec command: %v", cmd.Args)
 	out, err := cmd.CombinedOutput()
