@@ -480,40 +480,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/debug/{user}/debug-link": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Users"
-                ],
-                "summary": "Debug OIDC claims",
-                "operationId": "debug-oidc-claims",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "User ID, name, or me",
-                        "name": "user",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "type": "object"
-                        }
-                    }
-                }
-            }
-        },
         "/deployment/config": {
             "get": {
                 "security": [

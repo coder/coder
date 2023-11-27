@@ -28,14 +28,9 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// @Summary Debug OIDC claims
-// @ID debug-oidc-claims
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Users
-// @Param user path string true "User ID, name, or me"
-// @Success 201 {object} interface{}
-// @Router /debug/{user}/debug-link [get]
+// userDebugOIDC returns the OIDC debug context for the user.
+// Not going to expose this via swagger as the return payload is not guaranteed
+// to be consistent between releases.
 func (api *API) userDebugOIDC(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx  = r.Context()

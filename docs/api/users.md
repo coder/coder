@@ -1,30 +1,5 @@
 # Users
 
-## Debug OIDC claims
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X GET http://coder-server:8080/api/v2/debug/{user}/debug-link \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`GET /debug/{user}/debug-link`
-
-### Parameters
-
-| Name   | In   | Type   | Required | Description          |
-| ------ | ---- | ------ | -------- | -------------------- |
-| `user` | path | string | true     | User ID, name, or me |
-
-### Responses
-
-| Status | Meaning | Description | Schema |
-| ------ | ------- | ----------- | ------ |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
 ## Get users
 
 ### Code samples
