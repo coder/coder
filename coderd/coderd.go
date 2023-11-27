@@ -972,6 +972,10 @@ func New(options *Options) *API {
 			r.Get("/tailnet", api.debugTailnet)
 			r.Get("/health", api.debugDeploymentHealth)
 			r.Get("/ws", (&healthcheck.WebsocketEchoServer{}).ServeHTTP)
+			r.Route("/{user}", func(r chi.Router) {
+				r.Use(httpmw.ExtractUserParam(options.Database))
+				r.Get("/debug-link", api.userDebugOIDC)
+			})
 		})
 	})
 
