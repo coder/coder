@@ -179,8 +179,9 @@ Addresses for STUN servers to establish P2P connections. It's recommended to hav
 | Type        | <code>string</code>                                           |
 | Environment | <code>$CODER_QUIET_HOURS_DEFAULT_SCHEDULE</code>              |
 | YAML        | <code>userQuietHoursSchedule.defaultQuietHoursSchedule</code> |
+| Default     | <code>CRON_TZ=UTC 0 0 \* \* \*</code>                         |
 
-The default daily cron schedule applied to users that haven't set a custom quiet hours schedule themselves. The quiet hours schedule determines when workspaces will be force stopped due to the template's max TTL, and will round the max TTL up to be within the user's quiet hours window (or default). The format is the same as the standard cron format, but the day-of-month, month and day-of-week must be \*. Only one hour and minute can be specified (ranges or comma separated values are not supported).
+The default daily cron schedule applied to users that haven't set a custom quiet hours schedule themselves. The quiet hours schedule determines when workspaces will be force stopped due to the template's autostop requirement, and will round the max deadline up to be within the user's quiet hours window (or default). The format is the same as the standard cron format, but the day-of-month, month and day-of-week must be \*. Only one hour and minute can be specified (ranges or comma separated values are not supported).
 
 ### --disable-owner-workspace-access
 

@@ -1729,7 +1729,6 @@ export type Experiment =
   | "moons"
   | "single_tailnet"
   | "tailnet_pg_coordinator"
-  | "template_autostop_requirement"
   | "template_update_policies"
   | "workspace_actions";
 export const Experiments: Experiment[] = [
@@ -1737,7 +1736,6 @@ export const Experiments: Experiment[] = [
   "moons",
   "single_tailnet",
   "tailnet_pg_coordinator",
-  "template_autostop_requirement",
   "template_update_policies",
   "workspace_actions",
 ];

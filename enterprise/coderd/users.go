@@ -13,12 +13,6 @@ import (
 
 func (api *API) autostopRequirementEnabledMW(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		// The experiment must be enabled.
-		if !api.AGPL.Experiments.Enabled(codersdk.ExperimentTemplateAutostopRequirement) {
-			httpapi.RouteNotFound(rw)
-			return
-		}
-
 		// Entitlement must be enabled.
 		api.entitlementsMu.RLock()
 		entitled := api.entitlements.Features[codersdk.FeatureTemplateAutostopRequirement].Entitlement != codersdk.EntitlementNotEntitled
