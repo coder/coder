@@ -13,6 +13,13 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
+var (
+	ErrAccessURLNotSet  = "EACSURL01: Access URL not set"
+	ErrAccessURLInvalid = "EACSURL02: Access URL invalid: "
+	ErrAccessURLFetch   = "EACSURL03: Failed to fetch /healthz: "
+	ErrAccessURLNotOK   = "EACSURL04: /healthz did not return 200 OK"
+)
+
 // @typescript-generate AccessURLReport
 type AccessURLReport struct {
 	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
@@ -44,7 +51,7 @@ func (r *AccessURLReport) Run(ctx context.Context, opts *AccessURLReportOptions)
 	r.Dismissed = opts.Dismissed
 
 	if opts.AccessURL == nil {
-		r.Error = ptr.Ref("access URL is nil")
+		r.Error = ptr.Ref(ErrAccessURLNotSet)
 		r.Severity = health.SeverityError
 		return
 	}
@@ -56,21 +63,21 @@ func (r *AccessURLReport) Run(ctx context.Context, opts *AccessURLReportOptions)
 
 	accessURL, err := opts.AccessURL.Parse("/healthz")
 	if err != nil {
-		r.Error = convertError(xerrors.Errorf("parse healthz endpoint: %w", err))
+		r.Error = convertError(xerrors.Errorf(ErrAccessURLInvalid+"parse healthz endpoint: %w", err))
 		r.Severity = health.SeverityError
 		return
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "GET", accessURL.String(), nil)
 	if err != nil {
-		r.Error = convertError(xerrors.Errorf("create healthz request: %w", err))
+		r.Error = convertError(xerrors.Errorf(ErrAccessURLFetch+"create healthz request: %w", err))
 		r.Severity = health.SeverityError
 		return
 	}
 
 	res, err := opts.Client.Do(req)
 	if err != nil {
-		r.Error = convertError(xerrors.Errorf("get healthz endpoint: %w", err))
+		r.Error = convertError(xerrors.Errorf(ErrAccessURLFetch+"get healthz endpoint: %w", err))
 		r.Severity = health.SeverityError
 		return
 	}
@@ -78,7 +85,7 @@ func (r *AccessURLReport) Run(ctx context.Context, opts *AccessURLReportOptions)
 
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
-		r.Error = convertError(xerrors.Errorf("read healthz response: %w", err))
+		r.Error = convertError(xerrors.Errorf(ErrAccessURLFetch+"read healthz response: %w", err))
 		r.Severity = health.SeverityError
 		return
 	}
@@ -88,6 +95,7 @@ func (r *AccessURLReport) Run(ctx context.Context, opts *AccessURLReportOptions)
 	r.StatusCode = res.StatusCode
 	if res.StatusCode != http.StatusOK {
 		r.Severity = health.SeverityWarning
+		r.Warnings = append(r.Warnings, ErrAccessURLNotOK)
 	}
 	r.HealthzResponse = string(body)
 }
