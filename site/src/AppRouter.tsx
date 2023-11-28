@@ -342,7 +342,7 @@ export const AppRouter: FC = () => {
               </Route>
             </Route>
 
-            {/* Pages don't have the dashboard layout */}
+            {/* Pages that don't have the dashboard layout */}
             <Route
               path="/:username/:workspace/terminal"
               element={<TerminalPage />}
