@@ -30,6 +30,7 @@ import {
   TemplateVersion,
 } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
+import { FullScreenLoader } from "components/Loader/FullScreenLoader";
 
 type Params = {
   version: string;
@@ -107,7 +108,7 @@ export const TemplateVersionEditorPage: FC = () => {
         <title>{pageTitle(`${templateName} · Template Editor`)}</title>
       </Helmet>
 
-      {templateQuery.data && templateVersionQuery.data && fileTree && (
+      {templateQuery.data && templateVersionQuery.data && fileTree ? (
         <TemplateVersionEditor
           template={templateQuery.data}
           templateVersion={templateVersionQuery.data}
@@ -211,6 +212,8 @@ export const TemplateVersionEditorPage: FC = () => {
             setIsMissingVariablesDialogOpen(false);
           }}
         />
+      ) : (
+        <FullScreenLoader />
       )}
     </>
   );
