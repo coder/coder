@@ -5106,6 +5106,7 @@ func (q *FakeQuerier) InsertUserLink(_ context.Context, args database.InsertUser
 		OAuthRefreshToken:      args.OAuthRefreshToken,
 		OAuthRefreshTokenKeyID: args.OAuthRefreshTokenKeyID,
 		OAuthExpiry:            args.OAuthExpiry,
+		DebugContext:           args.DebugContext,
 	}
 
 	q.userLinks = append(q.userLinks, link)
@@ -6188,6 +6189,7 @@ func (q *FakeQuerier) UpdateUserLink(_ context.Context, params database.UpdateUs
 			link.OAuthRefreshToken = params.OAuthRefreshToken
 			link.OAuthRefreshTokenKeyID = params.OAuthRefreshTokenKeyID
 			link.OAuthExpiry = params.OAuthExpiry
+			link.DebugContext = params.DebugContext
 
 			q.userLinks[i] = link
 			return link, nil

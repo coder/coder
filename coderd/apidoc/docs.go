@@ -542,6 +542,37 @@ const docTemplate = `{
                 }
             }
         },
+        "/debug/{user}/debug-link": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Debug OIDC context for a user",
+                "operationId": "debug-oidc-context-for-a-user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/deployment/config": {
             "get": {
                 "security": [
@@ -6180,7 +6211,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, deleting_by.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, is-dormant, last_used_after, last_used_before.",
                         "name": "q",
                         "in": "query"
                     },

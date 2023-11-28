@@ -120,7 +120,7 @@ const styles = {
     },
 
     "&.debug": {
-      backgroundColor: theme.palette.background.paperLight,
+      backgroundColor: theme.palette.background.paper,
     },
 
     "&.warn": {

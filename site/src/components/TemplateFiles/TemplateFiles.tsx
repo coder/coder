@@ -146,7 +146,7 @@ const styles = {
   }),
 
   codeWrapper: (theme) => ({
-    background: theme.palette.background.paperLight,
+    background: theme.palette.background.paper,
   }),
 
   files: (theme) => ({

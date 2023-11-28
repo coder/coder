@@ -217,7 +217,7 @@ const markdownStyles: Interpolation<Theme> = (theme: Theme) => ({
   },
 
   "& .prismjs": {
-    background: theme.palette.background.paperLight,
+    background: theme.palette.background.paper,
     borderRadius: 8,
     padding: "16px 24px",
     overflowX: "auto",

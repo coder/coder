@@ -513,6 +513,7 @@ func UserLink(t testing.TB, db database.Store, orig database.UserLink) database.
 		OAuthRefreshToken:      takeFirst(orig.OAuthRefreshToken, uuid.NewString()),
 		OAuthRefreshTokenKeyID: takeFirst(orig.OAuthRefreshTokenKeyID, sql.NullString{}),
 		OAuthExpiry:            takeFirst(orig.OAuthExpiry, dbtime.Now().Add(time.Hour*24)),
+		DebugContext:           takeFirstSlice(orig.DebugContext, json.RawMessage("{}")),
 	})
 
 	require.NoError(t, err, "insert link")

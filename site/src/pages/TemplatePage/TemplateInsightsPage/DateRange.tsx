@@ -157,7 +157,7 @@ const styles = {
       color: theme.palette.text.secondary,
 
       "&:hover .rdrStaticRangeLabel": {
-        background: theme.palette.background.paperLight,
+        background: theme.palette.background.paper,
         color: theme.palette.text.primary,
       },
 
@@ -175,7 +175,7 @@ const styles = {
     },
 
     "& .rdrCalendarWrapper": {
-      backgroundColor: theme.palette.background.paperLight,
+      backgroundColor: theme.palette.background.paper,
     },
 
     "& .rdrDateDisplayItem": {
@@ -188,7 +188,7 @@ const styles = {
 
       "&.rdrDateDisplayItemActive": {
         borderColor: theme.palette.text.primary,
-        backgroundColor: theme.palette.background.paperLight,
+        backgroundColor: theme.palette.background.paper,
 
         "& input": {
           color: theme.palette.text.primary,

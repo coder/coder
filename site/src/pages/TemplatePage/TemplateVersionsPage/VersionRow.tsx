@@ -147,7 +147,7 @@ const styles = {
   },
 
   active: (theme) => ({
-    backgroundColor: theme.palette.background.paperLight,
+    backgroundColor: theme.palette.background.paper,
   }),
 
   versionCell: {
