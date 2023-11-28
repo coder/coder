@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -185,6 +186,20 @@ func (api *API) putDeploymentHealthSettings(rw http.ResponseWriter, r *http.Requ
 			Message: "Failed to marshal health settings.",
 			Detail:  err.Error(),
 		})
+		return
+	}
+
+	currentSettingsJSON, err := api.Database.GetHealthSettings(r.Context())
+	if err != nil {
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to fetch current health settings.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	if bytes.Equal(settingsJSON, []byte(currentSettingsJSON)) {
+		httpapi.Write(r.Context(), rw, http.StatusNotModified, nil)
 		return
 	}
 
