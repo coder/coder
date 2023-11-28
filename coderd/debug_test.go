@@ -269,7 +269,7 @@ func TestHealthSettings(t *testing.T) {
 		}
 
 		// when
-		err := adminClient.UpdateHealthSettings(ctx, expected)
+		err := adminClient.PutHealthSettings(ctx, expected)
 		require.NoError(t, err)
 
 		// then

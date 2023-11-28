@@ -27,7 +27,7 @@ func (c *Client) HealthSettings(ctx context.Context) (HealthSettings, error) {
 	return settings, json.NewDecoder(res.Body).Decode(&settings)
 }
 
-func (c *Client) UpdateHealthSettings(ctx context.Context, settings HealthSettings) error {
+func (c *Client) PutHealthSettings(ctx context.Context, settings HealthSettings) error {
 	res, err := c.Request(ctx, http.MethodPut, "/api/v2/debug/health/settings", settings)
 	if err != nil {
 		return err
