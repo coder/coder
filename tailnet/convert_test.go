@@ -162,7 +162,7 @@ func TestDERPMap(t *testing.T) {
 	require.NoError(t, err)
 
 	derpMap := &tailcfg.DERPMap{}
-	err = json.Unmarshal([]byte(tailscaleDERPMap), derpMap)
+	err = json.Unmarshal(tailscaleDERPMap, derpMap)
 	require.NoError(t, err)
 
 	// The tailscale DERPMap doesn't have HomeParams.

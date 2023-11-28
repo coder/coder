@@ -28,7 +28,7 @@ func (a *TailnetAPI) StreamDERPMaps(_ *tailnetproto.StreamDERPMapsRequest, strea
 	for {
 		derpMap := a.DerpMapFn()
 		if lastDERPMap == nil || !tailnet.CompareDERPMaps(lastDERPMap, derpMap) {
-			protoDERPMap := tailnetproto.DERPMapToProto(derpMap)
+			protoDERPMap := tailnet.DERPMapToProto(derpMap)
 			err := stream.Send(protoDERPMap)
 			if err != nil {
 				return xerrors.Errorf("send derp map: %w", err)

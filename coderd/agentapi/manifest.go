@@ -22,7 +22,6 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
-	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 )
 
 type ManifestAPI struct {
@@ -144,7 +143,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		DisableDirectConnections: a.DisableDirectConnections,
 		DerpForceWebsockets:      a.DerpForceWebSockets,
 
-		DerpMap:  tailnetproto.DERPMapToProto(a.DerpMapFn()),
+		DerpMap:  tailnet.DERPMapToProto(a.DerpMapFn()),
 		Scripts:  agentproto.DBAgentScriptsToProto(scripts),
 		Apps:     apps,
 		Metadata: agentproto.DBAgentMetadataToProtoDescription(metadata),

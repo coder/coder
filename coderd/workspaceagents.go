@@ -46,7 +46,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/tailnet"
-	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 )
 
 // @Summary Get workspace agent by ID
@@ -157,7 +156,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 	resource, err := api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to accept websocket.",
+			Message: "Internal error fetching workspace agent resource.",
 			Detail:  err.Error(),
 		})
 		return
@@ -495,7 +494,7 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 		AgentID:                  workspaceAgent.ID,
 		Apps:                     apps,
 		Scripts:                  scripts,
-		DERPMap:                  tailnetproto.DERPMapFromProto(manifest.DerpMap),
+		DERPMap:                  tailnet.DERPMapFromProto(manifest.DerpMap),
 		DERPForceWebSockets:      manifest.DerpForceWebsockets,
 		GitAuthConfigs:           int(manifest.GitAuthConfigs),
 		EnvironmentVariables:     manifest.EnvironmentVariables,
