@@ -183,6 +183,7 @@ var (
 					rbac.ResourceTemplate.Type:       {rbac.ActionRead, rbac.ActionUpdate},
 					rbac.ResourceWorkspace.Type:      {rbac.ActionRead, rbac.ActionUpdate},
 					rbac.ResourceWorkspaceBuild.Type: {rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
+					rbac.ResourceUser.Type:           {rbac.ActionRead},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},

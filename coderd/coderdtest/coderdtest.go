@@ -227,6 +227,12 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.Database, options.Pubsub = dbtestutil.NewDB(t)
 	}
 
+	accessControlStore := &atomic.Pointer[dbauthz.AccessControlStore]{}
+	var acs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
+	accessControlStore.Store(&acs)
+
+	options.Database = dbauthz.New(options.Database, options.Authorizer, *options.Logger, accessControlStore)
+
 	// Some routes expect a deployment ID, so just make sure one exists.
 	// Check first incase the caller already set up this database.
 	// nolint:gocritic // Setting up unit test data inside test helper
@@ -265,10 +271,6 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.StatsBatcher = batcher
 		t.Cleanup(closeBatcher)
 	}
-
-	accessControlStore := &atomic.Pointer[dbauthz.AccessControlStore]{}
-	var acs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
-	accessControlStore.Store(&acs)
 
 	var templateScheduleStore atomic.Pointer[schedule.TemplateScheduleStore]
 	if options.TemplateScheduleStore == nil {
