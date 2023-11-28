@@ -47,6 +47,8 @@ type Report struct {
 	NetcheckLogs []string         `json:"netcheck_logs"`
 
 	Error *string `json:"error"`
+
+	Dismissed bool `json:"dismissed`
 }
 
 // @typescript-generate RegionReport
@@ -95,6 +97,8 @@ type StunReport struct {
 }
 
 type ReportOptions struct {
+	Dismissed bool
+
 	DERPMap *tailcfg.DERPMap
 }
 

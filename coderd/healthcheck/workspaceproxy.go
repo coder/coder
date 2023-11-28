@@ -19,14 +19,17 @@ type WorkspaceProxyReportOptions struct {
 	// We pass this in to make it easier to test.
 	CurrentVersion               string
 	WorkspaceProxiesFetchUpdater WorkspaceProxiesFetchUpdater
+
+	Dismissed bool
 }
 
 // @typescript-generate WorkspaceProxyReport
 type WorkspaceProxyReport struct {
-	Healthy  bool            `json:"healthy"`
-	Severity health.Severity `json:"severity"`
-	Warnings []string        `json:"warnings"`
-	Error    *string         `json:"error"`
+	Healthy   bool            `json:"healthy"`
+	Severity  health.Severity `json:"severity"`
+	Warnings  []string        `json:"warnings"`
+	Error     *string         `json:"error"`
+	Dismissed bool            `json:"dismissed`
 
 	WorkspaceProxies codersdk.RegionsResponse[codersdk.WorkspaceProxy] `json:"workspace_proxies"`
 }
