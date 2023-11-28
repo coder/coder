@@ -2204,6 +2204,43 @@ export const ClibaseValueSources: ClibaseValueSource[] = [
 // The code below is generated from coderd/healthcheck/health.
 
 // From health/model.go
+export type HealthCode =
+  | "EACS01"
+  | "EACS02"
+  | "EACS03"
+  | "EACS04"
+  | "EDB01"
+  | "EDB02"
+  | "EDERP01"
+  | "EDERP02"
+  | "EUNKNOWN"
+  | "EWP01"
+  | "EWP02"
+  | "EWP03"
+  | "EWP04"
+  | "EWS01"
+  | "EWS02"
+  | "EWS03";
+export const HealthCodes: HealthCode[] = [
+  "EACS01",
+  "EACS02",
+  "EACS03",
+  "EACS04",
+  "EDB01",
+  "EDB02",
+  "EDERP01",
+  "EDERP02",
+  "EUNKNOWN",
+  "EWP01",
+  "EWP02",
+  "EWP03",
+  "EWP04",
+  "EWS01",
+  "EWS02",
+  "EWS03",
+];
+
+// From health/model.go
 export type HealthSeverity = "error" | "ok" | "warning";
 export const HealthSeveritys: HealthSeverity[] = ["error", "ok", "warning"];
 

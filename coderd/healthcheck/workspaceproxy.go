@@ -6,12 +6,12 @@ import (
 	"sort"
 	"strings"
 
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
+
+	"golang.org/x/xerrors"
 )
 
 // @typescript-generate WorkspaceProxyReport
@@ -64,7 +64,7 @@ func (r *WorkspaceProxyReport) Run(ctx context.Context, opts *WorkspaceProxyRepo
 	// If this fails, just mark it as a warning. It is still updated in the background.
 	if err := opts.WorkspaceProxiesFetchUpdater.Update(ctx); err != nil {
 		r.Severity = health.SeverityWarning
-		r.Warnings = append(r.Warnings, xerrors.Errorf("update proxy health: %w", err).Error())
+		r.Warnings = append(r.Warnings, health.Messagef(health.CodeProxyUpdate, "update proxy health: %s", err))
 		return
 	}
 
@@ -72,7 +72,7 @@ func (r *WorkspaceProxyReport) Run(ctx context.Context, opts *WorkspaceProxyRepo
 	if err != nil {
 		r.Healthy = false
 		r.Severity = health.SeverityError
-		r.Error = ptr.Ref(err.Error())
+		r.Error = ptr.Ref(health.Messagef(health.CodeProxyFetch, "fetch workspace proxies: %s", err))
 		return
 	}
 
@@ -99,11 +99,13 @@ func (r *WorkspaceProxyReport) Run(ctx context.Context, opts *WorkspaceProxyRepo
 
 	r.Severity = calculateSeverity(total, healthy)
 	r.Healthy = r.Severity.Value() < health.SeverityError.Value()
-	switch r.Severity {
-	case health.SeverityWarning, health.SeverityOK:
-		r.Warnings = append(r.Warnings, errs...)
-	case health.SeverityError:
-		r.appendError(errs...)
+	for _, err := range errs {
+		switch r.Severity {
+		case health.SeverityWarning, health.SeverityOK:
+			r.Warnings = append(r.Warnings, health.Messagef(health.CodeProxyUnhealthy, err))
+		case health.SeverityError:
+			r.appendError(health.Messagef(health.CodeProxyUnhealthy, err))
+		}
 	}
 
 	// Versions _must_ match. Perform this check last. This will clobber any other severity.
@@ -111,7 +113,7 @@ func (r *WorkspaceProxyReport) Run(ctx context.Context, opts *WorkspaceProxyRepo
 		if vErr := checkVersion(proxy, opts.CurrentVersion); vErr != nil {
 			r.Healthy = false
 			r.Severity = health.SeverityError
-			r.appendError(fmt.Sprintf("%s: %s", proxy.Name, vErr.Error()))
+			r.appendError(health.Messagef(health.CodeProxyVersionMismatch, vErr.Error()))
 		}
 	}
 }

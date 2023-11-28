@@ -65,7 +65,7 @@ func TestAccessURL(t *testing.T) {
 		assert.Equal(t, 0, report.StatusCode)
 		assert.Equal(t, "", report.HealthzResponse)
 		require.NotNil(t, report.Error)
-		assert.Contains(t, *report.Error, healthcheck.ErrAccessURLNotSet)
+		assert.Contains(t, *report.Error, health.CodeAccessURLNotSet)
 	})
 
 	t.Run("ClientErr", func(t *testing.T) {
@@ -101,7 +101,7 @@ func TestAccessURL(t *testing.T) {
 		assert.Equal(t, "", report.HealthzResponse)
 		require.NotNil(t, report.Error)
 		assert.Contains(t, *report.Error, expErr.Error())
-		assert.Contains(t, *report.Error, healthcheck.ErrAccessURLFetch)
+		assert.Contains(t, *report.Error, health.CodeAccessURLFetch)
 	})
 
 	t.Run("404", func(t *testing.T) {
@@ -131,7 +131,7 @@ func TestAccessURL(t *testing.T) {
 		assert.Equal(t, string(resp), report.HealthzResponse)
 		assert.Nil(t, report.Error)
 		if assert.NotEmpty(t, report.Warnings) {
-			assert.Contains(t, report.Warnings[0], healthcheck.ErrAccessURLNotOK)
+			assert.Contains(t, report.Warnings[0], health.CodeAccessURLNotOK)
 		}
 	})
 

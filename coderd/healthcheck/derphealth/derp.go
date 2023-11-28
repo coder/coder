@@ -137,7 +137,7 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 			}
 
 			for _, w := range regionReport.Warnings {
-				r.Warnings = append(r.Warnings, fmt.Sprintf("[%s] %s", regionReport.Region.RegionName, w))
+				r.Warnings = append(r.Warnings, w)
 			}
 			mu.Unlock()
 		}()
@@ -203,7 +203,7 @@ func (r *RegionReport) Run(ctx context.Context) {
 			}
 
 			for _, w := range nodeReport.Warnings {
-				r.Warnings = append(r.Warnings, fmt.Sprintf("[%s] %s", nodeReport.Node.Name, w))
+				r.Warnings = append(r.Warnings, w)
 			}
 			r.mu.Unlock()
 		}()
@@ -228,7 +228,7 @@ func (r *RegionReport) Run(ctx context.Context) {
 	} else if unhealthyNodes == 1 {
 		// r.Healthy = true (by default)
 		r.Severity = health.SeverityWarning
-		r.Warnings = append(r.Warnings, oneNodeUnhealthy)
+		r.Warnings = append(r.Warnings, health.Messagef(health.CodeDERPOneNodeUnhealthy, oneNodeUnhealthy))
 	} else if unhealthyNodes > 1 {
 		r.Healthy = false
 
@@ -292,7 +292,7 @@ func (r *NodeReport) Run(ctx context.Context) {
 	}
 
 	if r.UsesWebsocket {
-		r.Warnings = append(r.Warnings, warningNodeUsesWebsocket)
+		r.Warnings = append(r.Warnings, health.Messagef(health.CodeDERPNodeUsesWebsocket, warningNodeUsesWebsocket))
 		r.Severity = health.SeverityWarning
 	}
 }

@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	"golang.org/x/exp/slices"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+
+	"golang.org/x/exp/slices"
 )
 
 const (
@@ -55,8 +55,9 @@ func (r *DatabaseReport) Run(ctx context.Context, opts *DatabaseReportOptions) {
 	for i := 0; i < pingCount; i++ {
 		pong, err := opts.DB.Ping(ctx)
 		if err != nil {
-			r.Error = convertError(xerrors.Errorf("ping: %w", err))
+			r.Error = ptr.Ref(health.Messagef(health.CodeDatabasePingFailed, "ping database: %s", err))
 			r.Severity = health.SeverityError
+
 			return
 		}
 		pings = append(pings, pong)
@@ -69,6 +70,7 @@ func (r *DatabaseReport) Run(ctx context.Context, opts *DatabaseReportOptions) {
 	r.LatencyMS = latency.Milliseconds()
 	if r.LatencyMS >= r.ThresholdMS {
 		r.Severity = health.SeverityWarning
+		r.Warnings = append(r.Warnings, health.Messagef(health.CodeDatabasePingSlow, "median database ping above threshold"))
 	}
 	r.Healthy = true
 	r.Reachable = true
