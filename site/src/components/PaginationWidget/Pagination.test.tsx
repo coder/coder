@@ -2,7 +2,7 @@ import { type ComponentProps, type HTMLAttributes } from "react";
 import { Pagination, type PaginationResult } from "./Pagination";
 
 import { renderComponent } from "testHelpers/renderHelpers";
-import { waitFor } from "@testing-library/react";
+import { fireEvent, waitFor } from "@testing-library/react";
 
 beforeAll(() => {
   jest.useFakeTimers();
@@ -57,8 +57,27 @@ type TestProps = Omit<
 
 const mockUnitLabel = "ducks";
 
-function render2(props: TestProps) {
+function render(props: TestProps) {
   return renderComponent(<Pagination {...props} />);
+}
+
+function assertNoScroll(mockScroll: jest.SpyInstance) {
+  setTimeout(() => {
+    expect(mockScroll).not.toBeCalled();
+  }, 5000);
+
+  return jest.runAllTimersAsync();
+}
+
+async function mountWithSuccess(mockScroll: jest.SpyInstance) {
+  // eslint-disable-next-line testing-library/render-result-naming-convention -- Forced destructuring just makes this awkward
+  const result = render({
+    paginationUnitLabel: mockUnitLabel,
+    paginationResult: successResult,
+  });
+
+  await assertNoScroll(mockScroll);
+  return result;
 }
 
 /**
@@ -81,25 +100,59 @@ describe(`${Pagination.name}`, () => {
     it("Does absolutely nothing - no calls to any scrolls", async () => {
       const mockScroll = jest.spyOn(window, "scrollTo");
 
-      render2({
+      render({
         paginationUnitLabel: mockUnitLabel,
         paginationResult: initialRenderResult,
       });
 
-      setTimeout(() => {
-        expect(mockScroll).not.toBeCalled();
-      }, 5000);
-
-      await jest.runAllTimersAsync();
+      await assertNoScroll(mockScroll);
     });
   });
 
-  describe("Responding to changes in isPreviousData (showing data for previous page while new page is loading)", () => {
+  describe("Responding to page changes", () => {
+    it("Triggers scroll immediately if currentPage changes and isPreviousData is immediately false (previous query is cached)", async () => {
+      const mockScroll = jest.spyOn(window, "scrollTo");
+      const { rerender } = await mountWithSuccess(mockScroll);
+
+      rerender(
+        <Pagination
+          paginationUnitLabel={mockUnitLabel}
+          paginationResult={{
+            ...successResult,
+            currentPage: 2,
+            isPreviousData: false,
+          }}
+        />,
+      );
+
+      await waitFor(() => expect(mockScroll).toBeCalled());
+    });
+
+    it("Does nothing observable if page changes and isPreviousData is true (scroll will get queued, but will not be processed)", async () => {
+      const mockScroll = jest.spyOn(window, "scrollTo");
+      const { rerender } = await mountWithSuccess(mockScroll);
+
+      rerender(
+        <Pagination
+          paginationUnitLabel={mockUnitLabel}
+          paginationResult={{
+            ...successResult,
+            currentPage: 2,
+            isPreviousData: true,
+          }}
+        />,
+      );
+
+      await assertNoScroll(mockScroll);
+    });
+  });
+
+  describe("Responding to changes in React Query's isPreviousData", () => {
     // This should be impossible, but testing it just to be on the safe side
     it("Does nothing when isPreviousData flips from false to true while currentPage stays the same", async () => {
       const mockScroll = jest.spyOn(window, "scrollTo");
 
-      const { rerender } = render2({
+      const { rerender } = render({
         paginationUnitLabel: mockUnitLabel,
         paginationResult: initialRenderResult,
       });
@@ -111,26 +164,12 @@ describe(`${Pagination.name}`, () => {
         />,
       );
 
-      setTimeout(() => {
-        expect(mockScroll).not.toBeCalled();
-      }, 5000);
-
-      await jest.runAllTimersAsync();
+      await assertNoScroll(mockScroll);
     });
 
     it("Triggers scroll if scroll has been queued while waiting for isPreviousData to flip from true to false", async () => {
       const mockScroll = jest.spyOn(window, "scrollTo");
-
-      const { rerender } = render2({
-        paginationUnitLabel: mockUnitLabel,
-        paginationResult: successResult,
-      });
-
-      setTimeout(() => {
-        expect(mockScroll).not.toBeCalled();
-      }, 5000);
-
-      await jest.runAllTimersAsync();
+      const { rerender } = await mountWithSuccess(mockScroll);
 
       rerender(
         <Pagination
@@ -157,18 +196,35 @@ describe(`${Pagination.name}`, () => {
       await waitFor(() => expect(mockScroll).toBeCalled());
     });
 
-    it.skip("Does nothing if scroll is canceled by the time isPreviousData flips from true to false", async () => {
-      expect.hasAssertions();
-    });
-  });
+    it("Does nothing if scroll is canceled by the time isPreviousData flips from true to false", async () => {
+      const mockScroll = jest.spyOn(window, "scrollTo");
+      const { rerender } = await mountWithSuccess(mockScroll);
 
-  describe("Responding to page changes", () => {
-    it.skip("Triggers scroll immediately if data is cached", async () => {
-      expect.hasAssertions();
-    });
+      rerender(
+        <Pagination
+          paginationUnitLabel={mockUnitLabel}
+          paginationResult={{
+            ...successResult,
+            currentPage: 2,
+            isPreviousData: true,
+          }}
+        />,
+      );
 
-    it.skip("Queues up a scroll if new page data's needs to be fetched (cache miss)", async () => {
-      expect.hasAssertions();
+      fireEvent.click(window);
+
+      rerender(
+        <Pagination
+          paginationUnitLabel={mockUnitLabel}
+          paginationResult={{
+            ...successResult,
+            currentPage: 2,
+            isPreviousData: false,
+          }}
+        />,
+      );
+
+      await assertNoScroll(mockScroll);
     });
   });
 });
