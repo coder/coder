@@ -171,7 +171,7 @@ func (m *Manager) loop(ctx context.Context) {
 		}
 		err := m.syncReplicas(ctx)
 		if err != nil && !errors.Is(err, context.Canceled) {
-			m.logger.Error(ctx, "run replica update loop", slog.Error(err))
+			m.logger.Warn(ctx, "run replica update loop", slog.Error(err))
 		}
 	}
 }
@@ -192,7 +192,7 @@ func (m *Manager) subscribe(ctx context.Context) error {
 	update = func() {
 		err := m.syncReplicas(ctx)
 		if err != nil && !errors.Is(err, context.Canceled) {
-			m.logger.Error(ctx, "run replica from subscribe", slog.Error(err))
+			m.logger.Warn(ctx, "run replica from subscribe", slog.Error(err))
 		}
 		updateMutex.Lock()
 		if needsUpdate {
