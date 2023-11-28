@@ -298,6 +298,83 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get health settings
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/debug/health/settings \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /debug/health/settings`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "dismissed_healthchecks": ["string"]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                       |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.HealthSettings](schemas.md#codersdkhealthsettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update health settings
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/debug/health/settings \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /debug/health/settings`
+
+> Body parameter
+
+```json
+{
+  "dismissed_healthchecks": ["string"]
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                     | Required | Description            |
+| ------ | ---- | ------------------------------------------------------------------------ | -------- | ---------------------- |
+| `body` | body | [codersdk.UpdateHealthSettings](schemas.md#codersdkupdatehealthsettings) | true     | Update health settings |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "dismissed_healthchecks": ["string"]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                   |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UpdateHealthSettings](schemas.md#codersdkupdatehealthsettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Debug Info Tailnet
 
 ### Code samples

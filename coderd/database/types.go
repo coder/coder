@@ -23,6 +23,11 @@ type AuditOAuthConvertState struct {
 	UserID      uuid.UUID `db:"user_id" json:"user_id"`
 }
 
+type HealthSettings struct {
+	ID                    uuid.UUID `db:"id" json:"id"`
+	DismissedHealthchecks []string  `db:"dismissed_healthchecks" json:"dismissed_healthchecks"`
+}
+
 type Actions []rbac.Action
 
 func (a *Actions) Scan(src interface{}) error {

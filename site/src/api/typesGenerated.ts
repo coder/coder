@@ -542,6 +542,11 @@ export interface Group {
   readonly source: GroupSource;
 }
 
+// From codersdk/health.go
+export interface HealthSettings {
+  readonly dismissed_healthchecks: string[];
+}
+
 // From codersdk/workspaceapps.go
 export interface Healthcheck {
   readonly url: string;
@@ -1153,6 +1158,11 @@ export interface UpdateCheckResponse {
   readonly current: boolean;
   readonly version: string;
   readonly url: string;
+}
+
+// From codersdk/health.go
+export interface UpdateHealthSettings {
+  readonly dismissed_healthchecks: string[];
 }
 
 // From codersdk/users.go
@@ -1920,6 +1930,7 @@ export type ResourceType =
   | "convert_login"
   | "git_ssh_key"
   | "group"
+  | "health_settings"
   | "license"
   | "organization"
   | "template"
@@ -1933,6 +1944,7 @@ export const ResourceTypes: ResourceType[] = [
   "convert_login",
   "git_ssh_key",
   "group",
+  "health_settings",
   "license",
   "organization",
   "template",
