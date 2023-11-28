@@ -18,20 +18,20 @@ validate that the response is `200 OK`.
 
 If there is an issue, you may see one of the following errors reported:
 
-### <a name="EACSURL01">EACSURL01: Access URL not set</a>
+### <a name="EACS01">EACS01: Access URL not set</a>
 
 **Problem:** no access URL has been configured.
 
 **Solution:** configure an [access URL](./configure.md#access-url) for Coder.
 
-### <a name="EACSURL02">EACSURL02: Access URL invalid</a>
+### <a name="EACS02">EACS02: Access URL invalid</a>
 
 **Problem:** `${CODER_ACCESS_URL}/healthz` is not a valid URL.
 
 **Solution:** Ensure that the access URL is a valid URL accepted by
 [`url.Parse`](https://pkg.go.dev/net/url#Parse).
 
-### <a name="EACSURL03">EACSURL03: Failed to fetch /healthz</a>
+### <a name="EACS03">EACS03: Failed to fetch /healthz</a>
 
 **Problem:** Coder was unable to execute a GET request to
 `${CODER_ACCESS_URL}/healthz`.
@@ -54,7 +54,7 @@ curl -v ${CODER_ACCESS_URL}
 
 The output of this command should aid further diagnosis.
 
-### <a name="EACSURL04">EACSURL04: /healthz did not return 200 OK</a>
+### <a name="EACS04">EACS04: /healthz did not return 200 OK</a>
 
 **Problem:** Coder was able to execute a GET request to
 `${CODER_ACCESS_URL}/healthz`, but the response code was not `200 OK` as
@@ -72,8 +72,54 @@ should give you a good indication of the root cause.
 
 ## Database
 
+### <a name="EDB01">EDB01: TODO</a>
+
+TODO
+
+### <a name="EDB02">EDB02: TODO</a>
+
+TODO
+
 ## DERP
+
+### <a name="EDERP01">EDERP01: TODO</a>
+
+TODO
+
+### <a name="EDERP02">EDERP02: TODO</a>
+
+TODO
 
 ## Websocket
 
+### <a name="EWS01">EWS01: TODO</a>
+
+TODO
+
+### <a name="EWS02">EWS02: TODO</a>
+
+TODO
+
 ## Workspace Proxy
+
+### <a name="EWP01">EWP01: TODO</a>
+
+TODO
+
+### <a name="EWP02">EWP02: TODO</a>
+
+TODO
+
+### <a name="EWP03">EWP03: TODO</a>
+
+TODO
+
+### <a name="EWP04">EWP04: TODO</a>
+
+TODO
+
+## <a name="EUNKNOWN">Unknown Error</a>
+
+**Problem:** lazy dev
+
+**Solution:** motivate them with cheese
