@@ -63,6 +63,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
             <AuditHelpTooltip />
           </Stack>
         </PageHeaderTitle>
+
         <PageHeaderSubtitle>{Language.subtitle}</PageHeaderSubtitle>
       </PageHeader>
 
@@ -100,6 +101,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
                             </TableCell>
                           </TableRow>
                         </Cond>
+
                         <Cond>
                           <TableRow>
                             <TableCell colSpan={999}>

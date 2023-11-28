@@ -28,11 +28,23 @@ const meta: Meta<typeof AuditPageView> = {
   component: AuditPageView,
   args: {
     auditLogs: [MockAuditLog, MockAuditLog2],
-    count: 1000,
-    page: 1,
-    limit: 25,
     isAuditLogVisible: true,
     filterProps: defaultFilterProps,
+    paginationResult: {
+      isSuccess: true,
+      currentPage: 1,
+      limit: 25,
+      totalRecords: 1000,
+      hasNextPage: false,
+      hasPreviousPage: false,
+      totalPages: 40,
+      currentChunk: 1,
+      isPreviousData: false,
+      goToFirstPage: () => {},
+      goToPreviousPage: () => {},
+      goToNextPage: () => {},
+      onPageChange: () => {},
+    },
   },
 };
 
