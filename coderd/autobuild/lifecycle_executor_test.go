@@ -54,7 +54,7 @@ func TestExecutorAutostartOK(t *testing.T) {
 
 	// Then: the workspace should eventually be started
 	stats := <-statsCh
-	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Errors, 0)
 	assert.Len(t, stats.Transitions, 1)
 	assert.Contains(t, stats.Transitions, workspace.ID)
 	assert.Equal(t, database.WorkspaceTransitionStart, stats.Transitions[workspace.ID])
@@ -172,7 +172,7 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 			}()
 
 			stats := <-statsCh
-			assert.NoError(t, stats.Error)
+			assert.Len(t, stats.Errors, 0)
 			if !tc.expectStart {
 				// Then: the workspace should not be started
 				assert.Len(t, stats.Transitions, 0)
@@ -226,7 +226,7 @@ func TestExecutorAutostartAlreadyRunning(t *testing.T) {
 
 	// Then: the workspace should not be started.
 	stats := <-statsCh
-	require.NoError(t, stats.Error)
+	assert.Len(t, stats.Errors, 0)
 	require.Len(t, stats.Transitions, 0)
 }
 
@@ -261,7 +261,7 @@ func TestExecutorAutostartNotEnabled(t *testing.T) {
 
 	// Then: the workspace should not be started.
 	stats := <-statsCh
-	require.NoError(t, stats.Error)
+	assert.Len(t, stats.Errors, 0)
 	require.Len(t, stats.Transitions, 0)
 }
 
@@ -305,7 +305,7 @@ func TestExecutorAutostartUserSuspended(t *testing.T) {
 
 	// Then: nothing should happen
 	stats := testutil.RequireRecvCtx(ctx, t, statsCh)
-	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Errors, 0)
 	assert.Len(t, stats.Transitions, 0)
 }
 
@@ -335,7 +335,7 @@ func TestExecutorAutostopOK(t *testing.T) {
 
 	// Then: the workspace should be stopped
 	stats := <-statsCh
-	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Errors, 0)
 	assert.Len(t, stats.Transitions, 1)
 	assert.Contains(t, stats.Transitions, workspace.ID)
 	assert.Equal(t, database.WorkspaceTransitionStop, stats.Transitions[workspace.ID])
@@ -378,7 +378,7 @@ func TestExecutorAutostopExtend(t *testing.T) {
 
 	// Then: nothing should happen and the workspace should stay running
 	stats := <-statsCh
-	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Errors, 0)
 	assert.Len(t, stats.Transitions, 0)
 
 	// When: the autobuild executor ticks after the *new* deadline:
@@ -389,7 +389,7 @@ func TestExecutorAutostopExtend(t *testing.T) {
 
 	// Then: the workspace should be stopped
 	stats = <-statsCh
-	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Errors, 0)
 	assert.Len(t, stats.Transitions, 1)
 	assert.Contains(t, stats.Transitions, workspace.ID)
 	assert.Equal(t, database.WorkspaceTransitionStop, stats.Transitions[workspace.ID])
@@ -423,7 +423,7 @@ func TestExecutorAutostopAlreadyStopped(t *testing.T) {
 
 	// Then: the workspace should remain stopped and no build should happen.
 	stats := <-statsCh
-	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Errors, 0)
 	assert.Len(t, stats.Transitions, 0)
 }
 
@@ -461,7 +461,7 @@ func TestExecutorAutostopNotEnabled(t *testing.T) {
 
 	// Then: the workspace should not be stopped.
 	stats := <-statsCh
-	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Errors, 0)
 	assert.Len(t, stats.Transitions, 0)
 }
 
@@ -494,7 +494,7 @@ func TestExecutorWorkspaceDeleted(t *testing.T) {
 
 	// Then: nothing should happen
 	stats := <-statsCh
-	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Errors, 0)
 	assert.Len(t, stats.Transitions, 0)
 }
 
@@ -526,7 +526,7 @@ func TestExecutorWorkspaceAutostartTooEarly(t *testing.T) {
 
 	// Then: nothing should happen
 	stats := <-statsCh
-	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Errors, 0)
 	assert.Len(t, stats.Transitions, 0)
 }
 
@@ -557,7 +557,7 @@ func TestExecutorWorkspaceAutostopBeforeDeadline(t *testing.T) {
 
 	// Then: nothing should happen
 	stats := <-statsCh
-	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Errors, 0)
 	assert.Len(t, stats.Transitions, 0)
 }
 
@@ -592,7 +592,7 @@ func TestExecutorWorkspaceAutostopNoWaitChangedMyMind(t *testing.T) {
 
 	// Then: the workspace should stop
 	stats := <-statsCh
-	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Errors, 0)
 	assert.Len(t, stats.Transitions, 1)
 	assert.Equal(t, stats.Transitions[workspace.ID], database.WorkspaceTransitionStop)
 
@@ -620,7 +620,7 @@ func TestExecutorWorkspaceAutostopNoWaitChangedMyMind(t *testing.T) {
 
 	// Then: the workspace should not stop
 	stats = <-statsCh
-	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Errors, 0)
 	assert.Len(t, stats.Transitions, 0)
 }
 
@@ -665,14 +665,14 @@ func TestExecutorAutostartMultipleOK(t *testing.T) {
 
 	// Then: the workspace should eventually be started
 	stats1 := <-statsCh1
-	assert.NoError(t, stats1.Error)
+	assert.Len(t, stats1.Errors, 0)
 	assert.Len(t, stats1.Transitions, 1)
 	assert.Contains(t, stats1.Transitions, workspace.ID)
 	assert.Equal(t, database.WorkspaceTransitionStart, stats1.Transitions[workspace.ID])
 
 	// Then: the other executor should not have done anything
 	stats2 := <-statsCh2
-	assert.NoError(t, stats2.Error)
+	assert.Len(t, stats2.Errors, 0)
 	assert.Len(t, stats2.Transitions, 0)
 }
 
@@ -728,7 +728,7 @@ func TestExecutorAutostartWithParameters(t *testing.T) {
 
 	// Then: the workspace with parameters should eventually be started
 	stats := <-statsCh
-	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Errors, 0)
 	assert.Len(t, stats.Transitions, 1)
 	assert.Contains(t, stats.Transitions, workspace.ID)
 	assert.Equal(t, database.WorkspaceTransitionStart, stats.Transitions[workspace.ID])
@@ -778,7 +778,7 @@ func TestExecutorAutostartTemplateDisabled(t *testing.T) {
 
 	// Then: nothing should happen
 	stats := <-statsCh
-	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Errors, 0)
 	assert.Len(t, stats.Transitions, 0)
 }
 
@@ -821,7 +821,7 @@ func TestExecutorAutostopTemplateDisabled(t *testing.T) {
 
 	// Then: nothing should happen
 	stats := <-statsCh
-	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Errors, 0)
 	assert.Len(t, stats.Transitions, 0)
 
 	// When: the autobuild executor ticks after the template setting:
@@ -832,7 +832,7 @@ func TestExecutorAutostopTemplateDisabled(t *testing.T) {
 
 	// Then: the workspace should be stopped
 	stats = <-statsCh
-	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Errors, 0)
 	assert.Len(t, stats.Transitions, 1)
 	assert.Contains(t, stats.Transitions, workspace.ID)
 	assert.Equal(t, database.WorkspaceTransitionStop, stats.Transitions[workspace.ID])
