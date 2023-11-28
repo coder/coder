@@ -33,12 +33,11 @@ export const PaginationWidgetBase = ({
     return null;
   }
 
-  // Ugly stopgap hack to make sure that the PaginationBase can be used for both
-  // the old and new pagination implementations while the transition is
-  // happening - without breaking existing Storybook tests
   const currentPageOffset = (currentPage - 1) * pageSize;
-  hasPreviousPage ??= currentPage > 1;
-  hasNextPage ??= pageSize + currentPageOffset < totalRecords;
+  const isPrevDisabled = !(hasPreviousPage ?? currentPage > 1);
+  const isNextDisabled = !(
+    hasNextPage ?? pageSize + currentPageOffset < totalRecords
+  );
 
   return (
     <div
@@ -53,10 +52,10 @@ export const PaginationWidgetBase = ({
     >
       <PaginationNavButton
         disabledMessage="You are already on the first page"
-        disabled={hasPreviousPage}
+        disabled={isPrevDisabled}
         aria-label="Previous page"
         onClick={() => {
-          if (hasPreviousPage) {
+          if (!isPrevDisabled) {
             onPageChange(currentPage - 1);
           }
         }}
@@ -80,10 +79,10 @@ export const PaginationWidgetBase = ({
 
       <PaginationNavButton
         disabledMessage="You are already on the last page"
-        disabled={hasNextPage}
+        disabled={isNextDisabled}
         aria-label="Next page"
         onClick={() => {
-          if (hasNextPage) {
+          if (!isNextDisabled) {
             onPageChange(currentPage + 1);
           }
         }}
