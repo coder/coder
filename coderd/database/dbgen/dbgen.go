@@ -370,6 +370,8 @@ func GroupMember(t testing.TB, db database.Store, orig database.GroupMember) dat
 // ProvisionerJob is a bit more involved to get the values such as "completedAt", "startedAt", "cancelledAt" set.  ps
 // can be set to nil if you are SURE that you don't require a provisionerdaemon to acquire the job in your test.
 func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig database.ProvisionerJob) database.ProvisionerJob {
+	t.Helper()
+
 	jobID := TakeFirst(orig.ID, uuid.New())
 	// Always set some tags to prevent Acquire from grabbing jobs it should not.
 	if !orig.StartedAt.Time.IsZero() {
@@ -580,7 +582,7 @@ func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVers
 		versionID := TakeFirst(orig.ID, uuid.New())
 		err := db.InsertTemplateVersion(Ctx, database.InsertTemplateVersionParams{
 			ID:             versionID,
-			TemplateID:     orig.TemplateID,
+			TemplateID:     TakeFirst(orig.TemplateID, uuid.NullUUID{}),
 			OrganizationID: TakeFirst(orig.OrganizationID, uuid.New()),
 			CreatedAt:      TakeFirst(orig.CreatedAt, dbtime.Now()),
 			UpdatedAt:      TakeFirst(orig.UpdatedAt, dbtime.Now()),
@@ -621,6 +623,8 @@ func TemplateVersionVariable(t testing.TB, db database.Store, orig database.Temp
 }
 
 func TemplateVersionParameter(t testing.TB, db database.Store, orig database.TemplateVersionParameter) database.TemplateVersionParameter {
+	t.Helper()
+
 	version, err := db.InsertTemplateVersionParameter(Ctx, database.InsertTemplateVersionParameterParams{
 		TemplateVersionID:   TakeFirst(orig.TemplateVersionID, uuid.New()),
 		Name:                TakeFirst(orig.Name, namesgenerator.GetRandomName(1)),

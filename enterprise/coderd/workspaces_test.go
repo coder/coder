@@ -1158,8 +1158,7 @@ func TestResolveAutostart(t *testing.T) {
 
 	ownerClient, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
-			IncludeProvisionerDaemon: true,
-			TemplateScheduleStore:    &schedule.EnterpriseTemplateScheduleStore{},
+			TemplateScheduleStore: &schedule.EnterpriseTemplateScheduleStore{},
 		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
@@ -1168,43 +1167,37 @@ func TestResolveAutostart(t *testing.T) {
 		},
 	})
 
-	template, version1 := dbfake.TemplateWithVersion(t, db, database.Template{
-		CreatedBy:      owner.UserID,
-		OrganizationID: owner.OrganizationID,
-	}, database.TemplateVersion{}, database.ProvisionerJob{})
+	version1 := dbfake.TemplateVersion(t, db).
+		Seed(database.TemplateVersion{
+			CreatedBy:      owner.UserID,
+			OrganizationID: owner.OrganizationID,
+		}).Do()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	_, err := ownerClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+	_, err := ownerClient.UpdateTemplateMeta(ctx, version1.TemplateID.UUID, codersdk.UpdateTemplateMeta{
 		RequireActiveVersion: true,
 	})
 	require.NoError(t, err)
 
-	version2, _ := dbfake.TemplateVersionWithParams(t, db, database.TemplateVersion{
-		TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
-		OrganizationID: template.OrganizationID,
-		CreatedBy:      owner.UserID,
-	}, database.ProvisionerJob{}, []database.TemplateVersionParameter{{
-		Name:     "param",
-		Required: true,
-	}})
-
 	client, member := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
-	workspace := dbfake.Workspace(t, db, database.Workspace{
-		TemplateID:       template.ID,
+
+	workspace := dbfake.NewWorkspaceBuilder(t, db).Seed(database.Workspace{
+		TemplateID:       version1.TemplateID.UUID,
 		OwnerID:          member.ID,
 		OrganizationID:   owner.OrganizationID,
 		AutomaticUpdates: database.AutomaticUpdatesNever,
-	})
-	_ = dbfake.WorkspaceBuild(t, db, workspace, database.WorkspaceBuild{
-		TemplateVersionID: version1.ID,
-	})
+	}).WithAgent().Do().Workspace
 
-	err = ownerClient.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
-		ID: version2.ID,
-	})
-	require.NoError(t, err)
+	_ = dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+		CreatedBy:      owner.UserID,
+		OrganizationID: owner.OrganizationID,
+		TemplateID:     uuid.NullUUID{UUID: version1.TemplateID.UUID, Valid: true},
+	}).Params(database.TemplateVersionParameter{
+		Name:     "param",
+		Required: true,
+	}).Do()
 
 	// Autostart shouldn't be possible if parameters do not match.
 	resp, err := client.ResolveAutostart(ctx, workspace.ID.String())
