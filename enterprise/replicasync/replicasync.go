@@ -331,7 +331,26 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 		Primary:         m.self.Primary,
 	})
 	if err != nil {
-		return xerrors.Errorf("update replica: %w", err)
+		if !errors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("update replica: %w", err)
+		}
+		// self replica has been cleaned up, we must reinsert
+		// nolint:gocritic // Updating a replica is a system function.
+		replica, err = m.db.InsertReplica(dbauthz.AsSystemRestricted(ctx), database.InsertReplicaParams{
+			ID:              m.self.ID,
+			CreatedAt:       dbtime.Now(),
+			UpdatedAt:       dbtime.Now(),
+			StartedAt:       m.self.StartedAt,
+			RelayAddress:    m.self.RelayAddress,
+			RegionID:        m.self.RegionID,
+			Hostname:        m.self.Hostname,
+			Version:         m.self.Version,
+			DatabaseLatency: int32(databaseLatency.Microseconds()),
+			Primary:         m.self.Primary,
+		})
+		if err != nil {
+			return xerrors.Errorf("update replica: %w", err)
+		}
 	}
 	if m.self.Error != replica.Error {
 		// Publish an update occurred!
