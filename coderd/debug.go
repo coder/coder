@@ -7,13 +7,14 @@ import (
 	"net/http"
 	"time"
 
+	"golang.org/x/exp/slices"
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
-	"golang.org/x/exp/slices"
-	"golang.org/x/xerrors"
 )
 
 // @Summary Debug Info Wireguard Coordinator
