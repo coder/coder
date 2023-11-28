@@ -273,6 +273,9 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
         >
           {publishedVersion && (
             <div
+              // We need this to reset the dismissable state of the component
+              // when the published version changes
+              key={publishedVersion.id}
               css={{
                 position: "absolute",
                 width: "100%",
