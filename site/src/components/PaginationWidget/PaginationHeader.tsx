@@ -48,7 +48,7 @@ export const PaginationHeader: FC<PaginationHeaderProps> = ({
             {paginationResult.currentChunk}&ndash;
             {paginationResult.currentChunk + endBound}
           </strong>{" "}
-          (<strong>{paginationResult.totalRecords}</strong>{" "}
+          (<strong>{paginationResult.totalRecords.toLocaleString()}</strong>{" "}
           {paginationUnitLabel} total)
         </div>
       )}

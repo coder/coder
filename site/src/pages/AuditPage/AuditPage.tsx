@@ -21,10 +21,10 @@ const AuditPage: FC = () => {
    * @todo Make link more explicit (probably by making it so that components
    * and hooks can share the result of useSearchParams directly)
    */
-  const [searchParams, setSearchParams] = useSearchParams();
-  const auditsQuery = usePaginatedQuery(paginatedAudits(searchParams));
+  const searchParamsResult = useSearchParams();
+  const auditsQuery = usePaginatedQuery(paginatedAudits(searchParamsResult[0]));
   const filter = useFilter({
-    searchParamsResult: [searchParams, setSearchParams],
+    searchParamsResult: searchParamsResult,
     onUpdate: auditsQuery.goToFirstPage,
   });
 
@@ -63,12 +63,9 @@ const AuditPage: FC = () => {
 
       <AuditPageView
         auditLogs={auditsQuery.data?.audit_logs}
-        count={auditsQuery.totalRecords}
-        page={auditsQuery.currentPage}
-        limit={auditsQuery.limit}
-        onPageChange={auditsQuery.onPageChange}
-        isNonInitialPage={isNonInitialPage(searchParams)}
+        isNonInitialPage={isNonInitialPage(searchParamsResult[0])}
         isAuditLogVisible={isAuditLogVisible}
+        paginationResult={auditsQuery}
         error={auditsQuery.error}
         filterProps={{
           filter,
