@@ -172,13 +172,14 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 			}()
 
 			stats := <-statsCh
-			assert.Len(t, stats.Errors, 0)
 			if !tc.expectStart {
 				// Then: the workspace should not be started
 				assert.Len(t, stats.Transitions, 0)
+				assert.Len(t, stats.Errors, 1)
 				return
 			}
 
+			assert.Len(t, stats.Errors, 0)
 			// Then: the workspace should be started
 			assert.Len(t, stats.Transitions, 1)
 			assert.Contains(t, stats.Transitions, workspace.ID)
