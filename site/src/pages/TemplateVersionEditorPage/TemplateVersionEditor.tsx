@@ -217,7 +217,19 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               fitImage
               css={{ width: 16, height: 16 }}
             />
-            <span>{template.display_name || template.name}</span>
+            <RouterLink
+              to={`/templates/${template.name}`}
+              css={{
+                color: theme.palette.text.primary,
+                textDecoration: "none",
+
+                "&:hover": {
+                  textDecoration: "underline",
+                },
+              }}
+            >
+              {template.display_name || template.name}
+            </RouterLink>
             <span css={{ color: theme.palette.divider }}>/</span>
             <span css={{ color: theme.palette.text.secondary }}>
               {templateVersion.name}
