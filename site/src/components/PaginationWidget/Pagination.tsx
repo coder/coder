@@ -8,12 +8,10 @@ import {
   useRef,
 } from "react";
 
-import { useTheme } from "@emotion/react";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { type PaginationResultInfo } from "hooks/usePaginatedQuery";
-
 import { PaginationWidgetBase } from "./PaginationWidgetBase";
-import Skeleton from "@mui/material/Skeleton";
+import { PaginationHeader } from "./PaginationHeader";
 
 export type PaginationResult = PaginationResultInfo & {
   isPreviousData: boolean;
@@ -71,54 +69,6 @@ export const Pagination: FC<PaginationProps> = ({
           />
         )}
       </div>
-    </div>
-  );
-};
-
-type PaginationHeaderProps = {
-  paginationResult: PaginationResult;
-  paginationUnitLabel: string;
-};
-
-const PaginationHeader: FC<PaginationHeaderProps> = ({
-  paginationResult,
-  paginationUnitLabel,
-}) => {
-  const theme = useTheme();
-  const endBound = Math.min(
-    paginationResult.limit - 1,
-    (paginationResult.totalRecords ?? 0) - (paginationResult.currentChunk ?? 0),
-  );
-
-  return (
-    <div
-      css={{
-        display: "flex",
-        flexFlow: "row nowrap",
-        alignItems: "center",
-        margin: 0,
-        fontSize: "13px",
-        paddingBottom: "8px",
-        color: theme.palette.text.secondary,
-        height: "36px", // The size of a small button
-        "& strong": {
-          color: theme.palette.text.primary,
-        },
-      }}
-    >
-      {!paginationResult.isSuccess ? (
-        <Skeleton variant="text" width={160} height={16} />
-      ) : (
-        <div>
-          Showing {paginationUnitLabel}{" "}
-          <strong>
-            {paginationResult.currentChunk}&ndash;
-            {paginationResult.currentChunk + endBound}
-          </strong>{" "}
-          (<strong>{paginationResult.totalRecords}</strong>{" "}
-          {paginationUnitLabel} total)
-        </div>
-      )}
     </div>
   );
 };
