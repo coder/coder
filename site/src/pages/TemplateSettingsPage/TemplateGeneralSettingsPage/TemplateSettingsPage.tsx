@@ -32,11 +32,13 @@ export const TemplateSettingsPage: FC = () => {
   } = useMutation(
     (data: UpdateTemplateMeta) => updateTemplateMeta(template.id, data),
     {
-      onSuccess: async () => {
+      onSuccess: async (data) => {
+        // we use data.name because an admin may have updated templateName to something new
         await queryClient.invalidateQueries(
-          templateByNameKey(orgId, templateName),
+          templateByNameKey(orgId, data.name),
         );
         displaySuccess("Template updated successfully");
+        navigate(`/templates/${data.name}`);
       },
     },
   );
