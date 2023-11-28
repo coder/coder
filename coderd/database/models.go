@@ -1209,7 +1209,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeWorkspaceBuild,
 		ResourceTypeLicense,
 		ResourceTypeWorkspaceProxy,
-		ResourceTypeConvertLogin:
+		ResourceTypeConvertLogin,
+		ResourceTypeHealthSettings:
 		return true
 	}
 	return false
@@ -1229,6 +1230,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeLicense,
 		ResourceTypeWorkspaceProxy,
 		ResourceTypeConvertLogin,
+		ResourceTypeHealthSettings,
 	}
 }
 

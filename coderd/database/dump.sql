@@ -133,7 +133,8 @@ CREATE TYPE resource_type AS ENUM (
     'workspace_build',
     'license',
     'workspace_proxy',
-    'convert_login'
+    'convert_login',
+    'health_settings'
 );
 
 CREATE TYPE startup_script_behavior AS ENUM (

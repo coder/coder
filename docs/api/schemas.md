@@ -4176,6 +4176,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `group`            |
 | `license`          |
 | `convert_login`    |
+| `health_settings`  |
 | `workspace_proxy`  |
 | `organization`     |
 

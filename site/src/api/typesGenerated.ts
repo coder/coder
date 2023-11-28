@@ -1930,6 +1930,7 @@ export type ResourceType =
   | "convert_login"
   | "git_ssh_key"
   | "group"
+  | "health_settings"
   | "license"
   | "organization"
   | "template"
@@ -1943,6 +1944,7 @@ export const ResourceTypes: ResourceType[] = [
   "convert_login",
   "git_ssh_key",
   "group",
+  "health_settings",
   "license",
   "organization",
   "template",

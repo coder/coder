@@ -8940,6 +8940,7 @@
         "group",
         "license",
         "convert_login",
+        "health_settings",
         "workspace_proxy",
         "organization"
       ],
@@ -8954,6 +8955,7 @@
         "ResourceTypeGroup",
         "ResourceTypeLicense",
         "ResourceTypeConvertLogin",
+        "ResourceTypeHealthSettings",
         "ResourceTypeWorkspaceProxy",
         "ResourceTypeOrganization"
       ]
