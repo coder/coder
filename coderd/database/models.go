@@ -1158,6 +1158,7 @@ const (
 	ResourceTypeLicense         ResourceType = "license"
 	ResourceTypeWorkspaceProxy  ResourceType = "workspace_proxy"
 	ResourceTypeConvertLogin    ResourceType = "convert_login"
+	ResourceTypeHealthSettings  ResourceType = "health_settings"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {

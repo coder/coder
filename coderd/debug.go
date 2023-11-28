@@ -11,6 +11,10 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
+	"github.com/google/uuid"
+
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -201,6 +205,19 @@ func (api *API) putDeploymentHealthSettings(rw http.ResponseWriter, r *http.Requ
 	if bytes.Equal(settingsJSON, []byte(currentSettingsJSON)) {
 		httpapi.Write(r.Context(), rw, http.StatusNotModified, nil)
 		return
+	}
+
+	auditor := api.Auditor.Load()
+	aReq, commitAudit := audit.InitRequest[database.HealthSettings](rw, &audit.RequestParams{
+		Audit:   *auditor,
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionWrite,
+	})
+	defer commitAudit()
+	aReq.New = database.HealthSettings{
+		ID:                    uuid.New(),
+		DismissedHealthchecks: settings.DismissedHealthchecks,
 	}
 
 	err = api.Database.UpsertHealthSettings(ctx, string(settingsJSON))
