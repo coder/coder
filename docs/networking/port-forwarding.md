@@ -52,16 +52,20 @@ For more examples, see `coder port-forward --help`.
 > [wildcard access URL](../admin/configure.md#wildcard-access-url). If an access
 > URL is not specified, Coder will create
 > [a publicly accessible URL](../admin/configure.md#tunnel) to reverse proxy the
-> deployment, and port forwarding will work. There is a known limitation where
-> if the port forwarding URL length is greater than 63 characters, port
-> forwarding will not work.
+> deployment, and port forwarding will work.
+>
+> There is a
+> [DNS limitation](https://datatracker.ietf.org/doc/html/rfc1035#section-2.3.1)
+> where each segment of hostnames must not exceed 63 characters. If your app
+> name, agent name, workspace name and username exceed 63 characters in the
+> hostname, port forwarding via the dashboard will not work.
 
 ### From an arbitrary port
 
 One way to port forward in the dashboard is to use the "Port forward" button to
-specify an arbitrary port. Coder will also detect if processes are running, and
-will list them below the port picklist to click an open the running processes in
-the browser.
+specify an arbitrary port. Coder will also detect if apps inside the workspace
+are listening on ports, and list them below the port input (this is only
+supported on Windows and Linux workspace agents).
 
 ![Port forwarding in the UI](../images/port-forward-dashboard.png)
 
