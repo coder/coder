@@ -235,10 +235,9 @@ describe(`${Pagination.name}`, () => {
           />,
         );
 
+        await assertNoScroll(mockScroll);
         unmount();
       }
-
-      await assertNoScroll(mockScroll);
     });
   });
 });
