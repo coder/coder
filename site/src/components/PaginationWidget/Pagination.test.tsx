@@ -222,7 +222,6 @@ describe(`${Pagination.name}`, () => {
           />,
         );
 
-        fireEvent.scroll;
         fireEvent[event](window);
 
         rerender(
