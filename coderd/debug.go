@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -9,7 +10,10 @@ import (
 	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
+	"golang.org/x/exp/slices"
+	"golang.org/x/xerrors"
 )
 
 // @Summary Debug Info Wireguard Coordinator
@@ -82,30 +86,6 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// @Summary Get health settings
-// @ID get-health-settings
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Debug
-// @Success 200 {object} codersdk.HealthSettings
-// @Router /debug/health/settings [get]
-func (api *API) deploymentHealthSettings(rw http.ResponseWriter, r *http.Request) {
-	// TODO
-}
-
-// @Summary Update health settings
-// @ID update-health-settings
-// @Security CoderSessionToken
-// @Accept json
-// @Produce json
-// @Tags Debug
-// @Param request body codersdk.UpdateHealthSettings true "Update health settings"
-// @Success 200 {object} codersdk.UpdateHealthSettings
-// @Router /debug/health/settings [put]
-func (api *API) putDeploymentHealthSettings(rw http.ResponseWriter, r *http.Request) {
-	// TODO
-}
-
 func formatHealthcheck(ctx context.Context, rw http.ResponseWriter, r *http.Request, hc *healthcheck.Report) {
 	format := r.URL.Query().Get("format")
 	switch format {
@@ -129,6 +109,104 @@ func formatHealthcheck(ctx context.Context, rw http.ResponseWriter, r *http.Requ
 			Detail:  "Allowed values are: \"json\", \"simple\".",
 		})
 	}
+}
+
+// @Summary Get health settings
+// @ID get-health-settings
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Debug
+// @Success 200 {object} codersdk.HealthSettings
+// @Router /debug/health/settings [get]
+func (api *API) deploymentHealthSettings(rw http.ResponseWriter, r *http.Request) {
+	settingsJSON, err := api.Database.GetHealthSettings(r.Context())
+	if err != nil {
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to fetch health settings.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	var settings codersdk.HealthSettings
+	err = json.Unmarshal([]byte(settingsJSON), &settings)
+	if err != nil {
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to unmarshal health settings.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	if len(settings.DismissedHealthchecks) == 0 {
+		settings.DismissedHealthchecks = []string{}
+	}
+
+	httpapi.Write(r.Context(), rw, http.StatusOK, settings)
+}
+
+// @Summary Update health settings
+// @ID update-health-settings
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Debug
+// @Param request body codersdk.UpdateHealthSettings true "Update health settings"
+// @Success 200 {object} codersdk.UpdateHealthSettings
+// @Router /debug/health/settings [put]
+func (api *API) putDeploymentHealthSettings(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	if !api.Authorize(r, rbac.ActionUpdate, rbac.ResourceDeploymentValues) {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Insufficient permissions to update health settings.",
+		})
+		return
+	}
+
+	var settings codersdk.HealthSettings
+	if !httpapi.Read(ctx, rw, r, &settings) {
+		return
+	}
+
+	err := validateHealthSettings(settings)
+	if err != nil {
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to validate health settings.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	settingsJSON, err := json.Marshal(&settings)
+	if err != nil {
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to marshal health settings.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	err = api.Database.UpsertHealthSettings(ctx, string(settingsJSON))
+	if err != nil {
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to update health settings.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(r.Context(), rw, http.StatusOK, settings)
+}
+
+func validateHealthSettings(settings codersdk.HealthSettings) error {
+	for _, dismissed := range settings.DismissedHealthchecks {
+		ok := slices.Contains(healthcheck.Sections, dismissed)
+		if !ok {
+			return xerrors.Errorf("unknown healthcheck section: %s", dismissed)
+		}
+	}
+	return nil
 }
 
 // For some reason the swagger docs need to be attached to a function.

@@ -20,6 +20,8 @@ const (
 	SectionWorkspaceProxy string = "WorkspaceProxy"
 )
 
+var Sections = []string{SectionAccessURL, SectionDatabase, SectionDERP, SectionWebsocket, SectionWorkspaceProxy}
+
 type Checker interface {
 	DERP(ctx context.Context, opts *derphealth.ReportOptions) derphealth.Report
 	AccessURL(ctx context.Context, opts *AccessURLReportOptions) AccessURLReport
