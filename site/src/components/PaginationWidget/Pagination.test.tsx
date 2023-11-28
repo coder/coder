@@ -1,5 +1,5 @@
 import { type ComponentProps, type HTMLAttributes } from "react";
-import { Pagination, type PaginationResult } from "./Pagination";
+import { type PaginationResult, Pagination } from "./Pagination";
 
 import { renderComponent } from "testHelpers/renderHelpers";
 import { fireEvent, waitFor } from "@testing-library/react";
@@ -97,7 +97,7 @@ async function mountWithSuccess(mockScroll: jest.SpyInstance) {
  */
 describe(`${Pagination.name}`, () => {
   describe("Initial render", () => {
-    it("Does absolutely nothing - no calls to any scrolls", async () => {
+    it("Does absolutely nothing - should not scroll on component mount because that will violently hijack the user's browser", async () => {
       const mockScroll = jest.spyOn(window, "scrollTo");
 
       render({
@@ -148,8 +148,7 @@ describe(`${Pagination.name}`, () => {
   });
 
   describe("Responding to changes in React Query's isPreviousData", () => {
-    // This should be impossible, but testing it just to be on the safe side
-    it("Does nothing when isPreviousData flips from false to true while currentPage stays the same", async () => {
+    it("Does nothing when isPreviousData flips from false to true while currentPage stays the same (safety net for 'impossible' case)", async () => {
       const mockScroll = jest.spyOn(window, "scrollTo");
 
       const { rerender } = render({
@@ -196,33 +195,49 @@ describe(`${Pagination.name}`, () => {
       await waitFor(() => expect(mockScroll).toBeCalled());
     });
 
-    it("Does nothing if scroll is canceled by the time isPreviousData flips from true to false", async () => {
+    it("Cancels a scroll if user interacts with the browser in any way before isPreviousData flips from true to false", async () => {
       const mockScroll = jest.spyOn(window, "scrollTo");
-      const { rerender } = await mountWithSuccess(mockScroll);
 
-      rerender(
-        <Pagination
-          paginationUnitLabel={mockUnitLabel}
-          paginationResult={{
-            ...successResult,
-            currentPage: 2,
-            isPreviousData: true,
-          }}
-        />,
-      );
+      // Values are based on (keyof WindowEventMap), but frustratingly, the
+      // native events aren't camel-case, while the fireEvent properties are
+      const userInteractionEvents = [
+        "click",
+        "scroll",
+        "pointerEnter",
+        "touchStart",
+        "keyDown",
+      ] as const;
 
-      fireEvent.click(window);
+      for (const event of userInteractionEvents) {
+        const { rerender, unmount } = await mountWithSuccess(mockScroll);
 
-      rerender(
-        <Pagination
-          paginationUnitLabel={mockUnitLabel}
-          paginationResult={{
-            ...successResult,
-            currentPage: 2,
-            isPreviousData: false,
-          }}
-        />,
-      );
+        rerender(
+          <Pagination
+            paginationUnitLabel={mockUnitLabel}
+            paginationResult={{
+              ...successResult,
+              currentPage: 2,
+              isPreviousData: true,
+            }}
+          />,
+        );
+
+        fireEvent.scroll;
+        fireEvent[event](window);
+
+        rerender(
+          <Pagination
+            paginationUnitLabel={mockUnitLabel}
+            paginationResult={{
+              ...successResult,
+              currentPage: 2,
+              isPreviousData: false,
+            }}
+          />,
+        );
+
+        unmount();
+      }
 
       await assertNoScroll(mockScroll);
     });
