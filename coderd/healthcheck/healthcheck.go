@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/coder/coder/v2/buildinfo"
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -61,8 +60,6 @@ type ReportOptions struct {
 	WorkspaceProxy WorkspaceProxyReportOptions
 
 	Checker Checker
-
-	DB database.Store
 }
 
 type defaultChecker struct{}

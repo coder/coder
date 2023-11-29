@@ -11,6 +11,8 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/audit"
@@ -253,3 +255,19 @@ func validateHealthSettings(settings codersdk.HealthSettings) error {
 // @Router /debug/ws [get]
 // @x-apidocgen {"skip": true}
 func _debugws(http.ResponseWriter, *http.Request) {} //nolint:unused
+
+func loadDismissedHealthcheck(ctx context.Context, db database.Store, logger slog.Logger) []string {
+	dismissedHealthchecks := []string{}
+	settingsJSON, err := db.GetHealthSettings(ctx)
+	if err == nil {
+		var settings codersdk.HealthSettings
+		err = json.Unmarshal([]byte(settingsJSON), &settings)
+		if len(settings.DismissedHealthchecks) > 0 {
+			dismissedHealthchecks = settings.DismissedHealthchecks
+		}
+	}
+	if err != nil {
+		logger.Error(ctx, "unable to fetch health settings: %w", err)
+	}
+	return dismissedHealthchecks
+}
