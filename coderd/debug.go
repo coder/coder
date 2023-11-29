@@ -3,6 +3,7 @@ package coderd
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -265,7 +266,7 @@ func loadDismissedHealthchecks(ctx context.Context, db database.Store, logger sl
 			dismissedHealthchecks = settings.DismissedHealthchecks
 		}
 	}
-	if err != nil {
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		logger.Error(ctx, "unable to fetch health settings: %w", err)
 	}
 	return dismissedHealthchecks
