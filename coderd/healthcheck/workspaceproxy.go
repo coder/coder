@@ -20,7 +20,7 @@ type WorkspaceProxyReport struct {
 	Severity  health.Severity `json:"severity"`
 	Warnings  []string        `json:"warnings"`
 	Error     *string         `json:"error"`
-	Dismissed bool            `json:"dismissed`
+	Dismissed bool            `json:"dismissed"`
 
 	WorkspaceProxies codersdk.RegionsResponse[codersdk.WorkspaceProxy] `json:"workspace_proxies"`
 }

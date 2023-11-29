@@ -21,7 +21,7 @@ type DatabaseReport struct {
 	Healthy   bool            `json:"healthy"`
 	Severity  health.Severity `json:"severity" enums:"ok,warning,error"`
 	Warnings  []string        `json:"warnings"`
-	Dismissed bool            `json:"dismissed`
+	Dismissed bool            `json:"dismissed"`
 
 	Reachable   bool    `json:"reachable"`
 	Latency     string  `json:"latency"`

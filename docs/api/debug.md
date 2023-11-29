@@ -47,6 +47,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
 {
   "access_url": {
     "access_url": "string",
+    "dismissed": true,
     "error": "string",
     "healthy": true,
     "healthz_response": "string",
@@ -57,6 +58,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
   },
   "coder_version": "string",
   "database": {
+    "dismissed": true,
     "error": "string",
     "healthy": true,
     "latency": "string",
@@ -67,6 +69,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
     "warnings": ["string"]
   },
   "derp": {
+    "dismissed": true,
     "error": "string",
     "healthy": true,
     "netcheck": {
@@ -249,12 +252,14 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
   "websocket": {
     "body": "string",
     "code": 0,
+    "dismissed": true,
     "error": "string",
     "healthy": true,
     "severity": "ok",
     "warnings": ["string"]
   },
   "workspace_proxy": {
+    "dismissed": true,
     "error": "string",
     "healthy": true,
     "severity": "ok",

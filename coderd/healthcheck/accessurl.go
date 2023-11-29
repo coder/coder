@@ -19,7 +19,7 @@ type AccessURLReport struct {
 	Healthy   bool            `json:"healthy"`
 	Severity  health.Severity `json:"severity" enums:"ok,warning,error"`
 	Warnings  []string        `json:"warnings"`
-	Dismissed bool            `json:"dismissed`
+	Dismissed bool            `json:"dismissed"`
 
 	AccessURL       string  `json:"access_url"`
 	Reachable       bool    `json:"reachable"`

@@ -21,7 +21,7 @@ type WebsocketReport struct {
 	Healthy   bool            `json:"healthy"`
 	Severity  health.Severity `json:"severity" enums:"ok,warning,error"`
 	Warnings  []string        `json:"warnings"`
-	Dismissed bool            `json:"dismissed`
+	Dismissed bool            `json:"dismissed"`
 
 	Body  string  `json:"body"`
 	Code  int     `json:"code"`
