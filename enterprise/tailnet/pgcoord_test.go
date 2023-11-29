@@ -545,6 +545,8 @@ func TestPGCoordinator_Unhealthy(t *testing.T) {
 		Return(database.TailnetCoordinator{}, nil)
 	// extra calls we don't particularly care about for this test
 	mStore.EXPECT().CleanTailnetCoordinators(gomock.Any()).AnyTimes().Return(nil)
+	mStore.EXPECT().CleanTailnetLostPeers(gomock.Any()).AnyTimes().Return(nil)
+	mStore.EXPECT().CleanTailnetTunnels(gomock.Any()).AnyTimes().Return(nil)
 	mStore.EXPECT().GetTailnetTunnelPeerIDs(gomock.Any(), gomock.Any()).AnyTimes().Return(nil, nil)
 	mStore.EXPECT().GetTailnetTunnelPeerBindings(gomock.Any(), gomock.Any()).
 		AnyTimes().Return(nil, nil)
