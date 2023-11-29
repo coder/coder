@@ -703,7 +703,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		// Assert that autostart works when the workspace isn't dormant..
 		tickCh <- sched.Next(ws.LatestBuild.CreatedAt)
 		stats := <-statsCh
-		require.NoError(t, stats.Error)
+		require.Len(t, stats.Errors, 0)
 		require.Len(t, stats.Transitions, 1)
 		require.Contains(t, stats.Transitions, ws.ID)
 		require.Equal(t, database.WorkspaceTransitionStart, stats.Transitions[ws.ID])
@@ -721,7 +721,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		// We should see the workspace get stopped now.
 		tickCh <- ws.LastUsedAt.Add(inactiveTTL * 2)
 		stats = <-statsCh
-		require.NoError(t, stats.Error)
+		require.Len(t, stats.Errors, 0)
 		require.Len(t, stats.Transitions, 1)
 		require.Contains(t, stats.Transitions, ws.ID)
 		require.Equal(t, database.WorkspaceTransitionStop, stats.Transitions[ws.ID])
@@ -879,7 +879,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		// Kick of an autostart build.
 		tickCh <- sched.Next(ws.LatestBuild.CreatedAt)
 		stats := <-statsCh
-		require.NoError(t, stats.Error)
+		require.Len(t, stats.Errors, 0)
 		require.Len(t, stats.Transitions, 1)
 		require.Contains(t, stats.Transitions, ws.ID)
 		require.Equal(t, database.WorkspaceTransitionStart, stats.Transitions[ws.ID])
@@ -905,7 +905,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		// Force an autostart transition again.
 		tickCh <- sched.Next(firstBuild.CreatedAt)
 		stats = <-statsCh
-		require.NoError(t, stats.Error)
+		require.Len(t, stats.Errors, 0)
 		require.Len(t, stats.Transitions, 1)
 		require.Contains(t, stats.Transitions, ws.ID)
 		require.Equal(t, database.WorkspaceTransitionStart, stats.Transitions[ws.ID])
@@ -971,7 +971,7 @@ func TestExecutorAutostartBlocked(t *testing.T) {
 
 	// Then: the workspace should not be started.
 	stats := <-statsCh
-	require.NoError(t, stats.Error)
+	require.Len(t, stats.Errors, 0)
 	require.Len(t, stats.Transitions, 0)
 }
 

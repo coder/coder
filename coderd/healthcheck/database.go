@@ -18,9 +18,10 @@ const (
 // @typescript-generate DatabaseReport
 type DatabaseReport struct {
 	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
-	Healthy  bool            `json:"healthy"`
-	Severity health.Severity `json:"severity" enums:"ok,warning,error"`
-	Warnings []string        `json:"warnings"`
+	Healthy   bool            `json:"healthy"`
+	Severity  health.Severity `json:"severity" enums:"ok,warning,error"`
+	Warnings  []string        `json:"warnings"`
+	Dismissed bool            `json:"dismissed"`
 
 	Reachable   bool    `json:"reachable"`
 	Latency     string  `json:"latency"`
@@ -32,11 +33,15 @@ type DatabaseReport struct {
 type DatabaseReportOptions struct {
 	DB        database.Store
 	Threshold time.Duration
+
+	Dismissed bool
 }
 
 func (r *DatabaseReport) Run(ctx context.Context, opts *DatabaseReportOptions) {
 	r.Warnings = []string{}
 	r.Severity = health.SeverityOK
+	r.Dismissed = opts.Dismissed
+
 	r.ThresholdMS = opts.Threshold.Milliseconds()
 	if r.ThresholdMS == 0 {
 		r.ThresholdMS = DatabaseDefaultThreshold.Milliseconds()

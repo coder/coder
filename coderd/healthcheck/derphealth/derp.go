@@ -36,9 +36,10 @@ const (
 // @typescript-generate Report
 type Report struct {
 	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
-	Healthy  bool            `json:"healthy"`
-	Severity health.Severity `json:"severity" enums:"ok,warning,error"`
-	Warnings []string        `json:"warnings"`
+	Healthy   bool            `json:"healthy"`
+	Severity  health.Severity `json:"severity" enums:"ok,warning,error"`
+	Warnings  []string        `json:"warnings"`
+	Dismissed bool            `json:"dismissed"`
 
 	Regions map[int]*RegionReport `json:"regions"`
 
@@ -95,15 +96,18 @@ type StunReport struct {
 }
 
 type ReportOptions struct {
+	Dismissed bool
+
 	DERPMap *tailcfg.DERPMap
 }
 
 func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 	r.Healthy = true
 	r.Severity = health.SeverityOK
+	r.Warnings = []string{}
+	r.Dismissed = opts.Dismissed
 
 	r.Regions = map[int]*RegionReport{}
-	r.Warnings = []string{}
 
 	wg := &sync.WaitGroup{}
 	mu := sync.Mutex{}

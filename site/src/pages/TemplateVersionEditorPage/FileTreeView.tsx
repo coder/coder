@@ -62,6 +62,7 @@ export const FileTreeView: FC<{
         css={(theme) => css`
           overflow: hidden;
           user-select: none;
+          height: 32px;
 
           &:focus:not(.active) > .MuiTreeItem-content {
             background: ${theme.palette.action.hover};
@@ -92,7 +93,7 @@ export const FileTreeView: FC<{
           &.active {
             & > .MuiTreeItem-content {
               color: ${theme.palette.text.primary};
-              background: ${colors.gray[13]};
+              background: ${colors.gray[14]};
               pointer-events: none;
             }
           }

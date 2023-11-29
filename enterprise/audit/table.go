@@ -184,6 +184,10 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"to_login_type":   ActionTrack,
 		"user_id":         ActionTrack,
 	},
+	&database.HealthSettings{}: {
+		"id":                     ActionIgnore,
+		"dismissed_healthchecks": ActionTrack,
+	},
 	// TODO: track an ID here when the below ticket is completed:
 	// https://github.com/coder/coder/pull/6012
 	&database.License{}: {

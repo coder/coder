@@ -109,6 +109,23 @@ func TestAccessURL(t *testing.T) {
 		require.NotNil(t, report.Error)
 		assert.Contains(t, *report.Error, expErr.Error())
 	})
+
+	t.Run("DismissedError", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx, cancel = context.WithCancel(context.Background())
+			report      healthcheck.AccessURLReport
+		)
+		defer cancel()
+
+		report.Run(ctx, &healthcheck.AccessURLReportOptions{
+			Dismissed: true,
+		})
+
+		assert.True(t, report.Dismissed)
+		assert.Equal(t, health.SeverityError, report.Severity)
+	})
 }
 
 type roundTripFunc func(r *http.Request) (*http.Response, error)

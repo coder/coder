@@ -47,6 +47,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
 {
   "access_url": {
     "access_url": "string",
+    "dismissed": true,
     "error": "string",
     "healthy": true,
     "healthz_response": "string",
@@ -57,6 +58,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
   },
   "coder_version": "string",
   "database": {
+    "dismissed": true,
     "error": "string",
     "healthy": true,
     "latency": "string",
@@ -67,6 +69,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
     "warnings": ["string"]
   },
   "derp": {
+    "dismissed": true,
     "error": "string",
     "healthy": true,
     "netcheck": {
@@ -249,12 +252,14 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
   "websocket": {
     "body": "string",
     "code": 0,
+    "dismissed": true,
     "error": "string",
     "healthy": true,
     "severity": "ok",
     "warnings": ["string"]
   },
   "workspace_proxy": {
+    "dismissed": true,
     "error": "string",
     "healthy": true,
     "severity": "ok",
@@ -295,6 +300,83 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
 | Status | Meaning                                                 | Description | Schema                                             |
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [healthcheck.Report](schemas.md#healthcheckreport) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get health settings
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/debug/health/settings \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /debug/health/settings`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "dismissed_healthchecks": ["string"]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                       |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.HealthSettings](schemas.md#codersdkhealthsettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update health settings
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/debug/health/settings \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /debug/health/settings`
+
+> Body parameter
+
+```json
+{
+  "dismissed_healthchecks": ["string"]
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                     | Required | Description            |
+| ------ | ---- | ------------------------------------------------------------------------ | -------- | ---------------------- |
+| `body` | body | [codersdk.UpdateHealthSettings](schemas.md#codersdkupdatehealthsettings) | true     | Update health settings |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "dismissed_healthchecks": ["string"]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                   |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UpdateHealthSettings](schemas.md#codersdkupdatehealthsettings) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

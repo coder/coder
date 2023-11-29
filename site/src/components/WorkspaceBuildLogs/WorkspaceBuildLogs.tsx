@@ -77,7 +77,10 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 
         return (
           <Fragment key={stage}>
-            <div css={[styles.header, sticky && styles.sticky]}>
+            <div
+              css={[styles.header, sticky && styles.sticky]}
+              className="logs-header"
+            >
               <div>{stage}</div>
               {shouldDisplayDuration && (
                 <div css={styles.duration}>
