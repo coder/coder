@@ -4522,6 +4522,31 @@ func (q *sqlQuerier) CleanTailnetCoordinators(ctx context.Context) error {
 	return err
 }
 
+const cleanTailnetLostPeers = `-- name: CleanTailnetLostPeers :exec
+DELETE
+FROM tailnet_peers
+WHERE updated_at < now() - INTERVAL '24 HOURS' AND status = 'lost'::tailnet_status
+`
+
+func (q *sqlQuerier) CleanTailnetLostPeers(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, cleanTailnetLostPeers)
+	return err
+}
+
+const cleanTailnetTunnels = `-- name: CleanTailnetTunnels :exec
+DELETE FROM tailnet_tunnels
+WHERE updated_at < now() - INTERVAL '24 HOURS' AND
+      NOT EXISTS (
+        SELECT 1 FROM tailnet_peers
+        WHERE id = tailnet_tunnels.src_id AND coordinator_id = tailnet_tunnels.coordinator_id
+      )
+`
+
+func (q *sqlQuerier) CleanTailnetTunnels(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, cleanTailnetTunnels)
+	return err
+}
+
 const deleteAllTailnetClientSubscriptions = `-- name: DeleteAllTailnetClientSubscriptions :exec
 DELETE
 FROM tailnet_client_subscriptions
