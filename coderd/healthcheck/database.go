@@ -40,6 +40,8 @@ type DatabaseReportOptions struct {
 func (r *DatabaseReport) Run(ctx context.Context, opts *DatabaseReportOptions) {
 	r.Warnings = []string{}
 	r.Severity = health.SeverityOK
+	r.Dismissed = opts.Dismissed
+
 	r.ThresholdMS = opts.Threshold.Milliseconds()
 	if r.ThresholdMS == 0 {
 		r.ThresholdMS = DatabaseDefaultThreshold.Milliseconds()

@@ -41,6 +41,8 @@ func (r *AccessURLReport) Run(ctx context.Context, opts *AccessURLReportOptions)
 
 	r.Severity = health.SeverityOK
 	r.Warnings = []string{}
+	r.Dismissed = opts.Dismissed
+
 	if opts.AccessURL == nil {
 		r.Error = ptr.Ref("access URL is nil")
 		r.Severity = health.SeverityError

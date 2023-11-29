@@ -14,15 +14,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-type WorkspaceProxyReportOptions struct {
-	// CurrentVersion is the current server version.
-	// We pass this in to make it easier to test.
-	CurrentVersion               string
-	WorkspaceProxiesFetchUpdater WorkspaceProxiesFetchUpdater
-
-	Dismissed bool
-}
-
 // @typescript-generate WorkspaceProxyReport
 type WorkspaceProxyReport struct {
 	Healthy   bool            `json:"healthy"`
@@ -32,6 +23,15 @@ type WorkspaceProxyReport struct {
 	Dismissed bool            `json:"dismissed`
 
 	WorkspaceProxies codersdk.RegionsResponse[codersdk.WorkspaceProxy] `json:"workspace_proxies"`
+}
+
+type WorkspaceProxyReportOptions struct {
+	// CurrentVersion is the current server version.
+	// We pass this in to make it easier to test.
+	CurrentVersion               string
+	WorkspaceProxiesFetchUpdater WorkspaceProxiesFetchUpdater
+
+	Dismissed bool
 }
 
 type WorkspaceProxiesFetchUpdater interface {
@@ -55,6 +55,7 @@ func (r *WorkspaceProxyReport) Run(ctx context.Context, opts *WorkspaceProxyRepo
 	r.Healthy = true
 	r.Severity = health.SeverityOK
 	r.Warnings = []string{}
+	r.Dismissed = opts.Dismissed
 
 	if opts.WorkspaceProxiesFetchUpdater == nil {
 		opts.WorkspaceProxiesFetchUpdater = &AGPLWorkspaceProxiesFetchUpdater{}
