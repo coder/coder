@@ -165,6 +165,41 @@ curl -X GET http://coder-server:8080/api/v2/users/authmethods \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get user external auths
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/users/external-auths \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /users/external-auths`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "expires": "2019-08-24T14:15:22Z",
+  "has_refresh_token": true,
+  "provider_id": "string",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                           |
+| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ExternalAuthLink](schemas.md#codersdkexternalauthlink) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Check initial user created
 
 ### Code samples

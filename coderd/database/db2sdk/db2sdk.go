@@ -16,6 +16,24 @@ import (
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
+func ExternalAuths(auths []database.ExternalAuthLink) []codersdk.ExternalAuthLink {
+	out := make([]codersdk.ExternalAuthLink, 0, len(auths))
+	for _, auth := range auths {
+		out = append(out, ExternalAuth(auth))
+	}
+	return out
+}
+
+func ExternalAuth(auth database.ExternalAuthLink) codersdk.ExternalAuthLink {
+	return codersdk.ExternalAuthLink{
+		ProviderID:      auth.ProviderID,
+		CreatedAt:       auth.CreatedAt,
+		UpdatedAt:       auth.UpdatedAt,
+		HasRefreshToken: auth.OAuthRefreshToken != "",
+		Expires:         auth.OAuthExpiry,
+	}
+}
+
 func WorkspaceBuildParameters(params []database.WorkspaceBuildParameter) []codersdk.WorkspaceBuildParameter {
 	out := make([]codersdk.WorkspaceBuildParameter, len(params))
 	for i, p := range params {

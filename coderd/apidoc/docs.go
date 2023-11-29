@@ -781,6 +781,33 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Delete external auth user link by ID",
+                "operationId": "delete-external-auth-user-link-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "string",
+                        "description": "Git Provider ID",
+                        "name": "externalauth",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
             }
         },
         "/external-auth/{externalauth}/device": {
@@ -3432,6 +3459,31 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.AuthMethods"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/external-auths": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get user external auths",
+                "operationId": "get-user-external-auths",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ExternalAuthLink"
                         }
                     }
                 }
@@ -8849,6 +8901,29 @@ const docTemplate = `{
                 },
                 "verification_uri": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.ExternalAuthLink": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "expires": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "has_refresh_token": {
+                    "type": "boolean"
+                },
+                "provider_id": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
                 }
             }
         },
