@@ -127,6 +127,7 @@ const CreateWorkspacePage: FC = () => {
           defaultOwner={me}
           defaultBuildParameters={defaultBuildParameters}
           error={createWorkspaceMutation.error}
+          resetMutation={createWorkspaceMutation.reset}
           template={templateQuery.data!}
           versionId={realizedVersionId}
           externalAuth={externalAuth ?? []}
