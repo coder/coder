@@ -11206,6 +11206,9 @@
     "derphealth.Report": {
       "type": "object",
       "properties": {
+        "dismissed": {
+          "type": "boolean"
+        },
         "error": {
           "type": "string"
         },
@@ -11272,6 +11275,9 @@
         "access_url": {
           "type": "string"
         },
+        "dismissed": {
+          "type": "boolean"
+        },
         "error": {
           "type": "string"
         },
@@ -11307,6 +11313,9 @@
     "healthcheck.DatabaseReport": {
       "type": "object",
       "properties": {
+        "dismissed": {
+          "type": "boolean"
+        },
         "error": {
           "type": "string"
         },
@@ -11399,6 +11408,9 @@
         "code": {
           "type": "integer"
         },
+        "dismissed": {
+          "type": "boolean"
+        },
         "error": {
           "type": "string"
         },
@@ -11425,6 +11437,9 @@
     "healthcheck.WorkspaceProxyReport": {
       "type": "object",
       "properties": {
+        "dismissed": {
+          "type": "boolean"
+        },
         "error": {
           "type": "string"
         },

@@ -25,6 +25,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"storj.io/drpc/drpcmux"
@@ -407,24 +408,30 @@ func New(options *Options) *API {
 
 	if options.HealthcheckFunc == nil {
 		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *healthcheck.Report {
+			dismissedHealthchecks := loadDismissedHealthchecks(ctx, options.Database, options.Logger)
 			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
 				Database: healthcheck.DatabaseReportOptions{
 					DB:        options.Database,
 					Threshold: options.DeploymentValues.Healthcheck.ThresholdDatabase.Value(),
+					Dismissed: slices.Contains(dismissedHealthchecks, healthcheck.SectionDatabase),
 				},
 				Websocket: healthcheck.WebsocketReportOptions{
 					AccessURL: options.AccessURL,
 					APIKey:    apiKey,
+					Dismissed: slices.Contains(dismissedHealthchecks, healthcheck.SectionWebsocket),
 				},
 				AccessURL: healthcheck.AccessURLReportOptions{
 					AccessURL: options.AccessURL,
+					Dismissed: slices.Contains(dismissedHealthchecks, healthcheck.SectionAccessURL),
 				},
 				DerpHealth: derphealth.ReportOptions{
-					DERPMap: api.DERPMap(),
+					DERPMap:   api.DERPMap(),
+					Dismissed: slices.Contains(dismissedHealthchecks, healthcheck.SectionDERP),
 				},
 				WorkspaceProxy: healthcheck.WorkspaceProxyReportOptions{
 					CurrentVersion:               buildinfo.Version(),
 					WorkspaceProxiesFetchUpdater: *(options.WorkspaceProxiesFetchUpdater).Load(),
+					Dismissed:                    slices.Contains(dismissedHealthchecks, healthcheck.SectionWorkspaceProxy),
 				},
 			})
 		}

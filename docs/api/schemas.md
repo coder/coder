@@ -7302,6 +7302,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "dismissed": true,
   "error": "string",
   "healthy": true,
   "netcheck": {
@@ -7483,6 +7484,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 | Name               | Type                                               | Required | Restrictions | Description                                                                                 |
 | ------------------ | -------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
+| `dismissed`        | boolean                                            | false    |              |                                                                                             |
 | `error`            | string                                             | false    |              |                                                                                             |
 | `healthy`          | boolean                                            | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
 | `netcheck`         | [netcheck.Report](#netcheckreport)                 | false    |              |                                                                                             |
@@ -7540,6 +7542,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 ```json
 {
   "access_url": "string",
+  "dismissed": true,
   "error": "string",
   "healthy": true,
   "healthz_response": "string",
@@ -7555,6 +7558,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Name               | Type                               | Required | Restrictions | Description                                                                                 |
 | ------------------ | ---------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
 | `access_url`       | string                             | false    |              |                                                                                             |
+| `dismissed`        | boolean                            | false    |              |                                                                                             |
 | `error`            | string                             | false    |              |                                                                                             |
 | `healthy`          | boolean                            | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
 | `healthz_response` | string                             | false    |              |                                                                                             |
@@ -7575,6 +7579,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "dismissed": true,
   "error": "string",
   "healthy": true,
   "latency": "string",
@@ -7590,6 +7595,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 | Name           | Type                               | Required | Restrictions | Description                                                                                 |
 | -------------- | ---------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
+| `dismissed`    | boolean                            | false    |              |                                                                                             |
 | `error`        | string                             | false    |              |                                                                                             |
 | `healthy`      | boolean                            | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
 | `latency`      | string                             | false    |              |                                                                                             |
@@ -7613,6 +7619,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 {
   "access_url": {
     "access_url": "string",
+    "dismissed": true,
     "error": "string",
     "healthy": true,
     "healthz_response": "string",
@@ -7623,6 +7630,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   },
   "coder_version": "string",
   "database": {
+    "dismissed": true,
     "error": "string",
     "healthy": true,
     "latency": "string",
@@ -7633,6 +7641,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "warnings": ["string"]
   },
   "derp": {
+    "dismissed": true,
     "error": "string",
     "healthy": true,
     "netcheck": {
@@ -7815,12 +7824,14 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "websocket": {
     "body": "string",
     "code": 0,
+    "dismissed": true,
     "error": "string",
     "healthy": true,
     "severity": "ok",
     "warnings": ["string"]
   },
   "workspace_proxy": {
+    "dismissed": true,
     "error": "string",
     "healthy": true,
     "severity": "ok",
@@ -7885,6 +7896,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 {
   "body": "string",
   "code": 0,
+  "dismissed": true,
   "error": "string",
   "healthy": true,
   "severity": "ok",
@@ -7894,14 +7906,15 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name       | Type                               | Required | Restrictions | Description                                                                                 |
-| ---------- | ---------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
-| `body`     | string                             | false    |              |                                                                                             |
-| `code`     | integer                            | false    |              |                                                                                             |
-| `error`    | string                             | false    |              |                                                                                             |
-| `healthy`  | boolean                            | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
-| `severity` | [health.Severity](#healthseverity) | false    |              |                                                                                             |
-| `warnings` | array of string                    | false    |              |                                                                                             |
+| Name        | Type                               | Required | Restrictions | Description                                                                                 |
+| ----------- | ---------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
+| `body`      | string                             | false    |              |                                                                                             |
+| `code`      | integer                            | false    |              |                                                                                             |
+| `dismissed` | boolean                            | false    |              |                                                                                             |
+| `error`     | string                             | false    |              |                                                                                             |
+| `healthy`   | boolean                            | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
+| `severity`  | [health.Severity](#healthseverity) | false    |              |                                                                                             |
+| `warnings`  | array of string                    | false    |              |                                                                                             |
 
 #### Enumerated Values
 
@@ -7915,6 +7928,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "dismissed": true,
   "error": "string",
   "healthy": true,
   "severity": "ok",
@@ -7953,6 +7967,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 | Name                | Type                                                                                                 | Required | Restrictions | Description |
 | ------------------- | ---------------------------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `dismissed`         | boolean                                                                                              | false    |              |             |
 | `error`             | string                                                                                               | false    |              |             |
 | `healthy`           | boolean                                                                                              | false    |              |             |
 | `severity`          | [health.Severity](#healthseverity)                                                                   | false    |              |             |

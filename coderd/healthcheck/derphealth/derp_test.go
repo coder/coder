@@ -120,6 +120,7 @@ func TestDERP(t *testing.T) {
 						}},
 					},
 				}},
+				Dismissed: true, // Let's sneak an extra unit test
 			}
 		)
 
@@ -127,6 +128,7 @@ func TestDERP(t *testing.T) {
 
 		assert.True(t, report.Healthy)
 		assert.Equal(t, health.SeverityWarning, report.Severity)
+		assert.True(t, report.Dismissed)
 		for _, region := range report.Regions {
 			assert.True(t, region.Healthy)
 			assert.True(t, region.NodeReports[0].Healthy)

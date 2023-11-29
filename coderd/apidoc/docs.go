@@ -12305,6 +12305,9 @@ const docTemplate = `{
         "derphealth.Report": {
             "type": "object",
             "properties": {
+                "dismissed": {
+                    "type": "boolean"
+                },
                 "error": {
                     "type": "string"
                 },
@@ -12383,6 +12386,9 @@ const docTemplate = `{
                 "access_url": {
                     "type": "string"
                 },
+                "dismissed": {
+                    "type": "boolean"
+                },
                 "error": {
                     "type": "string"
                 },
@@ -12422,6 +12428,9 @@ const docTemplate = `{
         "healthcheck.DatabaseReport": {
             "type": "object",
             "properties": {
+                "dismissed": {
+                    "type": "boolean"
+                },
                 "error": {
                     "type": "string"
                 },
@@ -12522,6 +12531,9 @@ const docTemplate = `{
                 "code": {
                     "type": "integer"
                 },
+                "dismissed": {
+                    "type": "boolean"
+                },
                 "error": {
                     "type": "string"
                 },
@@ -12552,6 +12564,9 @@ const docTemplate = `{
         "healthcheck.WorkspaceProxyReport": {
             "type": "object",
             "properties": {
+                "dismissed": {
+                    "type": "boolean"
+                },
                 "error": {
                     "type": "string"
                 },

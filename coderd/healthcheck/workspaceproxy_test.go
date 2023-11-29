@@ -191,6 +191,22 @@ func TestWorkspaceProxies(t *testing.T) {
 	}
 }
 
+func TestWorkspaceProxy_ErrorDismissed(t *testing.T) {
+	t.Parallel()
+
+	var report healthcheck.WorkspaceProxyReport
+	report.Run(context.Background(), &healthcheck.WorkspaceProxyReportOptions{
+		WorkspaceProxiesFetchUpdater: &fakeWorkspaceProxyFetchUpdater{
+			fetchFunc:  fakeFetchWorkspaceProxiesErr(assert.AnError),
+			updateFunc: fakeUpdateProxyHealth(assert.AnError),
+		},
+		Dismissed: true,
+	})
+
+	assert.True(t, report.Dismissed)
+	assert.Equal(t, health.SeverityWarning, report.Severity)
+}
+
 // yet another implementation of the thing
 type fakeWorkspaceProxyFetchUpdater struct {
 	fetchFunc  func(context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error)

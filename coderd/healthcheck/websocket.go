@@ -15,22 +15,25 @@ import (
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
 )
 
-type WebsocketReportOptions struct {
-	APIKey     string
-	AccessURL  *url.URL
-	HTTPClient *http.Client
-}
-
 // @typescript-generate WebsocketReport
 type WebsocketReport struct {
 	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
-	Healthy  bool            `json:"healthy"`
-	Severity health.Severity `json:"severity" enums:"ok,warning,error"`
-	Warnings []string        `json:"warnings"`
+	Healthy   bool            `json:"healthy"`
+	Severity  health.Severity `json:"severity" enums:"ok,warning,error"`
+	Warnings  []string        `json:"warnings"`
+	Dismissed bool            `json:"dismissed"`
 
 	Body  string  `json:"body"`
 	Code  int     `json:"code"`
 	Error *string `json:"error"`
+}
+
+type WebsocketReportOptions struct {
+	APIKey     string
+	AccessURL  *url.URL
+	HTTPClient *http.Client
+
+	Dismissed bool
 }
 
 func (r *WebsocketReport) Run(ctx context.Context, opts *WebsocketReportOptions) {
@@ -39,6 +42,8 @@ func (r *WebsocketReport) Run(ctx context.Context, opts *WebsocketReportOptions)
 
 	r.Severity = health.SeverityOK
 	r.Warnings = []string{}
+	r.Dismissed = opts.Dismissed
+
 	u, err := opts.AccessURL.Parse("/api/v2/debug/ws")
 	if err != nil {
 		r.Error = convertError(xerrors.Errorf("parse access url: %w", err))
