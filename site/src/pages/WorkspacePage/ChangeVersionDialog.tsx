@@ -37,7 +37,7 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
   const selectedTemplateVersion = useRef<TemplateVersion | undefined>();
   const version = selectedTemplateVersion.current;
   const validTemplateVersions = templateVersions?.filter((version) => {
-    return version.job.status == "succeeded";
+    return version.job.status === "succeeded";
   });
 
   return (
