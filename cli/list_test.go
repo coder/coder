@@ -25,7 +25,7 @@ func TestList(t *testing.T) {
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-		r := dbfake.NewWorkspaceBuilder(t, db).Seed(database.Workspace{
+		r := dbfake.Workspace(t, db).Seed(database.Workspace{
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        memberUser.ID,
 		}).WithAgent().Do()
@@ -52,7 +52,7 @@ func TestList(t *testing.T) {
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-		dbfake.NewWorkspaceBuilder(t, db).Seed(database.Workspace{
+		dbfake.Workspace(t, db).Seed(database.Workspace{
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        memberUser.ID,
 		}).WithAgent().Do()

@@ -258,7 +258,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 				expectedDeadlineStart := start.Add(tt.expectedBump).Add(time.Minute * -1)
 				expectedDeadlineEnd := end.Add(tt.expectedBump).Add(time.Minute)
 				require.GreaterOrEqual(t, updatedBuild.Deadline, expectedDeadlineStart, "new deadline should be greater than or equal to start")
-				require.LessOrEqual(t, updatedBuild.Deadline, expectedDeadlineEnd, "new deadline should be lesser than or equal to end")
+				require.LessOrEqual(t, updatedBuild.Deadline, expectedDeadlineEnd, "new deadline should be less than or equal to end")
 			})
 		}
 	}

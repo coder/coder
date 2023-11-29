@@ -254,7 +254,7 @@ func TestHealthSettings(t *testing.T) {
 		require.Equal(t, codersdk.HealthSettings{DismissedHealthchecks: []string{}}, settings)
 	})
 
-	t.Run("Updated", func(t *testing.T) {
+	t.Run("DismissSection", func(t *testing.T) {
 		t.Parallel()
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -268,14 +268,70 @@ func TestHealthSettings(t *testing.T) {
 			DismissedHealthchecks: []string{healthcheck.SectionDERP, healthcheck.SectionWebsocket},
 		}
 
-		// when
-		err := adminClient.UpdateHealthSettings(ctx, expected)
+		// when: dismiss "derp" and "websocket"
+		err := adminClient.PutHealthSettings(ctx, expected)
 		require.NoError(t, err)
 
 		// then
 		settings, err := adminClient.HealthSettings(ctx)
 		require.NoError(t, err)
 		require.Equal(t, expected, settings)
+	})
+
+	t.Run("UnDismissSection", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		// given
+		adminClient := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, adminClient)
+
+		initial := codersdk.HealthSettings{
+			DismissedHealthchecks: []string{healthcheck.SectionDERP, healthcheck.SectionWebsocket},
+		}
+
+		err := adminClient.PutHealthSettings(ctx, initial)
+		require.NoError(t, err)
+
+		expected := codersdk.HealthSettings{
+			DismissedHealthchecks: []string{healthcheck.SectionDERP},
+		}
+
+		// when: undismiss "websocket"
+		err = adminClient.PutHealthSettings(ctx, expected)
+		require.NoError(t, err)
+
+		// then
+		settings, err := adminClient.HealthSettings(ctx)
+		require.NoError(t, err)
+		require.Equal(t, expected, settings)
+	})
+
+	t.Run("NotModified", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		// given
+		adminClient := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, adminClient)
+
+		expected := codersdk.HealthSettings{
+			DismissedHealthchecks: []string{healthcheck.SectionDERP, healthcheck.SectionWebsocket},
+		}
+
+		err := adminClient.PutHealthSettings(ctx, expected)
+		require.NoError(t, err)
+
+		// when
+		err = adminClient.PutHealthSettings(ctx, expected)
+
+		// then
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "health settings not modified")
 	})
 }
 

@@ -93,6 +93,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.Name
 	case database.AuditOAuthConvertState:
 		return string(typed.ToLoginType)
+	case database.HealthSettings:
+		return "" // no target?
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
@@ -123,6 +125,9 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 	case database.AuditOAuthConvertState:
 		// The merge state is for the given user
 		return typed.UserID
+	case database.HealthSettings:
+		// Artificial ID for auditing purposes
+		return typed.ID
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
@@ -152,6 +157,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeWorkspaceProxy
 	case database.AuditOAuthConvertState:
 		return database.ResourceTypeConvertLogin
+	case database.HealthSettings:
+		return database.ResourceTypeHealthSettings
 	default:
 		panic(fmt.Sprintf("unknown resource %T", typed))
 	}

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+
+	"golang.org/x/xerrors"
 )
 
 type HealthSettings struct {
@@ -27,12 +29,16 @@ func (c *Client) HealthSettings(ctx context.Context) (HealthSettings, error) {
 	return settings, json.NewDecoder(res.Body).Decode(&settings)
 }
 
-func (c *Client) UpdateHealthSettings(ctx context.Context, settings HealthSettings) error {
+func (c *Client) PutHealthSettings(ctx context.Context, settings HealthSettings) error {
 	res, err := c.Request(ctx, http.MethodPut, "/api/v2/debug/health/settings", settings)
 	if err != nil {
 		return err
 	}
 	defer res.Body.Close()
+
+	if res.StatusCode == http.StatusNotModified {
+		return xerrors.New("health settings not modified")
+	}
 	if res.StatusCode != http.StatusOK {
 		return ReadBodyAsError(res)
 	}

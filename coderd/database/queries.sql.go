@@ -4754,6 +4754,100 @@ func (q *sqlQuerier) GetAllTailnetClients(ctx context.Context) ([]GetAllTailnetC
 	return items, nil
 }
 
+const getAllTailnetCoordinators = `-- name: GetAllTailnetCoordinators :many
+
+SELECT id, heartbeat_at FROM tailnet_coordinators
+`
+
+// For PG Coordinator HTMLDebug
+func (q *sqlQuerier) GetAllTailnetCoordinators(ctx context.Context) ([]TailnetCoordinator, error) {
+	rows, err := q.db.QueryContext(ctx, getAllTailnetCoordinators)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TailnetCoordinator
+	for rows.Next() {
+		var i TailnetCoordinator
+		if err := rows.Scan(&i.ID, &i.HeartbeatAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAllTailnetPeers = `-- name: GetAllTailnetPeers :many
+SELECT id, coordinator_id, updated_at, node, status FROM tailnet_peers
+`
+
+func (q *sqlQuerier) GetAllTailnetPeers(ctx context.Context) ([]TailnetPeer, error) {
+	rows, err := q.db.QueryContext(ctx, getAllTailnetPeers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TailnetPeer
+	for rows.Next() {
+		var i TailnetPeer
+		if err := rows.Scan(
+			&i.ID,
+			&i.CoordinatorID,
+			&i.UpdatedAt,
+			&i.Node,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAllTailnetTunnels = `-- name: GetAllTailnetTunnels :many
+SELECT coordinator_id, src_id, dst_id, updated_at FROM tailnet_tunnels
+`
+
+func (q *sqlQuerier) GetAllTailnetTunnels(ctx context.Context) ([]TailnetTunnel, error) {
+	rows, err := q.db.QueryContext(ctx, getAllTailnetTunnels)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TailnetTunnel
+	for rows.Next() {
+		var i TailnetTunnel
+		if err := rows.Scan(
+			&i.CoordinatorID,
+			&i.SrcID,
+			&i.DstID,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getTailnetAgents = `-- name: GetTailnetAgents :many
 SELECT id, coordinator_id, updated_at, node
 FROM tailnet_agents
