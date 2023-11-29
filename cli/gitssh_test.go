@@ -48,7 +48,7 @@ func prepareTestGitSSH(ctx context.Context, t *testing.T) (*agentsdk.Client, str
 	require.NoError(t, err)
 
 	// setup template
-	r := dbfake.NewWorkspaceBuilder(t, db).
+	r := dbfake.Workspace(t, db).
 		Seed(database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,

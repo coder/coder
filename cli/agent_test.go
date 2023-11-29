@@ -31,7 +31,7 @@ func TestWorkspaceAgent(t *testing.T) {
 
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		r := dbfake.NewWorkspaceBuilder(t, db).
+		r := dbfake.Workspace(t, db).
 			Seed(database.Workspace{
 				OrganizationID: user.OrganizationID,
 				OwnerID:        user.UserID,
@@ -68,7 +68,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			AzureCertificates: certificates,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
-		r := dbfake.NewWorkspaceBuilder(t, db).Seed(database.Workspace{
+		r := dbfake.Workspace(t, db).Seed(database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
@@ -105,7 +105,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			AWSCertificates: certificates,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
-		r := dbfake.NewWorkspaceBuilder(t, db).Seed(database.Workspace{
+		r := dbfake.Workspace(t, db).Seed(database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
@@ -143,7 +143,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-		r := dbfake.NewWorkspaceBuilder(t, db).Seed(database.Workspace{
+		r := dbfake.Workspace(t, db).Seed(database.Workspace{
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        memberUser.ID,
 		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
@@ -195,7 +195,7 @@ func TestWorkspaceAgent(t *testing.T) {
 
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		r := dbfake.NewWorkspaceBuilder(t, db).
+		r := dbfake.Workspace(t, db).
 			Seed(database.Workspace{
 				OrganizationID: user.OrganizationID,
 				OwnerID:        user.UserID,

@@ -36,7 +36,7 @@ type WorkspaceResponse struct {
 	AgentToken string
 }
 
-func NewWorkspaceBuilder(t testing.TB, db database.Store) WorkspaceBuilder {
+func Workspace(t testing.TB, db database.Store) WorkspaceBuilder {
 	return WorkspaceBuilder{t: t, db: db}
 }
 
@@ -82,7 +82,7 @@ func (b WorkspaceBuilder) Do() WorkspaceResponse {
 	r.Workspace = dbgen.Workspace(b.t, b.db, b.seed)
 	if b.agentToken != "" {
 		r.AgentToken = b.agentToken
-		r.Build = NewWorkspaceBuildBuilder(b.t, b.db, r.Workspace).
+		r.Build = WorkspaceBuild(b.t, b.db, r.Workspace).
 			Resource(b.resources...).
 			Do()
 	}
@@ -98,7 +98,7 @@ type WorkspaceBuildBuilder struct {
 	resources []*sdkproto.Resource
 }
 
-func NewWorkspaceBuildBuilder(t testing.TB, db database.Store, ws database.Workspace) WorkspaceBuildBuilder {
+func WorkspaceBuild(t testing.TB, db database.Store, ws database.Workspace) WorkspaceBuildBuilder {
 	return WorkspaceBuildBuilder{t: t, db: db, ws: ws}
 }
 
@@ -187,11 +187,11 @@ func (b WorkspaceBuildBuilder) Do() database.WorkspaceBuild {
 				Valid: true,
 			},
 		})
-		NewProvisionerJobResourcesBuilder(b.t, b.db, jobID, b.seed.Transition, b.resources...).Do()
+		ProvisionerJobResources(b.t, b.db, jobID, b.seed.Transition, b.resources...).Do()
 		b.seed.TemplateVersionID = templateVersion.ID
 	}
 	build := dbgen.WorkspaceBuild(b.t, b.db, b.seed)
-	NewProvisionerJobResourcesBuilder(b.t, b.db, job.ID, b.seed.Transition, b.resources...).Do()
+	ProvisionerJobResources(b.t, b.db, job.ID, b.seed.Transition, b.resources...).Do()
 	if b.ps != nil {
 		err = b.ps.Publish(codersdk.WorkspaceNotifyChannel(build.WorkspaceID), []byte{})
 		require.NoError(b.t, err)
@@ -207,8 +207,8 @@ type ProvisionerJobResourcesBuilder struct {
 	resources  []*sdkproto.Resource
 }
 
-// NewProvisionerJobResourcesBuilder inserts a series of resources into a provisioner job.
-func NewProvisionerJobResourcesBuilder(
+// ProvisionerJobResources inserts a series of resources into a provisioner job.
+func ProvisionerJobResources(
 	t testing.TB, db database.Store, jobID uuid.UUID, transition database.WorkspaceTransition, resources ...*sdkproto.Resource,
 ) ProvisionerJobResourcesBuilder {
 	return ProvisionerJobResourcesBuilder{
