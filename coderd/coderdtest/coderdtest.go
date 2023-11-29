@@ -110,7 +110,7 @@ type Options struct {
 	TemplateScheduleStore schedule.TemplateScheduleStore
 	Coordinator           tailnet.Coordinator
 
-	HealthcheckFunc    func(ctx context.Context, apiKey string) *healthcheck.Report
+	HealthcheckFunc    func(ctx context.Context) *healthcheck.Report
 	HealthcheckTimeout time.Duration
 	HealthcheckRefresh time.Duration
 
@@ -241,6 +241,14 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		// nolint:gocritic // Setting up unit test data inside test helper
 		err := options.Database.InsertDeploymentID(dbauthz.AsSystemRestricted(context.Background()), uuid.NewString())
 		require.NoError(t, err, "insert a deployment id")
+	}
+
+	dhcKey, err := options.Database.GetDebugHealthConnectionKey(context.Background())
+	if errors.Is(err, sql.ErrNoRows) || dhcKey == "" {
+		dhcKey, err = cryptorand.String(22)
+		require.NoError(t, err, "generate debug health connection key")
+		err = options.Database.UpsertDebugHealthConnectionKey(context.Background(), dhcKey)
+		require.NoError(t, err, "insert a debug health connection key")
 	}
 
 	if options.DeploymentValues == nil {

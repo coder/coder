@@ -13,6 +13,7 @@ import (
 	"nhooyr.io/websocket"
 
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // @typescript-generate WebsocketReport
@@ -59,7 +60,7 @@ func (r *WebsocketReport) Run(ctx context.Context, opts *WebsocketReportOptions)
 	//nolint:bodyclose // websocket package closes this for you
 	c, res, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
 		HTTPClient: opts.HTTPClient,
-		HTTPHeader: http.Header{"Coder-Session-Token": []string{opts.APIKey}},
+		HTTPHeader: http.Header{codersdk.SessionTokenHeader: []string{opts.APIKey}},
 	})
 	if res != nil {
 		var body string

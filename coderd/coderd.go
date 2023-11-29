@@ -138,7 +138,7 @@ type Options struct {
 	// workspace applications. It consists of both a signing and encryption key.
 	AppSecurityKey workspaceapps.SecurityKey
 
-	HealthcheckFunc              func(ctx context.Context, apiKey string) *healthcheck.Report
+	HealthcheckFunc              func(ctx context.Context) *healthcheck.Report
 	HealthcheckTimeout           time.Duration
 	HealthcheckRefresh           time.Duration
 	WorkspaceProxiesFetchUpdater *atomic.Pointer[healthcheck.WorkspaceProxiesFetchUpdater]
@@ -406,8 +406,13 @@ func New(options *Options) *API {
 		options.WorkspaceProxiesFetchUpdater.Store(&wpfu)
 	}
 
+	dhcKey, err := options.Database.GetDebugHealthConnectionKey(ctx)
+	if err != nil {
+		panic(xerrors.Errorf("get debug health connection key: %w", err))
+	}
+
 	if options.HealthcheckFunc == nil {
-		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *healthcheck.Report {
+		options.HealthcheckFunc = func(ctx context.Context) *healthcheck.Report {
 			dismissedHealthchecks := loadDismissedHealthchecks(ctx, options.Database, options.Logger)
 			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
 				Database: healthcheck.DatabaseReportOptions{
@@ -417,7 +422,7 @@ func New(options *Options) *API {
 				},
 				Websocket: healthcheck.WebsocketReportOptions{
 					AccessURL: options.AccessURL,
-					APIKey:    apiKey,
+					APIKey:    dhcKey,
 					Dismissed: slices.Contains(dismissedHealthchecks, healthcheck.SectionWebsocket),
 				},
 				AccessURL: healthcheck.AccessURLReportOptions{
@@ -443,6 +448,12 @@ func New(options *Options) *API {
 	if options.HealthcheckRefresh == 0 {
 		options.HealthcheckRefresh = options.DeploymentValues.Healthcheck.Refresh.Value()
 	}
+
+	api.debugHealthMetrics, err = newDebugHealthMetrics(options.PrometheusRegistry)
+	if err != nil {
+		panic(xerrors.Errorf("register debug health metrics: %w", err))
+	}
+	go api.DebugHealthcheckLoop(ctx, options.HealthcheckRefresh)
 
 	var oidcAuthURLParams map[string]string
 	if options.OIDCConfig != nil {
@@ -984,11 +995,14 @@ func New(options *Options) *API {
 					r.Put("/", api.putDeploymentHealthSettings)
 				})
 			})
-			r.Get("/ws", (&healthcheck.WebsocketEchoServer{}).ServeHTTP)
 			r.Route("/{user}", func(r chi.Router) {
 				r.Use(httpmw.ExtractUserParam(options.Database))
 				r.Get("/debug-link", api.userDebugOIDC)
 			})
+		})
+		r.Route("/debug/ws", func(r chi.Router) {
+			r.Use(httpmw.RequireConnectionKey(options.Database))
+			r.Get("/", (&healthcheck.WebsocketEchoServer{}).ServeHTTP)
 		})
 	})
 
@@ -1086,6 +1100,7 @@ type API struct {
 	WorkspaceAppsProvider workspaceapps.SignedTokenProvider
 	workspaceAppServer    *workspaceapps.Server
 	agentProvider         workspaceapps.AgentProvider
+	debugHealthMetrics    *debugHealthMetrics
 
 	// Experiments contains the list of experiments currently enabled.
 	// This is used to gate features that are not yet ready for production.

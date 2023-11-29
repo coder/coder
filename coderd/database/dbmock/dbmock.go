@@ -712,6 +712,21 @@ func (mr *MockStoreMockRecorder) GetDERPMeshKey(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDERPMeshKey", reflect.TypeOf((*MockStore)(nil).GetDERPMeshKey), arg0)
 }
 
+// GetDebugHealthConnectionKey mocks base method.
+func (m *MockStore) GetDebugHealthConnectionKey(arg0 context.Context) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDebugHealthConnectionKey", arg0)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetDebugHealthConnectionKey indicates an expected call of GetDebugHealthConnectionKey.
+func (mr *MockStoreMockRecorder) GetDebugHealthConnectionKey(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDebugHealthConnectionKey", reflect.TypeOf((*MockStore)(nil).GetDebugHealthConnectionKey), arg0)
+}
+
 // GetDefaultProxyConfig mocks base method.
 func (m *MockStore) GetDefaultProxyConfig(arg0 context.Context) (database.GetDefaultProxyConfigRow, error) {
 	m.ctrl.T.Helper()
@@ -3961,6 +3976,20 @@ func (m *MockStore) UpsertApplicationName(arg0 context.Context, arg1 string) err
 func (mr *MockStoreMockRecorder) UpsertApplicationName(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertApplicationName", reflect.TypeOf((*MockStore)(nil).UpsertApplicationName), arg0, arg1)
+}
+
+// UpsertDebugHealthConnectionKey mocks base method.
+func (m *MockStore) UpsertDebugHealthConnectionKey(arg0 context.Context, arg1 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertDebugHealthConnectionKey", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertDebugHealthConnectionKey indicates an expected call of UpsertDebugHealthConnectionKey.
+func (mr *MockStoreMockRecorder) UpsertDebugHealthConnectionKey(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertDebugHealthConnectionKey", reflect.TypeOf((*MockStore)(nil).UpsertDebugHealthConnectionKey), arg0, arg1)
 }
 
 // UpsertDefaultProxy mocks base method.

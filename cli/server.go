@@ -745,6 +745,21 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					return xerrors.Errorf("oauth signing key in database is empty")
 				}
 
+				dhcKey, err := tx.GetDebugHealthConnectionKey(ctx)
+				if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+					return xerrors.Errorf("get debug health connection key: %w", err)
+				}
+				if dhcKey == "" {
+					dhcKey, err = cryptorand.String(22)
+					if err != nil {
+						return xerrors.Errorf("generate debug health connection key: %w", err)
+					}
+					err = tx.UpsertDebugHealthConnectionKey(ctx, dhcKey)
+					if err != nil {
+						return xerrors.Errorf("set deployment id: %w", err)
+					}
+				}
+
 				return nil
 			}, nil)
 			if err != nil {

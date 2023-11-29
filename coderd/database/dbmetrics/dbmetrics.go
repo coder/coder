@@ -377,6 +377,13 @@ func (m metricsStore) GetDERPMeshKey(ctx context.Context) (string, error) {
 	return key, err
 }
 
+func (m metricsStore) GetDebugHealthConnectionKey(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetDebugHealthConnectionKey(ctx)
+	m.queryLatencies.WithLabelValues("GetDebugHealthConnectionKey").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetDefaultProxyConfig(ctx context.Context) (database.GetDefaultProxyConfigRow, error) {
 	start := time.Now()
 	resp, err := m.s.GetDefaultProxyConfig(ctx)
@@ -1884,6 +1891,13 @@ func (m metricsStore) UpsertApplicationName(ctx context.Context, value string) e
 	start := time.Now()
 	r0 := m.s.UpsertApplicationName(ctx, value)
 	m.queryLatencies.WithLabelValues("UpsertApplicationName").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m metricsStore) UpsertDebugHealthConnectionKey(ctx context.Context, value string) error {
+	start := time.Now()
+	r0 := m.s.UpsertDebugHealthConnectionKey(ctx, value)
+	m.queryLatencies.WithLabelValues("UpsertDebugHealthConnectionKey").Observe(time.Since(start).Seconds())
 	return r0
 }
 

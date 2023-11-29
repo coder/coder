@@ -4315,6 +4315,17 @@ func (q *sqlQuerier) GetDERPMeshKey(ctx context.Context) (string, error) {
 	return value, err
 }
 
+const getDebugHealthConnectionKey = `-- name: GetDebugHealthConnectionKey :one
+SELECT value FROM site_configs WHERE key = 'debug_health_key'
+`
+
+func (q *sqlQuerier) GetDebugHealthConnectionKey(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getDebugHealthConnectionKey)
+	var value string
+	err := row.Scan(&value)
+	return value, err
+}
+
 const getDefaultProxyConfig = `-- name: GetDefaultProxyConfig :one
 SELECT
 	COALESCE((SELECT value FROM site_configs WHERE key = 'default_proxy_display_name'), 'Default') :: text AS display_name,
@@ -4435,6 +4446,16 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'application
 
 func (q *sqlQuerier) UpsertApplicationName(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertApplicationName, value)
+	return err
+}
+
+const upsertDebugHealthConnectionKey = `-- name: UpsertDebugHealthConnectionKey :exec
+INSERT INTO site_configs (key, value) VALUES ('debug_health_key', $1)
+ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'debug_health_key'
+`
+
+func (q *sqlQuerier) UpsertDebugHealthConnectionKey(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertDebugHealthConnectionKey, value)
 	return err
 }
 

@@ -944,6 +944,10 @@ func (q *querier) GetDERPMeshKey(ctx context.Context) (string, error) {
 	return q.db.GetDERPMeshKey(ctx)
 }
 
+func (q *querier) GetDebugHealthConnectionKey(ctx context.Context) (string, error) {
+	return q.db.GetDebugHealthConnectionKey(ctx)
+}
+
 func (q *querier) GetDefaultProxyConfig(ctx context.Context) (database.GetDefaultProxyConfigRow, error) {
 	// No authz checks
 	return q.db.GetDefaultProxyConfig(ctx)
@@ -3000,6 +3004,10 @@ func (q *querier) UpsertApplicationName(ctx context.Context, value string) error
 		return err
 	}
 	return q.db.UpsertApplicationName(ctx, value)
+}
+
+func (q *querier) UpsertDebugHealthConnectionKey(ctx context.Context, value string) error {
+	return q.db.UpsertDebugHealthConnectionKey(ctx, value)
 }
 
 func (q *querier) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDefaultProxyParams) error {

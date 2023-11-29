@@ -154,19 +154,20 @@ type data struct {
 	workspaceProxies              []database.WorkspaceProxy
 	// Locks is a map of lock names. Any keys within the map are currently
 	// locked.
-	locks                   map[int64]struct{}
-	deploymentID            string
-	derpMeshKey             string
-	lastUpdateCheck         []byte
-	serviceBanner           []byte
-	healthSettings          []byte
-	applicationName         string
-	logoURL                 string
-	appSecurityKey          string
-	oauthSigningKey         string
-	lastLicenseID           int32
-	defaultProxyDisplayName string
-	defaultProxyIconURL     string
+	locks                    map[int64]struct{}
+	deploymentID             string
+	derpMeshKey              string
+	lastUpdateCheck          []byte
+	serviceBanner            []byte
+	healthSettings           []byte
+	applicationName          string
+	logoURL                  string
+	appSecurityKey           string
+	oauthSigningKey          string
+	lastLicenseID            int32
+	defaultProxyDisplayName  string
+	defaultProxyIconURL      string
+	debugHealthConnectionKey string
 }
 
 func validateDatabaseTypeWithValid(v reflect.Value) (handled bool, err error) {
@@ -1455,6 +1456,17 @@ func (q *FakeQuerier) GetDERPMeshKey(_ context.Context) (string, error) {
 	defer q.mutex.RUnlock()
 
 	return q.derpMeshKey, nil
+}
+
+func (q *FakeQuerier) GetDebugHealthConnectionKey(_ context.Context) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if q.debugHealthConnectionKey == "" {
+		return "", sql.ErrNoRows
+	}
+
+	return q.debugHealthConnectionKey, nil
 }
 
 func (q *FakeQuerier) GetDefaultProxyConfig(_ context.Context) (database.GetDefaultProxyConfigRow, error) {
@@ -6807,6 +6819,14 @@ func (q *FakeQuerier) UpsertApplicationName(_ context.Context, data string) erro
 	defer q.mutex.RUnlock()
 
 	q.applicationName = data
+	return nil
+}
+
+func (q *FakeQuerier) UpsertDebugHealthConnectionKey(_ context.Context, value string) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.debugHealthConnectionKey = value
 	return nil
 }
 

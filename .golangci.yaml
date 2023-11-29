@@ -14,7 +14,7 @@ linters-settings:
       # a database row. Ref: #9936
       - 'github.com/coder/coder/v2/coderd/database\.[^G][^e][^t]\w+Params'
   gocognit:
-    min-complexity: 300
+    min-complexity: 320
 
   goconst:
     min-len: 4 # Min length of string consts (def 3).

@@ -79,3 +79,10 @@ SELECT
 -- name: UpsertHealthSettings :exec
 INSERT INTO site_configs (key, value) VALUES ('health_settings', $1)
 ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'health_settings';
+
+-- name: GetDebugHealthConnectionKey :one
+SELECT value FROM site_configs WHERE key = 'debug_health_key';
+
+-- name: UpsertDebugHealthConnectionKey :exec
+INSERT INTO site_configs (key, value) VALUES ('debug_health_key', $1)
+ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'debug_health_key';
