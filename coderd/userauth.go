@@ -889,51 +889,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var usingGroups bool
-	var groups []string
-	// If the GroupField is the empty string, then groups from OIDC are not used.
-	// This is so we can support manual group assignment.
-	if api.OIDCConfig.GroupField != "" {
-		usingGroups = true
-		groupsRaw, ok := mergedClaims[api.OIDCConfig.GroupField]
-		if ok && api.OIDCConfig.GroupField != "" {
-			// Convert the []interface{} we get to a []string.
-			groupsInterface, ok := groupsRaw.([]interface{})
-			if ok {
-				api.Logger.Debug(ctx, "groups returned in oidc claims",
-					slog.F("len", len(groupsInterface)),
-					slog.F("groups", groupsInterface),
-				)
-
-				for _, groupInterface := range groupsInterface {
-					group, ok := groupInterface.(string)
-					if !ok {
-						httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-							Message: fmt.Sprintf("Invalid group type. Expected string, got: %T", groupInterface),
-						})
-						return
-					}
-
-					if mappedGroup, ok := api.OIDCConfig.GroupMapping[group]; ok {
-						group = mappedGroup
-					}
-
-					groups = append(groups, group)
-				}
-			} else {
-				api.Logger.Debug(ctx, "groups field was an unknown type",
-					slog.F("type", fmt.Sprintf("%T", groupsRaw)),
-				)
-			}
-		}
-	}
-
-	// This conditional is purely to warn the user they might have misconfigured their OIDC
-	// configuration.
-	if _, groupClaimExists := mergedClaims["groups"]; !usingGroups && groupClaimExists {
-		logger.Debug(ctx, "claim 'groups' was returned, but 'oidc-group-field' is not set, check your coder oidc settings")
-	}
-
 	// The username is a required property in Coder. We make a best-effort
 	// attempt at using what the claims provide, but if that fails we will
 	// generate a random username.
@@ -970,6 +925,21 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		picture, _ = pictureRaw.(string)
 	}
 
+	usingGroups, groups, err := api.oidcGroups(ctx, mergedClaims)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to sync groups from OIDC claims",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	roles, ok := api.oidcRoles(ctx, rw, r, mergedClaims)
+	if !ok {
+		// oidcRoles writes the error to the response writer for us.
+		return
+	}
+
 	user, link, err := findLinkedUser(ctx, api.Database, oidcLinkedID(idToken), email)
 	if err != nil {
 		logger.Error(ctx, "oauth2: unable to find linked user", slog.F("email", email), slog.Error(err))
@@ -978,63 +948,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			Detail:  err.Error(),
 		})
 		return
-	}
-
-	roles := api.OIDCConfig.UserRolesDefault
-	if api.OIDCConfig.RoleSyncEnabled() {
-		rolesRow, ok := mergedClaims[api.OIDCConfig.UserRoleField]
-		if !ok {
-			// If no claim is provided than we can assume the user is just
-			// a member. This is because there is no way to tell the difference
-			// between []string{} and nil for OIDC claims. IDPs omit claims
-			// if they are empty ([]string{}).
-			// Use []interface{}{} so the next typecast works.
-			rolesRow = []interface{}{}
-		}
-
-		rolesInterface, ok := rolesRow.([]interface{})
-		if !ok {
-			api.Logger.Error(ctx, "oidc claim user roles field was an unknown type",
-				slog.F("type", fmt.Sprintf("%T", rolesRow)),
-			)
-			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-				Status:       http.StatusInternalServerError,
-				HideStatus:   true,
-				Title:        "Login disabled until OIDC config is fixed",
-				Description:  fmt.Sprintf("Roles claim must be an array of strings, type found: %T. Disabling role sync will allow login to proceed.", rolesRow),
-				RetryEnabled: false,
-				DashboardURL: "/login",
-			})
-			return
-		}
-
-		api.Logger.Debug(ctx, "roles returned in oidc claims",
-			slog.F("len", len(rolesInterface)),
-			slog.F("roles", rolesInterface),
-		)
-		for _, roleInterface := range rolesInterface {
-			role, ok := roleInterface.(string)
-			if !ok {
-				api.Logger.Error(ctx, "invalid oidc user role type",
-					slog.F("type", fmt.Sprintf("%T", rolesRow)),
-				)
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: fmt.Sprintf("Invalid user role type. Expected string, got: %T", roleInterface),
-				})
-				return
-			}
-
-			if mappedRoles, ok := api.OIDCConfig.UserRoleMapping[role]; ok {
-				if len(mappedRoles) == 0 {
-					continue
-				}
-				// Mapped roles are added to the list of roles
-				roles = append(roles, mappedRoles...)
-				continue
-			}
-
-			roles = append(roles, role)
-		}
 	}
 
 	// If a new user is authenticating for the first time
@@ -1053,9 +966,9 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		Email:               email,
 		Username:            username,
 		AvatarURL:           picture,
-		UsingGroups:         usingGroups,
 		UsingRoles:          api.OIDCConfig.RoleSyncEnabled(),
 		Roles:               roles,
+		UsingGroups:         usingGroups,
 		Groups:              groups,
 		CreateMissingGroups: api.OIDCConfig.CreateMissingGroups,
 		GroupFilter:         api.OIDCConfig.GroupFilter,
@@ -1093,6 +1006,123 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		redirect = "/"
 	}
 	http.Redirect(rw, r, redirect, http.StatusTemporaryRedirect)
+}
+
+// oidcGroups returns the groups for the user from the OIDC claims.
+func (api *API) oidcGroups(ctx context.Context, mergedClaims map[string]interface{}) (bool, []string, error) {
+	logger := api.Logger.Named(userAuthLoggerName)
+	usingGroups := false
+	var groups []string
+
+	// If the GroupField is the empty string, then groups from OIDC are not used.
+	// This is so we can support manual group assignment.
+	if api.OIDCConfig.GroupField != "" {
+		usingGroups = true
+		groupsRaw, ok := mergedClaims[api.OIDCConfig.GroupField]
+		if ok && api.OIDCConfig.GroupField != "" {
+			// Convert the []interface{} we get to a []string.
+			groupsInterface, ok := groupsRaw.([]interface{})
+			if ok {
+				api.Logger.Debug(ctx, "groups returned in oidc claims",
+					slog.F("len", len(groupsInterface)),
+					slog.F("groups", groupsInterface),
+				)
+
+				for _, groupInterface := range groupsInterface {
+					group, ok := groupInterface.(string)
+					if !ok {
+						return false, nil, xerrors.Errorf("Invalid group type. Expected string, got: %T", groupInterface)
+					}
+
+					if mappedGroup, ok := api.OIDCConfig.GroupMapping[group]; ok {
+						group = mappedGroup
+					}
+
+					groups = append(groups, group)
+				}
+			} else {
+				api.Logger.Debug(ctx, "groups field was an unknown type",
+					slog.F("type", fmt.Sprintf("%T", groupsRaw)),
+				)
+			}
+		}
+	}
+
+	// This conditional is purely to warn the user they might have misconfigured their OIDC
+	// configuration.
+	if _, groupClaimExists := mergedClaims["groups"]; !usingGroups && groupClaimExists {
+		logger.Debug(ctx, "claim 'groups' was returned, but 'oidc-group-field' is not set, check your coder oidc settings")
+	}
+
+	return usingGroups, groups, nil
+}
+
+// oidcRoles returns the roles for the user from the OIDC claims.
+// If the function returns false, then the caller should return early.
+// All writes to the response writer are handled by this function.
+// It would be preferred to just return an error, however this function
+// decorates returned errors with the appropriate HTTP status codes and details
+// that are hard to carry in a standard `error` without more work.
+func (api *API) oidcRoles(ctx context.Context, rw http.ResponseWriter, r *http.Request, mergedClaims map[string]interface{}) ([]string, bool) {
+	roles := api.OIDCConfig.UserRolesDefault
+	if !api.OIDCConfig.RoleSyncEnabled() {
+		return roles, true
+	}
+
+	rolesRow, ok := mergedClaims[api.OIDCConfig.UserRoleField]
+	if !ok {
+		// If no claim is provided than we can assume the user is just
+		// a member. This is because there is no way to tell the difference
+		// between []string{} and nil for OIDC claims. IDPs omit claims
+		// if they are empty ([]string{}).
+		// Use []interface{}{} so the next typecast works.
+		rolesRow = []interface{}{}
+	}
+
+	rolesInterface, ok := rolesRow.([]interface{})
+	if !ok {
+		api.Logger.Error(ctx, "oidc claim user roles field was an unknown type",
+			slog.F("type", fmt.Sprintf("%T", rolesRow)),
+		)
+		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+			Status:       http.StatusInternalServerError,
+			HideStatus:   true,
+			Title:        "Login disabled until OIDC config is fixed",
+			Description:  fmt.Sprintf("Roles claim must be an array of strings, type found: %T. Disabling role sync will allow login to proceed.", rolesRow),
+			RetryEnabled: false,
+			DashboardURL: "/login",
+		})
+		return nil, false
+	}
+
+	api.Logger.Debug(ctx, "roles returned in oidc claims",
+		slog.F("len", len(rolesInterface)),
+		slog.F("roles", rolesInterface),
+	)
+	for _, roleInterface := range rolesInterface {
+		role, ok := roleInterface.(string)
+		if !ok {
+			api.Logger.Error(ctx, "invalid oidc user role type",
+				slog.F("type", fmt.Sprintf("%T", rolesRow)),
+			)
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("Invalid user role type. Expected string, got: %T", roleInterface),
+			})
+			return nil, false
+		}
+
+		if mappedRoles, ok := api.OIDCConfig.UserRoleMapping[role]; ok {
+			if len(mappedRoles) == 0 {
+				continue
+			}
+			// Mapped roles are added to the list of roles
+			roles = append(roles, mappedRoles...)
+			continue
+		}
+
+		roles = append(roles, role)
+	}
+	return roles, true
 }
 
 // claimFields returns the sorted list of fields in the claims map.
