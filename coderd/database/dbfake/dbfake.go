@@ -262,9 +262,9 @@ func (t TemplateVersionBuilder) Params(ps ...database.TemplateVersionParameter) 
 func (t TemplateVersionBuilder) Do() TemplateVersionResponse {
 	t.t.Helper()
 
-	t.seed.OrganizationID = dbgen.TakeFirst(t.seed.OrganizationID, uuid.New())
-	t.seed.ID = dbgen.TakeFirst(t.seed.ID, uuid.New())
-	t.seed.CreatedBy = dbgen.TakeFirst(t.seed.CreatedBy, uuid.New())
+	t.seed.OrganizationID = takeFirst(t.seed.OrganizationID, uuid.New())
+	t.seed.ID = takeFirst(t.seed.ID, uuid.New())
+	t.seed.CreatedBy = takeFirst(t.seed.CreatedBy, uuid.New())
 
 	var resp TemplateVersionResponse
 	if t.seed.TemplateID.UUID == uuid.Nil {
@@ -402,4 +402,27 @@ func (b WorkspaceBuilder) Do() WorkspaceResponse {
 			Do().Build
 	}
 	return r
+}
+
+// takeFirstF takes the first value that returns true
+func takeFirstF[Value any](values []Value, take func(v Value) bool) Value {
+	for _, v := range values {
+		if take(v) {
+			return v
+		}
+	}
+	// If all empty, return the last element
+	if len(values) > 0 {
+		return values[len(values)-1]
+	}
+	var empty Value
+	return empty
+}
+
+// takeFirst will take the first non-empty value.
+func takeFirst[Value comparable](values ...Value) Value {
+	var empty Value
+	return takeFirstF(values, func(v Value) bool {
+		return v != empty
+	})
 }
