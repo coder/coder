@@ -17,7 +17,7 @@ import Box from "@mui/material/Box";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { Avatar } from "components/Avatar/Avatar";
 import { Stack } from "components/Stack/Stack";
-import { LastUsed } from "pages/WorkspacesPage/LastUsed";
+import { DeletingAt, LastUsed } from "pages/WorkspacesPage/LastUsed";
 import { WorkspaceOutdatedTooltip } from "components/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
 import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge";
 import { getDisplayWorkspaceTemplateName } from "utils/workspace";
@@ -49,6 +49,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
   templates,
   canCreateTemplate,
 }) => {
+  const hasDormantWorkspaces = workspaces?.some((ws) => ws.dormant_at);
   return (
     <TableContainer>
       <Table>
@@ -81,7 +82,11 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
               </Box>
             </TableCell>
             <TableCell width="25%">Template</TableCell>
-            <TableCell width="20%">Last used</TableCell>
+            {hasDormantWorkspaces ? (
+              <TableCell width="20%">Deletion Scheduled</TableCell>
+            ) : (
+              <TableCell width="20%">Last used</TableCell>
+            )}
             <TableCell width="15%">Status</TableCell>
             <TableCell width="1%" />
           </TableRow>
@@ -176,9 +181,15 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                     {getDisplayWorkspaceTemplateName(workspace)}
                   </TableCell>
 
-                  <TableCell>
-                    <LastUsed lastUsedAt={workspace.last_used_at} />
-                  </TableCell>
+                  {hasDormantWorkspaces ? (
+                    <TableCell>
+                      <DeletingAt deletingAt={workspace.deleting_at} />
+                    </TableCell>
+                  ) : (
+                    <TableCell>
+                      <LastUsed lastUsedAt={workspace.last_used_at} />
+                    </TableCell>
+                  )}
 
                   <TableCell>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>

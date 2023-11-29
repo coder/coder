@@ -4,6 +4,11 @@ import relativeTime from "dayjs/plugin/relativeTime";
 import { useTheme } from "@emotion/react";
 import { Stack } from "components/Stack/Stack";
 import { colors } from "theme/colors";
+import { upperFirst } from "lodash";
+import {
+  HelpTooltip,
+  HelpTooltipText,
+} from "components/HelpTooltip/HelpTooltip";
 
 dayjs.extend(relativeTime);
 
@@ -65,6 +70,64 @@ export const LastUsed: FC<LastUsedProps> = ({ lastUsedAt }) => {
     >
       {circle}
       <span data-chromatic="ignore">{message}</span>
+    </Stack>
+  );
+};
+
+interface DormantProps {
+  deletingAt?: string;
+}
+
+export const DeletingAt: FC<DormantProps> = ({ deletingAt }) => {
+  const theme = useTheme();
+  let message = "Never";
+
+  let circle = (
+    <Circle color={theme.palette.text.secondary} variant="outlined" />
+  );
+
+  const formatDate = (dateStr: string): string => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString(undefined, {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+
+  if (deletingAt) {
+    const t = dayjs(deletingAt);
+    const now = dayjs();
+    message = upperFirst(t.fromNow());
+    if (t.isAfter(now.add(1, "month"))) {
+      circle = <Circle color={colors.green[9]} />;
+    } else if (
+      t.isAfter(now.add(7, "day")) &&
+      t.isBefore(now.add(1, "month"))
+    ) {
+      message = `In ${t.diff(now, "day")} days`;
+      circle = <Circle color={theme.palette.warning.light} />;
+    } else if (t.isBefore(now.add(7, "day"))) {
+      circle = <Circle color={colors.red[10]} />;
+    }
+  }
+
+  return (
+    <Stack
+      css={{ color: theme.palette.text.secondary }}
+      direction="row"
+      spacing={1}
+      alignItems="center"
+    >
+      {circle}
+      <span data-chromatic="ignore">{message}</span>
+      <HelpTooltip>
+        <HelpTooltipText>
+          {message === "Never"
+            ? "The template for this workspace has not enabled auto-deletion"
+            : deletingAt && `Deleting on ${formatDate(deletingAt)}`}
+        </HelpTooltipText>
+      </HelpTooltip>
     </Stack>
   );
 };
