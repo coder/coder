@@ -136,15 +136,6 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// dhcKey, err := api.Database.GetDebugHealthConnectionKey(ctx)
-	// if err != nil {
-	// 	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-	// 		Message: "Failed to fetch debug health connection key.",
-	// 		Detail:  err.Error(),
-	// 	})
-	// 	return
-	// }
-
 	resChan := api.healthCheckGroup.DoChan("", func() (*healthcheck.Report, error) {
 		// Create a new context not tied to the request.
 		ctx, cancel := context.WithTimeout(context.Background(), api.Options.HealthcheckTimeout)
