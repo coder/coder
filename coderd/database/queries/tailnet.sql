@@ -190,12 +190,12 @@ FROM tailnet_tunnels
 WHERE tailnet_tunnels.dst_id = $1;
 
 -- name: GetTailnetTunnelPeerBindings :many
-SELECT tailnet_tunnels.dst_id as peer_id, tailnet_peers.coordinator_id, tailnet_peers.updated_at, tailnet_peers.node
+SELECT tailnet_tunnels.dst_id as peer_id, tailnet_peers.coordinator_id, tailnet_peers.updated_at, tailnet_peers.node, tailnet_peers.status
 FROM tailnet_tunnels
 INNER JOIN tailnet_peers ON tailnet_tunnels.dst_id = tailnet_peers.id
 WHERE tailnet_tunnels.src_id = $1
 UNION
-SELECT tailnet_tunnels.src_id as peer_id, tailnet_peers.coordinator_id, tailnet_peers.updated_at, tailnet_peers.node
+SELECT tailnet_tunnels.src_id as peer_id, tailnet_peers.coordinator_id, tailnet_peers.updated_at, tailnet_peers.node, tailnet_peers.status
 FROM tailnet_tunnels
 INNER JOIN tailnet_peers ON tailnet_tunnels.src_id = tailnet_peers.id
 WHERE tailnet_tunnels.dst_id = $1;

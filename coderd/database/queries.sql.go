@@ -4954,22 +4954,23 @@ func (q *sqlQuerier) GetTailnetPeers(ctx context.Context, id uuid.UUID) ([]Tailn
 }
 
 const getTailnetTunnelPeerBindings = `-- name: GetTailnetTunnelPeerBindings :many
-SELECT tailnet_tunnels.dst_id as peer_id, tailnet_peers.coordinator_id, tailnet_peers.updated_at, tailnet_peers.node
+SELECT tailnet_tunnels.dst_id as peer_id, tailnet_peers.coordinator_id, tailnet_peers.updated_at, tailnet_peers.node, tailnet_peers.status
 FROM tailnet_tunnels
 INNER JOIN tailnet_peers ON tailnet_tunnels.dst_id = tailnet_peers.id
 WHERE tailnet_tunnels.src_id = $1
 UNION
-SELECT tailnet_tunnels.src_id as peer_id, tailnet_peers.coordinator_id, tailnet_peers.updated_at, tailnet_peers.node
+SELECT tailnet_tunnels.src_id as peer_id, tailnet_peers.coordinator_id, tailnet_peers.updated_at, tailnet_peers.node, tailnet_peers.status
 FROM tailnet_tunnels
 INNER JOIN tailnet_peers ON tailnet_tunnels.src_id = tailnet_peers.id
 WHERE tailnet_tunnels.dst_id = $1
 `
 
 type GetTailnetTunnelPeerBindingsRow struct {
-	PeerID        uuid.UUID `db:"peer_id" json:"peer_id"`
-	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
-	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
-	Node          []byte    `db:"node" json:"node"`
+	PeerID        uuid.UUID     `db:"peer_id" json:"peer_id"`
+	CoordinatorID uuid.UUID     `db:"coordinator_id" json:"coordinator_id"`
+	UpdatedAt     time.Time     `db:"updated_at" json:"updated_at"`
+	Node          []byte        `db:"node" json:"node"`
+	Status        TailnetStatus `db:"status" json:"status"`
 }
 
 func (q *sqlQuerier) GetTailnetTunnelPeerBindings(ctx context.Context, srcID uuid.UUID) ([]GetTailnetTunnelPeerBindingsRow, error) {
@@ -4986,6 +4987,7 @@ func (q *sqlQuerier) GetTailnetTunnelPeerBindings(ctx context.Context, srcID uui
 			&i.CoordinatorID,
 			&i.UpdatedAt,
 			&i.Node,
+			&i.Status,
 		); err != nil {
 			return nil, err
 		}
