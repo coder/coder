@@ -2151,8 +2151,8 @@ export interface HealthcheckWorkspaceProxyReport {
   readonly healthy: boolean;
   readonly severity: HealthSeverity;
   readonly warnings: string[];
-  readonly error?: string;
   readonly dismissed: boolean;
+  readonly error?: string;
   readonly workspace_proxies: RegionsResponse<WorkspaceProxy>;
 }
 
