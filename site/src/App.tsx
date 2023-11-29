@@ -15,7 +15,9 @@ import {
 } from "@mui/material/styles";
 import { ThemeProvider as EmotionThemeProvider } from "@emotion/react";
 
-const shouldEnableCache = window.location.hostname.includes("dev.coder.com");
+const shouldEnableCache =
+  window.location.hostname.includes("dev.coder.com") ||
+  process.env.NODE_ENV === "development";
 
 const defaultQueryClient = new QueryClient({
   defaultOptions: {
