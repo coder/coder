@@ -686,26 +686,6 @@ jobs:
           docker tag "ghcr.io/coder/coder-preview:$tag" ghcr.io/coder/coder-preview:main
           docker push ghcr.io/coder/coder-preview:main
 
-      - name: Build and Push Helm Charts to helm.coder.com/v2/preview
-        run: |
-          set -euo pipefail
-
-          version="$(./scripts/version.sh)"
-          make -j \
-            "build/coder_helm_${version}.tgz" \
-            "build/provisioner_helm_${version}.tgz"
-
-          mkdir -p build/helm
-          cp "build/coder_helm_${version}.tgz" build/helm
-          cp "build/provisioner_helm_${version}.tgz" build/helm
-          gsutil cp gs://helm.coder.com/v2/preview/index.yaml build/helm/index.yaml
-          helm repo index build/helm --url https://helm.coder.com/v2/preview --merge build/helm/index.yaml
-
-          gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/coder_helm_${version}.tgz gs://helm.coder.com/v2/preview
-          gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/provisioner_helm_${version}.tgz gs://helm.coder.com/v2/preview
-          gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/index.yaml gs://helm.coder.com/v2/preview
-          gsutil -h "Cache-Control:no-cache,max-age=0" cp helm/artifacthub-repo.yml gs://helm.coder.com/v2/preview
-
       - name: Prune old images
         uses: vlaurin/action-ghcr-prune@v0.5.0
         with:
@@ -768,10 +748,20 @@ jobs:
       - name: Reconcile Flux
         run: |
           set -euxo pipefail
+          flux --namespace flux-system reconcile source git flux-system
+          flux --namespace flux-system reconcile source git coder-main
+          flux --namespace flux-system reconcile kustomization flux-system
+          flux --namespace flux-system reconcile kustomization cert-manager
+          flux --namespace flux-system reconcile kustomization coder-certs
           flux --namespace flux-system reconcile kustomization coder
-          flux --namespace flux-system reconcile source helm coder-v2-preview
+          flux --namespace flux-system reconcile source chart coder-coder
           flux --namespace coder reconcile helmrelease coder
 
+      - name: Rollout Deployment
+        run: |
+          set -euxo pipefail
+          kubectl --namespace coder rollout restart deployment/coder
+          kubectl --namespace coder rollout status deployment/coder
 
   # TODO: when we remove this, instead of removing it we need to change it so it
   # still upgrades workspace proxies which are not deployed on K8s
