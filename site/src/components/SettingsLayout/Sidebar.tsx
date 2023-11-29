@@ -11,6 +11,7 @@ import {
   SidebarHeader,
   SidebarNavItem,
 } from "components/Sidebar/Sidebar";
+import { GitIcon } from "components/Icons/GitIcon";
 
 export const Sidebar: React.FC<{ user: User }> = ({ user }) => {
   const { entitlements } = useDashboard();
@@ -39,6 +40,9 @@ export const Sidebar: React.FC<{ user: User }> = ({ user }) => {
       </SidebarNavItem>
       <SidebarNavItem href="ssh-keys" icon={FingerprintOutlinedIcon}>
         SSH Keys
+      </SidebarNavItem>
+      <SidebarNavItem href="external-auth" icon={GitIcon}>
+        External Authentication
       </SidebarNavItem>
       <SidebarNavItem href="tokens" icon={VpnKeyOutlined}>
         Tokens
