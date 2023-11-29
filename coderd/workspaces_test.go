@@ -357,52 +357,58 @@ func TestResolveAutostart(t *testing.T) {
 	defer cancel()
 
 	client, member := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
-	build := dbfake.NewWorkspaceBuilder(t, db).Seed(database.Workspace{
+	resp := dbfake.WorkspaceBuild(t, db, database.Workspace{
 		OwnerID:          member.ID,
 		OrganizationID:   owner.OrganizationID,
 		AutomaticUpdates: database.AutomaticUpdatesAlways,
-	}).WithAgent().Do()
-
-	workspace := build.Workspace
-	version1 := build.TemplateVersion
-
-	version2 := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
-		CreatedBy:      owner.UserID,
-		OrganizationID: owner.OrganizationID,
-		TemplateID:     uuid.NullUUID{UUID: version1.TemplateID.UUID, Valid: true},
-	}).Params(param).Do()
-
-	// Autostart shouldn't be possible if parameters do not match.
-	resp, err := client.ResolveAutostart(ctx, workspace.ID.String())
-	require.NoError(t, err)
-	require.True(t, resp.ParameterMismatch)
-
-	_ = dbfake.NewWorkspaceBuildBuilder(t, db, workspace).Seed(database.WorkspaceBuild{
-		BuildNumber:       2,
-		TemplateVersionID: version2.ID,
-	}).Params(database.WorkspaceBuildParameter{
-		Name:  "param",
-		Value: "hello",
+	}).Seed(database.WorkspaceBuild{
+		InitiatorID: member.ID,
 	}).Do()
 
-	// We should be able to autostart since parameters are updated.
-	resp, err = client.ResolveAutostart(ctx, workspace.ID.String())
+	workspace := resp.Workspace
+	version1 := resp.TemplateVersion
+
+	version2 := dbfake.TemplateVersion(t, db).
+		Seed(database.TemplateVersion{
+			CreatedBy:      owner.UserID,
+			OrganizationID: owner.OrganizationID,
+			TemplateID:     version1.TemplateID,
+		}).
+		Params(param).Do()
+
+	// Autostart shouldn't be possible if parameters do not match.
+	resolveResp, err := client.ResolveAutostart(ctx, workspace.ID.String())
 	require.NoError(t, err)
-	require.False(t, resp.ParameterMismatch)
+	require.True(t, resolveResp.ParameterMismatch)
+
+	_ = dbfake.WorkspaceBuild(t, db, workspace).
+		Seed(database.WorkspaceBuild{
+			BuildNumber:       2,
+			TemplateVersionID: version2.TemplateVersion.ID,
+		}).
+		Params(database.WorkspaceBuildParameter{
+			Name:  "param",
+			Value: "hello",
+		}).Do()
+
+	// We should be able to autostart since parameters are updated.
+	resolveResp, err = client.ResolveAutostart(ctx, workspace.ID.String())
+	require.NoError(t, err)
+	require.False(t, resolveResp.ParameterMismatch)
 
 	// Create another version that has the same parameters as version2.
 	// We should be able to update without issue.
 	_ = dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
 		CreatedBy:      owner.UserID,
 		OrganizationID: owner.OrganizationID,
-		TemplateID:     uuid.NullUUID{UUID: version1.TemplateID.UUID, Valid: true},
+		TemplateID:     version1.TemplateID,
 	}).Params(param).Do()
 
 	// Even though we're out of date we should still be able to autostart
 	// since parameters resolve.
-	resp, err = client.ResolveAutostart(ctx, workspace.ID.String())
+	resolveResp, err = client.ResolveAutostart(ctx, workspace.ID.String())
 	require.NoError(t, err)
-	require.False(t, resp.ParameterMismatch)
+	require.False(t, resolveResp.ParameterMismatch)
 }
 
 func TestAdminViewAllWorkspaces(t *testing.T) {

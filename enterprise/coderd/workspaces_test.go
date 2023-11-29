@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
@@ -1176,24 +1175,25 @@ func TestResolveAutostart(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	_, err := ownerClient.UpdateTemplateMeta(ctx, version1.TemplateID.UUID, codersdk.UpdateTemplateMeta{
+	_, err := ownerClient.UpdateTemplateMeta(ctx, version1.Template.ID, codersdk.UpdateTemplateMeta{
 		RequireActiveVersion: true,
 	})
 	require.NoError(t, err)
 
 	client, member := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 
-	workspace := dbfake.NewWorkspaceBuilder(t, db).Seed(database.Workspace{
-		TemplateID:       version1.TemplateID.UUID,
-		OwnerID:          member.ID,
-		OrganizationID:   owner.OrganizationID,
-		AutomaticUpdates: database.AutomaticUpdatesNever,
-	}).WithAgent().Do().Workspace
+	workspace := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		OwnerID:        member.ID,
+		OrganizationID: owner.OrganizationID,
+		TemplateID:     version1.Template.ID,
+	}).Seed(database.WorkspaceBuild{
+		TemplateVersionID: version1.TemplateVersion.ID,
+	}).Do().Workspace
 
 	_ = dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
 		CreatedBy:      owner.UserID,
 		OrganizationID: owner.OrganizationID,
-		TemplateID:     uuid.NullUUID{UUID: version1.TemplateID.UUID, Valid: true},
+		TemplateID:     version1.TemplateVersion.TemplateID,
 	}).Params(database.TemplateVersionParameter{
 		Name:     "param",
 		Required: true,

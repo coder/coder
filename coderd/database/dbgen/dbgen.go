@@ -167,6 +167,8 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 }
 
 func Workspace(t testing.TB, db database.Store, orig database.Workspace) database.Workspace {
+	t.Helper()
+
 	workspace, err := db.InsertWorkspace(Ctx, database.InsertWorkspaceParams{
 		ID:                TakeFirst(orig.ID, uuid.New()),
 		OwnerID:           TakeFirst(orig.OwnerID, uuid.New()),
@@ -197,6 +199,8 @@ func WorkspaceAgentLogSource(t testing.TB, db database.Store, orig database.Work
 }
 
 func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuild) database.WorkspaceBuild {
+	t.Helper()
+
 	buildID := TakeFirst(orig.ID, uuid.New())
 	var build database.WorkspaceBuild
 	err := db.InTx(func(db database.Store) error {
