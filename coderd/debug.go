@@ -10,18 +10,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-<<<<<<< HEAD
-	"golang.org/x/exp/slices"
-	"golang.org/x/xerrors"
-
-	"cdr.dev/slog"
-
-=======
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
->>>>>>> 2e71614be (add debug health prometheus metrics)
+	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/healthcheck"
@@ -31,20 +24,20 @@ import (
 )
 
 type debugHealthMetrics struct {
-	accessURLHealthyGauge        *prometheus.GaugeVec
+	accessURLSeverityGauge       *prometheus.GaugeVec
 	accessURLReachableGauge      *prometheus.GaugeVec
 	accessURLStatusCodeGauge     *prometheus.GaugeVec
 	accessURLResponseLengthGauge *prometheus.GaugeVec
-	databaseHealthGauge          *prometheus.GaugeVec
+	databaseSeverityGauge        *prometheus.GaugeVec
 	databaseReachableGauge       *prometheus.GaugeVec
 	databaseLatencyGauge         *prometheus.GaugeVec
 	databaseThresholdGauge       *prometheus.GaugeVec
-	derpHealthyGauge             *prometheus.GaugeVec
-	derpNodeHealthyGauge         *prometheus.GaugeVec
+	derpSeverityGauge            *prometheus.GaugeVec
+	derpNodeSeverityGauge        *prometheus.GaugeVec
 	derpNodeRoundTripPingGauge   *prometheus.GaugeVec
 	derpNodeUsesWebsocketGauge   *prometheus.GaugeVec
 	derpNodeStunEnabledGauge     *prometheus.GaugeVec
-	websocketHealthyGauge        *prometheus.GaugeVec
+	websocketSeverityGauge       *prometheus.GaugeVec
 	websocketResponseLengthGauge *prometheus.GaugeVec
 	websocketStatusCodeGauge     *prometheus.GaugeVec
 }
@@ -72,26 +65,26 @@ func (api *API) DebugHealthcheckLoop(ctx context.Context, refresh time.Duration)
 
 func (api *API) reportHealthcheckPrometheusMetrics(report *healthcheck.Report) {
 	// Access URL
-	api.debugHealthMetrics.accessURLHealthyGauge.WithLabelValues().Set(boolToFloat64(report.AccessURL.Healthy))
+	api.debugHealthMetrics.accessURLSeverityGauge.WithLabelValues().Set(float64(report.AccessURL.Severity.Value()))
 	api.debugHealthMetrics.accessURLReachableGauge.WithLabelValues().Set(boolToFloat64(report.AccessURL.Reachable))
 	api.debugHealthMetrics.accessURLStatusCodeGauge.WithLabelValues().Set(float64(report.AccessURL.StatusCode))
 	api.debugHealthMetrics.accessURLResponseLengthGauge.WithLabelValues().Set(float64(len(report.AccessURL.HealthzResponse)))
 	// Database
-	api.debugHealthMetrics.databaseHealthGauge.WithLabelValues().Set(boolToFloat64(report.Database.Healthy))
+	api.debugHealthMetrics.databaseSeverityGauge.WithLabelValues().Set(float64(report.Database.Severity.Value()))
 	api.debugHealthMetrics.databaseReachableGauge.WithLabelValues().Set(boolToFloat64(report.Database.Reachable))
 	api.debugHealthMetrics.databaseLatencyGauge.WithLabelValues().Set(float64(report.Database.LatencyMS))
 	api.debugHealthMetrics.databaseThresholdGauge.WithLabelValues().Set(float64(report.Database.ThresholdMS))
 	// DERP
 	for regionID, regionReport := range report.DERP.Regions {
 		for _, nodeReport := range regionReport.NodeReports {
-			api.debugHealthMetrics.derpNodeHealthyGauge.WithLabelValues(fmt.Sprintf("%d", regionID), nodeReport.Node.Name).Set(boolToFloat64(nodeReport.Healthy))
+			api.debugHealthMetrics.derpNodeSeverityGauge.WithLabelValues(fmt.Sprintf("%d", regionID), nodeReport.Node.Name).Set(float64(nodeReport.Severity.Value()))
 			api.debugHealthMetrics.derpNodeRoundTripPingGauge.WithLabelValues(fmt.Sprintf("%d", regionID), nodeReport.Node.Name).Set(float64(nodeReport.RoundTripPingMs))
 			api.debugHealthMetrics.derpNodeUsesWebsocketGauge.WithLabelValues(fmt.Sprintf("%d", regionID), nodeReport.Node.Name).Set(boolToFloat64(nodeReport.UsesWebsocket))
 			api.debugHealthMetrics.derpNodeStunEnabledGauge.WithLabelValues(fmt.Sprintf("%d", regionID), nodeReport.Node.Name).Set(boolToFloat64(nodeReport.STUN.Enabled))
 		}
 	}
 	// Websocket
-	api.debugHealthMetrics.websocketHealthyGauge.WithLabelValues().Set(boolToFloat64(report.Websocket.Healthy))
+	api.debugHealthMetrics.websocketSeverityGauge.WithLabelValues().Set(float64(report.Websocket.Severity.Value()))
 	api.debugHealthMetrics.websocketResponseLengthGauge.WithLabelValues().Set(float64(len(report.Websocket.Body)))
 	api.debugHealthMetrics.websocketStatusCodeGauge.WithLabelValues().Set(float64(report.Websocket.Code))
 }
@@ -338,7 +331,6 @@ func validateHealthSettings(settings codersdk.HealthSettings) error {
 // @x-apidocgen {"skip": true}
 func _debugws(http.ResponseWriter, *http.Request) {} //nolint:unused
 
-<<<<<<< HEAD
 func loadDismissedHealthchecks(ctx context.Context, db database.Store, logger slog.Logger) []string {
 	dismissedHealthchecks := []string{}
 	settingsJSON, err := db.GetHealthSettings(ctx)
@@ -353,18 +345,19 @@ func loadDismissedHealthchecks(ctx context.Context, db database.Store, logger sl
 		logger.Error(ctx, "unable to fetch health settings: %w", err)
 	}
 	return dismissedHealthchecks
-=======
+}
+
 // newDebugHealthMetrics registers debug health metrics with prometheus.
 func newDebugHealthMetrics(prometheusRegisterer prometheus.Registerer) (*debugHealthMetrics, error) {
 	dh := &debugHealthMetrics{}
 	// Access URL
-	dh.accessURLHealthyGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	dh.accessURLSeverityGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "health",
-		Name:      "access_url_healthy",
-		Help:      "Access URL Health",
+		Name:      "access_url_severity",
+		Help:      "Access URL Severity",
 	}, []string{})
-	err := prometheusRegisterer.Register(dh.accessURLHealthyGauge)
+	err := prometheusRegisterer.Register(dh.accessURLSeverityGauge)
 	if err != nil {
 		return nil, err
 	}
@@ -400,13 +393,13 @@ func newDebugHealthMetrics(prometheusRegisterer prometheus.Registerer) (*debugHe
 	}
 
 	// Database
-	dh.databaseHealthGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	dh.databaseSeverityGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "health",
-		Name:      "database_healthy",
-		Help:      "Database Health",
+		Name:      "database_severity",
+		Help:      "Database Severity",
 	}, []string{})
-	err = prometheusRegisterer.Register(dh.databaseHealthGauge)
+	err = prometheusRegisterer.Register(dh.databaseSeverityGauge)
 	if err != nil {
 		return nil, err
 	}
@@ -442,23 +435,23 @@ func newDebugHealthMetrics(prometheusRegisterer prometheus.Registerer) (*debugHe
 	}
 
 	// DERP
-	dh.derpHealthyGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	dh.derpSeverityGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "health",
-		Name:      "derp_healthy",
-		Help:      "Derp Health",
+		Name:      "derp_severity",
+		Help:      "Derp Severity",
 	}, []string{})
-	err = prometheusRegisterer.Register(dh.derpHealthyGauge)
+	err = prometheusRegisterer.Register(dh.derpSeverityGauge)
 	if err != nil {
 		return nil, err
 	}
-	dh.derpNodeHealthyGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	dh.derpNodeSeverityGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "health",
-		Name:      "derp_node_healthy",
-		Help:      "Derp Node Health",
+		Name:      "derp_node_severity",
+		Help:      "Derp Node Severity",
 	}, []string{"region", "node"})
-	err = prometheusRegisterer.Register(dh.derpNodeHealthyGauge)
+	err = prometheusRegisterer.Register(dh.derpNodeSeverityGauge)
 	if err != nil {
 		return nil, err
 	}
@@ -494,13 +487,13 @@ func newDebugHealthMetrics(prometheusRegisterer prometheus.Registerer) (*debugHe
 	}
 
 	// Websocket
-	dh.websocketHealthyGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	dh.websocketSeverityGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "health",
-		Name:      "websocket_healthy",
-		Help:      "Websocket Health",
+		Name:      "websocket_severity",
+		Help:      "Websocket Severity",
 	}, []string{})
-	err = prometheusRegisterer.Register(dh.websocketHealthyGauge)
+	err = prometheusRegisterer.Register(dh.websocketSeverityGauge)
 	if err != nil {
 		return nil, err
 	}
@@ -535,5 +528,4 @@ func boolToFloat64(b bool) float64 {
 	}
 
 	return 0
->>>>>>> 2e71614be (add debug health prometheus metrics)
 }
