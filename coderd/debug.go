@@ -8,12 +8,11 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-
-	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -256,7 +255,7 @@ func validateHealthSettings(settings codersdk.HealthSettings) error {
 // @x-apidocgen {"skip": true}
 func _debugws(http.ResponseWriter, *http.Request) {} //nolint:unused
 
-func loadDismissedHealthcheck(ctx context.Context, db database.Store, logger slog.Logger) []string {
+func loadDismissedHealthchecks(ctx context.Context, db database.Store, logger slog.Logger) []string {
 	dismissedHealthchecks := []string{}
 	settingsJSON, err := db.GetHealthSettings(ctx)
 	if err == nil {

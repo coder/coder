@@ -408,7 +408,7 @@ func New(options *Options) *API {
 
 	if options.HealthcheckFunc == nil {
 		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *healthcheck.Report {
-			dismissedHealthchecks := loadDismissedHealthcheck(ctx, options.Database, options.Logger)
+			dismissedHealthchecks := loadDismissedHealthchecks(ctx, options.Database, options.Logger)
 			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
 				Database: healthcheck.DatabaseReportOptions{
 					DB:        options.Database,

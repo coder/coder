@@ -236,3 +236,15 @@ func fakeUpdateProxyHealth(err error) func(context.Context) error {
 		return err
 	}
 }
+
+func TestWorkspaceProxy_Dismissed(t *testing.T) {
+	t.Parallel()
+
+	var report healthcheck.WorkspaceProxyReport
+	report.Run(context.Background(), &healthcheck.WorkspaceProxyReportOptions{
+		Dismissed: true,
+	})
+
+	assert.True(t, report.Dismissed)
+	assert.Equal(t, health.SeverityOK, report.Severity)
+}

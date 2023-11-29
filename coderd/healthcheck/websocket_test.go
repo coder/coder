@@ -68,4 +68,22 @@ func TestWebsocket(t *testing.T) {
 		assert.Equal(t, wsReport.Body, "test error")
 		assert.Equal(t, wsReport.Code, http.StatusBadRequest)
 	})
+
+	t.Run("DismissedError", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		wsReport := healthcheck.WebsocketReport{}
+		wsReport.Run(ctx, &healthcheck.WebsocketReportOptions{
+			AccessURL: &url.URL{Host: "fake"},
+			Dismissed: true,
+		})
+
+		require.True(t, wsReport.Dismissed)
+		require.Equal(t, health.SeverityError, wsReport.Severity)
+		require.NotNil(t, wsReport.Error)
+		require.Equal(t, health.SeverityError, wsReport.Severity)
+	})
 }
