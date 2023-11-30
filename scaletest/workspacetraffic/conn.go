@@ -54,10 +54,11 @@ type rptyConn struct {
 	conn io.ReadWriteCloser
 	wenc *json.Encoder
 
-	mu       sync.Mutex
-	closed   bool
-	readErr  chan error
 	readOnce sync.Once
+	readErr  chan error
+
+	mu     sync.Mutex // Protects following.
+	closed bool
 }
 
 func newPTYConn(conn io.ReadWriteCloser) *rptyConn {
