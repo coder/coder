@@ -62,7 +62,8 @@ type ListUserExternalAuthResponse struct {
 	Providers []ExternalAuthLinkProvider `json:"providers"`
 	// Links are all the authenticated links for the user.
 	// If a link has a provider ID that does not exist, then that provider
-	// is no longer configured, rendering it unusable.
+	// is no longer configured, rendering it unusable. It is still valuable
+	// to include these links so that the user can unlink them.
 	Links []ExternalAuthLink `json:"links"`
 }
 

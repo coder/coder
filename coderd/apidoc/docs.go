@@ -748,6 +748,31 @@ const docTemplate = `{
                 }
             }
         },
+        "/external-auth": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Git"
+                ],
+                "summary": "Get user external auths",
+                "operationId": "get-user-external-auths",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ExternalAuthLink"
+                        }
+                    }
+                }
+            }
+        },
         "/external-auth/{externalauth}": {
             "get": {
                 "security": [
@@ -788,8 +813,8 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
-                "produces": [
-                    "application/json"
+                "tags": [
+                    "Git"
                 ],
                 "summary": "Delete external auth user link by ID",
                 "operationId": "delete-external-auth-user-link-by-id",
@@ -3459,31 +3484,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.AuthMethods"
-                        }
-                    }
-                }
-            }
-        },
-        "/users/external-auths": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Users"
-                ],
-                "summary": "Get user external auths",
-                "operationId": "get-user-external-auths",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ExternalAuthLink"
                         }
                     }
                 }

@@ -665,7 +665,7 @@ func New(options *Options) *API {
 				apiKeyMiddleware,
 			)
 			// Get without a specific external auth ID will return all external auths.
-			r.Get("/", api.userExternalAuths)
+			r.Get("/", api.listUserExternalAuths)
 			r.Route("/{externalauth}", func(r chi.Router) {
 				r.Use(
 					httpmw.ExtractExternalAuthParam(options.ExternalAuthConfigs),
