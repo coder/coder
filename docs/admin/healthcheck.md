@@ -81,7 +81,7 @@ measures the median latency over 5 attempts.
 
 **Solution:** Investigate the health of the database.
 
-### <a name="EDB02">EDB02: Database Ping Slow</a>
+### <a name="EDB02">EDB02: Database Ping High</a>
 
 **Problem:** This code is returned if the median latency is higher than the [configured threshold](../cli/server.md#--health-check-threshold-database).
 This may not be an error as such, but is an indication of a potential issue.
