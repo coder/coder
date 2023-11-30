@@ -125,6 +125,7 @@ export async function renderHookWithAuth<Result, Props>(
   {
     initialProps,
     path = "/",
+    route = "/",
     extraRoutes = [],
   }: RenderHookWithAuthOptions<Props> = {},
 ) {
@@ -144,10 +145,10 @@ export async function renderHookWithAuth<Result, Props>(
        */
       // eslint-disable-next-line react-hooks/rules-of-hooks -- This is actually processed as a component; the linter just isn't aware of that
       const [readonlyStatefulRouter] = useState(() => {
-        return createMemoryRouter([
-          { path, element: <>{children}</> },
-          ...extraRoutes,
-        ]);
+        return createMemoryRouter(
+          [{ path, element: <>{children}</> }, ...extraRoutes],
+          { initialEntries: [route] },
+        );
       });
 
       /**
