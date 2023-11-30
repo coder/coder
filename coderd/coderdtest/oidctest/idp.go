@@ -884,7 +884,6 @@ func (f *FakeIDP) ExternalAuthConfig(t testing.TB, id string, custom *ExternalAu
 			var payload interface{} = "OK"
 			if custom.ValidatePayload != nil {
 				payload = custom.ValidatePayload(email)
-
 			}
 			_ = json.NewEncoder(rw).Encode(payload)
 		default:
