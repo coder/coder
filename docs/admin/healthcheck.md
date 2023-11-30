@@ -98,13 +98,27 @@ threshold to a higher value (this will not address the root cause).
 
 ## DERP
 
-### <a name="EDERP01">EDERP01: TODO</a>
+Coder workspace agents may use [DERP (Designated Encrypted Relay for Packets)](https://tailscale.com/blog/how-tailscale-works/#encrypted-tcp-relays-derp) to communicate with Coder.
+This requires connectivity to a number of configured [DERP servers](../cli/server.md#--derp-config-path) which are used
+to relay traffic between Coder and workspace agents. Coder periodically queries the health of its configured DERP servers and may return one or more of the following:
 
-TODO
+### <a name="EDERP01">EDERP01: DERP Node Uses Websocket</a>
 
-### <a name="EDERP02">EDERP02: TODO</a>
+**Problem:** When Coder attempts to establish a connection to one or more DERP servers, it sends a specific `Upgrade: derp` HTTP header.
+Some load balancers may block this header, in which case Coder will fall back to `Upgrade: websocket`.
+This is not necessarily a fatal error, but a possible indication of a misconfigured reverse HTTP proxy.
 
-TODO
+> [!NOTE]
+> This may also be shown if you have [forced websocket connections for DERP](../cli/server.md#--derp-force-websockets).
+
+**Solution:** ensure that any configured reverse proxy does not strip the `Upgrade: derp` header.
+
+### <a name="EDERP02">EDERP02: One or more DERP nodes unhealthy</a>
+
+**Problem:** This s shown if Coder is unable to reach one or more configured DERP servers. Clients will fall back to use the remaining
+DERP servers, but performance may be impacted for clients closest to the unhealthy DERP server.
+
+**Solution:** Ensure that the DERP server is available and reachable over the network on port 443.
 
 ## Websocket
 
