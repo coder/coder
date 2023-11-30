@@ -320,27 +320,23 @@ export const AppRouter: FC = () => {
                 </Route>
               </Route>
 
-
               {/* In order for the 404 page to work properly the routes that start with
               top level parameter must be fully qualified. */}
-              <Route
-                path="/:username/:workspace"
-                element={<WorkspacePage />}
-              />
+              <Route path="/:username/:workspace" element={<WorkspacePage />} />
               <Route
                 path="/:username/:workspace/builds/:buildNumber"
                 element={<WorkspaceBuildPage />}
               />
-              <Route path="/:username/:workspace/settings" element={<WorkspaceSettingsLayout />}>
+              <Route
+                path="/:username/:workspace/settings"
+                element={<WorkspaceSettingsLayout />}
+              >
                 <Route index element={<WorkspaceSettingsPage />} />
                 <Route
                   path="parameters"
                   element={<WorkspaceParametersPage />}
                 />
-                <Route
-                  path="schedule"
-                  element={<WorkspaceSchedulePage />}
-                />
+                <Route path="schedule" element={<WorkspaceSchedulePage />} />
               </Route>
 
               {/* Using path="*"" means "match anything", so this route
