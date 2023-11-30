@@ -207,12 +207,17 @@ export const WorkspacesPageView = ({
       />
 
       {count !== undefined && (
-        <PaginationWidgetBase
-          totalRecords={count}
-          pageSize={limit}
-          onPageChange={onPageChange}
-          currentPage={page}
-        />
+        // Temporary styling stopgap before component is migrated to using
+        // PaginationContainer (which renders PaginationWidgetBase using CSS
+        // flexbox gaps)
+        <div css={{ paddingTop: "16px" }}>
+          <PaginationWidgetBase
+            totalRecords={count}
+            pageSize={limit}
+            onPageChange={onPageChange}
+            currentPage={page}
+          />
+        </div>
       )}
     </Margins>
   );
