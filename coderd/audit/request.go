@@ -184,7 +184,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 		// If no resources were provided, there's nothing we can audit.
 		if ResourceID(req.Old) == uuid.Nil && ResourceID(req.New) == uuid.Nil {
 			// If the request action is a login or logout, we always want to audit it even if
-			// there is no diff. This is so we can capture events where an API Key is never created
+			// there is no Diff. This is so we can capture events where an API Key is never created
 			// because a known user fails to login.
 			if req.params.Action != database.AuditActionLogin && req.params.Action != database.AuditActionLogout {
 				return
@@ -201,7 +201,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			var err error
 			diffRaw, err = json.Marshal(diff)
 			if err != nil {
-				p.Log.Warn(logCtx, "marshal diff", slog.Error(err))
+				p.Log.Warn(logCtx, "marshal Diff", slog.Error(err))
 				diffRaw = []byte("{}")
 			}
 		}
@@ -264,7 +264,7 @@ func WorkspaceBuildAudit[T Auditable](ctx context.Context, p *BuildAuditParams[T
 	var err error
 	diffRaw, err := json.Marshal(diff)
 	if err != nil {
-		p.Log.Warn(ctx, "marshal diff", slog.Error(err))
+		p.Log.Warn(ctx, "marshal Diff", slog.Error(err))
 		diffRaw = []byte("{}")
 	}
 
@@ -359,7 +359,7 @@ func either[T Auditable, R any](old, new T, fn func(T) R, auditAction database.A
 		return fn(old)
 	} else if auditAction == database.AuditActionLogin || auditAction == database.AuditActionLogout {
 		// If the request action is a login or logout, we always want to audit it even if
-		// there is no diff. See the comment in audit.InitRequest for more detail.
+		// there is no Diff. See the comment in audit.InitRequest for more detail.
 		return fn(old)
 	} else {
 		panic("both old and new are nil")

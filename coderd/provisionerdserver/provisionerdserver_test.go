@@ -26,6 +26,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/audit/audittest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
@@ -45,7 +46,7 @@ import (
 
 func mockAuditor() *atomic.Pointer[audit.Auditor] {
 	ptr := &atomic.Pointer[audit.Auditor]{}
-	mock := audit.Auditor(audit.NewMock())
+	mock := audit.Auditor(audittest.NewMock())
 	ptr.Store(&mock)
 	return ptr
 }

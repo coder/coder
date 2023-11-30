@@ -13,7 +13,7 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agenttest"
-	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/audit/audittest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -48,7 +48,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 	t.Parallel()
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
-		auditor := audit.NewMock()
+		auditor := audittest.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 		owner := coderdtest.CreateFirstUser(t, client)
 		// By default, everyone in the org can read the template.
@@ -133,7 +133,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 
 	t.Run("DisableEveryone", func(t *testing.T) {
 		t.Parallel()
-		auditor := audit.NewMock()
+		auditor := audittest.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 		owner := coderdtest.CreateFirstUser(t, client)
 		user, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
@@ -471,7 +471,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 	t.Run("Modified", func(t *testing.T) {
 		t.Parallel()
 
-		auditor := audit.NewMock()
+		auditor := audittest.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -1245,7 +1245,7 @@ func TestDeleteTemplate(t *testing.T) {
 
 	t.Run("NoWorkspaces", func(t *testing.T) {
 		t.Parallel()
-		auditor := audit.NewMock()
+		auditor := audittest.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)

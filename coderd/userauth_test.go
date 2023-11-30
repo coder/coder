@@ -19,7 +19,7 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd"
-	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/audit/audittest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -318,7 +318,7 @@ func TestUserOAuth2Github(t *testing.T) {
 	})
 	t.Run("Signup", func(t *testing.T) {
 		t.Parallel()
-		auditor := audit.NewMock()
+		auditor := audittest.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{
 			Auditor: auditor,
 			GithubOAuth2Config: &coderd.GithubOAuth2Config{
@@ -369,7 +369,7 @@ func TestUserOAuth2Github(t *testing.T) {
 	})
 	t.Run("SignupAllowedTeam", func(t *testing.T) {
 		t.Parallel()
-		auditor := audit.NewMock()
+		auditor := audittest.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{
 			Auditor: auditor,
 			GithubOAuth2Config: &coderd.GithubOAuth2Config{
@@ -413,7 +413,7 @@ func TestUserOAuth2Github(t *testing.T) {
 	})
 	t.Run("SignupAllowedTeamInFirstOrganization", func(t *testing.T) {
 		t.Parallel()
-		auditor := audit.NewMock()
+		auditor := audittest.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{
 			Auditor: auditor,
 			GithubOAuth2Config: &coderd.GithubOAuth2Config{
@@ -465,7 +465,7 @@ func TestUserOAuth2Github(t *testing.T) {
 	})
 	t.Run("SignupAllowedTeamInSecondOrganization", func(t *testing.T) {
 		t.Parallel()
-		auditor := audit.NewMock()
+		auditor := audittest.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{
 			Auditor: auditor,
 			GithubOAuth2Config: &coderd.GithubOAuth2Config{
@@ -517,7 +517,7 @@ func TestUserOAuth2Github(t *testing.T) {
 	})
 	t.Run("SignupAllowEveryone", func(t *testing.T) {
 		t.Parallel()
-		auditor := audit.NewMock()
+		auditor := audittest.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{
 			Auditor: auditor,
 			GithubOAuth2Config: &coderd.GithubOAuth2Config{
@@ -810,7 +810,7 @@ func TestUserOIDC(t *testing.T) {
 				cfg.IgnoreUserInfo = tc.IgnoreUserInfo
 			})
 
-			auditor := audit.NewMock()
+			auditor := audittest.NewMock()
 			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 			owner := coderdtest.New(t, &coderdtest.Options{
 				Auditor:    auditor,
@@ -849,7 +849,7 @@ func TestUserOIDC(t *testing.T) {
 	t.Run("OIDCConvert", func(t *testing.T) {
 		t.Parallel()
 
-		auditor := audit.NewMock()
+		auditor := audittest.NewMock()
 		fake := oidctest.NewFakeIDP(t,
 			oidctest.WithRefresh(func(_ string) error {
 				return xerrors.New("refreshing token should never occur")
@@ -896,7 +896,7 @@ func TestUserOIDC(t *testing.T) {
 
 	t.Run("AlternateUsername", func(t *testing.T) {
 		t.Parallel()
-		auditor := audit.NewMock()
+		auditor := audittest.NewMock()
 		fake := oidctest.NewFakeIDP(t,
 			oidctest.WithRefresh(func(_ string) error {
 				return xerrors.New("refreshing token should never occur")

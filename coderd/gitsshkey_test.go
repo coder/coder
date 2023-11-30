@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/audit/audittest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
@@ -75,7 +75,7 @@ func TestGitSSHKey(t *testing.T) {
 	})
 	t.Run("Regenerate", func(t *testing.T) {
 		t.Parallel()
-		auditor := audit.NewMock()
+		auditor := audittest.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{
 			SSHKeygenAlgorithm: gitsshkey.AlgorithmEd25519,
 			Auditor:            auditor,

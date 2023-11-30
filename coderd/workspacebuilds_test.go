@@ -18,7 +18,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/audit/audittest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -37,7 +37,7 @@ func TestWorkspaceBuild(t *testing.T) {
 			propagation.Baggage{},
 		),
 	)
-	auditor := audit.NewMock()
+	auditor := audittest.NewMock()
 	client := coderdtest.New(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,
 		Auditor:                  auditor,
@@ -593,7 +593,7 @@ func TestWorkspaceBuildState(t *testing.T) {
 func TestWorkspaceBuildStatus(t *testing.T) {
 	t.Parallel()
 
-	auditor := audit.NewMock()
+	auditor := audittest.NewMock()
 	numLogs := len(auditor.AuditLogs())
 	client, closeDaemon, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 	user := coderdtest.CreateFirstUser(t, client)
@@ -949,7 +949,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 				propagation.Baggage{},
 			),
 		)
-		auditor := audit.NewMock()
+		auditor := audittest.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)

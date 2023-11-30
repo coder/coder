@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clibase"
-	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/audit/audittest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -25,7 +25,7 @@ func TestTokenCRUD(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
-	auditor := audit.NewMock()
+	auditor := audittest.NewMock()
 	numLogs := len(auditor.AuditLogs())
 	client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
 	_ = coderdtest.CreateFirstUser(t, client)

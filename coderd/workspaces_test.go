@@ -19,7 +19,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agenttest"
-	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/audit/audittest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -596,7 +596,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 
 	t.Run("CreateWithAuditLogs", func(t *testing.T) {
 		t.Parallel()
-		auditor := audit.NewMock()
+		auditor := audittest.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -613,7 +613,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 
 	t.Run("CreateFromVersionWithAuditLogs", func(t *testing.T) {
 		t.Parallel()
-		auditor := audit.NewMock()
+		auditor := audittest.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 		user := coderdtest.CreateFirstUser(t, client)
 		versionDefault := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -641,7 +641,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 
 	t.Run("InvalidCombinationOfTemplateAndTemplateVersion", func(t *testing.T) {
 		t.Parallel()
-		auditor := audit.NewMock()
+		auditor := audittest.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 		user := coderdtest.CreateFirstUser(t, client)
 		versionTest := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -1737,7 +1737,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 			var (
-				auditor   = audit.NewMock()
+				auditor   = audittest.NewMock()
 				client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 				user      = coderdtest.CreateFirstUser(t, client)
 				version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -1922,7 +1922,7 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 				mutators = append(mutators, testCase.modifyTemplate)
 			}
 			var (
-				auditor   = audit.NewMock()
+				auditor   = audittest.NewMock()
 				client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 				user      = coderdtest.CreateFirstUser(t, client)
 				version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -2103,7 +2103,7 @@ func TestWorkspaceUpdateAutomaticUpdates_OK(t *testing.T) {
 	t.Parallel()
 
 	var (
-		auditor      = audit.NewMock()
+		auditor      = audittest.NewMock()
 		adminClient  = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 		admin        = coderdtest.CreateFirstUser(t, adminClient)
 		client, user = coderdtest.CreateAnotherUser(t, adminClient, admin.OrganizationID)
@@ -2816,7 +2816,7 @@ func TestWorkspaceDormant(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 		var (
-			auditRecorder = audit.NewMock()
+			auditRecorder = audittest.NewMock()
 			client        = coderdtest.New(t, &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
 				Auditor:                  auditRecorder,

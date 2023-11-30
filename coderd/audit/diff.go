@@ -41,9 +41,9 @@ func Empty[T Auditable]() T {
 
 // Diff compares two auditable resources and produces a Map of the changed
 // values.
-func Diff[T Auditable](a Auditor, left, right T) Map { return a.diff(left, right) }
+func Diff[T Auditable](a Auditor, left, right T) Map { return a.Diff(left, right) }
 
-// Differ is used so the enterprise version can implement the diff function in
+// Differ is used so the enterprise version can implement the Diff function in
 // the Auditor feature interface. Only types in the same package as the
 // interface can implement unexported methods.
 type Differ struct {
@@ -51,6 +51,6 @@ type Differ struct {
 }
 
 //nolint:unused
-func (d Differ) diff(old, new any) Map {
+func (d Differ) Diff(old, new any) Map {
 	return d.DiffFn(old, new)
 }

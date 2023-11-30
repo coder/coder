@@ -19,7 +19,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/coder/coder/v2/cli/clibase"
-	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/audit/audittest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -115,7 +115,7 @@ func TestPostLogin(t *testing.T) {
 
 	t.Run("BadPassword", func(t *testing.T) {
 		t.Parallel()
-		auditor := audit.NewMock()
+		auditor := audittest.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
 		numLogs := len(auditor.AuditLogs())
 
@@ -144,7 +144,7 @@ func TestPostLogin(t *testing.T) {
 
 	t.Run("Suspended", func(t *testing.T) {
 		t.Parallel()
-		auditor := audit.NewMock()
+		auditor := audittest.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
 		numLogs := len(auditor.AuditLogs())
 		first := coderdtest.CreateFirstUser(t, client)
@@ -224,7 +224,7 @@ func TestPostLogin(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
-		auditor := audit.NewMock()
+		auditor := audittest.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
 		numLogs := len(auditor.AuditLogs())
 
@@ -360,7 +360,7 @@ func TestPostLogout(t *testing.T) {
 	// Checks that the cookie is cleared and the API Key is deleted from the database.
 	t.Run("Logout", func(t *testing.T) {
 		t.Parallel()
-		auditor := audit.NewMock()
+		auditor := audittest.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
 		numLogs := len(auditor.AuditLogs())
 
@@ -489,7 +489,7 @@ func TestPostUsers(t *testing.T) {
 
 	t.Run("CreateWithoutOrg", func(t *testing.T) {
 		t.Parallel()
-		auditor := audit.NewMock()
+		auditor := audittest.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
 		numLogs := len(auditor.AuditLogs())
 
@@ -517,7 +517,7 @@ func TestPostUsers(t *testing.T) {
 
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
-		auditor := audit.NewMock()
+		auditor := audittest.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
 		numLogs := len(auditor.AuditLogs())
 
@@ -678,7 +678,7 @@ func TestUpdateUserProfile(t *testing.T) {
 
 	t.Run("UpdateUsername", func(t *testing.T) {
 		t.Parallel()
-		auditor := audit.NewMock()
+		auditor := audittest.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
 		numLogs := len(auditor.AuditLogs())
 
@@ -747,7 +747,7 @@ func TestUpdateUserPassword(t *testing.T) {
 	})
 	t.Run("MemberCanUpdateOwnPassword", func(t *testing.T) {
 		t.Parallel()
-		auditor := audit.NewMock()
+		auditor := audittest.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
 		numLogs := len(auditor.AuditLogs())
 
@@ -788,7 +788,7 @@ func TestUpdateUserPassword(t *testing.T) {
 	})
 	t.Run("AdminCanUpdateOwnPasswordWithoutOldPassword", func(t *testing.T) {
 		t.Parallel()
-		auditor := audit.NewMock()
+		auditor := audittest.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
 		numLogs := len(auditor.AuditLogs())
 
@@ -1076,7 +1076,7 @@ func TestPutUserSuspend(t *testing.T) {
 
 	t.Run("SuspendAnotherUser", func(t *testing.T) {
 		t.Parallel()
-		auditor := audit.NewMock()
+		auditor := audittest.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
 		numLogs := len(auditor.AuditLogs())
 

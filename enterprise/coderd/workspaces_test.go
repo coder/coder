@@ -13,6 +13,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/audit/audittest"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -247,7 +248,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			ticker        = make(chan time.Time)
 			statCh        = make(chan autobuild.Stats)
 			inactiveTTL   = time.Minute
-			auditRecorder = audit.NewMock()
+			auditRecorder = audittest.NewMock()
 		)
 
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
