@@ -697,7 +697,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			cwr.AutostartSchedule = ptr.Ref(sched.String())
 		})
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
-		coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
 
 		// Assert that autostart works when the workspace isn't dormant..
 		tickCh <- sched.Next(ws.LatestBuild.CreatedAt)
