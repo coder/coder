@@ -24,11 +24,11 @@ type pgTxnDriver struct {
 	tx  *sql.Tx
 }
 
-func (d *pgTxnDriver) Open(url string) (database.Driver, error) {
+func (*pgTxnDriver) Open(string) (database.Driver, error) {
 	panic("not implemented")
 }
 
-func (d *pgTxnDriver) Close() error {
+func (*pgTxnDriver) Close() error {
 	return nil
 }
 
@@ -81,7 +81,7 @@ func (d *pgTxnDriver) runStatement(statement []byte) error {
 		return nil
 	}
 	if _, err := d.tx.ExecContext(ctx, query); err != nil {
-		if pgErr, ok := err.(*pq.Error); ok {
+		if pgErr, ok := err.(*pq.Error); ok { //nolint
 			var line uint
 			message := fmt.Sprintf("migration failed: %s", pgErr.Message)
 			if pgErr.Detail != "" {
@@ -126,7 +126,7 @@ func (d *pgTxnDriver) Version() (version int, dirty bool, err error) {
 		return database.NilVersion, false, nil
 
 	case err != nil:
-		if e, ok := err.(*pq.Error); ok {
+		if e, ok := err.(*pq.Error); ok { //nolint
 			if e.Code.Name() == "undefined_table" {
 				return database.NilVersion, false, nil
 			}
@@ -138,7 +138,7 @@ func (d *pgTxnDriver) Version() (version int, dirty bool, err error) {
 	}
 }
 
-func (d *pgTxnDriver) Drop() error {
+func (*pgTxnDriver) Drop() error {
 	panic("not implemented")
 }
 
