@@ -316,6 +316,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		}
 
 		dormantLastUsedAt := ws.LastUsedAt
+		// nolint:gocritic // this test is not testing RBAC.
 		err := client.UpdateWorkspaceDormancy(ctx, ws.ID, codersdk.UpdateWorkspaceDormancy{Dormant: false})
 		require.NoError(t, err)
 
