@@ -68,7 +68,3 @@ result
 
 # Filebrowser.db
 **/filebrowser.db
-
-./helm/libcoder/charts/*.tgz
-./helm/coder/charts/*.tgz
-./helm/provisioner/charts/*.tgz
