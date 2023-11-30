@@ -13,6 +13,7 @@ import (
 	"nhooyr.io/websocket"
 
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
 // @typescript-generate WebsocketReport
@@ -75,6 +76,7 @@ func (r *WebsocketReport) Run(ctx context.Context, opts *WebsocketReportOptions)
 	}
 	if err != nil {
 		r.Error = convertError(xerrors.Errorf("websocket dial: %w", err))
+		r.Error = ptr.Ref(health.Messagef(health.CodeWebsocketDial, "websocket dial: %s", err))
 		r.Severity = health.SeverityError
 		return
 	}
@@ -84,26 +86,26 @@ func (r *WebsocketReport) Run(ctx context.Context, opts *WebsocketReportOptions)
 		msg := strconv.Itoa(i)
 		err := c.Write(ctx, websocket.MessageText, []byte(msg))
 		if err != nil {
-			r.Error = convertError(xerrors.Errorf("write message: %w", err))
+			r.Error = ptr.Ref(health.Messagef(health.CodeWebsocketEcho, "write message: %s", err))
 			r.Severity = health.SeverityError
 			return
 		}
 
 		ty, got, err := c.Read(ctx)
 		if err != nil {
-			r.Error = convertError(xerrors.Errorf("read message: %w", err))
+			r.Error = ptr.Ref(health.Messagef(health.CodeWebsocketEcho, "read message: %s", err))
 			r.Severity = health.SeverityError
 			return
 		}
 
 		if ty != websocket.MessageText {
-			r.Error = convertError(xerrors.Errorf("received incorrect message type: %v", ty))
+			r.Error = ptr.Ref(health.Messagef(health.CodeWebsocketMsg, "received incorrect message type: %v", ty))
 			r.Severity = health.SeverityError
 			return
 		}
 
 		if string(got) != msg {
-			r.Error = convertError(xerrors.Errorf("received incorrect message: wanted %q, got %q", msg, string(got)))
+			r.Error = ptr.Ref(health.Messagef(health.CodeWebsocketMsg, "received incorrect message: wanted %q, got %q", msg, string(got)))
 			r.Severity = health.SeverityError
 			return
 		}

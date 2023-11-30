@@ -2,6 +2,7 @@ package healthcheck_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -26,6 +27,7 @@ func TestWorkspaceProxies(t *testing.T) {
 		updateProxyHealth     func(context.Context) error
 		expectedHealthy       bool
 		expectedError         string
+		expectedWarning       string
 		expectedSeverity      health.Severity
 	}{
 		{
@@ -53,6 +55,7 @@ func TestWorkspaceProxies(t *testing.T) {
 			updateProxyHealth:     fakeUpdateProxyHealth(nil),
 			expectedHealthy:       false,
 			expectedSeverity:      health.SeverityError,
+			expectedError:         string(health.CodeProxyUnhealthy),
 		},
 		{
 			name: "Enabled/OneUnreachable",
@@ -80,7 +83,7 @@ func TestWorkspaceProxies(t *testing.T) {
 			updateProxyHealth: fakeUpdateProxyHealth(nil),
 			expectedHealthy:   false,
 			expectedSeverity:  health.SeverityError,
-			expectedError:     "connect: connection refused",
+			expectedError:     string(health.CodeProxyUnhealthy),
 		},
 		{
 			name: "Enabled/AllHealthy",
@@ -103,6 +106,7 @@ func TestWorkspaceProxies(t *testing.T) {
 			updateProxyHealth: fakeUpdateProxyHealth(nil),
 			expectedHealthy:   true,
 			expectedSeverity:  health.SeverityWarning,
+			expectedWarning:   string(health.CodeProxyUnhealthy),
 		},
 		{
 			name: "Enabled/AllUnhealthy",
@@ -113,6 +117,7 @@ func TestWorkspaceProxies(t *testing.T) {
 			updateProxyHealth: fakeUpdateProxyHealth(nil),
 			expectedHealthy:   false,
 			expectedSeverity:  health.SeverityError,
+			expectedError:     string(health.CodeProxyUnhealthy),
 		},
 		{
 			name: "Enabled/OneOutOfDate",
@@ -150,7 +155,7 @@ func TestWorkspaceProxies(t *testing.T) {
 			updateProxyHealth:     fakeUpdateProxyHealth(nil),
 			expectedHealthy:       false,
 			expectedSeverity:      health.SeverityError,
-			expectedError:         assert.AnError.Error(),
+			expectedError:         string(health.CodeProxyFetch),
 		},
 		{
 			name:                  "Enabled/ErrUpdateProxyHealth",
@@ -158,6 +163,7 @@ func TestWorkspaceProxies(t *testing.T) {
 			updateProxyHealth:     fakeUpdateProxyHealth(assert.AnError),
 			expectedHealthy:       true,
 			expectedSeverity:      health.SeverityWarning,
+			expectedWarning:       string(health.CodeProxyUpdate),
 		},
 	} {
 		tt := tt
@@ -179,13 +185,22 @@ func TestWorkspaceProxies(t *testing.T) {
 
 			assert.Equal(t, tt.expectedHealthy, rpt.Healthy)
 			assert.Equal(t, tt.expectedSeverity, rpt.Severity)
-			if tt.expectedError != "" {
-				assert.NotNil(t, rpt.Error)
+			if tt.expectedError != "" && assert.NotNil(t, rpt.Error) {
 				assert.Contains(t, *rpt.Error, tt.expectedError)
 			} else {
-				if !assert.Nil(t, rpt.Error) {
-					assert.Empty(t, *rpt.Error)
+				assert.Nil(t, rpt.Error)
+			}
+			if tt.expectedWarning != "" && assert.NotEmpty(t, rpt.Warnings) {
+				var found bool
+				for _, w := range rpt.Warnings {
+					if strings.Contains(w, tt.expectedWarning) {
+						found = true
+						break
+					}
 				}
+				assert.True(t, found, "expected warning %s not found in %v", tt.expectedWarning, rpt.Warnings)
+			} else {
+				assert.Empty(t, rpt.Warnings)
 			}
 		})
 	}
@@ -221,13 +236,24 @@ func (u *fakeWorkspaceProxyFetchUpdater) Update(ctx context.Context) error {
 	return u.updateFunc(ctx)
 }
 
+//nolint:revive // yes, this is a control flag, and that is OK in a unit test.
 func fakeWorkspaceProxy(name string, healthy bool, version string) codersdk.WorkspaceProxy {
+	var status codersdk.WorkspaceProxyStatus
+	if !healthy {
+		status = codersdk.WorkspaceProxyStatus{
+			Status: codersdk.ProxyUnreachable,
+			Report: codersdk.ProxyHealthReport{
+				Errors: []string{assert.AnError.Error()},
+			},
+		}
+	}
 	return codersdk.WorkspaceProxy{
 		Region: codersdk.Region{
 			Name:    name,
 			Healthy: healthy,
 		},
 		Version: version,
+		Status:  status,
 	}
 }
 
