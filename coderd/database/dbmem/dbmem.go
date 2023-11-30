@@ -1104,8 +1104,21 @@ func (q *FakeQuerier) DeleteLicense(_ context.Context, id int32) (int32, error) 
 	return 0, sql.ErrNoRows
 }
 
-func (*FakeQuerier) DeleteOldProvisionerDaemons(_ context.Context) error {
-	// no-op
+func (q *FakeQuerier) DeleteOldProvisionerDaemons(_ context.Context) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	now := dbtime.Now()
+	weekInterval := 7 * 24 * time.Hour
+
+	var validDaemons []database.ProvisionerDaemon
+	for _, p := range q.provisionerDaemons {
+		if !(p.CreatedAt.Before(now.Add(-weekInterval)) && p.UpdatedAt.Valid && p.UpdatedAt.Time.Before(now.Add(-weekInterval))) {
+			continue
+		}
+		validDaemons = append(validDaemons, p)
+	}
+	q.provisionerDaemons = validDaemons
 	return nil
 }
 
