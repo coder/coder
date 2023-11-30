@@ -44,7 +44,9 @@ export const Pagination: FC<PaginationProps> = ({
   return (
     <div {...scrollContainerProps}>
       <PaginationHeader
-        paginationResult={paginationResult}
+        limit={paginationResult.limit}
+        totalRecords={paginationResult.totalRecords}
+        currentChunk={paginationResult.currentChunk}
         paginationUnitLabel={paginationUnitLabel}
       />
 
