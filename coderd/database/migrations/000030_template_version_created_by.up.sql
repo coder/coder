@@ -1,4 +1,3 @@
-BEGIN;
 
 ALTER TABLE ONLY template_versions ADD COLUMN IF NOT EXISTS created_by uuid REFERENCES users (id) ON DELETE RESTRICT;
 

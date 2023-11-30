@@ -36,7 +36,7 @@ func Open() (string, func(), error) {
 		}
 
 		dbName = "ci" + dbName
-		_, err = db.Exec("CREATE DATABASE " + dbName + " WITH TEMPLATE " + os.Getenv("DB_FROM"))
+		_, err = db.Exec("CREATE DATABASE " + dbName)
 		if err != nil {
 			return "", nil, xerrors.Errorf("create db with template: %w", err)
 		}
