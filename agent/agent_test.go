@@ -191,6 +191,28 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		err = session.Wait()
 		require.NoError(t, err)
 	})
+
+	// This test name being "Jetbrains" is required to be a certain string.
+	// It must match the regex check in the agent for Jetbrains.
+	t.Run("Jetbrains", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		rl, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		defer rl.Close()
+		tcpAddr, valid := rl.Addr().(*net.TCPAddr)
+		require.True(t, valid)
+		remotePort := tcpAddr.Port
+		go echoOnce(t, rl)
+
+		sshClient := setupAgentSSHClient(ctx, t)
+
+		conn, err := sshClient.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", remotePort))
+		require.NoError(t, err)
+		defer conn.Close()
+		requireEcho(t, conn)
+	})
 }
 
 func TestAgent_SessionExec(t *testing.T) {

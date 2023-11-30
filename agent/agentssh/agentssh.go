@@ -295,8 +295,8 @@ func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, extraEnv 
 		s.connCountVSCode.Add(1)
 		defer s.connCountVSCode.Add(-1)
 	case MagicSessionTypeJetBrains:
-		s.connCountJetBrains.Add(1)
-		defer s.connCountJetBrains.Add(-1)
+		// Do nothing here because jetbrains launches hundreds of ssh sessions.
+		// We instead track jetbrains in the single persistent tcp forwarding channel.
 	case "":
 		s.connCountSSHSession.Add(1)
 		defer s.connCountSSHSession.Add(-1)
