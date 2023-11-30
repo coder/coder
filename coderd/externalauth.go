@@ -21,8 +21,8 @@ import (
 // @Summary Get external auth by ID
 // @ID get-external-auth-by-id
 // @Security CoderSessionToken
-// @Produce json
 // @Tags Git
+// @Produce json
 // @Param externalauth path string true "Git Provider ID" format(string)
 // @Success 200 {object} codersdk.ExternalAuth
 // @Router /external-auth/{externalauth} [get]
@@ -78,14 +78,15 @@ func (api *API) externalAuthByID(w http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, w, http.StatusOK, res)
 }
 
+// deleteExternalAuthByID only deletes the link on the Coder side, does not revoke the token on the provider side.
+//
 // @Summary Delete external auth user link by ID
 // @ID delete-external-auth-user-link-by-id
 // @Security CoderSessionToken
-// @Produce json
-// @Param externalauth path string true "Git Provider ID" format(string)
+// @Tags Git
 // @Success 200
+// @Param externalauth path string true "Git Provider ID" format(string)
 // @Router /external-auth/{externalauth} [delete]
-// deleteExternalAuthByID only deletes the link on the Coder side, does not revoke the token on the provider side.
 func (api *API) deleteExternalAuthByID(w http.ResponseWriter, r *http.Request) {
 	config := httpmw.ExternalAuthParam(r)
 	apiKey := httpmw.APIKey(r)
@@ -309,14 +310,17 @@ func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) ht
 	}
 }
 
+// listUserExternalAuths lists all external auths available to a user and
+// their auth links if they exist.
+//
 // @Summary Get user external auths
 // @ID get-user-external-auths
 // @Security CoderSessionToken
 // @Produce json
-// @Tags Users
+// @Tags Git
 // @Success 200 {object} codersdk.ExternalAuthLink
-// @Router /users/external-auths [get]
-func (api *API) userExternalAuths(rw http.ResponseWriter, r *http.Request) {
+// @Router /external-auth [get]
+func (api *API) listUserExternalAuths(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	key := httpmw.APIKey(r)
 
@@ -335,7 +339,9 @@ func (api *API) userExternalAuths(rw http.ResponseWriter, r *http.Request) {
 
 	// Note: It would be really nice if we could cfg.Validate() the links and
 	// return their authenticated status. To do this, we would also have to
-	// refresh expired tokens too.
+	// refresh expired tokens too. For now, I do not want to cause the excess
+	// traffic on this request, so the user will have to do this with a separate
+	// call.
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ListUserExternalAuthResponse{
 		Providers: ExternalAuthConfigs(api.ExternalAuthConfigs),
 		Links:     db2sdk.ExternalAuths(links),

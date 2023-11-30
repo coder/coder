@@ -524,10 +524,6 @@
           "path": "./api/debug.md"
         },
         {
-          "title": "Default",
-          "path": "./api/default.md"
-        },
-        {
           "title": "Enterprise",
           "path": "./api/enterprise.md"
         },

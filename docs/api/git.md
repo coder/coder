@@ -1,5 +1,40 @@
 # Git
 
+## Get user external auths
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/external-auth \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /external-auth`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "expires": "2019-08-24T14:15:22Z",
+  "has_refresh_token": true,
+  "provider_id": "string",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                           |
+| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ExternalAuthLink](schemas.md#codersdkexternalauthlink) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get external auth by ID
 
 ### Code samples
@@ -56,6 +91,32 @@ curl -X GET http://coder-server:8080/api/v2/external-auth/{externalauth} \
 | Status | Meaning                                                 | Description | Schema                                                   |
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ExternalAuth](schemas.md#codersdkexternalauth) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Delete external auth user link by ID
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/external-auth/{externalauth} \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /external-auth/{externalauth}`
+
+### Parameters
+
+| Name           | In   | Type           | Required | Description     |
+| -------------- | ---- | -------------- | -------- | --------------- |
+| `externalauth` | path | string(string) | true     | Git Provider ID |
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema |
+| ------ | ------------------------------------------------------- | ----------- | ------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
