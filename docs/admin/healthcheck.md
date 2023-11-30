@@ -122,13 +122,32 @@ DERP servers, but performance may be impacted for clients closest to the unhealt
 
 ## Websocket
 
-### <a name="EWS01">EWS01: TODO</a>
+Coder makes heavy use of [WebSockets](https://datatracker.ietf.org/doc/rfc6455/) for long-lived connections:
+- Between users interacting with Coder's Web UI (for example, the built-in terminal, or VSCode Web),
+- Between workspace agents and `coderd`,
+- Between Coder [workspace proxies](../admin/workspace-proxies.md) and `coderd`.
 
-TODO
+Any issues causing failures to establish WebSocket connections will result in **severe** impairment of functionality for
+users. To validate this functionality, Coder will periodically attempt to establish a WebSocket connection with itself
+using the configured [Access URL](#access-url), send a message over the connection, and attempt to read back that same message.
 
-### <a name="EWS02">EWS02: TODO</a>
+### <a name="EWS01">EWS01: Failed to establish a Websocket Connection</a>
 
-TODO
+**Problem:** Coder was unable to establish a WebSocket connection over its own Access URL.
+
+**Solution:** There are multiple possible causes of this problem:
+
+1. Ensure that Coder's configured Access URL is accessible from the server running Coder, using standard
+troubleshooting tools like `curl`.
+1. Ensure that any reverse proxy that is sitting in front of Coder's configured access URL is not stripping the HTTP header `Upgrade: websocket`.
+
+### <a name="EWS02">EWS02: Failed to echo a WebSocket message</a>
+
+**Problem:** Coder was able to establish a WebSocket connection, but was unable to write a message.
+
+**Solution:** There are multiple possible causes of this problem:
+
+1. Validate that any reverse proxy servers in front of Coder's configured access URL are not prematurely closing the connection.
 
 ## Workspace Proxy
 
