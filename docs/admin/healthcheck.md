@@ -29,7 +29,7 @@ If there is an issue, you may see one of the following errors reported:
 **Problem:** `${CODER_ACCESS_URL}/healthz` is not a valid URL.
 
 **Solution:** Ensure that the access URL is a valid URL accepted by
-[`url.Parse`](https://pkg.go.dev/net/url#Parse).
+[`url.Parse`](https://pkg.go.dev/net/url#Parse). You can check this [here](https://go.dev/play/p/CabcJZyTwt9).
 
 ### <a name="EACS03">EACS03: Failed to fetch /healthz</a>
 
