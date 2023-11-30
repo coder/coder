@@ -91,3 +91,7 @@ e2e/provisionerGenerated.ts
 
 # Ignore generated JSON (e.g. examples/examples.gen.json).
 **/*.gen.json
+
+./helm/libcoder/charts/*.tgz
+./helm/coder/charts/*.tgz
+./helm/provisioner/charts/*.tgz
