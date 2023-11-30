@@ -180,8 +180,9 @@ export function usePaginatedQuery<
       const firstPageOptions = getQueryOptionsFromPage(1);
       try {
         const firstPageResult = await queryClient.fetchQuery(firstPageOptions);
-        fixedTotalPages = Math.ceil(firstPageResult?.count ?? 0 / limit) || 1;
-      } catch (err) {
+        const rounded = Math.ceil(firstPageResult?.count ?? 0 / limit);
+        fixedTotalPages = Math.max(rounded, 1);
+      } catch {
         fixedTotalPages = 1;
       }
     }
@@ -223,7 +224,7 @@ export function usePaginatedQuery<
     }
 
     const cleanedInput = clamp(Math.trunc(newPage), 1, totalPages ?? 1);
-    if (!Number.isInteger(cleanedInput) || cleanedInput <= 0) {
+    if (Number.isNaN(cleanedInput)) {
       return;
     }
 
