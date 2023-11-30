@@ -33,7 +33,7 @@ If there is an issue, you may see one of the following errors reported:
 [`url.Parse`](https://pkg.go.dev/net/url#Parse). Example:
 `https://dev.coder.com/`.
 
-> [!TIP] You can check this [here](https://go.dev/play/p/CabcJZyTwt9).
+> **Tip:** You can check this [here](https://go.dev/play/p/CabcJZyTwt9).
 
 ### <a name="EACS03">EACS03: Failed to fetch `/healthz`</a>
 
@@ -102,7 +102,7 @@ Coder's current activity and usage. It may be necessary to increase the
 resources allocated to Coder's database. Alternatively, you can raise the
 configured threshold to a higher value (this will not address the root cause).
 
-> [!TIP]
+> **Tip:** 
 >
 > - You can enable
 >   [detailed database metrics](../cli/server.md#--prometheus-collect-db-metrics)
