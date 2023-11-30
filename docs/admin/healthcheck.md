@@ -72,13 +72,29 @@ should give you a good indication of the root cause.
 
 ## Database
 
-### <a name="EDB01">EDB01: TODO</a>
+Coder continuously executes a short database query to validate that it can reach its configured database, and also
+measures the median latency over 5 attempts.
 
-TODO
+### <a name="EDB01">EDB01: Database Ping Failed</a>
 
-### <a name="EDB02">EDB02: TODO</a>
+**Problem:** This error code is returned if any attempt to execute this database query fails.
 
-TODO
+**Solution:** Investigate the health of the database.
+
+### <a name="EDB02">EDB02: Database Ping Slow</a>
+
+**Problem:** This code is returned if the median latency is higher than the [configured threshold](../cli/server.md#--health-check-threshold-database).
+This may not be an error as such, but is an indication of a potential issue.
+
+**Solution:** Investigate the sizing of the configured database with regard to Coder's current activity and usage. It
+may be necessary to increase the resources allocated to Coder's database. Alternatively, you can raise the configured
+threshold to a higher value (this will not address the root cause).
+
+> 💡 Tip:
+> - You can enable [detailed database metrics](../cli/server.md#--prometheus-collect-db-metrics) in Coder's
+> Prometheus endpoint.
+> - Fif you have [tracing enabled](../cli/server.md#--trace), these traces may also contain useful information regarding
+> Coder's database activity.
 
 ## DERP
 
