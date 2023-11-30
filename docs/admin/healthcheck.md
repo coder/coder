@@ -33,7 +33,7 @@ If there is an issue, you may see one of the following errors reported:
 [`url.Parse`](https://pkg.go.dev/net/url#Parse). Example:
 `https://dev.coder.com/`.
 
-> [!TIP] You can check this [here](https://go.dev/play/p/CabcJZyTwt9).
+> **Tip:** You can check this [here](https://go.dev/play/p/CabcJZyTwt9).
 
 ### <a name="EACS03">EACS03: Failed to fetch `/healthz`</a>
 
@@ -102,7 +102,7 @@ Coder's current activity and usage. It may be necessary to increase the
 resources allocated to Coder's database. Alternatively, you can raise the
 configured threshold to a higher value (this will not address the root cause).
 
-> [!TIP]
+> **Tip:**
 >
 > - You can enable
 >   [detailed database metrics](../cli/server.md#--prometheus-collect-db-metrics)
@@ -131,7 +131,7 @@ This is not necessarily a fatal error, but a possible indication of a
 misconfigured reverse HTTP proxy. Additionally, while workspace users should
 still be able to reach their workspaces, connection performance may be degraded.
 
-> [!NOTE] This may also be shown if you have
+> **Note:** This may also be shown if you have
 > [forced websocket connections for DERP](../cli/server.md#--derp-force-websockets).
 
 **Solution:** ensure that any configured reverse proxy does not strip the
