@@ -358,7 +358,7 @@ func (f *FakeIDP) LoginWithClient(t testing.TB, client *codersdk.Client, idToken
 
 // ExternalLogin does the oauth2 flow for external auth providers. This requires
 // an authenticated coder client.
-func (f *FakeIDP) ExternalLogin(t testing.TB, client *codersdk.Client, opts ...func(r *http.Request)) *http.Response {
+func (f *FakeIDP) ExternalLogin(t testing.TB, client *codersdk.Client, opts ...func(r *http.Request)) {
 	coderOauthURL, err := client.URL.Parse(fmt.Sprintf("/external-auth/%s/callback", f.externalProviderID))
 	require.NoError(t, err)
 	f.SetRedirect(t, coderOauthURL.String())
@@ -394,10 +394,7 @@ func (f *FakeIDP) ExternalLogin(t testing.TB, client *codersdk.Client, opts ...f
 	res, err := cli.Do(req)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, res.StatusCode, "client failed to login")
-	t.Cleanup(func() {
-		res.Body.Close()
-	})
-	return res
+	_ = res.Body.Close()
 }
 
 // OIDCCallback will emulate the IDP redirecting back to the Coder callback.
