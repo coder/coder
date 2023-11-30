@@ -79,12 +79,12 @@ export let dark = createTheme({
     fontFamily: BODY_FONT_FAMILY,
 
     body1: {
-      fontSize: 16,
+      fontSize: "1rem" /* 16px at default scaling */,
       lineHeight: "160%",
     },
 
     body2: {
-      fontSize: 14,
+      fontSize: "0.875rem" /* 14px at default scaling */,
       lineHeight: "160%",
     },
   },
