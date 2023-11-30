@@ -1,6 +1,8 @@
 package agentssh
 
 import (
+	"sync"
+
 	"cdr.dev/slog"
 	"go.uber.org/atomic"
 	gossh "golang.org/x/crypto/ssh"
@@ -54,10 +56,13 @@ func (w *ChannelAcceptWatcher) Accept() (gossh.Channel, <-chan *gossh.Request, e
 
 type ChannelOnClose struct {
 	gossh.Channel
+	// once ensures close only decrements the counter once.
+	// Because close can be called multiple times.
+	once sync.Once
 	done func()
 }
 
 func (c *ChannelOnClose) Close() error {
-	c.done()
+	c.once.Do(c.done)
 	return c.Channel.Close()
 }

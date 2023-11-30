@@ -206,12 +206,41 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		remotePort := tcpAddr.Port
 		go echoOnce(t, rl)
 
-		sshClient := setupAgentSSHClient(ctx, t)
-
-		conn, err := sshClient.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", remotePort))
+		//nolint:dogsled
+		conn, _, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+		sshClient, err := conn.SSHClient(ctx)
 		require.NoError(t, err)
-		defer conn.Close()
-		requireEcho(t, conn)
+
+		tunneledConn, err := sshClient.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", remotePort))
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			// always close on failure of test
+			_ = conn.Close()
+			_ = tunneledConn.Close()
+		})
+
+		var s *agentsdk.Stats
+		require.Eventuallyf(t, func() bool {
+			var ok bool
+			s, ok = <-stats
+			return ok && s.ConnectionCount > 0 &&
+				s.SessionCountJetBrains == 1
+		}, testutil.WaitLong, testutil.IntervalFast,
+			"never saw stats with conn open: %+v", s,
+		)
+
+		// Manually closing the connection
+		requireEcho(t, tunneledConn)
+		_ = rl.Close()
+
+		require.Eventuallyf(t, func() bool {
+			var ok bool
+			s, ok = <-stats
+			return ok && s.ConnectionCount == 0 &&
+				s.SessionCountJetBrains == 0
+		}, testutil.WaitLong, testutil.IntervalFast,
+			"never saw stats after conn closes: %+v", s,
+		)
 	})
 }
 
