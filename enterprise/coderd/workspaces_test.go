@@ -239,7 +239,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		require.Len(t, stats.Transitions, 0)
 	})
 
-	t.Run("InactiveTTLOK", func(t *testing.T) {
+	t.Run("DormancyThresholdOK", func(t *testing.T) {
 		t.Parallel()
 
 		var (
@@ -274,8 +274,10 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
-		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+		// Transition it to the stop state so we don't have to worry
+		// about the provisioner generating a workspace_build audit log.
+		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
 
 		// Reset the audit log so we can verify a log is generated.
 		auditRecorder.ResetLogs()
@@ -390,7 +392,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		}
 	})
 
-	t.Run("InactiveTTLTooEarly", func(t *testing.T) {
+	t.Run("DormancyThresholdTooEarly", func(t *testing.T) {
 		t.Parallel()
 
 		var (
@@ -473,7 +475,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 	// Assert that a stopped workspace that breaches the inactivity threshold
 	// does not trigger a build transition but is still placed in the
-	// lock state.
+	// dormant state.
 	t.Run("InactiveStoppedWorkspaceNoTransition", func(t *testing.T) {
 		t.Parallel()
 
