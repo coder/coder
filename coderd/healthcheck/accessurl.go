@@ -16,7 +16,7 @@ type AccessURLReport struct {
 	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
 	Healthy   bool             `json:"healthy"`
 	Severity  health.Severity  `json:"severity" enums:"ok,warning,error"`
-	Warnings  []health.Warning `json:"warnings"`
+	Warnings  []health.Message `json:"warnings"`
 	Dismissed bool             `json:"dismissed"`
 
 	AccessURL       string  `json:"access_url"`
@@ -38,11 +38,11 @@ func (r *AccessURLReport) Run(ctx context.Context, opts *AccessURLReportOptions)
 	defer cancel()
 
 	r.Severity = health.SeverityOK
-	r.Warnings = []health.Warning{}
+	r.Warnings = []health.Message{}
 	r.Dismissed = opts.Dismissed
 
 	if opts.AccessURL == nil {
-		r.Error = ptr.Ref(health.Warnf(health.CodeAccessURLNotSet, "Access URL not set").String())
+		r.Error = ptr.Ref(health.Messagef(health.CodeAccessURLNotSet, "Access URL not set").String())
 		r.Severity = health.SeverityError
 		return
 	}
@@ -54,21 +54,21 @@ func (r *AccessURLReport) Run(ctx context.Context, opts *AccessURLReportOptions)
 
 	accessURL, err := opts.AccessURL.Parse("/healthz")
 	if err != nil {
-		r.Error = ptr.Ref(health.Warnf(health.CodeAccessURLInvalid, "parse healthz endpoint: %s", err).String())
+		r.Error = ptr.Ref(health.Messagef(health.CodeAccessURLInvalid, "parse healthz endpoint: %s", err).String())
 		r.Severity = health.SeverityError
 		return
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "GET", accessURL.String(), nil)
 	if err != nil {
-		r.Error = ptr.Ref(health.Warnf(health.CodeAccessURLFetch, "create healthz request: %s", err).String())
+		r.Error = ptr.Ref(health.Messagef(health.CodeAccessURLFetch, "create healthz request: %s", err).String())
 		r.Severity = health.SeverityError
 		return
 	}
 
 	res, err := opts.Client.Do(req)
 	if err != nil {
-		r.Error = ptr.Ref(health.Warnf(health.CodeAccessURLFetch, "get healthz endpoint: %s", err).String())
+		r.Error = ptr.Ref(health.Messagef(health.CodeAccessURLFetch, "get healthz endpoint: %s", err).String())
 		r.Severity = health.SeverityError
 		return
 	}
@@ -76,7 +76,7 @@ func (r *AccessURLReport) Run(ctx context.Context, opts *AccessURLReportOptions)
 
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
-		r.Error = ptr.Ref(health.Warnf(health.CodeAccessURLFetch, "read healthz response: %s", err).String())
+		r.Error = ptr.Ref(health.Messagef(health.CodeAccessURLFetch, "read healthz response: %s", err).String())
 		r.Severity = health.SeverityError
 		return
 	}
@@ -86,7 +86,7 @@ func (r *AccessURLReport) Run(ctx context.Context, opts *AccessURLReportOptions)
 	r.StatusCode = res.StatusCode
 	if res.StatusCode != http.StatusOK {
 		r.Severity = health.SeverityWarning
-		r.Warnings = append(r.Warnings, health.Warnf(health.CodeAccessURLNotOK, "/healthz did not return 200 OK"))
+		r.Warnings = append(r.Warnings, health.Messagef(health.CodeAccessURLNotOK, "/healthz did not return 200 OK"))
 	}
 	r.HealthzResponse = string(body)
 }

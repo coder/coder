@@ -18,7 +18,7 @@ import (
 type WorkspaceProxyReport struct {
 	Healthy   bool             `json:"healthy"`
 	Severity  health.Severity  `json:"severity"`
-	Warnings  []health.Warning `json:"warnings"`
+	Warnings  []health.Message `json:"warnings"`
 	Dismissed bool             `json:"dismissed"`
 	Error     *string          `json:"error"`
 
@@ -54,7 +54,7 @@ func (*AGPLWorkspaceProxiesFetchUpdater) Update(context.Context) error {
 func (r *WorkspaceProxyReport) Run(ctx context.Context, opts *WorkspaceProxyReportOptions) {
 	r.Healthy = true
 	r.Severity = health.SeverityOK
-	r.Warnings = []health.Warning{}
+	r.Warnings = []health.Message{}
 	r.Dismissed = opts.Dismissed
 
 	if opts.WorkspaceProxiesFetchUpdater == nil {
@@ -64,7 +64,7 @@ func (r *WorkspaceProxyReport) Run(ctx context.Context, opts *WorkspaceProxyRepo
 	// If this fails, just mark it as a warning. It is still updated in the background.
 	if err := opts.WorkspaceProxiesFetchUpdater.Update(ctx); err != nil {
 		r.Severity = health.SeverityWarning
-		r.Warnings = append(r.Warnings, health.Warnf(health.CodeProxyUpdate, "update proxy health: %s", err))
+		r.Warnings = append(r.Warnings, health.Messagef(health.CodeProxyUpdate, "update proxy health: %s", err))
 		return
 	}
 
@@ -102,7 +102,7 @@ func (r *WorkspaceProxyReport) Run(ctx context.Context, opts *WorkspaceProxyRepo
 	for _, err := range errs {
 		switch r.Severity {
 		case health.SeverityWarning, health.SeverityOK:
-			r.Warnings = append(r.Warnings, health.Warnf(health.CodeProxyUnhealthy, err))
+			r.Warnings = append(r.Warnings, health.Messagef(health.CodeProxyUnhealthy, err))
 		case health.SeverityError:
 			r.appendError(*health.Errorf(health.CodeProxyUnhealthy, err))
 		}

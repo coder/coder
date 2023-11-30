@@ -49,18 +49,18 @@ func (s Severity) Value() int {
 	return severityRank[s]
 }
 
-// @typescript-generate Warning
-type Warning struct {
+// @typescript-generate Message
+type Message struct {
 	Code    Code
 	Message string
 }
 
-func (w Warning) String() string {
+func (m Message) String() string {
 	var sb strings.Builder
-	_, _ = sb.WriteString(string(w.Code))
+	_, _ = sb.WriteString(string(m.Code))
 	_, _ = sb.WriteRune(':')
 	_, _ = sb.WriteRune(' ')
-	_, _ = sb.WriteString(w.Message)
+	_, _ = sb.WriteString(m.Message)
 	return sb.String()
 }
 
@@ -68,15 +68,15 @@ func (w Warning) String() string {
 // @typescript-generate Code
 type Code string
 
-// Warnf is a convenience function for returning a health.Warning
-func Warnf(code Code, msg string, args ...any) Warning {
-	return Warning{
+// Messagef is a convenience function for returning a health.Message
+func Messagef(code Code, msg string, args ...any) Message {
+	return Message{
 		Code:    code,
 		Message: fmt.Sprintf(msg, args...),
 	}
 }
 
-// Errorf is a convenience function for returning a stringly-typed version of a Warning.
+// Errorf is a convenience function for returning a stringly-typed version of a Message.
 func Errorf(code Code, msg string, args ...any) *string {
-	return ptr.Ref(Warnf(code, msg, args...).String())
+	return ptr.Ref(Messagef(code, msg, args...).String())
 }

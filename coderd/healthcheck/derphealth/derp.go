@@ -38,7 +38,7 @@ type Report struct {
 	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
 	Healthy   bool             `json:"healthy"`
 	Severity  health.Severity  `json:"severity" enums:"ok,warning,error"`
-	Warnings  []health.Warning `json:"warnings"`
+	Warnings  []health.Message `json:"warnings"`
 	Dismissed bool             `json:"dismissed"`
 
 	Regions map[int]*RegionReport `json:"regions"`
@@ -57,7 +57,7 @@ type RegionReport struct {
 	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
 	Healthy  bool             `json:"healthy"`
 	Severity health.Severity  `json:"severity" enums:"ok,warning,error"`
-	Warnings []health.Warning `json:"warnings"`
+	Warnings []health.Message `json:"warnings"`
 
 	Region      *tailcfg.DERPRegion `json:"region"`
 	NodeReports []*NodeReport       `json:"node_reports"`
@@ -72,7 +72,7 @@ type NodeReport struct {
 	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
 	Healthy  bool             `json:"healthy"`
 	Severity health.Severity  `json:"severity" enums:"ok,warning,error"`
-	Warnings []health.Warning `json:"warnings"`
+	Warnings []health.Message `json:"warnings"`
 
 	Node *tailcfg.DERPNode `json:"node"`
 
@@ -104,7 +104,7 @@ type ReportOptions struct {
 func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 	r.Healthy = true
 	r.Severity = health.SeverityOK
-	r.Warnings = []health.Warning{}
+	r.Warnings = []health.Message{}
 	r.Dismissed = opts.Dismissed
 
 	r.Regions = map[int]*RegionReport{}
@@ -168,7 +168,7 @@ func (r *RegionReport) Run(ctx context.Context) {
 	r.Healthy = true
 	r.Severity = health.SeverityOK
 	r.NodeReports = []*NodeReport{}
-	r.Warnings = []health.Warning{}
+	r.Warnings = []health.Message{}
 
 	wg := &sync.WaitGroup{}
 	var unhealthyNodes int // atomic.Int64 is not mandatory as we depend on RegionReport mutex.
@@ -224,7 +224,7 @@ func (r *RegionReport) Run(ctx context.Context) {
 	} else if unhealthyNodes == 1 {
 		// r.Healthy = true (by default)
 		r.Severity = health.SeverityWarning
-		r.Warnings = append(r.Warnings, health.Warnf(health.CodeDERPOneNodeUnhealthy, oneNodeUnhealthy))
+		r.Warnings = append(r.Warnings, health.Messagef(health.CodeDERPOneNodeUnhealthy, oneNodeUnhealthy))
 	} else if unhealthyNodes > 1 {
 		r.Healthy = false
 
@@ -263,7 +263,7 @@ func (r *NodeReport) Run(ctx context.Context) {
 	r.Severity = health.SeverityOK
 	r.ClientLogs = [][]string{}
 	r.ClientErrs = [][]string{}
-	r.Warnings = []health.Warning{}
+	r.Warnings = []health.Message{}
 
 	wg := &sync.WaitGroup{}
 
@@ -288,7 +288,7 @@ func (r *NodeReport) Run(ctx context.Context) {
 	}
 
 	if r.UsesWebsocket {
-		r.Warnings = append(r.Warnings, health.Warnf(health.CodeDERPNodeUsesWebsocket, warningNodeUsesWebsocket))
+		r.Warnings = append(r.Warnings, health.Messagef(health.CodeDERPNodeUsesWebsocket, warningNodeUsesWebsocket))
 		r.Severity = health.SeverityWarning
 	}
 }
