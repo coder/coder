@@ -90,7 +90,7 @@ This may not be an error as such, but is an indication of a potential issue.
 may be necessary to increase the resources allocated to Coder's database. Alternatively, you can raise the configured
 threshold to a higher value (this will not address the root cause).
 
-> 💡 Tip:
+> [!TIP]
 > - You can enable [detailed database metrics](../cli/server.md#--prometheus-collect-db-metrics) in Coder's
 > Prometheus endpoint.
 > - Fif you have [tracing enabled](../cli/server.md#--trace), these traces may also contain useful information regarding
