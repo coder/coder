@@ -71,7 +71,12 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
     "reachable": true,
     "severity": "ok",
     "threshold_ms": 0,
-    "warnings": ["string"]
+    "warnings": [
+      {
+        "code": "EUNKNOWN",
+        "message": "string"
+      }
+    ]
   },
   "derp": {
     "dismissed": true,

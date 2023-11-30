@@ -7677,23 +7677,28 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "reachable": true,
   "severity": "ok",
   "threshold_ms": 0,
-  "warnings": ["string"]
+  "warnings": [
+    {
+      "code": "EUNKNOWN",
+      "message": "string"
+    }
+  ]
 }
 ```
 
 ### Properties
 
-| Name           | Type                               | Required | Restrictions | Description                                                                                 |
-| -------------- | ---------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
-| `dismissed`    | boolean                            | false    |              |                                                                                             |
-| `error`        | string                             | false    |              |                                                                                             |
-| `healthy`      | boolean                            | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
-| `latency`      | string                             | false    |              |                                                                                             |
-| `latency_ms`   | integer                            | false    |              |                                                                                             |
-| `reachable`    | boolean                            | false    |              |                                                                                             |
-| `severity`     | [health.Severity](#healthseverity) | false    |              |                                                                                             |
-| `threshold_ms` | integer                            | false    |              |                                                                                             |
-| `warnings`     | array of string                    | false    |              |                                                                                             |
+| Name           | Type                                      | Required | Restrictions | Description                                                                                 |
+| -------------- | ----------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
+| `dismissed`    | boolean                                   | false    |              |                                                                                             |
+| `error`        | string                                    | false    |              |                                                                                             |
+| `healthy`      | boolean                                   | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
+| `latency`      | string                                    | false    |              |                                                                                             |
+| `latency_ms`   | integer                                   | false    |              |                                                                                             |
+| `reachable`    | boolean                                   | false    |              |                                                                                             |
+| `severity`     | [health.Severity](#healthseverity)        | false    |              |                                                                                             |
+| `threshold_ms` | integer                                   | false    |              |                                                                                             |
+| `warnings`     | array of [health.Message](#healthmessage) | false    |              |                                                                                             |
 
 #### Enumerated Values
 
@@ -7733,7 +7738,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "reachable": true,
     "severity": "ok",
     "threshold_ms": 0,
-    "warnings": ["string"]
+    "warnings": [
+      {
+        "code": "EUNKNOWN",
+        "message": "string"
+      }
+    ]
   },
   "derp": {
     "dismissed": true,

@@ -43,7 +43,7 @@ export const AccessURLWarning: Story = {
       access_url: {
         ...MockHealth.access_url,
         healthy: true,
-        warnings: ["foobar"],
+        warnings: [{ code: "EUNKNOWN", message: "foobar" }],
       },
     },
   },
@@ -73,7 +73,7 @@ export const DatabaseWarning: Story = {
       database: {
         ...MockHealth.database,
         healthy: true,
-        warnings: ["foobar"],
+        warnings: [{ code: "EUNKNOWN", message: "foobar" }],
       },
     },
   },
@@ -159,7 +159,7 @@ export const ProxyWarning: Story = {
       severity: "warning",
       workspace_proxy: {
         ...MockHealth.workspace_proxy,
-        warnings: ["foobar"],
+        warnings: [{ code: "EUNKNOWN", message: "foobar" }],
       },
     },
   },

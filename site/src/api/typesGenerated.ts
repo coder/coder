@@ -2112,7 +2112,7 @@ export interface HealthcheckAccessURLReport {
 export interface HealthcheckDatabaseReport {
   readonly healthy: boolean;
   readonly severity: HealthSeverity;
-  readonly warnings: string[];
+  readonly warnings: HealthMessage[];
   readonly dismissed: boolean;
   readonly reachable: boolean;
   readonly latency: string;
@@ -2205,8 +2205,8 @@ export const ClibaseValueSources: ClibaseValueSource[] = [
 
 // From health/model.go
 export interface HealthMessage {
-  readonly Code: HealthCode;
-  readonly Message: string;
+  readonly code: HealthCode;
+  readonly message: string;
 }
 
 // From health/model.go

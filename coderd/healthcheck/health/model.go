@@ -51,8 +51,8 @@ func (s Severity) Value() int {
 
 // @typescript-generate Message
 type Message struct {
-	Code    Code
-	Message string
+	Code    Code   `json:"code"`
+	Message string `json:"message"`
 }
 
 func (m Message) String() string {

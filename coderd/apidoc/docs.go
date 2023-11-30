@@ -12515,7 +12515,7 @@ const docTemplate = `{
                 "warnings": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/health.Message"
                     }
                 }
             }
