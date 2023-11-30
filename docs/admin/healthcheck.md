@@ -151,24 +151,35 @@ troubleshooting tools like `curl`.
 
 ## Workspace Proxy
 
-### <a name="EWP01">EWP01: TODO</a>
+If you have configured [Workspace Proxies](../admin/workspace-proxies.md), Coder will periodically query their availability and show their status here.
 
-TODO
+### <a name="EWP01">EWP01: Error Updating Workspace Proxy Health</a>
 
-### <a name="EWP02">EWP02: TODO</a>
+**Problem:** Coder was unable to query the connected workspace proxies for their health status.
 
-TODO
+**Solution:** This may be a transient issue. If it persists, it could signify a connectivity issue.
 
-### <a name="EWP03">EWP03: TODO</a>
+### <a name="EWP02">EWP02: Error Fetching Workspace Proxies</a>
 
-TODO
+**Problem:** Coder was unable to fetch the stored workspace proxy health data from the database.
 
-### <a name="EWP04">EWP04: TODO</a>
+**Solution:** This may be a transient issue. If it persists, it could signify an issue with Coder's configured database.
 
-TODO
+### <a name="EWP03">EWP03: Workspace Proxy Version Mismatch</a>
+
+**Problem:** One or more workspace proxies are more than one major or minor version out of date with the main deployment.
+It is important that workspace proxies are updated at the same time as the main deployment to minimize the risk of API incompatibility.
+
+**Solution:** Update the workspace proxy to match the currently running version of Coder.
+
+### <a name="EWP04">EWP04: One or more Workspace Proxies Unhealthy</a>
+
+**Problem:** One or more workspace proxies are not reachable.
+
+**Solution:** Ensure that Coder can establish a connection to the configured workspace proxies on port 443.
 
 ## <a name="EUNKNOWN">Unknown Error</a>
 
-**Problem:** lazy dev
+**Problem:** This error is shown when an unexpected error occurred evaluating deployment health. It may resolve on its own.
 
-**Solution:** motivate them with cheese
+**Solution:** This may be a bug. [File a GitHub issue](https://github.com/coder/coder/issues/new)!
