@@ -248,7 +248,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			ticker        = make(chan time.Time)
 			statCh        = make(chan autobuild.Stats)
 			inactiveTTL   = time.Minute
-			auditRecorder = audittest.NewMock()
+			auditRecorder = audittest.NewMock(t)
 		)
 
 		client, user := coderdenttest.New(t, &coderdenttest.Options{

@@ -37,7 +37,7 @@ func TestWorkspaceBuild(t *testing.T) {
 			propagation.Baggage{},
 		),
 	)
-	auditor := audittest.NewMock()
+	auditor := audittest.NewMock(t)
 	client := coderdtest.New(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,
 		Auditor:                  auditor,
@@ -593,7 +593,7 @@ func TestWorkspaceBuildState(t *testing.T) {
 func TestWorkspaceBuildStatus(t *testing.T) {
 	t.Parallel()
 
-	auditor := audittest.NewMock()
+	auditor := audittest.NewMock(t)
 	numLogs := len(auditor.AuditLogs())
 	client, closeDaemon, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 	user := coderdtest.CreateFirstUser(t, client)
@@ -949,7 +949,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 				propagation.Baggage{},
 			),
 		)
-		auditor := audittest.NewMock()
+		auditor := audittest.NewMock(t)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)

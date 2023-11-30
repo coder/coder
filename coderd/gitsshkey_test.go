@@ -75,7 +75,7 @@ func TestGitSSHKey(t *testing.T) {
 	})
 	t.Run("Regenerate", func(t *testing.T) {
 		t.Parallel()
-		auditor := audittest.NewMock()
+		auditor := audittest.NewMock(t)
 		client := coderdtest.New(t, &coderdtest.Options{
 			SSHKeygenAlgorithm: gitsshkey.AlgorithmEd25519,
 			Auditor:            auditor,

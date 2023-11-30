@@ -25,7 +25,7 @@ func TestTokenCRUD(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
-	auditor := audittest.NewMock()
+	auditor := audittest.NewMock(t)
 	numLogs := len(auditor.AuditLogs())
 	client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
 	_ = coderdtest.CreateFirstUser(t, client)

@@ -10,11 +10,12 @@ import (
 	"testing"
 )
 
-func NewMock() *MockAuditor {
-	return &MockAuditor{}
+func NewMock(t testing.TB) *MockAuditor {
+	return &MockAuditor{t: t}
 }
 
 type MockAuditor struct {
+	t         testing.TB
 	mutex     sync.Mutex
 	auditLogs []database.AuditLog
 }

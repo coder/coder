@@ -46,7 +46,7 @@ func TestCreateGroup(t *testing.T) {
 	t.Run("Audit", func(t *testing.T) {
 		t.Parallel()
 
-		auditor := audittest.NewMock()
+		auditor := audittest.NewMock(t)
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			AuditLogging: true,
 			Options: &coderdtest.Options{
@@ -278,7 +278,7 @@ func TestPatchGroup(t *testing.T) {
 	t.Run("Audit", func(t *testing.T) {
 		t.Parallel()
 
-		auditor := audittest.NewMock()
+		auditor := audittest.NewMock(t)
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			AuditLogging: true,
 			Options: &coderdtest.Options{
@@ -837,7 +837,7 @@ func TestDeleteGroup(t *testing.T) {
 	t.Run("Audit", func(t *testing.T) {
 		t.Parallel()
 
-		auditor := audittest.NewMock()
+		auditor := audittest.NewMock(t)
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			AuditLogging: true,
 			Options: &coderdtest.Options{

@@ -131,7 +131,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 
 	t.Run("WithParameters", func(t *testing.T) {
 		t.Parallel()
-		auditor := audittest.NewMock()
+		auditor := audittest.NewMock(t)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 		user := coderdtest.CreateFirstUser(t, client)
 		data, err := echo.Tar(&echo.Responses{
@@ -621,7 +621,7 @@ func TestPatchActiveTemplateVersion(t *testing.T) {
 
 	t.Run("Archived", func(t *testing.T) {
 		t.Parallel()
-		auditor := audittest.NewMock()
+		auditor := audittest.NewMock(t)
 		ownerClient := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			Auditor:                  auditor,
@@ -649,7 +649,7 @@ func TestPatchActiveTemplateVersion(t *testing.T) {
 
 	t.Run("SuccessfulBuild", func(t *testing.T) {
 		t.Parallel()
-		auditor := audittest.NewMock()
+		auditor := audittest.NewMock(t)
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			Auditor:                  auditor,

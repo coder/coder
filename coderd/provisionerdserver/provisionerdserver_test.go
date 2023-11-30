@@ -44,9 +44,9 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func mockAuditor() *atomic.Pointer[audit.Auditor] {
+func mockAuditor(t testing.TB) *atomic.Pointer[audit.Auditor] {
 	ptr := &atomic.Pointer[audit.Auditor]{}
-	mock := audit.Auditor(audittest.NewMock())
+	mock := audit.Auditor(audittest.NewMock(t))
 	ptr.Store(&mock)
 	return ptr
 }
@@ -1746,7 +1746,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		telemetry.NewNoop(),
 		trace.NewNoopTracerProvider().Tracer("noop"),
 		&atomic.Pointer[proto.QuotaCommitter]{},
-		mockAuditor(),
+		mockAuditor(t),
 		tss,
 		uqhss,
 		deploymentValues,
