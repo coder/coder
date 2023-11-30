@@ -50,7 +50,7 @@ func TestExternalAuthByID(t *testing.T) {
 		// Ensures that a provider that can't obtain a user can
 		// still return that the provider is authenticated.
 		t.Parallel()
-		const providerID = "fake-github"
+		const providerID = "fake-azure"
 		fake := oidctest.NewFakeIDP(t, oidctest.WithServing())
 
 		client := coderdtest.New(t, &coderdtest.Options{
