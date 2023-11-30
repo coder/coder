@@ -31,15 +31,18 @@ func TestExternalAuthByID(t *testing.T) {
 	t.Parallel()
 	t.Run("Unauthenticated", func(t *testing.T) {
 		t.Parallel()
+		const providerID = "fake-github"
+		fake := oidctest.NewFakeIDP(t, oidctest.WithServing())
+
 		client := coderdtest.New(t, &coderdtest.Options{
-			ExternalAuthConfigs: []*externalauth.Config{{
-				ID:           "test",
-				OAuth2Config: &testutil.OAuth2Config{},
-				Type:         codersdk.EnhancedExternalAuthProviderGitHub.String(),
-			}},
+			ExternalAuthConfigs: []*externalauth.Config{
+				fake.ExternalAuthConfig(t, providerID, nil, func(cfg *externalauth.Config) {
+					cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
+				}),
+			},
 		})
 		coderdtest.CreateFirstUser(t, client)
-		auth, err := client.ExternalAuthByID(context.Background(), "test")
+		auth, err := client.ExternalAuthByID(context.Background(), providerID)
 		require.NoError(t, err)
 		require.False(t, auth.Authenticated)
 	})
@@ -47,18 +50,22 @@ func TestExternalAuthByID(t *testing.T) {
 		// Ensures that a provider that can't obtain a user can
 		// still return that the provider is authenticated.
 		t.Parallel()
+		const providerID = "fake-github"
+		fake := oidctest.NewFakeIDP(t, oidctest.WithServing())
+
 		client := coderdtest.New(t, &coderdtest.Options{
-			ExternalAuthConfigs: []*externalauth.Config{{
-				ID:           "test",
-				OAuth2Config: &testutil.OAuth2Config{},
+			ExternalAuthConfigs: []*externalauth.Config{
 				// AzureDevops doesn't have a user endpoint!
-				Type: codersdk.EnhancedExternalAuthProviderAzureDevops.String(),
-			}},
+				fake.ExternalAuthConfig(t, providerID, nil, func(cfg *externalauth.Config) {
+					cfg.Type = codersdk.EnhancedExternalAuthProviderAzureDevops.String()
+				}),
+			},
 		})
+
 		coderdtest.CreateFirstUser(t, client)
-		resp := coderdtest.RequestExternalAuthCallback(t, "test", client)
-		_ = resp.Body.Close()
-		auth, err := client.ExternalAuthByID(context.Background(), "test")
+		fake.ExternalLogin(t, client, providerID)
+
+		auth, err := client.ExternalAuthByID(context.Background(), providerID)
 		require.NoError(t, err)
 		require.True(t, auth.Authenticated)
 	})
@@ -68,11 +75,13 @@ func TestExternalAuthByID(t *testing.T) {
 		fake := oidctest.NewFakeIDP(t, oidctest.WithServing())
 		client := coderdtest.New(t, &coderdtest.Options{
 			ExternalAuthConfigs: []*externalauth.Config{
-				fake.ExternalAuthConfig(t, providerID, func(_ string) interface{} {
-					return github.User{
-						Login:     github.String("kyle"),
-						AvatarURL: github.String("https://avatars.githubusercontent.com/u/12345678?v=4"),
-					}
+				fake.ExternalAuthConfig(t, providerID, &oidctest.ExternalAuthConfigOptions{
+					ValidatePayload: func(_ string) interface{} {
+						return github.User{
+							Login:     github.String("kyle"),
+							AvatarURL: github.String("https://avatars.githubusercontent.com/u/12345678?v=4"),
+						}
+					},
 				}, func(cfg *externalauth.Config) {
 					cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
 				}),
@@ -91,40 +100,42 @@ func TestExternalAuthByID(t *testing.T) {
 	})
 	t.Run("AuthenticatedWithInstalls", func(t *testing.T) {
 		t.Parallel()
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch r.URL.Path {
-			case "/user":
-				httpapi.Write(r.Context(), w, http.StatusOK, github.User{
+		const providerID = "fake-github"
+		fake := oidctest.NewFakeIDP(t, oidctest.WithServing())
+
+		// routes includes a route for /install that returns a list of installations
+		routes := (&oidctest.ExternalAuthConfigOptions{
+			ValidatePayload: func(_ string) interface{} {
+				return github.User{
 					Login:     github.String("kyle"),
 					AvatarURL: github.String("https://avatars.githubusercontent.com/u/12345678?v=4"),
-				})
-			case "/installs":
-				httpapi.Write(r.Context(), w, http.StatusOK, struct {
-					Installations []github.Installation `json:"installations"`
-				}{
-					Installations: []github.Installation{{
-						ID: github.Int64(12345678),
-						Account: &github.User{
-							Login: github.String("coder"),
-						},
-					}},
-				})
-			}
-		}))
-		defer srv.Close()
-		client := coderdtest.New(t, &coderdtest.Options{
-			ExternalAuthConfigs: []*externalauth.Config{{
-				ID:                  "test",
-				ValidateURL:         srv.URL + "/user",
-				AppInstallationsURL: srv.URL + "/installs",
-				OAuth2Config:        &testutil.OAuth2Config{},
-				Type:                codersdk.EnhancedExternalAuthProviderGitHub.String(),
-			}},
+				}
+			},
+		}).AddRoute("/installs", func(_ string, rw http.ResponseWriter, r *http.Request) {
+			httpapi.Write(r.Context(), rw, http.StatusOK, struct {
+				Installations []github.Installation `json:"installations"`
+			}{
+				Installations: []github.Installation{{
+					ID: github.Int64(12345678),
+					Account: &github.User{
+						Login: github.String("coder"),
+					},
+				}},
+			})
 		})
+		client := coderdtest.New(t, &coderdtest.Options{
+			ExternalAuthConfigs: []*externalauth.Config{
+				fake.ExternalAuthConfig(t, providerID, routes, func(cfg *externalauth.Config) {
+					cfg.AppInstallationsURL = cfg.ValidateURL + "/installs"
+					cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
+				}),
+			},
+		})
+
 		coderdtest.CreateFirstUser(t, client)
-		resp := coderdtest.RequestExternalAuthCallback(t, "test", client)
-		_ = resp.Body.Close()
-		auth, err := client.ExternalAuthByID(context.Background(), "test")
+		fake.ExternalLogin(t, client, providerID)
+
+		auth, err := client.ExternalAuthByID(context.Background(), providerID)
 		require.NoError(t, err)
 		require.True(t, auth.Authenticated)
 		require.NotNil(t, auth.User)
