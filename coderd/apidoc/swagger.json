@@ -11163,7 +11163,7 @@
         "warnings": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/health.Warning"
+            "$ref": "#/definitions/health.Message"
           }
         }
       }
@@ -11198,7 +11198,7 @@
         "warnings": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/health.Warning"
+            "$ref": "#/definitions/health.Message"
           }
         }
       }
@@ -11245,7 +11245,7 @@
         "warnings": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/health.Warning"
+            "$ref": "#/definitions/health.Message"
           }
         }
       }
@@ -11303,12 +11303,7 @@
         "CodeDERPOneNodeUnhealthy"
       ]
     },
-    "health.Severity": {
-      "type": "string",
-      "enum": ["ok", "warning", "error"],
-      "x-enum-varnames": ["SeverityOK", "SeverityWarning", "SeverityError"]
-    },
-    "health.Warning": {
+    "health.Message": {
       "type": "object",
       "properties": {
         "code": {
@@ -11318,6 +11313,11 @@
           "type": "string"
         }
       }
+    },
+    "health.Severity": {
+      "type": "string",
+      "enum": ["ok", "warning", "error"],
+      "x-enum-varnames": ["SeverityOK", "SeverityWarning", "SeverityError"]
     },
     "healthcheck.AccessURLReport": {
       "type": "object",
@@ -11355,7 +11355,7 @@
         "warnings": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/health.Warning"
+            "$ref": "#/definitions/health.Message"
           }
         }
       }
@@ -11502,7 +11502,7 @@
         "warnings": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/health.Warning"
+            "$ref": "#/definitions/health.Message"
           }
         },
         "workspace_proxies": {

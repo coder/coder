@@ -7201,7 +7201,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `severity`              | [health.Severity](#healthseverity)               | false    |              |                                                                                             |
 | `stun`                  | [derphealth.StunReport](#derphealthstunreport)   | false    |              |                                                                                             |
 | `uses_websocket`        | boolean                                          | false    |              |                                                                                             |
-| `warnings`              | array of [health.Warning](#healthwarning)        | false    |              |                                                                                             |
+| `warnings`              | array of [health.Message](#healthmessage)        | false    |              |                                                                                             |
 
 #### Enumerated Values
 
@@ -7303,7 +7303,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `node_reports` | array of [derphealth.NodeReport](#derphealthnodereport) | false    |              |                                                                                             |
 | `region`       | [tailcfg.DERPRegion](#tailcfgderpregion)                | false    |              |                                                                                             |
 | `severity`     | [health.Severity](#healthseverity)                      | false    |              |                                                                                             |
-| `warnings`     | array of [health.Warning](#healthwarning)               | false    |              |                                                                                             |
+| `warnings`     | array of [health.Message](#healthmessage)               | false    |              |                                                                                             |
 
 #### Enumerated Values
 
@@ -7533,7 +7533,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `regions`          | object                                             | false    |              |                                                                                             |
 | » `[any property]` | [derphealth.RegionReport](#derphealthregionreport) | false    |              |                                                                                             |
 | `severity`         | [health.Severity](#healthseverity)                 | false    |              |                                                                                             |
-| `warnings`         | array of [health.Warning](#healthwarning)          | false    |              |                                                                                             |
+| `warnings`         | array of [health.Message](#healthmessage)          | false    |              |                                                                                             |
 
 #### Enumerated Values
 
@@ -7590,6 +7590,22 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `EDERP01`  |
 | `EDERP02`  |
 
+## health.Message
+
+```json
+{
+  "code": "EUNKNOWN",
+  "message": "string"
+}
+```
+
+### Properties
+
+| Name      | Type                       | Required | Restrictions | Description |
+| --------- | -------------------------- | -------- | ------------ | ----------- |
+| `code`    | [health.Code](#healthcode) | false    |              |             |
+| `message` | string                     | false    |              |             |
+
 ## health.Severity
 
 ```json
@@ -7605,22 +7621,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `ok`      |
 | `warning` |
 | `error`   |
-
-## health.Warning
-
-```json
-{
-  "code": "EUNKNOWN",
-  "message": "string"
-}
-```
-
-### Properties
-
-| Name      | Type                       | Required | Restrictions | Description |
-| --------- | -------------------------- | -------- | ------------ | ----------- |
-| `code`    | [health.Code](#healthcode) | false    |              |             |
-| `message` | string                     | false    |              |             |
 
 ## healthcheck.AccessURLReport
 
@@ -7655,7 +7655,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `reachable`        | boolean                                   | false    |              |                                                                                             |
 | `severity`         | [health.Severity](#healthseverity)        | false    |              |                                                                                             |
 | `status_code`      | integer                                   | false    |              |                                                                                             |
-| `warnings`         | array of [health.Warning](#healthwarning) | false    |              |                                                                                             |
+| `warnings`         | array of [health.Message](#healthmessage) | false    |              |                                                                                             |
 
 #### Enumerated Values
 
@@ -8101,7 +8101,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `error`             | string                                                                                               | false    |              |             |
 | `healthy`           | boolean                                                                                              | false    |              |             |
 | `severity`          | [health.Severity](#healthseverity)                                                                   | false    |              |             |
-| `warnings`          | array of [health.Warning](#healthwarning)                                                            | false    |              |             |
+| `warnings`          | array of [health.Message](#healthmessage)                                                            | false    |              |             |
 | `workspace_proxies` | [codersdk.RegionsResponse-codersdk_WorkspaceProxy](#codersdkregionsresponse-codersdk_workspaceproxy) | false    |              |             |
 
 ## netcheck.Report

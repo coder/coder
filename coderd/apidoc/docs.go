@@ -12258,7 +12258,7 @@ const docTemplate = `{
                 "warnings": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/health.Warning"
+                        "$ref": "#/definitions/health.Message"
                     }
                 }
             }
@@ -12297,7 +12297,7 @@ const docTemplate = `{
                 "warnings": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/health.Warning"
+                        "$ref": "#/definitions/health.Message"
                     }
                 }
             }
@@ -12348,7 +12348,7 @@ const docTemplate = `{
                 "warnings": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/health.Warning"
+                        "$ref": "#/definitions/health.Message"
                     }
                 }
             }
@@ -12406,6 +12406,17 @@ const docTemplate = `{
                 "CodeDERPOneNodeUnhealthy"
             ]
         },
+        "health.Message": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "$ref": "#/definitions/health.Code"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
         "health.Severity": {
             "type": "string",
             "enum": [
@@ -12418,17 +12429,6 @@ const docTemplate = `{
                 "SeverityWarning",
                 "SeverityError"
             ]
-        },
-        "health.Warning": {
-            "type": "object",
-            "properties": {
-                "code": {
-                    "$ref": "#/definitions/health.Code"
-                },
-                "message": {
-                    "type": "string"
-                }
-            }
         },
         "healthcheck.AccessURLReport": {
             "type": "object",
@@ -12470,7 +12470,7 @@ const docTemplate = `{
                 "warnings": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/health.Warning"
+                        "$ref": "#/definitions/health.Message"
                     }
                 }
             }
@@ -12629,7 +12629,7 @@ const docTemplate = `{
                 "warnings": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/health.Warning"
+                        "$ref": "#/definitions/health.Message"
                     }
                 },
                 "workspace_proxies": {
