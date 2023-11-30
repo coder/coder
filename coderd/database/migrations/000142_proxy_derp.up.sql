@@ -1,5 +1,3 @@
-BEGIN;
-
 ALTER TABLE replicas
 	ADD COLUMN "primary" boolean NOT NULL DEFAULT true;
 
@@ -9,5 +7,3 @@ ALTER TABLE workspace_proxies
 	ADD COLUMN region_id serial NOT NULL,
 	ADD COLUMN derp_enabled boolean NOT NULL DEFAULT true,
 	ADD CONSTRAINT workspace_proxies_region_id_unique UNIQUE (region_id);
-
-COMMIT;

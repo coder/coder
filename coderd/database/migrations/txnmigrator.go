@@ -8,10 +8,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database"
-	"github.com/golang-migrate/migrate/v4/source"
-	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/lib/pq"
 	"golang.org/x/xerrors"
 )
@@ -20,35 +17,6 @@ const (
 	lockID              = int64(1037453835920848937)
 	migrationsTableName = "schema_migrations"
 )
-
-func betterSetup(db *sql.DB) (source.Driver, *migrate.Migrate, error) {
-	ctx := context.Background()
-	sourceDriver, err := iofs.New(migrations, ".")
-	if err != nil {
-		return nil, nil, xerrors.Errorf("create iofs: %w", err)
-	}
-
-	// migration_cursor is a v1 migration table. If this exists, we're on v1.
-	// Do no run v2 migrations on a v1 database!
-	row := db.QueryRowContext(ctx, "SELECT 1 FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = 'migration_cursor';")
-	var v1Exists int
-	if row.Scan(&v1Exists) == nil {
-		return nil, nil, xerrors.New("currently connected to a Coder v1 database, aborting database setup")
-	}
-
-	dbDriver := &pgTxnDriver{ctx: context.Background(), db: db}
-	err = dbDriver.ensureVersionTable()
-	if err != nil {
-		return nil, nil, xerrors.Errorf("ensure version table: %w", err)
-	}
-
-	m, err := migrate.NewWithInstance("", sourceDriver, "", dbDriver)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("new migrate instance: %w", err)
-	}
-
-	return sourceDriver, m, nil
-}
 
 type pgTxnDriver struct {
 	ctx context.Context

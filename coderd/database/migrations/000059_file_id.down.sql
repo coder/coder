@@ -1,5 +1,3 @@
-BEGIN;
-
 -- Add back the storage_source column. This must be nullable temporarily.
 ALTER TABLE provisioner_jobs ADD COLUMN storage_source text;
 
@@ -30,12 +28,10 @@ AND
 	a.hash = b.hash;
 
 -- Drop the primary key on files.id.
-ALTER TABLE files DROP CONSTRAINT files_pkey; 
+ALTER TABLE files DROP CONSTRAINT files_pkey;
 -- Drop the id column.
 ALTER TABLE files DROP COLUMN id;
 -- Drop the unique constraint on hash + owner.
 ALTER TABLE files DROP CONSTRAINT files_hash_created_by_key;
 -- Set the primary key back to hash.
 ALTER TABLE files ADD PRIMARY KEY (hash);
-
-COMMIT;

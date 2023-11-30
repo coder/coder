@@ -11,5 +11,3 @@ SET
     )
 WHERE
     created_by IS NULL;
-
-COMMIT;

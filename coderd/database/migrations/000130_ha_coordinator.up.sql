@@ -1,5 +1,3 @@
-BEGIN;
-
 CREATE TABLE tailnet_coordinators (
 	id uuid NOT NULL PRIMARY KEY,
 	heartbeat_at timestamp with time zone NOT NULL
@@ -93,5 +91,3 @@ CREATE TRIGGER tailnet_notify_coordinator_heartbeat
 	AFTER INSERT OR UPDATE ON tailnet_coordinators
 	FOR EACH ROW
 EXECUTE PROCEDURE tailnet_notify_coordinator_heartbeat();
-
-COMMIT;

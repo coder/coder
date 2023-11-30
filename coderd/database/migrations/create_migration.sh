@@ -7,6 +7,17 @@
 
 set -euo pipefail
 
+cat << EOF
+
+WARNING: Migrations now all run in a single transaction. This makes upgrades
+safer, but means that 'ALTER TYPE resource_type ADD VALUE' cannot be used if the
+enum value needs to be referenced in another migration.
+
+This also means you should not use "BEGIN;" and "COMMIT;" in your migrations, as
+everything is already in a migration.
+
+EOF
+
 SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 (
 	cd "$SCRIPT_DIR"
