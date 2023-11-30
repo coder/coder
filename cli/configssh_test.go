@@ -695,11 +695,10 @@ func TestConfigSSH_Hostnames(t *testing.T) {
 			owner := coderdtest.CreateFirstUser(t, client)
 			member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
-			r := dbfake.Workspace(t, db).Seed(database.Workspace{
+			r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 				OrganizationID: owner.OrganizationID,
 				OwnerID:        memberUser.ID,
-			}).Resources(resources...).Do()
-			dbfake.WorkspaceBuild(t, db, r.Workspace).Resource(resources...).Do()
+			}).Resource(resources...).Do()
 			sshConfigFile := sshConfigFileName(t)
 
 			inv, root := clitest.New(t, "config-ssh", "--ssh-config-file", sshConfigFile)

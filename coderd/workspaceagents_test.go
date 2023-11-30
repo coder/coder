@@ -47,7 +47,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		tmpDir := t.TempDir()
 		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
-		r := dbfake.Workspace(t, db).Seed(database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        anotherUser.ID,
 		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
