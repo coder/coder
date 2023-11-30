@@ -17,6 +17,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -63,25 +64,26 @@ func TestExternalAuthByID(t *testing.T) {
 	})
 	t.Run("AuthenticatedWithUser", func(t *testing.T) {
 		t.Parallel()
-		validateSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			httpapi.Write(r.Context(), w, http.StatusOK, github.User{
-				Login:     github.String("kyle"),
-				AvatarURL: github.String("https://avatars.githubusercontent.com/u/12345678?v=4"),
-			})
-		}))
-		defer validateSrv.Close()
+		const providerID = "fake-github"
+		fake := oidctest.NewFakeIDP(t, oidctest.WithServing())
 		client := coderdtest.New(t, &coderdtest.Options{
-			ExternalAuthConfigs: []*externalauth.Config{{
-				ID:           "test",
-				ValidateURL:  validateSrv.URL,
-				OAuth2Config: &testutil.OAuth2Config{},
-				Type:         codersdk.EnhancedExternalAuthProviderGitHub.String(),
-			}},
+			ExternalAuthConfigs: []*externalauth.Config{
+				fake.ExternalAuthConfig(t, providerID, func(_ string) interface{} {
+					return github.User{
+						Login:     github.String("kyle"),
+						AvatarURL: github.String("https://avatars.githubusercontent.com/u/12345678?v=4"),
+					}
+				}, func(cfg *externalauth.Config) {
+					cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
+				}),
+			},
 		})
+
 		coderdtest.CreateFirstUser(t, client)
-		resp := coderdtest.RequestExternalAuthCallback(t, "test", client)
-		_ = resp.Body.Close()
-		auth, err := client.ExternalAuthByID(context.Background(), "test")
+		// Login to external auth provider
+		fake.ExternalLogin(t, client, providerID)
+
+		auth, err := client.ExternalAuthByID(context.Background(), providerID)
 		require.NoError(t, err)
 		require.True(t, auth.Authenticated)
 		require.NotNil(t, auth.User)

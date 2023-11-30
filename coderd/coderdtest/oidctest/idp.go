@@ -19,8 +19,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/util/syncmap"
-
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-jose/go-jose/v3"
@@ -34,22 +32,29 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/util/syncmap"
 	"github.com/coder/coder/v2/codersdk"
 )
 
 // FakeIDP is a functional OIDC provider.
 // It only supports 1 OIDC client.
 type FakeIDP struct {
-	issuer   string
-	key      *rsa.PrivateKey
-	provider ProviderJSON
-	handler  http.Handler
-	cfg      *oauth2.Config
+	issuer    string
+	issuerURL *url.URL
+	key       *rsa.PrivateKey
+	provider  ProviderJSON
+	handler   http.Handler
+	cfg       *oauth2.Config
 
 	// clientID to be used by coderd
 	clientID     string
 	clientSecret string
 	logger       slog.Logger
+	// externalAuthValidate will be called when the user tries to validate their
+	// external auth. The fake IDP will reject any invalid tokens, so this just
+	// controls the response payload after a successfully authed token.
+	externalAuthValidate map[string]func(email string, rw http.ResponseWriter, r *http.Request)
 
 	// These maps are used to control the state of the IDP.
 	// That is the various access tokens, refresh tokens, states, etc.
@@ -192,6 +197,7 @@ func NewFakeIDP(t testing.TB, opts ...FakeIDPOpt) *FakeIDP {
 		hookOnRefresh:        func(_ string) error { return nil },
 		hookUserInfo:         func(email string) (jwt.MapClaims, error) { return jwt.MapClaims{}, nil },
 		hookValidRedirectURL: func(redirectURL string) error { return nil },
+		externalAuthValidate: make(map[string]func(email string, rw http.ResponseWriter, r *http.Request)),
 	}
 
 	for _, opt := range opts {
@@ -222,6 +228,7 @@ func (f *FakeIDP) updateIssuerURL(t testing.TB, issuer string) {
 	require.NoError(t, err, "invalid issuer URL")
 
 	f.issuer = issuer
+	f.issuerURL = u
 	// ProviderJSON is the JSON representation of the OpenID Connect provider
 	// These are all the urls that the IDP will respond to.
 	f.provider = ProviderJSON{
@@ -345,6 +352,47 @@ func (f *FakeIDP) LoginWithClient(t testing.TB, client *codersdk.Client, idToken
 	})
 
 	return user, res
+}
+
+// ExternalLogin does the oauth2 flow for external auth providers. This requires
+// an authenticated coder client.
+func (f *FakeIDP) ExternalLogin(t testing.TB, client *codersdk.Client, providerID string, opts ...func(r *http.Request)) *http.Response {
+	coderOauthURL, err := client.URL.Parse(fmt.Sprintf("/external-auth/%s/callback", providerID))
+	require.NoError(t, err)
+	f.SetRedirect(t, coderOauthURL.String())
+
+	cli := f.HTTPClient(client.HTTPClient)
+	cli.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		// Store the idTokenClaims to the specific state request. This ties
+		// the claims 1:1 with a given authentication flow.
+		state := req.URL.Query().Get("state")
+		f.stateToIDTokenClaims.Store(state, jwt.MapClaims{})
+		return nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	req, err := http.NewRequestWithContext(ctx, "GET", coderOauthURL.String(), nil)
+	require.NoError(t, err)
+	// External auth flow requires the user be authenticated.
+	headerName := client.SessionTokenHeader
+	if headerName == "" {
+		headerName = codersdk.SessionTokenHeader
+	}
+	req.Header.Set(headerName, client.SessionToken())
+	if cli.Jar == nil {
+		cli.Jar, err = cookiejar.New(nil)
+		require.NoError(t, err, "failed to create cookie jar")
+	}
+
+	for _, opt := range opts {
+		opt(req)
+	}
+
+	res, err := cli.Do(req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, res.StatusCode, "client failed to login")
+	return res
 }
 
 // OIDCCallback will emulate the IDP redirecting back to the Coder callback.
@@ -665,6 +713,34 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 		_ = json.NewEncoder(rw).Encode(claims)
 	}))
 
+	mux.Handle("/external-auth-validate/{provider-id}", http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		token, err := f.authenticateBearerTokenRequest(t, r)
+		f.logger.Info(r.Context(), "http call idp external auth validate",
+			slog.Error(err),
+			slog.F("url", r.URL.String()),
+		)
+		if err != nil {
+			http.Error(rw, fmt.Sprintf("invalid user info request: %s", err.Error()), http.StatusBadRequest)
+			return
+		}
+
+		email, ok := f.accessTokens.Load(token)
+		if !ok {
+			t.Errorf("access token user for external auth validate has no email to indicate which user")
+			http.Error(rw, "invalid access token", http.StatusBadRequest)
+			return
+		}
+
+		id := chi.URLParam(r, "provider-id")
+		handle, ok := f.externalAuthValidate[id]
+		if !ok {
+			t.Errorf("missing external auth validate handler for %s", id)
+			http.Error(rw, fmt.Sprintf("missing external auth validate handler for %s", id), http.StatusBadRequest)
+			return
+		}
+		handle(email, rw, r)
+	}))
+
 	mux.Handle(keysPath, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		f.logger.Info(r.Context(), "http call idp /keys")
 		set := jose.JSONWebKeySet{
@@ -765,6 +841,30 @@ func (f *FakeIDP) SetCoderdCallbackHandler(handler http.HandlerFunc) {
 		handler.ServeHTTP(resp, req)
 		return resp.Result(), nil
 	})
+}
+
+// ExternalAuthConfig takes a validatePayload, which should be the user data in a parseable format based
+// on the type. Or just omitted if the user info is not important.
+func (f *FakeIDP) ExternalAuthConfig(t testing.TB, id string, validatePayload func(email string) interface{}, opts ...func(cfg *externalauth.Config)) *externalauth.Config {
+	if validatePayload == nil {
+		validatePayload = func(_ string) interface{} { return "OK" }
+	}
+	f.externalAuthValidate[id] = func(email string, rw http.ResponseWriter, r *http.Request) {
+		payload := validatePayload(email)
+		_ = json.NewEncoder(rw).Encode(payload)
+	}
+	cfg := &externalauth.Config{
+		OAuth2Config: f.OIDCConfig(t, nil),
+		ID:           id,
+		// No defaults for these fields by omitting the type
+		Type:        "",
+		DisplayIcon: f.WellknownConfig().UserInfoURL,
+		ValidateURL: f.issuerURL.ResolveReference(&url.URL{Path: "/external-auth-validate/" + id}).String(),
+	}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+	return cfg
 }
 
 // OIDCConfig returns the OIDC config to use for Coderd.
