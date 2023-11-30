@@ -751,9 +751,6 @@ jobs:
           flux --namespace flux-system reconcile source git flux-system
           flux --namespace flux-system reconcile source git coder-main
           flux --namespace flux-system reconcile kustomization flux-system
-          flux --namespace flux-system reconcile kustomization cert-manager
-          flux --namespace flux-system reconcile kustomization cert-manager-issuers
-          flux --namespace flux-system reconcile kustomization coder-certs
           flux --namespace flux-system reconcile kustomization coder
           flux --namespace flux-system reconcile source chart coder-coder
           flux --namespace coder reconcile helmrelease coder
