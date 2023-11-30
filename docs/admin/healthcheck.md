@@ -14,7 +14,8 @@ The Access URL section shows checks related to Coder's
 [access URL](./configure.md#access-url).
 
 Coder will periodically send a GET request to `${CODER_ACCESS_URL}/healthz` and
-validate that the response is `200 OK`.
+validate that the response is `200 OK`. The expected response body is also the
+string `OK`.
 
 If there is an issue, you may see one of the following errors reported:
 
@@ -29,10 +30,12 @@ If there is an issue, you may see one of the following errors reported:
 **Problem:** `${CODER_ACCESS_URL}/healthz` is not a valid URL.
 
 **Solution:** Ensure that the access URL is a valid URL accepted by
-[`url.Parse`](https://pkg.go.dev/net/url#Parse). You can check this
-[here](https://go.dev/play/p/CabcJZyTwt9).
+[`url.Parse`](https://pkg.go.dev/net/url#Parse). Example:
+`https://dev.coder.com/`.
 
-### <a name="EACS03">EACS03: Failed to fetch /healthz</a>
+> [!TIP] You can check this [here](https://go.dev/play/p/CabcJZyTwt9).
+
+### <a name="EACS03">EACS03: Failed to fetch `/healthz`</a>
 
 **Problem:** Coder was unable to execute a GET request to
 `${CODER_ACCESS_URL}/healthz`.
@@ -50,7 +53,12 @@ To troubleshoot further, you can log into the machine running Coder and attempt
 to run the following command:
 
 ```shell
-curl -v ${CODER_ACCESS_URL}
+curl -v ${CODER_ACCESS_URL}/healthz
+# Expected output:
+# *   Trying XXX.XXX.XXX.XXX:443
+# * Connected to https://coder.company.com (XXX.XXX.XXX.XXX) port 443 (#0)
+# [...]
+# OK
 ```
 
 The output of this command should aid further diagnosis.
@@ -83,7 +91,7 @@ query fails.
 
 **Solution:** Investigate the health of the database.
 
-### <a name="EDB02">EDB02: Database Ping High</a>
+### <a name="EDB02">EDB02: Database Latency High</a>
 
 **Problem:** This code is returned if the median latency is higher than the
 [configured threshold](../cli/server.md#--health-check-threshold-database). This
@@ -99,7 +107,7 @@ configured threshold to a higher value (this will not address the root cause).
 > - You can enable
 >   [detailed database metrics](../cli/server.md#--prometheus-collect-db-metrics)
 >   in Coder's Prometheus endpoint.
-> - Fif you have [tracing enabled](../cli/server.md#--trace), these traces may
+> - If you have [tracing enabled](../cli/server.md#--trace), these traces may
 >   also contain useful information regarding Coder's database activity.
 
 ## DERP
@@ -117,8 +125,11 @@ following:
 **Problem:** When Coder attempts to establish a connection to one or more DERP
 servers, it sends a specific `Upgrade: derp` HTTP header. Some load balancers
 may block this header, in which case Coder will fall back to
-`Upgrade: websocket`. This is not necessarily a fatal error, but a possible
-indication of a misconfigured reverse HTTP proxy.
+`Upgrade: websocket`.
+
+This is not necessarily a fatal error, but a possible indication of a
+misconfigured reverse HTTP proxy. Additionally, while workspace users should
+still be able to reach their workspaces, connection performance may be degraded.
 
 > [!NOTE] This may also be shown if you have
 > [forced websocket connections for DERP](../cli/server.md#--derp-force-websockets).
@@ -126,14 +137,22 @@ indication of a misconfigured reverse HTTP proxy.
 **Solution:** ensure that any configured reverse proxy does not strip the
 `Upgrade: derp` header.
 
-### <a name="EDERP02">EDERP02: One or more DERP nodes unhealthy</a>
+### <a name="EDERP02">EDERP02: One or more DERP nodes are unhealthy</a>
 
-**Problem:** This s shown if Coder is unable to reach one or more configured
+**Problem:** This is shown if Coder is unable to reach one or more configured
 DERP servers. Clients will fall back to use the remaining DERP servers, but
 performance may be impacted for clients closest to the unhealthy DERP server.
 
 **Solution:** Ensure that the DERP server is available and reachable over the
-network on port 443.
+network on port 443, for example:
+
+```shell
+curl -v "https://coder.company.com:443/derp"
+# Expected output:
+# *   Trying XXX.XXX.XXX.XXX:443
+# * Connected to https://coder.company.com (XXX.XXX.XXX.XXX) port 443 (#0)
+# DERP requires connection upgrade
+```
 
 ## Websocket
 
@@ -151,16 +170,21 @@ functionality, Coder will periodically attempt to establish a WebSocket
 connection with itself using the configured [Access URL](#access-url), send a
 message over the connection, and attempt to read back that same message.
 
-### <a name="EWS01">EWS01: Failed to establish a Websocket Connection</a>
+### <a name="EWS01">EWS01: Failed to establish a WebSocket connection</a>
 
 **Problem:** Coder was unable to establish a WebSocket connection over its own
 Access URL.
 
 **Solution:** There are multiple possible causes of this problem:
 
-1. Ensure that Coder's configured Access URL is accessible from the server
-   running Coder, using standard troubleshooting tools like `curl`.
-1. Ensure that any reverse proxy that is sitting in front of Coder's configured
+1. Ensure that Coder's configured Access URL can be reached from the server
+   running Coder, using standard troubleshooting tools like `curl`:
+
+   ```shell
+   curl -v "https://coder.company.com:443/"
+   ```
+
+2. Ensure that any reverse proxy that is sitting in front of Coder's configured
    access URL is not stripping the HTTP header `Upgrade: websocket`.
 
 ### <a name="EWS02">EWS02: Failed to echo a WebSocket message</a>
@@ -172,6 +196,8 @@ to write a message.
 
 1. Validate that any reverse proxy servers in front of Coder's configured access
    URL are not prematurely closing the connection.
+2. Validate that the network link between Coder and the workspace proxy is
+   stable, e.g. by using `ping`.
 
 ## Workspace Proxy
 
