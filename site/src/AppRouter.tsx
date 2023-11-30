@@ -342,6 +342,11 @@ export const AppRouter: FC = () => {
                   element={<WorkspaceSchedulePage />}
                 />
               </Route>
+
+              {/* Using path="*"" means "match anything", so this route
+              acts like a catch-all for URLs that we don't have explicit
+              routes for. */}
+              <Route path="*" element={<NotFoundPage />} />
             </Route>
 
             {/* Pages that don't have the dashboard layout */}
@@ -356,11 +361,6 @@ export const AppRouter: FC = () => {
               element={<TemplateVersionEditorPage />}
             />
           </Route>
-
-          {/* Using path="*"" means "match anything", so this route
-        acts like a catch-all for URLs that we don't have explicit
-        routes for. */}
-          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Router>
     </Suspense>
