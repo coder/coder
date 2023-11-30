@@ -321,6 +321,8 @@ export const AppRouter: FC = () => {
               </Route>
 
 
+              {/* In order for the 404 page to work properly the routes that start with
+              top level parameter must be fully qualified. */}
               <Route
                 path="/:username/:workspace"
                 element={<WorkspacePage />}
