@@ -659,7 +659,7 @@ jobs:
 
       - name: Build
         run: |
-          set -euo pipefail
+          set -euxo pipefail
           go mod download
 
           version="$(./scripts/version.sh)"
@@ -743,7 +743,7 @@ jobs:
         with:
           cluster_name: dogfood-v2
           location: us-central1-a
-          project_id: coder-dogfood
+          project_id: coder-dogfood-v2
 
       - name: Reconcile Flux
         run: |
@@ -755,6 +755,11 @@ jobs:
           flux --namespace flux-system reconcile source chart coder-coder
           flux --namespace coder reconcile helmrelease coder
 
+      # Just updating Flux is usually not enough. The Helm release may get
+      # redeployed, but unless something causes the Deployment to update the
+      # pods won't be recreated. It's important that the pods get recreated,
+      # since we use `imagePullPolicy: Always` to ensure we're running the
+      # latest image.
       - name: Rollout Deployment
         run: |
           set -euxo pipefail
