@@ -55,7 +55,7 @@ func (r *DatabaseReport) Run(ctx context.Context, opts *DatabaseReportOptions) {
 	for i := 0; i < pingCount; i++ {
 		pong, err := opts.DB.Ping(ctx)
 		if err != nil {
-			r.Error = ptr.Ref(health.Messagef(health.CodeDatabasePingFailed, "ping database: %s", err))
+			r.Error = ptr.Ref(health.Warnf(health.CodeDatabasePingFailed, "ping database: %s", err).String())
 			r.Severity = health.SeverityError
 
 			return
@@ -70,7 +70,7 @@ func (r *DatabaseReport) Run(ctx context.Context, opts *DatabaseReportOptions) {
 	r.LatencyMS = latency.Milliseconds()
 	if r.LatencyMS >= r.ThresholdMS {
 		r.Severity = health.SeverityWarning
-		r.Warnings = append(r.Warnings, health.Messagef(health.CodeDatabasePingSlow, "median database ping above threshold"))
+		r.Warnings = append(r.Warnings, health.Warnf(health.CodeDatabasePingSlow, "median database ping above threshold").String())
 	}
 	r.Healthy = true
 	r.Reachable = true

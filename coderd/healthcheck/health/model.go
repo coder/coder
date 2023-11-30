@@ -3,6 +3,8 @@ package health
 import (
 	"fmt"
 	"strings"
+
+	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
 const (
@@ -47,16 +49,34 @@ func (s Severity) Value() int {
 	return severityRank[s]
 }
 
+// @typescript-generate Warning
+type Warning struct {
+	Code    Code
+	Message string
+}
+
+func (w Warning) String() string {
+	var sb strings.Builder
+	_, _ = sb.WriteString(string(w.Code))
+	_, _ = sb.WriteRune(':')
+	_, _ = sb.WriteRune(' ')
+	_, _ = sb.WriteString(w.Message)
+	return sb.String()
+}
+
 // Code is a stable identifier used to link to documentation.
 // @typescript-generate Code
 type Code string
 
-// Messagef is a convenience function for formatting a healthcheck error message.
-func Messagef(code Code, msg string, args ...any) string {
-	var sb strings.Builder
-	_, _ = sb.WriteString(string(code))
-	_, _ = sb.WriteRune(':')
-	_, _ = sb.WriteRune(' ')
-	_, _ = sb.WriteString(fmt.Sprintf(msg, args...))
-	return sb.String()
+// Warnf is a convenience function for returning a health.Warning
+func Warnf(code Code, msg string, args ...any) Warning {
+	return Warning{
+		Code:    code,
+		Message: fmt.Sprintf(msg, args...),
+	}
+}
+
+// Errorf is a convenience function for returning a stringly-typed version of a Warning.
+func Errorf(code Code, msg string, args ...any) *string {
+	return ptr.Ref(Warnf(code, msg, args...).String())
 }

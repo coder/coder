@@ -131,7 +131,7 @@ func TestAccessURL(t *testing.T) {
 		assert.Equal(t, string(resp), report.HealthzResponse)
 		assert.Nil(t, report.Error)
 		if assert.NotEmpty(t, report.Warnings) {
-			assert.Contains(t, report.Warnings[0], health.CodeAccessURLNotOK)
+			assert.Equal(t, report.Warnings[0].Code, health.CodeAccessURLNotOK)
 		}
 	})
 
