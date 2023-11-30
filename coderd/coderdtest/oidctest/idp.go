@@ -394,6 +394,9 @@ func (f *FakeIDP) ExternalLogin(t testing.TB, client *codersdk.Client, opts ...f
 	res, err := cli.Do(req)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, res.StatusCode, "client failed to login")
+	t.Cleanup(func() {
+		res.Body.Close()
+	})
 	return res
 }
 
@@ -690,7 +693,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 		_ = json.NewEncoder(rw).Encode(token)
 	}))
 
-	mux.Handle(userInfoPath, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+	validateMW := func(rw http.ResponseWriter, r *http.Request) (email string, ok bool) {
 		token, err := f.authenticateBearerTokenRequest(t, r)
 		f.logger.Info(r.Context(), "http call idp user info",
 			slog.Error(err),
@@ -698,15 +701,23 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 		)
 		if err != nil {
 			http.Error(rw, fmt.Sprintf("invalid user info request: %s", err.Error()), http.StatusBadRequest)
-			return
+			return "", false
 		}
 
-		email, ok := f.accessTokens.Load(token)
+		email, ok = f.accessTokens.Load(token)
 		if !ok {
 			t.Errorf("access token user for user_info has no email to indicate which user")
 			http.Error(rw, "invalid access token, missing user info", http.StatusBadRequest)
+			return "", false
+		}
+		return email, true
+	}
+	mux.Handle(userInfoPath, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		email, ok := validateMW(rw, r)
+		if !ok {
 			return
 		}
+
 		claims, err := f.hookUserInfo(email)
 		if err != nil {
 			http.Error(rw, fmt.Sprintf("user info hook returned error: %s", err.Error()), httpErrorCode(http.StatusBadRequest, err))
@@ -715,21 +726,12 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 		_ = json.NewEncoder(rw).Encode(claims)
 	}))
 
+	// There is almost no difference between this and /userinfo.
+	// The main tweak is that this route is "mounted" vs "handle" because "/userinfo"
+	// should be strict, and this one needs to handle sub routes.
 	mux.Mount("/external-auth-validate/", http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		token, err := f.authenticateBearerTokenRequest(t, r)
-		f.logger.Info(r.Context(), "http call idp external auth validate",
-			slog.Error(err),
-			slog.F("url", r.URL.String()),
-		)
-		if err != nil {
-			http.Error(rw, fmt.Sprintf("invalid user info request: %s", err.Error()), http.StatusBadRequest)
-			return
-		}
-
-		email, ok := f.accessTokens.Load(token)
+		email, ok := validateMW(rw, r)
 		if !ok {
-			t.Errorf("access token user for external auth validate has no email to indicate which user")
-			http.Error(rw, "invalid access token", http.StatusBadRequest)
 			return
 		}
 
@@ -844,6 +846,9 @@ func (f *FakeIDP) SetCoderdCallbackHandler(handler http.HandlerFunc) {
 	})
 }
 
+// ExternalAuthConfigOptions exists to provide additional functionality ontop
+// of the standard "validate" url. Some providers like github we actually parse
+// the response from the validate URL to gain additional information.
 type ExternalAuthConfigOptions struct {
 	// ValidatePayload is the payload that is used when the user calls the
 	// equivalent of "userinfo" for oauth2. This is not standardized, so is
@@ -870,8 +875,7 @@ func (o *ExternalAuthConfigOptions) AddRoute(route string, handle func(email str
 	return o
 }
 
-// ExternalAuthConfig takes a validatePayload, which should be the user data in a parseable format based
-// on the type. Or just omitted if the user info is not important.
+// ExternalAuthConfig is the config for external auth providers.
 func (f *FakeIDP) ExternalAuthConfig(t testing.TB, id string, custom *ExternalAuthConfigOptions, opts ...func(cfg *externalauth.Config)) *externalauth.Config {
 	if custom == nil {
 		custom = &ExternalAuthConfigOptions{}
