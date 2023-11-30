@@ -29,7 +29,8 @@ If there is an issue, you may see one of the following errors reported:
 **Problem:** `${CODER_ACCESS_URL}/healthz` is not a valid URL.
 
 **Solution:** Ensure that the access URL is a valid URL accepted by
-[`url.Parse`](https://pkg.go.dev/net/url#Parse). You can check this [here](https://go.dev/play/p/CabcJZyTwt9).
+[`url.Parse`](https://pkg.go.dev/net/url#Parse). You can check this
+[here](https://go.dev/play/p/CabcJZyTwt9).
 
 ### <a name="EACS03">EACS03: Failed to fetch /healthz</a>
 
@@ -72,114 +73,148 @@ should give you a good indication of the root cause.
 
 ## Database
 
-Coder continuously executes a short database query to validate that it can reach its configured database, and also
-measures the median latency over 5 attempts.
+Coder continuously executes a short database query to validate that it can reach
+its configured database, and also measures the median latency over 5 attempts.
 
 ### <a name="EDB01">EDB01: Database Ping Failed</a>
 
-**Problem:** This error code is returned if any attempt to execute this database query fails.
+**Problem:** This error code is returned if any attempt to execute this database
+query fails.
 
 **Solution:** Investigate the health of the database.
 
 ### <a name="EDB02">EDB02: Database Ping High</a>
 
-**Problem:** This code is returned if the median latency is higher than the [configured threshold](../cli/server.md#--health-check-threshold-database).
-This may not be an error as such, but is an indication of a potential issue.
+**Problem:** This code is returned if the median latency is higher than the
+[configured threshold](../cli/server.md#--health-check-threshold-database). This
+may not be an error as such, but is an indication of a potential issue.
 
-**Solution:** Investigate the sizing of the configured database with regard to Coder's current activity and usage. It
-may be necessary to increase the resources allocated to Coder's database. Alternatively, you can raise the configured
-threshold to a higher value (this will not address the root cause).
+**Solution:** Investigate the sizing of the configured database with regard to
+Coder's current activity and usage. It may be necessary to increase the
+resources allocated to Coder's database. Alternatively, you can raise the
+configured threshold to a higher value (this will not address the root cause).
 
 > [!TIP]
-> - You can enable [detailed database metrics](../cli/server.md#--prometheus-collect-db-metrics) in Coder's
-> Prometheus endpoint.
-> - Fif you have [tracing enabled](../cli/server.md#--trace), these traces may also contain useful information regarding
-> Coder's database activity.
+>
+> - You can enable
+>   [detailed database metrics](../cli/server.md#--prometheus-collect-db-metrics)
+>   in Coder's Prometheus endpoint.
+> - Fif you have [tracing enabled](../cli/server.md#--trace), these traces may
+>   also contain useful information regarding Coder's database activity.
 
 ## DERP
 
-Coder workspace agents may use [DERP (Designated Encrypted Relay for Packets)](https://tailscale.com/blog/how-tailscale-works/#encrypted-tcp-relays-derp) to communicate with Coder.
-This requires connectivity to a number of configured [DERP servers](../cli/server.md#--derp-config-path) which are used
-to relay traffic between Coder and workspace agents. Coder periodically queries the health of its configured DERP servers and may return one or more of the following:
+Coder workspace agents may use
+[DERP (Designated Encrypted Relay for Packets)](https://tailscale.com/blog/how-tailscale-works/#encrypted-tcp-relays-derp)
+to communicate with Coder. This requires connectivity to a number of configured
+[DERP servers](../cli/server.md#--derp-config-path) which are used to relay
+traffic between Coder and workspace agents. Coder periodically queries the
+health of its configured DERP servers and may return one or more of the
+following:
 
 ### <a name="EDERP01">EDERP01: DERP Node Uses Websocket</a>
 
-**Problem:** When Coder attempts to establish a connection to one or more DERP servers, it sends a specific `Upgrade: derp` HTTP header.
-Some load balancers may block this header, in which case Coder will fall back to `Upgrade: websocket`.
-This is not necessarily a fatal error, but a possible indication of a misconfigured reverse HTTP proxy.
+**Problem:** When Coder attempts to establish a connection to one or more DERP
+servers, it sends a specific `Upgrade: derp` HTTP header. Some load balancers
+may block this header, in which case Coder will fall back to
+`Upgrade: websocket`. This is not necessarily a fatal error, but a possible
+indication of a misconfigured reverse HTTP proxy.
 
-> [!NOTE]
-> This may also be shown if you have [forced websocket connections for DERP](../cli/server.md#--derp-force-websockets).
+> [!NOTE] This may also be shown if you have
+> [forced websocket connections for DERP](../cli/server.md#--derp-force-websockets).
 
-**Solution:** ensure that any configured reverse proxy does not strip the `Upgrade: derp` header.
+**Solution:** ensure that any configured reverse proxy does not strip the
+`Upgrade: derp` header.
 
 ### <a name="EDERP02">EDERP02: One or more DERP nodes unhealthy</a>
 
-**Problem:** This s shown if Coder is unable to reach one or more configured DERP servers. Clients will fall back to use the remaining
-DERP servers, but performance may be impacted for clients closest to the unhealthy DERP server.
+**Problem:** This s shown if Coder is unable to reach one or more configured
+DERP servers. Clients will fall back to use the remaining DERP servers, but
+performance may be impacted for clients closest to the unhealthy DERP server.
 
-**Solution:** Ensure that the DERP server is available and reachable over the network on port 443.
+**Solution:** Ensure that the DERP server is available and reachable over the
+network on port 443.
 
 ## Websocket
 
-Coder makes heavy use of [WebSockets](https://datatracker.ietf.org/doc/rfc6455/) for long-lived connections:
-- Between users interacting with Coder's Web UI (for example, the built-in terminal, or VSCode Web),
+Coder makes heavy use of [WebSockets](https://datatracker.ietf.org/doc/rfc6455/)
+for long-lived connections:
+
+- Between users interacting with Coder's Web UI (for example, the built-in
+  terminal, or VSCode Web),
 - Between workspace agents and `coderd`,
 - Between Coder [workspace proxies](../admin/workspace-proxies.md) and `coderd`.
 
-Any issues causing failures to establish WebSocket connections will result in **severe** impairment of functionality for
-users. To validate this functionality, Coder will periodically attempt to establish a WebSocket connection with itself
-using the configured [Access URL](#access-url), send a message over the connection, and attempt to read back that same message.
+Any issues causing failures to establish WebSocket connections will result in
+**severe** impairment of functionality for users. To validate this
+functionality, Coder will periodically attempt to establish a WebSocket
+connection with itself using the configured [Access URL](#access-url), send a
+message over the connection, and attempt to read back that same message.
 
 ### <a name="EWS01">EWS01: Failed to establish a Websocket Connection</a>
 
-**Problem:** Coder was unable to establish a WebSocket connection over its own Access URL.
+**Problem:** Coder was unable to establish a WebSocket connection over its own
+Access URL.
 
 **Solution:** There are multiple possible causes of this problem:
 
-1. Ensure that Coder's configured Access URL is accessible from the server running Coder, using standard
-troubleshooting tools like `curl`.
-1. Ensure that any reverse proxy that is sitting in front of Coder's configured access URL is not stripping the HTTP header `Upgrade: websocket`.
+1. Ensure that Coder's configured Access URL is accessible from the server
+   running Coder, using standard troubleshooting tools like `curl`.
+1. Ensure that any reverse proxy that is sitting in front of Coder's configured
+   access URL is not stripping the HTTP header `Upgrade: websocket`.
 
 ### <a name="EWS02">EWS02: Failed to echo a WebSocket message</a>
 
-**Problem:** Coder was able to establish a WebSocket connection, but was unable to write a message.
+**Problem:** Coder was able to establish a WebSocket connection, but was unable
+to write a message.
 
 **Solution:** There are multiple possible causes of this problem:
 
-1. Validate that any reverse proxy servers in front of Coder's configured access URL are not prematurely closing the connection.
+1. Validate that any reverse proxy servers in front of Coder's configured access
+   URL are not prematurely closing the connection.
 
 ## Workspace Proxy
 
-If you have configured [Workspace Proxies](../admin/workspace-proxies.md), Coder will periodically query their availability and show their status here.
+If you have configured [Workspace Proxies](../admin/workspace-proxies.md), Coder
+will periodically query their availability and show their status here.
 
 ### <a name="EWP01">EWP01: Error Updating Workspace Proxy Health</a>
 
-**Problem:** Coder was unable to query the connected workspace proxies for their health status.
+**Problem:** Coder was unable to query the connected workspace proxies for their
+health status.
 
-**Solution:** This may be a transient issue. If it persists, it could signify a connectivity issue.
+**Solution:** This may be a transient issue. If it persists, it could signify a
+connectivity issue.
 
 ### <a name="EWP02">EWP02: Error Fetching Workspace Proxies</a>
 
-**Problem:** Coder was unable to fetch the stored workspace proxy health data from the database.
+**Problem:** Coder was unable to fetch the stored workspace proxy health data
+from the database.
 
-**Solution:** This may be a transient issue. If it persists, it could signify an issue with Coder's configured database.
+**Solution:** This may be a transient issue. If it persists, it could signify an
+issue with Coder's configured database.
 
 ### <a name="EWP03">EWP03: Workspace Proxy Version Mismatch</a>
 
-**Problem:** One or more workspace proxies are more than one major or minor version out of date with the main deployment.
-It is important that workspace proxies are updated at the same time as the main deployment to minimize the risk of API incompatibility.
+**Problem:** One or more workspace proxies are more than one major or minor
+version out of date with the main deployment. It is important that workspace
+proxies are updated at the same time as the main deployment to minimize the risk
+of API incompatibility.
 
-**Solution:** Update the workspace proxy to match the currently running version of Coder.
+**Solution:** Update the workspace proxy to match the currently running version
+of Coder.
 
 ### <a name="EWP04">EWP04: One or more Workspace Proxies Unhealthy</a>
 
 **Problem:** One or more workspace proxies are not reachable.
 
-**Solution:** Ensure that Coder can establish a connection to the configured workspace proxies on port 443.
+**Solution:** Ensure that Coder can establish a connection to the configured
+workspace proxies on port 443.
 
 ## <a name="EUNKNOWN">Unknown Error</a>
 
-**Problem:** This error is shown when an unexpected error occurred evaluating deployment health. It may resolve on its own.
+**Problem:** This error is shown when an unexpected error occurred evaluating
+deployment health. It may resolve on its own.
 
-**Solution:** This may be a bug. [File a GitHub issue](https://github.com/coder/coder/issues/new)!
+**Solution:** This may be a bug.
+[File a GitHub issue](https://github.com/coder/coder/issues/new)!
