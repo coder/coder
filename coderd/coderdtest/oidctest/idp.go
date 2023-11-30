@@ -50,11 +50,14 @@ type FakeIDP struct {
 	// clientID to be used by coderd
 	clientID     string
 	clientSecret string
-	logger       slog.Logger
+	// externalProviderID is optional to match the provider in coderd for
+	// redirectURLs.
+	externalProviderID string
+	logger             slog.Logger
 	// externalAuthValidate will be called when the user tries to validate their
 	// external auth. The fake IDP will reject any invalid tokens, so this just
 	// controls the response payload after a successfully authed token.
-	externalAuthValidate map[string]func(email string, rw http.ResponseWriter, r *http.Request)
+	externalAuthValidate func(email string, rw http.ResponseWriter, r *http.Request)
 
 	// These maps are used to control the state of the IDP.
 	// That is the various access tokens, refresh tokens, states, etc.
@@ -197,7 +200,6 @@ func NewFakeIDP(t testing.TB, opts ...FakeIDPOpt) *FakeIDP {
 		hookOnRefresh:        func(_ string) error { return nil },
 		hookUserInfo:         func(email string) (jwt.MapClaims, error) { return jwt.MapClaims{}, nil },
 		hookValidRedirectURL: func(redirectURL string) error { return nil },
-		externalAuthValidate: make(map[string]func(email string, rw http.ResponseWriter, r *http.Request)),
 	}
 
 	for _, opt := range opts {
@@ -356,8 +358,8 @@ func (f *FakeIDP) LoginWithClient(t testing.TB, client *codersdk.Client, idToken
 
 // ExternalLogin does the oauth2 flow for external auth providers. This requires
 // an authenticated coder client.
-func (f *FakeIDP) ExternalLogin(t testing.TB, client *codersdk.Client, providerID string, opts ...func(r *http.Request)) *http.Response {
-	coderOauthURL, err := client.URL.Parse(fmt.Sprintf("/external-auth/%s/callback", providerID))
+func (f *FakeIDP) ExternalLogin(t testing.TB, client *codersdk.Client, opts ...func(r *http.Request)) *http.Response {
+	coderOauthURL, err := client.URL.Parse(fmt.Sprintf("/external-auth/%s/callback", f.externalProviderID))
 	require.NoError(t, err)
 	f.SetRedirect(t, coderOauthURL.String())
 
@@ -713,7 +715,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 		_ = json.NewEncoder(rw).Encode(claims)
 	}))
 
-	mux.Mount("/external-auth-validate/{provider-id}", http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+	mux.Mount("/external-auth-validate/", http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		token, err := f.authenticateBearerTokenRequest(t, r)
 		f.logger.Info(r.Context(), "http call idp external auth validate",
 			slog.Error(err),
@@ -731,14 +733,13 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 			return
 		}
 
-		id := chi.URLParam(r, "provider-id")
-		handle, ok := f.externalAuthValidate[id]
-		if !ok {
-			t.Errorf("missing external auth validate handler for %s", id)
-			http.Error(rw, fmt.Sprintf("missing external auth validate handler for %s", id), http.StatusBadRequest)
+		if f.externalAuthValidate == nil {
+			t.Errorf("missing external auth validate handler")
+			http.Error(rw, "missing external auth validate handler", http.StatusBadRequest)
 			return
 		}
-		handle(email, rw, r)
+
+		f.externalAuthValidate(email, rw, r)
 	}))
 
 	mux.Handle(keysPath, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -850,7 +851,7 @@ type ExternalAuthConfigOptions struct {
 	ValidatePayload func(email string) interface{}
 
 	// routes is more advanced usage. This allows the caller to
-	// completely customize the response. It captures all routes under the /external-auth-validate/{provider-id}/*
+	// completely customize the response. It captures all routes under the /external-auth-validate/*
 	// so the caller can do whatever they want and even add routes.
 	routes map[string]func(email string, rw http.ResponseWriter, r *http.Request)
 }
@@ -875,8 +876,8 @@ func (f *FakeIDP) ExternalAuthConfig(t testing.TB, id string, custom *ExternalAu
 	if custom == nil {
 		custom = &ExternalAuthConfigOptions{}
 	}
-
-	f.externalAuthValidate[id] = func(email string, rw http.ResponseWriter, r *http.Request) {
+	f.externalProviderID = id
+	f.externalAuthValidate = func(email string, rw http.ResponseWriter, r *http.Request) {
 		newPath := strings.TrimPrefix(r.URL.Path, fmt.Sprintf("/external-auth-validate/%s", id))
 		switch newPath {
 		// /user is ALWAYS supported under the `/` path too.

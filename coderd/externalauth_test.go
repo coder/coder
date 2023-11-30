@@ -63,7 +63,7 @@ func TestExternalAuthByID(t *testing.T) {
 		})
 
 		coderdtest.CreateFirstUser(t, client)
-		fake.ExternalLogin(t, client, providerID)
+		fake.ExternalLogin(t, client)
 
 		auth, err := client.ExternalAuthByID(context.Background(), providerID)
 		require.NoError(t, err)
@@ -90,7 +90,7 @@ func TestExternalAuthByID(t *testing.T) {
 
 		coderdtest.CreateFirstUser(t, client)
 		// Login to external auth provider
-		fake.ExternalLogin(t, client, providerID)
+		fake.ExternalLogin(t, client)
 
 		auth, err := client.ExternalAuthByID(context.Background(), providerID)
 		require.NoError(t, err)
@@ -133,7 +133,7 @@ func TestExternalAuthByID(t *testing.T) {
 		})
 
 		coderdtest.CreateFirstUser(t, client)
-		fake.ExternalLogin(t, client, providerID)
+		fake.ExternalLogin(t, client)
 
 		auth, err := client.ExternalAuthByID(context.Background(), providerID)
 		require.NoError(t, err)
