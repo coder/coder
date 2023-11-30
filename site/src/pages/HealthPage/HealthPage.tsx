@@ -103,13 +103,24 @@ export function HealthPageView({
                   justifyContent: "space-between",
                 }}
               >
-                <CheckCircleOutlined
-                  css={{
-                    width: 32,
-                    height: 32,
-                    color: theme.palette.success.light,
-                  }}
-                />
+                {healthStatus.healthy ? (
+                  <CheckCircleOutlined
+                    css={{
+                      width: 32,
+                      height: 32,
+                      color: theme.palette.success.light,
+                    }}
+                  />
+                ) : (
+                  <ErrorOutline
+                    css={{
+                      width: 32,
+                      height: 32,
+                      color: theme.palette.error.light,
+                    }}
+                  />
+                )}
+
                 <Tooltip title="Refresh health checks">
                   <IconButton
                     size="small"
