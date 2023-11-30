@@ -1,9 +1,11 @@
 package agentssh
 
 import (
+	"strings"
 	"sync"
 
 	"cdr.dev/slog"
+	"github.com/gliderlabs/ssh"
 	"go.uber.org/atomic"
 	gossh "golang.org/x/crypto/ssh"
 )
@@ -21,17 +23,35 @@ type ChannelAcceptWatcher struct {
 	jetbrainsCounter *atomic.Int64
 }
 
-func NewChannelAcceptWatcher(logger slog.Logger, newChannel gossh.NewChannel, counter *atomic.Int64) gossh.NewChannel {
+func NewChannelAcceptWatcher(ctx ssh.Context, logger slog.Logger, newChannel gossh.NewChannel, counter *atomic.Int64) gossh.NewChannel {
 	d := localForwardChannelData{}
 	if err := gossh.Unmarshal(newChannel.ExtraData(), &d); err != nil {
-		// If the data fails to unmarshal, do nothing
+		// If the data fails to unmarshal, do nothing.
 		return newChannel
 	}
 
-	//if !jetbrains {
-	// If this isn't jetbrains, then we don't need to do anything special.
-	//return newChannel
-	//}
+	// If we do get a port, we should be able to get the matching PID and from
+	// there look up the invocation.
+	cmdline, err := getListeningPortProcessCmdline(d.DestPort)
+	if err != nil {
+		logger.Warn(ctx, "port inspection failed",
+			slog.F("destination_port", d.DestPort),
+			slog.Error(err))
+		return newChannel
+	}
+	logger.Debug(ctx, "checking forwarded process",
+		slog.F("cmdline", cmdline),
+		slog.F("destination_port", d.DestPort))
+
+	// If this is not JetBrains, then we do not need to do anything special.  We
+	// attempt to match on something that appears unique to JetBrains software and
+	// the vendor name flag seems like it might be a reasonable choice.
+	if !strings.Contains(strings.ToLower(cmdline), "idea.vendor.name=jetbrains") {
+		return newChannel
+	}
+
+	logger.Debug(ctx, "discovered forwarded JetBrains process",
+		slog.F("destination_port", d.DestPort))
 
 	return &ChannelAcceptWatcher{
 		NewChannel:       newChannel,

@@ -113,7 +113,7 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		ChannelHandlers: map[string]ssh.ChannelHandler{
 			"direct-tcpip": func(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.NewChannel, ctx ssh.Context) {
 				// wrapper is designed to find and track jetbrains gateway connections.
-				wrapped := NewChannelAcceptWatcher(s.logger, newChan, &s.connCountJetBrains)
+				wrapped := NewChannelAcceptWatcher(ctx, s.logger, newChan, &s.connCountJetBrains)
 				ssh.DirectTCPIPHandler(srv, conn, wrapped, ctx)
 			},
 			"direct-streamlocal@openssh.com": directStreamLocalHandler,

@@ -192,10 +192,13 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	// This test name being "Jetbrains" is required to be a certain string.
-	// It must match the regex check in the agent for Jetbrains.
-	t.Run("Jetbrains", func(t *testing.T) {
+	// This test name must contain the string checked for by the agent, since it
+	// looks for this string in the process name.
+	t.Run("TracksIdea.vendor.name=JetBrains", func(t *testing.T) {
 		t.Parallel()
+		if runtime.GOOS != "linux" {
+			t.Skip("JetBrains tracking is only supported on Linux")
+		}
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		rl, err := net.Listen("tcp", "127.0.0.1:0")
