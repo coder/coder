@@ -131,7 +131,7 @@ This is not necessarily a fatal error, but a possible indication of a
 misconfigured reverse HTTP proxy. Additionally, while workspace users should
 still be able to reach their workspaces, connection performance may be degraded.
 
-> [!NOTE] This may also be shown if you have
+> **Note:** This may also be shown if you have
 > [forced websocket connections for DERP](../cli/server.md#--derp-force-websockets).
 
 **Solution:** ensure that any configured reverse proxy does not strip the
