@@ -739,7 +739,7 @@ jobs:
         uses: fluxcd/flux2/action@main
 
       - name: Get Cluster Credentials
-        uses: 'google-github-actions/get-gke-credentials@v1'
+        uses: "google-github-actions/get-gke-credentials@v1"
         with:
           cluster_name: dogfood-v2
           location: us-central1-a
