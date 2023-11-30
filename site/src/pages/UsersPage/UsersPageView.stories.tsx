@@ -29,15 +29,29 @@ const meta: Meta<typeof UsersPageView> = {
   title: "pages/UsersPage",
   component: UsersPageView,
   args: {
-    page: 1,
-    limit: 25,
     isNonInitialPage: false,
     users: [MockUser, MockUser2],
     roles: MockAssignableSiteRoles,
-    count: 2,
+
     canEditUsers: true,
     filterProps: defaultFilterProps,
     authMethods: MockAuthMethodsPasswordOnly,
+
+    usersQuery: {
+      isSuccess: true,
+      currentPage: 1,
+      limit: 25,
+      totalRecords: 2,
+      hasNextPage: false,
+      hasPreviousPage: false,
+      totalPages: 1,
+      currentChunk: 1,
+      isPreviousData: false,
+      goToFirstPage: () => {},
+      goToPreviousPage: () => {},
+      goToNextPage: () => {},
+      onPageChange: () => {},
+    },
   },
 };
 
