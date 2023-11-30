@@ -2986,6 +2986,19 @@ func (q *sqlQuerier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.
 	return items, nil
 }
 
+const deleteOldProvisionerDaemons = `-- name: DeleteOldProvisionerDaemons :exec
+DELETE FROM provisioner_daemons WHERE created_at < (NOW() - INTERVAL '7 days') AND updated_at < (NOW() - INTERVAL '7 days')
+`
+
+// Delete provisioner daemons that have been created at least a week ago
+// and have not connected to coderd since a week.
+// A provisioner daemon with "zeroed" updated_at column indicates possible
+// connectivity issues (no provisioner daemon activity since registration).
+func (q *sqlQuerier) DeleteOldProvisionerDaemons(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deleteOldProvisionerDaemons)
+	return err
+}
+
 const getProvisionerDaemons = `-- name: GetProvisionerDaemons :many
 SELECT
 	id, created_at, updated_at, name, provisioners, replica_id, tags
