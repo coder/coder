@@ -236,6 +236,7 @@ func (u *fakeWorkspaceProxyFetchUpdater) Update(ctx context.Context) error {
 	return u.updateFunc(ctx)
 }
 
+//nolint:revive // yes, this is a control flag, and that is OK in a unit test.
 func fakeWorkspaceProxy(name string, healthy bool, version string) codersdk.WorkspaceProxy {
 	var status codersdk.WorkspaceProxyStatus
 	if !healthy {

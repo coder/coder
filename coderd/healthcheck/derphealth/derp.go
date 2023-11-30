@@ -136,9 +136,7 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 				r.Healthy = false
 			}
 
-			for _, w := range regionReport.Warnings {
-				r.Warnings = append(r.Warnings, w)
-			}
+			r.Warnings = append(r.Warnings, regionReport.Warnings...)
 			mu.Unlock()
 		}()
 	}
@@ -202,9 +200,7 @@ func (r *RegionReport) Run(ctx context.Context) {
 				unhealthyNodes++
 			}
 
-			for _, w := range nodeReport.Warnings {
-				r.Warnings = append(r.Warnings, w)
-			}
+			r.Warnings = append(r.Warnings, nodeReport.Warnings...)
 			r.mu.Unlock()
 		}()
 	}

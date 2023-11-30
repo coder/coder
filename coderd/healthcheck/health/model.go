@@ -54,9 +54,9 @@ type Code string
 // Messagef is a convenience function for formatting a healthcheck error message.
 func Messagef(code Code, msg string, args ...any) string {
 	var sb strings.Builder
-	sb.WriteString(string(code))
-	sb.WriteRune(':')
-	sb.WriteRune(' ')
-	sb.WriteString(fmt.Sprintf(msg, args...))
+	_, _ = sb.WriteString(string(code))
+	_, _ = sb.WriteRune(':')
+	_, _ = sb.WriteRune(' ')
+	_, _ = sb.WriteString(fmt.Sprintf(msg, args...))
 	return sb.String()
 }
