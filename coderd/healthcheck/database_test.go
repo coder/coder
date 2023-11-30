@@ -143,7 +143,7 @@ func TestDatabase(t *testing.T) {
 		assert.Equal(t, time.Second.Milliseconds(), report.ThresholdMS)
 		assert.Nil(t, report.Error)
 		if assert.NotEmpty(t, report.Warnings) {
-			assert.Contains(t, report.Warnings[0], health.CodeDatabasePingSlow)
+			assert.Equal(t, report.Warnings[0].Code, health.CodeDatabasePingSlow)
 		}
 	})
 }

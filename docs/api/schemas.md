@@ -7176,7 +7176,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "error": "string"
   },
   "uses_websocket": true,
-  "warnings": ["string"]
+  "warnings": [
+    {
+      "code": "EUNKNOWN",
+      "message": "string"
+    }
+  ]
 }
 ```
 
@@ -7196,7 +7201,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `severity`              | [health.Severity](#healthseverity)               | false    |              |                                                                                             |
 | `stun`                  | [derphealth.StunReport](#derphealthstunreport)   | false    |              |                                                                                             |
 | `uses_websocket`        | boolean                                          | false    |              |                                                                                             |
-| `warnings`              | array of string                                  | false    |              |                                                                                             |
+| `warnings`              | array of [health.Message](#healthmessage)        | false    |              |                                                                                             |
 
 #### Enumerated Values
 
@@ -7247,7 +7252,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "error": "string"
       },
       "uses_websocket": true,
-      "warnings": ["string"]
+      "warnings": [
+        {
+          "code": "EUNKNOWN",
+          "message": "string"
+        }
+      ]
     }
   ],
   "region": {
@@ -7275,7 +7285,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "regionName": "string"
   },
   "severity": "ok",
-  "warnings": ["string"]
+  "warnings": [
+    {
+      "code": "EUNKNOWN",
+      "message": "string"
+    }
+  ]
 }
 ```
 
@@ -7288,7 +7303,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `node_reports` | array of [derphealth.NodeReport](#derphealthnodereport) | false    |              |                                                                                             |
 | `region`       | [tailcfg.DERPRegion](#tailcfgderpregion)                | false    |              |                                                                                             |
 | `severity`     | [health.Severity](#healthseverity)                      | false    |              |                                                                                             |
-| `warnings`     | array of string                                         | false    |              |                                                                                             |
+| `warnings`     | array of [health.Message](#healthmessage)               | false    |              |                                                                                             |
 
 #### Enumerated Values
 
@@ -7376,7 +7391,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "error": "string"
           },
           "uses_websocket": true,
-          "warnings": ["string"]
+          "warnings": [
+            {
+              "code": "EUNKNOWN",
+              "message": "string"
+            }
+          ]
         }
       ],
       "region": {
@@ -7404,7 +7424,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "regionName": "string"
       },
       "severity": "ok",
-      "warnings": ["string"]
+      "warnings": [
+        {
+          "code": "EUNKNOWN",
+          "message": "string"
+        }
+      ]
     },
     "property2": {
       "error": "string",
@@ -7444,7 +7469,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "error": "string"
           },
           "uses_websocket": true,
-          "warnings": ["string"]
+          "warnings": [
+            {
+              "code": "EUNKNOWN",
+              "message": "string"
+            }
+          ]
         }
       ],
       "region": {
@@ -7472,11 +7502,21 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "regionName": "string"
       },
       "severity": "ok",
-      "warnings": ["string"]
+      "warnings": [
+        {
+          "code": "EUNKNOWN",
+          "message": "string"
+        }
+      ]
     }
   },
   "severity": "ok",
-  "warnings": ["string"]
+  "warnings": [
+    {
+      "code": "EUNKNOWN",
+      "message": "string"
+    }
+  ]
 }
 ```
 
@@ -7493,7 +7533,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `regions`          | object                                             | false    |              |                                                                                             |
 | » `[any property]` | [derphealth.RegionReport](#derphealthregionreport) | false    |              |                                                                                             |
 | `severity`         | [health.Severity](#healthseverity)                 | false    |              |                                                                                             |
-| `warnings`         | array of string                                    | false    |              |                                                                                             |
+| `warnings`         | array of [health.Message](#healthmessage)          | false    |              |                                                                                             |
 
 #### Enumerated Values
 
@@ -7520,6 +7560,51 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `canSTUN` | boolean | false    |              |             |
 | `enabled` | boolean | false    |              |             |
 | `error`   | string  | false    |              |             |
+
+## health.Code
+
+```json
+"EUNKNOWN"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value      |
+| ---------- |
+| `EUNKNOWN` |
+| `EWP01`    |
+| `EWP02`    |
+| `EWP03`    |
+| `EWP04`    |
+| `EDB01`    |
+| `EDB02`    |
+| `EWS01`    |
+| `EWS02`    |
+| `EWS03`    |
+| `EACS01`   |
+| `EACS02`   |
+| `EACS03`   |
+| `EACS04`   |
+| `EDERP01`  |
+| `EDERP02`  |
+
+## health.Message
+
+```json
+{
+  "code": "EUNKNOWN",
+  "message": "string"
+}
+```
+
+### Properties
+
+| Name      | Type                       | Required | Restrictions | Description |
+| --------- | -------------------------- | -------- | ------------ | ----------- |
+| `code`    | [health.Code](#healthcode) | false    |              |             |
+| `message` | string                     | false    |              |             |
 
 ## health.Severity
 
@@ -7549,23 +7634,28 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "reachable": true,
   "severity": "ok",
   "status_code": 0,
-  "warnings": ["string"]
+  "warnings": [
+    {
+      "code": "EUNKNOWN",
+      "message": "string"
+    }
+  ]
 }
 ```
 
 ### Properties
 
-| Name               | Type                               | Required | Restrictions | Description                                                                                 |
-| ------------------ | ---------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
-| `access_url`       | string                             | false    |              |                                                                                             |
-| `dismissed`        | boolean                            | false    |              |                                                                                             |
-| `error`            | string                             | false    |              |                                                                                             |
-| `healthy`          | boolean                            | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
-| `healthz_response` | string                             | false    |              |                                                                                             |
-| `reachable`        | boolean                            | false    |              |                                                                                             |
-| `severity`         | [health.Severity](#healthseverity) | false    |              |                                                                                             |
-| `status_code`      | integer                            | false    |              |                                                                                             |
-| `warnings`         | array of string                    | false    |              |                                                                                             |
+| Name               | Type                                      | Required | Restrictions | Description                                                                                 |
+| ------------------ | ----------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
+| `access_url`       | string                                    | false    |              |                                                                                             |
+| `dismissed`        | boolean                                   | false    |              |                                                                                             |
+| `error`            | string                                    | false    |              |                                                                                             |
+| `healthy`          | boolean                                   | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
+| `healthz_response` | string                                    | false    |              |                                                                                             |
+| `reachable`        | boolean                                   | false    |              |                                                                                             |
+| `severity`         | [health.Severity](#healthseverity)        | false    |              |                                                                                             |
+| `status_code`      | integer                                   | false    |              |                                                                                             |
+| `warnings`         | array of [health.Message](#healthmessage) | false    |              |                                                                                             |
 
 #### Enumerated Values
 
@@ -7587,23 +7677,28 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "reachable": true,
   "severity": "ok",
   "threshold_ms": 0,
-  "warnings": ["string"]
+  "warnings": [
+    {
+      "code": "EUNKNOWN",
+      "message": "string"
+    }
+  ]
 }
 ```
 
 ### Properties
 
-| Name           | Type                               | Required | Restrictions | Description                                                                                 |
-| -------------- | ---------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
-| `dismissed`    | boolean                            | false    |              |                                                                                             |
-| `error`        | string                             | false    |              |                                                                                             |
-| `healthy`      | boolean                            | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
-| `latency`      | string                             | false    |              |                                                                                             |
-| `latency_ms`   | integer                            | false    |              |                                                                                             |
-| `reachable`    | boolean                            | false    |              |                                                                                             |
-| `severity`     | [health.Severity](#healthseverity) | false    |              |                                                                                             |
-| `threshold_ms` | integer                            | false    |              |                                                                                             |
-| `warnings`     | array of string                    | false    |              |                                                                                             |
+| Name           | Type                                      | Required | Restrictions | Description                                                                                 |
+| -------------- | ----------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
+| `dismissed`    | boolean                                   | false    |              |                                                                                             |
+| `error`        | string                                    | false    |              |                                                                                             |
+| `healthy`      | boolean                                   | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
+| `latency`      | string                                    | false    |              |                                                                                             |
+| `latency_ms`   | integer                                   | false    |              |                                                                                             |
+| `reachable`    | boolean                                   | false    |              |                                                                                             |
+| `severity`     | [health.Severity](#healthseverity)        | false    |              |                                                                                             |
+| `threshold_ms` | integer                                   | false    |              |                                                                                             |
+| `warnings`     | array of [health.Message](#healthmessage) | false    |              |                                                                                             |
 
 #### Enumerated Values
 
@@ -7626,7 +7721,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "reachable": true,
     "severity": "ok",
     "status_code": 0,
-    "warnings": ["string"]
+    "warnings": [
+      {
+        "code": "EUNKNOWN",
+        "message": "string"
+      }
+    ]
   },
   "coder_version": "string",
   "database": {
@@ -7638,7 +7738,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "reachable": true,
     "severity": "ok",
     "threshold_ms": 0,
-    "warnings": ["string"]
+    "warnings": [
+      {
+        "code": "EUNKNOWN",
+        "message": "string"
+      }
+    ]
   },
   "derp": {
     "dismissed": true,
@@ -7715,7 +7820,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "error": "string"
             },
             "uses_websocket": true,
-            "warnings": ["string"]
+            "warnings": [
+              {
+                "code": "EUNKNOWN",
+                "message": "string"
+              }
+            ]
           }
         ],
         "region": {
@@ -7743,7 +7853,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "regionName": "string"
         },
         "severity": "ok",
-        "warnings": ["string"]
+        "warnings": [
+          {
+            "code": "EUNKNOWN",
+            "message": "string"
+          }
+        ]
       },
       "property2": {
         "error": "string",
@@ -7783,7 +7898,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "error": "string"
             },
             "uses_websocket": true,
-            "warnings": ["string"]
+            "warnings": [
+              {
+                "code": "EUNKNOWN",
+                "message": "string"
+              }
+            ]
           }
         ],
         "region": {
@@ -7811,11 +7931,21 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "regionName": "string"
         },
         "severity": "ok",
-        "warnings": ["string"]
+        "warnings": [
+          {
+            "code": "EUNKNOWN",
+            "message": "string"
+          }
+        ]
       }
     },
     "severity": "ok",
-    "warnings": ["string"]
+    "warnings": [
+      {
+        "code": "EUNKNOWN",
+        "message": "string"
+      }
+    ]
   },
   "failing_sections": ["string"],
   "healthy": true,
@@ -7835,7 +7965,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "error": "string",
     "healthy": true,
     "severity": "ok",
-    "warnings": ["string"],
+    "warnings": [
+      {
+        "code": "EUNKNOWN",
+        "message": "string"
+      }
+    ],
     "workspace_proxies": {
       "regions": [
         {
@@ -7932,7 +8067,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "error": "string",
   "healthy": true,
   "severity": "ok",
-  "warnings": ["string"],
+  "warnings": [
+    {
+      "code": "EUNKNOWN",
+      "message": "string"
+    }
+  ],
   "workspace_proxies": {
     "regions": [
       {
@@ -7971,7 +8111,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `error`             | string                                                                                               | false    |              |             |
 | `healthy`           | boolean                                                                                              | false    |              |             |
 | `severity`          | [health.Severity](#healthseverity)                                                                   | false    |              |             |
-| `warnings`          | array of string                                                                                      | false    |              |             |
+| `warnings`          | array of [health.Message](#healthmessage)                                                            | false    |              |             |
 | `workspace_proxies` | [codersdk.RegionsResponse-codersdk_WorkspaceProxy](#codersdkregionsresponse-codersdk_workspaceproxy) | false    |              |             |
 
 ## netcheck.Report

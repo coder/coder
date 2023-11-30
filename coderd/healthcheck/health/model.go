@@ -3,6 +3,8 @@ package health
 import (
 	"fmt"
 	"strings"
+
+	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
 const (
@@ -47,16 +49,34 @@ func (s Severity) Value() int {
 	return severityRank[s]
 }
 
+// @typescript-generate Message
+type Message struct {
+	Code    Code   `json:"code"`
+	Message string `json:"message"`
+}
+
+func (m Message) String() string {
+	var sb strings.Builder
+	_, _ = sb.WriteString(string(m.Code))
+	_, _ = sb.WriteRune(':')
+	_, _ = sb.WriteRune(' ')
+	_, _ = sb.WriteString(m.Message)
+	return sb.String()
+}
+
 // Code is a stable identifier used to link to documentation.
 // @typescript-generate Code
 type Code string
 
-// Messagef is a convenience function for formatting a healthcheck error message.
-func Messagef(code Code, msg string, args ...any) string {
-	var sb strings.Builder
-	_, _ = sb.WriteString(string(code))
-	_, _ = sb.WriteRune(':')
-	_, _ = sb.WriteRune(' ')
-	_, _ = sb.WriteString(fmt.Sprintf(msg, args...))
-	return sb.String()
+// Messagef is a convenience function for returning a health.Message
+func Messagef(code Code, msg string, args ...any) Message {
+	return Message{
+		Code:    code,
+		Message: fmt.Sprintf(msg, args...),
+	}
+}
+
+// Errorf is a convenience function for returning a stringly-typed version of a Message.
+func Errorf(code Code, msg string, args ...any) *string {
+	return ptr.Ref(Messagef(code, msg, args...).String())
 }

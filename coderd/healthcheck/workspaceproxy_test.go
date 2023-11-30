@@ -2,7 +2,6 @@ package healthcheck_test
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,7 +26,7 @@ func TestWorkspaceProxies(t *testing.T) {
 		updateProxyHealth     func(context.Context) error
 		expectedHealthy       bool
 		expectedError         string
-		expectedWarning       string
+		expectedWarningCode   health.Code
 		expectedSeverity      health.Severity
 	}{
 		{
@@ -103,10 +102,10 @@ func TestWorkspaceProxies(t *testing.T) {
 				fakeWorkspaceProxy("alpha", false, currentVersion),
 				fakeWorkspaceProxy("beta", true, currentVersion),
 			),
-			updateProxyHealth: fakeUpdateProxyHealth(nil),
-			expectedHealthy:   true,
-			expectedSeverity:  health.SeverityWarning,
-			expectedWarning:   string(health.CodeProxyUnhealthy),
+			updateProxyHealth:   fakeUpdateProxyHealth(nil),
+			expectedHealthy:     true,
+			expectedSeverity:    health.SeverityWarning,
+			expectedWarningCode: health.CodeProxyUnhealthy,
 		},
 		{
 			name: "Enabled/AllUnhealthy",
@@ -163,7 +162,7 @@ func TestWorkspaceProxies(t *testing.T) {
 			updateProxyHealth:     fakeUpdateProxyHealth(assert.AnError),
 			expectedHealthy:       true,
 			expectedSeverity:      health.SeverityWarning,
-			expectedWarning:       string(health.CodeProxyUpdate),
+			expectedWarningCode:   health.CodeProxyUpdate,
 		},
 	} {
 		tt := tt
@@ -190,15 +189,15 @@ func TestWorkspaceProxies(t *testing.T) {
 			} else {
 				assert.Nil(t, rpt.Error)
 			}
-			if tt.expectedWarning != "" && assert.NotEmpty(t, rpt.Warnings) {
+			if tt.expectedWarningCode != "" && assert.NotEmpty(t, rpt.Warnings) {
 				var found bool
 				for _, w := range rpt.Warnings {
-					if strings.Contains(w, tt.expectedWarning) {
+					if w.Code == tt.expectedWarningCode {
 						found = true
 						break
 					}
 				}
-				assert.True(t, found, "expected warning %s not found in %v", tt.expectedWarning, rpt.Warnings)
+				assert.True(t, found, "expected warning %s not found in %v", tt.expectedWarningCode, rpt.Warnings)
 			} else {
 				assert.Empty(t, rpt.Warnings)
 			}

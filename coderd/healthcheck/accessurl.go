@@ -8,16 +8,15 @@ import (
 	"time"
 
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
 // @typescript-generate AccessURLReport
 type AccessURLReport struct {
 	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
-	Healthy   bool            `json:"healthy"`
-	Severity  health.Severity `json:"severity" enums:"ok,warning,error"`
-	Warnings  []string        `json:"warnings"`
-	Dismissed bool            `json:"dismissed"`
+	Healthy   bool             `json:"healthy"`
+	Severity  health.Severity  `json:"severity" enums:"ok,warning,error"`
+	Warnings  []health.Message `json:"warnings"`
+	Dismissed bool             `json:"dismissed"`
 
 	AccessURL       string  `json:"access_url"`
 	Reachable       bool    `json:"reachable"`
@@ -38,11 +37,11 @@ func (r *AccessURLReport) Run(ctx context.Context, opts *AccessURLReportOptions)
 	defer cancel()
 
 	r.Severity = health.SeverityOK
-	r.Warnings = []string{}
+	r.Warnings = []health.Message{}
 	r.Dismissed = opts.Dismissed
 
 	if opts.AccessURL == nil {
-		r.Error = ptr.Ref(health.Messagef(health.CodeAccessURLNotSet, "Access URL not set"))
+		r.Error = health.Errorf(health.CodeAccessURLNotSet, "Access URL not set")
 		r.Severity = health.SeverityError
 		return
 	}
@@ -54,21 +53,21 @@ func (r *AccessURLReport) Run(ctx context.Context, opts *AccessURLReportOptions)
 
 	accessURL, err := opts.AccessURL.Parse("/healthz")
 	if err != nil {
-		r.Error = ptr.Ref(health.Messagef(health.CodeAccessURLInvalid, "parse healthz endpoint: %s", err))
+		r.Error = health.Errorf(health.CodeAccessURLInvalid, "parse healthz endpoint: %s", err)
 		r.Severity = health.SeverityError
 		return
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "GET", accessURL.String(), nil)
 	if err != nil {
-		r.Error = ptr.Ref(health.Messagef(health.CodeAccessURLFetch, "create healthz request: %s", err))
+		r.Error = health.Errorf(health.CodeAccessURLFetch, "create healthz request: %s", err)
 		r.Severity = health.SeverityError
 		return
 	}
 
 	res, err := opts.Client.Do(req)
 	if err != nil {
-		r.Error = ptr.Ref(health.Messagef(health.CodeAccessURLFetch, "get healthz endpoint: %s", err))
+		r.Error = health.Errorf(health.CodeAccessURLFetch, "get healthz endpoint: %s", err)
 		r.Severity = health.SeverityError
 		return
 	}
@@ -76,7 +75,7 @@ func (r *AccessURLReport) Run(ctx context.Context, opts *AccessURLReportOptions)
 
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
-		r.Error = ptr.Ref(health.Messagef(health.CodeAccessURLFetch, "read healthz response: %s", err))
+		r.Error = health.Errorf(health.CodeAccessURLFetch, "read healthz response: %s", err)
 		r.Severity = health.SeverityError
 		return
 	}

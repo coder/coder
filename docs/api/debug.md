@@ -54,7 +54,12 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
     "reachable": true,
     "severity": "ok",
     "status_code": 0,
-    "warnings": ["string"]
+    "warnings": [
+      {
+        "code": "EUNKNOWN",
+        "message": "string"
+      }
+    ]
   },
   "coder_version": "string",
   "database": {
@@ -66,7 +71,12 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
     "reachable": true,
     "severity": "ok",
     "threshold_ms": 0,
-    "warnings": ["string"]
+    "warnings": [
+      {
+        "code": "EUNKNOWN",
+        "message": "string"
+      }
+    ]
   },
   "derp": {
     "dismissed": true,
@@ -143,7 +153,12 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
               "error": "string"
             },
             "uses_websocket": true,
-            "warnings": ["string"]
+            "warnings": [
+              {
+                "code": "EUNKNOWN",
+                "message": "string"
+              }
+            ]
           }
         ],
         "region": {
@@ -171,7 +186,12 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
           "regionName": "string"
         },
         "severity": "ok",
-        "warnings": ["string"]
+        "warnings": [
+          {
+            "code": "EUNKNOWN",
+            "message": "string"
+          }
+        ]
       },
       "property2": {
         "error": "string",
@@ -211,7 +231,12 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
               "error": "string"
             },
             "uses_websocket": true,
-            "warnings": ["string"]
+            "warnings": [
+              {
+                "code": "EUNKNOWN",
+                "message": "string"
+              }
+            ]
           }
         ],
         "region": {
@@ -239,11 +264,21 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
           "regionName": "string"
         },
         "severity": "ok",
-        "warnings": ["string"]
+        "warnings": [
+          {
+            "code": "EUNKNOWN",
+            "message": "string"
+          }
+        ]
       }
     },
     "severity": "ok",
-    "warnings": ["string"]
+    "warnings": [
+      {
+        "code": "EUNKNOWN",
+        "message": "string"
+      }
+    ]
   },
   "failing_sections": ["string"],
   "healthy": true,
@@ -263,7 +298,12 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
     "error": "string",
     "healthy": true,
     "severity": "ok",
-    "warnings": ["string"],
+    "warnings": [
+      {
+        "code": "EUNKNOWN",
+        "message": "string"
+      }
+    ],
     "workspace_proxies": {
       "regions": [
         {

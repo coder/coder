@@ -4,11 +4,10 @@ import (
 	"context"
 	"time"
 
+	"golang.org/x/exp/slices"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
-	"github.com/coder/coder/v2/coderd/util/ptr"
-
-	"golang.org/x/exp/slices"
 )
 
 const (
@@ -18,10 +17,10 @@ const (
 // @typescript-generate DatabaseReport
 type DatabaseReport struct {
 	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
-	Healthy   bool            `json:"healthy"`
-	Severity  health.Severity `json:"severity" enums:"ok,warning,error"`
-	Warnings  []string        `json:"warnings"`
-	Dismissed bool            `json:"dismissed"`
+	Healthy   bool             `json:"healthy"`
+	Severity  health.Severity  `json:"severity" enums:"ok,warning,error"`
+	Warnings  []health.Message `json:"warnings"`
+	Dismissed bool             `json:"dismissed"`
 
 	Reachable   bool    `json:"reachable"`
 	Latency     string  `json:"latency"`
@@ -38,7 +37,7 @@ type DatabaseReportOptions struct {
 }
 
 func (r *DatabaseReport) Run(ctx context.Context, opts *DatabaseReportOptions) {
-	r.Warnings = []string{}
+	r.Warnings = []health.Message{}
 	r.Severity = health.SeverityOK
 	r.Dismissed = opts.Dismissed
 
@@ -55,7 +54,7 @@ func (r *DatabaseReport) Run(ctx context.Context, opts *DatabaseReportOptions) {
 	for i := 0; i < pingCount; i++ {
 		pong, err := opts.DB.Ping(ctx)
 		if err != nil {
-			r.Error = ptr.Ref(health.Messagef(health.CodeDatabasePingFailed, "ping database: %s", err))
+			r.Error = health.Errorf(health.CodeDatabasePingFailed, "ping database: %s", err)
 			r.Severity = health.SeverityError
 
 			return

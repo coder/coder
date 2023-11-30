@@ -36,10 +36,10 @@ const (
 // @typescript-generate Report
 type Report struct {
 	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
-	Healthy   bool            `json:"healthy"`
-	Severity  health.Severity `json:"severity" enums:"ok,warning,error"`
-	Warnings  []string        `json:"warnings"`
-	Dismissed bool            `json:"dismissed"`
+	Healthy   bool             `json:"healthy"`
+	Severity  health.Severity  `json:"severity" enums:"ok,warning,error"`
+	Warnings  []health.Message `json:"warnings"`
+	Dismissed bool             `json:"dismissed"`
 
 	Regions map[int]*RegionReport `json:"regions"`
 
@@ -55,9 +55,9 @@ type RegionReport struct {
 	mu sync.Mutex
 
 	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
-	Healthy  bool            `json:"healthy"`
-	Severity health.Severity `json:"severity" enums:"ok,warning,error"`
-	Warnings []string        `json:"warnings"`
+	Healthy  bool             `json:"healthy"`
+	Severity health.Severity  `json:"severity" enums:"ok,warning,error"`
+	Warnings []health.Message `json:"warnings"`
 
 	Region      *tailcfg.DERPRegion `json:"region"`
 	NodeReports []*NodeReport       `json:"node_reports"`
@@ -70,9 +70,9 @@ type NodeReport struct {
 	clientCounter int
 
 	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
-	Healthy  bool            `json:"healthy"`
-	Severity health.Severity `json:"severity" enums:"ok,warning,error"`
-	Warnings []string        `json:"warnings"`
+	Healthy  bool             `json:"healthy"`
+	Severity health.Severity  `json:"severity" enums:"ok,warning,error"`
+	Warnings []health.Message `json:"warnings"`
 
 	Node *tailcfg.DERPNode `json:"node"`
 
@@ -104,7 +104,7 @@ type ReportOptions struct {
 func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 	r.Healthy = true
 	r.Severity = health.SeverityOK
-	r.Warnings = []string{}
+	r.Warnings = []health.Message{}
 	r.Dismissed = opts.Dismissed
 
 	r.Regions = map[int]*RegionReport{}
@@ -168,7 +168,7 @@ func (r *RegionReport) Run(ctx context.Context) {
 	r.Healthy = true
 	r.Severity = health.SeverityOK
 	r.NodeReports = []*NodeReport{}
-	r.Warnings = []string{}
+	r.Warnings = []health.Message{}
 
 	wg := &sync.WaitGroup{}
 	var unhealthyNodes int // atomic.Int64 is not mandatory as we depend on RegionReport mutex.
@@ -263,7 +263,7 @@ func (r *NodeReport) Run(ctx context.Context) {
 	r.Severity = health.SeverityOK
 	r.ClientLogs = [][]string{}
 	r.ClientErrs = [][]string{}
-	r.Warnings = []string{}
+	r.Warnings = []health.Message{}
 
 	wg := &sync.WaitGroup{}
 
