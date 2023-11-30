@@ -698,7 +698,7 @@ func TestConfigSSH_Hostnames(t *testing.T) {
 			r := dbfake.Workspace(t, db).Seed(database.Workspace{
 				OrganizationID: owner.OrganizationID,
 				OwnerID:        memberUser.ID,
-			}).Do()
+			}).Resources(resources...).Do()
 			dbfake.WorkspaceBuild(t, db, r.Workspace).Resource(resources...).Do()
 			sshConfigFile := sshConfigFileName(t)
 

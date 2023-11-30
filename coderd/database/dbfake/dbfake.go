@@ -124,6 +124,7 @@ func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
 
 	// No ID on the workspace implies we should generate an entry.
 	if b.ws.ID == uuid.Nil {
+		// nolint: revive
 		b.ws = dbgen.Workspace(b.t, b.db, b.ws)
 		resp.Workspace = b.ws
 	}
@@ -347,6 +348,11 @@ func (b WorkspaceBuilder) Seed(seed database.Workspace) WorkspaceBuilder {
 	return b
 }
 
+func (b WorkspaceBuilder) Resources(resources ...*sdkproto.Resource) WorkspaceBuilder {
+	b.resources = append(b.resources, resources...)
+	return b
+}
+
 func (b WorkspaceBuilder) WithAgent(mutations ...func([]*sdkproto.Agent) []*sdkproto.Agent) WorkspaceBuilder {
 	//nolint: revive // returns modified struct
 	b.agentToken = uuid.NewString()
@@ -376,10 +382,11 @@ func (b WorkspaceBuilder) Do() WorkspaceResponse {
 	// Tests can provide a custom template ID if necessary.
 	var versionID uuid.UUID
 	if b.seed.TemplateID == uuid.Nil {
-		resp := TemplateVersion(b.t, b.db).Seed(database.TemplateVersion{
-			OrganizationID: b.seed.OrganizationID,
-			CreatedBy:      b.seed.OwnerID,
-		}).Do()
+		resp := TemplateVersion(b.t, b.db).
+			Seed(database.TemplateVersion{
+				OrganizationID: b.seed.OrganizationID,
+				CreatedBy:      b.seed.OwnerID,
+			}).Resources(b.resources...).Do()
 
 		b.seed.TemplateID = resp.Template.ID
 		r.TemplateVersionResponse = resp
