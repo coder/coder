@@ -261,7 +261,7 @@ func writeRandomData(dst io.Writer, size int64, tick <-chan time.Time) error {
 
 // mustRandom writes pseudo random bytes to p and panics if it fails.
 func mustRandom(p []byte) []byte {
-	n, err := rand.Read(p)
+	n, err := rand.Read(p) //nolint:gosec // We want pseudorandomness here to avoid entropy issues.
 	if err != nil {
 		panic(err)
 	}
