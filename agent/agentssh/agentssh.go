@@ -112,8 +112,8 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 	srv := &ssh.Server{
 		ChannelHandlers: map[string]ssh.ChannelHandler{
 			"direct-tcpip": func(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.NewChannel, ctx ssh.Context) {
-				// wrapper is designed to find and track jetbrains gateway connections.
-				wrapped := NewChannelAcceptWatcher(ctx, s.logger, newChan, &s.connCountJetBrains)
+				// Wrapper is designed to find and track JetBrains Gateway connections.
+				wrapped := NewJetbrainsChannelWatcher(ctx, s.logger, newChan, &s.connCountJetBrains)
 				ssh.DirectTCPIPHandler(srv, conn, wrapped, ctx)
 			},
 			"direct-streamlocal@openssh.com": directStreamLocalHandler,
@@ -295,8 +295,8 @@ func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, extraEnv 
 		s.connCountVSCode.Add(1)
 		defer s.connCountVSCode.Add(-1)
 	case MagicSessionTypeJetBrains:
-		// Do nothing here because jetbrains launches hundreds of ssh sessions.
-		// We instead track jetbrains in the single persistent tcp forwarding channel.
+		// Do nothing here because JetBrains launches hundreds of ssh sessions.
+		// We instead track JetBrains in the single persistent tcp forwarding channel.
 	case "":
 		s.connCountSSHSession.Add(1)
 		defer s.connCountSSHSession.Add(-1)

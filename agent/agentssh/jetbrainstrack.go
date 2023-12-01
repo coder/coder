@@ -19,15 +19,15 @@ type localForwardChannelData struct {
 	OriginPort uint32
 }
 
-// ChannelAcceptWatcher is used to track jetbrains port forwarding (gateway)
-// connections. If the port forward is something other than jetbrains, this
-// struct is a noop.
-type ChannelAcceptWatcher struct {
+// JetbrainsChannelWatcher is used to track JetBrains port forwarded (Gateway)
+// channels. If the port forward is something other than JetBrains, this struct
+// is a noop.
+type JetbrainsChannelWatcher struct {
 	gossh.NewChannel
 	jetbrainsCounter *atomic.Int64
 }
 
-func NewChannelAcceptWatcher(ctx ssh.Context, logger slog.Logger, newChannel gossh.NewChannel, counter *atomic.Int64) gossh.NewChannel {
+func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger, newChannel gossh.NewChannel, counter *atomic.Int64) gossh.NewChannel {
 	d := localForwardChannelData{}
 	if err := gossh.Unmarshal(newChannel.ExtraData(), &d); err != nil {
 		// If the data fails to unmarshal, do nothing.
@@ -57,13 +57,13 @@ func NewChannelAcceptWatcher(ctx ssh.Context, logger slog.Logger, newChannel gos
 	logger.Debug(ctx, "discovered forwarded JetBrains process",
 		slog.F("destination_port", d.DestPort))
 
-	return &ChannelAcceptWatcher{
+	return &JetbrainsChannelWatcher{
 		NewChannel:       newChannel,
 		jetbrainsCounter: counter,
 	}
 }
 
-func (w *ChannelAcceptWatcher) Accept() (gossh.Channel, <-chan *gossh.Request, error) {
+func (w *JetbrainsChannelWatcher) Accept() (gossh.Channel, <-chan *gossh.Request, error) {
 	c, r, err := w.NewChannel.Accept()
 	if err != nil {
 		return c, r, err
