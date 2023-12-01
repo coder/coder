@@ -46,9 +46,8 @@ func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger, newChannel 
 	}
 
 	// If this is not JetBrains, then we do not need to do anything special.  We
-	// attempt to match on something that appears unique to JetBrains software and
-	// the vendor name flag seems like it might be a reasonable choice.
-	if !strings.Contains(strings.ToLower(cmdline), "idea.vendor.name=jetbrains") {
+	// attempt to match on something that appears unique to JetBrains software.
+	if !strings.Contains(strings.ToLower(cmdline), strings.ToLower(MagicProcessCmdlineJetBrains)) {
 		return newChannel
 	}
 

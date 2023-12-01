@@ -47,8 +47,12 @@ const (
 	MagicSessionTypeEnvironmentVariable = "CODER_SSH_SESSION_TYPE"
 	// MagicSessionTypeVSCode is set in the SSH config by the VS Code extension to identify itself.
 	MagicSessionTypeVSCode = "vscode"
-	// MagicSessionTypeJetBrains is set in the SSH config by the JetBrains extension to identify itself.
+	// MagicSessionTypeJetBrains is set in the SSH config by the JetBrains
+	// extension to identify itself.
 	MagicSessionTypeJetBrains = "jetbrains"
+	// MagicProcessCmdlineJetBrains is a string in a process's command line that
+	// uniquely identifies it as JetBrains software.
+	MagicProcessCmdlineJetBrains = "idea.vendor.name=JetBrains"
 )
 
 type Server struct {
