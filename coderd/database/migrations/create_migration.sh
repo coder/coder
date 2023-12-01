@@ -7,7 +7,7 @@
 
 set -euo pipefail
 
-cat << EOF
+cat <<EOF
 
 WARNING: Migrations now all run in a single transaction. This makes upgrades
 safer, but means that 'ALTER TYPE resource_type ADD VALUE' cannot be used if the
