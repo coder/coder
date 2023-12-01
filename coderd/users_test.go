@@ -1816,10 +1816,8 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 	for i := range allUsers[:limit] {
 		require.Equalf(t, page.Users[i].Username, allUsers[i].Username, "first page, limit=%d", limit)
 	}
-	// require.NoError(t, err, "first page")
-	// require.Equalf(t, page.Users, allUsers[:limit], "first page, limit=%d", limit)
-	count += len(page.Users)
 
+	count += len(page.Users)
 	for {
 		if len(page.Users) == 0 {
 			break
@@ -1856,8 +1854,6 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 			require.Equalf(t, page.Users[i].Username, expected[i].Username, "next users, after=%s, limit=%d", afterCursor, limit)
 			require.Equalf(t, offsetPage.Users[i].Username, expected[i].Username, "offset users, offset=%d, limit=%d", count, limit)
 		}
-		// require.Equalf(t, page.Users, expected, "next users, after=%s, limit=%d", afterCursor, limit)
-		// require.Equalf(t, offsetPage.Users, expected, "offset users, offset=%d, limit=%d", count, limit)
 
 		// Also check the before
 		prevPage, err := client.Users(ctx, opt(codersdk.UsersRequest{
