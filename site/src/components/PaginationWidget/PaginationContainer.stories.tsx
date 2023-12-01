@@ -101,6 +101,7 @@ export const TransitionFromFirstToSecondPage: Story = {
       hasNextPage: false,
       isPreviousData: true,
     },
+    children: <div>Previous data from page 1</div>,
   },
 };
 
@@ -117,5 +118,6 @@ export const SecondPageWithData: Story = {
       hasNextPage: true,
       isPreviousData: false,
     },
+    children: <div>New data for page 2</div>,
   },
 };
