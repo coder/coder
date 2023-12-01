@@ -3,6 +3,7 @@ import { type FC } from "react";
 import type { WorkspaceAgent } from "api/typesGenerated";
 import { Stack } from "../Stack/Stack";
 import { AppPreviewLink } from "./AppLink/AppPreviewLink";
+import { DisplayApps, DisplayApp } from "api/typesGenerated";
 
 interface AgentRowPreviewStyles {
   // Helpful when there are more than one row so the values are aligned
@@ -86,9 +87,17 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
               spacing={0.5}
               wrap="wrap"
             >
-              {agent.apps.map((app) => (
-                <AppPreviewLink key={app.slug} app={app} />
-              ))}
+              {/* display apps that are unconditionally shown, i.e. they are not included in the DisplayApp const array
+              or display apps that are conditionally shown (and appear in agent.display_apps) */}
+              {agent.apps
+                .filter(
+                  (app) =>
+                    !DisplayApps.includes(app.slug as DisplayApp) ||
+                    agent.display_apps.includes(app.slug as DisplayApp),
+                )
+                .map((app) => (
+                  <AppPreviewLink key={app.slug} app={app} />
+                ))}
               {agent.apps.length === 0 && (
                 <span css={styles.agentDataValue}>None</span>
               )}
