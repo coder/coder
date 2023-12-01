@@ -80,5 +80,4 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 		}
 		return len(daemons) == 2
 	}, testutil.WaitShort, testutil.IntervalFast)
-
 }
