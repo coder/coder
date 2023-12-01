@@ -307,7 +307,7 @@ func runAgent(t *testing.T, client *codersdk.Client, owner uuid.UUID, db databas
 	orgID := user.OrganizationIDs[0]
 	r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 		OrganizationID: orgID,
-		OwnerID:        user.ID,
+		OwnerID:        owner,
 	}).WithAgent().Do()
 
 	_ = agenttest.New(t, client.URL, r.AgentToken,
