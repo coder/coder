@@ -31,6 +31,7 @@ func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger, newChannel 
 	d := localForwardChannelData{}
 	if err := gossh.Unmarshal(newChannel.ExtraData(), &d); err != nil {
 		// If the data fails to unmarshal, do nothing.
+		logger.Warn(ctx, "failed to unmarshal port forward data", slog.Error(err))
 		return newChannel
 	}
 
@@ -38,14 +39,11 @@ func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger, newChannel 
 	// there look up the invocation.
 	cmdline, err := getListeningPortProcessCmdline(d.DestPort)
 	if err != nil {
-		logger.Warn(ctx, "port inspection failed",
+		logger.Warn(ctx, "failed to inspect port",
 			slog.F("destination_port", d.DestPort),
 			slog.Error(err))
 		return newChannel
 	}
-	logger.Debug(ctx, "checking forwarded process",
-		slog.F("cmdline", cmdline),
-		slog.F("destination_port", d.DestPort))
 
 	// If this is not JetBrains, then we do not need to do anything special.  We
 	// attempt to match on something that appears unique to JetBrains software and
