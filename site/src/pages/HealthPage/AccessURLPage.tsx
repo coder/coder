@@ -1,5 +1,11 @@
-import { GridData, GridDataLabel, GridDataValue } from "./GridData";
-import { Header, HeaderTitle } from "./Header";
+import {
+  Header,
+  HeaderTitle,
+  Main,
+  GridData,
+  GridDataLabel,
+  GridDataValue,
+} from "./Content";
 
 export const AccessURLPage = () => {
   return (
@@ -7,12 +13,13 @@ export const AccessURLPage = () => {
       <Header>
         <HeaderTitle>Access URL</HeaderTitle>
       </Header>
-      <main css={{ padding: "0 36px" }}>
+
+      <Main>
         <GridData>
           <GridDataLabel>Healthy</GridDataLabel>
           <GridDataValue>True</GridDataValue>
         </GridData>
-      </main>
+      </Main>
     </>
   );
 };
