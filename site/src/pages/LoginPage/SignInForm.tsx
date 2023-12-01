@@ -63,7 +63,7 @@ export interface SignInFormProps {
   isSigningIn: boolean;
   redirectTo: string;
   error?: unknown;
-  info?: string;
+  message?: string;
   authMethods?: AuthMethods;
   onSubmit: (credentials: { email: string; password: string }) => void;
 }
@@ -73,7 +73,7 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
   redirectTo,
   isSigningIn,
   error,
-  info,
+  message,
   onSubmit,
 }) => {
   const oAuthEnabled = Boolean(
@@ -91,9 +91,9 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
         </div>
       )}
 
-      {Boolean(info) && (
+      {Boolean(message) && (
         <div css={styles.alert}>
-          <Alert severity="info">{info}</Alert>
+          <Alert severity="info">{message}</Alert>
         </div>
       )}
 
