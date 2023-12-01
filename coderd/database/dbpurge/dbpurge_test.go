@@ -180,13 +180,14 @@ func seed(ctx context.Context, t testing.TB, db database.Store, opts seedOpts) (
 	}
 
 	for i := 0; i < opts.NumAgents; i++ {
-		// agentID := uuid.New()
 		wsr := dbfake.WorkspaceBuild(t, db, workspaceTemplate).WithAgent().Do()
-		tokUUID, err := uuid.Parse(wsr.AgentToken)
-		require.NoError(t, err, "invalid workspace agent token")
-		agent, err := db.GetWorkspaceAgentAndOwnerByAuthToken(ctx, tokUUID)
-		require.NoError(t, err, "could not find workspace agent with token %s", wsr.AgentToken)
-		agentIDs[i] = agent.WorkspaceAgent.ID
+		resources, err := db.GetWorkspaceResourcesByJobID(ctx, wsr.Build.JobID)
+		require.NoError(t, err)
+		require.NotEmpty(t, resources)
+		agents, err := db.GetWorkspaceAgentsByResourceIDs(ctx, []uuid.UUID{resources[0].ID})
+		require.NoError(t, err)
+		require.NotEmpty(t, agents)
+		agentIDs[i] = agents[0].ID
 		workspaces[i] = wsr
 	}
 
