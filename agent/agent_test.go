@@ -1,6 +1,7 @@
 package agent_test
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -152,7 +153,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, expected, strings.TrimSpace(string(output)))
 	})
-	t.Run("Tracks", func(t *testing.T) {
+	t.Run("TracksVSCode", func(t *testing.T) {
 		t.Parallel()
 		if runtime.GOOS == "window" {
 			t.Skip("Sleeping for infinity doesn't work on Windows")
@@ -192,36 +193,45 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	// This test name must contain the string checked for by the agent, since it
-	// looks for this string in the process name.
-	//
-	// This test sets up a port forward that emulates what Jetbrains IDE's do when
-	// using gateway. The remote server side of the port forward is spun up using
-	// the gotest process, which includes the test name.
-	// So this unit test emulates a PID in the workspace with a similar
-	// name to the jetbrains IDE. That makes the agent this this SSH port
-	// forward is a "jetbrains" session.
-	t.Run("TracksIdea.vendor.name=JetBrains", func(t *testing.T) {
+	t.Run("TracksJetBrains", func(t *testing.T) {
 		t.Parallel()
 		if runtime.GOOS != "linux" {
 			t.Skip("JetBrains tracking is only supported on Linux")
 		}
+
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		rl, err := net.Listen("tcp", "127.0.0.1:0")
+		// JetBrains tracking works by looking at the process name listening on the
+		// forwarded port.  If the process's command line includes the magic string
+		// we are looking for, then we assume it is a JetBrains editor.  So when we
+		// connect to the port we must ensure the process includes that magic string
+		// to fool the agent into thinking this is JetBrains.  To do this we need to
+		// spawn an external process (in this case a simple echo server) so we can
+		// control the process name.  The -D here is just to mimic how Java options
+		// are set but is not necessary as the agent looks only for the magic
+		// string itself anywhere in the command.
+		_, b, _, ok := runtime.Caller(0)
+		require.True(t, ok)
+		dir := filepath.Join(filepath.Dir(b), "../scripts/echoserver/main.go")
+		echoServerCmd := exec.Command("go", "run", dir,
+			"-D", agentssh.MagicProcessCmdlineJetBrains)
+		stdout, err := echoServerCmd.StdoutPipe()
 		require.NoError(t, err)
-		defer rl.Close()
-		tcpAddr, valid := rl.Addr().(*net.TCPAddr)
-		require.True(t, valid)
-		remotePort := tcpAddr.Port
-		go echoOnce(t, rl)
+		err = echoServerCmd.Start()
+		require.NoError(t, err)
+		defer echoServerCmd.Process.Kill()
+
+		// The echo server prints its port as the first line.
+		sc := bufio.NewScanner(stdout)
+		sc.Scan()
+		remotePort := sc.Text()
 
 		//nolint:dogsled
 		conn, _, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 		sshClient, err := conn.SSHClient(ctx)
 		require.NoError(t, err)
 
-		tunneledConn, err := sshClient.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", remotePort))
+		tunneledConn, err := sshClient.Dial("tcp", fmt.Sprintf("127.0.0.1:%s", remotePort))
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			// always close on failure of test
@@ -239,9 +249,10 @@ func TestAgent_Stats_Magic(t *testing.T) {
 			"never saw stats with conn open: %+v", s,
 		)
 
-		// Manually closing the connection
+		// Kill the server and connection after checking for the echo.
 		requireEcho(t, tunneledConn)
-		_ = rl.Close()
+		_ = echoServerCmd.Process.Kill()
+		_ = tunneledConn.Close()
 
 		require.Eventuallyf(t, func() bool {
 			var ok bool
