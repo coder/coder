@@ -91,7 +91,7 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
         </div>
       )}
 
-      {Boolean(info) && Boolean(error) && (
+      {Boolean(info) && (
         <div css={styles.alert}>
           <Alert severity="info">{info}</Alert>
         </div>

@@ -518,7 +518,7 @@ func RedirectToLogin(rw http.ResponseWriter, r *http.Request, dashboardURL *url.
 	}
 
 	q := url.Values{}
-	q.Add("message", message)
+	q.Add("info", message)
 	q.Add("redirect", path)
 
 	u := &url.URL{

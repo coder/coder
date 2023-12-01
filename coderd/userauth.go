@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/mail"
+	"net/url"
 	"regexp"
 	"sort"
 	"strconv"
@@ -535,9 +536,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if len(selectedMemberships) == 0 {
-			httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
-				Message: "You aren't a member of the authorized Github organizations!",
-			})
+			httpmw.RedirectToLogin(rw, r, &url.URL{Path: "/login"}, "You aren't a member of the authorized Github organizations!")
 			return
 		}
 	}
