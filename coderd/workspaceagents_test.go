@@ -47,7 +47,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		tmpDir := t.TempDir()
 		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
-		r := dbfake.Workspace(t, db).Seed(database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        anotherUser.ID,
 		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
@@ -69,7 +69,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		tmpDir := t.TempDir()
-		r := dbfake.Workspace(t, db).Seed(database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
@@ -97,7 +97,7 @@ func TestWorkspaceAgent(t *testing.T) {
 
 		wantTroubleshootingURL := "https://example.com/troubleshoot"
 
-		r := dbfake.Workspace(t, db).Seed(database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
@@ -138,7 +138,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			PortForwardingHelper: true,
 			SshHelper:            true,
 		}
-		r := dbfake.Workspace(t, db).Seed(database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
@@ -171,7 +171,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		apps.WebTerminal = false
 
 		// Creating another workspace is easier
-		r = dbfake.Workspace(t, db).Seed(database.Workspace{
+		r = dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
@@ -195,7 +195,7 @@ func TestWorkspaceAgentLogs(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		r := dbfake.Workspace(t, db).Seed(database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		}).WithAgent().Do()
@@ -237,7 +237,7 @@ func TestWorkspaceAgentLogs(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		r := dbfake.Workspace(t, db).Seed(database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		}).WithAgent().Do()
@@ -279,7 +279,7 @@ func TestWorkspaceAgentLogs(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		r := dbfake.Workspace(t, db).Seed(database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		}).WithAgent().Do()
@@ -322,7 +322,7 @@ func TestWorkspaceAgentListen(t *testing.T) {
 
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		r := dbfake.Workspace(t, db).Seed(database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		}).WithAgent().Do()
@@ -408,7 +408,7 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 	client, db := coderdtest.NewWithDatabase(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 
-	r := dbfake.Workspace(t, db).Seed(database.Workspace{
+	r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
 	}).WithAgent().Do()
@@ -454,7 +454,7 @@ func TestWorkspaceAgentTailnetDirectDisabled(t *testing.T) {
 		DeploymentValues: dv,
 	})
 	user := coderdtest.CreateFirstUser(t, client)
-	r := dbfake.Workspace(t, db).Seed(database.Workspace{
+	r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
 	}).WithAgent().Do()
@@ -517,7 +517,7 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 		require.NoError(t, err)
 
 		user := coderdtest.CreateFirstUser(t, client)
-		r := dbfake.Workspace(t, db).Seed(database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
@@ -752,7 +752,7 @@ func TestWorkspaceAgentAppHealth(t *testing.T) {
 			},
 		},
 	}
-	r := dbfake.Workspace(t, db).Seed(database.Workspace{
+	r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
 	}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
@@ -819,7 +819,7 @@ func TestWorkspaceAgentReportStats(t *testing.T) {
 
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		r := dbfake.Workspace(t, db).Seed(database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		}).WithAgent().Do()
@@ -886,7 +886,7 @@ func TestWorkspaceAgent_LifecycleState(t *testing.T) {
 
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		r := dbfake.Workspace(t, db).Seed(database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		}).WithAgent().Do()
@@ -951,7 +951,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 
 	client, db := coderdtest.NewWithDatabase(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
-	r := dbfake.Workspace(t, db).Seed(database.Workspace{
+	r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
 	}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
@@ -1129,7 +1129,7 @@ func TestWorkspaceAgent_Metadata_CatchMemoryLeak(t *testing.T) {
 		Logger:                   &logger,
 	})
 	user := coderdtest.CreateFirstUser(t, client)
-	r := dbfake.Workspace(t, db).Seed(database.Workspace{
+	r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
 	}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
@@ -1258,7 +1258,7 @@ func TestWorkspaceAgent_Startup(t *testing.T) {
 
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		r := dbfake.Workspace(t, db).Seed(database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		}).WithAgent().Do()
@@ -1304,7 +1304,7 @@ func TestWorkspaceAgent_Startup(t *testing.T) {
 
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		r := dbfake.Workspace(t, db).Seed(database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		}).WithAgent().Do()
@@ -1352,7 +1352,7 @@ func TestWorkspaceAgent_UpdatedDERP(t *testing.T) {
 	api.DERPMapper.Store(&derpMapFn)
 
 	// Start workspace a workspace agent.
-	r := dbfake.Workspace(t, api.Database).Seed(database.Workspace{
+	r := dbfake.WorkspaceBuild(t, api.Database, database.Workspace{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
 	}).WithAgent().Do()

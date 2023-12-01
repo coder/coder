@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
@@ -28,7 +29,6 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/enterprise/coderd/schedule"
 	"github.com/coder/coder/v2/provisioner/echo"
-	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -1169,10 +1169,9 @@ func TestWorkspaceLock(t *testing.T) {
 func TestResolveAutostart(t *testing.T) {
 	t.Parallel()
 
-	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+	ownerClient, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
-			IncludeProvisionerDaemon: true,
-			TemplateScheduleStore:    &schedule.EnterpriseTemplateScheduleStore{},
+			TemplateScheduleStore: &schedule.EnterpriseTemplateScheduleStore{},
 		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
@@ -1181,52 +1180,40 @@ func TestResolveAutostart(t *testing.T) {
 		},
 	})
 
-	version1 := coderdtest.CreateTemplateVersion(t, ownerClient, owner.OrganizationID, nil)
-	coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, version1.ID)
-	template := coderdtest.CreateTemplate(t, ownerClient, owner.OrganizationID, version1.ID, func(ctr *codersdk.CreateTemplateRequest) {
-		ctr.RequireActiveVersion = true
-	})
-
-	params := &echo.Responses{
-		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{
-			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
-						Parameters: []*proto.RichParameter{
-							{
-								Name:        "param",
-								Description: "param",
-								Required:    true,
-								Mutable:     true,
-							},
-						},
-					},
-				},
-			},
-		},
-		ProvisionApply: echo.ApplyComplete,
-	}
-	version2 := coderdtest.CreateTemplateVersion(t, ownerClient, owner.OrganizationID, params, func(ctvr *codersdk.CreateTemplateVersionRequest) {
-		ctvr.TemplateID = template.ID
-	})
-	coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, version2.ID)
+	version1 := dbfake.TemplateVersion(t, db).
+		Seed(database.TemplateVersion{
+			CreatedBy:      owner.UserID,
+			OrganizationID: owner.OrganizationID,
+		}).Do()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	client, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
-	workspace := coderdtest.CreateWorkspace(t, client, owner.OrganizationID, template.ID)
-	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-
-	//nolint:gocritic
-	err := ownerClient.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
-		ID: version2.ID,
+	_, err := ownerClient.UpdateTemplateMeta(ctx, version1.Template.ID, codersdk.UpdateTemplateMeta{
+		RequireActiveVersion: true,
 	})
 	require.NoError(t, err)
 
-	// Autostart shouldn't be possible since the template requires automatic
-	// updates.
+	client, member := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+	workspace := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		OwnerID:        member.ID,
+		OrganizationID: owner.OrganizationID,
+		TemplateID:     version1.Template.ID,
+	}).Seed(database.WorkspaceBuild{
+		TemplateVersionID: version1.TemplateVersion.ID,
+	}).Do().Workspace
+
+	_ = dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+		CreatedBy:      owner.UserID,
+		OrganizationID: owner.OrganizationID,
+		TemplateID:     version1.TemplateVersion.TemplateID,
+	}).Params(database.TemplateVersionParameter{
+		Name:     "param",
+		Required: true,
+	}).Do()
+
+	// Autostart shouldn't be possible if parameters do not match.
 	resp, err := client.ResolveAutostart(ctx, workspace.ID.String())
 	require.NoError(t, err)
 	require.True(t, resp.ParameterMismatch)

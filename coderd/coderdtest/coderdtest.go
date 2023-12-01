@@ -753,6 +753,8 @@ func CreateWorkspaceBuild(
 	transition database.WorkspaceTransition,
 	mutators ...func(*codersdk.CreateWorkspaceBuildRequest),
 ) codersdk.WorkspaceBuild {
+	t.Helper()
+
 	req := codersdk.CreateWorkspaceBuildRequest{
 		Transition: codersdk.WorkspaceTransition(transition),
 	}

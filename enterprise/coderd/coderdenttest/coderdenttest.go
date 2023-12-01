@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 
@@ -65,6 +66,11 @@ type Options struct {
 func New(t *testing.T, options *Options) (*codersdk.Client, codersdk.CreateFirstUserResponse) {
 	client, _, _, user := NewWithAPI(t, options)
 	return client, user
+}
+
+func NewWithDatabase(t *testing.T, options *Options) (*codersdk.Client, database.Store, codersdk.CreateFirstUserResponse) {
+	client, _, api, user := NewWithAPI(t, options)
+	return client, api.Database, user
 }
 
 func NewWithAPI(t *testing.T, options *Options) (

@@ -25,10 +25,12 @@ func TestList(t *testing.T) {
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-		r := dbfake.Workspace(t, db).Seed(database.Workspace{
+		// setup template
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        memberUser.ID,
 		}).WithAgent().Do()
+
 		inv, root := clitest.New(t, "ls")
 		clitest.SetupConfig(t, member, root)
 		pty := ptytest.New(t).Attach(inv)
@@ -52,7 +54,7 @@ func TestList(t *testing.T) {
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-		dbfake.Workspace(t, db).Seed(database.Workspace{
+		_ = dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        memberUser.ID,
 		}).WithAgent().Do()
