@@ -26,7 +26,7 @@ const sections = {
 } as const;
 
 export default function HealthPage() {
-  const tab = useTab("tab", "derp");
+  const tab = useTab("tab", "access_url");
   const queryClient = useQueryClient();
   const { data: healthStatus } = useQuery({
     ...health(),
