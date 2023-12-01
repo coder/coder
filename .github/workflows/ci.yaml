@@ -482,6 +482,27 @@ jobs:
             ./build/*.deb
           retention-days: 7
 
+  deploy-wsproxies:
+    runs-on: ubuntu-latest
+    needs: build-main-image
+    if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy workspace proxies
+        run: |
+          flyctl deploy --image ghcr.io/coder/coder-preview:main --app paris-coder -y
+          flyctl deploy --image ghcr.io/coder/coder-preview:main --app sydney-coder -y
+          flyctl deploy --image ghcr.io/coder/coder-preview:main --app sao-paulo-coder -y
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
   test-js:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     needs: changes
@@ -771,6 +792,9 @@ jobs:
           tag=$(echo "$version" | sed 's/+/-/g')
           docker tag ghcr.io/coder/coder-preview:main ghcr.io/coder/coder-preview:main-$tag
           docker push ghcr.io/coder/coder-preview:main-$tag
+
+          # save the image as output
+          echo "image=ghcr.io/coder/coder-preview:main-$tag" >> $GITHUB_ENV
 
       - name: Prune old images
         uses: vlaurin/action-ghcr-prune@v0.5.0
