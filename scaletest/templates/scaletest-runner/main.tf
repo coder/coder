@@ -216,7 +216,7 @@ data "coder_parameter" "num_workspaces" {
 
   validation {
     min = 0
-    max = 1000
+    max = 2000
   }
 }
 

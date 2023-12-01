@@ -26,10 +26,16 @@ end_phase
 
 wait_baseline "${SCALETEST_PARAM_LOAD_SCENARIO_BASELINE_DURATION}"
 
+non_greedy_agent_traffic_args=()
 if [[ ${SCALETEST_PARAM_GREEDY_AGENT} != 1 ]]; then
 	greedy_agent() { :; }
 else
 	echo "WARNING: Greedy agent enabled, this may cause the load tests to fail." >&2
+	non_greedy_agent_traffic_args=(
+		# Let the greedy agent traffic command be scraped.
+		# --scaletest-prometheus-address 0.0.0.0:21113
+		# --trace=false
+	)
 
 	coder exp scaletest create-workspaces \
 		--count 1 \
@@ -59,14 +65,21 @@ else
 		set +e
 		coder exp scaletest workspace-traffic \
 			--template "${SCALETEST_PARAM_GREEDY_AGENT_TEMPLATE}" \
+			--bytes-per-tick $((1024 * 1024 * 25)) \
+			--tick-interval 40ms \
 			--timeout "$((delay))s" \
 			--job-timeout "$((delay))s" \
 			--output json:"${SCALETEST_RESULTS_DIR}/traffic-${type}-greedy-agent.json" \
-			--bytes-per-tick $((1024 * 1024 * 25)) \
-			--tick-interval 40ms \
+			--scaletest-prometheus-address 0.0.0.0:21113 \
+			--trace=false \
 			"${args[@]}"
 		status=${?}
+		show_json "${SCALETEST_RESULTS_DIR}/traffic-${type}-greedy-agent.json"
 
+		export GRAFANA_ADD_TAGS=
+		if [[ ${status} != 0 ]]; then
+			GRAFANA_ADD_TAGS=error
+		fi
 		annotate_grafana_end greedy_agent "${scenario}: Greedy agent"
 
 		return ${status}
@@ -89,7 +102,8 @@ for scenario in "${SCALETEST_PARAM_LOAD_SCENARIOS[@]}"; do
 			--tick-interval "${SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_TICK_INTERVAL}ms" \
 			--timeout "${SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_DURATION}m" \
 			--job-timeout "${SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_DURATION}m30s" \
-			--output json:"${SCALETEST_RESULTS_DIR}/traffic-ssh.json"
+			--output json:"${SCALETEST_RESULTS_DIR}/traffic-ssh.json" \
+			"${non_greedy_agent_traffic_args[@]}"
 		status=$?
 		wait
 		status2=$?
@@ -106,7 +120,8 @@ for scenario in "${SCALETEST_PARAM_LOAD_SCENARIOS[@]}"; do
 			--tick-interval "${SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_TICK_INTERVAL}ms" \
 			--timeout "${SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_DURATION}m" \
 			--job-timeout "${SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_DURATION}m30s" \
-			--output json:"${SCALETEST_RESULTS_DIR}/traffic-web-terminal.json"
+			--output json:"${SCALETEST_RESULTS_DIR}/traffic-web-terminal.json" \
+			"${non_greedy_agent_traffic_args[@]}"
 		status=$?
 		wait
 		status2=$?
