@@ -28,7 +28,7 @@ type PaginationProps = HTMLAttributes<HTMLDivElement> & {
   autoScroll?: boolean;
 };
 
-export const Pagination: FC<PaginationProps> = ({
+export const PaginationContainer: FC<PaginationProps> = ({
   children,
   paginationResult,
   paginationUnitLabel,
@@ -46,7 +46,7 @@ export const Pagination: FC<PaginationProps> = ({
       <PaginationHeader
         limit={paginationResult.limit}
         totalRecords={paginationResult.totalRecords}
-        currentChunk={paginationResult.currentChunk}
+        currentOffsetStart={paginationResult.currentOffsetStart}
         paginationUnitLabel={paginationUnitLabel}
       />
 

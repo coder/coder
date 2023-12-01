@@ -6,14 +6,14 @@ type PaginationHeaderProps = {
   paginationUnitLabel: string;
   limit: number;
   totalRecords: number | undefined;
-  currentChunk: number | undefined;
+  currentOffsetStart: number | undefined;
 };
 
 export const PaginationHeader: FC<PaginationHeaderProps> = ({
   paginationUnitLabel,
   limit,
   totalRecords,
-  currentChunk,
+  currentOffsetStart,
 }) => {
   const theme = useTheme();
 
@@ -41,13 +41,13 @@ export const PaginationHeader: FC<PaginationHeaderProps> = ({
            */}
           {totalRecords === 0 && <div>No records available</div>}
 
-          {totalRecords !== 0 && currentChunk !== undefined && (
+          {totalRecords !== 0 && currentOffsetStart !== undefined && (
             <div>
               Showing {paginationUnitLabel}{" "}
               <strong>
-                {currentChunk}&ndash;
-                {currentChunk +
-                  Math.min(limit - 1, totalRecords - currentChunk)}
+                {currentOffsetStart}&ndash;
+                {currentOffsetStart +
+                  Math.min(limit - 1, totalRecords - currentOffsetStart)}
               </strong>{" "}
               (<strong>{totalRecords.toLocaleString()}</strong>{" "}
               {paginationUnitLabel} total)

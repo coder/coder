@@ -23,7 +23,7 @@ import { AuditFilter } from "./AuditFilter";
 
 import {
   type PaginationResult,
-  Pagination,
+  PaginationContainer,
 } from "components/PaginationWidget/Pagination";
 
 export const Language = {
@@ -70,7 +70,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
         <Cond condition={isAuditLogVisible}>
           <AuditFilter {...filterProps} />
 
-          <Pagination
+          <PaginationContainer
             paginationResult={paginationResult}
             paginationUnitLabel="logs"
           >
@@ -126,7 +126,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
                 </TableBody>
               </Table>
             </TableContainer>
-          </Pagination>
+          </PaginationContainer>
         </Cond>
 
         <Cond>

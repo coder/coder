@@ -38,7 +38,7 @@ const meta: Meta<typeof AuditPageView> = {
       hasNextPage: false,
       hasPreviousPage: false,
       totalPages: 40,
-      currentChunk: 1,
+      currentOffsetStart: 1,
       isPreviousData: false,
       goToFirstPage: () => {},
       goToPreviousPage: () => {},

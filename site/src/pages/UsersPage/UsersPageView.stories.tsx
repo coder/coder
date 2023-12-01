@@ -45,7 +45,7 @@ const meta: Meta<typeof UsersPageView> = {
       hasNextPage: false,
       hasPreviousPage: false,
       totalPages: 1,
-      currentChunk: 1,
+      currentOffsetStart: 1,
       isPreviousData: false,
       goToFirstPage: () => {},
       goToPreviousPage: () => {},

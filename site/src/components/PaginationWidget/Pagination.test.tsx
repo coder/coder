@@ -1,5 +1,5 @@
 import { type ComponentProps, type HTMLAttributes } from "react";
-import { type PaginationResult, Pagination } from "./Pagination";
+import { type PaginationResult, PaginationContainer } from "./Pagination";
 
 import { renderComponent } from "testHelpers/renderHelpers";
 import { fireEvent, waitFor } from "@testing-library/react";
@@ -34,7 +34,7 @@ const initialRenderResult: PaginationResult = {
   ...mockPaginationResult,
   isSuccess: false,
   isPreviousData: false,
-  currentChunk: undefined,
+  currentOffsetStart: undefined,
   hasNextPage: false,
   hasPreviousPage: false,
   totalRecords: undefined,
@@ -45,20 +45,20 @@ const successResult: PaginationResult = {
   ...mockPaginationResult,
   isSuccess: true,
   isPreviousData: false,
-  currentChunk: 1,
+  currentOffsetStart: 1,
   totalPages: 1,
   totalRecords: 4,
 };
 
 type TestProps = Omit<
-  ComponentProps<typeof Pagination>,
+  ComponentProps<typeof PaginationContainer>,
   keyof HTMLAttributes<HTMLDivElement>
 >;
 
 const mockUnitLabel = "ducks";
 
 function render(props: TestProps) {
-  return renderComponent(<Pagination {...props} />);
+  return renderComponent(<PaginationContainer {...props} />);
 }
 
 function assertNoScroll(mockScroll: jest.SpyInstance) {
@@ -95,7 +95,7 @@ async function mountWithSuccess(mockScroll: jest.SpyInstance) {
  * 3. Re-render fetch for new page succeeding - currentPage stays the same, but
  *    isPreviousData flips from true to false
  */
-describe(`${Pagination.name}`, () => {
+describe(`${PaginationContainer.name}`, () => {
   describe("Initial render", () => {
     it("Does absolutely nothing - should not scroll on component mount because that will violently hijack the user's browser", async () => {
       const mockScroll = jest.spyOn(window, "scrollTo");
@@ -115,7 +115,7 @@ describe(`${Pagination.name}`, () => {
       const { rerender } = await mountWithSuccess(mockScroll);
 
       rerender(
-        <Pagination
+        <PaginationContainer
           paginationUnitLabel={mockUnitLabel}
           paginationResult={{
             ...successResult,
@@ -133,7 +133,7 @@ describe(`${Pagination.name}`, () => {
       const { rerender } = await mountWithSuccess(mockScroll);
 
       rerender(
-        <Pagination
+        <PaginationContainer
           paginationUnitLabel={mockUnitLabel}
           paginationResult={{
             ...successResult,
@@ -157,7 +157,7 @@ describe(`${Pagination.name}`, () => {
       });
 
       rerender(
-        <Pagination
+        <PaginationContainer
           paginationUnitLabel={mockUnitLabel}
           paginationResult={{ ...successResult, isPreviousData: true }}
         />,
@@ -171,7 +171,7 @@ describe(`${Pagination.name}`, () => {
       const { rerender } = await mountWithSuccess(mockScroll);
 
       rerender(
-        <Pagination
+        <PaginationContainer
           paginationUnitLabel={mockUnitLabel}
           paginationResult={{
             ...successResult,
@@ -182,7 +182,7 @@ describe(`${Pagination.name}`, () => {
       );
 
       rerender(
-        <Pagination
+        <PaginationContainer
           paginationUnitLabel={mockUnitLabel}
           paginationResult={{
             ...successResult,
@@ -212,7 +212,7 @@ describe(`${Pagination.name}`, () => {
         const { rerender, unmount } = await mountWithSuccess(mockScroll);
 
         rerender(
-          <Pagination
+          <PaginationContainer
             paginationUnitLabel={mockUnitLabel}
             paginationResult={{
               ...successResult,
@@ -225,7 +225,7 @@ describe(`${Pagination.name}`, () => {
         fireEvent[event](window);
 
         rerender(
-          <Pagination
+          <PaginationContainer
             paginationUnitLabel={mockUnitLabel}
             paginationResult={{
               ...successResult,

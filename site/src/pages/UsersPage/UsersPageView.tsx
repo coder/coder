@@ -5,7 +5,7 @@ import { type GroupsByUserId } from "api/queries/groups";
 import { UsersTable } from "./UsersTable/UsersTable";
 import { UsersFilter } from "./UsersFilter";
 import {
-  Pagination,
+  PaginationContainer,
   type PaginationResult,
 } from "components/PaginationWidget/Pagination";
 
@@ -61,7 +61,10 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
     <>
       <UsersFilter {...filterProps} />
 
-      <Pagination paginationResult={usersQuery} paginationUnitLabel="users">
+      <PaginationContainer
+        paginationResult={usersQuery}
+        paginationUnitLabel="users"
+      >
         <UsersTable
           users={users}
           roles={roles}
@@ -82,7 +85,7 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
           actorID={actorID}
           authMethods={authMethods}
         />
-      </Pagination>
+      </PaginationContainer>
     </>
   );
 };
