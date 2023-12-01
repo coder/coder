@@ -305,10 +305,11 @@ func runAgent(t *testing.T, client *codersdk.Client, owner uuid.UUID, db databas
 	require.NoError(t, err, "specified user does not exist")
 	require.Greater(t, len(user.OrganizationIDs), 0, "user has no organizations")
 	orgID := user.OrganizationIDs[0]
-	r := dbfake.Workspace(t, db).Seed(database.Workspace{
+	r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 		OrganizationID: orgID,
 		OwnerID:        owner,
 	}).WithAgent().Do()
+
 	_ = agenttest.New(t, client.URL, r.AgentToken,
 		func(o *agent.Options) {
 			o.SSHMaxTimeout = 60 * time.Second

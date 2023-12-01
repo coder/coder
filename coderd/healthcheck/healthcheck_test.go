@@ -107,7 +107,7 @@ func TestHealthcheck(t *testing.T) {
 		checker: &testChecker{
 			DERPReport: derphealth.Report{
 				Healthy:  true,
-				Warnings: []string{"foobar"},
+				Warnings: []health.Message{{Message: "foobar", Code: "EFOOBAR"}},
 				Severity: health.SeverityWarning,
 			},
 			AccessURLReport: healthcheck.AccessURLReport{
@@ -259,7 +259,7 @@ func TestHealthcheck(t *testing.T) {
 			},
 			WorkspaceProxyReport: healthcheck.WorkspaceProxyReport{
 				Healthy:  true,
-				Warnings: []string{"foobar"},
+				Warnings: []health.Message{{Message: "foobar", Code: "EFOOBAR"}},
 				Severity: health.SeverityWarning,
 			},
 		},

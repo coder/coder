@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
@@ -28,7 +29,6 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/enterprise/coderd/schedule"
 	"github.com/coder/coder/v2/provisioner/echo"
-	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -239,7 +239,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		require.Len(t, stats.Transitions, 0)
 	})
 
-	t.Run("InactiveTTLOK", func(t *testing.T) {
+	t.Run("DormancyThresholdOK", func(t *testing.T) {
 		t.Parallel()
 
 		var (
@@ -274,8 +274,8 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
-		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
+
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 
 		// Reset the audit log so we can verify a log is generated.
 		auditRecorder.ResetLogs()
@@ -287,29 +287,43 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		// failure TTL.
 		require.Len(t, stats.Transitions, 1)
 		require.Equal(t, stats.Transitions[ws.ID], database.WorkspaceTransitionStop)
-		require.Len(t, auditRecorder.AuditLogs(), 1)
 
-		auditLog := auditRecorder.AuditLogs()[0]
-		require.Equal(t, auditLog.Action, database.AuditActionWrite)
-
-		var fields audit.AdditionalFields
-		err := json.Unmarshal(auditLog.AdditionalFields, &fields)
-		require.NoError(t, err)
-		require.Equal(t, ws.Name, fields.WorkspaceName)
-		require.Equal(t, database.BuildReasonAutolock, fields.BuildReason)
-
-		// The workspace should be dormant.
 		ws = coderdtest.MustWorkspace(t, client, ws.ID)
 		require.NotNil(t, ws.DormantAt)
-		lastUsedAt := ws.LastUsedAt
 
-		err = client.UpdateWorkspaceDormancy(ctx, ws.ID, codersdk.UpdateWorkspaceDormancy{Dormant: false})
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+		// We should get 2 audit logs, one for stopping the workspace, and one for
+		// making it dormant.
+		alogs := auditRecorder.AuditLogs()
+		require.Len(t, alogs, 2)
+
+		for _, alog := range alogs {
+			require.Equal(t, int32(http.StatusOK), alog.StatusCode)
+
+			switch alog.Action {
+			case database.AuditActionWrite:
+				require.Equal(t, database.ResourceTypeWorkspace, alog.ResourceType)
+			case database.AuditActionStop:
+				var fields audit.AdditionalFields
+				err := json.Unmarshal(alog.AdditionalFields, &fields)
+				require.NoError(t, err)
+				require.Equal(t, ws.Name, fields.WorkspaceName)
+				require.Equal(t, database.BuildReasonAutolock, fields.BuildReason)
+
+			default:
+				t.Fatalf("unexpected audit log (%+v)", alog)
+			}
+		}
+
+		dormantLastUsedAt := ws.LastUsedAt
+		// nolint:gocritic // this test is not testing RBAC.
+		err := client.UpdateWorkspaceDormancy(ctx, ws.ID, codersdk.UpdateWorkspaceDormancy{Dormant: false})
 		require.NoError(t, err)
 
 		// Assert that we updated our last_used_at so that we don't immediately
 		// retrigger another lock action.
 		ws = coderdtest.MustWorkspace(t, client, ws.ID)
-		require.True(t, ws.LastUsedAt.After(lastUsedAt))
+		require.True(t, ws.LastUsedAt.After(dormantLastUsedAt))
 	})
 
 	// This test serves as a regression prevention for generating
@@ -390,7 +404,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		}
 	})
 
-	t.Run("InactiveTTLTooEarly", func(t *testing.T) {
+	t.Run("DormancyThresholdTooEarly", func(t *testing.T) {
 		t.Parallel()
 
 		var (
@@ -473,7 +487,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 	// Assert that a stopped workspace that breaches the inactivity threshold
 	// does not trigger a build transition but is still placed in the
-	// lock state.
+	// dormant state.
 	t.Run("InactiveStoppedWorkspaceNoTransition", func(t *testing.T) {
 		t.Parallel()
 
@@ -697,7 +711,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			cwr.AutostartSchedule = ptr.Ref(sched.String())
 		})
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
-		coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
 
 		// Assert that autostart works when the workspace isn't dormant..
 		tickCh <- sched.Next(ws.LatestBuild.CreatedAt)
@@ -1155,10 +1169,9 @@ func TestWorkspaceLock(t *testing.T) {
 func TestResolveAutostart(t *testing.T) {
 	t.Parallel()
 
-	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+	ownerClient, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
-			IncludeProvisionerDaemon: true,
-			TemplateScheduleStore:    &schedule.EnterpriseTemplateScheduleStore{},
+			TemplateScheduleStore: &schedule.EnterpriseTemplateScheduleStore{},
 		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
@@ -1167,52 +1180,40 @@ func TestResolveAutostart(t *testing.T) {
 		},
 	})
 
-	version1 := coderdtest.CreateTemplateVersion(t, ownerClient, owner.OrganizationID, nil)
-	coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, version1.ID)
-	template := coderdtest.CreateTemplate(t, ownerClient, owner.OrganizationID, version1.ID, func(ctr *codersdk.CreateTemplateRequest) {
-		ctr.RequireActiveVersion = true
-	})
-
-	params := &echo.Responses{
-		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{
-			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
-						Parameters: []*proto.RichParameter{
-							{
-								Name:        "param",
-								Description: "param",
-								Required:    true,
-								Mutable:     true,
-							},
-						},
-					},
-				},
-			},
-		},
-		ProvisionApply: echo.ApplyComplete,
-	}
-	version2 := coderdtest.CreateTemplateVersion(t, ownerClient, owner.OrganizationID, params, func(ctvr *codersdk.CreateTemplateVersionRequest) {
-		ctvr.TemplateID = template.ID
-	})
-	coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, version2.ID)
+	version1 := dbfake.TemplateVersion(t, db).
+		Seed(database.TemplateVersion{
+			CreatedBy:      owner.UserID,
+			OrganizationID: owner.OrganizationID,
+		}).Do()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	client, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
-	workspace := coderdtest.CreateWorkspace(t, client, owner.OrganizationID, template.ID)
-	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-
-	//nolint:gocritic
-	err := ownerClient.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
-		ID: version2.ID,
+	_, err := ownerClient.UpdateTemplateMeta(ctx, version1.Template.ID, codersdk.UpdateTemplateMeta{
+		RequireActiveVersion: true,
 	})
 	require.NoError(t, err)
 
-	// Autostart shouldn't be possible since the template requires automatic
-	// updates.
+	client, member := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+	workspace := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		OwnerID:        member.ID,
+		OrganizationID: owner.OrganizationID,
+		TemplateID:     version1.Template.ID,
+	}).Seed(database.WorkspaceBuild{
+		TemplateVersionID: version1.TemplateVersion.ID,
+	}).Do().Workspace
+
+	_ = dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+		CreatedBy:      owner.UserID,
+		OrganizationID: owner.OrganizationID,
+		TemplateID:     version1.TemplateVersion.TemplateID,
+	}).Params(database.TemplateVersionParameter{
+		Name:     "param",
+		Required: true,
+	}).Do()
+
+	// Autostart shouldn't be possible if parameters do not match.
 	resp, err := client.ResolveAutostart(ctx, workspace.ID.String())
 	require.NoError(t, err)
 	require.True(t, resp.ParameterMismatch)

@@ -63,7 +63,9 @@ func TestWebsocket(t *testing.T) {
 			APIKey:     "test",
 		})
 
-		require.NotNil(t, wsReport.Error)
+		if assert.NotNil(t, wsReport.Error) {
+			assert.Contains(t, *wsReport.Error, health.CodeWebsocketDial)
+		}
 		require.Equal(t, health.SeverityError, wsReport.Severity)
 		assert.Equal(t, wsReport.Body, "test error")
 		assert.Equal(t, wsReport.Code, http.StatusBadRequest)

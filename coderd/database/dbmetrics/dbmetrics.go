@@ -121,6 +121,20 @@ func (m metricsStore) CleanTailnetCoordinators(ctx context.Context) error {
 	return err
 }
 
+func (m metricsStore) CleanTailnetLostPeers(ctx context.Context) error {
+	start := time.Now()
+	r0 := m.s.CleanTailnetLostPeers(ctx)
+	m.queryLatencies.WithLabelValues("CleanTailnetLostPeers").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m metricsStore) CleanTailnetTunnels(ctx context.Context) error {
+	start := time.Now()
+	r0 := m.s.CleanTailnetTunnels(ctx)
+	m.queryLatencies.WithLabelValues("CleanTailnetTunnels").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) DeleteAPIKeyByID(ctx context.Context, id string) error {
 	start := time.Now()
 	err := m.s.DeleteAPIKeyByID(ctx, id)

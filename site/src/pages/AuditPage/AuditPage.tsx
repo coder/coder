@@ -1,7 +1,4 @@
-import {
-  DEFAULT_RECORDS_PER_PAGE,
-  isNonInitialPage,
-} from "components/PaginationWidget/utils";
+import { isNonInitialPage } from "components/PaginationWidget/utils";
 import { useFeatureVisibility } from "hooks/useFeatureVisibility";
 import { FC } from "react";
 import { Helmet } from "react-helmet-async";
@@ -10,20 +7,27 @@ import { pageTitle } from "utils/page";
 import { AuditPageView } from "./AuditPageView";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
 import { useFilter } from "components/Filter/filter";
-import { usePagination } from "hooks";
-import { useQuery } from "react-query";
-import { getAuditLogs } from "api/api";
 import { useActionFilterMenu, useResourceTypeFilterMenu } from "./AuditFilter";
+import { usePaginatedQuery } from "hooks/usePaginatedQuery";
+import { paginatedAudits } from "api/queries/audits";
 
 const AuditPage: FC = () => {
-  const searchParamsResult = useSearchParams();
-  const pagination = usePagination({ searchParamsResult });
+  const { audit_log: isAuditLogVisible } = useFeatureVisibility();
+
+  /**
+   * There is an implicit link between auditsQuery and filter via the
+   * searchParams object
+   *
+   * @todo Make link more explicit (probably by making it so that components
+   * and hooks can share the result of useSearchParams directly)
+   */
+  const [searchParams, setSearchParams] = useSearchParams();
+  const auditsQuery = usePaginatedQuery(paginatedAudits(searchParams));
   const filter = useFilter({
-    searchParamsResult,
-    onUpdate: () => {
-      pagination.goToPage(1);
-    },
+    searchParamsResult: [searchParams, setSearchParams],
+    onUpdate: auditsQuery.goToFirstPage,
   });
+
   const userMenu = useUserFilterMenu({
     value: filter.values.username,
     onChange: (option) =>
@@ -32,6 +36,7 @@ const AuditPage: FC = () => {
         username: option?.value,
       }),
   });
+
   const actionMenu = useActionFilterMenu({
     value: filter.values.action,
     onChange: (option) =>
@@ -40,6 +45,7 @@ const AuditPage: FC = () => {
         action: option?.value,
       }),
   });
+
   const resourceTypeMenu = useResourceTypeFilterMenu({
     value: filter.values["resource_type"],
     onChange: (option) =>
@@ -48,37 +54,25 @@ const AuditPage: FC = () => {
         resource_type: option?.value,
       }),
   });
-  const { audit_log: isAuditLogVisible } = useFeatureVisibility();
-  const { data, error } = useQuery({
-    queryKey: ["auditLogs", filter.query, pagination.page],
-    queryFn: () => {
-      const limit = DEFAULT_RECORDS_PER_PAGE;
-      const page = pagination.page;
-      return getAuditLogs({
-        offset: page <= 0 ? 0 : (page - 1) * limit,
-        limit: limit,
-        q: filter.query,
-      });
-    },
-  });
 
   return (
     <>
       <Helmet>
         <title>{pageTitle("Audit")}</title>
       </Helmet>
+
       <AuditPageView
-        auditLogs={data?.audit_logs}
-        count={data?.count}
-        page={pagination.page}
-        limit={pagination.limit}
-        onPageChange={pagination.goToPage}
-        isNonInitialPage={isNonInitialPage(searchParamsResult[0])}
+        auditLogs={auditsQuery.data?.audit_logs}
+        count={auditsQuery.totalRecords}
+        page={auditsQuery.currentPage}
+        limit={auditsQuery.limit}
+        onPageChange={auditsQuery.onPageChange}
+        isNonInitialPage={isNonInitialPage(searchParams)}
         isAuditLogVisible={isAuditLogVisible}
-        error={error}
+        error={auditsQuery.error}
         filterProps={{
           filter,
-          error,
+          error: auditsQuery.error,
           menus: {
             user: userMenu,
             action: actionMenu,

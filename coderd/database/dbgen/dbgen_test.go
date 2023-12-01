@@ -173,6 +173,22 @@ func TestGenerator(t *testing.T) {
 		exp := dbgen.GitSSHKey(t, db, database.GitSSHKey{})
 		require.Equal(t, exp, must(db.GetGitSSHKey(context.Background(), exp.UserID)))
 	})
+
+	t.Run("WorkspaceBuildParameters", func(t *testing.T) {
+		t.Parallel()
+		db := dbmem.New()
+		exp := dbgen.WorkspaceBuildParameters(t, db, []database.WorkspaceBuildParameter{{}, {}, {}})
+		require.Equal(t, exp, must(db.GetWorkspaceBuildParameters(context.Background(), exp[0].WorkspaceBuildID)))
+	})
+
+	t.Run("TemplateVersionParameter", func(t *testing.T) {
+		t.Parallel()
+		db := dbmem.New()
+		exp := dbgen.TemplateVersionParameter(t, db, database.TemplateVersionParameter{})
+		actual := must(db.GetTemplateVersionParameters(context.Background(), exp.TemplateVersionID))
+		require.Len(t, actual, 1)
+		require.Equal(t, exp, actual[0])
+	})
 }
 
 func must[T any](value T, err error) T {
