@@ -389,100 +389,6 @@ jobs:
         with:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
-  deploy:
-    name: "deploy"
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-16vcpu-ubuntu-2204' || 'ubuntu-latest' }}
-    timeout-minutes: 30
-    needs: changes
-    if: |
-      github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
-      && needs.changes.outputs.docs-only == 'false'
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v1
-        with:
-          workload_identity_provider: projects/573722524737/locations/global/workloadIdentityPools/github/providers/github
-          service_account: coder-ci@coder-dogfood.iam.gserviceaccount.com
-
-      - name: Set up Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1
-
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
-
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-
-      - name: Install goimports
-        run: go install golang.org/x/tools/cmd/goimports@latest
-      - name: Install nfpm
-        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.16.0
-
-      - name: Install zstd
-        run: sudo apt-get install -y zstd
-
-      - name: Build Release
-        run: |
-          set -euo pipefail
-          go mod download
-
-          version="$(./scripts/version.sh)"
-          make gen/mark-fresh
-          make -j \
-            build/coder_"$version"_windows_amd64.zip \
-            build/coder_"$version"_linux_amd64.{tar.gz,deb}
-
-      - name: Install Release
-        run: |
-          set -euo pipefail
-
-          regions=(
-            # gcp-region-id instance-name systemd-service-name
-            "us-central1-a coder coder"
-            "australia-southeast1-b coder-sydney coder-workspace-proxy"
-            "europe-west3-c coder-europe coder-workspace-proxy"
-            "southamerica-east1-b coder-brazil coder-workspace-proxy"
-          )
-
-          deb_pkg="./build/coder_$(./scripts/version.sh)_linux_amd64.deb"
-          if [ ! -f "$deb_pkg" ]; then
-            echo "deb package not found: $deb_pkg"
-            ls -l ./build
-            exit 1
-          fi
-
-          gcloud config set project coder-dogfood
-          for region in "${regions[@]}"; do
-            echo "::group::$region"
-            set -- $region
-
-            set -x
-            gcloud config set compute/zone "$1"
-            gcloud compute scp "$deb_pkg" "${2}:/tmp/coder.deb"
-            gcloud compute ssh "$2" -- /bin/sh -c "set -eux; sudo dpkg -i --force-confdef /tmp/coder.deb; sudo systemctl daemon-reload; sudo service '$3' restart"
-            set +x
-
-            echo "::endgroup::"
-          done
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: coder
-          path: |
-            ./build/*.zip
-            ./build/*.tar.gz
-            ./build/*.deb
-          retention-days: 7
-
   test-js:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     needs: changes
@@ -722,9 +628,10 @@ jobs:
 
           echo "Required checks have passed"
 
-  build-main-image:
-    # This build and publihes ghcr.io/coder/coder-preview:main for each merge commit to main branch.
-    # We are only building this for amd64 plateform. (>95% pulls are for amd64)
+  build:
+    # This builds and publishes ghcr.io/coder/coder-preview:main for each commit
+    # to main branch. We are only building this for amd64 platform. (>95% pulls
+    # are for amd64)
     needs: changes
     if: github.ref == 'refs/heads/main' && needs.changes.outputs.docs-only == 'false'
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
@@ -752,27 +659,34 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Linux amd64 Docker image
-        id: build_and_push
+      - name: Build
         run: |
           set -euxo pipefail
           go mod download
-          make gen/mark-fresh
-          export DOCKER_IMAGE_NO_PREREQUISITES=true
+
           version="$(./scripts/version.sh)"
+          make gen/mark-fresh
+          make -j \
+            build/coder_linux_amd64 \
+            build/coder_"$version"_windows_amd64.zip \
+            build/coder_"$version"_linux_amd64.{tar.gz,deb}
+
+      - name: Build and Push Linux amd64 Docker Image
+        run: |
+          set -euxo pipefail
+          tag="main-$(echo "$version" | sed 's/+/-/g')"
+
           export CODER_IMAGE_BUILD_BASE_TAG="$(CODER_IMAGE_BASE=coder-base ./scripts/image_tag.sh --version "$version")"
-          make -j build/coder_linux_amd64
           ./scripts/build_docker.sh \
             --arch amd64 \
-            --target ghcr.io/coder/coder-preview:main \
+            --target "ghcr.io/coder/coder-preview:$tag" \
             --version $version \
             --push \
             build/coder_linux_amd64
 
-          # Tag image with new package tag and push
-          tag=$(echo "$version" | sed 's/+/-/g')
-          docker tag ghcr.io/coder/coder-preview:main ghcr.io/coder/coder-preview:main-$tag
-          docker push ghcr.io/coder/coder-preview:main-$tag
+          # Tag as main
+          docker tag "ghcr.io/coder/coder-preview:$tag" ghcr.io/coder/coder-preview:main
+          docker push ghcr.io/coder/coder-preview:main
 
       - name: Prune old images
         uses: vlaurin/action-ghcr-prune@v0.5.0
@@ -784,3 +698,158 @@ jobs:
           keep-tags-regexes: ^pr
           prune-tags-regexes: ^main-
           prune-untagged: true
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: coder
+          path: |
+            ./build/*.zip
+            ./build/*.tar.gz
+            ./build/*.deb
+          retention-days: 7
+
+  deploy:
+    name: "deploy"
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-16vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    timeout-minutes: 30
+    needs:
+      - changes
+      - build
+    if: |
+      github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
+      && needs.changes.outputs.docs-only == 'false'
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          workload_identity_provider: projects/573722524737/locations/global/workloadIdentityPools/github/providers/github
+          service_account: coder-ci@coder-dogfood.iam.gserviceaccount.com
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: Set up Flux CLI
+        uses: fluxcd/flux2/action@main
+
+      - name: Get Cluster Credentials
+        uses: "google-github-actions/get-gke-credentials@v1"
+        with:
+          cluster_name: dogfood-v2
+          location: us-central1-a
+          project_id: coder-dogfood-v2
+
+      - name: Reconcile Flux
+        run: |
+          set -euxo pipefail
+          flux --namespace flux-system reconcile source git flux-system
+          flux --namespace flux-system reconcile source git coder-main
+          flux --namespace flux-system reconcile kustomization flux-system
+          flux --namespace flux-system reconcile kustomization coder
+          flux --namespace flux-system reconcile source chart coder-coder
+          flux --namespace coder reconcile helmrelease coder
+
+      # Just updating Flux is usually not enough. The Helm release may get
+      # redeployed, but unless something causes the Deployment to update the
+      # pods won't be recreated. It's important that the pods get recreated,
+      # since we use `imagePullPolicy: Always` to ensure we're running the
+      # latest image.
+      - name: Rollout Deployment
+        run: |
+          set -euxo pipefail
+          kubectl --namespace coder rollout restart deployment/coder
+          kubectl --namespace coder rollout status deployment/coder
+
+  # TODO: when we remove this, instead of removing it we need to change it so it
+  # still upgrades workspace proxies which are not deployed on K8s
+  deploy-legacy:
+    name: "deploy-legacy"
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-16vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    timeout-minutes: 30
+    needs: changes
+    if: |
+      github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
+      && needs.changes.outputs.docs-only == 'false'
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          workload_identity_provider: projects/573722524737/locations/global/workloadIdentityPools/github/providers/github
+          service_account: coder-ci@coder-dogfood.iam.gserviceaccount.com
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Install goimports
+        run: go install golang.org/x/tools/cmd/goimports@latest
+      - name: Install nfpm
+        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.16.0
+
+      - name: Install zstd
+        run: sudo apt-get install -y zstd
+
+      - name: Build Release
+        run: |
+          set -euo pipefail
+          go mod download
+
+          version="$(./scripts/version.sh)"
+          make gen/mark-fresh
+          make -j \
+            build/coder_"$version"_windows_amd64.zip \
+            build/coder_"$version"_linux_amd64.{tar.gz,deb}
+
+      - name: Install Release
+        run: |
+          set -euo pipefail
+
+          regions=(
+            # gcp-region-id instance-name systemd-service-name
+            "us-central1-a coder coder"
+            "australia-southeast1-b coder-sydney coder-workspace-proxy"
+            "europe-west3-c coder-europe coder-workspace-proxy"
+            "southamerica-east1-b coder-brazil coder-workspace-proxy"
+          )
+
+          deb_pkg="./build/coder_$(./scripts/version.sh)_linux_amd64.deb"
+          if [ ! -f "$deb_pkg" ]; then
+            echo "deb package not found: $deb_pkg"
+            ls -l ./build
+            exit 1
+          fi
+
+          gcloud config set project coder-dogfood
+          for region in "${regions[@]}"; do
+            echo "::group::$region"
+            set -- $region
+
+            set -x
+            gcloud config set compute/zone "$1"
+            gcloud compute scp "$deb_pkg" "${2}:/tmp/coder.deb"
+            gcloud compute ssh "$2" -- /bin/sh -c "set -eux; sudo dpkg -i --force-confdef /tmp/coder.deb; sudo systemctl daemon-reload; sudo service '$3' restart"
+            set +x
+
+            echo "::endgroup::"
+          done
