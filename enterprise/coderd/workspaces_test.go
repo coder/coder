@@ -239,7 +239,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		require.Len(t, stats.Transitions, 0)
 	})
 
-	t.Run("InactiveTTLOK", func(t *testing.T) {
+	t.Run("DormancyThresholdOK", func(t *testing.T) {
 		t.Parallel()
 
 		var (
@@ -274,8 +274,8 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
-		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
+
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 
 		// Reset the audit log so we can verify a log is generated.
 		auditRecorder.ResetLogs()
@@ -287,29 +287,43 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		// failure TTL.
 		require.Len(t, stats.Transitions, 1)
 		require.Equal(t, stats.Transitions[ws.ID], database.WorkspaceTransitionStop)
-		require.Len(t, auditRecorder.AuditLogs(), 1)
 
-		auditLog := auditRecorder.AuditLogs()[0]
-		require.Equal(t, auditLog.Action, database.AuditActionWrite)
-
-		var fields audit.AdditionalFields
-		err := json.Unmarshal(auditLog.AdditionalFields, &fields)
-		require.NoError(t, err)
-		require.Equal(t, ws.Name, fields.WorkspaceName)
-		require.Equal(t, database.BuildReasonAutolock, fields.BuildReason)
-
-		// The workspace should be dormant.
 		ws = coderdtest.MustWorkspace(t, client, ws.ID)
 		require.NotNil(t, ws.DormantAt)
-		lastUsedAt := ws.LastUsedAt
 
-		err = client.UpdateWorkspaceDormancy(ctx, ws.ID, codersdk.UpdateWorkspaceDormancy{Dormant: false})
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+		// We should get 2 audit logs, one for stopping the workspace, and one for
+		// making it dormant.
+		alogs := auditRecorder.AuditLogs()
+		require.Len(t, alogs, 2)
+
+		for _, alog := range alogs {
+			require.Equal(t, int32(http.StatusOK), alog.StatusCode)
+
+			switch alog.Action {
+			case database.AuditActionWrite:
+				require.Equal(t, database.ResourceTypeWorkspace, alog.ResourceType)
+			case database.AuditActionStop:
+				var fields audit.AdditionalFields
+				err := json.Unmarshal(alog.AdditionalFields, &fields)
+				require.NoError(t, err)
+				require.Equal(t, ws.Name, fields.WorkspaceName)
+				require.Equal(t, database.BuildReasonAutolock, fields.BuildReason)
+
+			default:
+				t.Fatalf("unexpected audit log (%+v)", alog)
+			}
+		}
+
+		dormantLastUsedAt := ws.LastUsedAt
+		// nolint:gocritic // this test is not testing RBAC.
+		err := client.UpdateWorkspaceDormancy(ctx, ws.ID, codersdk.UpdateWorkspaceDormancy{Dormant: false})
 		require.NoError(t, err)
 
 		// Assert that we updated our last_used_at so that we don't immediately
 		// retrigger another lock action.
 		ws = coderdtest.MustWorkspace(t, client, ws.ID)
-		require.True(t, ws.LastUsedAt.After(lastUsedAt))
+		require.True(t, ws.LastUsedAt.After(dormantLastUsedAt))
 	})
 
 	// This test serves as a regression prevention for generating
@@ -390,7 +404,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		}
 	})
 
-	t.Run("InactiveTTLTooEarly", func(t *testing.T) {
+	t.Run("DormancyThresholdTooEarly", func(t *testing.T) {
 		t.Parallel()
 
 		var (
@@ -473,7 +487,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 	// Assert that a stopped workspace that breaches the inactivity threshold
 	// does not trigger a build transition but is still placed in the
-	// lock state.
+	// dormant state.
 	t.Run("InactiveStoppedWorkspaceNoTransition", func(t *testing.T) {
 		t.Parallel()
 
