@@ -153,7 +153,7 @@ CREATE TYPE user_status AS ENUM (
     'dormant'
 );
 
-COMMENT ON TYPE user_status IS 'Defines the user status: active, dormant, or suspended.';
+COMMENT ON TYPE user_status IS 'Defines the users status: active, dormant, or suspended.';
 
 CREATE TYPE workspace_agent_lifecycle_state AS ENUM (
     'created',

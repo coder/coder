@@ -1,4 +1,3 @@
-BEGIN;
 CREATE TABLE workspace_proxies (
     id uuid NOT NULL,
     name text NOT NULL,
@@ -19,5 +18,3 @@ COMMENT ON COLUMN workspace_proxies.wildcard_hostname IS 'Hostname with the wild
 
 -- Enforces no active proxies have the same name.
 CREATE UNIQUE INDEX ON workspace_proxies (name) WHERE deleted = FALSE;
-
-COMMIT;

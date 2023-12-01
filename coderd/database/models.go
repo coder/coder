@@ -1350,7 +1350,7 @@ func AllTailnetStatusValues() []TailnetStatus {
 	}
 }
 
-// Defines the user status: active, dormant, or suspended.
+// Defines the users status: active, dormant, or suspended.
 type UserStatus string
 
 const (

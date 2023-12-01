@@ -1,5 +1,3 @@
-BEGIN;
-
 CREATE TYPE provisioner_job_status AS ENUM ('pending', 'running', 'succeeded', 'canceling', 'canceled', 'failed', 'unknown');
 COMMENT ON TYPE provisioner_job_status IS 'Computed status of a provisioner job. Jobs could be stuck in a hung state, these states do not guarantee any transition to another state.';
 
@@ -34,5 +32,3 @@ ALTER TABLE provisioner_jobs ADD COLUMN
 
 
 COMMENT ON COLUMN provisioner_jobs.job_status IS 'Computed column to track the status of the job.';
-
-COMMIT;
