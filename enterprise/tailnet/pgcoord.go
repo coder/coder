@@ -1723,15 +1723,22 @@ func (h *heartbeats) cleanupLoop() {
 	}
 }
 
-// cleanup issues a DB command to clean out any old expired coordinators state.  The cleanup is idempotent, so no need
-// to synchronize with other coordinators.
+// cleanup issues a DB command to clean out any old expired coordinators or lost peer state.  The
+// cleanup is idempotent, so no need to synchronize with other coordinators.
 func (h *heartbeats) cleanup() {
+	// the records we are attempting to clean up do no serious harm other than
+	// accumulating in the tables, so we don't bother retrying if it fails.
 	err := h.store.CleanTailnetCoordinators(h.ctx)
 	if err != nil {
-		// the records we are attempting to clean up do no serious harm other than
-		// accumulating in the tables, so we don't bother retrying if it fails.
 		h.logger.Error(h.ctx, "failed to cleanup old coordinators", slog.Error(err))
-		return
 	}
-	h.logger.Debug(h.ctx, "cleaned up old coordinators")
+	err = h.store.CleanTailnetLostPeers(h.ctx)
+	if err != nil {
+		h.logger.Error(h.ctx, "failed to cleanup lost peers", slog.Error(err))
+	}
+	err = h.store.CleanTailnetTunnels(h.ctx)
+	if err != nil {
+		h.logger.Error(h.ctx, "failed to cleanup abandoned tunnels", slog.Error(err))
+	}
+	h.logger.Debug(h.ctx, "completed cleanup")
 }
