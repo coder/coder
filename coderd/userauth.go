@@ -1019,7 +1019,7 @@ func (api *API) oidcGroups(ctx context.Context, mergedClaims map[string]interfac
 	if api.OIDCConfig.GroupField != "" {
 		usingGroups = true
 		groupsRaw, ok := mergedClaims[api.OIDCConfig.GroupField]
-		if ok && api.OIDCConfig.GroupField != "" {
+		if ok {
 			parsedGroups, err := parseStringSliceClaim(groupsRaw)
 			if err != nil {
 				api.Logger.Debug(ctx, "groups field was an unknown type in oidc claims",
@@ -1038,10 +1038,8 @@ func (api *API) oidcGroups(ctx context.Context, mergedClaims map[string]interfac
 				if mappedGroup, ok := api.OIDCConfig.GroupMapping[group]; ok {
 					group = mappedGroup
 				}
-
 				groups = append(groups, group)
 			}
-
 		}
 	}
 
