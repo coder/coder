@@ -11,10 +11,11 @@ INSERT INTO
 		created_at,
 		"name",
 		provisioners,
-		tags
+		tags,
+		updated_at
 	)
 VALUES
-	($1, $2, $3, $4, $5) RETURNING *;
+	($1, $2, $3, $4, $5, $6) RETURNING *;
 
 -- name: DeleteOldProvisionerDaemons :exec
 -- Delete provisioner daemons that have been created at least a week ago
