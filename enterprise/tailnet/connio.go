@@ -197,9 +197,8 @@ func (c *connIO) UniqueID() uuid.UUID {
 func (c *connIO) Enqueue(resp *proto.CoordinateResponse) error {
 	atomic.StoreInt64(&c.lastWrite, time.Now().Unix())
 	c.mu.Lock()
-	closed := c.closed
-	c.mu.Unlock()
-	if closed {
+	defer c.mu.Unlock()
+	if c.closed {
 		return xerrors.New("connIO closed")
 	}
 	select {
