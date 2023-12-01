@@ -1122,7 +1122,7 @@ func (q *FakeQuerier) DeleteOldProvisionerDaemons(_ context.Context) error {
 
 	var validDaemons []database.ProvisionerDaemon
 	for _, p := range q.provisionerDaemons {
-		if p.CreatedAt.Before(weekAgo) && p.UpdatedAt.Valid && p.UpdatedAt.Time.Before(weekAgo) {
+		if (p.CreatedAt.Before(weekAgo) && !p.UpdatedAt.Valid) || (p.UpdatedAt.Valid && p.UpdatedAt.Time.Before(weekAgo)) {
 			continue
 		}
 		validDaemons = append(validDaemons, p)

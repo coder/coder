@@ -2987,7 +2987,10 @@ func (q *sqlQuerier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.
 }
 
 const deleteOldProvisionerDaemons = `-- name: DeleteOldProvisionerDaemons :exec
-DELETE FROM provisioner_daemons WHERE created_at < (NOW() - INTERVAL '7 days') AND updated_at < (NOW() - INTERVAL '7 days')
+DELETE FROM provisioner_daemons WHERE (
+	(created_at < (NOW() - INTERVAL '7 days') AND updated_at IS NULL) OR
+	(updated_at IS NOT NULL AND updated_at < (NOW() - INTERVAL '7 days'))
+)
 `
 
 // Delete provisioner daemons that have been created at least a week ago
