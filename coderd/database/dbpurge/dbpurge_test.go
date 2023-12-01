@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"go.uber.org/goleak"
+	"golang.org/x/exp/slices"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
@@ -45,6 +47,7 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 	// given
 	_, err := db.InsertProvisionerDaemon(ctx, database.InsertProvisionerDaemonParams{
 		// Provisioner daemon created 14 days ago, and checked in just before 7 days deadline.
+		ID:           uuid.New(),
 		Name:         "external-0",
 		Provisioners: []database.ProvisionerType{"echo"},
 		CreatedAt:    now.Add(-14 * 24 * time.Hour),
@@ -53,6 +56,7 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 	require.NoError(t, err)
 	_, err = db.InsertProvisionerDaemon(ctx, database.InsertProvisionerDaemonParams{
 		// Provisioner daemon created 8 days ago, and checked in last time an hour after creation.
+		ID:           uuid.New(),
 		Name:         "external-1",
 		Provisioners: []database.ProvisionerType{"echo"},
 		CreatedAt:    now.Add(-8 * 24 * time.Hour),
@@ -61,6 +65,7 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 	require.NoError(t, err)
 	_, err = db.InsertProvisionerDaemon(ctx, database.InsertProvisionerDaemonParams{
 		// Provisioner daemon created 9 days ago, and never checked in.
+		ID:           uuid.New(),
 		Name:         "external-2",
 		Provisioners: []database.ProvisionerType{"echo"},
 		CreatedAt:    now.Add(-9 * 24 * time.Hour),
@@ -68,6 +73,7 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 	require.NoError(t, err)
 	_, err = db.InsertProvisionerDaemon(ctx, database.InsertProvisionerDaemonParams{
 		// Provisioner daemon created 6 days ago, and never checked in.
+		ID:           uuid.New(),
 		Name:         "external-3",
 		Provisioners: []database.ProvisionerType{"echo"},
 		CreatedAt:    now.Add(-6 * 24 * time.Hour),
@@ -85,6 +91,13 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 		if err != nil {
 			return false
 		}
-		return len(daemons) == 2
+		return contains(daemons, "external-0") &&
+			contains(daemons, "external-3")
 	}, testutil.WaitShort, testutil.IntervalFast)
+}
+
+func contains(daemons []database.ProvisionerDaemon, name string) bool {
+	return slices.ContainsFunc(daemons, func(d database.ProvisionerDaemon) bool {
+		return d.Name == name
+	})
 }
