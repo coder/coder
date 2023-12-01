@@ -10,7 +10,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import {
   mockPaginationResultBase,
   mockInitialRenderResult,
-} from "./PaginationContainer.test";
+} from "./PaginationContainer.mocks";
 
 // Filtering out optional <div> props to give better auto-complete experience
 type EssentialComponent = FC<

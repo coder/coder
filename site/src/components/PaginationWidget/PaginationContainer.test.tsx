@@ -1,11 +1,12 @@
-import { type ComponentProps, type HTMLAttributes } from "react";
-import {
-  type PaginationResult,
-  PaginationContainer,
-} from "./PaginationContainer";
-
 import { renderComponent } from "testHelpers/renderHelpers";
 import { fireEvent, waitFor } from "@testing-library/react";
+import type { PropsWithChildren, ComponentProps, HTMLAttributes } from "react";
+
+import { PaginationContainer } from "./PaginationContainer";
+import {
+  mockInitialRenderResult,
+  mockSuccessResult,
+} from "./PaginationContainer.mocks";
 
 beforeAll(() => {
   jest.useFakeTimers();
@@ -16,47 +17,11 @@ afterAll(() => {
   jest.useRealTimers();
 });
 
-type ResultBase = Omit<
-  PaginationResult,
-  "isPreviousData" | "currentOffsetStart" | "totalRecords" | "totalPages"
->;
-
-export const mockPaginationResultBase: ResultBase = {
-  isSuccess: false,
-  currentPage: 1,
-  limit: 25,
-  hasNextPage: false,
-  hasPreviousPage: false,
-  goToPreviousPage: () => {},
-  goToNextPage: () => {},
-  goToFirstPage: () => {},
-  onPageChange: () => {},
-};
-
-export const mockInitialRenderResult: PaginationResult = {
-  ...mockPaginationResultBase,
-  isSuccess: false,
-  isPreviousData: false,
-  currentOffsetStart: undefined,
-  hasNextPage: false,
-  hasPreviousPage: false,
-  totalRecords: undefined,
-  totalPages: undefined,
-};
-
-const mockSuccessResult: PaginationResult = {
-  ...mockPaginationResultBase,
-  isSuccess: true,
-  isPreviousData: false,
-  currentOffsetStart: 1,
-  totalPages: 1,
-  totalRecords: 4,
-};
-
 type TestProps = Omit<
   ComponentProps<typeof PaginationContainer>,
   keyof HTMLAttributes<HTMLDivElement>
->;
+> &
+  PropsWithChildren;
 
 const mockUnitLabel = "ducks";
 
