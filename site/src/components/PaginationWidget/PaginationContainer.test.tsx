@@ -21,7 +21,7 @@ type ResultBase = Omit<
   "isPreviousData" | "currentOffsetStart" | "totalRecords" | "totalPages"
 >;
 
-const mockPaginationResultBase: ResultBase = {
+export const mockPaginationResultBase: ResultBase = {
   isSuccess: false,
   currentPage: 1,
   limit: 25,
@@ -33,7 +33,7 @@ const mockPaginationResultBase: ResultBase = {
   onPageChange: () => {},
 };
 
-const initialRenderResult: PaginationResult = {
+export const mockInitialRenderResult: PaginationResult = {
   ...mockPaginationResultBase,
   isSuccess: false,
   isPreviousData: false,
@@ -44,7 +44,7 @@ const initialRenderResult: PaginationResult = {
   totalPages: undefined,
 };
 
-const successResult: PaginationResult = {
+const mockSuccessResult: PaginationResult = {
   ...mockPaginationResultBase,
   isSuccess: true,
   isPreviousData: false,
@@ -76,7 +76,7 @@ async function mountWithSuccess(mockScroll: jest.SpyInstance) {
   // eslint-disable-next-line testing-library/render-result-naming-convention -- Forced destructuring just makes this awkward
   const result = render({
     paginationUnitLabel: mockUnitLabel,
-    paginationResult: successResult,
+    paginationResult: mockSuccessResult,
   });
 
   await assertNoScroll(mockScroll);
@@ -105,7 +105,7 @@ describe(`${PaginationContainer.name}`, () => {
 
       render({
         paginationUnitLabel: mockUnitLabel,
-        paginationResult: initialRenderResult,
+        paginationResult: mockInitialRenderResult,
       });
 
       await assertNoScroll(mockScroll);
@@ -121,7 +121,7 @@ describe(`${PaginationContainer.name}`, () => {
         <PaginationContainer
           paginationUnitLabel={mockUnitLabel}
           paginationResult={{
-            ...successResult,
+            ...mockSuccessResult,
             currentPage: 2,
             isPreviousData: false,
           }}
@@ -139,7 +139,7 @@ describe(`${PaginationContainer.name}`, () => {
         <PaginationContainer
           paginationUnitLabel={mockUnitLabel}
           paginationResult={{
-            ...successResult,
+            ...mockSuccessResult,
             currentPage: 2,
             isPreviousData: true,
           }}
@@ -156,13 +156,13 @@ describe(`${PaginationContainer.name}`, () => {
 
       const { rerender } = render({
         paginationUnitLabel: mockUnitLabel,
-        paginationResult: initialRenderResult,
+        paginationResult: mockInitialRenderResult,
       });
 
       rerender(
         <PaginationContainer
           paginationUnitLabel={mockUnitLabel}
-          paginationResult={{ ...successResult, isPreviousData: true }}
+          paginationResult={{ ...mockSuccessResult, isPreviousData: true }}
         />,
       );
 
@@ -177,7 +177,7 @@ describe(`${PaginationContainer.name}`, () => {
         <PaginationContainer
           paginationUnitLabel={mockUnitLabel}
           paginationResult={{
-            ...successResult,
+            ...mockSuccessResult,
             currentPage: 2,
             isPreviousData: true,
           }}
@@ -188,7 +188,7 @@ describe(`${PaginationContainer.name}`, () => {
         <PaginationContainer
           paginationUnitLabel={mockUnitLabel}
           paginationResult={{
-            ...successResult,
+            ...mockSuccessResult,
             currentPage: 2,
             isPreviousData: false,
           }}
@@ -218,7 +218,7 @@ describe(`${PaginationContainer.name}`, () => {
           <PaginationContainer
             paginationUnitLabel={mockUnitLabel}
             paginationResult={{
-              ...successResult,
+              ...mockSuccessResult,
               currentPage: 2,
               isPreviousData: true,
             }}
@@ -231,7 +231,7 @@ describe(`${PaginationContainer.name}`, () => {
           <PaginationContainer
             paginationUnitLabel={mockUnitLabel}
             paginationResult={{
-              ...successResult,
+              ...mockSuccessResult,
               currentPage: 2,
               isPreviousData: false,
             }}
