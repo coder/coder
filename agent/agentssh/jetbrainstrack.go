@@ -10,6 +10,7 @@ import (
 	gossh "golang.org/x/crypto/ssh"
 )
 
+// localForwardChannelData is copied from the ssh package.
 type localForwardChannelData struct {
 	DestAddr string
 	DestPort uint32
