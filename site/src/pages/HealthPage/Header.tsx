@@ -8,7 +8,7 @@ export const Header = (props: HTMLProps<HTMLDivElement>) => {
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        padding: "24px 36px",
+        padding: "28px 36px",
       }}
       {...props}
     />
