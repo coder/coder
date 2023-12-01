@@ -34,7 +34,7 @@ const meta: Meta<EssentialComponent> = {
 export default meta;
 type Story = StoryObj<EssentialComponent>;
 
-export const FirstPageNoData: Story = {
+export const FirstPageBeforeFetch: Story = {
   args: {
     paginationResult: mockInitialRenderResult,
   },
