@@ -53,10 +53,17 @@ func TestPurge(t *testing.T) {
 
 	agentIDs, _ := seed(ctx, t, db, opts)
 
-	// For half of the agents, set their last connected time to one week ago plus some non-zero interval
-	for i := 0; i < opts.NumAgents/2; i++ {
-		randOldTime := weekAgo.AddDate(0, 0, -randintn(7))
-		setAgentLastConnectedAt(ctx, t, db, agentIDs[i], randOldTime)
+	// Set last connectd time for agents.
+	// For half of the agents, set their last connected time to be older than one week ago.
+	// For the other half, set their last connected time to be within the last week.
+	for i := 0; i < opts.NumAgents; i++ {
+		var connectedAt time.Time
+		if i%2 == 0 {
+			connectedAt = weekAgo.AddDate(0, 0, -randintn(7))
+		} else {
+			connectedAt = now.AddDate(0, 0, -randintn(7))
+		}
+		setAgentLastConnectedAt(ctx, t, db, agentIDs[i], connectedAt)
 	}
 
 	// Assert that some old logs exist
