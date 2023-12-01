@@ -71,7 +71,7 @@ func TestPGCoordinatorSingle_ClientWithoutAgent(t *testing.T) {
 	require.NoError(t, err)
 	<-client.errChan
 	<-client.closeChan
-	assertEventuallyNoClientsForAgent(ctx, t, store, agentID)
+	assertEventuallyLost(ctx, t, store, client.id)
 }
 
 func TestPGCoordinatorSingle_AgentWithoutClients(t *testing.T) {
@@ -108,7 +108,7 @@ func TestPGCoordinatorSingle_AgentWithoutClients(t *testing.T) {
 	require.NoError(t, err)
 	<-agent.errChan
 	<-agent.closeChan
-	assertEventuallyNoAgents(ctx, t, store, agent.id)
+	assertEventuallyLost(ctx, t, store, agent.id)
 }
 
 func TestPGCoordinatorSingle_AgentWithClient(t *testing.T) {
@@ -184,8 +184,8 @@ func TestPGCoordinatorSingle_AgentWithClient(t *testing.T) {
 	_ = client.recvErr(ctx, t)
 	client.waitForClose(ctx, t)
 
-	assertEventuallyNoAgents(ctx, t, store, agent.id)
-	assertEventuallyNoClientsForAgent(ctx, t, store, agent.id)
+	assertEventuallyLost(ctx, t, store, agent.id)
+	assertEventuallyLost(ctx, t, store, client.id)
 }
 
 func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
@@ -272,7 +272,7 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 	_ = client.recvErr(ctx, t)
 	client.waitForClose(ctx, t)
 
-	assertEventuallyNoClientsForAgent(ctx, t, store, agent.id)
+	assertEventuallyLost(ctx, t, store, client.id)
 }
 
 func TestPGCoordinatorSingle_SendsHeartbeats(t *testing.T) {
@@ -519,8 +519,8 @@ func TestPGCoordinator_MultiCoordinatorAgent(t *testing.T) {
 	require.ErrorIs(t, err, io.ErrClosedPipe)
 	client.waitForClose(ctx, t)
 
-	assertEventuallyNoClientsForAgent(ctx, t, store, agent1.id)
-	assertEventuallyNoAgents(ctx, t, store, agent1.id)
+	assertEventuallyLost(ctx, t, store, client.id)
+	assertEventuallyLost(ctx, t, store, agent1.id)
 }
 
 func TestPGCoordinator_Unhealthy(t *testing.T) {
@@ -622,6 +622,63 @@ func TestPGCoordinator_BidirectionalTunnels(t *testing.T) {
 
 	p1.assertEventuallyHasDERP(p2.id, 2)
 	p2.assertEventuallyHasDERP(p1.id, 1)
+}
+
+func TestPGCoordinator_GracefulDisconnect(t *testing.T) {
+	t.Parallel()
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("test only with postgres")
+	}
+	store, ps := dbtestutil.NewDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+	defer cancel()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	coordinator, err := tailnet.NewPGCoordV2(ctx, logger, ps, store)
+	require.NoError(t, err)
+	defer coordinator.Close()
+
+	p1 := newTestPeer(ctx, t, coordinator, "p1")
+	defer p1.close(ctx)
+	p2 := newTestPeer(ctx, t, coordinator, "p2")
+	defer p2.close(ctx)
+	p1.addTunnel(p2.id)
+	p1.updateDERP(1)
+	p2.updateDERP(2)
+
+	p1.assertEventuallyHasDERP(p2.id, 2)
+	p2.assertEventuallyHasDERP(p1.id, 1)
+
+	p2.disconnect()
+	p1.assertEventuallyDisconnected(p2.id)
+	p2.assertEventuallyResponsesClosed()
+}
+
+func TestPGCoordinator_Lost(t *testing.T) {
+	t.Parallel()
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("test only with postgres")
+	}
+	store, ps := dbtestutil.NewDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+	defer cancel()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	coordinator, err := tailnet.NewPGCoordV2(ctx, logger, ps, store)
+	require.NoError(t, err)
+	defer coordinator.Close()
+
+	p1 := newTestPeer(ctx, t, coordinator, "p1")
+	defer p1.close(ctx)
+	p2 := newTestPeer(ctx, t, coordinator, "p2")
+	defer p2.close(ctx)
+	p1.addTunnel(p2.id)
+	p1.updateDERP(1)
+	p2.updateDERP(2)
+
+	p1.assertEventuallyHasDERP(p2.id, 2)
+	p2.assertEventuallyHasDERP(p1.id, 1)
+
+	p2.close(ctx)
+	p1.assertEventuallyLost(p2.id)
 }
 
 type testConn struct {
@@ -813,6 +870,7 @@ func assertMultiAgentNeverHasDERPs(ctx context.Context, t *testing.T, ma agpl.Mu
 }
 
 func assertEventuallyNoAgents(ctx context.Context, t *testing.T, store database.Store, agentID uuid.UUID) {
+	t.Helper()
 	assert.Eventually(t, func() bool {
 		agents, err := store.GetTailnetPeers(ctx, agentID)
 		if xerrors.Is(err, sql.ErrNoRows) {
@@ -822,6 +880,25 @@ func assertEventuallyNoAgents(ctx context.Context, t *testing.T, store database.
 			t.Fatal(err)
 		}
 		return len(agents) == 0
+	}, testutil.WaitShort, testutil.IntervalFast)
+}
+
+func assertEventuallyLost(ctx context.Context, t *testing.T, store database.Store, agentID uuid.UUID) {
+	t.Helper()
+	assert.Eventually(t, func() bool {
+		peers, err := store.GetTailnetPeers(ctx, agentID)
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return false
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, peer := range peers {
+			if peer.Status == database.TailnetStatusOk {
+				return false
+			}
+		}
+		return true
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
@@ -839,6 +916,11 @@ func assertEventuallyNoClientsForAgent(ctx context.Context, t *testing.T, store 
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
+type peerStatus struct {
+	preferredDERP int32
+	status        proto.CoordinateResponse_PeerUpdate_Kind
+}
+
 type testPeer struct {
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -847,11 +929,11 @@ type testPeer struct {
 	name   string
 	resps  <-chan *proto.CoordinateResponse
 	reqs   chan<- *proto.CoordinateRequest
-	derps  map[uuid.UUID]int32
+	peers  map[uuid.UUID]peerStatus
 }
 
 func newTestPeer(ctx context.Context, t testing.TB, coord agpl.CoordinatorV2, name string, id ...uuid.UUID) *testPeer {
-	p := &testPeer{t: t, name: name, derps: make(map[uuid.UUID]int32)}
+	p := &testPeer{t: t, name: name, peers: make(map[uuid.UUID]peerStatus)}
 	p.ctx, p.cancel = context.WithCancel(ctx)
 	if len(id) > 1 {
 		t.Fatal("too many")
@@ -890,38 +972,102 @@ func (p *testPeer) updateDERP(derp int32) {
 	}
 }
 
+func (p *testPeer) disconnect() {
+	p.t.Helper()
+	req := &proto.CoordinateRequest{Disconnect: &proto.CoordinateRequest_Disconnect{}}
+	select {
+	case <-p.ctx.Done():
+		p.t.Errorf("timeout updating node for %s", p.name)
+		return
+	case p.reqs <- req:
+		return
+	}
+}
+
 func (p *testPeer) assertEventuallyHasDERP(other uuid.UUID, derp int32) {
 	p.t.Helper()
 	for {
-		d, ok := p.derps[other]
-		if ok && d == derp {
+		o, ok := p.peers[other]
+		if ok && o.preferredDERP == derp {
 			return
 		}
-		select {
-		case <-p.ctx.Done():
-			p.t.Errorf("timeout waiting for response for %s", p.name)
+		if err := p.handleOneResp(); err != nil {
+			assert.NoError(p.t, err)
 			return
-		case resp, ok := <-p.resps:
-			if !ok {
-				p.t.Errorf("responses closed for %s", p.name)
-				return
+		}
+	}
+}
+
+func (p *testPeer) assertEventuallyDisconnected(other uuid.UUID) {
+	p.t.Helper()
+	for {
+		_, ok := p.peers[other]
+		if !ok {
+			return
+		}
+		if err := p.handleOneResp(); err != nil {
+			assert.NoError(p.t, err)
+			return
+		}
+	}
+}
+
+func (p *testPeer) assertEventuallyLost(other uuid.UUID) {
+	p.t.Helper()
+	for {
+		o := p.peers[other]
+		if o.status == proto.CoordinateResponse_PeerUpdate_LOST {
+			return
+		}
+		if err := p.handleOneResp(); err != nil {
+			assert.NoError(p.t, err)
+			return
+		}
+	}
+}
+
+func (p *testPeer) assertEventuallyResponsesClosed() {
+	p.t.Helper()
+	for {
+		err := p.handleOneResp()
+		if xerrors.Is(err, responsesClosed) {
+			return
+		}
+		if !assert.NoError(p.t, err) {
+			return
+		}
+	}
+}
+
+var responsesClosed = xerrors.New("responses closed")
+
+func (p *testPeer) handleOneResp() error {
+	select {
+	case <-p.ctx.Done():
+		return p.ctx.Err()
+	case resp, ok := <-p.resps:
+		if !ok {
+			return responsesClosed
+		}
+		for _, update := range resp.PeerUpdates {
+			id, err := uuid.FromBytes(update.Uuid)
+			if err != nil {
+				return err
 			}
-			for _, update := range resp.PeerUpdates {
-				id, err := uuid.FromBytes(update.Uuid)
-				if !assert.NoError(p.t, err) {
-					return
+			switch update.Kind {
+			case proto.CoordinateResponse_PeerUpdate_NODE, proto.CoordinateResponse_PeerUpdate_LOST:
+				p.peers[id] = peerStatus{
+					preferredDERP: update.GetNode().GetPreferredDerp(),
+					status:        update.Kind,
 				}
-				switch update.Kind {
-				case proto.CoordinateResponse_PeerUpdate_NODE:
-					p.derps[id] = update.Node.PreferredDerp
-				case proto.CoordinateResponse_PeerUpdate_DISCONNECTED:
-					delete(p.derps, id)
-				default:
-					p.t.Errorf("unhandled update kind %s", update.Kind)
-				}
+			case proto.CoordinateResponse_PeerUpdate_DISCONNECTED:
+				delete(p.peers, id)
+			default:
+				return xerrors.Errorf("unhandled update kind %s", update.Kind)
 			}
 		}
 	}
+	return nil
 }
 
 func (p *testPeer) close(ctx context.Context) {

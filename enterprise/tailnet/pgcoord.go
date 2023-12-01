@@ -203,6 +203,7 @@ func (c *pgCoord) ServeMultiAgent(id uuid.UUID) agpl.MultiAgentConn {
 			}})
 		},
 		OnRemove: func(_ agpl.Queue) {
+			_ = sendCtx(c.ctx, reqs, &proto.CoordinateRequest{Disconnect: &proto.CoordinateRequest_Disconnect{}})
 			cancel()
 		},
 	}).Init()
@@ -352,9 +353,14 @@ func v1SendLoop(ctx context.Context, cancel context.CancelFunc, logger slog.Logg
 			_ = q.CoordinatorClose()
 			return
 		}
+		// don't send empty updates
+		if len(nodes) == 0 {
+			logger.Debug(ctx, "skipping enqueueing 0-length v1 update")
+			continue
+		}
 		err = q.Enqueue(nodes)
 		if err != nil {
-			logger.Error(ctx, "failed to enqueue multi-agent update", slog.Error(err))
+			logger.Error(ctx, "failed to enqueue v1 update", slog.Error(err))
 		}
 	}
 }
@@ -597,6 +603,7 @@ type bKey uuid.UUID
 type binding struct {
 	bKey
 	node *proto.Node
+	kind proto.CoordinateResponse_PeerUpdate_Kind
 }
 
 // binder reads node bindings from the channel and writes them to the database.  It handles retries with a backoff.
@@ -675,22 +682,7 @@ func (b *binder) worker() {
 
 func (b *binder) writeOne(bnd binding) error {
 	var err error
-	if bnd.node != nil {
-		var nodeRaw []byte
-		nodeRaw, err = gProto.Marshal(bnd.node)
-		if err != nil {
-			// this is very bad news, but it should never happen because the node was Unmarshalled or converted by this
-			// process earlier.
-			b.logger.Critical(b.ctx, "failed to marshal node", slog.Error(err))
-			return err
-		}
-		_, err = b.store.UpsertTailnetPeer(b.ctx, database.UpsertTailnetPeerParams{
-			ID:            uuid.UUID(bnd.bKey),
-			CoordinatorID: b.coordinatorID,
-			Node:          nodeRaw,
-			Status:        database.TailnetStatusOk,
-		})
-	} else {
+	if bnd.kind == proto.CoordinateResponse_PeerUpdate_DISCONNECTED {
 		_, err = b.store.DeleteTailnetPeer(b.ctx, database.DeleteTailnetPeerParams{
 			ID:            uuid.UUID(bnd.bKey),
 			CoordinatorID: b.coordinatorID,
@@ -699,6 +691,25 @@ func (b *binder) writeOne(bnd binding) error {
 		if xerrors.Is(err, sql.ErrNoRows) {
 			err = nil
 		}
+	} else {
+		var nodeRaw []byte
+		nodeRaw, err = gProto.Marshal(bnd.node)
+		if err != nil {
+			// this is very bad news, but it should never happen because the node was Unmarshalled or converted by this
+			// process earlier.
+			b.logger.Critical(b.ctx, "failed to marshal node", slog.Error(err))
+			return err
+		}
+		status := database.TailnetStatusOk
+		if bnd.kind == proto.CoordinateResponse_PeerUpdate_LOST {
+			status = database.TailnetStatusLost
+		}
+		_, err = b.store.UpsertTailnetPeer(b.ctx, database.UpsertTailnetPeerParams{
+			ID:            uuid.UUID(bnd.bKey),
+			CoordinatorID: b.coordinatorID,
+			Node:          nodeRaw,
+			Status:        status,
+		})
 	}
 
 	if err != nil && !database.IsQueryCanceledError(err) {
@@ -710,16 +721,27 @@ func (b *binder) writeOne(bnd binding) error {
 	return err
 }
 
-// storeBinding stores the latest binding, where we interpret node == nil as removing the binding. This keeps the map
+// storeBinding stores the latest binding, where we interpret kind == DISCONNECTED as removing the binding. This keeps the map
 // from growing without bound.
 func (b *binder) storeBinding(bnd binding) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if bnd.node != nil {
+
+	switch bnd.kind {
+	case proto.CoordinateResponse_PeerUpdate_NODE:
 		b.latest[bnd.bKey] = bnd
-	} else {
-		// nil node is interpreted as removing binding
+	case proto.CoordinateResponse_PeerUpdate_DISCONNECTED:
 		delete(b.latest, bnd.bKey)
+	case proto.CoordinateResponse_PeerUpdate_LOST:
+		// we need to coalesce with the previously stored node, since it must
+		// be non-nil in the database
+		old, ok := b.latest[bnd.bKey]
+		if !ok {
+			// lost before we ever got a node update.  No action
+			return
+		}
+		bnd.node = old.node
+		b.latest[bnd.bKey] = bnd
 	}
 }
 
@@ -732,6 +754,7 @@ func (b *binder) retrieveBinding(bk bKey) binding {
 		bnd = binding{
 			bKey: bk,
 			node: nil,
+			kind: proto.CoordinateResponse_PeerUpdate_DISCONNECTED,
 		}
 	}
 	return bnd
@@ -752,9 +775,8 @@ type mapper struct {
 
 	// latest is the most recent, unfiltered snapshot of the mappings we know about
 	latest []mapping
-	// sent is the state of mappings we have actually enqueued; used to compute diffs for updates. It is a map from peer
-	// ID to node.
-	sent map[uuid.UUID]*proto.Node
+	// sent is the state of mappings we have actually enqueued; used to compute diffs for updates.
+	sent map[uuid.UUID]mapping
 
 	// called to filter mappings to healthy coordinators
 	heartbeats *heartbeats
@@ -771,7 +793,7 @@ func newMapper(c *connIO, logger slog.Logger, h *heartbeats) *mapper {
 		update:     make(chan struct{}),
 		mappings:   make(chan []mapping),
 		heartbeats: h,
-		sent:       make(map[uuid.UUID]*proto.Node),
+		sent:       make(map[uuid.UUID]mapping),
 	}
 	go m.run()
 	return m
@@ -779,19 +801,19 @@ func newMapper(c *connIO, logger slog.Logger, h *heartbeats) *mapper {
 
 func (m *mapper) run() {
 	for {
-		var nodes map[uuid.UUID]*proto.Node
+		var best map[uuid.UUID]mapping
 		select {
 		case <-m.ctx.Done():
 			return
 		case mappings := <-m.mappings:
 			m.logger.Debug(m.ctx, "got new mappings")
 			m.latest = mappings
-			nodes = m.mappingsToNodes(mappings)
+			best = m.bestMappings(mappings)
 		case <-m.update:
 			m.logger.Debug(m.ctx, "triggered update")
-			nodes = m.mappingsToNodes(m.latest)
+			best = m.bestMappings(m.latest)
 		}
-		update := m.nodesToUpdate(nodes)
+		update := m.bestToUpdate(best)
 		if update == nil {
 			m.logger.Debug(m.ctx, "skipping nil node update")
 			continue
@@ -802,66 +824,82 @@ func (m *mapper) run() {
 	}
 }
 
-// mappingsToNodes takes a set of mappings and resolves the best set of nodes.  We may get several mappings for a
+// bestMappings takes a set of mappings and resolves the best set of nodes.  We may get several mappings for a
 // particular connection, from different coordinators in the distributed system.  Furthermore, some coordinators
 // might be considered invalid on account of missing heartbeats.  We take the most recent mapping from a valid
 // coordinator as the "best" mapping.
-func (m *mapper) mappingsToNodes(mappings []mapping) map[uuid.UUID]*proto.Node {
+func (m *mapper) bestMappings(mappings []mapping) map[uuid.UUID]mapping {
 	mappings = m.heartbeats.filter(mappings)
 	best := make(map[uuid.UUID]mapping, len(mappings))
-	for _, m := range mappings {
-		bestM, ok := best[m.peer]
-		if !ok || m.updatedAt.After(bestM.updatedAt) {
-			best[m.peer] = m
+	for _, mpng := range mappings {
+		bestM, ok := best[mpng.peer]
+		switch {
+		case !ok:
+			// no current best
+			best[mpng.peer] = mpng
+
+		// NODE always beats LOST mapping, since the LOST could be from a coordinator that's
+		// slow updating the DB, and the peer has reconnected to a different coordinator and
+		// given a NODE mapping.
+		case bestM.kind == proto.CoordinateResponse_PeerUpdate_LOST && mpng.kind == proto.CoordinateResponse_PeerUpdate_NODE:
+			best[mpng.peer] = mpng
+		case mpng.updatedAt.After(bestM.updatedAt) && mpng.kind == proto.CoordinateResponse_PeerUpdate_NODE:
+			// newer, and it's a NODE update.
+			best[mpng.peer] = mpng
 		}
 	}
-	nodes := make(map[uuid.UUID]*proto.Node, len(best))
-	for k, m := range best {
-		nodes[k] = m.node
-	}
-	return nodes
+	return best
 }
 
-func (m *mapper) nodesToUpdate(nodes map[uuid.UUID]*proto.Node) *proto.CoordinateResponse {
+func (m *mapper) bestToUpdate(best map[uuid.UUID]mapping) *proto.CoordinateResponse {
 	resp := new(proto.CoordinateResponse)
 
-	for k, n := range nodes {
-		sn, ok := m.sent[k]
-		if !ok {
-			resp.PeerUpdates = append(resp.PeerUpdates, &proto.CoordinateResponse_PeerUpdate{
-				Uuid:   agpl.UUIDToByteSlice(k),
-				Node:   n,
-				Kind:   proto.CoordinateResponse_PeerUpdate_NODE,
-				Reason: "new",
-			})
+	for k, mpng := range best {
+		var reason string
+		sm, ok := m.sent[k]
+		switch {
+		case !ok && mpng.kind == proto.CoordinateResponse_PeerUpdate_LOST:
+			// we don't need to send a "lost" update if we've never sent an update about this peer
 			continue
-		}
-		eq, err := sn.Equal(n)
-		if err != nil {
-			m.logger.Critical(m.ctx, "failed to compare nodes", slog.F("old", sn), slog.F("new", n))
-		}
-		if !eq {
-			resp.PeerUpdates = append(resp.PeerUpdates, &proto.CoordinateResponse_PeerUpdate{
-				Uuid:   agpl.UUIDToByteSlice(k),
-				Node:   n,
-				Kind:   proto.CoordinateResponse_PeerUpdate_NODE,
-				Reason: "update",
-			})
+		case !ok && mpng.kind == proto.CoordinateResponse_PeerUpdate_NODE:
+			reason = "new"
+		case ok && sm.kind == proto.CoordinateResponse_PeerUpdate_LOST && mpng.kind == proto.CoordinateResponse_PeerUpdate_LOST:
+			// was lost and remains lost, no update needed
 			continue
+		case ok && sm.kind == proto.CoordinateResponse_PeerUpdate_LOST && mpng.kind == proto.CoordinateResponse_PeerUpdate_NODE:
+			reason = "found"
+		case ok && sm.kind == proto.CoordinateResponse_PeerUpdate_NODE && mpng.kind == proto.CoordinateResponse_PeerUpdate_LOST:
+			reason = "lost"
+		case ok && sm.kind == proto.CoordinateResponse_PeerUpdate_NODE && mpng.kind == proto.CoordinateResponse_PeerUpdate_NODE:
+			eq, err := sm.node.Equal(mpng.node)
+			if err != nil {
+				m.logger.Critical(m.ctx, "failed to compare nodes", slog.F("old", sm.node), slog.F("new", mpng.kind))
+				continue
+			}
+			if eq {
+				continue
+			}
+			reason = "update"
 		}
+		resp.PeerUpdates = append(resp.PeerUpdates, &proto.CoordinateResponse_PeerUpdate{
+			Uuid:   agpl.UUIDToByteSlice(k),
+			Node:   mpng.node,
+			Kind:   mpng.kind,
+			Reason: reason,
+		})
+		m.sent[k] = mpng
 	}
 
 	for k := range m.sent {
-		if _, ok := nodes[k]; !ok {
+		if _, ok := best[k]; !ok {
 			resp.PeerUpdates = append(resp.PeerUpdates, &proto.CoordinateResponse_PeerUpdate{
 				Uuid:   agpl.UUIDToByteSlice(k),
 				Kind:   proto.CoordinateResponse_PeerUpdate_DISCONNECTED,
 				Reason: "disconnected",
 			})
+			delete(m.sent, k)
 		}
 	}
-
-	m.sent = nodes
 
 	if len(resp.PeerUpdates) == 0 {
 		return nil
@@ -1069,10 +1107,6 @@ func (q *querier) mappingQuery(peer mKey) error {
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return err
 	}
-	if len(bindings) == 0 {
-		logger.Debug(q.ctx, "no mappings, nothing to do")
-		return nil
-	}
 	mappings, err := q.bindingsToMappings(bindings)
 	if err != nil {
 		logger.Debug(q.ctx, "failed to convert mappings", slog.Error(err))
@@ -1100,11 +1134,16 @@ func (q *querier) bindingsToMappings(bindings []database.GetTailnetTunnelPeerBin
 			q.logger.Error(q.ctx, "failed to unmarshal node", slog.Error(err))
 			return nil, backoff.Permanent(err)
 		}
+		kind := proto.CoordinateResponse_PeerUpdate_NODE
+		if binding.Status == database.TailnetStatusLost {
+			kind = proto.CoordinateResponse_PeerUpdate_LOST
+		}
 		mappings = append(mappings, mapping{
 			peer:        binding.PeerID,
 			coordinator: binding.CoordinatorID,
 			updatedAt:   binding.UpdatedAt,
 			node:        node,
+			kind:        kind,
 		})
 	}
 	return mappings, nil
@@ -1326,6 +1365,7 @@ type mapping struct {
 	coordinator uuid.UUID
 	updatedAt   time.Time
 	node        *proto.Node
+	kind        proto.CoordinateResponse_PeerUpdate_Kind
 }
 
 // querierWorkKey describes two kinds of work the querier needs to do.  If peerUpdate
