@@ -148,7 +148,7 @@ still be able to reach their workspaces, connection performance may be degraded.
 > **Note:** This may also be shown if you have
 > [forced websocket connections for DERP](../cli/server.md#--derp-force-websockets).
 
-**Solution:** ensure that any configured reverse proxy does not strip the
+**Solution:** ensure that any proxies you use allow connection upgrade with the
 `Upgrade: derp` header.
 
 ### EDERP02
@@ -160,12 +160,12 @@ DERP servers. Clients will fall back to use the remaining DERP servers, but
 performance may be impacted for clients closest to the unhealthy DERP server.
 
 **Solution:** Ensure that the DERP server is available and reachable over the
-network on port 443, for example:
+network, for example:
 
 ```shell
-curl -v "https://coder.company.com:443/derp"
+curl -v "https://coder.company.com/derp"
 # Expected output:
-# *   Trying XXX.XXX.XXX.XXX:443
+# *   Trying XXX.XXX.XXX.XXX
 # * Connected to https://coder.company.com (XXX.XXX.XXX.XXX) port 443 (#0)
 # DERP requires connection upgrade
 ```
@@ -199,11 +199,11 @@ Access URL.
    running Coder, using standard troubleshooting tools like `curl`:
 
    ```shell
-   curl -v "https://coder.company.com:443/"
+   curl -v "https://coder.company.com"
    ```
 
-2. Ensure that any reverse proxy that is sitting in front of Coder's configured
-   access URL is not stripping the HTTP header `Upgrade: websocket`.
+2. Ensure that any reverse proxy that is serving Coder's configured access URL
+   allows connection upgrade with the header `Upgrade: websocket`.
 
 ### EWS02
 
@@ -265,7 +265,7 @@ _One or more Workspace Proxies Unhealthy_
 **Problem:** One or more workspace proxies are not reachable.
 
 **Solution:** Ensure that Coder can establish a connection to the configured
-workspace proxies on port 443.
+workspace proxies.
 
 ## EUNKNOWN
 
