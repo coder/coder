@@ -1,5 +1,3 @@
--- ALTER TYPE login_type ADD VALUE IF NOT EXISTS 'token';
-
 CREATE TYPE new_logintype AS ENUM (
 	'password',
 	'github',
