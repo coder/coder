@@ -24,7 +24,7 @@ import { AuditFilter } from "./AuditFilter";
 import {
   type PaginationResult,
   PaginationContainer,
-} from "components/PaginationWidget/Pagination";
+} from "components/PaginationWidget/PaginationContainer";
 
 export const Language = {
   title: "Audit",

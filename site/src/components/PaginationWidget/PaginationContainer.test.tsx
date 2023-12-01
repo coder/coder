@@ -1,5 +1,8 @@
 import { type ComponentProps, type HTMLAttributes } from "react";
-import { type PaginationResult, PaginationContainer } from "./Pagination";
+import {
+  type PaginationResult,
+  PaginationContainer,
+} from "./PaginationContainer";
 
 import { renderComponent } from "testHelpers/renderHelpers";
 import { fireEvent, waitFor } from "@testing-library/react";
@@ -15,10 +18,10 @@ afterAll(() => {
 
 type ResultBase = Omit<
   PaginationResult,
-  "isPreviousData" | "currentChunk" | "totalRecords" | "totalPages"
+  "isPreviousData" | "currentOffsetStart" | "totalRecords" | "totalPages"
 >;
 
-const mockPaginationResult: ResultBase = {
+const mockPaginationResultBase: ResultBase = {
   isSuccess: false,
   currentPage: 1,
   limit: 25,
@@ -31,7 +34,7 @@ const mockPaginationResult: ResultBase = {
 };
 
 const initialRenderResult: PaginationResult = {
-  ...mockPaginationResult,
+  ...mockPaginationResultBase,
   isSuccess: false,
   isPreviousData: false,
   currentOffsetStart: undefined,
@@ -42,7 +45,7 @@ const initialRenderResult: PaginationResult = {
 };
 
 const successResult: PaginationResult = {
-  ...mockPaginationResult,
+  ...mockPaginationResultBase,
   isSuccess: true,
   isPreviousData: false,
   currentOffsetStart: 1,

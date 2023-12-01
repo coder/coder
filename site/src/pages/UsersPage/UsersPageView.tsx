@@ -7,7 +7,7 @@ import { UsersFilter } from "./UsersFilter";
 import {
   PaginationContainer,
   type PaginationResult,
-} from "components/PaginationWidget/Pagination";
+} from "components/PaginationWidget/PaginationContainer";
 
 export interface UsersPageViewProps {
   users?: TypesGen.User[];
