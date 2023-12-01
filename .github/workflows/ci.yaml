@@ -677,6 +677,7 @@ jobs:
       - name: Build and Push Linux amd64 Docker Image
         run: |
           set -euxo pipefail
+          version="$(./scripts/version.sh)"
           tag="main-$(echo "$version" | sed 's/+/-/g')"
 
           export CODER_IMAGE_BUILD_BASE_TAG="$(CODER_IMAGE_BASE=coder-base ./scripts/image_tag.sh --version "$version")"
