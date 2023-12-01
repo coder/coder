@@ -419,9 +419,9 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 			}
 
 			client.HTTPClient = &http.Client{
-				Transport: &headerTransport{
-					transport: http.DefaultTransport,
-					header: map[string][]string{
+				Transport: &codersdk.HeaderTransport{
+					Transport: http.DefaultTransport,
+					Header: map[string][]string{
 						codersdk.BypassRatelimitHeader: {"true"},
 					},
 				},
@@ -570,9 +570,9 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 			}
 
 			client.HTTPClient = &http.Client{
-				Transport: &headerTransport{
-					transport: http.DefaultTransport,
-					header: map[string][]string{
+				Transport: &codersdk.HeaderTransport{
+					Transport: http.DefaultTransport,
+					Header: map[string][]string{
 						codersdk.BypassRatelimitHeader: {"true"},
 					},
 				},
@@ -896,9 +896,9 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 
 			// Bypass rate limiting
 			client.HTTPClient = &http.Client{
-				Transport: &headerTransport{
-					transport: http.DefaultTransport,
-					header: map[string][]string{
+				Transport: &codersdk.HeaderTransport{
+					Transport: http.DefaultTransport,
+					Header: map[string][]string{
 						codersdk.BypassRatelimitHeader: {"true"},
 					},
 				},
