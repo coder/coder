@@ -618,6 +618,8 @@ jobs:
           echo "- test-go-pg: ${{ needs.test-go-pg.result }}"
           echo "- test-go-race: ${{ needs.test-go-race.result }}"
           echo "- test-js: ${{ needs.test-js.result }}"
+          echo "- test-e2e: ${{ needs.test-e2e.result }}"
+          echo "- offlinedocs: ${{ needs.offlinedocs.result }}"
           echo
 
           # We allow skipped jobs to pass, but not failed or cancelled jobs.
