@@ -940,7 +940,7 @@ export const exchangeExternalAuthDevice = async (
 };
 
 export const getUserExternalAuthProviders = async (
-): Promise<TypesGen.UserExternalAuthResponse> => {
+): Promise<TypesGen.ListUserExternalAuthResponse> => {
   const resp = await axios.get(`/api/v2/external-auth`);
   return resp.data;
 };

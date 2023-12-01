@@ -7,8 +7,8 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import type {
   ExternalAuthConfig,
+  ListUserExternalAuthResponse,
   ExternalAuthLinkProvider,
-  UserExternalAuthResponse,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -31,7 +31,7 @@ import {
 export type UserExternalAuthSettingsPageViewProps = {
   isLoading: boolean;
   getAuthsError?: unknown;
-  auths?: UserExternalAuthResponse;
+  auths?: ListUserExternalAuthResponse;
   onUnlinkExternalAuth: (provider: string) => void;
   onValidateExternalAuth: (provider: string) => void;
 };
