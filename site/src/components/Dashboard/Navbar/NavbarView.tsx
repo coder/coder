@@ -187,8 +187,8 @@ export const NavbarView: FC<NavbarViewProps> = ({
     <nav
       css={(theme) => ({
         height: navHeight,
-        background: theme.palette.background.paper,
         borderBottom: `1px solid ${theme.palette.divider}`,
+        backgroundColor: theme.palette.background.paper,
       })}
     >
       <div css={styles.wrapper}>

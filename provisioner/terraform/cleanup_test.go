@@ -29,6 +29,7 @@ const cachePath = "/tmp/coder/provisioner-0/tf"
 var updateGoldenFiles = flag.Bool("update", false, "Update golden files")
 
 var (
+	now              = time.Date(2023, 6, 3, 4, 5, 6, 0, time.UTC)
 	coderPluginPath  = filepath.Join("registry.terraform.io", "coder", "coder", "0.11.1", "darwin_arm64")
 	dockerPluginPath = filepath.Join("registry.terraform.io", "kreuzwerker", "docker", "2.25.0", "darwin_arm64")
 )
@@ -36,13 +37,14 @@ var (
 func TestPluginCache_Golden(t *testing.T) {
 	t.Parallel()
 
-	prepare := func() (afero.Fs, time.Time, slog.Logger) {
-		fs := afero.NewMemMapFs()
-		now := time.Date(2023, time.June, 3, 4, 5, 6, 0, time.UTC)
+	prepare := func() (afero.Fs, slog.Logger) {
+		// afero.MemMapFs does not modify atimes, so use a real FS instead.
+		tmpDir := t.TempDir()
+		fs := afero.NewBasePathFs(afero.NewOsFs(), tmpDir)
 		logger := slogtest.Make(t, nil).
 			Leveled(slog.LevelDebug).
 			Named("cleanup-test")
-		return fs, now, logger
+		return fs, logger
 	}
 
 	t.Run("all plugins are stale", func(t *testing.T) {
@@ -51,7 +53,7 @@ func TestPluginCache_Golden(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
-		fs, now, logger := prepare()
+		fs, logger := prepare()
 
 		// given
 		// This plugin is older than 30 days.
@@ -79,7 +81,7 @@ func TestPluginCache_Golden(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
-		fs, now, logger := prepare()
+		fs, logger := prepare()
 
 		// given
 		addPluginFile(t, fs, coderPluginPath, "terraform-provider-coder_v0.11.1", now.Add(-2*time.Hour))
@@ -106,17 +108,17 @@ func TestPluginCache_Golden(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
-		fs, now, logger := prepare()
+		fs, logger := prepare()
 
 		// given
 		addPluginFile(t, fs, coderPluginPath, "terraform-provider-coder_v0.11.1", now.Add(-63*24*time.Hour))
 		addPluginFile(t, fs, coderPluginPath, "LICENSE", now.Add(-33*24*time.Hour))
 		addPluginFile(t, fs, coderPluginPath, "README.md", now.Add(-31*24*time.Hour))
-		addPluginFolder(t, fs, coderPluginPath, "new_folder", now.Add(-4*time.Hour)) // touched
-		addPluginFile(t, fs, coderPluginPath, filepath.Join("new_folder", "foobar.tf"), now.Add(-43*24*time.Hour))
+		addPluginFolder(t, fs, coderPluginPath, "new_folder", now.Add(-43*24*time.Hour))
+		addPluginFile(t, fs, coderPluginPath, filepath.Join("new_folder", "foobar.tf"), now.Add(-4*time.Hour)) // touched
 
 		addPluginFile(t, fs, dockerPluginPath, "terraform-provider-docker_v2.25.0", now.Add(-31*24*time.Hour))
-		addPluginFile(t, fs, dockerPluginPath, "LICENSE", now.Add(-2*time.Hour))
+		addPluginFile(t, fs, dockerPluginPath, "LICENSE", now.Add(-2*time.Hour)) // also touched
 		addPluginFile(t, fs, dockerPluginPath, "README.md", now.Add(-33*24*time.Hour))
 
 		// when
@@ -127,25 +129,34 @@ func TestPluginCache_Golden(t *testing.T) {
 	})
 }
 
-func addPluginFile(t *testing.T, fs afero.Fs, pluginPath string, resourcePath string, accessTime time.Time) {
+func addPluginFile(t *testing.T, fs afero.Fs, pluginPath string, resourcePath string, mtime time.Time) {
 	err := fs.MkdirAll(filepath.Join(cachePath, pluginPath), 0o755)
 	require.NoError(t, err, "can't create test folder for plugin file")
 
-	err = fs.Chtimes(filepath.Join(cachePath, pluginPath), accessTime, accessTime)
+	err = fs.Chtimes(filepath.Join(cachePath, pluginPath), now, mtime)
 	require.NoError(t, err, "can't set times")
 
 	err = afero.WriteFile(fs, filepath.Join(cachePath, pluginPath, resourcePath), []byte("foo"), 0o644)
 	require.NoError(t, err, "can't create test file")
 
-	err = fs.Chtimes(filepath.Join(cachePath, pluginPath, resourcePath), accessTime, accessTime)
+	err = fs.Chtimes(filepath.Join(cachePath, pluginPath, resourcePath), now, mtime)
 	require.NoError(t, err, "can't set times")
+
+	// as creating a file will update mtime of parent, we also want to
+	// set the mtime of parent to match that of the new child.
+	parent, _ := filepath.Split(filepath.Join(cachePath, pluginPath, resourcePath))
+	parentInfo, err := fs.Stat(parent)
+	require.NoError(t, err, "can't stat parent")
+	if parentInfo.ModTime().After(mtime) {
+		require.NoError(t, fs.Chtimes(parent, now, mtime), "can't set mtime of parent to match child")
+	}
 }
 
-func addPluginFolder(t *testing.T, fs afero.Fs, pluginPath string, folderPath string, accessTime time.Time) {
+func addPluginFolder(t *testing.T, fs afero.Fs, pluginPath string, folderPath string, mtime time.Time) {
 	err := fs.MkdirAll(filepath.Join(cachePath, pluginPath, folderPath), 0o755)
 	require.NoError(t, err, "can't create plugin folder")
 
-	err = fs.Chtimes(filepath.Join(cachePath, pluginPath, folderPath), accessTime, accessTime)
+	err = fs.Chtimes(filepath.Join(cachePath, pluginPath, folderPath), now, mtime)
 	require.NoError(t, err, "can't set times")
 }
 

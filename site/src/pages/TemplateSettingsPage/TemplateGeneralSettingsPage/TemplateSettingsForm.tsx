@@ -233,7 +233,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
           <TextField
             {...getFieldHelpers("deprecation_message")}
             disabled={isSubmitting || !accessControlEnabled}
-            autoFocus
             fullWidth
             label="Deprecation Message"
           />

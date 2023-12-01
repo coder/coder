@@ -45,7 +45,7 @@ type UseFilterConfig = {
   onUpdate?: (newValue: string) => void;
 };
 
-const useFilterParamsKey = "filter";
+export const useFilterParamsKey = "filter";
 
 export const useFilter = ({
   fallbackFilter = "",
@@ -125,7 +125,7 @@ const BaseSkeleton = (props: SkeletonProps) => {
       height={36}
       {...props}
       sx={{
-        bgcolor: (theme) => theme.palette.background.paperLight,
+        bgcolor: (theme) => theme.palette.background.paper,
         borderRadius: "6px",
         ...props.sx,
       }}

@@ -74,6 +74,10 @@ type sqlcQuerier interface {
 	GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceBuild, error)
 	GetAllTailnetAgents(ctx context.Context) ([]TailnetAgent, error)
 	GetAllTailnetClients(ctx context.Context) ([]GetAllTailnetClientsRow, error)
+	// For PG Coordinator HTMLDebug
+	GetAllTailnetCoordinators(ctx context.Context) ([]TailnetCoordinator, error)
+	GetAllTailnetPeers(ctx context.Context) ([]TailnetPeer, error)
+	GetAllTailnetTunnels(ctx context.Context) ([]TailnetTunnel, error)
 	GetAppSecurityKey(ctx context.Context) (string, error)
 	GetApplicationName(ctx context.Context) (string, error)
 	// GetAuditLogsBefore retrieves `row_limit` number of audit logs before the provided

@@ -542,6 +542,11 @@ export interface Group {
   readonly source: GroupSource;
 }
 
+// From codersdk/health.go
+export interface HealthSettings {
+  readonly dismissed_healthchecks: string[];
+}
+
 // From codersdk/workspaceapps.go
 export interface Healthcheck {
   readonly url: string;
@@ -1153,6 +1158,11 @@ export interface UpdateCheckResponse {
   readonly current: boolean;
   readonly version: string;
   readonly url: string;
+}
+
+// From codersdk/health.go
+export interface UpdateHealthSettings {
+  readonly dismissed_healthchecks: string[];
 }
 
 // From codersdk/users.go
@@ -1882,6 +1892,7 @@ export type RBACResource =
   | "replicas"
   | "system"
   | "template"
+  | "template_insights"
   | "user"
   | "user_data"
   | "workspace"
@@ -1905,6 +1916,7 @@ export const RBACResources: RBACResource[] = [
   "replicas",
   "system",
   "template",
+  "template_insights",
   "user",
   "user_data",
   "workspace",
@@ -1918,6 +1930,7 @@ export type ResourceType =
   | "convert_login"
   | "git_ssh_key"
   | "group"
+  | "health_settings"
   | "license"
   | "organization"
   | "template"
@@ -1931,6 +1944,7 @@ export const ResourceTypes: ResourceType[] = [
   "convert_login",
   "git_ssh_key",
   "group",
+  "health_settings",
   "license",
   "organization",
   "template",
@@ -2085,7 +2099,8 @@ export type RegionTypes = Region | WorkspaceProxy;
 export interface HealthcheckAccessURLReport {
   readonly healthy: boolean;
   readonly severity: HealthSeverity;
-  readonly warnings: string[];
+  readonly warnings: HealthMessage[];
+  readonly dismissed: boolean;
   readonly access_url: string;
   readonly reachable: boolean;
   readonly status_code: number;
@@ -2097,7 +2112,8 @@ export interface HealthcheckAccessURLReport {
 export interface HealthcheckDatabaseReport {
   readonly healthy: boolean;
   readonly severity: HealthSeverity;
-  readonly warnings: string[];
+  readonly warnings: HealthMessage[];
+  readonly dismissed: boolean;
   readonly reachable: boolean;
   readonly latency: string;
   readonly latency_ms: number;
@@ -2115,6 +2131,7 @@ export interface HealthcheckReport {
   readonly access_url: HealthcheckAccessURLReport;
   readonly websocket: HealthcheckWebsocketReport;
   readonly database: HealthcheckDatabaseReport;
+  readonly workspace_proxy: HealthcheckWorkspaceProxyReport;
   readonly coder_version: string;
 }
 
@@ -2123,9 +2140,20 @@ export interface HealthcheckWebsocketReport {
   readonly healthy: boolean;
   readonly severity: HealthSeverity;
   readonly warnings: string[];
+  readonly dismissed: boolean;
   readonly body: string;
   readonly code: number;
   readonly error?: string;
+}
+
+// From healthcheck/workspaceproxy.go
+export interface HealthcheckWorkspaceProxyReport {
+  readonly healthy: boolean;
+  readonly severity: HealthSeverity;
+  readonly warnings: HealthMessage[];
+  readonly dismissed: boolean;
+  readonly error?: string;
+  readonly workspace_proxies: RegionsResponse<WorkspaceProxy>;
 }
 
 // The code below is generated from cli/clibase.
@@ -2176,6 +2204,49 @@ export const ClibaseValueSources: ClibaseValueSource[] = [
 // The code below is generated from coderd/healthcheck/health.
 
 // From health/model.go
+export interface HealthMessage {
+  readonly code: HealthCode;
+  readonly message: string;
+}
+
+// From health/model.go
+export type HealthCode =
+  | "EACS01"
+  | "EACS02"
+  | "EACS03"
+  | "EACS04"
+  | "EDB01"
+  | "EDB02"
+  | "EDERP01"
+  | "EDERP02"
+  | "EUNKNOWN"
+  | "EWP01"
+  | "EWP02"
+  | "EWP03"
+  | "EWP04"
+  | "EWS01"
+  | "EWS02"
+  | "EWS03";
+export const HealthCodes: HealthCode[] = [
+  "EACS01",
+  "EACS02",
+  "EACS03",
+  "EACS04",
+  "EDB01",
+  "EDB02",
+  "EDERP01",
+  "EDERP02",
+  "EUNKNOWN",
+  "EWP01",
+  "EWP02",
+  "EWP03",
+  "EWP04",
+  "EWS01",
+  "EWS02",
+  "EWS03",
+];
+
+// From health/model.go
 export type HealthSeverity = "error" | "ok" | "warning";
 export const HealthSeveritys: HealthSeverity[] = ["error", "ok", "warning"];
 
@@ -2186,7 +2257,9 @@ export interface DerphealthNodeReport {
   readonly healthy: boolean;
   // This is likely an enum in an external package ("github.com/coder/coder/v2/coderd/healthcheck/health.Severity")
   readonly severity: string;
-  readonly warnings: string[];
+  // Named type "github.com/coder/coder/v2/coderd/healthcheck/health.Message" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
+  readonly warnings: any[];
   // Named type "tailscale.com/tailcfg.DERPNode" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly node?: any;
@@ -2208,7 +2281,9 @@ export interface DerphealthRegionReport {
   readonly healthy: boolean;
   // This is likely an enum in an external package ("github.com/coder/coder/v2/coderd/healthcheck/health.Severity")
   readonly severity: string;
-  readonly warnings: string[];
+  // Named type "github.com/coder/coder/v2/coderd/healthcheck/health.Message" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
+  readonly warnings: any[];
   // Named type "tailscale.com/tailcfg.DERPRegion" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly region?: any;
@@ -2221,7 +2296,10 @@ export interface DerphealthReport {
   readonly healthy: boolean;
   // This is likely an enum in an external package ("github.com/coder/coder/v2/coderd/healthcheck/health.Severity")
   readonly severity: string;
-  readonly warnings: string[];
+  // Named type "github.com/coder/coder/v2/coderd/healthcheck/health.Message" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
+  readonly warnings: any[];
+  readonly dismissed: boolean;
   readonly regions: Record<number, DerphealthRegionReport>;
   // Named type "tailscale.com/net/netcheck.Report" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type

@@ -92,7 +92,7 @@ const FailureTooltip: FC<TooltipProps> = ({ children, ...tooltipProps }) => {
   const popper = useClassName(
     (css, theme) => css`
       & .${tooltipClasses.tooltip} {
-        background-color: ${theme.palette.background.paperLight};
+        background-color: ${theme.palette.background.paper};
         border: 1px solid ${theme.palette.divider};
         font-size: 12px;
         padding: 8px 10px;

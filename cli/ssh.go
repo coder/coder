@@ -379,11 +379,16 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 
 			err = sshSession.Wait()
 			if err != nil {
+				if exitErr := (&gossh.ExitError{}); errors.As(err, &exitErr) {
+					// Clear the error since it's not useful beyond
+					// reporting status.
+					return ExitError(exitErr.ExitStatus(), nil)
+				}
 				// If the connection drops unexpectedly, we get an
 				// ExitMissingError but no other error details, so try to at
 				// least give the user a better message
 				if errors.Is(err, &gossh.ExitMissingError{}) {
-					return xerrors.New("SSH connection ended unexpectedly")
+					return ExitError(255, xerrors.New("SSH connection ended unexpectedly"))
 				}
 				return xerrors.Errorf("session ended: %w", err)
 			}

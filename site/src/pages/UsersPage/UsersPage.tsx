@@ -6,7 +6,7 @@ import { groupsByUserId } from "api/queries/groups";
 import { getErrorMessage } from "api/errors";
 import { deploymentConfig } from "api/queries/deployment";
 import {
-  users,
+  paginatedUsers,
   suspendUser,
   activateUser,
   deleteUser,
@@ -17,14 +17,13 @@ import {
 
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { useOrganizationId, usePagination } from "hooks";
+import { useOrganizationId } from "hooks";
 import { useMe } from "hooks/useMe";
 import { usePermissions } from "hooks/usePermissions";
 import { useStatusFilterMenu } from "./UsersFilter";
 import { useFilter } from "components/Filter/filter";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
 import { generateRandomString } from "utils/random";
-import { prepareQuery } from "utils/filters";
 
 import { Helmet } from "react-helmet-async";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
@@ -34,6 +33,7 @@ import { ResetPasswordDialog } from "./ResetPasswordDialog";
 import { pageTitle } from "utils/page";
 import { UsersPageView } from "./UsersPageView";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 
 export const UsersPage: FC<{ children?: ReactNode }> = () => {
   const queryClient = useQueryClient();
@@ -43,19 +43,11 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
   const { entitlements } = useDashboard();
   const [searchParams] = searchParamsResult;
 
-  const pagination = usePagination({ searchParamsResult });
-  const usersQuery = useQuery(
-    users({
-      q: prepareQuery(searchParams.get("filter") ?? ""),
-      limit: pagination.limit,
-      offset: pagination.offset,
-    }),
-  );
-
   const organizationId = useOrganizationId();
   const groupsByUserIdQuery = useQuery(groupsByUserId(organizationId));
   const authMethodsQuery = useQuery(authMethods());
 
+  const me = useMe();
   const { updateUsers: canEditUsers, viewDeploymentValues } = usePermissions();
   const rolesQuery = useQuery(roles());
   const { data: deploymentValues } = useQuery({
@@ -63,13 +55,12 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
     enabled: viewDeploymentValues,
   });
 
-  const me = useMe();
+  const usersQuery = usePaginatedQuery(paginatedUsers());
   const useFilterResult = useFilter({
     searchParamsResult,
-    onUpdate: () => {
-      pagination.goToPage(1);
-    },
+    onUpdate: usersQuery.goToFirstPage,
   });
+
   const statusMenu = useStatusFilterMenu({
     value: useFilterResult.values.status,
     onChange: (option) =>
@@ -164,10 +155,10 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
           error: usersQuery.error,
           menus: { status: statusMenu },
         }}
-        count={usersQuery.data?.count}
-        page={pagination.page}
-        limit={pagination.limit}
-        onPageChange={pagination.goToPage}
+        count={usersQuery.totalRecords}
+        page={usersQuery.currentPage}
+        limit={usersQuery.limit}
+        onPageChange={usersQuery.onPageChange}
       />
 
       <DeleteDialog

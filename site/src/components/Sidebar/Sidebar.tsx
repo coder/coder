@@ -29,7 +29,13 @@ export const SidebarHeader: FC<SidebarHeaderProps> = ({
   return (
     <Stack direction="row" alignItems="center" css={styles.info}>
       {avatar}
-      <div css={styles.data}>
+      <div
+        css={{
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
         {linkTo ? (
           <Link css={styles.title} to={linkTo}>
             {title}
@@ -80,9 +86,7 @@ const styles = {
     ...(theme.typography.body2 as CSSObject),
     marginBottom: 16,
   }),
-  data: {
-    overflow: "hidden",
-  },
+
   title: (theme) => ({
     fontWeight: 600,
     overflow: "hidden",

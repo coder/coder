@@ -43,7 +43,7 @@ type Executor struct {
 type Stats struct {
 	Transitions map[uuid.UUID]database.WorkspaceTransition
 	Elapsed     time.Duration
-	Error       error
+	Errors      map[uuid.UUID]error
 }
 
 // New returns a new wsactions executor.
@@ -83,9 +83,6 @@ func (e *Executor) Run() {
 					return
 				}
 				stats := e.runOnce(t)
-				if stats.Error != nil {
-					e.log.Error(e.ctx, "error running once", slog.Error(stats.Error))
-				}
 				if e.statsCh != nil {
 					select {
 					case <-e.ctx.Done():
@@ -100,15 +97,14 @@ func (e *Executor) Run() {
 }
 
 func (e *Executor) runOnce(t time.Time) Stats {
-	var err error
 	stats := Stats{
 		Transitions: make(map[uuid.UUID]database.WorkspaceTransition),
+		Errors:      make(map[uuid.UUID]error),
 	}
 	// we build the map of transitions concurrently, so need a mutex to serialize writes to the map
 	statsMu := sync.Mutex{}
 	defer func() {
 		stats.Elapsed = time.Since(t)
-		stats.Error = err
 	}()
 	currentTick := t.Truncate(time.Minute)
 
@@ -139,152 +135,158 @@ func (e *Executor) runOnce(t time.Time) Stats {
 		log := e.log.With(slog.F("workspace_id", wsID))
 
 		eg.Go(func() error {
-			var job *database.ProvisionerJob
-			var auditLog *auditParams
-			err := e.db.InTx(func(tx database.Store) error {
-				// Re-check eligibility since the first check was outside the
-				// transaction and the workspace settings may have changed.
-				ws, err := tx.GetWorkspaceByID(e.ctx, wsID)
-				if err != nil {
-					return xerrors.Errorf("get workspace by id: %w", err)
-				}
-
-				user, err := tx.GetUserByID(e.ctx, ws.OwnerID)
-				if err != nil {
-					return xerrors.Errorf("get user by id: %w", err)
-				}
-
-				// Determine the workspace state based on its latest build.
-				latestBuild, err := tx.GetLatestWorkspaceBuildByWorkspaceID(e.ctx, ws.ID)
-				if err != nil {
-					return xerrors.Errorf("get latest workspace build: %w", err)
-				}
-
-				latestJob, err := tx.GetProvisionerJobByID(e.ctx, latestBuild.JobID)
-				if err != nil {
-					return xerrors.Errorf("get latest provisioner job: %w", err)
-				}
-
-				templateSchedule, err := (*(e.templateScheduleStore.Load())).Get(e.ctx, tx, ws.TemplateID)
-				if err != nil {
-					return xerrors.Errorf("get template scheduling options: %w", err)
-				}
-
-				template, err := tx.GetTemplateByID(e.ctx, ws.TemplateID)
-				if err != nil {
-					return xerrors.Errorf("get template by ID: %w", err)
-				}
-
-				accessControl := (*(e.accessControlStore.Load())).GetTemplateAccessControl(template)
-
-				nextTransition, reason, err := getNextTransition(user, ws, latestBuild, latestJob, templateSchedule, currentTick)
-				if err != nil {
-					log.Debug(e.ctx, "skipping workspace", slog.Error(err))
-					// err is used to indicate that a workspace is not eligible
-					// so returning nil here is ok although ultimately the distinction
-					// doesn't matter since the transaction is  read-only up to
-					// this point.
-					return nil
-				}
-
-				var build *database.WorkspaceBuild
-				if nextTransition != "" {
-					builder := wsbuilder.New(ws, nextTransition).
-						SetLastWorkspaceBuildInTx(&latestBuild).
-						SetLastWorkspaceBuildJobInTx(&latestJob).
-						Reason(reason)
-					log.Debug(e.ctx, "auto building workspace", slog.F("transition", nextTransition))
-					if nextTransition == database.WorkspaceTransitionStart &&
-						useActiveVersion(accessControl, ws) {
-						log.Debug(e.ctx, "autostarting with active version")
-						builder = builder.ActiveVersion()
+			err := func() error {
+				var job *database.ProvisionerJob
+				var auditLog *auditParams
+				err := e.db.InTx(func(tx database.Store) error {
+					// Re-check eligibility since the first check was outside the
+					// transaction and the workspace settings may have changed.
+					ws, err := tx.GetWorkspaceByID(e.ctx, wsID)
+					if err != nil {
+						return xerrors.Errorf("get workspace by id: %w", err)
 					}
 
-					build, job, err = builder.Build(e.ctx, tx, nil, audit.WorkspaceBuildBaggage{IP: "127.0.0.1"})
+					user, err := tx.GetUserByID(e.ctx, ws.OwnerID)
 					if err != nil {
-						log.Error(e.ctx, "unable to transition workspace",
-							slog.F("transition", nextTransition),
-							slog.Error(err),
+						return xerrors.Errorf("get user by id: %w", err)
+					}
+
+					// Determine the workspace state based on its latest build.
+					latestBuild, err := tx.GetLatestWorkspaceBuildByWorkspaceID(e.ctx, ws.ID)
+					if err != nil {
+						return xerrors.Errorf("get latest workspace build: %w", err)
+					}
+
+					latestJob, err := tx.GetProvisionerJobByID(e.ctx, latestBuild.JobID)
+					if err != nil {
+						return xerrors.Errorf("get latest provisioner job: %w", err)
+					}
+
+					templateSchedule, err := (*(e.templateScheduleStore.Load())).Get(e.ctx, tx, ws.TemplateID)
+					if err != nil {
+						return xerrors.Errorf("get template scheduling options: %w", err)
+					}
+
+					template, err := tx.GetTemplateByID(e.ctx, ws.TemplateID)
+					if err != nil {
+						return xerrors.Errorf("get template by ID: %w", err)
+					}
+
+					accessControl := (*(e.accessControlStore.Load())).GetTemplateAccessControl(template)
+
+					nextTransition, reason, err := getNextTransition(user, ws, latestBuild, latestJob, templateSchedule, currentTick)
+					if err != nil {
+						log.Debug(e.ctx, "skipping workspace", slog.Error(err))
+						// err is used to indicate that a workspace is not eligible
+						// so returning nil here is ok although ultimately the distinction
+						// doesn't matter since the transaction is  read-only up to
+						// this point.
+						return nil
+					}
+
+					var build *database.WorkspaceBuild
+					if nextTransition != "" {
+						builder := wsbuilder.New(ws, nextTransition).
+							SetLastWorkspaceBuildInTx(&latestBuild).
+							SetLastWorkspaceBuildJobInTx(&latestJob).
+							Reason(reason)
+						log.Debug(e.ctx, "auto building workspace", slog.F("transition", nextTransition))
+						if nextTransition == database.WorkspaceTransitionStart &&
+							useActiveVersion(accessControl, ws) {
+							log.Debug(e.ctx, "autostarting with active version")
+							builder = builder.ActiveVersion()
+						}
+
+						build, job, err = builder.Build(e.ctx, tx, nil, audit.WorkspaceBuildBaggage{IP: "127.0.0.1"})
+						if err != nil {
+							return xerrors.Errorf("build workspace with transition %q: %w", nextTransition, err)
+						}
+					}
+
+					// Transition the workspace to dormant if it has breached the template's
+					// threshold for inactivity.
+					if reason == database.BuildReasonAutolock {
+						wsOld := ws
+						ws, err = tx.UpdateWorkspaceDormantDeletingAt(e.ctx, database.UpdateWorkspaceDormantDeletingAtParams{
+							ID: ws.ID,
+							DormantAt: sql.NullTime{
+								Time:  dbtime.Now(),
+								Valid: true,
+							},
+						})
+
+						auditLog = &auditParams{
+							Build:  build,
+							Job:    latestJob,
+							Reason: reason,
+							Old:    wsOld,
+							New:    ws,
+						}
+						if err != nil {
+							return xerrors.Errorf("update workspace dormant deleting at: %w", err)
+						}
+
+						log.Info(e.ctx, "dormant workspace",
+							slog.F("last_used_at", ws.LastUsedAt),
+							slog.F("time_til_dormant", templateSchedule.TimeTilDormant),
+							slog.F("since_last_used_at", time.Since(ws.LastUsedAt)),
 						)
-						return xerrors.Errorf("build workspace: %w", err)
-					}
-				}
-
-				// Transition the workspace to dormant if it has breached the template's
-				// threshold for inactivity.
-				if reason == database.BuildReasonAutolock {
-					wsOld := ws
-					ws, err = tx.UpdateWorkspaceDormantDeletingAt(e.ctx, database.UpdateWorkspaceDormantDeletingAtParams{
-						ID: ws.ID,
-						DormantAt: sql.NullTime{
-							Time:  dbtime.Now(),
-							Valid: true,
-						},
-					})
-
-					auditLog = &auditParams{
-						Build:  build,
-						Job:    latestJob,
-						Reason: reason,
-						Old:    wsOld,
-						New:    ws,
-					}
-					if err != nil {
-						return xerrors.Errorf("update workspace dormant deleting at: %w", err)
 					}
 
-					log.Info(e.ctx, "dormant workspace",
-						slog.F("last_used_at", ws.LastUsedAt),
-						slog.F("time_til_dormant", templateSchedule.TimeTilDormant),
-						slog.F("since_last_used_at", time.Since(ws.LastUsedAt)),
+					if reason == database.BuildReasonAutodelete {
+						log.Info(e.ctx, "deleted workspace",
+							slog.F("dormant_at", ws.DormantAt.Time),
+							slog.F("time_til_dormant_autodelete", templateSchedule.TimeTilDormantAutoDelete),
+						)
+					}
+
+					if nextTransition == "" {
+						return nil
+					}
+
+					statsMu.Lock()
+					stats.Transitions[ws.ID] = nextTransition
+					statsMu.Unlock()
+
+					log.Info(e.ctx, "scheduling workspace transition",
+						slog.F("transition", nextTransition),
+						slog.F("reason", reason),
 					)
-				}
 
-				if reason == database.BuildReasonAutodelete {
-					log.Info(e.ctx, "deleted workspace",
-						slog.F("dormant_at", ws.DormantAt.Time),
-						slog.F("time_til_dormant_autodelete", templateSchedule.TimeTilDormantAutoDelete),
-					)
-				}
-
-				if nextTransition == "" {
 					return nil
+
+					// Run with RepeatableRead isolation so that the build process sees the same data
+					// as our calculation that determines whether an autobuild is necessary.
+				}, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
+				if auditLog != nil {
+					// If the transition didn't succeed then updating the workspace
+					// to indicate dormant didn't either.
+					auditLog.Success = err == nil
+					auditBuild(e.ctx, e.log, *e.auditor.Load(), *auditLog)
 				}
-
-				statsMu.Lock()
-				stats.Transitions[ws.ID] = nextTransition
-				statsMu.Unlock()
-
-				log.Info(e.ctx, "scheduling workspace transition",
-					slog.F("transition", nextTransition),
-					slog.F("reason", reason),
-				)
-
-				return nil
-
-				// Run with RepeatableRead isolation so that the build process sees the same data
-				// as our calculation that determines whether an autobuild is necessary.
-			}, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
-			if err != nil {
-				log.Error(e.ctx, "workspace scheduling failed", slog.Error(err))
-			}
-			if auditLog != nil {
-				// If the transition didn't succeed then updating the workspace
-				// to indicate dormant didn't either.
-				auditLog.Success = err == nil
-				auditBuild(e.ctx, e.log, *e.auditor.Load(), *auditLog)
-			}
-			if job != nil && err == nil {
-				// Note that we can't refactor such that posting the job happens inside wsbuilder because it's called
-				// with an outer transaction like this, and we need to make sure the outer transaction commits before
-				// posting the job.  If we post before the transaction commits, provisionerd might try to acquire the
-				// job, fail, and then sit idle instead of picking up the job.
-				err = provisionerjobs.PostJob(e.ps, *job)
 				if err != nil {
-					// Client probably doesn't care about this error, so just log it.
-					log.Error(e.ctx, "failed to post provisioner job to pubsub", slog.Error(err))
+					return xerrors.Errorf("transition workspace: %w", err)
 				}
+				if job != nil {
+					// Note that we can't refactor such that posting the job happens inside wsbuilder because it's called
+					// with an outer transaction like this, and we need to make sure the outer transaction commits before
+					// posting the job.  If we post before the transaction commits, provisionerd might try to acquire the
+					// job, fail, and then sit idle instead of picking up the job.
+					err = provisionerjobs.PostJob(e.ps, *job)
+					if err != nil {
+						return xerrors.Errorf("post provisioner job to pubsub: %w", err)
+					}
+				}
+				return nil
+			}()
+			if err != nil {
+				e.log.Error(e.ctx, "failed to transition workspace", slog.Error(err))
+				statsMu.Lock()
+				stats.Errors[wsID] = err
+				statsMu.Unlock()
 			}
+			// Even though we got an error we still return nil  to avoid
+			// short-circuiting the evaluation loop.
 			return nil
 		})
 	}

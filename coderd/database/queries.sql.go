@@ -4754,6 +4754,100 @@ func (q *sqlQuerier) GetAllTailnetClients(ctx context.Context) ([]GetAllTailnetC
 	return items, nil
 }
 
+const getAllTailnetCoordinators = `-- name: GetAllTailnetCoordinators :many
+
+SELECT id, heartbeat_at FROM tailnet_coordinators
+`
+
+// For PG Coordinator HTMLDebug
+func (q *sqlQuerier) GetAllTailnetCoordinators(ctx context.Context) ([]TailnetCoordinator, error) {
+	rows, err := q.db.QueryContext(ctx, getAllTailnetCoordinators)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TailnetCoordinator
+	for rows.Next() {
+		var i TailnetCoordinator
+		if err := rows.Scan(&i.ID, &i.HeartbeatAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAllTailnetPeers = `-- name: GetAllTailnetPeers :many
+SELECT id, coordinator_id, updated_at, node, status FROM tailnet_peers
+`
+
+func (q *sqlQuerier) GetAllTailnetPeers(ctx context.Context) ([]TailnetPeer, error) {
+	rows, err := q.db.QueryContext(ctx, getAllTailnetPeers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TailnetPeer
+	for rows.Next() {
+		var i TailnetPeer
+		if err := rows.Scan(
+			&i.ID,
+			&i.CoordinatorID,
+			&i.UpdatedAt,
+			&i.Node,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAllTailnetTunnels = `-- name: GetAllTailnetTunnels :many
+SELECT coordinator_id, src_id, dst_id, updated_at FROM tailnet_tunnels
+`
+
+func (q *sqlQuerier) GetAllTailnetTunnels(ctx context.Context) ([]TailnetTunnel, error) {
+	rows, err := q.db.QueryContext(ctx, getAllTailnetTunnels)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TailnetTunnel
+	for rows.Next() {
+		var i TailnetTunnel
+		if err := rows.Scan(
+			&i.CoordinatorID,
+			&i.SrcID,
+			&i.DstID,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getTailnetAgents = `-- name: GetTailnetAgents :many
 SELECT id, coordinator_id, updated_at, node
 FROM tailnet_agents
@@ -4860,22 +4954,23 @@ func (q *sqlQuerier) GetTailnetPeers(ctx context.Context, id uuid.UUID) ([]Tailn
 }
 
 const getTailnetTunnelPeerBindings = `-- name: GetTailnetTunnelPeerBindings :many
-SELECT tailnet_tunnels.dst_id as peer_id, tailnet_peers.coordinator_id, tailnet_peers.updated_at, tailnet_peers.node
+SELECT tailnet_tunnels.dst_id as peer_id, tailnet_peers.coordinator_id, tailnet_peers.updated_at, tailnet_peers.node, tailnet_peers.status
 FROM tailnet_tunnels
 INNER JOIN tailnet_peers ON tailnet_tunnels.dst_id = tailnet_peers.id
 WHERE tailnet_tunnels.src_id = $1
 UNION
-SELECT tailnet_tunnels.src_id as peer_id, tailnet_peers.coordinator_id, tailnet_peers.updated_at, tailnet_peers.node
+SELECT tailnet_tunnels.src_id as peer_id, tailnet_peers.coordinator_id, tailnet_peers.updated_at, tailnet_peers.node, tailnet_peers.status
 FROM tailnet_tunnels
 INNER JOIN tailnet_peers ON tailnet_tunnels.src_id = tailnet_peers.id
 WHERE tailnet_tunnels.dst_id = $1
 `
 
 type GetTailnetTunnelPeerBindingsRow struct {
-	PeerID        uuid.UUID `db:"peer_id" json:"peer_id"`
-	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
-	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
-	Node          []byte    `db:"node" json:"node"`
+	PeerID        uuid.UUID     `db:"peer_id" json:"peer_id"`
+	CoordinatorID uuid.UUID     `db:"coordinator_id" json:"coordinator_id"`
+	UpdatedAt     time.Time     `db:"updated_at" json:"updated_at"`
+	Node          []byte        `db:"node" json:"node"`
+	Status        TailnetStatus `db:"status" json:"status"`
 }
 
 func (q *sqlQuerier) GetTailnetTunnelPeerBindings(ctx context.Context, srcID uuid.UUID) ([]GetTailnetTunnelPeerBindingsRow, error) {
@@ -4892,6 +4987,7 @@ func (q *sqlQuerier) GetTailnetTunnelPeerBindings(ctx context.Context, srcID uui
 			&i.CoordinatorID,
 			&i.UpdatedAt,
 			&i.Node,
+			&i.Status,
 		); err != nil {
 			return nil, err
 		}
@@ -6548,7 +6644,7 @@ func (q *sqlQuerier) InsertTemplateVersionVariable(ctx context.Context, arg Inse
 
 const getUserLinkByLinkedID = `-- name: GetUserLinkByLinkedID :one
 SELECT
-	user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id
+	user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, debug_context
 FROM
 	user_links
 WHERE
@@ -6567,13 +6663,14 @@ func (q *sqlQuerier) GetUserLinkByLinkedID(ctx context.Context, linkedID string)
 		&i.OAuthExpiry,
 		&i.OAuthAccessTokenKeyID,
 		&i.OAuthRefreshTokenKeyID,
+		&i.DebugContext,
 	)
 	return i, err
 }
 
 const getUserLinkByUserIDLoginType = `-- name: GetUserLinkByUserIDLoginType :one
 SELECT
-	user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id
+	user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, debug_context
 FROM
 	user_links
 WHERE
@@ -6597,12 +6694,13 @@ func (q *sqlQuerier) GetUserLinkByUserIDLoginType(ctx context.Context, arg GetUs
 		&i.OAuthExpiry,
 		&i.OAuthAccessTokenKeyID,
 		&i.OAuthRefreshTokenKeyID,
+		&i.DebugContext,
 	)
 	return i, err
 }
 
 const getUserLinksByUserID = `-- name: GetUserLinksByUserID :many
-SELECT user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id FROM user_links WHERE user_id = $1
+SELECT user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, debug_context FROM user_links WHERE user_id = $1
 `
 
 func (q *sqlQuerier) GetUserLinksByUserID(ctx context.Context, userID uuid.UUID) ([]UserLink, error) {
@@ -6623,6 +6721,7 @@ func (q *sqlQuerier) GetUserLinksByUserID(ctx context.Context, userID uuid.UUID)
 			&i.OAuthExpiry,
 			&i.OAuthAccessTokenKeyID,
 			&i.OAuthRefreshTokenKeyID,
+			&i.DebugContext,
 		); err != nil {
 			return nil, err
 		}
@@ -6647,21 +6746,23 @@ INSERT INTO
 		oauth_access_token_key_id,
 		oauth_refresh_token,
 		oauth_refresh_token_key_id,
-		oauth_expiry
+		oauth_expiry,
+	    debug_context
 	)
 VALUES
-	( $1, $2, $3, $4, $5, $6, $7, $8 ) RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id
+	( $1, $2, $3, $4, $5, $6, $7, $8, $9 ) RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, debug_context
 `
 
 type InsertUserLinkParams struct {
-	UserID                 uuid.UUID      `db:"user_id" json:"user_id"`
-	LoginType              LoginType      `db:"login_type" json:"login_type"`
-	LinkedID               string         `db:"linked_id" json:"linked_id"`
-	OAuthAccessToken       string         `db:"oauth_access_token" json:"oauth_access_token"`
-	OAuthAccessTokenKeyID  sql.NullString `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
-	OAuthRefreshToken      string         `db:"oauth_refresh_token" json:"oauth_refresh_token"`
-	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
-	OAuthExpiry            time.Time      `db:"oauth_expiry" json:"oauth_expiry"`
+	UserID                 uuid.UUID       `db:"user_id" json:"user_id"`
+	LoginType              LoginType       `db:"login_type" json:"login_type"`
+	LinkedID               string          `db:"linked_id" json:"linked_id"`
+	OAuthAccessToken       string          `db:"oauth_access_token" json:"oauth_access_token"`
+	OAuthAccessTokenKeyID  sql.NullString  `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
+	OAuthRefreshToken      string          `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	OAuthRefreshTokenKeyID sql.NullString  `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
+	OAuthExpiry            time.Time       `db:"oauth_expiry" json:"oauth_expiry"`
+	DebugContext           json.RawMessage `db:"debug_context" json:"debug_context"`
 }
 
 func (q *sqlQuerier) InsertUserLink(ctx context.Context, arg InsertUserLinkParams) (UserLink, error) {
@@ -6674,6 +6775,7 @@ func (q *sqlQuerier) InsertUserLink(ctx context.Context, arg InsertUserLinkParam
 		arg.OAuthRefreshToken,
 		arg.OAuthRefreshTokenKeyID,
 		arg.OAuthExpiry,
+		arg.DebugContext,
 	)
 	var i UserLink
 	err := row.Scan(
@@ -6685,6 +6787,7 @@ func (q *sqlQuerier) InsertUserLink(ctx context.Context, arg InsertUserLinkParam
 		&i.OAuthExpiry,
 		&i.OAuthAccessTokenKeyID,
 		&i.OAuthRefreshTokenKeyID,
+		&i.DebugContext,
 	)
 	return i, err
 }
@@ -6697,19 +6800,21 @@ SET
 	oauth_access_token_key_id = $2,
 	oauth_refresh_token = $3,
 	oauth_refresh_token_key_id = $4,
-	oauth_expiry = $5
+	oauth_expiry = $5,
+	debug_context = $6
 WHERE
-	user_id = $6 AND login_type = $7 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id
+	user_id = $7 AND login_type = $8 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, debug_context
 `
 
 type UpdateUserLinkParams struct {
-	OAuthAccessToken       string         `db:"oauth_access_token" json:"oauth_access_token"`
-	OAuthAccessTokenKeyID  sql.NullString `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
-	OAuthRefreshToken      string         `db:"oauth_refresh_token" json:"oauth_refresh_token"`
-	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
-	OAuthExpiry            time.Time      `db:"oauth_expiry" json:"oauth_expiry"`
-	UserID                 uuid.UUID      `db:"user_id" json:"user_id"`
-	LoginType              LoginType      `db:"login_type" json:"login_type"`
+	OAuthAccessToken       string          `db:"oauth_access_token" json:"oauth_access_token"`
+	OAuthAccessTokenKeyID  sql.NullString  `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
+	OAuthRefreshToken      string          `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	OAuthRefreshTokenKeyID sql.NullString  `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
+	OAuthExpiry            time.Time       `db:"oauth_expiry" json:"oauth_expiry"`
+	DebugContext           json.RawMessage `db:"debug_context" json:"debug_context"`
+	UserID                 uuid.UUID       `db:"user_id" json:"user_id"`
+	LoginType              LoginType       `db:"login_type" json:"login_type"`
 }
 
 func (q *sqlQuerier) UpdateUserLink(ctx context.Context, arg UpdateUserLinkParams) (UserLink, error) {
@@ -6719,6 +6824,7 @@ func (q *sqlQuerier) UpdateUserLink(ctx context.Context, arg UpdateUserLinkParam
 		arg.OAuthRefreshToken,
 		arg.OAuthRefreshTokenKeyID,
 		arg.OAuthExpiry,
+		arg.DebugContext,
 		arg.UserID,
 		arg.LoginType,
 	)
@@ -6732,6 +6838,7 @@ func (q *sqlQuerier) UpdateUserLink(ctx context.Context, arg UpdateUserLinkParam
 		&i.OAuthExpiry,
 		&i.OAuthAccessTokenKeyID,
 		&i.OAuthRefreshTokenKeyID,
+		&i.DebugContext,
 	)
 	return i, err
 }
@@ -6742,7 +6849,7 @@ UPDATE
 SET
 	linked_id = $1
 WHERE
-	user_id = $2 AND login_type = $3 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id
+	user_id = $2 AND login_type = $3 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, debug_context
 `
 
 type UpdateUserLinkedIDParams struct {
@@ -6763,6 +6870,7 @@ func (q *sqlQuerier) UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinke
 		&i.OAuthExpiry,
 		&i.OAuthAccessTokenKeyID,
 		&i.OAuthRefreshTokenKeyID,
+		&i.DebugContext,
 	)
 	return i, err
 }

@@ -106,7 +106,7 @@ export const WorkspacesEmpty = (props: {
                   color: "inherit",
 
                   "&:hover": {
-                    backgroundColor: theme.palette.background.paperLight,
+                    backgroundColor: theme.palette.background.paper,
                   },
                 })}
               >

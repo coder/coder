@@ -29,6 +29,7 @@ const sections = {
   access_url: "Access URL",
   websocket: "Websocket",
   database: "Database",
+  workspace_proxy: "Workspace Proxy",
 } as const;
 
 export default function HealthPage() {

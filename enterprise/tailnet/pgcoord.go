@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"io"
 	"net"
-	"net/http"
 	"net/netip"
 	"strings"
 	"sync"
@@ -19,7 +18,6 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
-	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 	gProto "google.golang.org/protobuf/proto"
 
@@ -28,7 +26,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/util/slice"
 	agpl "github.com/coder/coder/v2/tailnet"
 )
 
@@ -1296,29 +1293,6 @@ func (q *querier) setHealthy() {
 	q.healthy = true
 }
 
-func (q *querier) getAll(ctx context.Context) (map[uuid.UUID]database.TailnetAgent, map[uuid.UUID][]database.TailnetClient, error) {
-	agents, err := q.store.GetAllTailnetAgents(ctx)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("get all tailnet agents: %w", err)
-	}
-	agentsMap := map[uuid.UUID]database.TailnetAgent{}
-	for _, agent := range agents {
-		agentsMap[agent.ID] = agent
-	}
-	clients, err := q.store.GetAllTailnetClients(ctx)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("get all tailnet clients: %w", err)
-	}
-	clientsMap := map[uuid.UUID][]database.TailnetClient{}
-	for _, client := range clients {
-		for _, agentID := range client.AgentIds {
-			clientsMap[agentID] = append(clientsMap[agentID], client.TailnetClient)
-		}
-	}
-
-	return agentsMap, clientsMap, nil
-}
-
 func parseTunnelUpdate(msg string) ([]uuid.UUID, error) {
 	parts := strings.Split(msg, ",")
 	if len(parts) != 2 {
@@ -1720,92 +1694,4 @@ func (h *heartbeats) cleanup() {
 		return
 	}
 	h.logger.Debug(h.ctx, "cleaned up old coordinators")
-}
-
-func (c *pgCoord) ServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	debug, err := c.htmlDebug(ctx)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(err.Error()))
-		return
-	}
-
-	agpl.CoordinatorHTTPDebug(debug)(w, r)
-}
-
-func (c *pgCoord) htmlDebug(ctx context.Context) (agpl.HTMLDebug, error) {
-	now := time.Now()
-	data := agpl.HTMLDebug{}
-	agents, clients, err := c.querier.getAll(ctx)
-	if err != nil {
-		return data, xerrors.Errorf("get all agents and clients: %w", err)
-	}
-
-	for _, agent := range agents {
-		htmlAgent := &agpl.HTMLAgent{
-			ID: agent.ID,
-			// Name: ??, TODO: get agent names
-			LastWriteAge: now.Sub(agent.UpdatedAt).Round(time.Second),
-		}
-		for _, conn := range clients[agent.ID] {
-			htmlAgent.Connections = append(htmlAgent.Connections, &agpl.HTMLClient{
-				ID:           conn.ID,
-				Name:         conn.ID.String(),
-				LastWriteAge: now.Sub(conn.UpdatedAt).Round(time.Second),
-			})
-			data.Nodes = append(data.Nodes, &agpl.HTMLNode{
-				ID:   conn.ID,
-				Node: conn.Node,
-			})
-		}
-		slices.SortFunc(htmlAgent.Connections, func(a, b *agpl.HTMLClient) int {
-			return slice.Ascending(a.Name, b.Name)
-		})
-
-		data.Agents = append(data.Agents, htmlAgent)
-		data.Nodes = append(data.Nodes, &agpl.HTMLNode{
-			ID: agent.ID,
-			// Name: ??, TODO: get agent names
-			Node: agent.Node,
-		})
-	}
-	slices.SortFunc(data.Agents, func(a, b *agpl.HTMLAgent) int {
-		return slice.Ascending(a.Name, b.Name)
-	})
-
-	for agentID, conns := range clients {
-		if len(conns) == 0 {
-			continue
-		}
-
-		if _, ok := agents[agentID]; ok {
-			continue
-		}
-		agent := &agpl.HTMLAgent{
-			Name: "unknown",
-			ID:   agentID,
-		}
-		for _, conn := range conns {
-			agent.Connections = append(agent.Connections, &agpl.HTMLClient{
-				Name:         conn.ID.String(),
-				ID:           conn.ID,
-				LastWriteAge: now.Sub(conn.UpdatedAt).Round(time.Second),
-			})
-			data.Nodes = append(data.Nodes, &agpl.HTMLNode{
-				ID:   conn.ID,
-				Node: conn.Node,
-			})
-		}
-		slices.SortFunc(agent.Connections, func(a, b *agpl.HTMLClient) int {
-			return slice.Ascending(a.Name, b.Name)
-		})
-
-		data.MissingAgents = append(data.MissingAgents, agent)
-	}
-	slices.SortFunc(data.MissingAgents, func(a, b *agpl.HTMLAgent) int {
-		return slice.Ascending(a.Name, b.Name)
-	})
-
-	return data, nil
 }

@@ -259,10 +259,6 @@ export const AppRouter: FC = () => {
                   <Route path="versions">
                     <Route path=":version">
                       <Route index element={<TemplateVersionPage />} />
-                      <Route
-                        path="edit"
-                        element={<TemplateVersionEditorPage />}
-                      />
                     </Route>
                   </Route>
                 </Route>
@@ -346,13 +342,17 @@ export const AppRouter: FC = () => {
               </Route>
             </Route>
 
-            {/* Terminal and CLI auth pages don't have the dashboard layout */}
+            {/* Pages that don't have the dashboard layout */}
             <Route
               path="/:username/:workspace/terminal"
               element={<TerminalPage />}
             />
             <Route path="/cli-auth" element={<CliAuthenticationPage />} />
             <Route path="/icons" element={<IconsPage />} />
+            <Route
+              path="/templates/:template/versions/:version/edit"
+              element={<TemplateVersionEditorPage />}
+            />
           </Route>
 
           {/* Using path="*"" means "match anything", so this route

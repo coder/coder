@@ -230,14 +230,14 @@ github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0 h1:3A0ES21Ke+FxEM8CXx
 github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0/go.mod h1:5UuS2Ts+nTToAMeOjNlnHFkPahrtDkmpydBen/3wgZc=
 github.com/coder/retry v1.5.1 h1:iWu8YnD8YqHs3XwqrqsjoBTAVqT9ml6z9ViJ2wlMiqc=
 github.com/coder/retry v1.5.1/go.mod h1:blHMk9vs6LkoRT9ZHyuZo360cufXEhrxqvEzeMtRGoY=
-github.com/coder/ssh v0.0.0-20230621095435-9a7e23486f1c h1:TI7TzdFI0UvQmwgyQhtI1HeyYNRxAQpr8Tw/rjT8VSA=
-github.com/coder/ssh v0.0.0-20230621095435-9a7e23486f1c/go.mod h1:aGQbuCLyhRLMzZF067xc84Lh7JDs1FKwCmF1Crl9dxQ=
+github.com/coder/ssh v0.0.0-20231128192721-70855dedb788 h1:YoUSJ19E8AtuUFVYBpXuOD6a/zVP3rcxezNsoDseTUw=
+github.com/coder/ssh v0.0.0-20231128192721-70855dedb788/go.mod h1:aGQbuCLyhRLMzZF067xc84Lh7JDs1FKwCmF1Crl9dxQ=
 github.com/coder/tailscale v1.1.1-0.20231106123012-ba3acaa26275 h1:FhaWxLBGCPaX6+0yRy98OrmsDK6mr/jvwBilCW42otE=
 github.com/coder/tailscale v1.1.1-0.20231106123012-ba3acaa26275/go.mod h1:L8tPrwSi31RAMEMV8rjb0vYTGs7rXt8rAHbqY/p41j4=
 github.com/coder/terraform-provider-coder v0.12.2 h1:KsnJLHyTtELvV1Rzkm75iCQ7npXjL0KcoU3NTreagZU=
 github.com/coder/terraform-provider-coder v0.12.2/go.mod h1:+BHer8AX5Y0QqZS9viau+ZkDTaOCOE3ga1lx1QIJDrk=
-github.com/coder/wgtunnel v0.1.12 h1:j3v1Q7qyplrRyyNPm0DK50d3O3flboIErxBFhm4NCkA=
-github.com/coder/wgtunnel v0.1.12/go.mod h1:QzfptVUdEO+XbkzMKx1kw13i9wwpJlfI1RrZ6SNZ0hA=
+github.com/coder/wgtunnel v0.1.13-0.20231127054351-578bfff9b92a h1:KhR9LUVllMZ+e9lhubZ1HNrtJDgH5YLoTvpKwmrGag4=
+github.com/coder/wgtunnel v0.1.13-0.20231127054351-578bfff9b92a/go.mod h1:QzfptVUdEO+XbkzMKx1kw13i9wwpJlfI1RrZ6SNZ0hA=
 github.com/coder/wireguard-go v0.0.0-20230807234434-d825b45ccbf5 h1:eDk/42Kj4xN4yfE504LsvcFEo3dWUiCOaBiWJ2uIH2A=
 github.com/coder/wireguard-go v0.0.0-20230807234434-d825b45ccbf5/go.mod h1:QRIcq2+DbdIC5sKh/gcAZhuqu6WT6L6G8/ALPN5wqYw=
 github.com/coder/wireguard-go v0.0.0-20230920225835-b7d43c468619 h1:Ug4+d7ooZNjQPVHL+zrHF2hLCr0FOpxHdB2Urr77VmY=
@@ -272,8 +272,6 @@ github.com/dgryski/go-farm v0.0.0-20200201041132-a6ae2369ad13 h1:fAjc9m62+UWV/WA
 github.com/dgryski/trifles v0.0.0-20200323201526-dd97f9abfb48 h1:fRzb/w+pyskVMQ+UbP35JkH8yB7MYb4q/qhBarqZE6g=
 github.com/dgryski/trifles v0.0.0-20200323201526-dd97f9abfb48/go.mod h1:if7Fbed8SFyPtHLHbg49SI7NAdJiC5WIA09pe59rfAA=
 github.com/dhui/dktest v0.3.16 h1:i6gq2YQEtcrjKbeJpBkWjE8MmLZPYllcjOFbTZuPDnw=
-github.com/djherbis/times v1.6.0 h1:w2ctJ92J8fBvWPxugmXIv7Nz7Q3iDMKNx9v5ocVH20c=
-github.com/djherbis/times v1.6.0/go.mod h1:gOHeRAz2h+VJNZ5Gmc/o7iD9k4wW7NMVqieYCY99oc0=
 github.com/dlclark/regexp2 v1.7.0 h1:7lJfhqlPssTb1WQx4yvTHN0uElPEv52sbaECrAQxjAo=
 github.com/dlclark/regexp2 v1.7.0/go.mod h1:DHkYz0B9wPfa6wondMfaivmHpzrQ3v9q8cnmRbL6yW8=
 github.com/docker/cli v23.0.5+incompatible h1:ufWmAOuD3Vmr7JP2G5K3cyuNC4YZWiAsuDEvFVVDafE=
@@ -1186,7 +1184,6 @@ golang.org/x/sys v0.0.0-20220319134239-a9b59b0215f8/go.mod h1:oPkhp1MJrh7nUepCBc
 golang.org/x/sys v0.0.0-20220422013727-9388b58f7150/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.0.0-20220503163025-988cb79eb6c6/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
-golang.org/x/sys v0.0.0-20220615213510-4f61da869c0c/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.0.0-20220622161953-175b2fd9d664/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.0.0-20220627191245-f75cf1eec38b/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.0.0-20220715151400-c0bba94af5f8/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=

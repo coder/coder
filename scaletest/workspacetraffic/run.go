@@ -1,9 +1,12 @@
 package workspacetraffic
 
 import (
+	"bytes"
 	"context"
-	"encoding/json"
+	"fmt"
 	"io"
+	"math/rand"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,7 +18,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/scaletest/harness"
 	"github.com/coder/coder/v2/scaletest/loadtestutil"
 )
@@ -38,7 +40,7 @@ func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 	}
 }
 
-func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
+func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) (err error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -63,10 +65,12 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 		width        uint16 = 80
 		tickInterval        = r.cfg.TickInterval
 		bytesPerTick        = r.cfg.BytesPerTick
+		echo                = r.cfg.Echo
 	)
 
+	logger = logger.With(slog.F("agent_id", agentID))
+
 	logger.Debug(ctx, "config",
-		slog.F("agent_id", agentID),
 		slog.F("reconnecting_pty_id", reconnect),
 		slog.F("height", height),
 		slog.F("width", width),
@@ -78,33 +82,55 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	start := time.Now()
 	deadlineCtx, cancel := context.WithDeadline(ctx, start.Add(r.cfg.Duration))
 	defer cancel()
-	logger.Debug(ctx, "connect to workspace agent", slog.F("agent_id", agentID))
+	logger.Debug(ctx, "connect to workspace agent")
+
+	output := "/dev/stdout"
+	if !echo {
+		output = "/dev/null"
+	}
+	command := fmt.Sprintf("dd if=/dev/stdin of=%s bs=%d status=none", output, bytesPerTick)
 
 	var conn *countReadWriteCloser
-	var err error
 	if r.cfg.SSH {
-		logger.Info(ctx, "connecting to workspace agent", slog.F("agent_id", agentID), slog.F("method", "ssh"))
-		conn, err = connectSSH(ctx, r.client, agentID)
+		logger.Info(ctx, "connecting to workspace agent", slog.F("method", "ssh"))
+		// If echo is enabled, disable PTY to avoid double echo and
+		// reduce CPU usage.
+		requestPTY := !r.cfg.Echo
+		conn, err = connectSSH(ctx, r.client, agentID, command, requestPTY)
 		if err != nil {
-			logger.Error(ctx, "connect to workspace agent via ssh", slog.F("agent_id", agentID), slog.Error(err))
+			logger.Error(ctx, "connect to workspace agent via ssh", slog.Error(err))
 			return xerrors.Errorf("connect to workspace via ssh: %w", err)
 		}
 	} else {
-		logger.Info(ctx, "connecting to workspace agent", slog.F("agent_id", agentID), slog.F("method", "reconnectingpty"))
-		conn, err = connectPTY(ctx, r.client, agentID, reconnect)
+		logger.Info(ctx, "connecting to workspace agent", slog.F("method", "reconnectingpty"))
+		conn, err = connectRPTY(ctx, r.client, agentID, reconnect, command)
 		if err != nil {
-			logger.Error(ctx, "connect to workspace agent via reconnectingpty", slog.F("agent_id", agentID), slog.Error(err))
+			logger.Error(ctx, "connect to workspace agent via reconnectingpty", slog.Error(err))
 			return xerrors.Errorf("connect to workspace via reconnectingpty: %w", err)
 		}
 	}
+	var closeErr error
+	closeOnce := sync.Once{}
+	closeConn := func() error {
+		closeOnce.Do(func() {
+			closeErr = conn.Close()
+			if err != nil {
+				logger.Error(ctx, "close agent connection", slog.Error(err))
+			}
+		})
+		return closeErr
+	}
+	defer func() {
+		if err2 := closeConn(); err2 != nil {
+			// Allow close error to fail the test.
+			if err == nil {
+				err = err2
+			}
+		}
+	}()
+
 	conn.readMetrics = r.cfg.ReadMetrics
 	conn.writeMetrics = r.cfg.WriteMetrics
-
-	go func() {
-		<-deadlineCtx.Done()
-		logger.Debug(ctx, "close agent connection", slog.F("agent_id", agentID))
-		_ = conn.Close()
-	}()
 
 	// Create a ticker for sending data to the conn.
 	tick := time.NewTicker(tickInterval)
@@ -114,58 +140,59 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	rch := make(chan error, 1)
 	wch := make(chan error, 1)
 
+	// Read until connection is closed.
 	go func() {
-		<-deadlineCtx.Done()
-		logger.Debug(ctx, "closing agent connection")
-		_ = conn.Close()
-	}()
-
-	// Read forever in the background.
-	go func() {
-		select {
-		case <-ctx.Done():
-			logger.Debug(ctx, "done reading from agent", slog.F("agent_id", agentID))
-		default:
-			logger.Debug(ctx, "reading from agent", slog.F("agent_id", agentID))
-			rch <- drain(conn)
-			close(rch)
-		}
-	}()
-
-	// To avoid hanging, close the conn when ctx is done
-	go func() {
-		<-ctx.Done()
-		_ = conn.Close()
+		rch := rch // Shadowed for reassignment.
+		logger.Debug(ctx, "reading from agent")
+		rch <- drain(conn)
+		logger.Debug(ctx, "done reading from agent")
+		close(rch)
 	}()
 
 	// Write random data to the conn every tick.
 	go func() {
-		logger.Debug(ctx, "writing to agent", slog.F("agent_id", agentID))
-		if r.cfg.SSH {
-			wch <- writeRandomDataSSH(conn, bytesPerTick, tick.C)
-		} else {
-			wch <- writeRandomDataPTY(conn, bytesPerTick, tick.C)
-		}
-		logger.Debug(ctx, "done writing to agent", slog.F("agent_id", agentID))
+		wch := wch // Shadowed for reassignment.
+		logger.Debug(ctx, "writing to agent")
+		wch <- writeRandomData(conn, bytesPerTick, tick.C)
+		logger.Debug(ctx, "done writing to agent")
 		close(wch)
 	}()
 
-	// Write until the context is canceled.
-	if wErr := <-wch; wErr != nil {
-		return xerrors.Errorf("write to agent: %w", wErr)
-	}
+	var waitCloseTimeoutCh <-chan struct{}
+	deadlineCtxCh := deadlineCtx.Done()
+	for {
+		if wch == nil && rch == nil {
+			return nil
+		}
 
-	select {
-	case <-ctx.Done():
-		logger.Warn(ctx, "timed out reading from agent", slog.F("agent_id", agentID))
-	case rErr := <-rch:
-		logger.Debug(ctx, "done reading from agent", slog.F("agent_id", agentID))
-		if rErr != nil {
-			return xerrors.Errorf("read from agent: %w", rErr)
+		select {
+		case <-waitCloseTimeoutCh:
+			logger.Warn(ctx, "timed out waiting for read/write to complete",
+				slog.F("write_done", wch == nil),
+				slog.F("read_done", rch == nil),
+			)
+			return xerrors.Errorf("timed out waiting for read/write to complete: %w", ctx.Err())
+		case <-deadlineCtxCh:
+			go func() {
+				_ = closeConn()
+			}()
+			deadlineCtxCh = nil // Only trigger once.
+			// Wait at most closeTimeout for the connection to close cleanly.
+			waitCtx, cancel := context.WithTimeout(context.Background(), waitCloseTimeout)
+			defer cancel() //nolint:revive // Only called once.
+			waitCloseTimeoutCh = waitCtx.Done()
+		case err = <-wch:
+			if err != nil {
+				return xerrors.Errorf("write to agent: %w", err)
+			}
+			wch = nil
+		case err = <-rch:
+			if err != nil {
+				return xerrors.Errorf("read from agent: %w", err)
+			}
+			rch = nil
 		}
 	}
-
-	return nil
 }
 
 // Cleanup does nothing, successfully.
@@ -176,6 +203,12 @@ func (*Runner) Cleanup(context.Context, string, io.Writer) error {
 // drain drains from src until it returns io.EOF or ctx times out.
 func drain(src io.Reader) error {
 	if _, err := io.Copy(io.Discard, src); err != nil {
+		if xerrors.Is(err, io.EOF) {
+			return nil
+		}
+		if xerrors.Is(err, io.ErrClosedPipe) {
+			return nil
+		}
 		if xerrors.Is(err, context.Canceled) {
 			return nil
 		}
@@ -190,14 +223,27 @@ func drain(src io.Reader) error {
 	return nil
 }
 
-func writeRandomDataPTY(dst io.Writer, size int64, tick <-chan time.Time) error {
-	var (
-		enc    = json.NewEncoder(dst)
-		ptyReq = codersdk.ReconnectingPTYRequest{}
-	)
+// Allowed characters for random strings, exclude most of the 0x00 - 0x1F range.
+var allowedChars = []byte("\t !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}")
+
+func writeRandomData(dst io.Writer, size int64, tick <-chan time.Time) error {
+	var b bytes.Buffer
+	p := make([]byte, size-1)
 	for range tick {
-		ptyReq.Data = mustRandomComment(size - 1)
-		if err := enc.Encode(ptyReq); err != nil {
+		b.Reset()
+
+		p := mustRandom(p)
+		for _, c := range p {
+			_, _ = b.WriteRune(rune(allowedChars[c%byte(len(allowedChars))]))
+		}
+		_, _ = b.WriteString("\n")
+		if _, err := b.WriteTo(dst); err != nil {
+			if xerrors.Is(err, io.EOF) {
+				return nil
+			}
+			if xerrors.Is(err, io.ErrClosedPipe) {
+				return nil
+			}
 			if xerrors.Is(err, context.Canceled) {
 				return nil
 			}
@@ -213,36 +259,12 @@ func writeRandomDataPTY(dst io.Writer, size int64, tick <-chan time.Time) error 
 	return nil
 }
 
-func writeRandomDataSSH(dst io.Writer, size int64, tick <-chan time.Time) error {
-	for range tick {
-		payload := mustRandomComment(size - 1)
-		if _, err := dst.Write([]byte(payload + "\r\n")); err != nil {
-			if xerrors.Is(err, context.Canceled) {
-				return nil
-			}
-			if xerrors.Is(err, context.DeadlineExceeded) {
-				return nil
-			}
-			if xerrors.As(err, &websocket.CloseError{}) {
-				return nil
-			}
-			return err
-		}
-	}
-	return nil
-}
-
-// mustRandomComment returns a random string prefixed by a #.
-// This allows us to send data both to and from a workspace agent
-// while placing minimal load upon the workspace itself.
-func mustRandomComment(l int64) string {
-	if l < 1 {
-		l = 1
-	}
-	randStr, err := cryptorand.String(int(l))
+// mustRandom writes pseudo random bytes to p and panics if it fails.
+func mustRandom(p []byte) []byte {
+	n, err := rand.Read(p) //nolint:gosec // We want pseudorandomness here to avoid entropy issues.
 	if err != nil {
 		panic(err)
 	}
-	// THIS IS A LOAD-BEARING OCTOTHORPE. DO NOT REMOVE.
-	return "#" + randStr
+
+	return p[:n]
 }

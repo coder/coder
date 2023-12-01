@@ -68,6 +68,8 @@ func TestDERP(t *testing.T) {
 			for _, node := range region.NodeReports {
 				assert.True(t, node.Healthy)
 				assert.True(t, node.CanExchangeMessages)
+				assert.Empty(t, node.Warnings)
+				assert.NotNil(t, node.Warnings)
 				assert.NotEmpty(t, node.RoundTripPing)
 				assert.Len(t, node.ClientLogs, 2)
 				assert.Len(t, node.ClientLogs[0], 3)
@@ -118,6 +120,7 @@ func TestDERP(t *testing.T) {
 						}},
 					},
 				}},
+				Dismissed: true, // Let's sneak an extra unit test
 			}
 		)
 
@@ -125,9 +128,15 @@ func TestDERP(t *testing.T) {
 
 		assert.True(t, report.Healthy)
 		assert.Equal(t, health.SeverityWarning, report.Severity)
+		assert.True(t, report.Dismissed)
+		if assert.NotEmpty(t, report.Warnings) {
+			assert.Contains(t, report.Warnings[0].Code, health.CodeDERPOneNodeUnhealthy)
+		}
 		for _, region := range report.Regions {
 			assert.True(t, region.Healthy)
 			assert.True(t, region.NodeReports[0].Healthy)
+			assert.Empty(t, region.NodeReports[0].Warnings)
+			assert.NotNil(t, region.NodeReports[0].Warnings)
 			assert.Equal(t, health.SeverityOK, region.NodeReports[0].Severity)
 			assert.False(t, region.NodeReports[1].Healthy)
 			assert.Equal(t, health.SeverityError, region.NodeReports[1].Severity)
@@ -226,7 +235,9 @@ func TestDERP(t *testing.T) {
 
 		assert.True(t, report.Healthy)
 		assert.Equal(t, health.SeverityWarning, report.Severity)
-		assert.NotEmpty(t, report.Warnings)
+		if assert.NotEmpty(t, report.Warnings) {
+			assert.Equal(t, report.Warnings[0].Code, health.CodeDERPNodeUsesWebsocket)
+		}
 		for _, region := range report.Regions {
 			assert.True(t, region.Healthy)
 			assert.Equal(t, health.SeverityWarning, region.Severity)

@@ -13,7 +13,6 @@ import { SensitiveValue } from "./SensitiveValue";
 
 const styles = {
   resourceCard: (theme) => ({
-    background: theme.palette.background.paper,
     borderRadius: 8,
     border: `1px solid ${theme.palette.divider}`,
 
