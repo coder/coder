@@ -188,7 +188,7 @@ export const WorkspacesPageView = ({
             paginationUnitLabel="workspaces"
             limit={limit}
             totalRecords={count}
-            currentChunk={0}
+            currentChunk={(page - 1) * limit + 1}
           />
         )}
       </TableToolbar>

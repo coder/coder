@@ -33,18 +33,27 @@ export const PaginationHeader: FC<PaginationHeaderProps> = ({
         },
       }}
     >
-      {currentChunk !== undefined && totalRecords !== undefined ? (
-        // This can't be a React fragment because flexbox will rearrange each
-        // text node, instead of all the elements as a group
-        <div>
-          Showing {paginationUnitLabel}{" "}
-          <strong>
-            {currentChunk}&ndash;
-            {currentChunk + Math.min(limit - 1, totalRecords - currentChunk)}
-          </strong>{" "}
-          (<strong>{totalRecords.toLocaleString()}</strong>{" "}
-          {paginationUnitLabel} total)
-        </div>
+      {totalRecords !== undefined ? (
+        <>
+          {/**
+           * Have to put text content in divs so that flexbox doesn't scramble
+           * the nodes up
+           */}
+          {totalRecords === 0 && <div>No records available</div>}
+
+          {totalRecords !== 0 && currentChunk !== undefined && (
+            <div>
+              Showing {paginationUnitLabel}{" "}
+              <strong>
+                {currentChunk}&ndash;
+                {currentChunk +
+                  Math.min(limit - 1, totalRecords - currentChunk)}
+              </strong>{" "}
+              (<strong>{totalRecords.toLocaleString()}</strong>{" "}
+              {paginationUnitLabel} total)
+            </div>
+          )}
+        </>
       ) : (
         <Skeleton variant="text" width={160} height={16} />
       )}
