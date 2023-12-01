@@ -31,6 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       docs-only: ${{ steps.filter.outputs.docs_count == steps.filter.outputs.all_count }}
+      docs: ${{ steps.filter.outputs.docs }}
       go: ${{ steps.filter.outputs.go }}
       ts: ${{ steps.filter.outputs.ts }}
       k8s: ${{ steps.filter.outputs.k8s }}
@@ -647,7 +648,8 @@ jobs:
     name: offlinedocs
     needs: changes
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
-    if: needs.changes.outputs.offlinedocs == 'true' || needs.changes.outputs.ci == 'true'
+    if: needs.changes.outputs.offlinedocs == 'true' || needs.changes.outputs.ci == 'true' || needs.changes.outputs.docs == 'true'
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
