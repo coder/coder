@@ -956,6 +956,14 @@ func (*FakeQuerier) CleanTailnetCoordinators(_ context.Context) error {
 	return ErrUnimplemented
 }
 
+func (*FakeQuerier) CleanTailnetLostPeers(context.Context) error {
+	return ErrUnimplemented
+}
+
+func (*FakeQuerier) CleanTailnetTunnels(context.Context) error {
+	return ErrUnimplemented
+}
+
 func (q *FakeQuerier) DeleteAPIKeyByID(_ context.Context, id string) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
