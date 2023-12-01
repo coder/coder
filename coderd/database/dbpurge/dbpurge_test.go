@@ -6,13 +6,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"golang.org/x/exp/slices"
 
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
-
 	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbpurge"
