@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"golang.org/x/exp/slices"
@@ -24,11 +25,11 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbpurge"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/cryptorand"
-	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestMain(m *testing.M) {
@@ -38,16 +39,52 @@ func TestMain(m *testing.M) {
 // Ensures no goroutines leak.
 func TestPurge(t *testing.T) {
 	t.Parallel()
-	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+
+	// Given: a number of agents with associated agent logs
 	opts := seedOpts{
 		NumAgents:        10,
 		NumLogsPerAgent:  10,
 		NumStatsPerAgent: 10,
 	}
-	seed(t, db, opts)
-	purger := dbpurge.New(context.Background(), slogtest.Make(t, nil), db)
+	now := time.Now()
+	weekAgo := now.AddDate(0, 0, -7)
+
+	agentIDs, _ := seed(ctx, t, db, opts)
+
+	// For half of the agents, set their last connected time to one week ago plus some non-zero interval
+	for i := 0; i < opts.NumAgents/2; i++ {
+		randOldTime := weekAgo.AddDate(0, 0, -randintn(7))
+		setAgentLastConnectedAt(ctx, t, db, agentIDs[i], randOldTime)
+	}
+
+	// Assert that some old logs exist
+	var numOldLogs int
+	for i := 0; i < opts.NumAgents; i++ {
+		numOldLogs += countAgentLogsOlderThan(ctx, t, db, agentIDs[i], weekAgo)
+	}
+	require.Greater(t, numOldLogs, 0, "no agent logs were inserted")
+	t.Logf("found %d old agent logs", numOldLogs)
+
+	purger := dbpurge.New(ctx, slogtest.Make(t, nil), db)
 	err := purger.Close()
 	require.NoError(t, err)
+
+	// Assert that some logs were deleted
+
+	// Assert that no old logs exist
+	for i := 0; i < opts.NumAgents; i++ {
+		agentID := agentIDs[i]
+		logs, err := db.GetWorkspaceAgentLogsAfter(ctx, database.GetWorkspaceAgentLogsAfterParams{
+			AgentID:      agentID,
+			CreatedAfter: 0,
+		})
+		require.NoError(t, err)
+		for _, l := range logs {
+			assert.Greater(t, l.CreatedAt, weekAgo)
+		}
+	}
 }
 
 func TestDeleteOldProvisionerDaemons(t *testing.T) {
@@ -125,34 +162,42 @@ type seedOpts struct {
 	NumStatsPerAgent int
 }
 
-func seed(t *testing.T, db database.Store, opts seedOpts) {
+func seed(ctx context.Context, t testing.TB, db database.Store, opts seedOpts) ([]uuid.UUID, []dbfake.WorkspaceResponse) {
 	t.Helper()
 
-	// Create a number of agents
 	agentIDs := make([]uuid.UUID, opts.NumAgents)
-	agentWSes := make(map[uuid.UUID]dbfake.WorkspaceResponse)
-	for i := 0; i < opts.NumAgents; i++ {
-		agentID := uuid.New()
-		wsr := dbfake.Workspace(t, db).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
-			for _, agt := range agents {
-				agt.Id = agentID.String()
-			}
-			return agents
-		}).Do()
-		agentIDs[i] = agentID
-		agentWSes[agentID] = wsr
+	workspaces := make([]dbfake.WorkspaceResponse, opts.NumAgents)
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	tv := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	}).Do()
+	workspaceTemplate := database.Workspace{
+		TemplateID:     tv.Template.ID,
+		OrganizationID: tv.Template.OrganizationID,
+		OwnerID:        user.ID,
 	}
 
-	for _, agentID := range agentIDs {
+	for i := 0; i < opts.NumAgents; i++ {
+		// agentID := uuid.New()
+		wsr := dbfake.WorkspaceBuild(t, db, workspaceTemplate).WithAgent().Do()
+		tokUUID, err := uuid.Parse(wsr.AgentToken)
+		require.NoError(t, err, "invalid workspace agent token")
+		agent, err := db.GetWorkspaceAgentAndOwnerByAuthToken(ctx, tokUUID)
+		require.NoError(t, err, "could not find workspace agent with token %s", wsr.AgentToken)
+		agentIDs[i] = agent.WorkspaceAgent.ID
+		workspaces[i] = wsr
+	}
+
+	for i := 0; i < opts.NumAgents; i++ {
 		// Create a number of logs for each agent
 		var entries []string
 		for i := 0; i < opts.NumLogsPerAgent; i++ {
-			randStr, err := cryptorand.String(1024)
-			require.NoError(t, err)
-			entries = append(entries, randStr)
+			entries = append(entries, "an entry")
 		}
 		_, err := db.InsertWorkspaceAgentLogs(context.Background(), database.InsertWorkspaceAgentLogsParams{
-			AgentID:      agentID,
+			AgentID:      agentIDs[i],
 			CreatedAt:    time.Now(),
 			Output:       entries,
 			Level:        times(database.LogLevelInfo, opts.NumLogsPerAgent),
@@ -163,43 +208,75 @@ func seed(t *testing.T, db database.Store, opts seedOpts) {
 
 		// Insert a number of stats for each agent
 		err = db.InsertWorkspaceAgentStats(context.Background(), database.InsertWorkspaceAgentStatsParams{
-			ID:                          times(agentID, opts.NumStatsPerAgent),
+			ID:                          timesf(uuid.New, opts.NumStatsPerAgent),
 			CreatedAt:                   times(dbtime.Now(), opts.NumStatsPerAgent),
-			UserID:                      times(agentWSes[agentID].Workspace.OwnerID, opts.NumStatsPerAgent),
-			WorkspaceID:                 times(agentWSes[agentID].Workspace.ID, opts.NumStatsPerAgent),
-			TemplateID:                  times(agentWSes[agentID].Workspace.TemplateID, opts.NumStatsPerAgent),
-			AgentID:                     times(agentID, opts.NumStatsPerAgent),
+			UserID:                      times(workspaces[i].Workspace.OwnerID, opts.NumStatsPerAgent),
+			WorkspaceID:                 times(workspaces[i].Workspace.ID, opts.NumStatsPerAgent),
+			TemplateID:                  times(workspaces[i].Workspace.TemplateID, opts.NumStatsPerAgent),
+			AgentID:                     times(agentIDs[i], opts.NumStatsPerAgent),
 			ConnectionsByProto:          fakeConnectionsByProto(t, opts.NumStatsPerAgent),
-			ConnectionCount:             timesf(rand.Int63, opts.NumStatsPerAgent),
-			RxPackets:                   timesf(rand.Int63, opts.NumStatsPerAgent),
-			RxBytes:                     timesf(rand.Int63, opts.NumStatsPerAgent),
-			TxPackets:                   timesf(rand.Int63, opts.NumStatsPerAgent),
-			TxBytes:                     timesf(rand.Int63, opts.NumStatsPerAgent),
-			SessionCountVSCode:          timesf(rand.Int63, opts.NumStatsPerAgent),
-			SessionCountJetBrains:       timesf(rand.Int63, opts.NumStatsPerAgent),
-			SessionCountReconnectingPTY: timesf(rand.Int63, opts.NumStatsPerAgent),
-			SessionCountSSH:             timesf(rand.Int63, opts.NumStatsPerAgent),
+			ConnectionCount:             timesf(randint64, opts.NumStatsPerAgent),
+			RxPackets:                   timesf(randint64, opts.NumStatsPerAgent),
+			RxBytes:                     timesf(randint64, opts.NumStatsPerAgent),
+			TxPackets:                   timesf(randint64, opts.NumStatsPerAgent),
+			TxBytes:                     timesf(randint64, opts.NumStatsPerAgent),
+			SessionCountVSCode:          timesf(randint64, opts.NumStatsPerAgent),
+			SessionCountJetBrains:       timesf(randint64, opts.NumStatsPerAgent),
+			SessionCountReconnectingPTY: timesf(randint64, opts.NumStatsPerAgent),
+			SessionCountSSH:             timesf(randint64, opts.NumStatsPerAgent),
 			ConnectionMedianLatencyMS:   timesf(rand.Float64, opts.NumStatsPerAgent),
 		})
 		require.NoError(t, err)
 	}
+	return agentIDs, workspaces
+}
+
+func countAgentLogsOlderThan(ctx context.Context, t testing.TB, db database.Store, agentID uuid.UUID, olderThan time.Time) int {
+	var numFound int
+	logs, err := db.GetWorkspaceAgentLogsAfter(ctx, database.GetWorkspaceAgentLogsAfterParams{
+		AgentID:      agentID,
+		CreatedAfter: 0,
+	})
+	require.NoError(t, err)
+	for _, l := range logs {
+		if l.CreatedAt.Before(olderThan) {
+			numFound++
+		}
+	}
+	return numFound
+}
+
+func setAgentLastConnectedAt(ctx context.Context, t testing.TB, db database.Store, agentID uuid.UUID, lastConnectedAt time.Time) {
+	t.Helper()
+
+	err := db.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
+		ID:                     agentID,
+		FirstConnectedAt:       sql.NullTime{Time: time.Unix(0, 0), Valid: true},
+		LastConnectedAt:        sql.NullTime{Time: lastConnectedAt, Valid: true},
+		LastConnectedReplicaID: uuid.NullUUID{},
+		DisconnectedAt:         sql.NullTime{},
+		UpdatedAt:              dbtime.Now(),
+	})
+
+	require.NoError(t, err)
 }
 
 func fakeConnectionsByProto(t testing.TB, n int) json.RawMessage {
 	ms := make([]map[string]int64, n)
 	for i := 0; i < n; i++ {
 		m := map[string]int64{
-			"vscode": rand.Int63(),
-			"tty":    rand.Int63(),
-			"ssh":    rand.Int63(),
+			"vscode": randint64(),
+			"tty":    randint64(),
+			"ssh":    randint64(),
 		}
-		ms = append(ms, m)
+		ms[i] = m
 	}
 	bytes, err := json.Marshal(ms)
 	require.NoError(t, err)
 	return bytes
 }
 
+// times returns a slice consisting of T repeated n times
 func times[T any](t T, n int) []T {
 	ts := make([]T, n)
 	for i := 0; i < n; i++ {
@@ -208,10 +285,22 @@ func times[T any](t T, n int) []T {
 	return ts
 }
 
+// timesf returns a slice consisting of running f n times
+// and appending the results to a new slice of type T
 func timesf[T any](f func() T, n int) []T {
 	ts := make([]T, n)
 	for i := 0; i < n; i++ {
 		ts[i] = f()
 	}
 	return ts
+}
+
+//nolint:gosec // not used for crypto purposes
+func randint64() int64 {
+	return rand.Int63()
+}
+
+//nolint:gosec // not used for crypto purposes
+func randintn(n int) int {
+	return rand.Intn(n)
 }
