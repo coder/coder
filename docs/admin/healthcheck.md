@@ -19,13 +19,17 @@ string `OK`.
 
 If there is an issue, you may see one of the following errors reported:
 
-### <a name="EACS01">EACS01: Access URL not set</a>
+### EACS01
+
+_Access URL not set_
 
 **Problem:** no access URL has been configured.
 
 **Solution:** configure an [access URL](./configure.md#access-url) for Coder.
 
-### <a name="EACS02">EACS02: Access URL invalid</a>
+### EACS02
+
+_Access URL invalid_
 
 **Problem:** `${CODER_ACCESS_URL}/healthz` is not a valid URL.
 
@@ -35,7 +39,9 @@ If there is an issue, you may see one of the following errors reported:
 
 > **Tip:** You can check this [here](https://go.dev/play/p/CabcJZyTwt9).
 
-### <a name="EACS03">EACS03: Failed to fetch `/healthz`</a>
+### EACS03
+
+_Failed to fetch `/healthz`_
 
 **Problem:** Coder was unable to execute a GET request to
 `${CODER_ACCESS_URL}/healthz`.
@@ -63,7 +69,9 @@ curl -v ${CODER_ACCESS_URL}/healthz
 
 The output of this command should aid further diagnosis.
 
-### <a name="EACS04">EACS04: /healthz did not return 200 OK</a>
+### EACS04
+
+_/healthz did not return 200 OK_
 
 **Problem:** Coder was able to execute a GET request to
 `${CODER_ACCESS_URL}/healthz`, but the response code was not `200 OK` as
@@ -84,14 +92,18 @@ should give you a good indication of the root cause.
 Coder continuously executes a short database query to validate that it can reach
 its configured database, and also measures the median latency over 5 attempts.
 
-### <a name="EDB01">EDB01: Database Ping Failed</a>
+### EDB01
+
+_Database Ping Failed_
 
 **Problem:** This error code is returned if any attempt to execute this database
 query fails.
 
 **Solution:** Investigate the health of the database.
 
-### <a name="EDB02">EDB02: Database Latency High</a>
+### EDB02
+
+_Database Latency High_
 
 **Problem:** This code is returned if the median latency is higher than the
 [configured threshold](../cli/server.md#--health-check-threshold-database). This
@@ -120,7 +132,9 @@ traffic between Coder and workspace agents. Coder periodically queries the
 health of its configured DERP servers and may return one or more of the
 following:
 
-### <a name="EDERP01">EDERP01: DERP Node Uses Websocket</a>
+### EDERP01
+
+_DERP Node Uses Websocket_
 
 **Problem:** When Coder attempts to establish a connection to one or more DERP
 servers, it sends a specific `Upgrade: derp` HTTP header. Some load balancers
@@ -137,7 +151,9 @@ still be able to reach their workspaces, connection performance may be degraded.
 **Solution:** ensure that any configured reverse proxy does not strip the
 `Upgrade: derp` header.
 
-### <a name="EDERP02">EDERP02: One or more DERP nodes are unhealthy</a>
+### EDERP02
+
+_One or more DERP nodes are unhealthy_
 
 **Problem:** This is shown if Coder is unable to reach one or more configured
 DERP servers. Clients will fall back to use the remaining DERP servers, but
@@ -170,7 +186,9 @@ functionality, Coder will periodically attempt to establish a WebSocket
 connection with itself using the configured [Access URL](#access-url), send a
 message over the connection, and attempt to read back that same message.
 
-### <a name="EWS01">EWS01: Failed to establish a WebSocket connection</a>
+### EWS01
+
+_Failed to establish a WebSocket connection_
 
 **Problem:** Coder was unable to establish a WebSocket connection over its own
 Access URL.
@@ -187,7 +205,9 @@ Access URL.
 2. Ensure that any reverse proxy that is sitting in front of Coder's configured
    access URL is not stripping the HTTP header `Upgrade: websocket`.
 
-### <a name="EWS02">EWS02: Failed to echo a WebSocket message</a>
+### EWS02
+
+_Failed to echo a WebSocket message_
 
 **Problem:** Coder was able to establish a WebSocket connection, but was unable
 to write a message.
@@ -206,7 +226,9 @@ to write a message.
 If you have configured [Workspace Proxies](../admin/workspace-proxies.md), Coder
 will periodically query their availability and show their status here.
 
-### <a name="EWP01">EWP01: Error Updating Workspace Proxy Health</a>
+### EWP01
+
+_Error Updating Workspace Proxy Health_
 
 **Problem:** Coder was unable to query the connected workspace proxies for their
 health status.
@@ -214,7 +236,9 @@ health status.
 **Solution:** This may be a transient issue. If it persists, it could signify a
 connectivity issue.
 
-### <a name="EWP02">EWP02: Error Fetching Workspace Proxies</a>
+### EWP02
+
+_Error Fetching Workspace Proxies_
 
 **Problem:** Coder was unable to fetch the stored workspace proxy health data
 from the database.
@@ -222,7 +246,9 @@ from the database.
 **Solution:** This may be a transient issue. If it persists, it could signify an
 issue with Coder's configured database.
 
-### <a name="EWP03">EWP03: Workspace Proxy Version Mismatch</a>
+### EWP03
+
+_Workspace Proxy Version Mismatch_
 
 **Problem:** One or more workspace proxies are more than one major or minor
 version out of date with the main deployment. It is important that workspace
@@ -232,14 +258,18 @@ of API incompatibility.
 **Solution:** Update the workspace proxy to match the currently running version
 of Coder.
 
-### <a name="EWP04">EWP04: One or more Workspace Proxies Unhealthy</a>
+### EWP04
+
+_One or more Workspace Proxies Unhealthy_
 
 **Problem:** One or more workspace proxies are not reachable.
 
 **Solution:** Ensure that Coder can establish a connection to the configured
 workspace proxies on port 443.
 
-## <a name="EUNKNOWN">Unknown Error</a>
+## EUNKNOWN
+
+_Unknown Error_
 
 **Problem:** This error is shown when an unexpected error occurred evaluating
 deployment health. It may resolve on its own.
