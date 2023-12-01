@@ -199,7 +199,7 @@ function useScrollOnPageChange(
       !isScrollingQueuedRef.current &&
       event.target instanceof HTMLElement &&
       scrollContainerRef.current !== event.target &&
-      scrollContainerRef.current?.contains(event.target);
+      (scrollContainerRef.current?.contains(event.target) ?? false);
 
     if (shouldStopBubbling) {
       event.stopPropagation();
