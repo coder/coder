@@ -52,13 +52,10 @@ func setupWorkspaceForAgent(t *testing.T, mutations ...func([]*proto.Agent) []*p
 	client.SetLogger(slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug))
 	first := coderdtest.CreateFirstUser(t, client)
 	userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-	r := dbfake.Workspace(t, store).
-		Seed(database.Workspace{
-			OrganizationID: first.OrganizationID,
-			OwnerID:        user.ID,
-		}).
-		WithAgent(mutations...).
-		Do()
+	r := dbfake.WorkspaceBuild(t, store, database.Workspace{
+		OrganizationID: first.OrganizationID,
+		OwnerID:        user.ID,
+	}).WithAgent(mutations...).Do()
 
 	return userClient, r.Workspace, r.AgentToken
 }
@@ -130,7 +127,7 @@ func TestSSH(t *testing.T) {
 		client.SetLogger(slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug))
 		first := coderdtest.CreateFirstUser(t, client)
 		userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-		r := dbfake.Workspace(t, store).Seed(database.Workspace{
+		r := dbfake.WorkspaceBuild(t, store, database.Workspace{
 			OrganizationID: first.OrganizationID,
 			OwnerID:        user.ID,
 		}).WithAgent().Do()
@@ -469,7 +466,7 @@ func TestSSH(t *testing.T) {
 		client.SetLogger(slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug))
 		first := coderdtest.CreateFirstUser(t, client)
 		userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-		r := dbfake.Workspace(t, store).Seed(database.Workspace{
+		r := dbfake.WorkspaceBuild(t, store, database.Workspace{
 			OrganizationID: first.OrganizationID,
 			OwnerID:        user.ID,
 		}).WithAgent().Do()

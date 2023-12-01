@@ -77,13 +77,10 @@ func TestConfigSSH(t *testing.T) {
 	})
 	owner := coderdtest.CreateFirstUser(t, client)
 	member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-	r := dbfake.Workspace(t, db).
-		Seed(database.Workspace{
-			OrganizationID: owner.OrganizationID,
-			OwnerID:        memberUser.ID,
-		}).
-		WithAgent().
-		Do()
+	r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		OrganizationID: owner.OrganizationID,
+		OwnerID:        memberUser.ID,
+	}).WithAgent().Do()
 	_ = agenttest.New(t, client.URL, r.AgentToken)
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
 	agentConn, err := client.DialWorkspaceAgent(context.Background(), resources[0].Agents[0].ID, nil)
@@ -575,7 +572,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			client, db := coderdtest.NewWithDatabase(t, nil)
 			user := coderdtest.CreateFirstUser(t, client)
 			if tt.hasAgent {
-				_ = dbfake.Workspace(t, db).Seed(database.Workspace{
+				_ = dbfake.WorkspaceBuild(t, db, database.Workspace{
 					OrganizationID: user.OrganizationID,
 					OwnerID:        user.UserID,
 				}).WithAgent().Do()
