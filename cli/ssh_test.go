@@ -406,7 +406,9 @@ func TestSSH(t *testing.T) {
 			//
 			// To work around this, we attempt to send messages in a loop until one succeeds
 			success := make(chan struct{})
+			done := make(chan struct{})
 			go func() {
+				defer close(done)
 				var (
 					conn net.Conn
 					err  error
@@ -444,6 +446,8 @@ func TestSSH(t *testing.T) {
 			fsn.Notify()
 			<-cmdDone
 			fsn.AssertStopped()
+			// wait for dial goroutine to complete
+			_ = testutil.RequireRecvCtx(ctx, t, done)
 
 			// wait for the remote socket to get cleaned up before retrying,
 			// because cleaning up the socket happens asynchronously, and we
