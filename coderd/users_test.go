@@ -1866,7 +1866,6 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 		for i := range prevPage.Users {
 			require.Equalf(t, strings.ToLower(allUsers[count-limit : count][i].Username), strings.ToLower(prevPage.Users[i].Username), "prev users, offset=%d, limit=%d", count-limit, limit)
 		}
-		// require.Equal(t, allUsers[count-limit:count], prevPage.Users, "prev users")
 		count += len(page.Users)
 	}
 }
