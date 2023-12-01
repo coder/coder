@@ -19,6 +19,9 @@ type localForwardChannelData struct {
 	OriginPort uint32
 }
 
+// ChannelAcceptWatcher is used to track jetbrains port forwarding (gateway)
+// connections. If the port forward is something other than jetbrains, this
+// struct is a noop.
 type ChannelAcceptWatcher struct {
 	gossh.NewChannel
 	jetbrainsCounter *atomic.Int64
