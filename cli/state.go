@@ -46,7 +46,11 @@ func (r *RootCmd) statePull() *clibase.Cmd {
 				}
 				build = workspace.LatestBuild
 			} else {
-				build, err = client.WorkspaceBuildByUsernameAndWorkspaceNameAndBuildNumber(inv.Context(), codersdk.Me, inv.Args[0], strconv.FormatInt(buildNumber, 10))
+				owner, workspace, err := splitNamedWorkspace(inv.Args[0])
+				if err != nil {
+					return err
+				}
+				build, err = client.WorkspaceBuildByUsernameAndWorkspaceNameAndBuildNumber(inv.Context(), owner, workspace, strconv.FormatInt(buildNumber, 10))
 				if err != nil {
 					return err
 				}

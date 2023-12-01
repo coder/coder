@@ -2,11 +2,15 @@ package cli_test
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 
 	"github.com/stretchr/testify/require"
 
@@ -14,34 +18,24 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/provisioner/echo"
-	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 func TestStatePull(t *testing.T) {
 	t.Parallel()
 	t.Run("File", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		client, store := coderdtest.NewWithDatabase(t, nil)
 		owner := coderdtest.CreateFirstUser(t, client)
-		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		templateAdmin, taUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 		wantState := []byte("some state")
-		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
-			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Response{{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
-						State: wantState,
-					},
-				},
-			}},
-		})
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
-		// Need to create workspace as templateAdmin to ensure we can read state.
-		workspace := coderdtest.CreateWorkspace(t, templateAdmin, owner.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		r := dbfake.WorkspaceBuild(t, store, database.Workspace{
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        taUser.ID,
+		}).
+			Seed(database.WorkspaceBuild{ProvisionerState: wantState}).
+			Do()
 		statefilePath := filepath.Join(t.TempDir(), "state")
-		inv, root := clitest.New(t, "state", "pull", workspace.Name, statefilePath)
+		inv, root := clitest.New(t, "state", "pull", r.Workspace.Name, statefilePath)
 		clitest.SetupConfig(t, templateAdmin, root)
 		err := inv.Run()
 		require.NoError(t, err)
@@ -51,28 +45,42 @@ func TestStatePull(t *testing.T) {
 	})
 	t.Run("Stdout", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		client, store := coderdtest.NewWithDatabase(t, nil)
 		owner := coderdtest.CreateFirstUser(t, client)
-		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		templateAdmin, taUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 		wantState := []byte("some state")
-		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
-			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Response{{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
-						State: wantState,
-					},
-				},
-			}},
-		})
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, templateAdmin, owner.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-		inv, root := clitest.New(t, "state", "pull", workspace.Name)
+		r := dbfake.WorkspaceBuild(t, store, database.Workspace{
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        taUser.ID,
+		}).
+			Seed(database.WorkspaceBuild{ProvisionerState: wantState}).
+			Do()
+		inv, root := clitest.New(t, "state", "pull", r.Workspace.Name)
 		var gotState bytes.Buffer
 		inv.Stdout = &gotState
 		clitest.SetupConfig(t, templateAdmin, root)
+		err := inv.Run()
+		require.NoError(t, err)
+		require.Equal(t, wantState, bytes.TrimSpace(gotState.Bytes()))
+	})
+	t.Run("OtherUserBuild", func(t *testing.T) {
+		t.Parallel()
+		client, store := coderdtest.NewWithDatabase(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		_, taUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		wantState := []byte("some state")
+		r := dbfake.WorkspaceBuild(t, store, database.Workspace{
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        taUser.ID,
+		}).
+			Seed(database.WorkspaceBuild{ProvisionerState: wantState}).
+			Do()
+		inv, root := clitest.New(t, "state", "pull", taUser.Username+"/"+r.Workspace.Name,
+			"--build", fmt.Sprintf("%d", r.Build.BuildNumber))
+		var gotState bytes.Buffer
+		inv.Stdout = &gotState
+		//nolint: gocritic // this tests owner pulling another user's state
+		clitest.SetupConfig(t, client, root)
 		err := inv.Run()
 		require.NoError(t, err)
 		require.Equal(t, wantState, bytes.TrimSpace(gotState.Bytes()))

@@ -14,6 +14,7 @@ darcula = "darcula"
 Hashi = "Hashi"
 trialer = "trialer"
 encrypter = "encrypter"
+hel = "hel" # as in helsinki
 
 [files]
 extend-exclude = [
