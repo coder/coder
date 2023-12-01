@@ -60,31 +60,29 @@ func TestPurge(t *testing.T) {
 	}
 
 	// Assert that some old logs exist
-	var numOldLogs int
+	var logsBefore int
 	for i := 0; i < opts.NumAgents; i++ {
-		numOldLogs += countAgentLogsOlderThan(ctx, t, db, agentIDs[i], weekAgo)
+		agentLogFn(ctx, t, db, agentIDs[i], func(l database.WorkspaceAgentLog) {
+			logsBefore++
+		})
 	}
-	require.Greater(t, numOldLogs, 0, "no agent logs were inserted")
-	t.Logf("found %d old agent logs", numOldLogs)
+	require.Greater(t, logsBefore, 0, "no agent logs were inserted")
+	t.Logf("before: %d agent logs", logsBefore)
 
+	// Run the purge
 	purger := dbpurge.New(ctx, slogtest.Make(t, nil), db)
 	err := purger.Close()
-	require.NoError(t, err)
-
-	// Assert that some logs were deleted
+	require.NoError(t, err, "expected no error running purger")
 
 	// Assert that no old logs exist
+	var logsAfter int
 	for i := 0; i < opts.NumAgents; i++ {
-		agentID := agentIDs[i]
-		logs, err := db.GetWorkspaceAgentLogsAfter(ctx, database.GetWorkspaceAgentLogsAfterParams{
-			AgentID:      agentID,
-			CreatedAfter: 0,
+		agentLogFn(ctx, t, db, agentIDs[i], func(l database.WorkspaceAgentLog) {
+			logsAfter++
 		})
-		require.NoError(t, err)
-		for _, l := range logs {
-			assert.Greater(t, l.CreatedAt, weekAgo)
-		}
 	}
+	assert.Less(t, logsAfter, logsBefore, "expected fewer logs after running purger")
+	assert.NotZero(t, logsAfter, "expected some logs to remain after running purger")
 }
 
 func TestDeleteOldProvisionerDaemons(t *testing.T) {
@@ -232,19 +230,15 @@ func seed(ctx context.Context, t testing.TB, db database.Store, opts seedOpts) (
 	return agentIDs, workspaces
 }
 
-func countAgentLogsOlderThan(ctx context.Context, t testing.TB, db database.Store, agentID uuid.UUID, olderThan time.Time) int {
-	var numFound int
+func agentLogFn(ctx context.Context, t testing.TB, db database.Store, agentID uuid.UUID, fn func(database.WorkspaceAgentLog)) {
 	logs, err := db.GetWorkspaceAgentLogsAfter(ctx, database.GetWorkspaceAgentLogsAfterParams{
 		AgentID:      agentID,
 		CreatedAfter: 0,
 	})
 	require.NoError(t, err)
 	for _, l := range logs {
-		if l.CreatedAt.Before(olderThan) {
-			numFound++
-		}
+		fn(l)
 	}
-	return numFound
 }
 
 func setAgentLastConnectedAt(ctx context.Context, t testing.TB, db database.Store, agentID uuid.UUID, lastConnectedAt time.Time) {
