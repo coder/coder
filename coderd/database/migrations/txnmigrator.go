@@ -149,9 +149,19 @@ func (*pgTxnDriver) Drop() error {
 }
 
 func (d *pgTxnDriver) ensureVersionTable() error {
+	err := d.Lock()
+	if err != nil {
+		return xerrors.Errorf("acquire migration lock: %w", err)
+	}
+
 	const query = `CREATE TABLE IF NOT EXISTS ` + migrationsTableName + ` (version bigint not null primary key, dirty boolean not null)`
-	if _, err := d.db.ExecContext(context.Background(), query); err != nil {
+	if _, err := d.tx.ExecContext(context.Background(), query); err != nil {
 		return &database.Error{OrigErr: err, Query: []byte(query)}
+	}
+
+	err = d.Unlock()
+	if err != nil {
+		return xerrors.Errorf("release migration lock: %w", err)
 	}
 
 	return nil
