@@ -194,6 +194,13 @@ func TestAgent_Stats_Magic(t *testing.T) {
 
 	// This test name must contain the string checked for by the agent, since it
 	// looks for this string in the process name.
+	//
+	// This test sets up a port forward that emulates what Jetbrains IDE's do when
+	// using gateway. The remote server side of the port forward is spun up using
+	// the gotest process, which includes the test name.
+	// So this unit test emulates a PID in the workspace with a similar
+	// name to the jetbrains IDE. That makes the agent this this SSH port
+	// forward is a "jetbrains" session.
 	t.Run("TracksIdea.vendor.name=JetBrains", func(t *testing.T) {
 		t.Parallel()
 		if runtime.GOOS != "linux" {
