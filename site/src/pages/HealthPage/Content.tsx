@@ -35,10 +35,13 @@ export const GridData = (props: HTMLProps<HTMLDivElement>) => {
   return (
     <div
       css={{
+        lineHeight: "140%",
         display: "grid",
         gridTemplateColumns: "auto auto",
         gap: 12,
+        columnGap: 48,
         width: "min-content",
+        whiteSpace: "nowrap",
       }}
       {...props}
     />

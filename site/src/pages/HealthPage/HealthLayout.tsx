@@ -238,7 +238,7 @@ export function HealthLayout() {
 
             <div css={{ overflowY: "auto", width: "100%" }}>
               <Suspense fallback={<Loader />}>
-                <Outlet />
+                <Outlet context={healthStatus} />
               </Suspense>
             </div>
           </Box>
