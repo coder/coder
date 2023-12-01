@@ -485,8 +485,6 @@ jobs:
   deploy-wsproxies:
     runs-on: ubuntu-latest
     needs: build-main-image
-    # if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
-    # uncomment the above line after verifying that the workflow works as expected
     steps:
       - name: Checkout
         uses: actions/checkout@v4
