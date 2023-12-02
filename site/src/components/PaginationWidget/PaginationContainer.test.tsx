@@ -8,11 +8,17 @@ import {
   mockSuccessResult,
 } from "./PaginationContainer.mocks";
 
+// Test environments don't implement scrollIntoView for some reason; have to
+// add an implementation so that things don't error out
+const prevScrollIntoView = window.HTMLElement.prototype.scrollIntoView;
+
 beforeAll(() => {
+  window.HTMLElement.prototype.scrollIntoView = jest.fn();
   jest.useFakeTimers();
 });
 
 afterAll(() => {
+  window.HTMLElement.prototype.scrollIntoView = prevScrollIntoView;
   jest.useRealTimers();
 });
 
