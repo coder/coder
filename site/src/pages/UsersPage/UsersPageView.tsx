@@ -61,10 +61,7 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
     <>
       <UsersFilter {...filterProps} />
 
-      <PaginationContainer
-        paginationResult={usersQuery}
-        paginationUnitLabel="users"
-      >
+      <PaginationContainer query={usersQuery} paginationUnitLabel="users">
         <UsersTable
           users={users}
           roles={roles}

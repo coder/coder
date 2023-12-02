@@ -35,13 +35,13 @@ type Story = StoryObj<EssentialComponent>;
 
 export const FirstPageBeforeFetch: Story = {
   args: {
-    paginationResult: mockInitialRenderResult,
+    query: mockInitialRenderResult,
   },
 };
 
 export const FirstPageWithData: Story = {
   args: {
-    paginationResult: {
+    query: {
       ...mockPaginationResultBase,
       isSuccess: true,
       currentPage: 1,
@@ -57,7 +57,7 @@ export const FirstPageWithData: Story = {
 
 export const FirstPageWithLittleData: Story = {
   args: {
-    paginationResult: {
+    query: {
       ...mockPaginationResultBase,
       isSuccess: true,
       currentPage: 1,
@@ -73,7 +73,7 @@ export const FirstPageWithLittleData: Story = {
 
 export const FirstPageWithNoData: Story = {
   args: {
-    paginationResult: {
+    query: {
       ...mockPaginationResultBase,
       isSuccess: true,
       currentPage: 1,
@@ -89,7 +89,7 @@ export const FirstPageWithNoData: Story = {
 
 export const TransitionFromFirstToSecondPage: Story = {
   args: {
-    paginationResult: {
+    query: {
       ...mockPaginationResultBase,
       isSuccess: true,
       currentPage: 2,
@@ -106,7 +106,7 @@ export const TransitionFromFirstToSecondPage: Story = {
 
 export const SecondPageWithData: Story = {
   args: {
-    paginationResult: {
+    query: {
       ...mockPaginationResultBase,
       isSuccess: true,
       currentPage: 2,

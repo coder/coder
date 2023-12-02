@@ -71,7 +71,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
           <AuditFilter {...filterProps} />
 
           <PaginationContainer
-            paginationResult={paginationResult}
+            query={paginationResult}
             paginationUnitLabel="logs"
           >
             <TableContainer>

@@ -8,22 +8,22 @@ export type PaginationResult = PaginationResultInfo & {
 };
 
 type PaginationProps = HTMLAttributes<HTMLDivElement> & {
-  paginationResult: PaginationResult;
+  query: PaginationResult;
   paginationUnitLabel: string;
 };
 
 export const PaginationContainer: FC<PaginationProps> = ({
   children,
-  paginationResult,
+  query,
   paginationUnitLabel,
   ...delegatedProps
 }) => {
   return (
     <>
       <PaginationHeader
-        limit={paginationResult.limit}
-        totalRecords={paginationResult.totalRecords}
-        currentOffsetStart={paginationResult.currentOffsetStart}
+        limit={query.limit}
+        totalRecords={query.totalRecords}
+        currentOffsetStart={query.currentOffsetStart}
         paginationUnitLabel={paginationUnitLabel}
       />
 
@@ -37,14 +37,14 @@ export const PaginationContainer: FC<PaginationProps> = ({
       >
         {children}
 
-        {paginationResult.isSuccess && (
+        {query.isSuccess && (
           <PaginationWidgetBase
-            totalRecords={paginationResult.totalRecords}
-            currentPage={paginationResult.currentPage}
-            pageSize={paginationResult.limit}
-            onPageChange={paginationResult.onPageChange}
-            hasPreviousPage={paginationResult.hasPreviousPage}
-            hasNextPage={paginationResult.hasNextPage}
+            totalRecords={query.totalRecords}
+            currentPage={query.currentPage}
+            pageSize={query.limit}
+            onPageChange={query.onPageChange}
+            hasPreviousPage={query.hasPreviousPage}
+            hasNextPage={query.hasNextPage}
           />
         )}
       </div>
