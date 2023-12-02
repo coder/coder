@@ -774,10 +774,8 @@ jobs:
           kubectl --namespace coder rollout restart deployment/coder
           kubectl --namespace coder rollout status deployment/coder
 
-  # TODO: when we remove this, instead of removing it we need to change it so it
-  # still upgrades workspace proxies which are not deployed on K8s
-  deploy-legacy:
-    name: "deploy-legacy"
+  deploy-legacy-proxies:
+    name: "deploy-legacy-proxies"
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-16vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     timeout-minutes: 30
     needs: changes
@@ -833,7 +831,6 @@ jobs:
 
           regions=(
             # gcp-region-id instance-name systemd-service-name
-            "us-central1-a coder coder"
             "australia-southeast1-b coder-sydney coder-workspace-proxy"
             "europe-west3-c coder-europe coder-workspace-proxy"
             "southamerica-east1-b coder-brazil coder-workspace-proxy"
