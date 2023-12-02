@@ -25,7 +25,6 @@ const meta: Meta<EssentialComponent> = {
   title: "components/PaginationContainer",
   component: PaginationContainer,
   args: {
-    autoScroll: false,
     paginationUnitLabel: "puppies",
     children: <div>Put any content here</div>,
   },
