@@ -13,6 +13,9 @@ import {
   getDefaultFilterProps,
 } from "components/Filter/storyHelpers";
 
+import { type UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
+import { mockSuccessResult } from "components/PaginationWidget/PaginationContainer.mocks";
+
 type FilterProps = ComponentProps<typeof UsersPageView>["filterProps"];
 
 const defaultFilterProps = getDefaultFilterProps<FilterProps>({
@@ -36,22 +39,10 @@ const meta: Meta<typeof UsersPageView> = {
     canEditUsers: true,
     filterProps: defaultFilterProps,
     authMethods: MockAuthMethodsPasswordOnly,
-
     usersQuery: {
-      isSuccess: true,
-      currentPage: 1,
-      limit: 25,
+      ...mockSuccessResult,
       totalRecords: 2,
-      hasNextPage: false,
-      hasPreviousPage: false,
-      totalPages: 1,
-      currentOffsetStart: 1,
-      isPreviousData: false,
-      goToFirstPage: () => {},
-      goToPreviousPage: () => {},
-      goToNextPage: () => {},
-      onPageChange: () => {},
-    },
+    } as UsePaginatedQueryResult,
   },
 };
 
@@ -60,32 +51,44 @@ type Story = StoryObj<typeof UsersPageView>;
 
 export const Admin: Story = {};
 
-export const SmallViewport = {
+export const SmallViewport: Story = {
   parameters: {
     chromatic: { viewports: [600] },
   },
 };
 
-export const Member = {
+export const Member: Story = {
   args: { canEditUsers: false },
 };
 
-export const Empty = {
-  args: { users: [], count: 0 },
-};
-
-export const EmptyPage = {
+export const Empty: Story = {
   args: {
     users: [],
-    count: 0,
-    isNonInitialPage: true,
+    usersQuery: {
+      ...mockSuccessResult,
+      totalRecords: 0,
+    } as UsePaginatedQueryResult,
   },
 };
 
-export const Error = {
+export const EmptyPage: Story = {
+  args: {
+    users: [],
+    isNonInitialPage: true,
+    usersQuery: {
+      ...mockSuccessResult,
+      totalRecords: 0,
+    } as UsePaginatedQueryResult,
+  },
+};
+
+export const Error: Story = {
   args: {
     users: undefined,
-    count: 0,
+    usersQuery: {
+      ...mockSuccessResult,
+      totalRecords: 0,
+    } as UsePaginatedQueryResult,
     filterProps: {
       ...defaultFilterProps,
       error: mockApiError({

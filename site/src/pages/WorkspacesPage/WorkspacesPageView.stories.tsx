@@ -116,6 +116,8 @@ const meta: Meta<typeof WorkspacesPageView> = {
     canCheckWorkspaces: true,
     templates: mockTemplates,
     templatesFetchStatus: "success",
+    count: 13,
+    page: 1,
   },
   decorators: [
     (Story) => (
