@@ -125,15 +125,15 @@ function useScrollOnPageChange(
     };
   }, [autoScroll]);
 
-  const scrollToTop = useEffectEvent(() => {
-    const newVerticalPosition =
-      (scrollContainerRef.current?.getBoundingClientRect().top ?? 0) +
-      window.scrollY;
+  const scrollToBottom = useEffectEvent(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollIntoView(false);
 
-    // Not using element.scrollIntoView for testing reasons; much easier to mock
-    // the global window object
-    window.scrollTo({ top: newVerticalPosition, behavior: "instant" });
-    isScrollingQueuedRef.current = false;
+      // Have to offset scroll so that the deployment banner doesn't cover up
+      // the pagination buttons
+      const deploymentBannerHeight = 36;
+      window.scrollBy({ top: deploymentBannerHeight, behavior: "instant" });
+    }
   });
 
   // Reminder: effects always run on mount, no matter what's in the dependency
@@ -149,21 +149,22 @@ function useScrollOnPageChange(
     if (showingPreviousData) {
       isScrollingQueuedRef.current = true;
     } else {
-      scrollToTop();
+      scrollToBottom();
     }
   });
 
-  // Would've liked to consolidate these effects into a single useLayoutEffect
-  // call, but they kept messing each other up when grouped together
+  // Maybe there's a way to consolidate these useLayoutEffect calls (which would
+  // also remove the need for one of the effect events), but it felt a lot
+  // easier to manage the separate "sync cues" by giving each a separate effect
   useLayoutEffect(() => {
     syncPageChange();
   }, [syncPageChange, currentPage]);
 
   useLayoutEffect(() => {
     if (!showingPreviousData && isScrollingQueuedRef.current) {
-      scrollToTop();
+      scrollToBottom();
     }
-  }, [scrollToTop, showingPreviousData]);
+  }, [scrollToBottom, showingPreviousData]);
 
   /**
    * This is meant to capture and stop event bubbling for events that come from

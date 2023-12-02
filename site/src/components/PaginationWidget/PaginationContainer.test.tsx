@@ -13,7 +13,6 @@ beforeAll(() => {
 });
 
 afterAll(() => {
-  jest.clearAllMocks();
   jest.useRealTimers();
 });
 
@@ -66,7 +65,7 @@ async function mountWithSuccess(mockScroll: jest.SpyInstance) {
 describe(`${PaginationContainer.name}`, () => {
   describe("Initial render", () => {
     it("Does absolutely nothing - should not scroll on component mount because that will violently hijack the user's browser", async () => {
-      const mockScroll = jest.spyOn(window, "scrollTo");
+      const mockScroll = jest.spyOn(window, "scrollBy");
 
       render({
         paginationUnitLabel: mockUnitLabel,
@@ -79,7 +78,7 @@ describe(`${PaginationContainer.name}`, () => {
 
   describe("Responding to page changes", () => {
     it("Triggers scroll immediately if currentPage changes and isPreviousData is immediately false (previous query is cached)", async () => {
-      const mockScroll = jest.spyOn(window, "scrollTo");
+      const mockScroll = jest.spyOn(window, "scrollBy");
       const { rerender } = await mountWithSuccess(mockScroll);
 
       rerender(
@@ -97,7 +96,7 @@ describe(`${PaginationContainer.name}`, () => {
     });
 
     it("Does nothing observable if page changes and isPreviousData is true (scroll will get queued, but will not be processed)", async () => {
-      const mockScroll = jest.spyOn(window, "scrollTo");
+      const mockScroll = jest.spyOn(window, "scrollBy");
       const { rerender } = await mountWithSuccess(mockScroll);
 
       rerender(
@@ -117,7 +116,7 @@ describe(`${PaginationContainer.name}`, () => {
 
   describe("Responding to changes in React Query's isPreviousData", () => {
     it("Does nothing when isPreviousData flips from false to true while currentPage stays the same (safety net for 'impossible' case)", async () => {
-      const mockScroll = jest.spyOn(window, "scrollTo");
+      const mockScroll = jest.spyOn(window, "scrollBy");
 
       const { rerender } = render({
         paginationUnitLabel: mockUnitLabel,
@@ -135,7 +134,7 @@ describe(`${PaginationContainer.name}`, () => {
     });
 
     it("Triggers scroll if scroll has been queued while waiting for isPreviousData to flip from true to false", async () => {
-      const mockScroll = jest.spyOn(window, "scrollTo");
+      const mockScroll = jest.spyOn(window, "scrollBy");
       const { rerender } = await mountWithSuccess(mockScroll);
 
       rerender(
@@ -164,7 +163,7 @@ describe(`${PaginationContainer.name}`, () => {
     });
 
     it("Cancels a scroll if user interacts with the browser in any way before isPreviousData flips from true to false", async () => {
-      const mockScroll = jest.spyOn(window, "scrollTo");
+      const mockScroll = jest.spyOn(window, "scrollBy");
 
       // Values are based on (keyof WindowEventMap), but frustratingly, the
       // native events aren't camel-case, while the fireEvent properties are
