@@ -12,6 +12,9 @@ export type PaginationWidgetBaseProps = {
   pageSize: number;
   totalRecords: number;
   onPageChange: (newPage: number) => void;
+
+  hasPreviousPage?: boolean;
+  hasNextPage?: boolean;
 };
 
 export const PaginationWidgetBase = ({
@@ -19,6 +22,8 @@ export const PaginationWidgetBase = ({
   pageSize,
   totalRecords,
   onPageChange,
+  hasPreviousPage,
+  hasNextPage,
 }: PaginationWidgetBaseProps) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
@@ -28,8 +33,11 @@ export const PaginationWidgetBase = ({
     return null;
   }
 
-  const onFirstPage = currentPage <= 1;
-  const onLastPage = currentPage >= totalPages;
+  const currentPageOffset = (currentPage - 1) * pageSize;
+  const isPrevDisabled = !(hasPreviousPage ?? currentPage > 1);
+  const isNextDisabled = !(
+    hasNextPage ?? pageSize + currentPageOffset < totalRecords
+  );
 
   return (
     <div
@@ -38,16 +46,16 @@ export const PaginationWidgetBase = ({
         alignItems: "center",
         display: "flex",
         flexDirection: "row",
-        padding: "20px",
+        padding: "0 20px",
         columnGap: "6px",
       }}
     >
       <PaginationNavButton
         disabledMessage="You are already on the first page"
-        disabled={onFirstPage}
+        disabled={isPrevDisabled}
         aria-label="Previous page"
         onClick={() => {
-          if (!onFirstPage) {
+          if (!isPrevDisabled) {
             onPageChange(currentPage - 1);
           }
         }}
@@ -70,11 +78,11 @@ export const PaginationWidgetBase = ({
       )}
 
       <PaginationNavButton
-        disabledMessage="You're already on the last page"
-        disabled={onLastPage}
+        disabledMessage="You are already on the last page"
+        disabled={isNextDisabled}
         aria-label="Next page"
         onClick={() => {
-          if (!onLastPage) {
+          if (!isNextDisabled) {
             onPageChange(currentPage + 1);
           }
         }}

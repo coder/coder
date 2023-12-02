@@ -260,6 +260,7 @@ export function usePaginatedQuery<
           hasPreviousPage,
           totalRecords: totalRecords as number,
           totalPages: totalPages as number,
+          currentOffsetStart: currentPageOffset + 1,
         }
       : {
           isSuccess: false,
@@ -267,6 +268,7 @@ export function usePaginatedQuery<
           hasPreviousPage: false,
           totalRecords: undefined,
           totalPages: undefined,
+          currentOffsetStart: undefined,
         }),
   };
 
@@ -293,7 +295,7 @@ function getParamsWithoutPage(params: URLSearchParams): URLSearchParams {
  * All the pagination-properties for UsePaginatedQueryResult. Split up so that
  * the types can be used separately in multiple spots.
  */
-type PaginationResultInfo = {
+export type PaginationResultInfo = {
   currentPage: number;
   limit: number;
   onPageChange: (newPage: number) => void;
@@ -307,6 +309,7 @@ type PaginationResultInfo = {
       hasPreviousPage: false;
       totalRecords: undefined;
       totalPages: undefined;
+      currentOffsetStart: undefined;
     }
   | {
       isSuccess: true;
@@ -314,6 +317,7 @@ type PaginationResultInfo = {
       hasPreviousPage: boolean;
       totalRecords: number;
       totalPages: number;
+      currentOffsetStart: number;
     }
 );
 

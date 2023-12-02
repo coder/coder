@@ -74,12 +74,15 @@ describe(PaginationWidgetBase.name, () => {
       expect(prevButton).not.toBeDisabled();
       expect(prevButton).toHaveAttribute("aria-disabled", "false");
 
+      await userEvent.click(prevButton);
+      expect(onPageChange).toHaveBeenCalledTimes(1);
+
       expect(nextButton).not.toBeDisabled();
       expect(nextButton).toHaveAttribute("aria-disabled", "false");
 
-      await userEvent.click(prevButton);
       await userEvent.click(nextButton);
       expect(onPageChange).toHaveBeenCalledTimes(2);
+
       unmount();
     }
   });

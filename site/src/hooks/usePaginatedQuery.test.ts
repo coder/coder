@@ -34,7 +34,7 @@ function render<
  * There are a lot of test cases in this file. Scoping mocking to inner describe
  * function calls to limit the cognitive load of maintaining all this stuff
  */
-describe(`${usePaginatedQuery.name}`, () => {
+describe(usePaginatedQuery.name, () => {
   describe("queryPayload method", () => {
     const mockQueryFn = jest.fn(() => Promise.resolve({ count: 0 }));
 
