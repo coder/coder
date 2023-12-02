@@ -717,7 +717,7 @@ jobs:
 
   deploy:
     name: "deploy"
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-16vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     needs:
       - changes
