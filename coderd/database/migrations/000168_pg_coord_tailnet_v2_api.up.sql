@@ -1,5 +1,3 @@
-BEGIN;
-
 CREATE TYPE tailnet_status AS ENUM (
 	'ok',
 	'lost'
@@ -68,5 +66,3 @@ CREATE TRIGGER tailnet_notify_tunnel_change
 	AFTER INSERT OR UPDATE OR DELETE ON tailnet_tunnels
 	FOR EACH ROW
 EXECUTE PROCEDURE tailnet_notify_tunnel_change();
-
-COMMIT;

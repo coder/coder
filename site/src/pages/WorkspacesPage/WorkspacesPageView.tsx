@@ -11,10 +11,7 @@ import { DormantWorkspaceBanner, Count } from "components/WorkspaceDeletion";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { WorkspacesFilter } from "./filter/filter";
 import { hasError, isApiValidationError } from "api/errors";
-import {
-  PaginationStatus,
-  TableToolbar,
-} from "components/TableToolbar/TableToolbar";
+import { TableToolbar } from "components/TableToolbar/TableToolbar";
 import Box from "@mui/material/Box";
 import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
 import { WorkspacesButton } from "./WorkspacesButton";
@@ -30,6 +27,7 @@ import {
 import KeyboardArrowDownOutlined from "@mui/icons-material/KeyboardArrowDownOutlined";
 import Divider from "@mui/material/Divider";
 import LoadingButton from "@mui/lab/LoadingButton";
+import { PaginationHeader } from "components/PaginationWidget/PaginationHeader";
 
 export const Language = {
   pageTitle: "Workspaces",
@@ -186,11 +184,11 @@ export const WorkspacesPageView = ({
             </MoreMenu>
           </>
         ) : (
-          <PaginationStatus
-            isLoading={!workspaces && !error}
-            showing={workspaces?.length ?? 0}
-            total={count ?? 0}
-            label="workspaces"
+          <PaginationHeader
+            paginationUnitLabel="workspaces"
+            limit={limit}
+            totalRecords={count}
+            currentOffsetStart={(page - 1) * limit + 1}
           />
         )}
       </TableToolbar>
@@ -207,12 +205,17 @@ export const WorkspacesPageView = ({
       />
 
       {count !== undefined && (
-        <PaginationWidgetBase
-          totalRecords={count}
-          pageSize={limit}
-          onPageChange={onPageChange}
-          currentPage={page}
-        />
+        // Temporary styling stopgap before component is migrated to using
+        // PaginationContainer (which renders PaginationWidgetBase using CSS
+        // flexbox gaps)
+        <div css={{ paddingTop: "16px" }}>
+          <PaginationWidgetBase
+            totalRecords={count}
+            pageSize={limit}
+            onPageChange={onPageChange}
+            currentPage={page}
+          />
+        </div>
       )}
     </Margins>
   );

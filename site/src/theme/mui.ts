@@ -80,12 +80,12 @@ export let dark = createTheme({
 
     body1: {
       fontSize: "1rem" /* 16px at default scaling */,
-      lineHeight: "1.5rem" /* 24px at default scaling */,
+      lineHeight: "160%",
     },
 
     body2: {
       fontSize: "0.875rem" /* 14px at default scaling */,
-      lineHeight: "1.25rem" /* 20px at default scaling */,
+      lineHeight: "160%",
     },
   },
   shape: {

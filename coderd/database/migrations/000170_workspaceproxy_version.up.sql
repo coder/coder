@@ -1,3 +1,1 @@
-BEGIN;
 ALTER TABLE workspace_proxies ADD COLUMN version TEXT DEFAULT ''::TEXT NOT NULL;
-COMMIT;

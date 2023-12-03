@@ -618,6 +618,8 @@ jobs:
           echo "- test-go-pg: ${{ needs.test-go-pg.result }}"
           echo "- test-go-race: ${{ needs.test-go-race.result }}"
           echo "- test-js: ${{ needs.test-js.result }}"
+          echo "- test-e2e: ${{ needs.test-e2e.result }}"
+          echo "- offlinedocs: ${{ needs.offlinedocs.result }}"
           echo
 
           # We allow skipped jobs to pass, but not failed or cancelled jobs.
@@ -643,21 +645,24 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
-
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-
-      - name: Setup sqlc
-        uses: ./.github/actions/setup-sqlc
-
       - name: GHCR Login
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Install nfpm
+        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.16.0
+
+      - name: Install zstd
+        run: sudo apt-get install -y zstd
 
       - name: Build
         run: |
@@ -674,6 +679,7 @@ jobs:
       - name: Build and Push Linux amd64 Docker Image
         run: |
           set -euxo pipefail
+          version="$(./scripts/version.sh)"
           tag="main-$(echo "$version" | sed 's/+/-/g')"
 
           export CODER_IMAGE_BUILD_BASE_TAG="$(CODER_IMAGE_BASE=coder-base ./scripts/image_tag.sh --version "$version")"
@@ -714,7 +720,7 @@ jobs:
 
   deploy:
     name: "deploy"
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-16vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     needs:
       - changes
@@ -796,12 +802,8 @@ jobs:
           TOKEN_SYDNEY: ${{ secrets.FLY_SYDNEY_CODER_PROXY_SESSION_TOKEN }}
           TOKEN_SAO_PAULO: ${{ secrets.FLY_SAO_PAULO_CODER_PROXY_SESSION_TOKEN }}
 
-
-
-  # TODO: when we remove this, instead of removing it we need to change it so it
-  # still upgrades workspace proxies which are not deployed on K8s
-  deploy-legacy:
-    name: "deploy-legacy"
+  deploy-legacy-proxies:
+    name: "deploy-legacy-proxies"
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-16vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     timeout-minutes: 30
     needs: changes
@@ -857,7 +859,6 @@ jobs:
 
           regions=(
             # gcp-region-id instance-name systemd-service-name
-            "us-central1-a coder coder"
             "australia-southeast1-b coder-sydney coder-workspace-proxy"
             "europe-west3-c coder-europe coder-workspace-proxy"
             "southamerica-east1-b coder-brazil coder-workspace-proxy"
