@@ -639,6 +639,8 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
+    outputs:
+      IMAGE: ghcr.io/coder/coder-preview:${{ steps.build-docker.outputs.tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -677,6 +679,7 @@ jobs:
             build/coder_"$version"_linux_amd64.{tar.gz,deb}
 
       - name: Build and Push Linux amd64 Docker Image
+        id: build-docker
         run: |
           set -euxo pipefail
           version="$(./scripts/version.sh)"
@@ -797,7 +800,7 @@ jobs:
           flyctl deploy --image $IMAGE --app sao-paulo-coder --config ./.github/fly-wsproxies/sao-paulo-coder.toml --env CODER_PROXY_SESSION_TOKEN=$TOKEN_SAO_PAULO --yes
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-          IMAGE: "ghcr.io/coder/coder-preview:${{ needs.build.outputs.tag }}"
+          IMAGE: ${{ needs.build.outputs.IMAGE }}
           TOKEN_PARIS: ${{ secrets.FLY_PARIS_CODER_PROXY_SESSION_TOKEN }}
           TOKEN_SYDNEY: ${{ secrets.FLY_SYDNEY_CODER_PROXY_SESSION_TOKEN }}
           TOKEN_SAO_PAULO: ${{ secrets.FLY_SAO_PAULO_CODER_PROXY_SESSION_TOKEN }}
