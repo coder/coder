@@ -188,7 +188,7 @@ const Form: FC<FormProps> = ({
           );
         })}
       </FormFields>
-      <div css={{ padding: "24px 8px" }}>
+      <div css={{ paddingTop: "24px", paddingBottom: "8px" }}>
         <Button
           data-testid="build-parameters-submit"
           type="submit"

@@ -77,7 +77,8 @@ export const WorkspacesButton: FC<WorkspacesButtonProps> = ({
           css={{
             display: "flex",
             flexDirection: "column",
-            padding: "0 8px",
+            paddingTop: "8px",
+            paddingBottom: "8px",
           }}
         >
           {templatesFetchStatus === "loading" ? (
@@ -105,7 +106,6 @@ export const WorkspacesButton: FC<WorkspacesButtonProps> = ({
               display: "flex",
               alignItems: "center",
               columnGap: 12,
-
               color: theme.palette.primary.main,
             })}
           >

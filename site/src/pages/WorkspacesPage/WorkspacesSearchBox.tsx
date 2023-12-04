@@ -55,7 +55,8 @@ export const SearchBox = forwardRef(function SearchBox(
           css={{
             display: "block",
             fontSize: "14px",
-            margin: "auto 0",
+            marginLeft: "auto",
+            marginRight: "auto",
             color: theme.palette.text.secondary,
           }}
         />

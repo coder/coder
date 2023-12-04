@@ -120,7 +120,7 @@ type RenderHookWithAuthOptions<Props> = Partial<
  *
  * @see {@link https://github.com/coder/coder/pull/10362#discussion_r1380852725}
  */
-export async function renderHookWithAuth<Props, Result>(
+export async function renderHookWithAuth<Result, Props>(
   render: (initialProps: Props) => Result,
   options: RenderHookWithAuthOptions<Props> = {},
 ) {
