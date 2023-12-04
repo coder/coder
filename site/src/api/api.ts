@@ -939,11 +939,11 @@ export const exchangeExternalAuthDevice = async (
   return resp.data;
 };
 
-export const getUserExternalAuthProviders = async (
-): Promise<TypesGen.ListUserExternalAuthResponse> => {
-  const resp = await axios.get(`/api/v2/external-auth`);
-  return resp.data;
-};
+export const getUserExternalAuthProviders =
+  async (): Promise<TypesGen.ListUserExternalAuthResponse> => {
+    const resp = await axios.get(`/api/v2/external-auth`);
+    return resp.data;
+  };
 
 export const unlinkExternalAuthProvider = async (
   provider: string,
