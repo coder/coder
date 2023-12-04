@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -875,6 +876,62 @@ func TestWorkspaceAgentReportStats(t *testing.T) {
 			newWorkspace.LastUsedAt.After(r.Workspace.LastUsedAt),
 			"%s is not after %s", newWorkspace.LastUsedAt, r.Workspace.LastUsedAt,
 		)
+	})
+
+	t.Run("FailDeleted", func(t *testing.T) {
+		t.Parallel()
+
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent().Do()
+
+		agentClient := agentsdk.New(client.URL)
+		agentClient.SetSessionToken(r.AgentToken)
+
+		_, err := agentClient.PostStats(context.Background(), &agentsdk.Stats{
+			ConnectionsByProto: map[string]int64{"TCP": 1},
+			// Set connection count to 1 but all session counts to zero to
+			// assert we aren't updating last_used_at for a connections that may
+			// be spawned passively by the dashboard.
+			ConnectionCount:             1,
+			RxPackets:                   1,
+			RxBytes:                     1,
+			TxPackets:                   1,
+			TxBytes:                     1,
+			SessionCountVSCode:          0,
+			SessionCountJetBrains:       0,
+			SessionCountReconnectingPTY: 0,
+			SessionCountSSH:             0,
+			ConnectionMedianLatencyMS:   10,
+		})
+		require.NoError(t, err)
+
+		newWorkspace, err := client.Workspace(context.Background(), r.Workspace.ID)
+		require.NoError(t, err)
+
+		err = db.UpdateWorkspaceDeletedByID(dbauthz.AsSystemRestricted(context.Background()), database.UpdateWorkspaceDeletedByIDParams{
+			ID:      newWorkspace.ID,
+			Deleted: true,
+		})
+		require.NoError(t, err)
+
+		_, err = agentClient.PostStats(context.Background(), &agentsdk.Stats{
+			ConnectionsByProto:          map[string]int64{"TCP": 1},
+			ConnectionCount:             1,
+			RxPackets:                   1,
+			RxBytes:                     1,
+			TxPackets:                   1,
+			TxBytes:                     1,
+			SessionCountVSCode:          1,
+			SessionCountJetBrains:       0,
+			SessionCountReconnectingPTY: 0,
+			SessionCountSSH:             0,
+			ConnectionMedianLatencyMS:   10,
+		})
+		require.ErrorContains(t, err, "Workspace has been deleted.")
 	})
 }
 

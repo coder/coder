@@ -228,7 +228,7 @@ var (
 					rbac.ResourceOrgRoleAssignment.Type:  {rbac.ActionCreate},
 					rbac.ResourceUser.Type:               {rbac.ActionCreate, rbac.ActionUpdate, rbac.ActionDelete},
 					rbac.ResourceUserData.Type:           {rbac.ActionCreate, rbac.ActionUpdate},
-					rbac.ResourceWorkspace.Type:          {rbac.ActionUpdate},
+					rbac.ResourceWorkspace.Type:          {rbac.ActionUpdate, rbac.ActionDelete},
 					rbac.ResourceWorkspaceBuild.Type:     {rbac.ActionUpdate},
 					rbac.ResourceWorkspaceExecution.Type: {rbac.ActionCreate},
 					rbac.ResourceWorkspaceProxy.Type:     {rbac.ActionCreate, rbac.ActionUpdate, rbac.ActionDelete},

@@ -1653,6 +1653,13 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	if workspace.Deleted {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Workspace has been deleted.",
+		})
+		return
+	}
+
 	var req agentsdk.Stats
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
