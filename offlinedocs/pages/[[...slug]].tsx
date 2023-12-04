@@ -257,7 +257,7 @@ const SidebarNavItem: React.FC<{ item: NavItem; nav: Nav }> = ({
 
   return (
     <Box>
-      <NextLink href={"/" + item.path} passHref>
+      <NextLink href={"/" + item.path} passHref legacyBehavior>
         <Link
           fontWeight={isActive ? 600 : 400}
           color={isActive ? "gray.900" : "gray.700"}
