@@ -199,6 +199,12 @@ data "coder_parameter" "workspace_template" {
     description = "Provisions a medium-sized workspace with no persistent storage."
   }
   option {
+    name        = "Medium (Greedy)"
+    value       = "kubernetes-medium-greedy"
+    icon        = "/emojis/1f436.png" # Dog.
+    description = "Provisions a medium-sized workspace with no persistent storage. Greedy agent variant."
+  }
+  option {
     name        = "Large"
     value       = "kubernetes-large"
     icon        = "/emojis/1f434.png" # Horse.
@@ -350,7 +356,7 @@ data "coder_parameter" "greedy_agent_template" {
   name         = "Greedy Agent Template"
   display_name = "Greedy Agent Template"
   description  = "The template used for the greedy agent workspace (must not be same as workspace template)."
-  default      = "kubernetes-medium"
+  default      = "kubernetes-medium-greedy"
   icon         = "/emojis/1f4dc.png" # Scroll.
   mutable      = true
   option {
@@ -370,6 +376,12 @@ data "coder_parameter" "greedy_agent_template" {
     value       = "kubernetes-medium"
     icon        = "/emojis/1f436.png" # Dog.
     description = "Provisions a medium-sized workspace with no persistent storage."
+  }
+  option {
+    name        = "Medium (Greedy)"
+    value       = "kubernetes-medium-greedy"
+    icon        = "/emojis/1f436.png" # Dog.
+    description = "Provisions a medium-sized workspace with no persistent storage. Greedy agent variant."
   }
   option {
     name        = "Large"
