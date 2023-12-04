@@ -639,6 +639,8 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
+    outputs:
+      IMAGE: ghcr.io/coder/coder-preview:${{ steps.build-docker.outputs.tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -677,6 +679,7 @@ jobs:
             build/coder_"$version"_linux_amd64.{tar.gz,deb}
 
       - name: Build and Push Linux amd64 Docker Image
+        id: build-docker
         run: |
           set -euxo pipefail
           version="$(./scripts/version.sh)"
@@ -693,6 +696,9 @@ jobs:
           # Tag as main
           docker tag "ghcr.io/coder/coder-preview:$tag" ghcr.io/coder/coder-preview:main
           docker push ghcr.io/coder/coder-preview:main
+
+          # Store the tag in an output variable so we can use it in other jobs
+          echo "tag=$tag" >> $GITHUB_OUTPUT
 
       - name: Prune old images
         uses: vlaurin/action-ghcr-prune@v0.5.0
@@ -773,6 +779,31 @@ jobs:
           set -euxo pipefail
           kubectl --namespace coder rollout restart deployment/coder
           kubectl --namespace coder rollout status deployment/coder
+
+  deploy-wsproxies:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy workspace proxies
+        run: |
+          flyctl deploy --image "$IMAGE" --app paris-coder --config ./.github/fly-wsproxies/paris-coder.toml --env "CODER_PROXY_SESSION_TOKEN=$TOKEN_PARIS" --yes
+          flyctl deploy --image "$IMAGE" --app sydney-coder --config ./.github/fly-wsproxies/sydney-coder.toml --env "CODER_PROXY_SESSION_TOKEN=$TOKEN_SYDNEY" --yes
+          flyctl deploy --image "$IMAGE" --app sao-paulo-coder --config ./.github/fly-wsproxies/sao-paulo-coder.toml --env "CODER_PROXY_SESSION_TOKEN=$TOKEN_SAO_PAULO" --yes
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          IMAGE: ${{ needs.build.outputs.IMAGE }}
+          TOKEN_PARIS: ${{ secrets.FLY_PARIS_CODER_PROXY_SESSION_TOKEN }}
+          TOKEN_SYDNEY: ${{ secrets.FLY_SYDNEY_CODER_PROXY_SESSION_TOKEN }}
+          TOKEN_SAO_PAULO: ${{ secrets.FLY_SAO_PAULO_CODER_PROXY_SESSION_TOKEN }}
 
   deploy-legacy-proxies:
     name: "deploy-legacy-proxies"
