@@ -1,5 +1,12 @@
 import { useOutletContext } from "react-router-dom";
-import { Header, HeaderTitle, Main, Pill, SectionLabel } from "./Content";
+import {
+  Header,
+  HeaderTitle,
+  HealthyDot,
+  Main,
+  Pill,
+  SectionLabel,
+} from "./Content";
 import { HealthcheckReport } from "api/typesGenerated";
 import CodeOutlined from "@mui/icons-material/CodeOutlined";
 import Tooltip from "@mui/material/Tooltip";
@@ -15,7 +22,13 @@ export const WebsocketPage = () => {
   return (
     <>
       <Header>
-        <HeaderTitle>Websocket</HeaderTitle>
+        <HeaderTitle>
+          <HealthyDot
+            healthy={websocket.healthy}
+            hasWarnings={websocket.warnings.length > 0}
+          />
+          Websocket
+        </HeaderTitle>
       </Header>
 
       <Main>

@@ -6,6 +6,7 @@ import {
   GridData,
   GridDataLabel,
   GridDataValue,
+  HealthyDot,
 } from "./Content";
 import { HealthcheckReport } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
@@ -17,7 +18,13 @@ export const AccessURLPage = () => {
   return (
     <>
       <Header>
-        <HeaderTitle>Access URL</HeaderTitle>
+        <HeaderTitle>
+          <HealthyDot
+            healthy={accessUrl.healthy}
+            hasWarnings={accessUrl.warnings.length > 0}
+          />
+          Access URL
+        </HeaderTitle>
       </Header>
 
       <Main>

@@ -6,6 +6,7 @@ import {
   SectionLabel,
   BooleanPill,
   Logs,
+  HealthyDot,
 } from "./Content";
 import { HealthcheckReport } from "api/typesGenerated";
 import Button from "@mui/material/Button";
@@ -30,18 +31,24 @@ const flags = [
 ];
 
 export const DERPPage = () => {
-  const healthStatus = useOutletContext<HealthcheckReport>();
-  const { netcheck, regions, netcheck_logs: logs } = healthStatus.derp;
+  const { derp } = useOutletContext<HealthcheckReport>();
+  const { netcheck, regions, netcheck_logs: logs } = derp;
   const theme = useTheme();
 
   return (
     <>
       <Header>
-        <HeaderTitle>DERP</HeaderTitle>
+        <HeaderTitle>
+          <HealthyDot
+            healthy={derp.healthy}
+            hasWarnings={derp.warnings.length > 0}
+          />
+          DERP
+        </HeaderTitle>
       </Header>
 
       <Main>
-        {healthStatus.derp.warnings.map((warning, i) => {
+        {derp.warnings.map((warning, i) => {
           return (
             <Alert key={i} severity="warning">
               {warning}

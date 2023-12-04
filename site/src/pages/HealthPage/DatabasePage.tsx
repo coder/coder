@@ -6,6 +6,7 @@ import {
   GridData,
   GridDataLabel,
   GridDataValue,
+  HealthyDot,
 } from "./Content";
 import { HealthcheckReport } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
@@ -17,7 +18,13 @@ export const DatabasePage = () => {
   return (
     <>
       <Header>
-        <HeaderTitle>Database</HeaderTitle>
+        <HeaderTitle>
+          <HealthyDot
+            healthy={database.healthy}
+            hasWarnings={database.warnings.length > 0}
+          />
+          Database
+        </HeaderTitle>
       </Header>
 
       <Main>

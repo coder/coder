@@ -31,7 +31,15 @@ export const Header = (props: HTMLProps<HTMLDivElement>) => {
 export const HeaderTitle = (props: HTMLProps<HTMLHeadingElement>) => {
   return (
     <h2
-      css={{ margin: 0, lineHeight: "120%", fontSize: 20, fontWeight: 500 }}
+      css={{
+        margin: 0,
+        lineHeight: "120%",
+        fontSize: 20,
+        fontWeight: 500,
+        display: "flex",
+        alignItems: "center",
+        gap: 16,
+      }}
       {...props}
     />
   );
@@ -67,6 +75,25 @@ export const HealthIcon = ({
         width: size,
         height: size,
         color,
+      }}
+    />
+  );
+};
+
+export const HealthyDot = (props: {
+  healthy: boolean;
+  hasWarnings: boolean;
+}) => {
+  const { healthy, hasWarnings } = props;
+  const theme = useTheme();
+
+  return (
+    <div
+      css={{
+        width: 8,
+        height: 8,
+        borderRadius: 9999,
+        backgroundColor: healthyColor(theme, healthy, hasWarnings),
       }}
     />
   );

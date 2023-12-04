@@ -1,5 +1,13 @@
 import { Link, useOutletContext, useParams } from "react-router-dom";
-import { Header, HeaderTitle, Main, BooleanPill, Pill, Logs } from "./Content";
+import {
+  Header,
+  HeaderTitle,
+  Main,
+  BooleanPill,
+  Pill,
+  Logs,
+  HealthyDot,
+} from "./Content";
 import { HealthcheckReport } from "api/typesGenerated";
 import CodeOutlined from "@mui/icons-material/CodeOutlined";
 import TagOutlined from "@mui/icons-material/TagOutlined";
@@ -7,13 +15,19 @@ import Tooltip from "@mui/material/Tooltip";
 import { useTheme } from "@mui/material/styles";
 import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
 import { getLatencyColor } from "utils/latency";
+import { Alert } from "components/Alert/Alert";
 
 export const DERPRegionPage = () => {
   const theme = useTheme();
   const healthStatus = useOutletContext<HealthcheckReport>();
   const params = useParams<{ regionId: string }>();
   const regionId = Number(params.regionId!);
-  const { region, node_reports: reports } = healthStatus.derp.regions[regionId];
+  const {
+    region,
+    node_reports: reports,
+    healthy,
+    warnings,
+  } = healthStatus.derp.regions[regionId];
 
   return (
     <>
@@ -40,11 +54,22 @@ export const DERPRegionPage = () => {
             />
             Back to DERP
           </Link>
-          <HeaderTitle>{region.RegionName}</HeaderTitle>
+          <HeaderTitle>
+            <HealthyDot healthy={healthy} hasWarnings={warnings.length > 0} />
+            {region.RegionName}
+          </HeaderTitle>
         </hgroup>
       </Header>
 
       <Main>
+        {warnings.map((warning, i) => {
+          return (
+            <Alert key={i} severity="warning">
+              {warning}
+            </Alert>
+          );
+        })}
+
         <section>
           <div css={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
             <Tooltip title="Region ID">

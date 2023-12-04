@@ -1,5 +1,12 @@
 import { useOutletContext } from "react-router-dom";
-import { BooleanPill, Header, HeaderTitle, Main, Pill } from "./Content";
+import {
+  BooleanPill,
+  Header,
+  HeaderTitle,
+  HealthyDot,
+  Main,
+  Pill,
+} from "./Content";
 import { HealthcheckReport } from "api/typesGenerated";
 import { useTheme } from "@mui/material/styles";
 import { createDayString } from "utils/createDayString";
@@ -17,7 +24,13 @@ export const WorkspaceProxyPage = () => {
   return (
     <>
       <Header>
-        <HeaderTitle>Workspace Proxy</HeaderTitle>
+        <HeaderTitle>
+          <HealthyDot
+            healthy={workspace_proxy.healthy}
+            hasWarnings={workspace_proxy.warnings.length > 0}
+          />
+          Workspace Proxy
+        </HeaderTitle>
       </Header>
 
       <Main>
