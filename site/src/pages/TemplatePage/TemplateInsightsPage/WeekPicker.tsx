@@ -3,7 +3,7 @@ import ExpandMoreOutlined from "@mui/icons-material/ExpandMoreOutlined";
 import Button from "@mui/material/Button";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
-import { useState, useRef, FC } from "react";
+import { type FC, useState, useRef } from "react";
 import { DateRangeValue } from "./DateRange";
 import { differenceInWeeks } from "date-fns";
 import { lastWeeks } from "./utils";

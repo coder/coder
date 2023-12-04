@@ -81,12 +81,12 @@ export const DashboardLayout: FC = () => {
                   color: theme.palette.info.light,
                 })}
               />
-              <div>
+              <p>
                 Coder {updateCheck.data?.version} is now available. View the{" "}
                 <Link href={updateCheck.data?.url}>release notes</Link> and{" "}
                 <Link href={docs("/admin/upgrade")}>upgrade instructions</Link>{" "}
                 for more information.
-              </div>
+              </p>
             </div>
           }
           action={

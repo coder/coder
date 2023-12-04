@@ -280,7 +280,7 @@ const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
           css={{
             width: "100%",
             fontSize: 14,
-            padding: 8,
+            padding: 16,
             maxWidth: "320px",
             lineHeight: "140%",
           }}
@@ -331,9 +331,7 @@ const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
               }}
               key={proxy.id}
               selected={proxy.id === selectedProxy?.id}
-              css={{
-                fontSize: 14,
-              }}
+              css={{ fontSize: 14 }}
             >
               <div
                 css={{

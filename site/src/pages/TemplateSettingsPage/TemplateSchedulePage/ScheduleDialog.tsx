@@ -98,7 +98,7 @@ export const ScheduleDialog: FC<PropsWithChildren<ScheduleDialogProps>> = ({
                   template workspaces?
                 </p>
                 <FormControlLabel
-                  css={{ marginTop: 2 }}
+                  css={{ marginTop: 16 }}
                   control={
                     <Checkbox
                       size="small"
