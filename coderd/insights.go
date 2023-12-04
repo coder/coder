@@ -604,7 +604,7 @@ func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, s
 				Validations: []codersdk.ValidationError{
 					{
 						Field:  qp.name,
-						Detail: fmt.Sprintf("Query param %q must have the clock set to 00:00:00", qp.name),
+						Detail: fmt.Sprintf("Query param %q must have the clock set to 00:00:00, got %s", qp.name, qp.value),
 					},
 				},
 			})
@@ -615,7 +615,7 @@ func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, s
 				Validations: []codersdk.ValidationError{
 					{
 						Field:  qp.name,
-						Detail: fmt.Sprintf("Query param %q must have the clock set to %02d:00:00", qp.name, h),
+						Detail: fmt.Sprintf("Query param %q must have the clock set to %02d:00:00, got %s", qp.name, h, qp.value),
 					},
 				},
 			})
