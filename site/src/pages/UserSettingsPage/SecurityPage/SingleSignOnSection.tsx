@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useTheme } from "@emotion/react";
+import { type FC, useState } from "react";
 import { Section } from "components/SettingsLayout/Section";
 import TextField from "@mui/material/TextField";
-import Box from "@mui/material/Box";
 import GitHubIcon from "@mui/icons-material/GitHub";
 import KeyIcon from "@mui/icons-material/VpnKey";
 import Button from "@mui/material/Button";
@@ -99,7 +99,7 @@ export const useSingleSignOnSection = () => {
   };
 };
 
-function SSOEmptyState() {
+const SSOEmptyState: FC = () => {
   return (
     <EmptyState
       css={(theme) => ({
@@ -117,14 +117,14 @@ function SSOEmptyState() {
       }
     />
   );
-}
+};
 
 type SingleSignOnSectionProps = ReturnType<typeof useSingleSignOnSection> & {
   authMethods: AuthMethods;
   userLoginType: UserLoginType;
 };
 
-export const SingleSignOnSection = ({
+export const SingleSignOnSection: FC<SingleSignOnSectionProps> = ({
   authMethods,
   userLoginType,
   openConfirmation,
@@ -133,11 +133,12 @@ export const SingleSignOnSection = ({
   isUpdating,
   isConfirming,
   error,
-}: SingleSignOnSectionProps) => {
+}) => {
+  const theme = useTheme();
+
   const authList = Object.values(
     authMethods,
   ) as (typeof authMethods)[keyof typeof authMethods][];
-
   const noSsoEnabled = !authList.some((method) => method.enabled);
 
   return (
@@ -147,7 +148,7 @@ export const SingleSignOnSection = ({
         title="Single Sign On"
         description="Authenticate in Coder using one-click"
       >
-        <Box display="grid" gap="16px">
+        <div css={{ display: "grid", gap: "16px" }}>
           {userLoginType.login_type === "password" ? (
             <>
               {authMethods.github.enabled && (
@@ -155,7 +156,7 @@ export const SingleSignOnSection = ({
                   size="large"
                   fullWidth
                   disabled={isUpdating}
-                  startIcon={<GitHubIcon sx={{ width: 16, height: 16 }} />}
+                  startIcon={<GitHubIcon css={{ width: 16, height: 16 }} />}
                   onClick={() => openConfirmation("github")}
                 >
                   GitHub
@@ -177,21 +178,21 @@ export const SingleSignOnSection = ({
               {noSsoEnabled && <SSOEmptyState />}
             </>
           ) : (
-            <Box
-              sx={{
-                background: (theme) => theme.palette.background.paper,
-                borderRadius: 1,
-                border: (theme) => `1px solid ${theme.palette.divider}`,
-                padding: 2,
+            <div
+              css={{
+                background: theme.palette.background.paper,
+                borderRadius: 8,
+                border: `1px solid ${theme.palette.divider}`,
+                padding: 16,
                 display: "flex",
-                gap: 2,
+                gap: 16,
                 alignItems: "center",
                 fontSize: 14,
               }}
             >
               <CheckCircleOutlined
-                sx={{
-                  color: (theme) => theme.palette.success.light,
+                css={{
+                  color: theme.palette.success.light,
                   fontSize: 16,
                 }}
               />
@@ -203,16 +204,16 @@ export const SingleSignOnSection = ({
                     : getOIDCLabel(authMethods.oidc)}
                 </strong>
               </span>
-              <Box sx={{ ml: "auto", lineHeight: 1 }}>
+              <div css={{ marginLeft: "auto", lineHeight: 1 }}>
                 {userLoginType.login_type === "github" ? (
-                  <GitHubIcon sx={{ width: 16, height: 16 }} />
+                  <GitHubIcon css={{ width: 16, height: 16 }} />
                 ) : (
                   <OIDCIcon oidcAuth={authMethods.oidc} />
                 )}
-              </Box>
-            </Box>
+              </div>
+            </div>
           )}
-        </Box>
+        </div>
       </Section>
 
       <ConfirmLoginTypeChangeModal
@@ -226,17 +227,20 @@ export const SingleSignOnSection = ({
   );
 };
 
-const OIDCIcon = ({ oidcAuth }: { oidcAuth: OIDCAuthMethod }) => {
+interface OIDCIconProps {
+  oidcAuth: OIDCAuthMethod;
+}
+
+const OIDCIcon: FC<OIDCIconProps> = ({ oidcAuth }) => {
   if (!oidcAuth.iconUrl) {
-    return <KeyIcon sx={{ width: 16, height: 16 }} />;
+    return <KeyIcon css={{ width: 16, height: 16 }} />;
   }
 
   return (
-    <Box
-      component="img"
+    <img
       alt="Open ID Connect icon"
       src={oidcAuth.iconUrl}
-      sx={{ width: 16, height: 16 }}
+      css={{ width: 16, height: 16 }}
     />
   );
 };
@@ -245,18 +249,20 @@ const getOIDCLabel = (oidcAuth: OIDCAuthMethod) => {
   return oidcAuth.signInText || "OpenID Connect";
 };
 
-const ConfirmLoginTypeChangeModal = ({
-  open,
-  loading,
-  error,
-  onClose,
-  onConfirm,
-}: {
+interface ConfirmLoginTypeChangeModalProps {
   open: boolean;
   loading: boolean;
   error: unknown;
   onClose: () => void;
   onConfirm: (password: string) => void;
+}
+
+const ConfirmLoginTypeChangeModal: FC<ConfirmLoginTypeChangeModalProps> = ({
+  open,
+  loading,
+  error,
+  onClose,
+  onConfirm,
 }) => {
   const [password, setPassword] = useState("");
 

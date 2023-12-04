@@ -103,7 +103,10 @@ export const WorkspacePage: FC = () => {
   if (pageError) {
     return (
       <Margins>
-        <ErrorAlert error={pageError} sx={{ my: 2 }} />
+        <ErrorAlert
+          error={pageError}
+          css={{ marginTop: 16, marginBottom: 16 }}
+        />
       </Margins>
     );
   }

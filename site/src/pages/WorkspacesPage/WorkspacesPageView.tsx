@@ -12,7 +12,6 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { WorkspacesFilter } from "./filter/filter";
 import { hasError, isApiValidationError } from "api/errors";
 import { TableToolbar } from "components/TableToolbar/TableToolbar";
-import Box from "@mui/material/Box";
 import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
 import { WorkspacesButton } from "./WorkspacesButton";
 import { UseQueryResult } from "react-query";
@@ -136,11 +135,11 @@ export const WorkspacesPageView = ({
       <TableToolbar>
         {checkedWorkspaces.length > 0 ? (
           <>
-            <Box>
+            <div>
               Selected <strong>{checkedWorkspaces.length}</strong> of{" "}
               <strong>{workspaces?.length}</strong>{" "}
               {workspaces?.length === 1 ? "workspace" : "workspaces"}
-            </Box>
+            </div>
 
             <MoreMenu>
               <MoreMenuTrigger>

@@ -1,12 +1,18 @@
-import Box from "@mui/material/Box";
 import TableCell from "@mui/material/TableCell";
 import TableRow from "@mui/material/TableRow";
 import Skeleton from "@mui/material/Skeleton";
+import Divider from "@mui/material/Divider";
+import HideSourceOutlined from "@mui/icons-material/HideSourceOutlined";
+import KeyOutlined from "@mui/icons-material/KeyOutlined";
+import GitHub from "@mui/icons-material/GitHub";
+import PasswordOutlined from "@mui/icons-material/PasswordOutlined";
+import ShieldOutlined from "@mui/icons-material/ShieldOutlined";
 import { type Interpolation, type Theme } from "@emotion/react";
 import { type FC } from "react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import type * as TypesGen from "api/typesGenerated";
+import { type GroupsByUserId } from "api/queries/groups";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
@@ -16,15 +22,7 @@ import {
   TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 import { EnterpriseBadge } from "components/Badges/Badges";
-import HideSourceOutlined from "@mui/icons-material/HideSourceOutlined";
-import KeyOutlined from "@mui/icons-material/KeyOutlined";
-import GitHub from "@mui/icons-material/GitHub";
-import PasswordOutlined from "@mui/icons-material/PasswordOutlined";
-import ShieldOutlined from "@mui/icons-material/ShieldOutlined";
 import { LastSeen } from "components/LastSeen/LastSeen";
-import { UserRoleCell } from "./UserRoleCell";
-import { type GroupsByUserId } from "api/queries/groups";
-import { UserGroupsCell } from "./UserGroupsCell";
 import {
   MoreMenu,
   MoreMenuTrigger,
@@ -32,7 +30,8 @@ import {
   MoreMenuItem,
   ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
-import Divider from "@mui/material/Divider";
+import { UserRoleCell } from "./UserRoleCell";
+import { UserGroupsCell } from "./UserGroupsCell";
 
 dayjs.extend(relativeTime);
 
@@ -91,9 +90,9 @@ export const UsersTableBody: FC<
         <TableLoaderSkeleton>
           <TableRowSkeleton>
             <TableCell>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <div css={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <AvatarDataSkeleton />
-              </Box>
+              </div>
             </TableCell>
 
             <TableCell>
@@ -126,9 +125,9 @@ export const UsersTableBody: FC<
           <Cond condition={isNonInitialPage}>
             <TableRow>
               <TableCell colSpan={999}>
-                <Box p={4}>
+                <div css={{ padding: 32 }}>
                   <EmptyState message="No users found on this page" />
-                </Box>
+                </div>
               </TableCell>
             </TableRow>
           </Cond>
@@ -136,9 +135,9 @@ export const UsersTableBody: FC<
           <Cond>
             <TableRow>
               <TableCell colSpan={999}>
-                <Box p={4}>
+                <div css={{ padding: 32 }}>
                   <EmptyState message="No users found" />
-                </Box>
+                </div>
               </TableCell>
             </TableRow>
           </Cond>
@@ -177,8 +176,8 @@ export const UsersTableBody: FC<
                 user.status === "suspended" && styles.suspended,
               ]}
             >
-              <Box>{user.status}</Box>
-              <LastSeen value={user.last_seen_at} sx={{ fontSize: 12 }} />
+              <div>{user.status}</div>
+              <LastSeen value={user.last_seen_at} css={{ fontSize: 12 }} />
             </TableCell>
 
             {canEditUsers && (
@@ -237,57 +236,60 @@ export const UsersTableBody: FC<
   );
 };
 
-const LoginType = ({
-  authMethods,
-  value,
-}: {
+interface LoginTypeProps {
   authMethods: TypesGen.AuthMethods;
   value: TypesGen.LoginType;
-}) => {
+}
+
+const LoginType: FC<LoginTypeProps> = ({ authMethods, value }) => {
   let displayName: string = value;
   let icon = <></>;
-  const iconStyles = { width: 14, height: 14 };
 
   if (value === "password") {
     displayName = "Password";
-    icon = <PasswordOutlined sx={iconStyles} />;
+    icon = <PasswordOutlined css={styles.icon} />;
   } else if (value === "none") {
     displayName = "None";
-    icon = <HideSourceOutlined sx={iconStyles} />;
+    icon = <HideSourceOutlined css={styles.icon} />;
   } else if (value === "github") {
     displayName = "GitHub";
-    icon = <GitHub sx={iconStyles} />;
+    icon = <GitHub css={styles.icon} />;
   } else if (value === "token") {
     displayName = "Token";
-    icon = <KeyOutlined sx={iconStyles} />;
+    icon = <KeyOutlined css={styles.icon} />;
   } else if (value === "oidc") {
     displayName =
       authMethods.oidc.signInText === "" ? "OIDC" : authMethods.oidc.signInText;
     icon =
       authMethods.oidc.iconUrl === "" ? (
-        <ShieldOutlined sx={iconStyles} />
+        <ShieldOutlined css={styles.icon} />
       ) : (
-        <Box
-          component="img"
+        <img
           alt="Open ID Connect icon"
           src={authMethods.oidc.iconUrl}
-          sx={iconStyles}
+          css={styles.icon}
         />
       );
   }
 
   return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 1, fontSize: 14 }}>
+    <div css={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
       {icon}
       {displayName}
-    </Box>
+    </div>
   );
 };
 
 const styles = {
+  icon: {
+    width: 14,
+    height: 14,
+  },
+
   status: {
     textTransform: "capitalize",
   },
+
   suspended: (theme) => ({
     color: theme.palette.text.secondary,
   }),

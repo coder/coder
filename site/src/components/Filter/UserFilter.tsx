@@ -1,3 +1,4 @@
+import { type FC } from "react";
 import { useMe } from "hooks";
 import { BaseOption } from "./options";
 import { getUsers } from "api/api";
@@ -67,7 +68,11 @@ export const useUserFilterMenu = ({
 
 export type UserFilterMenu = ReturnType<typeof useUserFilterMenu>;
 
-export const UserMenu = (menu: UserFilterMenu) => {
+interface UserMenuProps {
+  menu: UserFilterMenu;
+}
+
+export const UserMenu: FC<UserMenuProps> = ({ menu }) => {
   return (
     <FilterSearchMenu
       id="users-menu"
@@ -85,13 +90,12 @@ export const UserMenu = (menu: UserFilterMenu) => {
   );
 };
 
-const UserOptionItem = ({
-  option,
-  isSelected,
-}: {
+interface UserOptionItemProps {
   option: UserOption;
   isSelected?: boolean;
-}) => {
+}
+
+const UserOptionItem: FC<UserOptionItemProps> = ({ option, isSelected }) => {
   return (
     <OptionItem
       option={option}
@@ -100,7 +104,7 @@ const UserOptionItem = ({
         <UserAvatar
           username={option.label}
           avatarURL={option.avatarUrl}
-          sx={{ width: 16, height: 16, fontSize: 8 }}
+          css={{ width: 16, height: 16, fontSize: 8 }}
         />
       }
     />

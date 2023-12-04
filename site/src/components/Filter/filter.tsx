@@ -1,31 +1,37 @@
-import { ReactNode, forwardRef, useEffect, useRef, useState } from "react";
-import Box from "@mui/material/Box";
 import TextField from "@mui/material/TextField";
-import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
-import Button, { ButtonProps } from "@mui/material/Button";
-import Menu, { MenuProps } from "@mui/material/Menu";
+import Button, { type ButtonProps } from "@mui/material/Button";
+import Menu, { type MenuProps } from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
-import SearchOutlined from "@mui/icons-material/SearchOutlined";
 import InputAdornment from "@mui/material/InputAdornment";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
-import CloseOutlined from "@mui/icons-material/CloseOutlined";
-import { useSearchParams } from "react-router-dom";
-import Skeleton, { SkeletonProps } from "@mui/material/Skeleton";
+import Skeleton, { type SkeletonProps } from "@mui/material/Skeleton";
+import MenuList from "@mui/material/MenuList";
+import Divider from "@mui/material/Divider";
+import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 import CheckOutlined from "@mui/icons-material/CheckOutlined";
+import CloseOutlined from "@mui/icons-material/CloseOutlined";
+import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
+import SearchOutlined from "@mui/icons-material/SearchOutlined";
+import { useTheme } from "@emotion/react";
+import {
+  type FC,
+  type ReactNode,
+  forwardRef,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   getValidationErrorMessage,
   hasError,
   isApiValidationError,
 } from "api/errors";
-import { useFilterMenu } from "./menu";
-import { BaseOption } from "./options";
-import MenuList from "@mui/material/MenuList";
 import { Loader } from "components/Loader/Loader";
-import Divider from "@mui/material/Divider";
-import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
-
 import { useDebouncedFunction } from "hooks/debounce";
+import { useFilterMenu } from "./menu";
+import type { BaseOption } from "./options";
 
 export type PresetFilter = {
   name: string;
@@ -118,25 +124,29 @@ const stringifyFilter = (filterValue: FilterValues): string => {
   return result.trim();
 };
 
-const BaseSkeleton = (props: SkeletonProps) => {
+const BaseSkeleton: FC<SkeletonProps> = ({ children, ...skeletonProps }) => {
   return (
     <Skeleton
       variant="rectangular"
       height={36}
-      {...props}
-      sx={{
-        bgcolor: (theme) => theme.palette.background.paper,
+      {...skeletonProps}
+      css={(theme) => ({
+        backgroundColor: theme.palette.background.paper,
         borderRadius: "6px",
-        ...props.sx,
-      }}
-    />
+      })}
+    >
+      {children}
+    </Skeleton>
   );
 };
 
-export const SearchFieldSkeleton = () => <BaseSkeleton width="100%" />;
-export const MenuSkeleton = () => (
-  <BaseSkeleton sx={{ minWidth: 200, flexShrink: 0 }} />
-);
+export const SearchFieldSkeleton: FC = () => {
+  return <BaseSkeleton width="100%" />;
+};
+
+export const MenuSkeleton: FC = () => {
+  return <BaseSkeleton css={{ minWidth: 200, flexShrink: 0 }} />;
+};
 
 type FilterProps = {
   filter: ReturnType<typeof useFilter>;
@@ -150,7 +160,7 @@ type FilterProps = {
   presets: PresetFilter[];
 };
 
-export const Filter = ({
+export const Filter: FC<FilterProps> = ({
   filter,
   isLoading,
   error,
@@ -160,7 +170,8 @@ export const Filter = ({
   learnMoreLabel2,
   learnMoreLink2,
   presets,
-}: FilterProps) => {
+}) => {
+  const theme = useTheme();
   // Storing local copy of the filter query so that it can be updated more
   // aggressively without re-renders rippling out to the rest of the app every
   // single time. Exists for performance reasons - not really a good way to
@@ -185,19 +196,23 @@ export const Filter = ({
   const hasFilterQuery = filter.query !== "";
 
   return (
-    <Box
-      sx={{
+    <div
+      css={{
         display: "flex",
-        flexWrap: ["wrap", undefined, "nowrap"],
-        gap: 1,
-        mb: 2,
+        gap: 8,
+        marginBottom: 16,
+        flexWrap: "nowrap",
+
+        [theme.breakpoints.down("md")]: {
+          flexWrap: "wrap",
+        },
       }}
     >
       {isLoading ? (
         skeleton
       ) : (
         <>
-          <Box sx={{ display: "flex", width: "100%" }}>
+          <div css={{ display: "flex", width: "100%" }}>
             <PresetMenu
               onSelect={(query) => filter.update(query)}
               presets={presets}
@@ -238,7 +253,7 @@ export const Filter = ({
                     zIndex: 2,
                   },
                   "& input::placeholder": {
-                    color: (theme) => theme.palette.text.secondary,
+                    color: theme.palette.text.secondary,
                   },
                   "& .MuiInputAdornment-root": {
                     marginLeft: 0,
@@ -250,9 +265,9 @@ export const Filter = ({
                 startAdornment: (
                   <InputAdornment position="start">
                     <SearchOutlined
-                      sx={{
+                      css={{
                         fontSize: 14,
-                        color: (theme) => theme.palette.text.secondary,
+                        color: theme.palette.text.secondary,
                       }}
                     />
                   </InputAdornment>
@@ -266,43 +281,46 @@ export const Filter = ({
                           filter.update("");
                         }}
                       >
-                        <CloseOutlined sx={{ fontSize: 14 }} />
+                        <CloseOutlined css={{ fontSize: 14 }} />
                       </IconButton>
                     </Tooltip>
                   </InputAdornment>
                 ),
               }}
             />
-          </Box>
+          </div>
           {options}
         </>
       )}
-    </Box>
+    </div>
   );
 };
 
-const PresetMenu = ({
-  presets,
-  learnMoreLink,
-  learnMoreLabel2,
-  learnMoreLink2,
-  onSelect,
-}: {
+interface PresetMenuProps {
   presets: PresetFilter[];
   learnMoreLink: string;
   learnMoreLabel2?: string;
   learnMoreLink2?: string;
   onSelect: (query: string) => void;
+}
+
+const PresetMenu: FC<PresetMenuProps> = ({
+  presets,
+  learnMoreLink,
+  learnMoreLabel2,
+  learnMoreLink2,
+  onSelect,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const anchorRef = useRef<HTMLButtonElement>(null);
+  const theme = useTheme();
 
   return (
     <>
       <Button
         onClick={() => setIsOpen(true)}
         ref={anchorRef}
-        sx={{
+        css={{
           borderTopRightRadius: 0,
           borderBottomRightRadius: 0,
           flexShrink: 0,
@@ -325,11 +343,11 @@ const PresetMenu = ({
           vertical: "top",
           horizontal: "left",
         }}
-        sx={{ "& .MuiMenu-paper": { py: 1 } }}
+        css={{ "& .MuiMenu-paper": { paddingTop: 8, paddingBottom: 8 } }}
       >
         {presets.map((presetFilter) => (
           <MenuItem
-            sx={{ fontSize: 14 }}
+            css={{ fontSize: 14 }}
             key={presetFilter.name}
             onClick={() => {
               onSelect(presetFilter.query);
@@ -339,17 +357,17 @@ const PresetMenu = ({
             {presetFilter.name}
           </MenuItem>
         ))}
-        <Divider sx={{ borderColor: (theme) => theme.palette.divider }} />
+        <Divider css={{ borderColor: theme.palette.divider }} />
         <MenuItem
           component="a"
           href={learnMoreLink}
           target="_blank"
-          sx={{ fontSize: 13, fontWeight: 500 }}
+          css={{ fontSize: 13, fontWeight: 500 }}
           onClick={() => {
             setIsOpen(false);
           }}
         >
-          <OpenInNewOutlined sx={{ fontSize: "14px !important" }} />
+          <OpenInNewOutlined css={{ fontSize: "14px !important" }} />
           View advanced filtering
         </MenuItem>
         {learnMoreLink2 && learnMoreLabel2 && (
@@ -357,12 +375,12 @@ const PresetMenu = ({
             component="a"
             href={learnMoreLink2}
             target="_blank"
-            sx={{ fontSize: 13, fontWeight: 500 }}
+            css={{ fontSize: 13, fontWeight: 500 }}
             onClick={() => {
               setIsOpen(false);
             }}
           >
-            <OpenInNewOutlined sx={{ fontSize: "14px !important" }} />
+            <OpenInNewOutlined css={{ fontSize: "14px !important" }} />
             {learnMoreLabel2}
           </MenuItem>
         )}
@@ -371,17 +389,17 @@ const PresetMenu = ({
   );
 };
 
-export const FilterMenu = <TOption extends BaseOption>({
-  id,
-  menu,
-  label,
-  children,
-}: {
+interface FilterMenuProps<TOption extends BaseOption> {
   menu: ReturnType<typeof useFilterMenu<TOption>>;
   label: ReactNode;
   id: string;
   children: (values: { option: TOption; isSelected: boolean }) => ReactNode;
-}) => {
+}
+
+export const FilterMenu = <TOption extends BaseOption>(
+  props: FilterMenuProps<TOption>,
+) => {
+  const { id, menu, label, children } = props;
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -394,7 +412,7 @@ export const FilterMenu = <TOption extends BaseOption>({
       <MenuButton
         ref={buttonRef}
         onClick={() => setIsMenuOpen(true)}
-        sx={{ minWidth: 200 }}
+        css={{ minWidth: 200 }}
       >
         {label}
       </MenuButton>
@@ -403,7 +421,7 @@ export const FilterMenu = <TOption extends BaseOption>({
         anchorEl={buttonRef.current}
         open={isMenuOpen}
         onClose={handleClose}
-        sx={{ "& .MuiPaper-root": { minWidth: 200 } }}
+        css={{ "& .MuiPaper-root": { minWidth: 200 } }}
         // Disabled this so when we clear the filter and do some sorting in the
         // search items it does not look strange. Github removes exit transitions
         // on their filters as well.
@@ -432,17 +450,19 @@ export const FilterMenu = <TOption extends BaseOption>({
   );
 };
 
+interface FilterSearchMenuProps<TOption extends BaseOption> {
+  menu: ReturnType<typeof useFilterMenu<TOption>>;
+  label: ReactNode;
+  id: string;
+  children: (values: { option: TOption; isSelected: boolean }) => ReactNode;
+}
+
 export const FilterSearchMenu = <TOption extends BaseOption>({
   id,
   menu,
   label,
   children,
-}: {
-  menu: ReturnType<typeof useFilterMenu<TOption>>;
-  label: ReactNode;
-  id: string;
-  children: (values: { option: TOption; isSelected: boolean }) => ReactNode;
-}) => {
+}: FilterSearchMenuProps<TOption>) => {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -455,7 +475,7 @@ export const FilterSearchMenu = <TOption extends BaseOption>({
       <MenuButton
         ref={buttonRef}
         onClick={() => setIsMenuOpen(true)}
-        sx={{ minWidth: 200 }}
+        css={{ minWidth: 200 }}
       >
         {label}
       </MenuButton>
@@ -493,57 +513,70 @@ type OptionItemProps = {
   isSelected?: boolean;
 };
 
-export const OptionItem = ({ option, left, isSelected }: OptionItemProps) => {
+export const OptionItem: FC<OptionItemProps> = ({
+  option,
+  left,
+  isSelected,
+}) => {
   return (
-    <Box
-      display="flex"
-      alignItems="center"
-      gap={2}
-      fontSize={14}
-      overflow="hidden"
-      width="100%"
+    <div
+      css={{
+        display: "flex",
+        alignItems: "center",
+        gap: 16,
+        fontSize: 4,
+        overflow: "hidden",
+        width: "100%",
+      }}
     >
       {left}
-      <Box component="span" overflow="hidden" textOverflow="ellipsis">
+      <span css={{ overflow: "hidden", textOverflow: "ellipsis" }}>
         {option.label}
-      </Box>
+      </span>
       {isSelected && (
-        <CheckOutlined sx={{ width: 16, height: 16, marginLeft: "auto" }} />
+        <CheckOutlined css={{ width: 16, height: 16, marginLeft: "auto" }} />
       )}
-    </Box>
+    </div>
   );
 };
 
 const MenuButton = forwardRef<HTMLButtonElement, ButtonProps>((props, ref) => {
+  const { children, ...attrs } = props;
+
   return (
     <Button
       ref={ref}
       endIcon={<KeyboardArrowDown />}
-      {...props}
-      sx={{
+      css={{
         borderRadius: "6px",
         justifyContent: "space-between",
         lineHeight: "120%",
-        ...props.sx,
       }}
-    />
+      {...attrs}
+    >
+      {children}
+    </Button>
   );
 });
 
-function SearchMenu<TOption extends { label: string; value: string }>({
+interface SearchMenuProps<TOption extends BaseOption>
+  extends Pick<MenuProps, "anchorEl" | "open" | "onClose" | "id"> {
+  options?: TOption[];
+  renderOption: (option: TOption) => ReactNode;
+  query: string;
+  onQueryChange: (query: string) => void;
+}
+
+function SearchMenu<TOption extends BaseOption>({
   options,
   renderOption,
   query,
   onQueryChange,
   ...menuProps
-}: Pick<MenuProps, "anchorEl" | "open" | "onClose" | "id"> & {
-  options?: TOption[];
-  renderOption: (option: TOption) => ReactNode;
-  query: string;
-  onQueryChange: (query: string) => void;
-}) {
+}: SearchMenuProps<TOption>) {
   const menuListRef = useRef<HTMLUListElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const theme = useTheme();
 
   return (
     <Menu
@@ -552,7 +585,7 @@ function SearchMenu<TOption extends { label: string; value: string }>({
         menuProps.onClose && menuProps.onClose(event, reason);
         onQueryChange("");
       }}
-      sx={{
+      css={{
         "& .MuiPaper-root": {
           width: 320,
           paddingY: 0,
@@ -565,33 +598,31 @@ function SearchMenu<TOption extends { label: string; value: string }>({
         enter: 250,
         exit: 0,
       }}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "ArrowDown" && menuListRef.current) {
+          const firstItem = menuListRef.current.firstChild as HTMLElement;
+          firstItem.focus();
+        }
+      }}
     >
-      <Box
-        component="li"
-        sx={{
+      <li
+        css={{
           display: "flex",
           alignItems: "center",
-          paddingLeft: 2,
+          paddingLeft: 16,
           height: 40,
-          borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
-        }}
-        onKeyDown={(e) => {
-          e.stopPropagation();
-          if (e.key === "ArrowDown" && menuListRef.current) {
-            const firstItem = menuListRef.current.firstChild as HTMLElement;
-            firstItem.focus();
-          }
+          borderBottom: `1px solid ${theme.palette.divider}`,
         }}
       >
         <SearchOutlined
-          sx={{
+          css={{
             fontSize: 14,
-            color: (theme) => theme.palette.text.secondary,
+            color: theme.palette.text.secondary,
           }}
         />
-        <Box
+        <input
           tabIndex={-1}
-          component="input"
           type="text"
           placeholder="Search..."
           autoFocus
@@ -600,21 +631,21 @@ function SearchMenu<TOption extends { label: string; value: string }>({
           onChange={(e) => {
             onQueryChange(e.target.value);
           }}
-          sx={{
+          css={{
             height: "100%",
             border: 0,
             background: "none",
             width: "100%",
-            marginLeft: 2,
+            marginLeft: 16,
             outline: 0,
             "&::placeholder": {
-              color: (theme) => theme.palette.text.secondary,
+              color: theme.palette.text.secondary,
             },
           }}
         />
-      </Box>
+      </li>
 
-      <Box component="li" sx={{ maxHeight: 480, overflowY: "auto" }}>
+      <li css={{ maxHeight: 480, overflowY: "auto" }}>
         <MenuList
           ref={menuListRef}
           onKeyDown={(e) => {
@@ -629,22 +660,23 @@ function SearchMenu<TOption extends { label: string; value: string }>({
             options.length > 0 ? (
               options.map(renderOption)
             ) : (
-              <Box
-                sx={{
+              <div
+                css={{
                   fontSize: 13,
-                  color: (theme) => theme.palette.text.secondary,
+                  color: theme.palette.text.secondary,
                   textAlign: "center",
-                  py: 1,
+                  paddingTop: 8,
+                  paddingBottom: 8,
                 }}
               >
                 No results
-              </Box>
+              </div>
             )
           ) : (
             <Loader size={14} />
           )}
         </MenuList>
-      </Box>
+      </li>
     </Menu>
   );
 }

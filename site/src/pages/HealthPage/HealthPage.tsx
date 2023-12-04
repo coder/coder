@@ -1,21 +1,22 @@
-import Box from "@mui/material/Box";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { getHealth } from "api/api";
-import { Loader } from "components/Loader/Loader";
-import { useTab } from "hooks";
-import { Helmet } from "react-helmet-async";
-import { pageTitle } from "utils/page";
 import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import ErrorOutline from "@mui/icons-material/ErrorOutline";
-import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter";
-import { createDayString } from "utils/createDayString";
-import { DashboardFullPage } from "components/Dashboard/DashboardLayout";
 import ReplayIcon from "@mui/icons-material/Replay";
-import { health, refreshHealth } from "api/queries/debug";
 import { useTheme } from "@mui/material/styles";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import CircularProgress from "@mui/material/CircularProgress";
+import { type Interpolation, type Theme } from "@emotion/react";
+import { type FC } from "react";
+import { Helmet } from "react-helmet-async";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { getHealth } from "api/api";
+import { health, refreshHealth } from "api/queries/debug";
+import { useTab } from "hooks";
+import { createDayString } from "utils/createDayString";
+import { pageTitle } from "utils/page";
+import { DashboardFullPage } from "components/Dashboard/DashboardLayout";
+import { Loader } from "components/Loader/Loader";
+import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter";
 
 const sections = {
   derp: "DERP",
@@ -56,23 +57,25 @@ export default function HealthPage() {
   );
 }
 
-export function HealthPageView({
-  healthStatus,
-  tab,
-  forceRefresh,
-  isRefreshing,
-}: {
+interface HealthPageViewProps {
   healthStatus: Awaited<ReturnType<typeof getHealth>>;
   tab: ReturnType<typeof useTab>;
   forceRefresh: () => void;
   isRefreshing: boolean;
-}) {
+}
+
+export const HealthPageView: FC<HealthPageViewProps> = ({
+  healthStatus,
+  tab,
+  forceRefresh,
+  isRefreshing,
+}) => {
   const theme = useTheme();
 
   return (
     <DashboardFullPage>
-      <Box
-        sx={{
+      <div
+        css={{
           display: "flex",
           flexBasis: 0,
           flex: 1,
@@ -200,29 +203,10 @@ export function HealthPageView({
                     onClick={() => {
                       tab.set(key);
                     }}
-                    css={{
-                      background: isActive
-                        ? theme.palette.action.hover
-                        : "none",
-                      border: "none",
-                      fontSize: 14,
-                      width: "100%",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 12,
-                      textAlign: "left",
-                      height: 36,
-                      padding: "0 24px",
-                      cursor: "pointer",
-                      pointerEvents: isActive ? "none" : "auto",
-                      color: isActive
-                        ? theme.palette.text.primary
-                        : theme.palette.text.secondary,
-                      "&:hover": {
-                        background: theme.palette.action.hover,
-                        color: theme.palette.text.primary,
-                      },
-                    }}
+                    css={[
+                      styles.sectionLink,
+                      isActive && styles.activeSectionLink,
+                    ]}
                   >
                     {isHealthy ? (
                       isWarning ? (
@@ -257,8 +241,7 @@ export function HealthPageView({
               })}
           </nav>
         </div>
-        {/* 62px - navbar and 36px - the bottom bar */}
-        <Box sx={{ overflowY: "auto", width: "100%" }} data-chromatic="ignore">
+        <div css={{ overflowY: "auto", width: "100%" }} data-chromatic="ignore">
           <SyntaxHighlighter
             language="json"
             editorProps={{ height: "100%" }}
@@ -268,8 +251,36 @@ export function HealthPageView({
               2,
             )}
           />
-        </Box>
-      </Box>
+        </div>
+      </div>
     </DashboardFullPage>
   );
-}
+};
+
+const styles = {
+  sectionLink: (theme) => ({
+    border: "none",
+    fontSize: 14,
+    width: "100%",
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    textAlign: "left",
+    height: 36,
+    padding: "0 24px",
+    cursor: "pointer",
+    background: "none",
+    color: theme.palette.text.secondary,
+
+    "&:hover": {
+      background: theme.palette.action.hover,
+      color: theme.palette.text.primary,
+    },
+  }),
+
+  activeSectionLink: (theme) => ({
+    background: theme.palette.action.hover,
+    pointerEvents: "none",
+    color: theme.palette.text.primary,
+  }),
+} satisfies Record<string, Interpolation<Theme>>;

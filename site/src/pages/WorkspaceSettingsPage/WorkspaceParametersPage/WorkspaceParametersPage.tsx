@@ -10,7 +10,7 @@ import {
 } from "./WorkspaceParametersForm";
 import { useNavigate } from "react-router-dom";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
-import { FC } from "react";
+import { type FC } from "react";
 import { isApiValidationError } from "api/errors";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { WorkspaceBuildParameter } from "api/typesGenerated";
@@ -19,7 +19,7 @@ import Button from "@mui/material/Button";
 import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 import { docs } from "utils/docs";
 
-const WorkspaceParametersPage = () => {
+const WorkspaceParametersPage: FC = () => {
   const workspace = useWorkspaceSettings();
   const parameters = useQuery({
     queryKey: ["workspace", workspace.id, "parameters"],
@@ -79,16 +79,12 @@ export const WorkspaceParametersPageView: FC<
 > = ({ data, submitError, isSubmitting, onSubmit, onCancel }) => {
   return (
     <>
-      <PageHeader
-        css={{
-          paddingTop: 0,
-        }}
-      >
+      <PageHeader css={{ paddingTop: 0 }}>
         <PageHeaderTitle>Workspace parameters</PageHeaderTitle>
       </PageHeader>
 
       {submitError && !isApiValidationError(submitError) && (
-        <ErrorAlert error={submitError} sx={{ mb: 6 }} />
+        <ErrorAlert error={submitError} css={{ marginBottom: 48 }} />
       )}
 
       {data ? (

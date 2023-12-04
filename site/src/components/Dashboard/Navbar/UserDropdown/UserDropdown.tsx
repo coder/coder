@@ -57,7 +57,7 @@ export const UserDropdown: FC<PropsWithChildren<UserDropdownProps>> = ({
               >
                 <Badge overlap="circular">
                   <UserAvatar
-                    sx={{
+                    css={{
                       width: BUTTON_SM_HEIGHT,
                       height: BUTTON_SM_HEIGHT,
                       fontSize: 16,
