@@ -3,8 +3,6 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Loader } from "components/Loader/Loader";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
-import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
-import ErrorOutline from "@mui/icons-material/ErrorOutline";
 import { createDayString } from "utils/createDayString";
 import { DashboardFullPage } from "components/Dashboard/DashboardLayout";
 import ReplayIcon from "@mui/icons-material/Replay";
@@ -17,6 +15,7 @@ import { NavLink, Outlet } from "react-router-dom";
 import { css } from "@emotion/css";
 import { kebabCase } from "lodash/fp";
 import { Suspense } from "react";
+import { HealthIcon } from "./Content";
 
 const sections = {
   derp: "DERP",
@@ -77,23 +76,7 @@ export function HealthLayout() {
                       justifyContent: "space-between",
                     }}
                   >
-                    {healthStatus.healthy ? (
-                      <CheckCircleOutlined
-                        css={{
-                          width: 32,
-                          height: 32,
-                          color: theme.palette.success.light,
-                        }}
-                      />
-                    ) : (
-                      <ErrorOutline
-                        css={{
-                          width: 32,
-                          height: 32,
-                          color: theme.palette.error.light,
-                        }}
-                      />
-                    )}
+                    <HealthIcon size={32} healthy={healthStatus.healthy} />
 
                     <Tooltip title="Refresh health checks">
                       <IconButton
@@ -202,33 +185,11 @@ export function HealthLayout() {
                           })
                         }
                       >
-                        {isHealthy ? (
-                          isWarning ? (
-                            <CheckCircleOutlined
-                              css={{
-                                width: 16,
-                                height: 16,
-                                color: theme.palette.warning.light,
-                              }}
-                            />
-                          ) : (
-                            <CheckCircleOutlined
-                              css={{
-                                width: 16,
-                                height: 16,
-                                color: theme.palette.success.light,
-                              }}
-                            />
-                          )
-                        ) : (
-                          <ErrorOutline
-                            css={{
-                              width: 16,
-                              height: 16,
-                              color: theme.palette.error.main,
-                            }}
-                          />
-                        )}
+                        <HealthIcon
+                          size={16}
+                          healthy={isHealthy}
+                          hasWarnings={isWarning}
+                        />
                         {label}
                       </NavLink>
                     );

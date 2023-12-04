@@ -202,6 +202,7 @@ const GroupsPage = lazy(() => import("./pages/GroupsPage/GroupsPage"));
 const IconsPage = lazy(() => import("./pages/IconsPage/IconsPage"));
 const AccessURLPage = lazy(() => import("./pages/HealthPage/AccessURLPage"));
 const DatabasePage = lazy(() => import("./pages/HealthPage/DatabasePage"));
+const DERPPage = lazy(() => import("./pages/HealthPage/DERPPage"));
 
 export const AppRouter: FC = () => {
   return (
@@ -345,6 +346,7 @@ export const AppRouter: FC = () => {
                 <Route index element={<Navigate to="access-url" />} />
                 <Route path="access-url" element={<AccessURLPage />} />
                 <Route path="database" element={<DatabasePage />} />
+                <Route path="derp" element={<DERPPage />} />
               </Route>
             </Route>
 
