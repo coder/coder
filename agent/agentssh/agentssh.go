@@ -142,7 +142,7 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		},
 		ReversePortForwardingCallback: func(ctx ssh.Context, bindHost string, bindPort uint32) bool {
 			// Allow reverse port forwarding all!
-			s.logger.Debug(ctx, "local port forward",
+			s.logger.Debug(ctx, "reverse port forward",
 				slog.F("bind_host", bindHost),
 				slog.F("bind_port", bindPort))
 			return true
@@ -237,8 +237,29 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	err := s.sessionStart(logger, session, extraEnv)
 	var exitError *exec.ExitError
 	if xerrors.As(err, &exitError) {
-		logger.Info(ctx, "ssh session returned", slog.Error(exitError))
-		_ = session.Exit(exitError.ExitCode())
+		code := exitError.ExitCode()
+		if code == -1 {
+			// If we return -1 here, it will be transmitted as an
+			// uint32(4294967295). This exit code is nonsense, so
+			// instead we return 255 (same as OpenSSH). This is
+			// also the same exit code that the shell returns for
+			// -1.
+			//
+			// For signals, we could consider sending 128+signal
+			// instead (however, OpenSSH doesn't seem to do this).
+			code = 255
+		}
+		logger.Info(ctx, "ssh session returned",
+			slog.Error(exitError),
+			slog.F("process_exit_code", exitError.ExitCode()),
+			slog.F("exit_code", code),
+		)
+
+		// TODO(mafredri): For signal exit, there's also an "exit-signal"
+		// request (session.Exit sends "exit-status"), however, since it's
+		// not implemented on the session interface and not used by
+		// OpenSSH, we'll leave it for now.
+		_ = session.Exit(code)
 		return
 	}
 	if err != nil {
@@ -311,10 +332,10 @@ func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, extraEnv 
 	if isPty {
 		return s.startPTYSession(logger, session, magicTypeLabel, cmd, sshPty, windowSize)
 	}
-	return s.startNonPTYSession(session, magicTypeLabel, cmd.AsExec())
+	return s.startNonPTYSession(logger, session, magicTypeLabel, cmd.AsExec())
 }
 
-func (s *Server) startNonPTYSession(session ssh.Session, magicTypeLabel string, cmd *exec.Cmd) error {
+func (s *Server) startNonPTYSession(logger slog.Logger, session ssh.Session, magicTypeLabel string, cmd *exec.Cmd) error {
 	s.metrics.sessionsTotal.WithLabelValues(magicTypeLabel, "no").Add(1)
 
 	cmd.Stdout = session
@@ -338,6 +359,17 @@ func (s *Server) startNonPTYSession(session ssh.Session, magicTypeLabel string, 
 		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "no", "start_command").Add(1)
 		return xerrors.Errorf("start: %w", err)
 	}
+	sigs := make(chan ssh.Signal, 1)
+	session.Signals(sigs)
+	defer func() {
+		session.Signals(nil)
+		close(sigs)
+	}()
+	go func() {
+		for sig := range sigs {
+			s.handleSignal(logger, sig, cmd.Process, magicTypeLabel)
+		}
+	}()
 	return cmd.Wait()
 }
 
@@ -348,6 +380,7 @@ type ptySession interface {
 	Context() ssh.Context
 	DisablePTYEmulation()
 	RawCommand() string
+	Signals(chan<- ssh.Signal)
 }
 
 func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTypeLabel string, cmd *pty.Cmd, sshPty ssh.Pty, windowSize <-chan ssh.Window) (retErr error) {
@@ -403,13 +436,36 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 			}
 		}
 	}()
+	sigs := make(chan ssh.Signal, 1)
+	session.Signals(sigs)
+	defer func() {
+		session.Signals(nil)
+		close(sigs)
+	}()
 	go func() {
-		for win := range windowSize {
-			resizeErr := ptty.Resize(uint16(win.Height), uint16(win.Width))
-			// If the pty is closed, then command has exited, no need to log.
-			if resizeErr != nil && !errors.Is(resizeErr, pty.ErrClosed) {
-				logger.Warn(ctx, "failed to resize tty", slog.Error(resizeErr))
-				s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "resize").Add(1)
+		for {
+			if sigs == nil && windowSize == nil {
+				return
+			}
+
+			select {
+			case sig, ok := <-sigs:
+				if !ok {
+					sigs = nil
+					continue
+				}
+				s.handleSignal(logger, sig, process, magicTypeLabel)
+			case win, ok := <-windowSize:
+				if !ok {
+					windowSize = nil
+					continue
+				}
+				resizeErr := ptty.Resize(uint16(win.Height), uint16(win.Width))
+				// If the pty is closed, then command has exited, no need to log.
+				if resizeErr != nil && !errors.Is(resizeErr, pty.ErrClosed) {
+					logger.Warn(ctx, "failed to resize tty", slog.Error(resizeErr))
+					s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "resize").Add(1)
+				}
 			}
 		}
 	}()
@@ -450,6 +506,18 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 		return xerrors.Errorf("process wait: %w", err)
 	}
 	return nil
+}
+
+func (s *Server) handleSignal(logger slog.Logger, ssig ssh.Signal, signaler interface{ Signal(os.Signal) error }, magicTypeLabel string) {
+	ctx := context.Background()
+	sig := osSignalFrom(ssig)
+	logger = logger.With(slog.F("ssh_signal", ssig), slog.F("signal", sig.String()))
+	logger.Info(ctx, "received signal from client")
+	err := signaler.Signal(sig)
+	if err != nil {
+		logger.Warn(ctx, "signaling the process failed", slog.Error(err))
+		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "signal").Add(1)
+	}
 }
 
 func (s *Server) sftpHandler(logger slog.Logger, session ssh.Session) {

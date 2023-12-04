@@ -6,10 +6,6 @@ declare module "@mui/material/styles" {
     experimental: NewTheme;
   }
 
-  interface TypeBackground {
-    paperLight: string;
-  }
-
   interface Palette {
     neutral: PaletteColor;
   }

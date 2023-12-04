@@ -115,9 +115,7 @@ export const OptionConfig: FC<OptionConfigProps> = ({
   ...attrs
 }) => {
   const theme = useTheme();
-  const borderColor = source
-    ? theme.palette.primary.main
-    : theme.palette.divider;
+  const borderColor = source ? undefined : theme.palette.divider;
 
   return (
     <div
@@ -128,7 +126,7 @@ export const OptionConfig: FC<OptionConfigProps> = ({
         fontWeight: 600,
         backgroundColor: source
           ? theme.palette.primary.dark
-          : theme.palette.background.paperLight,
+          : theme.palette.background.paper,
         display: "inline-flex",
         alignItems: "center",
         borderRadius: 2,

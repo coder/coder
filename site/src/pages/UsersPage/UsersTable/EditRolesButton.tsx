@@ -161,7 +161,7 @@ const classNames = {
   paper: (css, theme) => css`
     width: 360px;
     margin-top: 8px;
-    background: ${theme.palette.background.paperLight};
+    background: ${theme.palette.background.paper};
   `,
 } satisfies Record<string, ClassName>;
 

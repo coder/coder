@@ -1,5 +1,5 @@
 import Link from "@mui/material/Link";
-import { SecondaryAgentButton } from "components/Resources/AgentButton";
+import { AgentButton } from "components/Resources/AgentButton";
 import { FC } from "react";
 import * as TypesGen from "api/typesGenerated";
 import { generateRandomString } from "utils/random";
@@ -46,7 +46,7 @@ export const TerminalLink: FC<React.PropsWithChildren<TerminalLinkProps>> = ({
       }}
       data-testid="terminal"
     >
-      <SecondaryAgentButton>{Language.linkText}</SecondaryAgentButton>
+      <AgentButton>{Language.linkText}</AgentButton>
     </Link>
   );
 };

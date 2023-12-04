@@ -4,7 +4,7 @@ import { Alert, AlertProps } from "components/Alert/Alert";
 import { type FC, useState } from "react";
 import { docs } from "utils/docs";
 
-export const ErrorScriptAlert = () => {
+export const ErrorScriptAlert: FC = () => {
   return (
     <TerminalAlert
       severity="warning"
@@ -96,7 +96,7 @@ const TerminalAlert: FC<AlertProps> = (props) => {
         borderWidth: 0,
         borderBottomWidth: 1,
         borderBottomColor: theme.palette.divider,
-        backgroundColor: theme.palette.background.paperLight,
+        backgroundColor: theme.palette.background.paper,
         borderLeft: `3px solid ${theme.palette[props.severity!].light}`,
         marginBottom: 1,
       })}
@@ -104,7 +104,7 @@ const TerminalAlert: FC<AlertProps> = (props) => {
   );
 };
 
-export const DisconnectedAlert: FC<AlertProps> = (props: AlertProps) => {
+export const DisconnectedAlert: FC<AlertProps> = (props) => {
   return (
     <TerminalAlert
       {...props}

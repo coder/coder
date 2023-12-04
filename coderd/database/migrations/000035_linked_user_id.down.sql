@@ -2,8 +2,6 @@
 -- the oauth_access_token, oauth_refresh_token, and oauth_expiry
 -- columns of api_key rows with the values from the dropped user_links
 -- table.
-BEGIN;
-
 DROP TABLE IF EXISTS user_links;
 
 ALTER TABLE
@@ -19,5 +17,3 @@ ALTER TABLE
 ADD COLUMN oauth_expiry timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL;
 
 ALTER TABLE users DROP COLUMN login_type;
-
-COMMIT;

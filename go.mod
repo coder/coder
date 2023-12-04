@@ -63,7 +63,7 @@ replace gvisor.dev/gvisor => github.com/coder/gvisor v0.0.0-20230714132058-be2e4
 // repo as tailscale.com/tempfork/gliderlabs/ssh, however, we can't replace the
 // subpath and it includes changes to golang.org/x/crypto/ssh as well which
 // makes importing it directly a bit messy.
-replace github.com/gliderlabs/ssh => github.com/coder/ssh v0.0.0-20230621095435-9a7e23486f1c
+replace github.com/gliderlabs/ssh => github.com/coder/ssh v0.0.0-20231128192721-70855dedb788
 
 // Waiting on https://github.com/imulab/go-scim/pull/95 to merge.
 replace github.com/imulab/go-scim/pkg/v2 => github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136
@@ -93,13 +93,12 @@ require (
 	github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0
 	github.com/coder/retry v1.5.1
 	github.com/coder/terraform-provider-coder v0.12.2
-	github.com/coder/wgtunnel v0.1.12
+	github.com/coder/wgtunnel v0.1.13-0.20231127054351-578bfff9b92a
 	github.com/coreos/go-oidc/v3 v3.7.0
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
 	github.com/creack/pty v1.1.18
 	github.com/dave/dst v0.27.2
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
-	github.com/djherbis/times v1.6.0
 	github.com/elastic/go-sysinfo v1.11.0
 	github.com/fatih/color v1.16.0
 	github.com/fatih/structs v1.1.0
@@ -112,7 +111,7 @@ require (
 	github.com/go-chi/cors v1.2.1
 	github.com/go-chi/httprate v0.7.4
 	github.com/go-chi/render v1.0.1
-	github.com/go-jose/go-jose/v3 v3.0.0
+	github.com/go-jose/go-jose/v3 v3.0.1
 	github.com/go-logr/logr v1.3.0
 	github.com/go-ping/ping v1.1.0
 	github.com/go-playground/validator/v10 v10.16.0

@@ -124,7 +124,7 @@ export async function renderHookWithAuth<Props, Result>(
   render: (initialProps: Props) => Result,
   options: RenderHookWithAuthOptions<Props> = {},
 ) {
-  const { initialProps, path = "/", extraRoutes = [] } = options;
+  const { initialProps, path = "/", route = "/", extraRoutes = [] } = options;
   const queryClient = createTestQueryClient();
 
   // Easy to miss – there's an evil definite assignment via the !
@@ -141,10 +141,10 @@ export async function renderHookWithAuth<Props, Result>(
        */
       // eslint-disable-next-line react-hooks/rules-of-hooks -- This is actually processed as a component; the linter just isn't aware of that
       const [readonlyStatefulRouter] = useState(() => {
-        return createMemoryRouter([
-          { path, element: <>{children}</> },
-          ...extraRoutes,
-        ]);
+        return createMemoryRouter(
+          [{ path, element: <>{children}</> }, ...extraRoutes],
+          { initialEntries: [route] },
+        );
       });
 
       /**
@@ -262,6 +262,8 @@ export const waitForLoaderToBeRemoved = async (): Promise<void> => {
   );
 };
 
-export const renderComponent = (component: React.ReactNode) => {
-  return tlRender(<ThemeProviders>{component}</ThemeProviders>);
+export const renderComponent = (component: React.ReactElement) => {
+  return tlRender(component, {
+    wrapper: ({ children }) => <ThemeProviders>{children}</ThemeProviders>,
+  });
 };

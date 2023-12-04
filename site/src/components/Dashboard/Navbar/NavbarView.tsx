@@ -115,8 +115,8 @@ export const NavbarView: FC<NavbarViewProps> = ({
     <nav
       css={{
         height: navHeight,
-        background: theme.palette.background.paper,
         borderBottom: `1px solid ${theme.palette.divider}`,
+        backgroundColor: theme.palette.background.paper,
       }}
     >
       <div css={styles.wrapper}>
@@ -253,7 +253,11 @@ const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
               <img
                 src={selectedProxy.icon_url}
                 alt=""
-                css={{ objectFit: "contain", width: "100%", height: "100%" }}
+                css={{
+                  objectFit: "contain",
+                  width: "100%",
+                  height: "100%",
+                }}
               />
             </div>
             <ProxyStatusLatency
@@ -275,9 +279,9 @@ const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
         <div
           css={{
             width: "100%",
-            maxWidth: "320px",
             fontSize: 14,
-            padding: 16,
+            padding: 8,
+            maxWidth: "320px",
             lineHeight: "140%",
           }}
         >
@@ -293,12 +297,12 @@ const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
             Select a region nearest to you
           </h4>
           <p
-            css={{
+            css={(theme) => ({
               fontSize: 13,
               color: theme.palette.text.secondary,
               lineHeight: "inherit",
               marginTop: 0.5,
-            }}
+            })}
           >
             Workspace proxies improve terminal and web app connections to
             workspaces. This does not apply to CLI connections. A region must be
@@ -327,7 +331,9 @@ const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
               }}
               key={proxy.id}
               selected={proxy.id === selectedProxy?.id}
-              css={{ fontSize: 14 }}
+              css={{
+                fontSize: 14,
+              }}
             >
               <div
                 css={{
@@ -402,6 +408,7 @@ const styles = {
     gap: 16,
     alignItems: "center",
     paddingRight: 16,
+
     [theme.breakpoints.up("md")]: {
       marginLeft: "auto",
     },
@@ -438,9 +445,6 @@ const styles = {
   drawerLogo: {
     padding: 0,
     maxHeight: 40,
-  },
-  item: {
-    padding: 0,
   },
   link: (theme) => css`
     align-items: center;

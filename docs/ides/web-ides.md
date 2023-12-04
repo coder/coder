@@ -222,6 +222,16 @@ resource "coder_app" "jupyter" {
 }
 ```
 
+If you cannot enable a
+[wildcard subdomain](https://coder.com/docs/v2/latest/admin/configure#wildcard-access-url),
+you can configure the template to run Jupyter on a path. There is however
+[security risk](https://coder.com/docs/v2/latest/cli/server#--dangerous-allow-path-app-sharing)
+running an app on a path and the template code is more complicated with coder
+value substitution to recreate the path structure.
+
+[This](https://github.com/sharkymark/v2-templates/tree/main/pod-with-jupyter-path)
+is a community template example.
+
 ![JupyterLab in Coder](../images/jupyter.png)
 
 ## RStudio
@@ -258,6 +268,17 @@ resource "coder_app" "rstudio" {
   }
 }
 ```
+
+If you cannot enable a
+[wildcard subdomain](https://coder.com/docs/v2/latest/admin/configure#wildcard-access-url),
+you can configure the template to run RStudio on a path using an NGINX reverse
+proxy in the template. There is however
+[security risk](https://coder.com/docs/v2/latest/cli/server#--dangerous-allow-path-app-sharing)
+running an app on a path and the template code is more complicated with coder
+value substitution to recreate the path structure.
+
+[This](https://github.com/sempie/coder-templates/tree/main/rstudio) is a
+community template example.
 
 ![RStudio in Coder](../images/rstudio-port-forward.png)
 

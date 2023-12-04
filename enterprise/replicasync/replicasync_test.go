@@ -255,6 +255,25 @@ func TestReplica(t *testing.T) {
 		}
 		wg.Wait()
 	})
+	t.Run("UpsertAfterDelete", func(t *testing.T) {
+		t.Parallel()
+		db, pubsub := dbtestutil.NewDB(t)
+		ctx, cancelCtx := context.WithCancel(context.Background())
+		defer cancelCtx()
+		server, err := replicasync.New(ctx, slogtest.Make(t, nil), db, pubsub, &replicasync.Options{
+			RelayAddress:    "google.com",
+			CleanupInterval: time.Millisecond,
+			UpdateInterval:  time.Millisecond,
+		})
+		require.NoError(t, err)
+		defer server.Close()
+		err = db.DeleteReplicasUpdatedBefore(ctx, dbtime.Now())
+		require.NoError(t, err)
+		deleteTime := dbtime.Now()
+		require.Eventually(t, func() bool {
+			return server.Self().UpdatedAt.After(deleteTime)
+		}, testutil.WaitShort, testutil.IntervalFast)
+	})
 }
 
 type derpyHandler struct {

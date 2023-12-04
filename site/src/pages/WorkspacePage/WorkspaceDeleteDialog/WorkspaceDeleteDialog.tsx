@@ -12,12 +12,11 @@ const styles = {
   workspaceInfo: (theme) => ({
     display: "flex",
     justifyContent: "space-between",
-    backgroundColor: theme.palette.background.paperLight,
-    border: `1px solid ${theme.palette.divider}`,
     borderRadius: 6,
     padding: 16,
     marginBottom: 20,
     lineHeight: "1.3em",
+    border: `1px solid ${theme.palette.divider}`,
 
     "& .name": {
       fontSize: 16,

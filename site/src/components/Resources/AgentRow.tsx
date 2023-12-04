@@ -513,7 +513,6 @@ const useAgentLogs = (
 
 const styles = {
   agentRow: (theme) => ({
-    backgroundColor: theme.palette.background.paperLight,
     fontSize: 16,
     borderLeft: `2px solid ${theme.palette.text.secondary}`,
 
@@ -578,6 +577,7 @@ const styles = {
     alignItems: "center",
     gap: 48,
     flexWrap: "wrap",
+    backgroundColor: theme.palette.background.paper,
 
     [theme.breakpoints.down("md")]: {
       gap: 16,

@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
+	"encoding/json"
 	"io"
 	"testing"
 
@@ -55,6 +56,7 @@ func TestUserLinks(t *testing.T) {
 			OAuthRefreshToken: "refresh",
 			UserID:            link.UserID,
 			LoginType:         link.LoginType,
+			DebugContext:      json.RawMessage("{}"),
 		})
 		require.NoError(t, err)
 		require.Equal(t, "access", updated.OAuthAccessToken)

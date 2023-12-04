@@ -1158,6 +1158,7 @@ const (
 	ResourceTypeLicense         ResourceType = "license"
 	ResourceTypeWorkspaceProxy  ResourceType = "workspace_proxy"
 	ResourceTypeConvertLogin    ResourceType = "convert_login"
+	ResourceTypeHealthSettings  ResourceType = "health_settings"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -1208,7 +1209,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeWorkspaceBuild,
 		ResourceTypeLicense,
 		ResourceTypeWorkspaceProxy,
-		ResourceTypeConvertLogin:
+		ResourceTypeConvertLogin,
+		ResourceTypeHealthSettings:
 		return true
 	}
 	return false
@@ -1228,6 +1230,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeLicense,
 		ResourceTypeWorkspaceProxy,
 		ResourceTypeConvertLogin,
+		ResourceTypeHealthSettings,
 	}
 }
 
@@ -1347,7 +1350,7 @@ func AllTailnetStatusValues() []TailnetStatus {
 	}
 }
 
-// Defines the user status: active, dormant, or suspended.
+// Defines the users status: active, dormant, or suspended.
 type UserStatus string
 
 const (
@@ -2127,6 +2130,8 @@ type UserLink struct {
 	OAuthAccessTokenKeyID sql.NullString `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
 	// The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted
 	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
+	// Debug information includes information like id_token and userinfo claims.
+	DebugContext json.RawMessage `db:"debug_context" json:"debug_context"`
 }
 
 // Visible fields of users are allowed to be joined with other tables for including context of other resources.

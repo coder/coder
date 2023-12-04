@@ -16,103 +16,141 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 )
 
-// Workspace inserts a workspace into the database.
-func Workspace(t testing.TB, db database.Store, seed database.Workspace) database.Workspace {
-	t.Helper()
+var ownerCtx = dbauthz.As(context.Background(), rbac.Subject{
+	ID:     "owner",
+	Roles:  rbac.Roles(must(rbac.RoleNames{rbac.RoleOwner()}.Expand())),
+	Groups: []string{},
+	Scope:  rbac.ExpandableScope(rbac.ScopeAll),
+})
 
-	// This intentionally fulfills the minimum requirements of the schema.
-	// Tests can provide a custom template ID if necessary.
-	if seed.TemplateID == uuid.Nil {
-		template := dbgen.Template(t, db, database.Template{
-			OrganizationID: seed.OrganizationID,
-			CreatedBy:      seed.OwnerID,
-		})
-		seed.TemplateID = template.ID
-		seed.OwnerID = template.CreatedBy
-		seed.OrganizationID = template.OrganizationID
-	}
-	return dbgen.Workspace(t, db, seed)
+type WorkspaceResponse struct {
+	Workspace  database.Workspace
+	Build      database.WorkspaceBuild
+	AgentToken string
+	TemplateVersionResponse
 }
 
-// WorkspaceWithAgent is a helper that generates a workspace with a single resource
-// that has an agent attached to it. The agent token is returned.
-func WorkspaceWithAgent(
-	t testing.TB, db database.Store, seed database.Workspace,
-	mutations ...func([]*sdkproto.Agent) []*sdkproto.Agent,
-) (
-	database.Workspace, string,
-) {
-	t.Helper()
-	authToken := uuid.NewString()
-	agents := []*sdkproto.Agent{{
-		Id: uuid.NewString(),
-		Auth: &sdkproto.Agent_Token{
-			Token: authToken,
-		},
-	}}
-	for _, m := range mutations {
-		agents = m(agents)
-	}
-	ws := Workspace(t, db, seed)
-	WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &sdkproto.Resource{
-		Name:   "example",
-		Type:   "aws_instance",
-		Agents: agents,
-	})
-	return ws, authToken
+// WorkspaceBuildBuilder generates workspace builds and associated
+// resources.
+type WorkspaceBuildBuilder struct {
+	t          testing.TB
+	db         database.Store
+	ps         pubsub.Pubsub
+	ws         database.Workspace
+	seed       database.WorkspaceBuild
+	resources  []*sdkproto.Resource
+	params     []database.WorkspaceBuildParameter
+	agentToken string
 }
 
-type BuildBuilder struct {
-	t         testing.TB
-	db        database.Store
-	ps        pubsub.Pubsub
-	ws        database.Workspace
-	seed      database.WorkspaceBuild
-	resources []*sdkproto.Resource
+// WorkspaceBuild generates a workspace build for the provided workspace.
+// Pass a database.Workspace{} with a nil ID to also generate a new workspace.
+// Omitting the template ID on a workspace will also generate a new template
+// with a template version.
+func WorkspaceBuild(t testing.TB, db database.Store, ws database.Workspace) WorkspaceBuildBuilder {
+	return WorkspaceBuildBuilder{t: t, db: db, ws: ws}
 }
 
-func WorkspaceBuildBuilder(t testing.TB, db database.Store, ws database.Workspace) BuildBuilder {
-	return BuildBuilder{t: t, db: db, ws: ws}
-}
-
-func (b BuildBuilder) Pubsub(ps pubsub.Pubsub) BuildBuilder {
-	//nolint: revive // returns modified struct
+func (b WorkspaceBuildBuilder) Pubsub(ps pubsub.Pubsub) WorkspaceBuildBuilder {
+	// nolint: revive // returns modified struct
 	b.ps = ps
 	return b
 }
 
-func (b BuildBuilder) Seed(seed database.WorkspaceBuild) BuildBuilder {
+func (b WorkspaceBuildBuilder) Seed(seed database.WorkspaceBuild) WorkspaceBuildBuilder {
 	//nolint: revive // returns modified struct
 	b.seed = seed
 	return b
 }
 
-func (b BuildBuilder) Resource(resource *sdkproto.Resource) BuildBuilder {
+func (b WorkspaceBuildBuilder) Resource(resource ...*sdkproto.Resource) WorkspaceBuildBuilder {
 	//nolint: revive // returns modified struct
-	b.resources = append(b.resources, resource)
+	b.resources = append(b.resources, resource...)
 	return b
 }
 
-func (b BuildBuilder) Do() database.WorkspaceBuild {
+func (b WorkspaceBuildBuilder) Params(params ...database.WorkspaceBuildParameter) WorkspaceBuildBuilder {
+	b.params = params
+	return b
+}
+
+func (b WorkspaceBuildBuilder) WithAgent(mutations ...func([]*sdkproto.Agent) []*sdkproto.Agent) WorkspaceBuildBuilder {
+	//nolint: revive // returns modified struct
+	b.agentToken = uuid.NewString()
+	agents := []*sdkproto.Agent{{
+		Id: uuid.NewString(),
+		Auth: &sdkproto.Agent_Token{
+			Token: b.agentToken,
+		},
+	}}
+	for _, m := range mutations {
+		agents = m(agents)
+	}
+	b.resources = append(b.resources, &sdkproto.Resource{
+		Name:   "example",
+		Type:   "aws_instance",
+		Agents: agents,
+	})
+	return b
+}
+
+// Do generates all the resources associated with a workspace build.
+// Template and TemplateVersion will be optionally populated if no
+// TemplateID is set on the provided workspace.
+// Workspace will be optionally populated if no ID is set on the provided
+// workspace.
+func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
 	b.t.Helper()
 	jobID := uuid.New()
 	b.seed.ID = uuid.New()
 	b.seed.JobID = jobID
+
+	resp := WorkspaceResponse{
+		AgentToken: b.agentToken,
+	}
+	if b.ws.TemplateID == uuid.Nil {
+		resp.TemplateVersionResponse = TemplateVersion(b.t, b.db).
+			Resources(b.resources...).
+			Pubsub(b.ps).
+			Seed(database.TemplateVersion{
+				OrganizationID: b.ws.OrganizationID,
+				CreatedBy:      b.ws.OwnerID,
+			}).
+			Do()
+		b.ws.TemplateID = resp.Template.ID
+		b.seed.TemplateVersionID = resp.TemplateVersion.ID
+	}
+
+	// If no template version is set assume the active version.
+	if b.seed.TemplateVersionID == uuid.Nil {
+		template, err := b.db.GetTemplateByID(ownerCtx, b.ws.TemplateID)
+		require.NoError(b.t, err)
+		require.NotNil(b.t, template.ActiveVersionID, "active version ID unexpectedly nil")
+		b.seed.TemplateVersionID = template.ActiveVersionID
+	}
+
+	// No ID on the workspace implies we should generate an entry.
+	if b.ws.ID == uuid.Nil {
+		// nolint: revive
+		b.ws = dbgen.Workspace(b.t, b.db, b.ws)
+		resp.Workspace = b.ws
+	}
 	b.seed.WorkspaceID = b.ws.ID
+	b.seed.InitiatorID = takeFirst(b.seed.InitiatorID, b.ws.OwnerID)
 
 	// Create a provisioner job for the build!
 	payload, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
 		WorkspaceBuildID: b.seed.ID,
 	})
 	require.NoError(b.t, err)
-	//nolint:gocritic // This is only used by tests.
-	ctx := dbauthz.AsSystemRestricted(context.Background())
-	job, err := b.db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+
+	job, err := b.db.InsertProvisionerJob(ownerCtx, database.InsertProvisionerJobParams{
 		ID:             jobID,
 		CreatedAt:      dbtime.Now(),
 		UpdatedAt:      dbtime.Now(),
@@ -127,7 +165,8 @@ func (b BuildBuilder) Do() database.WorkspaceBuild {
 		TraceMetadata:  pqtype.NullRawMessage{},
 	})
 	require.NoError(b.t, err, "insert job")
-	err = b.db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
+
+	err = b.db.UpdateProvisionerJobWithCompleteByID(ownerCtx, database.UpdateProvisionerJobWithCompleteByIDParams{
 		ID:        job.ID,
 		UpdatedAt: dbtime.Now(),
 		Error:     sql.NullString{},
@@ -139,63 +178,194 @@ func (b BuildBuilder) Do() database.WorkspaceBuild {
 	})
 	require.NoError(b.t, err, "complete job")
 
-	// This intentionally fulfills the minimum requirements of the schema.
-	// Tests can provide a custom version ID if necessary.
-	if b.seed.TemplateVersionID == uuid.Nil {
-		jobID := uuid.New()
-		templateVersion := dbgen.TemplateVersion(b.t, b.db, database.TemplateVersion{
-			JobID:          jobID,
-			OrganizationID: b.ws.OrganizationID,
-			CreatedBy:      b.ws.OwnerID,
-			TemplateID: uuid.NullUUID{
-				UUID:  b.ws.TemplateID,
-				Valid: true,
-			},
-		})
-		payload, _ := json.Marshal(provisionerdserver.TemplateVersionImportJob{
-			TemplateVersionID: templateVersion.ID,
-		})
-		dbgen.ProvisionerJob(b.t, b.db, nil, database.ProvisionerJob{
-			ID:             jobID,
-			OrganizationID: b.ws.OrganizationID,
-			Input:          payload,
-			Type:           database.ProvisionerJobTypeTemplateVersionImport,
-			CompletedAt: sql.NullTime{
-				Time:  dbtime.Now(),
-				Valid: true,
-			},
-		})
-		ProvisionerJobResources(b.t, b.db, jobID, b.seed.Transition, b.resources...)
-		b.seed.TemplateVersionID = templateVersion.ID
+	resp.Build = dbgen.WorkspaceBuild(b.t, b.db, b.seed)
+	ProvisionerJobResources(b.t, b.db, job.ID, b.seed.Transition, b.resources...).Do()
+
+	for i := range b.params {
+		b.params[i].WorkspaceBuildID = resp.Build.ID
 	}
-	build := dbgen.WorkspaceBuild(b.t, b.db, b.seed)
-	ProvisionerJobResources(b.t, b.db, job.ID, b.seed.Transition, b.resources...)
+	_ = dbgen.WorkspaceBuildParameters(b.t, b.db, b.params)
+
 	if b.ps != nil {
-		err = b.ps.Publish(codersdk.WorkspaceNotifyChannel(build.WorkspaceID), []byte{})
+		err = b.ps.Publish(codersdk.WorkspaceNotifyChannel(resp.Build.WorkspaceID), []byte{})
 		require.NoError(b.t, err)
 	}
-	return build
+
+	return resp
 }
 
-// WorkspaceBuild inserts a build and a successful job into the database.
-func WorkspaceBuild(t testing.TB, db database.Store, ws database.Workspace, seed database.WorkspaceBuild, resources ...*sdkproto.Resource) database.WorkspaceBuild {
-	b := WorkspaceBuildBuilder(t, db, ws).Seed(seed)
-	for _, r := range resources {
-		b = b.Resource(r)
-	}
-	return b.Do()
+type ProvisionerJobResourcesBuilder struct {
+	t          testing.TB
+	db         database.Store
+	jobID      uuid.UUID
+	transition database.WorkspaceTransition
+	resources  []*sdkproto.Resource
 }
 
 // ProvisionerJobResources inserts a series of resources into a provisioner job.
-func ProvisionerJobResources(t testing.TB, db database.Store, job uuid.UUID, transition database.WorkspaceTransition, resources ...*sdkproto.Resource) {
-	t.Helper()
+func ProvisionerJobResources(
+	t testing.TB, db database.Store, jobID uuid.UUID, transition database.WorkspaceTransition, resources ...*sdkproto.Resource,
+) ProvisionerJobResourcesBuilder {
+	return ProvisionerJobResourcesBuilder{
+		t:          t,
+		db:         db,
+		jobID:      jobID,
+		transition: transition,
+		resources:  resources,
+	}
+}
+
+func (b ProvisionerJobResourcesBuilder) Do() {
+	b.t.Helper()
+	transition := b.transition
 	if transition == "" {
 		// Default to start!
 		transition = database.WorkspaceTransitionStart
 	}
-	for _, resource := range resources {
+	for _, resource := range b.resources {
 		//nolint:gocritic // This is only used by tests.
-		err := provisionerdserver.InsertWorkspaceResource(dbauthz.AsSystemRestricted(context.Background()), db, job, transition, resource, &telemetry.Snapshot{})
-		require.NoError(t, err)
+		err := provisionerdserver.InsertWorkspaceResource(ownerCtx, b.db, b.jobID, transition, resource, &telemetry.Snapshot{})
+		require.NoError(b.t, err)
 	}
+}
+
+type TemplateVersionResponse struct {
+	Template        database.Template
+	TemplateVersion database.TemplateVersion
+}
+
+type TemplateVersionBuilder struct {
+	t         testing.TB
+	db        database.Store
+	seed      database.TemplateVersion
+	ps        pubsub.Pubsub
+	resources []*sdkproto.Resource
+	params    []database.TemplateVersionParameter
+	promote   bool
+}
+
+// TemplateVersion generates a template version and optionally a parent
+// template if no template ID is set on the seed.
+func TemplateVersion(t testing.TB, db database.Store) TemplateVersionBuilder {
+	return TemplateVersionBuilder{
+		t:       t,
+		db:      db,
+		promote: true,
+	}
+}
+
+func (t TemplateVersionBuilder) Seed(v database.TemplateVersion) TemplateVersionBuilder {
+	// nolint: revive // returns modified struct
+	t.seed = v
+	return t
+}
+
+func (t TemplateVersionBuilder) Pubsub(ps pubsub.Pubsub) TemplateVersionBuilder {
+	// nolint: revive // returns modified struct
+	t.ps = ps
+	return t
+}
+
+func (t TemplateVersionBuilder) Resources(rs ...*sdkproto.Resource) TemplateVersionBuilder {
+	// nolint: revive // returns modified struct
+	t.resources = rs
+	return t
+}
+
+func (t TemplateVersionBuilder) Params(ps ...database.TemplateVersionParameter) TemplateVersionBuilder {
+	// nolint: revive // returns modified struct
+	t.params = ps
+	return t
+}
+
+func (t TemplateVersionBuilder) Do() TemplateVersionResponse {
+	t.t.Helper()
+
+	t.seed.OrganizationID = takeFirst(t.seed.OrganizationID, uuid.New())
+	t.seed.ID = takeFirst(t.seed.ID, uuid.New())
+	t.seed.CreatedBy = takeFirst(t.seed.CreatedBy, uuid.New())
+
+	var resp TemplateVersionResponse
+	if t.seed.TemplateID.UUID == uuid.Nil {
+		resp.Template = dbgen.Template(t.t, t.db, database.Template{
+			ActiveVersionID: t.seed.ID,
+			OrganizationID:  t.seed.OrganizationID,
+			CreatedBy:       t.seed.CreatedBy,
+		})
+		t.seed.TemplateID = uuid.NullUUID{
+			Valid: true,
+			UUID:  resp.Template.ID,
+		}
+	}
+
+	version := dbgen.TemplateVersion(t.t, t.db, t.seed)
+
+	// Always make this version the active version. We can easily
+	// add a conditional to the builder to opt out of this when
+	// necessary.
+	err := t.db.UpdateTemplateActiveVersionByID(ownerCtx, database.UpdateTemplateActiveVersionByIDParams{
+		ID:              t.seed.TemplateID.UUID,
+		ActiveVersionID: t.seed.ID,
+		UpdatedAt:       dbtime.Now(),
+	})
+	require.NoError(t.t, err)
+
+	payload, err := json.Marshal(provisionerdserver.TemplateVersionImportJob{
+		TemplateVersionID: t.seed.ID,
+	})
+	require.NoError(t.t, err)
+
+	job := dbgen.ProvisionerJob(t.t, t.db, t.ps, database.ProvisionerJob{
+		ID:             version.JobID,
+		OrganizationID: t.seed.OrganizationID,
+		InitiatorID:    t.seed.CreatedBy,
+		Type:           database.ProvisionerJobTypeTemplateVersionImport,
+		Input:          payload,
+		CompletedAt: sql.NullTime{
+			Time:  dbtime.Now(),
+			Valid: true,
+		},
+	})
+
+	t.seed.JobID = job.ID
+
+	ProvisionerJobResources(t.t, t.db, job.ID, "", t.resources...).Do()
+
+	for i, param := range t.params {
+		param.TemplateVersionID = version.ID
+		t.params[i] = dbgen.TemplateVersionParameter(t.t, t.db, param)
+	}
+
+	resp.TemplateVersion = version
+	return resp
+}
+
+func must[V any](v V, err error) V {
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
+// takeFirstF takes the first value that returns true
+func takeFirstF[Value any](values []Value, take func(v Value) bool) Value {
+	for _, v := range values {
+		if take(v) {
+			return v
+		}
+	}
+	// If all empty, return the last element
+	if len(values) > 0 {
+		return values[len(values)-1]
+	}
+	var empty Value
+	return empty
+}
+
+// takeFirst will take the first non-empty value.
+func takeFirst[Value comparable](values ...Value) Value {
+	var empty Value
+	return takeFirstF(values, func(v Value) bool {
+		return v != empty
+	})
 }

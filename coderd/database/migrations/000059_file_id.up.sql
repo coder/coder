@@ -9,8 +9,6 @@
 -- This migration also adds a 'files.id' column as the primary
 -- key. As a side effect the provisioner_jobs must now reference
 -- the files.id column since the 'hash' column is now ambiguous.
-BEGIN;
-
 -- Drop the primary key on hash.
 ALTER TABLE files DROP CONSTRAINT files_pkey;
 
@@ -38,5 +36,3 @@ WHERE
 ALTER TABLE provisioner_jobs ALTER COLUMN file_id SET NOT NULL;
 -- Drop storage_source since it is no longer useful for anything.
 ALTER TABLE provisioner_jobs DROP COLUMN storage_source;
-
-COMMIT;
