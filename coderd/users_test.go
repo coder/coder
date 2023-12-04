@@ -1813,11 +1813,9 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 		},
 	}))
 	require.NoError(t, err, "first page")
-	for i := range allUsers[:limit] {
-		require.Equalf(t, page.Users[i].Username, allUsers[i].Username, "first page, limit=%d", limit)
-	}
-
+	require.Equalf(t, onlyUsernames(page.Users), onlyUsernames(allUsers[:limit]), "first page, limit=%d", limit)
 	count += len(page.Users)
+
 	for {
 		if len(page.Users) == 0 {
 			break
@@ -1850,10 +1848,8 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 		} else {
 			expected = allUsers[count : count+limit]
 		}
-		for i := range expected {
-			require.Equalf(t, page.Users[i].Username, expected[i].Username, "next users, after=%s, limit=%d", afterCursor, limit)
-			require.Equalf(t, offsetPage.Users[i].Username, expected[i].Username, "offset users, offset=%d, limit=%d", count, limit)
-		}
+		require.Equalf(t, onlyUsernames(page.Users), onlyUsernames(expected), "next users, after=%s, limit=%d", afterCursor, limit)
+		require.Equalf(t, onlyUsernames(offsetPage.Users), onlyUsernames(expected), "offset users, offset=%d, limit=%d", count, limit)
 
 		// Also check the before
 		prevPage, err := client.Users(ctx, opt(codersdk.UsersRequest{
@@ -1863,9 +1859,7 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 			},
 		}))
 		require.NoError(t, err, "prev page")
-		for i := range prevPage.Users {
-			require.Equalf(t, strings.ToLower(allUsers[count-limit : count][i].Username), strings.ToLower(prevPage.Users[i].Username), "prev users, offset=%d, limit=%d", count-limit, limit)
-		}
+		require.Equal(t, onlyUsernames(allUsers[count-limit:count]), onlyUsernames(prevPage.Users), "prev users")
 		count += len(page.Users)
 	}
 }
@@ -1881,6 +1875,19 @@ func sortDatabaseUsers(users []database.User) {
 	slices.SortFunc(users, func(a, b database.User) int {
 		return slice.Ascending(strings.ToLower(a.Username), strings.ToLower(b.Username))
 	})
+}
+
+func onlyUsernames[U codersdk.User | database.User](users []U) []string {
+	var out []string
+	for _, u := range users {
+		switch u := (any(u)).(type) {
+		case codersdk.User:
+			out = append(out, u.Username)
+		case database.User:
+			out = append(out, u.Username)
+		}
+	}
+	return out
 }
 
 func BenchmarkUsersMe(b *testing.B) {
