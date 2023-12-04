@@ -29,7 +29,11 @@ interface TabLinkProps extends NavLinkProps {
   className?: string;
 }
 
-export const TabLink: FC<TabLinkProps> = ({ className, ...linkProps }) => {
+export const TabLink: FC<TabLinkProps> = ({
+  className,
+  children,
+  ...linkProps
+}) => {
   const tabLink = useClassName(classNames.tabLink, []);
   const activeTabLink = useClassName(classNames.activeTabLink, []);
 

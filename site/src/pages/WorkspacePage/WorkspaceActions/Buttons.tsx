@@ -1,7 +1,3 @@
-import { type FC } from "react";
-import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
-import { BuildParametersPopover } from "./BuildParametersPopover";
-
 import Tooltip from "@mui/material/Tooltip";
 import Button from "@mui/material/Button";
 import LoadingButton from "@mui/lab/LoadingButton";
@@ -15,15 +11,18 @@ import OutlinedBlockIcon from "@mui/icons-material/BlockOutlined";
 import PowerSettingsNewIcon from "@mui/icons-material/PowerSettingsNew";
 import RetryIcon from "@mui/icons-material/BuildOutlined";
 import RetryDebugIcon from "@mui/icons-material/BugReportOutlined";
+import { type FC } from "react";
+import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
+import { BuildParametersPopover } from "./BuildParametersPopover";
 
-interface WorkspaceActionProps {
+interface ActionButtonProps {
   loading?: boolean;
-  handleAction: () => void;
+  handleAction: (buildParameters?: WorkspaceBuildParameter[]) => void;
   disabled?: boolean;
   tooltipText?: string;
 }
 
-export const UpdateButton: FC<WorkspaceActionProps> = ({
+export const UpdateButton: FC<ActionButtonProps> = ({
   handleAction,
   loading,
 }) => {
@@ -33,14 +32,14 @@ export const UpdateButton: FC<WorkspaceActionProps> = ({
       loadingPosition="start"
       data-testid="workspace-update-button"
       startIcon={<CloudQueueIcon />}
-      onClick={handleAction}
+      onClick={() => handleAction()}
     >
       {loading ? <>Updating&hellip;</> : <>Update&hellip;</>}
     </LoadingButton>
   );
 };
 
-export const ActivateButton: FC<WorkspaceActionProps> = ({
+export const ActivateButton: FC<ActionButtonProps> = ({
   handleAction,
   loading,
 }) => {
@@ -49,30 +48,29 @@ export const ActivateButton: FC<WorkspaceActionProps> = ({
       loading={loading}
       loadingPosition="start"
       startIcon={<PowerSettingsNewIcon />}
-      onClick={handleAction}
+      onClick={() => handleAction()}
     >
       {loading ? <>Activating&hellip;</> : "Activate"}
     </LoadingButton>
   );
 };
 
-type StartButtonProps = Omit<WorkspaceActionProps, "handleAction"> & {
+interface ActionButtonPropsWithWorkspace extends ActionButtonProps {
   workspace: Workspace;
-  handleAction: (buildParameters?: WorkspaceBuildParameter[]) => void;
-};
+}
 
-export const StartButton: FC<StartButtonProps> = ({
+export const StartButton: FC<ActionButtonPropsWithWorkspace> = ({
   handleAction,
   workspace,
   loading,
   disabled,
   tooltipText,
 }) => {
-  return (
+  const buttonContent = (
     <ButtonGroup
       variant="outlined"
-      css={{
-        // Workaround to make the border transitions smmothly on button groups
+      sx={{
+        // Workaround to make the border transitions smoothly on button groups
         "& > button:hover + button": {
           borderLeft: "1px solid #FFF",
         },
@@ -95,9 +93,15 @@ export const StartButton: FC<StartButtonProps> = ({
       />
     </ButtonGroup>
   );
+
+  return tooltipText ? (
+    <Tooltip title={tooltipText}>{buttonContent}</Tooltip>
+  ) : (
+    buttonContent
+  );
 };
 
-export const StopButton: FC<WorkspaceActionProps> = ({
+export const StopButton: FC<ActionButtonProps> = ({
   handleAction,
   loading,
 }) => {
@@ -106,7 +110,7 @@ export const StopButton: FC<WorkspaceActionProps> = ({
       loading={loading}
       loadingPosition="start"
       startIcon={<CropSquareIcon />}
-      onClick={handleAction}
+      onClick={() => handleAction()}
       data-testid="workspace-stop-button"
     >
       {loading ? <>Stopping&hellip;</> : "Stop"}
@@ -114,23 +118,18 @@ export const StopButton: FC<WorkspaceActionProps> = ({
   );
 };
 
-type RestartButtonProps = Omit<WorkspaceActionProps, "handleAction"> & {
-  workspace: Workspace;
-  handleAction: (buildParameters?: WorkspaceBuildParameter[]) => void;
-};
-
-export const RestartButton: FC<RestartButtonProps> = ({
+export const RestartButton: FC<ActionButtonPropsWithWorkspace> = ({
   handleAction,
   loading,
   workspace,
   disabled,
   tooltipText,
 }) => {
-  return (
+  const buttonContent = (
     <ButtonGroup
       variant="outlined"
       css={{
-        // Workaround to make the border transitions smmothly on button groups
+        // Workaround to make the border transitions smoothly on button groups
         "& > button:hover + button": {
           borderLeft: "1px solid #FFF",
         },
@@ -154,21 +153,27 @@ export const RestartButton: FC<RestartButtonProps> = ({
       />
     </ButtonGroup>
   );
+
+  return tooltipText ? (
+    <Tooltip title={tooltipText}>{buttonContent}</Tooltip>
+  ) : (
+    buttonContent
+  );
 };
 
-export const CancelButton: FC<WorkspaceActionProps> = ({ handleAction }) => {
+export const CancelButton: FC<ActionButtonProps> = ({ handleAction }) => {
   return (
-    <Button startIcon={<BlockIcon />} onClick={handleAction}>
+    <Button startIcon={<BlockIcon />} onClick={() => handleAction()}>
       Cancel
     </Button>
   );
 };
 
-interface DisabledProps {
+interface DisabledButtonProps {
   label: string;
 }
 
-export const DisabledButton: FC<DisabledProps> = ({ label }) => {
+export const DisabledButton: FC<DisabledButtonProps> = ({ label }) => {
   return (
     <Button startIcon={<OutlinedBlockIcon />} disabled>
       {label}
@@ -188,7 +193,7 @@ export const ActionLoadingButton: FC<LoadingProps> = ({ label }) => {
   );
 };
 
-type RetryButtonProps = Omit<WorkspaceActionProps, "loading"> & {
+type RetryButtonProps = Omit<ActionButtonProps, "loading"> & {
   debug?: boolean;
 };
 
@@ -199,7 +204,7 @@ export const RetryButton: FC<RetryButtonProps> = ({
   return (
     <Button
       startIcon={debug ? <RetryDebugIcon /> : <RetryIcon />}
-      onClick={handleAction}
+      onClick={() => handleAction()}
     >
       Retry{debug && " (Debug)"}
     </Button>
