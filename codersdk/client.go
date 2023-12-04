@@ -532,7 +532,7 @@ func WithQueryParam(key, value string) RequestOption {
 }
 
 // HeaderTransport is a http.RoundTripper that adds some headers to all requests.
-// @typescript-ignore Client
+// @typescript-ignore HeaderTransport
 type HeaderTransport struct {
 	Transport http.RoundTripper
 	Header    http.Header
