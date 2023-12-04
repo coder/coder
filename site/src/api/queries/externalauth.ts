@@ -11,6 +11,19 @@ export const listUserExternalAuths = () => {
   };
 };
 
+const getUserExternalAuthKey = (providerID: string) => [
+  providerID,
+  "get",
+  "external-auth",
+];
+
+export const userExternalAuth = (providerID: string) => {
+  return {
+    queryKey: getUserExternalAuthKey(providerID),
+    queryFn: () => API.getExternalAuthProvider(providerID),
+  };
+};
+
 export const validateExternalAuth = (_: QueryClient) => {
   return {
     mutationFn: API.getExternalAuthProvider,

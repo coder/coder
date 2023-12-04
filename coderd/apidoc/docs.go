@@ -8907,6 +8907,9 @@ const docTemplate = `{
         "codersdk.ExternalAuthLink": {
             "type": "object",
             "properties": {
+                "authenticated": {
+                    "type": "boolean"
+                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
@@ -8924,6 +8927,9 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "validate_error": {
+                    "type": "string"
                 }
             }
         },

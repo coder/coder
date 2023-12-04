@@ -502,6 +502,8 @@ export interface ExternalAuthLink {
   readonly updated_at: string;
   readonly has_refresh_token: boolean;
   readonly expires: string;
+  readonly authenticated: boolean;
+  readonly validate_error: string;
 }
 
 // From codersdk/externalauth.go

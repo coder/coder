@@ -76,6 +76,8 @@ type ExternalAuthLink struct {
 	UpdatedAt       time.Time `json:"updated_at" format:"date-time"`
 	HasRefreshToken bool      `json:"has_refresh_token"`
 	Expires         time.Time `json:"expires" format:"date-time"`
+	Authenticated   bool      `json:"authenticated"`
+	ValidateError   string    `json:"validate_error"`
 }
 
 // ExternalAuthLinkProvider are the static details of a provider.

@@ -13,20 +13,37 @@ import { getErrorMessage } from "api/errors";
 
 const UserExternalAuthSettingsPage: FC = () => {
   const queryClient = useQueryClient();
+  // This is used to tell the child components something was unlinked and things
+  // need to be refetched
+  const [unlinked, setUnlinked] = useState(0);
 
-  const userExternalAuthsQuery = useQuery(listUserExternalAuths());
+  const {
+    data: externalAuths,
+    error,
+    isLoading,
+    refetch,
+  } = useQuery(listUserExternalAuths());
 
   const [appToUnlink, setAppToUnlink] = useState<string>();
-  const unlinkAppMutation = useMutation(unlinkExternalAuths(queryClient));
+  const mutateParams = unlinkExternalAuths(queryClient);
+  const unlinkAppMutation = useMutation({
+    ...mutateParams,
+    onSuccess: async () => {
+      await mutateParams.onSuccess();
+      await refetch();
+      setUnlinked(unlinked + 1);
+    },
+  });
 
   const validateAppMutation = useMutation(validateExternalAuth(queryClient));
 
   return (
     <Section title="External Authentication">
       <UserExternalAuthSettingsPageView
-        isLoading={userExternalAuthsQuery.isLoading}
-        getAuthsError={userExternalAuthsQuery.error}
-        auths={userExternalAuthsQuery.data}
+        isLoading={isLoading}
+        getAuthsError={error}
+        auths={externalAuths}
+        unlinked={unlinked}
         onUnlinkExternalAuth={(providerID: string) => {
           setAppToUnlink(providerID);
         }}

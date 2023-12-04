@@ -7993,6 +7993,9 @@
     "codersdk.ExternalAuthLink": {
       "type": "object",
       "properties": {
+        "authenticated": {
+          "type": "boolean"
+        },
         "created_at": {
           "type": "string",
           "format": "date-time"
@@ -8010,6 +8013,9 @@
         "updated_at": {
           "type": "string",
           "format": "date-time"
+        },
+        "validate_error": {
+          "type": "string"
         }
       }
     },

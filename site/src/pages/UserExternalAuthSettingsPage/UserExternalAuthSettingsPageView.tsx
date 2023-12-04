@@ -1,4 +1,3 @@
-import { css } from "@emotion/react";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -6,19 +5,14 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import type {
-  ExternalAuthConfig,
   ListUserExternalAuthResponse,
   ExternalAuthLinkProvider,
+  ExternalAuthLink,
 } from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { EnterpriseBadge } from "components/Badges/Badges";
-import { Header } from "components/DeploySettingsLayout/Header";
-import { docs } from "utils/docs";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { ExternalAuth } from "pages/CreateWorkspacePage/ExternalAuth";
-import { Stack } from "components/Stack/Stack";
 import Divider from "@mui/material/Divider";
 import {
   MoreMenu,
@@ -27,10 +21,16 @@ import {
   MoreMenuTrigger,
   ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
+import { ExternalAuthPollingState } from "pages/CreateWorkspacePage/CreateWorkspacePage";
+import { useState, useCallback, useEffect } from "react";
+import { useQuery } from "react-query";
+import { userExternalAuth } from "api/queries/externalauth";
+import { FullScreenLoader } from "components/Loader/FullScreenLoader";
 
 export type UserExternalAuthSettingsPageViewProps = {
   isLoading: boolean;
   getAuthsError?: unknown;
+  unlinked: number;
   auths?: ListUserExternalAuthResponse;
   onUnlinkExternalAuth: (provider: string) => void;
   onValidateExternalAuth: (provider: string) => void;
@@ -40,6 +40,7 @@ export const UserExternalAuthSettingsPageView = ({
   isLoading,
   getAuthsError,
   auths,
+  unlinked,
   onUnlinkExternalAuth,
   onValidateExternalAuth,
 }: UserExternalAuthSettingsPageViewProps): JSX.Element => {
@@ -48,27 +49,14 @@ export const UserExternalAuthSettingsPageView = ({
     return <ErrorAlert error={getAuthsError} />;
   }
 
-  if (!auths) {
-    // TODO: Do loading?
-    return <></>;
+  if (isLoading || !auths) {
+    return <FullScreenLoader />;
   }
 
   return (
     <>
       <TableContainer>
-        <Table
-          css={css`
-            & td {
-              padding-top: 24px;
-              padding-bottom: 24px;
-            }
-
-            & td:last-child,
-            & th:last-child {
-              padding-left: 32px;
-            }
-          `}
-        >
+        <Table>
           <TableHead>
             <TableRow>
               <TableCell>Application</TableCell>
@@ -87,65 +75,19 @@ export const UserExternalAuthSettingsPageView = ({
               </TableRow>
             )) ||
               auths.providers?.map((app: ExternalAuthLinkProvider) => {
-                const name = app.id || app.type;
-                const link = auths.links.find((l) => l.provider_id === name);
-                const authURL = "/external-auth/" + app.id;
                 return (
-                  <TableRow key={name}>
-                    <TableCell>
-                      <AvatarData
-                        title={app.display_name || app.id}
-                        // subtitle={template.description}
-                        avatar={
-                          app.display_icon !== "" && (
-                            <Avatar
-                              src={app.display_icon}
-                              variant="square"
-                              fitImage
-                            />
-                          )
-                        }
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <ExternalAuth
-                        displayName={name}
-                        displayIcon={app.display_icon}
-                        authenticated={link ? true : false}
-                        authenticateURL={authURL}
-                        // TODO: This polling is not implemented
-                        externalAuthPollingState="idle"
-                        startPollingExternalAuth={() => {}}
-                      ></ExternalAuth>
-                    </TableCell>
-                    <TableCell>
-                      {link && (
-                        <MoreMenu>
-                          <MoreMenuTrigger>
-                            <ThreeDotsButton />
-                          </MoreMenuTrigger>
-                          <MoreMenuContent>
-                            <MoreMenuItem
-                              onClick={() => {
-                                onValidateExternalAuth(app.id);
-                              }}
-                            >
-                              Test Validate&hellip;
-                            </MoreMenuItem>
-                            <Divider />
-                            <MoreMenuItem
-                              danger
-                              onClick={() => {
-                                onUnlinkExternalAuth(app.id);
-                              }}
-                            >
-                              Unlink&hellip;
-                            </MoreMenuItem>
-                          </MoreMenuContent>
-                        </MoreMenu>
-                      )}
-                    </TableCell>
-                  </TableRow>
+                  <ExternalAuthRow
+                    key={app.id}
+                    app={app}
+                    unlinked={unlinked}
+                    link={auths.links.find((l) => l.provider_id === app.id)}
+                    onUnlinkExternalAuth={() => {
+                      onUnlinkExternalAuth(app.id);
+                    }}
+                    onValidateExternalAuth={() => {
+                      onValidateExternalAuth(app.id);
+                    }}
+                  />
                 );
               })}
           </TableBody>
@@ -153,4 +95,146 @@ export const UserExternalAuthSettingsPageView = ({
       </TableContainer>
     </>
   );
+};
+
+interface ExternalAuthRowProps {
+  app: ExternalAuthLinkProvider;
+  link?: ExternalAuthLink;
+  unlinked: number;
+  onUnlinkExternalAuth: () => void;
+  onValidateExternalAuth: () => void;
+}
+
+const ExternalAuthRow = ({
+  app,
+  unlinked,
+  link,
+  onUnlinkExternalAuth,
+  onValidateExternalAuth,
+}: ExternalAuthRowProps): JSX.Element => {
+  const name = app.id || app.type;
+  const authURL = "/external-auth/" + app.id;
+
+  const {
+    externalAuth,
+    externalAuthPollingState,
+    refetch,
+    startPollingExternalAuth,
+  } = useExternalAuth(app.id, unlinked);
+
+  const authenticated = externalAuth
+    ? externalAuth.authenticated
+    : link?.authenticated ?? false;
+
+  return (
+    <TableRow key={name}>
+      <TableCell>
+        <AvatarData
+          title={app.display_name || app.id}
+          // subtitle={template.description}
+          avatar={
+            app.display_icon !== "" && (
+              <Avatar src={app.display_icon} variant="square" fitImage />
+            )
+          }
+        />
+      </TableCell>
+      <TableCell>
+        <ExternalAuth
+          displayName={name}
+          // We could specify the user is linked, but the link is invalid.
+          // This could indicate it expired, or was revoked on the other end.
+          authenticated={authenticated}
+          authenticateURL={authURL}
+          displayIcon=""
+          message={authenticated ? "Authenticated" : "Click to Login"}
+          externalAuthPollingState={externalAuthPollingState}
+          startPollingExternalAuth={startPollingExternalAuth}
+        ></ExternalAuth>
+      </TableCell>
+      <TableCell>
+        {(link || externalAuth?.authenticated) && (
+          <MoreMenu>
+            <MoreMenuTrigger>
+              <ThreeDotsButton />
+            </MoreMenuTrigger>
+            <MoreMenuContent>
+              <MoreMenuItem
+                onClick={async () => {
+                  onValidateExternalAuth();
+                  // This is kinda jank. It does a refetch of the thing
+                  // it just validated... But we need to refetch to update the
+                  // login button. And the 'onValidateExternalAuth' does the
+                  // message display.
+                  await refetch();
+                }}
+              >
+                Test Validate&hellip;
+              </MoreMenuItem>
+              <Divider />
+              <MoreMenuItem
+                danger
+                onClick={async () => {
+                  onUnlinkExternalAuth();
+                  await refetch();
+                }}
+              >
+                Unlink&hellip;
+              </MoreMenuItem>
+            </MoreMenuContent>
+          </MoreMenu>
+        )}
+      </TableCell>
+    </TableRow>
+  );
+};
+
+// useExternalAuth handles the polling of the auth to update the button.
+const useExternalAuth = (providerID: string, unlinked: number) => {
+  const [externalAuthPollingState, setExternalAuthPollingState] =
+    useState<ExternalAuthPollingState>("idle");
+
+  const startPollingExternalAuth = useCallback(() => {
+    setExternalAuthPollingState("polling");
+  }, []);
+
+  const { data: externalAuth, refetch } = useQuery({
+    ...userExternalAuth(providerID),
+    refetchInterval: externalAuthPollingState === "polling" ? 1000 : false,
+  });
+
+  const signedIn = externalAuth?.authenticated;
+
+  useEffect(() => {
+    if (unlinked > 0) {
+      void refetch();
+    }
+  }, [unlinked]);
+
+  useEffect(() => {
+    if (signedIn) {
+      setExternalAuthPollingState("idle");
+      return;
+    }
+
+    if (externalAuthPollingState !== "polling") {
+      return;
+    }
+
+    // Poll for a maximum of one minute
+    const quitPolling = setTimeout(
+      () => setExternalAuthPollingState("abandoned"),
+      60_000,
+    );
+    return () => {
+      clearTimeout(quitPolling);
+    };
+  }, [externalAuthPollingState, signedIn]);
+
+  return {
+    startPollingExternalAuth,
+    externalAuth,
+    externalAuthPollingState,
+    refetch,
+  };
 };
