@@ -550,9 +550,6 @@ func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, s
 		{"end_time", endTimeString, &endTime},
 	} {
 		t, err := time.Parse(insightsTimeLayout, qp.value)
-		// strip monotonic clock reading
-		// so presentation time and arithmetic operations are consistent
-		t = t.Round(0)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Query parameter has invalid value.",
@@ -565,6 +562,9 @@ func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, s
 			})
 			return time.Time{}, time.Time{}, false
 		}
+		// strip monotonic clock reading
+		// so presentation time and arithmetic operations are consistent
+		t = t.Round(0)
 
 		if t.IsZero() {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
