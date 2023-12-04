@@ -44,7 +44,7 @@ export const DERPRegionPage = () => {
         </hgroup>
       </Header>
 
-      <Main css={{ display: "flex", flexDirection: "column", gap: 36 }}>
+      <Main>
         <section>
           <div css={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
             <Tooltip title="Region ID">

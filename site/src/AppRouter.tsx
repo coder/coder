@@ -205,6 +205,9 @@ const DatabasePage = lazy(() => import("./pages/HealthPage/DatabasePage"));
 const DERPPage = lazy(() => import("./pages/HealthPage/DERPPage"));
 const DERPRegionPage = lazy(() => import("./pages/HealthPage/DERPRegionPage"));
 const WebsocketPage = lazy(() => import("./pages/HealthPage/WebsocketPage"));
+const WorkspaceProxyHealthPage = lazy(
+  () => import("./pages/HealthPage/WorkspaceProxyPage"),
+);
 
 export const AppRouter: FC = () => {
   return (
@@ -354,6 +357,10 @@ export const AppRouter: FC = () => {
                   element={<DERPRegionPage />}
                 />
                 <Route path="websocket" element={<WebsocketPage />} />
+                <Route
+                  path="workspace-proxy"
+                  element={<WorkspaceProxyHealthPage />}
+                />
               </Route>
             </Route>
 

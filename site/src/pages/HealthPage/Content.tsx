@@ -75,7 +75,12 @@ export const HealthIcon = ({
 export const Main = (props: HTMLProps<HTMLDivElement>) => {
   return (
     <main
-      css={{ padding: `0 ${SIDE_PADDING}px ${SIDE_PADDING}px` }}
+      css={{
+        padding: `0 ${SIDE_PADDING}px ${SIDE_PADDING}px`,
+        display: "flex",
+        flexDirection: "column",
+        gap: 36,
+      }}
       {...props}
     />
   );

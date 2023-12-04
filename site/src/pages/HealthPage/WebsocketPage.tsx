@@ -17,7 +17,7 @@ export const WebsocketPage = () => {
         <HeaderTitle>Websocket</HeaderTitle>
       </Header>
 
-      <Main css={{ display: "flex", flexDirection: "column", gap: 36 }}>
+      <Main>
         <section>
           <Tooltip title="Code">
             <Pill icon={<CodeOutlined />}>{websocket.code}</Pill>

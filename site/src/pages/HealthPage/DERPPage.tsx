@@ -39,7 +39,7 @@ export const DERPPage = () => {
         <HeaderTitle>DERP</HeaderTitle>
       </Header>
 
-      <Main css={{ display: "flex", flexDirection: "column", gap: 36 }}>
+      <Main>
         <section>
           <SectionLabel>Flags</SectionLabel>
           <div css={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
