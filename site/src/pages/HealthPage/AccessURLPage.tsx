@@ -8,6 +8,7 @@ import {
   GridDataValue,
 } from "./Content";
 import { HealthcheckReport } from "api/typesGenerated";
+import { Alert } from "components/Alert/Alert";
 
 export const AccessURLPage = () => {
   const healthStatus = useOutletContext<HealthcheckReport>();
@@ -20,6 +21,14 @@ export const AccessURLPage = () => {
       </Header>
 
       <Main>
+        {accessUrl.warnings.map((warning, i) => {
+          return (
+            <Alert key={i} severity="warning">
+              {warning.message}
+            </Alert>
+          );
+        })}
+
         <GridData>
           <GridDataLabel>Healthy</GridDataLabel>
           <GridDataValue>{accessUrl.healthy ? "Yes" : "No"}</GridDataValue>

@@ -5,6 +5,7 @@ import CodeOutlined from "@mui/icons-material/CodeOutlined";
 import Tooltip from "@mui/material/Tooltip";
 import { useTheme } from "@mui/material/styles";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
+import { Alert } from "components/Alert/Alert";
 
 export const WebsocketPage = () => {
   const healthStatus = useOutletContext<HealthcheckReport>();
@@ -18,6 +19,14 @@ export const WebsocketPage = () => {
       </Header>
 
       <Main>
+        {websocket.warnings.map((warning, i) => {
+          return (
+            <Alert key={i} severity="warning">
+              {warning}
+            </Alert>
+          );
+        })}
+
         <section>
           <Tooltip title="Code">
             <Pill icon={<CodeOutlined />}>{websocket.code}</Pill>

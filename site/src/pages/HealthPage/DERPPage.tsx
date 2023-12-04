@@ -12,6 +12,7 @@ import Button from "@mui/material/Button";
 import LocationOnOutlined from "@mui/icons-material/LocationOnOutlined";
 import useTheme from "@mui/styles/useTheme";
 import { healthyColor } from "./healthyColor";
+import { Alert } from "components/Alert/Alert";
 
 const flags = [
   "UDP",
@@ -40,6 +41,14 @@ export const DERPPage = () => {
       </Header>
 
       <Main>
+        {healthStatus.derp.warnings.map((warning, i) => {
+          return (
+            <Alert key={i} severity="warning">
+              {warning}
+            </Alert>
+          );
+        })}
+
         <section>
           <SectionLabel>Flags</SectionLabel>
           <div css={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
