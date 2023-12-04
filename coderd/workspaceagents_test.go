@@ -892,10 +892,7 @@ func TestWorkspaceAgentReportStats(t *testing.T) {
 		agentClient.SetSessionToken(r.AgentToken)
 
 		_, err := agentClient.PostStats(context.Background(), &agentsdk.Stats{
-			ConnectionsByProto: map[string]int64{"TCP": 1},
-			// Set connection count to 1 but all session counts to zero to
-			// assert we aren't updating last_used_at for a connections that may
-			// be spawned passively by the dashboard.
+			ConnectionsByProto:          map[string]int64{"TCP": 1},
 			ConnectionCount:             1,
 			RxPackets:                   1,
 			RxBytes:                     1,
