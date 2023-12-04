@@ -71,7 +71,7 @@ export const DERPPage = () => {
                     />
                   }
                   component={Link}
-                  to={`/health/derp/${region.RegionID}`}
+                  to={`/health/derp/regions/${region.RegionID}`}
                   key={region.RegionID}
                 >
                   {region.RegionName}

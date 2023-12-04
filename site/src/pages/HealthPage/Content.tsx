@@ -1,9 +1,16 @@
 /* eslint-disable jsx-a11y/heading-has-content -- infer from props */
 import useTheme from "@mui/styles/useTheme";
-import { HTMLProps } from "react";
+import {
+  ComponentProps,
+  HTMLProps,
+  ReactElement,
+  cloneElement,
+  forwardRef,
+} from "react";
 import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import ErrorOutline from "@mui/icons-material/ErrorOutline";
 import { healthyColor } from "./healthyColor";
+import { css } from "@emotion/css";
 
 const SIDE_PADDING = 36;
 
@@ -133,17 +140,17 @@ export const SectionLabel = (props: HTMLProps<HTMLHeadingElement>) => {
   );
 };
 
-type BooleanPillProps = Omit<HTMLProps<HTMLDivElement>, "children"> & {
-  children: string;
-  value: boolean;
+type PillProps = HTMLProps<HTMLDivElement> & {
+  icon: ReactElement;
 };
 
-export const BooleanPill = (props: BooleanPillProps) => {
+export const Pill = forwardRef<HTMLDivElement, PillProps>((props, ref) => {
   const theme = useTheme();
-  const { value, children, ...divProps } = props;
+  const { icon, children, ...divProps } = props;
 
   return (
     <div
+      ref={ref}
       css={{
         display: "inline-flex",
         alignItems: "center",
@@ -154,12 +161,31 @@ export const BooleanPill = (props: BooleanPillProps) => {
         fontWeight: 500,
         padding: "8px 16px 8px 8px",
         gap: 8,
+        cursor: "default",
       }}
       {...divProps}
     >
-      <HealthIcon size={14} healthy={value} />
+      {cloneElement(icon, { className: css({ width: 14, height: 14 }) })}
       {children}
     </div>
+  );
+});
+
+type BooleanPillProps = Omit<
+  ComponentProps<typeof Pill>,
+  "children" | "icon" | "value"
+> & {
+  children: string;
+  value: boolean;
+};
+
+export const BooleanPill = (props: BooleanPillProps) => {
+  const { value, children, ...divProps } = props;
+
+  return (
+    <Pill icon={<HealthIcon size={14} healthy={value} />} {...divProps}>
+      {children}
+    </Pill>
   );
 };
 
@@ -184,8 +210,15 @@ export const Logs = (props: LogsProps) => {
       {...divProps}
     >
       {lines.map((line, index) => (
-        <div key={index}>{line}</div>
+        <span css={{ display: "block" }} key={index}>
+          {line}
+        </span>
       ))}
+      {lines.length === 0 && (
+        <span css={{ color: theme.palette.text.secondary }}>
+          No logs available
+        </span>
+      )}
     </div>
   );
 };
