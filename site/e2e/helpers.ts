@@ -646,14 +646,14 @@ export const fillParameters = async (
           buildParameter.value +
           "']",
       );
-      await parameterField.check();
+      await parameterField.click();
     } else if (richParameter.options.length > 0) {
       const parameterField = await parameterLabel.waitForSelector(
         "[data-testid='parameter-field-options'] .MuiRadio-root input[value='" +
           buildParameter.value +
           "']",
       );
-      await parameterField.check();
+      await parameterField.click();
     } else if (richParameter.type === "list(string)") {
       throw new Error("not implemented yet"); // FIXME
     } else {
