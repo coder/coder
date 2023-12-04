@@ -15,18 +15,18 @@ import (
 func Test_parseInsightsStartAndEndTime(t *testing.T) {
 	t.Parallel()
 
-	t.Logf("local: %s", time.Local)
+	t.Logf("machine location: %s", time.Now().Location())
 	layout := insightsTimeLayout
 	now := time.Now().UTC()
 	t.Logf("now: %s", now)
-	t.Logf("location: %s", now.Location())
+	t.Logf("now location: %s", now.Location())
 	y, m, d := now.Date()
 	today := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
-	t.Logf("today: %s", now)
+	t.Logf("today: %s", today)
 	thisHour := time.Date(y, m, d, now.Hour(), 0, 0, 0, time.UTC)
-	t.Logf("thisHour: %s", now)
+	t.Logf("thisHour: %s", thisHour)
 	thisHourRoundUp := thisHour.Add(time.Hour)
-	t.Logf("thisHourRoundUp: %s", now)
+	t.Logf("thisHourRoundUp: %s", thisHourRoundUp)
 
 	helsinki, err := time.LoadLocation("Europe/Helsinki")
 	require.NoError(t, err)
