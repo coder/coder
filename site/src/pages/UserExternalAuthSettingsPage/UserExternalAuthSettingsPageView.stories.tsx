@@ -1,36 +1,52 @@
-// import { ExternalAuthSettingsPageView } from "./ExternalAuthSettingsPageView";
-// import type { Meta, StoryObj } from "@storybook/react";
+import {
+  MockGithubAuthLink,
+  MockGithubExternalProvider,
+} from "testHelpers/entities";
+import { UserExternalAuthSettingsPageView } from "./UserExternalAuthSettingsPageView";
+import type { Meta, StoryObj } from "@storybook/react";
 
-// const meta: Meta<typeof ExternalAuthSettingsPageView> = {
-//   title: "pages/DeploySettingsPage/ExternalAuthSettingsPageView",
-//   component: ExternalAuthSettingsPageView,
-//   args: {
-//     config: {
-//       external_auth: [
-//         {
-//           id: "0000-1111",
-//           type: "GitHub",
-//           client_id: "client_id",
-//           regex: "regex",
-//           auth_url: "",
-//           token_url: "",
-//           validate_url: "",
-//           app_install_url: "https://github.com/apps/coder/installations/new",
-//           app_installations_url: "",
-//           no_refresh: false,
-//           scopes: [],
-//           extra_token_keys: [],
-//           device_flow: true,
-//           device_code_url: "",
-//           display_icon: "",
-//           display_name: "GitHub",
-//         },
-//       ],
-//     },
-//   },
-// };
+const meta: Meta<typeof UserExternalAuthSettingsPageView> = {
+  title: "pages/UserExternalAuthSettingsPage/UserExternalAuthSettingsPageView",
+  component: UserExternalAuthSettingsPageView,
+  args: {
+    isLoading: false,
+    getAuthsError: undefined,
+    unlinked: 0,
+    auths: {
+      providers: [],
+      links: [],
+    },
+    onUnlinkExternalAuth: () => {},
+    onValidateExternalAuth: () => {},
+  },
+};
 
-// export default meta;
-// type Story = StoryObj<typeof ExternalAuthSettingsPageView>;
+export default meta;
+type Story = StoryObj<typeof UserExternalAuthSettingsPageView>;
 
-// export const Page: Story = {};
+export const NoProviders: Story = {};
+
+export const Authenticated: Story = {
+  args: {
+    ...meta.args,
+    auths: {
+      providers: [MockGithubExternalProvider],
+      links: [MockGithubAuthLink],
+    },
+  },
+};
+
+export const UnAuthenticated: Story = {
+  args: {
+    ...meta.args,
+    auths: {
+      providers: [MockGithubExternalProvider],
+      links: [
+        {
+          ...MockGithubAuthLink,
+          authenticated: false,
+        },
+      ],
+    },
+  },
+};

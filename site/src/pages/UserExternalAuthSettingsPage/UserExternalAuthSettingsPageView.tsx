@@ -209,7 +209,7 @@ const useExternalAuth = (providerID: string, unlinked: number) => {
     if (unlinked > 0) {
       void refetch();
     }
-  }, [unlinked]);
+  }, [refetch, unlinked]);
 
   useEffect(() => {
     if (signedIn) {
