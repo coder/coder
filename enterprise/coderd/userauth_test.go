@@ -55,6 +55,33 @@ func TestUserOIDC(t *testing.T) {
 			runner.AssertRoles(t, "alice", []string{})
 		})
 
+		// Some IDPs (ADFS) send the "string" type vs "[]string" if only
+		// 1 role exists.
+		t.Run("SingleRoleString", func(t *testing.T) {
+			t.Parallel()
+
+			const oidcRoleName = "TemplateAuthor"
+			runner := setupOIDCTest(t, oidcTestConfig{
+				Config: func(cfg *coderd.OIDCConfig) {
+					cfg.AllowSignups = true
+					cfg.UserRoleField = "roles"
+					cfg.UserRoleMapping = map[string][]string{
+						oidcRoleName: {rbac.RoleTemplateAdmin()},
+					}
+				},
+			})
+
+			// User starts with the owner role
+			_, resp := runner.Login(t, jwt.MapClaims{
+				"email": "alice@coder.com",
+				// This is sent as a **string** intentionally instead
+				// of an array.
+				"roles": oidcRoleName,
+			})
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			runner.AssertRoles(t, "alice", []string{rbac.RoleTemplateAdmin()})
+		})
+
 		// A user has some roles, then on an oauth refresh will lose said
 		// roles from an updated claim.
 		t.Run("NewUserAndRemoveRolesOnRefresh", func(t *testing.T) {
@@ -330,6 +357,32 @@ func TestUserOIDC(t *testing.T) {
 			_, resp := runner.Login(t, jwt.MapClaims{
 				"email":    "alice@coder.com",
 				groupClaim: []string{groupName},
+			})
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			runner.AssertGroups(t, "alice", []string{groupName})
+		})
+
+		// Some IDPs (ADFS) send the "string" type vs "[]string" if only
+		// 1 group exists.
+		t.Run("SingleRoleGroup", func(t *testing.T) {
+			t.Parallel()
+
+			const groupClaim = "custom-groups"
+			const groupName = "bingbong"
+			runner := setupOIDCTest(t, oidcTestConfig{
+				Config: func(cfg *coderd.OIDCConfig) {
+					cfg.AllowSignups = true
+					cfg.GroupField = groupClaim
+					cfg.CreateMissingGroups = true
+				},
+			})
+
+			// User starts with the owner role
+			_, resp := runner.Login(t, jwt.MapClaims{
+				"email": "alice@coder.com",
+				// This is sent as a **string** intentionally instead
+				// of an array.
+				groupClaim: groupName,
 			})
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 			runner.AssertGroups(t, "alice", []string{groupName})
