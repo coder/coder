@@ -156,7 +156,7 @@ func Test_parseInsightsStartAndEndTime(t *testing.T) {
 			}
 
 			rw := httptest.NewRecorder()
-			gotStartTime, gotEndTime, gotOk := parseInsightsStartAndEndTime(context.Background(), rw, tt.args.startTime, tt.args.endTime)
+			gotStartTime, gotEndTime, gotOk := parseInsightsStartAndEndTime(context.Background(), rw, now, tt.args.startTime, tt.args.endTime)
 
 			if !assert.Equal(t, tt.wantOk, gotOk) {
 				//nolint:bodyclose
@@ -261,7 +261,7 @@ func Test_parseInsightsInterval_week(t *testing.T) {
 			t.Log("endTime: ", tt.args.endTime)
 
 			rw := httptest.NewRecorder()
-			startTime, endTime, ok := parseInsightsStartAndEndTime(context.Background(), rw, tt.args.startTime, tt.args.endTime)
+			startTime, endTime, ok := parseInsightsStartAndEndTime(context.Background(), rw, now, tt.args.startTime, tt.args.endTime)
 			if !ok {
 				//nolint:bodyclose
 				t.Log("Status: ", rw.Result().StatusCode)

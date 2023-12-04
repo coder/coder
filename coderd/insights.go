@@ -89,7 +89,7 @@ func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	startTime, endTime, ok := parseInsightsStartAndEndTime(ctx, rw, startTimeString, endTimeString)
+	startTime, endTime, ok := parseInsightsStartAndEndTime(ctx, rw, time.Now(), startTimeString, endTimeString)
 	if !ok {
 		return
 	}
@@ -176,7 +176,7 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	startTime, endTime, ok := parseInsightsStartAndEndTime(ctx, rw, startTimeString, endTimeString)
+	startTime, endTime, ok := parseInsightsStartAndEndTime(ctx, rw, time.Now(), startTimeString, endTimeString)
 	if !ok {
 		return
 	}
@@ -268,7 +268,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	startTime, endTime, ok := parseInsightsStartAndEndTime(ctx, rw, startTimeString, endTimeString)
+	startTime, endTime, ok := parseInsightsStartAndEndTime(ctx, rw, time.Now(), startTimeString, endTimeString)
 	if !ok {
 		return
 	}
@@ -539,9 +539,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 // time are not zero and that the end time is not before the start time. The
 // clock must be set to 00:00:00, except for "today", where end time is allowed
 // to provide the hour of the day (e.g. 14:00:00).
-func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, startTimeString, endTimeString string) (startTime, endTime time.Time, ok bool) {
-	now := time.Now()
-
+func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, now time.Time, startTimeString, endTimeString string) (startTime, endTime time.Time, ok bool) {
 	for _, qp := range []struct {
 		name, value string
 		dest        *time.Time
