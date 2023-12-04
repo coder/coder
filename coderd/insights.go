@@ -563,6 +563,9 @@ func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, s
 			return time.Time{}, time.Time{}, false
 		}
 
+		// Change now to the same timezone as the parsed time.
+		now := now.In(t.Location())
+
 		if t.IsZero() {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Query parameter has invalid value.",
