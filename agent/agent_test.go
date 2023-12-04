@@ -1547,7 +1547,8 @@ func TestAgent_Dial(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Setup listener
+			// The purpose of this test is to ensure that a client can dial a
+			// listener in the workspace over tailnet.
 			l := c.setup(t)
 			done := make(chan struct{})
 			defer func() {
