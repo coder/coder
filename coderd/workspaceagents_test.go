@@ -909,6 +909,7 @@ func TestWorkspaceAgentReportStats(t *testing.T) {
 		newWorkspace, err := client.Workspace(context.Background(), r.Workspace.ID)
 		require.NoError(t, err)
 
+		// nolint:gocritic // using db directly over creating a delete job
 		err = db.UpdateWorkspaceDeletedByID(dbauthz.AsSystemRestricted(context.Background()), database.UpdateWorkspaceDeletedByIDParams{
 			ID:      newWorkspace.ID,
 			Deleted: true,
