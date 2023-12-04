@@ -269,6 +269,7 @@ const styles = {
     height: 36,
     padding: "0 24px",
     cursor: "pointer",
+    background: "none",
     color: theme.palette.text.secondary,
 
     "&:hover": {
