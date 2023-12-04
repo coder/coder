@@ -204,6 +204,7 @@ const AccessURLPage = lazy(() => import("./pages/HealthPage/AccessURLPage"));
 const DatabasePage = lazy(() => import("./pages/HealthPage/DatabasePage"));
 const DERPPage = lazy(() => import("./pages/HealthPage/DERPPage"));
 const DERPRegionPage = lazy(() => import("./pages/HealthPage/DERPRegionPage"));
+const WebsocketPage = lazy(() => import("./pages/HealthPage/WebsocketPage"));
 
 export const AppRouter: FC = () => {
   return (
@@ -352,6 +353,7 @@ export const AppRouter: FC = () => {
                   path="derp/regions/:regionId"
                   element={<DERPRegionPage />}
                 />
+                <Route path="websocket" element={<WebsocketPage />} />
               </Route>
             </Route>
 
