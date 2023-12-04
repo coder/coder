@@ -86,7 +86,7 @@ func (c *connIO) recvLoop() {
 		if c.disconnected {
 			b.kind = proto.CoordinateResponse_PeerUpdate_DISCONNECTED
 		}
-		if err := sendCtx(c.coordCtx, c.bindings, b); err != nil {
+		if err := agpl.SendCtx(c.coordCtx, c.bindings, b); err != nil {
 			c.logger.Debug(c.coordCtx, "parent context expired while withdrawing bindings", slog.Error(err))
 		}
 		// only remove tunnels on graceful disconnect.  If we remove tunnels for lost peers, then
@@ -97,14 +97,14 @@ func (c *connIO) recvLoop() {
 				tKey:   tKey{src: c.UniqueID()},
 				active: false,
 			}
-			if err := sendCtx(c.coordCtx, c.tunnels, t); err != nil {
+			if err := agpl.SendCtx(c.coordCtx, c.tunnels, t); err != nil {
 				c.logger.Debug(c.coordCtx, "parent context expired while withdrawing tunnels", slog.Error(err))
 			}
 		}
 	}()
 	defer c.Close()
 	for {
-		req, err := recvCtx(c.peerCtx, c.requests)
+		req, err := agpl.RecvCtx(c.peerCtx, c.requests)
 		if err != nil {
 			if xerrors.Is(err, context.Canceled) ||
 				xerrors.Is(err, context.DeadlineExceeded) ||
@@ -132,7 +132,7 @@ func (c *connIO) handleRequest(req *proto.CoordinateRequest) error {
 			node: req.UpdateSelf.Node,
 			kind: proto.CoordinateResponse_PeerUpdate_NODE,
 		}
-		if err := sendCtx(c.coordCtx, c.bindings, b); err != nil {
+		if err := agpl.SendCtx(c.coordCtx, c.bindings, b); err != nil {
 			c.logger.Debug(c.peerCtx, "failed to send binding", slog.Error(err))
 			return err
 		}
@@ -156,7 +156,7 @@ func (c *connIO) handleRequest(req *proto.CoordinateRequest) error {
 			},
 			active: true,
 		}
-		if err := sendCtx(c.coordCtx, c.tunnels, t); err != nil {
+		if err := agpl.SendCtx(c.coordCtx, c.tunnels, t); err != nil {
 			c.logger.Debug(c.peerCtx, "failed to send add tunnel", slog.Error(err))
 			return err
 		}
@@ -177,7 +177,7 @@ func (c *connIO) handleRequest(req *proto.CoordinateRequest) error {
 			},
 			active: false,
 		}
-		if err := sendCtx(c.coordCtx, c.tunnels, t); err != nil {
+		if err := agpl.SendCtx(c.coordCtx, c.tunnels, t); err != nil {
 			c.logger.Debug(c.peerCtx, "failed to send remove tunnel", slog.Error(err))
 			return err
 		}

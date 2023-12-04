@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/tailnet/test"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -27,7 +28,12 @@ func TestCoordinator(t *testing.T) {
 	t.Run("ClientWithoutAgent", func(t *testing.T) {
 		t.Parallel()
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		coordinator := tailnet.NewCoordinator(logger)
+		defer func() {
+			err := coordinator.Close()
+			require.NoError(t, err)
+		}()
 		client, server := net.Pipe()
 		sendNode, errChan := tailnet.ServeCoordinator(client, func(node []*tailnet.Node) error {
 			return nil
@@ -45,14 +51,19 @@ func TestCoordinator(t *testing.T) {
 		}, testutil.WaitShort, testutil.IntervalFast)
 		require.NoError(t, client.Close())
 		require.NoError(t, server.Close())
-		<-errChan
-		<-closeChan
+		_ = testutil.RequireRecvCtx(ctx, t, errChan)
+		_ = testutil.RequireRecvCtx(ctx, t, closeChan)
 	})
 
 	t.Run("AgentWithoutClients", func(t *testing.T) {
 		t.Parallel()
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		coordinator := tailnet.NewCoordinator(logger)
+		defer func() {
+			err := coordinator.Close()
+			require.NoError(t, err)
+		}()
 		client, server := net.Pipe()
 		sendNode, errChan := tailnet.ServeCoordinator(client, func(node []*tailnet.Node) error {
 			return nil
@@ -70,14 +81,18 @@ func TestCoordinator(t *testing.T) {
 		}, testutil.WaitShort, testutil.IntervalFast)
 		err := client.Close()
 		require.NoError(t, err)
-		<-errChan
-		<-closeChan
+		_ = testutil.RequireRecvCtx(ctx, t, errChan)
+		_ = testutil.RequireRecvCtx(ctx, t, closeChan)
 	})
 
 	t.Run("AgentWithClient", func(t *testing.T) {
 		t.Parallel()
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		coordinator := tailnet.NewCoordinator(logger)
+		defer func() {
+			err := coordinator.Close()
+			require.NoError(t, err)
+		}()
 
 		// in this test we use real websockets to test use of deadlines
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
@@ -116,14 +131,11 @@ func TestCoordinator(t *testing.T) {
 			assert.NoError(t, err)
 			close(closeClientChan)
 		}()
-		select {
-		case agentNodes := <-clientNodeChan:
-			require.Len(t, agentNodes, 1)
-		case <-ctx.Done():
-			t.Fatal("timed out")
-		}
+		agentNodes := testutil.RequireRecvCtx(ctx, t, clientNodeChan)
+		require.Len(t, agentNodes, 1)
+
 		sendClientNode(&tailnet.Node{PreferredDERP: 2})
-		clientNodes := <-agentNodeChan
+		clientNodes := testutil.RequireRecvCtx(ctx, t, agentNodeChan)
 		require.Len(t, clientNodes, 1)
 
 		// wait longer than the internal wait timeout.
@@ -132,18 +144,14 @@ func TestCoordinator(t *testing.T) {
 
 		// Ensure an update to the agent node reaches the client!
 		sendAgentNode(&tailnet.Node{PreferredDERP: 3})
-		select {
-		case agentNodes := <-clientNodeChan:
-			require.Len(t, agentNodes, 1)
-		case <-ctx.Done():
-			t.Fatal("timed out")
-		}
+		agentNodes = testutil.RequireRecvCtx(ctx, t, clientNodeChan)
+		require.Len(t, agentNodes, 1)
 
 		// Close the agent WebSocket so a new one can connect.
 		err := agentWS.Close()
 		require.NoError(t, err)
-		<-agentErrChan
-		<-closeAgentChan
+		_ = testutil.RequireRecvCtx(ctx, t, agentErrChan)
+		_ = testutil.RequireRecvCtx(ctx, t, closeAgentChan)
 
 		// Create a new agent connection. This is to simulate a reconnect!
 		agentWS, agentServerWS = net.Pipe()
@@ -159,30 +167,32 @@ func TestCoordinator(t *testing.T) {
 			assert.NoError(t, err)
 			close(closeAgentChan)
 		}()
-		// Ensure the existing listening client sends it's node immediately!
-		clientNodes = <-agentNodeChan
+		// Ensure the existing listening client sends its node immediately!
+		clientNodes = testutil.RequireRecvCtx(ctx, t, agentNodeChan)
 		require.Len(t, clientNodes, 1)
 
 		err = agentWS.Close()
 		require.NoError(t, err)
-		<-agentErrChan
-		<-closeAgentChan
+		_ = testutil.RequireRecvCtx(ctx, t, agentErrChan)
+		_ = testutil.RequireRecvCtx(ctx, t, closeAgentChan)
 
 		err = clientWS.Close()
 		require.NoError(t, err)
-		<-clientErrChan
-		<-closeClientChan
+		_ = testutil.RequireRecvCtx(ctx, t, clientErrChan)
+		_ = testutil.RequireRecvCtx(ctx, t, closeClientChan)
 	})
 
 	t.Run("AgentDoubleConnect", func(t *testing.T) {
 		t.Parallel()
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		coordinator := tailnet.NewCoordinator(logger)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		agentWS1, agentServerWS1 := net.Pipe()
 		defer agentWS1.Close()
 		agentNodeChan1 := make(chan []*tailnet.Node)
 		sendAgentNode1, agentErrChan1 := tailnet.ServeCoordinator(agentWS1, func(nodes []*tailnet.Node) error {
+			t.Logf("agent1 got node update: %v", nodes)
 			agentNodeChan1 <- nodes
 			return nil
 		})
@@ -203,6 +213,7 @@ func TestCoordinator(t *testing.T) {
 		defer clientServerWS.Close()
 		clientNodeChan := make(chan []*tailnet.Node)
 		sendClientNode, clientErrChan := tailnet.ServeCoordinator(clientWS, func(nodes []*tailnet.Node) error {
+			t.Logf("client got node update: %v", nodes)
 			clientNodeChan <- nodes
 			return nil
 		})
@@ -213,15 +224,15 @@ func TestCoordinator(t *testing.T) {
 			assert.NoError(t, err)
 			close(closeClientChan)
 		}()
-		agentNodes := <-clientNodeChan
+		agentNodes := testutil.RequireRecvCtx(ctx, t, clientNodeChan)
 		require.Len(t, agentNodes, 1)
 		sendClientNode(&tailnet.Node{PreferredDERP: 2})
-		clientNodes := <-agentNodeChan1
+		clientNodes := testutil.RequireRecvCtx(ctx, t, agentNodeChan1)
 		require.Len(t, clientNodes, 1)
 
 		// Ensure an update to the agent node reaches the client!
 		sendAgentNode1(&tailnet.Node{PreferredDERP: 3})
-		agentNodes = <-clientNodeChan
+		agentNodes = testutil.RequireRecvCtx(ctx, t, clientNodeChan)
 		require.Len(t, agentNodes, 1)
 
 		// Create a new agent connection without disconnecting the old one.
@@ -229,6 +240,7 @@ func TestCoordinator(t *testing.T) {
 		defer agentWS2.Close()
 		agentNodeChan2 := make(chan []*tailnet.Node)
 		_, agentErrChan2 := tailnet.ServeCoordinator(agentWS2, func(nodes []*tailnet.Node) error {
+			t.Logf("agent2 got node update: %v", nodes)
 			agentNodeChan2 <- nodes
 			return nil
 		})
@@ -240,33 +252,22 @@ func TestCoordinator(t *testing.T) {
 		}()
 
 		// Ensure the existing listening client sends it's node immediately!
-		clientNodes = <-agentNodeChan2
+		clientNodes = testutil.RequireRecvCtx(ctx, t, agentNodeChan2)
 		require.Len(t, clientNodes, 1)
 
-		counts, ok := coordinator.(interface {
-			NodeCount() int
-			AgentCount() int
-		})
-		if !ok {
-			t.Fatal("coordinator should have NodeCount() and AgentCount()")
-		}
-
-		assert.Equal(t, 2, counts.NodeCount())
-		assert.Equal(t, 1, counts.AgentCount())
+		// This original agent websocket should've been closed forcefully.
+		_ = testutil.RequireRecvCtx(ctx, t, agentErrChan1)
+		_ = testutil.RequireRecvCtx(ctx, t, closeAgentChan1)
 
 		err := agentWS2.Close()
 		require.NoError(t, err)
-		<-agentErrChan2
-		<-closeAgentChan2
+		_ = testutil.RequireRecvCtx(ctx, t, agentErrChan2)
+		_ = testutil.RequireRecvCtx(ctx, t, closeAgentChan2)
 
 		err = clientWS.Close()
 		require.NoError(t, err)
-		<-clientErrChan
-		<-closeClientChan
-
-		// This original agent websocket should've been closed forcefully.
-		<-agentErrChan1
-		<-closeAgentChan1
+		_ = testutil.RequireRecvCtx(ctx, t, clientErrChan)
+		_ = testutil.RequireRecvCtx(ctx, t, closeClientChan)
 	})
 }
 
@@ -334,9 +335,8 @@ func TestCoordinator_AgentUpdateWhileClientConnects(t *testing.T) {
 	require.NoError(t, err)
 	n, err = clientWS.Read(buf[1:])
 	require.NoError(t, err)
-	require.Equal(t, len(buf)-1, n)
 	var cNodes []*tailnet.Node
-	err = json.Unmarshal(buf, &cNodes)
+	err = json.Unmarshal(buf[:n+1], &cNodes)
 	require.NoError(t, err)
 	require.Len(t, cNodes, 1)
 	require.Equal(t, 0, cNodes[0].PreferredDERP)
@@ -348,11 +348,34 @@ func TestCoordinator_AgentUpdateWhileClientConnects(t *testing.T) {
 	require.NoError(t, err)
 	n, err = clientWS.Read(buf)
 	require.NoError(t, err)
-	require.Equal(t, len(buf), n)
-	err = json.Unmarshal(buf, &cNodes)
+	err = json.Unmarshal(buf[:n], &cNodes)
 	require.NoError(t, err)
 	require.Len(t, cNodes, 1)
 	require.Equal(t, 1, cNodes[0].PreferredDERP)
+}
+
+func TestCoordinator_BidirectionalTunnels(t *testing.T) {
+	t.Parallel()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	coordinator := tailnet.NewCoordinatorV2(logger)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	test.BidirectionalTunnels(ctx, t, coordinator)
+}
+
+func TestCoordinator_GracefulDisconnect(t *testing.T) {
+	t.Parallel()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	coordinator := tailnet.NewCoordinatorV2(logger)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	test.GracefulDisconnectTest(ctx, t, coordinator)
+}
+
+func TestCoordinator_Lost(t *testing.T) {
+	t.Parallel()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	coordinator := tailnet.NewCoordinatorV2(logger)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	test.LostTest(ctx, t, coordinator)
 }
 
 func websocketConn(ctx context.Context, t *testing.T) (client net.Conn, server net.Conn) {

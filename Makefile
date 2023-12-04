@@ -602,6 +602,7 @@ update-golden-files: \
 	scripts/ci-report/testdata/.gen-golden \
 	enterprise/cli/testdata/.gen-golden \
 	enterprise/tailnet/testdata/.gen-golden \
+	tailnet/testdata/.gen-golden \
 	coderd/.gen-golden \
 	provisioner/terraform/testdata/.gen-golden
 .PHONY: update-golden-files
@@ -612,6 +613,10 @@ cli/testdata/.gen-golden: $(wildcard cli/testdata/*.golden) $(wildcard cli/*.tpl
 
 enterprise/cli/testdata/.gen-golden: $(wildcard enterprise/cli/testdata/*.golden) $(wildcard cli/*.tpl) $(GO_SRC_FILES) $(wildcard enterprise/cli/*_test.go)
 	go test ./enterprise/cli -run="TestEnterpriseCommandHelp" -update
+	touch "$@"
+
+tailnet/testdata/.gen-golden: $(wildcard tailnet/testdata/*.golden.html) $(GO_SRC_FILES) $(wildcard tailnet/*_test.go)
+	go test ./tailnet -run="TestDebugTemplate" -update
 	touch "$@"
 
 enterprise/tailnet/testdata/.gen-golden: $(wildcard enterprise/tailnet/testdata/*.golden.html) $(GO_SRC_FILES) $(wildcard enterprise/tailnet/*_test.go)

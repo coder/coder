@@ -3,16 +3,11 @@ package tailnet
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
-	"io"
 	"net"
-	"net/netip"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"nhooyr.io/websocket"
 
 	"github.com/coder/coder/v2/tailnet/proto"
 
@@ -30,17 +25,16 @@ import (
 )
 
 const (
-	EventHeartbeats         = "tailnet_coordinator_heartbeat"
-	eventPeerUpdate         = "tailnet_peer_update"
-	eventTunnelUpdate       = "tailnet_tunnel_update"
-	HeartbeatPeriod         = time.Second * 2
-	MissedHeartbeats        = 3
-	numQuerierWorkers       = 10
-	numBinderWorkers        = 10
-	numTunnelerWorkers      = 10
-	dbMaxBackoff            = 10 * time.Second
-	cleanupPeriod           = time.Hour
-	requestResponseBuffSize = 32
+	EventHeartbeats    = "tailnet_coordinator_heartbeat"
+	eventPeerUpdate    = "tailnet_peer_update"
+	eventTunnelUpdate  = "tailnet_tunnel_update"
+	HeartbeatPeriod    = time.Second * 2
+	MissedHeartbeats   = 3
+	numQuerierWorkers  = 10
+	numBinderWorkers   = 10
+	numTunnelerWorkers = 10
+	dbMaxBackoff       = 10 * time.Second
+	cleanupPeriod      = time.Hour
 )
 
 // pgCoord is a postgres-backed coordinator
@@ -161,55 +155,8 @@ func NewPGCoordV2(ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, sto
 	return newPGCoordInternal(ctx, logger, ps, store)
 }
 
-// This is copied from codersdk because importing it here would cause an import
-// cycle. This is just temporary until wsconncache is phased out.
-var legacyAgentIP = netip.MustParseAddr("fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4")
-
 func (c *pgCoord) ServeMultiAgent(id uuid.UUID) agpl.MultiAgentConn {
-	logger := c.logger.With(slog.F("client_id", id)).Named("multiagent")
-	ctx, cancel := context.WithCancel(c.ctx)
-	reqs, resps := c.Coordinate(ctx, id, id.String(), agpl.SingleTailnetTunnelAuth{})
-	ma := (&agpl.MultiAgent{
-		ID: id,
-		AgentIsLegacyFunc: func(agentID uuid.UUID) bool {
-			if n := c.Node(agentID); n == nil {
-				// If we don't have the node at all assume it's legacy for
-				// safety.
-				return true
-			} else if len(n.Addresses) > 0 && n.Addresses[0].Addr() == legacyAgentIP {
-				// An agent is determined to be "legacy" if it's first IP is the
-				// legacy IP. Agents with only the legacy IP aren't compatible
-				// with single_tailnet and must be routed through wsconncache.
-				return true
-			} else {
-				return false
-			}
-		},
-		OnSubscribe: func(enq agpl.Queue, agent uuid.UUID) (*agpl.Node, error) {
-			err := sendCtx(ctx, reqs, &proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{Uuid: agpl.UUIDToByteSlice(agent)}})
-			return c.Node(agent), err
-		},
-		OnUnsubscribe: func(enq agpl.Queue, agent uuid.UUID) error {
-			err := sendCtx(ctx, reqs, &proto.CoordinateRequest{RemoveTunnel: &proto.CoordinateRequest_Tunnel{Uuid: agpl.UUIDToByteSlice(agent)}})
-			return err
-		},
-		OnNodeUpdate: func(id uuid.UUID, node *agpl.Node) error {
-			pn, err := agpl.NodeToProto(node)
-			if err != nil {
-				return err
-			}
-			return sendCtx(c.ctx, reqs, &proto.CoordinateRequest{UpdateSelf: &proto.CoordinateRequest_UpdateSelf{
-				Node: pn,
-			}})
-		},
-		OnRemove: func(_ agpl.Queue) {
-			_ = sendCtx(c.ctx, reqs, &proto.CoordinateRequest{Disconnect: &proto.CoordinateRequest_Disconnect{}})
-			cancel()
-		},
-	}).Init()
-
-	go v1SendLoop(ctx, cancel, logger, ma, resps)
-	return ma
+	return agpl.ServeMultiAgent(c, c.logger, id)
 }
 
 func (c *pgCoord) Node(id uuid.UUID) *agpl.Node {
@@ -253,116 +200,11 @@ func (c *pgCoord) Node(id uuid.UUID) *agpl.Node {
 }
 
 func (c *pgCoord) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) error {
-	logger := c.logger.With(slog.F("client_id", id), slog.F("agent_id", agent))
-	defer func() {
-		err := conn.Close()
-		if err != nil {
-			logger.Debug(c.ctx, "closing client connection", slog.Error(err))
-		}
-	}()
-	ctx, cancel := context.WithCancel(c.ctx)
-	defer cancel()
-	reqs, resps := c.Coordinate(ctx, id, id.String(), agpl.ClientTunnelAuth{AgentID: agent})
-	err := sendCtx(ctx, reqs, &proto.CoordinateRequest{
-		AddTunnel: &proto.CoordinateRequest_Tunnel{Uuid: agpl.UUIDToByteSlice(agent)},
-	})
-	if err != nil {
-		// can only be a context error, no need to log here.
-		return err
-	}
-	defer func() {
-		_ = sendCtx(ctx, reqs, &proto.CoordinateRequest{
-			RemoveTunnel: &proto.CoordinateRequest_Tunnel{Uuid: agpl.UUIDToByteSlice(agent)},
-		})
-	}()
-
-	tc := agpl.NewTrackedConn(ctx, cancel, conn, id, logger, id.String(), 0, agpl.QueueKindClient)
-	go tc.SendUpdates()
-	go v1SendLoop(ctx, cancel, logger, tc, resps)
-	go v1RecvLoop(ctx, cancel, logger, conn, reqs)
-	<-ctx.Done()
-	return nil
+	return agpl.ServeClientV1(c.ctx, c.logger, c, conn, id, agent)
 }
 
 func (c *pgCoord) ServeAgent(conn net.Conn, id uuid.UUID, name string) error {
-	logger := c.logger.With(slog.F("agent_id", id), slog.F("name", name))
-	defer func() {
-		logger.Debug(c.ctx, "closing agent connection")
-		err := conn.Close()
-		logger.Debug(c.ctx, "closed agent connection", slog.Error(err))
-	}()
-	ctx, cancel := context.WithCancel(c.ctx)
-	defer cancel()
-	reqs, resps := c.Coordinate(ctx, id, name, agpl.AgentTunnelAuth{})
-	tc := agpl.NewTrackedConn(ctx, cancel, conn, id, logger, name, 0, agpl.QueueKindAgent)
-	go tc.SendUpdates()
-	go v1SendLoop(ctx, cancel, logger, tc, resps)
-	go v1RecvLoop(ctx, cancel, logger, conn, reqs)
-	<-ctx.Done()
-	return nil
-}
-
-func v1RecvLoop(ctx context.Context, cancel context.CancelFunc, logger slog.Logger,
-	conn net.Conn, reqs chan<- *proto.CoordinateRequest,
-) {
-	defer cancel()
-	decoder := json.NewDecoder(conn)
-	for {
-		var node agpl.Node
-		err := decoder.Decode(&node)
-		if err != nil {
-			if xerrors.Is(err, io.EOF) ||
-				xerrors.Is(err, io.ErrClosedPipe) ||
-				xerrors.Is(err, context.Canceled) ||
-				xerrors.Is(err, context.DeadlineExceeded) ||
-				websocket.CloseStatus(err) > 0 {
-				logger.Debug(ctx, "exiting recvLoop", slog.Error(err))
-			} else {
-				logger.Error(ctx, "failed to decode Node update", slog.Error(err))
-			}
-			return
-		}
-		logger.Debug(ctx, "got node update", slog.F("node", node))
-		pn, err := agpl.NodeToProto(&node)
-		if err != nil {
-			logger.Critical(ctx, "failed to convert v1 node", slog.F("node", node), slog.Error(err))
-			return
-		}
-		req := &proto.CoordinateRequest{UpdateSelf: &proto.CoordinateRequest_UpdateSelf{
-			Node: pn,
-		}}
-		if err := sendCtx(ctx, reqs, req); err != nil {
-			logger.Debug(ctx, "recvLoop ctx expired", slog.Error(err))
-			return
-		}
-	}
-}
-
-func v1SendLoop(ctx context.Context, cancel context.CancelFunc, logger slog.Logger, q agpl.Queue, resps <-chan *proto.CoordinateResponse) {
-	defer cancel()
-	for {
-		resp, err := recvCtx(ctx, resps)
-		if err != nil {
-			logger.Debug(ctx, "done reading responses", slog.Error(err))
-			return
-		}
-		logger.Debug(ctx, "v1: got response", slog.F("resp", resp))
-		nodes, err := agpl.OnlyNodeUpdates(resp)
-		if err != nil {
-			logger.Critical(ctx, "failed to decode resp", slog.F("resp", resp), slog.Error(err))
-			_ = q.CoordinatorClose()
-			return
-		}
-		// don't send empty updates
-		if len(nodes) == 0 {
-			logger.Debug(ctx, "skipping enqueueing 0-length v1 update")
-			continue
-		}
-		err = q.Enqueue(nodes)
-		if err != nil {
-			logger.Error(ctx, "failed to enqueue v1 update", slog.Error(err))
-		}
-	}
+	return agpl.ServeAgentV1(c.ctx, c.logger, c, conn, id, name)
 }
 
 func (c *pgCoord) Close() error {
@@ -378,41 +220,20 @@ func (c *pgCoord) Coordinate(
 	chan<- *proto.CoordinateRequest, <-chan *proto.CoordinateResponse,
 ) {
 	logger := c.logger.With(slog.F("peer_id", id))
-	reqs := make(chan *proto.CoordinateRequest, requestResponseBuffSize)
+	reqs := make(chan *proto.CoordinateRequest, agpl.RequestBufferSize)
 	resps := make(chan *proto.CoordinateResponse, agpl.ResponseBufferSize)
 	cIO := newConnIO(c.ctx, ctx, logger, c.bindings, c.tunnelerCh, reqs, resps, id, name, a)
-	err := sendCtx(c.ctx, c.newConnections, cIO)
+	err := agpl.SendCtx(c.ctx, c.newConnections, cIO)
 	if err != nil {
 		// this can only happen if the context is canceled, no need to log
 		return reqs, resps
 	}
 	go func() {
 		<-cIO.Done()
-		_ = sendCtx(c.ctx, c.closeConnections, cIO)
+		_ = agpl.SendCtx(c.ctx, c.closeConnections, cIO)
 	}()
 
 	return reqs, resps
-}
-
-func sendCtx[A any](ctx context.Context, c chan<- A, a A) (err error) {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case c <- a:
-		return nil
-	}
-}
-
-func recvCtx[A any](ctx context.Context, c <-chan A) (a A, err error) {
-	select {
-	case <-ctx.Done():
-		return a, ctx.Err()
-	case a, ok := <-c:
-		if ok {
-			return a, nil
-		}
-		return a, io.EOF
-	}
 }
 
 type tKey struct {
@@ -873,7 +694,7 @@ func (m *mapper) bestToUpdate(best map[uuid.UUID]mapping) *proto.CoordinateRespo
 		case ok && sm.kind == proto.CoordinateResponse_PeerUpdate_NODE && mpng.kind == proto.CoordinateResponse_PeerUpdate_NODE:
 			eq, err := sm.node.Equal(mpng.node)
 			if err != nil {
-				m.logger.Critical(m.ctx, "failed to compare nodes", slog.F("old", sm.node), slog.F("new", mpng.kind))
+				m.logger.Critical(m.ctx, "failed to compare nodes", slog.F("old", sm.node), slog.F("new", mpng.node))
 				continue
 			}
 			if eq {
@@ -1303,7 +1124,7 @@ func (q *querier) updateAll() {
 		go func(m *mapper) {
 			// make sure we send on the _mapper_ context, not our own in case the mapper is
 			// shutting down or shut down.
-			_ = sendCtx(m.ctx, m.update, struct{}{})
+			_ = agpl.SendCtx(m.ctx, m.update, struct{}{})
 		}(mpr)
 	}
 }
@@ -1603,7 +1424,7 @@ func (h *heartbeats) recvBeat(id uuid.UUID) {
 		h.logger.Info(h.ctx, "heartbeats (re)started", slog.F("other_coordinator_id", id))
 		// send on a separate goroutine to avoid holding lock.  Triggering update can be async
 		go func() {
-			_ = sendCtx(h.ctx, h.update, hbUpdate{filter: filterUpdateUpdated})
+			_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{filter: filterUpdateUpdated})
 		}()
 	}
 	h.coordinators[id] = time.Now()
@@ -1650,7 +1471,7 @@ func (h *heartbeats) checkExpiry() {
 	if expired {
 		// send on a separate goroutine to avoid holding lock.  Triggering update can be async
 		go func() {
-			_ = sendCtx(h.ctx, h.update, hbUpdate{filter: filterUpdateUpdated})
+			_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{filter: filterUpdateUpdated})
 		}()
 	}
 	// we need to reset the timer for when the next oldest coordinator will expire, if any.
@@ -1685,14 +1506,14 @@ func (h *heartbeats) sendBeat() {
 		h.failedHeartbeats++
 		if h.failedHeartbeats == 3 {
 			h.logger.Error(h.ctx, "coordinator failed 3 heartbeats and is unhealthy")
-			_ = sendCtx(h.ctx, h.update, hbUpdate{health: healthUpdateUnhealthy})
+			_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{health: healthUpdateUnhealthy})
 		}
 		return
 	}
 	h.logger.Debug(h.ctx, "sent heartbeat")
 	if h.failedHeartbeats >= 3 {
 		h.logger.Info(h.ctx, "coordinator sent heartbeat and is healthy")
-		_ = sendCtx(h.ctx, h.update, hbUpdate{health: healthUpdateHealthy})
+		_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{health: healthUpdateHealthy})
 	}
 	h.failedHeartbeats = 0
 }
