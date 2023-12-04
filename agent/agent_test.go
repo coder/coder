@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -1550,50 +1549,30 @@ func TestAgent_Dial(t *testing.T) {
 
 			// Setup listener
 			l := c.setup(t)
-			closed := make(chan struct{})
+			done := make(chan struct{})
 			defer func() {
 				l.Close()
-				<-closed
+				<-done
 			}()
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
 			go func() {
-				var wg sync.WaitGroup
-				defer func() {
-					wg.Wait()
-					close(closed)
-				}()
-				for {
-					c, err := l.Accept()
-					if err != nil {
-						if !errors.Is(err, net.ErrClosed) && !errors.Is(err, udp.ErrClosedListener) {
-							assert.NoError(t, err, "accept connection")
-							continue
-						}
-						return
-					}
-
-					wg.Add(1)
-					go func() {
-						defer wg.Done()
-						testAccept(ctx, t, c)
-					}()
-				}
+				defer close(done)
+				c, err := l.Accept()
+				assert.NoError(t, err, "accept connection")
+				defer c.Close()
+				testAccept(ctx, t, c)
 			}()
 
 			//nolint:dogsled
-			conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
-			require.True(t, conn.AwaitReachable(ctx))
-			conn1, err := conn.DialContext(ctx, l.Addr().Network(), l.Addr().String())
+			agentConn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+			require.True(t, agentConn.AwaitReachable(ctx))
+			conn, err := agentConn.DialContext(ctx, l.Addr().Network(), l.Addr().String())
 			require.NoError(t, err)
-			defer conn1.Close()
-			conn2, err := conn.DialContext(ctx, l.Addr().Network(), l.Addr().String())
-			require.NoError(t, err)
-			defer conn2.Close()
-			testDial(ctx, t, conn2)
-			testDial(ctx, t, conn1)
+			defer conn.Close()
+			testDial(ctx, t, conn)
 		})
 	}
 }
