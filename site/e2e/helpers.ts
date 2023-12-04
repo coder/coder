@@ -645,6 +645,7 @@ export const fillParameters = async (
         "[data-testid='parameter-field-bool'] .MuiRadio-root input[value='" +
           buildParameter.value +
           "']",
+        { state: "visible" },
       );
       await parameterField.check();
     } else if (richParameter.options.length > 0) {
@@ -652,6 +653,7 @@ export const fillParameters = async (
         "[data-testid='parameter-field-options'] .MuiRadio-root input[value='" +
           buildParameter.value +
           "']",
+        { state: "visible" },
       );
       await parameterField.check();
     } else if (richParameter.type === "list(string)") {
@@ -660,6 +662,7 @@ export const fillParameters = async (
       // text or number
       const parameterField = await parameterLabel.waitForSelector(
         "[data-testid='parameter-field-text'] input",
+        { state: "visible" },
       );
       await parameterField.fill(buildParameter.value);
     }
