@@ -14,6 +14,8 @@ import PublicOutlined from "@mui/icons-material/PublicOutlined";
 import Tooltip from "@mui/material/Tooltip";
 import TagOutlined from "@mui/icons-material/TagOutlined";
 import { Alert } from "components/Alert/Alert";
+import { Helmet } from "react-helmet-async";
+import { pageTitle } from "utils/page";
 
 export const WorkspaceProxyPage = () => {
   const healthStatus = useOutletContext<HealthcheckReport>();
@@ -23,6 +25,10 @@ export const WorkspaceProxyPage = () => {
 
   return (
     <>
+      <Helmet>
+        <title>{pageTitle("Workspace Proxy - Health")}</title>
+      </Helmet>
+
       <Header>
         <HeaderTitle>
           <HealthyDot

@@ -13,6 +13,8 @@ import Tooltip from "@mui/material/Tooltip";
 import { useTheme } from "@mui/material/styles";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { Alert } from "components/Alert/Alert";
+import { pageTitle } from "utils/page";
+import { Helmet } from "react-helmet-async";
 
 export const WebsocketPage = () => {
   const healthStatus = useOutletContext<HealthcheckReport>();
@@ -21,6 +23,10 @@ export const WebsocketPage = () => {
 
   return (
     <>
+      <Helmet>
+        <title>{pageTitle("Websocket - Health")}</title>
+      </Helmet>
+
       <Header>
         <HeaderTitle>
           <HealthyDot

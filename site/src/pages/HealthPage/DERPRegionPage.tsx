@@ -16,6 +16,8 @@ import { useTheme } from "@mui/material/styles";
 import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
 import { getLatencyColor } from "utils/latency";
 import { Alert } from "components/Alert/Alert";
+import { Helmet } from "react-helmet-async";
+import { pageTitle } from "utils/page";
 
 export const DERPRegionPage = () => {
   const theme = useTheme();
@@ -31,6 +33,10 @@ export const DERPRegionPage = () => {
 
   return (
     <>
+      <Helmet>
+        <title>{pageTitle(`${region.RegionName} - Health`)}</title>
+      </Helmet>
+
       <Header>
         <hgroup>
           <Link

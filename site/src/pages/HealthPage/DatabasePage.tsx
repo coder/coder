@@ -10,6 +10,8 @@ import {
 } from "./Content";
 import { HealthcheckReport } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
+import { Helmet } from "react-helmet-async";
+import { pageTitle } from "utils/page";
 
 export const DatabasePage = () => {
   const healthStatus = useOutletContext<HealthcheckReport>();
@@ -17,6 +19,10 @@ export const DatabasePage = () => {
 
   return (
     <>
+      <Helmet>
+        <title>{pageTitle("Database - Health")}</title>
+      </Helmet>
+
       <Header>
         <HeaderTitle>
           <HealthyDot

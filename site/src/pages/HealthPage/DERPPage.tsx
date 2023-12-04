@@ -14,6 +14,8 @@ import LocationOnOutlined from "@mui/icons-material/LocationOnOutlined";
 import useTheme from "@mui/styles/useTheme";
 import { healthyColor } from "./healthyColor";
 import { Alert } from "components/Alert/Alert";
+import { Helmet } from "react-helmet-async";
+import { pageTitle } from "utils/page";
 
 const flags = [
   "UDP",
@@ -37,6 +39,10 @@ export const DERPPage = () => {
 
   return (
     <>
+      <Helmet>
+        <title>{pageTitle("DERP - Health")}</title>
+      </Helmet>
+
       <Header>
         <HeaderTitle>
           <HealthyDot
