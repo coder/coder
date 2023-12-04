@@ -1,5 +1,3 @@
-BEGIN;
-
 ALTER TABLE template_versions RENAME COLUMN git_auth_providers TO external_auth_providers;
 
 ALTER TABLE git_auth_links RENAME TO external_auth_links;
@@ -23,5 +21,3 @@ FROM
 COMMENT ON VIEW template_version_with_user IS 'Joins in the username + avatar url of the created by user.';
 
 COMMENT ON COLUMN template_versions.external_auth_providers IS 'IDs of External auth providers for a specific template version';
-
-COMMIT;

@@ -134,4 +134,28 @@ func TestStatePush(t *testing.T) {
 		err := inv.Run()
 		require.NoError(t, err)
 	})
+
+	t.Run("OtherUserBuild", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, taUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ApplyComplete,
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, templateAdmin, owner.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		inv, root := clitest.New(t, "state", "push",
+			"--build", strconv.Itoa(int(workspace.LatestBuild.BuildNumber)),
+			taUser.Username+"/"+workspace.Name,
+			"-")
+		//nolint: gocritic // this tests owner pushing another user's state
+		clitest.SetupConfig(t, client, root)
+		inv.Stdin = strings.NewReader("some magic state")
+		err := inv.Run()
+		require.NoError(t, err)
+	})
 }

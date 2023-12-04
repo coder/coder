@@ -5,10 +5,9 @@ import { type GroupsByUserId } from "api/queries/groups";
 import { UsersTable } from "./UsersTable/UsersTable";
 import { UsersFilter } from "./UsersFilter";
 import {
-  PaginationStatus,
-  TableToolbar,
-} from "components/TableToolbar/TableToolbar";
-import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
+  PaginationContainer,
+  type PaginationResult,
+} from "components/PaginationWidget/PaginationContainer";
 
 export interface UsersPageViewProps {
   users?: TypesGen.User[];
@@ -33,12 +32,7 @@ export interface UsersPageViewProps {
   isNonInitialPage: boolean;
   actorID: string;
   groupsByUserId: GroupsByUserId | undefined;
-
-  // Pagination
-  count?: number;
-  page: number;
-  limit: number;
-  onPageChange: (page: number) => void;
+  usersQuery: PaginationResult;
 }
 
 export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
@@ -60,54 +54,35 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
   isNonInitialPage,
   actorID,
   authMethods,
-  count,
-  limit,
-  onPageChange,
-  page,
   groupsByUserId,
+  usersQuery,
 }) => {
   return (
     <>
       <UsersFilter {...filterProps} />
 
-      <TableToolbar>
-        <PaginationStatus
-          isLoading={Boolean(isLoading)}
-          showing={users?.length ?? 0}
-          total={count ?? 0}
-          label="users"
+      <PaginationContainer query={usersQuery} paginationUnitLabel="users">
+        <UsersTable
+          users={users}
+          roles={roles}
+          groupsByUserId={groupsByUserId}
+          onSuspendUser={onSuspendUser}
+          onDeleteUser={onDeleteUser}
+          onListWorkspaces={onListWorkspaces}
+          onViewActivity={onViewActivity}
+          onActivateUser={onActivateUser}
+          onResetUserPassword={onResetUserPassword}
+          onUpdateUserRoles={onUpdateUserRoles}
+          isUpdatingUserRoles={isUpdatingUserRoles}
+          canEditUsers={canEditUsers}
+          oidcRoleSyncEnabled={oidcRoleSyncEnabled}
+          canViewActivity={canViewActivity}
+          isLoading={isLoading}
+          isNonInitialPage={isNonInitialPage}
+          actorID={actorID}
+          authMethods={authMethods}
         />
-      </TableToolbar>
-
-      <UsersTable
-        users={users}
-        roles={roles}
-        groupsByUserId={groupsByUserId}
-        onSuspendUser={onSuspendUser}
-        onDeleteUser={onDeleteUser}
-        onListWorkspaces={onListWorkspaces}
-        onViewActivity={onViewActivity}
-        onActivateUser={onActivateUser}
-        onResetUserPassword={onResetUserPassword}
-        onUpdateUserRoles={onUpdateUserRoles}
-        isUpdatingUserRoles={isUpdatingUserRoles}
-        canEditUsers={canEditUsers}
-        oidcRoleSyncEnabled={oidcRoleSyncEnabled}
-        canViewActivity={canViewActivity}
-        isLoading={isLoading}
-        isNonInitialPage={isNonInitialPage}
-        actorID={actorID}
-        authMethods={authMethods}
-      />
-
-      {count !== undefined && (
-        <PaginationWidgetBase
-          totalRecords={count}
-          pageSize={limit}
-          onPageChange={onPageChange}
-          currentPage={page}
-        />
-      )}
+      </PaginationContainer>
     </>
   );
 };

@@ -506,7 +506,7 @@ jobs:
       # the check to pass. This is desired in PRs, but not in mainline.
       - name: Publish to Chromatic (non-mainline)
         if: github.ref != 'refs/heads/main' && github.repository_owner == 'coder'
-        uses: chromaui/action@v1
+        uses: chromaui/action@v10
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
           STORYBOOK: true
@@ -534,7 +534,7 @@ jobs:
       # infinitely "in progress" in mainline unless we re-review each build.
       - name: Publish to Chromatic (mainline)
         if: github.ref == 'refs/heads/main' && github.repository_owner == 'coder'
-        uses: chromaui/action@v1
+        uses: chromaui/action@v10
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
           STORYBOOK: true
@@ -639,6 +639,8 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
+    outputs:
+      IMAGE: ghcr.io/coder/coder-preview:${{ steps.build-docker.outputs.tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -677,6 +679,7 @@ jobs:
             build/coder_"$version"_linux_amd64.{tar.gz,deb}
 
       - name: Build and Push Linux amd64 Docker Image
+        id: build-docker
         run: |
           set -euxo pipefail
           version="$(./scripts/version.sh)"
@@ -693,6 +696,9 @@ jobs:
           # Tag as main
           docker tag "ghcr.io/coder/coder-preview:$tag" ghcr.io/coder/coder-preview:main
           docker push ghcr.io/coder/coder-preview:main
+
+          # Store the tag in an output variable so we can use it in other jobs
+          echo "tag=$tag" >> $GITHUB_OUTPUT
 
       - name: Prune old images
         uses: vlaurin/action-ghcr-prune@v0.5.0
@@ -717,7 +723,7 @@ jobs:
 
   deploy:
     name: "deploy"
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-16vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     needs:
       - changes
@@ -735,7 +741,7 @@ jobs:
           fetch-depth: 0
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v1
+        uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: projects/573722524737/locations/global/workloadIdentityPools/github/providers/github
           service_account: coder-ci@coder-dogfood.iam.gserviceaccount.com
@@ -774,10 +780,33 @@ jobs:
           kubectl --namespace coder rollout restart deployment/coder
           kubectl --namespace coder rollout status deployment/coder
 
-  # TODO: when we remove this, instead of removing it we need to change it so it
-  # still upgrades workspace proxies which are not deployed on K8s
-  deploy-legacy:
-    name: "deploy-legacy"
+  deploy-wsproxies:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy workspace proxies
+        run: |
+          flyctl deploy --image "$IMAGE" --app paris-coder --config ./.github/fly-wsproxies/paris-coder.toml --env "CODER_PROXY_SESSION_TOKEN=$TOKEN_PARIS" --yes
+          flyctl deploy --image "$IMAGE" --app sydney-coder --config ./.github/fly-wsproxies/sydney-coder.toml --env "CODER_PROXY_SESSION_TOKEN=$TOKEN_SYDNEY" --yes
+          flyctl deploy --image "$IMAGE" --app sao-paulo-coder --config ./.github/fly-wsproxies/sao-paulo-coder.toml --env "CODER_PROXY_SESSION_TOKEN=$TOKEN_SAO_PAULO" --yes
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          IMAGE: ${{ needs.build.outputs.IMAGE }}
+          TOKEN_PARIS: ${{ secrets.FLY_PARIS_CODER_PROXY_SESSION_TOKEN }}
+          TOKEN_SYDNEY: ${{ secrets.FLY_SYDNEY_CODER_PROXY_SESSION_TOKEN }}
+          TOKEN_SAO_PAULO: ${{ secrets.FLY_SAO_PAULO_CODER_PROXY_SESSION_TOKEN }}
+
+  deploy-legacy-proxies:
+    name: "deploy-legacy-proxies"
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-16vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     timeout-minutes: 30
     needs: changes
@@ -794,7 +823,7 @@ jobs:
           fetch-depth: 0
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v1
+        uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: projects/573722524737/locations/global/workloadIdentityPools/github/providers/github
           service_account: coder-ci@coder-dogfood.iam.gserviceaccount.com
@@ -833,7 +862,6 @@ jobs:
 
           regions=(
             # gcp-region-id instance-name systemd-service-name
-            "us-central1-a coder coder"
             "australia-southeast1-b coder-sydney coder-workspace-proxy"
             "europe-west3-c coder-europe coder-workspace-proxy"
             "southamerica-east1-b coder-brazil coder-workspace-proxy"

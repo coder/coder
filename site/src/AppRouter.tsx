@@ -326,25 +326,23 @@ export const AppRouter: FC = () => {
                 </Route>
               </Route>
 
-              <Route path="/:username">
-                <Route path=":workspace">
-                  <Route index element={<WorkspacePage />} />
-                  <Route
-                    path="builds/:buildNumber"
-                    element={<WorkspaceBuildPage />}
-                  />
-                  <Route path="settings" element={<WorkspaceSettingsLayout />}>
-                    <Route index element={<WorkspaceSettingsPage />} />
-                    <Route
-                      path="parameters"
-                      element={<WorkspaceParametersPage />}
-                    />
-                    <Route
-                      path="schedule"
-                      element={<WorkspaceSchedulePage />}
-                    />
-                  </Route>
-                </Route>
+              {/* In order for the 404 page to work properly the routes that start with
+              top level parameter must be fully qualified. */}
+              <Route path="/:username/:workspace" element={<WorkspacePage />} />
+              <Route
+                path="/:username/:workspace/builds/:buildNumber"
+                element={<WorkspaceBuildPage />}
+              />
+              <Route
+                path="/:username/:workspace/settings"
+                element={<WorkspaceSettingsLayout />}
+              >
+                <Route index element={<WorkspaceSettingsPage />} />
+                <Route
+                  path="parameters"
+                  element={<WorkspaceParametersPage />}
+                />
+                <Route path="schedule" element={<WorkspaceSchedulePage />} />
               </Route>
 
               <Route path="/health" element={<HealthLayout />}>
@@ -362,6 +360,10 @@ export const AppRouter: FC = () => {
                   element={<WorkspaceProxyHealthPage />}
                 />
               </Route>
+              {/* Using path="*"" means "match anything", so this route
+              acts like a catch-all for URLs that we don't have explicit
+              routes for. */}
+              <Route path="*" element={<NotFoundPage />} />
             </Route>
 
             {/* Pages that don't have the dashboard layout */}
@@ -376,11 +378,6 @@ export const AppRouter: FC = () => {
               element={<TemplateVersionEditorPage />}
             />
           </Route>
-
-          {/* Using path="*"" means "match anything", so this route
-        acts like a catch-all for URLs that we don't have explicit
-        routes for. */}
-          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Router>
     </Suspense>

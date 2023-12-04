@@ -63,12 +63,9 @@ const AuditPage: FC = () => {
 
       <AuditPageView
         auditLogs={auditsQuery.data?.audit_logs}
-        count={auditsQuery.totalRecords}
-        page={auditsQuery.currentPage}
-        limit={auditsQuery.limit}
-        onPageChange={auditsQuery.onPageChange}
         isNonInitialPage={isNonInitialPage(searchParams)}
         isAuditLogVisible={isAuditLogVisible}
+        auditsQuery={auditsQuery}
         error={auditsQuery.error}
         filterProps={{
           filter,

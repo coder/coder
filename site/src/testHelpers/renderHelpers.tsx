@@ -266,6 +266,8 @@ export const waitForLoaderToBeRemoved = async (): Promise<void> => {
   );
 };
 
-export const renderComponent = (component: React.ReactNode) => {
-  return tlRender(<ThemeProviders>{component}</ThemeProviders>);
+export const renderComponent = (component: React.ReactElement) => {
+  return tlRender(component, {
+    wrapper: ({ children }) => <ThemeProviders>{children}</ThemeProviders>,
+  });
 };

@@ -114,7 +114,7 @@ Coder's current activity and usage. It may be necessary to increase the
 resources allocated to Coder's database. Alternatively, you can raise the
 configured threshold to a higher value (this will not address the root cause).
 
-> **Tip:**
+> [!TIP]
 >
 > - You can enable
 >   [detailed database metrics](../cli/server.md#--prometheus-collect-db-metrics)
