@@ -524,7 +524,7 @@ export const OptionItem: FC<OptionItemProps> = ({
         display: "flex",
         alignItems: "center",
         gap: 16,
-        fontSize: 4,
+        fontSize: 14,
         overflow: "hidden",
         width: "100%",
       }}
