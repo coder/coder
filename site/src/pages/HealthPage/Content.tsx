@@ -11,6 +11,7 @@ import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import ErrorOutline from "@mui/icons-material/ErrorOutline";
 import { healthyColor } from "./healthyColor";
 import { css } from "@emotion/css";
+import DoNotDisturbOnOutlined from "@mui/icons-material/DoNotDisturbOnOutlined";
 
 const SIDE_PADDING = 36;
 
@@ -213,9 +214,20 @@ type BooleanPillProps = Omit<
 
 export const BooleanPill = (props: BooleanPillProps) => {
   const { value, children, ...divProps } = props;
+  const theme = useTheme();
+  const color = healthyColor(theme, value, false);
 
   return (
-    <Pill icon={<HealthIcon size={14} healthy={value} />} {...divProps}>
+    <Pill
+      icon={
+        value ? (
+          <CheckCircleOutlined css={{ color }} />
+        ) : (
+          <DoNotDisturbOnOutlined css={{ color }} />
+        )
+      }
+      {...divProps}
+    >
       {children}
     </Pill>
   );
