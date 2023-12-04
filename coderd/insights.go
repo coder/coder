@@ -89,7 +89,7 @@ func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	startTime, endTime, ok := parseInsightsStartAndEndTime(ctx, rw, startTimeString, endTimeString)
+	startTime, endTime, ok := parseInsightsStartAndEndTime(ctx, rw, time.Now(), startTimeString, endTimeString)
 	if !ok {
 		return
 	}
@@ -176,7 +176,7 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	startTime, endTime, ok := parseInsightsStartAndEndTime(ctx, rw, startTimeString, endTimeString)
+	startTime, endTime, ok := parseInsightsStartAndEndTime(ctx, rw, time.Now(), startTimeString, endTimeString)
 	if !ok {
 		return
 	}
@@ -268,7 +268,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	startTime, endTime, ok := parseInsightsStartAndEndTime(ctx, rw, startTimeString, endTimeString)
+	startTime, endTime, ok := parseInsightsStartAndEndTime(ctx, rw, time.Now(), startTimeString, endTimeString)
 	if !ok {
 		return
 	}
@@ -539,9 +539,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 // time are not zero and that the end time is not before the start time. The
 // clock must be set to 00:00:00, except for "today", where end time is allowed
 // to provide the hour of the day (e.g. 14:00:00).
-func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, startTimeString, endTimeString string) (startTime, endTime time.Time, ok bool) {
-	now := time.Now()
-
+func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, now time.Time, startTimeString, endTimeString string) (startTime, endTime time.Time, ok bool) {
 	for _, qp := range []struct {
 		name, value string
 		dest        *time.Time
@@ -562,6 +560,9 @@ func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, s
 			})
 			return time.Time{}, time.Time{}, false
 		}
+
+		// Change now to the same timezone as the parsed time.
+		now := now.In(t.Location())
 
 		if t.IsZero() {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -604,7 +605,7 @@ func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, s
 				Validations: []codersdk.ValidationError{
 					{
 						Field:  qp.name,
-						Detail: fmt.Sprintf("Query param %q must have the clock set to 00:00:00", qp.name),
+						Detail: fmt.Sprintf("Query param %q must have the clock set to 00:00:00, got %s", qp.name, qp.value),
 					},
 				},
 			})
@@ -615,7 +616,7 @@ func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, s
 				Validations: []codersdk.ValidationError{
 					{
 						Field:  qp.name,
-						Detail: fmt.Sprintf("Query param %q must have the clock set to %02d:00:00", qp.name, h),
+						Detail: fmt.Sprintf("Query param %q must have the clock set to %02d:00:00, got %s", qp.name, h, qp.value),
 					},
 				},
 			})
