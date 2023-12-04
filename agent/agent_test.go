@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -1549,30 +1550,50 @@ func TestAgent_Dial(t *testing.T) {
 
 			// Setup listener
 			l := c.setup(t)
-			defer l.Close()
+			closed := make(chan struct{})
+			defer func() {
+				l.Close()
+				<-closed
+			}()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
 			go func() {
+				var wg sync.WaitGroup
+				defer func() {
+					wg.Wait()
+					close(closed)
+				}()
 				for {
 					c, err := l.Accept()
 					if err != nil {
+						if !errors.Is(err, net.ErrClosed) && !errors.Is(err, udp.ErrClosedListener) {
+							assert.NoError(t, err, "accept connection")
+							continue
+						}
 						return
 					}
 
-					go testAccept(t, c)
+					wg.Add(1)
+					go func() {
+						defer wg.Done()
+						testAccept(ctx, t, c)
+					}()
 				}
 			}()
 
 			//nolint:dogsled
 			conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
-			require.True(t, conn.AwaitReachable(context.Background()))
-			conn1, err := conn.DialContext(context.Background(), l.Addr().Network(), l.Addr().String())
+			require.True(t, conn.AwaitReachable(ctx))
+			conn1, err := conn.DialContext(ctx, l.Addr().Network(), l.Addr().String())
 			require.NoError(t, err)
 			defer conn1.Close()
-			conn2, err := conn.DialContext(context.Background(), l.Addr().Network(), l.Addr().String())
+			conn2, err := conn.DialContext(ctx, l.Addr().Network(), l.Addr().String())
 			require.NoError(t, err)
 			defer conn2.Close()
-			testDial(t, conn2)
-			testDial(t, conn1)
-			time.Sleep(150 * time.Millisecond)
+			testDial(ctx, t, conn2)
+			testDial(ctx, t, conn1)
 		})
 	}
 }
@@ -2002,22 +2023,41 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 
 var dialTestPayload = []byte("dean-was-here123")
 
-func testDial(t *testing.T, c net.Conn) {
+func testDial(ctx context.Context, t *testing.T, c net.Conn) {
 	t.Helper()
+
+	if deadline, ok := ctx.Deadline(); ok {
+		err := c.SetDeadline(deadline)
+		assert.NoError(t, err)
+		defer func() {
+			err := c.SetDeadline(time.Time{})
+			assert.NoError(t, err)
+		}()
+	}
 
 	assertWritePayload(t, c, dialTestPayload)
 	assertReadPayload(t, c, dialTestPayload)
 }
 
-func testAccept(t *testing.T, c net.Conn) {
+func testAccept(ctx context.Context, t *testing.T, c net.Conn) {
 	t.Helper()
 	defer c.Close()
+
+	if deadline, ok := ctx.Deadline(); ok {
+		err := c.SetDeadline(deadline)
+		assert.NoError(t, err)
+		defer func() {
+			err := c.SetDeadline(time.Time{})
+			assert.NoError(t, err)
+		}()
+	}
 
 	assertReadPayload(t, c, dialTestPayload)
 	assertWritePayload(t, c, dialTestPayload)
 }
 
 func assertReadPayload(t *testing.T, r io.Reader, payload []byte) {
+	t.Helper()
 	b := make([]byte, len(payload)+16)
 	n, err := r.Read(b)
 	assert.NoError(t, err, "read payload")
@@ -2026,6 +2066,7 @@ func assertReadPayload(t *testing.T, r io.Reader, payload []byte) {
 }
 
 func assertWritePayload(t *testing.T, w io.Writer, payload []byte) {
+	t.Helper()
 	n, err := w.Write(payload)
 	assert.NoError(t, err, "write payload")
 	assert.Equal(t, len(payload), n, "payload length does not match")
