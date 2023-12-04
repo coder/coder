@@ -1,0 +1,2 @@
+deb [signed-by=/usr/share/keyrings/ansible.gpg] https://ppa.launchpadcontent.net/ansible/ansible/ubuntu focal main
+deb [signed-by=/usr/share/keyrings/neovim.gpg] https://ppa.launchpadcontent.net/neovim-ppa/stable/ubuntu focal main
