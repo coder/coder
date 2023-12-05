@@ -134,7 +134,7 @@ export const DERPWarnings: Story = {
         warnings: [
           {
             message: "derp derp derp",
-            code: "EDERP01"
+            code: "EDERP01",
           },
         ],
       },
