@@ -464,7 +464,7 @@ jobs:
           .\wingetcreate.exe update Coder.Coder `
             --submit `
             --version "${version}" `
-            --urls "${installer_url}|X64" `
+            --urls "${x64_installer_url}|X64" `
             --urls "${x64_zip_url}|X64" `
             --urls "${arm64_zip_url}" `
             --token "$env:WINGET_GH_TOKEN"
