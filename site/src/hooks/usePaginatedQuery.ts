@@ -66,6 +66,12 @@ export type UsePaginatedQueryOptions<
      * closest valid page.
      */
     onInvalidPageChange?: (params: InvalidPageParams) => void;
+
+    /**
+     * Defaults to true. Allows you to disable prefetches for pages where making
+     * a request is very expensive.
+     */
+    prefetch?: boolean;
   };
 
 /**
@@ -98,6 +104,7 @@ export function usePaginatedQuery<
     onInvalidPageChange,
     searchParams: outerSearchParams,
     queryFn: outerQueryFn,
+    prefetch = true,
     ...extraOptions
   } = options;
 
@@ -148,7 +155,12 @@ export function usePaginatedQuery<
 
   const queryClient = useQueryClient();
   const prefetchPage = useEffectEvent((newPage: number) => {
+    if (!prefetch) {
+      return;
+    }
+
     const options = getQueryOptionsFromPage(newPage);
+
     return queryClient.prefetchQuery(options);
   });
 

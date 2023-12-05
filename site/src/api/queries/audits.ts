@@ -19,5 +19,6 @@ export function paginatedAudits(
         q: payload,
       });
     },
+    prefetch: false,
   };
 }
