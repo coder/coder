@@ -1844,6 +1844,8 @@ type ProvisionerDaemon struct {
 	Provisioners []ProvisionerType `db:"provisioners" json:"provisioners"`
 	ReplicaID    uuid.NullUUID     `db:"replica_id" json:"replica_id"`
 	Tags         StringMap         `db:"tags" json:"tags"`
+	LastSeenAt   sql.NullTime      `db:"last_seen_at" json:"last_seen_at"`
+	Version      string            `db:"version" json:"version"`
 }
 
 type ProvisionerJob struct {

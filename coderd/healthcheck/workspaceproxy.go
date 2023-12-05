@@ -54,7 +54,7 @@ func (*AGPLWorkspaceProxiesFetchUpdater) Update(context.Context) error {
 func (r *WorkspaceProxyReport) Run(ctx context.Context, opts *WorkspaceProxyReportOptions) {
 	r.Healthy = true
 	r.Severity = health.SeverityOK
-	r.Warnings = []health.Message{}
+	r.Warnings = make([]health.Message, 0)
 	r.Dismissed = opts.Dismissed
 
 	if opts.WorkspaceProxiesFetchUpdater == nil {

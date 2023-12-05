@@ -325,11 +325,13 @@ export const SuspendedMockUser: TypesGen.User = {
 };
 
 export const MockProvisioner: TypesGen.ProvisionerDaemon = {
-  created_at: "",
+  created_at: "2022-05-17T17:39:01.382927298Z",
+  updated_at: "2022-05-17T17:39:01.382927298Z",
   id: "test-provisioner",
   name: "Test Provisioner",
   provisioners: ["echo"],
   tags: {},
+  version: "v2.34.5",
 };
 
 export const MockProvisionerJob: TypesGen.ProvisionerJob = {
