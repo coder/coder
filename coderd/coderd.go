@@ -413,25 +413,25 @@ func New(options *Options) *API {
 				Database: healthcheck.DatabaseReportOptions{
 					DB:        options.Database,
 					Threshold: options.DeploymentValues.Healthcheck.ThresholdDatabase.Value(),
-					Dismissed: slices.Contains(dismissedHealthchecks, healthcheck.SectionDatabase),
+					Dismissed: slices.Contains(dismissedHealthchecks, codersdk.HealthSectionDatabase),
 				},
 				Websocket: healthcheck.WebsocketReportOptions{
 					AccessURL: options.AccessURL,
 					APIKey:    apiKey,
-					Dismissed: slices.Contains(dismissedHealthchecks, healthcheck.SectionWebsocket),
+					Dismissed: slices.Contains(dismissedHealthchecks, codersdk.HealthSectionWebsocket),
 				},
 				AccessURL: healthcheck.AccessURLReportOptions{
 					AccessURL: options.AccessURL,
-					Dismissed: slices.Contains(dismissedHealthchecks, healthcheck.SectionAccessURL),
+					Dismissed: slices.Contains(dismissedHealthchecks, codersdk.HealthSectionAccessURL),
 				},
 				DerpHealth: derphealth.ReportOptions{
 					DERPMap:   api.DERPMap(),
-					Dismissed: slices.Contains(dismissedHealthchecks, healthcheck.SectionDERP),
+					Dismissed: slices.Contains(dismissedHealthchecks, codersdk.HealthSectionDERP),
 				},
 				WorkspaceProxy: healthcheck.WorkspaceProxyReportOptions{
 					CurrentVersion:               buildinfo.Version(),
 					WorkspaceProxiesFetchUpdater: *(options.WorkspaceProxiesFetchUpdater).Load(),
-					Dismissed:                    slices.Contains(dismissedHealthchecks, healthcheck.SectionWorkspaceProxy),
+					Dismissed:                    slices.Contains(dismissedHealthchecks, codersdk.HealthSectionWorkspaceProxy),
 				},
 			})
 		}

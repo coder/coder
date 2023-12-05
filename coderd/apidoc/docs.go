@@ -9054,13 +9054,30 @@ const docTemplate = `{
                 "GroupSourceOIDC"
             ]
         },
+        "codersdk.HealthSection": {
+            "type": "string",
+            "enum": [
+                "DERP",
+                "AccessURL",
+                "Websocket",
+                "Database",
+                "WorkspaceProxy"
+            ],
+            "x-enum-varnames": [
+                "HealthSectionDERP",
+                "HealthSectionAccessURL",
+                "HealthSectionWebsocket",
+                "HealthSectionDatabase",
+                "HealthSectionWorkspaceProxy"
+            ]
+        },
         "codersdk.HealthSettings": {
             "type": "object",
             "properties": {
                 "dismissed_healthchecks": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/codersdk.HealthSection"
                     }
                 }
             }
@@ -10943,7 +10960,7 @@ const docTemplate = `{
                 "dismissed_healthchecks": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/codersdk.HealthSection"
                     }
                 }
             }
@@ -12631,7 +12648,7 @@ const docTemplate = `{
                     "description": "FailingSections is a list of sections that have failed their healthcheck.",
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/codersdk.HealthSection"
                     }
                 },
                 "healthy": {

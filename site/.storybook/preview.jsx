@@ -38,7 +38,17 @@ export const decorators = [
   },
   (Story) => {
     return (
-      <QueryClientProvider client={new QueryClient()}>
+      <QueryClientProvider
+        client={
+          new QueryClient({
+            defaultOptions: {
+              queries: {
+                staleTime: Infinity,
+              },
+            },
+          })
+        }
+      >
         <Story />
       </QueryClientProvider>
     );
