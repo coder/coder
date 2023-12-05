@@ -1,5 +1,5 @@
 import { type Interpolation, type Theme } from "@emotion/react";
-import { type FC } from "react";
+import { ReactNode, type FC } from "react";
 import type { AuthMethods } from "api/typesGenerated";
 import { PasswordSignInForm } from "./PasswordSignInForm";
 import { OAuthSignInForm } from "./OAuthSignInForm";
@@ -63,7 +63,7 @@ export interface SignInFormProps {
   isSigningIn: boolean;
   redirectTo: string;
   error?: unknown;
-  message?: string;
+  message?: ReactNode;
   authMethods?: AuthMethods;
   onSubmit: (credentials: { email: string; password: string }) => void;
 }
@@ -91,7 +91,7 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
         </div>
       )}
 
-      {Boolean(message) && (
+      {message && (
         <div css={styles.alert}>
           <Alert severity="info">{message}</Alert>
         </div>

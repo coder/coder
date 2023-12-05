@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/mail"
-	"net/url"
 	"regexp"
 	"sort"
 	"strconv"
@@ -511,6 +510,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 
 	var selectedMemberships []*github.Membership
 	var organizationNames []string
+	redirect := state.Redirect
 	if !api.GithubOAuth2Config.AllowEveryone {
 		memberships, err := api.GithubOAuth2Config.ListOrganizationMemberships(ctx, oauthClient)
 		if err != nil {
@@ -536,7 +536,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if len(selectedMemberships) == 0 {
-			httpmw.RedirectToLogin(rw, r, &url.URL{Path: "/login"}, "You aren't a member of the authorized Github organizations!")
+			httpmw.CustomRedirectToLogin(rw, r, redirect, "You aren't a member of the authorized Github organizations!", http.StatusUnauthorized)
 			return
 		}
 	}
@@ -573,9 +573,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if allowedTeam == nil {
-			httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
-				Message: fmt.Sprintf("You aren't a member of an authorized team in the %v Github organization(s)!", organizationNames),
-			})
+			httpmw.CustomRedirectToLogin(rw, r, redirect, fmt.Sprintf("You aren't a member of an authorized team in the %v Github organization(s)!", organizationNames), http.StatusUnauthorized)
 			return
 		}
 	}
@@ -657,7 +655,6 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		http.SetCookie(rw, cookie)
 	}
 
-	redirect := state.Redirect
 	if redirect == "" {
 		redirect = "/"
 	}
