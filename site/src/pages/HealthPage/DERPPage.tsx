@@ -77,26 +77,35 @@ export const DERPPage = () => {
         <section>
           <SectionLabel>Regions</SectionLabel>
           <div css={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-            {Object.values(regions).map(({ severity, region }) => {
-              return (
-                <Button
-                  startIcon={
-                    <LocationOnOutlined
-                      css={{
-                        width: 16,
-                        height: 16,
-                        color: healthyColor(theme, severity as HealthSeverity),
-                      }}
-                    />
-                  }
-                  component={Link}
-                  to={`/health/derp/regions/${region.RegionID}`}
-                  key={region.RegionID}
-                >
-                  {region.RegionName}
-                </Button>
-              );
-            })}
+            {Object.values(regions)
+              .sort((a, b) => {
+                if (a.region && b.region) {
+                  return a.region.RegionName.localeCompare(b.region.RegionName);
+                }
+              })
+              .map(({ severity, region }) => {
+                return (
+                  <Button
+                    startIcon={
+                      <LocationOnOutlined
+                        css={{
+                          width: 16,
+                          height: 16,
+                          color: healthyColor(
+                            theme,
+                            severity as HealthSeverity,
+                          ),
+                        }}
+                      />
+                    }
+                    component={Link}
+                    to={`/health/derp/regions/${region.RegionID}`}
+                    key={region.RegionID}
+                  >
+                    {region.RegionName}
+                  </Button>
+                );
+              })}
           </div>
         </section>
 
