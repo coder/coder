@@ -4,6 +4,7 @@ import AuditPage from "pages/AuditPage/AuditPage";
 import LoginPage from "pages/LoginPage/LoginPage";
 import { SetupPage } from "pages/SetupPage/SetupPage";
 import { TemplateLayout } from "pages/TemplatePage/TemplateLayout";
+import { HealthLayout } from "pages/HealthPage/HealthLayout";
 import TemplatesPage from "pages/TemplatesPage/TemplatesPage";
 import UsersPage from "pages/UsersPage/UsersPage";
 import WorkspacesPage from "pages/WorkspacesPage/WorkspacesPage";
@@ -197,9 +198,16 @@ const TemplateInsightsPage = lazy(
   () =>
     import("./pages/TemplatePage/TemplateInsightsPage/TemplateInsightsPage"),
 );
-const HealthPage = lazy(() => import("./pages/HealthPage/HealthPage"));
 const GroupsPage = lazy(() => import("./pages/GroupsPage/GroupsPage"));
 const IconsPage = lazy(() => import("./pages/IconsPage/IconsPage"));
+const AccessURLPage = lazy(() => import("./pages/HealthPage/AccessURLPage"));
+const DatabasePage = lazy(() => import("./pages/HealthPage/DatabasePage"));
+const DERPPage = lazy(() => import("./pages/HealthPage/DERPPage"));
+const DERPRegionPage = lazy(() => import("./pages/HealthPage/DERPRegionPage"));
+const WebsocketPage = lazy(() => import("./pages/HealthPage/WebsocketPage"));
+const WorkspaceProxyHealthPage = lazy(
+  () => import("./pages/HealthPage/WorkspaceProxyPage"),
+);
 
 export const AppRouter: FC = () => {
   return (
@@ -213,8 +221,6 @@ export const AppRouter: FC = () => {
           <Route element={<RequireAuth />}>
             <Route element={<DashboardLayout />}>
               <Route index element={<Navigate to="/workspaces" replace />} />
-
-              <Route path="/health" element={<HealthPage />} />
 
               <Route
                 path="/external-auth/:provider"
@@ -339,6 +345,21 @@ export const AppRouter: FC = () => {
                 <Route path="schedule" element={<WorkspaceSchedulePage />} />
               </Route>
 
+              <Route path="/health" element={<HealthLayout />}>
+                <Route index element={<Navigate to="access-url" />} />
+                <Route path="access-url" element={<AccessURLPage />} />
+                <Route path="database" element={<DatabasePage />} />
+                <Route path="derp" element={<DERPPage />} />
+                <Route
+                  path="derp/regions/:regionId"
+                  element={<DERPRegionPage />}
+                />
+                <Route path="websocket" element={<WebsocketPage />} />
+                <Route
+                  path="workspace-proxy"
+                  element={<WorkspaceProxyHealthPage />}
+                />
+              </Route>
               {/* Using path="*"" means "match anything", so this route
               acts like a catch-all for URLs that we don't have explicit
               routes for. */}

@@ -19,6 +19,9 @@ export const Navbar: FC = () => {
   const canViewAllUsers = Boolean(permissions.readAllUsers);
   const proxyContextValue = useProxy();
   const dashboard = useDashboard();
+  const canViewHealth =
+    canViewDeployment &&
+    dashboard.experiments.includes("deployment_health_page");
 
   return (
     <NavbarView
@@ -30,6 +33,7 @@ export const Navbar: FC = () => {
       canViewAuditLog={canViewAuditLog}
       canViewDeployment={canViewDeployment}
       canViewAllUsers={canViewAllUsers}
+      canViewHealth={canViewHealth}
       proxyContextValue={
         dashboard.experiments.includes("moons") ? proxyContextValue : undefined
       }
