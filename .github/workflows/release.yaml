@@ -434,12 +434,12 @@ jobs:
 
           $release_assets = gh release view --repo coder/coder "v${version}" --json assets | `
             ConvertFrom-Json
-          # Get the x64 installer URL from the release assets.
-          $x64_installer_url = $release_assets.assets | `
+          # Get the amd64 installer URL from the release assets.
+          $amd64_installer_url = $release_assets.assets | `
             Where-Object name -Match ".*_windows_amd64_installer.exe$" | `
             Select -ExpandProperty url
           # Get amd64 zip URL
-          $x64_zip_url = $release_assets.assets | `
+          $amd64_zip_url = $release_assets.assets | `
             Where-Object name -Match ".*_windows_amd64.zip$" | `
             Select -ExpandProperty url
           # Get arm64 zip URL
