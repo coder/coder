@@ -1589,3 +1589,15 @@ export const getHealth = async (force: boolean = false) => {
   );
   return response.data;
 };
+
+export const getHealthSettings = async () => {
+  return (
+    await axios.get<TypesGen.HealthSettings>(`/api/v2/debug/health/settings`)
+  ).data;
+};
+
+export const updateHealthSettings = async (
+  data: TypesGen.UpdateHealthSettings,
+) => {
+  return (await axios.put<void>(`/api/v2/debug/health/settings`, data)).data;
+};

@@ -16,6 +16,7 @@ import TagOutlined from "@mui/icons-material/TagOutlined";
 import { Alert } from "components/Alert/Alert";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
+import { DismissWarningButton } from "./DismissWarningButton";
 
 export const WorkspaceProxyPage = () => {
   const healthStatus = useOutletContext<HealthcheckReport>();
@@ -34,6 +35,7 @@ export const WorkspaceProxyPage = () => {
           <HealthyDot severity={workspace_proxy.severity} />
           Workspace Proxy
         </HeaderTitle>
+        <DismissWarningButton healthcheck="WorkspaceProxy" />
       </Header>
 
       <Main>

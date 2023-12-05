@@ -20,6 +20,7 @@ import { Alert } from "components/Alert/Alert";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { useTheme } from "@mui/material/styles";
+import { DismissWarningButton } from "./DismissWarningButton";
 
 const flags = [
   "UDP",
@@ -52,6 +53,7 @@ export const DERPPage = () => {
           <HealthyDot severity={derp.severity as HealthSeverity} />
           DERP
         </HeaderTitle>
+        <DismissWarningButton healthcheck="DERP" />
       </Header>
 
       <Main>
