@@ -141,7 +141,6 @@ export function usePaginatedQuery<
   const query = useQuery<TQueryFnData, TError, TData, TQueryKey>({
     ...extraOptions,
     ...getQueryOptionsFromPage(currentPage),
-    staleTime,
     keepPreviousData: true,
   });
 
