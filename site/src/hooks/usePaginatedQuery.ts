@@ -12,7 +12,7 @@ import {
   useQuery,
 } from "react-query";
 
-const DEFAULT_RECORDS_PER_PAGE = 25;
+const DEFAULT_RECORDS_PER_PAGE = 10;
 
 /**
  * The key to use for getting/setting the page number from the search params
@@ -105,6 +105,7 @@ export function usePaginatedQuery<
     searchParams: outerSearchParams,
     queryFn: outerQueryFn,
     prefetch = true,
+    staleTime = 60 * 1000, // One minute
     ...extraOptions
   } = options;
 
@@ -139,6 +140,7 @@ export function usePaginatedQuery<
   const query = useQuery<TQueryFnData, TError, TData, TQueryKey>({
     ...extraOptions,
     ...getQueryOptionsFromPage(currentPage),
+    staleTime,
     keepPreviousData: true,
   });
 
@@ -160,7 +162,6 @@ export function usePaginatedQuery<
     }
 
     const options = getQueryOptionsFromPage(newPage);
-
     return queryClient.prefetchQuery(options);
   });
 
