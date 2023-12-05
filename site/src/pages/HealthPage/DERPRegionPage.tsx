@@ -22,8 +22,8 @@ import { pageTitle } from "utils/page";
 export const DERPRegionPage = () => {
   const theme = useTheme();
   const healthStatus = useOutletContext<HealthcheckReport>();
-  const params = useParams<{ regionId: string }>();
-  const regionId = Number(params.regionId!);
+  const params = useParams() as { regionId: string };
+  const regionId = Number(params.regionId);
   const {
     region,
     node_reports: reports,
