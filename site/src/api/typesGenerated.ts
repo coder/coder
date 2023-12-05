@@ -750,7 +750,7 @@ export interface ProvisionerDaemon {
   readonly updated_at?: string;
   readonly last_seen_at?: string;
   readonly name: string;
-  readonly version?: string;
+  readonly version: string;
   readonly provisioners: ProvisionerType[];
   readonly tags: Record<string, string>;
 }
