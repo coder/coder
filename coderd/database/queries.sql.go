@@ -3004,7 +3004,7 @@ func (q *sqlQuerier) DeleteOldProvisionerDaemons(ctx context.Context) error {
 
 const getProvisionerDaemons = `-- name: GetProvisionerDaemons :many
 SELECT
-	id, created_at, updated_at, name, provisioners, replica_id, tags
+	id, created_at, updated_at, name, provisioners, replica_id, tags, last_seen_at, version
 FROM
 	provisioner_daemons
 `
@@ -3026,6 +3026,8 @@ func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDa
 			pq.Array(&i.Provisioners),
 			&i.ReplicaID,
 			&i.Tags,
+			&i.LastSeenAt,
+			&i.Version,
 		); err != nil {
 			return nil, err
 		}
@@ -3051,7 +3053,7 @@ INSERT INTO
 		updated_at
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6) RETURNING id, created_at, updated_at, name, provisioners, replica_id, tags
+	($1, $2, $3, $4, $5, $6) RETURNING id, created_at, updated_at, name, provisioners, replica_id, tags, last_seen_at, version
 `
 
 type InsertProvisionerDaemonParams struct {
@@ -3081,6 +3083,8 @@ func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProv
 		pq.Array(&i.Provisioners),
 		&i.ReplicaID,
 		&i.Tags,
+		&i.LastSeenAt,
+		&i.Version,
 	)
 	return i, err
 }

@@ -39,7 +39,9 @@ type ProvisionerDaemon struct {
 	ID           uuid.UUID         `json:"id" format:"uuid"`
 	CreatedAt    time.Time         `json:"created_at" format:"date-time"`
 	UpdatedAt    NullTime          `json:"updated_at,omitempty" format:"date-time"`
+	LastSeenAt   NullTime          `json:"last_seen_at,omitempty" format:"date-time"`
 	Name         string            `json:"name"`
+	Version      string            `json:"version"`
 	Provisioners []ProvisionerType `json:"provisioners"`
 	Tags         map[string]string `json:"tags"`
 }

@@ -700,13 +700,15 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
   {
     "created_at": "2019-08-24T14:15:22Z",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "last_seen_at": "2019-08-24T14:15:22Z",
     "name": "string",
     "provisioners": ["string"],
     "tags": {
       "property1": "string",
       "property2": "string"
     },
-    "updated_at": "2019-08-24T14:15:22Z"
+    "updated_at": "2019-08-24T14:15:22Z",
+    "version": "string"
   }
 ]
 ```
@@ -726,11 +728,13 @@ Status Code **200**
 | `[array item]`      | array             | false    |              |             |
 | `» created_at`      | string(date-time) | false    |              |             |
 | `» id`              | string(uuid)      | false    |              |             |
+| `» last_seen_at`    | string(date-time) | false    |              |             |
 | `» name`            | string            | false    |              |             |
 | `» provisioners`    | array             | false    |              |             |
 | `» tags`            | object            | false    |              |             |
 | `»» [any property]` | string            | false    |              |             |
 | `» updated_at`      | string(date-time) | false    |              |             |
+| `» version`         | string            | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

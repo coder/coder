@@ -3770,13 +3770,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "created_at": "2019-08-24T14:15:22Z",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "last_seen_at": "2019-08-24T14:15:22Z",
   "name": "string",
   "provisioners": ["string"],
   "tags": {
     "property1": "string",
     "property2": "string"
   },
-  "updated_at": "2019-08-24T14:15:22Z"
+  "updated_at": "2019-08-24T14:15:22Z",
+  "version": "string"
 }
 ```
 
@@ -3786,11 +3788,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ------------------ | --------------- | -------- | ------------ | ----------- |
 | `created_at`       | string          | false    |              |             |
 | `id`               | string          | false    |              |             |
+| `last_seen_at`     | string          | false    |              |             |
 | `name`             | string          | false    |              |             |
 | `provisioners`     | array of string | false    |              |             |
 | `tags`             | object          | false    |              |             |
 | » `[any property]` | string          | false    |              |             |
 | `updated_at`       | string          | false    |              |             |
+| `version`          | string          | false    |              |             |
 
 ## codersdk.ProvisionerJob
 
