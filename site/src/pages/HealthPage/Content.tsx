@@ -14,7 +14,7 @@ import DoNotDisturbOnOutlined from "@mui/icons-material/DoNotDisturbOnOutlined";
 import { HealthSeverity } from "api/typesGenerated";
 import { useTheme } from "@mui/material/styles";
 
-const SIDE_PADDING = 36;
+const CONTENT_PADDING = 36;
 
 export const Header = (props: HTMLProps<HTMLDivElement>) => {
   return (
@@ -23,7 +23,7 @@ export const Header = (props: HTMLProps<HTMLDivElement>) => {
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        padding: `36px ${SIDE_PADDING}px`,
+        padding: `36px ${CONTENT_PADDING}px`,
       }}
       {...props}
     />
@@ -80,7 +80,7 @@ export const Main = (props: HTMLProps<HTMLDivElement>) => {
   return (
     <main
       css={{
-        padding: `0 ${SIDE_PADDING}px ${SIDE_PADDING}px`,
+        padding: `0 ${CONTENT_PADDING}px ${CONTENT_PADDING}px`,
         display: "flex",
         flexDirection: "column",
         gap: 36,
