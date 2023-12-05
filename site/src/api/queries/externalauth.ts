@@ -27,9 +27,6 @@ export const userExternalAuth = (providerID: string) => {
 export const validateExternalAuth = (_: QueryClient) => {
   return {
     mutationFn: API.getExternalAuthProvider,
-    onSuccess: async () => {
-      // No invalidation needed.
-    },
   };
 };
 

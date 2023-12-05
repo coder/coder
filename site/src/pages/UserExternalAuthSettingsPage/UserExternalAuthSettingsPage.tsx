@@ -30,8 +30,6 @@ const UserExternalAuthSettingsPage: FC = () => {
     ...mutateParams,
     onSuccess: async () => {
       await mutateParams.onSuccess();
-      await refetch();
-      setUnlinked(unlinked + 1);
     },
   });
 
@@ -49,17 +47,14 @@ const UserExternalAuthSettingsPage: FC = () => {
         }}
         onValidateExternalAuth={async (providerID: string) => {
           try {
-            await validateAppMutation.mutateAsync(providerID, {
-              onSuccess: (data) => {
-                if (data.authenticated) {
-                  displaySuccess("Application link is valid.");
-                } else {
-                  displayError(
-                    "Application link is not valid. Please unlink the application and reauthenticate.",
-                  );
-                }
-              },
-            });
+            const data = await validateAppMutation.mutateAsync(providerID);
+            if (data.authenticated) {
+              displaySuccess("Application link is valid.");
+            } else {
+              displayError(
+                "Application link is not valid. Please unlink the application and reauthenticate.",
+              );
+            }
           } catch (e) {
             displayError(
               getErrorMessage(e, "Error validating application link."),
@@ -83,7 +78,14 @@ const UserExternalAuthSettingsPage: FC = () => {
         onConfirm={async () => {
           try {
             await unlinkAppMutation.mutateAsync(appToUnlink!);
+            // setAppToUnlink closes the modal
             setAppToUnlink(undefined);
+            // refetch repopulates the external auth data
+            await refetch();
+            // this tells our child components to refetch their data
+            // as at least 1 provider was unlinked.
+            setUnlinked(unlinked + 1);
+
             displaySuccess("Successfully unlinked the oauth2 application.");
           } catch (e) {
             displayError(getErrorMessage(e, "Error unlinking application."));
