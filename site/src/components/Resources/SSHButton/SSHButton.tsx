@@ -15,6 +15,7 @@ import {
 } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
 import { AgentButton } from "../AgentButton";
+import { DisplayAppNameMap } from "../AppLink/AppLink";
 
 export interface SSHButtonProps {
   workspaceName: string;
@@ -34,7 +35,7 @@ export const SSHButton: FC<PropsWithChildren<SSHButtonProps>> = ({
   return (
     <Popover isDefaultOpen={isDefaultOpen}>
       <PopoverTrigger>
-        <AgentButton>SSH</AgentButton>
+        <AgentButton>{DisplayAppNameMap["ssh_helper"]}</AgentButton>
       </PopoverTrigger>
 
       <PopoverContent horizontal="right" classes={{ paper }}>
