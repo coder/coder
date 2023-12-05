@@ -35,7 +35,7 @@ export const HeaderTitle = (props: HTMLProps<HTMLHeadingElement>) => {
     <h2
       css={{
         margin: 0,
-        lineHeight: "120%",
+        lineHeight: "1.2",
         fontSize: 20,
         fontWeight: 500,
         display: "flex",
@@ -94,7 +94,7 @@ export const GridData = (props: HTMLProps<HTMLDivElement>) => {
   return (
     <div
       css={{
-        lineHeight: "140%",
+        lineHeight: "1.4",
         display: "grid",
         gridTemplateColumns: "auto auto",
         gap: 12,
@@ -142,7 +142,7 @@ export const SectionLabel = (props: HTMLProps<HTMLHeadingElement>) => {
         fontSize: 14,
         fontWeight: 500,
         margin: 0,
-        lineHeight: "120%",
+        lineHeight: "1.2",
         marginBottom: 16,
       }}
     />
