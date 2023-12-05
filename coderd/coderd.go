@@ -1015,10 +1015,18 @@ func New(options *Options) *API {
 		return []string{}
 	})
 
-	// Static file handler must be wrapped with HSTS handler if the
-	// StrictTransportSecurityAge is set. We only need to set this header on
-	// static files since it only affects browsers.
-	r.NotFound(cspMW(compressHandler(httpmw.HSTS(api.SiteHandler, options.StrictTransportSecurityCfg))).ServeHTTP)
+	// Show an API 404 page or handle the dashboard/static files.
+	r.NotFound(func(rw http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/v2/") {
+			httpapi.RouteNotFound(rw)
+			return
+		}
+
+		// Static file handler must be wrapped with HSTS handler if the
+		// StrictTransportSecurityAge is set. We only need to set this header on
+		// static files since it only affects browsers.
+		cspMW(compressHandler(httpmw.HSTS(api.SiteHandler, options.StrictTransportSecurityCfg))).ServeHTTP(rw, r)
+	})
 
 	// This must be before all middleware to improve the response time.
 	// So make a new router, and mount the old one as the root.
