@@ -3777,27 +3777,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "property1": "string",
     "property2": "string"
   },
-  "updated_at": {
-    "time": "string",
-    "valid": true
-  },
+  "updated_at": "2019-08-24T14:15:22Z",
   "version": "string"
 }
 ```
 
 ### Properties
 
-| Name               | Type                         | Required | Restrictions | Description |
-| ------------------ | ---------------------------- | -------- | ------------ | ----------- |
-| `created_at`       | string                       | false    |              |             |
-| `id`               | string                       | false    |              |             |
-| `last_seen_at`     | string                       | false    |              |             |
-| `name`             | string                       | false    |              |             |
-| `provisioners`     | array of string              | false    |              |             |
-| `tags`             | object                       | false    |              |             |
-| » `[any property]` | string                       | false    |              |             |
-| `updated_at`       | [sql.NullTime](#sqlnulltime) | false    |              |             |
-| `version`          | string                       | false    |              |             |
+| Name               | Type            | Required | Restrictions | Description |
+| ------------------ | --------------- | -------- | ------------ | ----------- |
+| `created_at`       | string          | false    |              |             |
+| `id`               | string          | false    |              |             |
+| `last_seen_at`     | string          | false    |              |             |
+| `name`             | string          | false    |              |             |
+| `provisioners`     | array of string | false    |              |             |
+| `tags`             | object          | false    |              |             |
+| » `[any property]` | string          | false    |              |             |
+| `updated_at`       | string          | false    |              |             |
+| `version`          | string          | false    |              |             |
 
 ## codersdk.ProvisionerJob
 
@@ -8183,22 +8180,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | » `[any property]`      | integer | false    |              |                                                                                                                                    |
 | `udp`                   | boolean | false    |              | a UDP STUN round trip completed                                                                                                    |
 | `upnP`                  | string  | false    |              | Upnp is whether UPnP appears present on the LAN. Empty means not checked.                                                          |
-
-## sql.NullTime
-
-```json
-{
-  "time": "string",
-  "valid": true
-}
-```
-
-### Properties
-
-| Name    | Type    | Required | Restrictions | Description                       |
-| ------- | ------- | -------- | ------------ | --------------------------------- |
-| `time`  | string  | false    |              |                                   |
-| `valid` | boolean | false    |              | Valid is true if Time is not NULL |
 
 ## tailcfg.DERPHomeParams
 
