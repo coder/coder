@@ -9,6 +9,7 @@ import (
 	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type testChecker struct {
@@ -47,7 +48,7 @@ func TestHealthcheck(t *testing.T) {
 		checker         *testChecker
 		healthy         bool
 		severity        health.Severity
-		failingSections []string
+		failingSections []codersdk.HealthSection
 	}{{
 		name: "OK",
 		checker: &testChecker{
@@ -74,7 +75,7 @@ func TestHealthcheck(t *testing.T) {
 		},
 		healthy:         true,
 		severity:        health.SeverityOK,
-		failingSections: []string{},
+		failingSections: []codersdk.HealthSection{},
 	}, {
 		name: "DERPFail",
 		checker: &testChecker{
@@ -101,7 +102,7 @@ func TestHealthcheck(t *testing.T) {
 		},
 		healthy:         false,
 		severity:        health.SeverityError,
-		failingSections: []string{healthcheck.SectionDERP},
+		failingSections: []codersdk.HealthSection{codersdk.HealthSectionDERP},
 	}, {
 		name: "DERPWarning",
 		checker: &testChecker{
@@ -129,7 +130,7 @@ func TestHealthcheck(t *testing.T) {
 		},
 		healthy:         true,
 		severity:        health.SeverityWarning,
-		failingSections: []string{},
+		failingSections: []codersdk.HealthSection{},
 	}, {
 		name: "AccessURLFail",
 		checker: &testChecker{
@@ -156,7 +157,7 @@ func TestHealthcheck(t *testing.T) {
 		},
 		healthy:         false,
 		severity:        health.SeverityWarning,
-		failingSections: []string{healthcheck.SectionAccessURL},
+		failingSections: []codersdk.HealthSection{codersdk.HealthSectionAccessURL},
 	}, {
 		name: "WebsocketFail",
 		checker: &testChecker{
@@ -183,7 +184,7 @@ func TestHealthcheck(t *testing.T) {
 		},
 		healthy:         false,
 		severity:        health.SeverityError,
-		failingSections: []string{healthcheck.SectionWebsocket},
+		failingSections: []codersdk.HealthSection{codersdk.HealthSectionWebsocket},
 	}, {
 		name: "DatabaseFail",
 		checker: &testChecker{
@@ -210,7 +211,7 @@ func TestHealthcheck(t *testing.T) {
 		},
 		healthy:         false,
 		severity:        health.SeverityError,
-		failingSections: []string{healthcheck.SectionDatabase},
+		failingSections: []codersdk.HealthSection{codersdk.HealthSectionDatabase},
 	}, {
 		name: "ProxyFail",
 		checker: &testChecker{
@@ -237,7 +238,7 @@ func TestHealthcheck(t *testing.T) {
 		},
 		severity:        health.SeverityError,
 		healthy:         false,
-		failingSections: []string{healthcheck.SectionWorkspaceProxy},
+		failingSections: []codersdk.HealthSection{codersdk.HealthSectionWorkspaceProxy},
 	}, {
 		name: "ProxyWarn",
 		checker: &testChecker{
@@ -265,7 +266,7 @@ func TestHealthcheck(t *testing.T) {
 		},
 		severity:        health.SeverityWarning,
 		healthy:         true,
-		failingSections: []string{},
+		failingSections: []codersdk.HealthSection{},
 	}, {
 		name:    "AllFail",
 		healthy: false,
@@ -292,12 +293,12 @@ func TestHealthcheck(t *testing.T) {
 			},
 		},
 		severity: health.SeverityError,
-		failingSections: []string{
-			healthcheck.SectionDERP,
-			healthcheck.SectionAccessURL,
-			healthcheck.SectionWebsocket,
-			healthcheck.SectionDatabase,
-			healthcheck.SectionWorkspaceProxy,
+		failingSections: []codersdk.HealthSection{
+			codersdk.HealthSectionDERP,
+			codersdk.HealthSectionAccessURL,
+			codersdk.HealthSectionWebsocket,
+			codersdk.HealthSectionDatabase,
+			codersdk.HealthSectionWorkspaceProxy,
 		},
 	}} {
 		c := c
