@@ -24,7 +24,7 @@ const defaultQueryClient = new QueryClient({
     queries: {
       retry: false,
       refetchOnWindowFocus: false,
-      cacheTime: shouldEnableCache ? undefined : 0,
+      staleTime: shouldEnableCache ? undefined : 0,
       networkMode: shouldEnableCache ? undefined : "offlineFirst",
     },
   },
