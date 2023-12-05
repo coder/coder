@@ -21,6 +21,9 @@ OPTIONS:
           ProxyCommand. By default, the binary invoking this command ('config
           ssh') is used.
 
+      --disable-autostart bool, $CODER_CONFIGSSH_DISABLE_AUTOSTART (default: false)
+          Disable starting the workspace automatically when connecting via SSH.
+
   -n, --dry-run bool, $CODER_SSH_DRY_RUN
           Perform a trial run with no changes made, showing a diff at the end.
 
