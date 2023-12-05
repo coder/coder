@@ -31,10 +31,7 @@ export const WorkspaceProxyPage = () => {
 
       <Header>
         <HeaderTitle>
-          <HealthyDot
-            healthy={workspace_proxy.healthy}
-            hasWarnings={workspace_proxy.warnings.length > 0}
-          />
+          <HealthyDot severity={workspace_proxy.severity} />
           Workspace Proxy
         </HeaderTitle>
       </Header>

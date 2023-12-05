@@ -8,14 +8,14 @@ import {
   Logs,
   HealthyDot,
 } from "./Content";
-import { HealthcheckReport } from "api/typesGenerated";
+import { HealthSeverity, HealthcheckReport } from "api/typesGenerated";
 import Button from "@mui/material/Button";
 import LocationOnOutlined from "@mui/icons-material/LocationOnOutlined";
-import useTheme from "@mui/styles/useTheme";
 import { healthyColor } from "./healthyColor";
 import { Alert } from "components/Alert/Alert";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
+import { useTheme } from "@mui/material/styles";
 
 const flags = [
   "UDP",
@@ -45,10 +45,7 @@ export const DERPPage = () => {
 
       <Header>
         <HeaderTitle>
-          <HealthyDot
-            healthy={derp.healthy}
-            hasWarnings={derp.warnings.length > 0}
-          />
+          <HealthyDot severity={derp.severity as HealthSeverity} />
           DERP
         </HeaderTitle>
       </Header>
@@ -76,7 +73,7 @@ export const DERPPage = () => {
         <section>
           <SectionLabel>Regions</SectionLabel>
           <div css={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-            {Object.values(regions).map(({ region, healthy, warnings }) => {
+            {Object.values(regions).map(({ severity, region }) => {
               return (
                 <Button
                   startIcon={
@@ -84,11 +81,7 @@ export const DERPPage = () => {
                       css={{
                         width: 16,
                         height: 16,
-                        color: healthyColor(
-                          theme,
-                          healthy,
-                          warnings?.length > 0,
-                        ),
+                        color: healthyColor(theme, severity as HealthSeverity),
                       }}
                     />
                   }

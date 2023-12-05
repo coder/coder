@@ -8,7 +8,7 @@ import {
   Logs,
   HealthyDot,
 } from "./Content";
-import { HealthcheckReport } from "api/typesGenerated";
+import { HealthSeverity, HealthcheckReport } from "api/typesGenerated";
 import CodeOutlined from "@mui/icons-material/CodeOutlined";
 import TagOutlined from "@mui/icons-material/TagOutlined";
 import Tooltip from "@mui/material/Tooltip";
@@ -27,8 +27,8 @@ export const DERPRegionPage = () => {
   const {
     region,
     node_reports: reports,
-    healthy,
     warnings,
+    severity,
   } = healthStatus.derp.regions[regionId];
 
   return (
@@ -61,7 +61,7 @@ export const DERPRegionPage = () => {
             Back to DERP
           </Link>
           <HeaderTitle>
-            <HealthyDot healthy={healthy} hasWarnings={warnings.length > 0} />
+            <HealthyDot severity={severity as HealthSeverity} />
             {region.RegionName}
           </HeaderTitle>
         </hgroup>

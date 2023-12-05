@@ -1,5 +1,4 @@
 /* eslint-disable jsx-a11y/heading-has-content -- infer from props */
-import useTheme from "@mui/styles/useTheme";
 import {
   ComponentProps,
   HTMLProps,
@@ -12,6 +11,8 @@ import ErrorOutline from "@mui/icons-material/ErrorOutline";
 import { healthyColor } from "./healthyColor";
 import { css } from "@emotion/css";
 import DoNotDisturbOnOutlined from "@mui/icons-material/DoNotDisturbOnOutlined";
+import { HealthSeverity } from "api/typesGenerated";
+import { useTheme } from "@mui/material/styles";
 
 const SIDE_PADDING = 36;
 
@@ -47,45 +48,20 @@ export const HeaderTitle = (props: HTMLProps<HTMLHeadingElement>) => {
 };
 
 export const HealthIcon = ({
-  healthy,
   size,
-  hasWarnings,
+  severity,
 }: {
-  healthy: boolean;
   size: number;
-  hasWarnings?: boolean;
+  severity: HealthSeverity;
 }) => {
   const theme = useTheme();
-  const color = healthyColor(theme, healthy, hasWarnings);
+  const color = healthyColor(theme, severity);
+  const Icon = severity === "error" ? ErrorOutline : CheckCircleOutlined;
 
-  if (healthy) {
-    return (
-      <CheckCircleOutlined
-        css={{
-          width: size,
-          height: size,
-          color,
-        }}
-      />
-    );
-  }
-
-  return (
-    <ErrorOutline
-      css={{
-        width: size,
-        height: size,
-        color,
-      }}
-    />
-  );
+  return <Icon css={{ width: size, height: size, color }} />;
 };
 
-export const HealthyDot = (props: {
-  healthy: boolean;
-  hasWarnings: boolean;
-}) => {
-  const { healthy, hasWarnings } = props;
+export const HealthyDot = ({ severity }: { severity: HealthSeverity }) => {
   const theme = useTheme();
 
   return (
@@ -94,7 +70,7 @@ export const HealthyDot = (props: {
         width: 8,
         height: 8,
         borderRadius: 9999,
-        backgroundColor: healthyColor(theme, healthy, hasWarnings),
+        backgroundColor: healthyColor(theme, severity),
       }}
     />
   );
@@ -215,7 +191,7 @@ type BooleanPillProps = Omit<
 export const BooleanPill = (props: BooleanPillProps) => {
   const { value, children, ...divProps } = props;
   const theme = useTheme();
-  const color = healthyColor(theme, value, false);
+  const color = value ? theme.palette.success.light : theme.palette.error.light;
 
   return (
     <Pill

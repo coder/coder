@@ -25,10 +25,7 @@ export const AccessURLPage = () => {
 
       <Header>
         <HeaderTitle>
-          <HealthyDot
-            healthy={accessUrl.healthy}
-            hasWarnings={accessUrl.warnings.length > 0}
-          />
+          <HealthyDot severity={accessUrl.severity} />
           Access URL
         </HeaderTitle>
       </Header>
@@ -43,9 +40,6 @@ export const AccessURLPage = () => {
         })}
 
         <GridData>
-          <GridDataLabel>Healthy</GridDataLabel>
-          <GridDataValue>{accessUrl.healthy ? "Yes" : "No"}</GridDataValue>
-
           <GridDataLabel>Severity</GridDataLabel>
           <GridDataValue>{accessUrl.severity}</GridDataValue>
 

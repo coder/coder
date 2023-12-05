@@ -29,10 +29,7 @@ export const WebsocketPage = () => {
 
       <Header>
         <HeaderTitle>
-          <HealthyDot
-            healthy={websocket.healthy}
-            hasWarnings={websocket.warnings.length > 0}
-          />
+          <HealthyDot severity={websocket.severity} />
           Websocket
         </HeaderTitle>
       </Header>

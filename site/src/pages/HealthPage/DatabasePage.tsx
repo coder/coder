@@ -25,10 +25,7 @@ export const DatabasePage = () => {
 
       <Header>
         <HeaderTitle>
-          <HealthyDot
-            healthy={database.healthy}
-            hasWarnings={database.warnings.length > 0}
-          />
+          <HealthyDot severity={database.severity} />
           Database
         </HeaderTitle>
       </Header>
@@ -43,9 +40,6 @@ export const DatabasePage = () => {
         })}
 
         <GridData>
-          <GridDataLabel>Healthy</GridDataLabel>
-          <GridDataValue>{database.healthy ? "Yes" : "No"}</GridDataValue>
-
           <GridDataLabel>Reachable</GridDataLabel>
           <GridDataValue>{database.reachable ? "Yes" : "No"}</GridDataValue>
 

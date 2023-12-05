@@ -15,6 +15,7 @@ import { css } from "@emotion/css";
 import { kebabCase } from "lodash/fp";
 import { Suspense } from "react";
 import { HealthIcon } from "./Content";
+import { HealthSeverity } from "api/typesGenerated";
 
 const sections = {
   derp: "DERP",
@@ -75,7 +76,7 @@ export function HealthLayout() {
                       justifyContent: "space-between",
                     }}
                   >
-                    <HealthIcon size={32} healthy={healthStatus.healthy} />
+                    <HealthIcon size={32} severity={healthStatus.severity} />
 
                     <Tooltip title="Refresh health checks">
                       <IconButton
@@ -149,8 +150,7 @@ export function HealthLayout() {
                     const label = sections[key as keyof typeof sections];
                     const healthSection =
                       healthStatus[key as keyof typeof sections];
-                    const isHealthy = healthSection.healthy;
-                    const isWarning = healthSection.warnings?.length > 0;
+
                     return (
                       <NavLink
                         end
@@ -186,8 +186,7 @@ export function HealthLayout() {
                       >
                         <HealthIcon
                           size={16}
-                          healthy={isHealthy}
-                          hasWarnings={isWarning}
+                          severity={healthSection.severity as HealthSeverity}
                         />
                         {label}
                       </NavLink>
