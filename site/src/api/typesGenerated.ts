@@ -748,7 +748,11 @@ export interface ProvisionerDaemon {
   readonly id: string;
   readonly created_at: string;
   readonly updated_at?: string;
+  readonly last_seen_at?: string;
   readonly name: string;
+  // Named type "database/sql.NullString" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
+  readonly version?: any;
   readonly provisioners: ProvisionerType[];
   readonly tags: Record<string, string>;
 }
