@@ -434,27 +434,26 @@ jobs:
 
           $release_assets = gh release view --repo coder/coder "v${version}" --json assets | `
             ConvertFrom-Json
-          # Get the installer URL from the release assets.
-          $installer_url = $release_assets.assets | `
+          # Get the installer URLs from the release assets.
+          $amd64_installer_url = $release_assets.assets | `
             Where-Object name -Match ".*_windows_amd64_installer.exe$" | `
             Select -ExpandProperty url
+          $amd64_zip_url = $release_assets.assets | `
+            Where-Object name -Match ".*_windows_amd64.zip$" | `
+            Select -ExpandProperty url
+          $arm64_zip_url = $release_assets.assets | `
+            Where-Object name -Match ".*_windows_arm64.zip$" | `
+            Select -ExpandProperty url
 
-          echo "Installer URL: ${installer_url}"
+          echo "amd64 Installer URL: ${amd64_installer_url}"
+          echo "amd64 zip URL: ${amd64_zip_url}"
+          echo "arm64 zip URL: ${arm64_zip_url}"
           echo "Package version: ${version}"
 
-          # The URL "|X64" suffix forces the architecture as it cannot be
-          # sniffed properly from the URL. wingetcreate checks both the URL and
-          # binary magic bytes for the architecture and they need to both match,
-          # but they only check for `x64`, `win64` and `_64` in the URL. Our URL
-          # contains `amd64` which doesn't match sadly.
-          #
-          # wingetcreate will still do the binary magic bytes check, so if we
-          # accidentally change the architecture of the installer, it will fail
-          # submission.
           .\wingetcreate.exe update Coder.Coder `
             --submit `
             --version "${version}" `
-            --urls "${installer_url}|X64" `
+            --urls "${amd64_installer_url}" "${amd64_zip_url}" "${arm64_zip_url}" `
             --token "$env:WINGET_GH_TOKEN"
 
         env:
