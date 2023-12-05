@@ -26,8 +26,9 @@ import (
 
 func (r *RootCmd) portForward() *clibase.Cmd {
 	var (
-		tcpForwards []string // <port>:<port>
-		udpForwards []string // <port>:<port>
+		tcpForwards      []string // <port>:<port>
+		udpForwards      []string // <port>:<port>
+		disableAutostart bool
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -76,7 +77,7 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 				return xerrors.New("no port-forwards requested")
 			}
 
-			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, codersdk.Me, inv.Args[0])
+			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, !disableAutostart, codersdk.Me, inv.Args[0])
 			if err != nil {
 				return err
 			}
@@ -179,6 +180,13 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 			Env:         "CODER_PORT_FORWARD_UDP",
 			Description: "Forward UDP port(s) from the workspace to the local machine. The UDP connection has TCP-like semantics to support stateful UDP protocols.",
 			Value:       clibase.StringArrayOf(&udpForwards),
+		},
+		{
+			Flag:        "disable-autostart",
+			Description: "Disable starting the workspace automatically when connecting via port forward.",
+			Env:         "CODER_PORT_FORWARD_DISABLE_AUTOSTART",
+			Value:       clibase.BoolOf(&disableAutostart),
+			Default:     "false",
 		},
 	}
 

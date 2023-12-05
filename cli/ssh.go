@@ -144,7 +144,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				}
 			}
 
-			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, codersdk.Me, inv.Args[0])
+			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, !disableAutostart, codersdk.Me, inv.Args[0])
 			if err != nil {
 				return err
 			}
@@ -538,9 +538,9 @@ startWatchLoop:
 }
 
 // getWorkspaceAgent returns the workspace and agent selected using either the
-// `<workspace>[.<agent>]` syntax via `in` or picks a random workspace and agent
-// if `shuffle` is true.
-func getWorkspaceAndAgent(ctx context.Context, inv *clibase.Invocation, client *codersdk.Client, userID string, in string) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
+// `<workspace>[.<agent>]` syntax via `in`.
+// If autoStart is true, the workspace will be started if it is not already running.
+func getWorkspaceAndAgent(ctx context.Context, inv *clibase.Invocation, client *codersdk.Client, autostart bool, userID string, in string) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
 	var (
 		workspace      codersdk.Workspace
 		workspaceParts = strings.Split(in, ".")
@@ -553,7 +553,35 @@ func getWorkspaceAndAgent(ctx context.Context, inv *clibase.Invocation, client *
 	}
 
 	if workspace.LatestBuild.Transition != codersdk.WorkspaceTransitionStart {
-		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("workspace must be in start transition to ssh")
+		if !autostart {
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("workspace must be in start transition to ssh")
+		}
+		// Autostart the workspace for the user.
+		// For some failure modes, return a better message.
+		if workspace.LatestBuild.Transition == codersdk.WorkspaceTransitionDelete {
+			// Any sort of deleting status, we should reject with a nicer error.
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace %q is deleted", workspace.Name)
+		}
+		if workspace.LatestBuild.Job.Status == codersdk.ProvisionerJobFailed {
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{},
+				xerrors.Errorf("workspace %q is in failed state, unable to autostart the workspace", workspace.Name)
+		}
+		// The workspace needs to be stopped before we can start it.
+		// It cannot be in any pending or failed state.
+		if workspace.LatestBuild.Status != codersdk.WorkspaceStatusStopped {
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{},
+				xerrors.Errorf("workspace must be in start transition to ssh, was unable to autostart as the last build job is %q, expected %q",
+					workspace.LatestBuild.Status,
+					codersdk.WorkspaceStatusStopped,
+				)
+		}
+		// startWorkspace based on the last build parameters.
+		_, _ = fmt.Fprintf(inv.Stderr, "Workspace was stopped, starting workspace to allow connection %q...\n", workspace.Name)
+		build, err := startWorkspace(inv, client, workspace, workspaceParameterFlags{}, WorkspaceStart)
+		if err != nil {
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace is stopped, failed to start: %w", err)
+		}
+		workspace.LatestBuild = build
 	}
 	if workspace.LatestBuild.Job.CompletedAt == nil {
 		err := cliui.WorkspaceBuild(ctx, inv.Stderr, client, workspace.LatestBuild.ID)
