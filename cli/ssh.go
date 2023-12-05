@@ -44,15 +44,16 @@ var (
 
 func (r *RootCmd) ssh() *clibase.Cmd {
 	var (
-		stdio          bool
-		forwardAgent   bool
-		forwardGPG     bool
-		identityAgent  string
-		wsPollInterval time.Duration
-		waitEnum       string
-		noWait         bool
-		logDirPath     string
-		remoteForward  string
+		stdio            bool
+		forwardAgent     bool
+		forwardGPG       bool
+		identityAgent    string
+		wsPollInterval   time.Duration
+		waitEnum         string
+		noWait           bool
+		logDirPath       string
+		remoteForward    string
+		disableAutostart bool
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -458,6 +459,13 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			Env:           "CODER_SSH_REMOTE_FORWARD",
 			FlagShorthand: "R",
 			Value:         clibase.StringOf(&remoteForward),
+		},
+		{
+			Flag:        "disable-autostart",
+			Description: "Disable starting the workspace automatically when connecting via SSH.",
+			Env:         "CODER_SSH_DISABLE_AUTOSTART",
+			Value:       clibase.BoolOf(&disableAutostart),
+			Default:     "false",
 		},
 	}
 	return cmd

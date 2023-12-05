@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/cli/safeexec"
@@ -46,9 +47,10 @@ const (
 // sshConfigOptions represents options that can be stored and read
 // from the coder config in ~/.ssh/coder.
 type sshConfigOptions struct {
-	waitEnum       string
-	userHostPrefix string
-	sshOptions     []string
+	waitEnum         string
+	userHostPrefix   string
+	sshOptions       []string
+	disableAutostart bool
 }
 
 // addOptions expects options in the form of "option=value" or "option value".
@@ -106,7 +108,7 @@ func (o sshConfigOptions) equal(other sshConfigOptions) bool {
 	if !slices.Equal(opt1, opt2) {
 		return false
 	}
-	return o.waitEnum == other.waitEnum && o.userHostPrefix == other.userHostPrefix
+	return o.waitEnum == other.waitEnum && o.userHostPrefix == other.userHostPrefix && o.disableAutostart == other.disableAutostart
 }
 
 func (o sshConfigOptions) asList() (list []string) {
@@ -115,6 +117,9 @@ func (o sshConfigOptions) asList() (list []string) {
 	}
 	if o.userHostPrefix != "" {
 		list = append(list, fmt.Sprintf("ssh-host-prefix: %s", o.userHostPrefix))
+	}
+	if o.disableAutostart {
+		list = append(list, fmt.Sprintf("disable-autostart: %v", o.disableAutostart))
 	}
 	for _, opt := range o.sshOptions {
 		list = append(list, fmt.Sprintf("ssh-option: %s", opt))
@@ -392,6 +397,9 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 						if sshConfigOpts.waitEnum != "auto" {
 							flags += " --wait=" + sshConfigOpts.waitEnum
 						}
+						if sshConfigOpts.disableAutostart {
+							flags += " --disable-autostart=true"
+						}
 						defaultOptions = append(defaultOptions, fmt.Sprintf(
 							"ProxyCommand %s --global-config %s ssh --stdio%s %s",
 							escapedCoderBinary, escapedGlobalConfig, flags, workspaceHostname,
@@ -567,6 +575,13 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 			Value:       clibase.EnumOf(&sshConfigOpts.waitEnum, "yes", "no", "auto"),
 		},
 		{
+			Flag:        "disable-autostart",
+			Description: "Disable starting the workspace automatically when connecting via SSH.",
+			Env:         "CODER_CONFIGSSH_DISABLE_AUTOSTART",
+			Value:       clibase.BoolOf(&sshConfigOpts.disableAutostart),
+			Default:     "false",
+		},
+		{
 			Flag: "force-unix-filepaths",
 			Env:  "CODER_CONFIGSSH_UNIX_FILEPATHS",
 			Description: "By default, 'config-ssh' uses the os path separator when writing the ssh config. " +
@@ -602,6 +617,9 @@ func sshConfigWriteSectionHeader(w io.Writer, addNewline bool, o sshConfigOption
 	if o.userHostPrefix != "" {
 		_, _ = fmt.Fprintf(&ow, "# :%s=%s\n", "ssh-host-prefix", o.userHostPrefix)
 	}
+	if o.disableAutostart {
+		_, _ = fmt.Fprintf(&ow, "# :%s=%v\n", "disable-autostart", o.disableAutostart)
+	}
 	for _, opt := range o.sshOptions {
 		_, _ = fmt.Fprintf(&ow, "# :%s=%s\n", "ssh-option", opt)
 	}
@@ -634,6 +652,8 @@ func sshConfigParseLastOptions(r io.Reader) (o sshConfigOptions) {
 				o.userHostPrefix = parts[1]
 			case "ssh-option":
 				o.sshOptions = append(o.sshOptions, parts[1])
+			case "disable-autostart":
+				o.disableAutostart, _ = strconv.ParseBool(parts[1])
 			default:
 				// Unknown option, ignore.
 			}
