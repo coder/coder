@@ -9,6 +9,7 @@ import { useLocalStorage } from "hooks";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import { DisplayApp } from "api/typesGenerated";
+import { DisplayAppNameMap } from "../AppLink/AppLink";
 
 export interface VSCodeDesktopButtonProps {
   userName: string;
@@ -97,7 +98,7 @@ export const VSCodeDesktopButton: FC<
           }}
         >
           <VSCodeIcon css={{ width: 12, height: 12 }} />
-          VS Code Desktop
+          {DisplayAppNameMap["vscode"]}
         </MenuItem>
         <MenuItem
           css={{ fontSize: 14 }}
@@ -106,7 +107,7 @@ export const VSCodeDesktopButton: FC<
           }}
         >
           <VSCodeInsidersIcon css={{ width: 12, height: 12 }} />
-          VS Code Insiders
+          {DisplayAppNameMap["vscode_insiders"]}
         </MenuItem>
       </Menu>
     </div>
@@ -156,7 +157,7 @@ const VSCodeButton = ({
           });
       }}
     >
-      VS Code Desktop
+      {DisplayAppNameMap["vscode"]}
     </AgentButton>
   );
 };
@@ -200,7 +201,7 @@ const VSCodeInsidersButton = ({
           });
       }}
     >
-      VS Code Insiders
+      {DisplayAppNameMap["vscode_insiders"]}
     </AgentButton>
   );
 };

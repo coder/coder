@@ -1,14 +1,7 @@
 import { Stack } from "components/Stack/Stack";
-import { type FC } from "react";
-import type * as TypesGen from "api/typesGenerated";
-import { BaseIcon } from "./BaseIcon";
-import { ShareIcon } from "./ShareIcon";
+import { type FC, type PropsWithChildren } from "react";
 
-interface AppPreviewProps {
-  app: TypesGen.WorkspaceApp;
-}
-
-export const AppPreviewLink: FC<AppPreviewProps> = ({ app }) => {
+export const AppPreview: FC<PropsWithChildren> = ({ children }) => {
   return (
     <Stack
       css={(theme) => ({
@@ -29,9 +22,7 @@ export const AppPreviewLink: FC<AppPreviewProps> = ({ app }) => {
       direction="row"
       spacing={1}
     >
-      <BaseIcon app={app} />
-      {app.display_name}
-      <ShareIcon app={app} />
+      {children}
     </Stack>
   );
 };
