@@ -90,102 +90,100 @@ export const DERPRegionPage = () => {
           </div>
         </section>
 
-        <section>
-          {reports.map((report) => {
-            const { node, client_logs: logs } = report;
-            const latencyColor = getLatencyColor(
-              theme,
-              report.round_trip_ping_ms,
-            );
-            return (
-              <section
-                key={node.HostName}
+        {reports.map((report) => {
+          const { node, client_logs: logs } = report;
+          const latencyColor = getLatencyColor(
+            theme,
+            report.round_trip_ping_ms,
+          );
+          return (
+            <section
+              key={node.HostName}
+              css={{
+                border: `1px solid ${theme.palette.divider}`,
+                borderRadius: 8,
+                fontSize: 14,
+              }}
+            >
+              <header
                 css={{
-                  border: `1px solid ${theme.palette.divider}`,
-                  borderRadius: 8,
-                  fontSize: 14,
+                  padding: 24,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
                 }}
               >
-                <header
-                  css={{
-                    padding: 24,
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <div>
-                    <h4
-                      css={{
-                        fontWeight: 500,
-                        margin: 0,
-                        lineHeight: "120%",
-                      }}
-                    >
-                      {node.HostName}
-                    </h4>
-                    <div
-                      css={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        color: theme.palette.text.secondary,
-                        fontSize: 12,
-                        lineHeight: "120%",
-                        marginTop: 8,
-                      }}
-                    >
-                      <span>DERP Port: {node.DERPPort ?? "None"}</span>
-                      <span>STUN Port: {node.STUNPort ?? "None"}</span>
-                    </div>
+                <div>
+                  <h4
+                    css={{
+                      fontWeight: 500,
+                      margin: 0,
+                      lineHeight: "120%",
+                    }}
+                  >
+                    {node.HostName}
+                  </h4>
+                  <div
+                    css={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      color: theme.palette.text.secondary,
+                      fontSize: 12,
+                      lineHeight: "120%",
+                      marginTop: 8,
+                    }}
+                  >
+                    <span>DERP Port: {node.DERPPort ?? "None"}</span>
+                    <span>STUN Port: {node.STUNPort ?? "None"}</span>
                   </div>
+                </div>
 
-                  <div css={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <Tooltip title="Round trip ping">
-                      <Pill
-                        css={{ color: latencyColor }}
-                        icon={
+                <div css={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <Tooltip title="Round trip ping">
+                    <Pill
+                      css={{ color: latencyColor }}
+                      icon={
+                        <div
+                          css={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
                           <div
                             css={{
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
+                              width: 8,
+                              height: 8,
+                              backgroundColor: latencyColor,
+                              borderRadius: 9999,
                             }}
-                          >
-                            <div
-                              css={{
-                                width: 8,
-                                height: 8,
-                                backgroundColor: latencyColor,
-                                borderRadius: 9999,
-                              }}
-                            />
-                          </div>
-                        }
-                      >
-                        {report.round_trip_ping_ms}ms
-                      </Pill>
-                    </Tooltip>
-                    <BooleanPill value={report.can_exchange_messages}>
-                      Exchange Messages
-                    </BooleanPill>
-                    <BooleanPill value={report.uses_websocket}>
-                      Websocket
-                    </BooleanPill>
-                  </div>
-                </header>
-                <Logs
-                  lines={logs?.[0] ?? []}
-                  css={{
-                    borderBottomLeftRadius: 8,
-                    borderBottomRightRadius: 8,
-                    borderTop: `1px solid ${theme.palette.divider}`,
-                  }}
-                />
-              </section>
-            );
-          })}
-        </section>
+                          />
+                        </div>
+                      }
+                    >
+                      {report.round_trip_ping_ms}ms
+                    </Pill>
+                  </Tooltip>
+                  <BooleanPill value={report.can_exchange_messages}>
+                    Exchange Messages
+                  </BooleanPill>
+                  <BooleanPill value={report.uses_websocket}>
+                    Websocket
+                  </BooleanPill>
+                </div>
+              </header>
+              <Logs
+                lines={logs?.[0] ?? []}
+                css={{
+                  borderBottomLeftRadius: 8,
+                  borderBottomRightRadius: 8,
+                  borderTop: `1px solid ${theme.palette.divider}`,
+                }}
+              />
+            </section>
+          );
+        })}
       </Main>
     </>
   );
