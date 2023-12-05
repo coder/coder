@@ -34,6 +34,22 @@ const NoVSCode = {
   ] as DisplayApp[],
 };
 
+const NoModulesJustApps = {
+  ...MockWorkspaceAgent,
+  apps: [],
+};
+
+const NoAppsJustModules = {
+  ...MockWorkspaceAgent,
+  display_apps: [] as DisplayApp[],
+};
+
+const EmptyAppPreview = {
+  ...MockWorkspaceAgent,
+  apps: [],
+  display_apps: [] as DisplayApp[],
+};
+
 describe("AgentRowPreviewApps", () => {
   it.each<{
     workspaceAgent: WorkspaceAgent;
@@ -54,6 +70,18 @@ describe("AgentRowPreviewApps", () => {
     {
       workspaceAgent: NoVSCode,
       testName: "NoVSCode",
+    },
+    {
+      workspaceAgent: NoModulesJustApps,
+      testName: "NoModulesJustApps",
+    },
+    {
+      workspaceAgent: NoAppsJustModules,
+      testName: "NoAppsJustModules",
+    },
+    {
+      workspaceAgent: EmptyAppPreview,
+      testName: "EmptyAppPreview",
     },
   ])(
     `<AgentRowPreview agent={$testName} /> displays appropriately`,
@@ -92,6 +120,14 @@ describe("AgentRowPreviewApps", () => {
           screen.queryByText(DisplayAppNameMap[app]),
         ).not.toBeInTheDocument();
       });
+
+      // test empty state
+      if (
+        workspaceAgent.display_apps.length === 0 &&
+        workspaceAgent.apps.length === 0
+      ) {
+        expect(screen.getByText("None")).toBeInTheDocument();
+      }
     },
   );
 });

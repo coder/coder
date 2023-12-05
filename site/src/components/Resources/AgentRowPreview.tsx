@@ -125,7 +125,7 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
                   </AppPreview>
                 )
               )}
-              {agent.apps.length === 0 && (
+              {agent.apps.length === 0 && agent.display_apps.length === 0 && (
                 <span css={styles.agentDataValue}>None</span>
               )}
             </Stack>
