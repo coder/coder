@@ -1,7 +1,7 @@
 /* eslint-disable jsx-a11y/heading-has-content -- infer from props */
 import {
   ComponentProps,
-  HTMLProps,
+  HTMLAttributes,
   ReactElement,
   cloneElement,
   forwardRef,
@@ -16,7 +16,7 @@ import { useTheme } from "@mui/material/styles";
 
 const CONTENT_PADDING = 36;
 
-export const Header = (props: HTMLProps<HTMLDivElement>) => {
+export const Header = (props: HTMLAttributes<HTMLDivElement>) => {
   return (
     <header
       css={{
@@ -30,7 +30,7 @@ export const Header = (props: HTMLProps<HTMLDivElement>) => {
   );
 };
 
-export const HeaderTitle = (props: HTMLProps<HTMLHeadingElement>) => {
+export const HeaderTitle = (props: HTMLAttributes<HTMLHeadingElement>) => {
   return (
     <h2
       css={{
@@ -76,7 +76,7 @@ export const HealthyDot = ({ severity }: { severity: HealthSeverity }) => {
   );
 };
 
-export const Main = (props: HTMLProps<HTMLDivElement>) => {
+export const Main = (props: HTMLAttributes<HTMLDivElement>) => {
   return (
     <main
       css={{
@@ -90,7 +90,7 @@ export const Main = (props: HTMLProps<HTMLDivElement>) => {
   );
 };
 
-export const GridData = (props: HTMLProps<HTMLDivElement>) => {
+export const GridData = (props: HTMLAttributes<HTMLDivElement>) => {
   return (
     <div
       css={{
@@ -107,7 +107,7 @@ export const GridData = (props: HTMLProps<HTMLDivElement>) => {
   );
 };
 
-export const GridDataLabel = (props: HTMLProps<HTMLSpanElement>) => {
+export const GridDataLabel = (props: HTMLAttributes<HTMLSpanElement>) => {
   const theme = useTheme();
   return (
     <span
@@ -121,7 +121,7 @@ export const GridDataLabel = (props: HTMLProps<HTMLSpanElement>) => {
   );
 };
 
-export const GridDataValue = (props: HTMLProps<HTMLSpanElement>) => {
+export const GridDataValue = (props: HTMLAttributes<HTMLSpanElement>) => {
   const theme = useTheme();
   return (
     <span
@@ -134,7 +134,7 @@ export const GridDataValue = (props: HTMLProps<HTMLSpanElement>) => {
   );
 };
 
-export const SectionLabel = (props: HTMLProps<HTMLHeadingElement>) => {
+export const SectionLabel = (props: HTMLAttributes<HTMLHeadingElement>) => {
   return (
     <h4
       {...props}
@@ -149,7 +149,7 @@ export const SectionLabel = (props: HTMLProps<HTMLHeadingElement>) => {
   );
 };
 
-type PillProps = HTMLProps<HTMLDivElement> & {
+type PillProps = HTMLAttributes<HTMLDivElement> & {
   icon: ReactElement;
 };
 
@@ -209,7 +209,7 @@ export const BooleanPill = (props: BooleanPillProps) => {
   );
 };
 
-type LogsProps = { lines: string[] } & HTMLProps<HTMLDivElement>;
+type LogsProps = { lines: string[] } & HTMLAttributes<HTMLDivElement>;
 
 export const Logs = (props: LogsProps) => {
   const theme = useTheme();
