@@ -8,7 +8,11 @@ import {
   Logs,
   HealthyDot,
 } from "./Content";
-import { HealthSeverity, HealthcheckReport } from "api/typesGenerated";
+import {
+  HealthMessage,
+  HealthSeverity,
+  HealthcheckReport,
+} from "api/typesGenerated";
 import CodeOutlined from "@mui/icons-material/CodeOutlined";
 import TagOutlined from "@mui/icons-material/TagOutlined";
 import Tooltip from "@mui/material/Tooltip";
@@ -68,10 +72,10 @@ export const DERPRegionPage = () => {
       </Header>
 
       <Main>
-        {warnings.map((warning, i) => {
+        {warnings.map((warning: HealthMessage) => {
           return (
-            <Alert key={i} severity="warning">
-              {warning}
+            <Alert key={warning.code} severity="warning">
+              {warning.message}
             </Alert>
           );
         })}
