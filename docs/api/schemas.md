@@ -3770,10 +3770,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "created_at": "2019-08-24T14:15:22Z",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "last_seen_at": {
-    "time": "string",
-    "valid": true
-  },
+  "last_seen_at": "2019-08-24T14:15:22Z",
   "name": "string",
   "provisioners": ["string"],
   "tags": {
@@ -3784,26 +3781,23 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "time": "string",
     "valid": true
   },
-  "version": {
-    "string": "string",
-    "valid": true
-  }
+  "version": "string"
 }
 ```
 
 ### Properties
 
-| Name               | Type                             | Required | Restrictions | Description |
-| ------------------ | -------------------------------- | -------- | ------------ | ----------- |
-| `created_at`       | string                           | false    |              |             |
-| `id`               | string                           | false    |              |             |
-| `last_seen_at`     | [sql.NullTime](#sqlnulltime)     | false    |              |             |
-| `name`             | string                           | false    |              |             |
-| `provisioners`     | array of string                  | false    |              |             |
-| `tags`             | object                           | false    |              |             |
-| » `[any property]` | string                           | false    |              |             |
-| `updated_at`       | [sql.NullTime](#sqlnulltime)     | false    |              |             |
-| `version`          | [sql.NullString](#sqlnullstring) | false    |              |             |
+| Name               | Type                         | Required | Restrictions | Description |
+| ------------------ | ---------------------------- | -------- | ------------ | ----------- |
+| `created_at`       | string                       | false    |              |             |
+| `id`               | string                       | false    |              |             |
+| `last_seen_at`     | string                       | false    |              |             |
+| `name`             | string                       | false    |              |             |
+| `provisioners`     | array of string              | false    |              |             |
+| `tags`             | object                       | false    |              |             |
+| » `[any property]` | string                       | false    |              |             |
+| `updated_at`       | [sql.NullTime](#sqlnulltime) | false    |              |             |
+| `version`          | string                       | false    |              |             |
 
 ## codersdk.ProvisionerJob
 
@@ -8189,22 +8183,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | » `[any property]`      | integer | false    |              |                                                                                                                                    |
 | `udp`                   | boolean | false    |              | a UDP STUN round trip completed                                                                                                    |
 | `upnP`                  | string  | false    |              | Upnp is whether UPnP appears present on the LAN. Empty means not checked.                                                          |
-
-## sql.NullString
-
-```json
-{
-  "string": "string",
-  "valid": true
-}
-```
-
-### Properties
-
-| Name     | Type    | Required | Restrictions | Description                         |
-| -------- | ------- | -------- | ------------ | ----------------------------------- |
-| `string` | string  | false    |              |                                     |
-| `valid`  | boolean | false    |              | Valid is true if String is not NULL |
 
 ## sql.NullTime
 

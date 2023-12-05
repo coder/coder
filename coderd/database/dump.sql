@@ -515,7 +515,7 @@ CREATE TABLE provisioner_daemons (
     replica_id uuid,
     tags jsonb DEFAULT '{}'::jsonb NOT NULL,
     last_seen_at timestamp with time zone,
-    version text
+    version text DEFAULT ''::text NOT NULL
 );
 
 CREATE TABLE provisioner_job_logs (

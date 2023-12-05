@@ -9543,12 +9543,8 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "last_seen_at": {
-                    "format": "date-time",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/sql.NullTime"
-                        }
-                    ]
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "name": {
                     "type": "string"
@@ -9574,7 +9570,7 @@ const docTemplate = `{
                     ]
                 },
                 "version": {
-                    "$ref": "#/definitions/sql.NullString"
+                    "type": "string"
                 }
             }
         },
@@ -12742,18 +12738,6 @@ const docTemplate = `{
                 "upnP": {
                     "description": "UPnP is whether UPnP appears present on the LAN.\nEmpty means not checked.",
                     "type": "string"
-                }
-            }
-        },
-        "sql.NullString": {
-            "type": "object",
-            "properties": {
-                "string": {
-                    "type": "string"
-                },
-                "valid": {
-                    "description": "Valid is true if String is not NULL",
-                    "type": "boolean"
                 }
             }
         },
