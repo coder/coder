@@ -1,0 +1,19 @@
+# Ignore all packages from this repository by default
+Package: *
+Pin: origin packages.cloud.google.com
+Pin-Priority: 1
+
+# Google Cloud SDK for gcloud and gsutil CLI tools
+Package: google-cloud-sdk
+Pin: origin packages.cloud.google.com
+Pin-Priority: 500
+
+# Datastore emulator for working with the licensor
+Package: google-cloud-sdk-datastore-emulator
+Pin: origin packages.cloud.google.com
+Pin-Priority: 500
+
+# Kubectl for working with Kubernetes (GKE)
+Package: kubectl
+Pin: origin packages.cloud.google.com
+Pin-Priority: 500
