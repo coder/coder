@@ -660,14 +660,21 @@ func New(options *Options) *API {
 			r.Get("/{fileID}", api.fileByID)
 			r.Post("/", api.postFile)
 		})
-		r.Route("/external-auth/{externalauth}", func(r chi.Router) {
+		r.Route("/external-auth", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				httpmw.ExtractExternalAuthParam(options.ExternalAuthConfigs),
 			)
-			r.Get("/", api.externalAuthByID)
-			r.Post("/device", api.postExternalAuthDeviceByID)
-			r.Get("/device", api.externalAuthDeviceByID)
+			// Get without a specific external auth ID will return all external auths.
+			r.Get("/", api.listUserExternalAuths)
+			r.Route("/{externalauth}", func(r chi.Router) {
+				r.Use(
+					httpmw.ExtractExternalAuthParam(options.ExternalAuthConfigs),
+				)
+				r.Delete("/", api.deleteExternalAuthByID)
+				r.Get("/", api.externalAuthByID)
+				r.Post("/device", api.postExternalAuthDeviceByID)
+				r.Get("/device", api.externalAuthDeviceByID)
+			})
 		})
 		r.Route("/organizations", func(r chi.Router) {
 			r.Use(

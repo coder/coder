@@ -1,6 +1,9 @@
 -- name: GetExternalAuthLink :one
 SELECT * FROM external_auth_links WHERE provider_id = $1 AND user_id = $2;
 
+-- name: DeleteExternalAuthLink :exec
+DELETE FROM external_auth_links WHERE provider_id = $1 AND user_id = $2;
+
 -- name: GetExternalAuthLinksByUserID :many
 SELECT * FROM external_auth_links WHERE user_id = $1;
 

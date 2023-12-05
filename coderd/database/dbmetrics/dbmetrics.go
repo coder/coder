@@ -176,6 +176,13 @@ func (m metricsStore) DeleteCoordinator(ctx context.Context, id uuid.UUID) error
 	return m.s.DeleteCoordinator(ctx, id)
 }
 
+func (m metricsStore) DeleteExternalAuthLink(ctx context.Context, arg database.DeleteExternalAuthLinkParams) error {
+	start := time.Now()
+	r0 := m.s.DeleteExternalAuthLink(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteExternalAuthLink").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error {
 	start := time.Now()
 	err := m.s.DeleteGitSSHKey(ctx, userID)

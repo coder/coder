@@ -3001,6 +3001,28 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `user_code`        | string  | false    |              |             |
 | `verification_uri` | string  | false    |              |             |
 
+## codersdk.ExternalAuthLink
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "expires": "2019-08-24T14:15:22Z",
+  "has_refresh_token": true,
+  "provider_id": "string",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description |
+| ------------------- | ------- | -------- | ------------ | ----------- |
+| `created_at`        | string  | false    |              |             |
+| `expires`           | string  | false    |              |             |
+| `has_refresh_token` | boolean | false    |              |             |
+| `provider_id`       | string  | false    |              |             |
+| `updated_at`        | string  | false    |              |             |
+
 ## codersdk.ExternalAuthUser
 
 ```json

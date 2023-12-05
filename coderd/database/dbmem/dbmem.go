@@ -1027,6 +1027,29 @@ func (*FakeQuerier) DeleteCoordinator(context.Context, uuid.UUID) error {
 	return ErrUnimplemented
 }
 
+func (q *FakeQuerier) DeleteExternalAuthLink(_ context.Context, arg database.DeleteExternalAuthLinkParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, key := range q.externalAuthLinks {
+		if key.UserID != arg.UserID {
+			continue
+		}
+		if key.ProviderID != arg.ProviderID {
+			continue
+		}
+		q.externalAuthLinks[index] = q.externalAuthLinks[len(q.externalAuthLinks)-1]
+		q.externalAuthLinks = q.externalAuthLinks[:len(q.externalAuthLinks)-1]
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
 func (q *FakeQuerier) DeleteGitSSHKey(_ context.Context, userID uuid.UUID) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
