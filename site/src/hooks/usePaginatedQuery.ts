@@ -116,7 +116,8 @@ export function usePaginatedQuery<
   const currentPage = parsePage(searchParams);
   const currentPageOffset = (currentPage - 1) * limit;
 
-  const getQueryOptionsFromPage = (pageNumber: number) => {
+  type Options = UseQueryOptions<TQueryFnData, TError, TData, TQueryKey>;
+  const getQueryOptionsFromPage = (pageNumber: number): Options => {
     const pageParams: QueryPageParams = {
       pageNumber,
       limit,
@@ -125,13 +126,13 @@ export function usePaginatedQuery<
     };
 
     const payload = queryPayload?.(pageParams) as RuntimePayload<TQueryPayload>;
-
     return {
+      staleTime,
       queryKey: queryKey({ ...pageParams, payload }),
       queryFn: (context: QueryFunctionContext<TQueryKey>) => {
         return outerQueryFn({ ...context, ...pageParams, payload });
       },
-    } as const;
+    };
   };
 
   // Not using infinite query right now because that requires a fair bit of list
