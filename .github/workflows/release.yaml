@@ -434,12 +434,22 @@ jobs:
 
           $release_assets = gh release view --repo coder/coder "v${version}" --json assets | `
             ConvertFrom-Json
-          # Get the installer URL from the release assets.
-          $installer_url = $release_assets.assets | `
+          # Get the x64 installer URL from the release assets.
+          $x64_installer_url = $release_assets.assets | `
             Where-Object name -Match ".*_windows_amd64_installer.exe$" | `
             Select -ExpandProperty url
+          # Get amd64 zip URL
+          $x64_zip_url = $release_assets.assets | `
+            Where-Object name -Match ".*_windows_amd64.zip$" | `
+            Select -ExpandProperty url
+          # Get arm64 zip URL
+          $arm64_zip_url = $release_assets.assets | `
+            Where-Object name -Match ".*_windows_arm64.zip$" | `
+            Select -ExpandProperty url
 
-          echo "Installer URL: ${installer_url}"
+          echo "x64 Installer URL: ${x64_installer_url}"
+          echo "x64 zip URL: ${x64_zip_url}"
+          echo "arm64 zip URL: ${arm64_zip_url}"
           echo "Package version: ${version}"
 
           # The URL "|X64" suffix forces the architecture as it cannot be
@@ -455,6 +465,8 @@ jobs:
             --submit `
             --version "${version}" `
             --urls "${installer_url}|X64" `
+            --urls "${x64_zip_url}|X64" `
+            --urls "${arm64_zip_url}" `
             --token "$env:WINGET_GH_TOKEN"
 
         env:
