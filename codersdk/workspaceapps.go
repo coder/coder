@@ -17,6 +17,7 @@ var MapWorkspaceAppHealths = map[WorkspaceAppHealth]struct{}{
 	WorkspaceAppHealthDisabled:     {},
 	WorkspaceAppHealthInitializing: {},
 	WorkspaceAppHealthHealthy:      {},
+	WorkspaceAppHealthUnhealthy:    {},
 }
 
 type WorkspaceAppSharingLevel string
