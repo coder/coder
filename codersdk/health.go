@@ -36,7 +36,7 @@ func (c *Client) PutHealthSettings(ctx context.Context, settings HealthSettings)
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode == http.StatusNotModified {
+	if res.StatusCode == http.StatusNoContent {
 		return xerrors.New("health settings not modified")
 	}
 	if res.StatusCode != http.StatusOK {
