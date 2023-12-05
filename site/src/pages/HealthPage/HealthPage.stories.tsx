@@ -131,7 +131,12 @@ export const DERPWarnings: Story = {
       severity: "warning",
       derp: {
         ...MockHealth.derp,
-        warnings: ["foobar"],
+        warnings: [
+          {
+            message: "derp derp derp",
+            code: "EDERP01",
+          },
+        ],
       },
     },
   },

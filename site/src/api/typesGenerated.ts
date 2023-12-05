@@ -2257,11 +2257,8 @@ export const HealthSeveritys: HealthSeverity[] = ["error", "ok", "warning"];
 // From derphealth/derp.go
 export interface DerphealthNodeReport {
   readonly healthy: boolean;
-  // This is likely an enum in an external package ("github.com/coder/coder/v2/coderd/healthcheck/health.Severity")
-  readonly severity: string;
-  // Named type "github.com/coder/coder/v2/coderd/healthcheck/health.Message" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly warnings: any[];
+  readonly severity: HealthSeverity;
+  readonly warnings: HealthMessage[];
   // Named type "tailscale.com/tailcfg.DERPNode" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly node?: any;
@@ -2281,11 +2278,8 @@ export interface DerphealthNodeReport {
 // From derphealth/derp.go
 export interface DerphealthRegionReport {
   readonly healthy: boolean;
-  // This is likely an enum in an external package ("github.com/coder/coder/v2/coderd/healthcheck/health.Severity")
-  readonly severity: string;
-  // Named type "github.com/coder/coder/v2/coderd/healthcheck/health.Message" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly warnings: any[];
+  readonly severity: HealthSeverity;
+  readonly warnings: HealthMessage[];
   // Named type "tailscale.com/tailcfg.DERPRegion" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly region?: any;
@@ -2296,11 +2290,8 @@ export interface DerphealthRegionReport {
 // From derphealth/derp.go
 export interface DerphealthReport {
   readonly healthy: boolean;
-  // This is likely an enum in an external package ("github.com/coder/coder/v2/coderd/healthcheck/health.Severity")
-  readonly severity: string;
-  // Named type "github.com/coder/coder/v2/coderd/healthcheck/health.Message" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly warnings: any[];
+  readonly severity: HealthSeverity;
+  readonly warnings: HealthMessage[];
   readonly dismissed: boolean;
   readonly regions: Record<number, DerphealthRegionReport>;
   // Named type "tailscale.com/net/netcheck.Report" unknown, using "any"
