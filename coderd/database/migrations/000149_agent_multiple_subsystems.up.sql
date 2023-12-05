@@ -1,5 +1,3 @@
-BEGIN;
-
 -- Add "exectrace" to workspace_agent_subsystem type.
 ALTER TYPE workspace_agent_subsystem ADD VALUE 'exectrace';
 
@@ -17,5 +15,3 @@ UPDATE workspace_agents SET subsystems = ARRAY[subsystem] WHERE subsystem != 'no
 
 -- Drop the subsystem column from workspace_agents.
 ALTER TABLE workspace_agents DROP COLUMN subsystem;
-
-COMMIT;

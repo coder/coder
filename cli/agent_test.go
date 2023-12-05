@@ -31,11 +31,10 @@ func TestWorkspaceAgent(t *testing.T) {
 
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		r := dbfake.Workspace(t, db).
-			Seed(database.Workspace{
-				OrganizationID: user.OrganizationID,
-				OwnerID:        user.UserID,
-			}).
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).
 			WithAgent().
 			Do()
 		logDir := t.TempDir()
@@ -68,7 +67,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			AzureCertificates: certificates,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
-		r := dbfake.Workspace(t, db).Seed(database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
@@ -105,7 +104,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			AWSCertificates: certificates,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
-		r := dbfake.Workspace(t, db).Seed(database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
@@ -143,7 +142,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-		r := dbfake.Workspace(t, db).Seed(database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        memberUser.ID,
 		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
@@ -195,13 +194,10 @@ func TestWorkspaceAgent(t *testing.T) {
 
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		r := dbfake.Workspace(t, db).
-			Seed(database.Workspace{
-				OrganizationID: user.OrganizationID,
-				OwnerID:        user.UserID,
-			}).
-			WithAgent().
-			Do()
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent().Do()
 
 		logDir := t.TempDir()
 		inv, _ := clitest.New(t,

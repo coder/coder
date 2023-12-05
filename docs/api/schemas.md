@@ -283,6 +283,7 @@
     }
   ],
   "motd_file": "string",
+  "owner_name": "string",
   "scripts": [
     {
       "cron": "string",
@@ -295,27 +296,30 @@
       "timeout": 0
     }
   ],
-  "vscode_port_proxy_uri": "string"
+  "vscode_port_proxy_uri": "string",
+  "workspace_id": "string"
 }
 ```
 
 ### Properties
 
-| Name                         | Type                                                                                              | Required | Restrictions | Description                                                                                                                                                |
-| ---------------------------- | ------------------------------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `agent_id`                   | string                                                                                            | false    |              |                                                                                                                                                            |
-| `apps`                       | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)                                           | false    |              |                                                                                                                                                            |
-| `derp_force_websockets`      | boolean                                                                                           | false    |              |                                                                                                                                                            |
-| `derpmap`                    | [tailcfg.DERPMap](#tailcfgderpmap)                                                                | false    |              |                                                                                                                                                            |
-| `directory`                  | string                                                                                            | false    |              |                                                                                                                                                            |
-| `disable_direct_connections` | boolean                                                                                           | false    |              |                                                                                                                                                            |
-| `environment_variables`      | object                                                                                            | false    |              |                                                                                                                                                            |
-| » `[any property]`           | string                                                                                            | false    |              |                                                                                                                                                            |
-| `git_auth_configs`           | integer                                                                                           | false    |              | Git auth configs stores the number of Git configurations the Coder deployment has. If this number is >0, we set up special configuration in the workspace. |
-| `metadata`                   | array of [codersdk.WorkspaceAgentMetadataDescription](#codersdkworkspaceagentmetadatadescription) | false    |              |                                                                                                                                                            |
-| `motd_file`                  | string                                                                                            | false    |              |                                                                                                                                                            |
-| `scripts`                    | array of [codersdk.WorkspaceAgentScript](#codersdkworkspaceagentscript)                           | false    |              |                                                                                                                                                            |
-| `vscode_port_proxy_uri`      | string                                                                                            | false    |              |                                                                                                                                                            |
+| Name                         | Type                                                                                              | Required | Restrictions | Description                                                                                                                                                                                                     |
+| ---------------------------- | ------------------------------------------------------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent_id`                   | string                                                                                            | false    |              |                                                                                                                                                                                                                 |
+| `apps`                       | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)                                           | false    |              |                                                                                                                                                                                                                 |
+| `derp_force_websockets`      | boolean                                                                                           | false    |              |                                                                                                                                                                                                                 |
+| `derpmap`                    | [tailcfg.DERPMap](#tailcfgderpmap)                                                                | false    |              |                                                                                                                                                                                                                 |
+| `directory`                  | string                                                                                            | false    |              |                                                                                                                                                                                                                 |
+| `disable_direct_connections` | boolean                                                                                           | false    |              |                                                                                                                                                                                                                 |
+| `environment_variables`      | object                                                                                            | false    |              |                                                                                                                                                                                                                 |
+| » `[any property]`           | string                                                                                            | false    |              |                                                                                                                                                                                                                 |
+| `git_auth_configs`           | integer                                                                                           | false    |              | Git auth configs stores the number of Git configurations the Coder deployment has. If this number is >0, we set up special configuration in the workspace.                                                      |
+| `metadata`                   | array of [codersdk.WorkspaceAgentMetadataDescription](#codersdkworkspaceagentmetadatadescription) | false    |              |                                                                                                                                                                                                                 |
+| `motd_file`                  | string                                                                                            | false    |              |                                                                                                                                                                                                                 |
+| `owner_name`                 | string                                                                                            | false    |              | Owner name and WorkspaceID are used by an open-source user to identify the workspace. We do not provide insurance that this will not be removed in the future, but if it's easy to persist lets keep it around. |
+| `scripts`                    | array of [codersdk.WorkspaceAgentScript](#codersdkworkspaceagentscript)                           | false    |              |                                                                                                                                                                                                                 |
+| `vscode_port_proxy_uri`      | string                                                                                            | false    |              |                                                                                                                                                                                                                 |
+| `workspace_id`               | string                                                                                            | false    |              |                                                                                                                                                                                                                 |
 
 ## agentsdk.Metadata
 
@@ -3766,30 +3770,31 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "created_at": "2019-08-24T14:15:22Z",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "last_seen_at": "2019-08-24T14:15:22Z",
   "name": "string",
   "provisioners": ["string"],
   "tags": {
     "property1": "string",
     "property2": "string"
   },
-  "updated_at": {
-    "time": "string",
-    "valid": true
-  }
+  "updated_at": "2019-08-24T14:15:22Z",
+  "version": "string"
 }
 ```
 
 ### Properties
 
-| Name               | Type                         | Required | Restrictions | Description |
-| ------------------ | ---------------------------- | -------- | ------------ | ----------- |
-| `created_at`       | string                       | false    |              |             |
-| `id`               | string                       | false    |              |             |
-| `name`             | string                       | false    |              |             |
-| `provisioners`     | array of string              | false    |              |             |
-| `tags`             | object                       | false    |              |             |
-| » `[any property]` | string                       | false    |              |             |
-| `updated_at`       | [sql.NullTime](#sqlnulltime) | false    |              |             |
+| Name               | Type            | Required | Restrictions | Description |
+| ------------------ | --------------- | -------- | ------------ | ----------- |
+| `created_at`       | string          | false    |              |             |
+| `id`               | string          | false    |              |             |
+| `last_seen_at`     | string          | false    |              |             |
+| `name`             | string          | false    |              |             |
+| `provisioners`     | array of string | false    |              |             |
+| `tags`             | object          | false    |              |             |
+| » `[any property]` | string          | false    |              |             |
+| `updated_at`       | string          | false    |              |             |
+| `version`          | string          | false    |              |             |
 
 ## codersdk.ProvisionerJob
 
@@ -8175,22 +8180,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | » `[any property]`      | integer | false    |              |                                                                                                                                    |
 | `udp`                   | boolean | false    |              | a UDP STUN round trip completed                                                                                                    |
 | `upnP`                  | string  | false    |              | Upnp is whether UPnP appears present on the LAN. Empty means not checked.                                                          |
-
-## sql.NullTime
-
-```json
-{
-  "time": "string",
-  "valid": true
-}
-```
-
-### Properties
-
-| Name    | Type    | Required | Restrictions | Description                       |
-| ------- | ------- | -------- | ------------ | --------------------------------- |
-| `time`  | string  | false    |              |                                   |
-| `valid` | boolean | false    |              | Valid is true if Time is not NULL |
 
 ## tailcfg.DERPHomeParams
 

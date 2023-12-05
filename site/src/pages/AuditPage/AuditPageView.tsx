@@ -20,11 +20,11 @@ import { AuditHelpTooltip } from "./AuditHelpTooltip";
 import { ComponentProps, FC } from "react";
 import { AuditPaywall } from "./AuditPaywall";
 import { AuditFilter } from "./AuditFilter";
+
 import {
-  PaginationStatus,
-  TableToolbar,
-} from "components/TableToolbar/TableToolbar";
-import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
+  type PaginationResult,
+  PaginationContainer,
+} from "components/PaginationWidget/PaginationContainer";
 
 export const Language = {
   title: "Audit",
@@ -33,28 +33,25 @@ export const Language = {
 
 export interface AuditPageViewProps {
   auditLogs?: AuditLog[];
-  count?: number;
-  page: number;
-  limit: number;
-  onPageChange: (page: number) => void;
   isNonInitialPage: boolean;
   isAuditLogVisible: boolean;
   error?: unknown;
   filterProps: ComponentProps<typeof AuditFilter>;
+  auditsQuery: PaginationResult;
 }
 
 export const AuditPageView: FC<AuditPageViewProps> = ({
   auditLogs,
-  count,
-  page,
-  limit,
-  onPageChange,
   isNonInitialPage,
   isAuditLogVisible,
   error,
   filterProps,
+  auditsQuery: paginationResult,
 }) => {
-  const isLoading = (auditLogs === undefined || count === undefined) && !error;
+  const isLoading =
+    (auditLogs === undefined || paginationResult.totalRecords === undefined) &&
+    !error;
+
   const isEmpty = !isLoading && auditLogs?.length === 0;
 
   return (
@@ -73,72 +70,63 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
         <Cond condition={isAuditLogVisible}>
           <AuditFilter {...filterProps} />
 
-          <TableToolbar>
-            <PaginationStatus
-              isLoading={Boolean(isLoading)}
-              showing={auditLogs?.length ?? 0}
-              total={count ?? 0}
-              label="audit logs"
-            />
-          </TableToolbar>
+          <PaginationContainer
+            query={paginationResult}
+            paginationUnitLabel="logs"
+          >
+            <TableContainer>
+              <Table>
+                <TableBody>
+                  <ChooseOne>
+                    {/* Error condition should just show an empty table. */}
+                    <Cond condition={Boolean(error)}>
+                      <TableRow>
+                        <TableCell colSpan={999}>
+                          <EmptyState message="An error occurred while loading audit logs" />
+                        </TableCell>
+                      </TableRow>
+                    </Cond>
 
-          <TableContainer>
-            <Table>
-              <TableBody>
-                <ChooseOne>
-                  {/* Error condition should just show an empty table. */}
-                  <Cond condition={Boolean(error)}>
-                    <TableRow>
-                      <TableCell colSpan={999}>
-                        <EmptyState message="An error occurred while loading audit logs" />
-                      </TableCell>
-                    </TableRow>
-                  </Cond>
-                  <Cond condition={isLoading}>
-                    <TableLoader />
-                  </Cond>
-                  <Cond condition={isEmpty}>
-                    <ChooseOne>
-                      <Cond condition={isNonInitialPage}>
-                        <TableRow>
-                          <TableCell colSpan={999}>
-                            <EmptyState message="No audit logs available on this page" />
-                          </TableCell>
-                        </TableRow>
-                      </Cond>
-                      <Cond>
-                        <TableRow>
-                          <TableCell colSpan={999}>
-                            <EmptyState message="No audit logs available" />
-                          </TableCell>
-                        </TableRow>
-                      </Cond>
-                    </ChooseOne>
-                  </Cond>
-                  <Cond>
-                    {auditLogs && (
-                      <Timeline
-                        items={auditLogs}
-                        getDate={(log) => new Date(log.time)}
-                        row={(log) => (
-                          <AuditLogRow key={log.id} auditLog={log} />
-                        )}
-                      />
-                    )}
-                  </Cond>
-                </ChooseOne>
-              </TableBody>
-            </Table>
-          </TableContainer>
+                    <Cond condition={isLoading}>
+                      <TableLoader />
+                    </Cond>
 
-          {count !== undefined && (
-            <PaginationWidgetBase
-              totalRecords={count}
-              pageSize={limit}
-              onPageChange={onPageChange}
-              currentPage={page}
-            />
-          )}
+                    <Cond condition={isEmpty}>
+                      <ChooseOne>
+                        <Cond condition={isNonInitialPage}>
+                          <TableRow>
+                            <TableCell colSpan={999}>
+                              <EmptyState message="No audit logs available on this page" />
+                            </TableCell>
+                          </TableRow>
+                        </Cond>
+
+                        <Cond>
+                          <TableRow>
+                            <TableCell colSpan={999}>
+                              <EmptyState message="No audit logs available" />
+                            </TableCell>
+                          </TableRow>
+                        </Cond>
+                      </ChooseOne>
+                    </Cond>
+
+                    <Cond>
+                      {auditLogs && (
+                        <Timeline
+                          items={auditLogs}
+                          getDate={(log) => new Date(log.time)}
+                          row={(log) => (
+                            <AuditLogRow key={log.id} auditLog={log} />
+                          )}
+                        />
+                      )}
+                    </Cond>
+                  </ChooseOne>
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </PaginationContainer>
         </Cond>
 
         <Cond>

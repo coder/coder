@@ -1,4 +1,3 @@
-import Box from "@mui/material/Box";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -6,7 +5,7 @@ import TableContainer from "@mui/material/TableContainer";
 import TableRow from "@mui/material/TableRow";
 import { Timeline } from "components/Timeline/Timeline";
 import { type FC } from "react";
-import * as TypesGen from "api/typesGenerated";
+import type * as TypesGen from "api/typesGenerated";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import { VersionRow } from "./VersionRow";
@@ -20,15 +19,17 @@ export const Language = {
 
 export interface VersionsTableProps {
   activeVersionId: string;
+  versions?: TypesGen.TemplateVersion[];
   onPromoteClick?: (templateVersionId: string) => void;
   onArchiveClick?: (templateVersionId: string) => void;
-
-  versions?: TypesGen.TemplateVersion[];
 }
 
-export const VersionsTable: FC<VersionsTableProps> = (props) => {
-  const { versions, onArchiveClick, onPromoteClick, activeVersionId } = props;
-
+export const VersionsTable: FC<VersionsTableProps> = ({
+  activeVersionId,
+  versions,
+  onArchiveClick,
+  onPromoteClick,
+}) => {
   const latestVersionId = versions?.reduce(
     (latestSoFar, against) => {
       if (against.job.status !== "succeeded") {
@@ -73,9 +74,9 @@ export const VersionsTable: FC<VersionsTableProps> = (props) => {
           {versions && versions.length === 0 && (
             <TableRow>
               <TableCell colSpan={999}>
-                <Box p={4}>
+                <div css={{ padding: 32 }}>
                   <EmptyState message={Language.emptyMessage} />
-                </Box>
+                </div>
               </TableCell>
             </TableRow>
           )}

@@ -1,10 +1,10 @@
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import { Alert, AlertProps } from "components/Alert/Alert";
-import { useState } from "react";
+import { type FC, useState } from "react";
 import { docs } from "utils/docs";
 
-export const ErrorScriptAlert = () => {
+export const ErrorScriptAlert: FC = () => {
   return (
     <TerminalAlert
       severity="warning"
@@ -42,7 +42,7 @@ export const ErrorScriptAlert = () => {
   );
 };
 
-export const LoadingScriptsAlert = () => {
+export const LoadingScriptsAlert: FC = () => {
   return (
     <TerminalAlert
       dismissible
@@ -64,7 +64,7 @@ export const LoadingScriptsAlert = () => {
   );
 };
 
-export const LoadedScriptsAlert = () => {
+export const LoadedScriptsAlert: FC = () => {
   return (
     <TerminalAlert
       severity="success"
@@ -87,25 +87,24 @@ export const LoadedScriptsAlert = () => {
   );
 };
 
-const TerminalAlert = (props: AlertProps) => {
+const TerminalAlert: FC<AlertProps> = (props) => {
   return (
     <Alert
       {...props}
-      sx={{
+      css={(theme) => ({
         borderRadius: 0,
         borderWidth: 0,
         borderBottomWidth: 1,
-        borderBottomColor: (theme) => theme.palette.divider,
-        backgroundColor: (theme) => theme.palette.background.paper,
-        borderLeft: (theme) =>
-          `3px solid ${theme.palette[props.severity!].light}`,
+        borderBottomColor: theme.palette.divider,
+        backgroundColor: theme.palette.background.paper,
+        borderLeft: `3px solid ${theme.palette[props.severity!].light}`,
         marginBottom: 1,
-      }}
+      })}
     />
   );
 };
 
-export const DisconnectedAlert = (props: AlertProps) => {
+export const DisconnectedAlert: FC<AlertProps> = (props) => {
   return (
     <TerminalAlert
       {...props}
@@ -117,7 +116,7 @@ export const DisconnectedAlert = (props: AlertProps) => {
   );
 };
 
-const RefreshSessionButton = () => {
+const RefreshSessionButton: FC = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   return (

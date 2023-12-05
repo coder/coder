@@ -1,6 +1,5 @@
-import { FC } from "react";
-import Box from "@mui/material/Box";
-import { Palette, PaletteColor } from "@mui/material/styles";
+import { useTheme } from "@emotion/react";
+import { type FC } from "react";
 import {
   Filter,
   FilterMenu,
@@ -9,8 +8,12 @@ import {
   SearchFieldSkeleton,
   useFilter,
 } from "components/Filter/filter";
-import { BaseOption } from "components/Filter/options";
-import { UseFilterMenuOptions, useFilterMenu } from "components/Filter/menu";
+import type { BaseOption } from "components/Filter/options";
+import {
+  type UseFilterMenuOptions,
+  useFilterMenu,
+} from "components/Filter/menu";
+import type { ThemeRole } from "theme/experimental";
 import { docs } from "utils/docs";
 
 const userFilterQuery = {
@@ -19,7 +22,7 @@ const userFilterQuery = {
 };
 
 type StatusOption = BaseOption & {
-  color: string;
+  color: ThemeRole;
 };
 
 export const useStatusFilterMenu = ({
@@ -28,7 +31,7 @@ export const useStatusFilterMenu = ({
 }: Pick<UseFilterMenuOptions<StatusOption>, "value" | "onChange">) => {
   const statusOptions: StatusOption[] = [
     { value: "active", label: "Active", color: "success" },
-    { value: "dormant", label: "Dormant", color: "secondary" },
+    { value: "dormant", label: "Dormant", color: "notice" },
     { value: "suspended", label: "Suspended", color: "warning" },
   ];
   return useFilterMenu({
@@ -48,17 +51,15 @@ const PRESET_FILTERS = [
   { query: userFilterQuery.all, name: "All users" },
 ];
 
-export const UsersFilter = ({
-  filter,
-  error,
-  menus,
-}: {
+interface UsersFilterProps {
   filter: ReturnType<typeof useFilter>;
   error?: unknown;
   menus: {
     status: StatusFilterMenu;
   };
-}) => {
+}
+
+export const UsersFilter: FC<UsersFilterProps> = ({ filter, error, menus }) => {
   return (
     <Filter
       presets={PRESET_FILTERS}
@@ -97,12 +98,14 @@ const StatusMenu = (menu: StatusFilterMenu) => {
   );
 };
 
-const StatusOptionItem = ({
-  option,
-  isSelected,
-}: {
+interface StatusOptionItemProps {
   option: StatusOption;
   isSelected?: boolean;
+}
+
+const StatusOptionItem: FC<StatusOptionItemProps> = ({
+  option,
+  isSelected,
 }) => {
   return (
     <OptionItem
@@ -113,15 +116,20 @@ const StatusOptionItem = ({
   );
 };
 
-const StatusIndicator: FC<{ option: StatusOption }> = ({ option }) => {
+interface StatusIndicatorProps {
+  option: StatusOption;
+}
+
+const StatusIndicator: FC<StatusIndicatorProps> = ({ option }) => {
+  const theme = useTheme();
+
   return (
-    <Box
-      height={8}
-      width={8}
-      borderRadius={9999}
-      sx={{
-        backgroundColor: (theme) =>
-          (theme.palette[option.color as keyof Palette] as PaletteColor).light,
+    <div
+      css={{
+        height: 8,
+        width: 8,
+        borderRadius: 4,
+        backgroundColor: theme.experimental.roles[option.color].fill,
       }}
     />
   );

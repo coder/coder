@@ -153,7 +153,7 @@ CREATE TYPE user_status AS ENUM (
     'dormant'
 );
 
-COMMENT ON TYPE user_status IS 'Defines the user status: active, dormant, or suspended.';
+COMMENT ON TYPE user_status IS 'Defines the users status: active, dormant, or suspended.';
 
 CREATE TYPE workspace_agent_lifecycle_state AS ENUM (
     'created',
@@ -513,7 +513,9 @@ CREATE TABLE provisioner_daemons (
     name character varying(64) NOT NULL,
     provisioners provisioner_type[] NOT NULL,
     replica_id uuid,
-    tags jsonb DEFAULT '{}'::jsonb NOT NULL
+    tags jsonb DEFAULT '{}'::jsonb NOT NULL,
+    last_seen_at timestamp with time zone,
+    version text DEFAULT ''::text NOT NULL
 );
 
 CREATE TABLE provisioner_job_logs (

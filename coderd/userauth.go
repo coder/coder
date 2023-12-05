@@ -1019,31 +1019,26 @@ func (api *API) oidcGroups(ctx context.Context, mergedClaims map[string]interfac
 	if api.OIDCConfig.GroupField != "" {
 		usingGroups = true
 		groupsRaw, ok := mergedClaims[api.OIDCConfig.GroupField]
-		if ok && api.OIDCConfig.GroupField != "" {
-			// Convert the []interface{} we get to a []string.
-			groupsInterface, ok := groupsRaw.([]interface{})
-			if ok {
-				api.Logger.Debug(ctx, "groups returned in oidc claims",
-					slog.F("len", len(groupsInterface)),
-					slog.F("groups", groupsInterface),
-				)
-
-				for _, groupInterface := range groupsInterface {
-					group, ok := groupInterface.(string)
-					if !ok {
-						return false, nil, xerrors.Errorf("Invalid group type. Expected string, got: %T", groupInterface)
-					}
-
-					if mappedGroup, ok := api.OIDCConfig.GroupMapping[group]; ok {
-						group = mappedGroup
-					}
-
-					groups = append(groups, group)
-				}
-			} else {
-				api.Logger.Debug(ctx, "groups field was an unknown type",
+		if ok {
+			parsedGroups, err := parseStringSliceClaim(groupsRaw)
+			if err != nil {
+				api.Logger.Debug(ctx, "groups field was an unknown type in oidc claims",
 					slog.F("type", fmt.Sprintf("%T", groupsRaw)),
+					slog.Error(err),
 				)
+				return false, nil, err
+			}
+
+			api.Logger.Debug(ctx, "groups returned in oidc claims",
+				slog.F("len", len(parsedGroups)),
+				slog.F("groups", parsedGroups),
+			)
+
+			for _, group := range parsedGroups {
+				if mappedGroup, ok := api.OIDCConfig.GroupMapping[group]; ok {
+					group = mappedGroup
+				}
+				groups = append(groups, group)
 			}
 		}
 	}
@@ -1079,10 +1074,11 @@ func (api *API) oidcRoles(ctx context.Context, rw http.ResponseWriter, r *http.R
 		rolesRow = []interface{}{}
 	}
 
-	rolesInterface, ok := rolesRow.([]interface{})
-	if !ok {
-		api.Logger.Error(ctx, "oidc claim user roles field was an unknown type",
+	parsedRoles, err := parseStringSliceClaim(rolesRow)
+	if err != nil {
+		api.Logger.Error(ctx, "oidc claims user roles field was an unknown type",
 			slog.F("type", fmt.Sprintf("%T", rolesRow)),
+			slog.Error(err),
 		)
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 			Status:       http.StatusInternalServerError,
@@ -1096,21 +1092,10 @@ func (api *API) oidcRoles(ctx context.Context, rw http.ResponseWriter, r *http.R
 	}
 
 	api.Logger.Debug(ctx, "roles returned in oidc claims",
-		slog.F("len", len(rolesInterface)),
-		slog.F("roles", rolesInterface),
+		slog.F("len", len(parsedRoles)),
+		slog.F("roles", parsedRoles),
 	)
-	for _, roleInterface := range rolesInterface {
-		role, ok := roleInterface.(string)
-		if !ok {
-			api.Logger.Error(ctx, "invalid oidc user role type",
-				slog.F("type", fmt.Sprintf("%T", rolesRow)),
-			)
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("Invalid user role type. Expected string, got: %T", roleInterface),
-			})
-			return nil, false
-		}
-
+	for _, role := range parsedRoles {
 		if mappedRoles, ok := api.OIDCConfig.UserRoleMapping[role]; ok {
 			if len(mappedRoles) == 0 {
 				continue
@@ -1449,7 +1434,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			if err != nil {
 				return httpError{
 					code:             http.StatusBadRequest,
-					msg:              "Invalid roles through OIDC claim",
+					msg:              "Invalid roles through OIDC claims",
 					detail:           fmt.Sprintf("Error from role assignment attempt: %s", err.Error()),
 					renderStaticPage: true,
 				}
@@ -1743,4 +1728,51 @@ func wrongLoginTypeHTTPError(user database.LoginType, params database.LoginType)
 		detail: fmt.Sprintf("Attempting to use login type %q, but the user has the login type %q.%s",
 			params, user, addedMsg),
 	}
+}
+
+// parseStringSliceClaim parses the claim for groups and roles, expected []string.
+//
+// Some providers like ADFS return a single string instead of an array if there
+// is only 1 element. So this function handles the edge cases.
+func parseStringSliceClaim(claim interface{}) ([]string, error) {
+	groups := make([]string, 0)
+	if claim == nil {
+		return groups, nil
+	}
+
+	// The simple case is the type is exactly what we expected
+	asStringArray, ok := claim.([]string)
+	if ok {
+		return asStringArray, nil
+	}
+
+	asArray, ok := claim.([]interface{})
+	if ok {
+		for i, item := range asArray {
+			asString, ok := item.(string)
+			if !ok {
+				return nil, xerrors.Errorf("invalid claim type. Element %d expected a string, got: %T", i, item)
+			}
+			groups = append(groups, asString)
+		}
+		return groups, nil
+	}
+
+	asString, ok := claim.(string)
+	if ok {
+		if asString == "" {
+			// Empty string should be 0 groups.
+			return []string{}, nil
+		}
+		// If it is a single string, first check if it is a csv.
+		// If a user hits this, it is likely a misconfiguration and they need
+		// to reconfigure their IDP to send an array instead.
+		if strings.Contains(asString, ",") {
+			return nil, xerrors.Errorf("invalid claim type. Got a csv string (%q), change this claim to return an array of strings instead.", asString)
+		}
+		return []string{asString}, nil
+	}
+
+	// Not sure what the user gave us.
+	return nil, xerrors.Errorf("invalid claim type. Expected an array of strings, got: %T", claim)
 }

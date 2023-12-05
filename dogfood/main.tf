@@ -11,14 +11,14 @@ terraform {
 }
 
 locals {
-  // These are Tailscale IP addresses. Ask Dean or Kyle for help.
+  // These are cluster service addresses mapped to Tailscale nodes. Ask Dean or
+  // Kyle for help.
   docker_host = {
-    ""              = "tcp://100.94.74.63:2375"
-    "us-pittsburgh" = "tcp://100.94.74.63:2375"
-    "eu-helsinki"   = "tcp://100.117.102.81:2375"
-    "ap-sydney"     = "tcp://100.87.194.110:2375"
-    "sa-saopaulo"   = "tcp://100.99.64.123:2375"
-    "eu-paris"      = "tcp://100.74.161.61:2375"
+    ""              = "tcp://dogfood-ts-cdr-dev.tailscale.svc.cluster.local:2375"
+    "us-pittsburgh" = "tcp://dogfood-ts-cdr-dev.tailscale.svc.cluster.local:2375"
+    "eu-helsinki"   = "tcp://reinhard-hel-cdr-dev.tailscale.svc.cluster.local:2375"
+    "ap-sydney"     = "tcp://hildegard-sydney-cdr-dev.tailscale.svc.cluster.local:2375"
+    "sa-saopaulo"   = "tcp://oberstein-sao-cdr-dev.tailscale.svc.cluster.local:2375"
   }
 
   repo_dir = replace(data.coder_parameter.repo_dir.value, "/^~\\//", "/home/coder/")
@@ -255,15 +255,15 @@ locals {
   registry_name  = "codercom/oss-dogfood"
 }
 data "docker_registry_image" "dogfood" {
-  // This is temporarily pinned to a pre-nix version of the image at commit
-  // 6cdf1c73c until the Nix kinks are worked out.
-  name = "${local.registry_name}:pre-nix"
+  name = "${local.registry_name}:latest"
 }
 
 resource "docker_image" "dogfood" {
   name = "${local.registry_name}@${data.docker_registry_image.dogfood.sha256_digest}"
   pull_triggers = [
-    data.docker_registry_image.dogfood.sha256_digest
+    data.docker_registry_image.dogfood.sha256_digest,
+    sha1(join("", [for f in fileset(path.module, "files/*") : filesha1(f)])),
+    filesha1("Dockerfile"),
   ]
   keep_locally = true
 }

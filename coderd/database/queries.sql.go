@@ -2986,9 +2986,25 @@ func (q *sqlQuerier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.
 	return items, nil
 }
 
+const deleteOldProvisionerDaemons = `-- name: DeleteOldProvisionerDaemons :exec
+DELETE FROM provisioner_daemons WHERE (
+	(created_at < (NOW() - INTERVAL '7 days') AND updated_at IS NULL) OR
+	(updated_at IS NOT NULL AND updated_at < (NOW() - INTERVAL '7 days'))
+)
+`
+
+// Delete provisioner daemons that have been created at least a week ago
+// and have not connected to coderd since a week.
+// A provisioner daemon with "zeroed" updated_at column indicates possible
+// connectivity issues (no provisioner daemon activity since registration).
+func (q *sqlQuerier) DeleteOldProvisionerDaemons(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deleteOldProvisionerDaemons)
+	return err
+}
+
 const getProvisionerDaemons = `-- name: GetProvisionerDaemons :many
 SELECT
-	id, created_at, updated_at, name, provisioners, replica_id, tags
+	id, created_at, updated_at, name, provisioners, replica_id, tags, last_seen_at, version
 FROM
 	provisioner_daemons
 `
@@ -3010,6 +3026,8 @@ func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDa
 			pq.Array(&i.Provisioners),
 			&i.ReplicaID,
 			&i.Tags,
+			&i.LastSeenAt,
+			&i.Version,
 		); err != nil {
 			return nil, err
 		}
@@ -3031,10 +3049,11 @@ INSERT INTO
 		created_at,
 		"name",
 		provisioners,
-		tags
+		tags,
+		updated_at
 	)
 VALUES
-	($1, $2, $3, $4, $5) RETURNING id, created_at, updated_at, name, provisioners, replica_id, tags
+	($1, $2, $3, $4, $5, $6) RETURNING id, created_at, updated_at, name, provisioners, replica_id, tags, last_seen_at, version
 `
 
 type InsertProvisionerDaemonParams struct {
@@ -3043,6 +3062,7 @@ type InsertProvisionerDaemonParams struct {
 	Name         string            `db:"name" json:"name"`
 	Provisioners []ProvisionerType `db:"provisioners" json:"provisioners"`
 	Tags         StringMap         `db:"tags" json:"tags"`
+	UpdatedAt    sql.NullTime      `db:"updated_at" json:"updated_at"`
 }
 
 func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProvisionerDaemonParams) (ProvisionerDaemon, error) {
@@ -3052,6 +3072,7 @@ func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProv
 		arg.Name,
 		pq.Array(arg.Provisioners),
 		arg.Tags,
+		arg.UpdatedAt,
 	)
 	var i ProvisionerDaemon
 	err := row.Scan(
@@ -3062,6 +3083,8 @@ func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProv
 		pq.Array(&i.Provisioners),
 		&i.ReplicaID,
 		&i.Tags,
+		&i.LastSeenAt,
+		&i.Version,
 	)
 	return i, err
 }
@@ -4519,6 +4542,31 @@ WHERE heartbeat_at < now() - INTERVAL '24 HOURS'
 
 func (q *sqlQuerier) CleanTailnetCoordinators(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, cleanTailnetCoordinators)
+	return err
+}
+
+const cleanTailnetLostPeers = `-- name: CleanTailnetLostPeers :exec
+DELETE
+FROM tailnet_peers
+WHERE updated_at < now() - INTERVAL '24 HOURS' AND status = 'lost'::tailnet_status
+`
+
+func (q *sqlQuerier) CleanTailnetLostPeers(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, cleanTailnetLostPeers)
+	return err
+}
+
+const cleanTailnetTunnels = `-- name: CleanTailnetTunnels :exec
+DELETE FROM tailnet_tunnels
+WHERE updated_at < now() - INTERVAL '24 HOURS' AND
+      NOT EXISTS (
+        SELECT 1 FROM tailnet_peers
+        WHERE id = tailnet_tunnels.src_id AND coordinator_id = tailnet_tunnels.coordinator_id
+      )
+`
+
+func (q *sqlQuerier) CleanTailnetTunnels(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, cleanTailnetTunnels)
 	return err
 }
 
@@ -11256,20 +11304,30 @@ func (q *sqlQuerier) UpdateWorkspaceDeletedByID(ctx context.Context, arg UpdateW
 
 const updateWorkspaceDormantDeletingAt = `-- name: UpdateWorkspaceDormantDeletingAt :one
 UPDATE
-	workspaces
+    workspaces
 SET
-	dormant_at = $2,
-	-- When a workspace is active we want to update the last_used_at to avoid the workspace going
+    dormant_at = $2,
+    -- When a workspace is active we want to update the last_used_at to avoid the workspace going
     -- immediately dormant. If we're transition the workspace to dormant then we leave it alone.
-	last_used_at = CASE WHEN $2::timestamptz IS NULL THEN now() at time zone 'utc' ELSE last_used_at END,
-	-- If dormant_at is null (meaning active) or the template-defined time_til_dormant_autodelete is 0 we should set
-	-- deleting_at to NULL else set it to the dormant_at + time_til_dormant_autodelete duration.
-	deleting_at = CASE WHEN $2::timestamptz IS NULL OR templates.time_til_dormant_autodelete = 0 THEN NULL ELSE $2::timestamptz + INTERVAL '1 milliseconds' * templates.time_til_dormant_autodelete / 1000000 END
+    last_used_at = CASE WHEN $2::timestamptz IS NULL THEN
+        now() at time zone 'utc'
+    ELSE
+        last_used_at
+    END,
+    -- If dormant_at is null (meaning active) or the template-defined time_til_dormant_autodelete is 0 we should set
+    -- deleting_at to NULL else set it to the dormant_at + time_til_dormant_autodelete duration.
+    deleting_at = CASE WHEN $2::timestamptz IS NULL OR templates.time_til_dormant_autodelete = 0 THEN
+        NULL
+    ELSE
+        $2::timestamptz + (INTERVAL '1 millisecond' * (templates.time_til_dormant_autodelete / 1000000))
+    END
 FROM
-	templates
+    templates
 WHERE
-	workspaces.id = $1
-RETURNING workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates
+    workspaces.id = $1
+    AND templates.id = workspaces.template_id
+RETURNING
+    workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates
 `
 
 type UpdateWorkspaceDormantDeletingAtParams struct {

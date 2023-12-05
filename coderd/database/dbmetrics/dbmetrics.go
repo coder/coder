@@ -121,6 +121,20 @@ func (m metricsStore) CleanTailnetCoordinators(ctx context.Context) error {
 	return err
 }
 
+func (m metricsStore) CleanTailnetLostPeers(ctx context.Context) error {
+	start := time.Now()
+	r0 := m.s.CleanTailnetLostPeers(ctx)
+	m.queryLatencies.WithLabelValues("CleanTailnetLostPeers").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m metricsStore) CleanTailnetTunnels(ctx context.Context) error {
+	start := time.Now()
+	r0 := m.s.CleanTailnetTunnels(ctx)
+	m.queryLatencies.WithLabelValues("CleanTailnetTunnels").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) DeleteAPIKeyByID(ctx context.Context, id string) error {
 	start := time.Now()
 	err := m.s.DeleteAPIKeyByID(ctx, id)
@@ -195,6 +209,13 @@ func (m metricsStore) DeleteLicense(ctx context.Context, id int32) (int32, error
 	licenseID, err := m.s.DeleteLicense(ctx, id)
 	m.queryLatencies.WithLabelValues("DeleteLicense").Observe(time.Since(start).Seconds())
 	return licenseID, err
+}
+
+func (m metricsStore) DeleteOldProvisionerDaemons(ctx context.Context) error {
+	start := time.Now()
+	r0 := m.s.DeleteOldProvisionerDaemons(ctx)
+	m.queryLatencies.WithLabelValues("DeleteOldProvisionerDaemons").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m metricsStore) DeleteOldWorkspaceAgentLogs(ctx context.Context) error {

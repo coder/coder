@@ -518,6 +518,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/manifest \
     }
   ],
   "motd_file": "string",
+  "owner_name": "string",
   "scripts": [
     {
       "cron": "string",
@@ -530,7 +531,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/manifest \
       "timeout": 0
     }
   ],
-  "vscode_port_proxy_uri": "string"
+  "vscode_port_proxy_uri": "string",
+  "workspace_id": "string"
 }
 ```
 

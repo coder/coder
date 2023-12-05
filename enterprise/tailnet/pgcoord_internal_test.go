@@ -47,6 +47,14 @@ func TestHeartbeat_Cleanup(t *testing.T) {
 		<-waitForCleanup
 		return nil
 	})
+	mStore.EXPECT().CleanTailnetLostPeers(gomock.Any()).MinTimes(2).DoAndReturn(func(_ context.Context) error {
+		<-waitForCleanup
+		return nil
+	})
+	mStore.EXPECT().CleanTailnetTunnels(gomock.Any()).MinTimes(2).DoAndReturn(func(_ context.Context) error {
+		<-waitForCleanup
+		return nil
+	})
 
 	uut := &heartbeats{
 		ctx:           ctx,
@@ -56,7 +64,7 @@ func TestHeartbeat_Cleanup(t *testing.T) {
 	}
 	go uut.cleanupLoop()
 
-	for i := 0; i < 2; i++ {
+	for i := 0; i < 6; i++ {
 		select {
 		case <-ctx.Done():
 			t.Fatal("timeout")
@@ -65,6 +73,104 @@ func TestHeartbeat_Cleanup(t *testing.T) {
 		}
 	}
 	close(waitForCleanup)
+}
+
+// TestLostPeerCleanupQueries tests that our SQL queries to clean up lost peers do what we expect,
+// that is, clean up peers and associated tunnels that have been lost for over 24 hours.
+func TestLostPeerCleanupQueries(t *testing.T) {
+	t.Parallel()
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("test only with postgres")
+	}
+	store, _, sqlDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	coordID := uuid.New()
+	_, err := store.UpsertTailnetCoordinator(ctx, coordID)
+	require.NoError(t, err)
+
+	peerID := uuid.New()
+	_, err = store.UpsertTailnetPeer(ctx, database.UpsertTailnetPeerParams{
+		ID:            peerID,
+		CoordinatorID: coordID,
+		Node:          []byte("test"),
+		Status:        database.TailnetStatusLost,
+	})
+	require.NoError(t, err)
+
+	otherID := uuid.New()
+	_, err = store.UpsertTailnetTunnel(ctx, database.UpsertTailnetTunnelParams{
+		CoordinatorID: coordID,
+		SrcID:         peerID,
+		DstID:         otherID,
+	})
+	require.NoError(t, err)
+
+	peers, err := store.GetAllTailnetPeers(ctx)
+	require.NoError(t, err)
+	require.Len(t, peers, 1)
+	require.Equal(t, peerID, peers[0].ID)
+
+	tunnels, err := store.GetAllTailnetTunnels(ctx)
+	require.NoError(t, err)
+	require.Len(t, tunnels, 1)
+	require.Equal(t, peerID, tunnels[0].SrcID)
+	require.Equal(t, otherID, tunnels[0].DstID)
+
+	// this clean is a noop since the peer and tunnel are less than 24h old
+	err = store.CleanTailnetLostPeers(ctx)
+	require.NoError(t, err)
+	err = store.CleanTailnetTunnels(ctx)
+	require.NoError(t, err)
+
+	peers, err = store.GetAllTailnetPeers(ctx)
+	require.NoError(t, err)
+	require.Len(t, peers, 1)
+	require.Equal(t, peerID, peers[0].ID)
+
+	tunnels, err = store.GetAllTailnetTunnels(ctx)
+	require.NoError(t, err)
+	require.Len(t, tunnels, 1)
+	require.Equal(t, peerID, tunnels[0].SrcID)
+	require.Equal(t, otherID, tunnels[0].DstID)
+
+	// set the age of the tunnel to >24h
+	sqlDB.Exec("UPDATE tailnet_tunnels SET updated_at = $1", time.Now().Add(-25*time.Hour))
+
+	// this clean is still a noop since the peer hasn't been lost for 24 hours
+	err = store.CleanTailnetLostPeers(ctx)
+	require.NoError(t, err)
+	err = store.CleanTailnetTunnels(ctx)
+	require.NoError(t, err)
+
+	peers, err = store.GetAllTailnetPeers(ctx)
+	require.NoError(t, err)
+	require.Len(t, peers, 1)
+	require.Equal(t, peerID, peers[0].ID)
+
+	tunnels, err = store.GetAllTailnetTunnels(ctx)
+	require.NoError(t, err)
+	require.Len(t, tunnels, 1)
+	require.Equal(t, peerID, tunnels[0].SrcID)
+	require.Equal(t, otherID, tunnels[0].DstID)
+
+	// set the age of the tunnel to >24h
+	sqlDB.Exec("UPDATE tailnet_peers SET updated_at = $1", time.Now().Add(-25*time.Hour))
+
+	// this clean removes the peer and the associated tunnel
+	err = store.CleanTailnetLostPeers(ctx)
+	require.NoError(t, err)
+	err = store.CleanTailnetTunnels(ctx)
+	require.NoError(t, err)
+
+	peers, err = store.GetAllTailnetPeers(ctx)
+	require.NoError(t, err)
+	require.Len(t, peers, 0)
+
+	tunnels, err = store.GetAllTailnetTunnels(ctx)
+	require.NoError(t, err)
+	require.Len(t, tunnels, 0)
 }
 
 func TestDebugTemplate(t *testing.T) {
