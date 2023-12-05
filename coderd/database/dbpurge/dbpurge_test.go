@@ -33,6 +33,92 @@ func TestPurge(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	now := dbtime.Now()
+
+	t.Run("AgentHasNotConnectedSinceWeek_LogsExpired", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		// given
+		agent := mustCreateAgentWithLogs(ctx, t, db, now.Add(-8*24*time.Hour), t.Name())
+
+		// when
+		closer := dbpurge.New(ctx, logger, db)
+		defer closer.Close()
+
+		// then
+		require.Eventually(t, func() bool {
+			agentLogs, err := db.GetWorkspaceAgentLogsAfter(ctx, database.GetWorkspaceAgentLogsAfterParams{
+				AgentID: agent,
+			})
+			if err != nil {
+				return false
+			}
+			return !containsAgentLog(agentLogs, t.Name())
+		}, testutil.WaitShort, testutil.IntervalFast)
+	})
+
+	t.Run("AgentConnectedSixDaysAgo_LogsValid", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		// given
+		agent := mustCreateAgentWithLogs(ctx, t, db, now.Add(-6*24*time.Hour), t.Name())
+
+		// when
+		closer := dbpurge.New(ctx, logger, db)
+		defer closer.Close()
+
+		// then
+		require.Eventually(t, func() bool {
+			agentLogs, err := db.GetWorkspaceAgentLogsAfter(ctx, database.GetWorkspaceAgentLogsAfterParams{
+				AgentID: agent,
+			})
+			if err != nil {
+				return false
+			}
+			return containsAgentLog(agentLogs, t.Name())
+		}, testutil.WaitShort, testutil.IntervalFast)
+	})
+}
+
+func mustCreateAgentWithLogs(ctx context.Context, t *testing.T, db database.Store, agentLastConnectedAt time.Time, output string) uuid.UUID {
+	agentID := uuid.New()
+
+	_, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
+		ID: agentID,
+	})
+	require.NoError(t, err)
+	err = db.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
+		ID:              agentID,
+		LastConnectedAt: sql.NullTime{Time: agentLastConnectedAt, Valid: true},
+	})
+	require.NoError(t, err)
+	_, err = db.InsertWorkspaceAgentLogs(ctx, database.InsertWorkspaceAgentLogsParams{
+		AgentID:   agentID,
+		CreatedAt: agentLastConnectedAt,
+		Output:    []string{output},
+		Level:     []database.LogLevel{database.LogLevelDebug},
+	})
+	require.NoError(t, err)
+	return agentID
+}
+
+func containsAgentLog(daemons []database.WorkspaceAgentLog, output string) bool {
+	return slices.ContainsFunc(daemons, func(d database.WorkspaceAgentLog) bool {
+		return d.Output == output
+	})
+}
+
 func TestDeleteOldProvisionerDaemons(t *testing.T) {
 	t.Parallel()
 
@@ -91,12 +177,14 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 		if err != nil {
 			return false
 		}
-		return contains(daemons, "external-0") &&
-			contains(daemons, "external-3")
+		return containsProvisionerDaemon(daemons, "external-0") &&
+			!containsProvisionerDaemon(daemons, "external-1") &&
+			!containsProvisionerDaemon(daemons, "external-2") &&
+			containsProvisionerDaemon(daemons, "external-3")
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
-func contains(daemons []database.ProvisionerDaemon, name string) bool {
+func containsProvisionerDaemon(daemons []database.ProvisionerDaemon, name string) bool {
 	return slices.ContainsFunc(daemons, func(d database.ProvisionerDaemon) bool {
 		return d.Name == name
 	})
