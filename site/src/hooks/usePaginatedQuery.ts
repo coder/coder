@@ -12,7 +12,7 @@ import {
   useQuery,
 } from "react-query";
 
-const DEFAULT_RECORDS_PER_PAGE = 10;
+const DEFAULT_RECORDS_PER_PAGE = 25;
 
 /**
  * The key to use for getting/setting the page number from the search params
