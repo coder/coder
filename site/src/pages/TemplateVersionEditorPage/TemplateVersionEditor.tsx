@@ -1,8 +1,8 @@
-import Button, { ButtonProps } from "@mui/material/Button";
+import Button, { type ButtonProps } from "@mui/material/Button";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import CreateIcon from "@mui/icons-material/AddOutlined";
-import {
+import type {
   ProvisionerJobLog,
   Template,
   TemplateVersion,
@@ -47,6 +47,7 @@ import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { Loader } from "components/Loader/Loader";
 
 type Tab = "logs" | "resources" | undefined; // Undefined is to hide the tab
+
 export interface TemplateVersionEditorProps {
   template: Template;
   templateVersion: TemplateVersion;
@@ -537,13 +538,11 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                   <div>
                     <Alert
                       severity="error"
-                      sx={{
+                      css={{
                         borderRadius: 0,
                         border: 0,
-                        borderBottom: (theme) =>
-                          `1px solid ${theme.palette.divider}`,
-                        borderLeft: (theme) =>
-                          `2px solid ${theme.palette.error.main}`,
+                        borderBottom: `1px solid ${theme.palette.divider}`,
+                        borderLeft: `2px solid ${theme.palette.error.main}`,
                       }}
                     >
                       <AlertTitle>Error during the build</AlertTitle>
@@ -645,17 +644,19 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   );
 };
 
-const TopbarButton = (props: ButtonProps) => {
+const TopbarButton: FC<ButtonProps> = ({ children, ...buttonProps }) => {
   return (
     <Button
-      {...props}
+      {...buttonProps}
       css={{
         height: 28,
         fontSize: 13,
         borderRadius: 4,
         padding: "0 12px",
       }}
-    />
+    >
+      {children}
+    </Button>
   );
 };
 

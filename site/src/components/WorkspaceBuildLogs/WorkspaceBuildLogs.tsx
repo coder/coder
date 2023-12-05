@@ -1,10 +1,9 @@
 import dayjs from "dayjs";
-import { type ComponentProps, type FC, Fragment } from "react";
+import { type FC, Fragment, type HTMLAttributes } from "react";
 import type { ProvisionerJobLog } from "api/typesGenerated";
 import { BODY_FONT_FAMILY, MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { Logs } from "./Logs";
-import Box from "@mui/material/Box";
-import { type Interpolation, type Theme } from "@emotion/react";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 
 const Language = {
   seconds: "seconds",
@@ -38,30 +37,30 @@ const getStageDurationInSeconds = (logs: ProvisionerJobLog[]) => {
   return completedAt.diff(startedAt, "seconds");
 };
 
-export type WorkspaceBuildLogsProps = {
-  logs: ProvisionerJobLog[];
-  sticky?: boolean;
+interface WorkspaceBuildLogsProps extends HTMLAttributes<HTMLDivElement> {
   hideTimestamps?: boolean;
-} & ComponentProps<typeof Box>;
+  sticky?: boolean;
+  logs: ProvisionerJobLog[];
+}
 
 export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
   hideTimestamps,
   sticky,
   logs,
-  ...boxProps
+  ...attrs
 }) => {
+  const theme = useTheme();
   const groupedLogsByStage = groupLogsByStage(logs);
   const stages = Object.keys(groupedLogsByStage);
 
   return (
-    <Box
-      {...boxProps}
-      sx={{
-        border: (theme) => `1px solid ${theme.palette.divider}`,
-        borderRadius: 1,
+    <div
+      css={{
+        border: `1px solid ${theme.palette.divider}`,
+        borderRadius: 8,
         fontFamily: MONOSPACE_FONT_FAMILY,
-        ...boxProps.sx,
       }}
+      {...attrs}
     >
       {stages.map((stage) => {
         const logs = groupedLogsByStage[stage];
@@ -92,7 +91,7 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
           </Fragment>
         );
       })}
-    </Box>
+    </div>
   );
 };
 

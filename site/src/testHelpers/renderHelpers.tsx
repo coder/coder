@@ -122,13 +122,9 @@ type RenderHookWithAuthOptions<Props> = Partial<
  */
 export async function renderHookWithAuth<Result, Props>(
   render: (initialProps: Props) => Result,
-  {
-    initialProps,
-    path = "/",
-    route = "/",
-    extraRoutes = [],
-  }: RenderHookWithAuthOptions<Props> = {},
+  options: RenderHookWithAuthOptions<Props> = {},
 ) {
+  const { initialProps, path = "/", route = "/", extraRoutes = [] } = options;
   const queryClient = createTestQueryClient();
 
   // Easy to miss – there's an evil definite assignment via the !

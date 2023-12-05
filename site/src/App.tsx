@@ -48,12 +48,14 @@ export const ThemeProviders: FC<PropsWithChildren> = ({ children }) => {
   );
 };
 
-export const AppProviders = ({
-  children,
-  queryClient = defaultQueryClient,
-}: {
+interface AppProvidersProps {
   children: ReactNode;
   queryClient?: QueryClient;
+}
+
+export const AppProviders: FC<AppProvidersProps> = ({
+  children,
+  queryClient = defaultQueryClient,
 }) => {
   return (
     <HelmetProvider>

@@ -1,4 +1,3 @@
-import Box from "@mui/material/Box";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Loader } from "components/Loader/Loader";
 import { Helmet } from "react-helmet-async";
@@ -44,8 +43,8 @@ export function HealthLayout() {
 
       {healthStatus ? (
         <DashboardFullPage>
-          <Box
-            sx={{
+          <div
+            css={{
               display: "flex",
               flexBasis: 0,
               flex: 1,
@@ -202,7 +201,7 @@ export function HealthLayout() {
                 <Outlet context={healthStatus} />
               </Suspense>
             </div>
-          </Box>
+          </div>
         </DashboardFullPage>
       ) : (
         <Loader />

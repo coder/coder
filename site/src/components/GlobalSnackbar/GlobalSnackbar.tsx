@@ -45,12 +45,12 @@ export const GlobalSnackbar: FC = () => {
       autoHideDuration={notification.msgType === MsgType.Error ? 22000 : 6000}
       anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
       message={
-        <div css={styles.messageWrapper}>
+        <div css={{ display: "flex" }}>
           {notification.msgType === MsgType.Error && (
             <ErrorIcon css={styles.errorIcon} />
           )}
 
-          <div css={styles.message}>
+          <div css={{ maxWidth: 670 }}>
             <span css={styles.messageTitle}>{notification.msg}</span>
 
             {notification.additionalMsgs &&
@@ -64,30 +64,13 @@ export const GlobalSnackbar: FC = () => {
   );
 };
 
-const styles = {
-  list: {
-    paddingLeft: 0,
-  },
-  messageWrapper: {
-    display: "flex",
-  },
-  message: {
-    maxWidth: 670,
-  },
-  messageTitle: {
-    fontSize: 14,
-    fontWeight: 600,
-  },
-  messageSubtitle: {
-    marginTop: 12,
-  },
-  errorIcon: (theme) => ({
-    color: theme.palette.error.contrastText,
-    marginRight: 16,
-  }),
-} satisfies Record<string, Interpolation<Theme>>;
+interface AdditionalMessageDisplayProps {
+  message: AdditionalMessage;
+}
 
-function AdditionalMessageDisplay({ message }: { message: AdditionalMessage }) {
+const AdditionalMessageDisplay: FC<AdditionalMessageDisplayProps> = ({
+  message,
+}) => {
   if (isNotificationText(message)) {
     return <span css={styles.messageSubtitle}>{message}</span>;
   }
@@ -102,7 +85,7 @@ function AdditionalMessageDisplay({ message }: { message: AdditionalMessage }) {
 
   if (isNotificationList(message)) {
     return (
-      <ul css={styles.list}>
+      <ul css={{ paddingLeft: 0 }}>
         {message.map((item, idx) => (
           <li key={idx}>
             <span css={styles.messageSubtitle}>{item}</span>
@@ -113,4 +96,18 @@ function AdditionalMessageDisplay({ message }: { message: AdditionalMessage }) {
   }
 
   return null;
-}
+};
+
+const styles = {
+  messageTitle: {
+    fontSize: 14,
+    fontWeight: 600,
+  },
+  messageSubtitle: {
+    marginTop: 12,
+  },
+  errorIcon: (theme) => ({
+    color: theme.palette.error.contrastText,
+    marginRight: 16,
+  }),
+} satisfies Record<string, Interpolation<Theme>>;

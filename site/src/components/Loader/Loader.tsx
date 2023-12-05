@@ -1,22 +1,24 @@
-import Box, { BoxProps } from "@mui/material/Box";
 import CircularProgress from "@mui/material/CircularProgress";
-import { FC } from "react";
+import { type FC, type HTMLAttributes } from "react";
 
-export const Loader: FC<{ size?: number } & BoxProps> = ({
-  size = 26,
-  ...boxProps
-}) => {
+interface LoaderProps extends HTMLAttributes<HTMLDivElement> {
+  size?: number;
+}
+
+export const Loader: FC<LoaderProps> = ({ size = 26, ...attrs }) => {
   return (
-    <Box
-      p={4}
-      width="100%"
-      display="flex"
-      alignItems="center"
-      justifyContent="center"
+    <div
+      css={{
+        padding: 4,
+        width: "100%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
       data-testid="loader"
-      {...boxProps}
+      {...attrs}
     >
       <CircularProgress size={size} />
-    </Box>
+    </div>
   );
 };

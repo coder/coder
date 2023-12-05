@@ -273,11 +273,8 @@ func (c *Client) DialWorkspaceAgent(dialCtx context.Context, agentID uuid.UUID, 
 
 	ip := tailnet.IP()
 	var header http.Header
-	headerTransport, ok := c.HTTPClient.Transport.(interface {
-		Header() http.Header
-	})
-	if ok {
-		header = headerTransport.Header()
+	if headerTransport, ok := c.HTTPClient.Transport.(*HeaderTransport); ok {
+		header = headerTransport.Header
 	}
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses:           []netip.Prefix{netip.PrefixFrom(ip, 128)},
