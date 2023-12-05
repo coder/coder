@@ -31,9 +31,9 @@ export const AccessURLPage = () => {
       </Header>
 
       <Main>
-        {accessUrl.warnings.map((warning, i) => {
+        {accessUrl.warnings.map((warning) => {
           return (
-            <Alert key={i} severity="warning">
+            <Alert key={warning.code} severity="warning">
               {warning.message}
             </Alert>
           );

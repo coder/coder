@@ -37,9 +37,9 @@ export const WorkspaceProxyPage = () => {
       </Header>
 
       <Main>
-        {workspace_proxy.warnings.map((warning, i) => {
+        {workspace_proxy.warnings.map((warning) => {
           return (
-            <Alert key={i} severity="warning">
+            <Alert key={warning.code} severity="warning">
               {warning.message}
             </Alert>
           );

@@ -31,9 +31,9 @@ export const DatabasePage = () => {
       </Header>
 
       <Main>
-        {database.warnings.map((warning, i) => {
+        {database.warnings.map((warning) => {
           return (
-            <Alert key={i} severity="warning">
+            <Alert key={warning.code} severity="warning">
               {warning.message}
             </Alert>
           );

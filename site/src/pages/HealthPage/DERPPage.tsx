@@ -8,7 +8,11 @@ import {
   Logs,
   HealthyDot,
 } from "./Content";
-import { HealthSeverity, HealthcheckReport } from "api/typesGenerated";
+import {
+  HealthMessage,
+  HealthSeverity,
+  HealthcheckReport,
+} from "api/typesGenerated";
 import Button from "@mui/material/Button";
 import LocationOnOutlined from "@mui/icons-material/LocationOnOutlined";
 import { healthyColor } from "./healthyColor";
@@ -51,10 +55,10 @@ export const DERPPage = () => {
       </Header>
 
       <Main>
-        {derp.warnings.map((warning, i) => {
+        {derp.warnings.map((warning: HealthMessage) => {
           return (
-            <Alert key={i} severity="warning">
-              {warning}
+            <Alert key={warning.code} severity="warning">
+              {warning.message}
             </Alert>
           );
         })}
