@@ -312,7 +312,7 @@ func convertProvisionerDaemon(daemon database.ProvisionerDaemon) codersdk.Provis
 	result := codersdk.ProvisionerDaemon{
 		ID:        daemon.ID,
 		CreatedAt: daemon.CreatedAt,
-		UpdatedAt: daemon.UpdatedAt,
+		UpdatedAt: codersdk.NullTime{NullTime: daemon.UpdatedAt},
 		Name:      daemon.Name,
 		Tags:      daemon.Tags,
 	}

@@ -9558,12 +9558,8 @@ const docTemplate = `{
                     }
                 },
                 "updated_at": {
-                    "format": "date-time",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/sql.NullTime"
-                        }
-                    ]
+                    "type": "string",
+                    "format": "date-time"
                 }
             }
         },
@@ -12731,18 +12727,6 @@ const docTemplate = `{
                 "upnP": {
                     "description": "UPnP is whether UPnP appears present on the LAN.\nEmpty means not checked.",
                     "type": "string"
-                }
-            }
-        },
-        "sql.NullTime": {
-            "type": "object",
-            "properties": {
-                "time": {
-                    "type": "string"
-                },
-                "valid": {
-                    "description": "Valid is true if Time is not NULL",
-                    "type": "boolean"
                 }
             }
         },
