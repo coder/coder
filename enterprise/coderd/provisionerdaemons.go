@@ -310,11 +310,13 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 
 func convertProvisionerDaemon(daemon database.ProvisionerDaemon) codersdk.ProvisionerDaemon {
 	result := codersdk.ProvisionerDaemon{
-		ID:        daemon.ID,
-		CreatedAt: daemon.CreatedAt,
-		UpdatedAt: daemon.UpdatedAt,
-		Name:      daemon.Name,
-		Tags:      daemon.Tags,
+		ID:         daemon.ID,
+		CreatedAt:  daemon.CreatedAt,
+		UpdatedAt:  daemon.UpdatedAt,
+		LastSeenAt: codersdk.NullTime{NullTime: daemon.LastSeenAt},
+		Name:       daemon.Name,
+		Tags:       daemon.Tags,
+		Version:    daemon.Version,
 	}
 	for _, provisionerType := range daemon.Provisioners {
 		result.Provisioners = append(result.Provisioners, codersdk.ProvisionerType(provisionerType))

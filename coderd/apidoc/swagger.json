@@ -8581,6 +8581,10 @@
           "type": "string",
           "format": "uuid"
         },
+        "last_seen_at": {
+          "type": "string",
+          "format": "date-time"
+        },
         "name": {
           "type": "string"
         },
@@ -8603,6 +8607,9 @@
               "$ref": "#/definitions/sql.NullTime"
             }
           ]
+        },
+        "version": {
+          "type": "string"
         }
       }
     },

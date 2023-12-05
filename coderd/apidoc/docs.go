@@ -9542,6 +9542,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "last_seen_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -9564,6 +9568,9 @@ const docTemplate = `{
                             "$ref": "#/definitions/sql.NullTime"
                         }
                     ]
+                },
+                "version": {
+                    "type": "string"
                 }
             }
         },
