@@ -7,7 +7,7 @@ import { useTheme } from "@emotion/react";
 import { getApiKey } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import { useProxy } from "contexts/ProxyContext";
-import { PrimaryAgentButton } from "components/Resources/AgentButton";
+import { AgentButton } from "components/Resources/AgentButton";
 import { createAppLinkHref } from "utils/apps";
 import { generateRandomString } from "utils/random";
 import { BaseIcon } from "./BaseIcon";
@@ -86,7 +86,7 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
   const isPrivateApp = app.sharing_level === "owner";
 
   const button = (
-    <PrimaryAgentButton
+    <AgentButton
       startIcon={icon}
       endIcon={isPrivateApp ? undefined : <ShareIcon app={app} />}
       disabled={!canClick}
@@ -100,7 +100,7 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
       >
         {appDisplayName}
       </span>
-    </PrimaryAgentButton>
+    </AgentButton>
   );
 
   return (

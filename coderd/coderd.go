@@ -25,6 +25,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"storj.io/drpc/drpcmux"
@@ -135,10 +136,12 @@ type Options struct {
 	AccessControlStore          *atomic.Pointer[dbauthz.AccessControlStore]
 	// AppSecurityKey is the crypto key used to sign and encrypt tokens related to
 	// workspace applications. It consists of both a signing and encryption key.
-	AppSecurityKey     workspaceapps.SecurityKey
-	HealthcheckFunc    func(ctx context.Context, apiKey string) *healthcheck.Report
-	HealthcheckTimeout time.Duration
-	HealthcheckRefresh time.Duration
+	AppSecurityKey workspaceapps.SecurityKey
+
+	HealthcheckFunc              func(ctx context.Context, apiKey string) *healthcheck.Report
+	HealthcheckTimeout           time.Duration
+	HealthcheckRefresh           time.Duration
+	WorkspaceProxiesFetchUpdater *atomic.Pointer[healthcheck.WorkspaceProxiesFetchUpdater]
 
 	// OAuthSigningKey is the crypto key used to sign and encrypt state strings
 	// related to OAuth. This is a symmetric secret key using hmac to sign payloads.
@@ -397,26 +400,44 @@ func New(options *Options) *API {
 			*options.UpdateCheckOptions,
 		)
 	}
+
+	if options.WorkspaceProxiesFetchUpdater == nil {
+		options.WorkspaceProxiesFetchUpdater = &atomic.Pointer[healthcheck.WorkspaceProxiesFetchUpdater]{}
+		var wpfu healthcheck.WorkspaceProxiesFetchUpdater = &healthcheck.AGPLWorkspaceProxiesFetchUpdater{}
+		options.WorkspaceProxiesFetchUpdater.Store(&wpfu)
+	}
+
 	if options.HealthcheckFunc == nil {
 		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *healthcheck.Report {
+			dismissedHealthchecks := loadDismissedHealthchecks(ctx, options.Database, options.Logger)
 			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
 				Database: healthcheck.DatabaseReportOptions{
 					DB:        options.Database,
 					Threshold: options.DeploymentValues.Healthcheck.ThresholdDatabase.Value(),
+					Dismissed: slices.Contains(dismissedHealthchecks, healthcheck.SectionDatabase),
 				},
 				Websocket: healthcheck.WebsocketReportOptions{
 					AccessURL: options.AccessURL,
 					APIKey:    apiKey,
+					Dismissed: slices.Contains(dismissedHealthchecks, healthcheck.SectionWebsocket),
 				},
 				AccessURL: healthcheck.AccessURLReportOptions{
 					AccessURL: options.AccessURL,
+					Dismissed: slices.Contains(dismissedHealthchecks, healthcheck.SectionAccessURL),
 				},
 				DerpHealth: derphealth.ReportOptions{
-					DERPMap: api.DERPMap(),
+					DERPMap:   api.DERPMap(),
+					Dismissed: slices.Contains(dismissedHealthchecks, healthcheck.SectionDERP),
+				},
+				WorkspaceProxy: healthcheck.WorkspaceProxyReportOptions{
+					CurrentVersion:               buildinfo.Version(),
+					WorkspaceProxiesFetchUpdater: *(options.WorkspaceProxiesFetchUpdater).Load(),
+					Dismissed:                    slices.Contains(dismissedHealthchecks, healthcheck.SectionWorkspaceProxy),
 				},
 			})
 		}
 	}
+
 	if options.HealthcheckTimeout == 0 {
 		options.HealthcheckTimeout = 30 * time.Second
 	}
@@ -958,8 +979,18 @@ func New(options *Options) *API {
 
 			r.Get("/coordinator", api.debugCoordinator)
 			r.Get("/tailnet", api.debugTailnet)
-			r.Get("/health", api.debugDeploymentHealth)
+			r.Route("/health", func(r chi.Router) {
+				r.Get("/", api.debugDeploymentHealth)
+				r.Route("/settings", func(r chi.Router) {
+					r.Get("/", api.deploymentHealthSettings)
+					r.Put("/", api.putDeploymentHealthSettings)
+				})
+			})
 			r.Get("/ws", (&healthcheck.WebsocketEchoServer{}).ServeHTTP)
+			r.Route("/{user}", func(r chi.Router) {
+				r.Use(httpmw.ExtractUserParam(options.Database))
+				r.Get("/debug-link", api.userDebugOIDC)
+			})
 		})
 	})
 

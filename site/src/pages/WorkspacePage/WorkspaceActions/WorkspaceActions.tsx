@@ -1,6 +1,10 @@
-import { FC, Fragment, ReactNode } from "react";
+import { type FC, type ReactNode, Fragment } from "react";
 import { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { useWorkspaceDuplication } from "pages/CreateWorkspacePage/useWorkspaceDuplication";
+
+import { workspaceUpdatePolicy } from "utils/workspace";
+import { type ButtonType, actionsByWorkspaceStatus } from "./constants";
+
 import {
   ActionLoadingButton,
   CancelButton,
@@ -10,12 +14,8 @@ import {
   RestartButton,
   UpdateButton,
   ActivateButton,
+  RetryButton,
 } from "./Buttons";
-import {
-  ButtonMapping,
-  ButtonTypesEnum,
-  actionsByWorkspaceStatus,
-} from "./constants";
 
 import Divider from "@mui/material/Divider";
 import DuplicateIcon from "@mui/icons-material/FileCopyOutlined";
@@ -41,11 +41,14 @@ export interface WorkspaceActionsProps {
   handleCancel: () => void;
   handleSettings: () => void;
   handleChangeVersion: () => void;
+  handleRetry: () => void;
+  handleRetryDebug: () => void;
   handleDormantActivate: () => void;
   isUpdating: boolean;
   isRestarting: boolean;
   children?: ReactNode;
   canChangeVersions: boolean;
+  canRetryDebug: boolean;
 }
 
 export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
@@ -57,61 +60,78 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   handleUpdate,
   handleCancel,
   handleSettings,
+  handleRetry,
+  handleRetryDebug,
   handleChangeVersion,
-  handleDormantActivate: handleDormantActivate,
+  handleDormantActivate,
   isUpdating,
   isRestarting,
   canChangeVersions,
+  canRetryDebug,
 }) => {
-  const {
-    canCancel,
-    canAcceptJobs,
-    actions: actionsByStatus,
-  } = actionsByWorkspaceStatus(
-    workspace,
-    workspace.latest_build.status,
-    canChangeVersions,
-  );
-  const canBeUpdated = workspace.outdated && canAcceptJobs;
   const { duplicateWorkspace, isDuplicationReady } =
     useWorkspaceDuplication(workspace);
 
+  const { actions, canCancel, canAcceptJobs } = actionsByWorkspaceStatus(
+    workspace,
+    canRetryDebug,
+  );
+
+  const mustUpdate =
+    workspaceUpdatePolicy(workspace, canChangeVersions) === "always" &&
+    workspace.outdated;
+
+  const tooltipText = getTooltipText(workspace, mustUpdate);
+  const canBeUpdated = workspace.outdated && canAcceptJobs;
+
   // A mapping of button type to the corresponding React component
-  const buttonMapping: ButtonMapping = {
-    [ButtonTypesEnum.update]: <UpdateButton handleAction={handleUpdate} />,
-    [ButtonTypesEnum.updating]: (
-      <UpdateButton loading handleAction={handleUpdate} />
+  const buttonMapping: Record<ButtonType, ReactNode> = {
+    update: <UpdateButton handleAction={handleUpdate} />,
+    updating: <UpdateButton loading handleAction={handleUpdate} />,
+    start: (
+      <StartButton
+        workspace={workspace}
+        handleAction={handleStart}
+        disabled={mustUpdate}
+        tooltipText={tooltipText}
+      />
     ),
-    [ButtonTypesEnum.start]: (
-      <StartButton workspace={workspace} handleAction={handleStart} />
+    starting: (
+      <StartButton
+        loading
+        workspace={workspace}
+        handleAction={handleStart}
+        disabled={mustUpdate}
+        tooltipText={tooltipText}
+      />
     ),
-    [ButtonTypesEnum.starting]: (
-      <StartButton loading workspace={workspace} handleAction={handleStart} />
+    stop: <StopButton handleAction={handleStop} />,
+    stopping: <StopButton loading handleAction={handleStop} />,
+    restart: (
+      <RestartButton
+        workspace={workspace}
+        handleAction={handleRestart}
+        disabled={mustUpdate}
+        tooltipText={tooltipText}
+      />
     ),
-    [ButtonTypesEnum.stop]: <StopButton handleAction={handleStop} />,
-    [ButtonTypesEnum.stopping]: (
-      <StopButton loading handleAction={handleStop} />
-    ),
-    [ButtonTypesEnum.restart]: (
-      <RestartButton workspace={workspace} handleAction={handleRestart} />
-    ),
-    [ButtonTypesEnum.restarting]: (
+    restarting: (
       <RestartButton
         loading
         workspace={workspace}
         handleAction={handleRestart}
+        disabled={mustUpdate}
+        tooltipText={tooltipText}
       />
     ),
-    [ButtonTypesEnum.deleting]: <ActionLoadingButton label="Deleting" />,
-    [ButtonTypesEnum.canceling]: <DisabledButton label="Canceling..." />,
-    [ButtonTypesEnum.deleted]: <DisabledButton label="Deleted" />,
-    [ButtonTypesEnum.pending]: <ActionLoadingButton label="Pending..." />,
-    [ButtonTypesEnum.activate]: (
-      <ActivateButton handleAction={handleDormantActivate} />
-    ),
-    [ButtonTypesEnum.activating]: (
-      <ActivateButton loading handleAction={handleDormantActivate} />
-    ),
+    deleting: <ActionLoadingButton label="Deleting" />,
+    canceling: <DisabledButton label="Canceling..." />,
+    deleted: <DisabledButton label="Deleted" />,
+    pending: <ActionLoadingButton label="Pending..." />,
+    activate: <ActivateButton handleAction={handleDormantActivate} />,
+    activating: <ActivateButton loading handleAction={handleDormantActivate} />,
+    retry: <RetryButton handleAction={handleRetry} />,
+    retryDebug: <RetryButton debug handleAction={handleRetryDebug} />,
   };
 
   return (
@@ -119,19 +139,18 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
       css={{ display: "flex", alignItems: "center", gap: 12 }}
       data-testid="workspace-actions"
     >
-      {canBeUpdated &&
-        (isUpdating
-          ? buttonMapping[ButtonTypesEnum.updating]
-          : buttonMapping[ButtonTypesEnum.update])}
+      {canBeUpdated && (
+        <>{isUpdating ? buttonMapping.updating : buttonMapping.update}</>
+      )}
 
-      {isRestarting && buttonMapping[ButtonTypesEnum.restarting]}
-
-      {!isRestarting &&
-        actionsByStatus.map((action) => (
-          <Fragment key={action}>{buttonMapping[action]}</Fragment>
-        ))}
+      {isRestarting
+        ? buttonMapping.restarting
+        : actions.map((action) => (
+            <Fragment key={action}>{buttonMapping[action]}</Fragment>
+          ))}
 
       {canCancel && <CancelButton handleAction={handleCancel} />}
+
       <MoreMenu>
         <MoreMenuTrigger>
           <ThreeDotsButton
@@ -179,3 +198,19 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     </div>
   );
 };
+
+function getTooltipText(workspace: Workspace, disabled: boolean): string {
+  if (!disabled) {
+    return "";
+  }
+
+  if (workspace.template_require_active_version) {
+    return "This template requires automatic updates";
+  }
+
+  if (workspace.automatic_updates === "always") {
+    return "You have enabled automatic updates for this workspace";
+  }
+
+  return "";
+}

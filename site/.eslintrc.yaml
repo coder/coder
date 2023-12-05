@@ -142,6 +142,8 @@ rules:
         - name: "@mui/material/Typography"
           message:
             "You should use the native HTML elements as span, p, h1, h2, h3..."
+        - name: "@mui/material/Box"
+          message: "You should use a <div> instead"
   no-unused-vars: "off"
   "object-curly-spacing": "off"
   react-hooks/exhaustive-deps: warn

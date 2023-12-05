@@ -85,6 +85,7 @@ export const MockPrimaryWorkspaceProxy: TypesGen.WorkspaceProxy = {
   derp_only: false,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
+  version: "v2.34.5-test+primary",
   deleted: false,
   status: {
     status: "ok",
@@ -105,6 +106,7 @@ export const MockHealthyWildWorkspaceProxy: TypesGen.WorkspaceProxy = {
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
   deleted: false,
+  version: "v2.34.5-test+haswildcard",
   status: {
     status: "ok",
     checked_at: new Date().toISOString(),
@@ -123,6 +125,7 @@ export const MockUnhealthyWildWorkspaceProxy: TypesGen.WorkspaceProxy = {
   derp_only: true,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
+  version: "v2.34.5-test+unhealthy",
   deleted: false,
   status: {
     status: "unhealthy",
@@ -151,6 +154,7 @@ export const MockWorkspaceProxies: TypesGen.WorkspaceProxy[] = [
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     deleted: false,
+    version: "v2.34.5-test+nowildcard",
     status: {
       status: "ok",
       checked_at: new Date().toISOString(),
@@ -1053,6 +1057,17 @@ export const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspac
     },
   };
 
+export const MockOutdatedRunningWorkspaceAlwaysUpdate: TypesGen.Workspace = {
+  ...MockWorkspace,
+  id: "test-outdated-workspace-always-update",
+  outdated: true,
+  automatic_updates: "always",
+  latest_build: {
+    ...MockWorkspaceBuild,
+    status: "running",
+  },
+};
+
 export const MockOutdatedStoppedWorkspaceRequireActiveVersion: TypesGen.Workspace =
   {
     ...MockOutdatedRunningWorkspaceRequireActiveVersion,
@@ -1061,6 +1076,14 @@ export const MockOutdatedStoppedWorkspaceRequireActiveVersion: TypesGen.Workspac
       status: "stopped",
     },
   };
+
+export const MockOutdatedStoppedWorkspaceAlwaysUpdate: TypesGen.Workspace = {
+  ...MockOutdatedRunningWorkspaceAlwaysUpdate,
+  latest_build: {
+    ...MockWorkspaceBuild,
+    status: "stopped",
+  },
+};
 
 export const MockPendingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
@@ -2375,13 +2398,17 @@ export const MockLicenseResponse: GetLicensesResponse[] = [
 export const MockHealth: TypesGen.HealthcheckReport = {
   time: "2023-08-01T16:51:03.29792825Z",
   healthy: true,
+  severity: "ok",
   failing_sections: [],
   derp: {
     healthy: true,
+    severity: "ok",
     warnings: [],
+    dismissed: false,
     regions: {
       "999": {
         healthy: true,
+        severity: "ok",
         warnings: [],
         region: {
           EmbeddedRelay: true,
@@ -2408,6 +2435,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
         node_reports: [
           {
             healthy: true,
+            severity: "ok",
             warnings: [],
             node: {
               Name: "999stun0",
@@ -2433,6 +2461,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
           },
           {
             healthy: true,
+            severity: "ok",
             warnings: [],
             node: {
               Name: "999b",
@@ -2467,6 +2496,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
       },
       "10007": {
         healthy: true,
+        severity: "ok",
         warnings: [],
         region: {
           EmbeddedRelay: false,
@@ -2493,6 +2523,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
         node_reports: [
           {
             healthy: true,
+            severity: "ok",
             warnings: [],
             node: {
               Name: "10007stun0",
@@ -2518,6 +2549,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
           },
           {
             healthy: true,
+            severity: "ok",
             warnings: [],
             node: {
               Name: "10007a",
@@ -2552,6 +2584,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
       },
       "10008": {
         healthy: true,
+        severity: "ok",
         warnings: [],
         region: {
           EmbeddedRelay: false,
@@ -2578,6 +2611,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
         node_reports: [
           {
             healthy: true,
+            severity: "ok",
             warnings: [],
             node: {
               Name: "10008stun0",
@@ -2603,6 +2637,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
           },
           {
             healthy: true,
+            severity: "ok",
             warnings: [],
             node: {
               Name: "10008a",
@@ -2637,6 +2672,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
       },
       "10009": {
         healthy: true,
+        severity: "ok",
         warnings: [],
         region: {
           EmbeddedRelay: false,
@@ -2663,6 +2699,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
         node_reports: [
           {
             healthy: true,
+            severity: "ok",
             warnings: [],
             node: {
               Name: "10009stun0",
@@ -2688,6 +2725,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
           },
           {
             healthy: true,
+            severity: "ok",
             warnings: [],
             node: {
               Name: "10009a",
@@ -2767,7 +2805,9 @@ export const MockHealth: TypesGen.HealthcheckReport = {
   },
   access_url: {
     healthy: true,
+    severity: "ok",
     warnings: [],
+    dismissed: false,
     access_url: "https://dev.coder.com",
     reachable: true,
     status_code: 200,
@@ -2775,17 +2815,30 @@ export const MockHealth: TypesGen.HealthcheckReport = {
   },
   websocket: {
     healthy: true,
+    severity: "ok",
     warnings: [],
+    dismissed: false,
     body: "",
     code: 101,
   },
   database: {
     healthy: true,
+    severity: "ok",
     warnings: [],
+    dismissed: false,
     reachable: true,
     latency: "92570",
     latency_ms: 92570,
     threshold_ms: 92570,
+  },
+  workspace_proxy: {
+    healthy: true,
+    severity: "ok",
+    warnings: [],
+    dismissed: false,
+    workspace_proxies: {
+      regions: [],
+    },
   },
   coder_version: "v0.27.1-devel+c575292",
 };
@@ -2801,12 +2854,15 @@ export const MockListeningPortsResponse: TypesGen.WorkspaceAgentListeningPortsRe
 
 export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
   healthy: false,
+  severity: "ok",
   failing_sections: [], // apparently this property is not used at all?
   time: "2023-10-12T23:15:00.000000000Z",
   coder_version: "v2.3.0-devel+8cca4915a",
   access_url: {
     healthy: true,
+    severity: "ok",
     warnings: [],
+    dismissed: false,
     access_url: "",
     healthz_response: "",
     reachable: true,
@@ -2814,7 +2870,9 @@ export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
   },
   database: {
     healthy: false,
+    severity: "ok",
     warnings: [],
+    dismissed: false,
     latency: "",
     latency_ms: 0,
     reachable: true,
@@ -2822,14 +2880,52 @@ export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
   },
   derp: {
     healthy: false,
+    severity: "ok",
     warnings: [],
+    dismissed: false,
     regions: [],
     netcheck_logs: [],
   },
   websocket: {
     healthy: false,
+    severity: "ok",
     warnings: [],
+    dismissed: false,
     body: "",
     code: 0,
+  },
+  workspace_proxy: {
+    healthy: false,
+    error: "some error",
+    severity: "error",
+    warnings: [],
+    dismissed: false,
+    workspace_proxies: {
+      regions: [
+        {
+          id: "df7e4b2b-2d40-47e5-a021-e5d08b219c77",
+          name: "unhealthy",
+          display_name: "unhealthy",
+          icon_url: "/emojis/1f5fa.png",
+          healthy: false,
+          path_app_url: "http://127.0.0.1:3001",
+          wildcard_hostname: "",
+          derp_enabled: true,
+          derp_only: false,
+          status: {
+            status: "unreachable",
+            report: {
+              errors: ["some error"],
+              warnings: [],
+            },
+            checked_at: "2023-11-24T12:14:05.743303497Z",
+          },
+          created_at: "2023-11-23T15:37:25.513213Z",
+          updated_at: "2023-11-23T18:09:19.734747Z",
+          deleted: false,
+          version: "v2.4.0-devel+89bae7eff",
+        },
+      ],
+    },
   },
 };

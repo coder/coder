@@ -42,7 +42,6 @@ import { Avatar } from "components/Avatar/Avatar";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { docs } from "utils/docs";
 import Skeleton from "@mui/material/Skeleton";
-import { Box } from "@mui/system";
 import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
 import { Pill } from "components/Pill/Pill";
 
@@ -62,7 +61,7 @@ export const Language = {
   templateTooltipLink: "Manage templates",
 };
 
-const TemplateHelpTooltip: React.FC = () => {
+const TemplateHelpTooltip: FC = () => {
   return (
     <HelpTooltip>
       <HelpTooltipTitle>{Language.templateTooltipTitle}</HelpTooltipTitle>
@@ -76,7 +75,11 @@ const TemplateHelpTooltip: React.FC = () => {
   );
 };
 
-const TemplateRow: FC<{ template: Template }> = ({ template }) => {
+interface TemplateRowProps {
+  template: Template;
+}
+
+const TemplateRow: FC<TemplateRowProps> = ({ template }) => {
   const templatePageLink = `/templates/${template.name}`;
   const hasIcon = template.icon && template.icon !== "";
   const navigate = useNavigate();
@@ -226,14 +229,14 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
   );
 };
 
-const TableLoader = () => {
+const TableLoader: FC = () => {
   return (
     <TableLoaderSkeleton>
       <TableRowSkeleton>
         <TableCell>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <div css={{ display: "flex", alignItems: "center", gap: 8 }}>
             <AvatarDataSkeleton />
-          </Box>
+          </div>
         </TableCell>
         <TableCell>
           <Skeleton variant="text" width="25%" />

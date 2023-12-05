@@ -122,6 +122,19 @@ DELETE
 FROM tailnet_coordinators
 WHERE heartbeat_at < now() - INTERVAL '24 HOURS';
 
+-- name: CleanTailnetLostPeers :exec
+DELETE
+FROM tailnet_peers
+WHERE updated_at < now() - INTERVAL '24 HOURS' AND status = 'lost'::tailnet_status;
+
+-- name: CleanTailnetTunnels :exec
+DELETE FROM tailnet_tunnels
+WHERE updated_at < now() - INTERVAL '24 HOURS' AND
+      NOT EXISTS (
+        SELECT 1 FROM tailnet_peers
+        WHERE id = tailnet_tunnels.src_id AND coordinator_id = tailnet_tunnels.coordinator_id
+      );
+
 -- name: UpsertTailnetPeer :one
 INSERT INTO
 	tailnet_peers (
@@ -190,12 +203,23 @@ FROM tailnet_tunnels
 WHERE tailnet_tunnels.dst_id = $1;
 
 -- name: GetTailnetTunnelPeerBindings :many
-SELECT tailnet_tunnels.dst_id as peer_id, tailnet_peers.coordinator_id, tailnet_peers.updated_at, tailnet_peers.node
+SELECT tailnet_tunnels.dst_id as peer_id, tailnet_peers.coordinator_id, tailnet_peers.updated_at, tailnet_peers.node, tailnet_peers.status
 FROM tailnet_tunnels
 INNER JOIN tailnet_peers ON tailnet_tunnels.dst_id = tailnet_peers.id
 WHERE tailnet_tunnels.src_id = $1
 UNION
-SELECT tailnet_tunnels.src_id as peer_id, tailnet_peers.coordinator_id, tailnet_peers.updated_at, tailnet_peers.node
+SELECT tailnet_tunnels.src_id as peer_id, tailnet_peers.coordinator_id, tailnet_peers.updated_at, tailnet_peers.node, tailnet_peers.status
 FROM tailnet_tunnels
 INNER JOIN tailnet_peers ON tailnet_tunnels.src_id = tailnet_peers.id
 WHERE tailnet_tunnels.dst_id = $1;
+
+-- For PG Coordinator HTMLDebug
+
+-- name: GetAllTailnetCoordinators :many
+SELECT * FROM tailnet_coordinators;
+
+-- name: GetAllTailnetPeers :many
+SELECT * FROM tailnet_peers;
+
+-- name: GetAllTailnetTunnels :many
+SELECT * FROM tailnet_tunnels;

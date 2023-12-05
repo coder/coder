@@ -30,6 +30,7 @@ import {
   TemplateVersion,
 } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
+import { FullScreenLoader } from "components/Loader/FullScreenLoader";
 
 type Params = {
   version: string;
@@ -107,7 +108,7 @@ export const TemplateVersionEditorPage: FC = () => {
         <title>{pageTitle(`${templateName} · Template Editor`)}</title>
       </Helmet>
 
-      {templateQuery.data && templateVersionQuery.data && fileTree && (
+      {templateQuery.data && templateVersionQuery.data && fileTree ? (
         <TemplateVersionEditor
           template={templateQuery.data}
           templateVersion={templateVersionQuery.data}
@@ -121,9 +122,8 @@ export const TemplateVersionEditorPage: FC = () => {
               tarFile,
               newFileTree,
             );
-            const serverFile = await uploadFileMutation.mutateAsync(
-              newVersionFile,
-            );
+            const serverFile =
+              await uploadFileMutation.mutateAsync(newVersionFile);
             const newVersion = await createTemplateVersionMutation.mutateAsync({
               provisioner: "terraform",
               storage_method: "file",
@@ -145,8 +145,21 @@ export const TemplateVersionEditorPage: FC = () => {
               data,
               version: templateVersionQuery.data,
             });
+            const publishedVersion = {
+              ...templateVersionQuery.data,
+              ...data,
+            };
+            setCurrentVersionName(publishedVersion.name);
             setIsPublishingDialogOpen(false);
-            setLastSuccessfulPublishedVersion(templateVersionQuery.data);
+            setLastSuccessfulPublishedVersion(publishedVersion);
+            queryClient.setQueryData(
+              templateVersionOptions.queryKey,
+              publishedVersion,
+            );
+            navigate(
+              `/templates/${templateName}/versions/${publishedVersion.name}/edit`,
+              { replace: true },
+            );
           }}
           isAskingPublishParameters={isPublishingDialogOpen}
           isPublishing={publishVersionMutation.isLoading}
@@ -198,6 +211,8 @@ export const TemplateVersionEditorPage: FC = () => {
             setIsMissingVariablesDialogOpen(false);
           }}
         />
+      ) : (
+        <FullScreenLoader />
       )}
     </>
   );

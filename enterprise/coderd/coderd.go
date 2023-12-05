@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd"
 	agplaudit "github.com/coder/coder/v2/coderd/audit"
 	agpldbauthz "github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -374,6 +375,13 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		// Use proxy health to return the healthy workspace proxy hostnames.
 		f := api.ProxyHealth.ProxyHosts
 		api.AGPL.WorkspaceProxyHostsFn.Store(&f)
+
+		// Wire this up to healthcheck.
+		var fetchUpdater healthcheck.WorkspaceProxiesFetchUpdater = &workspaceProxiesFetchUpdater{
+			fetchFunc:  api.fetchWorkspaceProxies,
+			updateFunc: api.ProxyHealth.ForceUpdate,
+		}
+		api.AGPL.WorkspaceProxiesFetchUpdater.Store(&fetchUpdater)
 	}
 
 	err = api.PrometheusRegistry.Register(&api.licenseMetricsCollector)
@@ -472,7 +480,6 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureAuditLog:                   api.AuditLogging,
 			codersdk.FeatureBrowserOnly:                api.BrowserOnly,
 			codersdk.FeatureSCIM:                       len(api.SCIMAPIKey) != 0,
-			codersdk.FeatureHighAvailability:           api.DERPServerRelayAddress != "",
 			codersdk.FeatureMultipleExternalAuth:       len(api.ExternalAuthConfigs) > 1,
 			codersdk.FeatureTemplateRBAC:               api.RBAC,
 			codersdk.FeatureExternalTokenEncryption:    len(api.ExternalTokenEncryption) > 0,
@@ -553,8 +560,8 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				Log:      api.Logger.Named("quota_committer"),
 				Database: api.Database,
 			}
-			ptr := proto.QuotaCommitter(&committer)
-			api.AGPL.QuotaCommitter.Store(&ptr)
+			qcPtr := proto.QuotaCommitter(&committer)
+			api.AGPL.QuotaCommitter.Store(&qcPtr)
 		} else {
 			api.AGPL.QuotaCommitter.Store(nil)
 		}

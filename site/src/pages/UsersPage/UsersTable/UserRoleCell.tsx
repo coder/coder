@@ -76,7 +76,7 @@ export function UserRoleCell({
           css={{
             backgroundColor: hasOwnerRole
               ? theme.palette.info.dark
-              : theme.palette.background.paperLight,
+              : theme.palette.background.paper,
             borderColor: hasOwnerRole
               ? theme.palette.info.light
               : theme.palette.divider,
@@ -102,7 +102,7 @@ function OverflowRolePill({ roles }: OverflowRolePillProps) {
         <Pill
           text={`+${roles.length} more`}
           css={{
-            backgroundColor: theme.palette.background.paperLight,
+            backgroundColor: theme.palette.background.paper,
             borderColor: theme.palette.divider,
           }}
         />
@@ -136,7 +136,7 @@ function OverflowRolePill({ roles }: OverflowRolePillProps) {
             key={role.name}
             text={role.display_name || role.name}
             css={{
-              backgroundColor: theme.palette.background.paperLight,
+              backgroundColor: theme.palette.background.paper,
               borderColor: theme.palette.divider,
             }}
           />

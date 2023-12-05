@@ -1,4 +1,3 @@
-import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
 import { type FC, type PropsWithChildren } from "react";
@@ -25,9 +24,9 @@ export const SSHKeysPageView: FC<PropsWithChildren<SSHKeysPageViewProps>> = ({
 
   if (isLoading) {
     return (
-      <Box p={4}>
+      <div css={{ padding: 32 }}>
         <CircularProgress size={26} />
-      </Box>
+      </div>
     );
   }
 

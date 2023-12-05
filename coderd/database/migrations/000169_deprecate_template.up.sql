@@ -1,5 +1,3 @@
-BEGIN;
-
 -- The view will be rebuilt with the new column
 DROP VIEW template_with_users;
 
@@ -24,5 +22,3 @@ FROM
 			templates.created_by = visible_users.id;
 
 COMMENT ON VIEW template_with_users IS 'Joins in the username + avatar url of the created by user.';
-
-COMMIT;

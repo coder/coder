@@ -1,11 +1,10 @@
-import Box from "@mui/material/Box";
 import type { FC, ReactNode } from "react";
 
 export interface EmptyStateProps {
   /** Text Message to display, placed inside Typography component */
   message: string;
   /** Longer optional description to display below the message */
-  description?: string | React.ReactNode;
+  description?: string | ReactNode;
   cta?: ReactNode;
   className?: string;
   image?: ReactNode;
@@ -15,17 +14,16 @@ export interface EmptyStateProps {
  * Component to place on screens or in lists that have no content. Optionally
  * provide a button that would allow the user to return from where they were,
  * or to add an item that they currently have none of.
- *
- * EmptyState's props extend the [Material UI Box component](https://material-ui.com/components/box/)
- * that you can directly pass props through to to customize the shape and layout of it.
  */
-export const EmptyState: FC<React.PropsWithChildren<EmptyStateProps>> = (
-  props,
-) => {
-  const { message, description, cta, image, ...boxProps } = props;
-
+export const EmptyState: FC<EmptyStateProps> = ({
+  message,
+  description,
+  cta,
+  image,
+  ...attrs
+}) => {
   return (
-    <Box
+    <div
       css={{
         overflow: "hidden",
         display: "flex",
@@ -37,9 +35,9 @@ export const EmptyState: FC<React.PropsWithChildren<EmptyStateProps>> = (
         padding: "80px 40px",
         position: "relative",
       }}
-      {...boxProps}
+      {...attrs}
     >
-      <h5 css={{ fontSize: 24, fontWeight: 400, margin: 0 }}>{message}</h5>
+      <h5 css={{ fontSize: 24, fontWeight: 500, margin: 0 }}>{message}</h5>
       {description && (
         <p
           css={(theme) => ({
@@ -55,6 +53,6 @@ export const EmptyState: FC<React.PropsWithChildren<EmptyStateProps>> = (
       )}
       {cta && <div css={{ marginTop: 24 }}>{cta}</div>}
       {image}
-    </Box>
+    </div>
   );
 };

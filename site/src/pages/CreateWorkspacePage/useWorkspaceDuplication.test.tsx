@@ -8,7 +8,7 @@ import { renderHookWithAuth } from "testHelpers/renderHelpers";
 
 function render(workspace?: Workspace) {
   return renderHookWithAuth(
-    ({ workspace }: { workspace?: Workspace }) => {
+    ({ workspace }) => {
       return useWorkspaceDuplication(workspace);
     },
     {

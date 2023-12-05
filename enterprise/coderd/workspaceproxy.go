@@ -625,6 +625,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 			DerpEnabled:      req.DerpEnabled,
 			DerpOnly:         req.DerpOnly,
 			WildcardHostname: req.WildcardHostname,
+			Version:          req.Version,
 		})
 		if err != nil {
 			return xerrors.Errorf("register workspace proxy: %w", err)
@@ -951,10 +952,28 @@ func convertProxy(p database.WorkspaceProxy, status proxyhealth.ProxyStatus) cod
 		CreatedAt:   p.CreatedAt,
 		UpdatedAt:   p.UpdatedAt,
 		Deleted:     p.Deleted,
+		Version:     p.Version,
 		Status: codersdk.WorkspaceProxyStatus{
 			Status:    codersdk.ProxyHealthStatus(status.Status),
 			Report:    status.Report,
 			CheckedAt: status.CheckedAt,
 		},
 	}
+}
+
+// workspaceProxiesFetchUpdater implements healthcheck.WorkspaceProxyFetchUpdater
+// in an actually useful and meaningful way.
+type workspaceProxiesFetchUpdater struct {
+	fetchFunc  func(context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error)
+	updateFunc func(context.Context) error
+}
+
+func (w *workspaceProxiesFetchUpdater) Fetch(ctx context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
+	//nolint:gocritic // Need perms to read all workspace proxies.
+	authCtx := dbauthz.AsSystemRestricted(ctx)
+	return w.fetchFunc(authCtx)
+}
+
+func (w *workspaceProxiesFetchUpdater) Update(ctx context.Context) error {
+	return w.updateFunc(ctx)
 }

@@ -1,16 +1,18 @@
+import { useTheme } from "@emotion/react";
 import TextField from "@mui/material/TextField";
-import { Box } from "@mui/system";
 import { deleteWorkspace, startWorkspace, stopWorkspace } from "api/api";
-import { Workspace } from "api/typesGenerated";
+import type { Workspace } from "api/typesGenerated";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { displayError } from "components/GlobalSnackbar/utils";
-import { useState } from "react";
+import { type FC, useState } from "react";
 import { useMutation } from "react-query";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 
-export const useBatchActions = (options: {
+interface UseBatchActionsProps {
   onSuccess: () => Promise<void>;
-}) => {
+}
+
+export function useBatchActions(options: UseBatchActionsProps) {
   const { onSuccess } = options;
 
   const startAllMutation = useMutation({
@@ -56,7 +58,7 @@ export const useBatchActions = (options: {
       stopAllMutation.isLoading ||
       deleteAllMutation.isLoading,
   };
-};
+}
 
 type BatchDeleteConfirmationProps = {
   checkedWorkspaces: Workspace[];
@@ -66,10 +68,11 @@ type BatchDeleteConfirmationProps = {
   onConfirm: () => void;
 };
 
-export const BatchDeleteConfirmation = (
-  props: BatchDeleteConfirmationProps,
+export const BatchDeleteConfirmation: FC<BatchDeleteConfirmationProps> = (
+  props,
 ) => {
   const { checkedWorkspaces, open, onClose, onConfirm, isLoading } = props;
+  const theme = useTheme();
   const [confirmation, setConfirmation] = useState({ value: "", error: false });
 
   const confirmDeletion = () => {
@@ -103,21 +106,20 @@ export const BatchDeleteConfirmation = (
             confirmDeletion();
           }}
         >
-          <Box>
+          <div>
             Deleting these workspaces is irreversible! Are you sure you want to
             proceed? Type{" "}
-            <Box
-              component="code"
-              sx={{
+            <code
+              css={{
                 fontFamily: MONOSPACE_FONT_FAMILY,
-                color: (theme) => theme.palette.text.primary,
+                color: theme.palette.text.primary,
                 fontWeight: 600,
               }}
             >
               `DELETE`
-            </Box>{" "}
+            </code>{" "}
             to confirm.
-          </Box>
+          </div>
           <TextField
             value={confirmation.value}
             required
@@ -127,7 +129,7 @@ export const BatchDeleteConfirmation = (
               "aria-label": "Type DELETE to confirm",
             }}
             placeholder="Type DELETE to confirm"
-            sx={{ mt: 2 }}
+            css={{ marginTop: 16 }}
             onChange={(e) => {
               const value = e.currentTarget?.value;
               setConfirmation((c) => ({ ...c, value }));

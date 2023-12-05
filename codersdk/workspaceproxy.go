@@ -59,6 +59,7 @@ type WorkspaceProxy struct {
 	CreatedAt time.Time `json:"created_at" format:"date-time" table:"created_at,default_sort"`
 	UpdatedAt time.Time `json:"updated_at" format:"date-time" table:"updated_at"`
 	Deleted   bool      `json:"deleted" table:"deleted"`
+	Version   string    `json:"version" table:"version"`
 }
 
 type CreateWorkspaceProxyRequest struct {

@@ -10,7 +10,6 @@ import { useParams, useSearchParams } from "react-router-dom";
 import ExternalAuthPageView from "./ExternalAuthPageView";
 import { ApiErrorResponse } from "api/errors";
 import { isAxiosError } from "axios";
-import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Welcome } from "components/Welcome/Welcome";
@@ -88,12 +87,12 @@ const ExternalAuthPage: FC = () => {
       return (
         <SignInLayout>
           <Welcome message="Failed to validate oauth access token" />
-          <Box textAlign="center">
+          <p css={{ textAlign: "center" }}>
             Attempted to validate the user&apos;s oauth access token from the
             authentication flow. This situation may occur as a result of an
             external authentication provider misconfiguration. Verify the
             external authentication validation URL is accurately configured.
-          </Box>
+          </p>
           <br />
           <Button
             onClick={() => {

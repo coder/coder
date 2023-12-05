@@ -1,5 +1,3 @@
-BEGIN;
-
 -- Bring back the subsystem column.
 ALTER TABLE workspace_agents ADD COLUMN subsystem workspace_agent_subsystem NOT NULL DEFAULT 'none';
 
@@ -13,5 +11,3 @@ ALTER TABLE workspace_agents DROP COLUMN subsystems;
 -- We cannot drop the "exectrace" value from the workspace_agent_subsystem type
 -- because you cannot drop values from an enum type.
 UPDATE workspace_agents SET subsystem = 'none' WHERE subsystem = 'exectrace';
-
-COMMIT;
