@@ -530,3 +530,33 @@ func WithQueryParam(key, value string) RequestOption {
 		r.URL.RawQuery = q.Encode()
 	}
 }
+
+// HeaderTransport is a http.RoundTripper that adds some headers to all requests.
+// @typescript-ignore HeaderTransport
+type HeaderTransport struct {
+	Transport http.RoundTripper
+	Header    http.Header
+}
+
+var _ http.RoundTripper = &HeaderTransport{}
+
+func (h *HeaderTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	for k, v := range h.Header {
+		for _, vv := range v {
+			req.Header.Add(k, vv)
+		}
+	}
+	if h.Transport == nil {
+		h.Transport = http.DefaultTransport
+	}
+	return h.Transport.RoundTrip(req)
+}
+
+func (h *HeaderTransport) CloseIdleConnections() {
+	type closeIdler interface {
+		CloseIdleConnections()
+	}
+	if tr, ok := h.Transport.(closeIdler); ok {
+		tr.CloseIdleConnections()
+	}
+}
