@@ -85,6 +85,8 @@ func TestRenderChart(t *testing.T) {
 
 	// Ensure that Helm is available in $PATH
 	helmPath := lookupHelm(t)
+	err := updateHelmDependencies(t, helmPath, "..")
+	require.NoError(t, err, "failed to build Helm dependencies")
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
@@ -142,6 +144,26 @@ func TestUpdateGoldenFiles(t *testing.T) {
 		require.NoError(t, err, "failed to write golden file %q", goldenFilePath)
 	}
 	t.Log("Golden files updated. Please review the changes and commit them.")
+}
+
+// updateHelmDependencies runs `helm dependency update .` on the given chartDir.
+func updateHelmDependencies(t testing.TB, helmPath, chartDir string) error {
+	// Remove charts/ from chartDir if it exists.
+	err := os.RemoveAll(filepath.Join(chartDir, "charts"))
+	if err != nil {
+		return xerrors.Errorf("failed to remove charts/ directory: %w", err)
+	}
+
+	// Regenerate the chart dependencies.
+	cmd := exec.Command(helmPath, "dependency", "update", "--skip-refresh", ".")
+	cmd.Dir = chartDir
+	t.Logf("exec command: %v", cmd.Args)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return xerrors.Errorf("failed to run `helm dependency build`: %w\noutput: %s", err, out)
+	}
+
+	return nil
 }
 
 // runHelmTemplate runs helm template on the given chart with the given values and

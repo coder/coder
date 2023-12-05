@@ -430,6 +430,68 @@ const docTemplate = `{
                 }
             }
         },
+        "/debug/health/settings": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Debug"
+                ],
+                "summary": "Get health settings",
+                "operationId": "get-health-settings",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.HealthSettings"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Debug"
+                ],
+                "summary": "Update health settings",
+                "operationId": "update-health-settings",
+                "parameters": [
+                    {
+                        "description": "Update health settings",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateHealthSettings"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateHealthSettings"
+                        }
+                    }
+                }
+            }
+        },
         "/debug/tailnet": {
             "get": {
                 "security": [
@@ -6855,6 +6917,10 @@ const docTemplate = `{
                 "motd_file": {
                     "type": "string"
                 },
+                "owner_name": {
+                    "description": "OwnerName and WorkspaceID are used by an open-source user to identify the workspace.\nWe do not provide insurance that this will not be removed in the future,\nbut if it's easy to persist lets keep it around.",
+                    "type": "string"
+                },
                 "scripts": {
                     "type": "array",
                     "items": {
@@ -6862,6 +6928,9 @@ const docTemplate = `{
                     }
                 },
                 "vscode_port_proxy_uri": {
+                    "type": "string"
+                },
+                "workspace_id": {
                     "type": "string"
                 }
             }
@@ -8902,6 +8971,17 @@ const docTemplate = `{
                 "GroupSourceOIDC"
             ]
         },
+        "codersdk.HealthSettings": {
+            "type": "object",
+            "properties": {
+                "dismissed_healthchecks": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "codersdk.Healthcheck": {
             "type": "object",
             "properties": {
@@ -9849,6 +9929,7 @@ const docTemplate = `{
                 "group",
                 "license",
                 "convert_login",
+                "health_settings",
                 "workspace_proxy",
                 "organization"
             ],
@@ -9863,6 +9944,7 @@ const docTemplate = `{
                 "ResourceTypeGroup",
                 "ResourceTypeLicense",
                 "ResourceTypeConvertLogin",
+                "ResourceTypeHealthSettings",
                 "ResourceTypeWorkspaceProxy",
                 "ResourceTypeOrganization"
             ]
@@ -10766,6 +10848,17 @@ const docTemplate = `{
                 "version": {
                     "description": "Version is the semantic version for the latest release of Coder.",
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.UpdateHealthSettings": {
+            "type": "object",
+            "properties": {
+                "dismissed_healthchecks": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -12170,7 +12263,7 @@ const docTemplate = `{
                 "warnings": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/health.Message"
                     }
                 }
             }
@@ -12209,7 +12302,7 @@ const docTemplate = `{
                 "warnings": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/health.Message"
                     }
                 }
             }
@@ -12217,6 +12310,9 @@ const docTemplate = `{
         "derphealth.Report": {
             "type": "object",
             "properties": {
+                "dismissed": {
+                    "type": "boolean"
+                },
                 "error": {
                     "type": "string"
                 },
@@ -12257,7 +12353,7 @@ const docTemplate = `{
                 "warnings": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/health.Message"
                     }
                 }
             }
@@ -12272,6 +12368,56 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "error": {
+                    "type": "string"
+                }
+            }
+        },
+        "health.Code": {
+            "type": "string",
+            "enum": [
+                "EUNKNOWN",
+                "EWP01",
+                "EWP02",
+                "EWP03",
+                "EWP04",
+                "EDB01",
+                "EDB02",
+                "EWS01",
+                "EWS02",
+                "EWS03",
+                "EACS01",
+                "EACS02",
+                "EACS03",
+                "EACS04",
+                "EDERP01",
+                "EDERP02"
+            ],
+            "x-enum-varnames": [
+                "CodeUnknown",
+                "CodeProxyUpdate",
+                "CodeProxyFetch",
+                "CodeProxyVersionMismatch",
+                "CodeProxyUnhealthy",
+                "CodeDatabasePingFailed",
+                "CodeDatabasePingSlow",
+                "CodeWebsocketDial",
+                "CodeWebsocketEcho",
+                "CodeWebsocketMsg",
+                "CodeAccessURLNotSet",
+                "CodeAccessURLInvalid",
+                "CodeAccessURLFetch",
+                "CodeAccessURLNotOK",
+                "CodeDERPNodeUsesWebsocket",
+                "CodeDERPOneNodeUnhealthy"
+            ]
+        },
+        "health.Message": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "$ref": "#/definitions/health.Code"
+                },
+                "message": {
                     "type": "string"
                 }
             }
@@ -12294,6 +12440,9 @@ const docTemplate = `{
             "properties": {
                 "access_url": {
                     "type": "string"
+                },
+                "dismissed": {
+                    "type": "boolean"
                 },
                 "error": {
                     "type": "string"
@@ -12326,7 +12475,7 @@ const docTemplate = `{
                 "warnings": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/health.Message"
                     }
                 }
             }
@@ -12334,6 +12483,9 @@ const docTemplate = `{
         "healthcheck.DatabaseReport": {
             "type": "object",
             "properties": {
+                "dismissed": {
+                    "type": "boolean"
+                },
                 "error": {
                     "type": "string"
                 },
@@ -12368,7 +12520,7 @@ const docTemplate = `{
                 "warnings": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/health.Message"
                     }
                 }
             }
@@ -12434,6 +12586,9 @@ const docTemplate = `{
                 "code": {
                     "type": "integer"
                 },
+                "dismissed": {
+                    "type": "boolean"
+                },
                 "error": {
                     "type": "string"
                 },
@@ -12464,6 +12619,9 @@ const docTemplate = `{
         "healthcheck.WorkspaceProxyReport": {
             "type": "object",
             "properties": {
+                "dismissed": {
+                    "type": "boolean"
+                },
                 "error": {
                     "type": "string"
                 },
@@ -12476,7 +12634,7 @@ const docTemplate = `{
                 "warnings": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/health.Message"
                     }
                 },
                 "workspace_proxies": {

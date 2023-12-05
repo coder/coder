@@ -1,13 +1,5 @@
-import type {
-  PaletteColor,
-  PaletteColorOptions,
-  Theme,
-} from "@mui/material/styles";
+import type { PaletteColor, PaletteColorOptions } from "@mui/material/styles";
 import type { NewTheme } from "theme/experimental";
-
-declare module "@mui/styles/defaultTheme" {
-  interface DefaultTheme extends Theme {}
-}
 
 declare module "@mui/material/styles" {
   interface Theme {

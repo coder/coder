@@ -1,5 +1,3 @@
-BEGIN;
-
 DROP VIEW template_with_users;
 
 ALTER TABLE templates DROP COLUMN use_max_ttl;
@@ -19,5 +17,3 @@ AS
 	    templates.created_by = visible_users.id;
 
 COMMENT ON VIEW template_with_users IS 'Joins in the username + avatar url of the created by user.';
-
-COMMIT;

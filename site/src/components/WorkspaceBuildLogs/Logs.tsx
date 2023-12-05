@@ -24,10 +24,14 @@ export const Logs: FC<React.PropsWithChildren<LogsProps>> = ({
   className = "",
 }) => {
   return (
-    <div css={styles.root} className={className}>
+    <div css={styles.root} className={`${className} logs-container`}>
       <div css={{ minWidth: "fit-content" }}>
         {lines.map((line, idx) => (
-          <div css={styles.line} className={line.level} key={idx}>
+          <div
+            css={[styles.line]}
+            className={`${line.level} logs-line`}
+            key={idx}
+          >
             {!hideTimestamps && (
               <>
                 <span css={styles.time}>

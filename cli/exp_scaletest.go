@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
 	"sync"
@@ -173,11 +174,12 @@ func (s *scaletestStrategyFlags) attach(opts *clibase.OptionSet) {
 
 func (s *scaletestStrategyFlags) toStrategy() harness.ExecutionStrategy {
 	var strategy harness.ExecutionStrategy
-	if s.concurrency == 1 {
+	switch s.concurrency {
+	case 1:
 		strategy = harness.LinearExecutionStrategy{}
-	} else if s.concurrency == 0 {
+	case 0:
 		strategy = harness.ConcurrentExecutionStrategy{}
-	} else {
+	default:
 		strategy = harness.ParallelExecutionStrategy{
 			Limit: int(s.concurrency),
 		}
@@ -244,7 +246,9 @@ func (o *scaleTestOutput) write(res harness.Results, stdout io.Writer) error {
 		err := s.Sync()
 		// On Linux, EINVAL is returned when calling fsync on /dev/stdout. We
 		// can safely ignore this error.
-		if err != nil && !xerrors.Is(err, syscall.EINVAL) {
+		// On macOS, ENOTTY is returned when calling sync on /dev/stdout. We
+		// can safely ignore this error.
+		if err != nil && !xerrors.Is(err, syscall.EINVAL) && !xerrors.Is(err, syscall.ENOTTY) {
 			return xerrors.Errorf("flush output file: %w", err)
 		}
 	}
@@ -871,8 +875,12 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 		Middleware: clibase.Chain(
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *clibase.Invocation) (err error) {
 			ctx := inv.Context()
+
+			notifyCtx, stop := signal.NotifyContext(ctx, InterruptSignals...) // Checked later.
+			defer stop()
+			ctx = notifyCtx
 
 			me, err := requireAdmin(ctx, client)
 			if err != nil {
@@ -965,6 +973,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 					ReadMetrics:  metrics.ReadMetrics(ws.OwnerName, ws.Name, agentName),
 					WriteMetrics: metrics.WriteMetrics(ws.OwnerName, ws.Name, agentName),
 					SSH:          ssh,
+					Echo:         ssh,
 				}
 
 				if err := config.Validate(); err != nil {
@@ -988,6 +997,11 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 			err = th.Run(testCtx)
 			if err != nil {
 				return xerrors.Errorf("run test harness (harness failure, not a test failure): %w", err)
+			}
+
+			// If the command was interrupted, skip stats.
+			if notifyCtx.Err() != nil {
+				return notifyCtx.Err()
 			}
 
 			res := th.Results()

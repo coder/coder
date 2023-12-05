@@ -7,88 +7,86 @@
 import {
   type ForwardedRef,
   type KeyboardEvent,
+  type InputHTMLAttributes,
   forwardRef,
   useId,
 } from "react";
-
-import Box from "@mui/system/Box";
 import SearchIcon from "@mui/icons-material/SearchOutlined";
 import { visuallyHidden } from "@mui/utils";
-import { type SystemStyleObject } from "@mui/system";
+import { useTheme } from "@emotion/react";
 
-type Props = {
-  value: string;
-  onValueChange: (newValue: string) => void;
-
-  placeholder?: string;
+interface SearchBoxProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
+  value: string;
   onKeyDown?: (event: KeyboardEvent) => void;
-  sx?: SystemStyleObject;
-};
+  onValueChange: (newValue: string) => void;
+}
 
 export const SearchBox = forwardRef(function SearchBox(
-  {
-    value,
+  props: SearchBoxProps,
+  ref?: ForwardedRef<HTMLInputElement>,
+) {
+  const {
     onValueChange,
     onKeyDown,
     label = "Search",
     placeholder = "Search...",
-    sx = {},
-  }: Props,
-  ref?: ForwardedRef<HTMLInputElement>,
-) {
+    ...attrs
+  } = props;
+
   const hookId = useId();
+  const theme = useTheme();
+
   const inputId = `${hookId}-${SearchBox.name}-input`;
 
   return (
-    <Box
-      sx={{
+    <div
+      css={{
         display: "flex",
         flexFlow: "row nowrap",
         alignItems: "center",
-        paddingX: 2,
+        padding: "0 8px",
         height: "40px",
-        borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
-        ...sx,
+        borderBottom: `1px solid ${theme.palette.divider}`,
       }}
-      onKeyDown={onKeyDown}
     >
-      <Box component="div" sx={{ width: "18px" }}>
+      <div css={{ width: 18 }}>
         <SearchIcon
-          sx={{
+          css={{
             display: "block",
             fontSize: "14px",
-            marginX: "auto",
-            color: (theme) => theme.palette.text.secondary,
+            marginLeft: "auto",
+            marginRight: "auto",
+            color: theme.palette.text.secondary,
           }}
         />
-      </Box>
+      </div>
 
-      <Box component="label" sx={visuallyHidden} htmlFor={inputId}>
+      <label css={{ ...visuallyHidden }} htmlFor={inputId}>
         {label}
-      </Box>
+      </label>
 
-      <Box
-        component="input"
+      <input
         type="text"
         ref={ref}
         id={inputId}
         autoFocus
         tabIndex={0}
         placeholder={placeholder}
-        value={value}
+        {...attrs}
+        onKeyDown={onKeyDown}
         onChange={(e) => onValueChange(e.target.value)}
-        sx={{
+        css={{
           height: "100%",
           border: 0,
           background: "none",
           width: "100%",
           outline: 0,
           "&::placeholder": {
-            color: (theme) => theme.palette.text.secondary,
+            color: theme.palette.text.secondary,
           },
         }}
       />
-    </Box>
+    </div>
   );
 });

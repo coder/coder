@@ -1,5 +1,3 @@
-BEGIN;
-
 -- Add column with default true, so existing templates will function as usual
 ALTER TABLE templates ADD COLUMN use_max_ttl boolean NOT NULL DEFAULT true;
 
@@ -28,5 +26,3 @@ AS
 	    templates.created_by = visible_users.id;
 
 COMMENT ON VIEW template_with_users IS 'Joins in the username + avatar url of the created by user.';
-
-COMMIT;

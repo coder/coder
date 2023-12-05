@@ -36,9 +36,10 @@ const (
 // @typescript-generate Report
 type Report struct {
 	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
-	Healthy  bool            `json:"healthy"`
-	Severity health.Severity `json:"severity" enums:"ok,warning,error"`
-	Warnings []string        `json:"warnings"`
+	Healthy   bool             `json:"healthy"`
+	Severity  health.Severity  `json:"severity" enums:"ok,warning,error"`
+	Warnings  []health.Message `json:"warnings"`
+	Dismissed bool             `json:"dismissed"`
 
 	Regions map[int]*RegionReport `json:"regions"`
 
@@ -54,9 +55,9 @@ type RegionReport struct {
 	mu sync.Mutex
 
 	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
-	Healthy  bool            `json:"healthy"`
-	Severity health.Severity `json:"severity" enums:"ok,warning,error"`
-	Warnings []string        `json:"warnings"`
+	Healthy  bool             `json:"healthy"`
+	Severity health.Severity  `json:"severity" enums:"ok,warning,error"`
+	Warnings []health.Message `json:"warnings"`
 
 	Region      *tailcfg.DERPRegion `json:"region"`
 	NodeReports []*NodeReport       `json:"node_reports"`
@@ -69,9 +70,9 @@ type NodeReport struct {
 	clientCounter int
 
 	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
-	Healthy  bool            `json:"healthy"`
-	Severity health.Severity `json:"severity" enums:"ok,warning,error"`
-	Warnings []string        `json:"warnings"`
+	Healthy  bool             `json:"healthy"`
+	Severity health.Severity  `json:"severity" enums:"ok,warning,error"`
+	Warnings []health.Message `json:"warnings"`
 
 	Node *tailcfg.DERPNode `json:"node"`
 
@@ -95,15 +96,18 @@ type StunReport struct {
 }
 
 type ReportOptions struct {
+	Dismissed bool
+
 	DERPMap *tailcfg.DERPMap
 }
 
 func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 	r.Healthy = true
 	r.Severity = health.SeverityOK
+	r.Warnings = []health.Message{}
+	r.Dismissed = opts.Dismissed
 
 	r.Regions = map[int]*RegionReport{}
-	r.Warnings = []string{}
 
 	wg := &sync.WaitGroup{}
 	mu := sync.Mutex{}
@@ -132,9 +136,7 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 				r.Healthy = false
 			}
 
-			for _, w := range regionReport.Warnings {
-				r.Warnings = append(r.Warnings, fmt.Sprintf("[%s] %s", regionReport.Region.RegionName, w))
-			}
+			r.Warnings = append(r.Warnings, regionReport.Warnings...)
 			mu.Unlock()
 		}()
 	}
@@ -166,7 +168,7 @@ func (r *RegionReport) Run(ctx context.Context) {
 	r.Healthy = true
 	r.Severity = health.SeverityOK
 	r.NodeReports = []*NodeReport{}
-	r.Warnings = []string{}
+	r.Warnings = []health.Message{}
 
 	wg := &sync.WaitGroup{}
 	var unhealthyNodes int // atomic.Int64 is not mandatory as we depend on RegionReport mutex.
@@ -198,9 +200,7 @@ func (r *RegionReport) Run(ctx context.Context) {
 				unhealthyNodes++
 			}
 
-			for _, w := range nodeReport.Warnings {
-				r.Warnings = append(r.Warnings, fmt.Sprintf("[%s] %s", nodeReport.Node.Name, w))
-			}
+			r.Warnings = append(r.Warnings, nodeReport.Warnings...)
 			r.mu.Unlock()
 		}()
 	}
@@ -224,7 +224,7 @@ func (r *RegionReport) Run(ctx context.Context) {
 	} else if unhealthyNodes == 1 {
 		// r.Healthy = true (by default)
 		r.Severity = health.SeverityWarning
-		r.Warnings = append(r.Warnings, oneNodeUnhealthy)
+		r.Warnings = append(r.Warnings, health.Messagef(health.CodeDERPOneNodeUnhealthy, oneNodeUnhealthy))
 	} else if unhealthyNodes > 1 {
 		r.Healthy = false
 
@@ -263,7 +263,7 @@ func (r *NodeReport) Run(ctx context.Context) {
 	r.Severity = health.SeverityOK
 	r.ClientLogs = [][]string{}
 	r.ClientErrs = [][]string{}
-	r.Warnings = []string{}
+	r.Warnings = []health.Message{}
 
 	wg := &sync.WaitGroup{}
 
@@ -288,7 +288,7 @@ func (r *NodeReport) Run(ctx context.Context) {
 	}
 
 	if r.UsesWebsocket {
-		r.Warnings = append(r.Warnings, warningNodeUsesWebsocket)
+		r.Warnings = append(r.Warnings, health.Messagef(health.CodeDERPNodeUsesWebsocket, warningNodeUsesWebsocket))
 		r.Severity = health.SeverityWarning
 	}
 }

@@ -52,13 +52,10 @@ func setupWorkspaceForAgent(t *testing.T, mutations ...func([]*proto.Agent) []*p
 	client.SetLogger(slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug))
 	first := coderdtest.CreateFirstUser(t, client)
 	userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-	r := dbfake.NewWorkspaceBuilder(t, store).
-		Seed(database.Workspace{
-			OrganizationID: first.OrganizationID,
-			OwnerID:        user.ID,
-		}).
-		WithAgent(mutations...).
-		Do()
+	r := dbfake.WorkspaceBuild(t, store, database.Workspace{
+		OrganizationID: first.OrganizationID,
+		OwnerID:        user.ID,
+	}).WithAgent(mutations...).Do()
 
 	return userClient, r.Workspace, r.AgentToken
 }
@@ -130,7 +127,7 @@ func TestSSH(t *testing.T) {
 		client.SetLogger(slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug))
 		first := coderdtest.CreateFirstUser(t, client)
 		userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-		r := dbfake.NewWorkspaceBuilder(t, store).Seed(database.Workspace{
+		r := dbfake.WorkspaceBuild(t, store, database.Workspace{
 			OrganizationID: first.OrganizationID,
 			OwnerID:        user.ID,
 		}).WithAgent().Do()
@@ -154,7 +151,7 @@ func TestSSH(t *testing.T) {
 		pty.WriteLine("echo hell'o'")
 		pty.ExpectMatchContext(ctx, "hello")
 
-		_ = dbfake.NewWorkspaceBuildBuilder(t, store, r.Workspace).
+		_ = dbfake.WorkspaceBuild(t, store, r.Workspace).
 			Seed(database.WorkspaceBuild{
 				Transition:  database.WorkspaceTransitionStop,
 				BuildNumber: 2,
@@ -409,7 +406,9 @@ func TestSSH(t *testing.T) {
 			//
 			// To work around this, we attempt to send messages in a loop until one succeeds
 			success := make(chan struct{})
+			done := make(chan struct{})
 			go func() {
+				defer close(done)
 				var (
 					conn net.Conn
 					err  error
@@ -447,6 +446,8 @@ func TestSSH(t *testing.T) {
 			fsn.Notify()
 			<-cmdDone
 			fsn.AssertStopped()
+			// wait for dial goroutine to complete
+			_ = testutil.RequireRecvCtx(ctx, t, done)
 
 			// wait for the remote socket to get cleaned up before retrying,
 			// because cleaning up the socket happens asynchronously, and we
@@ -469,7 +470,7 @@ func TestSSH(t *testing.T) {
 		client.SetLogger(slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug))
 		first := coderdtest.CreateFirstUser(t, client)
 		userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-		r := dbfake.NewWorkspaceBuilder(t, store).Seed(database.Workspace{
+		r := dbfake.WorkspaceBuild(t, store, database.Workspace{
 			OrganizationID: first.OrganizationID,
 			OwnerID:        user.ID,
 		}).WithAgent().Do()
@@ -523,7 +524,7 @@ func TestSSH(t *testing.T) {
 		err = session.Shell()
 		require.NoError(t, err)
 
-		_ = dbfake.NewWorkspaceBuildBuilder(t, store, r.Workspace).
+		_ = dbfake.WorkspaceBuild(t, store, r.Workspace).
 			Seed(database.WorkspaceBuild{
 				Transition:  database.WorkspaceTransitionStop,
 				BuildNumber: 2,

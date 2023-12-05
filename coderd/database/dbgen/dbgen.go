@@ -167,6 +167,8 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 }
 
 func Workspace(t testing.TB, db database.Store, orig database.Workspace) database.Workspace {
+	t.Helper()
+
 	workspace, err := db.InsertWorkspace(genCtx, database.InsertWorkspaceParams{
 		ID:                takeFirst(orig.ID, uuid.New()),
 		OwnerID:           takeFirst(orig.OwnerID, uuid.New()),
@@ -197,6 +199,8 @@ func WorkspaceAgentLogSource(t testing.TB, db database.Store, orig database.Work
 }
 
 func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuild) database.WorkspaceBuild {
+	t.Helper()
+
 	buildID := takeFirst(orig.ID, uuid.New())
 	var build database.WorkspaceBuild
 	err := db.InTx(func(db database.Store) error {
@@ -227,6 +231,38 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 	require.NoError(t, err, "insert workspace build")
 
 	return build
+}
+
+func WorkspaceBuildParameters(t testing.TB, db database.Store, orig []database.WorkspaceBuildParameter) []database.WorkspaceBuildParameter {
+	if len(orig) == 0 {
+		return nil
+	}
+
+	var (
+		names  = make([]string, 0, len(orig))
+		values = make([]string, 0, len(orig))
+		params []database.WorkspaceBuildParameter
+	)
+	for _, param := range orig {
+		names = append(names, param.Name)
+		values = append(values, param.Value)
+	}
+	err := db.InTx(func(tx database.Store) error {
+		id := takeFirst(orig[0].WorkspaceBuildID, uuid.New())
+		err := tx.InsertWorkspaceBuildParameters(genCtx, database.InsertWorkspaceBuildParametersParams{
+			WorkspaceBuildID: id,
+			Name:             names,
+			Value:            values,
+		})
+		if err != nil {
+			return err
+		}
+
+		params, err = tx.GetWorkspaceBuildParameters(genCtx, id)
+		return err
+	}, nil)
+	require.NoError(t, err)
+	return params
 }
 
 func User(t testing.TB, db database.Store, orig database.User) database.User {
@@ -335,6 +371,8 @@ func GroupMember(t testing.TB, db database.Store, orig database.GroupMember) dat
 // ProvisionerJob is a bit more involved to get the values such as "completedAt", "startedAt", "cancelledAt" set.  ps
 // can be set to nil if you are SURE that you don't require a provisionerdaemon to acquire the job in your test.
 func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig database.ProvisionerJob) database.ProvisionerJob {
+	t.Helper()
+
 	jobID := takeFirst(orig.ID, uuid.New())
 	// Always set some tags to prevent Acquire from grabbing jobs it should not.
 	if !orig.StartedAt.Time.IsZero() {
@@ -545,7 +583,7 @@ func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVers
 		versionID := takeFirst(orig.ID, uuid.New())
 		err := db.InsertTemplateVersion(genCtx, database.InsertTemplateVersionParams{
 			ID:             versionID,
-			TemplateID:     orig.TemplateID,
+			TemplateID:     takeFirst(orig.TemplateID, uuid.NullUUID{}),
 			OrganizationID: takeFirst(orig.OrganizationID, uuid.New()),
 			CreatedAt:      takeFirst(orig.CreatedAt, dbtime.Now()),
 			UpdatedAt:      takeFirst(orig.UpdatedAt, dbtime.Now()),
@@ -582,6 +620,32 @@ func TemplateVersionVariable(t testing.TB, db database.Store, orig database.Temp
 		Sensitive:         takeFirst(orig.Sensitive, false),
 	})
 	require.NoError(t, err, "insert template version variable")
+	return version
+}
+
+func TemplateVersionParameter(t testing.TB, db database.Store, orig database.TemplateVersionParameter) database.TemplateVersionParameter {
+	t.Helper()
+
+	version, err := db.InsertTemplateVersionParameter(genCtx, database.InsertTemplateVersionParameterParams{
+		TemplateVersionID:   takeFirst(orig.TemplateVersionID, uuid.New()),
+		Name:                takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
+		Description:         takeFirst(orig.Description, namesgenerator.GetRandomName(1)),
+		Type:                takeFirst(orig.Type, "string"),
+		Mutable:             takeFirst(orig.Mutable, false),
+		DefaultValue:        takeFirst(orig.DefaultValue, namesgenerator.GetRandomName(1)),
+		Icon:                takeFirst(orig.Icon, namesgenerator.GetRandomName(1)),
+		Options:             takeFirstSlice(orig.Options, []byte("[]")),
+		ValidationRegex:     takeFirst(orig.ValidationRegex, ""),
+		ValidationMin:       takeFirst(orig.ValidationMin, sql.NullInt32{}),
+		ValidationMax:       takeFirst(orig.ValidationMax, sql.NullInt32{}),
+		ValidationError:     takeFirst(orig.ValidationError, ""),
+		ValidationMonotonic: takeFirst(orig.ValidationMonotonic, ""),
+		Required:            takeFirst(orig.Required, false),
+		DisplayName:         takeFirst(orig.DisplayName, namesgenerator.GetRandomName(1)),
+		DisplayOrder:        takeFirst(orig.DisplayOrder, 0),
+		Ephemeral:           takeFirst(orig.Ephemeral, false),
+	})
+	require.NoError(t, err, "insert template version parameter")
 	return version
 }
 

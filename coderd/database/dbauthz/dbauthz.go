@@ -183,6 +183,7 @@ var (
 					rbac.ResourceTemplate.Type:       {rbac.ActionRead, rbac.ActionUpdate},
 					rbac.ResourceWorkspace.Type:      {rbac.ActionRead, rbac.ActionUpdate},
 					rbac.ResourceWorkspaceBuild.Type: {rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
+					rbac.ResourceUser.Type:           {rbac.ActionRead},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
@@ -694,6 +695,20 @@ func (q *querier) CleanTailnetCoordinators(ctx context.Context) error {
 	return q.db.CleanTailnetCoordinators(ctx)
 }
 
+func (q *querier) CleanTailnetLostPeers(ctx context.Context) error {
+	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
+		return err
+	}
+	return q.db.CleanTailnetLostPeers(ctx)
+}
+
+func (q *querier) CleanTailnetTunnels(ctx context.Context) error {
+	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
+		return err
+	}
+	return q.db.CleanTailnetTunnels(ctx)
+}
+
 func (q *querier) DeleteAPIKeyByID(ctx context.Context, id string) error {
 	return deleteQ(q.log, q.auth, q.db.GetAPIKeyByID, q.db.DeleteAPIKeyByID)(ctx, id)
 }
@@ -774,6 +789,13 @@ func (q *querier) DeleteLicense(ctx context.Context, id int32) (int32, error) {
 		return -1, err
 	}
 	return id, nil
+}
+
+func (q *querier) DeleteOldProvisionerDaemons(ctx context.Context) error {
+	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteOldProvisionerDaemons(ctx)
 }
 
 func (q *querier) DeleteOldWorkspaceAgentLogs(ctx context.Context) error {
@@ -879,6 +901,27 @@ func (q *querier) GetAllTailnetClients(ctx context.Context) ([]database.GetAllTa
 		return []database.GetAllTailnetClientsRow{}, err
 	}
 	return q.db.GetAllTailnetClients(ctx)
+}
+
+func (q *querier) GetAllTailnetCoordinators(ctx context.Context) ([]database.TailnetCoordinator, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
+		return nil, err
+	}
+	return q.db.GetAllTailnetCoordinators(ctx)
+}
+
+func (q *querier) GetAllTailnetPeers(ctx context.Context) ([]database.TailnetPeer, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
+		return nil, err
+	}
+	return q.db.GetAllTailnetPeers(ctx)
+}
+
+func (q *querier) GetAllTailnetTunnels(ctx context.Context) ([]database.TailnetTunnel, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
+		return nil, err
+	}
+	return q.db.GetAllTailnetTunnels(ctx)
 }
 
 func (q *querier) GetAppSecurityKey(ctx context.Context) (string, error) {

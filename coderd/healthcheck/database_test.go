@@ -65,6 +65,28 @@ func TestDatabase(t *testing.T) {
 		require.NotNil(t, report.Error)
 		assert.Equal(t, healthcheck.DatabaseDefaultThreshold.Milliseconds(), report.ThresholdMS)
 		assert.Contains(t, *report.Error, err.Error())
+		assert.Contains(t, *report.Error, health.CodeDatabasePingFailed)
+	})
+
+	t.Run("DismissedError", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx, cancel = context.WithTimeout(context.Background(), testutil.WaitShort)
+			report      = healthcheck.DatabaseReport{}
+			db          = dbmock.NewMockStore(gomock.NewController(t))
+			err         = xerrors.New("ping error")
+		)
+		defer cancel()
+
+		db.EXPECT().Ping(gomock.Any()).Return(time.Duration(0), err)
+
+		report.Run(ctx, &healthcheck.DatabaseReportOptions{DB: db, Dismissed: true})
+
+		assert.Equal(t, health.SeverityError, report.Severity)
+		assert.True(t, report.Dismissed)
+		require.NotNil(t, report.Error)
+		assert.Contains(t, *report.Error, health.CodeDatabasePingFailed)
 	})
 
 	t.Run("Median", func(t *testing.T) {
@@ -92,6 +114,7 @@ func TestDatabase(t *testing.T) {
 		assert.EqualValues(t, 1, report.LatencyMS)
 		assert.Equal(t, healthcheck.DatabaseDefaultThreshold.Milliseconds(), report.ThresholdMS)
 		assert.Nil(t, report.Error)
+		assert.Empty(t, report.Warnings)
 	})
 
 	t.Run("Threshold", func(t *testing.T) {
@@ -119,5 +142,8 @@ func TestDatabase(t *testing.T) {
 		assert.EqualValues(t, 1000, report.LatencyMS)
 		assert.Equal(t, time.Second.Milliseconds(), report.ThresholdMS)
 		assert.Nil(t, report.Error)
+		if assert.NotEmpty(t, report.Warnings) {
+			assert.Equal(t, report.Warnings[0].Code, health.CodeDatabasePingSlow)
+		}
 	})
 }

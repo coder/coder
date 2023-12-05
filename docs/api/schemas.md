@@ -283,6 +283,7 @@
     }
   ],
   "motd_file": "string",
+  "owner_name": "string",
   "scripts": [
     {
       "cron": "string",
@@ -295,27 +296,30 @@
       "timeout": 0
     }
   ],
-  "vscode_port_proxy_uri": "string"
+  "vscode_port_proxy_uri": "string",
+  "workspace_id": "string"
 }
 ```
 
 ### Properties
 
-| Name                         | Type                                                                                              | Required | Restrictions | Description                                                                                                                                                |
-| ---------------------------- | ------------------------------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `agent_id`                   | string                                                                                            | false    |              |                                                                                                                                                            |
-| `apps`                       | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)                                           | false    |              |                                                                                                                                                            |
-| `derp_force_websockets`      | boolean                                                                                           | false    |              |                                                                                                                                                            |
-| `derpmap`                    | [tailcfg.DERPMap](#tailcfgderpmap)                                                                | false    |              |                                                                                                                                                            |
-| `directory`                  | string                                                                                            | false    |              |                                                                                                                                                            |
-| `disable_direct_connections` | boolean                                                                                           | false    |              |                                                                                                                                                            |
-| `environment_variables`      | object                                                                                            | false    |              |                                                                                                                                                            |
-| » `[any property]`           | string                                                                                            | false    |              |                                                                                                                                                            |
-| `git_auth_configs`           | integer                                                                                           | false    |              | Git auth configs stores the number of Git configurations the Coder deployment has. If this number is >0, we set up special configuration in the workspace. |
-| `metadata`                   | array of [codersdk.WorkspaceAgentMetadataDescription](#codersdkworkspaceagentmetadatadescription) | false    |              |                                                                                                                                                            |
-| `motd_file`                  | string                                                                                            | false    |              |                                                                                                                                                            |
-| `scripts`                    | array of [codersdk.WorkspaceAgentScript](#codersdkworkspaceagentscript)                           | false    |              |                                                                                                                                                            |
-| `vscode_port_proxy_uri`      | string                                                                                            | false    |              |                                                                                                                                                            |
+| Name                         | Type                                                                                              | Required | Restrictions | Description                                                                                                                                                                                                     |
+| ---------------------------- | ------------------------------------------------------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent_id`                   | string                                                                                            | false    |              |                                                                                                                                                                                                                 |
+| `apps`                       | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)                                           | false    |              |                                                                                                                                                                                                                 |
+| `derp_force_websockets`      | boolean                                                                                           | false    |              |                                                                                                                                                                                                                 |
+| `derpmap`                    | [tailcfg.DERPMap](#tailcfgderpmap)                                                                | false    |              |                                                                                                                                                                                                                 |
+| `directory`                  | string                                                                                            | false    |              |                                                                                                                                                                                                                 |
+| `disable_direct_connections` | boolean                                                                                           | false    |              |                                                                                                                                                                                                                 |
+| `environment_variables`      | object                                                                                            | false    |              |                                                                                                                                                                                                                 |
+| » `[any property]`           | string                                                                                            | false    |              |                                                                                                                                                                                                                 |
+| `git_auth_configs`           | integer                                                                                           | false    |              | Git auth configs stores the number of Git configurations the Coder deployment has. If this number is >0, we set up special configuration in the workspace.                                                      |
+| `metadata`                   | array of [codersdk.WorkspaceAgentMetadataDescription](#codersdkworkspaceagentmetadatadescription) | false    |              |                                                                                                                                                                                                                 |
+| `motd_file`                  | string                                                                                            | false    |              |                                                                                                                                                                                                                 |
+| `owner_name`                 | string                                                                                            | false    |              | Owner name and WorkspaceID are used by an open-source user to identify the workspace. We do not provide insurance that this will not be removed in the future, but if it's easy to persist lets keep it around. |
+| `scripts`                    | array of [codersdk.WorkspaceAgentScript](#codersdkworkspaceagentscript)                           | false    |              |                                                                                                                                                                                                                 |
+| `vscode_port_proxy_uri`      | string                                                                                            | false    |              |                                                                                                                                                                                                                 |
+| `workspace_id`               | string                                                                                            | false    |              |                                                                                                                                                                                                                 |
 
 ## agentsdk.Metadata
 
@@ -3165,6 +3169,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `user` |
 | `oidc` |
 
+## codersdk.HealthSettings
+
+```json
+{
+  "dismissed_healthchecks": ["string"]
+}
+```
+
+### Properties
+
+| Name                     | Type            | Required | Restrictions | Description |
+| ------------------------ | --------------- | -------- | ------------ | ----------- |
+| `dismissed_healthchecks` | array of string | false    |              |             |
+
 ## codersdk.Healthcheck
 
 ```json
@@ -4161,6 +4179,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `group`            |
 | `license`          |
 | `convert_login`    |
+| `health_settings`  |
 | `workspace_proxy`  |
 | `organization`     |
 
@@ -5156,6 +5175,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `current` | boolean | false    |              | Current indicates whether the server version is the same as the latest. |
 | `url`     | string  | false    |              | URL to download the latest release of Coder.                            |
 | `version` | string  | false    |              | Version is the semantic version for the latest release of Coder.        |
+
+## codersdk.UpdateHealthSettings
+
+```json
+{
+  "dismissed_healthchecks": ["string"]
+}
+```
+
+### Properties
+
+| Name                     | Type            | Required | Restrictions | Description |
+| ------------------------ | --------------- | -------- | ------------ | ----------- |
+| `dismissed_healthchecks` | array of string | false    |              |             |
 
 ## codersdk.UpdateRoles
 
@@ -7146,7 +7179,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "error": "string"
   },
   "uses_websocket": true,
-  "warnings": ["string"]
+  "warnings": [
+    {
+      "code": "EUNKNOWN",
+      "message": "string"
+    }
+  ]
 }
 ```
 
@@ -7166,7 +7204,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `severity`              | [health.Severity](#healthseverity)               | false    |              |                                                                                             |
 | `stun`                  | [derphealth.StunReport](#derphealthstunreport)   | false    |              |                                                                                             |
 | `uses_websocket`        | boolean                                          | false    |              |                                                                                             |
-| `warnings`              | array of string                                  | false    |              |                                                                                             |
+| `warnings`              | array of [health.Message](#healthmessage)        | false    |              |                                                                                             |
 
 #### Enumerated Values
 
@@ -7217,7 +7255,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "error": "string"
       },
       "uses_websocket": true,
-      "warnings": ["string"]
+      "warnings": [
+        {
+          "code": "EUNKNOWN",
+          "message": "string"
+        }
+      ]
     }
   ],
   "region": {
@@ -7245,7 +7288,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "regionName": "string"
   },
   "severity": "ok",
-  "warnings": ["string"]
+  "warnings": [
+    {
+      "code": "EUNKNOWN",
+      "message": "string"
+    }
+  ]
 }
 ```
 
@@ -7258,7 +7306,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `node_reports` | array of [derphealth.NodeReport](#derphealthnodereport) | false    |              |                                                                                             |
 | `region`       | [tailcfg.DERPRegion](#tailcfgderpregion)                | false    |              |                                                                                             |
 | `severity`     | [health.Severity](#healthseverity)                      | false    |              |                                                                                             |
-| `warnings`     | array of string                                         | false    |              |                                                                                             |
+| `warnings`     | array of [health.Message](#healthmessage)               | false    |              |                                                                                             |
 
 #### Enumerated Values
 
@@ -7272,6 +7320,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "dismissed": true,
   "error": "string",
   "healthy": true,
   "netcheck": {
@@ -7345,7 +7394,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "error": "string"
           },
           "uses_websocket": true,
-          "warnings": ["string"]
+          "warnings": [
+            {
+              "code": "EUNKNOWN",
+              "message": "string"
+            }
+          ]
         }
       ],
       "region": {
@@ -7373,7 +7427,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "regionName": "string"
       },
       "severity": "ok",
-      "warnings": ["string"]
+      "warnings": [
+        {
+          "code": "EUNKNOWN",
+          "message": "string"
+        }
+      ]
     },
     "property2": {
       "error": "string",
@@ -7413,7 +7472,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "error": "string"
           },
           "uses_websocket": true,
-          "warnings": ["string"]
+          "warnings": [
+            {
+              "code": "EUNKNOWN",
+              "message": "string"
+            }
+          ]
         }
       ],
       "region": {
@@ -7441,11 +7505,21 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "regionName": "string"
       },
       "severity": "ok",
-      "warnings": ["string"]
+      "warnings": [
+        {
+          "code": "EUNKNOWN",
+          "message": "string"
+        }
+      ]
     }
   },
   "severity": "ok",
-  "warnings": ["string"]
+  "warnings": [
+    {
+      "code": "EUNKNOWN",
+      "message": "string"
+    }
+  ]
 }
 ```
 
@@ -7453,6 +7527,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 | Name               | Type                                               | Required | Restrictions | Description                                                                                 |
 | ------------------ | -------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
+| `dismissed`        | boolean                                            | false    |              |                                                                                             |
 | `error`            | string                                             | false    |              |                                                                                             |
 | `healthy`          | boolean                                            | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
 | `netcheck`         | [netcheck.Report](#netcheckreport)                 | false    |              |                                                                                             |
@@ -7461,7 +7536,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `regions`          | object                                             | false    |              |                                                                                             |
 | » `[any property]` | [derphealth.RegionReport](#derphealthregionreport) | false    |              |                                                                                             |
 | `severity`         | [health.Severity](#healthseverity)                 | false    |              |                                                                                             |
-| `warnings`         | array of string                                    | false    |              |                                                                                             |
+| `warnings`         | array of [health.Message](#healthmessage)          | false    |              |                                                                                             |
 
 #### Enumerated Values
 
@@ -7489,6 +7564,51 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `enabled` | boolean | false    |              |             |
 | `error`   | string  | false    |              |             |
 
+## health.Code
+
+```json
+"EUNKNOWN"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value      |
+| ---------- |
+| `EUNKNOWN` |
+| `EWP01`    |
+| `EWP02`    |
+| `EWP03`    |
+| `EWP04`    |
+| `EDB01`    |
+| `EDB02`    |
+| `EWS01`    |
+| `EWS02`    |
+| `EWS03`    |
+| `EACS01`   |
+| `EACS02`   |
+| `EACS03`   |
+| `EACS04`   |
+| `EDERP01`  |
+| `EDERP02`  |
+
+## health.Message
+
+```json
+{
+  "code": "EUNKNOWN",
+  "message": "string"
+}
+```
+
+### Properties
+
+| Name      | Type                       | Required | Restrictions | Description |
+| --------- | -------------------------- | -------- | ------------ | ----------- |
+| `code`    | [health.Code](#healthcode) | false    |              |             |
+| `message` | string                     | false    |              |             |
+
 ## health.Severity
 
 ```json
@@ -7510,28 +7630,35 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 ```json
 {
   "access_url": "string",
+  "dismissed": true,
   "error": "string",
   "healthy": true,
   "healthz_response": "string",
   "reachable": true,
   "severity": "ok",
   "status_code": 0,
-  "warnings": ["string"]
+  "warnings": [
+    {
+      "code": "EUNKNOWN",
+      "message": "string"
+    }
+  ]
 }
 ```
 
 ### Properties
 
-| Name               | Type                               | Required | Restrictions | Description                                                                                 |
-| ------------------ | ---------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
-| `access_url`       | string                             | false    |              |                                                                                             |
-| `error`            | string                             | false    |              |                                                                                             |
-| `healthy`          | boolean                            | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
-| `healthz_response` | string                             | false    |              |                                                                                             |
-| `reachable`        | boolean                            | false    |              |                                                                                             |
-| `severity`         | [health.Severity](#healthseverity) | false    |              |                                                                                             |
-| `status_code`      | integer                            | false    |              |                                                                                             |
-| `warnings`         | array of string                    | false    |              |                                                                                             |
+| Name               | Type                                      | Required | Restrictions | Description                                                                                 |
+| ------------------ | ----------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
+| `access_url`       | string                                    | false    |              |                                                                                             |
+| `dismissed`        | boolean                                   | false    |              |                                                                                             |
+| `error`            | string                                    | false    |              |                                                                                             |
+| `healthy`          | boolean                                   | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
+| `healthz_response` | string                                    | false    |              |                                                                                             |
+| `reachable`        | boolean                                   | false    |              |                                                                                             |
+| `severity`         | [health.Severity](#healthseverity)        | false    |              |                                                                                             |
+| `status_code`      | integer                                   | false    |              |                                                                                             |
+| `warnings`         | array of [health.Message](#healthmessage) | false    |              |                                                                                             |
 
 #### Enumerated Values
 
@@ -7545,6 +7672,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "dismissed": true,
   "error": "string",
   "healthy": true,
   "latency": "string",
@@ -7552,22 +7680,28 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "reachable": true,
   "severity": "ok",
   "threshold_ms": 0,
-  "warnings": ["string"]
+  "warnings": [
+    {
+      "code": "EUNKNOWN",
+      "message": "string"
+    }
+  ]
 }
 ```
 
 ### Properties
 
-| Name           | Type                               | Required | Restrictions | Description                                                                                 |
-| -------------- | ---------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
-| `error`        | string                             | false    |              |                                                                                             |
-| `healthy`      | boolean                            | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
-| `latency`      | string                             | false    |              |                                                                                             |
-| `latency_ms`   | integer                            | false    |              |                                                                                             |
-| `reachable`    | boolean                            | false    |              |                                                                                             |
-| `severity`     | [health.Severity](#healthseverity) | false    |              |                                                                                             |
-| `threshold_ms` | integer                            | false    |              |                                                                                             |
-| `warnings`     | array of string                    | false    |              |                                                                                             |
+| Name           | Type                                      | Required | Restrictions | Description                                                                                 |
+| -------------- | ----------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
+| `dismissed`    | boolean                                   | false    |              |                                                                                             |
+| `error`        | string                                    | false    |              |                                                                                             |
+| `healthy`      | boolean                                   | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
+| `latency`      | string                                    | false    |              |                                                                                             |
+| `latency_ms`   | integer                                   | false    |              |                                                                                             |
+| `reachable`    | boolean                                   | false    |              |                                                                                             |
+| `severity`     | [health.Severity](#healthseverity)        | false    |              |                                                                                             |
+| `threshold_ms` | integer                                   | false    |              |                                                                                             |
+| `warnings`     | array of [health.Message](#healthmessage) | false    |              |                                                                                             |
 
 #### Enumerated Values
 
@@ -7583,16 +7717,23 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 {
   "access_url": {
     "access_url": "string",
+    "dismissed": true,
     "error": "string",
     "healthy": true,
     "healthz_response": "string",
     "reachable": true,
     "severity": "ok",
     "status_code": 0,
-    "warnings": ["string"]
+    "warnings": [
+      {
+        "code": "EUNKNOWN",
+        "message": "string"
+      }
+    ]
   },
   "coder_version": "string",
   "database": {
+    "dismissed": true,
     "error": "string",
     "healthy": true,
     "latency": "string",
@@ -7600,9 +7741,15 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "reachable": true,
     "severity": "ok",
     "threshold_ms": 0,
-    "warnings": ["string"]
+    "warnings": [
+      {
+        "code": "EUNKNOWN",
+        "message": "string"
+      }
+    ]
   },
   "derp": {
+    "dismissed": true,
     "error": "string",
     "healthy": true,
     "netcheck": {
@@ -7676,7 +7823,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "error": "string"
             },
             "uses_websocket": true,
-            "warnings": ["string"]
+            "warnings": [
+              {
+                "code": "EUNKNOWN",
+                "message": "string"
+              }
+            ]
           }
         ],
         "region": {
@@ -7704,7 +7856,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "regionName": "string"
         },
         "severity": "ok",
-        "warnings": ["string"]
+        "warnings": [
+          {
+            "code": "EUNKNOWN",
+            "message": "string"
+          }
+        ]
       },
       "property2": {
         "error": "string",
@@ -7744,7 +7901,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "error": "string"
             },
             "uses_websocket": true,
-            "warnings": ["string"]
+            "warnings": [
+              {
+                "code": "EUNKNOWN",
+                "message": "string"
+              }
+            ]
           }
         ],
         "region": {
@@ -7772,11 +7934,21 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "regionName": "string"
         },
         "severity": "ok",
-        "warnings": ["string"]
+        "warnings": [
+          {
+            "code": "EUNKNOWN",
+            "message": "string"
+          }
+        ]
       }
     },
     "severity": "ok",
-    "warnings": ["string"]
+    "warnings": [
+      {
+        "code": "EUNKNOWN",
+        "message": "string"
+      }
+    ]
   },
   "failing_sections": ["string"],
   "healthy": true,
@@ -7785,16 +7957,23 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "websocket": {
     "body": "string",
     "code": 0,
+    "dismissed": true,
     "error": "string",
     "healthy": true,
     "severity": "ok",
     "warnings": ["string"]
   },
   "workspace_proxy": {
+    "dismissed": true,
     "error": "string",
     "healthy": true,
     "severity": "ok",
-    "warnings": ["string"],
+    "warnings": [
+      {
+        "code": "EUNKNOWN",
+        "message": "string"
+      }
+    ],
     "workspace_proxies": {
       "regions": [
         {
@@ -7855,6 +8034,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 {
   "body": "string",
   "code": 0,
+  "dismissed": true,
   "error": "string",
   "healthy": true,
   "severity": "ok",
@@ -7864,14 +8044,15 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name       | Type                               | Required | Restrictions | Description                                                                                 |
-| ---------- | ---------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
-| `body`     | string                             | false    |              |                                                                                             |
-| `code`     | integer                            | false    |              |                                                                                             |
-| `error`    | string                             | false    |              |                                                                                             |
-| `healthy`  | boolean                            | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
-| `severity` | [health.Severity](#healthseverity) | false    |              |                                                                                             |
-| `warnings` | array of string                    | false    |              |                                                                                             |
+| Name        | Type                               | Required | Restrictions | Description                                                                                 |
+| ----------- | ---------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
+| `body`      | string                             | false    |              |                                                                                             |
+| `code`      | integer                            | false    |              |                                                                                             |
+| `dismissed` | boolean                            | false    |              |                                                                                             |
+| `error`     | string                             | false    |              |                                                                                             |
+| `healthy`   | boolean                            | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
+| `severity`  | [health.Severity](#healthseverity) | false    |              |                                                                                             |
+| `warnings`  | array of string                    | false    |              |                                                                                             |
 
 #### Enumerated Values
 
@@ -7885,10 +8066,16 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "dismissed": true,
   "error": "string",
   "healthy": true,
   "severity": "ok",
-  "warnings": ["string"],
+  "warnings": [
+    {
+      "code": "EUNKNOWN",
+      "message": "string"
+    }
+  ],
   "workspace_proxies": {
     "regions": [
       {
@@ -7923,10 +8110,11 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 | Name                | Type                                                                                                 | Required | Restrictions | Description |
 | ------------------- | ---------------------------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `dismissed`         | boolean                                                                                              | false    |              |             |
 | `error`             | string                                                                                               | false    |              |             |
 | `healthy`           | boolean                                                                                              | false    |              |             |
 | `severity`          | [health.Severity](#healthseverity)                                                                   | false    |              |             |
-| `warnings`          | array of string                                                                                      | false    |              |             |
+| `warnings`          | array of [health.Message](#healthmessage)                                                            | false    |              |             |
 | `workspace_proxies` | [codersdk.RegionsResponse-codersdk_WorkspaceProxy](#codersdkregionsresponse-codersdk_workspaceproxy) | false    |              |             |
 
 ## netcheck.Report

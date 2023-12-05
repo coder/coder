@@ -1,6 +1,7 @@
 import {
-  ReactElement,
-  ReactNode,
+  type FC,
+  type ReactElement,
+  type ReactNode,
   cloneElement,
   createContext,
   useContext,
@@ -38,13 +39,19 @@ const PopoverContext = createContext<PopoverContextValue | undefined>(
   undefined,
 );
 
-export const Popover = (props: {
+interface PopoverProps {
   children: ReactNode | ((popover: PopoverContextValue) => ReactNode); // Allows inline usage
   mode?: TriggerMode;
   isDefaultOpen?: boolean;
+}
+
+export const Popover: FC<PopoverProps> = ({
+  children,
+  mode,
+  isDefaultOpen,
 }) => {
   const hookId = useId();
-  const [isOpen, setIsOpen] = useState(props.isDefaultOpen ?? false);
+  const [isOpen, setIsOpen] = useState(isDefaultOpen ?? false);
   const triggerRef = useRef<HTMLElement>(null);
 
   const value: PopoverContextValue = {
@@ -52,14 +59,12 @@ export const Popover = (props: {
     setIsOpen,
     triggerRef,
     id: `${hookId}-popover`,
-    mode: props.mode ?? "click",
+    mode: mode ?? "click",
   };
 
   return (
     <PopoverContext.Provider value={value}>
-      {typeof props.children === "function"
-        ? props.children(value)
-        : props.children}
+      {typeof children === "function" ? children(value) : children}
     </PopoverContext.Provider>
   );
 };
@@ -102,14 +107,19 @@ export const PopoverTrigger = (props: { children: TriggerElement }) => {
 
 type Horizontal = "left" | "right";
 
-export const PopoverContent = (
-  props: Omit<MuiPopoverProps, "open" | "onClose" | "anchorEl"> & {
-    horizontal?: Horizontal;
-  },
-) => {
+type PopoverContentProps = Omit<
+  MuiPopoverProps,
+  "open" | "onClose" | "anchorEl"
+> & {
+  horizontal?: Horizontal;
+};
+
+export const PopoverContent: FC<PopoverContentProps> = ({
+  horizontal = "left",
+  ...popoverProps
+}) => {
   const popover = usePopover();
   const [isReady, setIsReady] = useState(false);
-  const horizontal = props.horizontal ?? "left";
   const hoverMode = popover.mode === "hover";
 
   // This is a hack to make sure the popover is not rendered until the trigger
@@ -143,7 +153,7 @@ export const PopoverContent = (
       }}
       {...horizontalProps(horizontal)}
       {...modeProps(popover)}
-      {...props}
+      {...popoverProps}
       id={popover.id}
       open={popover.isOpen}
       onClose={() => popover.setIsOpen(false)}

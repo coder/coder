@@ -133,7 +133,8 @@ CREATE TYPE resource_type AS ENUM (
     'workspace_build',
     'license',
     'workspace_proxy',
-    'convert_login'
+    'convert_login',
+    'health_settings'
 );
 
 CREATE TYPE startup_script_behavior AS ENUM (
@@ -152,7 +153,7 @@ CREATE TYPE user_status AS ENUM (
     'dormant'
 );
 
-COMMENT ON TYPE user_status IS 'Defines the user status: active, dormant, or suspended.';
+COMMENT ON TYPE user_status IS 'Defines the users status: active, dormant, or suspended.';
 
 CREATE TYPE workspace_agent_lifecycle_state AS ENUM (
     'created',

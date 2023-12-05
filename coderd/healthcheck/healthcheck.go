@@ -2,7 +2,6 @@ package healthcheck
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -19,6 +18,8 @@ const (
 	SectionDatabase       string = "Database"
 	SectionWorkspaceProxy string = "WorkspaceProxy"
 )
+
+var Sections = []string{SectionAccessURL, SectionDatabase, SectionDERP, SectionWebsocket, SectionWorkspaceProxy}
 
 type Checker interface {
 	DERP(ctx context.Context, opts *derphealth.ReportOptions) derphealth.Report
@@ -102,7 +103,7 @@ func Run(ctx context.Context, opts *ReportOptions) *Report {
 		defer wg.Done()
 		defer func() {
 			if err := recover(); err != nil {
-				report.DERP.Error = ptr.Ref(fmt.Sprint(err))
+				report.DERP.Error = health.Errorf(health.CodeUnknown, "derp report panic: %s", err)
 			}
 		}()
 
@@ -114,7 +115,7 @@ func Run(ctx context.Context, opts *ReportOptions) *Report {
 		defer wg.Done()
 		defer func() {
 			if err := recover(); err != nil {
-				report.AccessURL.Error = ptr.Ref(fmt.Sprint(err))
+				report.AccessURL.Error = health.Errorf(health.CodeUnknown, "access url report panic: %s", err)
 			}
 		}()
 
@@ -126,7 +127,7 @@ func Run(ctx context.Context, opts *ReportOptions) *Report {
 		defer wg.Done()
 		defer func() {
 			if err := recover(); err != nil {
-				report.Websocket.Error = ptr.Ref(fmt.Sprint(err))
+				report.Websocket.Error = health.Errorf(health.CodeUnknown, "websocket report panic: %s", err)
 			}
 		}()
 
@@ -138,7 +139,7 @@ func Run(ctx context.Context, opts *ReportOptions) *Report {
 		defer wg.Done()
 		defer func() {
 			if err := recover(); err != nil {
-				report.Database.Error = ptr.Ref(fmt.Sprint(err))
+				report.Database.Error = health.Errorf(health.CodeUnknown, "database report panic: %s", err)
 			}
 		}()
 
@@ -150,7 +151,7 @@ func Run(ctx context.Context, opts *ReportOptions) *Report {
 		defer wg.Done()
 		defer func() {
 			if err := recover(); err != nil {
-				report.WorkspaceProxy.Error = ptr.Ref(fmt.Sprint(err))
+				report.WorkspaceProxy.Error = health.Errorf(health.CodeUnknown, "proxy report panic: %s", err)
 			}
 		}()
 

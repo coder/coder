@@ -2404,6 +2404,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
     healthy: true,
     severity: "ok",
     warnings: [],
+    dismissed: false,
     regions: {
       "999": {
         healthy: true,
@@ -2806,6 +2807,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
     healthy: true,
     severity: "ok",
     warnings: [],
+    dismissed: false,
     access_url: "https://dev.coder.com",
     reachable: true,
     status_code: 200,
@@ -2815,6 +2817,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
     healthy: true,
     severity: "ok",
     warnings: [],
+    dismissed: false,
     body: "",
     code: 101,
   },
@@ -2822,6 +2825,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
     healthy: true,
     severity: "ok",
     warnings: [],
+    dismissed: false,
     reachable: true,
     latency: "92570",
     latency_ms: 92570,
@@ -2831,6 +2835,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
     healthy: true,
     severity: "ok",
     warnings: [],
+    dismissed: false,
     workspace_proxies: {
       regions: [],
     },
@@ -2857,6 +2862,7 @@ export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
     healthy: true,
     severity: "ok",
     warnings: [],
+    dismissed: false,
     access_url: "",
     healthz_response: "",
     reachable: true,
@@ -2866,6 +2872,7 @@ export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
     healthy: false,
     severity: "ok",
     warnings: [],
+    dismissed: false,
     latency: "",
     latency_ms: 0,
     reachable: true,
@@ -2875,6 +2882,7 @@ export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
     healthy: false,
     severity: "ok",
     warnings: [],
+    dismissed: false,
     regions: [],
     netcheck_logs: [],
   },
@@ -2882,6 +2890,7 @@ export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
     healthy: false,
     severity: "ok",
     warnings: [],
+    dismissed: false,
     body: "",
     code: 0,
   },
@@ -2890,6 +2899,7 @@ export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
     error: "some error",
     severity: "error",
     warnings: [],
+    dismissed: false,
     workspace_proxies: {
       regions: [
         {

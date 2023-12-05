@@ -13,12 +13,14 @@ export const TableLoader: FC = () => {
   );
 };
 
-export const TableLoaderSkeleton = ({
+interface TableLoaderSkeletonProps {
+  rows?: number;
+  children?: ReactNode;
+}
+
+export const TableLoaderSkeleton: FC<TableLoaderSkeletonProps> = ({
   rows = 4,
   children,
-}: {
-  rows?: number;
-  children: ReactNode;
 }) => {
   if (!isValidElement(children)) {
     throw new Error(
@@ -34,6 +36,13 @@ export const TableLoaderSkeleton = ({
   );
 };
 
-export const TableRowSkeleton = (props: TableRowProps) => {
-  return <TableRow role="progressbar" data-testid="loader" {...props} />;
+export const TableRowSkeleton: FC<TableRowProps> = ({
+  children,
+  ...rowProps
+}) => {
+  return (
+    <TableRow role="progressbar" data-testid="loader" {...rowProps}>
+      {children}
+    </TableRow>
+  );
 };

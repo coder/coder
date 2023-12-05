@@ -2986,6 +2986,22 @@ func (q *sqlQuerier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.
 	return items, nil
 }
 
+const deleteOldProvisionerDaemons = `-- name: DeleteOldProvisionerDaemons :exec
+DELETE FROM provisioner_daemons WHERE (
+	(created_at < (NOW() - INTERVAL '7 days') AND updated_at IS NULL) OR
+	(updated_at IS NOT NULL AND updated_at < (NOW() - INTERVAL '7 days'))
+)
+`
+
+// Delete provisioner daemons that have been created at least a week ago
+// and have not connected to coderd since a week.
+// A provisioner daemon with "zeroed" updated_at column indicates possible
+// connectivity issues (no provisioner daemon activity since registration).
+func (q *sqlQuerier) DeleteOldProvisionerDaemons(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deleteOldProvisionerDaemons)
+	return err
+}
+
 const getProvisionerDaemons = `-- name: GetProvisionerDaemons :many
 SELECT
 	id, created_at, updated_at, name, provisioners, replica_id, tags
@@ -3031,10 +3047,11 @@ INSERT INTO
 		created_at,
 		"name",
 		provisioners,
-		tags
+		tags,
+		updated_at
 	)
 VALUES
-	($1, $2, $3, $4, $5) RETURNING id, created_at, updated_at, name, provisioners, replica_id, tags
+	($1, $2, $3, $4, $5, $6) RETURNING id, created_at, updated_at, name, provisioners, replica_id, tags
 `
 
 type InsertProvisionerDaemonParams struct {
@@ -3043,6 +3060,7 @@ type InsertProvisionerDaemonParams struct {
 	Name         string            `db:"name" json:"name"`
 	Provisioners []ProvisionerType `db:"provisioners" json:"provisioners"`
 	Tags         StringMap         `db:"tags" json:"tags"`
+	UpdatedAt    sql.NullTime      `db:"updated_at" json:"updated_at"`
 }
 
 func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProvisionerDaemonParams) (ProvisionerDaemon, error) {
@@ -3052,6 +3070,7 @@ func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProv
 		arg.Name,
 		pq.Array(arg.Provisioners),
 		arg.Tags,
+		arg.UpdatedAt,
 	)
 	var i ProvisionerDaemon
 	err := row.Scan(
@@ -4522,6 +4541,31 @@ func (q *sqlQuerier) CleanTailnetCoordinators(ctx context.Context) error {
 	return err
 }
 
+const cleanTailnetLostPeers = `-- name: CleanTailnetLostPeers :exec
+DELETE
+FROM tailnet_peers
+WHERE updated_at < now() - INTERVAL '24 HOURS' AND status = 'lost'::tailnet_status
+`
+
+func (q *sqlQuerier) CleanTailnetLostPeers(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, cleanTailnetLostPeers)
+	return err
+}
+
+const cleanTailnetTunnels = `-- name: CleanTailnetTunnels :exec
+DELETE FROM tailnet_tunnels
+WHERE updated_at < now() - INTERVAL '24 HOURS' AND
+      NOT EXISTS (
+        SELECT 1 FROM tailnet_peers
+        WHERE id = tailnet_tunnels.src_id AND coordinator_id = tailnet_tunnels.coordinator_id
+      )
+`
+
+func (q *sqlQuerier) CleanTailnetTunnels(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, cleanTailnetTunnels)
+	return err
+}
+
 const deleteAllTailnetClientSubscriptions = `-- name: DeleteAllTailnetClientSubscriptions :exec
 DELETE
 FROM tailnet_client_subscriptions
@@ -4754,6 +4798,100 @@ func (q *sqlQuerier) GetAllTailnetClients(ctx context.Context) ([]GetAllTailnetC
 	return items, nil
 }
 
+const getAllTailnetCoordinators = `-- name: GetAllTailnetCoordinators :many
+
+SELECT id, heartbeat_at FROM tailnet_coordinators
+`
+
+// For PG Coordinator HTMLDebug
+func (q *sqlQuerier) GetAllTailnetCoordinators(ctx context.Context) ([]TailnetCoordinator, error) {
+	rows, err := q.db.QueryContext(ctx, getAllTailnetCoordinators)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TailnetCoordinator
+	for rows.Next() {
+		var i TailnetCoordinator
+		if err := rows.Scan(&i.ID, &i.HeartbeatAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAllTailnetPeers = `-- name: GetAllTailnetPeers :many
+SELECT id, coordinator_id, updated_at, node, status FROM tailnet_peers
+`
+
+func (q *sqlQuerier) GetAllTailnetPeers(ctx context.Context) ([]TailnetPeer, error) {
+	rows, err := q.db.QueryContext(ctx, getAllTailnetPeers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TailnetPeer
+	for rows.Next() {
+		var i TailnetPeer
+		if err := rows.Scan(
+			&i.ID,
+			&i.CoordinatorID,
+			&i.UpdatedAt,
+			&i.Node,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAllTailnetTunnels = `-- name: GetAllTailnetTunnels :many
+SELECT coordinator_id, src_id, dst_id, updated_at FROM tailnet_tunnels
+`
+
+func (q *sqlQuerier) GetAllTailnetTunnels(ctx context.Context) ([]TailnetTunnel, error) {
+	rows, err := q.db.QueryContext(ctx, getAllTailnetTunnels)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TailnetTunnel
+	for rows.Next() {
+		var i TailnetTunnel
+		if err := rows.Scan(
+			&i.CoordinatorID,
+			&i.SrcID,
+			&i.DstID,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getTailnetAgents = `-- name: GetTailnetAgents :many
 SELECT id, coordinator_id, updated_at, node
 FROM tailnet_agents
@@ -4860,22 +4998,23 @@ func (q *sqlQuerier) GetTailnetPeers(ctx context.Context, id uuid.UUID) ([]Tailn
 }
 
 const getTailnetTunnelPeerBindings = `-- name: GetTailnetTunnelPeerBindings :many
-SELECT tailnet_tunnels.dst_id as peer_id, tailnet_peers.coordinator_id, tailnet_peers.updated_at, tailnet_peers.node
+SELECT tailnet_tunnels.dst_id as peer_id, tailnet_peers.coordinator_id, tailnet_peers.updated_at, tailnet_peers.node, tailnet_peers.status
 FROM tailnet_tunnels
 INNER JOIN tailnet_peers ON tailnet_tunnels.dst_id = tailnet_peers.id
 WHERE tailnet_tunnels.src_id = $1
 UNION
-SELECT tailnet_tunnels.src_id as peer_id, tailnet_peers.coordinator_id, tailnet_peers.updated_at, tailnet_peers.node
+SELECT tailnet_tunnels.src_id as peer_id, tailnet_peers.coordinator_id, tailnet_peers.updated_at, tailnet_peers.node, tailnet_peers.status
 FROM tailnet_tunnels
 INNER JOIN tailnet_peers ON tailnet_tunnels.src_id = tailnet_peers.id
 WHERE tailnet_tunnels.dst_id = $1
 `
 
 type GetTailnetTunnelPeerBindingsRow struct {
-	PeerID        uuid.UUID `db:"peer_id" json:"peer_id"`
-	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
-	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
-	Node          []byte    `db:"node" json:"node"`
+	PeerID        uuid.UUID     `db:"peer_id" json:"peer_id"`
+	CoordinatorID uuid.UUID     `db:"coordinator_id" json:"coordinator_id"`
+	UpdatedAt     time.Time     `db:"updated_at" json:"updated_at"`
+	Node          []byte        `db:"node" json:"node"`
+	Status        TailnetStatus `db:"status" json:"status"`
 }
 
 func (q *sqlQuerier) GetTailnetTunnelPeerBindings(ctx context.Context, srcID uuid.UUID) ([]GetTailnetTunnelPeerBindingsRow, error) {
@@ -4892,6 +5031,7 @@ func (q *sqlQuerier) GetTailnetTunnelPeerBindings(ctx context.Context, srcID uui
 			&i.CoordinatorID,
 			&i.UpdatedAt,
 			&i.Node,
+			&i.Status,
 		); err != nil {
 			return nil, err
 		}
@@ -11164,20 +11304,30 @@ func (q *sqlQuerier) UpdateWorkspaceDeletedByID(ctx context.Context, arg UpdateW
 
 const updateWorkspaceDormantDeletingAt = `-- name: UpdateWorkspaceDormantDeletingAt :one
 UPDATE
-	workspaces
+    workspaces
 SET
-	dormant_at = $2,
-	-- When a workspace is active we want to update the last_used_at to avoid the workspace going
+    dormant_at = $2,
+    -- When a workspace is active we want to update the last_used_at to avoid the workspace going
     -- immediately dormant. If we're transition the workspace to dormant then we leave it alone.
-	last_used_at = CASE WHEN $2::timestamptz IS NULL THEN now() at time zone 'utc' ELSE last_used_at END,
-	-- If dormant_at is null (meaning active) or the template-defined time_til_dormant_autodelete is 0 we should set
-	-- deleting_at to NULL else set it to the dormant_at + time_til_dormant_autodelete duration.
-	deleting_at = CASE WHEN $2::timestamptz IS NULL OR templates.time_til_dormant_autodelete = 0 THEN NULL ELSE $2::timestamptz + INTERVAL '1 milliseconds' * templates.time_til_dormant_autodelete / 1000000 END
+    last_used_at = CASE WHEN $2::timestamptz IS NULL THEN
+        now() at time zone 'utc'
+    ELSE
+        last_used_at
+    END,
+    -- If dormant_at is null (meaning active) or the template-defined time_til_dormant_autodelete is 0 we should set
+    -- deleting_at to NULL else set it to the dormant_at + time_til_dormant_autodelete duration.
+    deleting_at = CASE WHEN $2::timestamptz IS NULL OR templates.time_til_dormant_autodelete = 0 THEN
+        NULL
+    ELSE
+        $2::timestamptz + (INTERVAL '1 millisecond' * (templates.time_til_dormant_autodelete / 1000000))
+    END
 FROM
-	templates
+    templates
 WHERE
-	workspaces.id = $1
-RETURNING workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates
+    workspaces.id = $1
+    AND templates.id = workspaces.template_id
+RETURNING
+    workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates
 `
 
 type UpdateWorkspaceDormantDeletingAtParams struct {

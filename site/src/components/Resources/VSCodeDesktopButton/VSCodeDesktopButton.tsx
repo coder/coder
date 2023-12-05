@@ -50,7 +50,7 @@ export const VSCodeDesktopButton: FC<
       <ButtonGroup
         ref={menuAnchorRef}
         variant="outlined"
-        sx={{
+        css={{
           // Workaround to make the border transitions smoothly on button groups
           "& > button:hover + button": {
             borderLeft: "1px solid #FFF",
@@ -74,9 +74,9 @@ export const VSCodeDesktopButton: FC<
           onClick={() => {
             setIsVariantMenuOpen(true);
           }}
-          sx={{ px: 0 }}
+          css={{ paddingLeft: 0, paddingRight: 0 }}
         >
-          <KeyboardArrowDownIcon sx={{ fontSize: 16 }} />
+          <KeyboardArrowDownIcon css={{ fontSize: 16 }} />
         </AgentButton>
       </ButtonGroup>
 
@@ -84,28 +84,28 @@ export const VSCodeDesktopButton: FC<
         open={isVariantMenuOpen}
         anchorEl={menuAnchorRef.current}
         onClose={() => setIsVariantMenuOpen(false)}
-        sx={{
+        css={{
           "& .MuiMenu-paper": {
             width: menuAnchorRef.current?.clientWidth,
           },
         }}
       >
         <MenuItem
-          sx={{ fontSize: 14 }}
+          css={{ fontSize: 14 }}
           onClick={() => {
             selectVariant("vscode");
           }}
         >
-          <VSCodeIcon sx={{ width: 12, height: 12 }} />
+          <VSCodeIcon css={{ width: 12, height: 12 }} />
           VS Code Desktop
         </MenuItem>
         <MenuItem
-          sx={{ fontSize: 14 }}
+          css={{ fontSize: 14 }}
           onClick={() => {
             selectVariant("vscode-insiders");
           }}
         >
-          <VSCodeInsidersIcon sx={{ width: 12, height: 12 }} />
+          <VSCodeInsidersIcon css={{ width: 12, height: 12 }} />
           VS Code Insiders
         </MenuItem>
       </Menu>
