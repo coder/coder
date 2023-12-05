@@ -8059,13 +8059,24 @@
       "enum": ["user", "oidc"],
       "x-enum-varnames": ["GroupSourceUser", "GroupSourceOIDC"]
     },
+    "codersdk.HealthSection": {
+      "type": "string",
+      "enum": ["DERP", "AccessURL", "Websocket", "Database", "WorkspaceProxy"],
+      "x-enum-varnames": [
+        "HealthSectionDERP",
+        "HealthSectionAccessURL",
+        "HealthSectionWebsocket",
+        "HealthSectionDatabase",
+        "HealthSectionWorkspaceProxy"
+      ]
+    },
     "codersdk.HealthSettings": {
       "type": "object",
       "properties": {
         "dismissed_healthchecks": {
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/definitions/codersdk.HealthSection"
           }
         }
       }
@@ -9835,7 +9846,7 @@
         "dismissed_healthchecks": {
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/definitions/codersdk.HealthSection"
           }
         }
       }
@@ -11431,7 +11442,7 @@
           "description": "FailingSections is a list of sections that have failed their healthcheck.",
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/definitions/codersdk.HealthSection"
           }
         },
         "healthy": {

@@ -3170,19 +3170,37 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `user` |
 | `oidc` |
 
+## codersdk.HealthSection
+
+```json
+"DERP"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value            |
+| ---------------- |
+| `DERP`           |
+| `AccessURL`      |
+| `Websocket`      |
+| `Database`       |
+| `WorkspaceProxy` |
+
 ## codersdk.HealthSettings
 
 ```json
 {
-  "dismissed_healthchecks": ["string"]
+  "dismissed_healthchecks": ["DERP"]
 }
 ```
 
 ### Properties
 
-| Name                     | Type            | Required | Restrictions | Description |
-| ------------------------ | --------------- | -------- | ------------ | ----------- |
-| `dismissed_healthchecks` | array of string | false    |              |             |
+| Name                     | Type                                                      | Required | Restrictions | Description |
+| ------------------------ | --------------------------------------------------------- | -------- | ------------ | ----------- |
+| `dismissed_healthchecks` | array of [codersdk.HealthSection](#codersdkhealthsection) | false    |              |             |
 
 ## codersdk.Healthcheck
 
@@ -5182,15 +5200,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "dismissed_healthchecks": ["string"]
+  "dismissed_healthchecks": ["DERP"]
 }
 ```
 
 ### Properties
 
-| Name                     | Type            | Required | Restrictions | Description |
-| ------------------------ | --------------- | -------- | ------------ | ----------- |
-| `dismissed_healthchecks` | array of string | false    |              |             |
+| Name                     | Type                                                      | Required | Restrictions | Description |
+| ------------------------ | --------------------------------------------------------- | -------- | ------------ | ----------- |
+| `dismissed_healthchecks` | array of [codersdk.HealthSection](#codersdkhealthsection) | false    |              |             |
 
 ## codersdk.UpdateRoles
 
@@ -7952,7 +7970,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       }
     ]
   },
-  "failing_sections": ["string"],
+  "failing_sections": ["DERP"],
   "healthy": true,
   "severity": "ok",
   "time": "string",
@@ -8015,7 +8033,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `coder_version`    | string                                                               | false    |              | The Coder version of the server that the report was generated on.                   |
 | `database`         | [healthcheck.DatabaseReport](#healthcheckdatabasereport)             | false    |              |                                                                                     |
 | `derp`             | [derphealth.Report](#derphealthreport)                               | false    |              |                                                                                     |
-| `failing_sections` | array of string                                                      | false    |              | Failing sections is a list of sections that have failed their healthcheck.          |
+| `failing_sections` | array of [codersdk.HealthSection](#codersdkhealthsection)            | false    |              | Failing sections is a list of sections that have failed their healthcheck.          |
 | `healthy`          | boolean                                                              | false    |              | Healthy is true if the report returns no errors. Deprecated: use `Severity` instead |
 | `severity`         | [health.Severity](#healthseverity)                                   | false    |              | Severity indicates the status of Coder health.                                      |
 | `time`             | string                                                               | false    |              | Time is the time the report was generated at.                                       |

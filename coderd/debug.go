@@ -147,7 +147,7 @@ func (api *API) deploymentHealthSettings(rw http.ResponseWriter, r *http.Request
 	}
 
 	if len(settings.DismissedHealthchecks) == 0 {
-		settings.DismissedHealthchecks = []string{}
+		settings.DismissedHealthchecks = []codersdk.HealthSection{}
 	}
 
 	httpapi.Write(r.Context(), rw, http.StatusOK, settings)
@@ -218,6 +218,7 @@ func (api *API) putDeploymentHealthSettings(rw http.ResponseWriter, r *http.Requ
 		Action:  database.AuditActionWrite,
 	})
 	defer commitAudit()
+
 	aReq.New = database.HealthSettings{
 		ID:                    uuid.New(),
 		DismissedHealthchecks: settings.DismissedHealthchecks,
@@ -237,7 +238,7 @@ func (api *API) putDeploymentHealthSettings(rw http.ResponseWriter, r *http.Requ
 
 func validateHealthSettings(settings codersdk.HealthSettings) error {
 	for _, dismissed := range settings.DismissedHealthchecks {
-		ok := slices.Contains(healthcheck.Sections, dismissed)
+		ok := slices.Contains(codersdk.HealthSections, dismissed)
 		if !ok {
 			return xerrors.Errorf("unknown healthcheck section: %s", dismissed)
 		}
@@ -257,8 +258,8 @@ func validateHealthSettings(settings codersdk.HealthSettings) error {
 // @x-apidocgen {"skip": true}
 func _debugws(http.ResponseWriter, *http.Request) {} //nolint:unused
 
-func loadDismissedHealthchecks(ctx context.Context, db database.Store, logger slog.Logger) []string {
-	dismissedHealthchecks := []string{}
+func loadDismissedHealthchecks(ctx context.Context, db database.Store, logger slog.Logger) []codersdk.HealthSection {
+	dismissedHealthchecks := []codersdk.HealthSection{}
 	settingsJSON, err := db.GetHealthSettings(ctx)
 	if err == nil {
 		var settings codersdk.HealthSettings

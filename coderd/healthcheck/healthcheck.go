@@ -9,17 +9,8 @@ import (
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/codersdk"
 )
-
-const (
-	SectionDERP           string = "DERP"
-	SectionAccessURL      string = "AccessURL"
-	SectionWebsocket      string = "Websocket"
-	SectionDatabase       string = "Database"
-	SectionWorkspaceProxy string = "WorkspaceProxy"
-)
-
-var Sections = []string{SectionAccessURL, SectionDatabase, SectionDERP, SectionWebsocket, SectionWorkspaceProxy}
 
 type Checker interface {
 	DERP(ctx context.Context, opts *derphealth.ReportOptions) derphealth.Report
@@ -39,7 +30,7 @@ type Report struct {
 	// Severity indicates the status of Coder health.
 	Severity health.Severity `json:"severity" enums:"ok,warning,error"`
 	// FailingSections is a list of sections that have failed their healthcheck.
-	FailingSections []string `json:"failing_sections"`
+	FailingSections []codersdk.HealthSection `json:"failing_sections"`
 
 	DERP           derphealth.Report    `json:"derp"`
 	AccessURL      AccessURLReport      `json:"access_url"`
@@ -162,21 +153,21 @@ func Run(ctx context.Context, opts *ReportOptions) *Report {
 	wg.Wait()
 
 	report.Time = time.Now()
-	report.FailingSections = []string{}
+	report.FailingSections = []codersdk.HealthSection{}
 	if !report.DERP.Healthy {
-		report.FailingSections = append(report.FailingSections, SectionDERP)
+		report.FailingSections = append(report.FailingSections, codersdk.HealthSectionDERP)
 	}
 	if !report.AccessURL.Healthy {
-		report.FailingSections = append(report.FailingSections, SectionAccessURL)
+		report.FailingSections = append(report.FailingSections, codersdk.HealthSectionAccessURL)
 	}
 	if !report.Websocket.Healthy {
-		report.FailingSections = append(report.FailingSections, SectionWebsocket)
+		report.FailingSections = append(report.FailingSections, codersdk.HealthSectionWebsocket)
 	}
 	if !report.Database.Healthy {
-		report.FailingSections = append(report.FailingSections, SectionDatabase)
+		report.FailingSections = append(report.FailingSections, codersdk.HealthSectionDatabase)
 	}
 	if !report.WorkspaceProxy.Healthy {
-		report.FailingSections = append(report.FailingSections, SectionWorkspaceProxy)
+		report.FailingSections = append(report.FailingSections, codersdk.HealthSectionWorkspaceProxy)
 	}
 
 	report.Healthy = len(report.FailingSections) == 0
