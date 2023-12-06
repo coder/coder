@@ -5,8 +5,9 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Skeleton from "@mui/material/Skeleton";
+import { HealthSection } from "api/typesGenerated";
 
-export const DismissWarningButton = (props: { healthcheck: string }) => {
+export const DismissWarningButton = (props: { healthcheck: HealthSection }) => {
   const queryClient = useQueryClient();
   const healthSettingsQuery = useQuery(healthSettings());
   // They call the same mutation but are used in diff contexts so we don't want
