@@ -41,6 +41,8 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 	org := dbgen.Organization(t, db, database.Organization{})
 	user := dbgen.User(t, db, database.User{})
 	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{OrganizationID: org.ID, CreatedBy: user.ID})
+	_ = dbgen.Template(t, db, database.Template{OrganizationID: org.ID, ActiveVersionID: tv.ID, CreatedBy: user.ID})
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	now := dbtime.Now()
@@ -52,7 +54,7 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 		defer cancel()
 
 		// given
-		agent := mustCreateAgentWithLogs(ctx, t, db, user, org, now.Add(-8*24*time.Hour), t.Name())
+		agent := mustCreateAgentWithLogs(ctx, t, db, user, org, tv, now.Add(-8*24*time.Hour), t.Name())
 
 		// when
 		closer := dbpurge.New(ctx, logger, db)
@@ -77,7 +79,7 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 		defer cancel()
 
 		// given
-		agent := mustCreateAgentWithLogs(ctx, t, db, user, org, now.Add(-6*24*time.Hour), t.Name())
+		agent := mustCreateAgentWithLogs(ctx, t, db, user, org, tv, now.Add(-6*24*time.Hour), t.Name())
 
 		// when
 		closer := dbpurge.New(ctx, logger, db)
@@ -96,8 +98,8 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 	})
 }
 
-func mustCreateAgentWithLogs(ctx context.Context, t *testing.T, db database.Store, user database.User, org database.Organization, agentLastConnectedAt time.Time, output string) uuid.UUID {
-	agent := mustCreateAgent(t, db, user, org)
+func mustCreateAgentWithLogs(ctx context.Context, t *testing.T, db database.Store, user database.User, org database.Organization, tv database.TemplateVersion, agentLastConnectedAt time.Time, output string) uuid.UUID {
+	agent := mustCreateAgent(t, db, user, org, tv)
 
 	err := db.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
 		ID:              agent.ID,
@@ -114,12 +116,13 @@ func mustCreateAgentWithLogs(ctx context.Context, t *testing.T, db database.Stor
 	return agent.ID
 }
 
-func mustCreateAgent(t *testing.T, db database.Store, user database.User, org database.Organization) database.WorkspaceAgent {
+func mustCreateAgent(t *testing.T, db database.Store, user database.User, org database.Organization, tv database.TemplateVersion) database.WorkspaceAgent {
 	workspace := dbgen.Workspace(t, db, database.Workspace{OwnerID: user.ID, OrganizationID: org.ID})
 	build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		WorkspaceID: workspace.ID,
-		Transition:  database.WorkspaceTransitionStart,
-		Reason:      database.BuildReasonInitiator,
+		WorkspaceID:       workspace.ID,
+		TemplateVersionID: tv.ID,
+		Transition:        database.WorkspaceTransitionStart,
+		Reason:            database.BuildReasonInitiator,
 	})
 	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 		ID:            build.JobID,
