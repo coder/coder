@@ -831,12 +831,10 @@ func (api *API) convertTemplate(
 	template database.Template,
 ) codersdk.Template {
 	templateAccessControl := (*(api.Options.AccessControlStore.Load())).GetTemplateAccessControl(template)
-	daus := 0
-	_, resp, ok := api.metricsCache.TemplateDAUs(template.ID, 0)
+	owners := 0
+	o, ok := api.metricsCache.TemplateWorkspaceOwners(template.ID)
 	if ok {
-		// this is safe because we currently only support one timezone offset: 0
-		// see metricscache.templateTimezoneOffsets
-		daus = resp.Entries[0].Amount
+		owners = o
 	}
 
 	buildTimeStats := api.metricsCache.TemplateBuildTimeStats(template.ID)
@@ -855,7 +853,7 @@ func (api *API) convertTemplate(
 		DisplayName:                    template.DisplayName,
 		Provisioner:                    codersdk.ProvisionerType(template.Provisioner),
 		ActiveVersionID:                template.ActiveVersionID,
-		ActiveUserCount:                daus,
+		ActiveUserCount:                owners,
 		BuildTimeStats:                 buildTimeStats,
 		Description:                    template.Description,
 		Icon:                           template.Icon,
