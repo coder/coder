@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 )
 
 // EnhancedExternalAuthProvider is a constant that represents enhanced
@@ -55,6 +56,37 @@ type ExternalAuth struct {
 	AppInstallations []ExternalAuthAppInstallation `json:"installations"`
 	// AppInstallURL is the URL to install the app.
 	AppInstallURL string `json:"app_install_url"`
+}
+
+type ListUserExternalAuthResponse struct {
+	Providers []ExternalAuthLinkProvider `json:"providers"`
+	// Links are all the authenticated links for the user.
+	// If a link has a provider ID that does not exist, then that provider
+	// is no longer configured, rendering it unusable. It is still valuable
+	// to include these links so that the user can unlink them.
+	Links []ExternalAuthLink `json:"links"`
+}
+
+// ExternalAuthLink is a link between a user and an external auth provider.
+// It excludes information that requires a token to access, so can be statically
+// built from the database and configs.
+type ExternalAuthLink struct {
+	ProviderID      string    `json:"provider_id"`
+	CreatedAt       time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt       time.Time `json:"updated_at" format:"date-time"`
+	HasRefreshToken bool      `json:"has_refresh_token"`
+	Expires         time.Time `json:"expires" format:"date-time"`
+}
+
+// ExternalAuthLinkProvider are the static details of a provider.
+type ExternalAuthLinkProvider struct {
+	ID            string `json:"id"`
+	Type          string `json:"type"`
+	Device        bool   `json:"device"`
+	DisplayName   string `json:"display_name"`
+	DisplayIcon   string `json:"display_icon"`
+	AllowRefresh  bool   `json:"allow_refresh"`
+	AllowValidate bool   `json:"allow_validate"`
 }
 
 type ExternalAuthAppInstallation struct {
@@ -121,5 +153,34 @@ func (c *Client) ExternalAuthByID(ctx context.Context, provider string) (Externa
 		return ExternalAuth{}, ReadBodyAsError(res)
 	}
 	var extAuth ExternalAuth
+	return extAuth, json.NewDecoder(res.Body).Decode(&extAuth)
+}
+
+// UnlinkExternalAuthByID deletes the external auth for the given provider by ID
+// for the user. This does not revoke the token from the IDP.
+func (c *Client) UnlinkExternalAuthByID(ctx context.Context, provider string) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/external-auth/%s", provider), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// ListExternalAuths returns the available external auth providers and the user's
+// authenticated links if they exist.
+func (c *Client) ListExternalAuths(ctx context.Context) (ListUserExternalAuthResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/external-auth", nil)
+	if err != nil {
+		return ListUserExternalAuthResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ListUserExternalAuthResponse{}, ReadBodyAsError(res)
+	}
+	var extAuth ListUserExternalAuthResponse
 	return extAuth, json.NewDecoder(res.Body).Decode(&extAuth)
 }

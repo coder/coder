@@ -83,6 +83,7 @@ result
 # Testdata shouldn't be formatted.
 ../scripts/apitypings/testdata/**/*.ts
 ../enterprise/tailnet/testdata/*.golden.html
+../tailnet/testdata/*.golden.html
 
 # Generated files shouldn't be formatted.
 e2e/provisionerGenerated.ts

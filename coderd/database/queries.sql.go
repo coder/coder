@@ -788,6 +788,20 @@ func (q *sqlQuerier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest strin
 	return err
 }
 
+const deleteExternalAuthLink = `-- name: DeleteExternalAuthLink :exec
+DELETE FROM external_auth_links WHERE provider_id = $1 AND user_id = $2
+`
+
+type DeleteExternalAuthLinkParams struct {
+	ProviderID string    `db:"provider_id" json:"provider_id"`
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+func (q *sqlQuerier) DeleteExternalAuthLink(ctx context.Context, arg DeleteExternalAuthLinkParams) error {
+	_, err := q.db.ExecContext(ctx, deleteExternalAuthLink, arg.ProviderID, arg.UserID)
+	return err
+}
+
 const getExternalAuthLink = `-- name: GetExternalAuthLink :one
 SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra FROM external_auth_links WHERE provider_id = $1 AND user_id = $2
 `

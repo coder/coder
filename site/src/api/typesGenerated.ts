@@ -496,6 +496,26 @@ export interface ExternalAuthDeviceExchange {
 }
 
 // From codersdk/externalauth.go
+export interface ExternalAuthLink {
+  readonly provider_id: string;
+  readonly created_at: string;
+  readonly updated_at: string;
+  readonly has_refresh_token: boolean;
+  readonly expires: string;
+}
+
+// From codersdk/externalauth.go
+export interface ExternalAuthLinkProvider {
+  readonly id: string;
+  readonly type: string;
+  readonly device: boolean;
+  readonly display_name: string;
+  readonly display_icon: string;
+  readonly allow_refresh: boolean;
+  readonly allow_validate: boolean;
+}
+
+// From codersdk/externalauth.go
 export interface ExternalAuthUser {
   readonly login: string;
   readonly avatar_url: string;
@@ -544,7 +564,7 @@ export interface Group {
 
 // From codersdk/health.go
 export interface HealthSettings {
-  readonly dismissed_healthchecks: string[];
+  readonly dismissed_healthchecks: HealthSection[];
 }
 
 // From codersdk/workspaceapps.go
@@ -586,6 +606,12 @@ export interface LinkConfig {
   readonly name: string;
   readonly target: string;
   readonly icon: string;
+}
+
+// From codersdk/externalauth.go
+export interface ListUserExternalAuthResponse {
+  readonly providers: ExternalAuthLinkProvider[];
+  readonly links: ExternalAuthLink[];
 }
 
 // From codersdk/deployment.go
@@ -1164,7 +1190,7 @@ export interface UpdateCheckResponse {
 
 // From codersdk/health.go
 export interface UpdateHealthSettings {
-  readonly dismissed_healthchecks: string[];
+  readonly dismissed_healthchecks: HealthSection[];
 }
 
 // From codersdk/users.go
@@ -1795,6 +1821,21 @@ export const FeatureNames: FeatureName[] = [
 export type GroupSource = "oidc" | "user";
 export const GroupSources: GroupSource[] = ["oidc", "user"];
 
+// From codersdk/health.go
+export type HealthSection =
+  | "AccessURL"
+  | "DERP"
+  | "Database"
+  | "Websocket"
+  | "WorkspaceProxy";
+export const HealthSections: HealthSection[] = [
+  "AccessURL",
+  "DERP",
+  "Database",
+  "Websocket",
+  "WorkspaceProxy",
+];
+
 // From codersdk/insights.go
 export type InsightsReportInterval = "day" | "week";
 export const InsightsReportIntervals: InsightsReportInterval[] = [
@@ -2128,7 +2169,7 @@ export interface HealthcheckReport {
   readonly time: string;
   readonly healthy: boolean;
   readonly severity: HealthSeverity;
-  readonly failing_sections: string[];
+  readonly failing_sections: HealthSection[];
   readonly derp: DerphealthReport;
   readonly access_url: HealthcheckAccessURLReport;
   readonly websocket: HealthcheckWebsocketReport;
