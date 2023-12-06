@@ -24,7 +24,7 @@ import {
 import { ExternalAuthPollingState } from "pages/CreateWorkspacePage/CreateWorkspacePage";
 import { useState, useCallback, useEffect } from "react";
 import { useQuery } from "react-query";
-import { userExternalAuth } from "api/queries/externalauth";
+import { externalAuthProvider } from "api/queries/externalAuth";
 import { FullScreenLoader } from "components/Loader/FullScreenLoader";
 
 export type UserExternalAuthSettingsPageViewProps = {
@@ -199,7 +199,7 @@ const useExternalAuth = (providerID: string, unlinked: number) => {
   }, []);
 
   const { data: externalAuth, refetch } = useQuery({
-    ...userExternalAuth(providerID),
+    ...externalAuthProvider(providerID),
     refetchInterval: externalAuthPollingState === "polling" ? 1000 : false,
   });
 

@@ -4,7 +4,7 @@ import {
   listUserExternalAuths,
   unlinkExternalAuths,
   validateExternalAuth,
-} from "api/queries/externalauth";
+} from "api/queries/externalAuth";
 import { Section } from "components/SettingsLayout/Section";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -25,14 +25,7 @@ const UserExternalAuthSettingsPage: FC = () => {
   } = useQuery(listUserExternalAuths());
 
   const [appToUnlink, setAppToUnlink] = useState<string>();
-  const mutateParams = unlinkExternalAuths(queryClient);
-  const unlinkAppMutation = useMutation({
-    ...mutateParams,
-    onSuccess: async () => {
-      await mutateParams.onSuccess();
-    },
-  });
-
+  const unlinkAppMutation = useMutation(unlinkExternalAuths(queryClient));
   const validateAppMutation = useMutation(validateExternalAuth(queryClient));
 
   return (
