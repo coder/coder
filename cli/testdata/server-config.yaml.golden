@@ -323,6 +323,11 @@ oidc:
   # mapping.
   # (default: .*, type: regexp)
   groupRegexFilter: .*
+  # If provided any group name not in the list will not be allowed to authenticate.
+  # This allows for restricting access to a specific set of groups. This filter is
+  # applied after the group mapping and before the regex filter.
+  # (default: <unset>, type: string-array)
+  groupAllowed: []
   # This field must be set if using the user roles sync feature. Set this to the
   # name of the claim used to store the user's role. The roles should be sent as an
   # array of strings.
