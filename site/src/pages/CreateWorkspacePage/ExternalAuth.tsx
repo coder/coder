@@ -15,6 +15,7 @@ export interface ExternalAuthProps {
   externalAuthPollingState: ExternalAuthPollingState;
   startPollingExternalAuth: () => void;
   error?: string;
+  message?: string;
 }
 
 export const ExternalAuth: FC<ExternalAuthProps> = (props) => {
@@ -26,8 +27,14 @@ export const ExternalAuth: FC<ExternalAuthProps> = (props) => {
     externalAuthPollingState,
     startPollingExternalAuth,
     error,
+    message,
   } = props;
 
+  const messageContent =
+    message ??
+    (authenticated
+      ? `Authenticated with ${displayName}`
+      : `Login with ${displayName}`);
   return (
     <Tooltip
       title={authenticated && `${displayName} has already been connected.`}
@@ -40,12 +47,14 @@ export const ExternalAuth: FC<ExternalAuthProps> = (props) => {
           variant="contained"
           size="large"
           startIcon={
-            <img
-              src={displayIcon}
-              alt={`${displayName} Icon`}
-              width={16}
-              height={16}
-            />
+            displayIcon && (
+              <img
+                src={displayIcon}
+                alt={`${displayName} Icon`}
+                width={16}
+                height={16}
+              />
+            )
           }
           disabled={authenticated}
           css={{ height: 52 }}
@@ -61,9 +70,7 @@ export const ExternalAuth: FC<ExternalAuthProps> = (props) => {
             startPollingExternalAuth();
           }}
         >
-          {authenticated
-            ? `Authenticated with ${displayName}`
-            : `Login with ${displayName}`}
+          {messageContent}
         </LoadingButton>
 
         {externalAuthPollingState === "abandoned" && (

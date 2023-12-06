@@ -3148,3 +3148,23 @@ export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
     },
   },
 };
+
+export const MockGithubExternalProvider: TypesGen.ExternalAuthLinkProvider = {
+  id: "github",
+  type: "github",
+  device: false,
+  display_icon: "/icon/github.svg",
+  display_name: "GitHub",
+  allow_refresh: true,
+  allow_validate: true,
+};
+
+export const MockGithubAuthLink: TypesGen.ExternalAuthLink = {
+  provider_id: "github",
+  created_at: "",
+  updated_at: "",
+  has_refresh_token: true,
+  expires: "",
+  authenticated: true,
+  validate_error: "",
+};
