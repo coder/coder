@@ -9408,6 +9408,12 @@ const docTemplate = `{
                 "email_field": {
                     "type": "string"
                 },
+                "group_allow_list": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "group_auto_create": {
                     "type": "boolean"
                 },

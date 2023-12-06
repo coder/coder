@@ -2196,6 +2196,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "client_secret": "string",
       "email_domain": ["string"],
       "email_field": "string",
+      "group_allow_list": ["string"],
       "group_auto_create": true,
       "group_mapping": {},
       "group_regex_filter": {},
@@ -2571,6 +2572,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "client_secret": "string",
     "email_domain": ["string"],
     "email_field": "string",
+    "group_allow_list": ["string"],
     "group_auto_create": true,
     "group_mapping": {},
     "group_regex_filter": {},
@@ -3577,6 +3579,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "client_secret": "string",
   "email_domain": ["string"],
   "email_field": "string",
+  "group_allow_list": ["string"],
   "group_auto_create": true,
   "group_mapping": {},
   "group_regex_filter": {},
@@ -3618,6 +3621,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `client_secret`         | string                           | false    |              |                                                                                  |
 | `email_domain`          | array of string                  | false    |              |                                                                                  |
 | `email_field`           | string                           | false    |              |                                                                                  |
+| `group_allow_list`      | array of string                  | false    |              |                                                                                  |
 | `group_auto_create`     | boolean                          | false    |              |                                                                                  |
 | `group_mapping`         | object                           | false    |              |                                                                                  |
 | `group_regex_filter`    | [clibase.Regexp](#clibaseregexp) | false    |              |                                                                                  |
