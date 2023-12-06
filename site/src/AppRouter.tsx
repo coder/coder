@@ -269,10 +269,6 @@ export const AppRouter: FC = () => {
                   <Route path="versions">
                     <Route path=":version">
                       <Route index element={<TemplateVersionPage />} />
-                      <Route
-                        path="edit"
-                        element={<TemplateVersionEditorPage />}
-                      />
                     </Route>
                   </Route>
                 </Route>
@@ -378,7 +374,11 @@ export const AppRouter: FC = () => {
               <Route path="*" element={<NotFoundPage />} />
             </Route>
 
-            {/* Terminal and CLI auth pages don't have the dashboard layout */}
+            {/* Pages that don't have the dashboard layout */}
+            <Route
+              path="/templates/:template/versions/:version/edit"
+              element={<TemplateVersionEditorPage />}
+            />
             <Route
               path="/:username/:workspace/terminal"
               element={<TerminalPage />}
