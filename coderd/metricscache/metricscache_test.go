@@ -303,6 +303,12 @@ func TestCache_TemplateWorkspaceOwners(t *testing.T) {
 		"TemplateWorkspaceOwners never populated 2 owners",
 	)
 
+	// 3rd workspace should not be counted since we have the same owner as workspace2.
+	dbgen.Workspace(t, db, database.Workspace{
+		TemplateID: template.ID,
+		OwnerID:    user1.ID,
+	})
+
 	db.UpdateWorkspaceDeletedByID(context.Background(), database.UpdateWorkspaceDeletedByIDParams{
 		ID:      workspace2.ID,
 		Deleted: true,
