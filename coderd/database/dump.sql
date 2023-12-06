@@ -755,7 +755,7 @@ CREATE TABLE users (
 
 COMMENT ON COLUMN users.quiet_hours_schedule IS 'Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user''s quiet hours. If empty, the default quiet hours on the instance is used instead.';
 
-COMMENT ON COLUMN users.theme_preference IS 'null can be interpreted as "unset", falling back to the default theme';
+COMMENT ON COLUMN users.theme_preference IS 'null can be interpreted as "the user does not care", falling back to the default theme';
 
 CREATE VIEW visible_users AS
  SELECT users.id,
