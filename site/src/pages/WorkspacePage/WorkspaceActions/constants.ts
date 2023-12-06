@@ -1,9 +1,9 @@
 import { type Workspace, type WorkspaceStatus } from "api/typesGenerated";
 
 /**
- * An iterable of all button types supported by the workspace actions UI
+ * An iterable of all action types supported by the workspace UI
  */
-export const buttonTypes = [
+export const actionTypes = [
   "start",
   "starting",
   "stop",
@@ -28,18 +28,15 @@ export const buttonTypes = [
   "pending",
 ] as const;
 
-/**
- * A button type supported by the workspace actions UI
- */
-export type ButtonType = (typeof buttonTypes)[number];
+export type ActionType = (typeof actionTypes)[number];
 
 type WorkspaceAbilities = {
-  actions: readonly ButtonType[];
+  actions: readonly ActionType[];
   canCancel: boolean;
   canAcceptJobs: boolean;
 };
 
-export const actionsByWorkspaceStatus = (
+export const abilitiesByWorkspaceStatus = (
   workspace: Workspace,
   canRetryDebug: boolean,
 ): WorkspaceAbilities => {
