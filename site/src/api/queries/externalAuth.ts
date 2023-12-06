@@ -2,8 +2,8 @@ import * as API from "api/api";
 import { ExternalAuth } from "api/typesGenerated";
 import { QueryClient, UseMutationOptions } from "react-query";
 
-// listUserExternalAuths returns all configured external auths for a given user.
-export const listUserExternalAuths = () => {
+// Returns all configured external auths for a given user.
+export const externalAuths = () => {
   return {
     queryKey: ["external-auth"],
     queryFn: () => API.getUserExternalAuthProviders(),

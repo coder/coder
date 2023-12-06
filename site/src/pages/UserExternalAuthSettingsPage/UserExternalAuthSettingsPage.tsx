@@ -1,7 +1,7 @@
 import { FC, useState } from "react";
 import { UserExternalAuthSettingsPageView } from "./UserExternalAuthSettingsPageView";
 import {
-  listUserExternalAuths,
+  externalAuths,
   unlinkExternalAuths,
   validateExternalAuth,
 } from "api/queries/externalAuth";
@@ -17,13 +17,7 @@ const UserExternalAuthSettingsPage: FC = () => {
   // need to be refetched
   const [unlinked, setUnlinked] = useState(0);
 
-  const {
-    data: externalAuths,
-    error,
-    isLoading,
-    refetch,
-  } = useQuery(listUserExternalAuths());
-
+  const externalAuthsQuery = useQuery(externalAuths());
   const [appToUnlink, setAppToUnlink] = useState<string>();
   const unlinkAppMutation = useMutation(unlinkExternalAuths(queryClient));
   const validateAppMutation = useMutation(validateExternalAuth(queryClient));
@@ -31,9 +25,9 @@ const UserExternalAuthSettingsPage: FC = () => {
   return (
     <Section title="External Authentication">
       <UserExternalAuthSettingsPageView
-        isLoading={isLoading}
-        getAuthsError={error}
-        auths={externalAuths}
+        isLoading={externalAuthsQuery.isLoading}
+        getAuthsError={externalAuthsQuery.error}
+        auths={externalAuthsQuery.data}
         unlinked={unlinked}
         onUnlinkExternalAuth={(providerID: string) => {
           setAppToUnlink(providerID);
@@ -74,7 +68,7 @@ const UserExternalAuthSettingsPage: FC = () => {
             // setAppToUnlink closes the modal
             setAppToUnlink(undefined);
             // refetch repopulates the external auth data
-            await refetch();
+            await externalAuthsQuery.refetch();
             // this tells our child components to refetch their data
             // as at least 1 provider was unlinked.
             setUnlinked(unlinked + 1);
