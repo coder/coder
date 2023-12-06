@@ -16,6 +16,7 @@ import { kebabCase } from "lodash/fp";
 import { Suspense } from "react";
 import { HealthIcon } from "./Content";
 import { HealthSeverity } from "api/typesGenerated";
+import NotificationsOffOutlined from "@mui/icons-material/NotificationsOffOutlined";
 
 const sections = {
   derp: "DERP",
@@ -189,6 +190,15 @@ export function HealthLayout() {
                           severity={healthSection.severity as HealthSeverity}
                         />
                         {label}
+                        {healthSection.dismissed && (
+                          <NotificationsOffOutlined
+                            css={{
+                              fontSize: 14,
+                              marginLeft: "auto",
+                              color: theme.palette.text.disabled,
+                            }}
+                          />
+                        )}
                       </NavLink>
                     );
                   })}
