@@ -1,5 +1,5 @@
-import type { Theme as MuiTheme } from "@mui/material/styles";
+import type { Theme as CoderTheme } from "theme";
 
 declare module "@emotion/react" {
-  interface Theme extends MuiTheme {}
+  interface Theme extends CoderTheme {}
 }
