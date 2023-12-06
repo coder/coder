@@ -925,18 +925,15 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		picture, _ = pictureRaw.(string)
 	}
 
-	usingGroups, groups, err := api.oidcGroups(ctx, mergedClaims)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to sync groups from OIDC claims",
-			Detail:  err.Error(),
-		})
+	usingGroups, groups, groupErr := api.oidcGroups(ctx, mergedClaims)
+	if groupErr != nil {
+		groupErr.Write(rw, r)
 		return
 	}
 
-	roles, ok := api.oidcRoles(ctx, rw, r, mergedClaims)
-	if !ok {
-		// oidcRoles writes the error to the response writer for us.
+	roles, roleErr := api.oidcRoles(ctx, mergedClaims)
+	if roleErr != nil {
+		roleErr.Write(rw, r)
 		return
 	}
 
@@ -1009,7 +1006,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 }
 
 // oidcGroups returns the groups for the user from the OIDC claims.
-func (api *API) oidcGroups(ctx context.Context, mergedClaims map[string]interface{}) (bool, []string, error) {
+func (api *API) oidcGroups(ctx context.Context, mergedClaims map[string]interface{}) (bool, []string, *httpError) {
 	logger := api.Logger.Named(userAuthLoggerName)
 	usingGroups := false
 	var groups []string
@@ -1026,7 +1023,12 @@ func (api *API) oidcGroups(ctx context.Context, mergedClaims map[string]interfac
 					slog.F("type", fmt.Sprintf("%T", groupsRaw)),
 					slog.Error(err),
 				)
-				return false, nil, err
+				return false, nil, &httpError{
+					code:             http.StatusBadRequest,
+					msg:              "Failed to sync groups from OIDC claims",
+					detail:           err.Error(),
+					renderStaticPage: false,
+				}
 			}
 
 			api.Logger.Debug(ctx, "groups returned in oidc claims",
@@ -1058,10 +1060,10 @@ func (api *API) oidcGroups(ctx context.Context, mergedClaims map[string]interfac
 // It would be preferred to just return an error, however this function
 // decorates returned errors with the appropriate HTTP status codes and details
 // that are hard to carry in a standard `error` without more work.
-func (api *API) oidcRoles(ctx context.Context, rw http.ResponseWriter, r *http.Request, mergedClaims map[string]interface{}) ([]string, bool) {
+func (api *API) oidcRoles(ctx context.Context, mergedClaims map[string]interface{}) ([]string, *httpError) {
 	roles := api.OIDCConfig.UserRolesDefault
 	if !api.OIDCConfig.RoleSyncEnabled() {
-		return roles, true
+		return roles, nil
 	}
 
 	rolesRow, ok := mergedClaims[api.OIDCConfig.UserRoleField]
@@ -1080,15 +1082,12 @@ func (api *API) oidcRoles(ctx context.Context, rw http.ResponseWriter, r *http.R
 			slog.F("type", fmt.Sprintf("%T", rolesRow)),
 			slog.Error(err),
 		)
-		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-			Status:       http.StatusInternalServerError,
-			HideStatus:   true,
-			Title:        "Login disabled until OIDC config is fixed",
-			Description:  fmt.Sprintf("Roles claim must be an array of strings, type found: %T. Disabling role sync will allow login to proceed.", rolesRow),
-			RetryEnabled: false,
-			DashboardURL: "/login",
-		})
-		return nil, false
+		return nil, &httpError{
+			code:             http.StatusInternalServerError,
+			msg:              "Login disabled until OIDC config is fixed",
+			detail:           fmt.Sprintf("Roles claim must be an array of strings, type found: %T. Disabling role sync will allow login to proceed.", rolesRow),
+			renderStaticPage: false,
+		}
 	}
 
 	api.Logger.Debug(ctx, "roles returned in oidc claims",
@@ -1107,7 +1106,7 @@ func (api *API) oidcRoles(ctx context.Context, rw http.ResponseWriter, r *http.R
 
 		roles = append(roles, role)
 	}
-	return roles, true
+	return roles, nil
 }
 
 // claimFields returns the sorted list of fields in the claims map.
