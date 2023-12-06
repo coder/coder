@@ -133,7 +133,9 @@ export const WorkspaceProxyPage = () => {
                 ) : (
                   <span>No warnings</span>
                 )}
-                <span>{createDayString(region.updated_at)}</span>
+                <span data-chromatic="ignore">
+                  {createDayString(region.updated_at)}
+                </span>
               </div>
             </div>
           );
