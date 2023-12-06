@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	agpltest "github.com/coder/coder/v2/tailnet/test"
+
 	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -612,18 +614,7 @@ func TestPGCoordinator_BidirectionalTunnels(t *testing.T) {
 	coordinator, err := tailnet.NewPGCoordV2(ctx, logger, ps, store)
 	require.NoError(t, err)
 	defer coordinator.Close()
-
-	p1 := newTestPeer(ctx, t, coordinator, "p1")
-	defer p1.close(ctx)
-	p2 := newTestPeer(ctx, t, coordinator, "p2")
-	defer p2.close(ctx)
-	p1.addTunnel(p2.id)
-	p2.addTunnel(p1.id)
-	p1.updateDERP(1)
-	p2.updateDERP(2)
-
-	p1.assertEventuallyHasDERP(p2.id, 2)
-	p2.assertEventuallyHasDERP(p1.id, 1)
+	agpltest.BidirectionalTunnels(ctx, t, coordinator)
 }
 
 func TestPGCoordinator_GracefulDisconnect(t *testing.T) {
@@ -638,21 +629,7 @@ func TestPGCoordinator_GracefulDisconnect(t *testing.T) {
 	coordinator, err := tailnet.NewPGCoordV2(ctx, logger, ps, store)
 	require.NoError(t, err)
 	defer coordinator.Close()
-
-	p1 := newTestPeer(ctx, t, coordinator, "p1")
-	defer p1.close(ctx)
-	p2 := newTestPeer(ctx, t, coordinator, "p2")
-	defer p2.close(ctx)
-	p1.addTunnel(p2.id)
-	p1.updateDERP(1)
-	p2.updateDERP(2)
-
-	p1.assertEventuallyHasDERP(p2.id, 2)
-	p2.assertEventuallyHasDERP(p1.id, 1)
-
-	p2.disconnect()
-	p1.assertEventuallyDisconnected(p2.id)
-	p2.assertEventuallyResponsesClosed()
+	agpltest.GracefulDisconnectTest(ctx, t, coordinator)
 }
 
 func TestPGCoordinator_Lost(t *testing.T) {
@@ -667,20 +644,7 @@ func TestPGCoordinator_Lost(t *testing.T) {
 	coordinator, err := tailnet.NewPGCoordV2(ctx, logger, ps, store)
 	require.NoError(t, err)
 	defer coordinator.Close()
-
-	p1 := newTestPeer(ctx, t, coordinator, "p1")
-	defer p1.close(ctx)
-	p2 := newTestPeer(ctx, t, coordinator, "p2")
-	defer p2.close(ctx)
-	p1.addTunnel(p2.id)
-	p1.updateDERP(1)
-	p2.updateDERP(2)
-
-	p1.assertEventuallyHasDERP(p2.id, 2)
-	p2.assertEventuallyHasDERP(p1.id, 1)
-
-	p2.close(ctx)
-	p1.assertEventuallyLost(p2.id)
+	agpltest.LostTest(ctx, t, coordinator)
 }
 
 type testConn struct {
@@ -916,177 +880,6 @@ func assertEventuallyNoClientsForAgent(ctx context.Context, t *testing.T, store 
 		}
 		return len(clients) == 0
 	}, testutil.WaitShort, testutil.IntervalFast)
-}
-
-type peerStatus struct {
-	preferredDERP int32
-	status        proto.CoordinateResponse_PeerUpdate_Kind
-}
-
-type testPeer struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-	t      testing.TB
-	id     uuid.UUID
-	name   string
-	resps  <-chan *proto.CoordinateResponse
-	reqs   chan<- *proto.CoordinateRequest
-	peers  map[uuid.UUID]peerStatus
-}
-
-func newTestPeer(ctx context.Context, t testing.TB, coord agpl.CoordinatorV2, name string, id ...uuid.UUID) *testPeer {
-	p := &testPeer{t: t, name: name, peers: make(map[uuid.UUID]peerStatus)}
-	p.ctx, p.cancel = context.WithCancel(ctx)
-	if len(id) > 1 {
-		t.Fatal("too many")
-	}
-	if len(id) == 1 {
-		p.id = id[0]
-	} else {
-		p.id = uuid.New()
-	}
-	// SingleTailnetTunnelAuth allows connections to arbitrary peers
-	p.reqs, p.resps = coord.Coordinate(p.ctx, p.id, name, agpl.SingleTailnetTunnelAuth{})
-	return p
-}
-
-func (p *testPeer) addTunnel(other uuid.UUID) {
-	p.t.Helper()
-	req := &proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{Uuid: agpl.UUIDToByteSlice(other)}}
-	select {
-	case <-p.ctx.Done():
-		p.t.Errorf("timeout adding tunnel for %s", p.name)
-		return
-	case p.reqs <- req:
-		return
-	}
-}
-
-func (p *testPeer) updateDERP(derp int32) {
-	p.t.Helper()
-	req := &proto.CoordinateRequest{UpdateSelf: &proto.CoordinateRequest_UpdateSelf{Node: &proto.Node{PreferredDerp: derp}}}
-	select {
-	case <-p.ctx.Done():
-		p.t.Errorf("timeout updating node for %s", p.name)
-		return
-	case p.reqs <- req:
-		return
-	}
-}
-
-func (p *testPeer) disconnect() {
-	p.t.Helper()
-	req := &proto.CoordinateRequest{Disconnect: &proto.CoordinateRequest_Disconnect{}}
-	select {
-	case <-p.ctx.Done():
-		p.t.Errorf("timeout updating node for %s", p.name)
-		return
-	case p.reqs <- req:
-		return
-	}
-}
-
-func (p *testPeer) assertEventuallyHasDERP(other uuid.UUID, derp int32) {
-	p.t.Helper()
-	for {
-		o, ok := p.peers[other]
-		if ok && o.preferredDERP == derp {
-			return
-		}
-		if err := p.handleOneResp(); err != nil {
-			assert.NoError(p.t, err)
-			return
-		}
-	}
-}
-
-func (p *testPeer) assertEventuallyDisconnected(other uuid.UUID) {
-	p.t.Helper()
-	for {
-		_, ok := p.peers[other]
-		if !ok {
-			return
-		}
-		if err := p.handleOneResp(); err != nil {
-			assert.NoError(p.t, err)
-			return
-		}
-	}
-}
-
-func (p *testPeer) assertEventuallyLost(other uuid.UUID) {
-	p.t.Helper()
-	for {
-		o := p.peers[other]
-		if o.status == proto.CoordinateResponse_PeerUpdate_LOST {
-			return
-		}
-		if err := p.handleOneResp(); err != nil {
-			assert.NoError(p.t, err)
-			return
-		}
-	}
-}
-
-func (p *testPeer) assertEventuallyResponsesClosed() {
-	p.t.Helper()
-	for {
-		err := p.handleOneResp()
-		if xerrors.Is(err, responsesClosed) {
-			return
-		}
-		if !assert.NoError(p.t, err) {
-			return
-		}
-	}
-}
-
-var responsesClosed = xerrors.New("responses closed")
-
-func (p *testPeer) handleOneResp() error {
-	select {
-	case <-p.ctx.Done():
-		return p.ctx.Err()
-	case resp, ok := <-p.resps:
-		if !ok {
-			return responsesClosed
-		}
-		for _, update := range resp.PeerUpdates {
-			id, err := uuid.FromBytes(update.Uuid)
-			if err != nil {
-				return err
-			}
-			switch update.Kind {
-			case proto.CoordinateResponse_PeerUpdate_NODE, proto.CoordinateResponse_PeerUpdate_LOST:
-				p.peers[id] = peerStatus{
-					preferredDERP: update.GetNode().GetPreferredDerp(),
-					status:        update.Kind,
-				}
-			case proto.CoordinateResponse_PeerUpdate_DISCONNECTED:
-				delete(p.peers, id)
-			default:
-				return xerrors.Errorf("unhandled update kind %s", update.Kind)
-			}
-		}
-	}
-	return nil
-}
-
-func (p *testPeer) close(ctx context.Context) {
-	p.t.Helper()
-	p.cancel()
-	for {
-		select {
-		case <-ctx.Done():
-			p.t.Errorf("timeout waiting for responses to close for %s", p.name)
-			return
-		case _, ok := <-p.resps:
-			if ok {
-				continue
-			}
-			return
-		}
-	}
 }
 
 type fakeCoordinator struct {

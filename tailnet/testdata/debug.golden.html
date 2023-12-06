@@ -1,0 +1,62 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<style>
+th, td {
+  padding-top: 6px;
+  padding-bottom: 6px;
+  padding-left: 10px;
+  padding-right: 10px;
+  text-align: left;
+}
+tr {
+  border-bottom: 1px solid #ddd;
+}
+		</style>
+	</head>
+	<body>
+		<h1>in-memory wireguard coordinator debug</h1>
+
+		<h2 id=peers> <a href=#peers>#</a> peers: total 2 </h2>
+		<table>
+			<tr style="margin-top:4px">
+				<th>Name</th>
+				<th>ID</th>
+				<th>Created Age</th>
+				<th>Last Write Age</th>
+				<th>Overwrites</th>
+				<th>Node</th>
+			</tr>
+			<tr style="margin-top:4px">
+				<td>Peer 1</td>
+				<td>01000000-2222-2222-2222-222222222222</td>
+				<td>1m27s</td>
+				<td>5s ago</td>
+				<td>0</td>
+				<td style="white-space: pre;"><code>id:1 preferred_derp:999 endpoints:&#34;192.168.0.49:4449&#34;</code></td>
+			</tr>
+			<tr style="margin-top:4px">
+				<td>Peer 2</td>
+				<td>02000000-2222-2222-2222-222222222222</td>
+				<td>1h0m0s</td>
+				<td>7s ago</td>
+				<td>2</td>
+				<td style="white-space: pre;"><code>id:2 preferred_derp:999 endpoints:&#34;192.168.0.33:4449&#34;</code></td>
+			</tr>
+		</table>
+
+		<h2 id=tunnels><a href=#tunnels>#</a> tunnels: total 1</h2>
+		<table>
+			<tr style="margin-top:4px">
+				<th>SrcID</th>
+				<th>DstID</th>
+			</tr>
+			<tr style="margin-top:4px">
+				<td>01000000-2222-2222-2222-222222222222</td>
+				<td>02000000-2222-2222-2222-222222222222</td>
+			</tr>
+		</table>
+	</body>
+</html>
