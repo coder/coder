@@ -701,6 +701,10 @@ type OIDCConfig struct {
 	// the OIDC provider. Any group not matched by this regex will be ignored.
 	// If the group filter is nil, then no group filtering will occur.
 	GroupFilter *regexp.Regexp
+	// GroupAllowList is a list of groups that are allowed to log in.
+	// If the list length is 0, then the allow list will not be applied and
+	// this feature is disabled.
+	GroupAllowList []string
 	// GroupMapping controls how groups returned by the OIDC provider get mapped
 	// to groups within Coder.
 	// map[oidcGroupName]coderGroupName
@@ -1014,6 +1018,15 @@ func (api *API) oidcGroups(ctx context.Context, mergedClaims map[string]interfac
 	// If the GroupField is the empty string, then groups from OIDC are not used.
 	// This is so we can support manual group assignment.
 	if api.OIDCConfig.GroupField != "" {
+		// allow list is a map of groups that are allowed to log in.
+		allowed := make(map[string]bool)
+		for _, group := range api.OIDCConfig.GroupAllowList {
+			allowed[group] = true
+		}
+		// If the allow list is empty, then the user is allowed to log in.
+		// Otherwise, they must belong to at least 1 group in the allow list.
+		inAllowList := len(allowed) == 0
+
 		usingGroups = true
 		groupsRaw, ok := mergedClaims[api.OIDCConfig.GroupField]
 		if ok {
@@ -1040,7 +1053,19 @@ func (api *API) oidcGroups(ctx context.Context, mergedClaims map[string]interfac
 				if mappedGroup, ok := api.OIDCConfig.GroupMapping[group]; ok {
 					group = mappedGroup
 				}
+				if _, ok := allowed[group]; ok {
+					inAllowList = true
+				}
 				groups = append(groups, group)
+			}
+		}
+
+		if !inAllowList {
+			return usingGroups, groups, &httpError{
+				code:             http.StatusForbidden,
+				msg:              "You aren't a member of an authorized group!",
+				detail:           fmt.Sprintf("You must be a member of one of the following groups: %v", api.OIDCConfig.GroupAllowList),
+				renderStaticPage: false,
 			}
 		}
 	}

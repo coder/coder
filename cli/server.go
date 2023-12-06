@@ -161,6 +161,7 @@ func createOIDCConfig(ctx context.Context, vals *codersdk.DeploymentValues) (*co
 		IgnoreUserInfo:      vals.OIDC.IgnoreUserInfo.Value(),
 		GroupField:          vals.OIDC.GroupField.String(),
 		GroupFilter:         vals.OIDC.GroupRegexFilter.Value(),
+		GroupAllowList:      vals.OIDC.GroupAllowList.Value(),
 		CreateMissingGroups: vals.OIDC.GroupAutoCreate.Value(),
 		GroupMapping:        vals.OIDC.GroupMapping.Value,
 		UserRoleField:       vals.OIDC.UserRoleField.String(),
