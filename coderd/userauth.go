@@ -1061,11 +1061,15 @@ func (api *API) oidcGroups(ctx context.Context, mergedClaims map[string]interfac
 		}
 
 		if !inAllowList {
+			detail := fmt.Sprintf("Ask an administrator to add one of your groups to the whitelist: %s", strings.Join(groups, ", "))
+			if len(groups) == 0 {
+				detail = "You are currently not a member of any groups!"
+			}
 			return usingGroups, groups, &httpError{
 				code:             http.StatusForbidden,
-				msg:              "You aren't a member of an authorized group!",
-				detail:           fmt.Sprintf("You must be a member of one of the following groups: %v", api.OIDCConfig.GroupAllowList),
-				renderStaticPage: false,
+				msg:              "Not a member of an allowed group",
+				detail:           detail,
+				renderStaticPage: true,
 			}
 		}
 	}
