@@ -290,7 +290,7 @@ ORDER BY created_at DESC;
 -- name: GetWorkspaceUniqueOwnerCountByTemplateIDs :many
 SELECT template_id, COUNT(DISTINCT owner_id) AS unique_owners_sum
 FROM workspaces
-WHERE template_id = ANY(@template_ids :: uuid[])
+WHERE template_id = ANY(@template_ids :: uuid[]) AND deleted = false
 GROUP BY template_id;
 
 -- name: InsertWorkspace :one

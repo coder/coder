@@ -4468,6 +4468,9 @@ func (q *FakeQuerier) GetWorkspaceUniqueOwnerCountByTemplateIDs(_ context.Contex
 
 	workspaceOwners := make(map[uuid.UUID]map[uuid.UUID]struct{})
 	for _, workspace := range q.workspaces {
+		if workspace.Deleted {
+			continue
+		}
 		if !slices.Contains(templateIds, workspace.TemplateID) {
 			continue
 		}
