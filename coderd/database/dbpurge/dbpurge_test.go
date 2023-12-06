@@ -14,6 +14,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbpurge"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -92,25 +93,20 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 }
 
 func mustCreateAgentWithLogs(ctx context.Context, t *testing.T, db database.Store, agentLastConnectedAt time.Time, output string) uuid.UUID {
-	agentID := uuid.New()
-
-	_, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
-		ID: agentID,
-	})
-	require.NoError(t, err)
-	err = db.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
-		ID:              agentID,
+	agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{})
+	err := db.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
+		ID:              agent.ID,
 		LastConnectedAt: sql.NullTime{Time: agentLastConnectedAt, Valid: true},
 	})
 	require.NoError(t, err)
 	_, err = db.InsertWorkspaceAgentLogs(ctx, database.InsertWorkspaceAgentLogsParams{
-		AgentID:   agentID,
+		AgentID:   agent.ID,
 		CreatedAt: agentLastConnectedAt,
 		Output:    []string{output},
 		Level:     []database.LogLevel{database.LogLevelDebug},
 	})
 	require.NoError(t, err)
-	return agentID
+	return agent.ID
 }
 
 func containsAgentLog(daemons []database.WorkspaceAgentLog, output string) bool {
