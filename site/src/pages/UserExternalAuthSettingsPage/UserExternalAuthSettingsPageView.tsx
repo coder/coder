@@ -61,7 +61,7 @@ export const UserExternalAuthSettingsPageView = ({
             <TableRow>
               <TableCell>Application</TableCell>
               <TableCell>Link</TableCell>
-              <TableCell></TableCell>
+              <TableCell width="1%"></TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -150,7 +150,7 @@ const ExternalAuthRow = ({
           message={authenticated ? "Authenticated" : "Click to Login"}
           externalAuthPollingState={externalAuthPollingState}
           startPollingExternalAuth={startPollingExternalAuth}
-        ></ExternalAuth>
+        />
       </TableCell>
       <TableCell>
         {(link || externalAuth?.authenticated) && (
