@@ -42,15 +42,14 @@ export const PaginationHeader: FC<PaginationHeaderProps> = ({
           {totalRecords === 0 && <div>No records available</div>}
 
           {totalRecords !== 0 && currentOffsetStart !== undefined && (
-            <div>
+            <div css={{ "& strong": { fontWeight: 500 } }}>
               Showing {paginationUnitLabel}{" "}
+              <strong>{currentOffsetStart}</strong> to{" "}
               <strong>
-                {currentOffsetStart}&ndash;
                 {currentOffsetStart +
                   Math.min(limit - 1, totalRecords - currentOffsetStart)}
               </strong>{" "}
-              (<strong>{totalRecords.toLocaleString()}</strong>{" "}
-              {paginationUnitLabel} total)
+              of <strong>{totalRecords.toLocaleString()}</strong>
             </div>
           )}
         </>
