@@ -1,5 +1,5 @@
 import * as API from "api/api";
-import { HealthSettings } from "api/typesGenerated";
+import { HealthSettings, UpdateHealthSettings } from "api/typesGenerated";
 import { QueryClient, UseMutationOptions } from "react-query";
 
 export const HEALTH_QUERY_KEY = ["health"];
@@ -29,7 +29,12 @@ export const healthSettings = () => {
 
 export const updateHealthSettings = (
   queryClient: QueryClient,
-): UseMutationOptions<void, unknown, HealthSettings, unknown> => {
+): UseMutationOptions<
+  HealthSettings,
+  unknown,
+  UpdateHealthSettings,
+  unknown
+> => {
   return {
     mutationFn: API.updateHealthSettings,
     onSuccess: async (_, newSettings) => {

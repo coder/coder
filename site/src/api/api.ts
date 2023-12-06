@@ -1612,9 +1612,9 @@ export const getHealthSettings = async () => {
 export const updateHealthSettings = async (
   data: TypesGen.UpdateHealthSettings,
 ) => {
-  const updatedSettings = await axios.put<TypesGen.HealthSettings>(
+  const response = await axios.put<TypesGen.HealthSettings>(
     `/api/v2/debug/health/settings`,
     data,
   );
-  return updatedSettings;
+  return response.data;
 };
