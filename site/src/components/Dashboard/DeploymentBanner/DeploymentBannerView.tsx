@@ -105,7 +105,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- We want this to periodically update!
   }, [timeUntilRefresh, stats]);
 
-  const unhealthy = health && !health.healthy;
+  const healthErrors = health ? getHealthErrors(health) : [];
   const displayLatency = stats?.workspaces.connection_latency_ms.P50 || -1;
 
   return (
@@ -131,30 +131,15 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
       <Tooltip
         classes={{ tooltip: summaryTooltip }}
         title={
-          unhealthy ? (
+          healthErrors.length > 0 ? (
             <>
               <HelpTooltipTitle>
                 We have detected problems with your Coder deployment.
               </HelpTooltipTitle>
               <Stack spacing={1}>
-                {!health.access_url.healthy && (
-                  <HealthIssue>
-                    Your access URL may be configured incorrectly.
-                  </HealthIssue>
-                )}
-                {!health.database.healthy && (
-                  <HealthIssue>Your database is unhealthy.</HealthIssue>
-                )}
-                {!health.derp.healthy && (
-                  <HealthIssue>
-                    We&apos;re noticing DERP proxy issues.
-                  </HealthIssue>
-                )}
-                {!health.websocket.healthy && (
-                  <HealthIssue>
-                    We&apos;re noticing websocket issues.
-                  </HealthIssue>
-                )}
+                {healthErrors.map((error) => (
+                  <HealthIssue key={error}>{error}</HealthIssue>
+                ))}
               </Stack>
             </>
           ) : (
@@ -164,7 +149,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
         open={process.env.STORYBOOK === "true" ? true : undefined}
         css={{ marginRight: -16 }}
       >
-        {unhealthy ? (
+        {healthErrors.length > 0 ? (
           <Link
             component={RouterLink}
             to="/health"
@@ -378,6 +363,32 @@ const HealthIssue: FC<PropsWithChildren> = ({ children }) => {
       {children}
     </Stack>
   );
+};
+
+const getHealthErrors = (health: HealthcheckReport) => {
+  const warnings: string[] = [];
+  const sections = [
+    "access_url",
+    "database",
+    "derp",
+    "websocket",
+    "workspace_proxy",
+  ] as const;
+  const messages: Record<(typeof sections)[number], string> = {
+    access_url: "Your access URL may be configured incorrectly.",
+    database: "Your database is unhealthy.",
+    derp: "We're noticing DERP proxy issues.",
+    websocket: "We're noticing websocket issues.",
+    workspace_proxy: "We're noticing workspace proxy issues.",
+  } as const;
+
+  sections.forEach((section) => {
+    if (health[section].severity === "error" && !health[section].dismissed) {
+      warnings.push(messages[section]);
+    }
+  });
+
+  return warnings;
 };
 
 const classNames = {
