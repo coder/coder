@@ -3148,3 +3148,7 @@ export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
     },
   },
 };
+
+export const MockHealthSettings: TypesGen.HealthSettings = {
+  dismissed_healthchecks: [],
+};
