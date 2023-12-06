@@ -1599,5 +1599,9 @@ export const getHealthSettings = async () => {
 export const updateHealthSettings = async (
   data: TypesGen.UpdateHealthSettings,
 ) => {
-  return (await axios.put<void>(`/api/v2/debug/health/settings`, data)).data;
+  const updatedSettings = await axios.put<TypesGen.HealthSettings>(
+    `/api/v2/debug/health/settings`,
+    data,
+  );
+  return updatedSettings;
 };
