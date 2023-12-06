@@ -12,6 +12,7 @@ import { HealthcheckReport } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
+import { DismissWarningButton } from "./DismissWarningButton";
 
 export const AccessURLPage = () => {
   const healthStatus = useOutletContext<HealthcheckReport>();
@@ -28,6 +29,7 @@ export const AccessURLPage = () => {
           <HealthyDot severity={accessUrl.severity} />
           Access URL
         </HeaderTitle>
+        <DismissWarningButton healthcheck="AccessURL" />
       </Header>
 
       <Main>

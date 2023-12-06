@@ -3149,6 +3149,10 @@ export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
   },
 };
 
+export const MockHealthSettings: TypesGen.HealthSettings = {
+  dismissed_healthchecks: [],
+};
+
 export const MockGithubExternalProvider: TypesGen.ExternalAuthLinkProvider = {
   id: "github",
   type: "github",

@@ -15,6 +15,7 @@ import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { Alert } from "components/Alert/Alert";
 import { pageTitle } from "utils/page";
 import { Helmet } from "react-helmet-async";
+import { DismissWarningButton } from "./DismissWarningButton";
 
 export const WebsocketPage = () => {
   const healthStatus = useOutletContext<HealthcheckReport>();
@@ -32,6 +33,7 @@ export const WebsocketPage = () => {
           <HealthyDot severity={websocket.severity} />
           Websocket
         </HeaderTitle>
+        <DismissWarningButton healthcheck="Websocket" />
       </Header>
 
       <Main>
