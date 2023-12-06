@@ -475,10 +475,11 @@ func (s *Server) DialCoordinator(ctx context.Context) (tailnet.MultiAgentConn, e
 
 func (s *Server) buildInfo(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.BuildInfoResponse{
-		ExternalURL:    buildinfo.ExternalURL(),
-		Version:        buildinfo.Version(),
-		DashboardURL:   s.DashboardURL.String(),
-		WorkspaceProxy: true,
+		ExternalURL:     buildinfo.ExternalURL(),
+		Version:         buildinfo.Version(),
+		AgentAPIVersion: coderd.AgentAPIVersionREST,
+		DashboardURL:    s.DashboardURL.String(),
+		WorkspaceProxy:  true,
 	})
 }
 
