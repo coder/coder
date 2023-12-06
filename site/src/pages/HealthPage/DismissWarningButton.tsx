@@ -11,7 +11,9 @@ export const DismissWarningButton = (props: { healthcheck: HealthSection }) => {
   const queryClient = useQueryClient();
   const healthSettingsQuery = useQuery(healthSettings());
   // They call the same mutation but are used in diff contexts so we don't want
-  // to merge their states
+  // to merge their states. Eg. You dismiss a warning and when it is done it
+  // will show the enable button but since the mutation is still invalidating
+  // other queries it will be in the loading state when it should be idle.
   const enableMutation = useMutation(updateHealthSettings(queryClient));
   const dismissMutation = useMutation(updateHealthSettings(queryClient));
 
