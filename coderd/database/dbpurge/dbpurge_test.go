@@ -93,7 +93,7 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 }
 
 func mustCreateAgentWithLogs(ctx context.Context, t *testing.T, db database.Store, agentLastConnectedAt time.Time, output string) uuid.UUID {
-	agent := mustCreateAgent(ctx, t, db)
+	agent := mustCreateAgent(t, db)
 
 	err := db.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
 		ID:              agent.ID,
@@ -110,7 +110,7 @@ func mustCreateAgentWithLogs(ctx context.Context, t *testing.T, db database.Stor
 	return agent.ID
 }
 
-func mustCreateAgent(ctx context.Context, t *testing.T, db database.Store) database.WorkspaceAgent {
+func mustCreateAgent(t *testing.T, db database.Store) database.WorkspaceAgent {
 	user := dbgen.User(t, db, database.User{})
 	workspace := dbgen.Workspace(t, db, database.Workspace{
 		OwnerID: user.ID,
