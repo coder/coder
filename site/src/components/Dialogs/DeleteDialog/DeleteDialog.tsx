@@ -18,6 +18,10 @@ export interface DeleteDialogProps {
   name: string;
   info?: string;
   confirmLoading?: boolean;
+  verb?: string;
+  title?: string;
+  label?: string;
+  confirmText?: string;
 }
 
 export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
@@ -28,6 +32,11 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
   info,
   name,
   confirmLoading,
+  // All optional to change the verbiage. For example, "unlinking" vs "deleting"
+  verb,
+  title,
+  label,
+  confirmText,
 }) => {
   const hookId = useId();
   const theme = useTheme();
@@ -52,14 +61,17 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
       type="delete"
       hideCancel={false}
       open={isOpen}
-      title={`Delete ${entity}`}
+      title={title ?? `Delete ${entity}`}
       onConfirm={onConfirm}
       onClose={onCancel}
       confirmLoading={confirmLoading}
       disabled={!deletionConfirmed}
+      confirmText={confirmText}
       description={
         <>
-          <p>Deleting this {entity} is irreversible!</p>
+          <p>
+            {verb ?? "Deleting"} this {entity} is irreversible!
+          </p>
 
           {Boolean(info) && (
             <p css={{ color: theme.palette.warning.light }}>{info}</p>
@@ -84,7 +96,7 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
               onChange={(event) => setUserConfirmationText(event.target.value)}
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
-              label={`Name of the ${entity} to delete`}
+              label={label ?? `Name of the ${entity} to delete`}
               color={inputColor}
               error={displayErrorMessage}
               helperText={

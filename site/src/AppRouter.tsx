@@ -132,6 +132,10 @@ const ObservabilitySettingsPage = lazy(
 const ExternalAuthPage = lazy(
   () => import("./pages/ExternalAuthPage/ExternalAuthPage"),
 );
+const UserExternalAuthSettingsPage = lazy(
+  () =>
+    import("./pages/UserExternalAuthSettingsPage/UserExternalAuthSettingsPage"),
+);
 const TemplateVersionPage = lazy(
   () => import("./pages/TemplateVersionPage/TemplateVersionPage"),
 );
@@ -265,6 +269,10 @@ export const AppRouter: FC = () => {
                   <Route path="versions">
                     <Route path=":version">
                       <Route index element={<TemplateVersionPage />} />
+                      <Route
+                        path="edit"
+                        element={<TemplateVersionEditorPage />}
+                      />
                     </Route>
                   </Route>
                 </Route>
@@ -320,6 +328,10 @@ export const AppRouter: FC = () => {
                 <Route path="schedule" element={<SchedulePage />} />
                 <Route path="security" element={<SecurityPage />} />
                 <Route path="ssh-keys" element={<SSHKeysPage />} />
+                <Route
+                  path="external-auth"
+                  element={<UserExternalAuthSettingsPage />}
+                />
                 <Route path="tokens">
                   <Route index element={<TokensPage />} />
                   <Route path="new" element={<CreateTokenPage />} />
@@ -366,17 +378,13 @@ export const AppRouter: FC = () => {
               <Route path="*" element={<NotFoundPage />} />
             </Route>
 
-            {/* Pages that don't have the dashboard layout */}
+            {/* Terminal and CLI auth pages don't have the dashboard layout */}
             <Route
               path="/:username/:workspace/terminal"
               element={<TerminalPage />}
             />
             <Route path="/cli-auth" element={<CliAuthenticationPage />} />
             <Route path="/icons" element={<IconsPage />} />
-            <Route
-              path="/templates/:template/versions/:version/edit"
-              element={<TemplateVersionEditorPage />}
-            />
           </Route>
         </Routes>
       </Router>

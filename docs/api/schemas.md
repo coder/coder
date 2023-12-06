@@ -3005,11 +3005,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "authenticated": true,
   "created_at": "2019-08-24T14:15:22Z",
   "expires": "2019-08-24T14:15:22Z",
   "has_refresh_token": true,
   "provider_id": "string",
-  "updated_at": "2019-08-24T14:15:22Z"
+  "updated_at": "2019-08-24T14:15:22Z",
+  "validate_error": "string"
 }
 ```
 
@@ -3017,11 +3019,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name                | Type    | Required | Restrictions | Description |
 | ------------------- | ------- | -------- | ------------ | ----------- |
+| `authenticated`     | boolean | false    |              |             |
 | `created_at`        | string  | false    |              |             |
 | `expires`           | string  | false    |              |             |
 | `has_refresh_token` | boolean | false    |              |             |
 | `provider_id`       | string  | false    |              |             |
 | `updated_at`        | string  | false    |              |             |
+| `validate_error`    | string  | false    |              |             |
 
 ## codersdk.ExternalAuthUser
 

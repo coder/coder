@@ -337,6 +337,36 @@ func (api *API) listUserExternalAuths(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// This process of authenticating each external link increases the
+	// response time. However, it is necessary to more correctly debug
+	// authentication issues.
+	// We can do this in parallel if we want to speed it up.
+	configs := make(map[string]*externalauth.Config)
+	for _, cfg := range api.ExternalAuthConfigs {
+		configs[cfg.ID] = cfg
+	}
+	// Check if the links are authenticated.
+	linkMeta := make(map[string]db2sdk.ExternalAuthMeta)
+	for i, link := range links {
+		if link.OAuthAccessToken != "" {
+			cfg, ok := configs[link.ProviderID]
+			if ok {
+				newLink, valid, err := cfg.RefreshToken(ctx, api.Database, link)
+				meta := db2sdk.ExternalAuthMeta{
+					Authenticated: valid,
+				}
+				if err != nil {
+					meta.ValidateError = err.Error()
+				}
+				// Update the link if it was potentially refreshed.
+				if err == nil && valid {
+					links[i] = newLink
+				}
+				break
+			}
+		}
+	}
+
 	// Note: It would be really nice if we could cfg.Validate() the links and
 	// return their authenticated status. To do this, we would also have to
 	// refresh expired tokens too. For now, I do not want to cause the excess
@@ -344,7 +374,7 @@ func (api *API) listUserExternalAuths(rw http.ResponseWriter, r *http.Request) {
 	// call.
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ListUserExternalAuthResponse{
 		Providers: ExternalAuthConfigs(api.ExternalAuthConfigs),
-		Links:     db2sdk.ExternalAuths(links),
+		Links:     db2sdk.ExternalAuths(links, linkMeta),
 	})
 }
 

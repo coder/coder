@@ -1154,8 +1154,29 @@ func (q *FakeQuerier) DeleteOldProvisionerDaemons(_ context.Context) error {
 	return nil
 }
 
-func (*FakeQuerier) DeleteOldWorkspaceAgentLogs(_ context.Context) error {
-	// no-op
+func (q *FakeQuerier) DeleteOldWorkspaceAgentLogs(_ context.Context) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	now := dbtime.Now()
+	weekInterval := 7 * 24 * time.Hour
+	weekAgo := now.Add(-weekInterval)
+
+	var validLogs []database.WorkspaceAgentLog
+	for _, log := range q.workspaceAgentLogs {
+		var toBeDeleted bool
+		for _, agent := range q.workspaceAgents {
+			if agent.ID == log.AgentID && agent.LastConnectedAt.Valid && agent.LastConnectedAt.Time.Before(weekAgo) {
+				toBeDeleted = true
+				break
+			}
+		}
+
+		if !toBeDeleted {
+			validLogs = append(validLogs, log)
+		}
+	}
+	q.workspaceAgentLogs = validLogs
 	return nil
 }
 
