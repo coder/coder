@@ -93,7 +93,8 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 }
 
 func mustCreateAgentWithLogs(ctx context.Context, t *testing.T, db database.Store, agentLastConnectedAt time.Time, output string) uuid.UUID {
-	agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{})
+	agent := mustCreateAgent(ctx, t, db)
+
 	err := db.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
 		ID:              agent.ID,
 		LastConnectedAt: sql.NullTime{Time: agentLastConnectedAt, Valid: true},
@@ -107,6 +108,31 @@ func mustCreateAgentWithLogs(ctx context.Context, t *testing.T, db database.Stor
 	})
 	require.NoError(t, err)
 	return agent.ID
+}
+
+func mustCreateAgent(ctx context.Context, t *testing.T, db database.Store) database.WorkspaceAgent {
+	user := dbgen.User(t, db, database.User{})
+	workspace := dbgen.Workspace(t, db, database.Workspace{
+		OwnerID: user.ID,
+	})
+	build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID: workspace.ID,
+		Transition:  database.WorkspaceTransitionStart,
+		Reason:      database.BuildReasonInitiator,
+	})
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		ID:            build.JobID,
+		Type:          database.ProvisionerJobTypeWorkspaceBuild,
+		Provisioner:   database.ProvisionerTypeEcho,
+		StorageMethod: database.ProvisionerStorageMethodFile,
+	})
+	resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+		JobID:      job.ID,
+		Transition: database.WorkspaceTransitionStart,
+	})
+	return dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+		ResourceID: resource.ID,
+	})
 }
 
 func containsAgentLog(daemons []database.WorkspaceAgentLog, output string) bool {
