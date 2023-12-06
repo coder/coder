@@ -1,4 +1,4 @@
-import { type Theme as MuiTheme } from "@mui/material";
+import { type Theme as MuiTheme } from "@mui/material/styles";
 import dark from "./dark";
 import darkBlue from "./darkBlue";
 import { type NewTheme } from "./experimental";
@@ -12,7 +12,6 @@ export interface Theme extends MuiTheme {
 const theme = {
   dark,
   darkBlue,
-  light: dark,
 } satisfies Record<string, Theme>;
 
 export default theme;

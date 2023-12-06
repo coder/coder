@@ -146,7 +146,7 @@ const TerminalPage: FC = () => {
       window.removeEventListener("resize", listener);
       terminal.dispose();
     };
-  }, [renderer, config.isLoading, xtermRef, handleWebLinkRef]);
+  }, [theme, renderer, config.isLoading, xtermRef, handleWebLinkRef]);
 
   // Updates the reconnection token into the URL if necessary.
   useEffect(() => {
