@@ -4462,8 +4462,31 @@ func (q *FakeQuerier) GetWorkspaceResourcesCreatedAfter(_ context.Context, after
 	return resources, nil
 }
 
-func (q *FakeQuerier) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Context, templateIds []uuid.UUID) ([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow, error) {
-	panic("not implemented")
+func (q *FakeQuerier) GetWorkspaceUniqueOwnerCountByTemplateIDs(_ context.Context, templateIds []uuid.UUID) ([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	workspaceOwners := make(map[uuid.UUID]map[uuid.UUID]struct{})
+	for _, workspace := range q.workspaces {
+		if !slices.Contains(templateIds, workspace.TemplateID) {
+			continue
+		}
+		_, ok := workspaceOwners[workspace.TemplateID]
+		if !ok {
+			workspaceOwners[workspace.TemplateID] = make(map[uuid.UUID]struct{})
+		}
+		workspaceOwners[workspace.TemplateID][workspace.OwnerID] = struct{}{}
+	}
+	resp := make([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow, 0)
+	for _, templateID := range templateIds {
+		count := len(workspaceOwners[templateID])
+		resp = append(resp, database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow{
+			TemplateID:      templateID,
+			UniqueOwnersSum: int64(count),
+		})
+	}
+
+	return resp, nil
 }
 
 func (q *FakeQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesParams) ([]database.GetWorkspacesRow, error) {

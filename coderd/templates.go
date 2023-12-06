@@ -831,6 +831,7 @@ func (api *API) convertTemplate(
 	template database.Template,
 ) codersdk.Template {
 	templateAccessControl := (*(api.Options.AccessControlStore.Load())).GetTemplateAccessControl(template)
+
 	owners := 0
 	o, ok := api.metricsCache.TemplateWorkspaceOwners(template.ID)
 	if ok {
