@@ -119,9 +119,10 @@ func mustCreateAgentWithLogs(ctx context.Context, t *testing.T, db database.Stor
 func mustCreateAgent(t *testing.T, db database.Store, user database.User, org database.Organization, tmpl database.Template, tv database.TemplateVersion) database.WorkspaceAgent {
 	workspace := dbgen.Workspace(t, db, database.Workspace{OwnerID: user.ID, OrganizationID: org.ID, TemplateID: tmpl.ID})
 	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-		Type:          database.ProvisionerJobTypeWorkspaceBuild,
-		Provisioner:   database.ProvisionerTypeEcho,
-		StorageMethod: database.ProvisionerStorageMethodFile,
+		OrganizationID: org.ID,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		Provisioner:    database.ProvisionerTypeEcho,
+		StorageMethod:  database.ProvisionerStorageMethodFile,
 	})
 	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
 		WorkspaceID:       workspace.ID,
