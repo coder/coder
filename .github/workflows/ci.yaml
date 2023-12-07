@@ -772,6 +772,7 @@ jobs:
           flux --namespace flux-system reconcile kustomization coder
           flux --namespace flux-system reconcile source chart coder-coder
           flux --namespace coder reconcile helmrelease coder
+          flux --namespace coder reconcile helmrelease coder-provisioner
 
       # Just updating Flux is usually not enough. The Helm release may get
       # redeployed, but unless something causes the Deployment to update the
@@ -783,6 +784,9 @@ jobs:
           set -euxo pipefail
           kubectl --namespace coder rollout restart deployment/coder
           kubectl --namespace coder rollout status deployment/coder
+          kubectl --namespace coder rollout restart deployment/coder-provisioner
+          kubectl --namespace coder rollout status deployment/coder-provisioner
+
 
   deploy-wsproxies:
     runs-on: ubuntu-latest
