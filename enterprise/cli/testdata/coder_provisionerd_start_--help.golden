@@ -9,7 +9,7 @@ OPTIONS:
   -c, --cache-dir string, $CODER_CACHE_DIRECTORY (default: [cache dir])
           Directory to store cached data.
 
-      --name string, $CODER_PROVISIONER_DAEMON_NAME (default: ser6)
+      --name string, $CODER_PROVISIONER_DAEMON_NAME
           Name of this provisioner daemon. Defaults to the current hostname
           without FQDN.
 

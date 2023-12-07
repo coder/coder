@@ -73,6 +73,9 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 			if len(name) > 64 {
 				return xerrors.Errorf("name cannot be greater than 64 characters in length")
 			}
+			if name == "" {
+				name = cliutil.Hostname()
+			}
 
 			logger := slog.Make(sloghuman.Sink(inv.Stderr))
 			if ok, _ := inv.ParsedFlags().GetBool("verbose"); ok {
@@ -217,7 +220,7 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 			Env:         "CODER_PROVISIONER_DAEMON_NAME",
 			Description: "Name of this provisioner daemon. Defaults to the current hostname without FQDN.",
 			Value:       clibase.StringOf(&name),
-			Default:     cliutil.Hostname(),
+			Default:     "",
 		},
 	}
 
