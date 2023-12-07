@@ -1180,8 +1180,22 @@ func (q *FakeQuerier) DeleteOldWorkspaceAgentLogs(_ context.Context) error {
 	return nil
 }
 
-func (*FakeQuerier) DeleteOldWorkspaceAgentStats(_ context.Context) error {
-	// no-op
+func (q *FakeQuerier) DeleteOldWorkspaceAgentStats(_ context.Context) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	now := dbtime.Now()
+	sixMonthInterval := 6 * 30 * 24 * time.Hour
+	sixMonthsAgo := now.Add(-sixMonthInterval)
+
+	var validStats []database.WorkspaceAgentStat
+	for _, stat := range q.workspaceAgentStats {
+		if stat.CreatedAt.Before(sixMonthsAgo) {
+			continue
+		}
+		validStats = append(validStats, stat)
+	}
+	q.workspaceAgentStats = validStats
 	return nil
 }
 
@@ -4504,6 +4518,36 @@ func (q *FakeQuerier) GetWorkspaceResourcesCreatedAfter(_ context.Context, after
 		}
 	}
 	return resources, nil
+}
+
+func (q *FakeQuerier) GetWorkspaceUniqueOwnerCountByTemplateIDs(_ context.Context, templateIds []uuid.UUID) ([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	workspaceOwners := make(map[uuid.UUID]map[uuid.UUID]struct{})
+	for _, workspace := range q.workspaces {
+		if workspace.Deleted {
+			continue
+		}
+		if !slices.Contains(templateIds, workspace.TemplateID) {
+			continue
+		}
+		_, ok := workspaceOwners[workspace.TemplateID]
+		if !ok {
+			workspaceOwners[workspace.TemplateID] = make(map[uuid.UUID]struct{})
+		}
+		workspaceOwners[workspace.TemplateID][workspace.OwnerID] = struct{}{}
+	}
+	resp := make([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow, 0)
+	for _, templateID := range templateIds {
+		count := len(workspaceOwners[templateID])
+		resp = append(resp, database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow{
+			TemplateID:      templateID,
+			UniqueOwnersSum: int64(count),
+		})
+	}
+
+	return resp, nil
 }
 
 func (q *FakeQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesParams) ([]database.GetWorkspacesRow, error) {

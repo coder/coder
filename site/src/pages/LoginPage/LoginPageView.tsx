@@ -24,7 +24,7 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
   const redirectTo = retrieveRedirect(location.search);
   // This allows messages to be displayed at the top of the sign in form.
   // Helpful for any redirects that want to inform the user of something.
-  const info = new URLSearchParams(location.search).get("info") || undefined;
+  const message = new URLSearchParams(location.search).get("message");
   const applicationName = getApplicationName();
   const logoURL = getLogoURL();
   const applicationLogo = logoURL ? (
@@ -52,7 +52,7 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
           redirectTo={redirectTo}
           isSigningIn={isSigningIn}
           error={error}
-          info={info}
+          message={message}
           onSubmit={onSignIn}
         />
         <footer css={styles.footer}>

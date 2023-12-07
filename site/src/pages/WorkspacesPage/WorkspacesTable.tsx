@@ -259,6 +259,7 @@ const WorkspacesRow: FC<WorkspacesRowProps> = ({
       {...clickableProps}
       data-testid={`workspace-${workspace.id}`}
       css={{
+        ...clickableProps.css,
         backgroundColor: checked ? theme.palette.action.hover : undefined,
       }}
     >
