@@ -15,6 +15,7 @@ import BuildingIcon from "@mui/icons-material/Build";
 import Tooltip from "@mui/material/Tooltip";
 import { Link as RouterLink } from "react-router-dom";
 import Link from "@mui/material/Link";
+import { JetBrainsIcon } from "components/Icons/JetBrainsIcon";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import DownloadIcon from "@mui/icons-material/CloudDownload";
 import UploadIcon from "@mui/icons-material/CloudUpload";
@@ -245,6 +246,21 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
               {typeof stats?.session_count.vscode === "undefined"
                 ? "-"
                 : stats?.session_count.vscode}
+            </div>
+          </Tooltip>
+          <ValueSeparator />
+          <Tooltip title="JetBrains Editors">
+            <div css={styles.value}>
+              <JetBrainsIcon
+                css={css`
+                  & * {
+                    fill: currentColor;
+                  }
+                `}
+              />
+              {typeof stats?.session_count.jetbrains === "undefined"
+                ? "-"
+                : stats?.session_count.jetbrains}
             </div>
           </Tooltip>
           <ValueSeparator />
