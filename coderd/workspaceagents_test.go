@@ -929,7 +929,7 @@ func TestWorkspaceAgentReportStats(t *testing.T) {
 			SessionCountSSH:             0,
 			ConnectionMedianLatencyMS:   10,
 		})
-		require.ErrorContains(t, err, "Workspace has been deleted.")
+		require.ErrorContains(t, err, "agent is invalid")
 	})
 }
 
