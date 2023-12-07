@@ -118,6 +118,7 @@ export const PopoverContent: FC<PopoverContentProps> = ({
   horizontal = "left",
   ...popoverProps
 }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
   const popover = usePopover();
   const [isReady, setIsReady] = useState(false);
   const hoverMode = popover.mode === "hover";
@@ -136,29 +137,36 @@ export const PopoverContent: FC<PopoverContentProps> = ({
   }
 
   return (
-    <MuiPopover
-      disablePortal
-      css={{
-        // When it is on hover mode, and the mode is moving from the trigger to
-        // the popover, if there is any space, the popover will be closed. I
-        // found this is a limitation on how MUI structured the component. It is
-        // not a big issue for now but we can re-evaluate it in the future.
-        marginTop: hoverMode ? undefined : 8,
-        pointerEvents: hoverMode ? "none" : undefined,
-        "& .MuiPaper-root": {
-          minWidth: 320,
-          fontSize: 14,
-          pointerEvents: hoverMode ? "auto" : undefined,
-        },
-      }}
-      {...horizontalProps(horizontal)}
-      {...modeProps(popover)}
-      {...popoverProps}
-      id={popover.id}
-      open={popover.isOpen}
-      onClose={() => popover.setIsOpen(false)}
-      anchorEl={popover.triggerRef.current}
-    />
+    // For some reason, when MUI is rendering a popover or menu with
+    // disablePortal, it is using aria-hidden="true". It is a bug but it is not
+    // fixed yet so we have to define our own container for now.
+    // https://github.com/mui/material-ui/issues/19450#issuecomment-1539832475
+    <div ref={containerRef}>
+      <MuiPopover
+        disablePortal
+        container={() => containerRef.current}
+        css={{
+          // When it is on hover mode, and the mode is moving from the trigger to
+          // the popover, if there is any space, the popover will be closed. I
+          // found this is a limitation on how MUI structured the component. It is
+          // not a big issue for now but we can re-evaluate it in the future.
+          marginTop: hoverMode ? undefined : 8,
+          pointerEvents: hoverMode ? "none" : undefined,
+          "& .MuiPaper-root": {
+            minWidth: 320,
+            fontSize: 14,
+            pointerEvents: hoverMode ? "auto" : undefined,
+          },
+        }}
+        {...horizontalProps(horizontal)}
+        {...modeProps(popover)}
+        {...popoverProps}
+        id={popover.id}
+        open={popover.isOpen}
+        onClose={() => popover.setIsOpen(false)}
+        anchorEl={popover.triggerRef.current}
+      />
+    </div>
   );
 };
 
