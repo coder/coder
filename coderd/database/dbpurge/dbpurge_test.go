@@ -209,39 +209,35 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 	now := dbtime.Now()
 
 	// given
-	_, err := db.InsertProvisionerDaemon(ctx, database.InsertProvisionerDaemonParams{
+	_, err := db.UpsertProvisionerDaemon(ctx, database.UpsertProvisionerDaemonParams{
 		// Provisioner daemon created 14 days ago, and checked in just before 7 days deadline.
-		ID:           uuid.New(),
 		Name:         "external-0",
 		Provisioners: []database.ProvisionerType{"echo"},
 		CreatedAt:    now.Add(-14 * 24 * time.Hour),
-		LastSeenAt:   sql.NullTime{Valid: true, Time: now.Add(-7 * 24 * time.Hour).Add(time.Minute)},
+		LastSeenAt:   sql.NullTime{Time: now.Add(-7 * 24 * time.Hour).Add(time.Minute), Valid: true},
 	})
 	require.NoError(t, err)
-	_, err = db.InsertProvisionerDaemon(ctx, database.InsertProvisionerDaemonParams{
+	_, err = db.UpsertProvisionerDaemon(ctx, database.UpsertProvisionerDaemonParams{
 		// Provisioner daemon created 8 days ago, and checked in last time an hour after creation.
-		ID:           uuid.New(),
 		Name:         "external-1",
 		Provisioners: []database.ProvisionerType{"echo"},
 		CreatedAt:    now.Add(-8 * 24 * time.Hour),
-		LastSeenAt:   sql.NullTime{Valid: true, Time: now.Add(-8 * 24 * time.Hour).Add(time.Hour)},
+		LastSeenAt:   sql.NullTime{Time: now.Add(-8 * 24 * time.Hour).Add(time.Hour), Valid: true},
 	})
 	require.NoError(t, err)
-	_, err = db.InsertProvisionerDaemon(ctx, database.InsertProvisionerDaemonParams{
+	_, err = db.UpsertProvisionerDaemon(ctx, database.UpsertProvisionerDaemonParams{
 		// Provisioner daemon created 9 days ago, and never checked in.
-		ID:           uuid.New(),
 		Name:         "external-2",
 		Provisioners: []database.ProvisionerType{"echo"},
 		CreatedAt:    now.Add(-9 * 24 * time.Hour),
 	})
 	require.NoError(t, err)
-	_, err = db.InsertProvisionerDaemon(ctx, database.InsertProvisionerDaemonParams{
+	_, err = db.UpsertProvisionerDaemon(ctx, database.UpsertProvisionerDaemonParams{
 		// Provisioner daemon created 6 days ago, and never checked in.
-		ID:           uuid.New(),
 		Name:         "external-3",
 		Provisioners: []database.ProvisionerType{"echo"},
 		CreatedAt:    now.Add(-6 * 24 * time.Hour),
-		LastSeenAt:   sql.NullTime{Valid: true, Time: now.Add(-6 * 24 * time.Hour)},
+		LastSeenAt:   sql.NullTime{Time: now.Add(-6 * 24 * time.Hour), Valid: true},
 	})
 	require.NoError(t, err)
 

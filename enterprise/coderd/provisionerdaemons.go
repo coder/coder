@@ -24,8 +24,9 @@ import (
 	"storj.io/drpc/drpcserver"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
@@ -76,14 +77,6 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	}
 	if daemons == nil {
 		daemons = []database.ProvisionerDaemon{}
-	}
-	daemons, err = coderd.AuthorizeFilter(api.AGPL.HTTPAuth, r, rbac.ActionRead, daemons)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching provisioner daemons.",
-			Detail:  err.Error(),
-		})
-		return
 	}
 	apiDaemons := make([]codersdk.ProvisionerDaemon, 0)
 	for _, daemon := range daemons {
@@ -220,6 +213,39 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		slog.F("provisioners", provisioners),
 		slog.F("tags", tags),
 	)
+
+	// If we're authenticating with a PSK, there will be no dbauthz actor in context.
+	// Using dbauthz.AsSystemRestricted to authorize in this case.
+	authCtx := ctx
+	if hdr := r.Header.Get(codersdk.ProvisionerDaemonPSK); hdr != "" {
+		//nolint:gocritic // provisionerDaemonAuth.authorize already said ok
+		authCtx = dbauthz.AsSystemRestricted(ctx)
+	}
+	_, err := api.Database.UpsertProvisionerDaemon(authCtx, database.UpsertProvisionerDaemonParams{
+		CreatedAt:    dbtime.Now(),
+		Name:         name,
+		Provisioners: provisioners,
+		Tags:         tags,
+		LastSeenAt:   sql.NullTime{Time: dbtime.Now(), Valid: true},
+		Version:      "",
+	})
+	if err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			log.Warn(ctx, "provisioner daemon clobber attempt")
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "There is already a provisioner running under that name.",
+			})
+			return
+		}
+		if !xerrors.Is(err, context.Canceled) {
+			log.Warn(ctx, "write provisioner daemon", slog.Error(err))
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error writing provisioner daemon",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
 	api.AGPL.WebsocketWaitMutex.Lock()
 	api.AGPL.WebsocketWaitGroup.Add(1)

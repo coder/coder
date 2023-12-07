@@ -148,6 +148,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			ResourceRoleAssignment.Type: {ActionRead},
 			// All users can see the provisioner daemons.
 			ResourceProvisionerDaemon.Type: {ActionRead},
+			// All users can see user-scoped provisioner daemons
+			ResourceProvisionerDaemonUser.Type: {ActionRead},
 		}),
 		Org: map[string][]Permission{},
 		User: append(allPermsExcept(ResourceWorkspaceDormant, ResourceUser, ResourceOrganizationMember),
@@ -189,7 +191,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			ResourceFile.Type:      {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 			ResourceWorkspace.Type: {ActionRead},
 			// CRUD to provisioner daemons for now.
-			ResourceProvisionerDaemon.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+			ResourceProvisionerDaemon.Type:     {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+			ResourceProvisionerDaemonUser.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 			// Needs to read all organizations since
 			ResourceOrganization.Type: {ActionRead},
 			ResourceUser.Type:         {ActionRead},

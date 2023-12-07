@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"database/sql"
 	"flag"
 	"fmt"
 	"io"
@@ -47,6 +48,7 @@ import (
 	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/healthcheck"
@@ -1159,8 +1161,21 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, name string
 		}
 	}()
 
-	tags := provisionerdserver.Tags{
-		provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+	//nolint:gocritic // Inserting a provisioner daemon is a system function.
+	daemon, err := api.Database.UpsertProvisionerDaemon(dbauthz.AsSystemRestricted(ctx), database.UpsertProvisionerDaemonParams{
+		CreatedAt: dbtime.Now(),
+		Name:      name,
+		Provisioners: []database.ProvisionerType{
+			database.ProvisionerTypeEcho, database.ProvisionerTypeTerraform,
+		},
+		Tags: database.StringMap{
+			provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+		},
+		LastSeenAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
+		Version:    buildinfo.Version(),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("insert provisioner daemon %q: %w", name, err)
 	}
 
 	mux := drpcmux.New()
@@ -1169,12 +1184,10 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, name string
 	srv, err := provisionerdserver.NewServer(
 		api.ctx,
 		api.AccessURL,
-		uuid.New(),
+		daemon.ID,
 		logger,
-		[]database.ProvisionerType{
-			database.ProvisionerTypeEcho, database.ProvisionerTypeTerraform,
-		},
-		tags,
+		daemon.Provisioners,
+		provisionerdserver.Tags(daemon.Tags),
 		api.Database,
 		api.Pubsub,
 		api.Acquirer,

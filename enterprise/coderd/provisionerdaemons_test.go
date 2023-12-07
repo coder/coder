@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -36,8 +38,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 			},
 		}})
 		templateAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleTemplateAdmin())
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 		srv, err := templateAdminClient.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
 			ID:           uuid.New(),
 			Name:         t.Name(),
@@ -48,6 +49,27 @@ func TestProvisionerDaemonServe(t *testing.T) {
 			Tags: map[string]string{},
 		})
 		require.NoError(t, err)
+		if daemons, err := client.ProvisionerDaemons(ctx); assert.NoError(t, err) {
+			require.Len(t, daemons, 1)
+			require.Equal(t, daemons[0].Name, t.Name())
+		}
+		srv.DRPCConn().Close()
+
+		// Daemon should reconnect successfully too
+		srv, err = templateAdminClient.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+			ID:           uuid.New(),
+			Name:         t.Name(),
+			Organization: user.OrganizationID,
+			Provisioners: []codersdk.ProvisionerType{
+				codersdk.ProvisionerTypeEcho,
+			},
+			Tags: map[string]string{},
+		})
+		require.NoError(t, err)
+		if daemons, err := client.ProvisionerDaemons(ctx); assert.NoError(t, err) {
+			require.Len(t, daemons, 1)
+			require.Equal(t, daemons[0].Name, t.Name())
+		}
 		srv.DRPCConn().Close()
 	})
 
@@ -55,8 +77,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		t.Parallel()
 		client, user := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
 		templateAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleTemplateAdmin())
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 		_, err := templateAdminClient.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
 			ID:           uuid.New(),
 			Name:         t.Name(),
@@ -79,9 +100,8 @@ func TestProvisionerDaemonServe(t *testing.T) {
 				codersdk.FeatureExternalProvisionerDaemons: 1,
 			},
 		}})
-		another, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOrgAdmin(user.OrganizationID))
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		another, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleTemplateAdmin())
+		ctx := testutil.Context(t, testutil.WaitLong)
 		_, err := another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
 			ID:           uuid.New(),
 			Name:         t.Name(),
@@ -93,10 +113,11 @@ func TestProvisionerDaemonServe(t *testing.T) {
 				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 			},
 		})
-		require.Error(t, err)
-		var apiError *codersdk.Error
-		require.ErrorAs(t, err, &apiError)
-		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
+		require.NoError(t, err)
+		if daemons, err := client.ProvisionerDaemons(ctx); assert.NoError(t, err) {
+			require.Len(t, daemons, 1)
+			require.Equal(t, daemons[0].Name, t.Name())
+		}
 	})
 
 	t.Run("OrganizationNoPerms", func(t *testing.T) {
@@ -107,8 +128,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 			},
 		}})
 		another, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 		_, err := another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
 			ID:           uuid.New(),
 			Name:         t.Name(),
@@ -133,11 +153,11 @@ func TestProvisionerDaemonServe(t *testing.T) {
 				codersdk.FeatureExternalProvisionerDaemons: 1,
 			},
 		}})
+		ctx := testutil.Context(t, testutil.WaitLong)
 		closer := coderdtest.NewExternalProvisionerDaemon(t, client, user.OrganizationID, map[string]string{
 			provisionersdk.TagScope: provisionersdk.ScopeUser,
-		})
+		}, "my-cool-provisioner")
 		defer closer.Close()
-
 		authToken := uuid.NewString()
 		data, err := echo.Tar(&echo.Responses{
 			Parse: echo.ParseComplete,
@@ -176,12 +196,22 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		another, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_ = closer.Close()
+
+		if daemons, err := client.ProvisionerDaemons(ctx); assert.NoError(t, err) {
+			require.Len(t, daemons, 1)
+			require.Equal(t, daemons[0].Name, "my-cool-provisioner")
+		}
+
 		closer = coderdtest.NewExternalProvisionerDaemon(t, another, user.OrganizationID, map[string]string{
 			provisionersdk.TagScope: provisionersdk.ScopeUser,
-		})
+		}, "my-other-cool-provisioner")
 		defer closer.Close()
 		workspace := coderdtest.CreateWorkspace(t, another, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		if daemons, err := client.ProvisionerDaemons(ctx); assert.NoError(t, err) {
+			require.Len(t, daemons, 2)
+		}
 	})
 
 	t.Run("PSK", func(t *testing.T) {
@@ -405,5 +435,62 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		var apiError *codersdk.Error
 		require.ErrorAs(t, err, &apiError)
 		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
+	})
+
+	t.Run("NoClobber", func(t *testing.T) {
+		t.Parallel()
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+				},
+			},
+			ProvisionerDaemonPSK: "provisionersftw",
+		})
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		another := codersdk.New(client.URL)
+		srv, err := another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+			ID:           uuid.New(),
+			Name:         t.Name(),
+			Organization: user.OrganizationID,
+			Provisioners: []codersdk.ProvisionerType{
+				codersdk.ProvisionerTypeEcho,
+			},
+			Tags: map[string]string{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+			},
+			PreSharedKey: "provisionersftw",
+		})
+		require.NoError(t, err)
+		if daemons, err := client.ProvisionerDaemons(ctx); assert.NoError(t, err) {
+			require.Len(t, daemons, 1)
+			require.Equal(t, daemons[0].Name, t.Name())
+		}
+		defer srv.DRPCConn().Close()
+
+		// A lowly member should not be able to clobber a system provisionerd
+		memberClient, member := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		_, err = memberClient.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+			ID:           uuid.New(),
+			Name:         t.Name(),
+			Organization: user.OrganizationID,
+			Provisioners: []codersdk.ProvisionerType{
+				codersdk.ProvisionerTypeEcho,
+			},
+			Tags: map[string]string{
+				provisionersdk.TagScope: provisionersdk.ScopeUser,
+				provisionersdk.TagOwner: member.ID.String(),
+			},
+		})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, sdkErr.StatusCode(), http.StatusConflict)
+		if daemons, err := client.ProvisionerDaemons(ctx); assert.NoError(t, err) {
+			require.Len(t, daemons, 1)
+			require.Equal(t, provisionersdk.ScopeOrganization, daemons[0].Tags[provisionersdk.TagScope])
+			require.Empty(t, daemons[0].Tags[provisionersdk.TagOwner])
+		}
+		require.Error(t, err)
 	})
 }

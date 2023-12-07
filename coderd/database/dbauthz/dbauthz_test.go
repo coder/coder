@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -1369,11 +1370,16 @@ func (s *MethodTestSuite) TestWorkspace() {
 
 func (s *MethodTestSuite) TestExtraMethods() {
 	s.Run("GetProvisionerDaemons", s.Subtest(func(db database.Store, check *expects) {
-		d, err := db.InsertProvisionerDaemon(context.Background(), database.InsertProvisionerDaemonParams{
-			ID: uuid.New(),
+		d, err := db.UpsertProvisionerDaemon(context.Background(), database.UpsertProvisionerDaemonParams{
+			CreatedAt:    dbtime.Now(),
+			Name:         "",
+			Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho},
+			Tags:         database.StringMap{provisionersdk.TagScope: provisionersdk.ScopeOrganization},
+			LastSeenAt:   sql.NullTime{Time: dbtime.Now(), Valid: true},
+			Version:      "2.34.5",
 		})
 		s.NoError(err, "insert provisioner daemon")
-		check.Args().Asserts(d, rbac.ActionRead)
+		check.Args().Asserts(d, rbac.ActionRead, rbac.ResourceProvisionerDaemonUser, rbac.ActionRead)
 	}))
 }
 
@@ -1649,11 +1655,11 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			JobID: j.ID,
 		}).Asserts( /*rbac.ResourceSystem, rbac.ActionCreate*/ )
 	}))
-	s.Run("InsertProvisionerDaemon", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: we need to create a ProvisionerDaemon resource
-		check.Args(database.InsertProvisionerDaemonParams{
-			ID: uuid.New(),
-		}).Asserts( /*rbac.ResourceSystem, rbac.ActionCreate*/ )
+	s.Run("UpsertProvisionerDaemon", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.UpsertProvisionerDaemonParams{}).Asserts(rbac.ResourceProvisionerDaemon, rbac.ActionCreate)
+		check.Args(database.UpsertProvisionerDaemonParams{
+			Tags: database.StringMap{provisionersdk.TagScope: provisionersdk.ScopeUser},
+		}).Asserts(rbac.ResourceProvisionerDaemonUser, rbac.ActionCreate)
 	}))
 	s.Run("InsertTemplateVersionParameter", s.Subtest(func(db database.Store, check *expects) {
 		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{})

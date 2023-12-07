@@ -1355,13 +1355,6 @@ func (m metricsStore) InsertOrganizationMember(ctx context.Context, arg database
 	return member, err
 }
 
-func (m metricsStore) InsertProvisionerDaemon(ctx context.Context, arg database.InsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
-	start := time.Now()
-	daemon, err := m.s.InsertProvisionerDaemon(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertProvisionerDaemon").Observe(time.Since(start).Seconds())
-	return daemon, err
-}
-
 func (m metricsStore) InsertProvisionerJob(ctx context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
 	start := time.Now()
 	job, err := m.s.InsertProvisionerJob(ctx, arg)
@@ -1955,6 +1948,13 @@ func (m metricsStore) UpsertOAuthSigningKey(ctx context.Context, value string) e
 	r0 := m.s.UpsertOAuthSigningKey(ctx, value)
 	m.queryLatencies.WithLabelValues("UpsertOAuthSigningKey").Observe(time.Since(start).Seconds())
 	return r0
+}
+
+func (m metricsStore) UpsertProvisionerDaemon(ctx context.Context, arg database.UpsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertProvisionerDaemon(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertProvisionerDaemon").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) UpsertServiceBanner(ctx context.Context, value string) error {

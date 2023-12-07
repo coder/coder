@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi/httpapiconstraints"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/provisionersdk"
 )
 
 var _ database.Store = (*querier)(nil)
@@ -226,6 +227,7 @@ var (
 					rbac.ResourceOrganization.Type:       {rbac.ActionCreate},
 					rbac.ResourceOrganizationMember.Type: {rbac.ActionCreate},
 					rbac.ResourceOrgRoleAssignment.Type:  {rbac.ActionCreate},
+					rbac.ResourceProvisionerDaemon.Type:  {rbac.ActionCreate, rbac.ActionUpdate, rbac.ActionDelete},
 					rbac.ResourceUser.Type:               {rbac.ActionCreate, rbac.ActionUpdate, rbac.ActionDelete},
 					rbac.ResourceUserData.Type:           {rbac.ActionCreate, rbac.ActionUpdate},
 					rbac.ResourceWorkspace.Type:          {rbac.ActionUpdate},
@@ -1207,10 +1209,14 @@ func (q *querier) GetPreviousTemplateVersion(ctx context.Context, arg database.G
 }
 
 func (q *querier) GetProvisionerDaemons(ctx context.Context) ([]database.ProvisionerDaemon, error) {
-	fetch := func(ctx context.Context, _ interface{}) ([]database.ProvisionerDaemon, error) {
-		return q.db.GetProvisionerDaemons(ctx)
+	// XXX: Working around filter restriction where all objects must be of the same type.
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceProvisionerDaemon); err != nil {
+		return nil, err
 	}
-	return fetchWithPostFilter(q.auth, fetch)(ctx, nil)
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceProvisionerDaemonUser); err != nil {
+		return nil, err
+	}
+	return q.db.GetProvisionerDaemons(ctx)
 }
 
 func (q *querier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
@@ -2161,14 +2167,6 @@ func (q *querier) InsertOrganizationMember(ctx context.Context, arg database.Ins
 	return insert(q.log, q.auth, obj, q.db.InsertOrganizationMember)(ctx, arg)
 }
 
-// TODO: We need to create a ProvisionerDaemon resource type
-func (q *querier) InsertProvisionerDaemon(ctx context.Context, arg database.InsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
-	// if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
-	// return database.ProvisionerDaemon{}, err
-	// }
-	return q.db.InsertProvisionerDaemon(ctx, arg)
-}
-
 // TODO: We need to create a ProvisionerJob resource type
 func (q *querier) InsertProvisionerJob(ctx context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
 	// if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
@@ -3067,6 +3065,17 @@ func (q *querier) UpsertOAuthSigningKey(ctx context.Context, value string) error
 		return err
 	}
 	return q.db.UpsertOAuthSigningKey(ctx, value)
+}
+
+func (q *querier) UpsertProvisionerDaemon(ctx context.Context, arg database.UpsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
+	res := rbac.ResourceProvisionerDaemon
+	if arg.Tags[provisionersdk.TagScope] == provisionersdk.ScopeUser {
+		res = rbac.ResourceProvisionerDaemonUser.WithOwner(arg.Tags[provisionersdk.TagOwner])
+	}
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, res); err != nil {
+		return database.ProvisionerDaemon{}, err
+	}
+	return q.db.UpsertProvisionerDaemon(ctx, arg)
 }
 
 func (q *querier) UpsertServiceBanner(ctx context.Context, value string) error {

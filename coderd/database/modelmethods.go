@@ -9,6 +9,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/provisionersdk"
 )
 
 type WorkspaceStatus string
@@ -222,7 +223,11 @@ func (o Organization) RBACObject() rbac.Object {
 }
 
 func (p ProvisionerDaemon) RBACObject() rbac.Object {
-	return rbac.ResourceProvisionerDaemon.WithID(p.ID)
+	if p.Tags[provisionersdk.TagScope] == provisionersdk.ScopeUser {
+		return rbac.ResourceProvisionerDaemonUser.WithOwner(p.Tags[provisionersdk.TagOwner]).WithID(p.ID)
+	}
+
+	return rbac.ResourceProvisionerDaemon
 }
 
 func (w WorkspaceProxy) RBACObject() rbac.Object {

@@ -15,6 +15,7 @@ func AllResources() []Object {
 		ResourceOrganization,
 		ResourceOrganizationMember,
 		ResourceProvisionerDaemon,
+		ResourceProvisionerDaemonUser,
 		ResourceReplicas,
 		ResourceRoleAssignment,
 		ResourceSystem,
