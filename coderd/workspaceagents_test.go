@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -885,8 +886,8 @@ func TestWorkspaceAgentReportStats(t *testing.T) {
 		ownerUser := coderdtest.CreateFirstUser(t, owner)
 		client, admin := coderdtest.CreateAnotherUser(t, owner, ownerUser.OrganizationID, rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin())
 		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
-			OrganizationID: user.OrganizationID,
-			OwnerID:        user.UserID,
+			OrganizationID: admin.OrganizationIDs[0],
+			OwnerID:        admin.ID,
 		}).WithAgent().Do()
 
 		agentClient := agentsdk.New(client.URL)
@@ -911,7 +912,7 @@ func TestWorkspaceAgentReportStats(t *testing.T) {
 		require.NoError(t, err)
 
 		// nolint:gocritic // using db directly over creating a delete job
-		err = db.UpdateWorkspaceDeletedByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(admin)), database.UpdateWorkspaceDeletedByIDParams{
+		err = db.UpdateWorkspaceDeletedByID(dbauthz.As(context.Background(), coderdtest.AuthzUserSubject(admin)), database.UpdateWorkspaceDeletedByIDParams{
 			ID:      newWorkspace.ID,
 			Deleted: true,
 		})
