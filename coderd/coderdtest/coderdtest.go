@@ -530,7 +530,7 @@ func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
 	}()
 
 	daemon := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
-		return coderAPI.CreateInMemoryProvisionerDaemon(ctx)
+		return coderAPI.CreateInMemoryProvisionerDaemon(ctx, t.Name())
 	}, &provisionerd.Options{
 		Logger:              coderAPI.Logger.Named("provisionerd").Leveled(slog.LevelDebug),
 		UpdateInterval:      250 * time.Millisecond,
@@ -567,6 +567,8 @@ func NewExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uui
 
 	daemon := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
 		return client.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+			ID:           uuid.New(),
+			Name:         t.Name(),
 			Organization: org,
 			Provisioners: []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho},
 			Tags:         tags,

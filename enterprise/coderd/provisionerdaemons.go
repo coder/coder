@@ -178,6 +178,14 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		}
 	}
 
+	var name string
+	if vals, ok := r.URL.Query()["name"]; !ok || len(vals) == 0 {
+		api.Logger.Warn(ctx, "unnamed provisioner daemon")
+		name = namesgenerator.GetRandomName(1)
+	} else {
+		name = vals[0]
+	}
+
 	tags, authorized := api.provisionerDaemonAuth.authorize(r, tags)
 	if !authorized {
 		api.Logger.Warn(ctx, "unauthorized provisioner daemon serve request", slog.F("tags", tags))
@@ -206,7 +214,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	name := namesgenerator.GetRandomName(1)
+	// name := namesgenerator.GetRandomName(1)
 	log := api.Logger.With(
 		slog.F("name", name),
 		slog.F("provisioners", provisioners),

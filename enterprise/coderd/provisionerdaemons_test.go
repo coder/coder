@@ -40,6 +40,8 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		srv, err := templateAdminClient.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+			ID:           uuid.New(),
+			Name:         t.Name(),
 			Organization: user.OrganizationID,
 			Provisioners: []codersdk.ProvisionerType{
 				codersdk.ProvisionerTypeEcho,
@@ -57,6 +59,8 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		_, err := templateAdminClient.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+			ID:           uuid.New(),
+			Name:         t.Name(),
 			Organization: user.OrganizationID,
 			Provisioners: []codersdk.ProvisionerType{
 				codersdk.ProvisionerTypeEcho,
@@ -80,6 +84,8 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		_, err := another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+			ID:           uuid.New(),
+			Name:         t.Name(),
 			Organization: user.OrganizationID,
 			Provisioners: []codersdk.ProvisionerType{
 				codersdk.ProvisionerTypeEcho,
@@ -105,6 +111,8 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		_, err := another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+			ID:           uuid.New(),
+			Name:         t.Name(),
 			Organization: user.OrganizationID,
 			Provisioners: []codersdk.ProvisionerType{
 				codersdk.ProvisionerTypeEcho,
@@ -245,6 +253,8 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		another := codersdk.New(client.URL)
 		pd := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
 			return another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+				ID:           uuid.New(),
+				Name:         t.Name(),
 				Organization: user.OrganizationID,
 				Provisioners: []codersdk.ProvisionerType{
 					codersdk.ProvisionerTypeEcho,
@@ -321,6 +331,8 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		_, err := another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+			ID:           uuid.New(),
+			Name:         t.Name(),
 			Organization: user.OrganizationID,
 			Provisioners: []codersdk.ProvisionerType{
 				codersdk.ProvisionerTypeEcho,
@@ -350,6 +362,8 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		defer cancel()
 		another := codersdk.New(client.URL)
 		_, err := another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+			ID:           uuid.New(),
+			Name:         t.Name(),
 			Organization: user.OrganizationID,
 			Provisioners: []codersdk.ProvisionerType{
 				codersdk.ProvisionerTypeEcho,
@@ -377,6 +391,8 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		defer cancel()
 		another := codersdk.New(client.URL)
 		_, err := another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+			ID:           uuid.New(),
+			Name:         t.Name(),
 			Organization: user.OrganizationID,
 			Provisioners: []codersdk.ProvisionerType{
 				codersdk.ProvisionerTypeEcho,

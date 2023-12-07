@@ -36,6 +36,32 @@ func TestProvisionerDaemon_PSK(t *testing.T) {
 	pty.ExpectMatchContext(ctx, "starting provisioner daemon")
 }
 
+func TestProvisionerDaemon_Named(t *testing.T) {
+	t.Parallel()
+
+	client, _ := coderdenttest.New(t, &coderdenttest.Options{
+		ProvisionerDaemonPSK: "provisionersftw",
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureExternalProvisionerDaemons: 1,
+			},
+		},
+	})
+
+	inv, conf := newCLI(t, "provisionerd", "start",
+		"--psk=provisionersftw",
+		"--name=matt-daemon",
+	)
+	err := conf.URL().Write(client.URL.String())
+	require.NoError(t, err)
+	pty := ptytest.New(t).Attach(inv)
+	ctx, cancel := context.WithTimeout(inv.Context(), testutil.WaitLong)
+	defer cancel()
+	clitest.Start(t, inv)
+	pty.ExpectMatchContext(ctx, "starting provisioner daemon")
+	pty.ExpectMatchContext(ctx, "matt-daemon")
+}
+
 func TestProvisionerDaemon_SessionToken(t *testing.T) {
 	t.Parallel()
 	t.Run("ScopeUser", func(t *testing.T) {
