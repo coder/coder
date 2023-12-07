@@ -787,7 +787,6 @@ jobs:
           kubectl --namespace coder rollout restart deployment/coder-provisioner
           kubectl --namespace coder rollout status deployment/coder-provisioner
 
-
   deploy-wsproxies:
     runs-on: ubuntu-latest
     needs: build
