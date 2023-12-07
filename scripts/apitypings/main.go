@@ -412,6 +412,10 @@ func (g *Generator) generateOne(m *Maps, obj types.Object) error {
 			if err != nil {
 				return xerrors.Errorf("(map) generate %q: %w", objectName, err)
 			}
+			if _, ok := underNamed.(*types.Array); !ok {
+				// Unfortunately slices and arrays in Go can be nil.
+				ts.Optional = true
+			}
 
 			var str strings.Builder
 			_, _ = str.WriteString(g.posLine(obj))
@@ -788,6 +792,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			ValueType:     fmt.Sprintf("Record<%s, %s>", keyType.ValueType, valueType.ValueType),
 			AboveTypeLine: aboveTypeLine,
 			GenericTypes:  mergeGens,
+			Optional:      true, // maps can be nil
 		}, nil
 	case *types.Slice, *types.Array:
 		// Slice/Arrays are pretty much the same.
@@ -813,12 +818,17 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			if underlying.GenericValue != "" {
 				genValue = underlying.GenericValue + "[]"
 			}
-			return TypescriptType{
+			ts := TypescriptType{
 				ValueType:     underlying.ValueType + "[]",
 				GenericValue:  genValue,
 				AboveTypeLine: underlying.AboveTypeLine,
 				GenericTypes:  underlying.GenericTypes,
-			}, nil
+			}
+			if _, ok := ty.(*types.Slice); ok {
+				// Unfortunately, slices are nullable in Go
+				ts.Optional = true
+			}
+			return ts, nil
 		}
 	case *types.Named:
 		n := ty
@@ -864,7 +874,8 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		case "github.com/google/uuid.UUID":
 			return TypescriptType{ValueType: "string"}, nil
 		case "encoding/json.RawMessage":
-			return TypescriptType{ValueType: "Record<string, string>"}, nil
+			// json.RawMessage is just a []byte, which can be null
+			return TypescriptType{ValueType: "Record<string, string>", Optional: true}, nil
 		case "github.com/coder/coder/v2/cli/clibase.URL":
 			return TypescriptType{ValueType: "string"}, nil
 		// XXX: For some reason, the type generator generates these as `any`
@@ -1004,7 +1015,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		return TypescriptType{
 			ValueType:     "any",
 			AboveTypeLine: indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any -- Golang interface, unable to resolve type."),
-			Optional:      false,
+			Optional:      true, // the zero value of an interface type is nil.
 		}, nil
 	case *types.TypeParam:
 		_, ok := ty.Underlying().(*types.Interface)
