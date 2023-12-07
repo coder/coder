@@ -214,7 +214,6 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	// name := namesgenerator.GetRandomName(1)
 	log := api.Logger.With(
 		slog.F("name", name),
 		slog.F("provisioners", provisioners),

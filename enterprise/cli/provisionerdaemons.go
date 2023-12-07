@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"regexp"
 	"time"
 
 	"github.com/google/uuid"
@@ -42,6 +43,16 @@ func (r *RootCmd) provisionerDaemons() *clibase.Cmd {
 	return cmd
 }
 
+func validateProvisionerDaemonName(name string) error {
+	if len(name) > 64 {
+		return xerrors.Errorf("name cannot be greater than 64 characters in length")
+	}
+	if ok, err := regexp.MatchString(`^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]$`, name); err != nil || !ok {
+		return xerrors.Errorf("name %q is not a valid hostname", name)
+	}
+	return nil
+}
+
 func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 	var (
 		cacheDir     string
@@ -70,11 +81,12 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 				return err
 			}
 
-			if len(name) > 64 {
-				return xerrors.Errorf("name cannot be greater than 64 characters in length")
-			}
 			if name == "" {
 				name = cliutil.Hostname()
+			}
+
+			if err := validateProvisionerDaemonName(name); err != nil {
+				return err
 			}
 
 			logger := slog.Make(sloghuman.Sink(inv.Stderr))
