@@ -704,7 +704,7 @@ type OIDCConfig struct {
 	// GroupAllowList is a list of groups that are allowed to log in.
 	// If the list length is 0, then the allow list will not be applied and
 	// this feature is disabled.
-	GroupAllowList []string
+	GroupAllowList map[string]bool
 	// GroupMapping controls how groups returned by the OIDC provider get mapped
 	// to groups within Coder.
 	// map[oidcGroupName]coderGroupName
@@ -1018,14 +1018,9 @@ func (api *API) oidcGroups(ctx context.Context, mergedClaims map[string]interfac
 	// If the GroupField is the empty string, then groups from OIDC are not used.
 	// This is so we can support manual group assignment.
 	if api.OIDCConfig.GroupField != "" {
-		// allow list is a map of groups that are allowed to log in.
-		allowed := make(map[string]bool)
-		for _, group := range api.OIDCConfig.GroupAllowList {
-			allowed[group] = true
-		}
 		// If the allow list is empty, then the user is allowed to log in.
 		// Otherwise, they must belong to at least 1 group in the allow list.
-		inAllowList := len(allowed) == 0
+		inAllowList := len(api.OIDCConfig.GroupAllowList) == 0
 
 		usingGroups = true
 		groupsRaw, ok := mergedClaims[api.OIDCConfig.GroupField]
@@ -1053,7 +1048,7 @@ func (api *API) oidcGroups(ctx context.Context, mergedClaims map[string]interfac
 				if mappedGroup, ok := api.OIDCConfig.GroupMapping[group]; ok {
 					group = mappedGroup
 				}
-				if _, ok := allowed[group]; ok {
+				if _, ok := api.OIDCConfig.GroupAllowList[group]; ok {
 					inAllowList = true
 				}
 				groups = append(groups, group)
