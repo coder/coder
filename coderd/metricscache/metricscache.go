@@ -216,9 +216,9 @@ func (c *Cache) refreshTemplateDAUs(ctx context.Context) error {
 		return xerrors.Errorf("deployment daus: %w", err)
 	}
 
-	ids := make([]uuid.UUID, len(templates))
-	for i, template := range templates {
-		ids[i] = template.ID
+	ids := make([]uuid.UUID, 0, len(templates))
+	for _, template := range templates {
+		ids = append(ids, template.ID)
 		for _, tzOffset := range templateTimezoneOffsets {
 			rows, err := c.database.GetTemplateDAUs(ctx, database.GetTemplateDAUsParams{
 				TemplateID: template.ID,
