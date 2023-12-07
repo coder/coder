@@ -881,8 +881,9 @@ func TestWorkspaceAgentReportStats(t *testing.T) {
 	t.Run("FailDeleted", func(t *testing.T) {
 		t.Parallel()
 
-		client, db := coderdtest.NewWithDatabase(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
+		owner, db := coderdtest.NewWithDatabase(t, nil)
+		ownerUser := coderdtest.CreateFirstUser(t, owner)
+		client, admin := coderdtest.CreateAnotherUser(t, owner, ownerUser.OrganizationID, rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin())
 		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
@@ -910,7 +911,7 @@ func TestWorkspaceAgentReportStats(t *testing.T) {
 		require.NoError(t, err)
 
 		// nolint:gocritic // using db directly over creating a delete job
-		err = db.UpdateWorkspaceDeletedByID(dbauthz.AsSystemRestricted(context.Background()), database.UpdateWorkspaceDeletedByIDParams{
+		err = db.UpdateWorkspaceDeletedByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(admin)), database.UpdateWorkspaceDeletedByIDParams{
 			ID:      newWorkspace.ID,
 			Deleted: true,
 		})
