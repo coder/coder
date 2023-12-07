@@ -1535,7 +1535,13 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+		// Test that no filter returns both workspaces.
+		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+		require.NoError(t, err)
+		require.Len(t, res.Workspaces, 2)
+
+		// Test that filtering for dormant only returns our dormant workspace.
+		res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
 			FilterQuery: "dormant:true",
 		})
 		require.NoError(t, err)
