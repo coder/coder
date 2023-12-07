@@ -3762,6 +3762,9 @@ func (q *FakeQuerier) GetWorkspaceAgentAndOwnerByAuthToken(_ context.Context, au
 					if build.WorkspaceID != ws.ID {
 						continue
 					}
+					if ws.Deleted {
+						continue
+					}
 					var row database.GetWorkspaceAgentAndOwnerByAuthTokenRow
 					row.WorkspaceID = ws.ID
 					usr, err := q.getUserByIDNoLock(ws.OwnerID)

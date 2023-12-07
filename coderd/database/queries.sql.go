@@ -7754,9 +7754,10 @@ FROM users
 WHERE
 	-- TODO: we can add more conditions here, such as:
 	-- 1) The user must be active
-	-- 2) The user must not be deleted
-	-- 3) The workspace must be running
+	-- 2) The workspace must be running
 	workspace_agents.auth_token = $1
+AND
+	workspaces.deleted = FALSE
 GROUP BY
 	workspace_agents.id,
 	workspaces.id,

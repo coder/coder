@@ -619,11 +619,15 @@ func CreateAnotherUserMutators(t testing.TB, client *codersdk.Client, organizati
 }
 
 // AuthzUserSubject does not include the user's groups.
-func AuthzUserSubject(user codersdk.User) rbac.Subject {
+func AuthzUserSubject(user codersdk.User, orgID uuid.UUID) rbac.Subject {
 	roles := make(rbac.RoleNames, 0, len(user.Roles))
+	// Member role is always implied
+	roles = append(roles, rbac.RoleMember())
 	for _, r := range user.Roles {
 		roles = append(roles, r.Name)
 	}
+	// We assume only 1 org exists
+	roles = append(roles, rbac.RoleOrgMember(orgID))
 
 	return rbac.Subject{
 		ID:     user.ID.String(),
