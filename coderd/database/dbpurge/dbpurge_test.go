@@ -34,6 +34,12 @@ func TestPurge(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
+	t.Parallel()
+
+	// TODO
+}
+
 func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 	t.Parallel()
 
