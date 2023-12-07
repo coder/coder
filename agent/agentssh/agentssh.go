@@ -47,8 +47,12 @@ const (
 	MagicSessionTypeEnvironmentVariable = "CODER_SSH_SESSION_TYPE"
 	// MagicSessionTypeVSCode is set in the SSH config by the VS Code extension to identify itself.
 	MagicSessionTypeVSCode = "vscode"
-	// MagicSessionTypeJetBrains is set in the SSH config by the JetBrains extension to identify itself.
+	// MagicSessionTypeJetBrains is set in the SSH config by the JetBrains
+	// extension to identify itself.
 	MagicSessionTypeJetBrains = "jetbrains"
+	// MagicProcessCmdlineJetBrains is a string in a process's command line that
+	// uniquely identifies it as JetBrains software.
+	MagicProcessCmdlineJetBrains = "idea.vendor.name=JetBrains"
 )
 
 type Server struct {
@@ -111,7 +115,11 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 
 	srv := &ssh.Server{
 		ChannelHandlers: map[string]ssh.ChannelHandler{
-			"direct-tcpip":                   ssh.DirectTCPIPHandler,
+			"direct-tcpip": func(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.NewChannel, ctx ssh.Context) {
+				// Wrapper is designed to find and track JetBrains Gateway connections.
+				wrapped := NewJetbrainsChannelWatcher(ctx, s.logger, newChan, &s.connCountJetBrains)
+				ssh.DirectTCPIPHandler(srv, conn, wrapped, ctx)
+			},
 			"direct-streamlocal@openssh.com": directStreamLocalHandler,
 			"session":                        ssh.DefaultSessionHandler,
 		},
@@ -291,8 +299,8 @@ func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, extraEnv 
 		s.connCountVSCode.Add(1)
 		defer s.connCountVSCode.Add(-1)
 	case MagicSessionTypeJetBrains:
-		s.connCountJetBrains.Add(1)
-		defer s.connCountJetBrains.Add(-1)
+		// Do nothing here because JetBrains launches hundreds of ssh sessions.
+		// We instead track JetBrains in the single persistent tcp forwarding channel.
 	case "":
 		s.connCountSSHSession.Add(1)
 		defer s.connCountSSHSession.Add(-1)

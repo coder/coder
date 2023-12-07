@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"sync/atomic"
@@ -10,6 +11,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/healthcheck"
@@ -90,8 +93,11 @@ func TestDebugHealth(t *testing.T) {
 		t.Parallel()
 
 		var (
+			// Need to ignore errors due to ctx timeout
+			logger      = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 			ctx, cancel = context.WithTimeout(context.Background(), testutil.WaitShort)
 			client      = coderdtest.New(t, &coderdtest.Options{
+				Logger:             &logger,
 				HealthcheckTimeout: time.Microsecond,
 				HealthcheckFunc: func(context.Context, string) *healthcheck.Report {
 					t := time.NewTimer(time.Second)
@@ -276,6 +282,17 @@ func TestHealthSettings(t *testing.T) {
 		settings, err := adminClient.HealthSettings(ctx)
 		require.NoError(t, err)
 		require.Equal(t, expected, settings)
+
+		// then
+		res, err := adminClient.Request(ctx, "GET", "/api/v2/debug/health", nil)
+		require.NoError(t, err)
+		bs, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		var hc healthcheck.Report
+		require.NoError(t, json.Unmarshal(bs, &hc))
+		require.True(t, hc.DERP.Dismissed)
+		require.True(t, hc.Websocket.Dismissed)
 	})
 
 	t.Run("UnDismissSection", func(t *testing.T) {
@@ -307,6 +324,17 @@ func TestHealthSettings(t *testing.T) {
 		settings, err := adminClient.HealthSettings(ctx)
 		require.NoError(t, err)
 		require.Equal(t, expected, settings)
+
+		// then
+		res, err := adminClient.Request(ctx, "GET", "/api/v2/debug/health", nil)
+		require.NoError(t, err)
+		bs, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		var hc healthcheck.Report
+		require.NoError(t, json.Unmarshal(bs, &hc))
+		require.True(t, hc.DERP.Dismissed)
+		require.False(t, hc.Websocket.Dismissed)
 	})
 
 	t.Run("NotModified", func(t *testing.T) {

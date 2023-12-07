@@ -308,7 +308,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 				err := json.Unmarshal(alog.AdditionalFields, &fields)
 				require.NoError(t, err)
 				require.Equal(t, ws.Name, fields.WorkspaceName)
-				require.Equal(t, database.BuildReasonAutolock, fields.BuildReason)
+				require.Equal(t, database.BuildReasonDormancy, fields.BuildReason)
 
 			default:
 				t.Fatalf("unexpected audit log (%+v)", alog)

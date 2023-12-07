@@ -1229,6 +1229,13 @@ func (m metricsStore) GetWorkspaceResourcesCreatedAfter(ctx context.Context, cre
 	return resources, err
 }
 
+func (m metricsStore) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Context, templateIds []uuid.UUID) ([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx, templateIds)
+	m.queryLatencies.WithLabelValues("GetWorkspaceUniqueOwnerCountByTemplateIDs").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesParams) ([]database.GetWorkspacesRow, error) {
 	start := time.Now()
 	workspaces, err := m.s.GetWorkspaces(ctx, arg)

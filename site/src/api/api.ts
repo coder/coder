@@ -939,6 +939,19 @@ export const exchangeExternalAuthDevice = async (
   return resp.data;
 };
 
+export const getUserExternalAuthProviders =
+  async (): Promise<TypesGen.ListUserExternalAuthResponse> => {
+    const resp = await axios.get(`/api/v2/external-auth`);
+    return resp.data;
+  };
+
+export const unlinkExternalAuthProvider = async (
+  provider: string,
+): Promise<string> => {
+  const resp = await axios.delete(`/api/v2/external-auth/${provider}`);
+  return resp.data;
+};
+
 export const getAuditLogs = async (
   options: TypesGen.AuditLogsRequest,
 ): Promise<TypesGen.AuditLogResponse> => {
@@ -1586,6 +1599,22 @@ export const getHealth = async (force: boolean = false) => {
   const params = new URLSearchParams({ force: force.toString() });
   const response = await axios.get<TypesGen.HealthcheckReport>(
     `/api/v2/debug/health?${params}`,
+  );
+  return response.data;
+};
+
+export const getHealthSettings = async () => {
+  return (
+    await axios.get<TypesGen.HealthSettings>(`/api/v2/debug/health/settings`)
+  ).data;
+};
+
+export const updateHealthSettings = async (
+  data: TypesGen.UpdateHealthSettings,
+) => {
+  const response = await axios.put<TypesGen.HealthSettings>(
+    `/api/v2/debug/health/settings`,
+    data,
   );
   return response.data;
 };

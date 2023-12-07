@@ -16,21 +16,28 @@ import (
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
-func ExternalAuths(auths []database.ExternalAuthLink) []codersdk.ExternalAuthLink {
+type ExternalAuthMeta struct {
+	Authenticated bool
+	ValidateError string
+}
+
+func ExternalAuths(auths []database.ExternalAuthLink, meta map[string]ExternalAuthMeta) []codersdk.ExternalAuthLink {
 	out := make([]codersdk.ExternalAuthLink, 0, len(auths))
 	for _, auth := range auths {
-		out = append(out, ExternalAuth(auth))
+		out = append(out, ExternalAuth(auth, meta[auth.ProviderID]))
 	}
 	return out
 }
 
-func ExternalAuth(auth database.ExternalAuthLink) codersdk.ExternalAuthLink {
+func ExternalAuth(auth database.ExternalAuthLink, meta ExternalAuthMeta) codersdk.ExternalAuthLink {
 	return codersdk.ExternalAuthLink{
 		ProviderID:      auth.ProviderID,
 		CreatedAt:       auth.CreatedAt,
 		UpdatedAt:       auth.UpdatedAt,
 		HasRefreshToken: auth.OAuthRefreshToken != "",
 		Expires:         auth.OAuthExpiry,
+		Authenticated:   meta.Authenticated,
+		ValidateError:   meta.ValidateError,
 	}
 }
 
