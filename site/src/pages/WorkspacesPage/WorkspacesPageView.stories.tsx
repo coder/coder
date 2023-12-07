@@ -30,8 +30,8 @@ const createWorkspace = (
   status: WorkspaceStatus,
   outdated = false,
   lastUsedAt = "0001-01-01",
-  deletingAt?: string,
   dormantAt?: string,
+  deletingAt?: string,
 ): Workspace => {
   return {
     ...MockWorkspace,
