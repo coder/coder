@@ -94,21 +94,6 @@ func TestSSH(t *testing.T) {
 	t.Run("StartStoppedWorkspace", func(t *testing.T) {
 		t.Parallel()
 
-		//store, ps := dbtestutil.NewDB(t)
-		//ownerClient := coderdtest.New(t, &coderdtest.Options{Pubsub: ps, Database: store, IncludeProvisionerDaemon: true})
-		//ownerClient.SetLogger(slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug))
-		//first := coderdtest.CreateFirstUser(t, ownerClient)
-		//client, user := coderdtest.CreateAnotherUser(t, ownerClient, first.OrganizationID)
-		//
-		//// Create a stopped workspace.
-		//workspaceData := dbfake.WorkspaceBuild(t, store, database.Workspace{
-		//	OrganizationID: first.OrganizationID,
-		//	OwnerID:        user.ID,
-		//}).Seed(database.WorkspaceBuild{
-		//	Transition: database.WorkspaceTransitionStop,
-		//}).WithAgent().Do()
-		//workspace := workspaceData.Workspace
-		//
 		authToken := uuid.NewString()
 		ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, ownerClient)
