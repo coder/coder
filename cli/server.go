@@ -62,6 +62,7 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/autobuild"
@@ -86,6 +87,7 @@ import (
 	"github.com/coder/coder/v2/coderd/unhanger"
 	"github.com/coder/coder/v2/coderd/updatecheck"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -875,9 +877,14 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			defer provisionerdWaitGroup.Wait()
 			provisionerdMetrics := provisionerd.NewMetrics(options.PrometheusRegistry)
 			for i := int64(0); i < vals.Provisioner.Daemons.Value(); i++ {
+				suffix := fmt.Sprintf("%d", i)
+				// The suffix is added to the hostname, so we may need to trim to fit into
+				// the 64 character limit.
+				hostname := stringutil.Truncate(cliutil.Hostname(), 63-len(suffix))
+				name := fmt.Sprintf("%s-%s", hostname, suffix)
 				daemonCacheDir := filepath.Join(cacheDir, fmt.Sprintf("provisioner-%d", i))
 				daemon, err := newProvisionerDaemon(
-					ctx, coderAPI, provisionerdMetrics, logger, vals, daemonCacheDir, errCh, &provisionerdWaitGroup,
+					ctx, coderAPI, provisionerdMetrics, logger, vals, daemonCacheDir, errCh, &provisionerdWaitGroup, name,
 				)
 				if err != nil {
 					return xerrors.Errorf("create provisioner daemon: %w", err)
@@ -1243,6 +1250,7 @@ func newProvisionerDaemon(
 	cacheDir string,
 	errCh chan error,
 	wg *sync.WaitGroup,
+	name string,
 ) (srv *provisionerd.Server, err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
@@ -1334,9 +1342,9 @@ func newProvisionerDaemon(
 	return provisionerd.New(func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 		// This debounces calls to listen every second. Read the comment
 		// in provisionerdserver.go to learn more!
-		return coderAPI.CreateInMemoryProvisionerDaemon(ctx)
+		return coderAPI.CreateInMemoryProvisionerDaemon(ctx, name)
 	}, &provisionerd.Options{
-		Logger:              logger.Named("provisionerd"),
+		Logger:              logger.Named(fmt.Sprintf("provisionerd-%s", name)),
 		UpdateInterval:      time.Second,
 		ForceCancelInterval: cfg.Provisioner.ForceCancelInterval.Value(),
 		Connector:           connector,
