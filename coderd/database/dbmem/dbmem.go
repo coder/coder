@@ -1190,9 +1190,10 @@ func (q *FakeQuerier) DeleteOldWorkspaceAgentStats(_ context.Context) error {
 
 	var validStats []database.WorkspaceAgentStat
 	for _, stat := range q.workspaceAgentStats {
-		if !stat.CreatedAt.Before(sixMonthsAgo) {
-			validStats = append(validStats, stat)
+		if stat.CreatedAt.Before(sixMonthsAgo) {
+			continue
 		}
+		validStats = append(validStats, stat)
 	}
 	q.workspaceAgentStats = validStats
 	return nil
