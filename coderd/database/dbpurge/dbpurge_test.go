@@ -51,14 +51,14 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 	first := dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
 		CreatedAt:                 now.Add(-6*30*24*time.Hour - time.Hour),
 		ConnectionMedianLatencyMS: 1,
-		RxBytes:                   1,
+		RxBytes:                   1111,
 	})
 
 	// Stat inserted 6 months - 1 hour ago, should not be deleted.
 	second := dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
 		CreatedAt:                 now.Add(-5*30*24*time.Hour + time.Hour),
 		ConnectionMedianLatencyMS: 1,
-		RxBytes:                   3,
+		RxBytes:                   2222,
 	})
 
 	// when
