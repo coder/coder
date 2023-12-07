@@ -397,7 +397,7 @@ func TestUserOIDC(t *testing.T) {
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
 					cfg.GroupField = groupClaim
-					cfg.GroupAllowList = []string{allowedGroup}
+					cfg.GroupAllowList = map[string]bool{allowedGroup: true}
 				},
 			})
 
