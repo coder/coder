@@ -1,5 +1,5 @@
 import { formatDistanceToNow } from "date-fns";
-import { type FC } from "react";
+import { ReactNode, type FC } from "react";
 import type { Workspace } from "api/typesGenerated";
 import { useIsWorkspaceActionsEnabled } from "components/Dashboard/DashboardProvider";
 import { Alert } from "components/Alert/Alert";
@@ -41,21 +41,25 @@ export const DormantWorkspaceBanner: FC<DormantWorkspaceBannerProps> = ({
     });
   };
 
-  const alertText = (): string => {
+  const alertText = (): ReactNode => {
     if (workspace.deleting_at) {
-      return `This workspace has been dormant for ${formatDistanceToNow(
-        Date.parse(workspace.last_used_at),
-      )} and is scheduled to be deleted on ${formatDate(
-        workspace.deleting_at,
-      )} . To keep it you must activate the workspace.`;
+      return (
+        <>
+          This workspace has been dormant for $
+          {formatDistanceToNow(Date.parse(workspace.last_used_at))} and is
+          scheduled to be deleted on ${formatDate(workspace.deleting_at)}. To
+          keep it you must activate the workspace.
+        </>
+      );
     } else if (workspace.dormant_at) {
-      return `This workspace has been dormant for ${formatDistanceToNow(
-        Date.parse(workspace.dormant_at),
-      )}
-        and cannot be interacted
-		with. Dormant workspaces are eligible for
-		permanent deletion. To prevent deletion, activate
-		the workspace.`;
+      return (
+        <>
+          This workspace has been dormant for $
+          {formatDistanceToNow(Date.parse(workspace.dormant_at))}
+          and cannot be interacted with. Dormant workspaces are eligible for
+          permanent deletion. To prevent deletion, activate the workspace.`;
+        </>
+      );
     }
     return "";
   };

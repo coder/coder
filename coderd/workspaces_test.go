@@ -1506,7 +1506,7 @@ func TestWorkspaceFilterManual(t *testing.T) {
 	t.Run("Dormant", func(t *testing.T) {
 		// this test has a licensed counterpart in enterprise/coderd/workspaces_test.go: FilterQueryHasDeletingByAndLicensed
 		t.Parallel()
-		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{})
+		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		template := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
 			OrganizationID: user.OrganizationID,
@@ -1540,6 +1540,7 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, res.Workspaces, 1)
+		require.Equal(t, dormantWorkspace.ID, res.Workspaces[0].ID)
 		require.NotNil(t, res.Workspaces[0].DormantAt)
 	})
 

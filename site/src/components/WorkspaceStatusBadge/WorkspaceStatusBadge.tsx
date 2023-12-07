@@ -86,13 +86,12 @@ export const DormantStatusBadge: FC<DormantStatusBadgeProps> = ({
   return workspace.deleting_at ? (
     <Tooltip
       title={
-        <div>
-          {`This workspace has not been used for ${formatDistanceToNow(
-            Date.parse(workspace.last_used_at),
-          )} and has been marked dormant. It is scheduled to be deleted on ${formatDate(
-            workspace.deleting_at,
-          )}.`}
-        </div>
+        <>
+          This workspace has not been used for $
+          {formatDistanceToNow(Date.parse(workspace.last_used_at))} and has been
+          marked dormant. It is scheduled to be deleted on $
+          {formatDate(workspace.deleting_at)}.
+        </>
       }
     >
       <Pill
@@ -105,11 +104,12 @@ export const DormantStatusBadge: FC<DormantStatusBadgeProps> = ({
   ) : (
     <Tooltip
       title={
-        <div>
-          {`This workspace has not been used for ${formatDistanceToNow(
-            Date.parse(workspace.last_used_at),
-          )} and has been marked dormant. It is not scheduled for auto-deletion but will become a candidate if auto-deletion is enabled on this template.`}
-        </div>
+        <>
+          This workspace has not been used for $
+          {formatDistanceToNow(Date.parse(workspace.last_used_at))} and has been
+          marked dormant. It is not scheduled for auto-deletion but will become
+          a candidate if auto-deletion is enabled on this template.
+        </>
       }
     >
       <Pill
