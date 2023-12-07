@@ -141,7 +141,8 @@ export const PopoverContent: FC<PopoverContentProps> = ({
     // disablePortal, it is using aria-hidden="true". It is a bug but it is not
     // fixed yet so we have to define our own container for now.
     // https://github.com/mui/material-ui/issues/19450#issuecomment-1539832475
-    <div ref={containerRef}>
+    // Position is absolute so it does not influence flex layout as an extra element
+    <div ref={containerRef} css={{ position: "absolute" }}>
       <MuiPopover
         disablePortal
         container={() => containerRef.current}
