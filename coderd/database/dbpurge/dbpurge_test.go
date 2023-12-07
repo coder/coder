@@ -66,16 +66,17 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 	defer closer.Close()
 
 	// then
+	var stats []database.GetWorkspaceAgentStatsRow
+	var err error
 	require.Eventually(t, func() bool {
 		// Query all stats created not earlier than 7 months ago
-		stats, err := db.GetWorkspaceAgentStats(ctx, now.Add(-7*30*24*time.Hour))
+		stats, err = db.GetWorkspaceAgentStats(ctx, now.Add(-7*30*24*time.Hour))
 		if err != nil {
 			return false
 		}
 		return !containsWorkspaceAgentStat(stats, first) &&
 			containsWorkspaceAgentStat(stats, second)
-	}, testutil.WaitShort, testutil.IntervalFast)
-
+	}, testutil.WaitShort, testutil.IntervalFast, stats)
 }
 
 func containsWorkspaceAgentStat(stats []database.GetWorkspaceAgentStatsRow, needle database.WorkspaceAgentStat) bool {
