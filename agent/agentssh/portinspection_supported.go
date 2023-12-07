@@ -20,6 +20,12 @@ func getListeningPortProcessCmdline(port uint32) (string, error) {
 	if len(tabs) == 0 {
 		return "", nil
 	}
+
+	// Defensive check.
+	if tabs[0].Process == nil {
+		return "", nil
+	}
+
 	// The process name provided by go-netstat does not include the full command
 	// line so grab that instead.
 	pid := tabs[0].Process.Pid
