@@ -52,6 +52,7 @@ type Cache struct {
 	deploymentDAUResponses   atomic.Pointer[map[int]codersdk.DAUsResponse]
 	templateDAUResponses     atomic.Pointer[map[int]map[uuid.UUID]codersdk.DAUsResponse]
 	templateUniqueUsers      atomic.Pointer[map[uuid.UUID]int]
+	templateWorkspaceOwners  atomic.Pointer[map[uuid.UUID]int]
 	templateAverageBuildTime atomic.Pointer[map[uuid.UUID]database.GetTemplateAverageBuildTimeRow]
 	deploymentStatsResponse  atomic.Pointer[codersdk.DeploymentStats]
 
@@ -206,6 +207,7 @@ func (c *Cache) refreshTemplateDAUs(ctx context.Context) error {
 	var (
 		templateDAUs              = make(map[int]map[uuid.UUID]codersdk.DAUsResponse, len(templates))
 		templateUniqueUsers       = make(map[uuid.UUID]int)
+		templateWorkspaceOwners   = make(map[uuid.UUID]int)
 		templateAverageBuildTimes = make(map[uuid.UUID]database.GetTemplateAverageBuildTimeRow)
 	)
 
@@ -214,7 +216,9 @@ func (c *Cache) refreshTemplateDAUs(ctx context.Context) error {
 		return xerrors.Errorf("deployment daus: %w", err)
 	}
 
+	ids := make([]uuid.UUID, 0, len(templates))
 	for _, template := range templates {
+		ids = append(ids, template.ID)
 		for _, tzOffset := range templateTimezoneOffsets {
 			rows, err := c.database.GetTemplateDAUs(ctx, database.GetTemplateDAUsParams{
 				TemplateID: template.ID,
@@ -249,6 +253,17 @@ func (c *Cache) refreshTemplateDAUs(ctx context.Context) error {
 		}
 		templateAverageBuildTimes[template.ID] = templateAvgBuildTime
 	}
+
+	owners, err := c.database.GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx, ids)
+	if err != nil {
+		return xerrors.Errorf("get workspace unique owner count by template ids: %w", err)
+	}
+
+	for _, owner := range owners {
+		templateWorkspaceOwners[owner.TemplateID] = int(owner.UniqueOwnersSum)
+	}
+
+	c.templateWorkspaceOwners.Store(&templateWorkspaceOwners)
 	c.templateDAUResponses.Store(&templateDAUs)
 	c.templateUniqueUsers.Store(&templateUniqueUsers)
 	c.templateAverageBuildTime.Store(&templateAverageBuildTimes)
@@ -467,6 +482,21 @@ func (c *Cache) TemplateBuildTimeStats(id uuid.UUID) codersdk.TemplateBuildTimeS
 			P95: convertMillis(resp.Delete95),
 		},
 	}
+}
+
+func (c *Cache) TemplateWorkspaceOwners(id uuid.UUID) (int, bool) {
+	m := c.templateWorkspaceOwners.Load()
+	if m == nil {
+		// Data loading.
+		return -1, false
+	}
+
+	resp, ok := (*m)[id]
+	if !ok {
+		// Probably no data.
+		return -1, false
+	}
+	return resp, true
 }
 
 func (c *Cache) DeploymentStats() (codersdk.DeploymentStats, bool) {
