@@ -77,6 +77,10 @@ func (r *WorkspaceProxyReport) Run(ctx context.Context, opts *WorkspaceProxyRepo
 	}
 
 	r.WorkspaceProxies = proxies
+	if r.WorkspaceProxies.Regions == nil {
+		r.WorkspaceProxies.Regions = make([]codersdk.WorkspaceProxy, 0)
+	}
+
 	// Stable sort based on create timestamp.
 	sort.Slice(r.WorkspaceProxies.Regions, func(i int, j int) bool {
 		return r.WorkspaceProxies.Regions[i].CreatedAt.Before(r.WorkspaceProxies.Regions[j].CreatedAt)
