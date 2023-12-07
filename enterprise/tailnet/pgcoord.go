@@ -941,8 +941,7 @@ func (q *querier) mappingQuery(peer mKey) error {
 		return nil
 	}
 	logger.Debug(q.ctx, "sending mappings", slog.F("mapping_len", len(mappings)))
-	mpr.mappings <- mappings
-	return nil
+	return agpl.SendCtx(q.ctx, mpr.mappings, mappings)
 }
 
 func (q *querier) bindingsToMappings(bindings []database.GetTailnetTunnelPeerBindingsRow) ([]mapping, error) {
