@@ -570,10 +570,10 @@ func getWorkspaceAndAgent(ctx context.Context, inv *clibase.Invocation, client *
 				)
 		}
 		// startWorkspace based on the last build parameters.
-		_, _ = fmt.Fprintf(inv.Stderr, "Workspace was stopped, starting workspace to allow connection %q...\n", workspace.Name)
+		_, _ = fmt.Fprintf(inv.Stderr, "Workspace was stopped, starting workspace to allow connecting to %q...\n", workspace.Name)
 		build, err := startWorkspace(inv, client, workspace, workspaceParameterFlags{}, WorkspaceStart)
 		if err != nil {
-			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace is stopped, failed to start: %w", err)
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("unable to start workspace: %w", err)
 		}
 		workspace.LatestBuild = build
 	}
