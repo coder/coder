@@ -181,13 +181,7 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 			Description: "Forward UDP port(s) from the workspace to the local machine. The UDP connection has TCP-like semantics to support stateful UDP protocols.",
 			Value:       clibase.StringArrayOf(&udpForwards),
 		},
-		{
-			Flag:        "disable-autostart",
-			Description: "Disable starting the workspace automatically when connecting via port forward.",
-			Env:         "CODER_PORT_FORWARD_DISABLE_AUTOSTART",
-			Value:       clibase.BoolOf(&disableAutostart),
-			Default:     "false",
-		},
+		sshDisableAutostartOption(clibase.BoolOf(&disableAutostart)),
 	}
 
 	return cmd

@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coder/retry"
 	"github.com/gen2brain/beeep"
 	"github.com/gofrs/flock"
 	"github.com/google/uuid"
@@ -34,7 +35,6 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
-	"github.com/coder/retry"
 )
 
 var (
@@ -460,13 +460,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			FlagShorthand: "R",
 			Value:         clibase.StringOf(&remoteForward),
 		},
-		{
-			Flag:        "disable-autostart",
-			Description: "Disable starting the workspace automatically when connecting via SSH.",
-			Env:         "CODER_SSH_DISABLE_AUTOSTART",
-			Value:       clibase.BoolOf(&disableAutostart),
-			Default:     "false",
-		},
+		sshDisableAutostartOption(clibase.BoolOf(&disableAutostart)),
 	}
 	return cmd
 }
@@ -950,4 +944,14 @@ func (c *rawSSHCopier) Close() error {
 	case <-t.C:
 	}
 	return err
+}
+
+func sshDisableAutostartOption(src *clibase.Bool) clibase.Option {
+	return clibase.Option{
+		Flag:        "disable-autostart",
+		Description: "Disable starting the workspace automatically when connecting via SSH.",
+		Env:         "CODER_SSH_DISABLE_AUTOSTART",
+		Value:       src,
+		Default:     "false",
+	}
 }
