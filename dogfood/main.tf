@@ -103,7 +103,6 @@ module "code-server" {
 module "jetbrains_gateway" {
   source         = "https://registry.coder.com/modules/jetbrains-gateway"
   agent_id       = coder_agent.dev.id
-  agent_name     = "dev"
   folder         = local.repo_dir
   jetbrains_ides = ["GO", "WS"]
   default        = "GO"
