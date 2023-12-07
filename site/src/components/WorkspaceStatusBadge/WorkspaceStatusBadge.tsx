@@ -78,6 +78,8 @@ export const DormantStatusBadge: FC<DormantStatusBadgeProps> = ({
       month: "long",
       day: "numeric",
       year: "numeric",
+      hour: "numeric",
+      minute: "numeric",
     });
   };
 
@@ -87,7 +89,7 @@ export const DormantStatusBadge: FC<DormantStatusBadgeProps> = ({
         <div>
           {`This workspace has not been used for ${formatDistanceToNow(
             Date.parse(workspace.last_used_at),
-          )} and is scheduled to be deleted on ${formatDate(
+          )} and has been marked dormant. It is scheduled to be deleted on ${formatDate(
             workspace.deleting_at,
           )}.`}
         </div>
@@ -106,7 +108,7 @@ export const DormantStatusBadge: FC<DormantStatusBadgeProps> = ({
         <div>
           {`This workspace has not been used for ${formatDistanceToNow(
             Date.parse(workspace.last_used_at),
-          )} and is at risk of being deleted.`}
+          )} and has been marked dormant. It is not scheduled for auto-deletion but will become a candidate if auto-deletion is enabled on this template.`}
         </div>
       }
     >
