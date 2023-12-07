@@ -560,7 +560,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		// nolint:gocritic // Setting up unit test data
-		err := db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(tplAdmin)), database.UpdateTemplateAccessControlByIDParams{
+		err := db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(tplAdmin, user.OrganizationID)), database.UpdateTemplateAccessControlByIDParams{
 			ID:                   template.ID,
 			RequireActiveVersion: false,
 			Deprecated:           "Some deprecated message",

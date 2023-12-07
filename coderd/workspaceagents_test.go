@@ -912,10 +912,12 @@ func TestWorkspaceAgentReportStats(t *testing.T) {
 		require.NoError(t, err)
 
 		// nolint:gocritic // using db directly over creating a delete job
-		err = db.UpdateWorkspaceDeletedByID(dbauthz.As(context.Background(), coderdtest.AuthzUserSubject(admin)), database.UpdateWorkspaceDeletedByIDParams{
-			ID:      newWorkspace.ID,
-			Deleted: true,
-		})
+		err = db.UpdateWorkspaceDeletedByID(dbauthz.As(context.Background(),
+			coderdtest.AuthzUserSubject(admin, ownerUser.OrganizationID)),
+			database.UpdateWorkspaceDeletedByIDParams{
+				ID:      newWorkspace.ID,
+				Deleted: true,
+			})
 		require.NoError(t, err)
 
 		_, err = agentClient.PostStats(context.Background(), &agentsdk.Stats{
