@@ -4,8 +4,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-
-	"golang.org/x/xerrors"
 )
 
 var (
@@ -16,7 +14,8 @@ var (
 // Hostname returns the hostname of the machine, lowercased,
 // with any trailing domain suffix stripped.
 // It is cached after the first call.
-// If the hostname cannot be determined, this will panic.
+// If the hostname cannot be determined, for any reason,
+// localhost will be returned instead.
 func Hostname() string {
 	hostnameOnce.Do(func() { hostname = getHostname() })
 	return hostname
@@ -26,7 +25,8 @@ func getHostname() string {
 	h, err := os.Hostname()
 	if err != nil {
 		// Something must be very wrong if this fails.
-		panic(xerrors.Errorf("lookup hostname: %w", err))
+		// We'll just return localhost and hope for the best.
+		return "localhost"
 	}
 
 	// On some platforms, the hostname can be an FQDN. We only want the hostname.
