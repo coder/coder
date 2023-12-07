@@ -914,12 +914,12 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 
 				bag := audit.BaggageFromContext(ctx)
 
-				audit.WorkspaceBuildAudit(ctx, &audit.BuildAuditParams[database.WorkspaceBuild]{
+				audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.WorkspaceBuild]{
 					Audit:            *auditor,
 					Log:              s.Logger,
 					UserID:           job.InitiatorID,
 					OrganizationID:   workspace.OrganizationID,
-					JobID:            job.ID,
+					RequestID:        job.ID,
 					IP:               bag.IP,
 					Action:           auditAction,
 					Old:              previousBuild,
@@ -1271,12 +1271,12 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 
 			bag := audit.BaggageFromContext(ctx)
 
-			audit.WorkspaceBuildAudit(ctx, &audit.BuildAuditParams[database.WorkspaceBuild]{
+			audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.WorkspaceBuild]{
 				Audit:            *auditor,
 				Log:              s.Logger,
 				UserID:           job.InitiatorID,
 				OrganizationID:   workspace.OrganizationID,
-				JobID:            job.ID,
+				RequestID:        job.ID,
 				IP:               bag.IP,
 				Action:           auditAction,
 				Old:              previousBuild,
