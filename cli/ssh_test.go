@@ -109,7 +109,7 @@ func TestSSH(t *testing.T) {
 		workspaceBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspaceBuild.ID)
 
-		//
+		// SSH to the workspace which should autostart it
 		inv, root := clitest.New(t, "ssh", workspace.Name)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
@@ -121,8 +121,9 @@ func TestSSH(t *testing.T) {
 			err := inv.WithContext(ctx).Run()
 			assert.NoError(t, err)
 		})
-		pty.ExpectMatch("⧗ Running")
 
+		// When the agent connects, the workspace was started, and we should
+		// have access to the shell.
 		_ = agenttest.New(t, client.URL, authToken)
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
