@@ -1,12 +1,14 @@
-import { useTheme } from "@emotion/react";
-import TextField from "@mui/material/TextField";
+import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
+import ScheduleIcon from "@mui/icons-material/Schedule";
+import dayjs from "dayjs";
+import { type FC, type ReactNode, useState } from "react";
+import { useMutation } from "react-query";
 import { deleteWorkspace, startWorkspace, stopWorkspace } from "api/api";
 import type { Workspace } from "api/typesGenerated";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { displayError } from "components/GlobalSnackbar/utils";
-import { type FC, useState } from "react";
-import { useMutation } from "react-query";
-import { MONOSPACE_FONT_FAMILY } from "theme/constants";
+import { getIconPathResource } from "components/Resources/ResourceAvatar";
+import { Stack } from "components/Stack/Stack";
 
 interface UseBatchActionsProps {
   onSuccess: () => Promise<void>;
@@ -68,77 +70,189 @@ type BatchDeleteConfirmationProps = {
   onConfirm: () => void;
 };
 
-export const BatchDeleteConfirmation: FC<BatchDeleteConfirmationProps> = (
-  props,
-) => {
-  const { checkedWorkspaces, open, onClose, onConfirm, isLoading } = props;
-  const theme = useTheme();
-  const [confirmation, setConfirmation] = useState({ value: "", error: false });
+export const BatchDeleteConfirmation: FC<BatchDeleteConfirmationProps> = ({
+  checkedWorkspaces,
+  open,
+  onClose,
+  onConfirm,
+  isLoading,
+}) => {
+  const [stage, setStage] = useState<
+    "consequences" | "workspaces" | "resources"
+  >("consequences");
 
-  const confirmDeletion = () => {
-    setConfirmation((c) => ({ ...c, error: false }));
-
-    if (confirmation.value !== "DELETE") {
-      setConfirmation((c) => ({ ...c, error: true }));
-      return;
+  const onProceed = () => {
+    switch (stage) {
+      case "resources":
+        onConfirm();
+        break;
+      case "workspaces":
+        setStage("resources");
+        break;
+      case "consequences":
+        setStage("workspaces");
+        break;
     }
-
-    onConfirm();
   };
+
+  const workspaceCount = `${checkedWorkspaces.length} ${
+    checkedWorkspaces.length === 1 ? "workspace" : "workspaces"
+  }`;
+
+  let confirmText: ReactNode = <>Review selected workspaces&hellip;</>;
+  if (stage === "workspaces") {
+    confirmText = <>Confirm {workspaceCount}&hellip;</>;
+  }
+  if (stage === "resources") {
+    const resources = checkedWorkspaces
+      .map((workspace) => workspace.latest_build.resources.length)
+      .reduce((a, b) => a + b, 0);
+    const resourceCount = `${resources} ${
+      resources === 1 ? "resource" : "resources"
+    }`;
+    confirmText = (
+      <>
+        Delete {workspaceCount} and {resourceCount}
+      </>
+    );
+  }
 
   return (
     <ConfirmDialog
-      type="delete"
       open={open}
-      confirmLoading={isLoading}
-      onConfirm={confirmDeletion}
       onClose={() => {
+        setStage("consequences");
         onClose();
-        setConfirmation({ value: "", error: false });
       }}
-      title={`Delete ${checkedWorkspaces?.length} ${
-        checkedWorkspaces.length === 1 ? "workspace" : "workspaces"
-      }`}
+      title={`Delete ${workspaceCount}`}
+      hideCancel
+      confirmLoading={isLoading}
+      confirmText={confirmText}
+      onConfirm={onProceed}
+      type="delete"
       description={
-        <form
-          onSubmit={async (e) => {
-            e.preventDefault();
-            confirmDeletion();
-          }}
-        >
-          <div>
-            Deleting these workspaces is irreversible! Are you sure you want to
-            proceed? Type{" "}
-            <code
-              css={{
-                fontFamily: MONOSPACE_FONT_FAMILY,
-                color: theme.palette.text.primary,
-                fontWeight: 600,
-              }}
-            >
-              `DELETE`
-            </code>{" "}
-            to confirm.
-          </div>
-          <TextField
-            value={confirmation.value}
-            required
-            autoFocus
-            fullWidth
-            inputProps={{
-              "aria-label": "Type DELETE to confirm",
-            }}
-            placeholder="Type DELETE to confirm"
-            css={{ marginTop: 16 }}
-            onChange={(e) => {
-              const value = e.currentTarget?.value;
-              setConfirmation((c) => ({ ...c, value }));
-            }}
-            error={confirmation.error}
-            helperText={confirmation.error && "Please type DELETE to confirm"}
-          />
-        </form>
+        <>
+          {stage === "consequences" && <Consequences />}
+          {stage === "workspaces" && (
+            <Workspaces workspaces={checkedWorkspaces} />
+          )}
+          {stage === "resources" && (
+            <Resources workspaces={checkedWorkspaces} />
+          )}
+        </>
       }
     />
+  );
+};
+
+interface StageProps {
+  workspaces: Workspace[];
+}
+
+const Consequences: FC = () => {
+  return (
+    <>
+      <p>Deleting workspaces is irreversible!</p>
+      <ul
+        css={{
+          paddingLeft: 16,
+          marginBottom: 0,
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+        }}
+      >
+        <li>All data will be permanently deleted.</li>
+        <li>
+          All resources belonging to these workspaces will be permanently
+          destroyed.
+        </li>
+        <li>All users will be disconnect and unable to retrieve</li>
+      </ul>
+    </>
+  );
+};
+
+const Workspaces: FC<StageProps> = ({ workspaces }) => {
+  const mostRecent = workspaces.reduce(
+    (latestSoFar, against) => {
+      if (!latestSoFar) {
+        return against;
+      }
+
+      return new Date(against.last_used_at).getTime() >
+        new Date(latestSoFar.last_used_at).getTime()
+        ? against
+        : latestSoFar;
+    },
+    undefined as Workspace | undefined,
+  );
+
+  const owners = new Set(workspaces.map((workspace) => workspace.owner_id))
+    .size;
+  const ownersCount = `${owners} ${owners === 1 ? "owner" : "owners"}`;
+
+  return (
+    <>
+      <ul>
+        {workspaces.map((workspace) => (
+          <li>
+            {workspace.name} {workspace.owner_name}{" "}
+            {dayjs(workspace.last_used_at).fromNow()}
+          </li>
+        ))}
+      </ul>
+      <Stack justifyContent="center" direction="row" css={{ fontSize: 14 }}>
+        <Stack direction="row" alignItems="center" spacing={1}>
+          {/* This size doesn't match the rest of the icons
+              because MUI is just really inconsistent */}
+          <PersonOutlinedIcon css={{ width: 18, height: 18 }} />
+          <span>{ownersCount}</span>
+        </Stack>
+        {mostRecent && (
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <ScheduleIcon css={{ width: 16, height: 16 }} />
+            <span>Last used {dayjs(mostRecent.last_used_at).fromNow()}</span>
+          </Stack>
+        )}
+      </Stack>
+    </>
+  );
+};
+
+const Resources: FC<StageProps> = ({ workspaces }) => {
+  const resources: Record<string, { count: number; icon: string }> = {};
+  workspaces.forEach((workspace) =>
+    workspace.latest_build.resources.forEach((resource) => {
+      if (!resources[resource.type]) {
+        resources[resource.type] = {
+          count: 0,
+          icon: resource.icon || getIconPathResource(resource.type),
+        };
+      }
+
+      resources[resource.type].count++;
+    }),
+  );
+
+  return (
+    <Stack>
+      <p>Deleting these workspaces will also permanently destroy&hellip;</p>
+      <Stack
+        direction="row"
+        justifyContent="center"
+        wrap="wrap"
+        css={{ gap: "6px 20px", fontSize: 14 }}
+      >
+        {Object.entries(resources).map(([type, summary]) => (
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <img alt="" src={summary.icon} css={{ width: 16, height: 16 }} />
+            <span>
+              {summary.count} <code>{type}</code>
+            </span>
+          </Stack>
+        ))}
+      </Stack>
+    </Stack>
   );
 };
