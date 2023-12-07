@@ -47,12 +47,12 @@ type Request[T Auditable] struct {
 	Action database.AuditAction
 }
 
-type BuildAuditParams[T Auditable] struct {
+type BackgroundAuditParams[T Auditable] struct {
 	Audit Auditor
 	Log   slog.Logger
 
 	UserID           uuid.UUID
-	JobID            uuid.UUID
+	RequestID        uuid.UUID
 	Status           int
 	Action           database.AuditAction
 	OrganizationID   uuid.UUID
@@ -255,9 +255,9 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 	}
 }
 
-// WorkspaceBuildAudit creates an audit log for a workspace build.
+// BackgroundAudit creates an audit log for a background event.
 // The audit log is committed upon invocation.
-func WorkspaceBuildAudit[T Auditable](ctx context.Context, p *BuildAuditParams[T]) {
+func BackgroundAudit[T Auditable](ctx context.Context, p *BackgroundAuditParams[T]) {
 	ip := parseIP(p.IP)
 
 	diff := Diff(p.Audit, p.Old, p.New)
@@ -285,7 +285,7 @@ func WorkspaceBuildAudit[T Auditable](ctx context.Context, p *BuildAuditParams[T
 		Action:           p.Action,
 		Diff:             diffRaw,
 		StatusCode:       int32(p.Status),
-		RequestID:        p.JobID,
+		RequestID:        p.RequestID,
 		AdditionalFields: p.AdditionalFields,
 	}
 	err = p.Audit.Export(ctx, auditLog)
