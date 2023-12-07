@@ -237,7 +237,11 @@ const Resources: FC<StageProps> = ({ workspaces }) => {
 
   return (
     <Stack>
-      <p>Deleting these workspaces will also permanently destroy&hellip;</p>
+      <p>
+        Deleting{" "}
+        {workspaces.length === 1 ? "this workspace" : "these workspaces"} will
+        also permanently destroy&hellip;
+      </p>
       <Stack
         direction="row"
         justifyContent="center"
