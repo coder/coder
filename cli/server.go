@@ -876,7 +876,14 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			defer provisionerdWaitGroup.Wait()
 			provisionerdMetrics := provisionerd.NewMetrics(options.PrometheusRegistry)
 			for i := int64(0); i < vals.Provisioner.Daemons.Value(); i++ {
-				name := fmt.Sprintf("%s-%d", cliutil.Hostname(), i)
+				suffix := fmt.Sprintf("%d", i)
+				hostname := cliutil.Hostname()
+				// The suffix is added to the hostname, so we may need to trim to fit into
+				// the 64 character limit.
+				if len(hostname+suffix) > 62 {
+					hostname = hostname[:62-len(suffix)]
+				}
+				name := fmt.Sprintf("%s-%s", hostname, suffix)
 				daemonCacheDir := filepath.Join(cacheDir, fmt.Sprintf("provisioner-%d", i))
 				daemon, err := newProvisionerDaemon(
 					ctx, coderAPI, provisionerdMetrics, logger, vals, daemonCacheDir, errCh, &provisionerdWaitGroup, name,
