@@ -929,6 +929,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		picture, _ = pictureRaw.(string)
 	}
 
+	ctx = slog.With(ctx, slog.F("email", email), slog.F("username", username))
 	usingGroups, groups, groupErr := api.oidcGroups(ctx, mergedClaims)
 	if groupErr != nil {
 		groupErr.Write(rw, r)
@@ -1056,7 +1057,11 @@ func (api *API) oidcGroups(ctx context.Context, mergedClaims map[string]interfac
 		}
 
 		if !inAllowList {
-			detail := fmt.Sprintf("Ask an administrator to add one of your groups (%s) to the whitelist", strings.Join(groups, ", "))
+			logger.Debug(ctx, "oidc group claim not in allow list, rejecting login",
+				slog.F("allow_list_count", len(api.OIDCConfig.GroupAllowList)),
+				slog.F("user_group_count", len(groups)),
+			)
+			detail := "Ask an administrator to add one of your groups to the whitelist"
 			if len(groups) == 0 {
 				detail = "You are currently not a member of any groups! Ask an administrator to add you to an authorized group to login."
 			}
