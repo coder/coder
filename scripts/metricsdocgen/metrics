@@ -612,6 +612,24 @@ coderd_api_requests_processed_total{code="401",method="POST",path="/api/v2/files
 # HELP coderd_api_workspace_latest_build_total The latest workspace builds with a status.
 # TYPE coderd_api_workspace_latest_build_total gauge
 coderd_api_workspace_latest_build_total{status="succeeded"} 1
+# HELP coderd_insights_applications_usage_seconds The application usage per template.
+# TYPE coderd_insights_applications_usage_seconds gauge
+coderd_insights_applications_usage_seconds{application_name="JetBrains",slug="",template_name="code-server-pod"} 1
+# HELP coderd_insights_parameters The parameter usage per template.
+# TYPE coderd_insights_parameters gauge
+coderd_insights_parameters{parameter_name="cpu",parameter_type="string",parameter_value="8",template_name="code-server-pod"} 1
+# HELP coderd_insights_templates_active_users The number of active users of the template.
+# TYPE coderd_insights_templates_active_users gauge
+coderd_insights_templates_active_users{template_name="code-server-pod"} 1
+# HELP coderd_license_active_users The number of active users.
+# TYPE coderd_license_active_users gauge
+coderd_license_active_users 1
+# HELP coderd_license_limit_users The user seats limit based on the active Coder license.
+# TYPE coderd_license_limit_users gauge
+coderd_license_limit_users 25
+# HELP coderd_license_user_limit_enabled Returns 1 if the current license enforces the user limit.
+# TYPE coderd_license_user_limit_enabled gauge
+coderd_license_user_limit_enabled 1
 # HELP coderd_metrics_collector_agents_execution_seconds Histogram for duration of agents metrics collection in seconds.
 # TYPE coderd_metrics_collector_agents_execution_seconds histogram
 coderd_metrics_collector_agents_execution_seconds_bucket{le="0.001"} 0
