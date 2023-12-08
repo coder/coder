@@ -48,6 +48,9 @@ func TestResultString(t *testing.T) {
 			Expected: "0.5/8 cores (6%)",
 			Result:   Result{Used: 0.5, Total: ptr.To(8.0), Unit: "cores"},
 		},
+		{
+			Result: Result{Used: 1, Total: ptr.To(8.0), Unit: "Gb"},
+		},
 	} {
 		assert.Equal(t, tt.Expected, tt.Result.String())
 	}
@@ -188,6 +191,18 @@ func TestStatter(t *testing.T) {
 		t.Run("ContainerMemory/NoLimit", func(t *testing.T) {
 			t.Parallel()
 			fs := initFS(t, fsContainerCgroupV1NoLimit)
+			s, err := New(WithFS(fs), withNoWait)
+			require.NoError(t, err)
+			mem, err := s.ContainerMemory(PrefixDefault)
+			require.NoError(t, err)
+			require.NotNil(t, mem)
+			assert.Equal(t, 268435456.0, mem.Used)
+			assert.Nil(t, mem.Total)
+			assert.Equal(t, "B", mem.Unit)
+		})
+		t.Run("ContainerMemory/NoLimit", func(t *testing.T) {
+			t.Parallel()
+			fs := initFS(t, fsContainerCgroupV1DockerNoMemoryLimit)
 			s, err := New(WithFS(fs), withNoWait)
 			require.NoError(t, err)
 			mem, err := s.ContainerMemory(PrefixDefault)
@@ -381,6 +396,17 @@ proc /proc/sys proc ro,nosuid,nodev,noexec,relatime 0 0`,
 		cgroupV1CFSQuotaUs:          "-1",
 		cgroupV1CFSPeriodUs:         "100000",
 		cgroupV1MemoryMaxUsageBytes: "max", // I have never seen this in the wild
+		cgroupV1MemoryUsageBytes:    "536870912",
+		cgroupV1MemoryStat:          "total_inactive_file 268435456",
+	}
+	fsContainerCgroupV1DockerNoMemoryLimit = map[string]string{
+		procOneCgroup: "0::/docker/aa86ac98959eeedeae0ecb6e0c9ddd8ae8b97a9d0fdccccf7ea7a474f4e0bb1f",
+		procMounts: `overlay / overlay rw,relatime,lowerdir=/some/path:/some/path,upperdir=/some/path:/some/path,workdir=/some/path:/some/path 0 0
+proc /proc/sys proc ro,nosuid,nodev,noexec,relatime 0 0`,
+		cgroupV1CPUAcctUsage:        "0",
+		cgroupV1CFSQuotaUs:          "-1",
+		cgroupV1CFSPeriodUs:         "100000",
+		cgroupV1MemoryMaxUsageBytes: "9223372036854771712",
 		cgroupV1MemoryUsageBytes:    "536870912",
 		cgroupV1MemoryStat:          "total_inactive_file 268435456",
 	}
