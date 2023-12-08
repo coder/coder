@@ -195,6 +195,7 @@ function getAgentRow(agent: WorkspaceAgent): JSX.Element {
         agent={agent}
         workspace={MockWorkspace}
         serverVersion=""
+        serverAPIVersion=""
         onUpdateAgent={action("updateAgent")}
       />
     </ProxyContext.Provider>
