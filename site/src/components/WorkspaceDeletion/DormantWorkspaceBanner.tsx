@@ -1,7 +1,5 @@
 import { formatDistanceToNow } from "date-fns";
-import Link from "@mui/material/Link";
-import { type FC } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { ReactNode, type FC } from "react";
 import type { Workspace } from "api/typesGenerated";
 import { useIsWorkspaceActionsEnabled } from "components/Dashboard/DashboardProvider";
 import { Alert } from "components/Alert/Alert";
@@ -12,90 +10,67 @@ export enum Count {
 }
 
 interface DormantWorkspaceBannerProps {
-  workspaces?: Workspace[];
+  workspace: Workspace;
   onDismiss: () => void;
   shouldRedisplayBanner: boolean;
-  count?: Count;
 }
 
 export const DormantWorkspaceBanner: FC<DormantWorkspaceBannerProps> = ({
-  workspaces,
+  workspace,
   onDismiss,
   shouldRedisplayBanner,
-  count = Count.Singular,
 }) => {
   const experimentEnabled = useIsWorkspaceActionsEnabled();
-
-  if (!workspaces) {
-    return null;
-  }
-
-  const hasDormantWorkspaces = workspaces.find(
-    (workspace) => workspace.dormant_at,
-  );
-
-  const hasDeletionScheduledWorkspaces = workspaces.find(
-    (workspace) => workspace.deleting_at,
-  );
 
   if (
     // Only show this if the experiment is included.
     !experimentEnabled ||
-    !hasDormantWorkspaces ||
+    !workspace.dormant_at ||
     // Banners should be redisplayed after dismissal when additional workspaces are newly scheduled for deletion
     !shouldRedisplayBanner
   ) {
     return null;
   }
 
-  const formatDate = (dateStr: string): string => {
+  const formatDate = (dateStr: string, timestamp: boolean): string => {
     const date = new Date(dateStr);
     return date.toLocaleDateString(undefined, {
       month: "long",
       day: "numeric",
       year: "numeric",
+      ...(timestamp ? { hour: "numeric", minute: "numeric" } : {}),
     });
   };
 
-  const alertText = (): string => {
-    if (workspaces.length === 1) {
-      if (
-        hasDeletionScheduledWorkspaces &&
-        hasDeletionScheduledWorkspaces.deleting_at &&
-        hasDeletionScheduledWorkspaces.dormant_at
-      ) {
-        return `This workspace has been dormant for ${formatDistanceToNow(
-          Date.parse(hasDeletionScheduledWorkspaces.dormant_at),
-        )} and is scheduled to be deleted on ${formatDate(
-          hasDeletionScheduledWorkspaces.deleting_at,
-        )} . To keep it you must activate the workspace.`;
-      } else if (hasDormantWorkspaces && hasDormantWorkspaces.dormant_at) {
-        return `This workspace has been dormant for ${formatDistanceToNow(
-          Date.parse(hasDormantWorkspaces.dormant_at),
-        )}
-        and cannot be interacted
-		with. Dormant workspaces are eligible for
-		permanent deletion. To prevent deletion, activate
-		the workspace.`;
-      }
+  const alertText = (): ReactNode => {
+    if (workspace.deleting_at && workspace.dormant_at) {
+      return (
+        <>
+          This workspace has not been used for{" "}
+          {formatDistanceToNow(Date.parse(workspace.last_used_at))} and was
+          marked dormant on {formatDate(workspace.dormant_at, false)}. It is
+          scheduled to be deleted on {formatDate(workspace.deleting_at, true)}.
+          To keep it you must activate the workspace.
+        </>
+      );
+    } else if (workspace.dormant_at) {
+      return (
+        <>
+          This workspace has not been used for{" "}
+          {formatDistanceToNow(Date.parse(workspace.last_used_at))} and was
+          marked dormant on {formatDate(workspace.dormant_at, false)}. It is not
+          scheduled for auto-deletion but will become a candidate if
+          auto-deletion is enabled on this template. To keep it you must
+          activate the workspace.
+        </>
+      );
     }
     return "";
   };
 
   return (
     <Alert severity="warning" onDismiss={onDismiss} dismissible>
-      {count === Count.Singular ? (
-        alertText()
-      ) : (
-        <>
-          <span>There are</span>{" "}
-          <Link component={RouterLink} to="/workspaces?filter=is-dormant:true">
-            workspaces
-          </Link>{" "}
-          that may be deleted soon due to inactivity. Activate the workspaces
-          you wish to retain.
-        </>
-      )}
+      {alertText()}
     </Alert>
   );
 };

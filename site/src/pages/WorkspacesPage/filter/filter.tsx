@@ -21,7 +21,7 @@ export const workspaceFilterQuery = {
   all: "",
   running: "status:running",
   failed: "status:failed",
-  dormant: "is-dormant:true",
+  dormant: "dormant:true",
 };
 
 type FilterPreset = {

@@ -991,53 +991,55 @@ func TestExecutorAutostartBlocked(t *testing.T) {
 func TestWorkspacesFiltering(t *testing.T) {
 	t.Parallel()
 
-	t.Run("IsDormant", func(t *testing.T) {
+	t.Run("Dormant", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		client, user := coderdenttest.New(t, &coderdenttest.Options{
+		client, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				IncludeProvisionerDaemon: true,
-				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore()),
+				TemplateScheduleStore: schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore()),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
 			},
 		})
-		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleTemplateAdmin())
+		templateAdminClient, templateAdmin := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
-		// Create a template version that passes to get a functioning workspace.
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:          echo.ParseComplete,
-			ProvisionPlan:  echo.PlanComplete,
-			ProvisionApply: echo.ApplyComplete,
+		resp := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+			OrganizationID: owner.OrganizationID,
+			CreatedBy:      owner.UserID,
+		}).Do()
+
+		dormantWS1 := dbfake.WorkspaceBuild(t, db, database.Workspace{
+			OwnerID:        templateAdmin.ID,
+			OrganizationID: owner.OrganizationID,
+		}).Do().Workspace
+
+		dormantWS2 := dbfake.WorkspaceBuild(t, db, database.Workspace{
+			OwnerID:        templateAdmin.ID,
+			OrganizationID: owner.OrganizationID,
+			TemplateID:     resp.Template.ID,
+		}).Do().Workspace
+
+		_ = dbfake.WorkspaceBuild(t, db, database.Workspace{
+			OwnerID:        templateAdmin.ID,
+			OrganizationID: owner.OrganizationID,
+			TemplateID:     resp.Template.ID,
+		}).Do().Workspace
+
+		err := templateAdminClient.UpdateWorkspaceDormancy(ctx, dormantWS1.ID, codersdk.UpdateWorkspaceDormancy{Dormant: true})
+		require.NoError(t, err)
+
+		err = templateAdminClient.UpdateWorkspaceDormancy(ctx, dormantWS2.ID, codersdk.UpdateWorkspaceDormancy{Dormant: true})
+		require.NoError(t, err)
+
+		workspaces, err := templateAdminClient.Workspaces(ctx, codersdk.WorkspaceFilter{
+			FilterQuery: "dormant:true",
 		})
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-
-		dormantWS1 := coderdtest.CreateWorkspace(t, templateAdmin, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, dormantWS1.LatestBuild.ID)
-
-		dormantWS2 := coderdtest.CreateWorkspace(t, templateAdmin, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, dormantWS2.LatestBuild.ID)
-
-		activeWS := coderdtest.CreateWorkspace(t, templateAdmin, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, activeWS.LatestBuild.ID)
-
-		err := templateAdmin.UpdateWorkspaceDormancy(ctx, dormantWS1.ID, codersdk.UpdateWorkspaceDormancy{Dormant: true})
 		require.NoError(t, err)
+		require.Len(t, workspaces.Workspaces, 2)
 
-		err = templateAdmin.UpdateWorkspaceDormancy(ctx, dormantWS2.ID, codersdk.UpdateWorkspaceDormancy{Dormant: true})
-		require.NoError(t, err)
-
-		resp, err := templateAdmin.Workspaces(ctx, codersdk.WorkspaceFilter{
-			FilterQuery: "is-dormant:true",
-		})
-		require.NoError(t, err)
-		require.Len(t, resp.Workspaces, 2)
-
-		for _, ws := range resp.Workspaces {
+		for _, ws := range workspaces.Workspaces {
 			if ws.ID != dormantWS1.ID && ws.ID != dormantWS2.ID {
 				t.Fatalf("Unexpected workspace %+v", ws)
 			}

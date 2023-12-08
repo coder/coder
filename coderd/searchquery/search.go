@@ -107,7 +107,7 @@ func Workspaces(query string, page codersdk.Pagination, agentInactiveDisconnectT
 	filter.Name = parser.String(values, "", "name")
 	filter.Status = string(httpapi.ParseCustom(parser, values, "", "status", httpapi.ParseEnum[database.WorkspaceStatus]))
 	filter.HasAgent = parser.String(values, "", "has-agent")
-	filter.IsDormant = parser.String(values, "", "is-dormant")
+	filter.Dormant = parser.Boolean(values, false, "dormant")
 	filter.LastUsedAfter = parser.Time3339Nano(values, time.Time{}, "last_used_after")
 	filter.LastUsedBefore = parser.Time3339Nano(values, time.Time{}, "last_used_before")
 

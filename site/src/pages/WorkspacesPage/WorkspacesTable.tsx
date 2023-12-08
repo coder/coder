@@ -21,7 +21,10 @@ import { Avatar } from "components/Avatar/Avatar";
 import { Stack } from "components/Stack/Stack";
 import { LastUsed } from "pages/WorkspacesPage/LastUsed";
 import { WorkspaceOutdatedTooltip } from "components/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
-import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge";
+import {
+  DormantStatusBadge,
+  WorkspaceStatusBadge,
+} from "components/WorkspaceStatusBadge/WorkspaceStatusBadge";
 import { getDisplayWorkspaceTemplateName } from "utils/workspace";
 import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
 import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
@@ -197,6 +200,9 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                             message="Your workspace is running but some agents are unhealthy."
                           />
                         )}
+                      {workspace.dormant_at && (
+                        <DormantStatusBadge workspace={workspace} />
+                      )}
                     </div>
                   </TableCell>
 
