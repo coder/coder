@@ -19,6 +19,7 @@ import type {
 } from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
+import { isStorybook } from "utils/storybook";
 
 type ItemStatus = "stale" | "valid" | "loading";
 
@@ -200,7 +201,7 @@ const StaticWidth: FC<HTMLAttributes<HTMLDivElement>> = ({
 
   useLayoutEffect(() => {
     // Ignore this in storybook
-    if (!ref.current || process.env.STORYBOOK === "true") {
+    if (!ref.current || isStorybook()) {
       return;
     }
 

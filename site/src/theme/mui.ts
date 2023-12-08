@@ -10,6 +10,7 @@ import {
 } from "./constants";
 // eslint-disable-next-line no-restricted-imports -- We need MUI here
 import { alertClasses } from "@mui/material/Alert";
+import { isStorybook } from "utils/storybook";
 
 export type PaletteIndex =
   | "primary"
@@ -297,6 +298,11 @@ dark = createTheme(dark, {
         underline: "hover",
       },
     },
+    MuiPopover: {
+      defaultProps: {
+        transitionDuration: isStorybook() ? 0 : undefined,
+      },
+    },
     MuiPaper: {
       defaultProps: {
         elevation: 0,
@@ -339,6 +345,7 @@ dark = createTheme(dark, {
           vertical: "top",
           horizontal: "right",
         },
+        transitionDuration: isStorybook() ? 0 : undefined,
       },
       styleOverrides: {
         paper: {

@@ -3,6 +3,7 @@ import { type FC, useRef, useEffect } from "react";
 import type { ProvisionerJobLog } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs";
+import { isStorybook } from "utils/storybook";
 
 interface WorkspaceBuildLogsSectionProps {
   logs?: ProvisionerJobLog[];
@@ -16,7 +17,7 @@ export const WorkspaceBuildLogsSection: FC<WorkspaceBuildLogsSectionProps> = ({
 
   useEffect(() => {
     // Auto scrolling makes hard to snapshot test using Chromatic
-    if (process.env.STORYBOOK === "true") {
+    if (isStorybook()) {
       return;
     }
 

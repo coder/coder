@@ -40,6 +40,7 @@ import { colors } from "theme/colors";
 import { HelpTooltipTitle } from "components/HelpTooltip/HelpTooltip";
 import { Stack } from "components/Stack/Stack";
 import { type ClassName, useClassName } from "hooks/useClassName";
+import { isStorybook } from "utils/storybook";
 
 export const bannerHeight = 36;
 
@@ -146,7 +147,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
             <>Status of your Coder deployment. Only visible for admins!</>
           )
         }
-        open={process.env.STORYBOOK === "true" ? true : undefined}
+        open={isStorybook() ? true : undefined}
         css={{ marginRight: -16 }}
       >
         {healthErrors.length > 0 ? (

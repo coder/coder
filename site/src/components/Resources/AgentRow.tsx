@@ -38,6 +38,7 @@ import { AppLink } from "./AppLink/AppLink";
 import { PortForwardButton } from "./PortForwardButton";
 import { SSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
+import { isStorybook } from "utils/storybook";
 
 // Logs are stored as the Line interface to make rendering
 // much more efficient. Instead of mapping objects each time, we're
@@ -93,7 +94,7 @@ export const AgentRow: FC<AgentRowProps> = ({
   );
   const agentLogs = useAgentLogs(agent.id, {
     enabled: showLogs,
-    initialData: process.env.STORYBOOK ? storybookLogs || [] : undefined,
+    initialData: isStorybook() ? storybookLogs || [] : undefined,
   });
   const logListRef = useRef<List>(null);
   const logListDivRef = useRef<HTMLDivElement>(null);
