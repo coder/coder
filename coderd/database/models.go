@@ -1839,7 +1839,6 @@ type ParameterValue struct {
 type ProvisionerDaemon struct {
 	ID           uuid.UUID         `db:"id" json:"id"`
 	CreatedAt    time.Time         `db:"created_at" json:"created_at"`
-	UpdatedAt    sql.NullTime      `db:"updated_at" json:"updated_at"`
 	Name         string            `db:"name" json:"name"`
 	Provisioners []ProvisionerType `db:"provisioners" json:"provisioners"`
 	ReplicaID    uuid.NullUUID     `db:"replica_id" json:"replica_id"`
