@@ -12,7 +12,7 @@ import Tooltip from "@mui/material/Tooltip";
 import CircularProgress from "@mui/material/CircularProgress";
 import { NavLink, Outlet } from "react-router-dom";
 import { css } from "@emotion/css";
-import { kebabCase } from "lodash/fp";
+import kebabCase from "lodash/fp/kebabCase";
 import { Suspense } from "react";
 import { HealthIcon } from "./Content";
 import { HealthSeverity } from "api/typesGenerated";
@@ -39,9 +39,7 @@ export function HealthLayout() {
       ? "Workspace Proxy"
       : undefined,
   } as const;
-  const visibleSections = Object.keys(sections).filter(
-    (key) => sections[key as keyof typeof sections],
-  ) as Partial<typeof sections>;
+  const visibleSections = filterVisibleSections(sections);
 
   return (
     <>
@@ -225,3 +223,21 @@ export function HealthLayout() {
     </>
   );
 }
+
+const filterVisibleSections = <T extends object>(sections: T) => {
+  return Object.keys(sections).reduce(
+    (visible, sectionName) => {
+      const sectionValue = sections[sectionName as keyof typeof sections];
+
+      if (!sectionValue) {
+        return visible;
+      }
+
+      return {
+        ...visible,
+        [sectionName]: sectionValue,
+      };
+    },
+    {} as Partial<typeof sections>,
+  );
+};
