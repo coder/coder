@@ -44,6 +44,13 @@ const (
 	cgroupV2MemoryStat = "/sys/fs/cgroup/memory.stat"
 )
 
+const (
+	// 9223372036854771712 is the highest positive signed 64-bit integer (263-1),
+	// rounded down to multiples of 4096 (2^12), the most common page size on x86 systems.
+	// This is used by docker to indicate no memory limit.
+	UnlimitedMemory int64 = 9223372036854771712
+)
+
 // ContainerCPU returns the CPU usage of the container cgroup.
 // This is calculated as difference of two samples of the
 // CPU usage of the container cgroup.
@@ -219,12 +226,29 @@ func (s *Statter) ContainerMemory(p Prefix) (*Result, error) {
 		return nil, nil //nolint:nilnil
 	}
 
+	var (
+		r   *Result
+		err error
+	)
 	if s.isCGroupV2() {
-		return s.cGroupV2Memory(p)
+		r, err = s.cGroupV2Memory(p)
+		if err != nil {
+			return nil, xerrors.Errorf("get cgroupv2 memory: %w", err)
+		}
+	} else {
+		// Fall back to CGroupv1
+		r, err = s.cGroupV1Memory(p)
+		if err != nil {
+			return nil, xerrors.Errorf("get cgroupv1 memory: %w", err)
+		}
 	}
 
-	// Fall back to CGroupv1
-	return s.cGroupV1Memory(p)
+	// If there is no memory limit set on the container use the host value.
+	if int64(*r.Total) == UnlimitedMemory {
+		return s.HostMemory(p)
+	}
+
+	return r, nil
 }
 
 func (s *Statter) cGroupV2Memory(p Prefix) (*Result, error) {
