@@ -697,6 +697,10 @@ type OIDCConfig struct {
 	// the OIDC provider. Any group not matched by this regex will be ignored.
 	// If the group filter is nil, then no group filtering will occur.
 	GroupFilter *regexp.Regexp
+	// GroupAllowList is a list of groups that are allowed to log in.
+	// If the list length is 0, then the allow list will not be applied and
+	// this feature is disabled.
+	GroupAllowList map[string]bool
 	// GroupMapping controls how groups returned by the OIDC provider get mapped
 	// to groups within Coder.
 	// map[oidcGroupName]coderGroupName
@@ -921,6 +925,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		picture, _ = pictureRaw.(string)
 	}
 
+	ctx = slog.With(ctx, slog.F("email", email), slog.F("username", username))
 	usingGroups, groups, groupErr := api.oidcGroups(ctx, mergedClaims)
 	if groupErr != nil {
 		groupErr.Write(rw, r)
@@ -1010,6 +1015,10 @@ func (api *API) oidcGroups(ctx context.Context, mergedClaims map[string]interfac
 	// If the GroupField is the empty string, then groups from OIDC are not used.
 	// This is so we can support manual group assignment.
 	if api.OIDCConfig.GroupField != "" {
+		// If the allow list is empty, then the user is allowed to log in.
+		// Otherwise, they must belong to at least 1 group in the allow list.
+		inAllowList := len(api.OIDCConfig.GroupAllowList) == 0
+
 		usingGroups = true
 		groupsRaw, ok := mergedClaims[api.OIDCConfig.GroupField]
 		if ok {
@@ -1036,7 +1045,27 @@ func (api *API) oidcGroups(ctx context.Context, mergedClaims map[string]interfac
 				if mappedGroup, ok := api.OIDCConfig.GroupMapping[group]; ok {
 					group = mappedGroup
 				}
+				if _, ok := api.OIDCConfig.GroupAllowList[group]; ok {
+					inAllowList = true
+				}
 				groups = append(groups, group)
+			}
+		}
+
+		if !inAllowList {
+			logger.Debug(ctx, "oidc group claim not in allow list, rejecting login",
+				slog.F("allow_list_count", len(api.OIDCConfig.GroupAllowList)),
+				slog.F("user_group_count", len(groups)),
+			)
+			detail := "Ask an administrator to add one of your groups to the whitelist"
+			if len(groups) == 0 {
+				detail = "You are currently not a member of any groups! Ask an administrator to add you to an authorized group to login."
+			}
+			return usingGroups, groups, &httpError{
+				code:             http.StatusForbidden,
+				msg:              "Not a member of an allowed group",
+				detail:           detail,
+				renderStaticPage: true,
 			}
 		}
 	}
