@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coder/coder/v2/provisionersdk"
+
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"github.com/moby/moby/pkg/namesgenerator"
@@ -101,8 +103,8 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, tags map[string]strin
 	ctx := r.Context()
 	apiKey, ok := httpmw.APIKeyOptional(r)
 	if ok {
-		tags = provisionerdserver.MutateTags(apiKey.UserID, tags)
-		if tags[provisionerdserver.TagScope] == provisionerdserver.ScopeUser {
+		tags = provisionersdk.MutateTags(apiKey.UserID, tags)
+		if tags[provisionersdk.TagScope] == provisionersdk.ScopeUser {
 			// Any authenticated user can create provisioner daemons scoped
 			// for jobs that they own,
 			return tags, true
@@ -119,7 +121,7 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, tags map[string]strin
 		psk := r.Header.Get(codersdk.ProvisionerDaemonPSK)
 		if subtle.ConstantTimeCompare([]byte(p.psk), []byte(psk)) == 1 {
 			// If using PSK auth, the daemon is, by definition, scoped to the organization.
-			tags[provisionerdserver.TagScope] = provisionerdserver.ScopeOrganization
+			tags[provisionersdk.TagScope] = provisionersdk.ScopeOrganization
 			return tags, true
 		}
 	}
