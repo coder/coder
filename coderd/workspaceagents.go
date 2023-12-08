@@ -30,6 +30,7 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -1677,7 +1678,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		var nextAutostart time.Time
 		if workspace.AutostartSchedule.String != "" {
 			templateSchedule, err := (*(api.TemplateScheduleStore.Load())).Get(ctx, api.Database, workspace.TemplateID)
-			// If the template schedule fails to load, just default to bumping without the next trasition and log it.
+			// If the template schedule fails to load, just default to bumping without the next transition and log it.
 			if err != nil {
 				api.Logger.Warn(ctx, "failed to load template schedule bumping activity, defaulting to bumping by 60min",
 					slog.F("workspace_id", workspace.ID),

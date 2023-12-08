@@ -35,6 +35,8 @@ import (
 	"tailscale.com/types/netlogtype"
 
 	"cdr.dev/slog"
+	"github.com/coder/retry"
+
 	"github.com/coder/coder/v2/agent/agentproc"
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentssh"
@@ -45,7 +47,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/tailnet"
-	"github.com/coder/retry"
 )
 
 const (
@@ -222,8 +223,11 @@ type agent struct {
 	connCountReconnectingPTY atomic.Int64
 
 	prometheusRegistry *prometheus.Registry
-	metrics            *agentMetrics
-	syscaller          agentproc.Syscaller
+	// metrics are prometheus registered metrics that will be collected and
+	// labeled in Coder with the agent + workspace.
+	metrics   *agentMetrics
+	stats     agentStats
+	syscaller agentproc.Syscaller
 
 	// modifiedProcs is used for testing process priority management.
 	modifiedProcs chan []*agentproc.Process
@@ -252,6 +256,9 @@ func (a *agent) init(ctx context.Context) {
 		Filesystem: a.filesystem,
 		PatchLogs:  a.client.PatchLogs,
 	})
+	// Register runner metrics. If the prom registry is nil, the metrics
+	// will not report anywhere.
+	a.scriptRunner.RegisterMetrics(a.prometheusRegistry)
 	go a.runLoop(ctx)
 }
 
@@ -745,6 +752,7 @@ func (a *agent) run(ctx context.Context) error {
 			return xerrors.Errorf("init script runner: %w", err)
 		}
 		err = a.trackConnGoroutine(func() {
+			start := time.Now()
 			err := a.scriptRunner.Execute(ctx, func(script codersdk.WorkspaceAgentScript) bool {
 				return script.RunOnStart
 			})
@@ -758,6 +766,16 @@ func (a *agent) run(ctx context.Context) error {
 			} else {
 				a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleReady)
 			}
+
+			dur := time.Since(start).Nanoseconds()
+			// If something really look 0 ns, just set it to 1 to indicate that it ran.
+			// Otherwise, 0 looks like the startup script has not run yet. I don't think
+			// this will ever be 1ns
+			if dur == 0 {
+				dur = 1
+			}
+			a.stats.startScriptNs.Store(dur)
+			a.stats.startScriptSuccess.Store(err == nil)
 			a.scriptRunner.StartCron()
 		})
 		if err != nil {

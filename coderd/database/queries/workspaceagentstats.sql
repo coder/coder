@@ -171,10 +171,11 @@ WITH agent_stats AS (
 		WHERE created_at > $1 AND connection_median_latency_ms > 0
 	) AS a
 	WHERE a.rn = 1
-	GROUP BY a.user_id, a.agent_id, a.workspace_id
+	GROUP BY a.user_id, a.agent_id, a.workspace_id, a.template_id
 )
 SELECT
-	users.username, workspace_agents.name AS agent_name, workspaces.name AS workspace_name, rx_bytes, tx_bytes,
+	users.username, workspace_agents.name AS agent_name, workspaces.name AS workspace_name,
+	workspaces.template_id AS template_id, rx_bytes, tx_bytes,
 	session_count_vscode, session_count_ssh, session_count_jetbrains, session_count_reconnecting_pty,
 	connection_count, connection_median_latency_ms
 FROM
@@ -194,4 +195,8 @@ ON
 JOIN
 	workspaces
 ON
-	workspaces.id = agent_stats.workspace_id;
+	workspaces.id = agent_stats.workspace_id
+JOIN
+	templates
+ON
+	templates.id = workspaces.template_id;
