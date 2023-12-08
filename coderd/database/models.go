@@ -2119,6 +2119,8 @@ type User struct {
 	LastSeenAt     time.Time      `db:"last_seen_at" json:"last_seen_at"`
 	// Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user's quiet hours. If empty, the default quiet hours on the instance is used instead.
 	QuietHoursSchedule string `db:"quiet_hours_schedule" json:"quiet_hours_schedule"`
+	// "" can be interpreted as "the user does not care", falling back to the default theme
+	ThemePreference string `db:"theme_preference" json:"theme_preference"`
 }
 
 type UserLink struct {
