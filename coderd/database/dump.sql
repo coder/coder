@@ -509,7 +509,6 @@ CREATE TABLE parameter_values (
 CREATE TABLE provisioner_daemons (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone,
     name character varying(64) NOT NULL,
     provisioners provisioner_type[] NOT NULL,
     replica_id uuid,

@@ -12,7 +12,7 @@ INSERT INTO
 		"name",
 		provisioners,
 		tags,
-		updated_at
+		last_seen_at
 	)
 VALUES
 	($1, $2, $3, $4, $5, $6) RETURNING *;
@@ -23,6 +23,6 @@ VALUES
 -- A provisioner daemon with "zeroed" updated_at column indicates possible
 -- connectivity issues (no provisioner daemon activity since registration).
 DELETE FROM provisioner_daemons WHERE (
-	(created_at < (NOW() - INTERVAL '7 days') AND updated_at IS NULL) OR
-	(updated_at IS NOT NULL AND updated_at < (NOW() - INTERVAL '7 days'))
+	(created_at < (NOW() - INTERVAL '7 days') AND last_seen_at IS NULL) OR
+	(last_seen_at IS NOT NULL AND last_seen_at < (NOW() - INTERVAL '7 days'))
 );
