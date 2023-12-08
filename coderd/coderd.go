@@ -1160,7 +1160,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, name string
 	}()
 
 	tags := provisionerdserver.Tags{
-		provisionerdserver.TagScope: provisionerdserver.ScopeOrganization,
+		provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 	}
 
 	mux := drpcmux.New()
