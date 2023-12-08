@@ -24,7 +24,7 @@ import {
 import { ExternalAuthPollingState } from "pages/CreateWorkspacePage/CreateWorkspacePage";
 import { useState, useCallback, useEffect } from "react";
 import { useQuery } from "react-query";
-import { userExternalAuth } from "api/queries/externalauth";
+import { externalAuthProvider } from "api/queries/externalAuth";
 import { FullScreenLoader } from "components/Loader/FullScreenLoader";
 
 export type UserExternalAuthSettingsPageViewProps = {
@@ -61,7 +61,7 @@ export const UserExternalAuthSettingsPageView = ({
             <TableRow>
               <TableCell>Application</TableCell>
               <TableCell>Link</TableCell>
-              <TableCell></TableCell>
+              <TableCell width="1%"></TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -150,7 +150,7 @@ const ExternalAuthRow = ({
           message={authenticated ? "Authenticated" : "Click to Login"}
           externalAuthPollingState={externalAuthPollingState}
           startPollingExternalAuth={startPollingExternalAuth}
-        ></ExternalAuth>
+        />
       </TableCell>
       <TableCell>
         {(link || externalAuth?.authenticated) && (
@@ -199,7 +199,7 @@ const useExternalAuth = (providerID: string, unlinked: number) => {
   }, []);
 
   const { data: externalAuth, refetch } = useQuery({
-    ...userExternalAuth(providerID),
+    ...externalAuthProvider(providerID),
     refetchInterval: externalAuthPollingState === "polling" ? 1000 : false,
   });
 

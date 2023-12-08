@@ -7767,9 +7767,10 @@ FROM users
 WHERE
 	-- TODO: we can add more conditions here, such as:
 	-- 1) The user must be active
-	-- 2) The user must not be deleted
-	-- 3) The workspace must be running
+	-- 2) The workspace must be running
 	workspace_agents.auth_token = $1
+AND
+	workspaces.deleted = FALSE
 GROUP BY
 	workspace_agents.id,
 	workspaces.id,
@@ -8685,7 +8686,7 @@ func (q *sqlQuerier) UpdateWorkspaceAgentStartupByID(ctx context.Context, arg Up
 }
 
 const deleteOldWorkspaceAgentStats = `-- name: DeleteOldWorkspaceAgentStats :exec
-DELETE FROM workspace_agent_stats WHERE created_at < NOW() - INTERVAL '6 months'
+DELETE FROM workspace_agent_stats WHERE created_at < NOW() - INTERVAL '180 days'
 `
 
 func (q *sqlQuerier) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
@@ -10747,6 +10748,44 @@ func (q *sqlQuerier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspace
 	return i, err
 }
 
+const getWorkspaceUniqueOwnerCountByTemplateIDs = `-- name: GetWorkspaceUniqueOwnerCountByTemplateIDs :many
+SELECT
+	template_id, COUNT(DISTINCT owner_id) AS unique_owners_sum
+FROM
+	workspaces
+WHERE
+	template_id = ANY($1 :: uuid[]) AND deleted = false
+GROUP BY template_id
+`
+
+type GetWorkspaceUniqueOwnerCountByTemplateIDsRow struct {
+	TemplateID      uuid.UUID `db:"template_id" json:"template_id"`
+	UniqueOwnersSum int64     `db:"unique_owners_sum" json:"unique_owners_sum"`
+}
+
+func (q *sqlQuerier) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Context, templateIds []uuid.UUID) ([]GetWorkspaceUniqueOwnerCountByTemplateIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceUniqueOwnerCountByTemplateIDs, pq.Array(templateIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetWorkspaceUniqueOwnerCountByTemplateIDsRow
+	for rows.Next() {
+		var i GetWorkspaceUniqueOwnerCountByTemplateIDsRow
+		if err := rows.Scan(&i.TemplateID, &i.UniqueOwnersSum); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspaces = `-- name: GetWorkspaces :many
 SELECT
 	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates,
@@ -10913,13 +10952,11 @@ WHERE
 			) > 0
 		ELSE true
 	END
-	-- Filter by dormant workspaces. By default we do not return dormant
-	-- workspaces since they are considered soft-deleted.
+	-- Filter by dormant workspaces.
 	AND CASE
-		WHEN $10 :: text != '' THEN
+		WHEN $10 :: boolean != 'false' THEN
 			dormant_at IS NOT NULL
-		ELSE
-			dormant_at IS NULL
+		ELSE true
 	END
 	-- Filter by last_used
 	AND CASE
@@ -10960,7 +10997,7 @@ type GetWorkspacesParams struct {
 	Name                                  string      `db:"name" json:"name"`
 	HasAgent                              string      `db:"has_agent" json:"has_agent"`
 	AgentInactiveDisconnectTimeoutSeconds int64       `db:"agent_inactive_disconnect_timeout_seconds" json:"agent_inactive_disconnect_timeout_seconds"`
-	IsDormant                             string      `db:"is_dormant" json:"is_dormant"`
+	Dormant                               bool        `db:"dormant" json:"dormant"`
 	LastUsedBefore                        time.Time   `db:"last_used_before" json:"last_used_before"`
 	LastUsedAfter                         time.Time   `db:"last_used_after" json:"last_used_after"`
 	Offset                                int32       `db:"offset_" json:"offset_"`
@@ -10999,7 +11036,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		arg.Name,
 		arg.HasAgent,
 		arg.AgentInactiveDisconnectTimeoutSeconds,
-		arg.IsDormant,
+		arg.Dormant,
 		arg.LastUsedBefore,
 		arg.LastUsedAfter,
 		arg.Offset,

@@ -538,3 +538,18 @@ func RedirectToLogin(rw http.ResponseWriter, r *http.Request, dashboardURL *url.
 	// (like temporary redirect does).
 	http.Redirect(rw, r, u.String(), http.StatusSeeOther)
 }
+
+// CustomRedirectToLogin redirects the user to the login page with the `message` and
+// `redirect` query parameters set, with a provided code
+func CustomRedirectToLogin(rw http.ResponseWriter, r *http.Request, redirect string, message string, code int) {
+	q := url.Values{}
+	q.Add("message", message)
+	q.Add("redirect", redirect)
+
+	u := &url.URL{
+		Path:     "/login",
+		RawQuery: q.Encode(),
+	}
+
+	http.Redirect(rw, r, u.String(), code)
+}

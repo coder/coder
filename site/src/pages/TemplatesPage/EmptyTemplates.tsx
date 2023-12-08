@@ -112,10 +112,10 @@ const styles = {
     },
   },
 
-  featuredExamples: (theme) => ({
+  featuredExamples: {
     display: "flex",
     flexWrap: "wrap",
     justifyContent: "center",
-    gap: theme.spacing(2),
-  }),
+    gap: 16,
+  },
 } satisfies Record<string, Interpolation<Theme>>;

@@ -31,7 +31,7 @@ CREATE TYPE build_reason AS ENUM (
     'initiator',
     'autostart',
     'autostop',
-    'autolock',
+    'dormancy',
     'failedstop',
     'autodelete'
 );

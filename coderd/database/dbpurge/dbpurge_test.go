@@ -34,6 +34,57 @@ func TestPurge(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	now := dbtime.Now()
+
+	// given
+	// Let's use RxBytes to identify stat entries.
+	// Stat inserted 6 months + 1 hour ago, should be deleted.
+	first := dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+		CreatedAt:                 now.Add(-6*30*24*time.Hour - time.Hour),
+		ConnectionMedianLatencyMS: 1,
+		RxBytes:                   1111,
+	})
+
+	// Stat inserted 6 months - 1 hour ago, should not be deleted.
+	second := dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+		CreatedAt:                 now.Add(-5*30*24*time.Hour + time.Hour),
+		ConnectionMedianLatencyMS: 1,
+		RxBytes:                   2222,
+	})
+
+	// when
+	closer := dbpurge.New(ctx, logger, db)
+	defer closer.Close()
+
+	// then
+	var stats []database.GetWorkspaceAgentStatsRow
+	var err error
+	require.Eventually(t, func() bool {
+		// Query all stats created not earlier than 7 months ago
+		stats, err = db.GetWorkspaceAgentStats(ctx, now.Add(-7*30*24*time.Hour))
+		if err != nil {
+			return false
+		}
+		return !containsWorkspaceAgentStat(stats, first) &&
+			containsWorkspaceAgentStat(stats, second)
+	}, testutil.WaitShort, testutil.IntervalFast, stats)
+}
+
+func containsWorkspaceAgentStat(stats []database.GetWorkspaceAgentStatsRow, needle database.WorkspaceAgentStat) bool {
+	return slices.ContainsFunc(stats, func(s database.GetWorkspaceAgentStatsRow) bool {
+		return s.WorkspaceRxBytes == needle.RxBytes
+	})
+}
+
 func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 	t.Parallel()
 

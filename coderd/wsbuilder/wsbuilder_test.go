@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/v2/provisionersdk"
+
 	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -690,8 +692,8 @@ func withActiveVersion(params []database.TemplateVersionParameter) func(mTx *dbm
 			Type:           database.ProvisionerJobTypeTemplateVersionImport,
 			Input:          nil,
 			Tags: database.StringMap{
-				"version":                   "active",
-				provisionerdserver.TagScope: provisionerdserver.ScopeUser,
+				"version":               "active",
+				provisionersdk.TagScope: provisionersdk.ScopeUser,
 			},
 			FileID:      activeFileID,
 			StartedAt:   sql.NullTime{Time: dbtime.Now(), Valid: true},
@@ -730,8 +732,8 @@ func withInactiveVersion(params []database.TemplateVersionParameter) func(mTx *d
 			Type:           database.ProvisionerJobTypeTemplateVersionImport,
 			Input:          nil,
 			Tags: database.StringMap{
-				"version":                   "inactive",
-				provisionerdserver.TagScope: provisionerdserver.ScopeUser,
+				"version":               "inactive",
+				provisionersdk.TagScope: provisionersdk.ScopeUser,
 			},
 			FileID:      inactiveFileID,
 			StartedAt:   sql.NullTime{Time: dbtime.Now(), Valid: true},

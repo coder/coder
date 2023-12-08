@@ -35,7 +35,7 @@ func (r *RootCmd) speedtest() *clibase.Cmd {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
-			_, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, codersdk.Me, inv.Args[0])
+			_, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, false, codersdk.Me, inv.Args[0])
 			if err != nil {
 				return err
 			}

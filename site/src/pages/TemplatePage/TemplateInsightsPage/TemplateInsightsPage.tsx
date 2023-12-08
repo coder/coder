@@ -49,7 +49,6 @@ import {
 } from "components/HelpTooltip/HelpTooltip";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { getLatencyColor } from "utils/latency";
-import { colors } from "theme/colors";
 import { Loader } from "components/Loader/Loader";
 import {
   insightsTemplate,
@@ -412,7 +411,7 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
   const totalInSeconds =
     validUsage?.reduce((total, usage) => total + usage.seconds, 0) ?? 1;
   const usageColors = chroma
-    .scale([colors.green[8], colors.blue[8]])
+    .scale([theme.colors.green[8], theme.colors.blue[8]])
     .mode("lch")
     .colors(validUsage?.length ?? 0);
   // The API returns a row for each app, even if the user didn't use it.

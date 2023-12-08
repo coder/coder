@@ -36,7 +36,6 @@ import {
 import { EmptyTemplates } from "./EmptyTemplates";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import type { Template, TemplateExample } from "api/typesGenerated";
-import { colors } from "theme/colors";
 import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined";
 import { Avatar } from "components/Avatar/Avatar";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -275,7 +274,7 @@ const styles = {
   tableRow: (theme) => ({
     "&:hover .actionButton": {
       color: theme.palette.text.primary,
-      borderColor: colors.gray[11],
+      borderColor: theme.colors.gray[11],
       "&:hover": {
         borderColor: theme.palette.text.primary,
       },

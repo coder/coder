@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -19,6 +18,7 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -57,10 +57,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, ps pubsub.P
 		// primary purpose is to clean up dead replicas.
 		options.CleanupInterval = 30 * time.Minute
 	}
-	hostname, err := os.Hostname()
-	if err != nil {
-		return nil, xerrors.Errorf("get hostname: %w", err)
-	}
+	hostname := cliutil.Hostname()
 	databaseLatency, err := db.Ping(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("ping database: %w", err)

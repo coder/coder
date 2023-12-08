@@ -162,6 +162,7 @@ export interface BuildInfoResponse {
   readonly version: string;
   readonly dashboard_url: string;
   readonly workspace_proxy: boolean;
+  readonly agent_api_version: string;
 }
 
 // From codersdk/insights.go
@@ -689,6 +690,7 @@ export interface OIDCConfig {
   readonly ignore_user_info: boolean;
   readonly group_auto_create: boolean;
   readonly group_regex_filter: string;
+  readonly group_allow_list: string[];
   readonly groups_field: string;
   readonly group_mapping: Record<string, string>;
   readonly user_role_field: string;
