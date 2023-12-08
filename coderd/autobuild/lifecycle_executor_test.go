@@ -817,7 +817,7 @@ func TestExecutorAutostopTemplateDisabled(t *testing.T) {
 
 	// When: the autobuild executor ticks after the workspace setting, but before the template setting:
 	go func() {
-		tickCh <- workspace.LatestBuild.CreatedAt.Add(45 * time.Minute)
+		tickCh <- workspace.LatestBuild.Job.CompletedAt.Add(45 * time.Minute)
 	}()
 
 	// Then: nothing should happen
@@ -827,7 +827,7 @@ func TestExecutorAutostopTemplateDisabled(t *testing.T) {
 
 	// When: the autobuild executor ticks after the template setting:
 	go func() {
-		tickCh <- workspace.LatestBuild.CreatedAt.Add(61 * time.Minute)
+		tickCh <- workspace.LatestBuild.Job.CompletedAt.Add(61 * time.Minute)
 		close(tickCh)
 	}()
 

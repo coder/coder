@@ -1131,9 +1131,9 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 
 			err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 				ID:        jobID,
-				UpdatedAt: dbtime.Now(),
+				UpdatedAt: now,
 				CompletedAt: sql.NullTime{
-					Time:  dbtime.Now(),
+					Time:  now,
 					Valid: true,
 				},
 				Error:     sql.NullString{},
