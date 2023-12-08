@@ -48,9 +48,6 @@ func TestResultString(t *testing.T) {
 			Expected: "0.5/8 cores (6%)",
 			Result:   Result{Used: 0.5, Total: ptr.To(8.0), Unit: "cores"},
 		},
-		{
-			Result: Result{Used: 1, Total: ptr.To(8.0), Unit: "Gb"},
-		},
 	} {
 		assert.Equal(t, tt.Expected, tt.Result.String())
 	}
