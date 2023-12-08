@@ -14,17 +14,11 @@ import {
 } from "@mui/material/styles";
 import { ThemeProvider as EmotionThemeProvider } from "@emotion/react";
 
-const shouldEnableCache =
-  window.location.hostname.includes("dev.coder.com") ||
-  process.env.NODE_ENV === "development";
-
 const defaultQueryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: false,
       refetchOnWindowFocus: false,
-      cacheTime: shouldEnableCache ? undefined : 0,
-      networkMode: shouldEnableCache ? undefined : "offlineFirst",
     },
   },
 });
