@@ -110,7 +110,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
         {shouldDisplayScheduleLabel(workspace) && (
           <StatsItem
             css={styles.statsItem}
-            label={getScheduleLabel(workspace)}
+            label={scheduleLabel(workspace)}
             value={
               <div css={styles.scheduleValue}>
                 {isWorkspaceOn(workspace) ? (
@@ -335,21 +335,25 @@ const ScheduleSettingsLink = forwardRef<HTMLAnchorElement, LinkProps>(
   },
 );
 
-export const canEditDeadline = (workspace: Workspace): boolean => {
-  return isWorkspaceOn(workspace) && Boolean(workspace.latest_build.deadline);
+const hasDeadline = (workspace: Workspace): boolean => {
+  return Boolean(workspace.latest_build.deadline);
 };
 
-export const shouldDisplayScheduleLabel = (workspace: Workspace): boolean => {
-  if (canEditDeadline(workspace)) {
-    return true;
-  }
-  if (isWorkspaceOn(workspace)) {
-    return false;
-  }
+const hasAutoStart = (workspace: Workspace): boolean => {
   return Boolean(workspace.autostart_schedule);
 };
 
-const getScheduleLabel = (workspace: Workspace) => {
+export const canEditDeadline = (workspace: Workspace): boolean => {
+  return isWorkspaceOn(workspace) && hasDeadline(workspace);
+};
+
+export const shouldDisplayScheduleLabel = (workspace: Workspace): boolean => {
+  const willAutoStop = isWorkspaceOn(workspace) && hasDeadline(workspace);
+  const willAutoStart = !isWorkspaceOn(workspace) && hasAutoStart(workspace);
+  return willAutoStop || willAutoStart;
+};
+
+const scheduleLabel = (workspace: Workspace) => {
   return isWorkspaceOn(workspace) ? "Stops" : "Starts at";
 };
 
