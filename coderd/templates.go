@@ -285,6 +285,9 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	if createTemplate.MaxTTLMillis != nil {
 		maxTTL = time.Duration(*createTemplate.MaxTTLMillis) * time.Millisecond
 	}
+	if maxTTL != 0 && len(autostopRequirementDaysOfWeek) > 0 {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "autostop_requirement.days_of_week", Detail: "Cannot be set if max_ttl_ms is set."})
+	}
 	if autostopRequirementWeeks < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "autostop_requirement.weeks", Detail: "Must be a positive integer."})
 	}
@@ -364,6 +367,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		dbTemplate, err = (*api.TemplateScheduleStore.Load()).Set(ctx, tx, dbTemplate, schedule.TemplateScheduleOptions{
 			UserAutostartEnabled: allowUserAutostart,
 			UserAutostopEnabled:  allowUserAutostop,
+			UseMaxTTL:            maxTTL > 0,
 			DefaultTTL:           defaultTTL,
 			MaxTTL:               maxTTL,
 			// Some of these values are enterprise-only, but the
@@ -568,6 +572,10 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	if req.MaxTTLMillis != 0 && req.DefaultTTLMillis > req.MaxTTLMillis {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be less than or equal to max_ttl_ms if max_ttl_ms is set."})
 	}
+	if req.MaxTTLMillis != 0 && req.AutostopRequirement != nil && len(req.AutostopRequirement.DaysOfWeek) > 0 {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "autostop_requirement.days_of_week", Detail: "Cannot be set if max_ttl_ms is set."})
+	}
+	useMaxTTL := req.MaxTTLMillis > 0
 	if req.AutostopRequirement == nil {
 		req.AutostopRequirement = &codersdk.TemplateAutostopRequirement{
 			DaysOfWeek: codersdk.BitmapToWeekdays(scheduleOpts.AutostopRequirement.DaysOfWeek),
@@ -641,6 +649,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.AllowUserAutostop == template.AllowUserAutostop &&
 			req.AllowUserCancelWorkspaceJobs == template.AllowUserCancelWorkspaceJobs &&
 			req.DefaultTTLMillis == time.Duration(template.DefaultTTL).Milliseconds() &&
+			useMaxTTL == scheduleOpts.UseMaxTTL &&
 			req.MaxTTLMillis == time.Duration(template.MaxTTL).Milliseconds() &&
 			autostopRequirementDaysOfWeekParsed == scheduleOpts.AutostopRequirement.DaysOfWeek &&
 			autostartRequirementDaysOfWeekParsed == scheduleOpts.AutostartRequirement.DaysOfWeek &&
@@ -695,6 +704,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		timeTilDormantAutoDelete := time.Duration(req.TimeTilDormantAutoDeleteMillis) * time.Millisecond
 
 		if defaultTTL != time.Duration(template.DefaultTTL) ||
+			useMaxTTL != scheduleOpts.UseMaxTTL ||
 			maxTTL != time.Duration(template.MaxTTL) ||
 			autostopRequirementDaysOfWeekParsed != scheduleOpts.AutostopRequirement.DaysOfWeek ||
 			autostartRequirementDaysOfWeekParsed != scheduleOpts.AutostartRequirement.DaysOfWeek ||
@@ -711,6 +721,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 				UserAutostartEnabled: req.AllowUserAutostart,
 				UserAutostopEnabled:  req.AllowUserAutostop,
 				DefaultTTL:           defaultTTL,
+				UseMaxTTL:            useMaxTTL,
 				MaxTTL:               maxTTL,
 				AutostopRequirement: schedule.TemplateAutostopRequirement{
 					DaysOfWeek: autostopRequirementDaysOfWeekParsed,

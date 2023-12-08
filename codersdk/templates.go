@@ -31,6 +31,9 @@ type Template struct {
 	DeprecationMessage string                 `json:"deprecation_message"`
 	Icon               string                 `json:"icon"`
 	DefaultTTLMillis   int64                  `json:"default_ttl_ms"`
+	// UseMaxTTL picks whether to use the deprecated max TTL for the template or
+	// the new autostop requirement.
+	UseMaxTTL bool `json:"use_max_ttl"`
 	// TODO(@dean): remove max_ttl once autostop_requirement is matured
 	MaxTTLMillis int64 `json:"max_ttl_ms"`
 	// AutostopRequirement and AutostartRequirement are enterprise features. Its
@@ -206,10 +209,12 @@ type UpdateTemplateMeta struct {
 	Icon             string `json:"icon,omitempty"`
 	DefaultTTLMillis int64  `json:"default_ttl_ms,omitempty"`
 	// TODO(@dean): remove max_ttl once autostop_requirement is matured
+	// Only one of MaxTTLMillis or AutostopRequirement can be specified.
 	MaxTTLMillis int64 `json:"max_ttl_ms,omitempty"`
 	// AutostopRequirement and AutostartRequirement can only be set if your license
 	// includes the advanced template scheduling feature. If you attempt to set this
 	// value while unlicensed, it will be ignored.
+	// Only one of MaxTTLMillis or AutostopRequirement can be specified.
 	AutostopRequirement            *TemplateAutostopRequirement  `json:"autostop_requirement,omitempty"`
 	AutostartRequirement           *TemplateAutostartRequirement `json:"autostart_requirement,omitempty"`
 	AllowUserAutostart             bool                          `json:"allow_user_autostart,omitempty"`

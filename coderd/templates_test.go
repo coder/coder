@@ -296,6 +296,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 			})
 			require.NoError(t, err)
 
+			require.False(t, got.UseMaxTTL) // default
 			require.EqualValues(t, 1, atomic.LoadInt64(&setCalled))
 			require.Empty(t, got.AutostopRequirement.DaysOfWeek)
 			require.EqualValues(t, 1, got.AutostopRequirement.Weeks)
@@ -351,11 +352,13 @@ func TestPostTemplateByOrganization(t *testing.T) {
 			require.NoError(t, err)
 
 			require.EqualValues(t, 1, atomic.LoadInt64(&setCalled))
+			require.False(t, got.UseMaxTTL)
 			require.Equal(t, []string{"friday", "saturday"}, got.AutostopRequirement.DaysOfWeek)
 			require.EqualValues(t, 2, got.AutostopRequirement.Weeks)
 
 			got, err = client.Template(ctx, got.ID)
 			require.NoError(t, err)
+			require.False(t, got.UseMaxTTL)
 			require.Equal(t, []string{"friday", "saturday"}, got.AutostopRequirement.DaysOfWeek)
 			require.EqualValues(t, 2, got.AutostopRequirement.Weeks)
 		})
@@ -380,9 +383,35 @@ func TestPostTemplateByOrganization(t *testing.T) {
 			})
 			require.NoError(t, err)
 			// ignored and use AGPL defaults
+			require.False(t, got.UseMaxTTL)
 			require.Empty(t, got.AutostopRequirement.DaysOfWeek)
 			require.EqualValues(t, 1, got.AutostopRequirement.Weeks)
 		})
+	})
+
+	t.Run("BothMaxTTLAndAutostopRequirement", func(t *testing.T) {
+		t.Parallel()
+
+		// Fake template schedule store is unneeded for this test since the
+		// route fails before it is called.
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
+			Name:         "testing",
+			VersionID:    version.ID,
+			MaxTTLMillis: ptr.Ref(24 * time.Hour.Milliseconds()),
+			AutostopRequirement: &codersdk.TemplateAutostopRequirement{
+				DaysOfWeek: []string{"friday", "saturday"},
+				Weeks:      2,
+			},
+		})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "max_ttl_ms")
 	})
 }
 
@@ -1237,6 +1266,38 @@ func TestPatchTemplateMeta(t *testing.T) {
 			require.Empty(t, template.DeprecationMessage)
 			require.False(t, template.Deprecated)
 		})
+	})
+
+	t.Run("BothMaxTTLAndAutostopRequirement", func(t *testing.T) {
+		t.Parallel()
+
+		// Fake template schedule store is unneeded for this test since the
+		// route fails before it is called.
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		req := codersdk.UpdateTemplateMeta{
+			Name:                         template.Name,
+			DisplayName:                  template.DisplayName,
+			Description:                  template.Description,
+			Icon:                         template.Icon,
+			AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
+			DefaultTTLMillis:             time.Hour.Milliseconds(),
+			MaxTTLMillis:                 time.Hour.Milliseconds(),
+			AutostopRequirement: &codersdk.TemplateAutostopRequirement{
+				DaysOfWeek: []string{"monday"},
+				Weeks:      2,
+			},
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "max_ttl_ms")
 	})
 }
 
