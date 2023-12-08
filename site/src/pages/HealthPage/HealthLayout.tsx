@@ -12,22 +12,16 @@ import Tooltip from "@mui/material/Tooltip";
 import CircularProgress from "@mui/material/CircularProgress";
 import { NavLink, Outlet } from "react-router-dom";
 import { css } from "@emotion/css";
-import { kebabCase } from "lodash/fp";
+import kebabCase from "lodash/fp/kebabCase";
 import { Suspense } from "react";
 import { HealthIcon } from "./Content";
 import { HealthSeverity } from "api/typesGenerated";
 import NotificationsOffOutlined from "@mui/icons-material/NotificationsOffOutlined";
-
-const sections = {
-  derp: "DERP",
-  access_url: "Access URL",
-  websocket: "Websocket",
-  database: "Database",
-  workspace_proxy: "Workspace Proxy",
-} as const;
+import { useDashboard } from "components/Dashboard/DashboardProvider";
 
 export function HealthLayout() {
   const theme = useTheme();
+  const dashboard = useDashboard();
   const queryClient = useQueryClient();
   const { data: healthStatus } = useQuery({
     ...health(),
@@ -36,6 +30,16 @@ export function HealthLayout() {
   const { mutate: forceRefresh, isLoading: isRefreshing } = useMutation(
     refreshHealth(queryClient),
   );
+  const sections = {
+    derp: "DERP",
+    access_url: "Access URL",
+    websocket: "Websocket",
+    database: "Database",
+    workspace_proxy: dashboard.experiments.includes("moons")
+      ? "Workspace Proxy"
+      : undefined,
+  } as const;
+  const visibleSections = filterVisibleSections(sections);
 
   return (
     <>
@@ -106,13 +110,13 @@ export function HealthLayout() {
                     }}
                   >
                     {healthStatus.healthy
-                      ? Object.keys(sections).some(
-                          (key) =>
-                            healthStatus[key as keyof typeof sections]
-                              .warnings !== null &&
-                            healthStatus[key as keyof typeof sections].warnings
-                              .length > 0,
-                        )
+                      ? Object.keys(visibleSections).some((key) => {
+                          const section =
+                            healthStatus[key as keyof typeof visibleSections];
+                          return (
+                            section.warnings && section.warnings.length > 0
+                          );
+                        })
                         ? "All systems operational, but performance might be degraded"
                         : "All systems operational"
                       : "Some issues have been detected"}
@@ -145,12 +149,13 @@ export function HealthLayout() {
               </div>
 
               <nav css={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                {Object.keys(sections)
+                {Object.keys(visibleSections)
                   .sort()
                   .map((key) => {
-                    const label = sections[key as keyof typeof sections];
+                    const label =
+                      visibleSections[key as keyof typeof visibleSections];
                     const healthSection =
-                      healthStatus[key as keyof typeof sections];
+                      healthStatus[key as keyof typeof visibleSections];
 
                     return (
                       <NavLink
@@ -218,3 +223,21 @@ export function HealthLayout() {
     </>
   );
 }
+
+const filterVisibleSections = <T extends object>(sections: T) => {
+  return Object.keys(sections).reduce(
+    (visible, sectionName) => {
+      const sectionValue = sections[sectionName as keyof typeof sections];
+
+      if (!sectionValue) {
+        return visible;
+      }
+
+      return {
+        ...visible,
+        [sectionName]: sectionValue,
+      };
+    },
+    {} as Partial<typeof sections>,
+  );
+};
