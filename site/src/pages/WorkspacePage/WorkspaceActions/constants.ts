@@ -51,15 +51,15 @@ export const abilitiesByWorkspaceStatus = (
   const status = workspace.latest_build.status;
   if (status === "failed" && canRetryDebug) {
     return {
-      ...statusToActions.failed,
+      ...statusToAbility.failed,
       actions: ["retry", "retryDebug"],
     };
   }
 
-  return statusToActions[status];
+  return statusToAbility[status];
 };
 
-const statusToActions: Record<WorkspaceStatus, WorkspaceAbilities> = {
+const statusToAbility: Record<WorkspaceStatus, WorkspaceAbilities> = {
   starting: {
     actions: ["starting"],
     canCancel: true,
