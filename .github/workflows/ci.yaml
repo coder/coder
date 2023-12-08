@@ -771,6 +771,7 @@ jobs:
           flux --namespace flux-system reconcile kustomization flux-system
           flux --namespace flux-system reconcile kustomization coder
           flux --namespace flux-system reconcile source chart coder-coder
+          flux --namespace flux-system reconcile source chart coder-coder-provisioner
           flux --namespace coder reconcile helmrelease coder
           flux --namespace coder reconcile helmrelease coder-provisioner
 
