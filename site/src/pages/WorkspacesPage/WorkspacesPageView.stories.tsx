@@ -107,7 +107,7 @@ const mockTemplates = [
 ];
 
 const meta: Meta<typeof WorkspacesPageView> = {
-  title: "pages/WorkspacesPageView",
+  title: "pages/WorkspacesPage",
   component: WorkspacesPageView,
   args: {
     limit: DEFAULT_RECORDS_PER_PAGE,

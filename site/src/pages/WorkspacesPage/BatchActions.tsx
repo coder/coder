@@ -1,6 +1,8 @@
 import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
 import ScheduleIcon from "@mui/icons-material/Schedule";
 import dayjs from "dayjs";
+import "dayjs/plugin/relativeTime";
+import { useTheme } from "@emotion/react";
 import { type FC, type ReactNode, useState } from "react";
 import { useMutation } from "react-query";
 import { deleteWorkspace, startWorkspace, stopWorkspace } from "api/api";
@@ -155,25 +157,25 @@ const Consequences: FC = () => {
       <p>Deleting workspaces is irreversible!</p>
       <ul
         css={{
-          paddingLeft: 16,
-          marginBottom: 0,
           display: "flex",
           flexDirection: "column",
           gap: 8,
+          paddingLeft: 16,
+          marginBottom: 0,
         }}
       >
-        <li>All data will be permanently deleted.</li>
         <li>
-          All resources belonging to these workspaces will be permanently
-          destroyed.
+          Terraform resources belonging to deleted workspaces will be destroyed.
         </li>
-        <li>All users will be disconnect and unable to retrieve</li>
+        <li>Any data stored in the workspace permanently deleted.</li>
       </ul>
     </>
   );
 };
 
 const Workspaces: FC<StageProps> = ({ workspaces }) => {
+  const theme = useTheme();
+
   const mostRecent = workspaces.reduce(
     (latestSoFar, against) => {
       if (!latestSoFar) {
@@ -188,25 +190,79 @@ const Workspaces: FC<StageProps> = ({ workspaces }) => {
     undefined as Workspace | undefined,
   );
 
-  const owners = new Set(workspaces.map((workspace) => workspace.owner_id))
-    .size;
+  const owners = new Set(workspaces.map((it) => it.owner_id)).size;
   const ownersCount = `${owners} ${owners === 1 ? "owner" : "owners"}`;
 
   return (
     <>
-      <ul>
+      <ul
+        css={{
+          listStyleType: "none",
+          padding: 0,
+          border: `1px solid ${theme.palette.divider}`,
+          borderRadius: 8,
+          overflow: "hidden auto",
+          maxHeight: 184,
+        }}
+      >
         {workspaces.map((workspace) => (
-          <li>
-            {workspace.name} {workspace.owner_name}{" "}
-            {dayjs(workspace.last_used_at).fromNow()}
+          <li
+            css={{
+              padding: "8px 16px",
+              borderBottom: `1px solid ${theme.palette.divider}`,
+              marginBottom: -1,
+
+              "&:last-child": {
+                border: "none",
+              },
+            }}
+          >
+            <Stack
+              direction="row"
+              alignItems="center"
+              justifyContent="space-between"
+            >
+              <span css={{ fontWeight: 500, color: "#fff" }}>
+                {workspace.name}
+              </span>
+              <Stack css={{ gap: 0, fontSize: 14, width: 128 }}>
+                <Stack direction="row" alignItems="center" spacing={1}>
+                  {/* This size doesn't match the rest of the icons because MUI is just really
+                      inconsistent. We have to pull things in on the right to compensate. */}
+                  <PersonOutlinedIcon
+                    css={{
+                      width: 18,
+                      height: 18,
+                      marginLeft: -1,
+                      marginRight: -1,
+                    }}
+                  />
+                  <span
+                    css={{ whiteSpace: "nowrap", textOverflow: "ellipsis" }}
+                  >
+                    {workspace.owner_name}
+                  </span>
+                </Stack>
+                <Stack direction="row" alignItems="center" spacing={1}>
+                  <ScheduleIcon css={{ width: 16, height: 16 }} />
+                  <span
+                    css={{ whiteSpace: "nowrap", textOverflow: "ellipsis" }}
+                  >
+                    {dayjs(workspace.last_used_at).fromNow()}
+                  </span>
+                </Stack>
+              </Stack>
+            </Stack>
           </li>
         ))}
       </ul>
       <Stack justifyContent="center" direction="row" css={{ fontSize: 14 }}>
         <Stack direction="row" alignItems="center" spacing={1}>
-          {/* This size doesn't match the rest of the icons
-              because MUI is just really inconsistent */}
-          <PersonOutlinedIcon css={{ width: 18, height: 18 }} />
+          {/* This size doesn't match the rest of the icons because MUI is just really
+              inconsistent. We have to pull things in on the right to compensate. */}
+          <PersonOutlinedIcon
+            css={{ width: 18, height: 18, marginRight: -2 }}
+          />
           <span>{ownersCount}</span>
         </Stack>
         {mostRecent && (
