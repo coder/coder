@@ -226,29 +226,12 @@ func (s *Statter) ContainerMemory(p Prefix) (*Result, error) {
 		return nil, nil //nolint:nilnil
 	}
 
-	var (
-		r   *Result
-		err error
-	)
 	if s.isCGroupV2() {
-		r, err = s.cGroupV2Memory(p)
-		if err != nil {
-			return nil, xerrors.Errorf("get cgroupv2 memory: %w", err)
-		}
-	} else {
-		// Fall back to CGroupv1
-		r, err = s.cGroupV1Memory(p)
-		if err != nil {
-			return nil, xerrors.Errorf("get cgroupv1 memory: %w", err)
-		}
+		return s.cGroupV2Memory(p)
 	}
 
-	// If there is no memory limit set on the container use the host value.
-	if int64(*r.Total) == UnlimitedMemory {
-		return s.HostMemory(p)
-	}
-
-	return r, nil
+	// Fall back to CGroupv1
+	return s.cGroupV1Memory(p)
 }
 
 func (s *Statter) cGroupV2Memory(p Prefix) (*Result, error) {
@@ -293,6 +276,10 @@ func (s *Statter) cGroupV1Memory(p Prefix) (*Result, error) {
 		}
 		// I haven't found an instance where this isn't a valid integer.
 		// Nonetheless, if it is not, assume there is no limit set.
+		maxUsageBytes = -1
+	}
+	// Set to unlimited if we detect the unlimited docker value.
+	if maxUsageBytes == UnlimitedMemory {
 		maxUsageBytes = -1
 	}
 
