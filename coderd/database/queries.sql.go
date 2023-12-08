@@ -7232,7 +7232,7 @@ type GetUsersRow struct {
 	Deleted            bool           `db:"deleted" json:"deleted"`
 	LastSeenAt         time.Time      `db:"last_seen_at" json:"last_seen_at"`
 	QuietHoursSchedule string         `db:"quiet_hours_schedule" json:"quiet_hours_schedule"`
-	ThemePreference    sql.NullString `db:"theme_preference" json:"theme_preference"`
+	ThemePreference    string         `db:"theme_preference" json:"theme_preference"`
 	Count              int64          `db:"count" json:"count"`
 }
 
