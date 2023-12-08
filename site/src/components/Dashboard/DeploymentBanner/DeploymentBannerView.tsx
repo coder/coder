@@ -37,7 +37,6 @@ import { RocketIcon } from "components/Icons/RocketIcon";
 import ErrorIcon from "@mui/icons-material/ErrorOutline";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
-import { colors } from "theme/colors";
 import { HelpTooltipTitle } from "components/HelpTooltip/HelpTooltip";
 import { Stack } from "components/Stack/Stack";
 import { type ClassName, useClassName } from "hooks/useClassName";
@@ -373,9 +372,14 @@ const ValueSeparator: FC = () => {
 };
 
 const HealthIssue: FC<PropsWithChildren> = ({ children }) => {
+  const theme = useTheme();
+
   return (
     <Stack direction="row" spacing={1} alignItems="center">
-      <ErrorIcon css={{ width: 16, height: 16 }} htmlColor={colors.red[10]} />
+      <ErrorIcon
+        css={{ width: 16, height: 16 }}
+        htmlColor={theme.colors.red[10]}
+      />
       {children}
     </Stack>
   );
@@ -435,8 +439,8 @@ const styles = {
       height: 16px;
     }
   `,
-  unhealthy: css`
-    background-color: ${colors.red[10]};
+  unhealthy: (theme) => css`
+    background-color: ${theme.colors.red[10]};
   `,
   group: css`
     display: flex;

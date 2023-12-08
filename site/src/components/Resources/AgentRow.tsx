@@ -18,7 +18,7 @@ import {
 } from "components/WorkspaceBuildLogs/Logs";
 import { useProxy } from "contexts/ProxyContext";
 import {
-  FC,
+  type FC,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -28,7 +28,6 @@ import {
 } from "react";
 import AutoSizer from "react-virtualized-auto-sizer";
 import { FixedSizeList as List, ListOnScrollProps } from "react-window";
-import { colors } from "theme/colors";
 import { Stack } from "../Stack/Stack";
 import { AgentLatency } from "./AgentLatency";
 import { AgentMetadata } from "./AgentMetadata";
@@ -693,7 +692,7 @@ const styles = {
 
     "&:hover": {
       color: theme.palette.text.primary,
-      backgroundColor: colors.gray[14],
+      backgroundColor: theme.colors.gray[14],
     },
 
     "& svg": {

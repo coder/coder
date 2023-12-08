@@ -3,7 +3,6 @@ import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { useTheme } from "@emotion/react";
 import { Stack } from "components/Stack/Stack";
-import { colors } from "theme/colors";
 
 dayjs.extend(relativeTime);
 
@@ -41,7 +40,7 @@ export const LastUsed: FC<LastUsedProps> = ({ lastUsedAt }) => {
   );
 
   if (t.isAfter(now.subtract(1, "hour"))) {
-    circle = <Circle color={colors.green[9]} />;
+    circle = <Circle color={theme.colors.green[9]} />;
     // Since the agent reports on a 10m interval,
     // the last_used_at can be inaccurate when recent.
     message = "Now";
@@ -50,7 +49,7 @@ export const LastUsed: FC<LastUsedProps> = ({ lastUsedAt }) => {
   } else if (t.isAfter(now.subtract(1, "month"))) {
     circle = <Circle color={theme.palette.warning.light} />;
   } else if (t.isAfter(now.subtract(100, "year"))) {
-    circle = <Circle color={colors.red[10]} />;
+    circle = <Circle color={theme.colors.red[10]} />;
   } else {
     // color = theme.palette.error.light
     message = "Never";
