@@ -1,8 +1,9 @@
 import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
 import ScheduleIcon from "@mui/icons-material/Schedule";
+import { visuallyHidden } from "@mui/utils";
 import dayjs from "dayjs";
 import "dayjs/plugin/relativeTime";
-import { useTheme } from "@emotion/react";
+import { type Interpolation, type Theme } from "@emotion/react";
 import { type FC, type ReactNode, useState } from "react";
 import { useMutation } from "react-query";
 import { deleteWorkspace, startWorkspace, stopWorkspace } from "api/api";
@@ -119,6 +120,20 @@ export const BatchDeleteConfirmation: FC<BatchDeleteConfirmationProps> = ({
     );
   }
 
+  // The flicker of these icons is quit noticeable if they aren't loaded in advance,
+  // so we insert them into the document without actually displaying them yet.
+  const resourceIconPreloads = [
+    ...new Set(
+      checkedWorkspaces.flatMap((workspace) =>
+        workspace.latest_build.resources.map(
+          (resource) => resource.icon || getIconPathResource(resource.type),
+        ),
+      ),
+    ),
+  ].map((url) => (
+    <img alt="" aria-role="hidden" css={{ ...visuallyHidden }} src={url} />
+  ));
+
   return (
     <ConfirmDialog
       open={open}
@@ -141,6 +156,7 @@ export const BatchDeleteConfirmation: FC<BatchDeleteConfirmationProps> = ({
           {stage === "resources" && (
             <Resources workspaces={checkedWorkspaces} />
           )}
+          {resourceIconPreloads}
         </>
       }
     />
@@ -155,27 +171,17 @@ const Consequences: FC = () => {
   return (
     <>
       <p>Deleting workspaces is irreversible!</p>
-      <ul
-        css={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 8,
-          paddingLeft: 16,
-          marginBottom: 0,
-        }}
-      >
+      <ul css={styles.consequences}>
         <li>
           Terraform resources belonging to deleted workspaces will be destroyed.
         </li>
-        <li>Any data stored in the workspace permanently deleted.</li>
+        <li>Any data stored in the workspace will be permanently deleted.</li>
       </ul>
     </>
   );
 };
 
 const Workspaces: FC<StageProps> = ({ workspaces }) => {
-  const theme = useTheme();
-
   const mostRecent = workspaces.reduce(
     (latestSoFar, against) => {
       if (!latestSoFar) {
@@ -195,28 +201,9 @@ const Workspaces: FC<StageProps> = ({ workspaces }) => {
 
   return (
     <>
-      <ul
-        css={{
-          listStyleType: "none",
-          padding: 0,
-          border: `1px solid ${theme.palette.divider}`,
-          borderRadius: 8,
-          overflow: "hidden auto",
-          maxHeight: 184,
-        }}
-      >
+      <ul css={styles.workspacesList}>
         {workspaces.map((workspace) => (
-          <li
-            css={{
-              padding: "8px 16px",
-              borderBottom: `1px solid ${theme.palette.divider}`,
-              marginBottom: -1,
-
-              "&:last-child": {
-                border: "none",
-              },
-            }}
-          >
+          <li css={styles.workspace}>
             <Stack
               direction="row"
               alignItems="center"
@@ -227,16 +214,7 @@ const Workspaces: FC<StageProps> = ({ workspaces }) => {
               </span>
               <Stack css={{ gap: 0, fontSize: 14, width: 128 }}>
                 <Stack direction="row" alignItems="center" spacing={1}>
-                  {/* This size doesn't match the rest of the icons because MUI is just really
-                      inconsistent. We have to pull things in on the right to compensate. */}
-                  <PersonOutlinedIcon
-                    css={{
-                      width: 18,
-                      height: 18,
-                      marginLeft: -1,
-                      marginRight: -1,
-                    }}
-                  />
+                  <PersonIcon />
                   <span
                     css={{ whiteSpace: "nowrap", textOverflow: "ellipsis" }}
                   >
@@ -244,7 +222,7 @@ const Workspaces: FC<StageProps> = ({ workspaces }) => {
                   </span>
                 </Stack>
                 <Stack direction="row" alignItems="center" spacing={1}>
-                  <ScheduleIcon css={{ width: 16, height: 16 }} />
+                  <ScheduleIcon css={styles.summaryIcon} />
                   <span
                     css={{ whiteSpace: "nowrap", textOverflow: "ellipsis" }}
                   >
@@ -258,16 +236,12 @@ const Workspaces: FC<StageProps> = ({ workspaces }) => {
       </ul>
       <Stack justifyContent="center" direction="row" css={{ fontSize: 14 }}>
         <Stack direction="row" alignItems="center" spacing={1}>
-          {/* This size doesn't match the rest of the icons because MUI is just really
-              inconsistent. We have to pull things in on the right to compensate. */}
-          <PersonOutlinedIcon
-            css={{ width: 18, height: 18, marginRight: -2 }}
-          />
+          <PersonIcon />
           <span>{ownersCount}</span>
         </Stack>
         {mostRecent && (
           <Stack direction="row" alignItems="center" spacing={1}>
-            <ScheduleIcon css={{ width: 16, height: 16 }} />
+            <ScheduleIcon css={styles.summaryIcon} />
             <span>Last used {dayjs(mostRecent.last_used_at).fromNow()}</span>
           </Stack>
         )}
@@ -306,7 +280,7 @@ const Resources: FC<StageProps> = ({ workspaces }) => {
       >
         {Object.entries(resources).map(([type, summary]) => (
           <Stack direction="row" alignItems="center" spacing={1}>
-            <img alt="" src={summary.icon} css={{ width: 16, height: 16 }} />
+            <img alt="" src={summary.icon} css={styles.summaryIcon} />
             <span>
               {summary.count} <code>{type}</code>
             </span>
@@ -316,3 +290,40 @@ const Resources: FC<StageProps> = ({ workspaces }) => {
     </Stack>
   );
 };
+
+const PersonIcon: FC = () => {
+  // This size doesn't match the rest of the icons because MUI is just really
+  // inconsistent. We have to make it bigger than the rest, and pull things in
+  // on the sides to compensate.
+  return <PersonOutlinedIcon css={{ width: 18, height: 18, margin: -1 }} />;
+};
+
+const styles = {
+  summaryIcon: { width: 16, height: 16 },
+
+  consequences: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+    paddingLeft: 16,
+    marginBottom: 0,
+  },
+
+  workspacesList: (theme) => ({
+    listStyleType: "none",
+    padding: 0,
+    border: `1px solid ${theme.palette.divider}`,
+    borderRadius: 8,
+    overflow: "hidden auto",
+    maxHeight: 184,
+  }),
+
+  workspace: (theme) => ({
+    padding: "8px 16px",
+    borderBottom: `1px solid ${theme.palette.divider}`,
+
+    "&:last-child": {
+      border: "none",
+    },
+  }),
+} satisfies Record<string, Interpolation<Theme>>;
