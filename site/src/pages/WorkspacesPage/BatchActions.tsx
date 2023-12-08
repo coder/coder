@@ -131,7 +131,7 @@ export const BatchDeleteConfirmation: FC<BatchDeleteConfirmationProps> = ({
       ),
     ),
   ].map((url) => (
-    <img alt="" aria-role="hidden" css={{ ...visuallyHidden }} src={url} />
+    <img key={url} alt="" aria-hidden css={{ ...visuallyHidden }} src={url} />
   ));
 
   return (
@@ -203,7 +203,7 @@ const Workspaces: FC<StageProps> = ({ workspaces }) => {
     <>
       <ul css={styles.workspacesList}>
         {workspaces.map((workspace) => (
-          <li css={styles.workspace}>
+          <li key={workspace.id} css={styles.workspace}>
             <Stack
               direction="row"
               alignItems="center"
@@ -279,7 +279,7 @@ const Resources: FC<StageProps> = ({ workspaces }) => {
         css={{ gap: "6px 20px", fontSize: 14 }}
       >
         {Object.entries(resources).map(([type, summary]) => (
-          <Stack direction="row" alignItems="center" spacing={1}>
+          <Stack key={type} direction="row" alignItems="center" spacing={1}>
             <img alt="" src={summary.icon} css={styles.summaryIcon} />
             <span>
               {summary.count} <code>{type}</code>
