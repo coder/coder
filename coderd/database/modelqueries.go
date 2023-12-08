@@ -316,6 +316,7 @@ func (q *sqlQuerier) GetAuthorizedUsers(ctx context.Context, arg GetUsersParams,
 			&i.Deleted,
 			&i.LastSeenAt,
 			&i.QuietHoursSchedule,
+			&i.ThemePreference,
 			&i.Count,
 		); err != nil {
 			return nil, err
