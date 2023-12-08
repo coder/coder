@@ -2003,6 +2003,10 @@ type BuildInfoResponse struct {
 	DashboardURL string `json:"dashboard_url"`
 
 	WorkspaceProxy bool `json:"workspace_proxy"`
+
+	// AgentAPIVersion is the current version of the Agent API (back versions
+	// MAY still be supported).
+	AgentAPIVersion string `json:"agent_api_version"`
 }
 
 type WorkspaceProxyBuildInfo struct {
