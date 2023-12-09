@@ -14,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coder/retry"
 	"github.com/gen2brain/beeep"
 	"github.com/gofrs/flock"
 	"github.com/google/uuid"
@@ -24,6 +23,8 @@ import (
 	"golang.org/x/term"
 	"golang.org/x/xerrors"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
+
+	"github.com/coder/retry"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
