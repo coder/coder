@@ -24,7 +24,7 @@ import { EmptyState } from "components/EmptyState/EmptyState";
 import Button from "@mui/material/Button";
 import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 import { docs } from "utils/docs";
-import { Alert } from "@mui/material";
+import { Alert } from "components/Alert/Alert";
 
 const WorkspaceParametersPage: FC = () => {
   const workspace = useWorkspaceSettings();
