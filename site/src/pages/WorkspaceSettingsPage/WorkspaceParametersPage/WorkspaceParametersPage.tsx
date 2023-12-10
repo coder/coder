@@ -122,12 +122,14 @@ export const WorkspaceParametersPageView: FC<
         <ErrorAlert error={submitError} css={{ marginBottom: 48 }} />
       )}
 
-      {workspace.template_require_active_version && !canChangeVersions && (
-        <Alert severity="warning" css={{ marginBottom: 48 }}>
-          The template for this workspace requires automatic updates. Update the
-          workspace to edit parameters.
-        </Alert>
-      )}
+      {workspace.outdated &&
+        workspace.template_require_active_version &&
+        !canChangeVersions && (
+          <Alert severity="warning" css={{ marginBottom: 48 }}>
+            The template for this workspace requires automatic updates. Update
+            the workspace to edit parameters.
+          </Alert>
+        )}
 
       {data ? (
         data.templateVersionRichParameters.length > 0 ? (
