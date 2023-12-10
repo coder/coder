@@ -15,6 +15,7 @@ import * as Yup from "yup";
 import { getFormHelpers } from "utils/formUtils";
 import {
   TemplateVersionParameter,
+  Workspace,
   WorkspaceBuildParameter,
 } from "api/typesGenerated";
 
@@ -23,18 +24,22 @@ export type WorkspaceParametersFormValues = {
 };
 
 export const WorkspaceParametersForm: FC<{
-  isSubmitting: boolean;
+  workspace: Workspace;
   templateVersionRichParameters: TemplateVersionParameter[];
   buildParameters: WorkspaceBuildParameter[];
+  isSubmitting: boolean;
+  canChangeVersions: boolean;
   error: unknown;
   onCancel: () => void;
   onSubmit: (values: WorkspaceParametersFormValues) => void;
 }> = ({
+  workspace,
   onCancel,
   onSubmit,
   templateVersionRichParameters,
   buildParameters,
   error,
+  canChangeVersions,
   isSubmitting,
 }) => {
   const form = useFormik<WorkspaceParametersFormValues>({
@@ -65,6 +70,9 @@ export const WorkspaceParametersForm: FC<{
     (parameter) => !parameter.mutable,
   );
 
+  const disabled =
+    workspace.template_require_active_version && !canChangeVersions;
+
   return (
     <HorizontalForm onSubmit={form.handleSubmit} data-testid="form">
       {hasNonEphemeralParameters && (
@@ -81,7 +89,7 @@ export const WorkspaceParametersForm: FC<{
                   {...getFieldHelpers(
                     "rich_parameter_values[" + index + "].value",
                   )}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || disabled}
                   key={parameter.name}
                   onChange={async (value) => {
                     await form.setFieldValue("rich_parameter_values." + index, {
@@ -110,7 +118,7 @@ export const WorkspaceParametersForm: FC<{
                   {...getFieldHelpers(
                     "rich_parameter_values[" + index + "].value",
                   )}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || disabled}
                   key={parameter.name}
                   onChange={async (value) => {
                     await form.setFieldValue("rich_parameter_values." + index, {
@@ -155,7 +163,11 @@ export const WorkspaceParametersForm: FC<{
           </FormFields>
         </FormSection>
       )}
-      <FormFooter onCancel={onCancel} isLoading={isSubmitting} />
+      <FormFooter
+        onCancel={onCancel}
+        isLoading={isSubmitting}
+        submitDisabled={disabled}
+      />
     </HorizontalForm>
   );
 };

@@ -1,7 +1,13 @@
 import { getWorkspaceParameters, postWorkspaceBuild } from "api/api";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
+import {
+  WorkspacePermissions,
+  workspaceChecks,
+} from "../../WorkspacePage/permissions";
+import { checkAuthorization } from "api/queries/authCheck";
 import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
+import { templateByName } from "api/queries/templates";
 import { useMutation, useQuery } from "react-query";
 import { Loader } from "components/Loader/Loader";
 import {
@@ -13,11 +19,12 @@ import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { type FC } from "react";
 import { isApiValidationError } from "api/errors";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { WorkspaceBuildParameter } from "api/typesGenerated";
+import { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import Button from "@mui/material/Button";
 import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 import { docs } from "utils/docs";
+import { Alert } from "@mui/material";
 
 const WorkspaceParametersPage: FC = () => {
   const workspace = useWorkspaceSettings();
@@ -37,6 +44,22 @@ const WorkspaceParametersPage: FC = () => {
     },
   });
 
+  const templateQuery = useQuery({
+    ...templateByName(workspace.organization_id, workspace.template_name ?? ""),
+    enabled: workspace !== undefined,
+  });
+  const template = templateQuery.data;
+
+  // Permissions
+  const checks =
+    workspace && template ? workspaceChecks(workspace, template) : {};
+  const permissionsQuery = useQuery({
+    ...checkAuthorization({ checks }),
+    enabled: workspace !== undefined && template !== undefined,
+  });
+  const permissions = permissionsQuery.data as WorkspacePermissions | undefined;
+  const canChangeVersions = Boolean(permissions?.updateTemplate);
+
   return (
     <>
       <Helmet>
@@ -44,6 +67,8 @@ const WorkspaceParametersPage: FC = () => {
       </Helmet>
 
       <WorkspaceParametersPageView
+        workspace={workspace}
+        canChangeVersions={canChangeVersions}
         data={parameters.data}
         submitError={updateParameters.error}
         isSubmitting={updateParameters.isLoading}
@@ -67,6 +92,8 @@ const WorkspaceParametersPage: FC = () => {
 };
 
 export type WorkspaceParametersPageViewProps = {
+  workspace: Workspace;
+  canChangeVersions: boolean;
   data: Awaited<ReturnType<typeof getWorkspaceParameters>> | undefined;
   submitError: unknown;
   isSubmitting: boolean;
@@ -76,7 +103,15 @@ export type WorkspaceParametersPageViewProps = {
 
 export const WorkspaceParametersPageView: FC<
   WorkspaceParametersPageViewProps
-> = ({ data, submitError, isSubmitting, onSubmit, onCancel }) => {
+> = ({
+  workspace,
+  canChangeVersions,
+  data,
+  submitError,
+  onSubmit,
+  isSubmitting,
+  onCancel,
+}) => {
   return (
     <>
       <PageHeader css={{ paddingTop: 0 }}>
@@ -87,9 +122,18 @@ export const WorkspaceParametersPageView: FC<
         <ErrorAlert error={submitError} css={{ marginBottom: 48 }} />
       )}
 
+      {workspace.template_require_active_version && !canChangeVersions && (
+        <Alert severity="warning" css={{ marginBottom: 48 }}>
+          The template for this workspace requires automatic updates. This
+          workspace must be on the latest version to edit paremeters.
+        </Alert>
+      )}
+
       {data ? (
         data.templateVersionRichParameters.length > 0 ? (
           <WorkspaceParametersForm
+            workspace={workspace}
+            canChangeVersions={canChangeVersions}
             buildParameters={data.buildParameters}
             templateVersionRichParameters={data.templateVersionRichParameters}
             error={submitError}
