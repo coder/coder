@@ -124,8 +124,8 @@ export const WorkspaceParametersPageView: FC<
 
       {workspace.template_require_active_version && !canChangeVersions && (
         <Alert severity="warning" css={{ marginBottom: 48 }}>
-          The template for this workspace requires automatic updates. This
-          workspace must be on the latest version to edit paremeters.
+          The template for this workspace requires automatic updates. Update the
+          workspace to edit parameters.
         </Alert>
       )}
 

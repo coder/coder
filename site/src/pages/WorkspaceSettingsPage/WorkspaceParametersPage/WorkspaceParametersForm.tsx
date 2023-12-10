@@ -71,7 +71,9 @@ export const WorkspaceParametersForm: FC<{
   );
 
   const disabled =
-    workspace.template_require_active_version && !canChangeVersions;
+    workspace.outdated &&
+    workspace.template_require_active_version &&
+    !canChangeVersions;
 
   return (
     <HorizontalForm onSubmit={form.handleSubmit} data-testid="form">
