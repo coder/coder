@@ -137,7 +137,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@v1.16.23
+        uses: crate-ci/typos@v1.16.24
         with:
           config: .github/workflows/typos.toml
 
@@ -751,13 +751,13 @@ jobs:
           service_account: coder-ci@coder-dogfood.iam.gserviceaccount.com
 
       - name: Set up Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1
+        uses: google-github-actions/setup-gcloud@v2
 
       - name: Set up Flux CLI
         uses: fluxcd/flux2/action@main
 
       - name: Get Cluster Credentials
-        uses: "google-github-actions/get-gke-credentials@v1"
+        uses: "google-github-actions/get-gke-credentials@v2"
         with:
           cluster_name: dogfood-v2
           location: us-central1-a
@@ -837,7 +837,7 @@ jobs:
           service_account: coder-ci@coder-dogfood.iam.gserviceaccount.com
 
       - name: Set up Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1
+        uses: google-github-actions/setup-gcloud@v2
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
