@@ -1585,6 +1585,16 @@ func TestInsertWorkspaceResource(t *testing.T) {
 				Apps: []*sdkproto.App{{
 					Slug: "a",
 				}},
+				ExtraEnvs: []*sdkproto.Env{
+					{
+						Name:  "something", // Duplicate, already set by Env.
+						Value: "I should be discarded!",
+					},
+					{
+						Name:  "else",
+						Value: "I laugh in the face of danger.",
+					},
+				},
 				Scripts: []*sdkproto.Script{{
 					DisplayName: "Startup",
 					Icon:        "/test.png",
@@ -1609,6 +1619,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		require.Equal(t, "linux", agent.OperatingSystem)
 		want, err := json.Marshal(map[string]string{
 			"something": "test",
+			"else":      "I laugh in the face of danger.",
 		})
 		require.NoError(t, err)
 		got, err := agent.EnvironmentVariables.RawMessage.MarshalJSON()
