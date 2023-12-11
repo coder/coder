@@ -1203,6 +1203,11 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 			stats.TxPackets += int64(counts.TxPackets)
 		}
 
+		// Load the latest startup script stats. These stats are static
+		// once the agent has started.
+		stats.StartupScriptNs = a.stats.startScriptNs.Load()
+		stats.StartupScriptSuccess = a.stats.startScriptSuccess.Load()
+
 		// The count of active sessions.
 		sshStats := a.sshServer.ConnStats()
 		stats.SessionCountSSH = sshStats.Sessions
