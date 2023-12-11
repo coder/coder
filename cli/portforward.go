@@ -12,7 +12,6 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/pion/udp"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -121,6 +120,7 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 				wg                = new(sync.WaitGroup)
 				listeners         = make([]net.Listener, len(specs))
 				closeAllListeners = func() {
+					logger.Debug(ctx, "closing all listeners")
 					for _, l := range listeners {
 						if l == nil {
 							continue
@@ -134,6 +134,7 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 			for i, spec := range specs {
 				l, err := listenAndPortForward(ctx, inv, conn, wg, spec, logger)
 				if err != nil {
+					logger.Error(ctx, "failed to listen", slog.F("spec", spec), slog.Error(err))
 					return err
 				}
 				listeners[i] = l
@@ -151,8 +152,10 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 
 				select {
 				case <-ctx.Done():
+					logger.Debug(ctx, "command context expired waiting for signal", slog.Error(ctx.Err()))
 					closeErr = ctx.Err()
-				case <-sigs:
+				case sig := <-sigs:
+					logger.Debug(ctx, "received signal", slog.F("signal", sig))
 					_, _ = fmt.Fprintln(inv.Stderr, "\nReceived signal, closing all listeners and active connections")
 				}
 
@@ -161,6 +164,7 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 			}()
 
 			conn.AwaitReachable(ctx)
+			logger.Debug(ctx, "read to accept connections to forward")
 			_, _ = fmt.Fprintln(inv.Stderr, "Ready!")
 			wg.Wait()
 			return closeErr
@@ -198,33 +202,7 @@ func listenAndPortForward(
 	logger = logger.With(slog.F("network", spec.listenNetwork), slog.F("address", spec.listenAddress))
 	_, _ = fmt.Fprintf(inv.Stderr, "Forwarding '%v://%v' locally to '%v://%v' in the workspace\n", spec.listenNetwork, spec.listenAddress, spec.dialNetwork, spec.dialAddress)
 
-	var (
-		l   net.Listener
-		err error
-	)
-	switch spec.listenNetwork {
-	case "tcp":
-		l, err = net.Listen(spec.listenNetwork, spec.listenAddress)
-	case "udp":
-		var host, port string
-		host, port, err = net.SplitHostPort(spec.listenAddress)
-		if err != nil {
-			return nil, xerrors.Errorf("split %q: %w", spec.listenAddress, err)
-		}
-
-		var portInt int
-		portInt, err = strconv.Atoi(port)
-		if err != nil {
-			return nil, xerrors.Errorf("parse port %v from %q as int: %w", port, spec.listenAddress, err)
-		}
-
-		l, err = udp.Listen(spec.listenNetwork, &net.UDPAddr{
-			IP:   net.ParseIP(host),
-			Port: portInt,
-		})
-	default:
-		return nil, xerrors.Errorf("unknown listen network %q", spec.listenNetwork)
-	}
+	l, err := inv.Net.Listen(spec.listenNetwork, spec.listenAddress)
 	if err != nil {
 		return nil, xerrors.Errorf("listen '%v://%v': %w", spec.listenNetwork, spec.listenAddress, err)
 	}

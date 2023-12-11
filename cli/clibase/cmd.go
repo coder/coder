@@ -189,6 +189,7 @@ type Invocation struct {
 	Stderr  io.Writer
 	Stdin   io.Reader
 	Logger  slog.Logger
+	Net     Net
 
 	// testing
 	signalNotifyContext func(parent context.Context, signals ...os.Signal) (ctx context.Context, stop context.CancelFunc)
@@ -203,6 +204,7 @@ func (inv *Invocation) WithOS() *Invocation {
 		i.Stdin = os.Stdin
 		i.Args = os.Args[1:]
 		i.Environ = ParseEnviron(os.Environ(), "")
+		i.Net = osNet{}
 	})
 }
 
