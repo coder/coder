@@ -218,6 +218,7 @@ func (*agplTemplateScheduleStore) Set(ctx context.Context, db database.Store, tp
 			DefaultTTL: int64(opts.DefaultTTL),
 			// Don't allow changing these settings, but keep the value in the DB (to
 			// avoid clearing settings if the license has an issue).
+			UseMaxTtl:                     tpl.UseMaxTtl,
 			MaxTTL:                        tpl.MaxTTL,
 			AutostopRequirementDaysOfWeek: tpl.AutostopRequirementDaysOfWeek,
 			AutostopRequirementWeeks:      tpl.AutostopRequirementWeeks,

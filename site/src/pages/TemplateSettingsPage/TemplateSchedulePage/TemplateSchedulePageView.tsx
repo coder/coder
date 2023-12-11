@@ -14,7 +14,6 @@ export interface TemplateSchedulePageViewProps {
   >["initialTouched"];
   allowAdvancedScheduling: boolean;
   allowWorkspaceActions: boolean;
-  allowAutostopRequirement: boolean;
 }
 
 export const TemplateSchedulePageView: FC<TemplateSchedulePageViewProps> = ({
@@ -24,7 +23,6 @@ export const TemplateSchedulePageView: FC<TemplateSchedulePageViewProps> = ({
   isSubmitting,
   allowAdvancedScheduling,
   allowWorkspaceActions,
-  allowAutostopRequirement,
   submitError,
   initialTouched,
 }) => {
@@ -37,7 +35,6 @@ export const TemplateSchedulePageView: FC<TemplateSchedulePageViewProps> = ({
       <TemplateScheduleForm
         allowAdvancedScheduling={allowAdvancedScheduling}
         allowWorkspaceActions={allowWorkspaceActions}
-        allowAutostopRequirement={allowAutostopRequirement}
         initialTouched={initialTouched}
         isSubmitting={isSubmitting}
         template={template}

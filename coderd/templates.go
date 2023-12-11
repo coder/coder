@@ -223,8 +223,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	}
 
 	var (
-		defaultTTL time.Duration
-		// TODO(@dean): remove max_ttl once autostop_requirement is ready
+		defaultTTL                     time.Duration
 		maxTTL                         time.Duration
 		autostopRequirementDaysOfWeek  []string
 		autostartRequirementDaysOfWeek []string
@@ -865,6 +864,7 @@ func (api *API) convertTemplate(
 		Description:                    template.Description,
 		Icon:                           template.Icon,
 		DefaultTTLMillis:               time.Duration(template.DefaultTTL).Milliseconds(),
+		UseMaxTTL:                      template.UseMaxTtl,
 		MaxTTLMillis:                   time.Duration(template.MaxTTL).Milliseconds(),
 		CreatedByID:                    template.CreatedBy,
 		CreatedByName:                  template.CreatedByUsername,

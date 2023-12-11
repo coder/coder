@@ -35,22 +35,21 @@ const (
 type FeatureName string
 
 const (
-	FeatureUserLimit                   FeatureName = "user_limit"
-	FeatureAuditLog                    FeatureName = "audit_log"
-	FeatureBrowserOnly                 FeatureName = "browser_only"
-	FeatureSCIM                        FeatureName = "scim"
-	FeatureTemplateRBAC                FeatureName = "template_rbac"
-	FeatureUserRoleManagement          FeatureName = "user_role_management"
-	FeatureHighAvailability            FeatureName = "high_availability"
-	FeatureMultipleExternalAuth        FeatureName = "multiple_external_auth"
-	FeatureExternalProvisionerDaemons  FeatureName = "external_provisioner_daemons"
-	FeatureAppearance                  FeatureName = "appearance"
-	FeatureAdvancedTemplateScheduling  FeatureName = "advanced_template_scheduling"
-	FeatureWorkspaceProxy              FeatureName = "workspace_proxy"
-	FeatureExternalTokenEncryption     FeatureName = "external_token_encryption"
-	FeatureTemplateAutostopRequirement FeatureName = "template_autostop_requirement"
-	FeatureWorkspaceBatchActions       FeatureName = "workspace_batch_actions"
-	FeatureAccessControl               FeatureName = "access_control"
+	FeatureUserLimit                  FeatureName = "user_limit"
+	FeatureAuditLog                   FeatureName = "audit_log"
+	FeatureBrowserOnly                FeatureName = "browser_only"
+	FeatureSCIM                       FeatureName = "scim"
+	FeatureTemplateRBAC               FeatureName = "template_rbac"
+	FeatureUserRoleManagement         FeatureName = "user_role_management"
+	FeatureHighAvailability           FeatureName = "high_availability"
+	FeatureMultipleExternalAuth       FeatureName = "multiple_external_auth"
+	FeatureExternalProvisionerDaemons FeatureName = "external_provisioner_daemons"
+	FeatureAppearance                 FeatureName = "appearance"
+	FeatureAdvancedTemplateScheduling FeatureName = "advanced_template_scheduling"
+	FeatureWorkspaceProxy             FeatureName = "workspace_proxy"
+	FeatureExternalTokenEncryption    FeatureName = "external_token_encryption"
+	FeatureWorkspaceBatchActions      FeatureName = "workspace_batch_actions"
+	FeatureAccessControl              FeatureName = "access_control"
 )
 
 // FeatureNames must be kept in-sync with the Feature enum above.
@@ -65,11 +64,9 @@ var FeatureNames = []FeatureName{
 	FeatureExternalProvisionerDaemons,
 	FeatureAppearance,
 	FeatureAdvancedTemplateScheduling,
-	FeatureTemplateAutostopRequirement,
 	FeatureWorkspaceProxy,
 	FeatureUserRoleManagement,
 	FeatureExternalTokenEncryption,
-	FeatureTemplateAutostopRequirement,
 	FeatureWorkspaceBatchActions,
 	FeatureAccessControl,
 }

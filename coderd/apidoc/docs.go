@@ -7929,7 +7929,7 @@ const docTemplate = `{
                     ]
                 },
                 "autostop_requirement": {
-                    "description": "AutostopRequirement allows optionally specifying the autostop requirement\nfor workspaces created from this template. This is an enterprise feature.",
+                    "description": "AutostopRequirement allows optionally specifying the autostop requirement\nfor workspaces created from this template. This is an enterprise feature.\nOnly one of MaxTTLMillis or AutostopRequirement can be specified.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.TemplateAutostopRequirement"
@@ -7969,7 +7969,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "max_ttl_ms": {
-                    "description": "TODO(@dean): remove max_ttl once autostop_requirement is matured",
+                    "description": "TODO(@dean): remove max_ttl once autostop_requirement is matured\nOnly one of MaxTTLMillis or AutostopRequirement can be specified.",
                     "type": "integer"
                 },
                 "name": {
@@ -10223,6 +10223,10 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "use_max_ttl": {
+                    "description": "UseMaxTTL picks whether to use the deprecated max TTL for the template or\nthe new autostop requirement.",
+                    "type": "boolean"
                 }
             }
         },
