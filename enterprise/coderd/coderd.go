@@ -304,6 +304,31 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Get("/", api.userQuietHoursSchedule)
 			r.Put("/", api.putUserQuietHoursSchedule)
 		})
+		r.Route("/oauth2", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+
+			r.Route("/apps", func(r chi.Router) {
+				r.Get("/", api.oAuth2Apps)
+				r.Post("/", api.postOAuth2App)
+
+				r.Route("/{app}", func(r chi.Router) {
+					r.Use(httpmw.ExtractOAuth2App(options.Database))
+					r.Get("/", api.oAuth2App)
+					r.Put("/", api.putOAuth2App)
+					r.Delete("/", api.deleteOAuth2App)
+
+					r.Route("/secrets", func(r chi.Router) {
+						r.Get("/", api.oAuth2AppSecrets)
+						r.Post("/", api.postOAuth2AppSecret)
+
+						r.Route("/{secret}", func(r chi.Router) {
+							r.Use(httpmw.ExtractOAuth2AppSecret(options.Database))
+							r.Delete("/", api.deleteOAuth2AppSecret)
+						})
+					})
+				})
+			})
+		})
 	})
 
 	if len(options.SCIMAPIKey) != 0 {
@@ -481,6 +506,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureBrowserOnly:                api.BrowserOnly,
 			codersdk.FeatureSCIM:                       len(api.SCIMAPIKey) != 0,
 			codersdk.FeatureMultipleExternalAuth:       len(api.ExternalAuthConfigs) > 1,
+			codersdk.FeatureOAuth2Provider:             true,
 			codersdk.FeatureTemplateRBAC:               api.RBAC,
 			codersdk.FeatureExternalTokenEncryption:    len(api.ExternalTokenEncryption) > 0,
 			codersdk.FeatureExternalProvisionerDaemons: true,

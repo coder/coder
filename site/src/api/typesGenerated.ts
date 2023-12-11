@@ -643,6 +643,27 @@ export interface MinimalUser {
   readonly avatar_url: string;
 }
 
+// From codersdk/oauth2.go
+export interface OAuth2App {
+  readonly id: string;
+  readonly name: string;
+  readonly callback_url: string;
+  readonly icon: string;
+}
+
+// From codersdk/oauth2.go
+export interface OAuth2AppSecret {
+  readonly id: string;
+  readonly last_used_at?: string;
+  readonly client_secret_truncated: string;
+}
+
+// From codersdk/oauth2.go
+export interface OAuth2AppSecretFull {
+  readonly id: string;
+  readonly client_secret_full: string;
+}
+
 // From codersdk/deployment.go
 export interface OAuth2Config {
   readonly github: OAuth2GithubConfig;
@@ -749,6 +770,13 @@ export interface PatchWorkspaceProxy {
   readonly regenerate_token: boolean;
 }
 
+// From codersdk/oauth2.go
+export interface PostOAuth2AppRequest {
+  readonly name: string;
+  readonly callback_url: string;
+  readonly icon: string;
+}
+
 // From codersdk/deployment.go
 export interface PprofConfig {
   readonly enable: boolean;
@@ -820,6 +848,13 @@ export interface ProxyHealthReport {
 // From codersdk/workspaces.go
 export interface PutExtendWorkspaceRequest {
   readonly deadline: string;
+}
+
+// From codersdk/oauth2.go
+export interface PutOAuth2AppRequest {
+  readonly name: string;
+  readonly callback_url: string;
+  readonly icon: string;
 }
 
 // From codersdk/deployment.go
@@ -1794,6 +1829,7 @@ export type FeatureName =
   | "external_token_encryption"
   | "high_availability"
   | "multiple_external_auth"
+  | "oauth2_provider"
   | "scim"
   | "template_autostop_requirement"
   | "template_rbac"
@@ -1811,6 +1847,7 @@ export const FeatureNames: FeatureName[] = [
   "external_token_encryption",
   "high_availability",
   "multiple_external_auth",
+  "oauth2_provider",
   "scim",
   "template_autostop_requirement",
   "template_rbac",

@@ -427,6 +427,352 @@ curl -X DELETE http://coder-server:8080/api/v2/licenses/{id} \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get OAuth2 applications.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/oauth2/apps \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /oauth2/apps`
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "callback_url": "string",
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                      |
+| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.OAuth2App](schemas.md#codersdkoauth2app) |
+
+<h3 id="get-oauth2-applications.-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name             | Type         | Required | Restrictions | Description |
+| ---------------- | ------------ | -------- | ------------ | ----------- |
+| `[array item]`   | array        | false    |              |             |
+| `» callback_url` | string       | false    |              |             |
+| `» icon`         | string       | false    |              |             |
+| `» id`           | string(uuid) | false    |              |             |
+| `» name`         | string       | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Create OAuth2 application.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/oauth2/apps \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /oauth2/apps`
+
+> Body parameter
+
+```json
+{
+  "callback_url": "string",
+  "icon": "string",
+  "name": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                     | Required | Description                       |
+| ------ | ---- | ------------------------------------------------------------------------ | -------- | --------------------------------- |
+| `body` | body | [codersdk.PostOAuth2AppRequest](schemas.md#codersdkpostoauth2apprequest) | true     | The OAuth2 application to create. |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "callback_url": "string",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                             |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OAuth2App](schemas.md#codersdkoauth2app) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get OAuth2 application.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/oauth2/apps/{app} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /oauth2/apps/{app}`
+
+### Parameters
+
+| Name  | In   | Type   | Required | Description |
+| ----- | ---- | ------ | -------- | ----------- |
+| `app` | path | string | true     | App ID      |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "callback_url": "string",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                             |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OAuth2App](schemas.md#codersdkoauth2app) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update OAuth2 application.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/oauth2/apps/{app} \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /oauth2/apps/{app}`
+
+> Body parameter
+
+```json
+{
+  "callback_url": "string",
+  "icon": "string",
+  "name": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                   | Required | Description                   |
+| ------ | ---- | ---------------------------------------------------------------------- | -------- | ----------------------------- |
+| `app`  | path | string                                                                 | true     | App ID                        |
+| `body` | body | [codersdk.PutOAuth2AppRequest](schemas.md#codersdkputoauth2apprequest) | true     | Update an OAuth2 application. |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "callback_url": "string",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                             |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OAuth2App](schemas.md#codersdkoauth2app) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Delete OAuth2 application.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/oauth2/apps/{app} \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /oauth2/apps/{app}`
+
+### Parameters
+
+| Name  | In   | Type   | Required | Description |
+| ----- | ---- | ------ | -------- | ----------- |
+| `app` | path | string | true     | App ID      |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+| ------ | --------------------------------------------------------------- | ----------- | ------ |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get OAuth2 application secrets.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/oauth2/apps/{app}/secrets \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /oauth2/apps/{app}/secrets`
+
+### Parameters
+
+| Name  | In   | Type   | Required | Description |
+| ----- | ---- | ------ | -------- | ----------- |
+| `app` | path | string | true     | App ID      |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "client_secret_truncated": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "last_used_at": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                  |
+| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.OAuth2AppSecret](schemas.md#codersdkoauth2appsecret) |
+
+<h3 id="get-oauth2-application-secrets.-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                        | Type         | Required | Restrictions | Description |
+| --------------------------- | ------------ | -------- | ------------ | ----------- |
+| `[array item]`              | array        | false    |              |             |
+| `» client_secret_truncated` | string       | false    |              |             |
+| `» id`                      | string(uuid) | false    |              |             |
+| `» last_used_at`            | string       | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Create OAuth2 application secret.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/oauth2/apps/{app}/secrets \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /oauth2/apps/{app}/secrets`
+
+### Parameters
+
+| Name  | In   | Type   | Required | Description |
+| ----- | ---- | ------ | -------- | ----------- |
+| `app` | path | string | true     | App ID      |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "client_secret_full": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                          |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.OAuth2AppSecretFull](schemas.md#codersdkoauth2appsecretfull) |
+
+<h3 id="create-oauth2-application-secret.-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                   | Type         | Required | Restrictions | Description |
+| ---------------------- | ------------ | -------- | ------------ | ----------- |
+| `[array item]`         | array        | false    |              |             |
+| `» client_secret_full` | string       | false    |              |             |
+| `» id`                 | string(uuid) | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Delete OAuth2 application secret.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/oauth2/apps/{app}/secrets/{secret} \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /oauth2/apps/{app}/secrets/{secret}`
+
+### Parameters
+
+| Name     | In   | Type   | Required | Description |
+| -------- | ---- | ------ | -------- | ----------- |
+| `app`    | path | string | true     | App ID      |
+| `secret` | path | string | true     | Secret ID   |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+| ------ | --------------------------------------------------------------- | ----------- | ------ |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get groups by organization
 
 ### Code samples

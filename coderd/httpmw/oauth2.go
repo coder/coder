@@ -8,6 +8,7 @@ import (
 
 	"golang.org/x/oauth2"
 
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -174,6 +175,90 @@ func ExtractOAuth2(config OAuth2Config, client *http.Client, authURLOpts map[str
 				Redirect:    redirect,
 				StateString: state,
 			})
+			next.ServeHTTP(rw, r.WithContext(ctx))
+		})
+	}
+}
+
+type (
+	oauth2AppParamContextKey       struct{}
+	oauth2AppSecretParamContextKey struct{}
+)
+
+// OAuth2App returns the OAuth2 app from the ExtractOAuth2AppParam handler.
+func OAuth2App(r *http.Request) database.OAuth2App {
+	app, ok := r.Context().Value(oauth2AppParamContextKey{}).(database.OAuth2App)
+	if !ok {
+		panic("developer error: oauth2 app param middleware not provided")
+	}
+	return app
+}
+
+// ExtractOAuth2App grabs an OAuth2 app from the "app" URL parameter.  This
+// middleware requires the API key middleware higher in the call stack for
+// authentication.
+func ExtractOAuth2App(db database.Store) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
+			appID, ok := ParseUUIDParam(rw, r, "app")
+			if !ok {
+				return
+			}
+
+			app, err := db.GetOAuth2AppByID(ctx, appID)
+			if httpapi.Is404Error(err) {
+				httpapi.ResourceNotFound(rw)
+				return
+			}
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal error fetching OAuth2 app.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			ctx = context.WithValue(ctx, oauth2AppParamContextKey{}, app)
+			next.ServeHTTP(rw, r.WithContext(ctx))
+		})
+	}
+}
+
+// OAuth2AppSecret returns the OAuth2 app secret from the
+// ExtractOAuth2AppSecretParam handler.
+func OAuth2AppSecret(r *http.Request) database.OAuth2AppSecret {
+	app, ok := r.Context().Value(oauth2AppSecretParamContextKey{}).(database.OAuth2AppSecret)
+	if !ok {
+		panic("developer error: oauth2 app secret param middleware not provided")
+	}
+	return app
+}
+
+// ExtractOAuth2AppSecret grabs an OAuth2 app secret from the "app" and
+// "secret" URL parameters.  This middleware requires the ExtractOAuth2App
+// middleware higher in the stack
+func ExtractOAuth2AppSecret(db database.Store) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
+			secretID, ok := ParseUUIDParam(rw, r, "secret")
+			if !ok {
+				return
+			}
+			app := OAuth2App(r)
+			secret, err := db.GetOAuth2AppSecretByID(ctx, secretID)
+			if httpapi.Is404Error(err) || app.ID != secret.AppID {
+				httpapi.ResourceNotFound(rw)
+				return
+			}
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal error fetching OAuth2 app secret.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			ctx = context.WithValue(ctx, oauth2AppSecretParamContextKey{}, secret)
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}
