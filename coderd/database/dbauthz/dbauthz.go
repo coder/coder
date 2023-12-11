@@ -2825,6 +2825,10 @@ func (q *querier) UpdateUserStatus(ctx context.Context, arg database.UpdateUserS
 	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateUserStatus)(ctx, arg)
 }
 
+func (q *querier) UpdateUserThemePreference(ctx context.Context, arg database.UpdateUserThemePreferenceParams) (database.User, error) {
+	panic("not implemented")
+}
+
 func (q *querier) UpdateWorkspace(ctx context.Context, arg database.UpdateWorkspaceParams) (database.Workspace, error) {
 	fetch := func(ctx context.Context, arg database.UpdateWorkspaceParams) (database.Workspace, error) {
 		return q.db.GetWorkspaceByID(ctx, arg.ID)

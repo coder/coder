@@ -35,6 +35,7 @@ describe("AccountPage", () => {
           avatar_url: "",
           last_seen_at: new Date().toString(),
           login_type: "password",
+          theme_preference: "",
           ...data,
         }),
       );

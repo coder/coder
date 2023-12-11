@@ -4551,6 +4551,52 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/{user}/theme": {
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Update user's theme preference",
+                "operationId": "update-user-theme-preference",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "New theme preference",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateUserThemePreferenceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.User"
+                        }
+                    }
+                }
+            }
+        },
         "/users/{user}/workspace/{workspacename}": {
             "get": {
                 "security": [
@@ -10676,6 +10722,9 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "theme_preference": {
+                    "type": "string"
+                },
                 "username": {
                     "type": "string"
                 }
@@ -11050,6 +11099,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateUserThemePreferenceRequest": {
+            "type": "object",
+            "required": [
+                "theme_preference"
+            ],
+            "properties": {
+                "theme_preference": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.UpdateWorkspaceAutomaticUpdatesRequest": {
             "type": "object",
             "properties": {
@@ -11154,6 +11214,9 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.UserStatus"
                         }
                     ]
+                },
+                "theme_preference": {
+                    "type": "string"
                 },
                 "username": {
                     "type": "string"

@@ -344,6 +344,7 @@ type sqlcQuerier interface {
 	UpdateUserQuietHoursSchedule(ctx context.Context, arg UpdateUserQuietHoursScheduleParams) (User, error)
 	UpdateUserRoles(ctx context.Context, arg UpdateUserRolesParams) (User, error)
 	UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) (User, error)
+	UpdateUserThemePreference(ctx context.Context, arg UpdateUserThemePreferenceParams) (User, error)
 	UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (Workspace, error)
 	UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg UpdateWorkspaceAgentConnectionByIDParams) error
 	UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg UpdateWorkspaceAgentLifecycleStateByIDParams) error

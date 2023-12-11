@@ -3737,6 +3737,21 @@ func (mr *MockStoreMockRecorder) UpdateUserStatus(arg0, arg1 interface{}) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserStatus", reflect.TypeOf((*MockStore)(nil).UpdateUserStatus), arg0, arg1)
 }
 
+// UpdateUserThemePreference mocks base method.
+func (m *MockStore) UpdateUserThemePreference(arg0 context.Context, arg1 database.UpdateUserThemePreferenceParams) (database.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserThemePreference", arg0, arg1)
+	ret0, _ := ret[0].(database.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateUserThemePreference indicates an expected call of UpdateUserThemePreference.
+func (mr *MockStoreMockRecorder) UpdateUserThemePreference(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserThemePreference", reflect.TypeOf((*MockStore)(nil).UpdateUserThemePreference), arg0, arg1)
+}
+
 // UpdateWorkspace mocks base method.
 func (m *MockStore) UpdateWorkspace(arg0 context.Context, arg1 database.UpdateWorkspaceParams) (database.Workspace, error) {
 	m.ctrl.T.Helper()

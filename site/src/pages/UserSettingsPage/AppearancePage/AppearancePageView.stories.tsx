@@ -1,0 +1,37 @@
+import { mockApiError } from "testHelpers/entities";
+import { AppearancePageView } from "./AppearancePageView";
+import type { Meta, StoryObj } from "@storybook/react";
+
+const meta: Meta<typeof AppearancePageView> = {
+  title: "pages/UserSettingsPage/AppearancePageView",
+  component: AppearancePageView,
+  args: {
+    isLoading: false,
+    sshKey: {
+      user_id: "test-user-id",
+      created_at: "2022-07-28T07:45:50.795918897Z",
+      updated_at: "2022-07-28T07:45:50.795919142Z",
+      public_key: "SSH-Key",
+    },
+  },
+};
+
+export default meta;
+type Story = StoryObj<typeof AppearancePageView>;
+
+export const Example: Story = {};
+
+export const Loading: Story = {
+  args: {
+    isLoading: true,
+  },
+};
+
+export const WithGetSSHKeyError: Story = {
+  args: {
+    sshKey: undefined,
+    getSSHKeyError: mockApiError({
+      message: "Failed to get SSH key",
+    }),
+  },
+};

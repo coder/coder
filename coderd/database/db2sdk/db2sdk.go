@@ -122,6 +122,7 @@ func User(user database.User, organizationIDs []uuid.UUID) codersdk.User {
 		Roles:           make([]codersdk.Role, 0, len(user.RBACRoles)),
 		AvatarURL:       user.AvatarURL,
 		LoginType:       codersdk.LoginType(user.LoginType),
+		ThemePreference: user.ThemePreference,
 	}
 
 	for _, roleName := range user.RBACRoles {

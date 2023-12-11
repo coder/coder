@@ -6,8 +6,8 @@ import { useMe } from "hooks/useMe";
 import { usePermissions } from "hooks/usePermissions";
 import { groupsForUser } from "api/queries/groups";
 import { useAuth } from "components/AuthProvider/AuthProvider";
-import { Section } from "components/SettingsLayout/Section";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
+import { Section } from "../Section";
 import { AccountUserGroups } from "./AccountUserGroups";
 import { AccountForm } from "./AccountForm";
 

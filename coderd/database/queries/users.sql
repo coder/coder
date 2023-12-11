@@ -82,6 +82,15 @@ SET
 WHERE
 	id = $1 RETURNING *;
 
+-- name: UpdateUserThemePreference :one
+UPDATE
+	users
+SET
+	theme_preference = $2,
+	updated_at = $3
+WHERE
+	id = $1 RETURNING *;
+
 -- name: UpdateUserRoles :one
 UPDATE
 	users
@@ -266,4 +275,3 @@ RETURNING id, email, last_seen_at;
 -- AllUserIDs returns all UserIDs regardless of user status or deletion.
 -- name: AllUserIDs :many
 SELECT DISTINCT id FROM USERS;
-

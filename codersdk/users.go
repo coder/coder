@@ -55,6 +55,7 @@ type User struct {
 	Roles           []Role      `json:"roles"`
 	AvatarURL       string      `json:"avatar_url" format:"uri"`
 	LoginType       LoginType   `json:"login_type"`
+	ThemePreference string      `json:"theme_preference"`
 }
 
 type GetUsersResponse struct {
@@ -90,6 +91,10 @@ type CreateUserRequest struct {
 
 type UpdateUserProfileRequest struct {
 	Username string `json:"username" validate:"required,username"`
+}
+
+type UpdateUserThemePreferenceRequest struct {
+	ThemePreference string `json:"theme_preference" validate:"required"`
 }
 
 type UpdateUserPasswordRequest struct {
@@ -280,9 +285,23 @@ func (c *Client) UpdateUserStatus(ctx context.Context, user string, status UserS
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
+// UpdateUserThemePreference enables callers to update the user's theme preference
+func (c *Client) UpdateUserThemePreference(ctx context.Context, user string, req UpdateUserProfileRequest) (User, error) {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/theme", user), req)
+	if err != nil {
+		return User{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return User{}, ReadBodyAsError(res)
+	}
+	var resp User
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
 // UpdateUserPassword updates a user password.
 // It calls PUT /users/{user}/password
-func (c *Client) UpdateUserPassword(ctx context.Context, user string, req UpdateUserPasswordRequest) error {
+func (c *Client) UpdateUserPassword(ctx context.Context, user string, req UpdateUserThemePreferenceRequest) error {
 	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/password", user), req)
 	if err != nil {
 		return err

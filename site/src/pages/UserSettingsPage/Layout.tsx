@@ -4,11 +4,11 @@ import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { useMe } from "hooks/useMe";
 import { Loader } from "components/Loader/Loader";
+import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
-import { Margins } from "../Margins/Margins";
 import { Sidebar } from "./Sidebar";
 
-export const SettingsLayout: FC = () => {
+const Layout: FC = () => {
   const me = useMe();
 
   return (
@@ -30,3 +30,5 @@ export const SettingsLayout: FC = () => {
     </>
   );
 };
+
+export default Layout;

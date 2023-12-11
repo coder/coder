@@ -1,17 +1,17 @@
-import { FC, useState } from "react";
-import { UserExternalAuthSettingsPageView } from "./UserExternalAuthSettingsPageView";
+import { type FC, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
   externalAuths,
   unlinkExternalAuths,
   validateExternalAuth,
 } from "api/queries/externalAuth";
-import { Section } from "components/SettingsLayout/Section";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { getErrorMessage } from "api/errors";
+import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { Section } from "../Section";
+import { ExternalAuthPageView } from "./ExternalAuthPageView";
 
-const UserExternalAuthSettingsPage: FC = () => {
+const ExternalAuthPage: FC = () => {
   const queryClient = useQueryClient();
   // This is used to tell the child components something was unlinked and things
   // need to be refetched
@@ -24,7 +24,7 @@ const UserExternalAuthSettingsPage: FC = () => {
 
   return (
     <Section title="External Authentication" layout="fluid">
-      <UserExternalAuthSettingsPageView
+      <ExternalAuthPageView
         isLoading={externalAuthsQuery.isLoading}
         getAuthsError={externalAuthsQuery.error}
         auths={externalAuthsQuery.data}
@@ -83,4 +83,4 @@ const UserExternalAuthSettingsPage: FC = () => {
   );
 };
 
-export default UserExternalAuthSettingsPage;
+export default ExternalAuthPage;

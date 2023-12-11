@@ -1,11 +1,11 @@
 import { type FC, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { Section } from "../Section";
-import { SSHKeysPageView } from "./SSHKeysPageView";
 import { regenerateUserSSHKey, userSSHKey } from "api/queries/sshKeys";
-import { useMutation, useQuery, useQueryClient } from "react-query";
 import { getErrorMessage } from "api/errors";
+import { Section } from "../Section";
+import { AppearancePageView } from "./AppearancePageView";
 
 export const Language = {
   title: "SSH keys",
@@ -18,7 +18,7 @@ export const Language = {
   cancelLabel: "Cancel",
 };
 
-export const SSHKeysPage: FC = () => {
+export const AppearancePage: FC = () => {
   const [isConfirmingRegeneration, setIsConfirmingRegeneration] =
     useState(false);
 
@@ -31,7 +31,7 @@ export const SSHKeysPage: FC = () => {
   return (
     <>
       <Section title={Language.title}>
-        <SSHKeysPageView
+        <AppearancePageView
           isLoading={userSSHKeyQuery.isLoading}
           getSSHKeyError={userSSHKeyQuery.error}
           sshKey={userSSHKeyQuery.data}
@@ -63,4 +63,4 @@ export const SSHKeysPage: FC = () => {
   );
 };
 
-export default SSHKeysPage;
+export default AppearancePage;

@@ -1775,6 +1775,13 @@ func (m metricsStore) UpdateUserStatus(ctx context.Context, arg database.UpdateU
 	return user, err
 }
 
+func (m metricsStore) UpdateUserThemePreference(ctx context.Context, arg database.UpdateUserThemePreferenceParams) (database.User, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserThemePreference(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserThemePreference").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) UpdateWorkspace(ctx context.Context, arg database.UpdateWorkspaceParams) (database.Workspace, error) {
 	start := time.Now()
 	workspace, err := m.s.UpdateWorkspace(ctx, arg)

@@ -1246,6 +1246,11 @@ export interface UpdateUserQuietHoursScheduleRequest {
   readonly schedule: string;
 }
 
+// From codersdk/users.go
+export interface UpdateUserThemePreferenceRequest {
+  readonly theme_preference: string;
+}
+
 // From codersdk/workspaces.go
 export interface UpdateWorkspaceAutomaticUpdatesRequest {
   readonly automatic_updates: AutomaticUpdates;
@@ -1294,6 +1299,7 @@ export interface User {
   readonly roles: Role[];
   readonly avatar_url: string;
   readonly login_type: LoginType;
+  readonly theme_preference: string;
 }
 
 // From codersdk/insights.go

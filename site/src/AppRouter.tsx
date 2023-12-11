@@ -1,13 +1,3 @@
-import { FullScreenLoader } from "components/Loader/FullScreenLoader";
-import { UsersLayout } from "components/UsersLayout/UsersLayout";
-import AuditPage from "pages/AuditPage/AuditPage";
-import LoginPage from "pages/LoginPage/LoginPage";
-import { SetupPage } from "pages/SetupPage/SetupPage";
-import { TemplateLayout } from "pages/TemplatePage/TemplateLayout";
-import { HealthLayout } from "pages/HealthPage/HealthLayout";
-import TemplatesPage from "pages/TemplatesPage/TemplatesPage";
-import UsersPage from "pages/UsersPage/UsersPage";
-import WorkspacesPage from "pages/WorkspacesPage/WorkspacesPage";
 import { FC, lazy, Suspense } from "react";
 import {
   Route,
@@ -16,11 +6,21 @@ import {
   Navigate,
 } from "react-router-dom";
 import { DashboardLayout } from "./components/Dashboard/DashboardLayout";
+import { DeploySettingsLayout } from "./components/DeploySettingsLayout/DeploySettingsLayout";
+import { FullScreenLoader } from "./components/Loader/FullScreenLoader";
 import { RequireAuth } from "./components/RequireAuth/RequireAuth";
-import { SettingsLayout } from "./components/SettingsLayout/SettingsLayout";
-import { DeploySettingsLayout } from "components/DeploySettingsLayout/DeploySettingsLayout";
-import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout";
-import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
+import { UsersLayout } from "./components/UsersLayout/UsersLayout";
+import AuditPage from "./pages/AuditPage/AuditPage";
+import LoginPage from "./pages/LoginPage/LoginPage";
+import { SetupPage } from "./pages/SetupPage/SetupPage";
+import { TemplateLayout } from "./pages/TemplatePage/TemplateLayout";
+import { HealthLayout } from "./pages/HealthPage/HealthLayout";
+import TemplatesPage from "./pages/TemplatesPage/TemplatesPage";
+import UsersPage from "./pages/UsersPage/UsersPage";
+import WorkspacesPage from "./pages/WorkspacesPage/WorkspacesPage";
+import UserSettingsLayout from "./pages/UserSettingsPage/Layout";
+import { TemplateSettingsLayout } from "./pages/TemplateSettingsPage/TemplateSettingsLayout";
+import { WorkspaceSettingsLayout } from "./pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 
 // Lazy load pages
 // - Pages that are secondary, not in the main navigation or not usually accessed
@@ -31,6 +31,9 @@ const CliAuthenticationPage = lazy(
 );
 const AccountPage = lazy(
   () => import("./pages/UserSettingsPage/AccountPage/AccountPage"),
+);
+const AppearancePage = lazy(
+  () => import("./pages/UserSettingsPage/AppearancePage/AppearancePage"),
 );
 const SchedulePage = lazy(
   () => import("./pages/UserSettingsPage/SchedulePage/SchedulePage"),
@@ -133,8 +136,7 @@ const ExternalAuthPage = lazy(
   () => import("./pages/ExternalAuthPage/ExternalAuthPage"),
 );
 const UserExternalAuthSettingsPage = lazy(
-  () =>
-    import("./pages/UserExternalAuthSettingsPage/UserExternalAuthSettingsPage"),
+  () => import("./pages/UserSettingsPage/ExternalAuthPage/ExternalAuthPage"),
 );
 const TemplateVersionPage = lazy(
   () => import("./pages/TemplateVersionPage/TemplateVersionPage"),
@@ -319,8 +321,9 @@ export const AppRouter: FC = () => {
                 />
               </Route>
 
-              <Route path="/settings" element={<SettingsLayout />}>
+              <Route path="/settings" element={<UserSettingsLayout />}>
                 <Route path="account" element={<AccountPage />} />
+                <Route path="appearance" element={<AppearancePage />} />
                 <Route path="schedule" element={<SchedulePage />} />
                 <Route path="security" element={<SecurityPage />} />
                 <Route path="ssh-keys" element={<SSHKeysPage />} />

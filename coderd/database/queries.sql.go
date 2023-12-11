@@ -7714,6 +7714,44 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 	return i, err
 }
 
+const updateUserThemePreference = `-- name: UpdateUserThemePreference :one
+UPDATE
+	users
+SET
+	theme_preference = $2,
+	updated_at = $3
+WHERE
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference
+`
+
+type UpdateUserThemePreferenceParams struct {
+	ID              uuid.UUID `db:"id" json:"id"`
+	ThemePreference string    `db:"theme_preference" json:"theme_preference"`
+	UpdatedAt       time.Time `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) UpdateUserThemePreference(ctx context.Context, arg UpdateUserThemePreferenceParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateUserThemePreference, arg.ID, arg.ThemePreference, arg.UpdatedAt)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Username,
+		&i.HashedPassword,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.RBACRoles,
+		&i.LoginType,
+		&i.AvatarURL,
+		&i.Deleted,
+		&i.LastSeenAt,
+		&i.QuietHoursSchedule,
+		&i.ThemePreference,
+	)
+	return i, err
+}
+
 const deleteOldWorkspaceAgentLogs = `-- name: DeleteOldWorkspaceAgentLogs :exec
 DELETE FROM workspace_agent_logs WHERE agent_id IN
 	(SELECT id FROM workspace_agents WHERE last_connected_at IS NOT NULL

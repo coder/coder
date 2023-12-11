@@ -6465,6 +6465,15 @@ func (q *FakeQuerier) UpdateUserStatus(_ context.Context, arg database.UpdateUse
 	return database.User{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) UpdateUserThemePreference(ctx context.Context, arg database.UpdateUserThemePreferenceParams) (database.User, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.User{}, err
+	}
+
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) UpdateWorkspace(_ context.Context, arg database.UpdateWorkspaceParams) (database.Workspace, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.Workspace{}, err
