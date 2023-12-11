@@ -149,6 +149,15 @@ func createOIDCConfig(ctx context.Context, vals *codersdk.DeploymentValues) (*co
 		}
 		useCfg = pkiCfg
 	}
+	if len(vals.OIDC.GroupAllowList) > 0 && vals.OIDC.GroupField == "" {
+		return nil, xerrors.Errorf("'oidc-group-field' must be set if 'oidc-allowed-groups' is set. Either unset 'oidc-allowed-groups' or set 'oidc-group-field'")
+	}
+
+	groupAllowList := make(map[string]bool)
+	for _, group := range vals.OIDC.GroupAllowList.Value() {
+		groupAllowList[group] = true
+	}
+
 	return &coderd.OIDCConfig{
 		OAuth2Config: useCfg,
 		Provider:     oidcProvider,
@@ -163,6 +172,7 @@ func createOIDCConfig(ctx context.Context, vals *codersdk.DeploymentValues) (*co
 		IgnoreUserInfo:      vals.OIDC.IgnoreUserInfo.Value(),
 		GroupField:          vals.OIDC.GroupField.String(),
 		GroupFilter:         vals.OIDC.GroupRegexFilter.Value(),
+		GroupAllowList:      groupAllowList,
 		CreateMissingGroups: vals.OIDC.GroupAutoCreate.Value(),
 		GroupMapping:        vals.OIDC.GroupMapping.Value,
 		UserRoleField:       vals.OIDC.UserRoleField.String(),

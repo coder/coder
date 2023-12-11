@@ -282,7 +282,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           )}
           {/* <DormantWorkspaceBanner/> determines its own visibility */}
           <DormantWorkspaceBanner
-            workspaces={[workspace]}
+            workspace={workspace}
             shouldRedisplayBanner={
               getLocal("dismissedWorkspace") !== workspace.id
             }
@@ -357,6 +357,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
                   hideSSHButton={hideSSHButton}
                   hideVSCodeDesktopButton={hideVSCodeDesktopButton}
                   serverVersion={buildInfo?.version || ""}
+                  serverAPIVersion={buildInfo?.agent_api_version || ""}
                   onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
                 />
               )}

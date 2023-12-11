@@ -239,13 +239,11 @@ WHERE
 			) > 0
 		ELSE true
 	END
-	-- Filter by dormant workspaces. By default we do not return dormant
-	-- workspaces since they are considered soft-deleted.
+	-- Filter by dormant workspaces.
 	AND CASE
-		WHEN @is_dormant :: text != '' THEN
+		WHEN @dormant :: boolean != 'false' THEN
 			dormant_at IS NOT NULL
-		ELSE
-			dormant_at IS NULL
+		ELSE true
 	END
 	-- Filter by last_used
 	AND CASE

@@ -8,7 +8,6 @@ import { type CSSProperties, type FC, useState } from "react";
 import { css } from "@emotion/react";
 import { FileTree } from "utils/filetree";
 import { DockerIcon } from "components/Icons/DockerIcon";
-import { colors } from "theme/colors";
 
 const sortFileTree = (fileTree: FileTree) => (a: string, b: string) => {
   const contentA = fileTree[a];
@@ -28,13 +27,21 @@ type ContextMenu = {
   clientY: number;
 };
 
-export const FileTreeView: FC<{
+interface FileTreeViewProps {
   onSelect: (path: string) => void;
   onDelete: (path: string) => void;
   onRename: (path: string) => void;
   fileTree: FileTree;
   activePath?: string;
-}> = ({ fileTree, activePath, onDelete, onRename, onSelect }) => {
+}
+
+export const FileTreeView: FC<FileTreeViewProps> = ({
+  fileTree,
+  activePath,
+  onDelete,
+  onRename,
+  onSelect,
+}) => {
   const [contextMenu, setContextMenu] = useState<ContextMenu | undefined>();
 
   const buildTreeItems = (
@@ -51,7 +58,7 @@ export const FileTreeView: FC<{
       icon = <FileTypeMarkdown />;
     }
     if (filename.endsWith("Dockerfile")) {
-      icon = <FileTypeDockerfile />;
+      icon = <DockerIcon />;
     }
 
     return (
@@ -93,7 +100,7 @@ export const FileTreeView: FC<{
           &.active {
             & > .MuiTreeItem-content {
               color: ${theme.palette.text.primary};
-              background: ${colors.gray[14]};
+              background: ${theme.colors.gray[14]};
               pointer-events: none;
             }
           }
@@ -206,7 +213,7 @@ export const FileTreeView: FC<{
   );
 };
 
-const FileTypeTerraform = () => (
+const FileTypeTerraform: FC = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="#813cf3">
     <title>file_type_terraform</title>
     <polygon points="12.042 6.858 20.071 11.448 20.071 20.462 12.042 15.868 12.042 6.858 12.042 6.858" />
@@ -216,7 +223,7 @@ const FileTypeTerraform = () => (
   </svg>
 );
 
-const FileTypeMarkdown = () => (
+const FileTypeMarkdown: FC = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="#755838">
     <rect
       x="2.5"
@@ -232,5 +239,3 @@ const FileTypeMarkdown = () => (
     <polygon points="22.955 20.636 18.864 16.136 21.591 16.136 21.591 11.364 24.318 11.364 24.318 16.136 27.045 16.136 22.955 20.636" />
   </svg>
 );
-
-const FileTypeDockerfile = () => <DockerIcon />;

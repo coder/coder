@@ -108,26 +108,38 @@ export const displayWorkspaceBuildDuration = (
   return duration ? `${duration} seconds` : inProgressLabel;
 };
 
+export const enum agentVersionStatus {
+  Updated = 1,
+  Outdated = 2,
+  Deprecated = 3,
+}
+
 export const getDisplayVersionStatus = (
   agentVersion: string,
   serverVersion: string,
-): { displayVersion: string; outdated: boolean } => {
-  if (!semver.valid(serverVersion) || !semver.valid(agentVersion)) {
-    return {
-      displayVersion: agentVersion || DisplayAgentVersionLanguage.unknown,
-      outdated: false,
-    };
-  } else if (semver.lt(agentVersion, serverVersion)) {
-    return {
-      displayVersion: agentVersion,
-      outdated: true,
-    };
-  } else {
-    return {
-      displayVersion: agentVersion,
-      outdated: false,
-    };
+  agentAPIVersion: string,
+  serverAPIVersion: string,
+): { displayVersion: string; status: agentVersionStatus } => {
+  // APIVersions only have major.minor so coerce them to major.minor.0, so we can use semver.major()
+  const a = semver.coerce(agentAPIVersion);
+  const s = semver.coerce(serverAPIVersion);
+  let status = agentVersionStatus.Updated;
+  if (
+    semver.valid(agentVersion) &&
+    semver.valid(serverVersion) &&
+    semver.lt(agentVersion, serverVersion)
+  ) {
+    status = agentVersionStatus.Outdated;
   }
+  // deprecated overrides and implies Outdated
+  if (a !== null && s !== null && semver.major(a) < semver.major(s)) {
+    status = agentVersionStatus.Deprecated;
+  }
+  const displayVersion = agentVersion || DisplayAgentVersionLanguage.unknown;
+  return {
+    displayVersion: displayVersion,
+    status: status,
+  };
 };
 
 export const isWorkspaceOn = (workspace: TypesGen.Workspace): boolean => {

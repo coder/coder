@@ -77,6 +77,12 @@ type agentAppAttributes struct {
 	Healthcheck []appHealthcheckAttributes `mapstructure:"healthcheck"`
 }
 
+type agentEnvAttributes struct {
+	AgentID string `mapstructure:"agent_id"`
+	Name    string `mapstructure:"name"`
+	Value   string `mapstructure:"value"`
+}
+
 type agentScriptAttributes struct {
 	AgentID          string `mapstructure:"agent_id"`
 	DisplayName      string `mapstructure:"display_name"`
@@ -435,6 +441,32 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 		}
 	}
 
+	// Associate envs with agents.
+	for _, resources := range tfResourcesByLabel {
+		for _, resource := range resources {
+			if resource.Type != "coder_env" {
+				continue
+			}
+			var attrs agentEnvAttributes
+			err = mapstructure.Decode(resource.AttributeValues, &attrs)
+			if err != nil {
+				return nil, xerrors.Errorf("decode env attributes: %w", err)
+			}
+			for _, agents := range resourceAgents {
+				for _, agent := range agents {
+					// Find agents with the matching ID and associate them!
+					if agent.Id != attrs.AgentID {
+						continue
+					}
+					agent.ExtraEnvs = append(agent.ExtraEnvs, &proto.Env{
+						Name:  attrs.Name,
+						Value: attrs.Value,
+					})
+				}
+			}
+		}
+	}
+
 	// Associate scripts with agents.
 	for _, resources := range tfResourcesByLabel {
 		for _, resource := range resources {
@@ -444,7 +476,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 			var attrs agentScriptAttributes
 			err = mapstructure.Decode(resource.AttributeValues, &attrs)
 			if err != nil {
-				return nil, xerrors.Errorf("decode app attributes: %w", err)
+				return nil, xerrors.Errorf("decode script attributes: %w", err)
 			}
 			for _, agents := range resourceAgents {
 				for _, agent := range agents {

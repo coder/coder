@@ -1,13 +1,13 @@
-package provisionerdserver_test
+package provisionersdk_test
 
 import (
 	"encoding/json"
 	"testing"
 
+	"github.com/coder/coder/v2/provisionersdk"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-
-	"github.com/coder/coder/v2/coderd/provisionerdserver"
 )
 
 func TestMutateTags(t *testing.T) {
@@ -26,7 +26,7 @@ func TestMutateTags(t *testing.T) {
 			userID: uuid.Nil,
 			tags:   nil,
 			want: map[string]string{
-				provisionerdserver.TagScope: provisionerdserver.ScopeOrganization,
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 			},
 		},
 		{
@@ -34,32 +34,32 @@ func TestMutateTags(t *testing.T) {
 			userID: uuid.Nil,
 			tags:   map[string]string{},
 			want: map[string]string{
-				provisionerdserver.TagScope: provisionerdserver.ScopeOrganization,
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 			},
 		},
 		{
 			name:   "user scope",
-			tags:   map[string]string{provisionerdserver.TagScope: provisionerdserver.ScopeUser},
+			tags:   map[string]string{provisionersdk.TagScope: provisionersdk.ScopeUser},
 			userID: testUserID,
 			want: map[string]string{
-				provisionerdserver.TagScope: provisionerdserver.ScopeUser,
-				provisionerdserver.TagOwner: testUserID.String(),
+				provisionersdk.TagScope: provisionersdk.ScopeUser,
+				provisionersdk.TagOwner: testUserID.String(),
 			},
 		},
 		{
 			name:   "organization scope",
-			tags:   map[string]string{provisionerdserver.TagScope: provisionerdserver.ScopeOrganization},
+			tags:   map[string]string{provisionersdk.TagScope: provisionersdk.ScopeOrganization},
 			userID: testUserID,
 			want: map[string]string{
-				provisionerdserver.TagScope: provisionerdserver.ScopeOrganization,
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 			},
 		},
 		{
 			name:   "invalid scope",
-			tags:   map[string]string{provisionerdserver.TagScope: "360noscope"},
+			tags:   map[string]string{provisionersdk.TagScope: "360noscope"},
 			userID: testUserID,
 			want: map[string]string{
-				provisionerdserver.TagScope: provisionerdserver.ScopeOrganization,
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 			},
 		},
 	} {
@@ -73,7 +73,7 @@ func TestMutateTags(t *testing.T) {
 			var tags map[string]string
 			err = json.Unmarshal(bytes, &tags)
 			require.NoError(t, err)
-			got := provisionerdserver.MutateTags(tt.userID, tags)
+			got := provisionersdk.MutateTags(tt.userID, tags)
 			require.Equal(t, tt.want, got)
 		})
 	}

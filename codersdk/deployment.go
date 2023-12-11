@@ -291,6 +291,7 @@ type OIDCConfig struct {
 	IgnoreUserInfo      clibase.Bool                        `json:"ignore_user_info" typescript:",notnull"`
 	GroupAutoCreate     clibase.Bool                        `json:"group_auto_create" typescript:",notnull"`
 	GroupRegexFilter    clibase.Regexp                      `json:"group_regex_filter" typescript:",notnull"`
+	GroupAllowList      clibase.StringArray                 `json:"group_allow_list" typescript:",notnull"`
 	GroupField          clibase.String                      `json:"groups_field" typescript:",notnull"`
 	GroupMapping        clibase.Struct[map[string]string]   `json:"group_mapping" typescript:",notnull"`
 	UserRoleField       clibase.String                      `json:"user_role_field" typescript:",notnull"`
@@ -1188,6 +1189,16 @@ when required by your organization's security policy.`,
 			YAML:        "groupRegexFilter",
 		},
 		{
+			Name:        "OIDC Allowed Groups",
+			Description: "If provided any group name not in the list will not be allowed to authenticate. This allows for restricting access to a specific set of groups. This filter is applied after the group mapping and before the regex filter.",
+			Flag:        "oidc-allowed-groups",
+			Env:         "CODER_OIDC_ALLOWED_GROUPS",
+			Default:     "",
+			Value:       &c.OIDC.GroupAllowList,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "groupAllowed",
+		},
+		{
 			Name:        "OIDC User Role Field",
 			Description: "This field must be set if using the user roles sync feature. Set this to the name of the claim used to store the user's role. The roles should be sent as an array of strings.",
 			Flag:        "oidc-user-role-field",
@@ -2003,6 +2014,10 @@ type BuildInfoResponse struct {
 	DashboardURL string `json:"dashboard_url"`
 
 	WorkspaceProxy bool `json:"workspace_proxy"`
+
+	// AgentAPIVersion is the current version of the Agent API (back versions
+	// MAY still be supported).
+	AgentAPIVersion string `json:"agent_api_version"`
 }
 
 type WorkspaceProxyBuildInfo struct {

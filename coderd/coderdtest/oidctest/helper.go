@@ -48,6 +48,14 @@ func (h *LoginHelper) Login(t *testing.T, idTokenClaims jwt.MapClaims) (*codersd
 	return h.fake.Login(t, unauthenticatedClient, idTokenClaims)
 }
 
+// AttemptLogin does not assert a successful login.
+func (h *LoginHelper) AttemptLogin(t *testing.T, idTokenClaims jwt.MapClaims) (*codersdk.Client, *http.Response) {
+	t.Helper()
+	unauthenticatedClient := codersdk.New(h.client.URL)
+
+	return h.fake.AttemptLogin(t, unauthenticatedClient, idTokenClaims)
+}
+
 // ExpireOauthToken expires the oauth token for the given user.
 func (*LoginHelper) ExpireOauthToken(t *testing.T, db database.Store, user *codersdk.Client) database.UserLink {
 	t.Helper()

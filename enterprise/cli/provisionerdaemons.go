@@ -19,7 +19,6 @@ import (
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/terraform"
 	"github.com/coder/coder/v2/provisionerd"
@@ -102,8 +101,8 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 			// When authorizing with a PSK, we automatically scope the provisionerd
 			// to organization. Scoping to user with PSK auth is not a valid configuration.
 			if preSharedKey != "" {
-				logger.Info(ctx, "psk auth automatically sets tag "+provisionerdserver.TagScope+"="+provisionerdserver.ScopeOrganization)
-				tags[provisionerdserver.TagScope] = provisionerdserver.ScopeOrganization
+				logger.Info(ctx, "psk auth automatically sets tag "+provisionersdk.TagScope+"="+provisionersdk.ScopeOrganization)
+				tags[provisionersdk.TagScope] = provisionersdk.ScopeOrganization
 			}
 
 			err = os.MkdirAll(cacheDir, 0o700)

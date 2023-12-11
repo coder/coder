@@ -24,9 +24,3 @@ declare module "@mui/material/Button" {
     xlarge: true;
   }
 }
-
-declare module "@mui/system" {
-  interface Theme {
-    experimental: NewTheme;
-  }
-}

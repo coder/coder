@@ -1,4 +1,4 @@
-package provisionerdserver
+package provisionersdk
 
 import "github.com/google/uuid"
 

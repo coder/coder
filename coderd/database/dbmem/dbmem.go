@@ -7289,12 +7289,7 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 			}
 		}
 
-		// We omit locked workspaces by default.
-		if arg.IsDormant == "" && workspace.DormantAt.Valid {
-			continue
-		}
-
-		if arg.IsDormant != "" && !workspace.DormantAt.Valid {
+		if arg.Dormant && !workspace.DormantAt.Valid {
 			continue
 		}
 

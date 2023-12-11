@@ -449,6 +449,16 @@ Base URL of a GitHub Enterprise deployment to use for Login with GitHub.
 
 Whether new users can sign up with OIDC.
 
+### --oidc-allowed-groups
+
+|             |                                         |
+| ----------- | --------------------------------------- |
+| Type        | <code>string-array</code>               |
+| Environment | <code>$CODER_OIDC_ALLOWED_GROUPS</code> |
+| YAML        | <code>oidc.groupAllowed</code>          |
+
+If provided any group name not in the list will not be allowed to authenticate. This allows for restricting access to a specific set of groups. This filter is applied after the group mapping and before the regex filter.
+
 ### --oidc-auth-url-params
 
 |             |                                          |

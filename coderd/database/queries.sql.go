@@ -1300,7 +1300,7 @@ func (q *sqlQuerier) DeleteGroupMembersByOrgAndUser(ctx context.Context, arg Del
 
 const getGroupMembers = `-- name: GetGroupMembers :many
 SELECT
-	users.id, users.email, users.username, users.hashed_password, users.created_at, users.updated_at, users.status, users.rbac_roles, users.login_type, users.avatar_url, users.deleted, users.last_seen_at, users.quiet_hours_schedule
+	users.id, users.email, users.username, users.hashed_password, users.created_at, users.updated_at, users.status, users.rbac_roles, users.login_type, users.avatar_url, users.deleted, users.last_seen_at, users.quiet_hours_schedule, users.theme_preference
 FROM
 	users
 LEFT JOIN
@@ -1347,6 +1347,7 @@ func (q *sqlQuerier) GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]
 			&i.Deleted,
 			&i.LastSeenAt,
 			&i.QuietHoursSchedule,
+			&i.ThemePreference,
 		); err != nil {
 			return nil, err
 		}
@@ -2324,11 +2325,11 @@ type GetUserActivityInsightsParams struct {
 }
 
 type GetUserActivityInsightsRow struct {
-	UserID       uuid.UUID      `db:"user_id" json:"user_id"`
-	Username     string         `db:"username" json:"username"`
-	AvatarURL    sql.NullString `db:"avatar_url" json:"avatar_url"`
-	TemplateIDs  []uuid.UUID    `db:"template_ids" json:"template_ids"`
-	UsageSeconds int64          `db:"usage_seconds" json:"usage_seconds"`
+	UserID       uuid.UUID   `db:"user_id" json:"user_id"`
+	Username     string      `db:"username" json:"username"`
+	AvatarURL    string      `db:"avatar_url" json:"avatar_url"`
+	TemplateIDs  []uuid.UUID `db:"template_ids" json:"template_ids"`
+	UsageSeconds int64       `db:"usage_seconds" json:"usage_seconds"`
 }
 
 // GetUserActivityInsights returns the ranking with top active users.
@@ -2394,12 +2395,12 @@ type GetUserLatencyInsightsParams struct {
 }
 
 type GetUserLatencyInsightsRow struct {
-	UserID                       uuid.UUID      `db:"user_id" json:"user_id"`
-	Username                     string         `db:"username" json:"username"`
-	AvatarURL                    sql.NullString `db:"avatar_url" json:"avatar_url"`
-	TemplateIDs                  []uuid.UUID    `db:"template_ids" json:"template_ids"`
-	WorkspaceConnectionLatency50 float64        `db:"workspace_connection_latency_50" json:"workspace_connection_latency_50"`
-	WorkspaceConnectionLatency95 float64        `db:"workspace_connection_latency_95" json:"workspace_connection_latency_95"`
+	UserID                       uuid.UUID   `db:"user_id" json:"user_id"`
+	Username                     string      `db:"username" json:"username"`
+	AvatarURL                    string      `db:"avatar_url" json:"avatar_url"`
+	TemplateIDs                  []uuid.UUID `db:"template_ids" json:"template_ids"`
+	WorkspaceConnectionLatency50 float64     `db:"workspace_connection_latency_50" json:"workspace_connection_latency_50"`
+	WorkspaceConnectionLatency95 float64     `db:"workspace_connection_latency_95" json:"workspace_connection_latency_95"`
 }
 
 // GetUserLatencyInsights returns the median and 95th percentile connection
@@ -7046,7 +7047,7 @@ func (q *sqlQuerier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.
 
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference
 FROM
 	users
 WHERE
@@ -7078,13 +7079,14 @@ func (q *sqlQuerier) GetUserByEmailOrUsername(ctx context.Context, arg GetUserBy
 		&i.Deleted,
 		&i.LastSeenAt,
 		&i.QuietHoursSchedule,
+		&i.ThemePreference,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference
 FROM
 	users
 WHERE
@@ -7110,6 +7112,7 @@ func (q *sqlQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (User, error
 		&i.Deleted,
 		&i.LastSeenAt,
 		&i.QuietHoursSchedule,
+		&i.ThemePreference,
 	)
 	return i, err
 }
@@ -7132,7 +7135,7 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
 
 const getUsers = `-- name: GetUsers :many
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, COUNT(*) OVER() AS count
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, COUNT(*) OVER() AS count
 FROM
 	users
 WHERE
@@ -7225,10 +7228,11 @@ type GetUsersRow struct {
 	Status             UserStatus     `db:"status" json:"status"`
 	RBACRoles          pq.StringArray `db:"rbac_roles" json:"rbac_roles"`
 	LoginType          LoginType      `db:"login_type" json:"login_type"`
-	AvatarURL          sql.NullString `db:"avatar_url" json:"avatar_url"`
+	AvatarURL          string         `db:"avatar_url" json:"avatar_url"`
 	Deleted            bool           `db:"deleted" json:"deleted"`
 	LastSeenAt         time.Time      `db:"last_seen_at" json:"last_seen_at"`
 	QuietHoursSchedule string         `db:"quiet_hours_schedule" json:"quiet_hours_schedule"`
+	ThemePreference    string         `db:"theme_preference" json:"theme_preference"`
 	Count              int64          `db:"count" json:"count"`
 }
 
@@ -7265,6 +7269,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 			&i.Deleted,
 			&i.LastSeenAt,
 			&i.QuietHoursSchedule,
+			&i.ThemePreference,
 			&i.Count,
 		); err != nil {
 			return nil, err
@@ -7281,7 +7286,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 }
 
 const getUsersByIDs = `-- name: GetUsersByIDs :many
-SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule FROM users WHERE id = ANY($1 :: uuid [ ])
+SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference FROM users WHERE id = ANY($1 :: uuid [ ])
 `
 
 // This shouldn't check for deleted, because it's frequently used
@@ -7310,6 +7315,7 @@ func (q *sqlQuerier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User
 			&i.Deleted,
 			&i.LastSeenAt,
 			&i.QuietHoursSchedule,
+			&i.ThemePreference,
 		); err != nil {
 			return nil, err
 		}
@@ -7337,7 +7343,7 @@ INSERT INTO
 		login_type
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
+	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference
 `
 
 type InsertUserParams struct {
@@ -7377,6 +7383,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		&i.Deleted,
 		&i.LastSeenAt,
 		&i.QuietHoursSchedule,
+		&i.ThemePreference,
 	)
 	return i, err
 }
@@ -7472,7 +7479,7 @@ SET
 	last_seen_at = $2,
 	updated_at = $3
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference
 `
 
 type UpdateUserLastSeenAtParams struct {
@@ -7498,6 +7505,7 @@ func (q *sqlQuerier) UpdateUserLastSeenAt(ctx context.Context, arg UpdateUserLas
 		&i.Deleted,
 		&i.LastSeenAt,
 		&i.QuietHoursSchedule,
+		&i.ThemePreference,
 	)
 	return i, err
 }
@@ -7515,7 +7523,7 @@ SET
 		'':: bytea
 	END
 WHERE
-	id = $2 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
+	id = $2 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference
 `
 
 type UpdateUserLoginTypeParams struct {
@@ -7540,6 +7548,7 @@ func (q *sqlQuerier) UpdateUserLoginType(ctx context.Context, arg UpdateUserLogi
 		&i.Deleted,
 		&i.LastSeenAt,
 		&i.QuietHoursSchedule,
+		&i.ThemePreference,
 	)
 	return i, err
 }
@@ -7553,15 +7562,15 @@ SET
 	avatar_url = $4,
 	updated_at = $5
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference
 `
 
 type UpdateUserProfileParams struct {
-	ID        uuid.UUID      `db:"id" json:"id"`
-	Email     string         `db:"email" json:"email"`
-	Username  string         `db:"username" json:"username"`
-	AvatarURL sql.NullString `db:"avatar_url" json:"avatar_url"`
-	UpdatedAt time.Time      `db:"updated_at" json:"updated_at"`
+	ID        uuid.UUID `db:"id" json:"id"`
+	Email     string    `db:"email" json:"email"`
+	Username  string    `db:"username" json:"username"`
+	AvatarURL string    `db:"avatar_url" json:"avatar_url"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
 func (q *sqlQuerier) UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error) {
@@ -7587,6 +7596,7 @@ func (q *sqlQuerier) UpdateUserProfile(ctx context.Context, arg UpdateUserProfil
 		&i.Deleted,
 		&i.LastSeenAt,
 		&i.QuietHoursSchedule,
+		&i.ThemePreference,
 	)
 	return i, err
 }
@@ -7598,7 +7608,7 @@ SET
 	quiet_hours_schedule = $2
 WHERE
 	id = $1
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference
 `
 
 type UpdateUserQuietHoursScheduleParams struct {
@@ -7623,6 +7633,7 @@ func (q *sqlQuerier) UpdateUserQuietHoursSchedule(ctx context.Context, arg Updat
 		&i.Deleted,
 		&i.LastSeenAt,
 		&i.QuietHoursSchedule,
+		&i.ThemePreference,
 	)
 	return i, err
 }
@@ -7635,7 +7646,7 @@ SET
 	rbac_roles = ARRAY(SELECT DISTINCT UNNEST($1 :: text[]))
 WHERE
 	id = $2
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference
 `
 
 type UpdateUserRolesParams struct {
@@ -7660,6 +7671,7 @@ func (q *sqlQuerier) UpdateUserRoles(ctx context.Context, arg UpdateUserRolesPar
 		&i.Deleted,
 		&i.LastSeenAt,
 		&i.QuietHoursSchedule,
+		&i.ThemePreference,
 	)
 	return i, err
 }
@@ -7671,7 +7683,7 @@ SET
 	status = $2,
 	updated_at = $3
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference
 `
 
 type UpdateUserStatusParams struct {
@@ -7697,6 +7709,7 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 		&i.Deleted,
 		&i.LastSeenAt,
 		&i.QuietHoursSchedule,
+		&i.ThemePreference,
 	)
 	return i, err
 }
@@ -10939,13 +10952,11 @@ WHERE
 			) > 0
 		ELSE true
 	END
-	-- Filter by dormant workspaces. By default we do not return dormant
-	-- workspaces since they are considered soft-deleted.
+	-- Filter by dormant workspaces.
 	AND CASE
-		WHEN $10 :: text != '' THEN
+		WHEN $10 :: boolean != 'false' THEN
 			dormant_at IS NOT NULL
-		ELSE
-			dormant_at IS NULL
+		ELSE true
 	END
 	-- Filter by last_used
 	AND CASE
@@ -10986,7 +10997,7 @@ type GetWorkspacesParams struct {
 	Name                                  string      `db:"name" json:"name"`
 	HasAgent                              string      `db:"has_agent" json:"has_agent"`
 	AgentInactiveDisconnectTimeoutSeconds int64       `db:"agent_inactive_disconnect_timeout_seconds" json:"agent_inactive_disconnect_timeout_seconds"`
-	IsDormant                             string      `db:"is_dormant" json:"is_dormant"`
+	Dormant                               bool        `db:"dormant" json:"dormant"`
 	LastUsedBefore                        time.Time   `db:"last_used_before" json:"last_used_before"`
 	LastUsedAfter                         time.Time   `db:"last_used_after" json:"last_used_after"`
 	Offset                                int32       `db:"offset_" json:"offset_"`
@@ -11025,7 +11036,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		arg.Name,
 		arg.HasAgent,
 		arg.AgentInactiveDisconnectTimeoutSeconds,
-		arg.IsDormant,
+		arg.Dormant,
 		arg.LastUsedBefore,
 		arg.LastUsedAfter,
 		arg.Offset,

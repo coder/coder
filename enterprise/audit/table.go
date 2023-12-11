@@ -118,6 +118,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"last_seen_at":         ActionIgnore,
 		"deleted":              ActionTrack,
 		"quiet_hours_schedule": ActionTrack,
+		"theme_preference":     ActionIgnore,
 	},
 	&database.Workspace{}: {
 		"id":                 ActionTrack,

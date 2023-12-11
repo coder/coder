@@ -30,6 +30,8 @@ const createWorkspace = (
   status: WorkspaceStatus,
   outdated = false,
   lastUsedAt = "0001-01-01",
+  dormantAt?: string,
+  deletingAt?: string,
 ): Workspace => {
   return {
     ...MockWorkspace,
@@ -44,6 +46,8 @@ const createWorkspace = (
           : MockWorkspace.latest_build.job,
     },
     last_used_at: lastUsedAt,
+    dormant_at: dormantAt,
+    deleting_at: deletingAt,
   };
 };
 
@@ -63,6 +67,22 @@ const additionalWorkspaces: Record<string, Workspace> = {
     "running",
     true,
     dayjs().subtract(1, "month").subtract(4, "day").toString(),
+  ),
+};
+
+const dormantWorkspaces: Record<string, Workspace> = {
+  dormantNoDelete: createWorkspace(
+    "stopped",
+    false,
+    dayjs().subtract(1, "month").toString(),
+    dayjs().subtract(1, "month").toString(),
+  ),
+  dormantAutoDelete: createWorkspace(
+    "stopped",
+    false,
+    dayjs().subtract(1, "month").toString(),
+    dayjs().subtract(1, "month").toString(),
+    dayjs().add(29, "day").toString(),
   ),
 };
 
@@ -205,6 +225,13 @@ export const UnhealthyWorkspace: Story = {
         },
       },
     ],
+  },
+};
+
+export const DormantWorkspaces: Story = {
+  args: {
+    workspaces: Object.values(dormantWorkspaces),
+    count: Object.values(dormantWorkspaces).length,
   },
 };
 
