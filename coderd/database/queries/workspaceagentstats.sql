@@ -41,7 +41,9 @@ INSERT INTO
 		session_count_jetbrains,
 		session_count_reconnecting_pty,
 		session_count_ssh,
-		connection_median_latency_ms
+		connection_median_latency_ms,
+		startup_script_ns,
+		startup_script_success
 	)
 SELECT
 	unnest(@id :: uuid[]) AS id,
@@ -60,7 +62,10 @@ SELECT
 	unnest(@session_count_jetbrains :: bigint[]) AS session_count_jetbrains,
 	unnest(@session_count_reconnecting_pty :: bigint[]) AS session_count_reconnecting_pty,
 	unnest(@session_count_ssh :: bigint[]) AS session_count_ssh,
-	unnest(@connection_median_latency_ms :: double precision[]) AS connection_median_latency_ms;
+	unnest(@connection_median_latency_ms :: double precision[]) AS connection_median_latency_ms,
+	unnest(@startup_script_ns :: bigint[]) AS startup_script_ns,
+	unnest(@startup_script_success :: bool[]) AS startup_script_success
+;
 
 -- name: GetTemplateDAUs :many
 SELECT
@@ -163,7 +168,10 @@ WITH agent_stats AS (
 		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
 		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty,
 		coalesce(SUM(connection_count), 0)::bigint AS connection_count,
-		coalesce(MAX(connection_median_latency_ms), 0)::float AS connection_median_latency_ms
+		coalesce(MAX(connection_median_latency_ms), 0)::float AS connection_median_latency_ms,
+		-- TODO: Figure this out
+		coalesce(MAX(startup_script_ns), 0)::float AS startup_script_ns,
+		coalesce(MAX(startup_script_success), false)::float AS startup_script_success
 	 FROM (
 		SELECT *, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
 		FROM workspace_agent_stats
@@ -171,13 +179,13 @@ WITH agent_stats AS (
 		WHERE created_at > $1 AND connection_median_latency_ms > 0
 	) AS a
 	WHERE a.rn = 1
-	GROUP BY a.user_id, a.agent_id, a.workspace_id, a.template_id
+	GROUP BY a.user_id, a.agent_id, a.workspace_id
 )
 SELECT
 	users.username, workspace_agents.name AS agent_name, workspaces.name AS workspace_name,
 	workspaces.template_id AS template_id, rx_bytes, tx_bytes,
 	session_count_vscode, session_count_ssh, session_count_jetbrains, session_count_reconnecting_pty,
-	connection_count, connection_median_latency_ms
+	connection_count, connection_median_latency_ms, startup_script_ns, startup_script_success, templates.name AS template_name
 FROM
 	agent_stats
 JOIN

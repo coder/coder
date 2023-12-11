@@ -8753,7 +8753,7 @@ WITH agent_stats AS (
 		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
 		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
 	 FROM (
-		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
+		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, startup_script_ns, startup_script_success, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
 		FROM workspace_agent_stats WHERE created_at > $1
 	) AS a WHERE a.rn = 1
 )
@@ -8858,7 +8858,7 @@ WITH agent_stats AS (
 		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
 		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
 	 FROM (
-		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
+		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, startup_script_ns, startup_script_success, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
 		FROM workspace_agent_stats WHERE created_at > $1
 	) AS a WHERE a.rn = 1 GROUP BY a.user_id, a.agent_id, a.workspace_id, a.template_id
 )
@@ -8939,9 +8939,12 @@ WITH agent_stats AS (
 		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
 		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty,
 		coalesce(SUM(connection_count), 0)::bigint AS connection_count,
-		coalesce(MAX(connection_median_latency_ms), 0)::float AS connection_median_latency_ms
+		coalesce(MAX(connection_median_latency_ms), 0)::float AS connection_median_latency_ms,
+		-- TODO: Figure this out
+		coalesce(MAX(startup_script_ns), 0)::float AS startup_script_ns,
+		coalesce(MAX(startup_script_success), false)::float AS startup_script_success
 	 FROM (
-		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
+		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, startup_script_ns, startup_script_success, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
 		FROM workspace_agent_stats
 		-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
 		WHERE created_at > $1 AND connection_median_latency_ms > 0
@@ -8950,9 +8953,10 @@ WITH agent_stats AS (
 	GROUP BY a.user_id, a.agent_id, a.workspace_id
 )
 SELECT
-	users.username, workspace_agents.name AS agent_name, workspaces.name AS workspace_name, rx_bytes, tx_bytes,
+	users.username, workspace_agents.name AS agent_name, workspaces.name AS workspace_name,
+	workspaces.template_id AS template_id, rx_bytes, tx_bytes,
 	session_count_vscode, session_count_ssh, session_count_jetbrains, session_count_reconnecting_pty,
-	connection_count, connection_median_latency_ms
+	connection_count, connection_median_latency_ms, startup_script_ns, startup_script_success, templates.name AS template_name
 FROM
 	agent_stats
 JOIN
@@ -8971,20 +8975,28 @@ JOIN
 	workspaces
 ON
 	workspaces.id = agent_stats.workspace_id
+JOIN
+	templates
+ON
+	templates.id = workspaces.template_id
 `
 
 type GetWorkspaceAgentStatsAndLabelsRow struct {
-	Username                    string  `db:"username" json:"username"`
-	AgentName                   string  `db:"agent_name" json:"agent_name"`
-	WorkspaceName               string  `db:"workspace_name" json:"workspace_name"`
-	RxBytes                     int64   `db:"rx_bytes" json:"rx_bytes"`
-	TxBytes                     int64   `db:"tx_bytes" json:"tx_bytes"`
-	SessionCountVSCode          int64   `db:"session_count_vscode" json:"session_count_vscode"`
-	SessionCountSSH             int64   `db:"session_count_ssh" json:"session_count_ssh"`
-	SessionCountJetBrains       int64   `db:"session_count_jetbrains" json:"session_count_jetbrains"`
-	SessionCountReconnectingPTY int64   `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
-	ConnectionCount             int64   `db:"connection_count" json:"connection_count"`
-	ConnectionMedianLatencyMS   float64 `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
+	Username                    string    `db:"username" json:"username"`
+	AgentName                   string    `db:"agent_name" json:"agent_name"`
+	WorkspaceName               string    `db:"workspace_name" json:"workspace_name"`
+	TemplateID                  uuid.UUID `db:"template_id" json:"template_id"`
+	RxBytes                     int64     `db:"rx_bytes" json:"rx_bytes"`
+	TxBytes                     int64     `db:"tx_bytes" json:"tx_bytes"`
+	SessionCountVSCode          int64     `db:"session_count_vscode" json:"session_count_vscode"`
+	SessionCountSSH             int64     `db:"session_count_ssh" json:"session_count_ssh"`
+	SessionCountJetBrains       int64     `db:"session_count_jetbrains" json:"session_count_jetbrains"`
+	SessionCountReconnectingPTY int64     `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
+	ConnectionCount             int64     `db:"connection_count" json:"connection_count"`
+	ConnectionMedianLatencyMS   float64   `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
+	StartupScriptNs             float64   `db:"startup_script_ns" json:"startup_script_ns"`
+	StartupScriptSuccess        float64   `db:"startup_script_success" json:"startup_script_success"`
+	TemplateName                string    `db:"template_name" json:"template_name"`
 }
 
 func (q *sqlQuerier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentStatsAndLabelsRow, error) {
@@ -9000,6 +9012,7 @@ func (q *sqlQuerier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, create
 			&i.Username,
 			&i.AgentName,
 			&i.WorkspaceName,
+			&i.TemplateID,
 			&i.RxBytes,
 			&i.TxBytes,
 			&i.SessionCountVSCode,
@@ -9008,6 +9021,9 @@ func (q *sqlQuerier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, create
 			&i.SessionCountReconnectingPTY,
 			&i.ConnectionCount,
 			&i.ConnectionMedianLatencyMS,
+			&i.StartupScriptNs,
+			&i.StartupScriptSuccess,
+			&i.TemplateName,
 		); err != nil {
 			return nil, err
 		}
@@ -9044,7 +9060,7 @@ INSERT INTO
 		connection_median_latency_ms
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, startup_script_ns, startup_script_success
 `
 
 type InsertWorkspaceAgentStatParams struct {
@@ -9106,6 +9122,8 @@ func (q *sqlQuerier) InsertWorkspaceAgentStat(ctx context.Context, arg InsertWor
 		&i.SessionCountJetBrains,
 		&i.SessionCountReconnectingPTY,
 		&i.SessionCountSSH,
+		&i.StartupScriptNs,
+		&i.StartupScriptSuccess,
 	)
 	return i, err
 }
@@ -9129,7 +9147,9 @@ INSERT INTO
 		session_count_jetbrains,
 		session_count_reconnecting_pty,
 		session_count_ssh,
-		connection_median_latency_ms
+		connection_median_latency_ms,
+		startup_script_ns,
+		startup_script_success
 	)
 SELECT
 	unnest($1 :: uuid[]) AS id,
@@ -9148,7 +9168,9 @@ SELECT
 	unnest($14 :: bigint[]) AS session_count_jetbrains,
 	unnest($15 :: bigint[]) AS session_count_reconnecting_pty,
 	unnest($16 :: bigint[]) AS session_count_ssh,
-	unnest($17 :: double precision[]) AS connection_median_latency_ms
+	unnest($17 :: double precision[]) AS connection_median_latency_ms,
+	unnest($18 :: bigint[]) AS startup_script_ns,
+	unnest($19 :: bool[]) AS startup_script_success
 `
 
 type InsertWorkspaceAgentStatsParams struct {
@@ -9169,6 +9191,8 @@ type InsertWorkspaceAgentStatsParams struct {
 	SessionCountReconnectingPTY []int64         `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
 	SessionCountSSH             []int64         `db:"session_count_ssh" json:"session_count_ssh"`
 	ConnectionMedianLatencyMS   []float64       `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
+	StartupScriptNs             []int64         `db:"startup_script_ns" json:"startup_script_ns"`
+	StartupScriptSuccess        []bool          `db:"startup_script_success" json:"startup_script_success"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgentStats(ctx context.Context, arg InsertWorkspaceAgentStatsParams) error {
@@ -9190,6 +9214,8 @@ func (q *sqlQuerier) InsertWorkspaceAgentStats(ctx context.Context, arg InsertWo
 		pq.Array(arg.SessionCountReconnectingPTY),
 		pq.Array(arg.SessionCountSSH),
 		pq.Array(arg.ConnectionMedianLatencyMS),
+		pq.Array(arg.StartupScriptNs),
+		pq.Array(arg.StartupScriptSuccess),
 	)
 	return err
 }

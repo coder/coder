@@ -2265,6 +2265,10 @@ type WorkspaceAgentStat struct {
 	SessionCountJetBrains       int64           `db:"session_count_jetbrains" json:"session_count_jetbrains"`
 	SessionCountReconnectingPTY int64           `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
 	SessionCountSSH             int64           `db:"session_count_ssh" json:"session_count_ssh"`
+	// The time it took to run the startup script in nanoseconds. If set to 0, the startup script was not run.
+	StartupScriptNs int64 `db:"startup_script_ns" json:"startup_script_ns"`
+	// Whether the startup script was run successfully. Will be false if the duration is 0, but the script has not been run.
+	StartupScriptSuccess bool `db:"startup_script_success" json:"startup_script_success"`
 }
 
 type WorkspaceApp struct {

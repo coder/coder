@@ -13,6 +13,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -161,6 +162,8 @@ func (b *Batcher) Add(
 	b.buf.SessionCountReconnectingPTY = append(b.buf.SessionCountReconnectingPTY, st.SessionCountReconnectingPTY)
 	b.buf.SessionCountSSH = append(b.buf.SessionCountSSH, st.SessionCountSSH)
 	b.buf.ConnectionMedianLatencyMS = append(b.buf.ConnectionMedianLatencyMS, st.ConnectionMedianLatencyMS)
+	b.buf.StartupScriptNs = append(b.buf.StartupScriptNs, st.StartupScriptNs)
+	b.buf.StartupScriptSuccess = append(b.buf.StartupScriptSuccess, st.StartupScriptSuccess)
 
 	// If the buffer is over 80% full, signal the flusher to flush immediately.
 	// We want to trigger flushes early to reduce the likelihood of

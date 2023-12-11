@@ -954,8 +954,14 @@ CREATE TABLE workspace_agent_stats (
     session_count_vscode bigint DEFAULT 0 NOT NULL,
     session_count_jetbrains bigint DEFAULT 0 NOT NULL,
     session_count_reconnecting_pty bigint DEFAULT 0 NOT NULL,
-    session_count_ssh bigint DEFAULT 0 NOT NULL
+    session_count_ssh bigint DEFAULT 0 NOT NULL,
+    startup_script_ns bigint DEFAULT 0 NOT NULL,
+    startup_script_success boolean DEFAULT false NOT NULL
 );
+
+COMMENT ON COLUMN workspace_agent_stats.startup_script_ns IS 'The time it took to run the startup script in nanoseconds. If set to 0, the startup script was not run.';
+
+COMMENT ON COLUMN workspace_agent_stats.startup_script_success IS 'Whether the startup script was run successfully. Will be false if the duration is 0, but the script has not been run.';
 
 CREATE TABLE workspace_agents (
     id uuid NOT NULL,
