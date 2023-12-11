@@ -2325,11 +2325,11 @@ type GetUserActivityInsightsParams struct {
 }
 
 type GetUserActivityInsightsRow struct {
-	UserID       uuid.UUID      `db:"user_id" json:"user_id"`
-	Username     string         `db:"username" json:"username"`
-	AvatarURL    sql.NullString `db:"avatar_url" json:"avatar_url"`
-	TemplateIDs  []uuid.UUID    `db:"template_ids" json:"template_ids"`
-	UsageSeconds int64          `db:"usage_seconds" json:"usage_seconds"`
+	UserID       uuid.UUID   `db:"user_id" json:"user_id"`
+	Username     string      `db:"username" json:"username"`
+	AvatarURL    string      `db:"avatar_url" json:"avatar_url"`
+	TemplateIDs  []uuid.UUID `db:"template_ids" json:"template_ids"`
+	UsageSeconds int64       `db:"usage_seconds" json:"usage_seconds"`
 }
 
 // GetUserActivityInsights returns the ranking with top active users.
@@ -2395,12 +2395,12 @@ type GetUserLatencyInsightsParams struct {
 }
 
 type GetUserLatencyInsightsRow struct {
-	UserID                       uuid.UUID      `db:"user_id" json:"user_id"`
-	Username                     string         `db:"username" json:"username"`
-	AvatarURL                    sql.NullString `db:"avatar_url" json:"avatar_url"`
-	TemplateIDs                  []uuid.UUID    `db:"template_ids" json:"template_ids"`
-	WorkspaceConnectionLatency50 float64        `db:"workspace_connection_latency_50" json:"workspace_connection_latency_50"`
-	WorkspaceConnectionLatency95 float64        `db:"workspace_connection_latency_95" json:"workspace_connection_latency_95"`
+	UserID                       uuid.UUID   `db:"user_id" json:"user_id"`
+	Username                     string      `db:"username" json:"username"`
+	AvatarURL                    string      `db:"avatar_url" json:"avatar_url"`
+	TemplateIDs                  []uuid.UUID `db:"template_ids" json:"template_ids"`
+	WorkspaceConnectionLatency50 float64     `db:"workspace_connection_latency_50" json:"workspace_connection_latency_50"`
+	WorkspaceConnectionLatency95 float64     `db:"workspace_connection_latency_95" json:"workspace_connection_latency_95"`
 }
 
 // GetUserLatencyInsights returns the median and 95th percentile connection
@@ -7228,7 +7228,7 @@ type GetUsersRow struct {
 	Status             UserStatus     `db:"status" json:"status"`
 	RBACRoles          pq.StringArray `db:"rbac_roles" json:"rbac_roles"`
 	LoginType          LoginType      `db:"login_type" json:"login_type"`
-	AvatarURL          sql.NullString `db:"avatar_url" json:"avatar_url"`
+	AvatarURL          string         `db:"avatar_url" json:"avatar_url"`
 	Deleted            bool           `db:"deleted" json:"deleted"`
 	LastSeenAt         time.Time      `db:"last_seen_at" json:"last_seen_at"`
 	QuietHoursSchedule string         `db:"quiet_hours_schedule" json:"quiet_hours_schedule"`
@@ -7566,11 +7566,11 @@ WHERE
 `
 
 type UpdateUserProfileParams struct {
-	ID        uuid.UUID      `db:"id" json:"id"`
-	Email     string         `db:"email" json:"email"`
-	Username  string         `db:"username" json:"username"`
-	AvatarURL sql.NullString `db:"avatar_url" json:"avatar_url"`
-	UpdatedAt time.Time      `db:"updated_at" json:"updated_at"`
+	ID        uuid.UUID `db:"id" json:"id"`
+	Email     string    `db:"email" json:"email"`
+	Username  string    `db:"username" json:"username"`
+	AvatarURL string    `db:"avatar_url" json:"avatar_url"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
 func (q *sqlQuerier) UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error) {

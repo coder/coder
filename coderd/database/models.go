@@ -1972,7 +1972,7 @@ type Template struct {
 	AutostartBlockDaysOfWeek      int16           `db:"autostart_block_days_of_week" json:"autostart_block_days_of_week"`
 	RequireActiveVersion          bool            `db:"require_active_version" json:"require_active_version"`
 	Deprecated                    string          `db:"deprecated" json:"deprecated"`
-	CreatedByAvatarURL            sql.NullString  `db:"created_by_avatar_url" json:"created_by_avatar_url"`
+	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 }
 
@@ -2017,20 +2017,20 @@ type TemplateTable struct {
 
 // Joins in the username + avatar url of the created by user.
 type TemplateVersion struct {
-	ID                    uuid.UUID      `db:"id" json:"id"`
-	TemplateID            uuid.NullUUID  `db:"template_id" json:"template_id"`
-	OrganizationID        uuid.UUID      `db:"organization_id" json:"organization_id"`
-	CreatedAt             time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt             time.Time      `db:"updated_at" json:"updated_at"`
-	Name                  string         `db:"name" json:"name"`
-	Readme                string         `db:"readme" json:"readme"`
-	JobID                 uuid.UUID      `db:"job_id" json:"job_id"`
-	CreatedBy             uuid.UUID      `db:"created_by" json:"created_by"`
-	ExternalAuthProviders []string       `db:"external_auth_providers" json:"external_auth_providers"`
-	Message               string         `db:"message" json:"message"`
-	Archived              bool           `db:"archived" json:"archived"`
-	CreatedByAvatarURL    sql.NullString `db:"created_by_avatar_url" json:"created_by_avatar_url"`
-	CreatedByUsername     string         `db:"created_by_username" json:"created_by_username"`
+	ID                    uuid.UUID     `db:"id" json:"id"`
+	TemplateID            uuid.NullUUID `db:"template_id" json:"template_id"`
+	OrganizationID        uuid.UUID     `db:"organization_id" json:"organization_id"`
+	CreatedAt             time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt             time.Time     `db:"updated_at" json:"updated_at"`
+	Name                  string        `db:"name" json:"name"`
+	Readme                string        `db:"readme" json:"readme"`
+	JobID                 uuid.UUID     `db:"job_id" json:"job_id"`
+	CreatedBy             uuid.UUID     `db:"created_by" json:"created_by"`
+	ExternalAuthProviders []string      `db:"external_auth_providers" json:"external_auth_providers"`
+	Message               string        `db:"message" json:"message"`
+	Archived              bool          `db:"archived" json:"archived"`
+	CreatedByAvatarURL    string        `db:"created_by_avatar_url" json:"created_by_avatar_url"`
+	CreatedByUsername     string        `db:"created_by_username" json:"created_by_username"`
 }
 
 type TemplateVersionParameter struct {
@@ -2114,7 +2114,7 @@ type User struct {
 	Status         UserStatus     `db:"status" json:"status"`
 	RBACRoles      pq.StringArray `db:"rbac_roles" json:"rbac_roles"`
 	LoginType      LoginType      `db:"login_type" json:"login_type"`
-	AvatarURL      sql.NullString `db:"avatar_url" json:"avatar_url"`
+	AvatarURL      string         `db:"avatar_url" json:"avatar_url"`
 	Deleted        bool           `db:"deleted" json:"deleted"`
 	LastSeenAt     time.Time      `db:"last_seen_at" json:"last_seen_at"`
 	// Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user's quiet hours. If empty, the default quiet hours on the instance is used instead.
@@ -2140,9 +2140,9 @@ type UserLink struct {
 
 // Visible fields of users are allowed to be joined with other tables for including context of other resources.
 type VisibleUser struct {
-	ID        uuid.UUID      `db:"id" json:"id"`
-	Username  string         `db:"username" json:"username"`
-	AvatarURL sql.NullString `db:"avatar_url" json:"avatar_url"`
+	ID        uuid.UUID `db:"id" json:"id"`
+	Username  string    `db:"username" json:"username"`
+	AvatarURL string    `db:"avatar_url" json:"avatar_url"`
 }
 
 type Workspace struct {
@@ -2325,7 +2325,7 @@ type WorkspaceBuild struct {
 	Reason               BuildReason         `db:"reason" json:"reason"`
 	DailyCost            int32               `db:"daily_cost" json:"daily_cost"`
 	MaxDeadline          time.Time           `db:"max_deadline" json:"max_deadline"`
-	InitiatorByAvatarUrl sql.NullString      `db:"initiator_by_avatar_url" json:"initiator_by_avatar_url"`
+	InitiatorByAvatarUrl string              `db:"initiator_by_avatar_url" json:"initiator_by_avatar_url"`
 	InitiatorByUsername  string              `db:"initiator_by_username" json:"initiator_by_username"`
 }
 
