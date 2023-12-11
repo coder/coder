@@ -14,9 +14,10 @@ import {
   MockWorkspaceAgentStarting,
   MockWorkspaceAgentStartTimeout,
   MockWorkspaceAgentTimeout,
+  MockWorkspaceAgentLogSource,
+  MockWorkspaceAgentDeprecated,
   MockWorkspaceApp,
   MockProxyLatencies,
-  MockWorkspaceAgentLogSource,
 } from "testHelpers/entities";
 import { AgentRow, LineWithID } from "./AgentRow";
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
@@ -287,5 +288,15 @@ export const Outdated: Story = {
     agent: MockWorkspaceAgentOutdated,
     workspace: MockWorkspace,
     serverVersion: "v99.999.9999+c1cdf14",
+    serverAPIVersion: "1.0",
+  },
+};
+
+export const Deprecated: Story = {
+  args: {
+    agent: MockWorkspaceAgentDeprecated,
+    workspace: MockWorkspace,
+    serverVersion: "v99.999.9999+c1cdf14",
+    serverAPIVersion: "2.0",
   },
 };

@@ -1,32 +1,13 @@
 import { StoryObj, Meta } from "@storybook/react";
 import { WebsocketPage } from "./WebsocketPage";
-import { HealthLayout } from "./HealthLayout";
-import {
-  reactRouterOutlet,
-  reactRouterParameters,
-} from "storybook-addon-react-router-v6";
-import { useQueryClient } from "react-query";
-import { MockHealth } from "testHelpers/entities";
+import { generateMeta } from "./storybook";
 
 const meta: Meta = {
   title: "pages/Health/Websocket",
-  render: HealthLayout,
-  parameters: {
-    layout: "fullscreen",
-    reactRouter: reactRouterParameters({
-      routing: reactRouterOutlet(
-        { path: "/health/derp/websocket" },
-        <WebsocketPage />,
-      ),
-    }),
-  },
-  decorators: [
-    (Story) => {
-      const queryClient = useQueryClient();
-      queryClient.setQueryData(["health"], MockHealth);
-      return <Story />;
-    },
-  ],
+  ...generateMeta({
+    path: "/health/websocket",
+    element: <WebsocketPage />,
+  }),
 };
 
 export default meta;

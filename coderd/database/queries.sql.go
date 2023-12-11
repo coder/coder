@@ -1300,7 +1300,7 @@ func (q *sqlQuerier) DeleteGroupMembersByOrgAndUser(ctx context.Context, arg Del
 
 const getGroupMembers = `-- name: GetGroupMembers :many
 SELECT
-	users.id, users.email, users.username, users.hashed_password, users.created_at, users.updated_at, users.status, users.rbac_roles, users.login_type, users.avatar_url, users.deleted, users.last_seen_at, users.quiet_hours_schedule
+	users.id, users.email, users.username, users.hashed_password, users.created_at, users.updated_at, users.status, users.rbac_roles, users.login_type, users.avatar_url, users.deleted, users.last_seen_at, users.quiet_hours_schedule, users.theme_preference
 FROM
 	users
 LEFT JOIN
@@ -1347,6 +1347,7 @@ func (q *sqlQuerier) GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]
 			&i.Deleted,
 			&i.LastSeenAt,
 			&i.QuietHoursSchedule,
+			&i.ThemePreference,
 		); err != nil {
 			return nil, err
 		}
@@ -7053,7 +7054,7 @@ func (q *sqlQuerier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.
 
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference
 FROM
 	users
 WHERE
@@ -7085,13 +7086,14 @@ func (q *sqlQuerier) GetUserByEmailOrUsername(ctx context.Context, arg GetUserBy
 		&i.Deleted,
 		&i.LastSeenAt,
 		&i.QuietHoursSchedule,
+		&i.ThemePreference,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference
 FROM
 	users
 WHERE
@@ -7117,6 +7119,7 @@ func (q *sqlQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (User, error
 		&i.Deleted,
 		&i.LastSeenAt,
 		&i.QuietHoursSchedule,
+		&i.ThemePreference,
 	)
 	return i, err
 }
@@ -7139,7 +7142,7 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
 
 const getUsers = `-- name: GetUsers :many
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, COUNT(*) OVER() AS count
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, COUNT(*) OVER() AS count
 FROM
 	users
 WHERE
@@ -7236,6 +7239,7 @@ type GetUsersRow struct {
 	Deleted            bool           `db:"deleted" json:"deleted"`
 	LastSeenAt         time.Time      `db:"last_seen_at" json:"last_seen_at"`
 	QuietHoursSchedule string         `db:"quiet_hours_schedule" json:"quiet_hours_schedule"`
+	ThemePreference    string         `db:"theme_preference" json:"theme_preference"`
 	Count              int64          `db:"count" json:"count"`
 }
 
@@ -7272,6 +7276,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 			&i.Deleted,
 			&i.LastSeenAt,
 			&i.QuietHoursSchedule,
+			&i.ThemePreference,
 			&i.Count,
 		); err != nil {
 			return nil, err
@@ -7288,7 +7293,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 }
 
 const getUsersByIDs = `-- name: GetUsersByIDs :many
-SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule FROM users WHERE id = ANY($1 :: uuid [ ])
+SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference FROM users WHERE id = ANY($1 :: uuid [ ])
 `
 
 // This shouldn't check for deleted, because it's frequently used
@@ -7317,6 +7322,7 @@ func (q *sqlQuerier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User
 			&i.Deleted,
 			&i.LastSeenAt,
 			&i.QuietHoursSchedule,
+			&i.ThemePreference,
 		); err != nil {
 			return nil, err
 		}
@@ -7344,7 +7350,7 @@ INSERT INTO
 		login_type
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
+	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference
 `
 
 type InsertUserParams struct {
@@ -7384,6 +7390,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		&i.Deleted,
 		&i.LastSeenAt,
 		&i.QuietHoursSchedule,
+		&i.ThemePreference,
 	)
 	return i, err
 }
@@ -7479,7 +7486,7 @@ SET
 	last_seen_at = $2,
 	updated_at = $3
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference
 `
 
 type UpdateUserLastSeenAtParams struct {
@@ -7505,6 +7512,7 @@ func (q *sqlQuerier) UpdateUserLastSeenAt(ctx context.Context, arg UpdateUserLas
 		&i.Deleted,
 		&i.LastSeenAt,
 		&i.QuietHoursSchedule,
+		&i.ThemePreference,
 	)
 	return i, err
 }
@@ -7522,7 +7530,7 @@ SET
 		'':: bytea
 	END
 WHERE
-	id = $2 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
+	id = $2 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference
 `
 
 type UpdateUserLoginTypeParams struct {
@@ -7547,6 +7555,7 @@ func (q *sqlQuerier) UpdateUserLoginType(ctx context.Context, arg UpdateUserLogi
 		&i.Deleted,
 		&i.LastSeenAt,
 		&i.QuietHoursSchedule,
+		&i.ThemePreference,
 	)
 	return i, err
 }
@@ -7560,7 +7569,7 @@ SET
 	avatar_url = $4,
 	updated_at = $5
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference
 `
 
 type UpdateUserProfileParams struct {
@@ -7594,6 +7603,7 @@ func (q *sqlQuerier) UpdateUserProfile(ctx context.Context, arg UpdateUserProfil
 		&i.Deleted,
 		&i.LastSeenAt,
 		&i.QuietHoursSchedule,
+		&i.ThemePreference,
 	)
 	return i, err
 }
@@ -7605,7 +7615,7 @@ SET
 	quiet_hours_schedule = $2
 WHERE
 	id = $1
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference
 `
 
 type UpdateUserQuietHoursScheduleParams struct {
@@ -7630,6 +7640,7 @@ func (q *sqlQuerier) UpdateUserQuietHoursSchedule(ctx context.Context, arg Updat
 		&i.Deleted,
 		&i.LastSeenAt,
 		&i.QuietHoursSchedule,
+		&i.ThemePreference,
 	)
 	return i, err
 }
@@ -7642,7 +7653,7 @@ SET
 	rbac_roles = ARRAY(SELECT DISTINCT UNNEST($1 :: text[]))
 WHERE
 	id = $2
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference
 `
 
 type UpdateUserRolesParams struct {
@@ -7667,6 +7678,7 @@ func (q *sqlQuerier) UpdateUserRoles(ctx context.Context, arg UpdateUserRolesPar
 		&i.Deleted,
 		&i.LastSeenAt,
 		&i.QuietHoursSchedule,
+		&i.ThemePreference,
 	)
 	return i, err
 }
@@ -7678,7 +7690,7 @@ SET
 	status = $2,
 	updated_at = $3
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference
 `
 
 type UpdateUserStatusParams struct {
@@ -7704,6 +7716,7 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 		&i.Deleted,
 		&i.LastSeenAt,
 		&i.QuietHoursSchedule,
+		&i.ThemePreference,
 	)
 	return i, err
 }

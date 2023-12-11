@@ -6,8 +6,7 @@ import { HelmetProvider } from "react-helmet-async";
 import { AppRouter } from "./AppRouter";
 import { ErrorBoundary } from "./components/ErrorBoundary/ErrorBoundary";
 import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar";
-import { dark } from "./theme/mui";
-import { dark as experimental } from "./theme/experimental";
+import theme from "./theme";
 import "./theme/globalFonts";
 import {
   StyledEngineProvider,
@@ -15,31 +14,20 @@ import {
 } from "@mui/material/styles";
 import { ThemeProvider as EmotionThemeProvider } from "@emotion/react";
 
-const shouldEnableCache =
-  window.location.hostname.includes("dev.coder.com") ||
-  process.env.NODE_ENV === "development";
-
 const defaultQueryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: false,
       refetchOnWindowFocus: false,
-      cacheTime: shouldEnableCache ? undefined : 0,
-      networkMode: shouldEnableCache ? undefined : "offlineFirst",
     },
   },
 });
 
-const theme = {
-  ...dark,
-  experimental,
-};
-
 export const ThemeProviders: FC<PropsWithChildren> = ({ children }) => {
   return (
     <StyledEngineProvider injectFirst>
-      <MuiThemeProvider theme={theme}>
-        <EmotionThemeProvider theme={theme}>
+      <MuiThemeProvider theme={theme.dark}>
+        <EmotionThemeProvider theme={theme.dark}>
           <CssBaseline enableColorScheme />
           {children}
         </EmotionThemeProvider>

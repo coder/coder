@@ -353,7 +353,7 @@ func (b *Builder) buildTx(authFunc func(action rbac.Action, object rbac.Objecter
 		if err != nil {
 			code := http.StatusInternalServerError
 			if rbac.IsUnauthorizedError(err) {
-				code = http.StatusUnauthorized
+				code = http.StatusForbidden
 			}
 			return BuildError{code, "insert workspace build", err}
 		}

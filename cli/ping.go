@@ -40,6 +40,7 @@ func (r *RootCmd) ping() *clibase.Cmd {
 			workspaceName := inv.Args[0]
 			_, workspaceAgent, err := getWorkspaceAndAgent(
 				ctx, inv, client,
+				false, // Do not autostart for a ping.
 				codersdk.Me, workspaceName,
 			)
 			if err != nil {

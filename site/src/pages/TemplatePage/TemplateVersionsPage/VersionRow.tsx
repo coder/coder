@@ -1,6 +1,7 @@
 import { type CSSObject, type Interpolation, type Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import TableCell from "@mui/material/TableCell";
+import { type FC } from "react";
 import { useNavigate } from "react-router-dom";
 import type { TemplateVersion } from "api/typesGenerated";
 import { Pill } from "components/Pill/Pill";
@@ -9,7 +10,6 @@ import { TimelineEntry } from "components/Timeline/TimelineEntry";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
-import { colors } from "theme/colors";
 
 export interface VersionRowProps {
   version: TemplateVersion;
@@ -19,7 +19,7 @@ export interface VersionRowProps {
   onArchiveClick?: (templateVersionId: string) => void;
 }
 
-export const VersionRow: React.FC<VersionRowProps> = ({
+export const VersionRow: FC<VersionRowProps> = ({
   version,
   isActive,
   isLatest,
@@ -39,7 +39,7 @@ export const VersionRow: React.FC<VersionRowProps> = ({
     <TimelineEntry
       data-testid={`version-${version.id}`}
       {...clickableProps}
-      css={[styles.row, isActive && styles.active]}
+      css={[styles.row]}
       className={clickableProps.className}
     >
       <TableCell css={styles.versionCell}>
@@ -130,7 +130,7 @@ const styles = {
   row: (theme) => ({
     "&:hover $promoteButton": {
       color: theme.palette.text.primary,
-      borderColor: colors.gray[11],
+      borderColor: theme.colors.gray[11],
       "&:hover": {
         borderColor: theme.palette.text.primary,
       },
@@ -145,10 +145,6 @@ const styles = {
   versionWrapper: {
     padding: "16px 32px",
   },
-
-  active: (theme) => ({
-    backgroundColor: theme.palette.background.paper,
-  }),
 
   versionCell: {
     padding: "0 !important",

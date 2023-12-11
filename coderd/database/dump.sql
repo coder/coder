@@ -749,10 +749,13 @@ CREATE TABLE users (
     avatar_url text,
     deleted boolean DEFAULT false NOT NULL,
     last_seen_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL,
-    quiet_hours_schedule text DEFAULT ''::text NOT NULL
+    quiet_hours_schedule text DEFAULT ''::text NOT NULL,
+    theme_preference text DEFAULT ''::text NOT NULL
 );
 
 COMMENT ON COLUMN users.quiet_hours_schedule IS 'Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user''s quiet hours. If empty, the default quiet hours on the instance is used instead.';
+
+COMMENT ON COLUMN users.theme_preference IS '"" can be interpreted as "the user does not care", falling back to the default theme';
 
 CREATE VIEW visible_users AS
  SELECT users.id,

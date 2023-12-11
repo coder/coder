@@ -333,6 +333,12 @@ OIDC OPTIONS:
       --oidc-allow-signups bool, $CODER_OIDC_ALLOW_SIGNUPS (default: true)
           Whether new users can sign up with OIDC.
 
+      --oidc-allowed-groups string-array, $CODER_OIDC_ALLOWED_GROUPS
+          If provided any group name not in the list will not be allowed to
+          authenticate. This allows for restricting access to a specific set of
+          groups. This filter is applied after the group mapping and before the
+          regex filter.
+
       --oidc-auth-url-params struct[map[string]string], $CODER_OIDC_AUTH_URL_PARAMS (default: {"access_type": "offline"})
           OIDC auth URL parameters to pass to the upstream provider.
 

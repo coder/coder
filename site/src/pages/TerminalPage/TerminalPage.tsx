@@ -2,7 +2,6 @@ import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { colors } from "theme/colors";
 import { v4 as uuidv4 } from "uuid";
 import * as XTerm from "xterm";
 import { WebglAddon } from "xterm-addon-webgl";
@@ -43,8 +42,9 @@ export const Language = {
 };
 
 const TerminalPage: FC = () => {
+  const theme = useTheme();
   const navigate = useNavigate();
-  const { proxy } = useProxy();
+  const { proxy, proxyLatencies } = useProxy();
   const params = useParams() as { username: string; workspace: string };
   const username = params.username.replace("@", "");
   const xtermRef = useRef<HTMLDivElement>(null);
@@ -68,11 +68,8 @@ const TerminalPage: FC = () => {
     ? getMatchingAgentOrFirst(workspace.data, workspaceNameParts?.[1])
     : undefined;
   const dashboard = useDashboard();
-  const proxyContext = useProxy();
-  const selectedProxy = proxyContext.proxy.proxy;
-  const latency = selectedProxy
-    ? proxyContext.proxyLatencies[selectedProxy.id]
-    : undefined;
+  const selectedProxy = proxy.proxy;
+  const latency = selectedProxy ? proxyLatencies[selectedProxy.id] : undefined;
 
   const lifecycleState = workspaceAgent?.lifecycle_state;
   const prevLifecycleState = useRef(lifecycleState);
@@ -113,7 +110,7 @@ const TerminalPage: FC = () => {
       fontFamily: MONOSPACE_FONT_FAMILY,
       fontSize: 16,
       theme: {
-        background: colors.gray[16],
+        background: theme.colors.gray[16],
       },
     });
     if (renderer === "webgl") {
@@ -149,7 +146,7 @@ const TerminalPage: FC = () => {
       window.removeEventListener("resize", listener);
       terminal.dispose();
     };
-  }, [renderer, config.isLoading, xtermRef, handleWebLinkRef]);
+  }, [theme, renderer, config.isLoading, xtermRef, handleWebLinkRef]);
 
   // Updates the reconnection token into the URL if necessary.
   useEffect(() => {

@@ -1,65 +1,11 @@
 import { Workspace, CreateWorkspaceBuildRequest } from "api/typesGenerated";
-import { useId, useState, FormEvent } from "react";
+import { type FC, type FormEvent, useId, useState } from "react";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { type Interpolation, type Theme } from "@emotion/react";
-import { colors } from "theme/colors";
 import TextField from "@mui/material/TextField";
 import { docs } from "utils/docs";
 import Link from "@mui/material/Link";
 import Checkbox from "@mui/material/Checkbox";
-
-const styles = {
-  workspaceInfo: (theme) => ({
-    display: "flex",
-    justifyContent: "space-between",
-    borderRadius: 6,
-    padding: 16,
-    marginBottom: 20,
-    lineHeight: "1.3em",
-    border: `1px solid ${theme.palette.divider}`,
-
-    "& .name": {
-      fontSize: 16,
-      fontWeight: 600,
-      color: theme.palette.text.primary,
-    },
-
-    "& .label": {
-      fontSize: 12,
-      color: theme.palette.text.secondary,
-    },
-
-    "& .info": {
-      fontSize: 12,
-      fontWeight: 500,
-      color: theme.palette.text.primary,
-    },
-  }),
-  orphanContainer: (theme) => ({
-    marginTop: 24,
-    display: "flex",
-    backgroundColor: colors.orange[15],
-    justifyContent: "space-between",
-    border: `1px solid ${colors.orange[11]}`,
-    borderRadius: 8,
-    padding: 12,
-    gap: 8,
-    lineHeight: "18px",
-
-    "& .option": {
-      color: colors.orange[11],
-      "&.Mui-checked": {
-        color: colors.orange[11],
-      },
-    },
-
-    "& .info": {
-      fontSize: 14,
-      fontWeight: 600,
-      color: theme.experimental.roles.danger.text,
-    },
-  }),
-} satisfies Record<string, Interpolation<Theme>>;
 
 interface WorkspaceDeleteDialogProps {
   workspace: Workspace;
@@ -69,15 +15,15 @@ interface WorkspaceDeleteDialogProps {
   onConfirm: (arg: CreateWorkspaceBuildRequest["orphan"]) => void;
   workspaceBuildDateStr: string;
 }
-export const WorkspaceDeleteDialog = (props: WorkspaceDeleteDialogProps) => {
-  const {
-    workspace,
-    canUpdateTemplate,
-    isOpen,
-    onCancel,
-    onConfirm,
-    workspaceBuildDateStr,
-  } = props;
+
+export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
+  workspace,
+  canUpdateTemplate,
+  isOpen,
+  onCancel,
+  onConfirm,
+  workspaceBuildDateStr,
+}) => {
   const hookId = useId();
   const [userConfirmationText, setUserConfirmationText] = useState("");
   const [orphanWorkspace, setOrphanWorkspace] =
@@ -188,3 +134,56 @@ export const WorkspaceDeleteDialog = (props: WorkspaceDeleteDialogProps) => {
     />
   );
 };
+
+const styles = {
+  workspaceInfo: (theme) => ({
+    display: "flex",
+    justifyContent: "space-between",
+    borderRadius: 6,
+    padding: 16,
+    marginBottom: 20,
+    lineHeight: "1.3em",
+    border: `1px solid ${theme.palette.divider}`,
+
+    "& .name": {
+      fontSize: 16,
+      fontWeight: 600,
+      color: theme.palette.text.primary,
+    },
+
+    "& .label": {
+      fontSize: 12,
+      color: theme.palette.text.secondary,
+    },
+
+    "& .info": {
+      fontSize: 12,
+      fontWeight: 500,
+      color: theme.palette.text.primary,
+    },
+  }),
+  orphanContainer: (theme) => ({
+    marginTop: 24,
+    display: "flex",
+    backgroundColor: theme.colors.orange[15],
+    justifyContent: "space-between",
+    border: `1px solid ${theme.colors.orange[11]}`,
+    borderRadius: 8,
+    padding: 12,
+    gap: 8,
+    lineHeight: "18px",
+
+    "& .option": {
+      color: theme.colors.orange[11],
+      "&.Mui-checked": {
+        color: theme.colors.orange[11],
+      },
+    },
+
+    "& .info": {
+      fontSize: 14,
+      fontWeight: 600,
+      color: theme.experimental.roles.danger.text,
+    },
+  }),
+} satisfies Record<string, Interpolation<Theme>>;

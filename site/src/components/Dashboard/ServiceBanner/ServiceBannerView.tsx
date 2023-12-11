@@ -1,6 +1,5 @@
 import { Pill } from "components/Pill/Pill";
 import ReactMarkdown from "react-markdown";
-import { colors } from "theme/colors";
 import { css, useTheme } from "@emotion/react";
 import { readableForegroundColor } from "utils/colors";
 
@@ -38,7 +37,7 @@ export const ServiceBannerView: React.FC<ServiceBannerViewProps> = ({
         align-items: center;
 
         &.error {
-          background-color: ${colors.red[12]};
+          background-color: ${theme.colors.red[12]};
         }
       `}
     >
