@@ -11,6 +11,8 @@ func AllResources() []Object {
 		ResourceFile,
 		ResourceGroup,
 		ResourceLicense,
+		ResourceOAuth2App,
+		ResourceOAuth2AppSecret,
 		ResourceOrgRoleAssignment,
 		ResourceOrganization,
 		ResourceOrganizationMember,

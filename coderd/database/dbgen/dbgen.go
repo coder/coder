@@ -676,6 +676,31 @@ func WorkspaceAgentStat(t testing.TB, db database.Store, orig database.Workspace
 	return scheme
 }
 
+func OAuth2App(t testing.TB, db database.Store, seed database.OAuth2App) database.OAuth2App {
+	app, err := db.InsertOAuth2App(genCtx, database.InsertOAuth2AppParams{
+		ID:          takeFirst(seed.ID, uuid.New()),
+		Name:        takeFirst(seed.Name, namesgenerator.GetRandomName(1)),
+		CreatedAt:   takeFirst(seed.CreatedAt, dbtime.Now()),
+		UpdatedAt:   takeFirst(seed.UpdatedAt, dbtime.Now()),
+		Icon:        takeFirst(seed.Icon, ""),
+		CallbackURL: takeFirst(seed.CallbackURL, "http://localhost"),
+	})
+	require.NoError(t, err, "insert oauth2 app")
+	return app
+}
+
+func OAuth2AppSecret(t testing.TB, db database.Store, seed database.OAuth2AppSecret) database.OAuth2AppSecret {
+	app, err := db.InsertOAuth2AppSecret(genCtx, database.InsertOAuth2AppSecretParams{
+		ID:            takeFirst(seed.ID, uuid.New()),
+		CreatedAt:     takeFirst(seed.CreatedAt, dbtime.Now()),
+		HashedSecret:  takeFirstSlice(seed.HashedSecret, []byte("hashed-secret")),
+		DisplaySecret: takeFirst(seed.DisplaySecret, "secret"),
+		AppID:         takeFirst(seed.AppID, uuid.New()),
+	})
+	require.NoError(t, err, "insert oauth2 app secret")
+	return app
+}
+
 func must[V any](v V, err error) V {
 	if err != nil {
 		panic(err)
