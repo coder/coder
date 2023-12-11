@@ -24,7 +24,6 @@ import { EmptyState } from "components/EmptyState/EmptyState";
 import Button from "@mui/material/Button";
 import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 import { docs } from "utils/docs";
-import { Alert } from "components/Alert/Alert";
 
 const WorkspaceParametersPage: FC = () => {
   const workspace = useWorkspaceSettings();
@@ -121,15 +120,6 @@ export const WorkspaceParametersPageView: FC<
       {submitError && !isApiValidationError(submitError) && (
         <ErrorAlert error={submitError} css={{ marginBottom: 48 }} />
       )}
-
-      {workspace.outdated &&
-        workspace.template_require_active_version &&
-        !canChangeVersions && (
-          <Alert severity="warning" css={{ marginBottom: 48 }}>
-            The template for this workspace requires automatic updates. Update
-            the workspace to edit parameters.
-          </Alert>
-        )}
 
       {data ? (
         data.templateVersionRichParameters.length > 0 ? (
