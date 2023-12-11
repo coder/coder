@@ -575,14 +575,6 @@ type Stats struct {
 	// that are normal, non-tagged SSH sessions.
 	SessionCountSSH int64 `json:"session_count_ssh"`
 
-	// StartupScriptNs is the duration in nano seconds the startup scripts
-	// took to execute. If there are no scripts, this still has some value > 0.
-	// This is because the act of "no script" still takes time to eval, and still
-	// has a "success" value.
-	StartupScriptNs int64 `json:"startup_script_ns"`
-	// StartupScriptSuccess is true if the startup script(s) executed successfully.
-	StartupScriptSuccess bool `json:"startup_script_success"`
-
 	// Metrics collected by the agent
 	Metrics []AgentMetric `json:"metrics"`
 }

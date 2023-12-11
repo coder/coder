@@ -6,20 +6,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-type cachableMetric interface {
-	prometheus.Collector
-	Reset()
-
-	// Process commits the staged changes to the metric. No error can be returned,
-	// just do best effort to process the records.
-	Process(records []vectorRecord)
-}
-
-var _ prometheus.Collector = new(CachedMetric)
-
-// CachedMetric is a wrapper for the prometheus.MetricVec which allows
+// CachedGaugeVec is a wrapper for the prometheus.GaugeVec which allows
 // for staging changes in the metrics vector. Calling "WithLabelValues(...)"
-// will update the internal metric value, but it will not be returned by
+// will update the internal gauge value, but it will not be returned by
 // "Collect(...)" until the "Commit()" method is called. The "Commit()" method
 // resets the internal gauge and applies all staged changes to it.
 //
@@ -27,31 +16,46 @@ var _ prometheus.Collector = new(CachedMetric)
 // that the Prometheus collector receives incomplete metrics, collected
 // in the middle of metrics recalculation, between "Reset()" and the last
 // "WithLabelValues()" call.
-type CachedMetric struct {
+type CachedGaugeVec struct {
 	m sync.Mutex
 
-	metric  cachableMetric
-	records []vectorRecord
+	gaugeVec *prometheus.GaugeVec
+	records  []vectorRecord
 }
 
-func newCachedMetric(metric cachableMetric) *CachedMetric {
-	return &CachedMetric{
-		metric: metric,
+var _ prometheus.Collector = new(CachedGaugeVec)
+
+type VectorOperation int
+
+const (
+	VectorOperationAdd VectorOperation = iota
+	VectorOperationSet
+)
+
+type vectorRecord struct {
+	operation   VectorOperation
+	value       float64
+	labelValues []string
+}
+
+func NewCachedGaugeVec(gaugeVec *prometheus.GaugeVec) *CachedGaugeVec {
+	return &CachedGaugeVec{
+		gaugeVec: gaugeVec,
 	}
 }
 
-func (v *CachedMetric) Describe(desc chan<- *prometheus.Desc) {
-	v.metric.Describe(desc)
+func (v *CachedGaugeVec) Describe(desc chan<- *prometheus.Desc) {
+	v.gaugeVec.Describe(desc)
 }
 
-func (v *CachedMetric) Collect(ch chan<- prometheus.Metric) {
+func (v *CachedGaugeVec) Collect(ch chan<- prometheus.Metric) {
 	v.m.Lock()
 	defer v.m.Unlock()
 
-	v.metric.Collect(ch)
+	v.gaugeVec.Collect(ch)
 }
 
-func (v *CachedMetric) WithLabelValues(operation VectorOperation, value float64, labelValues ...string) {
+func (v *CachedGaugeVec) WithLabelValues(operation VectorOperation, value float64, labelValues ...string) {
 	switch operation {
 	case VectorOperationAdd, VectorOperationSet:
 	default:
@@ -71,76 +75,20 @@ func (v *CachedMetric) WithLabelValues(operation VectorOperation, value float64,
 // Commit will set the internal value as the cached value to return from "Collect()".
 // The internal metric value is completely reset, so the caller should expect
 // the gauge to be empty for the next 'WithLabelValues' values.
-func (v *CachedMetric) Commit() {
+func (v *CachedGaugeVec) Commit() {
 	v.m.Lock()
 	defer v.m.Unlock()
 
-	v.metric.Reset()
-	v.metric.Process(v.records)
-
-	v.records = nil
-}
-
-type CachedHistogramVec struct {
-}
-
-// CachedGaugeVec is a gauge instance of a cached metric.
-type cachedGaugeVec struct {
-	*prometheus.GaugeVec
-}
-
-func NewCachedGaugeVec(gaugeVec *prometheus.GaugeVec) *CachedMetric {
-	return newCachedMetric(&cachedGaugeVec{
-		GaugeVec: gaugeVec,
-	})
-}
-
-func (v *cachedGaugeVec) Process(records []vectorRecord) {
-	for _, record := range records {
-		g := v.GaugeVec.WithLabelValues(record.labelValues...)
+	v.gaugeVec.Reset()
+	for _, record := range v.records {
+		g := v.gaugeVec.WithLabelValues(record.labelValues...)
 		switch record.operation {
 		case VectorOperationAdd:
 			g.Add(record.value)
 		case VectorOperationSet:
 			g.Set(record.value)
-		default:
-			// ignore unsupported vectors.
 		}
 	}
-}
 
-type cachedHistogramVec struct {
-	*prometheus.HistogramVec
-}
-
-func NewCachedHistogramVec(gaugeVec *prometheus.HistogramVec) *CachedMetric {
-	return newCachedMetric(&cachedHistogramVec{
-		HistogramVec: gaugeVec,
-	})
-}
-
-func (v *cachedHistogramVec) Process(records []vectorRecord) {
-	for _, record := range records {
-		g := v.HistogramVec.WithLabelValues(record.labelValues...)
-		switch record.operation {
-		case VectorOperationObserve:
-			g.Observe(record.value)
-		default:
-			// ignore unsupported vectors.
-		}
-	}
-}
-
-type VectorOperation int
-
-const (
-	VectorOperationAdd VectorOperation = iota
-	VectorOperationSet
-	VectorOperationObserve
-)
-
-type vectorRecord struct {
-	operation   VectorOperation
-	value       float64
-	labelValues []string
+	v.records = nil
 }

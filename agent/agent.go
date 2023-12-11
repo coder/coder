@@ -226,7 +226,6 @@ type agent struct {
 	// metrics are prometheus registered metrics that will be collected and
 	// labeled in Coder with the agent + workspace.
 	metrics   *agentMetrics
-	stats     agentStats
 	syscaller agentproc.Syscaller
 
 	// modifiedProcs is used for testing process priority management.
@@ -767,15 +766,18 @@ func (a *agent) run(ctx context.Context) error {
 				a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleReady)
 			}
 
-			dur := time.Since(start).Nanoseconds()
+			dur := time.Since(start).Seconds()
 			// If something really look 0 ns, just set it to 1 to indicate that it ran.
 			// Otherwise, 0 looks like the startup script has not run yet. I don't think
 			// this will ever be 1ns
 			if dur == 0 {
 				dur = 1
 			}
-			a.stats.startScriptNs.Store(dur)
-			a.stats.startScriptSuccess.Store(err == nil)
+			label := "false"
+			if err == nil {
+				label = "true"
+			}
+			a.metrics.startScriptNs.WithLabelValues(label).Set(float64(dur))
 			a.scriptRunner.StartCron()
 		})
 		if err != nil {
@@ -1202,11 +1204,6 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 			stats.TxBytes += int64(counts.TxBytes)
 			stats.TxPackets += int64(counts.TxPackets)
 		}
-
-		// Load the latest startup script stats. These stats are static
-		// once the agent has started.
-		stats.StartupScriptNs = a.stats.startScriptNs.Load()
-		stats.StartupScriptSuccess = a.stats.startScriptSuccess.Load()
 
 		// The count of active sessions.
 		sshStats := a.sshServer.ConnStats()

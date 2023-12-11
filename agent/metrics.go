@@ -7,7 +7,6 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	prompb "github.com/prometheus/client_model/go"
-	"go.uber.org/atomic"
 	"tailscale.com/util/clientmetric"
 
 	"cdr.dev/slog"
@@ -15,22 +14,15 @@ import (
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
-// agentStats unlike agentMetrics, are not prometheus metrics. Prometheus' metrics
-// are sent to Coder as generic "metrics" that get labeled and reported for each
-// workspace. agentStats are sent to Coder as first-class metrics that Coder decides
-// how to aggregate and report.
-type agentStats struct {
-	// startScriptNs is the time in nanoseconds that the start script(s)
-	// took to run. This is reported once per agent, and is collected into a
-	// histogram by Coder.
-	startScriptNs atomic.Int64
-	// startScriptSuccess should be ignored if startScriptReadyMs is 0.
-	startScriptSuccess atomic.Bool
-}
+
 
 type agentMetrics struct {
 	connectionsTotal      prometheus.Counter
 	reconnectingPTYErrors *prometheus.CounterVec
+	// startScriptNs is the time in nanoseconds that the start script(s)
+	// took to run. This is reported once per agent, and is collected into a
+	// histogram by Coder.
+	startScriptNs *prometheus.GaugeVec
 }
 
 func newAgentMetrics(registerer prometheus.Registerer) *agentMetrics {
@@ -49,9 +41,18 @@ func newAgentMetrics(registerer prometheus.Registerer) *agentMetrics {
 	)
 	registerer.MustRegister(reconnectingPTYErrors)
 
+	startScriptNs := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Subsystem: "agentstats",
+		Name:      "startup_script_s",
+		Help:      "Amount of time taken to run the startup script in seconds.",
+	}, []string{"success"})
+	registerer.MustRegister(startScriptNs)
+
 	return &agentMetrics{
 		connectionsTotal:      connectionsTotal,
 		reconnectingPTYErrors: reconnectingPTYErrors,
+		startScriptNs:         startScriptNs,
 	}
 }
 

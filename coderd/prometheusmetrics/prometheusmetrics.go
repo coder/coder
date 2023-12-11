@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	templateIDLabel    = "template_id"
+	templateNameLabel  = "template_name"
 	agentNameLabel     = "agent_name"
 	usernameLabel      = "username"
 	workspaceNameLabel = "workspace_name"
@@ -156,7 +156,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		Subsystem: "agents",
 		Name:      "up",
 		Help:      "The number of active agents per workspace.",
-	}, []string{usernameLabel, workspaceNameLabel, "template_name", "template_version"}))
+	}, []string{usernameLabel, workspaceNameLabel, templateNameLabel, "template_version"}))
 	err := registerer.Register(agentsGauge)
 	if err != nil {
 		return nil, err
@@ -440,17 +440,6 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		return nil, err
 	}
 
-	agentStartupScriptNs := NewCachedGaugeVec(prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "coderd",
-		Subsystem: "agentstats",
-		Name:      "startup_script_ns",
-		Help:      "Amount of time taken to run the startup script in nanoseconds",
-	}, []string{agentNameLabel, usernameLabel, workspaceNameLabel}))
-	err = registerer.Register(agentStatsSessionCountVSCodeGauge)
-	if err != nil {
-		return nil, err
-	}
-
 	ctx, cancelFunc := context.WithCancel(ctx)
 	done := make(chan struct{})
 
@@ -487,8 +476,6 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 					agentStatsSessionCountReconnectingPTYGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountReconnectingPTY), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
 					agentStatsSessionCountSSHGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountSSH), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
 					agentStatsSessionCountVSCodeGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountVSCode), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
-
-					agentStartupScriptNs.WithLabelValues(VectorOperationObserve, float64(agentStat.StartupScriptNs), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
 				}
 
 				if len(stats) > 0 {
