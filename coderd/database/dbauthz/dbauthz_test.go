@@ -960,6 +960,14 @@ func (s *MethodTestSuite) TestUser() {
 			UpdatedAt: u.UpdatedAt,
 		}).Asserts(u.UserDataRBACObject(), rbac.ActionUpdate).Returns(u)
 	}))
+	s.Run("UpdateUserThemePreference", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		check.Args(database.UpdateUserThemePreferenceParams{
+			ID:              u.ID,
+			ThemePreference: u.ThemePreference,
+			UpdatedAt:       u.UpdatedAt,
+		}).Asserts(u.UserDataRBACObject(), rbac.ActionUpdate).Returns(u)
+	}))
 	s.Run("UpdateUserStatus", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		check.Args(database.UpdateUserStatusParams{

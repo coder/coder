@@ -2826,7 +2826,14 @@ func (q *querier) UpdateUserStatus(ctx context.Context, arg database.UpdateUserS
 }
 
 func (q *querier) UpdateUserThemePreference(ctx context.Context, arg database.UpdateUserThemePreferenceParams) (database.User, error) {
-	panic("not implemented")
+	u, err := q.db.GetUserByID(ctx, arg.ID)
+	if err != nil {
+		return database.User{}, err
+	}
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, u.UserDataRBACObject()); err != nil {
+		return database.User{}, err
+	}
+	return q.db.UpdateUserThemePreference(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspace(ctx context.Context, arg database.UpdateWorkspaceParams) (database.Workspace, error) {

@@ -6471,7 +6471,18 @@ func (q *FakeQuerier) UpdateUserThemePreference(ctx context.Context, arg databas
 		return database.User{}, err
 	}
 
-	panic("not implemented")
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, user := range q.users {
+		if user.ID != arg.ID {
+			continue
+		}
+		user.ThemePreference = arg.ThemePreference
+		q.users[index] = user
+		return user, nil
+	}
+	return database.User{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) UpdateWorkspace(_ context.Context, arg database.UpdateWorkspaceParams) (database.Workspace, error) {
