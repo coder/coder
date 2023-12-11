@@ -493,9 +493,11 @@ const createTemplateVersionTar = async (
           try {
             Agent.encode(agentResource);
           } catch (e) {
-            throw new Error(
-              `agentResource encode failed, missing defaults?\n${e}\n${e.stack}`,
-            );
+            let m = `agentResource encode failed, missing defaults?\n${e}`;
+            if (e instanceof Error) {
+              m += `\n${e.stack}`;
+            }
+            throw new Error(m);
           }
 
           return agentResource;
