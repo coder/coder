@@ -1074,7 +1074,10 @@ func (s *MethodTestSuite) TestWorkspace() {
 		check.Args(agt.ID).Asserts(ws, rbac.ActionRead).Returns(agt)
 	}))
 	s.Run("GetWorkspaceAgentByInstanceID", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		tpl := dbgen.Template(s.T(), db, database.Template{})
+		ws := dbgen.Workspace(s.T(), db, database.Workspace{
+			TemplateID: tpl.ID,
+		})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
 		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
