@@ -767,17 +767,11 @@ func (a *agent) run(ctx context.Context) error {
 			}
 
 			dur := time.Since(start).Seconds()
-			// If something really look 0 ns, just set it to 1 to indicate that it ran.
-			// Otherwise, 0 looks like the startup script has not run yet. I don't think
-			// this will ever be 1ns
-			if dur == 0 {
-				dur = 1
-			}
 			label := "false"
 			if err == nil {
 				label = "true"
 			}
-			a.metrics.startScriptNs.WithLabelValues(label).Set(float64(dur))
+			a.metrics.startScriptSeconds.WithLabelValues(label).Set(dur)
 			a.scriptRunner.StartCron()
 		})
 		if err != nil {

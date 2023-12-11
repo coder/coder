@@ -19,9 +19,8 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
-	"github.com/coder/retry"
-
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/retry"
 )
 
 // ExternalLogSourceID is the statically-defined ID of a log-source that

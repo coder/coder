@@ -14,15 +14,12 @@ import (
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
-
-
 type agentMetrics struct {
 	connectionsTotal      prometheus.Counter
 	reconnectingPTYErrors *prometheus.CounterVec
-	// startScriptNs is the time in nanoseconds that the start script(s)
-	// took to run. This is reported once per agent, and is collected into a
-	// histogram by Coder.
-	startScriptNs *prometheus.GaugeVec
+	// startScriptSeconds is the time in seconds that the start script(s)
+	// took to run. This is reported once per agent.
+	startScriptSeconds *prometheus.GaugeVec
 }
 
 func newAgentMetrics(registerer prometheus.Registerer) *agentMetrics {
@@ -41,18 +38,18 @@ func newAgentMetrics(registerer prometheus.Registerer) *agentMetrics {
 	)
 	registerer.MustRegister(reconnectingPTYErrors)
 
-	startScriptNs := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	startScriptSeconds := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "agentstats",
 		Name:      "startup_script_s",
 		Help:      "Amount of time taken to run the startup script in seconds.",
 	}, []string{"success"})
-	registerer.MustRegister(startScriptNs)
+	registerer.MustRegister(startScriptSeconds)
 
 	return &agentMetrics{
 		connectionsTotal:      connectionsTotal,
 		reconnectingPTYErrors: reconnectingPTYErrors,
-		startScriptNs:         startScriptNs,
+		startScriptSeconds:    startScriptSeconds,
 	}
 }
 
