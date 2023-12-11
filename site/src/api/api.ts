@@ -712,6 +712,14 @@ export const updateProfile = async (
   return response.data;
 };
 
+export const updateThemePreference = async (
+  userId: string,
+  data: TypesGen.UpdateUserThemePreferenceRequest,
+): Promise<TypesGen.User> => {
+  const response = await axios.put(`/api/v2/users/${userId}/theme`, data);
+  return response.data;
+};
+
 export const getUserQuietHoursSchedule = async (
   userId: TypesGen.User["id"],
 ): Promise<TypesGen.UserQuietHoursScheduleResponse> => {

@@ -61,7 +61,8 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
   );
   const logoutMutation = useMutation(logout(queryClient));
   const updateProfileMutation = useMutation({
-    ...updateProfileOptions(),
+    ...updateProfileOptions("me"),
+
     onSuccess: (user) => {
       queryClient.setQueryData(meOptions.queryKey, user);
       displaySuccess("Updated settings.");
@@ -92,7 +93,7 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
   };
 
   const updateProfile = (req: UpdateUserProfileRequest) => {
-    updateProfileMutation.mutate({ userId: userQuery.data!.id, req });
+    updateProfileMutation.mutate(req);
   };
 
   if (isLoading) {

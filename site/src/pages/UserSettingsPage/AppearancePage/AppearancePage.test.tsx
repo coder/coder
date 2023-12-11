@@ -1,10 +1,7 @@
 import { fireEvent, screen, within } from "@testing-library/react";
 import * as API from "api/api";
 import { renderWithAuth } from "testHelpers/renderHelpers";
-import {
-  Language as SSHKeysPageLanguage,
-  AppearancePage,
-} from "./AppearancePage";
+import { AppearancePage } from "./AppearancePage";
 import { MockGitSSHKey } from "testHelpers/entities";
 
 describe("SSH keys Page", () => {
@@ -25,9 +22,7 @@ describe("SSH keys Page", () => {
         const regenerateButton = screen.getByTestId("regenerate");
         fireEvent.click(regenerateButton);
         const confirmDialog = screen.getByRole("dialog");
-        expect(confirmDialog).toHaveTextContent(
-          SSHKeysPageLanguage.regenerateDialogMessage,
-        );
+        expect(confirmDialog).toHaveTextContent("foo");
 
         const newUserSSHKey =
           "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDSC/ouD/LqiT1Rd99vDv/MwUmqzJuinLTMTpk5kVy66";
@@ -38,7 +33,7 @@ describe("SSH keys Page", () => {
 
         // Click on the "Confirm" button
         const confirmButton = within(confirmDialog).getByRole("button", {
-          name: SSHKeysPageLanguage.confirmLabel,
+          name: "foo",
         });
         fireEvent.click(confirmButton);
 

@@ -1,64 +1,32 @@
-import { type FC, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { regenerateUserSSHKey, userSSHKey } from "api/queries/sshKeys";
-import { getErrorMessage } from "api/errors";
+import { type FC } from "react";
+import { useMutation, useQueryClient } from "react-query";
+import { updateThemePreference } from "api/queries/users";
 import { Section } from "../Section";
-import { AppearancePageView } from "./AppearancePageView";
-
-export const Language = {
-  title: "SSH keys",
-  regenerateDialogTitle: "Regenerate SSH key?",
-  regenerationError: "Failed to regenerate SSH key",
-  regenerationSuccess: "SSH Key regenerated successfully.",
-  regenerateDialogMessage:
-    "You will need to replace the public SSH key on services you use it with, and you'll need to rebuild existing workspaces.",
-  confirmLabel: "Confirm",
-  cancelLabel: "Cancel",
-};
+import { AppearanceForm } from "./AppearanceForm";
+import { useMe } from "hooks";
 
 export const AppearancePage: FC = () => {
-  const [isConfirmingRegeneration, setIsConfirmingRegeneration] =
-    useState(false);
-
-  const userSSHKeyQuery = useQuery(userSSHKey("me"));
+  const me = useMe();
   const queryClient = useQueryClient();
-  const regenerateSSHKeyMutation = useMutation(
-    regenerateUserSSHKey("me", queryClient),
+  const updateThemePreferenceMutation = useMutation(
+    updateThemePreference("me", queryClient),
   );
 
   return (
     <>
-      <Section title={Language.title}>
-        <AppearancePageView
-          isLoading={userSSHKeyQuery.isLoading}
-          getSSHKeyError={userSSHKeyQuery.error}
-          sshKey={userSSHKeyQuery.data}
-          onRegenerateClick={() => setIsConfirmingRegeneration(true)}
+      <Section title="Theme">
+        <AppearanceForm
+          isLoading={updateThemePreferenceMutation.isLoading}
+          error={updateThemePreferenceMutation.error}
+          initialValues={{ theme_preference: me.theme_preference }}
+          onSubmit={async (arg: any) => {
+            console.log("going");
+            const x = await updateThemePreferenceMutation.mutateAsync(arg);
+            console.log(x);
+            return x;
+          }}
         />
       </Section>
-
-      <ConfirmDialog
-        type="delete"
-        hideCancel={false}
-        open={isConfirmingRegeneration}
-        confirmLoading={regenerateSSHKeyMutation.isLoading}
-        title={Language.regenerateDialogTitle}
-        description={Language.regenerateDialogMessage}
-        confirmText={Language.confirmLabel}
-        onClose={() => setIsConfirmingRegeneration(false)}
-        onConfirm={async () => {
-          try {
-            await regenerateSSHKeyMutation.mutateAsync();
-            displaySuccess(Language.regenerationSuccess);
-          } catch (error) {
-            displayError(getErrorMessage(error, Language.regenerationError));
-          } finally {
-            setIsConfirmingRegeneration(false);
-          }
-        }}
-      />
     </>
   );
 };

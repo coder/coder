@@ -1,10 +1,11 @@
-import { QueryClient, type UseQueryOptions } from "react-query";
+import { QueryClient, type QueryKey, type UseQueryOptions } from "react-query";
 import * as API from "api/api";
 import type {
   AuthorizationRequest,
   GetUsersResponse,
   UpdateUserPasswordRequest,
   UpdateUserProfileRequest,
+  UpdateUserThemePreferenceRequest,
   UsersRequest,
   User,
 } from "api/typesGenerated";
@@ -116,11 +117,13 @@ export const authMethods = () => {
 
 const initialUserData = getMetadataAsJSON<User>("user");
 
+const meKey = ["me"];
+
 export const me = (): UseQueryOptions<User> & {
-  queryKey: NonNullable<UseQueryOptions<User>["queryKey"]>;
+  queryKey: QueryKey;
 } => {
   return {
-    queryKey: ["me"],
+    queryKey: meKey,
     initialData: initialUserData,
     queryFn: API.getAuthenticatedUser,
   };
@@ -179,14 +182,24 @@ export const logout = (queryClient: QueryClient) => {
   };
 };
 
-export const updateProfile = () => {
+export const updateProfile = (userId: string) => {
   return {
-    mutationFn: ({
-      userId,
-      req,
-    }: {
-      userId: string;
-      req: UpdateUserProfileRequest;
-    }) => API.updateProfile(userId, req),
+    mutationFn: (req: UpdateUserProfileRequest) =>
+      API.updateProfile(userId, req),
+  };
+};
+
+export const updateThemePreference = (
+  userId: string,
+  queryClient: QueryClient,
+) => {
+  return {
+    mutationFn: (req: UpdateUserThemePreferenceRequest) =>
+      API.updateThemePreference(userId, req),
+    onSuccess: () => {
+      // Could technically invalidate more, but we only ever care about the
+      // `theme_preference` for the `me` query.
+      queryClient.invalidateQueries(meKey);
+    },
   };
 };
