@@ -274,7 +274,8 @@ func (s *server) AcquireJobWithCancel(stream proto.DRPCProvisionerDaemon_Acquire
 		// in the database.  We need to mark this job as failed so the end user can retry if they want to.
 		now := dbtime.Now()
 		err := s.Database.UpdateProvisionerJobWithCompleteByID(
-			context.Background(),
+			//nolint:gocritic // Provisionerd has specific authz rules.
+			dbauthz.AsProvisionerd(context.Background()),
 			database.UpdateProvisionerJobWithCompleteByIDParams{
 				ID: je.job.ID,
 				CompletedAt: sql.NullTime{
