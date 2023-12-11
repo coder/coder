@@ -21,11 +21,9 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 	"github.com/klauspost/compress/zstd"
-	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/prometheus/client_golang/prometheus"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"storj.io/drpc/drpcmux"
@@ -408,30 +406,26 @@ func New(options *Options) *API {
 
 	if options.HealthcheckFunc == nil {
 		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *healthcheck.Report {
-			dismissedHealthchecks := loadDismissedHealthchecks(ctx, options.Database, options.Logger)
+			// NOTE: dismissed healthchecks are marked in formatHealthcheck.
+			// Not here, as this result gets cached.
 			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
 				Database: healthcheck.DatabaseReportOptions{
 					DB:        options.Database,
 					Threshold: options.DeploymentValues.Healthcheck.ThresholdDatabase.Value(),
-					Dismissed: slices.Contains(dismissedHealthchecks, healthcheck.SectionDatabase),
 				},
 				Websocket: healthcheck.WebsocketReportOptions{
 					AccessURL: options.AccessURL,
 					APIKey:    apiKey,
-					Dismissed: slices.Contains(dismissedHealthchecks, healthcheck.SectionWebsocket),
 				},
 				AccessURL: healthcheck.AccessURLReportOptions{
 					AccessURL: options.AccessURL,
-					Dismissed: slices.Contains(dismissedHealthchecks, healthcheck.SectionAccessURL),
 				},
 				DerpHealth: derphealth.ReportOptions{
-					DERPMap:   api.DERPMap(),
-					Dismissed: slices.Contains(dismissedHealthchecks, healthcheck.SectionDERP),
+					DERPMap: api.DERPMap(),
 				},
 				WorkspaceProxy: healthcheck.WorkspaceProxyReportOptions{
 					CurrentVersion:               buildinfo.Version(),
 					WorkspaceProxiesFetchUpdater: *(options.WorkspaceProxiesFetchUpdater).Load(),
-					Dismissed:                    slices.Contains(dismissedHealthchecks, healthcheck.SectionWorkspaceProxy),
 				},
 			})
 		}
@@ -660,14 +654,21 @@ func New(options *Options) *API {
 			r.Get("/{fileID}", api.fileByID)
 			r.Post("/", api.postFile)
 		})
-		r.Route("/external-auth/{externalauth}", func(r chi.Router) {
+		r.Route("/external-auth", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				httpmw.ExtractExternalAuthParam(options.ExternalAuthConfigs),
 			)
-			r.Get("/", api.externalAuthByID)
-			r.Post("/device", api.postExternalAuthDeviceByID)
-			r.Get("/device", api.externalAuthDeviceByID)
+			// Get without a specific external auth ID will return all external auths.
+			r.Get("/", api.listUserExternalAuths)
+			r.Route("/{externalauth}", func(r chi.Router) {
+				r.Use(
+					httpmw.ExtractExternalAuthParam(options.ExternalAuthConfigs),
+				)
+				r.Delete("/", api.deleteExternalAuthByID)
+				r.Get("/", api.externalAuthByID)
+				r.Post("/device", api.postExternalAuthDeviceByID)
+				r.Get("/device", api.externalAuthDeviceByID)
+			})
 		})
 		r.Route("/organizations", func(r chi.Router) {
 			r.Use(
@@ -1148,7 +1149,7 @@ func compressHandler(h http.Handler) http.Handler {
 
 // CreateInMemoryProvisionerDaemon is an in-memory connection to a provisionerd.
 // Useful when starting coderd and provisionerd in the same process.
-func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context) (client proto.DRPCProvisionerDaemonClient, err error) {
+func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, name string) (client proto.DRPCProvisionerDaemonClient, err error) {
 	tracer := api.TracerProvider.Tracer(tracing.TracerName)
 	clientSession, serverSession := provisionersdk.MemTransportPipe()
 	defer func() {
@@ -1159,13 +1160,12 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context) (client pro
 	}()
 
 	tags := provisionerdserver.Tags{
-		provisionerdserver.TagScope: provisionerdserver.ScopeOrganization,
+		provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 	}
 
 	mux := drpcmux.New()
-	name := namesgenerator.GetRandomName(1)
+	api.Logger.Info(ctx, "starting in-memory provisioner daemon", slog.F("name", name))
 	logger := api.Logger.Named(fmt.Sprintf("inmem-provisionerd-%s", name))
-	logger.Info(ctx, "starting in-memory provisioner daemon")
 	srv, err := provisionerdserver.NewServer(
 		api.ctx,
 		api.AccessURL,

@@ -275,7 +275,7 @@ const (
 	BuildReasonInitiator  BuildReason = "initiator"
 	BuildReasonAutostart  BuildReason = "autostart"
 	BuildReasonAutostop   BuildReason = "autostop"
-	BuildReasonAutolock   BuildReason = "autolock"
+	BuildReasonDormancy   BuildReason = "dormancy"
 	BuildReasonFailedstop BuildReason = "failedstop"
 	BuildReasonAutodelete BuildReason = "autodelete"
 )
@@ -320,7 +320,7 @@ func (e BuildReason) Valid() bool {
 	case BuildReasonInitiator,
 		BuildReasonAutostart,
 		BuildReasonAutostop,
-		BuildReasonAutolock,
+		BuildReasonDormancy,
 		BuildReasonFailedstop,
 		BuildReasonAutodelete:
 		return true
@@ -333,7 +333,7 @@ func AllBuildReasonValues() []BuildReason {
 		BuildReasonInitiator,
 		BuildReasonAutostart,
 		BuildReasonAutostop,
-		BuildReasonAutolock,
+		BuildReasonDormancy,
 		BuildReasonFailedstop,
 		BuildReasonAutodelete,
 	}
@@ -1844,6 +1844,8 @@ type ProvisionerDaemon struct {
 	Provisioners []ProvisionerType `db:"provisioners" json:"provisioners"`
 	ReplicaID    uuid.NullUUID     `db:"replica_id" json:"replica_id"`
 	Tags         StringMap         `db:"tags" json:"tags"`
+	LastSeenAt   sql.NullTime      `db:"last_seen_at" json:"last_seen_at"`
+	Version      string            `db:"version" json:"version"`
 }
 
 type ProvisionerJob struct {

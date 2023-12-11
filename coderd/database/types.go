@@ -9,6 +9,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // AuditOAuthConvertState is never stored in the database. It is stored in a cookie
@@ -24,8 +25,8 @@ type AuditOAuthConvertState struct {
 }
 
 type HealthSettings struct {
-	ID                    uuid.UUID `db:"id" json:"id"`
-	DismissedHealthchecks []string  `db:"dismissed_healthchecks" json:"dismissed_healthchecks"`
+	ID                    uuid.UUID                `db:"id" json:"id"`
+	DismissedHealthchecks []codersdk.HealthSection `db:"dismissed_healthchecks" json:"dismissed_healthchecks"`
 }
 
 type Actions []rbac.Action

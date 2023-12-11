@@ -6,8 +6,6 @@ import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 import { WorkspaceHelpTooltip } from "./WorkspaceHelpTooltip";
 import { WorkspacesTable } from "pages/WorkspacesPage/WorkspacesTable";
-import { useLocalStorage } from "hooks";
-import { DormantWorkspaceBanner, Count } from "components/WorkspaceDeletion";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { WorkspacesFilter } from "./filter/filter";
 import { hasError, isApiValidationError } from "api/errors";
@@ -43,7 +41,6 @@ type TemplateQuery = UseQueryResult<Template[]>;
 export interface WorkspacesPageViewProps {
   error: unknown;
   workspaces?: Workspace[];
-  dormantWorkspaces?: Workspace[];
   checkedWorkspaces: Workspace[];
   count?: number;
   filterProps: ComponentProps<typeof WorkspacesFilter>;
@@ -64,7 +61,6 @@ export interface WorkspacesPageViewProps {
 
 export const WorkspacesPageView = ({
   workspaces,
-  dormantWorkspaces,
   error,
   limit,
   count,
@@ -83,15 +79,6 @@ export const WorkspacesPageView = ({
   templatesFetchStatus,
   canCreateTemplate,
 }: WorkspacesPageViewProps) => {
-  const { saveLocal } = useLocalStorage();
-
-  const workspacesDeletionScheduled = dormantWorkspaces
-    ?.filter((workspace) => workspace.deleting_at)
-    .map((workspace) => workspace.id);
-
-  const hasDormantWorkspace =
-    dormantWorkspaces !== undefined && dormantWorkspaces.length > 0;
-
   return (
     <Margins>
       <PageHeader
@@ -116,19 +103,6 @@ export const WorkspacesPageView = ({
         {hasError(error) && !isApiValidationError(error) && (
           <ErrorAlert error={error} />
         )}
-        {/* <DormantWorkspaceBanner/> determines its own visibility */}
-        <DormantWorkspaceBanner
-          workspaces={dormantWorkspaces}
-          shouldRedisplayBanner={hasDormantWorkspace}
-          onDismiss={() =>
-            saveLocal(
-              "dismissedWorkspaceList",
-              JSON.stringify(workspacesDeletionScheduled),
-            )
-          }
-          count={Count.Multiple}
-        />
-
         <WorkspacesFilter error={error} {...filterProps} />
       </Stack>
 

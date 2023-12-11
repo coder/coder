@@ -59,6 +59,11 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), api.Options.HealthcheckTimeout)
 	defer cancel()
 
+	// Load sections previously marked as dismissed.
+	// We hydrate this here as we cache the healthcheck and hydrating in the
+	// healthcheck function itself can lead to stale results.
+	dismissed := loadDismissedHealthchecks(ctx, api.Database, api.Logger)
+
 	// Check if the forced query parameter is set.
 	forced := r.URL.Query().Get("force") == "true"
 
@@ -66,7 +71,7 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 	if !forced {
 		if report := api.healthCheckCache.Load(); report != nil {
 			if time.Since(report.Time) < api.Options.HealthcheckRefresh {
-				formatHealthcheck(ctx, rw, r, report)
+				formatHealthcheck(ctx, rw, r, *report, dismissed...)
 				return
 			}
 		}
@@ -89,12 +94,36 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	case res := <-resChan:
-		formatHealthcheck(ctx, rw, r, res.Val)
+		report := res.Val
+		if report == nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "There was an unknown error completing the healthcheck.",
+				Detail:  "nil report from healthcheck result channel",
+			})
+			return
+		}
+		formatHealthcheck(ctx, rw, r, *report, dismissed...)
 		return
 	}
 }
 
-func formatHealthcheck(ctx context.Context, rw http.ResponseWriter, r *http.Request, hc *healthcheck.Report) {
+func formatHealthcheck(ctx context.Context, rw http.ResponseWriter, r *http.Request, hc healthcheck.Report, dismissed ...codersdk.HealthSection) {
+	// Mark any sections previously marked as dismissed.
+	for _, d := range dismissed {
+		switch d {
+		case codersdk.HealthSectionAccessURL:
+			hc.AccessURL.Dismissed = true
+		case codersdk.HealthSectionDERP:
+			hc.DERP.Dismissed = true
+		case codersdk.HealthSectionDatabase:
+			hc.Database.Dismissed = true
+		case codersdk.HealthSectionWebsocket:
+			hc.Websocket.Dismissed = true
+		case codersdk.HealthSectionWorkspaceProxy:
+			hc.WorkspaceProxy.Dismissed = true
+		}
+	}
+
 	format := r.URL.Query().Get("format")
 	switch format {
 	case "text":
@@ -147,7 +176,7 @@ func (api *API) deploymentHealthSettings(rw http.ResponseWriter, r *http.Request
 	}
 
 	if len(settings.DismissedHealthchecks) == 0 {
-		settings.DismissedHealthchecks = []string{}
+		settings.DismissedHealthchecks = []codersdk.HealthSection{}
 	}
 
 	httpapi.Write(r.Context(), rw, http.StatusOK, settings)
@@ -205,7 +234,8 @@ func (api *API) putDeploymentHealthSettings(rw http.ResponseWriter, r *http.Requ
 	}
 
 	if bytes.Equal(settingsJSON, []byte(currentSettingsJSON)) {
-		httpapi.Write(r.Context(), rw, http.StatusNotModified, nil)
+		// See: https://www.rfc-editor.org/rfc/rfc7231#section-6.3.5
+		httpapi.Write(r.Context(), rw, http.StatusNoContent, nil)
 		return
 	}
 
@@ -217,6 +247,7 @@ func (api *API) putDeploymentHealthSettings(rw http.ResponseWriter, r *http.Requ
 		Action:  database.AuditActionWrite,
 	})
 	defer commitAudit()
+
 	aReq.New = database.HealthSettings{
 		ID:                    uuid.New(),
 		DismissedHealthchecks: settings.DismissedHealthchecks,
@@ -236,7 +267,7 @@ func (api *API) putDeploymentHealthSettings(rw http.ResponseWriter, r *http.Requ
 
 func validateHealthSettings(settings codersdk.HealthSettings) error {
 	for _, dismissed := range settings.DismissedHealthchecks {
-		ok := slices.Contains(healthcheck.Sections, dismissed)
+		ok := slices.Contains(codersdk.HealthSections, dismissed)
 		if !ok {
 			return xerrors.Errorf("unknown healthcheck section: %s", dismissed)
 		}
@@ -256,8 +287,8 @@ func validateHealthSettings(settings codersdk.HealthSettings) error {
 // @x-apidocgen {"skip": true}
 func _debugws(http.ResponseWriter, *http.Request) {} //nolint:unused
 
-func loadDismissedHealthchecks(ctx context.Context, db database.Store, logger slog.Logger) []string {
-	dismissedHealthchecks := []string{}
+func loadDismissedHealthchecks(ctx context.Context, db database.Store, logger slog.Logger) []codersdk.HealthSection {
+	dismissedHealthchecks := []codersdk.HealthSection{}
 	settingsJSON, err := db.GetHealthSettings(ctx)
 	if err == nil {
 		var settings codersdk.HealthSettings
@@ -267,7 +298,7 @@ func loadDismissedHealthchecks(ctx context.Context, db database.Store, logger sl
 		}
 	}
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		logger.Error(ctx, "unable to fetch health settings: %w", err)
+		logger.Error(ctx, "unable to fetch health settings", slog.Error(err))
 	}
 	return dismissedHealthchecks
 }

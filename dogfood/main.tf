@@ -255,15 +255,15 @@ locals {
   registry_name  = "codercom/oss-dogfood"
 }
 data "docker_registry_image" "dogfood" {
-  // This is temporarily pinned to a pre-nix version of the image at commit
-  // 6cdf1c73c until the Nix kinks are worked out.
-  name = "${local.registry_name}:pre-nix"
+  name = "${local.registry_name}:latest"
 }
 
 resource "docker_image" "dogfood" {
   name = "${local.registry_name}@${data.docker_registry_image.dogfood.sha256_digest}"
   pull_triggers = [
-    data.docker_registry_image.dogfood.sha256_digest
+    data.docker_registry_image.dogfood.sha256_digest,
+    sha1(join("", [for f in fileset(path.module, "files/*") : filesha1(f)])),
+    filesha1("Dockerfile"),
   ]
   keep_locally = true
 }

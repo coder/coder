@@ -5,15 +5,11 @@ on:
     branches:
       - main
     paths:
-      - "flake.nix"
-      - "flake.lock"
       - "dogfood/**"
       - ".github/workflows/dogfood.yaml"
   # Uncomment these lines when testing with CI.
   # pull_request:
   #   paths:
-  #     - "flake.nix"
-  #     - "flake.lock"
   #     - "dogfood/**"
   #     - ".github/workflows/dogfood.yaml"
   workflow_dispatch:
@@ -37,13 +33,8 @@ jobs:
           tag=${tag//\//--}
           echo "tag=${tag}" >> $GITHUB_OUTPUT
 
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v8
-
-      - name: Run the Magic Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@v2
-
-      - run: nix build .#devEnvImage && ./result | docker load
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
 
       - name: Login to DockerHub
         uses: docker/login-action@v3
@@ -51,10 +42,15 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
-      - name: Tag and Push
-        run: |
-          docker tag codercom/oss-dogfood:latest codercom/oss-dogfood:${{ steps.docker-tag-name.outputs.tag }}
-          docker push codercom/oss-dogfood -a
+      - name: Build and push
+        uses: docker/build-push-action@v4
+        with:
+          context: "{{defaultContext}}:dogfood"
+          pull: true
+          push: true
+          tags: "codercom/oss-dogfood:${{ steps.docker-tag-name.outputs.tag }},codercom/oss-dogfood:latest"
+          cache-from: type=registry,ref=codercom/oss-dogfood:latest
+          cache-to: type=inline
 
   deploy_template:
     needs: deploy_image

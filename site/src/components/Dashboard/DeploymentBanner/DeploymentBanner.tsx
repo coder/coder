@@ -12,7 +12,9 @@ export const DeploymentBanner: FC = () => {
   const deploymentStatsQuery = useQuery(deploymentStats());
   const healthQuery = useQuery({
     ...health(),
-    enabled: dashboard.experiments.includes("deployment_health_page"),
+    enabled:
+      dashboard.experiments.includes("deployment_health_page") &&
+      permissions.viewDeploymentValues,
   });
 
   if (!permissions.viewDeploymentValues || !deploymentStatsQuery.data) {

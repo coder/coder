@@ -3,6 +3,11 @@ set -euo pipefail
 
 [[ $VERBOSE == 1 ]] && set -x
 
+if [[ ${SCALETEST_PARAM_GREEDY_AGENT_TEMPLATE} == "${SCALETEST_PARAM_TEMPLATE}" ]]; then
+	echo "ERROR: Greedy agent template must be different from the scaletest template." >&2
+	exit 1
+fi
+
 # Unzip scripts and add to path.
 # shellcheck disable=SC2153
 echo "Extracting scaletest scripts into ${SCRIPTS_DIR}..."
@@ -10,6 +15,8 @@ base64 -d <<<"${SCRIPTS_ZIP}" >/tmp/scripts.zip
 rm -rf "${SCRIPTS_DIR}" || true
 mkdir -p "${SCRIPTS_DIR}"
 unzip -o /tmp/scripts.zip -d "${SCRIPTS_DIR}"
+# Chmod to work around https://github.com/coder/coder/issues/10034
+chmod +x "${SCRIPTS_DIR}"/*.sh
 rm /tmp/scripts.zip
 
 echo "Cloning coder/coder repo..."

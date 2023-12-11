@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"regexp"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,8 +17,8 @@ import (
 	agpl "github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/terraform"
 	"github.com/coder/coder/v2/provisionerd"
@@ -41,6 +42,16 @@ func (r *RootCmd) provisionerDaemons() *clibase.Cmd {
 	return cmd
 }
 
+func validateProvisionerDaemonName(name string) error {
+	if len(name) > 64 {
+		return xerrors.Errorf("name cannot be greater than 64 characters in length")
+	}
+	if ok, err := regexp.MatchString(`^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]$`, name); err != nil || !ok {
+		return xerrors.Errorf("name %q is not a valid hostname", name)
+	}
+	return nil
+}
+
 func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 	var (
 		cacheDir     string
@@ -48,6 +59,7 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 		pollInterval time.Duration
 		pollJitter   time.Duration
 		preSharedKey string
+		name         string
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -68,6 +80,14 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 				return err
 			}
 
+			if name == "" {
+				name = cliutil.Hostname()
+			}
+
+			if err := validateProvisionerDaemonName(name); err != nil {
+				return err
+			}
+
 			logger := slog.Make(sloghuman.Sink(inv.Stderr))
 			if ok, _ := inv.ParsedFlags().GetBool("verbose"); ok {
 				logger = logger.Leveled(slog.LevelDebug)
@@ -81,8 +101,8 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 			// When authorizing with a PSK, we automatically scope the provisionerd
 			// to organization. Scoping to user with PSK auth is not a valid configuration.
 			if preSharedKey != "" {
-				logger.Info(ctx, "psk auth automatically sets tag "+provisionerdserver.TagScope+"="+provisionerdserver.ScopeOrganization)
-				tags[provisionerdserver.TagScope] = provisionerdserver.ScopeOrganization
+				logger.Info(ctx, "psk auth automatically sets tag "+provisionersdk.TagScope+"="+provisionersdk.ScopeOrganization)
+				tags[provisionersdk.TagScope] = provisionersdk.ScopeOrganization
 			}
 
 			err = os.MkdirAll(cacheDir, 0o700)
@@ -122,7 +142,7 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 				}
 			}()
 
-			logger.Info(ctx, "starting provisioner daemon", slog.F("tags", tags))
+			logger.Info(ctx, "starting provisioner daemon", slog.F("tags", tags), slog.F("name", name))
 
 			connector := provisionerd.LocalProvisioners{
 				string(database.ProvisionerTypeTerraform): proto.NewDRPCProvisionerClient(terraformClient),
@@ -130,7 +150,8 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 			id := uuid.New()
 			srv := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
 				return client.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
-					ID: id,
+					ID:   id,
+					Name: name,
 					Provisioners: []codersdk.ProvisionerType{
 						codersdk.ProvisionerTypeTerraform,
 					},
@@ -204,6 +225,13 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 			Env:         "CODER_PROVISIONER_DAEMON_PSK",
 			Description: "Pre-shared key to authenticate with Coder server.",
 			Value:       clibase.StringOf(&preSharedKey),
+		},
+		{
+			Flag:        "name",
+			Env:         "CODER_PROVISIONER_DAEMON_NAME",
+			Description: "Name of this provisioner daemon. Defaults to the current hostname without FQDN.",
+			Value:       clibase.StringOf(&name),
+			Default:     "",
 		},
 	}
 

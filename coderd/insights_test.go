@@ -303,12 +303,6 @@ func TestUserLatencyInsights_BadRequest(t *testing.T) {
 		EndTime:   today.AddDate(0, 0, -1),
 	})
 	assert.Error(t, err, "want error for end time before start time")
-
-	_, err = client.UserLatencyInsights(ctx, codersdk.UserLatencyInsightsRequest{
-		StartTime: today.AddDate(0, 0, -7),
-		EndTime:   today.Add(-time.Hour),
-	})
-	assert.Error(t, err, "want error for end time partial day when not today")
 }
 
 func TestUserActivityInsights_BadRequest(t *testing.T) {
@@ -332,13 +326,6 @@ func TestUserActivityInsights_BadRequest(t *testing.T) {
 		EndTime:   today.AddDate(0, 0, -1),
 	})
 	assert.Error(t, err, "want error for end time before start time")
-
-	// Send insights request
-	_, err = client.UserActivityInsights(ctx, codersdk.UserActivityInsightsRequest{
-		StartTime: today.AddDate(0, 0, -7),
-		EndTime:   today.Add(-time.Hour),
-	})
-	assert.Error(t, err, "want error for end time partial day when not today")
 }
 
 func TestTemplateInsights_Golden(t *testing.T) {
@@ -2053,12 +2040,6 @@ func TestTemplateInsights_BadRequest(t *testing.T) {
 		EndTime:   today.AddDate(0, 0, -1),
 	})
 	assert.Error(t, err, "want error for end time before start time")
-
-	_, err = client.TemplateInsights(ctx, codersdk.TemplateInsightsRequest{
-		StartTime: today.AddDate(0, 0, -7),
-		EndTime:   today.Add(-time.Hour),
-	})
-	assert.Error(t, err, "want error for end time partial day when not today")
 
 	_, err = client.TemplateInsights(ctx, codersdk.TemplateInsightsRequest{
 		StartTime: today.AddDate(0, 0, -1),

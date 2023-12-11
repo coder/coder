@@ -2,7 +2,10 @@ import { type Interpolation, type Theme } from "@emotion/react";
 import { type FC } from "react";
 import type { WorkspaceAgent } from "api/typesGenerated";
 import { Stack } from "../Stack/Stack";
-import { AppPreviewLink } from "./AppLink/AppPreviewLink";
+import { AppPreview } from "./AppLink/AppPreview";
+import { BaseIcon } from "./AppLink/BaseIcon";
+import { VSCodeIcon } from "components/Icons/VSCodeIcon";
+import { DisplayAppNameMap } from "./AppLink/AppLink";
 
 interface AgentRowPreviewStyles {
   // Helpful when there are more than one row so the values are aligned
@@ -86,10 +89,43 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
               spacing={0.5}
               wrap="wrap"
             >
+              {/* We display all modules returned in agent.apps */}
               {agent.apps.map((app) => (
-                <AppPreviewLink key={app.slug} app={app} />
+                <AppPreview key={app.slug}>
+                  <>
+                    <BaseIcon app={app} />
+                    {app.display_name}
+                  </>
+                </AppPreview>
               ))}
-              {agent.apps.length === 0 && (
+              {/* Additionally, we display any apps that are visible, e.g.
+              apps that are included in agent.display_apps */}
+              {agent.display_apps.includes("web_terminal") && (
+                <AppPreview>{DisplayAppNameMap["web_terminal"]}</AppPreview>
+              )}
+              {agent.display_apps.includes("ssh_helper") && (
+                <AppPreview>{DisplayAppNameMap["ssh_helper"]}</AppPreview>
+              )}
+              {agent.display_apps.includes("port_forwarding_helper") && (
+                <AppPreview>
+                  {DisplayAppNameMap["port_forwarding_helper"]}
+                </AppPreview>
+              )}
+              {/* VSCode display apps (vscode, vscode_insiders) get special presentation */}
+              {agent.display_apps.includes("vscode") ? (
+                <AppPreview>
+                  <VSCodeIcon sx={{ width: 12, height: 12 }} />
+                  {DisplayAppNameMap["vscode"]}
+                </AppPreview>
+              ) : (
+                agent.display_apps.includes("vscode_insiders") && (
+                  <AppPreview>
+                    <VSCodeIcon sx={{ width: 12, height: 12 }} />
+                    {DisplayAppNameMap["vscode_insiders"]}
+                  </AppPreview>
+                )
+              )}
+              {agent.apps.length === 0 && agent.display_apps.length === 0 && (
                 <span css={styles.agentDataValue}>None</span>
               )}
             </Stack>

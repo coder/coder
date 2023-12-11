@@ -13,6 +13,14 @@ import { generateRandomString } from "utils/random";
 import { BaseIcon } from "./BaseIcon";
 import { ShareIcon } from "./ShareIcon";
 
+export const DisplayAppNameMap: Record<TypesGen.DisplayApp, string> = {
+  port_forwarding_helper: "Ports",
+  ssh_helper: "SSH",
+  vscode: "VS Code Desktop",
+  vscode_insiders: "VS Code Insiders",
+  web_terminal: "Terminal",
+};
+
 const Language = {
   appTitle: (appName: string, identifier: string): string =>
     `${appName} - ${identifier}`,

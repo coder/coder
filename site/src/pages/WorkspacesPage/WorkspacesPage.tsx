@@ -1,9 +1,6 @@
 import { usePagination } from "hooks/usePagination";
 import { Workspace } from "api/typesGenerated";
-import {
-  useDashboard,
-  useIsWorkspaceActionsEnabled,
-} from "components/Dashboard/DashboardProvider";
+import { useDashboard } from "components/Dashboard/DashboardProvider";
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
@@ -14,7 +11,6 @@ import { useTemplateFilterMenu, useStatusFilterMenu } from "./filter/menus";
 import { useSearchParams } from "react-router-dom";
 import { useFilter } from "components/Filter/filter";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
-import { getWorkspaces } from "api/api";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { useQuery } from "react-query";
 import { templates } from "api/queries/templates";
@@ -35,7 +31,6 @@ function useSafeSearchParams() {
 }
 
 const WorkspacesPage: FC = () => {
-  const [dormantWorkspaces, setDormantWorkspaces] = useState<Workspace[]>([]);
   // If we use a useSearchParams for each hook, the values will not be in sync.
   // So we have to use a single one, centralizing the values, and pass it to
   // each hook.
@@ -56,35 +51,6 @@ const WorkspacesPage: FC = () => {
     query: filterProps.filter.query,
   });
 
-  const experimentEnabled = useIsWorkspaceActionsEnabled();
-  // If workspace actions are enabled we need to fetch the dormant
-  // workspaces as well. This lets us determine whether we should
-  // show a banner to the user indicating that some of their workspaces
-  // are at risk of being deleted.
-  useEffect(() => {
-    if (experimentEnabled) {
-      const includesDormant = filterProps.filter.query.includes("dormant_at");
-      const dormantQuery = includesDormant
-        ? filterProps.filter.query
-        : filterProps.filter.query + " is-dormant:true";
-
-      if (includesDormant && data) {
-        setDormantWorkspaces(data.workspaces);
-      } else {
-        getWorkspaces({ q: dormantQuery })
-          .then((resp) => {
-            setDormantWorkspaces(resp.workspaces);
-          })
-          .catch(() => {
-            // TODO
-          });
-      }
-    } else {
-      // If the experiment isn't included then we'll pretend
-      // like dormant workspaces don't exist.
-      setDormantWorkspaces([]);
-    }
-  }, [experimentEnabled, data, filterProps.filter.query]);
   const updateWorkspace = useWorkspaceUpdate(queryKey);
   const [checkedWorkspaces, setCheckedWorkspaces] = useState<Workspace[]>([]);
   const [isConfirmingDeleteAll, setIsConfirmingDeleteAll] = useState(false);
@@ -120,7 +86,6 @@ const WorkspacesPage: FC = () => {
         templates={templatesQuery.data}
         templatesFetchStatus={templatesQuery.status}
         workspaces={data?.workspaces}
-        dormantWorkspaces={dormantWorkspaces}
         error={error}
         count={data?.count}
         page={pagination.page}

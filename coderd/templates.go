@@ -841,7 +841,12 @@ func (api *API) convertTemplate(
 	template database.Template,
 ) codersdk.Template {
 	templateAccessControl := (*(api.Options.AccessControlStore.Load())).GetTemplateAccessControl(template)
-	activeCount, _ := api.metricsCache.TemplateUniqueUsers(template.ID)
+
+	owners := 0
+	o, ok := api.metricsCache.TemplateWorkspaceOwners(template.ID)
+	if ok {
+		owners = o
+	}
 
 	buildTimeStats := api.metricsCache.TemplateBuildTimeStats(template.ID)
 
@@ -859,7 +864,7 @@ func (api *API) convertTemplate(
 		DisplayName:                    template.DisplayName,
 		Provisioner:                    codersdk.ProvisionerType(template.Provisioner),
 		ActiveVersionID:                template.ActiveVersionID,
-		ActiveUserCount:                activeCount,
+		ActiveUserCount:                owners,
 		BuildTimeStats:                 buildTimeStats,
 		Description:                    template.Description,
 		Icon:                           template.Icon,

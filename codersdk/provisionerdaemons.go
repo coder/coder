@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -39,8 +38,10 @@ const (
 type ProvisionerDaemon struct {
 	ID           uuid.UUID         `json:"id" format:"uuid"`
 	CreatedAt    time.Time         `json:"created_at" format:"date-time"`
-	UpdatedAt    sql.NullTime      `json:"updated_at" format:"date-time"`
+	UpdatedAt    NullTime          `json:"updated_at,omitempty" format:"date-time"`
+	LastSeenAt   NullTime          `json:"last_seen_at,omitempty" format:"date-time"`
 	Name         string            `json:"name"`
+	Version      string            `json:"version"`
 	Provisioners []ProvisionerType `json:"provisioners"`
 	Tags         map[string]string `json:"tags"`
 }
@@ -176,6 +177,8 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 type ServeProvisionerDaemonRequest struct {
 	// ID is a unique ID for a provisioner daemon.
 	ID uuid.UUID `json:"id" format:"uuid"`
+	// Name is the human-readable unique identifier for the daemon.
+	Name string `json:"name" example:"my-cool-provisioner-daemon"`
 	// Organization is the organization for the URL.  At present provisioner daemons ARE NOT scoped to organizations
 	// and so the organization ID is optional.
 	Organization uuid.UUID `json:"organization" format:"uuid"`
@@ -197,6 +200,7 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 	}
 	query := serverURL.Query()
 	query.Add("id", req.ID.String())
+	query.Add("name", req.Name)
 	for _, provisioner := range req.Provisioners {
 		query.Add("provisioner", string(provisioner))
 	}

@@ -282,7 +282,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           )}
           {/* <DormantWorkspaceBanner/> determines its own visibility */}
           <DormantWorkspaceBanner
-            workspaces={[workspace]}
+            workspace={workspace}
             shouldRedisplayBanner={
               getLocal("dismissedWorkspace") !== workspace.id
             }

@@ -238,6 +238,20 @@ func (mr *MockStoreMockRecorder) DeleteCoordinator(arg0, arg1 interface{}) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCoordinator", reflect.TypeOf((*MockStore)(nil).DeleteCoordinator), arg0, arg1)
 }
 
+// DeleteExternalAuthLink mocks base method.
+func (m *MockStore) DeleteExternalAuthLink(arg0 context.Context, arg1 database.DeleteExternalAuthLinkParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteExternalAuthLink", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteExternalAuthLink indicates an expected call of DeleteExternalAuthLink.
+func (mr *MockStoreMockRecorder) DeleteExternalAuthLink(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExternalAuthLink", reflect.TypeOf((*MockStore)(nil).DeleteExternalAuthLink), arg0, arg1)
+}
+
 // DeleteGitSSHKey mocks base method.
 func (m *MockStore) DeleteGitSSHKey(arg0 context.Context, arg1 uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -2552,6 +2566,21 @@ func (m *MockStore) GetWorkspaceResourcesCreatedAfter(arg0 context.Context, arg1
 func (mr *MockStoreMockRecorder) GetWorkspaceResourcesCreatedAfter(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceResourcesCreatedAfter", reflect.TypeOf((*MockStore)(nil).GetWorkspaceResourcesCreatedAfter), arg0, arg1)
+}
+
+// GetWorkspaceUniqueOwnerCountByTemplateIDs mocks base method.
+func (m *MockStore) GetWorkspaceUniqueOwnerCountByTemplateIDs(arg0 context.Context, arg1 []uuid.UUID) ([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceUniqueOwnerCountByTemplateIDs", arg0, arg1)
+	ret0, _ := ret[0].([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceUniqueOwnerCountByTemplateIDs indicates an expected call of GetWorkspaceUniqueOwnerCountByTemplateIDs.
+func (mr *MockStoreMockRecorder) GetWorkspaceUniqueOwnerCountByTemplateIDs(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceUniqueOwnerCountByTemplateIDs", reflect.TypeOf((*MockStore)(nil).GetWorkspaceUniqueOwnerCountByTemplateIDs), arg0, arg1)
 }
 
 // GetWorkspaces mocks base method.

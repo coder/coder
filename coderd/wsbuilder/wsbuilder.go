@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/coder/coder/v2/provisionersdk"
+
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
@@ -294,7 +296,7 @@ func (b *Builder) buildTx(authFunc func(action rbac.Action, object rbac.Objecter
 	if err != nil {
 		return nil, nil, BuildError{http.StatusInternalServerError, "marshal metadata", err}
 	}
-	tags := provisionerdserver.MutateTags(b.workspace.OwnerID, templateVersionJob.Tags)
+	tags := provisionersdk.MutateTags(b.workspace.OwnerID, templateVersionJob.Tags)
 
 	now := dbtime.Now()
 	provisionerJob, err := b.store.InsertProvisionerJob(b.ctx, database.InsertProvisionerJobParams{

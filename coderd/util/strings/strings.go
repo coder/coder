@@ -17,3 +17,14 @@ func JoinWithConjunction(s []string) string {
 		s[last],
 	)
 }
+
+// Truncate returns the first n characters of s.
+func Truncate(s string, n int) string {
+	if n < 1 {
+		return ""
+	}
+	if len(s) <= n {
+		return s
+	}
+	return s[:n]
+}

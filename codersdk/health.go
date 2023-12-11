@@ -8,12 +8,31 @@ import (
 	"golang.org/x/xerrors"
 )
 
+type HealthSection string
+
+// If you add another const below, make sure to add it to HealthSections!
+const (
+	HealthSectionDERP           HealthSection = "DERP"
+	HealthSectionAccessURL      HealthSection = "AccessURL"
+	HealthSectionWebsocket      HealthSection = "Websocket"
+	HealthSectionDatabase       HealthSection = "Database"
+	HealthSectionWorkspaceProxy HealthSection = "WorkspaceProxy"
+)
+
+var HealthSections = []HealthSection{
+	HealthSectionDERP,
+	HealthSectionAccessURL,
+	HealthSectionWebsocket,
+	HealthSectionDatabase,
+	HealthSectionWorkspaceProxy,
+}
+
 type HealthSettings struct {
-	DismissedHealthchecks []string `json:"dismissed_healthchecks"`
+	DismissedHealthchecks []HealthSection `json:"dismissed_healthchecks"`
 }
 
 type UpdateHealthSettings struct {
-	DismissedHealthchecks []string `json:"dismissed_healthchecks"`
+	DismissedHealthchecks []HealthSection `json:"dismissed_healthchecks"`
 }
 
 func (c *Client) HealthSettings(ctx context.Context) (HealthSettings, error) {
@@ -36,7 +55,7 @@ func (c *Client) PutHealthSettings(ctx context.Context, settings HealthSettings)
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode == http.StatusNotModified {
+	if res.StatusCode == http.StatusNoContent {
 		return xerrors.New("health settings not modified")
 	}
 	if res.StatusCode != http.StatusOK {

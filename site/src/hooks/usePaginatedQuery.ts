@@ -66,6 +66,12 @@ export type UsePaginatedQueryOptions<
      * closest valid page.
      */
     onInvalidPageChange?: (params: InvalidPageParams) => void;
+
+    /**
+     * Defaults to true. Allows you to disable prefetches for pages where making
+     * a request is very expensive.
+     */
+    prefetch?: boolean;
   };
 
 /**
@@ -98,6 +104,8 @@ export function usePaginatedQuery<
     onInvalidPageChange,
     searchParams: outerSearchParams,
     queryFn: outerQueryFn,
+    prefetch = true,
+    staleTime = 60 * 1000, // One minute
     ...extraOptions
   } = options;
 
@@ -108,7 +116,8 @@ export function usePaginatedQuery<
   const currentPage = parsePage(searchParams);
   const currentPageOffset = (currentPage - 1) * limit;
 
-  const getQueryOptionsFromPage = (pageNumber: number) => {
+  type Options = UseQueryOptions<TQueryFnData, TError, TData, TQueryKey>;
+  const getQueryOptionsFromPage = (pageNumber: number): Options => {
     const pageParams: QueryPageParams = {
       pageNumber,
       limit,
@@ -117,13 +126,13 @@ export function usePaginatedQuery<
     };
 
     const payload = queryPayload?.(pageParams) as RuntimePayload<TQueryPayload>;
-
     return {
+      staleTime,
       queryKey: queryKey({ ...pageParams, payload }),
       queryFn: (context: QueryFunctionContext<TQueryKey>) => {
         return outerQueryFn({ ...context, ...pageParams, payload });
       },
-    } as const;
+    };
   };
 
   // Not using infinite query right now because that requires a fair bit of list
@@ -148,6 +157,10 @@ export function usePaginatedQuery<
 
   const queryClient = useQueryClient();
   const prefetchPage = useEffectEvent((newPage: number) => {
+    if (!prefetch) {
+      return;
+    }
+
     const options = getQueryOptionsFromPage(newPage);
     return queryClient.prefetchQuery(options);
   });

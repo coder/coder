@@ -1430,6 +1430,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "agent_api_version": "string",
   "dashboard_url": "string",
   "external_url": "string",
   "version": "string",
@@ -1439,12 +1440,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type    | Required | Restrictions | Description                                                                                                                                                         |
-| ----------------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dashboard_url`   | string  | false    |              | Dashboard URL is the URL to hit the deployment's dashboard. For external workspace proxies, this is the coderd they are connected to.                               |
-| `external_url`    | string  | false    |              | External URL references the current Coder version. For production builds, this will link directly to a release. For development builds, this will link to a commit. |
-| `version`         | string  | false    |              | Version returns the semantic version of the build.                                                                                                                  |
-| `workspace_proxy` | boolean | false    |              |                                                                                                                                                                     |
+| Name                | Type    | Required | Restrictions | Description                                                                                                                                                         |
+| ------------------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent_api_version` | string  | false    |              | Agent api version is the current version of the Agent API (back versions MAY still be supported).                                                                   |
+| `dashboard_url`     | string  | false    |              | Dashboard URL is the URL to hit the deployment's dashboard. For external workspace proxies, this is the coderd they are connected to.                               |
+| `external_url`      | string  | false    |              | External URL references the current Coder version. For production builds, this will link directly to a release. For development builds, this will link to a commit. |
+| `version`           | string  | false    |              | Version returns the semantic version of the build.                                                                                                                  |
+| `workspace_proxy`   | boolean | false    |              |                                                                                                                                                                     |
 
 ## codersdk.BuildReason
 
@@ -3000,6 +3002,32 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `user_code`        | string  | false    |              |             |
 | `verification_uri` | string  | false    |              |             |
 
+## codersdk.ExternalAuthLink
+
+```json
+{
+  "authenticated": true,
+  "created_at": "2019-08-24T14:15:22Z",
+  "expires": "2019-08-24T14:15:22Z",
+  "has_refresh_token": true,
+  "provider_id": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "validate_error": "string"
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description |
+| ------------------- | ------- | -------- | ------------ | ----------- |
+| `authenticated`     | boolean | false    |              |             |
+| `created_at`        | string  | false    |              |             |
+| `expires`           | string  | false    |              |             |
+| `has_refresh_token` | boolean | false    |              |             |
+| `provider_id`       | string  | false    |              |             |
+| `updated_at`        | string  | false    |              |             |
+| `validate_error`    | string  | false    |              |             |
+
 ## codersdk.ExternalAuthUser
 
 ```json
@@ -3169,19 +3197,37 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `user` |
 | `oidc` |
 
+## codersdk.HealthSection
+
+```json
+"DERP"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value            |
+| ---------------- |
+| `DERP`           |
+| `AccessURL`      |
+| `Websocket`      |
+| `Database`       |
+| `WorkspaceProxy` |
+
 ## codersdk.HealthSettings
 
 ```json
 {
-  "dismissed_healthchecks": ["string"]
+  "dismissed_healthchecks": ["DERP"]
 }
 ```
 
 ### Properties
 
-| Name                     | Type            | Required | Restrictions | Description |
-| ------------------------ | --------------- | -------- | ------------ | ----------- |
-| `dismissed_healthchecks` | array of string | false    |              |             |
+| Name                     | Type                                                      | Required | Restrictions | Description |
+| ------------------------ | --------------------------------------------------------- | -------- | ------------ | ----------- |
+| `dismissed_healthchecks` | array of [codersdk.HealthSection](#codersdkhealthsection) | false    |              |             |
 
 ## codersdk.Healthcheck
 
@@ -3769,30 +3815,31 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "created_at": "2019-08-24T14:15:22Z",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "last_seen_at": "2019-08-24T14:15:22Z",
   "name": "string",
   "provisioners": ["string"],
   "tags": {
     "property1": "string",
     "property2": "string"
   },
-  "updated_at": {
-    "time": "string",
-    "valid": true
-  }
+  "updated_at": "2019-08-24T14:15:22Z",
+  "version": "string"
 }
 ```
 
 ### Properties
 
-| Name               | Type                         | Required | Restrictions | Description |
-| ------------------ | ---------------------------- | -------- | ------------ | ----------- |
-| `created_at`       | string                       | false    |              |             |
-| `id`               | string                       | false    |              |             |
-| `name`             | string                       | false    |              |             |
-| `provisioners`     | array of string              | false    |              |             |
-| `tags`             | object                       | false    |              |             |
-| » `[any property]` | string                       | false    |              |             |
-| `updated_at`       | [sql.NullTime](#sqlnulltime) | false    |              |             |
+| Name               | Type            | Required | Restrictions | Description |
+| ------------------ | --------------- | -------- | ------------ | ----------- |
+| `created_at`       | string          | false    |              |             |
+| `id`               | string          | false    |              |             |
+| `last_seen_at`     | string          | false    |              |             |
+| `name`             | string          | false    |              |             |
+| `provisioners`     | array of string | false    |              |             |
+| `tags`             | object          | false    |              |             |
+| » `[any property]` | string          | false    |              |             |
+| `updated_at`       | string          | false    |              |             |
+| `version`          | string          | false    |              |             |
 
 ## codersdk.ProvisionerJob
 
@@ -5182,15 +5229,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "dismissed_healthchecks": ["string"]
+  "dismissed_healthchecks": ["DERP"]
 }
 ```
 
 ### Properties
 
-| Name                     | Type            | Required | Restrictions | Description |
-| ------------------------ | --------------- | -------- | ------------ | ----------- |
-| `dismissed_healthchecks` | array of string | false    |              |             |
+| Name                     | Type                                                      | Required | Restrictions | Description |
+| ------------------------ | --------------------------------------------------------- | -------- | ------------ | ----------- |
+| `dismissed_healthchecks` | array of [codersdk.HealthSection](#codersdkhealthsection) | false    |              |             |
 
 ## codersdk.UpdateRoles
 
@@ -7952,7 +7999,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       }
     ]
   },
-  "failing_sections": ["string"],
+  "failing_sections": ["DERP"],
   "healthy": true,
   "severity": "ok",
   "time": "string",
@@ -8015,7 +8062,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `coder_version`    | string                                                               | false    |              | The Coder version of the server that the report was generated on.                   |
 | `database`         | [healthcheck.DatabaseReport](#healthcheckdatabasereport)             | false    |              |                                                                                     |
 | `derp`             | [derphealth.Report](#derphealthreport)                               | false    |              |                                                                                     |
-| `failing_sections` | array of string                                                      | false    |              | Failing sections is a list of sections that have failed their healthcheck.          |
+| `failing_sections` | array of [codersdk.HealthSection](#codersdkhealthsection)            | false    |              | Failing sections is a list of sections that have failed their healthcheck.          |
 | `healthy`          | boolean                                                              | false    |              | Healthy is true if the report returns no errors. Deprecated: use `Severity` instead |
 | `severity`         | [health.Severity](#healthseverity)                                   | false    |              | Severity indicates the status of Coder health.                                      |
 | `time`             | string                                                               | false    |              | Time is the time the report was generated at.                                       |
@@ -8180,22 +8227,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | » `[any property]`      | integer | false    |              |                                                                                                                                    |
 | `udp`                   | boolean | false    |              | a UDP STUN round trip completed                                                                                                    |
 | `upnP`                  | string  | false    |              | Upnp is whether UPnP appears present on the LAN. Empty means not checked.                                                          |
-
-## sql.NullTime
-
-```json
-{
-  "time": "string",
-  "valid": true
-}
-```
-
-### Properties
-
-| Name    | Type    | Required | Restrictions | Description                       |
-| ------- | ------- | -------- | ------------ | --------------------------------- |
-| `time`  | string  | false    |              |                                   |
-| `valid` | boolean | false    |              | Valid is true if Time is not NULL |
 
 ## tailcfg.DERPHomeParams
 

@@ -945,6 +945,12 @@ func convertProxy(p database.WorkspaceProxy, status proxyhealth.ProxyStatus) cod
 	if status.Status == "" {
 		status.Status = proxyhealth.Unknown
 	}
+	if status.Report.Errors == nil {
+		status.Report.Errors = make([]string, 0)
+	}
+	if status.Report.Warnings == nil {
+		status.Report.Warnings = make([]string, 0)
+	}
 	return codersdk.WorkspaceProxy{
 		Region:      convertRegion(p, status),
 		DerpEnabled: p.DerpEnabled,

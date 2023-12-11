@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"reflect"
 	"regexp"
 	"strings"
@@ -27,6 +26,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -206,10 +206,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	// Register the workspace proxy with the primary coderd instance and start a
 	// goroutine to periodically re-register.
 	replicaID := uuid.New()
-	osHostname, err := os.Hostname()
-	if err != nil {
-		return nil, xerrors.Errorf("get OS hostname: %w", err)
-	}
+	osHostname := cliutil.Hostname()
 	regResp, registerDone, err := client.RegisterWorkspaceProxyLoop(ctx, wsproxysdk.RegisterWorkspaceProxyLoopOpts{
 		Logger: opts.Logger,
 		Request: wsproxysdk.RegisterWorkspaceProxyRequest{
@@ -478,10 +475,11 @@ func (s *Server) DialCoordinator(ctx context.Context) (tailnet.MultiAgentConn, e
 
 func (s *Server) buildInfo(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.BuildInfoResponse{
-		ExternalURL:    buildinfo.ExternalURL(),
-		Version:        buildinfo.Version(),
-		DashboardURL:   s.DashboardURL.String(),
-		WorkspaceProxy: true,
+		ExternalURL:     buildinfo.ExternalURL(),
+		Version:         buildinfo.Version(),
+		AgentAPIVersion: coderd.AgentAPIVersionREST,
+		DashboardURL:    s.DashboardURL.String(),
+		WorkspaceProxy:  true,
 	})
 }
 
