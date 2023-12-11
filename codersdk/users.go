@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -193,15 +192,11 @@ func (c *Client) HasFirstUser(ctx context.Context) (bool, error) {
 	defer res.Body.Close()
 
 	if res.StatusCode == http.StatusNotFound {
-		b, err := io.ReadAll(res.Body)
-		if err != nil {
-			return false, err
-		}
 		// ensure we are talking to coder and not
 		// some other service that returns 404
-		isCoder := strings.Contains(string(b), "initial user has not been created")
-		if !isCoder {
-			return false, xerrors.Errorf("unexpected response: %s", string(b))
+		v := res.Header.Get("X-Coder-Build-Version")
+		if v == "" {
+			return false, xerrors.Errorf("missing build version header, not a coder instance")
 		}
 
 		return false, nil
