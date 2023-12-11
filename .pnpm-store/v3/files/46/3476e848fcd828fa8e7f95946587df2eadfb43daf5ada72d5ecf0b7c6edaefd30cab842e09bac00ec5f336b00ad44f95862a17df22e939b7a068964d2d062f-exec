@@ -1,0 +1,52 @@
+#!/usr/bin/env node
+/* Continuation of https://github.com/Katahdin/dot-packer */
+
+var program = require('commander'),
+	dot = require('../');
+
+program
+	.version('0.0.1')
+	.usage('dottojs')
+	.option('-s, --source [value]', 'source folder/file path')
+	.option('-d, --dest [value]', 'destination folder')
+	.option('-g, --global [value]', 'the global variable to install the templates in',"window.render")
+	.option('-p, --package [value]', 'if specified, package all templates from destination folder into specified file')
+	.parse(process.argv);
+
+if (program.dest) mkdirordie(program.dest);
+if (program.package) {
+	var li = program.package.lastIndexOf('/');
+	if (li>0) mkdirordie(program.package.substring(0, li));
+}
+
+function mkdirordie(path) {
+	require("mkdirp")(path, function (err) {
+    	if (err) {
+    		console.error(err);
+    		process.exit(1);
+    	}
+	});
+}
+
+var render = dot.process({
+		path: program.source,
+		destination: program.dest,
+		global: program.global
+	});
+
+if (program.package) {
+	console.log("Packaging all files into " + program.package);
+	var fs = require("fs");
+	var files = [];
+	var dest = program.dest || './';
+	if (dest[dest.length-1] !== '/') dest += '/';
+	var sources = fs.readdirSync(dest);
+	for(k = 0; k < sources.length; k++) {
+		name = sources[k];
+		if (/\.js$/.test(name)) {
+			files.push(dest + name);
+		}
+	}
+	var result = require("uglify-js").minify(files);
+	fs.writeFileSync(program.package, result.code);
+}

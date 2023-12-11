@@ -1,0 +1,133 @@
+using System;
+using System.Collections.Generic;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Threading.Tasks;
+using Newtonsoft.Json;
+
+/// <<summary>>
+/// Example of Http Client
+/// <</summary>>
+public class HttpExample
+{
+    private HttpClient Client { get; set; }
+
+    /// <<summary>>
+    /// Setup http client
+    /// <</summary>>
+    public HttpExample()
+    {
+      Client = new HttpClient();
+    }
+    {{? data.methodUpper == "GET"}}
+    /// Make a dummy request
+    public async Task MakeGetRequest()
+    {
+      string url = "{{=data.url}}";
+      var result = await GetAsync(url);
+    }
+
+    /// Performs a GET Request
+    public async Task GetAsync(string url)
+    {
+        //Start the request
+        HttpResponseMessage response = await Client.GetAsync(url);
+
+        //Validate result
+        response.EnsureSuccessStatusCode();
+
+    }{{? }}
+    {{? data.methodUpper == "POST"}}
+    /// Make a dummy request
+    public async Task MakePostRequest()
+    {
+      string url = "{{=data.url}}";
+      {{? data.bodyParameter.refName !== undefined  }}
+      string json = @"{{=data.bodyParameter.exampleValues.json.replace(new RegExp('"', "g"), '""')}}";
+      {{=data.bodyParameter.refName}} content = JsonConvert.DeserializeObject(json);
+      await PostAsync(content, url);
+      {{? }}
+      {{? data.bodyParameter.refName === undefined  }}
+      await PostAsync(null, url);
+      {{? }}
+    }
+
+    /// Performs a POST Request
+    public async Task PostAsync({{=data.bodyParameter.refName}} content, string url)
+    {
+        //Serialize Object
+        StringContent jsonContent = SerializeObject(content);
+
+        //Execute POST request
+        HttpResponseMessage response = await Client.PostAsync(url, jsonContent);
+    }{{? }}
+    {{? data.methodUpper == "PUT"}}
+    /// Make a dummy request
+    public async Task MakePutRequest()
+    {
+      int id = 1;
+      string url = "{{=data.url}}";
+
+      {{? data.bodyParameter.refName !== undefined  }}
+      string json = @"{{=data.bodyParameter.exampleValues.json.replace(new RegExp('"', "g"), '""')}}";
+      {{=data.bodyParameter.refName}} content = JsonConvert.DeserializeObject(json);
+      var result = await PutAsync(id, content, url);
+      {{? }}
+      {{? data.bodyParameter.refName === undefined  }}
+      var result = await PutAsync(id, null, url);
+      {{? }}    
+    }
+
+    /// Performs a PUT Request
+    public async Task PutAsync(int id, {{=data.bodyParameter.refName}} content, string url)
+    {
+        //Serialize Object
+        StringContent jsonContent = SerializeObject(content);
+
+        //Execute PUT request
+        HttpResponseMessage response = await Client.PutAsync(url + $"/{id}", jsonContent);
+
+        //Return response
+        return await DeserializeObject(response);
+    }{{? }}
+    {{? data.methodUpper == "DELETE"}}
+    /// Make a dummy request
+    public async Task MakeDeleteRequest()
+    {
+      int id = 1;
+      string url = "{{=data.url}}";
+
+      await DeleteAsync(id, url);
+    }
+
+    /// Performs a DELETE Request
+    public async Task DeleteAsync(int id, string url)
+    {
+        //Execute DELETE request
+        HttpResponseMessage response = await Client.DeleteAsync(url + $"/{id}");
+
+        //Return response
+        await DeserializeObject(response);
+    }{{? }}
+    {{? data.methodUpper == "POST" || data.methodUpper == "PUT"}}
+    /// Serialize an object to Json
+    private StringContent SerializeObject({{=data.bodyParameter.refName}} content)
+    {
+        //Serialize Object
+        string jsonObject = JsonConvert.SerializeObject(content);
+
+        //Create Json UTF8 String Content
+        return new StringContent(jsonObject, Encoding.UTF8, "application/json");
+    }
+    {{? }}
+    /// Deserialize object from request response
+    private async Task DeserializeObject(HttpResponseMessage response)
+    {
+        //Read body 
+        string responseBody = await response.Content.ReadAsStringAsync();
+
+        //Deserialize Body to object
+        var result = JsonConvert.DeserializeObject(responseBody);
+    }
+}

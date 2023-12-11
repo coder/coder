@@ -1,0 +1,63 @@
+{
+  "name": "mkdirp-promise",
+  "description": "Promise version of mkdirp",
+  "author": "Ahmad Nassri <ahmad@ahmadnassri.com> (https://www.ahmadnassri.com/)",
+  "homepage": "https://github.com/ahmadnassri/mkdirp-promise",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ahmadnassri/mkdirp-promise.git"
+  },
+  "license": "ISC",
+  "main": "lib/index",
+  "keywords": [
+    "mkdirp",
+    "promise"
+  ],
+  "engines": {
+    "node": ">=4"
+  },
+  "files": [
+    "lib",
+    "src"
+  ],
+  "bugs": {
+    "url": "https://github.com/ahmadnassri/mkdirp-promise/issues"
+  },
+  "scripts": {
+    "test": "tap test/*.js | tap-mocha-reporter spec",
+    "pretest": "standard && echint",
+    "coverage": "tap test/*.js --coverage",
+    "codeclimate": "nyc report --reporter=text-lcov | codeclimate-test-reporter",
+    "semantic-release": "semantic-release pre && npm publish && semantic-release post"
+  },
+  "standard": {
+    "ignore": [
+      "lib/**"
+    ]
+  },
+  "echint": {
+    "ignore": [
+      "lib/**"
+    ]
+  },
+  "config": {
+    "commitizen": {
+      "path": "./node_modules/cz-conventional-changelog"
+    }
+  },
+  "peerDependencies": {
+    "mkdirp": ">=0.5.0"
+  },
+  "devDependencies": {
+    "codeclimate-test-reporter": "^0.3.1",
+    "cz-conventional-changelog": "^1.1.6",
+    "echint": "^1.5.3",
+    "nyc": "^6.4.4",
+    "rimraf": "^2.5.2",
+    "semantic-release": "^4.3.5",
+    "standard": "^7.0.1",
+    "tap": "^5.7.1",
+    "tap-mocha-reporter": "0.0.24"
+  },
+  "version": "1.1.0"
+}

@@ -1,0 +1,13 @@
+Core templating
+
+<h1>Just static text</h1>
+<p>Interpolation {{=it.f1	+	it.f3}} </p>
+<div> JavaScript block evaluation
+{{ for(var i=0; i < it.f2; i++) {
+	console.log("Pass\t" + i);
+}}
+<div>{{=it.f3}}</div>
+{{ } }}
+</div>
+<div> Encoding {{!'<a 	href="http://github.com"></a>'}}</div>
+

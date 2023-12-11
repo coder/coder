@@ -1,0 +1,15 @@
+{
+  "name": "highlightjs",
+  "version": "9.16.2",
+  "license": "BSD-3-Clause",
+  "main": [
+    "highlight.pack.js",
+    "styles/default.css"
+  ],
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "vendor",
+    "components"
+  ]
+}

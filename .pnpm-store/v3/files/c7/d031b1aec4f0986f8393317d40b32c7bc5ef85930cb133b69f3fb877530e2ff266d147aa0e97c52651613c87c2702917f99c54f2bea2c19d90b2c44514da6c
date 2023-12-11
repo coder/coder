@@ -1,0 +1,2 @@
+/* This file can be inserted into other files */
+<div>{{=it.foo}}</div>

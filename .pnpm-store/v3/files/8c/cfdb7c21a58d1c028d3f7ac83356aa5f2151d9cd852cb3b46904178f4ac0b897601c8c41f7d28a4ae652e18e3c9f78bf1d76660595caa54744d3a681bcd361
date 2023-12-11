@@ -1,0 +1,17 @@
+/* Including multidef file */
+{{#def.multidef}}
+
+<div class="{{=it.class}}">
+	/* Including one.def file */
+	{{#def.one}}
+
+	/* Using sub-define from multidef */
+	{{#def.template2:{bar:"hello", class:"hidden"} }}
+
+	/* Using sub-define from multidef */
+	{{ var data = {bar:"world", class:"visible"}; }}
+	{{#def.template2:data}}
+</div>
+
+
+

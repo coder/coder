@@ -1,0 +1,86 @@
+{{? (data.topicName === 'streaming' || data.topicName === 'evented') && !data.messageName }}
+{{? data.message["x-widdershins-oldRef"] }}
+{{ data.messageName = data.message["x-widdershins-oldRef"].split('/').pop(); }}
+{{?}}
+{{?}}
+{{= data.tags.section }}
+<h3 id="{{=data.utils.slugify(data.topicName)}}-{{=data.messageName}}">{{=data.messageName}}</h3>
+
+{{? data.message.deprecated}}Note: **Deprecated**{{?}}
+
+{{? data.message.headers }}
+> Example headers
+
+```json
+{{ data.headers = JSON.stringify(data.utils.getSample(data.message.headers,data.options,{quiet:true},data.api),null,2); }}
+{{= data.headers }}
+```
+{{?}}
+
+{{? data.message.payload }}
+> Example payload
+
+```json
+{{ data.payload = JSON.stringify(data.utils.getSample(data.message.payload,data.options,{quiet:true},data.api),null,2); }}
+{{= data.payload }}
+```
+{{?}}
+
+{{? data.options.codeSamples }}
+> Code Samples
+
+{{= data.utils.getCodeSamples(data) }}
+{{?}}
+
+{{? data.message.summary}}*{{=data.message.summary}}*{{?}}
+
+{{? data.message.description}}{{=data.message.description}}{{?}}
+
+{{? data.message.headers }}
+#### Headers
+
+{{ var blocks = data.utils.schemaToArray(data.message.headers,0,{trim:true,join:true},data); }}
+
+##### Properties
+
+{{~ blocks :block }}
+{{? block.title }}
+*{{= block.title}}*
+{{?}}
+|Name|Type|Required|Description|
+|---|---|---|---|
+{{~ block.rows :p}}|{{=p.displayName}}|{{=p.safeType||''}}|{{=p.required}}|{{=p.description||'No description'}}|
+{{~}}
+{{~}}
+
+{{?}}
+
+{{? data.message.payload }}
+#### Payload
+
+{{ var blocks = data.utils.schemaToArray(data.message.payload,0,{trim:true,join:true},data); }}
+
+##### Properties
+
+{{~ blocks :block }}
+{{? block.title }}
+*{{= block.title}}*
+{{?}}
+|Name|Type|Required|Description|
+|---|---|---|---|
+{{~ block.rows :p}}|{{=p.displayName}}|{{=p.safeType||''}}|{{=p.required}}|{{=p.description||'No description'}}|
+{{~}}
+{{~}}
+
+{{?}}
+
+{{ data.effectiveSecurity = []; }}
+{{ if (data.api.security) data.effectiveSecurity = data.api.security; }}
+{{ if (data.message.security) data.effectiveSecurity = data.message.security; }}
+{{? data.effectiveSecurity.length }}
+{{#def.authentication}}
+{{??}}
+{{#def.authentication_none}}
+{{?}}
+
+{{= data.tags.endSection }}

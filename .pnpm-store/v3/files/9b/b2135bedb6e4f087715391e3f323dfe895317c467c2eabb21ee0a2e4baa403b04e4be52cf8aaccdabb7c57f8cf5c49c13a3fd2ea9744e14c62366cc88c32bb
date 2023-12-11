@@ -1,0 +1,34 @@
+<html>
+  <body>
+	<div>Signin</div>
+    <form action="/login" method="post">
+      <div>
+        <label>Username:</label>
+        <input type="text" name="username" />
+        <br/>
+      </div>
+      <div>
+        <label>Password:</label>
+        <input type="password" name="password" />
+      </div>
+      <div>
+        <input type="submit" value="Sign in" />
+      </div>
+    </form>
+	<div>Signup</div>
+    <form action="/signup" method="post">
+      <div>
+        <label>Username:</label>
+        <input type="text" name="username" />
+        <br/>
+      </div>
+      <div>
+        <label>Password:</label>
+        <input type="password" name="password" />
+      </div>
+      <div>
+        <input type="submit" value="Sign up" />
+      </div>
+    </form>
+   </body>
+</html>

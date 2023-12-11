@@ -1,0 +1,69 @@
+{
+  "name": "widdershins",
+  "version": "4.0.1",
+  "description": "OpenAPI/ Swagger / AsyncAPI / Semoasa definition to Slate / Shins compatible markdown",
+  "main": "lib/index.js",
+  "bin": {
+    "widdershins": "./widdershins.js",
+    "testRunner": "./testRunner.js"
+  },
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "lint": "npx eslint *.js lib/*.js",
+    "shins": "node widdershins --discovery -o ../shins/source/index.html.md defs/petstore.json",
+    "test": "node $nflags node_modules/mocha/bin/_mocha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mermade/widdershins.git"
+  },
+  "keywords": [
+    "swagger",
+    "openapi",
+    "openapi3",
+    "asyncapi",
+    "slate",
+    "shins",
+    "api",
+    "docs",
+    "documentation",
+    "semoasa"
+  ],
+  "author": "Mike Ralphson",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Mermade/widdershins/issues"
+  },
+  "homepage": "https://github.com/Mermade/widdershins#readme",
+  "dependencies": {
+    "dot": "^1.1.3",
+    "fast-safe-stringify": "^2.0.7",
+    "highlightjs": "^9.12.0",
+    "httpsnippet": "^1.19.0",
+    "jgexml": "latest",
+    "markdown-it": "^10.0.0",
+    "markdown-it-emoji": "^1.4.0",
+    "node-fetch": "^2.0.0",
+    "oas-resolver": "^2.3.1",
+    "oas-schema-walker": "^1.1.3",
+    "openapi-sampler": "^1.0.0-beta.15",
+    "reftools": "^1.1.0",
+    "swagger2openapi": "^6.0.1",
+    "urijs": "^1.19.0",
+    "yaml": "^1.8.3",
+    "yargs": "^12.0.5"
+  },
+  "devDependencies": {
+    "cz-conventional-changelog": "^3.0.2",
+    "mdv": "^1.2.1",
+    "mocha": "^7.1.1",
+    "node-readfiles": "^0.2.0"
+  },
+  "config": {
+    "commitizen": {
+      "path": "./node_modules/cz-conventional-changelog"
+    }
+  }
+}

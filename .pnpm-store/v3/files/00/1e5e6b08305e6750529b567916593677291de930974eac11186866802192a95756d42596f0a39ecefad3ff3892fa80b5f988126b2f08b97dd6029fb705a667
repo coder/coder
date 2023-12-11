@@ -1,0 +1,41 @@
+{
+  "name": "jgexml",
+  "version": "0.4.4",
+  "description": "The Just-Good-Enough XML Toolkit",
+  "main": "jgeXml.js",
+  "bin": {
+    "xml2json": "./cli/xml2json.js",
+    "json2xml": "./cli/json2xml.js",
+    "xsd2json": "./cli/xsd2json.js"
+  },
+  "scripts": {
+    "test": "node testRunner",
+    "cover": "npx istanbul cover testRunner.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mermade/jgeXml.git"
+  },
+  "keywords": [
+    "xml",
+    "javascript",
+    "json",
+    "jsonpath",
+    "jsont",
+    "parser",
+    "pullparser",
+    "pullparsing",
+    "pushparser",
+    "pushparsing",
+    "sax",
+    "stax",
+    "schema",
+    "xsd"
+  ],
+  "author": "Mike Ralphson",
+  "license": "BSD-3-Clause",
+  "bugs": {
+    "url": "https://github.com/Mermade/jgeXml/issues"
+  },
+  "homepage": "https://github.com/Mermade/jgeXml#readme"
+}

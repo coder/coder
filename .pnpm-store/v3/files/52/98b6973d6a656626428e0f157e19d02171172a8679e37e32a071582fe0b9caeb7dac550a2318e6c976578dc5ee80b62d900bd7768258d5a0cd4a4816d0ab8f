@@ -1,0 +1,574 @@
+FORMAT: 1A
+HOST: https://api.icons8.com/
+
+# Icons8 API
+
+Icons8 API allows us to search and obtain [our icons](https://icons8.com/web-app). 
+
+You're welcome to use our icons to extend the functionality of your web and mobile applications, website templates, and even tattoos.
+
+![Tattoos](https://cdn.rawgit.com/icons8/api-docs/cff6fdf0/tattoos.svg)
+
+## Usage Examples
+
+Some examples of what you can do with our icons:
+
+* **Template customization.** This way, [Canva](https://www.canva.com/) uses our icons to customize their layouts.
+* **Graphics and text editors.** [Gravit](https://gravit.io/) allows to insert our icons into the mockups.
+* **Any application with customization.** [TimeTune](http://timetune.center/) uses our icons to customize the activities.
+
+## Getting Started
+
+To get started, please [contact us](https://icons8.com/contact) to obtain an API key. It's free.
+
+## Pricing
+
+We have a free tier sufficient for any evaluation, development, and alpha testing. After that, we ask you to purchase a license, which starts at $100/month. 
+
+For the established open source projects, we provide the license for free.
+
+
+# Search [/api/iconsets]
+
+## By Keyword [GET /api/iconsets/v3/search?term={term}&amout={amount}&offset={offset}&platform={platform}&language={language}]
+
++ Parameters
+    + term: `home` (string, required) - the name or tag of the icon or any other phrase.
+        e.g. use "@home" to find icons with the tag "home" and "=home" to find icons with the name "home"
+    + amount (number, optional) - the maximum number of icons which you'd like to receive
+        + Default: 25
+    + offset (number, optional) - the offset from the first received result
+        + Default: 0
+    + platform (enum[string], optional) - the style of the icons
+        + Default: `all`
+        + Members
+            + `all`
+            + `ios7`
+            + `win8`
+            + `win10`
+            + `android`
+            + `androidL`
+            + `color`
+            + `office`
+    + language: `en-US` (enum[string], required) - the language code to get localized result
+        + Members
+            + `en-US`
+            + `fr-FR`
+            + `de-DE`
+            + `it-IT`
+            + `pt-BR`
+            + `pl-PL`
+            + `ru-RU`
+            + `es-ES`
+
++ Response 200 (application/json)
+    + Attributes
+        + parameters - copy of the input parameters from the request
+            + amount (number)
+            + term (string)
+            + offset (string)
+            + platform (string)
+            + language (string)
+        + result (object) - the result of operation
+            + search (array[IconV3Item])
+                + (IconV3Item)
+                    + id: `12229`
+                    + name: `Home`
+                    + `platform_code`: `color`
+                    + created: `2015-05-21T05:28:59+00:00`
+                    + url: `/web-app/12229/home`
+                    + `common_icon_id`: `72`
+                    + category: `Very Basic`
+                    + subcategory
+                       + name: `Website Sections`
+                       + `api_code`: `website_sections`
+                    + svg: `/* Plain SVG content here */`
+                    + vector
+                       + `svg-editable`: `absolute/private/url/to/original/home.svg`
+                       + `svg-simplified`: `absolute/private/url/to/simplified/home.svg`
+                       + eps: `absolute/private/url/to/home.eps`
+                       + pdf: `absolute/private/url/to/home.pdf`
+                    + features
+                       + bitmap: `1`
+                       + vector: `1`
+                       + nolink: `1`
+                    + share
+                       + url: `http://ic8.link/12229`
+                       + png (array[object])
+                           + (object)
+                              + link: `https://maxcdn.icons8.com/Share/google/h/home.png`
+                           + (object)
+                              + type: `twitter`
+                              + link: `https://maxcdn.icons8.com/Share/twitter/h/home.png`
+                           + (object)
+                              + type: `social`
+                              + link: `https://maxcdn.icons8.com/Share/social/h/home.png`
+
+
+## By Category [GET /api/iconsets/v3/category?category={category}&subcategory={subcategory}&amout={amount}&offset={offset}&platform={platform}&language={language}]
+
++ Parameters
+    + category: `Very_Basic` (string, required) - the code of category
+    + subcategory: `home_appliances` (string, optional) - the code of subcategory
+    + amount (number, optional) - the maximum number of icons which you'd like to receive
+        + Default: 25
+    + offset (number, optional) - the offset from the first received result
+        + Default: 0
+    + platform (enum[string], optional) - the style of the icons
+        + Default: `all`
+        + Members
+            + `all`
+            + `ios7`
+            + `win8`
+            + `win10`
+            + `android`
+            + `androidL`
+            + `color`
+            + `office`
+    + language: `en-US` (enum[string], required) - the language code to get localized result
+        + Members
+            + `en-US`
+            + `fr-FR`
+            + `de-DE`
+            + `it-IT`
+            + `pt-BR`
+            + `pl-PL`
+            + `ru-RU`
+            + `es-ES`
+
++ Response 200 (application/json)
+    + Attributes
+        + parameters - copy of the input parameters from the request
+            + amount (number)
+            + category (string)
+            + subcategory (string)
+            + offset (string)
+            + platform (string)
+            + language (string)
+        + result (object) - the result of operation
+            + category (array[CategoryV3Item])
+                + (IconV3Item)
+                    + id: `12229`
+                    + name: `Home`
+                    + `platform_code`: `color`
+                    + created: `2015-05-21T05:28:59+00:00`
+                    + url: `/web-app/12229/home`
+                    + `common_icon_id`: `72`
+                    + category: `Very Basic`
+                    + subcategory
+                       + name: `Website Sections`
+                       + `api_code`: `website_sections`
+                    + svg: `/* Plain SVG content here */`
+                    + vector
+                       + `svg-editable`: `absolute/private/url/to/original/home.svg`
+                       + `svg-simplified`: `absolute/private/url/to/simplified/home.svg`
+                       + eps: `absolute/private/url/to/home.eps`
+                       + pdf: `absolute/private/url/to/home.pdf`
+                    + features
+                       + bitmap: `1`
+                       + vector: `1`
+                       + nolink: `1`
+                    + share
+                       + url: `http://ic8.link/12229`
+                       + png (array[object])
+                           + (object)
+                              + link: `https://maxcdn.icons8.com/Share/google/h/home.png`
+                           + (object)
+                              + type: `twitter`
+                              + link: `https://maxcdn.icons8.com/Share/twitter/h/home.png`
+                           + (object)
+                              + type: `social`
+                              + link: `https://maxcdn.icons8.com/Share/social/h/home.png`
+
+## Latest [GET /api/iconsets/v3/latest?term={term}&amout={amount}&offset={offset}&platform={platform}&language={language}]
+
++ Parameters
+    + amount (number, optional) - the maximum number of icons which you'd like to receive
+        + Default: 25
+    + offset (number, optional) - the offset from the first received result
+        + Default: 0
+    + platform (enum[string], optional) - the style of the icons
+        + Default: `all`
+        + Members
+            + `all`
+            + `ios7`
+            + `win8`
+            + `win10`
+            + `android`
+            + `androidL`
+            + `color`
+            + `office`
+    + language: `en-US` (enum[string], required) - the language code to get localized result
+        + Members
+            + `en-US`
+            + `fr-FR`
+            + `de-DE`
+            + `it-IT`
+            + `pt-BR`
+            + `pl-PL`
+            + `ru-RU`
+            + `es-ES`
+
++ Response 200 (application/json)
+    + Attributes
+        + parameters - copy of the input parameters from the request
+            + amount (number)
+            + term (string)
+            + offset (string)
+            + platform (string)
+            + language (string)
+        + result (object) - the result of operation
+            + latest (array[IconV3Item])
+                + (IconV3Item)
+                    + id: `12229`
+                    + name: `Home`
+                    + `platform_code`: `color`
+                    + created: `2015-05-21T05:28:59+00:00`
+                    + url: `/web-app/12229/home`
+                    + `common_icon_id`: `72`
+                    + features
+                       + bitmap: `1`
+                       + vector: `1`
+                       + nolink: `1`
+                    + share
+                       + url: `http://ic8.link/12229`
+                       + png (array[object])
+                           + (object)
+                              + link: `https://maxcdn.icons8.com/Share/google/h/home.png`
+                           + (object)
+                              + type: `twitter`
+                              + link: `https://maxcdn.icons8.com/Share/twitter/h/home.png`
+                           + (object)
+                              + type: `social`
+                              + link: `https://maxcdn.icons8.com/Share/social/h/home.png`
+# Meta [/api/iconsets/]
+
+## Categories [GET /api/iconsets/v3/categories?platform={platform}&language={language}]
+The operation will not return the categories that have less than 10 icons.
+We need it to test the categories without showing garbage on the production website.
+
++ Parameters
+    + platform (enum[string], optional) - the platform that we are searching icons for
+        + Default: `all`
+        + Members
+            + `all`
+            + `ios7`
+            + `win8`
+            + `win10`
+            + `android`
+            + `androidL`
+            + `color`
+            + `office`
+    + language: `en-US` (enum[string], required) - the language code to get localized result
+        + Members
+            + `en-US`
+            + `fr-FR`
+            + `de-DE`
+            + `it-IT`
+            + `pt-BR`
+            + `pl-PL`
+            + `ru-RU`
+            + `es-ES`
+
++ Response 200 (application/json)
+    + Attributes
+        + parameters - copy of the input parameters from the request
+            + platform (string)
+            + language (string)
+        + result - the result of operation
+            + categories (array[CategoryV3Item])
+                + (CategoryV3Item)
+                    + name: `Alphabet`
+                    + `api_code`: `Alphabet`
+                + (CategoryV3Item)
+                    + name: `Very Basic`
+                    + `api_code`: `Very_Basic`
+                + (CategoryV3Item)
+                    + name: `Photo and Video`
+                    + `api_code`: `Photo_Video`
+
+
+## Totals [GET /api/iconsets/v3/total?since={since}]
+
++ Parameters
+    + since: `2014-12-31` (string, optional) - the optional date to calculate the total number of icons that were created after it.
+    It should be in format "four year digits - dash - two month number digits - dash - two day number digits. For example 2014-12-31 means "31th of December, 2014".
+
++ Response 200 (application/json)
+    + Attributes
+        + parameters - copy of the input parameters from the request
+            + since (string)
+        + result - the result of operation
+            + total (array[TotalV3Item])
+                + (TotalV3Item)
+                   + name: `Windows 8/Metro`
+                   + `api_code`: `win8`
+                   + total: `802`
+                + (TotalV3Item)
+                   + name: `iPhone/iOS 7`
+                   + `api_code`: `ios7`
+                   + total: `7379`
+
+# Web Fonts [/api/task]
+
+Icons8 allows the web fonts to generate from the icons
+
+<a href="https://icons8.com/">Example</a> of a generated file.
+
+
+
+## From a Collection [POST /api/task/web-font/collection]
+
++ Request (application/json)
+    + Attributes
+        + auth (AuthArgument)
+        + task (CollectionWebFontTaskArguments)
+
++ Response 200 (application/json)
+    + Attributes
+        + result (TaskResult)
+            + id: `abc-def`
+            + type: `create_web_font`
+            + status: `complete`
+            + results
+                + zip: `https://st.icons8.com/zip/abc-def/icons8-font.zip`
+        + messages (array)
+            + (TaskError)
+                + code: `paid_feature`
+                + description: `Icons "dog", "cat" and 5 more were excluded`
+            + (TaskError)
+                + code: `not_possible`
+                + description: `Icons "dog-color" and "cat-color" were excluded`
+
+## From Separate Icons [POST /api/task/web-font/icons]
+
++ Request (application/json)
+    From separate SVG images
+    + Attributes
+        + auth (AuthArgument)
+        + task (CollectionWebFontTaskArguments)
+
++ Response 200 (application/json)
+    + Attributes
+        + result (TaskResult)
+            + id: `abc-def`
+            + type: `create_web_font`
+            + status: `complete`
+            + results
+                + zip: `https://st.icons8.com/zip/abc-def/icons8-font.zip`
+        + messages (array)
+            + (TaskError)
+                + code: `paid_feature`
+                + description: `Icons "dog", "cat" and 5 more were excluded`
+            + (TaskError)
+                + code: `not_possible`
+                + description: `Icons "dog-color" and "cat-color" were excluded`
+
+
+
+# Group Parameters
+
+## Platform
+
+Attributes and parameters named `platform` or `platform_api_code` or `platform_code` all indicate the style of the icons.
+We’re sorry we have various parameters meaning the same.
+
+`platform` | Icon style | Example
+---:|---|---
+win8 | icons in the Microsoft Windows 8/Metro style | [example](https://icons8.com/windows-8-icons/)
+win10 | icons in the Microsoft Windows 10/Threshold style | [example](https://icons8.com/download-huge-windows8-set/)
+ios7 | icons in the Apple iOS 7/8/9/10 style | [example](https://icons8.com/free-ios-7-icons-in-vector/)
+android | icons in the Google Android 4 Kitkat style | [example](https://icons8.com/android-kitkat-icons/)
+androidL | icons in the Google Android 5 Lollipop (Material) style | [example](https://icons8.com/android-icons/)
+color | flat color icons | [example](https://icons8.com/color-icons/)
+office | icons in the Microsoft Office style | [example](https://icons8.com/office-icons/)
+
+## Language
+
+Icon names, categories and tags are localized. Here's the list of supported languages:
+
+`language` | Language name
+---|---
+`en-US` | English
+`fr-FR` | French
+`de-DE` | German
+`it-IT` | Italian
+`pt-BR` | Portuguese
+`pl-PL` | Polish
+`ru-RU` | Russian
+`es-ES` | Spanish
+
+The primary language is English - if we do not translate something, it will be in English.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Data Structures
+
+## AuthArgument (object)
++ hash: `api-demo-user` (string, required) - Authorization hash
+
+
+## CompactCategoryV3Item (object)
++ name (string, required)
++ api_code (string, required)
+
+## CategoryV3Item (object)
++ `category_code` (string)
++ `category_name` (string)
++ subcategory (array[object])
+    + (object)
+       + `subcategory_code` (string)
+       + `subcategory_name` (string)
+       + icons (array[object])
+           + (object)
+              + id (number)
+              + name (string)
+              + `platform_code` (string)
+              + created (string)
+              + url (string)
+              + `common_icon_id` (number)
+              + svg (string)
+              + features (object)
+                  + bitmap (number)
+                  + vector (number)
+                  + nolink (number)
+
+
+
+## CompactIconV3Item (object)
++ id (number, required) - unique icon identifier
++ name (string, required) - icon name
++ `platform_code` (string, required) - icon style
++ created: `color` (string, required) - date (ISO8601 format) of icon was published
++ url (string, optional) - internal service attribute; the meaning of this attribute is "Identifier of thread at Disquss"
++ `common_icon_id` (number, required) - identifier for group of the same icons in different styles; i.e. id of all "home" icons
++ category (string, optional) category name; first category, if there are several categories
++ subcategory (object, optional) subcategory; first subcategory, if there are several subcategories
+   + name (string, required) subcategory name
+   + api_code (string, required) subcategory code
++ svg (string, required) - plain SVG content of icon
++ vector (object, optional) - URLs to icon sources in different vector formats; private; depend on the current user and could be opened in user's browser only 
+   + `svg-editable` (string, optional) - absolute URL to original SVG file
+   + `svg-simplified` (string) - absolute URL to compressed and simplified SVG file
+   + eps (string) - absolute URL to file in EPS format
+   + pdf (string) - absolute URL to file in PDF format
++ features (object, required) - internal service attribute; internal information about icon features; private; depend on the rights of the current user
+   + bitmap (number, required) - "Could user use images in bitmap / raster formats in any size ?"
+   + vector (number, required) - "Could user use images in vector formats ?"
+   + nolink (number, required) - "Could user use images without any link to Icons8 ?"
++ share (object) - internal service attribute; some links to spread the world
+   + url (string) - short URL to use in twitter
+   + png (array[object]) - some raster images for share the icon
+       + (object)
+          + type (string, optional)
+          + link (string, required) - absolute URL to image
+          
+## IconV3Item (CompactIconV3Item)
++ id (number, required) - unique icon identifier
++ name (string, required) - icon name
++ `platform_code` (string, required) - icon style
++ created: `color` (string, required) - date (ISO8601 format) of icon was published
++ url (string, optional) - internal service attribute; the meaning of this attribute is "Identifier of thread at Disquss"
++ `common_icon_id` (number, required) - identifier for group of the same icons in different styles; i.e. id of all "home" icons
++ category (string, optional) category name; first category, if there are several categories
++ subcategory (object, optional) subcategory; first subcategory, if there are several subcategories
+   + name (string, required) subcategory name
+   + api_code (string, required) subcategory code
++ svg (string, required) - plain SVG content of icon
++ vector (object, optional) - URLs to icon sources in different vector formats; private; depend on the current user and could be opened in user's browser only 
+   + `svg-editable` (string, optional) - absolute URL to original SVG file
+   + `svg-simplified` (string) - absolute URL to compressed and simplified SVG file
+   + eps (string) - absolute URL to file in EPS format
+   + pdf (string) - absolute URL to file in PDF format
++ features (object, required) - internal service attribute; internal information about icon features; private; depend on the rights of the current user
+   + bitmap (number, required) - "Could user use images in bitmap / raster formats in any size ?"
+   + vector (number, required) - "Could user use images in vector formats ?"
+   + nolink (number, required) - "Could user use images without any link to Icons8 ?"
++ share (object) - internal service attribute; some links to spread the world
+   + url (string) - short URL to use in twitter
+   + png (array[object]) - some raster images for share the icon
+       + (object)
+          + type (string, optional)
+          + link (string, required) - absolute URL to image
+
+## TotalV3Item (object)
++ name (string, required) icons style name
++ `api_code` (enum[string], required) - icons style code; in other places it named `plarform` or `platform_api_code`
+    + Members
+        + `all`
+        + `ios7`
+        + `win8`
+        + `win10`
+        + `android`
+        + `androidL`
+        + `color`
+        + `office`
++ total (number, required) the quantity of icons
+
+## CollectionWebFontTaskArguments (object)
++ arguments
+    + collection: `bef787ce-41ad-4424-8e0e-19ce78e104c3` (string, required) - collection identifier
+    + font_name: `Material Very Basic` (string, required) - name of iconic webfont
+        + Default: `font_icons8`
+    + css_prefix (string) - prefix for CSS rules, used to generate LESS/SCSS
+        + Default: `icons8`
+    + css_selector (string) - template for glyph selector; placeholder {{glyph}} will be replaced with glyph names
+        + Default: `.icons8-{{glyph}}`
+    + css_rules_case (enum[string]) - glyph names conversion rule
+        + Default: `lowercase`
+        + Members
+            + `lowercase` - convert glyph names to lowercase
+            + `as_is` - leave glyph names as is
+
+
+## TaskError (object)
++ code (enum[string], required) - error code
+    + Members
+        + `json_not_valid` - HTTP request payload is not valid JSON
+        + `auth_required`
+        + `auth_failed` - authentication failed
+        + `access_denied`
+        + `io_fail` - I/O fail on server side
+        + `database_fail` - database access fail
+        + `argument_is_missed` - required argument 
+        + `argument_is_wrong` - one or more arguments is invalid format or value
+        + `paid_feature` - some features available only for paid users
+        + `not_possible` - something is not possible to process, i.e. color icons for webfonts are forbidden
++ description (string, required) - human readable error message
+
+
+## TaskResult (object)
++ id (string, required) - task identifier
++ type (enum[string], required) - task type
+    + Members
+        + `create_web_font`
+        + `create_svg_set`
++ status (enum[string], required) - task status
+    + Members
+        + `preparing+
+        + `idle`
+        + `in_progress`
+        + `timeout`
+        + `complete`
+        + `failed`
++ description (string) - human readable description
++ results (object)
+    + zip (string) - URL to webfont files in ZIP format

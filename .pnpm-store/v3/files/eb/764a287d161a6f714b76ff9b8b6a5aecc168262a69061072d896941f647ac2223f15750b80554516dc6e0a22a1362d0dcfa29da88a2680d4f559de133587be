@@ -1,0 +1,73 @@
+{
+  "name": "urijs",
+  "version": "1.19.11",
+  "title": "URI.js - Mutating URLs",
+  "author": {
+    "name": "Rodney Rehm",
+    "url": "http://rodneyrehm.de"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/medialize/URI.js.git"
+  },
+  "license": "MIT",
+  "description": "URI.js is a Javascript library for working with URLs.",
+  "keywords": [
+    "uri",
+    "url",
+    "urn",
+    "uri mutation",
+    "url mutation",
+    "uri manipulation",
+    "url manipulation",
+    "uri template",
+    "url template",
+    "unified resource locator",
+    "unified resource identifier",
+    "query string",
+    "RFC 3986",
+    "RFC3986",
+    "RFC 6570",
+    "RFC6570",
+    "jquery-plugin",
+    "ecosystem:jquery"
+  ],
+  "categories": [
+    "Parsers & Compilers",
+    "Utilities"
+  ],
+  "main": "./src/URI",
+  "homepage": "http://medialize.github.io/URI.js/",
+  "contributors": [
+    "Francois-Guillaume Ribreau <npm@fgribreau.com> (http://fgribreau.com)",
+    "Justin Chase <justin.m.chase@gmail.com> (http://justinmchase.com)"
+  ],
+  "files": [
+    "src/URI.js",
+    "src/IPv6.js",
+    "src/SecondLevelDomains.js",
+    "src/punycode.js",
+    "src/URITemplate.js",
+    "src/jquery.URI.js",
+    "src/URI.min.js",
+    "src/jquery.URI.min.js",
+    "src/URI.fragmentQuery.js",
+    "src/URI.fragmentURI.js",
+    "LICENSE.txt"
+  ],
+  "npmName": "urijs",
+  "npmFileMap": [
+    {
+      "basePath": "/src/",
+      "files": [
+        "*.js"
+      ]
+    },
+    {
+      "basePath": "/",
+      "files": [
+        "LICENSE.txt"
+      ]
+    }
+  ]
+}

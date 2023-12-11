@@ -1,0 +1,23 @@
+{{? data.usage.usage === 'restricted' }}
+<aside class="warning">
+The extension may only be used in the following objects:
+</aside>
+
+|Object|Description|
+|---|---|
+{{~ data.usage.objectTypes :ot}}|<a href="{{=data.linkBase}}#{{=data.utils.linkCase(ot)}}">{{=ot}}</a>|{{=data.descs[data.utils.linkCase(ot)]||'Description not found'}}|
+{{~}}
+{{?}}
+
+{{? data.usage.usage === 'unrestricted' }}
+<aside class="success">
+The extension may be used in any object which allows specification extensions.
+</aside>
+{{?}}
+
+{{? data.usage.usage === 'prohibited' }}
+<aside class="error">
+The extension may NOT be used in this version of the specification.
+</aside>
+{{?}}
+

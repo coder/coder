@@ -8,8 +8,8 @@ full list of the options, run `coder server --help` or see our
 external URL that users and workspaces use to connect to Coder (e.g.
 <https://coder.example.com>). This should not be localhost.
 
-> Access URL should be a external IP address or domain with DNS records pointing
-> to Coder.
+> Access URL should be an external IP address or domain with DNS records
+> pointing to Coder.
 
 ### Tunnel
 

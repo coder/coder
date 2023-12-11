@@ -1,0 +1,10 @@
+{
+  "name": "dot-express-example",
+  "description": "doT express example",
+  "version": "0.0.1",
+  "private": true,
+  "dependencies": {
+    "express": "4.x",
+    "dot": "*"
+  }
+}

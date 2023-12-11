@@ -1,0 +1,227 @@
+openapiExtensionFormat: 0.1.0
+guru.apis:
+  x-apiClientRegistration:
+    summary: A link to a sign-up page for the API.
+    description: A property of the info object, x-apiClientRegistration includes a URL-formatted property url containing the URL to the resource where developers can register to authenticate with the API.
+    externalDocs:
+      $ref: '#/components/externalDocs/apis-guru'
+    provider:
+      $ref: '#/components/providers/apis-guru'
+    schema:
+      type: object
+      properties:
+        url:
+          type: string
+          format: uri-ref
+      required:
+      - url
+    example:
+      url: "https://developer.bbc.co.uk/user/register"
+    oas2:
+      usage: restricted
+      objectTypes:
+      - InfoObject
+    oas3:
+      usage: restricted
+      objectTypes:
+      - InfoObject
+  x-apisguru-categories:
+    description: A property of the info object, `x-apisguru-categories` is an array of valid values from the list of APIs.guru categories.
+    externalDocs:
+      $ref: '#/components/externalDocs/apis-guru'
+    provider:
+      $ref: '#/components/providers/apis-guru'
+    schema:
+      type: array
+      items:
+        type: string
+    oas2:
+      usage: restricted
+      objectTypes:
+      - InfoObject
+    oas3:
+      usage: restricted
+      objectTypes:
+      - InfoObject
+  x-description-language:
+    description: An ISO-639 two-character language code to identify the natural language used in descriptions, summaries and titles. This can be used as an input to translating these items.
+    schema:
+      type: string
+    oas2:
+      usage: restricted
+      objectTypes:
+      - InfoObject
+    oas3:
+      usage: restricted
+      objectTypes:
+      - InfoObject
+  x-hasEquivalentPaths:
+    description: A property of the `root` object, `x-hasEquivalentPaths` indicates the source specification has multiple paths which map to the same OpenAPI path (possibly disambiguated with HTML fragment identifiers or differently named path parameters).
+    schema:
+      type: boolean
+    oas2:
+      usage: restricted
+      objectTypes:
+      - SwaggerObject
+    oas3:
+      usage: restricted
+      objectTypes:
+      - OpenAPIObject
+  x-logo:
+    summary: A logo for the API.
+    description: |
+      A property of the `info` object, the `x-logo` structure holds an absolute URL to the API logo and an optional background colour in HTML hex notation.
+    externalDocs:
+      $ref: '#/components/externalDocs/apis-guru'
+    provider:
+      $ref: '#/components/providers/apis-guru'
+    schema:
+      type: object
+      properties:
+        url:
+          type: string
+          format: uri-ref
+        backgroundColor:
+          type: string
+      required:
+      - url
+    oas2:
+      usage: restricted
+      objectTypes:
+      - InfoObject
+    oas3:
+      usage: restricted
+      objectTypes:
+      - InfoObject
+  x-origin:
+    description: |
+      A property of the `info` object, the `x-origin` structure is used to document the source and format of an API in the collection. It is used to round-trip the process of keeping the APIs updated.
+
+      Please note, if you include an x-origin extension within your API definition APIs.guru will then append to this array if it exists, allowing an audit trail of the source(s) of an API definition.
+      Valid values for format
+
+        * swagger
+        * api_blueprint
+        * raml
+        * google
+
+      In your own `x-origin` entries you may alternatively use a contentType property instead of a format property. The version property is then optional.
+
+      You may also specify the converter and version used.
+    schema:
+      type: array
+      items:
+        type: object
+        properties:
+          url:
+            type: string
+            format: uri-ref
+          format:
+            type: string
+            enum:
+            - swagger
+            - api_blueprint
+            - raml
+            - google
+          version:
+            type: string
+          contentType:
+            type: string
+          converter:
+            type: object
+            properties:
+              url:
+                type: string
+                format: uri-ref
+              version:
+                type: string
+        required:
+        - url
+    example:
+      - url: "http://programmes.api.bbc.com/nitro/api"
+        contentType: application/json
+        converter:
+          url: "https://github.com/mermade/bbcparse"
+          version: "1.2.0"
+      - format: swagger
+        url: 'https://raw.githubusercontent.com/Mermade/bbcparse/master/iblApi/swagger.json'
+        version: '2.0'
+    oas2:
+      usage: restricted
+      objectTypes:
+      - InfoObject
+    oas3:
+      usage: restricted
+      objectTypes:
+      - InfoObject
+  x-preferred:
+    description: "A property of the `info` object, `x-preferred` is a Boolean property which distinguishes between multiple versions of the same API. Where the `x-providerName` and `x-serviceName` are the same, only one definition should be marked `x-preferred: true`. This helps users of the APIs.guru collection organise and display the APIs."
+    schema:
+      type: boolean
+    oas2:
+      usage: restricted
+      objectTypes:
+      - InfoObject
+    oas3:
+      usage: restricted
+      objectTypes:
+      - InfoObject
+  x-providerName:
+    description: A property of the `info` object, `x-providerName` is used to identify the domain of the API host. It is added automatically by APIs.guru
+    schema:
+      type: string
+    oas2:
+      usage: restricted
+      objectTypes:
+      - InfoObject
+    oas3:
+      usage: restricted
+      objectTypes:
+      - InfoObject
+  x-serviceName:
+    description: A property of the `info` object, `x-serviceName` is used to distinguish APIs which are served from the same domain. It may be the subdomain if the API uses one. It is added automatically by APIs.guru
+    schema:
+      type: string
+    oas2:
+      usage: restricted
+      objectTypes:
+      - InfoObject
+    oas3:
+      usage: restricted
+      objectTypes:
+      - InfoObject
+  x-tags:
+    description: Also a property of the `info` object, `x-tags` is an array of free-form keywords/tags applicable to the API.
+    schema:
+      type: array
+      items:
+        type: string
+    oas2:
+      usage: restricted
+      objectTypes:
+      - InfoObject
+    oas3:
+      usage: restricted
+      objectTypes:
+      - InfoObject
+  x-unofficialSpec:
+    description: A property of the `info` object, `x-unofficialSpec` indicates the definition is produced by a third-party, either manually, by scraping existing documentation or converting a proprietary/undocumented format.
+    schema:
+      type: boolean
+    oas2:
+      usage: restricted
+      objectTypes:
+      - InfoObject
+    oas3:
+      usage: restricted
+      objectTypes:
+      - InfoObject
+components:
+  externalDocs:
+    apis-guru:
+      description: APIs.guru OpenAPI Directory Wiki
+      url: https://github.com/APIs-guru/openapi-directory/wiki/specification-extensions
+  providers:
+    apis-guru:
+      name: APIs.guru
+      url: https://apis.guru/

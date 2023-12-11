@@ -1,0 +1,53 @@
+{
+  "name": "code-error-fragment",
+  "version": "0.0.230",
+  "author": "Vlad Trushin",
+  "description": "Shows code error fragment of input file",
+  "homepage": "https://github.com/vtrushin/code-error-fragment",
+  "repository": "vtrushin/code-error-fragment",
+  "maintainers": [
+    {
+      "name": "Vlad Trushin <monospectr@mail.ru> (https://github.com/vtrushin)",
+      "email": "monospectr@mail.ru",
+      "github-username": "vtrushin"
+    }
+  ],
+  "keywords": [
+    "code-errors",
+    "error-formatting",
+    "error-fragment"
+  ],
+  "main": "build.js",
+  "files": [
+    "build.js",
+    "LICENSE",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">= 4"
+  },
+  "scripts": {
+    "build": "rollup -c",
+    "watch": "rollup -c -w",
+    "pretest": "npm run build",
+    "test": "mocha",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "babel-core": "^6.26.0",
+    "babel-helpers": "^6.24.1",
+    "babel-plugin-external-helpers": "^6.22.0",
+    "babel-plugin-transform-object-assign": "^6.22.0",
+    "babel-preset-es2015": "^6.24.1",
+    "babel-preset-stage-3": "^6.24.1",
+    "coveralls": "^3.0.0",
+    "mocha": "^4.0.1",
+    "pad-start": "^1.0.2",
+    "repeat-string": "^1.6.1",
+    "rollup": "^0.50.0",
+    "rollup-plugin-babel": "^3.0.2",
+    "rollup-plugin-commonjs": "^8.2.3",
+    "rollup-plugin-node-resolve": "^3.0.0"
+  },
+  "license": "MIT"
+}

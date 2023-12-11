@@ -1,0 +1,135 @@
+Advanced templating: illustrates defines and includes.
+
+Include external snippet defined in a variable:
+{{#def.externalsnippet}}
+
+Load external template from a file:
+{{#def.loadfile('/snippet.txt')}}
+
+Load external template from a file and cache in a variable:
+{{#def['snippet.txt'] || (def['snippet.txt'] = def.loadfile('/snippet.txt'))}}
+
+Use cached file again:
+{{#def['snippet.txt']}}
+
+Here is a def block that will be used later. This snippet can be referenced from external templates too:
+{{##def.snippet1:
+	Some snippet that will be included {{#def.a}} later {{=it.f1}}
+#}}
+
+First use of snippet1:
+{{#def.snippet1}}
+
+Second use of snippet1:
+{{#def.snippet1}}
+
+Include snippet1 if true:
+{{# true && def.snippet1 }}
+
+Runtime and Compile time evaluation used together:
+{{= it.f3 + {{#def.a + def.b}} }}
+
+Include xyz or insert 'not found':
+{{#def.xyz || 'not found'}}
+
+Set xyz to 1 and exclude result from output:
+{{##def.xyz=1#}} is identical to {{#(def.xyz=1) && ""}}
+
+Compare xyz to 1, show 'xyz is not 1' if false:
+{{#def.xyz === 1 || 'xyz is not 1'}}
+
+{{ if ({{#!def.abc}}) { }}
+	{{#def.abc}} is falsy
+{{ } }}
+
+{{ if ({{#def.xyz === 1}}) { }}
+	if(true) block
+{{ } }}
+
+{{##def.fntest = function() {
+	return "Function test worked!";
+}
+#}}
+
+{{#def.fntest()}}
+
+Conditionals:
+{{? !it.altEmail }}
+	<p>
+	second email: {{= it.altEmail }}
+	</p>
+{{?? true }}
+	else case worked
+{{?}}
+
+Array iterators
+{{~ it.farray :p }}
+	<h1>{{=p.farray}}<h1>
+	{{~ p.farray :value:i }}
+		<h2>{{=i}}: {{=value}}</h2>
+		{{~ value :w }}
+			<h3>{{=w}}</h3>
+		{{~}}
+	{{~}}
+{{~}}
+
+{{~ ["apple", "banana", "orange"] :k}}
+	{{=k}}
+{{~}}
+
+{{~ (function(){ return [1,2,3]})() :k}}
+	{{=k}}
+{{~}}
+
+{{ function children(it) { }}
+
+{{?it.Nodes.length}}
+<ul>
+    {{~ it.Nodes :p}}
+    <li>
+        {{=p.title}}
+		{{children(p);}}
+    </li>
+    {{~}}
+</ul>
+{{?}}
+
+{{ } }}
+
+{{ children( {Nodes:[ {title:"1.1", Nodes:[ {title:"1.1.1", Nodes:[]}, {title:"1.1.2", Nodes:[]}] }, { title:"1.2", Nodes:[]}, { title:"1.3", Nodes:[]}], title:"1" } ); }}
+
+
+{{##def.block:param:
+	<div>{{=param}}</div>
+#}}
+
+{{##def.block1:param:
+	<div>{{=param.a}}</div>
+#}}
+
+
+{{#(def.block:'text' || '') + def.block:5}}
+
+{{#def.block:it.f3 || ''}}
+
+{{#def.block:"lala tralala" || ''}}
+
+{{#def.block1:{a:1, b:2} || ''}}
+
+{{##def.testFunctionWithParam = function(str) {
+		return "My name is: " + str;
+	}
+#}}
+
+{{##def.mytestparam: {{=it.name}} #}}
+{{#def.testFunctionWithParam(def.mytestparam)}}
+
+{{#def.testFunctionWithParam("\{\{=it.name\}\}")}}
+
+{{##def.testParamDef:myparam:
+My name is: {{=myparam}}
+#}}
+
+{{#def.testParamDef:it.name}}
+
+The end

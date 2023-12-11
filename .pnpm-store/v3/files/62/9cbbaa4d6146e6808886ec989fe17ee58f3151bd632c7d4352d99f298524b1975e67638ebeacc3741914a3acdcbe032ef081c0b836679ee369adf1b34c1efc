@@ -1,0 +1,93 @@
+{
+  "version": "1.25.0",
+  "name": "httpsnippet",
+  "description": "HTTP Request snippet generator for *most* languages",
+  "author": "Ahmad Nassri <ahmad@mashape.com> (https://www.mashape.com/)",
+  "homepage": "https://github.com/Mashape/httpsnippet",
+  "license": "MIT",
+  "main": "src/index.js",
+  "bin": "bin/httpsnippet",
+  "keywords": [
+    "api",
+    "clojure",
+    "csharp",
+    "curl",
+    "go",
+    "har",
+    "http",
+    "httpie",
+    "httr",
+    "java",
+    "javascript",
+    "jquery",
+    "kotlin",
+    "objc",
+    "objective-c",
+    "ocaml",
+    "php",
+    "python",
+    "request",
+    "requests",
+    "ruby",
+    "shell",
+    "snippet",
+    "swift",
+    "swift",
+    "unirest",
+    "xhr",
+    "xmlhttprequest"
+  ],
+  "engines": {
+    "node": ">=4"
+  },
+  "files": [
+    "bin",
+    "src"
+  ],
+  "repository": "Mashape/httpsnippet",
+  "bugs": {
+    "url": "https://github.com/Mashape/httpsnippet/issues"
+  },
+  "scripts": {
+    "quick": "mocha --no-timeouts --fgrep 'Request Validation' --invert",
+    "pretest": "standard && echint",
+    "test": "mocha --no-timeouts",
+    "posttest": "exit 0 && npm run coverage",
+    "coverage": "istanbul cover --dir coverage _mocha -- --fgrep 'Request Validation' --invert -R dot",
+    "codeclimate": "codeclimate < coverage/lcov.info"
+  },
+  "standard": {
+    "ignore": [
+      "**/test/fixtures/**"
+    ]
+  },
+  "echint": {
+    "ignore": [
+      "coverage/**",
+      "**/node_modules/**",
+      "**/fixtures/**"
+    ]
+  },
+  "devDependencies": {
+    "codeclimate-test-reporter": "^0.5.1",
+    "echint": "^4.0.2",
+    "glob": "^6.0.1",
+    "istanbul": "^0.4.0",
+    "mocha": "^6.2.0",
+    "require-directory": "^2.1.1",
+    "should": "^13.2.3",
+    "standard": "^10.0.2"
+  },
+  "dependencies": {
+    "chalk": "^1.1.1",
+    "commander": "^2.9.0",
+    "debug": "^2.2.0",
+    "event-stream": "3.3.4",
+    "form-data": "3.0.0",
+    "fs-readfile-promise": "^2.0.1",
+    "fs-writefile-promise": "^1.0.3",
+    "har-validator": "^5.0.0",
+    "pinkie-promise": "^2.0.0",
+    "stringify-object": "^3.3.0"
+  }
+}

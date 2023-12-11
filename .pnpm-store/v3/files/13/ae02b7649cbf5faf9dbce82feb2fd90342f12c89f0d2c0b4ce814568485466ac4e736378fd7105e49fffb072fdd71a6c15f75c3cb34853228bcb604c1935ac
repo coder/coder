@@ -1,0 +1,78 @@
+{
+  "name": "better-ajv-errors",
+  "version": "0.6.7",
+  "description": "JSON Schema validation for Human",
+  "repository": "atlassian/better-ajv-errors",
+  "main": "index.js",
+  "keywords": [
+    "json-schema",
+    "ajv",
+    "ajv-errors"
+  ],
+  "author": "Rifat Nabi <to.rifat@gmail.com>",
+  "maintainers": [
+    "Rifat Nabi <to.rifat@gmail.com>",
+    "Dmitrii Sorin <info@staypositive.ru>",
+    "Tong Li"
+  ],
+  "license": "Apache-2.0",
+  "typings": "typings.d.ts",
+  "files": [
+    "lib",
+    "index.js",
+    "typings.d.ts"
+  ],
+  "scripts": {
+    "prebuild": "rm -rf lib",
+    "build": "yarn build:modern && yarn build:legacy",
+    "build:modern": "BABEL_ENV=modern babel src -d lib/modern/",
+    "build:legacy": "BABEL_ENV=legacy babel src -d lib/legacy",
+    "prerelease": "yarn build",
+    "release": "changeset release",
+    "format": "prettier --write src/*.js src/**/*.js .changeset/*.js",
+    "test": "jest",
+    "test-ci": "jest --coverage --colors",
+    "screenshot": "svg-term --command='node screenshot' --out=media/screenshot.svg --padding=5 --width=80 --height=13 --at=1000 --no-cursor --term iterm2 --profile='deep' --window"
+  },
+  "dependencies": {
+    "@babel/code-frame": "^7.0.0",
+    "@babel/runtime": "^7.0.0",
+    "chalk": "^2.4.1",
+    "core-js": "^3.2.1",
+    "json-to-ast": "^2.0.3",
+    "jsonpointer": "^4.0.1",
+    "leven": "^3.1.0"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.0.0",
+    "@babel/core": "7.6.0",
+    "@babel/plugin-syntax-object-rest-spread": "^7.0.0",
+    "@babel/plugin-transform-runtime": "^7.0.0",
+    "@babel/preset-env": "^7.0.0",
+    "@babel/preset-flow": "7.0.0",
+    "@changesets/cli": "^1.3.0",
+    "babel-core": "^7.0.0-bridge.0",
+    "babel-jest": "^24.9.0",
+    "babel-plugin-add-module-exports": "^1.0.0",
+    "dotenv": "^8.1.0",
+    "eslint": "^6.3.0",
+    "eslint-config-prettier": "^6.2.0",
+    "eslint-plugin-jest": "^22.17.0",
+    "eslint-plugin-prettier": "^3.1.0",
+    "flow-bin": "^0.107.0",
+    "husky": "^3.0.5",
+    "jest": "^24.9.0",
+    "jest-fixtures": "^0.6.0",
+    "prettier": "^1.14.2",
+    "pretty-quick": "^1.6.0",
+    "svg-term-cli": "^2.1.1"
+  },
+  "peerDependencies": {
+    "ajv": "4.11.8 - 6"
+  },
+  "jest": {
+    "testMatch": [
+      "<rootDir>/src/**/__tests__/**/*.js"
+    ]
+  }
+}

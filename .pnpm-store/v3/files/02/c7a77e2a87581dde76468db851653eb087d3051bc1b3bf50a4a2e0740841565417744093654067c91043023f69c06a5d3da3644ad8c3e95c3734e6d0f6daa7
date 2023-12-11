@@ -1,0 +1,7 @@
+const hermes = require('hermesjs');
+const app = hermes();
+
+app.from.client.send({
+  topic: '{{=data.topicName}}',
+  payload: {{=data.payload}}
+});

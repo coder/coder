@@ -1,0 +1,13 @@
+{{##def.template1:
+	<div>{{=it.bar}}</div>
+	/* Including one.def file here */
+	{{#def.one}}
+#}}
+
+{{##def.template2:param:
+	<div>{{=param.bar}}</div>
+	<div class="{{=param.class}}">
+	</div>
+#}}
+
+

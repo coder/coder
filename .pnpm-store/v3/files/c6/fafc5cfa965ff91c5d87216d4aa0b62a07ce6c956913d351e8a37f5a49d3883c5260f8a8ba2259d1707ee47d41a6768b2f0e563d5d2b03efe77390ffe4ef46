@@ -1,0 +1,10 @@
+openapi: 3.0.2
+info:
+  version: 1.0.0
+  title: API
+paths:
+  /foo:
+    get:
+      responses:
+        '200':
+          description: OK

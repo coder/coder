@@ -1,0 +1,69 @@
+
+{{ for (var ext in data.ns) {
+   var x = data.ns[ext];
+   var sample = x.example||data.utils.getSample(x.schema,data.options,{quiet:true},data.api);
+}}
+
+{{= data.tags.section }}
+
+## {{=ext}}
+> {{=ext}} example
+```json
+{{=JSON.stringify(sample,null,2)}}
+```
+```yaml
+{{=data.utils.yaml.stringify(sample)}}
+```
+
+{{ if (x.provider && x.provider !== data.defaultProvider) { }}
+Provider: <a href="{{=x.provider.url}}">{{=x.provider.name}}</a>
+{{ } }}
+
+{{? x.deprecated }}
+<aside class="warning">
+This extension is deprecated and should be transitioned out of use.
+</aside>
+{{?}}
+
+{{?x.summary}}*{{=x.summary}}*{{?}}
+
+{{=x.description||''}}
+
+{{ var blocks = data.utils.schemaToArray(x.schema,0,{trim:true},data); }}
+
+{{?x.externalDocs}}
+<a href="{{=x.externalDocs.url}}">{{=x.externalDocs.description}}</a>
+{{?}}
+
+{{?x.location}}
+<a href="{{=x.location}}">Authoritative definition</a>
+{{?}}
+
+{{~ blocks :block}}
+|Property|Type|Required|Description
+|---|---|---|---|
+{{~block.rows :p}}|{{=p.name}}|{{=p.type}}|{{=p.required}}|{{=data.utils.join(p.description||'')}}|
+{{~}}
+{{~}}
+
+{{?x.oas2}}
+**In the OpenAPI specification v2.0, this extension can be used as follows:**
+{{ data.linkBase = 'https://github.com/OAI/openapi-specification/tree/master/versions/2.0.md'; }}
+{{ data.usage = x.oas2;
+   data.descs = data.oas2_descs;
+}}
+{{#def.usage}}
+{{?}}
+
+{{?x.oas2}}
+**In the OpenAPI specification v3.x, this extension can be used as follows:**
+{{ data.linkBase = 'https://github.com/OAI/openapi-specification/tree/master/versions/3.0.0.md'; }}
+{{ data.usage = x.oas3;
+   data.descs = data.oas3_descs;
+}}
+{{#def.usage}}
+{{?}}
+
+{{ } }}
+
+{{= data.tags.endSection }}

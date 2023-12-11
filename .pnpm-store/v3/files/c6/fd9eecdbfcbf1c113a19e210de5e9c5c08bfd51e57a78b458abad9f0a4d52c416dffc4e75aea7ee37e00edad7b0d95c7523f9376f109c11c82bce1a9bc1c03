@@ -1,0 +1,24 @@
+env:
+  node: true
+extends: 'eslint:recommended'
+globals:
+  define: false
+parserOptions:
+  ecmaVersion: 5
+rules:
+  no-trailing-spaces: 2
+  linebreak-style: [ 2, unix ]
+  semi: [ 2, always ]
+  valid-jsdoc: [ 2, { requireReturn: false } ]
+  no-unused-vars: [ 2, { args: none } ]
+  no-console: 0
+  block-scoped-var: 2
+  dot-location: [ 2, property ]
+  dot-notation: 2
+  no-else-return: 2
+  no-eq-null: 2
+  no-fallthrough: 2
+  no-return-assign: 2
+  no-use-before-define: [ 2, nofunc ]
+  no-path-concat: 2
+  no-useless-escape: 0

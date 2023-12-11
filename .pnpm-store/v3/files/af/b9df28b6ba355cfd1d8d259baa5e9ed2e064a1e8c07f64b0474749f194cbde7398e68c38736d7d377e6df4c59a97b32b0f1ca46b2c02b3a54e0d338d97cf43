@@ -1,0 +1,202 @@
+{{= data.tags.section }}
+
+# {{=data.api.info.title}} {{=data.version}}
+
+> Scroll down for {{? data.header.language_tabs.length}}code samples, {{?}}example headers and payloads.{{? data.header.language_tabs.length}} Select a language for code samples from the tabs above or the mobile navigation menu.{{?}}
+
+{{? data.api.info.description}}{{=data.api.info.description}}{{?}}
+
+Base URLs:
+{{~data.api.servers :s}}
+{{? s.url.indexOf(':\/\/')<0 }}
+* <a href="{{=s.scheme}}://{{=s.url}}">{{=s.scheme}}://{{=s.url}}</a>
+{{??}}
+* <a href="{{=s.url}}">{{=s.url}}</a>
+{{?}}
+{{ for(var v in s.variables) { }}
+    * **{{=v}}** - {{=s.variables[v].description||''}} {{? s.variables[v].default }}Default: {{=s.variables[v].default}}{{?}}
+{{? s.variables[v].enum}}
+{{~ s.variables[v].enum :e}}
+        * {{= e}}{{~}}
+{{?}}
+{{ } }}
+{{~}}
+
+{{? data.api.baseTopic}}Base Topic: **{{=data.api.baseTopic}}**{{?}}
+
+{{? data.api.info.termsOfService}}<a href="{{=data.api.info.termsOfService}}">Terms of service</a>{{?}}
+{{? data.api.info.contact}}{{? data.api.info.contact.email}}Email: <a href="mailto:{{=data.api.info.contact.email}}">{{=data.contactName}}</a> {{?}}{{? data.api.info.contact.url}}Web: <a href="{{=data.api.info.contact.url}}">{{=data.contactName}}</a>{{?}}{{?}}
+{{? data.api.info.license}}{{? data.api.info.license.url}}License: <a href="{{=data.api.info.license.url}}">{{=data.api.info.license.name}}</a>{{??}}License: {{=data.api.info.license.name}}{{?}}{{?}}
+{{= data.tags.endSection }}
+
+{{? data.api.components && data.api.components.securitySchemes }}
+{{#def.security }}
+{{?}}
+
+{{ for (var r in data.resources) { }}
+{{ var resource = data.resources[r]; }}
+
+{{= data.tags.section }}
+
+# {{=r}}
+
+{{ for (var t in resource.topics) { }}
+{{ data.topicName = t; }}
+{{ data.topic = resource.topics[t]; }}
+
+{{= data.tags.section }}
+
+## {{=t}}
+
+{{? data.topic.parameters }}
+<h3 id="{{=data.utils.slugify(data.topicName)}}-parameters">Parameters</h3>
+
+{{ data.parameters = data.utils.getParameters(data.topic.parameters); }}
+
+|Parameter|In|Type|Required|Description|
+|---|---|---|---|---|
+{{~ data.parameters :p}}|{{=p.name}}|{{=p.in}}|{{=p.safeType}}|{{=p.required}}|{{=p.shortDesc || 'No description'}}|
+{{~}}
+
+{{?}}
+
+{{ for (var m in data.topic.messages) { }}
+{{ data.messageName = m; }}
+{{ data.message = data.topic.messages[m]; }}
+
+{{#def.message}}
+
+{{ } /* end of messages */ }}
+
+{{= data.tags.endSection }}
+
+{{ } /* end of topics */ }}
+
+{{= data.tags.endSection }}
+
+{{ } /* end of resources */ }}
+
+{{? data.api.stream }}
+{{ data.topicName = 'streaming'; }}
+# Streaming API
+
+## Framing
+
+Type: {{= data.api.stream.framing.type}}
+Delimiter: {{= data.api.stream.framing.delimiter||'\r\n'}}
+
+{{? data.api.stream.read }}
+## Read
+{{~ data.api.stream.read :r }}
+{{ data.messageName = ''; }}
+{{ data.message = r; }}
+{{#def.message}}
+{{~}}
+{{?}}
+
+{{? data.api.stream.write }}
+## Write
+{{~ data.api.stream.write :w }}
+{{ data.messageName = ''; }}
+{{ data.message = w; }}
+{{#def.message}}
+{{~}}
+{{?}}
+
+{{?}}
+
+{{? data.api.events }}
+# Evented API
+{{ data.topicName = 'evented'; }}
+
+{{? data.api.events.receive }}
+## Received
+{{~ data.api.events.receive :r }}
+{{ data.messageName = ''; }}
+{{ data.message = r; }}
+{{#def.message}}
+{{~}}
+{{?}}
+
+{{? data.api.events.send }}
+## Sent
+{{~ data.api.events.send :s }}
+{{ data.messageName = ''; }}
+{{ data.message = s; }}
+{{#def.message}}
+{{~}}
+{{?}}
+
+{{?}}
+
+{{? data.api.components && data.api.components.schemas }}
+
+{{= data.tags.section }}
+# Schemas
+
+{{ for (var s in data.api.components.schemas) { }}
+{{ var schema = data.api.components.schemas[s]; }}
+
+{{= data.tags.section }}
+
+## {{=s}}
+
+<a name="schema{{=s.toLowerCase()}}"></a>
+
+{{? data.options.yaml }}
+```yaml
+{{=data.utils.yaml.stringify(data.utils.getSample(schema,data.options,{quiet:true},data.api))}}
+{{??}}
+```json
+{{=JSON.stringify(data.utils.getSample(schema,data.options,{quiet:true},data.api),null,2)}}
+{{?}}
+```
+
+{{ var enums = []; }}
+{{ var blocks = data.utils.schemaToArray(schema,0,{trim:true,join:true},data); }}
+{{ for (var block of blocks) {
+     for (var p of block.rows) {
+       if (p.schema && p.schema.enum) {
+         for (var e of p.schema.enum) {
+           enums.push({name:p.name,value:e});
+         }
+       }
+     }
+   }
+}}
+
+<h3 id="{{=data.utils.slugify(s)}}-properties">Properties</h3>
+
+{{~ blocks :block }}
+{{? block.title }}
+*{{= block.title}}*
+{{?}}
+|Name|Type|Required|Description|
+|---|---|---|---|
+{{~ block.rows :p}}|{{=p.displayName}}|{{=p.safeType}}|{{=p.required}}|{{=p.description||'No description'}}|
+{{~}}
+{{~}}
+
+{{? enums.length > 0 }}
+#### Enumerated Values
+
+|Property|Value|
+|---|---|
+{{~ enums :e}}|{{=e.name}}|{{=e.value}}|
+{{~}}
+
+{{?}}
+
+{{= data.tags.endSection }}
+
+{{ } /* of schemas */ }}
+
+{{= data.tags.endSection }}
+
+{{?}}
+
+{{? data.options.discovery}}
+{{#def.discovery}}
+{{?}}
+
+{{#def.footer}}

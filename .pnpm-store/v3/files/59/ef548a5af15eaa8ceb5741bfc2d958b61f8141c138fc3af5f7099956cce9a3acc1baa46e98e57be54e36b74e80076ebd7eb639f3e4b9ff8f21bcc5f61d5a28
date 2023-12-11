@@ -1,0 +1,6 @@
+<aside class="warning">
+To perform this operation, you must be authenticated by means of one of the following methods:
+{{~ data.effectiveSecurity :s}}* {{= Object.keys(s)[0] }}
+{{~}}
+</aside>
+

@@ -1,0 +1,63 @@
+{
+  "name": "swagger2openapi",
+  "version": "6.2.3",
+  "description": "Convert Swagger 2.0 definitions to OpenApi 3.0 and validate",
+  "main": "index.js",
+  "bin": {
+    "swagger2openapi": "./swagger2openapi.js",
+    "oas-validate": "./oas-validate.js",
+    "boast": "./boast.js"
+  },
+  "funding": "https://github.com/Mermade/oas-kit?sponsor=1",
+  "scripts": {
+    "test": "mocha"
+  },
+  "browserify": {
+    "transform": [
+      [
+        "babelify",
+        {
+          "presets": [
+            "es2015"
+          ]
+        }
+      ]
+    ]
+  },
+  "repository": {
+    "url": "https://github.com/Mermade/oas-kit.git",
+    "type": "git"
+  },
+  "bugs": {
+    "url": "https://github.com/mermade/oas-kit/issues"
+  },
+  "author": "Mike Ralphson <mike.ralphson@gmail.com>",
+  "license": "BSD-3-Clause",
+  "dependencies": {
+    "better-ajv-errors": "^0.6.1",
+    "call-me-maybe": "^1.0.1",
+    "node-fetch-h2": "^2.3.0",
+    "node-readfiles": "^0.2.0",
+    "oas-kit-common": "^1.0.8",
+    "oas-resolver": "^2.4.3",
+    "oas-schema-walker": "^1.1.5",
+    "oas-validator": "^4.0.8",
+    "reftools": "^1.1.5",
+    "yaml": "^1.8.3",
+    "yargs": "^15.3.1"
+  },
+  "keywords": [
+    "swagger",
+    "openapi",
+    "openapi2",
+    "openapi3",
+    "converter",
+    "conversion",
+    "validator",
+    "validation",
+    "resolver",
+    "lint",
+    "linter"
+  ],
+  "gitHead": "63c5ebae86e751955e35b56262353a0429900d8a"
+}
