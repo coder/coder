@@ -587,7 +587,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			}
 			enterpriseTemplateStore.UseAutostopRequirement.Store(true)
 
-			quietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(api.DefaultQuietHoursSchedule)
+			quietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(api.DefaultQuietHoursSchedule, api.DeploymentValues.UserQuietHoursSchedule.AllowUserCustom.Value())
 			if err != nil {
 				api.Logger.Error(ctx, "unable to set up enterprise user quiet hours schedule store, template autostop requirements will not be applied to workspace builds", slog.Error(err))
 			} else {

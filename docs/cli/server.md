@@ -31,6 +31,17 @@ coder server [flags]
 
 The URL that users will use to access the Coder deployment.
 
+### --allow-custom-quiet-hours
+
+|             |                                                           |
+| ----------- | --------------------------------------------------------- |
+| Type        | <code>bool</code>                                         |
+| Environment | <code>$CODER_ALLOW_CUSTOM_QUIET_HOURS</code>              |
+| YAML        | <code>userQuietHoursSchedule.allowCustomQuietHours</code> |
+| Default     | <code>true</code>                                         |
+
+Allow users to set their own quiet hours schedule for workspaces to stop in (depending on template autostop requirement settings). If false, users can't change their quiet hours schedule and the site default is always used.
+
 ### --block-direct-connections
 
 |             |                                          |
