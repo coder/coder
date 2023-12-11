@@ -569,7 +569,7 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workspace, err := api.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
+	row, err := api.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace by agent id.",
@@ -577,6 +577,7 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	workspace := row.Workspace
 
 	api.WebsocketWaitMutex.Lock()
 	api.WebsocketWaitGroup.Add(1)
@@ -1645,7 +1646,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 	ctx := r.Context()
 
 	workspaceAgent := httpmw.WorkspaceAgent(r)
-	workspace, err := api.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
+	row, err := api.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to get workspace.",
@@ -1653,6 +1654,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		})
 		return
 	}
+	workspace := row.Workspace
 
 	var req agentsdk.Stats
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -1724,7 +1726,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 				return xerrors.Errorf("can't get user: %w", err)
 			}
 
-			api.Options.UpdateAgentMetrics(ctx, user.Username, workspace.Name, workspaceAgent.Name, req.Metrics)
+			api.Options.UpdateAgentMetrics(ctx, user.Username, workspace.Name, workspaceAgent.Name, row.TemplateName, req.Metrics)
 			return nil
 		})
 	}
@@ -2100,7 +2102,7 @@ func (api *API) workspaceAgentReportLifecycle(rw http.ResponseWriter, r *http.Re
 	ctx := r.Context()
 
 	workspaceAgent := httpmw.WorkspaceAgent(r)
-	workspace, err := api.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
+	row, err := api.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to get workspace.",
@@ -2108,6 +2110,7 @@ func (api *API) workspaceAgentReportLifecycle(rw http.ResponseWriter, r *http.Re
 		})
 		return
 	}
+	workspace := row.Workspace
 
 	var req agentsdk.PostLifecycleRequest
 	if !httpapi.Read(ctx, rw, r, &req) {

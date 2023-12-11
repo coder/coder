@@ -16,6 +16,7 @@ import (
 	"github.com/open-policy-agent/opa/topdown"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi/httpapiconstraints"
@@ -1923,7 +1924,7 @@ func (q *querier) GetWorkspaceBuildsCreatedAfter(ctx context.Context, createdAt 
 	return q.db.GetWorkspaceBuildsCreatedAfter(ctx, createdAt)
 }
 
-func (q *querier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (database.Workspace, error) {
+func (q *querier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (database.GetWorkspaceByAgentIDRow, error) {
 	return fetch(q.log, q.auth, q.db.GetWorkspaceByAgentID)(ctx, agentID)
 }
 
