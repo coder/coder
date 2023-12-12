@@ -22,7 +22,7 @@ export function paginatedUsers(
 ): UsePaginatedQueryOptions<GetUsersResponse, UsersRequest> {
   return {
     searchParams,
-    queryPayload: ({ limit, offset, searchParams }) => {
+    queryPayload: ({ limit, offset }) => {
       return {
         limit,
         offset,
