@@ -330,7 +330,16 @@ export const MockProvisioner: TypesGen.ProvisionerDaemon = {
   id: "test-provisioner",
   name: "Test Provisioner",
   provisioners: ["echo"],
-  tags: {},
+  tags: { scope: "organization" },
+  version: "v2.34.5",
+};
+
+export const MockUserProvisioner: TypesGen.ProvisionerDaemon = {
+  created_at: "2022-05-17T17:39:01.382927298Z",
+  id: "test-user-provisioner",
+  name: "Test User Provisioner",
+  provisioners: ["echo"],
+  tags: { scope: "user", owner: "12345678-abcd-1234-abcd-1234567890abcd" },
   version: "v2.34.5",
 };
 
