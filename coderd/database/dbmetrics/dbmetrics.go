@@ -335,13 +335,6 @@ func (m metricsStore) GetAllTailnetAgents(ctx context.Context) ([]database.Tailn
 	return r0, r1
 }
 
-func (m metricsStore) GetAllTailnetClients(ctx context.Context) ([]database.GetAllTailnetClientsRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetAllTailnetClients(ctx)
-	m.queryLatencies.WithLabelValues("GetAllTailnetClients").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m metricsStore) GetAllTailnetCoordinators(ctx context.Context) ([]database.TailnetCoordinator, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAllTailnetCoordinators(ctx)

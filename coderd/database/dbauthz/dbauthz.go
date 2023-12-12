@@ -16,6 +16,7 @@ import (
 	"github.com/open-policy-agent/opa/topdown"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi/httpapiconstraints"
@@ -901,13 +902,6 @@ func (q *querier) GetAllTailnetAgents(ctx context.Context) ([]database.TailnetAg
 		return []database.TailnetAgent{}, err
 	}
 	return q.db.GetAllTailnetAgents(ctx)
-}
-
-func (q *querier) GetAllTailnetClients(ctx context.Context) ([]database.GetAllTailnetClientsRow, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
-		return []database.GetAllTailnetClientsRow{}, err
-	}
-	return q.db.GetAllTailnetClients(ctx)
 }
 
 func (q *querier) GetAllTailnetCoordinators(ctx context.Context) ([]database.TailnetCoordinator, error) {

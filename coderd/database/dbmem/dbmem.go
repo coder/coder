@@ -1357,10 +1357,6 @@ func (*FakeQuerier) GetAllTailnetAgents(_ context.Context) ([]database.TailnetAg
 	return nil, ErrUnimplemented
 }
 
-func (*FakeQuerier) GetAllTailnetClients(_ context.Context) ([]database.GetAllTailnetClientsRow, error) {
-	return nil, ErrUnimplemented
-}
-
 func (*FakeQuerier) GetAllTailnetCoordinators(context.Context) ([]database.TailnetCoordinator, error) {
 	return nil, ErrUnimplemented
 }

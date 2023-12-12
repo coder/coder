@@ -97,12 +97,6 @@ WHERE id IN (
 	WHERE tailnet_client_subscriptions.agent_id = $1
 );
 
--- name: GetAllTailnetClients :many
-SELECT sqlc.embed(tailnet_clients), array_agg(tailnet_client_subscriptions.agent_id)::uuid[] as agent_ids
-FROM tailnet_clients
-LEFT JOIN tailnet_client_subscriptions
-ON tailnet_clients.id = tailnet_client_subscriptions.client_id;
-
 -- name: UpsertTailnetCoordinator :one
 INSERT INTO
 	tailnet_coordinators (

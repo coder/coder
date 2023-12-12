@@ -4774,47 +4774,6 @@ func (q *sqlQuerier) GetAllTailnetAgents(ctx context.Context) ([]TailnetAgent, e
 	return items, nil
 }
 
-const getAllTailnetClients = `-- name: GetAllTailnetClients :many
-SELECT tailnet_clients.id, tailnet_clients.coordinator_id, tailnet_clients.updated_at, tailnet_clients.node, array_agg(tailnet_client_subscriptions.agent_id)::uuid[] as agent_ids
-FROM tailnet_clients
-LEFT JOIN tailnet_client_subscriptions
-ON tailnet_clients.id = tailnet_client_subscriptions.client_id
-`
-
-type GetAllTailnetClientsRow struct {
-	TailnetClient TailnetClient `db:"tailnet_client" json:"tailnet_client"`
-	AgentIds      []uuid.UUID   `db:"agent_ids" json:"agent_ids"`
-}
-
-func (q *sqlQuerier) GetAllTailnetClients(ctx context.Context) ([]GetAllTailnetClientsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getAllTailnetClients)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetAllTailnetClientsRow
-	for rows.Next() {
-		var i GetAllTailnetClientsRow
-		if err := rows.Scan(
-			&i.TailnetClient.ID,
-			&i.TailnetClient.CoordinatorID,
-			&i.TailnetClient.UpdatedAt,
-			&i.TailnetClient.Node,
-			pq.Array(&i.AgentIds),
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getAllTailnetCoordinators = `-- name: GetAllTailnetCoordinators :many
 
 SELECT id, heartbeat_at FROM tailnet_coordinators
