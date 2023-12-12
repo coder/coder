@@ -91,13 +91,15 @@ func TestCollectInsights(t *testing.T) {
 
 	// Fake app stats
 	_, err = agentClient.PostStats(context.Background(), &agentsdk.Stats{
-		ConnectionsByProto:        map[string]int64{"TCP": 1},
-		ConnectionCount:           74,
-		ConnectionMedianLatencyMS: 774,
-
+		// ConnectionsByProto can't be nil, otherwise stats get rejected
+		ConnectionsByProto: map[string]int64{"TCP": 1},
+		// ConnectionCount must be positive as database query ignores stats with no active connections at the time frame
+		ConnectionCount: 74,
+		// SessionCountJetBrains must be positive, but the exact value is ignored.
+		// Database query approximates it to 60s of usage.
 		SessionCountJetBrains: 47,
 	})
-	require.NoError(t, err, "unable to submit fake stats")
+	require.NoError(t, err, "unable to post fake stats")
 
 	// Fake app usage
 	reporter := workspaceapps.NewStatsDBReporter(db, workspaceapps.DefaultStatsDBReporterBatchSize)
