@@ -1,10 +1,10 @@
-import { useAuth } from "components/AuthProvider/AuthProvider";
-import { FC } from "react";
+import { type FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "contexts/AuthProvider/AuthProvider";
+import { getApplicationName } from "utils/appearance";
 import { retrieveRedirect } from "utils/redirect";
 import { LoginPageView } from "./LoginPageView";
-import { getApplicationName } from "utils/appearance";
 
 export const LoginPage: FC = () => {
   const location = useLocation();

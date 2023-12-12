@@ -4,7 +4,10 @@ import {
   waitFor,
   renderHook,
 } from "@testing-library/react";
-import { AppProviders, ThemeProviders } from "App";
+import { ReactNode, useState } from "react";
+import { QueryClient } from "react-query";
+import { AppProviders } from "App";
+import { ThemeProviders } from "contexts/ThemeProviders";
 import { DashboardLayout } from "components/Dashboard/DashboardLayout";
 import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout";
 import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
@@ -13,10 +16,8 @@ import {
   createMemoryRouter,
   RouteObject,
 } from "react-router-dom";
-import { RequireAuth } from "../components/RequireAuth/RequireAuth";
+import { RequireAuth } from "components/RequireAuth/RequireAuth";
 import { MockUser } from "./entities";
-import { ReactNode, useState } from "react";
-import { QueryClient } from "react-query";
 
 function createTestQueryClient() {
   // Helps create one query client for each test case, to make sure that tests

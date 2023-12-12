@@ -12,6 +12,7 @@ export interface Theme extends MuiTheme {
 const theme = {
   dark,
   darkBlue,
+  light: darkBlue,
 } satisfies Record<string, Theme>;
 
 export default theme;

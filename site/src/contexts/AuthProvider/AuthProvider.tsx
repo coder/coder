@@ -97,7 +97,7 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
   };
 
   if (isLoading) {
-    return <FullScreenLoader />;
+    return null;
   }
 
   return (

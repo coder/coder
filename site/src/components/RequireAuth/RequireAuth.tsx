@@ -1,12 +1,12 @@
 import axios from "axios";
-import { useAuth } from "components/AuthProvider/AuthProvider";
-import { FC, useEffect } from "react";
+import { type FC, useEffect } from "react";
 import { Outlet, Navigate, useLocation } from "react-router-dom";
 import { embedRedirect } from "utils/redirect";
-import { FullScreenLoader } from "../Loader/FullScreenLoader";
-import { DashboardProvider } from "components/Dashboard/DashboardProvider";
-import { ProxyProvider } from "contexts/ProxyContext";
 import { isApiError } from "api/errors";
+import { useAuth } from "contexts/AuthProvider/AuthProvider";
+import { ProxyProvider } from "contexts/ProxyContext";
+import { DashboardProvider } from "../Dashboard/DashboardProvider";
+import { FullScreenLoader } from "../Loader/FullScreenLoader";
 
 export const RequireAuth: FC = () => {
   const { signOut, isSigningOut, isSignedOut } = useAuth();

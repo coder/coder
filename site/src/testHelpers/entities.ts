@@ -4,9 +4,9 @@ import {
   type DeploymentConfig,
 } from "api/api";
 import { FieldError } from "api/errors";
-import * as TypesGen from "api/typesGenerated";
+import type * as TypesGen from "api/typesGenerated";
 import range from "lodash/range";
-import { Permissions } from "components/AuthProvider/permissions";
+import { Permissions } from "contexts/AuthProvider/permissions";
 import { TemplateVersionFiles } from "utils/templateVersion";
 import { FileTree } from "utils/filetree";
 import { ProxyLatencyReport } from "contexts/useProxyLatency";
