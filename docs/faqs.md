@@ -349,7 +349,7 @@ stability and reliability.
 The Coder plugin will appear in the Gateway UI when opened.
 
 Selecting the most suitable template depends on how the deployment manages
-Jetbrains IDE versions. If downloading from
+JetBrains IDE versions. If downloading from
 [jetbrains.com](https://www.jetbrains.com/remote-development/gateway/) is
 acceptable, see the example templates below which specifies the product code,
 IDE version and build number in the `coder_app` resource. This will present an
@@ -389,7 +389,7 @@ https://github.com/sharkymark/v2-templates/blob/main/vs-code-server/main.tf
 
 [Colima](https://github.com/abiosoft/colima) is a Docker Desktop alternative.
 
-This example is meant for a users who want to try out Coder on a MacOS device.
+This example is meant for a users who want to try out Coder on a macOS device.
 
 Install Colima and docker with:
 
