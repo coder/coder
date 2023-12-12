@@ -1145,7 +1145,7 @@ func (q *FakeQuerier) DeleteOldProvisionerDaemons(_ context.Context) error {
 
 	var validDaemons []database.ProvisionerDaemon
 	for _, p := range q.provisionerDaemons {
-		if (p.CreatedAt.Before(weekAgo) && !p.UpdatedAt.Valid) || (p.UpdatedAt.Valid && p.UpdatedAt.Time.Before(weekAgo)) {
+		if (p.CreatedAt.Before(weekAgo) && !p.LastSeenAt.Valid) || (p.LastSeenAt.Valid && p.LastSeenAt.Time.Before(weekAgo)) {
 			continue
 		}
 		validDaemons = append(validDaemons, p)
@@ -4950,11 +4950,10 @@ func (q *FakeQuerier) InsertProvisionerDaemon(_ context.Context, arg database.In
 
 	daemon := database.ProvisionerDaemon{
 		ID:           arg.ID,
-		CreatedAt:    arg.CreatedAt,
 		Name:         arg.Name,
 		Provisioners: arg.Provisioners,
 		Tags:         arg.Tags,
-		UpdatedAt:    arg.UpdatedAt,
+		LastSeenAt:   arg.LastSeenAt,
 	}
 	q.provisionerDaemons = append(q.provisionerDaemons, daemon)
 	return daemon, nil
