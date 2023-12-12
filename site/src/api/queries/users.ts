@@ -17,12 +17,12 @@ export function usersKey(req: UsersRequest) {
   return ["users", req] as const;
 }
 
-export function paginatedUsers(): UsePaginatedQueryOptions<
-  GetUsersResponse,
-  UsersRequest
-> {
+export function paginatedUsers(
+  searchParams: URLSearchParams,
+): UsePaginatedQueryOptions<GetUsersResponse, UsersRequest> {
   return {
-    queryPayload: ({ limit, offset, searchParams }) => {
+    searchParams,
+    queryPayload: ({ limit, offset }) => {
       return {
         limit,
         offset,
