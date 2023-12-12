@@ -765,6 +765,9 @@ jobs:
 
       - name: Set up Flux CLI
         uses: fluxcd/flux2/action@main
+        with:
+          # Keep this up to date with the version of flux installed in dogfood cluster
+          version: "2.1.2"
 
       - name: Get Cluster Credentials
         uses: "google-github-actions/get-gke-credentials@v2"
