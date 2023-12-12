@@ -13,6 +13,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -62,7 +63,7 @@ func TestAsNoActor(t *testing.T) {
 func TestPing(t *testing.T) {
 	t.Parallel()
 
-	q := dbauthz.New(dbmem.New(), &coderdtest.RecordingAuthorizer{}, slog.Make(), accessControlStorePointer())
+	q := dbauthz.New(dbmem.New(), &coderdtest.RecordingAuthorizer{}, slog.Make(), coderdtest.AccessControlStorePointer())
 	_, err := q.Ping(context.Background())
 	require.NoError(t, err, "must not error")
 }
@@ -74,7 +75,7 @@ func TestInTX(t *testing.T) {
 	db := dbmem.New()
 	q := dbauthz.New(db, &coderdtest.RecordingAuthorizer{
 		Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: xerrors.New("custom error")},
-	}, slog.Make(), accessControlStorePointer())
+	}, slog.Make(), coderdtest.AccessControlStorePointer())
 	actor := rbac.Subject{
 		ID:     uuid.NewString(),
 		Roles:  rbac.RoleNames{rbac.RoleOwner()},
@@ -110,8 +111,8 @@ func TestNew(t *testing.T) {
 
 	// Double wrap should not cause an actual double wrap. So only 1 rbac call
 	// should be made.
-	az := dbauthz.New(db, rec, slog.Make(), accessControlStorePointer())
-	az = dbauthz.New(az, rec, slog.Make(), accessControlStorePointer())
+	az := dbauthz.New(db, rec, slog.Make(), coderdtest.AccessControlStorePointer())
+	az = dbauthz.New(az, rec, slog.Make(), coderdtest.AccessControlStorePointer())
 
 	w, err := az.GetWorkspaceByID(ctx, exp.ID)
 	require.NoError(t, err, "must not error")
@@ -128,7 +129,7 @@ func TestDBAuthzRecursive(t *testing.T) {
 	t.Parallel()
 	q := dbauthz.New(dbmem.New(), &coderdtest.RecordingAuthorizer{
 		Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: nil},
-	}, slog.Make(), accessControlStorePointer())
+	}, slog.Make(), coderdtest.AccessControlStorePointer())
 	actor := rbac.Subject{
 		ID:     uuid.NewString(),
 		Roles:  rbac.RoleNames{rbac.RoleOwner()},

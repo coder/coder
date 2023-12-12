@@ -78,6 +78,10 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 		return err
 	})
 	err := eg.Wait()
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace agent.",
