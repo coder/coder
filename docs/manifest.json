@@ -224,6 +224,11 @@
               "title": "Permissions",
               "description": "Configure who can access a template",
               "path": "./templates/permissions.md"
+            },
+            {
+              "title": "Workspace Scheduling",
+              "description": "Configure when workspaces start, stop, and delete",
+              "path": "./templates/schedule.md"
             }
           ]
         },
