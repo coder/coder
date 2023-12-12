@@ -1,4 +1,9 @@
-import { QueryClient, type QueryKey, type UseQueryOptions } from "react-query";
+import {
+  type UseMutationOptions,
+  QueryClient,
+  type QueryKey,
+  type UseQueryOptions,
+} from "react-query";
 import * as API from "api/api";
 import type {
   AuthorizationRequest,
@@ -192,14 +197,31 @@ export const updateProfile = (userId: string) => {
 export const updateThemePreference = (
   userId: string,
   queryClient: QueryClient,
-) => {
+): UseMutationOptions<
+  User,
+  unknown,
+  UpdateUserThemePreferenceRequest,
+  unknown
+> => {
   return {
-    mutationFn: (req: UpdateUserThemePreferenceRequest) =>
-      API.updateThemePreference(userId, req),
+    mutationFn: (req) => API.updateThemePreference(userId, req),
+    onMutate: async (patch) => {
+      // Mutate the `queryClient` optimistically to make the theme switcher
+      // more responsive.
+      const me: User | undefined = queryClient.getQueryData(meKey);
+      if (userId === "me" && me) {
+        queryClient.setQueryData(meKey, {
+          ...me,
+          theme_preference: patch.theme_preference,
+        });
+      }
+    },
     onSuccess: async () => {
       // Could technically invalidate more, but we only ever care about the
       // `theme_preference` for the `me` query.
-      await queryClient.invalidateQueries(meKey);
+      if (userId === "me") {
+        await queryClient.invalidateQueries(meKey);
+      }
     },
   };
 };
