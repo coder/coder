@@ -573,21 +573,6 @@ func (mr *MockStoreMockRecorder) GetAllTailnetAgents(arg0 interface{}) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllTailnetAgents", reflect.TypeOf((*MockStore)(nil).GetAllTailnetAgents), arg0)
 }
 
-// GetAllTailnetClients mocks base method.
-func (m *MockStore) GetAllTailnetClients(arg0 context.Context) ([]database.GetAllTailnetClientsRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAllTailnetClients", arg0)
-	ret0, _ := ret[0].([]database.GetAllTailnetClientsRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetAllTailnetClients indicates an expected call of GetAllTailnetClients.
-func (mr *MockStoreMockRecorder) GetAllTailnetClients(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllTailnetClients", reflect.TypeOf((*MockStore)(nil).GetAllTailnetClients), arg0)
-}
-
 // GetAllTailnetCoordinators mocks base method.
 func (m *MockStore) GetAllTailnetCoordinators(arg0 context.Context) ([]database.TailnetCoordinator, error) {
 	m.ctrl.T.Helper()
