@@ -952,6 +952,55 @@ export const unlinkExternalAuthProvider = async (
   return resp.data;
 };
 
+export const getOAuth2Apps = async (): Promise<TypesGen.OAuth2App[]> => {
+  const resp = await axios.get(`/api/v2/oauth2/apps`);
+  return resp.data;
+};
+
+export const getOAuth2App = async (id: string): Promise<TypesGen.OAuth2App> => {
+  const resp = await axios.get(`/api/v2/oauth2/apps/${id}`);
+  return resp.data;
+};
+
+export const postOAuth2App = async (
+  data: TypesGen.PostOAuth2AppRequest,
+): Promise<TypesGen.OAuth2App> => {
+  const response = await axios.post(`/api/v2/oauth2/apps`, data);
+  return response.data;
+};
+
+export const putOAuth2App = async (
+  id: string,
+  data: TypesGen.PutOAuth2AppRequest,
+): Promise<TypesGen.OAuth2App> => {
+  const response = await axios.put(`/api/v2/oauth2/apps/${id}`, data);
+  return response.data;
+};
+export const deleteOAuth2App = async (id: string): Promise<void> => {
+  await axios.delete(`/api/v2/oauth2/apps/${id}`);
+};
+
+export const getOAuth2AppSecrets = async (
+  id: string,
+): Promise<TypesGen.OAuth2AppSecret[]> => {
+  const resp = await axios.get(`/api/v2/oauth2/apps/${id}/secrets`);
+  return resp.data;
+};
+
+export const postOAuth2AppSecret = async (
+  id: string,
+): Promise<TypesGen.OAuth2AppSecretFull> => {
+  const resp = await axios.post(`/api/v2/oauth2/apps/${id}/secrets`);
+  return resp.data;
+};
+
+export const deleteOAuth2AppSecret = async (
+  appId: string,
+  secretId: string,
+): Promise<void> => {
+  await axios.delete(`/api/v2/oauth2/apps/${appId}/secrets/${secretId}`);
+};
+
 export const getAuditLogs = async (
   options: TypesGen.AuditLogsRequest,
 ): Promise<TypesGen.AuditLogResponse> => {
