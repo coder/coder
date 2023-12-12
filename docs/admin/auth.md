@@ -215,7 +215,8 @@ CODER_OIDC_SIGN_IN_TEXT="Sign in with Gitea"
 CODER_OIDC_ICON_URL=https://gitea.io/images/gitea.png
 ```
 
-To change the icon and text above the OpenID Connect button, see application name and logo url in [appearance](./appearance.md) settings.
+To change the icon and text above the OpenID Connect button, see application 
+name and logo url in [appearance](./appearance.md) settings.
 
 ## Disable Built-in Authentication
 
