@@ -19,6 +19,13 @@ disabled by default.
 
 ### Require automatic updates
 
+> Requiring automatic updates is in an
+> [experimental state](../contributing/feature-stages.md#experimental-features)
+> and the behavior is subject to change. Use
+> [GitHub issues](https://github.com/coder/coder) to leave feedback. This
+> experiment must be specifically enabled with the `--experiments="template_update_policies"`
+> option on your coderd deployment.
+
 Admins can require all workspaces update to the latest active template version
 when they're started. This can be used to enforce security patches or other
 important changes are quickly applied to all workspaces. This setting is not

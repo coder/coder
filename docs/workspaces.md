@@ -81,7 +81,14 @@ workspace will run before Coder automatically stops it, regardless of any active
 connections. Use this setting to ensure that workspaces do not run in perpetuity
 when connections are left open inadvertently.
 
-### Automatic Updates
+### Automatic updates
+
+> Automatic updates is part of an
+> [experimental feature](../contributing/feature-stages.md#experimental-features)
+> and the behavior is subject to change. Use
+> [GitHub issues](https://github.com/coder/coder) to leave feedback. This
+> experiment must be specifically enabled with the `--experiments="template_update_policies"`
+> option on your coderd deployment.
 
 It can be tedious to manually update a workspace everytime an update is pushed
 to a template. Users can choose to opt-in to automatic updates to update to the
