@@ -9669,10 +9669,6 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
-                "updated_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
                 "version": {
                     "type": "string"
                 }

@@ -975,10 +975,10 @@ func TestExecutorInactiveWorkspace(t *testing.T) {
 			ProvisionPlan:  echo.PlanComplete,
 			ProvisionApply: echo.ApplyComplete,
 		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.TimeTilDormantMillis = ptr.Ref[int64](inactiveTTL.Milliseconds())
 		})
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)

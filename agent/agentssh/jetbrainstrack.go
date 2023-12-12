@@ -4,10 +4,11 @@ import (
 	"strings"
 	"sync"
 
-	"cdr.dev/slog"
 	"github.com/gliderlabs/ssh"
 	"go.uber.org/atomic"
 	gossh "golang.org/x/crypto/ssh"
+
+	"cdr.dev/slog"
 )
 
 // localForwardChannelData is copied from the ssh package.

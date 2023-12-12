@@ -168,8 +168,9 @@ export const WorkspaceReadyPage = ({
     updateWorkspace(workspace, queryClient),
   );
 
-  // Delete workspace
-  const canDeleteWorkspace = Boolean(permissions?.updateWorkspace);
+  // If a user can update the template then they can force a delete
+  // (via orphan).
+  const canUpdateTemplate = Boolean(permissions?.updateTemplate);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const deleteWorkspaceMutation = useMutation(
     deleteWorkspace(workspace, queryClient),
@@ -304,7 +305,7 @@ export const WorkspaceReadyPage = ({
 
       <WorkspaceDeleteDialog
         workspace={workspace}
-        canUpdateTemplate={canDeleteWorkspace}
+        canUpdateTemplate={canUpdateTemplate}
         isOpen={isConfirmingDelete}
         onCancel={() => {
           setIsConfirmingDelete(false);

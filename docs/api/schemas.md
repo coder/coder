@@ -3827,7 +3827,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "property1": "string",
     "property2": "string"
   },
-  "updated_at": "2019-08-24T14:15:22Z",
   "version": "string"
 }
 ```
@@ -3843,7 +3842,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `provisioners`     | array of string | false    |              |             |
 | `tags`             | object          | false    |              |             |
 | » `[any property]` | string          | false    |              |             |
-| `updated_at`       | string          | false    |              |             |
 | `version`          | string          | false    |              |             |
 
 ## codersdk.ProvisionerJob

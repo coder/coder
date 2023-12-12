@@ -44,8 +44,11 @@ type listeningPortsHandler struct {
 	ignorePorts   map[int]string
 	cacheDuration time.Duration
 
-	mut   sync.Mutex
+	//nolint: unused  // used on some but not all platforms
+	mut sync.Mutex
+	//nolint: unused  // used on some but not all platforms
 	ports []codersdk.WorkspaceAgentListeningPort
+	//nolint: unused  // used on some but not all platforms
 	mtime time.Time
 }
 

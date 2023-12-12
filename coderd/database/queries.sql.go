@@ -3003,14 +3003,14 @@ func (q *sqlQuerier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.
 
 const deleteOldProvisionerDaemons = `-- name: DeleteOldProvisionerDaemons :exec
 DELETE FROM provisioner_daemons WHERE (
-	(created_at < (NOW() - INTERVAL '7 days') AND updated_at IS NULL) OR
-	(updated_at IS NOT NULL AND updated_at < (NOW() - INTERVAL '7 days'))
+	(created_at < (NOW() - INTERVAL '7 days') AND last_seen_at IS NULL) OR
+	(last_seen_at IS NOT NULL AND last_seen_at < (NOW() - INTERVAL '7 days'))
 )
 `
 
 // Delete provisioner daemons that have been created at least a week ago
 // and have not connected to coderd since a week.
-// A provisioner daemon with "zeroed" updated_at column indicates possible
+// A provisioner daemon with "zeroed" last_seen_at column indicates possible
 // connectivity issues (no provisioner daemon activity since registration).
 func (q *sqlQuerier) DeleteOldProvisionerDaemons(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, deleteOldProvisionerDaemons)
@@ -3019,7 +3019,7 @@ func (q *sqlQuerier) DeleteOldProvisionerDaemons(ctx context.Context) error {
 
 const getProvisionerDaemons = `-- name: GetProvisionerDaemons :many
 SELECT
-	id, created_at, updated_at, name, provisioners, replica_id, tags, last_seen_at, version
+	id, created_at, name, provisioners, replica_id, tags, last_seen_at, version
 FROM
 	provisioner_daemons
 `
@@ -3036,7 +3036,6 @@ func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDa
 		if err := rows.Scan(
 			&i.ID,
 			&i.CreatedAt,
-			&i.UpdatedAt,
 			&i.Name,
 			pq.Array(&i.Provisioners),
 			&i.ReplicaID,
@@ -3065,10 +3064,10 @@ INSERT INTO
 		"name",
 		provisioners,
 		tags,
-		updated_at
+		last_seen_at
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6) RETURNING id, created_at, updated_at, name, provisioners, replica_id, tags, last_seen_at, version
+	($1, $2, $3, $4, $5, $6) RETURNING id, created_at, name, provisioners, replica_id, tags, last_seen_at, version
 `
 
 type InsertProvisionerDaemonParams struct {
@@ -3077,7 +3076,7 @@ type InsertProvisionerDaemonParams struct {
 	Name         string            `db:"name" json:"name"`
 	Provisioners []ProvisionerType `db:"provisioners" json:"provisioners"`
 	Tags         StringMap         `db:"tags" json:"tags"`
-	UpdatedAt    sql.NullTime      `db:"updated_at" json:"updated_at"`
+	LastSeenAt   sql.NullTime      `db:"last_seen_at" json:"last_seen_at"`
 }
 
 func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProvisionerDaemonParams) (ProvisionerDaemon, error) {
@@ -3087,13 +3086,12 @@ func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProv
 		arg.Name,
 		pq.Array(arg.Provisioners),
 		arg.Tags,
-		arg.UpdatedAt,
+		arg.LastSeenAt,
 	)
 	var i ProvisionerDaemon
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,
-		&i.UpdatedAt,
 		&i.Name,
 		pq.Array(&i.Provisioners),
 		&i.ReplicaID,

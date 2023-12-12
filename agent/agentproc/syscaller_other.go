@@ -17,14 +17,14 @@ var errUnimplemented = xerrors.New("unimplemented")
 
 type nopSyscaller struct{}
 
-func (nopSyscaller) SetPriority(pid int32, priority int) error {
+func (nopSyscaller) SetPriority(int32, int) error {
 	return errUnimplemented
 }
 
-func (nopSyscaller) GetPriority(pid int32) (int, error) {
+func (nopSyscaller) GetPriority(int32) (int, error) {
 	return 0, errUnimplemented
 }
 
-func (nopSyscaller) Kill(pid int32, sig syscall.Signal) error {
+func (nopSyscaller) Kill(int32, syscall.Signal) error {
 	return errUnimplemented
 }

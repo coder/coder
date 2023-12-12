@@ -239,9 +239,8 @@ func ServeMultiAgent(c CoordinatorV2, logger slog.Logger, id uuid.UUID) MultiAge
 				// legacy IP. Agents with only the legacy IP aren't compatible
 				// with single_tailnet and must be routed through wsconncache.
 				return true
-			} else {
-				return false
 			}
+			return false
 		},
 		OnSubscribe: func(enq Queue, agent uuid.UUID) (*Node, error) {
 			err := SendCtx(ctx, reqs, &proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{Uuid: UUIDToByteSlice(agent)}})
