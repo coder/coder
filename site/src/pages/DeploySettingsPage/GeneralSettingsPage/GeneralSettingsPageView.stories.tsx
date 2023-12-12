@@ -34,13 +34,13 @@ const meta: Meta<typeof GeneralSettingsPageView> = {
         description:
           "Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.",
         flag: "experiments",
-        value: ["single_tailnet"],
+        value: ["workspace_actions"],
         flag_shorthand: "",
         hidden: false,
       },
     ],
     deploymentDAUs: MockDeploymentDAUResponse,
-    safeExperiments: ["single_tailnet", "deployment_health_page"],
+    safeExperiments: ["deployment_health_page"],
   },
 };
 
@@ -102,6 +102,6 @@ export const allExperimentsEnabled: Story = {
         hidden: false,
       },
     ],
-    safeExperiments: ["single_tailnet", "deployment_health_page"],
+    safeExperiments: ["deployment_health_page"],
   },
 };

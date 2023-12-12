@@ -9110,13 +9110,11 @@ const docTemplate = `{
             "enum": [
                 "workspace_actions",
                 "tailnet_pg_coordinator",
-                "single_tailnet",
                 "deployment_health_page"
             ],
             "x-enum-varnames": [
                 "ExperimentWorkspaceActions",
                 "ExperimentTailnetPGCoordinator",
-                "ExperimentSingleTailnet",
                 "ExperimentDeploymentHealthPage"
             ]
         },
