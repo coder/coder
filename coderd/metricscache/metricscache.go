@@ -153,9 +153,8 @@ func convertDAUResponse[T dauRow](rows []T, tzOffset int) codersdk.DAUsResponse 
 			return -1
 		} else if a.Equal(b) {
 			return 0
-		} else {
-			return 1
 		}
+		return 1
 	})
 
 	var resp codersdk.DAUsResponse
