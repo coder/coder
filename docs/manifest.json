@@ -1000,7 +1000,7 @@
       "title": "FAQs",
       "description": "Frequently asked questions",
       "path": "./faqs.md",
-      "icon_path": "./images/icons/home.svg"
+      "icon_path": "./images/icons/info.svg"
     }
   ]
 }
