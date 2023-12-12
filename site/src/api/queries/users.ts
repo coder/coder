@@ -196,10 +196,10 @@ export const updateThemePreference = (
   return {
     mutationFn: (req: UpdateUserThemePreferenceRequest) =>
       API.updateThemePreference(userId, req),
-    onSuccess: () => {
+    onSuccess: async () => {
       // Could technically invalidate more, but we only ever care about the
       // `theme_preference` for the `me` query.
-      queryClient.invalidateQueries(meKey);
+      await queryClient.invalidateQueries(meKey);
     },
   };
 };

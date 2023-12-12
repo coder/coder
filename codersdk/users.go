@@ -294,7 +294,7 @@ func (c *Client) UpdateUserStatus(ctx context.Context, user string, status UserS
 }
 
 // UpdateUserThemePreference enables callers to update the user's theme preference
-func (c *Client) UpdateUserThemePreference(ctx context.Context, user string, req UpdateUserProfileRequest) (User, error) {
+func (c *Client) UpdateUserThemePreference(ctx context.Context, user string, req UpdateUserThemePreferenceRequest) (User, error) {
 	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/theme", user), req)
 	if err != nil {
 		return User{}, err
@@ -309,7 +309,7 @@ func (c *Client) UpdateUserThemePreference(ctx context.Context, user string, req
 
 // UpdateUserPassword updates a user password.
 // It calls PUT /users/{user}/password
-func (c *Client) UpdateUserPassword(ctx context.Context, user string, req UpdateUserThemePreferenceRequest) error {
+func (c *Client) UpdateUserPassword(ctx context.Context, user string, req UpdateUserPasswordRequest) error {
 	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/password", user), req)
 	if err != nil {
 		return err
