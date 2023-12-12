@@ -6,11 +6,15 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"cdr.dev/slog"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -26,8 +30,10 @@ func TestWorkspaceAgentParam(t *testing.T) {
 			_, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID: user.ID,
 			})
+			tpl       = dbgen.Template(t, db, database.Template{})
 			workspace = dbgen.Workspace(t, db, database.Workspace{
-				OwnerID: user.ID,
+				OwnerID:    user.ID,
+				TemplateID: tpl.ID,
 			})
 			build = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
 				WorkspaceID: workspace.ID,
@@ -83,6 +89,36 @@ func TestWorkspaceAgentParam(t *testing.T) {
 
 		r, _ := setupAuthentication(db)
 		chi.RouteContext(r.Context()).URLParams.Add("workspaceagent", uuid.NewString())
+		rw := httptest.NewRecorder()
+		rtr.ServeHTTP(rw, r)
+
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusNotFound, res.StatusCode)
+	})
+
+	t.Run("NotAuthorized", func(t *testing.T) {
+		t.Parallel()
+		db := dbmem.New()
+		fakeAuthz := &coderdtest.FakeAuthorizer{AlwaysReturn: xerrors.Errorf("constant failure")}
+		dbFail := dbauthz.New(db, fakeAuthz, slog.Make(), coderdtest.AccessControlStorePointer())
+
+		rtr := chi.NewRouter()
+		rtr.Use(
+			httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+				DB:              db,
+				RedirectToLogin: false,
+			}),
+			// Only fail authz in this middleware
+			httpmw.ExtractWorkspaceAgentParam(dbFail),
+		)
+		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
+			_ = httpmw.WorkspaceAgentParam(r)
+			rw.WriteHeader(http.StatusOK)
+		})
+
+		r, _ := setupAuthentication(db)
+
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
 
