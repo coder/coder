@@ -95,9 +95,10 @@ func TestCollectInsights(t *testing.T) {
 		ConnectionsByProto: map[string]int64{"TCP": 1},
 		// ConnectionCount must be positive as database query ignores stats with no active connections at the time frame
 		ConnectionCount: 74,
-		// SessionCountJetBrains must be positive, but the exact value is ignored.
+		// SessionCountJetBrains, SessionCountVSCode must be positive, but the exact value is ignored.
 		// Database query approximates it to 60s of usage.
 		SessionCountJetBrains: 47,
+		SessionCountVSCode:    34,
 	})
 	require.NoError(t, err, "unable to post fake stats")
 
