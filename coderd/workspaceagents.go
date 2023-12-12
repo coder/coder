@@ -1508,7 +1508,7 @@ func convertWorkspaceAgentMetadataDesc(mds []database.WorkspaceAgentMetadatum) [
 	return metadata
 }
 
-func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
+func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.CoordinatorV1,
 	dbAgent database.WorkspaceAgent, apps []codersdk.WorkspaceApp, scripts []codersdk.WorkspaceAgentScript, logSources []codersdk.WorkspaceAgentLogSource,
 	agentInactiveDisconnectTimeout time.Duration, agentFallbackTroubleshootingURL string,
 ) (codersdk.WorkspaceAgent, error) {

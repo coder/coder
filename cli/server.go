@@ -847,7 +847,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			defer closeBatcher()
 
 			// We use a separate coderAPICloser so the Enterprise API
-			// can have it's own close functions. This is cleaner
+			// can have its own close functions. This is cleaner
 			// than abstracting the Coder API itself.
 			coderAPI, coderAPICloser, err := newAPI(ctx, options)
 			if err != nil {
