@@ -315,6 +315,14 @@ OIDC provider will be added to the `myCoderGroupName` group in Coder.
 [azure-gids]:
   https://github.com/MicrosoftDocs/azure-docs/issues/59766#issuecomment-664387195
 
+### Group allowlist
+
+You can limit which groups from your identity provider can log in to Coder with
+[CODER_OIDC_ALLOWED_GROUPS](https://coder.com/docs/v2/latest/cli/server#--oidc-allowed-groups).
+Users who are not in a matching group will see the following error:
+
+![Unauthorized group error](../images/admin/group-allowlist.png)
+
 ### Troubleshooting
 
 Some common issues when enabling group sync.
