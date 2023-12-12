@@ -33,7 +33,7 @@ export const LoginPage: FC = () => {
         const redirectURL = new URL(redirectTo);
         if (redirectURL.host !== window.location.host) {
           window.location.href = redirectTo;
-          return <></>;
+          return null;
         }
       } catch {
         // Do nothing
@@ -41,30 +41,33 @@ export const LoginPage: FC = () => {
       // Path based apps.
       if (redirectTo.includes("/apps/")) {
         window.location.href = redirectTo;
-        return <></>;
+        return null;
       }
     }
+
     return <Navigate to={redirectTo} replace />;
-  } else if (isConfiguringTheFirstUser) {
-    return <Navigate to="/setup" replace />;
-  } else {
-    return (
-      <>
-        <Helmet>
-          <title>Sign in to {applicationName}</title>
-        </Helmet>
-        <LoginPageView
-          authMethods={authMethods}
-          error={signInError}
-          isSigningIn={isSigningIn}
-          onSignIn={async ({ email, password }) => {
-            await signIn(email, password);
-            navigate("/");
-          }}
-        />
-      </>
-    );
   }
+
+  if (isConfiguringTheFirstUser) {
+    return <Navigate to="/setup" replace />;
+  }
+
+  return (
+    <>
+      <Helmet>
+        <title>Sign in to {applicationName}</title>
+      </Helmet>
+      <LoginPageView
+        authMethods={authMethods}
+        error={signInError}
+        isSigningIn={isSigningIn}
+        onSignIn={async ({ email, password }) => {
+          await signIn(email, password);
+          navigate("/");
+        }}
+      />
+    </>
+  );
 };
 
 export default LoginPage;

@@ -19,12 +19,7 @@ export const AppearancePage: FC = () => {
           isLoading={updateThemePreferenceMutation.isLoading}
           error={updateThemePreferenceMutation.error}
           initialValues={{ theme_preference: me.theme_preference }}
-          onSubmit={async (arg: any) => {
-            console.log("going");
-            const x = await updateThemePreferenceMutation.mutateAsync(arg);
-            console.log(x);
-            return x;
-          }}
+          onSubmit={updateThemePreferenceMutation.mutateAsync}
         />
       </Section>
     </>

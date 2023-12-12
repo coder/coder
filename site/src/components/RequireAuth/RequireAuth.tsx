@@ -9,7 +9,7 @@ import { DashboardProvider } from "../Dashboard/DashboardProvider";
 import { FullScreenLoader } from "../Loader/FullScreenLoader";
 
 export const RequireAuth: FC = () => {
-  const { signOut, isSigningOut, isSignedOut } = useAuth();
+  const { signOut, isSigningOut, isSignedOut, isLoading } = useAuth();
   const location = useLocation();
   const isHomePage = location.pathname === "/";
   const navigateTo = isHomePage
@@ -37,21 +37,23 @@ export const RequireAuth: FC = () => {
     };
   }, [signOut]);
 
+  if (isLoading || isSigningOut) {
+    return <FullScreenLoader />;
+  }
+
   if (isSignedOut) {
     return (
       <Navigate to={navigateTo} state={{ isRedirect: !isHomePage }} replace />
     );
-  } else if (isSigningOut) {
-    return <FullScreenLoader />;
-  } else {
-    // Authenticated pages have access to some contexts for knowing enabled experiments
-    // and where to route workspace connections.
-    return (
-      <DashboardProvider>
-        <ProxyProvider>
-          <Outlet />
-        </ProxyProvider>
-      </DashboardProvider>
-    );
   }
+
+  // Authenticated pages have access to some contexts for knowing enabled experiments
+  // and where to route workspace connections.
+  return (
+    <DashboardProvider>
+      <ProxyProvider>
+        <Outlet />
+      </ProxyProvider>
+    </DashboardProvider>
+  );
 };
