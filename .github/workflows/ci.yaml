@@ -568,6 +568,16 @@ jobs:
         with:
           directory: offlinedocs
 
+      - name: Install Protoc
+        run: |
+          mkdir -p /tmp/proto
+          pushd /tmp/proto
+          curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.3/protoc-23.3-linux-x86_64.zip
+          unzip protoc.zip
+          cp -r ./bin/* /usr/local/bin
+          cp -r ./include /usr/local/bin/include
+          popd
+
       - name: Setup Go
         uses: ./.github/actions/setup-go
 

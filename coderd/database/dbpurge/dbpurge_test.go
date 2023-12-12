@@ -215,7 +215,7 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 		Name:         "external-0",
 		Provisioners: []database.ProvisionerType{"echo"},
 		CreatedAt:    now.Add(-14 * 24 * time.Hour),
-		UpdatedAt:    sql.NullTime{Valid: true, Time: now.Add(-7 * 24 * time.Hour).Add(time.Minute)},
+		LastSeenAt:   sql.NullTime{Valid: true, Time: now.Add(-7 * 24 * time.Hour).Add(time.Minute)},
 	})
 	require.NoError(t, err)
 	_, err = db.InsertProvisionerDaemon(ctx, database.InsertProvisionerDaemonParams{
@@ -224,7 +224,7 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 		Name:         "external-1",
 		Provisioners: []database.ProvisionerType{"echo"},
 		CreatedAt:    now.Add(-8 * 24 * time.Hour),
-		UpdatedAt:    sql.NullTime{Valid: true, Time: now.Add(-8 * 24 * time.Hour).Add(time.Hour)},
+		LastSeenAt:   sql.NullTime{Valid: true, Time: now.Add(-8 * 24 * time.Hour).Add(time.Hour)},
 	})
 	require.NoError(t, err)
 	_, err = db.InsertProvisionerDaemon(ctx, database.InsertProvisionerDaemonParams{
@@ -241,7 +241,7 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 		Name:         "external-3",
 		Provisioners: []database.ProvisionerType{"echo"},
 		CreatedAt:    now.Add(-6 * 24 * time.Hour),
-		UpdatedAt:    sql.NullTime{Valid: true, Time: now.Add(-6 * 24 * time.Hour)},
+		LastSeenAt:   sql.NullTime{Valid: true, Time: now.Add(-6 * 24 * time.Hour)},
 	})
 	require.NoError(t, err)
 

@@ -133,7 +133,7 @@ describe("WorkspacePage", () => {
     const deleteWorkspaceMock = jest
       .spyOn(api, "deleteWorkspace")
       .mockResolvedValueOnce(MockWorkspaceBuildDelete);
-    await renderWorkspacePage(MockWorkspace);
+    await renderWorkspacePage(MockFailedWorkspace);
 
     // open the workspace action popover so we have access to all available ctas
     const trigger = screen.getByTestId("workspace-options-button");
@@ -147,7 +147,7 @@ describe("WorkspacePage", () => {
     const dialog = await screen.findByTestId("dialog");
     const labelText = "Workspace name";
     const textField = within(dialog).getByLabelText(labelText);
-    await user.type(textField, MockWorkspace.name);
+    await user.type(textField, MockFailedWorkspace.name);
 
     // check orphan option
     const orphanCheckbox = within(
@@ -163,7 +163,7 @@ describe("WorkspacePage", () => {
     });
     await user.click(confirmButton);
     // arguments are workspace.name, log level (undefined), and orphan
-    expect(deleteWorkspaceMock).toBeCalledWith(MockWorkspace.id, {
+    expect(deleteWorkspaceMock).toBeCalledWith(MockFailedWorkspace.id, {
       log_level: undefined,
       orphan: true,
     });

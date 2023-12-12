@@ -777,7 +777,6 @@ export interface ProvisionerConfig {
 export interface ProvisionerDaemon {
   readonly id: string;
   readonly created_at: string;
-  readonly updated_at?: string;
   readonly last_seen_at?: string;
   readonly name: string;
   readonly version: string;

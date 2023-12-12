@@ -59,7 +59,7 @@ type sqlcQuerier interface {
 	DeleteLicense(ctx context.Context, id int32) (int32, error)
 	// Delete provisioner daemons that have been created at least a week ago
 	// and have not connected to coderd since a week.
-	// A provisioner daemon with "zeroed" updated_at column indicates possible
+	// A provisioner daemon with "zeroed" last_seen_at column indicates possible
 	// connectivity issues (no provisioner daemon activity since registration).
 	DeleteOldProvisionerDaemons(ctx context.Context) error
 	// If an agent hasn't connected in the last 7 days, we purge it's logs.
