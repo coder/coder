@@ -1,19 +1,19 @@
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Button from "@mui/material/Button";
-import { makeStyles, useTheme } from "@mui/styles";
 import Skeleton from "@mui/material/Skeleton";
 import AddIcon from "@mui/icons-material/AddOutlined";
 import RefreshIcon from "@mui/icons-material/Refresh";
-import { GetLicensesResponse } from "api/api";
+import type { GetLicensesResponse } from "api/api";
 import { Header } from "components/DeploySettingsLayout/Header";
 import { LicenseCard } from "./LicenseCard";
 import { Stack } from "components/Stack/Stack";
-import { FC } from "react";
+import { type FC } from "react";
 import Confetti from "react-confetti";
 import { Link } from "react-router-dom";
 import useWindowSize from "react-use/lib/useWindowSize";
 import MuiLink from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
-import { LoadingButton } from "components/LoadingButton/LoadingButton";
+import LoadingButton from "@mui/lab/LoadingButton";
 
 type Props = {
   showConfetti: boolean;
@@ -38,10 +38,8 @@ const LicensesSettingsPageView: FC<Props> = ({
   removeLicense,
   refreshEntitlements,
 }) => {
-  const styles = useStyles();
-  const { width, height } = useWindowSize();
-
   const theme = useTheme();
+  const { width, height } = useWindowSize();
 
   return (
     <>
@@ -72,6 +70,7 @@ const LicensesSettingsPageView: FC<Props> = ({
           </Button>
           <Tooltip title="Refresh license entitlements. This is done automatically every 10 minutes.">
             <LoadingButton
+              loadingPosition="start"
               loading={isRefreshing}
               onClick={refreshEntitlements}
               startIcon={<RefreshIcon />}
@@ -106,13 +105,11 @@ const LicensesSettingsPageView: FC<Props> = ({
       )}
 
       {!isLoading && licenses === null && (
-        <div className={styles.root}>
+        <div css={styles.root}>
           <Stack alignItems="center" spacing={1}>
             <Stack alignItems="center" spacing={0.5}>
-              <span className={styles.title}>
-                You don&apos;t have any licenses!
-              </span>
-              <span className={styles.description}>
+              <span css={styles.title}>You don&apos;t have any licenses!</span>
+              <span css={styles.description}>
                 You&apos;re missing out on high availability, RBAC, quotas, and
                 much more. Contact{" "}
                 <MuiLink href="mailto:sales@coder.com">sales</MuiLink> or{" "}
@@ -129,27 +126,27 @@ const LicensesSettingsPageView: FC<Props> = ({
   );
 };
 
-const useStyles = makeStyles((theme) => ({
+const styles = {
   title: {
-    fontSize: theme.spacing(2),
+    fontSize: 16,
   },
 
-  root: {
-    minHeight: theme.spacing(30),
+  root: (theme) => ({
+    minHeight: 240,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: theme.shape.borderRadius,
+    borderRadius: 8,
     border: `1px solid ${theme.palette.divider}`,
-    padding: theme.spacing(6),
-  },
+    padding: 48,
+  }),
 
-  description: {
+  description: (theme) => ({
     color: theme.palette.text.secondary,
     textAlign: "center",
-    maxWidth: theme.spacing(58),
-    marginTop: theme.spacing(1),
-  },
-}));
+    maxWidth: 464,
+    marginTop: 8,
+  }),
+} satisfies Record<string, Interpolation<Theme>>;
 
 export default LicensesSettingsPageView;

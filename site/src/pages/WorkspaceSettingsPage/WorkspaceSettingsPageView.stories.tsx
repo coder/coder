@@ -7,7 +7,6 @@ const meta: Meta<typeof WorkspaceSettingsPageView> = {
   component: WorkspaceSettingsPageView,
   args: {
     error: undefined,
-    isSubmitting: false,
     workspace: MockWorkspace,
   },
 };
@@ -15,6 +14,10 @@ const meta: Meta<typeof WorkspaceSettingsPageView> = {
 export default meta;
 type Story = StoryObj<typeof WorkspaceSettingsPageView>;
 
-const Example: Story = {};
+export const Example: Story = {};
 
-export { Example as WorkspaceSettingsPageView };
+export const AutoUpdates: Story = {
+  args: {
+    templatePoliciesEnabled: true,
+  },
+};

@@ -90,6 +90,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
       {
         "agents": [
           {
+            "api_version": "string",
             "apps": [
               {
                 "command": "string",
@@ -215,6 +216,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
   "template_icon": "string",
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_name": "string",
+  "template_require_active_version": true,
   "ttl_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -298,6 +300,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
       {
         "agents": [
           {
+            "api_version": "string",
             "apps": [
               {
                 "command": "string",
@@ -423,6 +426,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
   "template_icon": "string",
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_name": "string",
+  "template_require_active_version": true,
   "ttl_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -451,11 +455,11 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
 
 ### Parameters
 
-| Name     | In    | Type    | Required | Description                                                                                                        |
-| -------- | ----- | ------- | -------- | ------------------------------------------------------------------------------------------------------------------ |
-| `q`      | query | string  | false    | Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, deleting_by. |
-| `limit`  | query | integer | false    | Page limit                                                                                                         |
-| `offset` | query | integer | false    | Page offset                                                                                                        |
+| Name     | In    | Type    | Required | Description                                                                                                                                          |
+| -------- | ----- | ------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `q`      | query | string  | false    | Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, is-dormant, last_used_after, last_used_before. |
+| `limit`  | query | integer | false    | Page limit                                                                                                                                           |
+| `offset` | query | integer | false    | Page offset                                                                                                                                          |
 
 ### Example responses
 
@@ -509,6 +513,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
           {
             "agents": [
               {
+                "api_version": "string",
                 "apps": [
                   {
                     "command": "string",
@@ -630,6 +635,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
       "template_icon": "string",
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
+      "template_require_active_version": true,
       "ttl_ms": 0,
       "updated_at": "2019-08-24T14:15:22Z"
     }
@@ -714,6 +720,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
       {
         "agents": [
           {
+            "api_version": "string",
             "apps": [
               {
                 "command": "string",
@@ -839,6 +846,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
   "template_icon": "string",
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_name": "string",
+  "template_require_active_version": true,
   "ttl_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -1038,6 +1046,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
       {
         "agents": [
           {
+            "api_version": "string",
             "apps": [
               {
                 "command": "string",
@@ -1163,6 +1172,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
   "template_icon": "string",
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_name": "string",
+  "template_require_active_version": true,
   "ttl_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -1227,6 +1237,43 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/extend \
 | Status | Meaning                                                 | Description | Schema                                           |
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Resolve workspace autostart by id.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/resolve-autostart \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaces/{workspace}/resolve-autostart`
+
+### Parameters
+
+| Name        | In   | Type         | Required | Description  |
+| ----------- | ---- | ------------ | -------- | ------------ |
+| `workspace` | path | string(uuid) | true     | Workspace ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "parameter_mismatch": true
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                           |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ResolveAutostartResponse](schemas.md#codersdkresolveautostartresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

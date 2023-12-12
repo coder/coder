@@ -8,12 +8,11 @@ import TableRow from "@mui/material/TableRow";
 import DeleteOutline from "@mui/icons-material/DeleteOutline";
 import PersonAdd from "@mui/icons-material/PersonAdd";
 import SettingsOutlined from "@mui/icons-material/SettingsOutlined";
-import { Group, User } from "api/typesGenerated";
+import type { Group, User } from "api/typesGenerated";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Loader } from "components/Loader/Loader";
-import { LoadingButton } from "components/LoadingButton/LoadingButton";
 import { Margins } from "components/Margins/Margins";
 import {
   PageHeader,
@@ -21,13 +20,11 @@ import {
   PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
-import { TableRowMenu } from "components/TableRowMenu/TableRowMenu";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
-import { makeStyles } from "@mui/styles";
 import {
   PaginationStatus,
   TableToolbar,
@@ -44,6 +41,16 @@ import {
 } from "api/queries/groups";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { getErrorMessage } from "api/errors";
+import { LastSeen } from "components/LastSeen/LastSeen";
+import { type Interpolation, type Theme } from "@emotion/react";
+import LoadingButton from "@mui/lab/LoadingButton";
+import {
+  MoreMenu,
+  MoreMenuContent,
+  MoreMenuItem,
+  MoreMenuTrigger,
+  ThreeDotsButton,
+} from "components/MoreMenu/MoreMenu";
 
 export const GroupPage: FC = () => {
   const { groupId } = useParams() as { groupId: string };
@@ -57,7 +64,6 @@ export const GroupPage: FC = () => {
   const [isDeletingGroup, setIsDeletingGroup] = useState(false);
   const isLoading = !groupData || !permissions;
   const canUpdateGroup = permissions ? permissions.canUpdateGroup : false;
-  const styles = useStyles();
 
   const helmet = (
     <Helmet>
@@ -100,7 +106,7 @@ export const GroupPage: FC = () => {
                     setIsDeletingGroup(true);
                   }}
                   startIcon={<DeleteOutline />}
-                  className={styles.removeButton}
+                  css={styles.removeButton}
                 >
                   Delete&hellip;
                 </Button>
@@ -150,7 +156,8 @@ export const GroupPage: FC = () => {
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell width="99%">User</TableCell>
+                  <TableCell width="59%">User</TableCell>
+                  <TableCell width="40">Status</TableCell>
                   <TableCell width="1%"></TableCell>
                 </TableRow>
               </TableHead>
@@ -209,7 +216,6 @@ const AddGroupMember: React.FC<{
   onSubmit: (user: User, reset: () => void) => void;
 }> = ({ isLoading, onSubmit }) => {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const styles = useStyles();
 
   const resetValues = () => {
     setSelectedUser(null);
@@ -227,7 +233,7 @@ const AddGroupMember: React.FC<{
     >
       <Stack direction="row" alignItems="center" spacing={1}>
         <UserAutocomplete
-          className={styles.autoComplete}
+          css={styles.autoComplete}
           value={selectedUser}
           onChange={(newValue) => {
             setSelectedUser(newValue);
@@ -235,6 +241,7 @@ const AddGroupMember: React.FC<{
         />
 
         <LoadingButton
+          loadingPosition="start"
           disabled={!selectedUser}
           type="submit"
           startIcon={<PersonAdd />}
@@ -258,7 +265,7 @@ const GroupMemberRow = (props: {
 
   return (
     <TableRow key={member.id}>
-      <TableCell width="99%">
+      <TableCell width="59%">
         <AvatarData
           avatar={
             <UserAvatar
@@ -270,14 +277,23 @@ const GroupMemberRow = (props: {
           subtitle={member.email}
         />
       </TableCell>
+      <TableCell
+        width="40%"
+        css={[styles.status, member.status === "suspended" && styles.suspended]}
+      >
+        <div>{member.status}</div>
+        <LastSeen value={member.last_seen_at} css={{ fontSize: 12 }} />
+      </TableCell>
       <TableCell width="1%">
         {canUpdate && (
-          <TableRowMenu
-            data={member}
-            menuItems={[
-              {
-                label: "Remove",
-                onClick: async () => {
+          <MoreMenu>
+            <MoreMenuTrigger>
+              <ThreeDotsButton />
+            </MoreMenuTrigger>
+            <MoreMenuContent>
+              <MoreMenuItem
+                danger
+                onClick={async () => {
                   try {
                     await removeMemberMutation.mutateAsync({
                       groupId: group.id,
@@ -289,27 +305,35 @@ const GroupMemberRow = (props: {
                       getErrorMessage(error, "Failed to remove member."),
                     );
                   }
-                },
-                disabled: group.id === group.organization_id,
-              },
-            ]}
-          />
+                }}
+                disabled={group.id === group.organization_id}
+              >
+                Remove
+              </MoreMenuItem>
+            </MoreMenuContent>
+          </MoreMenu>
         )}
       </TableCell>
     </TableRow>
   );
 };
 
-const useStyles = makeStyles((theme) => ({
+const styles = {
   autoComplete: {
     width: 300,
   },
-  removeButton: {
+  removeButton: (theme) => ({
     color: theme.palette.error.main,
     "&:hover": {
       backgroundColor: "transparent",
     },
+  }),
+  status: {
+    textTransform: "capitalize",
   },
-}));
+  suspended: (theme) => ({
+    color: theme.palette.text.secondary,
+  }),
+} satisfies Record<string, Interpolation<Theme>>;
 
 export default GroupPage;

@@ -1,7 +1,4 @@
-import { useTheme } from "@emotion/react";
-import Typography from "@mui/material/Typography";
-import { type FC, type ReactNode, type PropsWithChildren } from "react";
-import { SectionAction } from "./SectionAction";
+import { type FC, type ReactNode } from "react";
 import { type Interpolation, type Theme } from "@emotion/react";
 
 type SectionLayout = "fixed" | "fluid";
@@ -18,11 +15,7 @@ export interface SectionProps {
   children?: ReactNode;
 }
 
-type SectionFC = FC<PropsWithChildren<SectionProps>> & {
-  Action: typeof SectionAction;
-};
-
-export const Section: SectionFC = ({
+export const Section: FC<SectionProps> = ({
   id,
   title,
   description,
@@ -32,8 +25,6 @@ export const Section: SectionFC = ({
   children,
   layout = "fixed",
 }) => {
-  const theme = useTheme();
-
   return (
     <section className={className} id={id} data-testid={id}>
       <div css={{ maxWidth: layout === "fluid" ? "100%" : 500 }}>
@@ -41,12 +32,19 @@ export const Section: SectionFC = ({
           <div css={styles.header}>
             <div>
               {title && (
-                <Typography variant="h4" sx={{ fontSize: 24 }}>
+                <h4
+                  css={{
+                    fontSize: 24,
+                    fontWeight: 500,
+                    margin: 0,
+                    marginBottom: 8,
+                  }}
+                >
                   {title}
-                </Typography>
+                </h4>
               )}
               {description && typeof description === "string" && (
-                <Typography css={styles.description}>{description}</Typography>
+                <p css={styles.description}>{description}</p>
               )}
               {description && typeof description !== "string" && (
                 <div css={styles.description}>{description}</div>
@@ -55,27 +53,24 @@ export const Section: SectionFC = ({
             {toolbar && <div>{toolbar}</div>}
           </div>
         )}
-        {alert && <div css={{ marginBottom: theme.spacing(1) }}>{alert}</div>}
+        {alert && <div css={{ marginBottom: 8 }}>{alert}</div>}
         {children}
       </div>
     </section>
   );
 };
 
-// Sub-components
-Section.Action = SectionAction;
-
 const styles = {
-  header: (theme) => ({
-    marginBottom: theme.spacing(3),
+  header: {
+    marginBottom: 24,
     display: "flex",
     flexDirection: "row",
     justifyContent: "space-between",
-  }),
+  },
   description: (theme) => ({
     color: theme.palette.text.secondary,
     fontSize: 16,
-    marginTop: theme.spacing(0.5),
+    marginTop: 4,
     lineHeight: "140%",
   }),
 } satisfies Record<string, Interpolation<Theme>>;

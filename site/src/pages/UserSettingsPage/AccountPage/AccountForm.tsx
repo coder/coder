@@ -7,10 +7,10 @@ import {
   nameValidator,
   onChangeTrimmed,
 } from "utils/formUtils";
-import { LoadingButton } from "components/LoadingButton/LoadingButton";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Form, FormFields } from "components/Form/Form";
 import { UpdateUserProfileRequest } from "api/typesGenerated";
+import LoadingButton from "@mui/lab/LoadingButton";
 
 export const Language = {
   usernameLabel: "Username",
@@ -76,12 +76,11 @@ export const AccountForm: FC<AccountFormProps> = ({
           <div>
             <LoadingButton
               loading={isLoading}
-              aria-disabled={!editable}
               disabled={!editable}
               type="submit"
               variant="contained"
             >
-              {isLoading ? "" : Language.updateSettings}
+              {Language.updateSettings}
             </LoadingButton>
           </div>
         </FormFields>

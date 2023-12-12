@@ -1,5 +1,4 @@
 import { type FC } from "react";
-import { useTheme } from "@emotion/react";
 import type * as TypesGen from "api/typesGenerated";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
@@ -26,8 +25,6 @@ export const Language = {
 export const ResetPasswordDialog: FC<
   React.PropsWithChildren<ResetPasswordDialogProps>
 > = ({ open, onClose, onConfirm, user, newPassword, loading }) => {
-  const theme = useTheme();
-
   const description = (
     <>
       <p>{Language.message(user?.username)}</p>
@@ -37,7 +34,7 @@ export const ResetPasswordDialog: FC<
           minHeight: "auto",
           userSelect: "all",
           width: "100%",
-          marginTop: theme.spacing(3),
+          marginTop: 24,
         }}
       />
     </>

@@ -1,20 +1,45 @@
 import { QueryClient, type UseQueryOptions } from "react-query";
 import * as API from "api/api";
-import {
+import type {
   AuthorizationRequest,
   GetUsersResponse,
   UpdateUserPasswordRequest,
   UpdateUserProfileRequest,
-  User,
   UsersRequest,
+  User,
 } from "api/typesGenerated";
-import { getMetadataAsJSON } from "utils/metadata";
 import { getAuthorizationKey } from "./authCheck";
+import { getMetadataAsJSON } from "utils/metadata";
+import { type UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
+import { prepareQuery } from "utils/filters";
+
+export function usersKey(req: UsersRequest) {
+  return ["users", req] as const;
+}
+
+export function paginatedUsers(
+  searchParams: URLSearchParams,
+): UsePaginatedQueryOptions<GetUsersResponse, UsersRequest> {
+  return {
+    searchParams,
+    queryPayload: ({ limit, offset }) => {
+      return {
+        limit,
+        offset,
+        q: prepareQuery(searchParams.get("filter") ?? ""),
+      };
+    },
+
+    queryKey: ({ payload }) => usersKey(payload),
+    queryFn: ({ payload, signal }) => API.getUsers(payload, signal),
+  };
+}
 
 export const users = (req: UsersRequest): UseQueryOptions<GetUsersResponse> => {
   return {
-    queryKey: ["users", req],
+    queryKey: usersKey(req),
     queryFn: ({ signal }) => API.getUsers(req, signal),
+    cacheTime: 5 * 1000 * 60,
   };
 };
 
@@ -89,21 +114,16 @@ export const authMethods = () => {
   };
 };
 
-const initialMeData = getMetadataAsJSON<User>("user");
-const meKey = ["me"] as const;
+const initialUserData = getMetadataAsJSON<User>("user");
 
-export const me = (queryClient: QueryClient) => {
+export const me = (): UseQueryOptions<User> & {
+  queryKey: NonNullable<UseQueryOptions<User>["queryKey"]>;
+} => {
   return {
-    queryKey: meKey,
-    queryFn: async () => {
-      const cachedData = queryClient.getQueryData(meKey);
-      if (cachedData === undefined && initialMeData !== undefined) {
-        return initialMeData;
-      }
-
-      return API.getAuthenticatedUser();
-    },
-  } satisfies UseQueryOptions<User>;
+    queryKey: ["me"],
+    initialData: initialUserData,
+    queryFn: API.getAuthenticatedUser,
+  };
 };
 
 export const hasFirstUser = () => {

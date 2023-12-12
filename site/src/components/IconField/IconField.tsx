@@ -1,15 +1,18 @@
+import { css, Global, useTheme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import InputAdornment from "@mui/material/InputAdornment";
-import Popover from "@mui/material/Popover";
-import TextField, { TextFieldProps } from "@mui/material/TextField";
-import { makeStyles } from "@mui/styles";
+import TextField, { type TextFieldProps } from "@mui/material/TextField";
 import Picker from "@emoji-mart/react";
-import { useRef, FC, useState } from "react";
+import { type FC } from "react";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Stack } from "components/Stack/Stack";
-import { colors } from "theme/colors";
 import data from "@emoji-mart/data/sets/14/twitter.json";
 import icons from "theme/icons.json";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "components/Popover/Popover";
 
 // See: https://github.com/missive/emoji-mart/issues/51#issuecomment-287353222
 const urlFromUnifiedCode = (unified: string) =>
@@ -44,9 +47,7 @@ const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
     throw new Error(`Invalid icon value "${typeof textFieldProps.value}"`);
   }
 
-  const styles = useStyles();
-  const emojiButtonRef = useRef<HTMLButtonElement>(null);
-  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
+  const theme = useTheme();
   const hasIcon = textFieldProps.value && textFieldProps.value !== "";
 
   return (
@@ -57,7 +58,21 @@ const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
         label="Icon"
         InputProps={{
           endAdornment: hasIcon ? (
-            <InputAdornment position="end" className={styles.adornment}>
+            <InputAdornment
+              position="end"
+              css={{
+                width: 24,
+                height: 24,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+
+                "& img": {
+                  maxWidth: "100%",
+                  objectFit: "contain",
+                },
+              }}
+            >
               <img
                 alt=""
                 src={textFieldProps.value}
@@ -71,64 +86,47 @@ const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
         }}
       />
 
-      <Button
-        fullWidth
-        ref={emojiButtonRef}
-        endIcon={<DropdownArrow />}
-        onClick={() => {
-          setIsEmojiPickerOpen((v) => !v);
-        }}
-      >
-        Select emoji
-      </Button>
+      <Popover>
+        {(popover) => (
+          <>
+            <PopoverTrigger>
+              <Button fullWidth endIcon={<DropdownArrow />}>
+                Select emoji
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              id="emoji"
+              css={{ marginTop: 0, ".MuiPaper-root": { width: "auto" } }}
+            >
+              <Global
+                styles={css`
+                  em-emoji-picker {
+                    --rgb-background: ${theme.palette.background.paper};
+                    --rgb-input: ${theme.colors.gray[17]};
+                    --rgb-color: ${theme.colors.gray[4]};
 
-      <Popover
-        id="emoji"
-        open={isEmojiPickerOpen}
-        anchorEl={emojiButtonRef.current}
-        onClose={() => {
-          setIsEmojiPickerOpen(false);
-        }}
-      >
-        <Picker
-          set="twitter"
-          theme="dark"
-          data={data}
-          custom={custom}
-          onEmojiSelect={(emoji) => {
-            const value = emoji.src ?? urlFromUnifiedCode(emoji.unified);
-            onPickEmoji(value);
-            setIsEmojiPickerOpen(false);
-          }}
-        />
+                    // Hack to prevent the right side from being cut off
+                    width: 350px;
+                  }
+                `}
+              />
+              <Picker
+                set="twitter"
+                theme="dark"
+                data={data}
+                custom={custom}
+                onEmojiSelect={(emoji) => {
+                  const value = emoji.src ?? urlFromUnifiedCode(emoji.unified);
+                  onPickEmoji(value);
+                  popover.setIsOpen(false);
+                }}
+              />
+            </PopoverContent>
+          </>
+        )}
       </Popover>
     </Stack>
   );
 };
-
-const useStyles = makeStyles((theme) => ({
-  "@global": {
-    "em-emoji-picker": {
-      "--rgb-background": theme.palette.background.paper,
-      "--rgb-input": colors.gray[17],
-      "--rgb-color": colors.gray[4],
-
-      // Hack to prevent the right side from being cut off
-      width: 350,
-    },
-  },
-  adornment: {
-    width: theme.spacing(3),
-    height: theme.spacing(3),
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-
-    "& img": {
-      maxWidth: "100%",
-      objectFit: "contain",
-    },
-  },
-}));
 
 export default IconField;

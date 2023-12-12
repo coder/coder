@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
 	"sync"
@@ -173,11 +174,12 @@ func (s *scaletestStrategyFlags) attach(opts *clibase.OptionSet) {
 
 func (s *scaletestStrategyFlags) toStrategy() harness.ExecutionStrategy {
 	var strategy harness.ExecutionStrategy
-	if s.concurrency == 1 {
+	switch s.concurrency {
+	case 1:
 		strategy = harness.LinearExecutionStrategy{}
-	} else if s.concurrency == 0 {
+	case 0:
 		strategy = harness.ConcurrentExecutionStrategy{}
-	} else {
+	default:
 		strategy = harness.ParallelExecutionStrategy{
 			Limit: int(s.concurrency),
 		}
@@ -244,7 +246,9 @@ func (o *scaleTestOutput) write(res harness.Results, stdout io.Writer) error {
 		err := s.Sync()
 		// On Linux, EINVAL is returned when calling fsync on /dev/stdout. We
 		// can safely ignore this error.
-		if err != nil && !xerrors.Is(err, syscall.EINVAL) {
+		// On macOS, ENOTTY is returned when calling sync on /dev/stdout. We
+		// can safely ignore this error.
+		if err != nil && !xerrors.Is(err, syscall.EINVAL) && !xerrors.Is(err, syscall.ENOTTY) {
 			return xerrors.Errorf("flush output file: %w", err)
 		}
 	}
@@ -394,6 +398,8 @@ func (r *userCleanupRunner) Run(ctx context.Context, _ string, _ io.Writer) erro
 }
 
 func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
+	var template string
+
 	cleanupStrategy := &scaletestStrategyFlags{cleanup: true}
 	client := new(codersdk.Client)
 
@@ -407,22 +413,29 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
 
-			_, err := requireAdmin(ctx, client)
+			me, err := requireAdmin(ctx, client)
 			if err != nil {
 				return err
 			}
 
 			client.HTTPClient = &http.Client{
-				Transport: &headerTransport{
-					transport: http.DefaultTransport,
-					header: map[string][]string{
+				Transport: &codersdk.HeaderTransport{
+					Transport: http.DefaultTransport,
+					Header: map[string][]string{
 						codersdk.BypassRatelimitHeader: {"true"},
 					},
 				},
 			}
 
+			if template != "" {
+				_, err := parseTemplate(ctx, client, me.OrganizationIDs, template)
+				if err != nil {
+					return xerrors.Errorf("parse template: %w", err)
+				}
+			}
+
 			cliui.Infof(inv.Stdout, "Fetching scaletest workspaces...")
-			workspaces, err := getScaletestWorkspaces(ctx, client)
+			workspaces, err := getScaletestWorkspaces(ctx, client, template)
 			if err != nil {
 				return err
 			}
@@ -494,6 +507,15 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 		},
 	}
 
+	cmd.Options = clibase.OptionSet{
+		{
+			Flag:        "template",
+			Env:         "CODER_SCALETEST_CLEANUP_TEMPLATE",
+			Description: "Name or ID of the template. Only delete workspaces created from the given template.",
+			Value:       clibase.StringOf(&template),
+		},
+	}
+
 	cleanupStrategy.attach(&cmd.Options)
 	return cmd
 }
@@ -548,9 +570,9 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 			}
 
 			client.HTTPClient = &http.Client{
-				Transport: &headerTransport{
-					transport: http.DefaultTransport,
-					header: map[string][]string{
+				Transport: &codersdk.HeaderTransport{
+					Transport: http.DefaultTransport,
+					Header: map[string][]string{
 						codersdk.BypassRatelimitHeader: {"true"},
 					},
 				},
@@ -564,34 +586,12 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 				return xerrors.Errorf("could not parse --output flags")
 			}
 
-			var tpl codersdk.Template
 			if template == "" {
 				return xerrors.Errorf("--template is required")
 			}
-			if id, err := uuid.Parse(template); err == nil && id != uuid.Nil {
-				tpl, err = client.Template(ctx, id)
-				if err != nil {
-					return xerrors.Errorf("get template by ID %q: %w", template, err)
-				}
-			} else {
-				// List templates in all orgs until we find a match.
-			orgLoop:
-				for _, orgID := range me.OrganizationIDs {
-					tpls, err := client.TemplatesByOrganization(ctx, orgID)
-					if err != nil {
-						return xerrors.Errorf("list templates in org %q: %w", orgID, err)
-					}
-
-					for _, t := range tpls {
-						if t.Name == template {
-							tpl = t
-							break orgLoop
-						}
-					}
-				}
-			}
-			if tpl.ID == uuid.Nil {
-				return xerrors.Errorf("could not find template %q in any organization", template)
+			tpl, err := parseTemplate(ctx, client, me.OrganizationIDs, template)
+			if err != nil {
+				return xerrors.Errorf("parse template: %w", err)
 			}
 
 			cliRichParameters, err := asWorkspaceBuildParameters(parameterFlags.richParameters)
@@ -600,9 +600,9 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 			}
 
 			richParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
-				Action:           WorkspaceCreate,
-				Template:         tpl,
-				NewWorkspaceName: "scaletest-N", // TODO: the scaletest runner will pass in a different name here. Does this matter?
+				Action:            WorkspaceCreate,
+				TemplateVersionID: tpl.ActiveVersionID,
+				NewWorkspaceName:  "scaletest-N", // TODO: the scaletest runner will pass in a different name here. Does this matter?
 
 				RichParameterFile: parameterFlags.richParameterFile,
 				RichParameters:    cliRichParameters,
@@ -859,6 +859,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 		tickInterval time.Duration
 		bytesPerTick int64
 		ssh          bool
+		template     string
 
 		client          = &codersdk.Client{}
 		tracingFlags    = &scaletestTracingFlags{}
@@ -874,26 +875,43 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 		Middleware: clibase.Chain(
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *clibase.Invocation) (err error) {
 			ctx := inv.Context()
+
+			notifyCtx, stop := signal.NotifyContext(ctx, InterruptSignals...) // Checked later.
+			defer stop()
+			ctx = notifyCtx
+
+			me, err := requireAdmin(ctx, client)
+			if err != nil {
+				return err
+			}
+
 			reg := prometheus.NewRegistry()
 			metrics := workspacetraffic.NewMetrics(reg, "username", "workspace_name", "agent_name")
 
-			logger := slog.Make(sloghuman.Sink(io.Discard))
+			logger := inv.Logger
 			prometheusSrvClose := ServeHandler(ctx, logger, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}), prometheusFlags.Address, "prometheus")
 			defer prometheusSrvClose()
 
 			// Bypass rate limiting
 			client.HTTPClient = &http.Client{
-				Transport: &headerTransport{
-					transport: http.DefaultTransport,
-					header: map[string][]string{
+				Transport: &codersdk.HeaderTransport{
+					Transport: http.DefaultTransport,
+					Header: map[string][]string{
 						codersdk.BypassRatelimitHeader: {"true"},
 					},
 				},
 			}
 
-			workspaces, err := getScaletestWorkspaces(inv.Context(), client)
+			if template != "" {
+				_, err := parseTemplate(ctx, client, me.OrganizationIDs, template)
+				if err != nil {
+					return xerrors.Errorf("parse template: %w", err)
+				}
+			}
+
+			workspaces, err := getScaletestWorkspaces(inv.Context(), client, template)
 			if err != nil {
 				return err
 			}
@@ -955,6 +973,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 					ReadMetrics:  metrics.ReadMetrics(ws.OwnerName, ws.Name, agentName),
 					WriteMetrics: metrics.WriteMetrics(ws.OwnerName, ws.Name, agentName),
 					SSH:          ssh,
+					Echo:         ssh,
 				}
 
 				if err := config.Validate(); err != nil {
@@ -980,6 +999,11 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 				return xerrors.Errorf("run test harness (harness failure, not a test failure): %w", err)
 			}
 
+			// If the command was interrupted, skip stats.
+			if notifyCtx.Err() != nil {
+				return notifyCtx.Err()
+			}
+
 			res := th.Results()
 			for _, o := range outputs {
 				err = o.write(res, inv.Stdout)
@@ -997,6 +1021,13 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 	}
 
 	cmd.Options = []clibase.Option{
+		{
+			Flag:          "template",
+			FlagShorthand: "t",
+			Env:           "CODER_SCALETEST_TEMPLATE",
+			Description:   "Name or ID of the template. Traffic generation will be limited to workspaces created from this template.",
+			Value:         clibase.StringOf(&template),
+		},
 		{
 			Flag:        "bytes-per-tick",
 			Env:         "CODER_SCALETEST_WORKSPACE_TRAFFIC_BYTES_PER_TICK",
@@ -1058,7 +1089,7 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 				return xerrors.Errorf("--jitter must be less than --interval")
 			}
 			ctx := inv.Context()
-			logger := slog.Make(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelInfo)
+			logger := inv.Logger.AppendSinks(sloghuman.Sink(inv.Stdout))
 			if r.verbose {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
@@ -1281,7 +1312,7 @@ func isScaleTestWorkspace(workspace codersdk.Workspace) bool {
 		strings.HasPrefix(workspace.Name, "scaletest-")
 }
 
-func getScaletestWorkspaces(ctx context.Context, client *codersdk.Client) ([]codersdk.Workspace, error) {
+func getScaletestWorkspaces(ctx context.Context, client *codersdk.Client, template string) ([]codersdk.Workspace, error) {
 	var (
 		pageNumber = 0
 		limit      = 100
@@ -1290,9 +1321,10 @@ func getScaletestWorkspaces(ctx context.Context, client *codersdk.Client) ([]cod
 
 	for {
 		page, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-			Name:   "scaletest-",
-			Offset: pageNumber * limit,
-			Limit:  limit,
+			Name:     "scaletest-",
+			Template: template,
+			Offset:   pageNumber * limit,
+			Limit:    limit,
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("fetch scaletest workspaces page %d: %w", pageNumber, err)
@@ -1348,4 +1380,34 @@ func getScaletestUsers(ctx context.Context, client *codersdk.Client) ([]codersdk
 	}
 
 	return users, nil
+}
+
+func parseTemplate(ctx context.Context, client *codersdk.Client, organizationIDs []uuid.UUID, template string) (tpl codersdk.Template, err error) {
+	if id, err := uuid.Parse(template); err == nil && id != uuid.Nil {
+		tpl, err = client.Template(ctx, id)
+		if err != nil {
+			return tpl, xerrors.Errorf("get template by ID %q: %w", template, err)
+		}
+	} else {
+		// List templates in all orgs until we find a match.
+	orgLoop:
+		for _, orgID := range organizationIDs {
+			tpls, err := client.TemplatesByOrganization(ctx, orgID)
+			if err != nil {
+				return tpl, xerrors.Errorf("list templates in org %q: %w", orgID, err)
+			}
+
+			for _, t := range tpls {
+				if t.Name == template {
+					tpl = t
+					break orgLoop
+				}
+			}
+		}
+	}
+	if tpl.ID == uuid.Nil {
+		return tpl, xerrors.Errorf("could not find template %q in any organization", template)
+	}
+
+	return tpl, nil
 }

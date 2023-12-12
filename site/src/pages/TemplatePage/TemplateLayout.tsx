@@ -1,8 +1,6 @@
-import { css } from "@emotion/css";
-import { useTheme } from "@emotion/react";
 import { createContext, type FC, Suspense, useContext } from "react";
 import { useQuery } from "react-query";
-import { NavLink, Outlet, useNavigate, useParams } from "react-router-dom";
+import { Outlet, useNavigate, useParams } from "react-router-dom";
 import type { AuthorizationRequest } from "api/typesGenerated";
 import {
   checkAuthorization,
@@ -11,10 +9,10 @@ import {
 } from "api/api";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Margins } from "components/Margins/Margins";
-import { Stack } from "components/Stack/Stack";
 import { Loader } from "components/Loader/Loader";
 import { useOrganizationId } from "hooks/useOrganizationId";
 import { TemplatePageHeader } from "./TemplatePageHeader";
+import { TabLink, Tabs } from "components/Tabs/Tabs";
 
 const templatePermissions = (
   templateId: string,
@@ -25,6 +23,12 @@ const templatePermissions = (
       resource_id: templateId,
     },
     action: "update",
+  },
+  canReadInsights: {
+    object: {
+      resource_type: "template_insights",
+    },
+    action: "read",
   },
 });
 
@@ -63,7 +67,6 @@ export const useTemplateLayoutContext = (): TemplateLayoutContextValue => {
 export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
   children = <Outlet />,
 }) => {
-  const theme = useTheme();
   const navigate = useNavigate();
   const orgId = useOrganizationId();
   const { template: templateName } = useParams() as { template: string };
@@ -71,11 +74,14 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
     queryKey: ["template", templateName],
     queryFn: () => fetchTemplate(orgId, templateName),
   });
-  const shouldShowInsights = data?.permissions?.canUpdateTemplate;
+  // Auditors should also be able to view insights, but do not automatically
+  // have permission to update templates. Need both checks.
+  const shouldShowInsights =
+    data?.permissions?.canUpdateTemplate || data?.permissions?.canReadInsights;
 
   if (error) {
     return (
-      <div css={{ margin: theme.spacing(2) }}>
+      <div css={{ margin: 16 }}>
         <ErrorAlert error={error} />
       </div>
     );
@@ -84,34 +90,6 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
   if (isLoading || !data) {
     return <Loader />;
   }
-
-  const itemStyles = css`
-    text-decoration: none;
-    color: ${theme.palette.text.secondary};
-    font-size: 14;
-    display: block;
-    padding: ${theme.spacing(0, 2, 2)};
-
-    &:hover {
-      color: ${theme.palette.text.primary};
-    }
-  `;
-
-  const activeItemStyles = css`
-    ${itemStyles}
-    color: ${theme.palette.text.primary};
-    position: relative;
-
-    &:before {
-      content: "";
-      left: 0;
-      bottom: 0;
-      height: 2;
-      width: 100%;
-      background: ${theme.palette.secondary.dark};
-      position: absolute;
-    }
-  `;
 
   return (
     <>
@@ -124,71 +102,20 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
         }}
       />
 
-      <div
-        css={{
-          borderBottom: `1px solid ${theme.palette.divider}`,
-          marginBottom: theme.spacing(5),
-        }}
-      >
-        <Margins>
-          <Stack direction="row" spacing={0.25}>
-            <NavLink
-              end
-              to={`/templates/${templateName}`}
-              className={({ isActive }) =>
-                isActive ? activeItemStyles : itemStyles
-              }
-            >
-              Summary
-            </NavLink>
-            <NavLink
-              end
-              to={`/templates/${templateName}/docs`}
-              className={({ isActive }) =>
-                isActive ? activeItemStyles : itemStyles
-              }
-            >
-              Docs
-            </NavLink>
-            {data.permissions.canUpdateTemplate && (
-              <NavLink
-                to={`/templates/${templateName}/files`}
-                className={({ isActive }) =>
-                  isActive ? activeItemStyles : itemStyles
-                }
-              >
-                Source Code
-              </NavLink>
-            )}
-            <NavLink
-              to={`/templates/${templateName}/versions`}
-              className={({ isActive }) =>
-                isActive ? activeItemStyles : itemStyles
-              }
-            >
-              Versions
-            </NavLink>
-            <NavLink
-              to={`/templates/${templateName}/embed`}
-              className={({ isActive }) =>
-                isActive ? activeItemStyles : itemStyles
-              }
-            >
-              Embed
-            </NavLink>
-            {shouldShowInsights && (
-              <NavLink
-                to={`/templates/${templateName}/insights`}
-                className={({ isActive }) =>
-                  isActive ? activeItemStyles : itemStyles
-                }
-              >
-                Insights
-              </NavLink>
-            )}
-          </Stack>
-        </Margins>
-      </div>
+      <Tabs>
+        <TabLink end to={`/templates/${templateName}`}>
+          Summary
+        </TabLink>
+        <TabLink to={`/templates/${templateName}/docs`}>Docs</TabLink>
+        {data.permissions.canUpdateTemplate && (
+          <TabLink to={`/templates/${templateName}/files`}>Source Code</TabLink>
+        )}
+        <TabLink to={`/templates/${templateName}/versions`}>Versions</TabLink>
+        <TabLink to={`/templates/${templateName}/embed`}>Embed</TabLink>
+        {shouldShowInsights && (
+          <TabLink to={`/templates/${templateName}/insights`}>Insights</TabLink>
+        )}
+      </Tabs>
 
       <Margins>
         <TemplateLayoutContext.Provider value={data}>

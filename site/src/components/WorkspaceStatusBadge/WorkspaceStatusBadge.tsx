@@ -1,43 +1,49 @@
-import { Workspace } from "api/typesGenerated";
+import Tooltip, {
+  type TooltipProps,
+  tooltipClasses,
+} from "@mui/material/Tooltip";
+import ErrorOutline from "@mui/icons-material/ErrorOutline";
+import RecyclingIcon from "@mui/icons-material/Recycling";
+import AutoDeleteIcon from "@mui/icons-material/AutoDelete";
+import { type FC, type ReactNode } from "react";
+import type { Workspace } from "api/typesGenerated";
 import { Pill } from "components/Pill/Pill";
-import { FC, PropsWithChildren } from "react";
-import { makeStyles } from "@mui/styles";
-import { combineClasses } from "utils/combineClasses";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { DormantDeletionText } from "components/WorkspaceDeletion";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
-import Tooltip, { TooltipProps, tooltipClasses } from "@mui/material/Tooltip";
-import { styled } from "@mui/material/styles";
-import Box from "@mui/material/Box";
-import ErrorOutline from "@mui/icons-material/ErrorOutline";
+import { useClassName } from "hooks/useClassName";
+import { formatDistanceToNow } from "date-fns";
 
 export type WorkspaceStatusBadgeProps = {
   workspace: Workspace;
+  children?: ReactNode;
   className?: string;
 };
 
-export const WorkspaceStatusBadge: FC<
-  PropsWithChildren<WorkspaceStatusBadgeProps>
-> = ({ workspace, className }) => {
+export const WorkspaceStatusBadge: FC<WorkspaceStatusBadgeProps> = ({
+  workspace,
+  className,
+}) => {
   const { text, icon, type } = getDisplayWorkspaceStatus(
     workspace.latest_build.status,
     workspace.latest_build.job,
   );
+
   return (
     <ChooseOne>
       <Cond condition={workspace.latest_build.status === "failed"}>
         <FailureTooltip
           title={
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
+            <div css={{ display: "flex", alignItems: "center", gap: 10 }}>
               <ErrorOutline
-                sx={{
+                css={(theme) => ({
                   width: 14,
                   height: 14,
-                  color: (theme) => theme.palette.error.light,
-                }}
+                  color: theme.palette.error.light,
+                })}
               />
-              <Box>{workspace.latest_build.job.error}</Box>
-            </Box>
+              <div>{workspace.latest_build.job.error}</div>
+            </div>
           }
           placement="top"
         >
@@ -53,17 +59,79 @@ export const WorkspaceStatusBadge: FC<
   );
 };
 
-export const WorkspaceStatusText: FC<
-  PropsWithChildren<WorkspaceStatusBadgeProps>
-> = ({ workspace, className }) => {
-  const styles = useStyles();
+export type DormantStatusBadgeProps = {
+  workspace: Workspace;
+  className?: string;
+};
+
+export const DormantStatusBadge: FC<DormantStatusBadgeProps> = ({
+  workspace,
+  className,
+}) => {
+  if (!workspace.dormant_at) {
+    return <></>;
+  }
+
+  const formatDate = (dateStr: string): string => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString(undefined, {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+    });
+  };
+
+  return workspace.deleting_at ? (
+    <Tooltip
+      title={
+        <>
+          This workspace has not been used for{" "}
+          {formatDistanceToNow(Date.parse(workspace.last_used_at))} and has been
+          marked dormant. It is scheduled to be deleted on{" "}
+          {formatDate(workspace.deleting_at)}.
+        </>
+      }
+    >
+      <Pill
+        className={className}
+        icon={<AutoDeleteIcon />}
+        text="Deletion Pending"
+        type="error"
+      />
+    </Tooltip>
+  ) : (
+    <Tooltip
+      title={
+        <>
+          This workspace has not been used for{" "}
+          {formatDistanceToNow(Date.parse(workspace.last_used_at))} and has been
+          marked dormant. It is not scheduled for auto-deletion but will become
+          a candidate if auto-deletion is enabled on this template.
+        </>
+      }
+    >
+      <Pill
+        className={className}
+        icon={<RecyclingIcon />}
+        text="Dormant"
+        type="warning"
+      />
+    </Tooltip>
+  );
+};
+
+export const WorkspaceStatusText: FC<WorkspaceStatusBadgeProps> = ({
+  workspace,
+  className,
+}) => {
   const { text, type } = getDisplayWorkspaceStatus(
     workspace.latest_build.status,
   );
 
   return (
     <ChooseOne>
-      {/* <DormantDeletionText/> determines its own visibility */}
       <Cond condition={Boolean(DormantDeletionText({ workspace }))}>
         <DormantDeletionText workspace={workspace} />
       </Cond>
@@ -71,11 +139,13 @@ export const WorkspaceStatusText: FC<
         <span
           role="status"
           data-testid="build-status"
-          className={combineClasses([
-            className,
-            styles.root,
-            styles[`type-${type}`],
-          ])}
+          className={className}
+          css={(theme) => ({
+            fontWeight: 600,
+            color: type
+              ? theme.experimental.roles[type].fill
+              : theme.experimental.l1.text,
+          })}
         >
           {text}
         </span>
@@ -84,38 +154,22 @@ export const WorkspaceStatusText: FC<
   );
 };
 
-const FailureTooltip = styled(({ className, ...props }: TooltipProps) => (
-  <Tooltip {...props} classes={{ popper: className }} />
-))(({ theme }) => ({
-  [`& .${tooltipClasses.tooltip}`]: {
-    backgroundColor: theme.palette.background.paperLight,
-    border: `1px solid ${theme.palette.divider}`,
-    fontSize: 12,
-    padding: theme.spacing(1, 1.25),
-  },
-}));
+const FailureTooltip: FC<TooltipProps> = ({ children, ...tooltipProps }) => {
+  const popper = useClassName(
+    (css, theme) => css`
+      & .${tooltipClasses.tooltip} {
+        background-color: ${theme.palette.background.paper};
+        border: 1px solid ${theme.palette.divider};
+        font-size: 12px;
+        padding: 8px 10px;
+      }
+    `,
+    [],
+  );
 
-const useStyles = makeStyles((theme) => ({
-  root: { fontWeight: 600 },
-  "type-error": {
-    color: theme.palette.error.light,
-  },
-  "type-warning": {
-    color: theme.palette.warning.light,
-  },
-  "type-success": {
-    color: theme.palette.success.light,
-  },
-  "type-info": {
-    color: theme.palette.info.light,
-  },
-  "type-undefined": {
-    color: theme.palette.text.secondary,
-  },
-  "type-primary": {
-    color: theme.palette.text.primary,
-  },
-  "type-secondary": {
-    color: theme.palette.text.secondary,
-  },
-}));
+  return (
+    <Tooltip {...tooltipProps} classes={{ popper }}>
+      {children}
+    </Tooltip>
+  );
+};

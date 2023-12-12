@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/httpmw"
 )
 
@@ -23,7 +23,7 @@ func TestGroupParam(t *testing.T) {
 		t.Parallel()
 
 		var (
-			db    = dbfake.New()
+			db    = dbmem.New()
 			group = dbgen.Group(t, db, database.Group{})
 			r     = httptest.NewRequest("GET", "/", nil)
 			w     = httptest.NewRecorder()
@@ -52,7 +52,7 @@ func TestGroupParam(t *testing.T) {
 		t.Parallel()
 
 		var (
-			db    = dbfake.New()
+			db    = dbmem.New()
 			group = dbgen.Group(t, db, database.Group{})
 			r     = httptest.NewRequest("GET", "/", nil)
 			w     = httptest.NewRecorder()

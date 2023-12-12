@@ -151,6 +151,13 @@ func New(t testing.TB, options *Options) *codersdk.Client {
 	return client
 }
 
+// NewWithDatabase constructs a codersdk client connected to an in-memory API instance.
+// The database is returned to provide direct data manipulation for tests.
+func NewWithDatabase(t testing.TB, options *Options) (*codersdk.Client, database.Store) {
+	client, _, api := NewWithAPI(t, options)
+	return client, api.Database
+}
+
 // NewWithProvisionerCloser returns a client as well as a handle to close
 // the provisioner. This is a temporary function while work is done to
 // standardize how provisioners are registered with coderd. The option
@@ -220,6 +227,12 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.Database, options.Pubsub = dbtestutil.NewDB(t)
 	}
 
+	accessControlStore := &atomic.Pointer[dbauthz.AccessControlStore]{}
+	var acs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
+	accessControlStore.Store(&acs)
+
+	options.Database = dbauthz.New(options.Database, options.Authorizer, *options.Logger, accessControlStore)
+
 	// Some routes expect a deployment ID, so just make sure one exists.
 	// Check first incase the caller already set up this database.
 	// nolint:gocritic // Setting up unit test data inside test helper
@@ -258,10 +271,6 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.StatsBatcher = batcher
 		t.Cleanup(closeBatcher)
 	}
-
-	accessControlStore := &atomic.Pointer[dbauthz.AccessControlStore]{}
-	var acs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
-	accessControlStore.Store(&acs)
 
 	var templateScheduleStore atomic.Pointer[schedule.TemplateScheduleStore]
 	if options.TemplateScheduleStore == nil {
@@ -521,7 +530,7 @@ func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
 	}()
 
 	daemon := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
-		return coderAPI.CreateInMemoryProvisionerDaemon(ctx)
+		return coderAPI.CreateInMemoryProvisionerDaemon(ctx, t.Name())
 	}, &provisionerd.Options{
 		Logger:              coderAPI.Logger.Named("provisionerd").Leveled(slog.LevelDebug),
 		UpdateInterval:      250 * time.Millisecond,
@@ -558,6 +567,8 @@ func NewExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uui
 
 	daemon := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
 		return client.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+			ID:           uuid.New(),
+			Name:         t.Name(),
 			Organization: org,
 			Provisioners: []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho},
 			Tags:         tags,
@@ -607,10 +618,29 @@ func CreateAnotherUserMutators(t testing.TB, client *codersdk.Client, organizati
 	return createAnotherUserRetry(t, client, organizationID, 5, roles, mutators...)
 }
 
+// AuthzUserSubject does not include the user's groups.
+func AuthzUserSubject(user codersdk.User, orgID uuid.UUID) rbac.Subject {
+	roles := make(rbac.RoleNames, 0, len(user.Roles))
+	// Member role is always implied
+	roles = append(roles, rbac.RoleMember())
+	for _, r := range user.Roles {
+		roles = append(roles, r.Name)
+	}
+	// We assume only 1 org exists
+	roles = append(roles, rbac.RoleOrgMember(orgID))
+
+	return rbac.Subject{
+		ID:     user.ID.String(),
+		Roles:  roles,
+		Groups: []string{},
+		Scope:  rbac.ScopeAll,
+	}
+}
+
 func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, retries int, roles []string, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
 	req := codersdk.CreateUserRequest{
 		Email:          namesgenerator.GetRandomName(10) + "@coder.com",
-		Username:       randomUsername(t),
+		Username:       RandomUsername(t),
 		Password:       "SomeSecurePassword!",
 		OrganizationID: organizationID,
 	}
@@ -682,7 +712,7 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 			siteRoles = append(siteRoles, r.Name)
 		}
 
-		_, err := client.UpdateUserRoles(context.Background(), user.ID.String(), codersdk.UpdateRoles{Roles: siteRoles})
+		user, err = client.UpdateUserRoles(context.Background(), user.ID.String(), codersdk.UpdateRoles{Roles: siteRoles})
 		require.NoError(t, err, "update site roles")
 
 		// Update org roles
@@ -702,7 +732,7 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 // with testing.
 func CreateTemplateVersion(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses, mutators ...func(*codersdk.CreateTemplateVersionRequest)) codersdk.TemplateVersion {
 	t.Helper()
-	data, err := echo.Tar(res)
+	data, err := echo.TarWithOptions(context.Background(), client.Logger(), res)
 	require.NoError(t, err)
 	file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, bytes.NewReader(data))
 	require.NoError(t, err)
@@ -729,6 +759,8 @@ func CreateWorkspaceBuild(
 	transition database.WorkspaceTransition,
 	mutators ...func(*codersdk.CreateWorkspaceBuildRequest),
 ) codersdk.WorkspaceBuild {
+	t.Helper()
+
 	req := codersdk.CreateWorkspaceBuildRequest{
 		Transition: codersdk.WorkspaceTransition(transition),
 	}
@@ -744,7 +776,7 @@ func CreateWorkspaceBuild(
 // compatibility with testing. The name assigned is randomly generated.
 func CreateTemplate(t testing.TB, client *codersdk.Client, organization uuid.UUID, version uuid.UUID, mutators ...func(*codersdk.CreateTemplateRequest)) codersdk.Template {
 	req := codersdk.CreateTemplateRequest{
-		Name:      randomUsername(t),
+		Name:      RandomUsername(t),
 		VersionID: version,
 	}
 	for _, mut := range mutators {
@@ -753,6 +785,25 @@ func CreateTemplate(t testing.TB, client *codersdk.Client, organization uuid.UUI
 	template, err := client.CreateTemplate(context.Background(), organization, req)
 	require.NoError(t, err)
 	return template
+}
+
+// CreateGroup creates a group with the given name and members.
+func CreateGroup(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, name string, members ...codersdk.User) codersdk.Group {
+	t.Helper()
+	group, err := client.CreateGroup(context.Background(), organizationID, codersdk.CreateGroupRequest{
+		Name: name,
+	})
+	require.NoError(t, err, "failed to create group")
+	memberIDs := make([]string, 0)
+	for _, member := range members {
+		memberIDs = append(memberIDs, member.ID.String())
+	}
+	group, err = client.PatchGroup(context.Background(), group.ID, codersdk.PatchGroupRequest{
+		AddUsers: memberIDs,
+	})
+
+	require.NoError(t, err, "failed to add members to group")
+	return group
 }
 
 // UpdateTemplateVersion creates a new template version with the "echo" provisioner
@@ -778,6 +829,14 @@ func UpdateActiveTemplateVersion(t testing.TB, client *codersdk.Client, template
 		ID: versionID,
 	})
 	require.NoError(t, err)
+}
+
+// UpdateTemplateMeta updates the template meta for the given template.
+func UpdateTemplateMeta(t testing.TB, client *codersdk.Client, templateID uuid.UUID, meta codersdk.UpdateTemplateMeta) codersdk.Template {
+	t.Helper()
+	updated, err := client.UpdateTemplateMeta(context.Background(), templateID, meta)
+	require.NoError(t, err)
+	return updated
 }
 
 // AwaitTemplateVersionJobRunning waits for the build to be picked up by a provisioner.
@@ -906,7 +965,7 @@ func CreateWorkspace(t testing.TB, client *codersdk.Client, organization uuid.UU
 	t.Helper()
 	req := codersdk.CreateWorkspaceRequest{
 		TemplateID:        templateID,
-		Name:              randomUsername(t),
+		Name:              RandomUsername(t),
 		AutostartSchedule: ptr.Ref("CRON_TZ=US/Central 30 9 * * 1-5"),
 		TTLMillis:         ptr.Ref((8 * time.Hour).Milliseconds()),
 		AutomaticUpdates:  codersdk.AutomaticUpdatesNever,
@@ -927,11 +986,8 @@ func MustTransitionWorkspace(t testing.TB, client *codersdk.Client, workspaceID 
 	require.NoError(t, err, "unexpected error fetching workspace")
 	require.Equal(t, workspace.LatestBuild.Transition, codersdk.WorkspaceTransition(from), "expected workspace state: %s got: %s", from, workspace.LatestBuild.Transition)
 
-	template, err := client.Template(ctx, workspace.TemplateID)
-	require.NoError(t, err, "fetch workspace template")
-
 	req := codersdk.CreateWorkspaceBuildRequest{
-		TemplateVersionID: template.ActiveVersionID,
+		TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
 		Transition:        codersdk.WorkspaceTransition(to),
 	}
 
@@ -1170,7 +1226,7 @@ func NewAzureInstanceIdentity(t testing.TB, instanceID string) (x509.VerifyOptio
 		}
 }
 
-func randomUsername(t testing.TB) string {
+func RandomUsername(t testing.TB) string {
 	suffix, err := cryptorand.String(3)
 	require.NoError(t, err)
 	suffix = "-" + suffix

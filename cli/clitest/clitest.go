@@ -59,13 +59,18 @@ func NewWithCommand(
 	t testing.TB, cmd *clibase.Cmd, args ...string,
 ) (*clibase.Invocation, config.Root) {
 	configDir := config.Root(t.TempDir())
-	logger := slogtest.Make(t, nil)
+	// I really would like to fail test on error logs, but realistically, turning on by default
+	// in all our CLI tests is going to create a lot of flaky noise.
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).
+		Leveled(slog.LevelDebug).
+		Named("cli")
 	i := &clibase.Invocation{
 		Command: cmd,
 		Args:    append([]string{"--global-config", string(configDir)}, args...),
 		Stdin:   io.LimitReader(nil, 0),
 		Stdout:  (&logWriter{prefix: "stdout", log: logger}),
 		Stderr:  (&logWriter{prefix: "stderr", log: logger}),
+		Logger:  logger,
 	}
 	t.Logf("invoking command: %s %s", cmd.Name(), strings.Join(i.Args, " "))
 

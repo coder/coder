@@ -53,6 +53,7 @@ curl -X GET http://coder-server:8080/api/v2/buildinfo \
 
 ```json
 {
+  "agent_api_version": "string",
   "dashboard_url": "string",
   "external_url": "string",
   "version": "string",
@@ -235,6 +236,10 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       ]
     },
     "external_token_encryption_keys": ["string"],
+    "healthcheck": {
+      "refresh": 0,
+      "threshold_database": 0
+    },
     "http_address": "string",
     "in_memory_database": true,
     "job_hang_detector_interval": 0,
@@ -267,6 +272,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "client_secret": "string",
       "email_domain": ["string"],
       "email_field": "string",
+      "group_allow_list": ["string"],
       "group_auto_create": true,
       "group_mapping": {},
       "group_regex_filter": {},
@@ -368,6 +374,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "host": "string",
         "port": "string"
       },
+      "allow_insecure_ciphers": true,
       "cert_file": ["string"],
       "client_auth": "string",
       "client_ca_file": "string",
@@ -376,7 +383,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "enable": true,
       "key_file": ["string"],
       "min_version": "string",
-      "redirect_http": true
+      "redirect_http": true,
+      "supported_ciphers": ["string"]
     },
     "trace": {
       "capture_logs": true,

@@ -1,8 +1,6 @@
 import { Pill } from "components/Pill/Pill";
 import ReactMarkdown from "react-markdown";
-import { colors } from "theme/colors";
-import { useTheme } from "@mui/system";
-import { css } from "@emotion/react";
+import { css, useTheme } from "@emotion/react";
 import { readableForegroundColor } from "utils/colors";
 
 export interface ServiceBannerViewProps {
@@ -33,17 +31,17 @@ export const ServiceBannerView: React.FC<ServiceBannerViewProps> = ({
   return (
     <div
       css={css`
-        padding: ${theme.spacing(1.5)};
+        padding: 12px;
         background-color: ${backgroundColor ?? theme.palette.warning.main};
         display: flex;
         align-items: center;
 
         &.error {
-          background-color: ${colors.red[12]};
+          background-color: ${theme.colors.red[12]};
         }
       `}
     >
-      {isPreview && <Pill text="Preview" type="info" lightBorder />}
+      {isPreview && <Pill text="Preview" type="info" />}
       <div
         css={css`
           margin-right: auto;
@@ -58,7 +56,6 @@ export const ServiceBannerView: React.FC<ServiceBannerViewProps> = ({
       >
         <ReactMarkdown
           allowedElements={markdownElementsAllowed}
-          linkTarget="_blank"
           unwrapDisallowed
         >
           {message}

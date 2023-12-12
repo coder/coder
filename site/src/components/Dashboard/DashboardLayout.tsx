@@ -1,29 +1,22 @@
-import { useMachine } from "@xstate/react";
-import { DeploymentBanner } from "./DeploymentBanner/DeploymentBanner";
+import Snackbar from "@mui/material/Snackbar";
+import Link from "@mui/material/Link";
+import Button from "@mui/material/Button";
+import InfoOutlined from "@mui/icons-material/InfoOutlined";
+import { type FC, type HTMLAttributes, Suspense } from "react";
+import { Outlet } from "react-router-dom";
 import { LicenseBanner } from "components/Dashboard/LicenseBanner/LicenseBanner";
 import { Loader } from "components/Loader/Loader";
 import { ServiceBanner } from "components/Dashboard/ServiceBanner/ServiceBanner";
 import { usePermissions } from "hooks/usePermissions";
-import { FC, Suspense } from "react";
-import { Outlet } from "react-router-dom";
 import { dashboardContentBottomPadding } from "theme/constants";
-import { updateCheckMachine } from "xServices/updateCheck/updateCheckXService";
-import { Navbar } from "./Navbar/Navbar";
-import Snackbar from "@mui/material/Snackbar";
-import Link from "@mui/material/Link";
-import Box, { BoxProps } from "@mui/material/Box";
-import InfoOutlined from "@mui/icons-material/InfoOutlined";
-import Button from "@mui/material/Button";
 import { docs } from "utils/docs";
+import { Navbar } from "./Navbar/Navbar";
+import { DeploymentBanner } from "./DeploymentBanner/DeploymentBanner";
+import { useUpdateCheck } from "./useUpdateCheck";
 
 export const DashboardLayout: FC = () => {
   const permissions = usePermissions();
-  const [updateCheckState, updateCheckSend] = useMachine(updateCheckMachine, {
-    context: {
-      permissions,
-    },
-  });
-  const { updateCheck } = updateCheckState.context;
+  const updateCheck = useUpdateCheck(permissions.viewUpdateCheck);
   const canViewDeployment = Boolean(permissions.viewDeploymentValues);
 
   return (
@@ -57,7 +50,7 @@ export const DashboardLayout: FC = () => {
 
         <Snackbar
           data-testid="update-check-snackbar"
-          open={updateCheckState.matches("show")}
+          open={updateCheck.isVisible}
           anchorOrigin={{
             vertical: "bottom",
             horizontal: "right",
@@ -66,7 +59,7 @@ export const DashboardLayout: FC = () => {
             sx: (theme) => ({
               background: theme.palette.background.paper,
               color: theme.palette.text.primary,
-              maxWidth: theme.spacing(55),
+              maxWidth: 440,
               flexDirection: "row",
               borderColor: theme.palette.info.light,
 
@@ -80,28 +73,24 @@ export const DashboardLayout: FC = () => {
             }),
           }}
           message={
-            <Box display="flex" gap={2}>
+            <div css={{ display: "flex", gap: 16 }}>
               <InfoOutlined
-                sx={(theme) => ({
+                css={(theme) => ({
                   fontSize: 16,
                   height: 20, // 20 is the height of the text line so we can align them
                   color: theme.palette.info.light,
                 })}
               />
-              <Box>
-                Coder {updateCheck?.version} is now available. View the{" "}
-                <Link href={updateCheck?.url}>release notes</Link> and{" "}
+              <p>
+                Coder {updateCheck.data?.version} is now available. View the{" "}
+                <Link href={updateCheck.data?.url}>release notes</Link> and{" "}
                 <Link href={docs("/admin/upgrade")}>upgrade instructions</Link>{" "}
                 for more information.
-              </Box>
-            </Box>
+              </p>
+            </div>
           }
           action={
-            <Button
-              variant="text"
-              size="small"
-              onClick={() => updateCheckSend("DISMISS")}
-            >
+            <Button variant="text" size="small" onClick={updateCheck.dismiss}>
               Dismiss
             </Button>
           }
@@ -111,12 +100,14 @@ export const DashboardLayout: FC = () => {
   );
 };
 
-export const DashboardFullPage = (props: BoxProps) => {
+export const DashboardFullPage: FC<HTMLAttributes<HTMLDivElement>> = ({
+  children,
+  ...attrs
+}) => {
   return (
-    <Box
-      {...props}
-      sx={{
-        ...props.sx,
+    <div
+      {...attrs}
+      css={{
         marginBottom: `-${dashboardContentBottomPadding}px`,
         flex: 1,
         display: "flex",
@@ -124,6 +115,8 @@ export const DashboardFullPage = (props: BoxProps) => {
         flexBasis: 0,
         minHeight: "100%",
       }}
-    />
+    >
+      {children}
+    </div>
   );
 };

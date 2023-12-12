@@ -79,3 +79,31 @@ export const Updating: Story = {
     workspace: Mocks.MockOutdatedWorkspace,
   },
 };
+
+export const RequireActiveVersionStarted: Story = {
+  args: {
+    workspace: Mocks.MockOutdatedRunningWorkspaceRequireActiveVersion,
+    canChangeVersions: false,
+  },
+};
+
+export const RequireActiveVersionStopped: Story = {
+  args: {
+    workspace: Mocks.MockOutdatedStoppedWorkspaceRequireActiveVersion,
+    canChangeVersions: false,
+  },
+};
+
+export const AlwaysUpdateStarted: Story = {
+  args: {
+    workspace: Mocks.MockOutdatedRunningWorkspaceAlwaysUpdate,
+    canChangeVersions: true,
+  },
+};
+
+export const AlwaysUpdateStopped: Story = {
+  args: {
+    workspace: Mocks.MockOutdatedStoppedWorkspaceAlwaysUpdate,
+    canChangeVersions: true,
+  },
+};

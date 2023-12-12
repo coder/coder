@@ -1,7 +1,8 @@
+import { type Interpolation, type Theme } from "@emotion/react";
 import TextField from "@mui/material/TextField";
-import { Template, UpdateTemplateMeta } from "api/typesGenerated";
-import { FormikContextType, FormikTouched, useFormik } from "formik";
-import { FC } from "react";
+import type { Template, UpdateTemplateMeta } from "api/typesGenerated";
+import { type FormikContextType, type FormikTouched, useFormik } from "formik";
+import { type FC } from "react";
 import {
   getFormHelpers,
   nameValidator,
@@ -23,7 +24,7 @@ import {
   HelpTooltip,
   HelpTooltipText,
 } from "components/HelpTooltip/HelpTooltip";
-import { makeStyles } from "@mui/styles";
+import { EnterpriseBadge } from "components/Badges/Badges";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 
@@ -37,6 +38,7 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
     ),
     allow_user_cancel_workspace_jobs: Yup.boolean(),
     icon: iconValidator,
+    require_active_version: Yup.boolean(),
   });
 
 export interface TemplateSettingsForm {
@@ -47,6 +49,8 @@ export interface TemplateSettingsForm {
   error?: unknown;
   // Helpful to show field errors on Storybook
   initialTouched?: FormikTouched<UpdateTemplateMeta>;
+  accessControlEnabled: boolean;
+  templatePoliciesEnabled: boolean;
 }
 
 export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
@@ -56,6 +60,8 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
   error,
   isSubmitting,
   initialTouched,
+  accessControlEnabled,
+  templatePoliciesEnabled,
 }) => {
   const validationSchema = getValidationSchema();
   const form: FormikContextType<UpdateTemplateMeta> =
@@ -69,14 +75,14 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
           template.allow_user_cancel_workspace_jobs,
         update_workspace_last_used_at: false,
         update_workspace_dormant_at: false,
-        require_active_version: false,
+        require_active_version: template.require_active_version,
+        deprecation_message: template.deprecation_message,
       },
       validationSchema,
       onSubmit,
       initialTouched,
     });
   const getFieldHelpers = getFormHelpers(form, error);
-  const styles = useStyles();
 
   return (
     <HorizontalForm
@@ -135,38 +141,110 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         title="Operations"
         description="Regulate actions allowed on workspaces created from this template."
       >
-        <label htmlFor="allow_user_cancel_workspace_jobs">
-          <Stack direction="row" spacing={1}>
-            <Checkbox
-              id="allow_user_cancel_workspace_jobs"
-              name="allow_user_cancel_workspace_jobs"
-              disabled={isSubmitting}
-              checked={form.values.allow_user_cancel_workspace_jobs}
-              onChange={form.handleChange}
-            />
+        <Stack direction="column" spacing={5}>
+          <label htmlFor="allow_user_cancel_workspace_jobs">
+            <Stack direction="row" spacing={1}>
+              <Checkbox
+                id="allow_user_cancel_workspace_jobs"
+                name="allow_user_cancel_workspace_jobs"
+                disabled={isSubmitting}
+                checked={form.values.allow_user_cancel_workspace_jobs}
+                onChange={form.handleChange}
+              />
 
-            <Stack direction="column" spacing={0.5}>
-              <Stack
-                direction="row"
-                alignItems="center"
-                spacing={0.5}
-                className={styles.optionText}
-              >
-                Allow users to cancel in-progress workspace jobs.
-                <HelpTooltip>
-                  <HelpTooltipText>
-                    If checked, users may be able to corrupt their workspace.
-                  </HelpTooltipText>
-                </HelpTooltip>
+              <Stack direction="column" spacing={0.5}>
+                <Stack
+                  direction="row"
+                  alignItems="center"
+                  spacing={0.5}
+                  css={styles.optionText}
+                >
+                  Allow users to cancel in-progress workspace jobs.
+                  <HelpTooltip>
+                    <HelpTooltipText>
+                      If checked, users may be able to corrupt their workspace.
+                    </HelpTooltipText>
+                  </HelpTooltip>
+                </Stack>
+                <span css={styles.optionHelperText}>
+                  Depending on your template, canceling builds may leave
+                  workspaces in an unhealthy state. This option isn&apos;t
+                  recommended for most use cases.
+                </span>
               </Stack>
-              <span className={styles.optionHelperText}>
-                Depending on your template, canceling builds may leave
-                workspaces in an unhealthy state. This option isn&apos;t
-                recommended for most use cases.
+            </Stack>
+          </label>
+          {templatePoliciesEnabled && (
+            <label htmlFor="require_active_version">
+              <Stack direction="row" spacing={1}>
+                <Checkbox
+                  id="require_active_version"
+                  name="require_active_version"
+                  checked={form.values.require_active_version}
+                  onChange={form.handleChange}
+                />
+
+                <Stack direction="column" spacing={0.5}>
+                  <Stack
+                    direction="row"
+                    alignItems="center"
+                    spacing={0.5}
+                    css={styles.optionText}
+                  >
+                    Require workspaces automatically update when started.
+                    <HelpTooltip>
+                      <HelpTooltipText>
+                        This setting is not enforced for template admins.
+                      </HelpTooltipText>
+                    </HelpTooltip>
+                  </Stack>
+                  <span css={styles.optionHelperText}>
+                    Workspaces that are manually started or auto-started will
+                    use the active template version.
+                  </span>
+                </Stack>
+              </Stack>
+            </label>
+          )}
+        </Stack>
+      </FormSection>
+
+      <FormSection
+        title="Deprecate"
+        description="Deprecating a template prevents any new workspaces from being created. Existing workspaces will continue to function."
+      >
+        <FormFields>
+          <Stack direction="column" spacing={0.5}>
+            <Stack
+              direction="row"
+              alignItems="center"
+              spacing={0.5}
+              css={styles.optionText}
+            >
+              Deprecation Message
+            </Stack>
+            <span css={styles.optionHelperText}>
+              Leave the message empty to keep the template active. Any message
+              provided will mark the template as deprecated. Use this message to
+              inform users of the deprecation and how to migrate to a new
+              template.
+            </span>
+          </Stack>
+          <TextField
+            {...getFieldHelpers("deprecation_message")}
+            disabled={isSubmitting || !accessControlEnabled}
+            fullWidth
+            label="Deprecation Message"
+          />
+          {!accessControlEnabled && (
+            <Stack direction="row">
+              <EnterpriseBadge />
+              <span css={styles.optionHelperText}>
+                Enterprise license required to deprecate templates.
               </span>
             </Stack>
-          </Stack>
-        </label>
+          )}
+        </FormFields>
       </FormSection>
 
       <FormFooter onCancel={onCancel} isLoading={isSubmitting} />
@@ -174,14 +252,14 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
   );
 };
 
-const useStyles = makeStyles((theme) => ({
-  optionText: {
-    fontSize: theme.spacing(2),
+const styles = {
+  optionText: (theme) => ({
+    fontSize: 16,
     color: theme.palette.text.primary,
-  },
+  }),
 
-  optionHelperText: {
-    fontSize: theme.spacing(1.5),
+  optionHelperText: (theme) => ({
+    fontSize: 12,
     color: theme.palette.text.secondary,
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;

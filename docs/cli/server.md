@@ -305,6 +305,28 @@ Time to force cancel provisioning tasks that are stuck.
 
 HTTP bind address of the server. Unset to disable the HTTP endpoint.
 
+### --health-check-refresh
+
+|             |                                                |
+| ----------- | ---------------------------------------------- |
+| Type        | <code>duration</code>                          |
+| Environment | <code>$CODER_HEALTH_CHECK_REFRESH</code>       |
+| YAML        | <code>introspection.healthcheck.refresh</code> |
+| Default     | <code>10m0s</code>                             |
+
+Refresh interval for healthchecks.
+
+### --health-check-threshold-database
+
+|             |                                                          |
+| ----------- | -------------------------------------------------------- |
+| Type        | <code>duration</code>                                    |
+| Environment | <code>$CODER_HEALTH_CHECK_THRESHOLD_DATABASE</code>      |
+| YAML        | <code>introspection.healthcheck.thresholdDatabase</code> |
+| Default     | <code>15ms</code>                                        |
+
+The threshold for the database health check. If the median latency of the database exceeds this threshold over 5 attempts, the database is considered unhealthy. The default value is 15ms.
+
 ### --log-human
 
 |             |                                              |
@@ -426,6 +448,16 @@ Base URL of a GitHub Enterprise deployment to use for Login with GitHub.
 | Default     | <code>true</code>                      |
 
 Whether new users can sign up with OIDC.
+
+### --oidc-allowed-groups
+
+|             |                                         |
+| ----------- | --------------------------------------- |
+| Type        | <code>string-array</code>               |
+| Environment | <code>$CODER_OIDC_ALLOWED_GROUPS</code> |
+| YAML        | <code>oidc.groupAllowed</code>          |
+
+If provided any group name not in the list will not be allowed to authenticate. This allows for restricting access to a specific set of groups. This filter is applied after the group mapping and before the regex filter.
 
 ### --oidc-auth-url-params
 
@@ -874,6 +906,17 @@ Two optional fields can be set in the Strict-Transport-Security header; 'include
 
 HTTPS bind address of the server.
 
+### --tls-allow-insecure-ciphers
+
+|             |                                                     |
+| ----------- | --------------------------------------------------- |
+| Type        | <code>bool</code>                                   |
+| Environment | <code>$CODER_TLS_ALLOW_INSECURE_CIPHERS</code>      |
+| YAML        | <code>networking.tls.tlsAllowInsecureCiphers</code> |
+| Default     | <code>false</code>                                  |
+
+By default, only ciphers marked as 'secure' are allowed to be used. See https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L82-L95.
+
 ### --tls-cert-file
 
 |             |                                       |
@@ -883,6 +926,16 @@ HTTPS bind address of the server.
 | YAML        | <code>networking.tls.certFiles</code> |
 
 Path to each certificate for TLS. It requires a PEM-encoded file. To configure the listener to use a CA certificate, concatenate the primary certificate and the CA certificate together. The primary certificate should appear first in the combined file.
+
+### --tls-ciphers
+
+|             |                                        |
+| ----------- | -------------------------------------- |
+| Type        | <code>string-array</code>              |
+| Environment | <code>$CODER_TLS_CIPHERS</code>        |
+| YAML        | <code>networking.tls.tlsCiphers</code> |
+
+Specify specific TLS ciphers that allowed to be used. See https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L53-L75.
 
 ### --tls-client-auth
 

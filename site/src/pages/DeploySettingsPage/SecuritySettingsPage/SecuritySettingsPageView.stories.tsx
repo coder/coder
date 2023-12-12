@@ -47,7 +47,6 @@ const meta: Meta<typeof SecuritySettingsPageView> = {
         hidden: false,
       },
     ],
-    featureAuditLogEnabled: true,
     featureBrowserOnlyEnabled: true,
   },
 };

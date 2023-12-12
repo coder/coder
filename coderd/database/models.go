@@ -275,7 +275,7 @@ const (
 	BuildReasonInitiator  BuildReason = "initiator"
 	BuildReasonAutostart  BuildReason = "autostart"
 	BuildReasonAutostop   BuildReason = "autostop"
-	BuildReasonAutolock   BuildReason = "autolock"
+	BuildReasonDormancy   BuildReason = "dormancy"
 	BuildReasonFailedstop BuildReason = "failedstop"
 	BuildReasonAutodelete BuildReason = "autodelete"
 )
@@ -320,7 +320,7 @@ func (e BuildReason) Valid() bool {
 	case BuildReasonInitiator,
 		BuildReasonAutostart,
 		BuildReasonAutostop,
-		BuildReasonAutolock,
+		BuildReasonDormancy,
 		BuildReasonFailedstop,
 		BuildReasonAutodelete:
 		return true
@@ -333,7 +333,7 @@ func AllBuildReasonValues() []BuildReason {
 		BuildReasonInitiator,
 		BuildReasonAutostart,
 		BuildReasonAutostop,
-		BuildReasonAutolock,
+		BuildReasonDormancy,
 		BuildReasonFailedstop,
 		BuildReasonAutodelete,
 	}
@@ -1158,6 +1158,7 @@ const (
 	ResourceTypeLicense         ResourceType = "license"
 	ResourceTypeWorkspaceProxy  ResourceType = "workspace_proxy"
 	ResourceTypeConvertLogin    ResourceType = "convert_login"
+	ResourceTypeHealthSettings  ResourceType = "health_settings"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -1208,7 +1209,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeWorkspaceBuild,
 		ResourceTypeLicense,
 		ResourceTypeWorkspaceProxy,
-		ResourceTypeConvertLogin:
+		ResourceTypeConvertLogin,
+		ResourceTypeHealthSettings:
 		return true
 	}
 	return false
@@ -1228,6 +1230,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeLicense,
 		ResourceTypeWorkspaceProxy,
 		ResourceTypeConvertLogin,
+		ResourceTypeHealthSettings,
 	}
 }
 
@@ -1289,7 +1292,65 @@ func AllStartupScriptBehaviorValues() []StartupScriptBehavior {
 	}
 }
 
-// Defines the user status: active, dormant, or suspended.
+type TailnetStatus string
+
+const (
+	TailnetStatusOk   TailnetStatus = "ok"
+	TailnetStatusLost TailnetStatus = "lost"
+)
+
+func (e *TailnetStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TailnetStatus(s)
+	case string:
+		*e = TailnetStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TailnetStatus: %T", src)
+	}
+	return nil
+}
+
+type NullTailnetStatus struct {
+	TailnetStatus TailnetStatus `json:"tailnet_status"`
+	Valid         bool          `json:"valid"` // Valid is true if TailnetStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTailnetStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.TailnetStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TailnetStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTailnetStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TailnetStatus), nil
+}
+
+func (e TailnetStatus) Valid() bool {
+	switch e {
+	case TailnetStatusOk,
+		TailnetStatusLost:
+		return true
+	}
+	return false
+}
+
+func AllTailnetStatusValues() []TailnetStatus {
+	return []TailnetStatus{
+		TailnetStatusOk,
+		TailnetStatusLost,
+	}
+}
+
+// Defines the users status: active, dormant, or suspended.
 type UserStatus string
 
 const (
@@ -1783,6 +1844,8 @@ type ProvisionerDaemon struct {
 	Provisioners []ProvisionerType `db:"provisioners" json:"provisioners"`
 	ReplicaID    uuid.NullUUID     `db:"replica_id" json:"replica_id"`
 	Tags         StringMap         `db:"tags" json:"tags"`
+	LastSeenAt   sql.NullTime      `db:"last_seen_at" json:"last_seen_at"`
+	Version      string            `db:"version" json:"version"`
 }
 
 type ProvisionerJob struct {
@@ -1865,6 +1928,21 @@ type TailnetCoordinator struct {
 	HeartbeatAt time.Time `db:"heartbeat_at" json:"heartbeat_at"`
 }
 
+type TailnetPeer struct {
+	ID            uuid.UUID     `db:"id" json:"id"`
+	CoordinatorID uuid.UUID     `db:"coordinator_id" json:"coordinator_id"`
+	UpdatedAt     time.Time     `db:"updated_at" json:"updated_at"`
+	Node          []byte        `db:"node" json:"node"`
+	Status        TailnetStatus `db:"status" json:"status"`
+}
+
+type TailnetTunnel struct {
+	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
+	SrcID         uuid.UUID `db:"src_id" json:"src_id"`
+	DstID         uuid.UUID `db:"dst_id" json:"dst_id"`
+	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
+}
+
 // Joins in the username + avatar url of the created by user.
 type Template struct {
 	ID                            uuid.UUID       `db:"id" json:"id"`
@@ -1893,7 +1971,8 @@ type Template struct {
 	AutostopRequirementWeeks      int64           `db:"autostop_requirement_weeks" json:"autostop_requirement_weeks"`
 	AutostartBlockDaysOfWeek      int16           `db:"autostart_block_days_of_week" json:"autostart_block_days_of_week"`
 	RequireActiveVersion          bool            `db:"require_active_version" json:"require_active_version"`
-	CreatedByAvatarURL            sql.NullString  `db:"created_by_avatar_url" json:"created_by_avatar_url"`
+	Deprecated                    string          `db:"deprecated" json:"deprecated"`
+	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 }
 
@@ -1932,24 +2011,26 @@ type TemplateTable struct {
 	// A bitmap of days of week that autostart of a workspace is not allowed. Default allows all days. This is intended as a cost savings measure to prevent auto start on weekends (for example).
 	AutostartBlockDaysOfWeek int16 `db:"autostart_block_days_of_week" json:"autostart_block_days_of_week"`
 	RequireActiveVersion     bool  `db:"require_active_version" json:"require_active_version"`
+	// If set to a non empty string, the template will no longer be able to be used. The message will be displayed to the user.
+	Deprecated string `db:"deprecated" json:"deprecated"`
 }
 
 // Joins in the username + avatar url of the created by user.
 type TemplateVersion struct {
-	ID                    uuid.UUID      `db:"id" json:"id"`
-	TemplateID            uuid.NullUUID  `db:"template_id" json:"template_id"`
-	OrganizationID        uuid.UUID      `db:"organization_id" json:"organization_id"`
-	CreatedAt             time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt             time.Time      `db:"updated_at" json:"updated_at"`
-	Name                  string         `db:"name" json:"name"`
-	Readme                string         `db:"readme" json:"readme"`
-	JobID                 uuid.UUID      `db:"job_id" json:"job_id"`
-	CreatedBy             uuid.UUID      `db:"created_by" json:"created_by"`
-	ExternalAuthProviders []string       `db:"external_auth_providers" json:"external_auth_providers"`
-	Message               string         `db:"message" json:"message"`
-	Archived              bool           `db:"archived" json:"archived"`
-	CreatedByAvatarURL    sql.NullString `db:"created_by_avatar_url" json:"created_by_avatar_url"`
-	CreatedByUsername     string         `db:"created_by_username" json:"created_by_username"`
+	ID                    uuid.UUID     `db:"id" json:"id"`
+	TemplateID            uuid.NullUUID `db:"template_id" json:"template_id"`
+	OrganizationID        uuid.UUID     `db:"organization_id" json:"organization_id"`
+	CreatedAt             time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt             time.Time     `db:"updated_at" json:"updated_at"`
+	Name                  string        `db:"name" json:"name"`
+	Readme                string        `db:"readme" json:"readme"`
+	JobID                 uuid.UUID     `db:"job_id" json:"job_id"`
+	CreatedBy             uuid.UUID     `db:"created_by" json:"created_by"`
+	ExternalAuthProviders []string      `db:"external_auth_providers" json:"external_auth_providers"`
+	Message               string        `db:"message" json:"message"`
+	Archived              bool          `db:"archived" json:"archived"`
+	CreatedByAvatarURL    string        `db:"created_by_avatar_url" json:"created_by_avatar_url"`
+	CreatedByUsername     string        `db:"created_by_username" json:"created_by_username"`
 }
 
 type TemplateVersionParameter struct {
@@ -2033,11 +2114,13 @@ type User struct {
 	Status         UserStatus     `db:"status" json:"status"`
 	RBACRoles      pq.StringArray `db:"rbac_roles" json:"rbac_roles"`
 	LoginType      LoginType      `db:"login_type" json:"login_type"`
-	AvatarURL      sql.NullString `db:"avatar_url" json:"avatar_url"`
+	AvatarURL      string         `db:"avatar_url" json:"avatar_url"`
 	Deleted        bool           `db:"deleted" json:"deleted"`
 	LastSeenAt     time.Time      `db:"last_seen_at" json:"last_seen_at"`
 	// Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user's quiet hours. If empty, the default quiet hours on the instance is used instead.
 	QuietHoursSchedule string `db:"quiet_hours_schedule" json:"quiet_hours_schedule"`
+	// "" can be interpreted as "the user does not care", falling back to the default theme
+	ThemePreference string `db:"theme_preference" json:"theme_preference"`
 }
 
 type UserLink struct {
@@ -2051,13 +2134,15 @@ type UserLink struct {
 	OAuthAccessTokenKeyID sql.NullString `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
 	// The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted
 	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
+	// Debug information includes information like id_token and userinfo claims.
+	DebugContext json.RawMessage `db:"debug_context" json:"debug_context"`
 }
 
 // Visible fields of users are allowed to be joined with other tables for including context of other resources.
 type VisibleUser struct {
-	ID        uuid.UUID      `db:"id" json:"id"`
-	Username  string         `db:"username" json:"username"`
-	AvatarURL sql.NullString `db:"avatar_url" json:"avatar_url"`
+	ID        uuid.UUID `db:"id" json:"id"`
+	Username  string    `db:"username" json:"username"`
+	AvatarURL string    `db:"avatar_url" json:"avatar_url"`
 }
 
 type Workspace struct {
@@ -2117,6 +2202,7 @@ type WorkspaceAgent struct {
 	ReadyAt     sql.NullTime              `db:"ready_at" json:"ready_at"`
 	Subsystems  []WorkspaceAgentSubsystem `db:"subsystems" json:"subsystems"`
 	DisplayApps []DisplayApp              `db:"display_apps" json:"display_apps"`
+	APIVersion  string                    `db:"api_version" json:"api_version"`
 }
 
 type WorkspaceAgentLog struct {
@@ -2239,7 +2325,7 @@ type WorkspaceBuild struct {
 	Reason               BuildReason         `db:"reason" json:"reason"`
 	DailyCost            int32               `db:"daily_cost" json:"daily_cost"`
 	MaxDeadline          time.Time           `db:"max_deadline" json:"max_deadline"`
-	InitiatorByAvatarUrl sql.NullString      `db:"initiator_by_avatar_url" json:"initiator_by_avatar_url"`
+	InitiatorByAvatarUrl string              `db:"initiator_by_avatar_url" json:"initiator_by_avatar_url"`
 	InitiatorByUsername  string              `db:"initiator_by_username" json:"initiator_by_username"`
 }
 
@@ -2287,7 +2373,8 @@ type WorkspaceProxy struct {
 	RegionID          int32  `db:"region_id" json:"region_id"`
 	DerpEnabled       bool   `db:"derp_enabled" json:"derp_enabled"`
 	// Disables app/terminal proxying for this proxy and only acts as a DERP relay.
-	DerpOnly bool `db:"derp_only" json:"derp_only"`
+	DerpOnly bool   `db:"derp_only" json:"derp_only"`
+	Version  string `db:"version" json:"version"`
 }
 
 type WorkspaceResource struct {

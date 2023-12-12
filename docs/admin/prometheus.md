@@ -35,7 +35,8 @@ The Prometheus endpoint can be enabled in the
 [Helm chart's](https://github.com/coder/coder/tree/main/helm) `values.yml` by
 setting the environment variable `CODER_PROMETHEUS_ADDRESS` to `0.0.0.0:2112`.
 The environment variable `CODER_PROMETHEUS_ENABLE` will be enabled
-automatically.
+automatically. A Service Endpoint will also be exposed allowing Prometheus
+Service Monitors to be used.
 
 ### Prometheus configuration
 
@@ -51,6 +52,26 @@ scrape_configs:
       - targets: ["<ip>:2112"] # replace with the the IP address of the Coder pod or server
         labels:
           apps: "coder"
+```
+
+To use the Kubernetes Prometheus operator to scrape metrics, you will need to
+create a `ServiceMonitor` in your Coder deployment namespace. Below is an
+example `ServiceMonitor`:
+
+```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: coder-service-monitor
+  namespace: coder
+spec:
+  endpoints:
+    - port: prometheus-http
+      interval: 10s
+      scrapeTimeout: 10s
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: coder
 ```
 
 ## Available metrics
@@ -78,6 +99,12 @@ scrape_configs:
 | `coderd_api_requests_processed_total`                 | counter   | The total number of processed API requests                         | `code` `method` `path`                                                              |
 | `coderd_api_websocket_durations_seconds`              | histogram | Websocket duration distribution of requests in seconds.            | `path`                                                                              |
 | `coderd_api_workspace_latest_build_total`             | gauge     | The latest workspace builds with a status.                         | `status`                                                                            |
+| `coderd_insights_applications_usage_seconds`          | gauge     | The application usage per template.                                | `application_name` `slug` `template_name`                                           |
+| `coderd_insights_parameters`                          | gauge     | The parameter usage per template.                                  | `parameter_name` `parameter_type` `parameter_value` `template_name`                 |
+| `coderd_insights_templates_active_users`              | gauge     | The number of active users of the template.                        | `template_name`                                                                     |
+| `coderd_license_active_users`                         | gauge     | The number of active users.                                        |                                                                                     |
+| `coderd_license_limit_users`                          | gauge     | The user seats limit based on the active Coder license.            |                                                                                     |
+| `coderd_license_user_limit_enabled`                   | gauge     | Returns 1 if the current license enforces the user limit.          |                                                                                     |
 | `coderd_metrics_collector_agents_execution_seconds`   | histogram | Histogram for duration of agents metrics collection in seconds.    |                                                                                     |
 | `coderd_provisionerd_job_timings_seconds`             | histogram | The provisioner job time duration in seconds.                      | `provisioner` `status`                                                              |
 | `coderd_provisionerd_jobs_current`                    | gauge     | The number of currently running provisioner jobs.                  | `provisioner`                                                                       |

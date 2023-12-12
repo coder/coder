@@ -1,11 +1,8 @@
-import Button from "@mui/material/Button";
+import Button, { type ButtonProps } from "@mui/material/Button";
 import IconButton from "@mui/material/IconButton";
-import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
 import CreateIcon from "@mui/icons-material/AddOutlined";
-import BuildIcon from "@mui/icons-material/BuildOutlined";
-import PreviewIcon from "@mui/icons-material/VisibilityOutlined";
-import {
+import type {
   ProvisionerJobLog,
   Template,
   TemplateVersion,
@@ -16,11 +13,11 @@ import {
 import { Link as RouterLink } from "react-router-dom";
 import { Alert, AlertDetail } from "components/Alert/Alert";
 import { Avatar } from "components/Avatar/Avatar";
-import { AvatarData } from "components/AvatarData/AvatarData";
 import { TemplateResourcesTable } from "components/TemplateResourcesTable/TemplateResourcesTable";
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import { PublishVersionData } from "pages/TemplateVersionEditorPage/types";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
+import PlayArrowOutlined from "@mui/icons-material/PlayArrowOutlined";
 import {
   createFile,
   existsFile,
@@ -41,18 +38,19 @@ import { FileTreeView } from "./FileTreeView";
 import { MissingTemplateVariablesDialog } from "./MissingTemplateVariablesDialog";
 import { MonacoEditor } from "./MonacoEditor";
 import { PublishTemplateVersionDialog } from "./PublishTemplateVersionDialog";
-import {
-  getStatus,
-  TemplateVersionStatusBadge,
-} from "./TemplateVersionStatusBadge";
+import { TemplateVersionStatusBadge } from "./TemplateVersionStatusBadge";
 import AlertTitle from "@mui/material/AlertTitle";
-import { DashboardFullPage } from "components/Dashboard/DashboardLayout";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
+import CloseOutlined from "@mui/icons-material/CloseOutlined";
+import { MONOSPACE_FONT_FAMILY } from "theme/constants";
+import { Loader } from "components/Loader/Loader";
+
+type Tab = "logs" | "resources" | undefined; // Undefined is to hide the tab
 
 export interface TemplateVersionEditorProps {
   template: Template;
   templateVersion: TemplateVersion;
-  isBuildingNewVersion: boolean;
   defaultFileTree: FileTree;
   buildLogs?: ProvisionerJobLog[];
   resources?: WorkspaceResource[];
@@ -71,9 +69,8 @@ export interface TemplateVersionEditorProps {
   missingVariables?: TemplateVersionVariable[];
   onSubmitMissingVariableValues: (values: VariableValue[]) => void;
   onCancelSubmitMissingVariableValues: () => void;
+  defaultTab?: Tab;
 }
-
-const topbarHeight = 80;
 
 const findInitialFile = (fileTree: FileTree): string | undefined => {
   let initialFile: string | undefined;
@@ -92,7 +89,6 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   disableUpdate,
   template,
   templateVersion,
-  isBuildingNewVersion,
   defaultFileTree,
   onPreview,
   onPublish,
@@ -109,11 +105,10 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   missingVariables,
   onSubmitMissingVariableValues,
   onCancelSubmitMissingVariableValues,
+  defaultTab,
 }) => {
   const theme = useTheme();
-  // If resources are provided, show them by default!
-  // This is for Storybook!
-  const [selectedTab, setSelectedTab] = useState(() => (resources ? 1 : 0));
+  const [selectedTab, setSelectedTab] = useState<Tab>(defaultTab);
   const [fileTree, setFileTree] = useState(defaultFileTree);
   const [createFileOpen, setCreateFileOpen] = useState(false);
   const [deleteFileOpen, setDeleteFileOpen] = useState<string>();
@@ -125,8 +120,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 
   const triggerPreview = useCallback(() => {
     onPreview(fileTree);
-    // Switch to the build log!
-    setSelectedTab(0);
+    setSelectedTab("logs");
   }, [fileTree, onPreview]);
 
   // Stop ctrl+s from saving files and make ctrl+enter trigger a preview.
@@ -159,94 +153,201 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
       previousVersion.current = templateVersion;
       return;
     }
+
     if (
       ["running", "pending"].includes(previousVersion.current.job.status) &&
       templateVersion.job.status === "succeeded"
     ) {
-      setSelectedTab(1);
       setDirty(false);
     }
     previousVersion.current = templateVersion;
   }, [templateVersion]);
 
-  const hasIcon = template.icon && template.icon !== "";
-  const showBuildLogs = Boolean(buildLogs);
   const editorValue = getFileContent(activePath ?? "", fileTree) as string;
 
+  // Auto scroll
+  const buildLogsRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    window.dispatchEvent(new Event("resize"));
-  }, [showBuildLogs]);
+    if (buildLogsRef.current) {
+      buildLogsRef.current.scrollTop = buildLogsRef.current.scrollHeight;
+    }
+  }, [buildLogs]);
 
   return (
     <>
-      <DashboardFullPage
-        css={{
-          background: theme.palette.background.default,
-        }}
-      >
-        <div css={styles.topbar} data-testid="topbar">
-          <div css={styles.topbarSides}>
-            <Link
-              component={RouterLink}
-              underline="none"
-              to={`/templates/${template.name}`}
-            >
-              <AvatarData
-                title={template.display_name || template.name}
-                subtitle={template.description}
-                avatar={
-                  hasIcon && (
-                    <Avatar src={template.icon} variant="square" fitImage />
-                  )
-                }
-              />
-            </Link>
+      <div css={{ height: "100%", display: "flex", flexDirection: "column" }}>
+        <div
+          css={{
+            height: 48,
+            borderBottom: `1px solid ${theme.palette.divider}`,
+            display: "grid",
+            gridTemplateColumns: "1fr 2fr 1fr",
+            alignItems: "center",
+          }}
+          data-testid="topbar"
+        >
+          <div>
+            <Tooltip title="Back to the template">
+              <IconButton
+                component={RouterLink}
+                to={`/templates/${template.name}`}
+                size="small"
+                css={{
+                  padding: "0 16px",
+                  borderRadius: 0,
+                  height: 48,
+                }}
+              >
+                <ArrowBackOutlined css={{ width: 20, height: 20 }} />
+              </IconButton>
+            </Tooltip>
           </div>
 
-          {publishedVersion && (
-            <Alert
-              severity="success"
-              dismissible
-              actions={
-                <Button variant="text" size="small" onClick={onCreateWorkspace}>
-                  Create a workspace
-                </Button>
-              }
-            >
-              Successfully published {publishedVersion.name}!
-            </Alert>
-          )}
+          <div
+            css={{
+              fontSize: 13,
+              display: "flex",
+              gap: 8,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Avatar
+              src={template.icon}
+              variant="square"
+              fitImage
+              css={{ width: 16, height: 16 }}
+            />
+            <RouterLink
+              to={`/templates/${template.name}`}
+              css={{
+                color: theme.palette.text.primary,
+                textDecoration: "none",
 
-          <div css={styles.topbarSides}>
-            {isBuildingNewVersion && (
+                "&:hover": {
+                  textDecoration: "underline",
+                },
+              }}
+            >
+              {template.display_name || template.name}
+            </RouterLink>
+            <span css={{ color: theme.palette.divider }}>/</span>
+            <span css={{ color: theme.palette.text.secondary }}>
+              {templateVersion.name}
+            </span>
+          </div>
+
+          <div
+            css={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "flex-end",
+              gap: 8,
+              paddingRight: 16,
+            }}
+          >
+            {buildLogs && (
               <TemplateVersionStatusBadge version={templateVersion} />
             )}
 
-            <Button
+            <TopbarButton
+              startIcon={
+                <PlayArrowOutlined
+                  css={{ color: theme.palette.success.light }}
+                />
+              }
               title="Build template (Ctrl + Enter)"
               disabled={disablePreview}
               onClick={() => {
                 triggerPreview();
               }}
             >
-              Build template
-            </Button>
+              Build
+            </TopbarButton>
 
-            <Button
+            <TopbarButton
               variant="contained"
               disabled={dirty || disableUpdate}
               onClick={onPublish}
             >
-              Publish version
-            </Button>
+              Publish
+            </TopbarButton>
           </div>
         </div>
 
-        <div css={styles.sidebarAndEditor}>
-          <div css={styles.sidebar}>
-            <div css={styles.sidebarTitle}>
-              Template files
-              <div css={styles.sidebarActions}>
+        <div
+          css={{
+            display: "flex",
+            flex: 1,
+            flexBasis: 0,
+            overflow: "hidden",
+            position: "relative",
+          }}
+        >
+          {publishedVersion && (
+            <div
+              // We need this to reset the dismissable state of the component
+              // when the published version changes
+              key={publishedVersion.id}
+              css={{
+                position: "absolute",
+                width: "100%",
+                display: "flex",
+                justifyContent: "center",
+                padding: 12,
+                zIndex: 10,
+              }}
+            >
+              <Alert
+                severity="success"
+                dismissible
+                actions={
+                  <Button
+                    variant="text"
+                    size="small"
+                    onClick={onCreateWorkspace}
+                  >
+                    Create a workspace
+                  </Button>
+                }
+              >
+                Successfully published {publishedVersion.name}!
+              </Alert>
+            </div>
+          )}
+
+          <div
+            css={{
+              width: 240,
+              borderRight: `1px solid ${theme.palette.divider}`,
+              flexShrink: 0,
+            }}
+          >
+            <div
+              css={{
+                height: 42,
+                padding: "0 8px 0 16px",
+                display: "flex",
+                alignItems: "center",
+              }}
+            >
+              <span
+                css={{
+                  color: theme.palette.text.primary,
+                  fontSize: 13,
+                }}
+              >
+                Files
+              </span>
+
+              <div
+                css={{
+                  marginLeft: "auto",
+                  "& svg": {
+                    fill: theme.palette.text.primary,
+                  },
+                }}
+              >
                 <Tooltip title="Create File" placement="top">
                   <IconButton
                     aria-label="Create File"
@@ -255,7 +356,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                       event.currentTarget.blur();
                     }}
                   >
-                    <CreateIcon />
+                    <CreateIcon css={{ width: 16, height: 16 }} />
                   </IconButton>
                 </Tooltip>
               </div>
@@ -327,14 +428,14 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 
           <div
             css={{
-              display: "grid",
+              display: "flex",
+              flexDirection: "column",
               width: "100%",
-              gridTemplateColumns: showBuildLogs ? "1fr 1fr" : "1fr 0fr",
               minHeight: "100%",
               overflow: "hidden",
             }}
           >
-            <div css={styles.editor} data-chromatic="ignore">
+            <div css={{ flex: 1, overflowY: "auto" }} data-chromatic="ignore">
               {activePath ? (
                 <MonacoEditor
                   value={editorValue}
@@ -354,57 +455,94 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               )}
             </div>
 
-            <div css={styles.panelWrapper}>
-              <div css={styles.tabs}>
-                <button
-                  css={styles.tab}
-                  className={selectedTab === 0 ? "active" : ""}
-                  onClick={() => {
-                    setSelectedTab(0);
+            <div
+              css={{
+                borderTop: `1px solid ${theme.palette.divider}`,
+
+                overflow: "hidden",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <div
+                css={{
+                  display: "flex",
+                  alignItems: "center",
+                  borderBottom: selectedTab
+                    ? `1px solid ${theme.palette.divider}`
+                    : 0,
+                }}
+              >
+                <div
+                  css={{
+                    display: "flex",
+
+                    "& .MuiTab-root": {
+                      padding: 0,
+                      fontSize: 14,
+                      textTransform: "none",
+                      letterSpacing: "unset",
+                    },
                   }}
                 >
-                  {templateVersion.job.status !== "succeeded" ? (
-                    getStatus(templateVersion).icon
-                  ) : (
-                    <BuildIcon />
-                  )}
-                  Build Log
-                </button>
-
-                {!disableUpdate && (
                   <button
+                    disabled={!buildLogs}
                     css={styles.tab}
-                    className={selectedTab === 1 ? "active" : ""}
+                    className={selectedTab === "logs" ? "active" : ""}
                     onClick={() => {
-                      setSelectedTab(1);
+                      setSelectedTab("logs");
                     }}
                   >
-                    <PreviewIcon />
-                    Workspace Preview
+                    Output
                   </button>
+
+                  <button
+                    disabled={disableUpdate}
+                    css={styles.tab}
+                    className={selectedTab === "resources" ? "active" : ""}
+                    onClick={() => {
+                      setSelectedTab("resources");
+                    }}
+                  >
+                    Resources
+                  </button>
+                </div>
+
+                {selectedTab && (
+                  <IconButton
+                    onClick={() => {
+                      setSelectedTab(undefined);
+                    }}
+                    css={{
+                      marginLeft: "auto",
+                      width: 36,
+                      height: 36,
+                      borderRadius: 0,
+                    }}
+                  >
+                    <CloseOutlined css={{ width: 16, height: 16 }} />
+                  </IconButton>
                 )}
               </div>
 
               <div
-                css={[
-                  styles.panel,
-                  {
-                    display: selectedTab !== 0 ? "none" : "flex",
-                    flexDirection: "column",
-                  },
-                ]}
+                ref={buildLogsRef}
+                css={{
+                  display: selectedTab !== "logs" ? "none" : "flex",
+                  flexDirection: "column",
+                  overflowY: "auto",
+                  height: selectedTab ? 280 : 0,
+                }}
               >
                 {templateVersion.job.error && (
                   <div>
                     <Alert
                       severity="error"
-                      sx={{
+                      css={{
                         borderRadius: 0,
                         border: 0,
-                        borderBottom: (theme) =>
-                          `1px solid ${theme.palette.divider}`,
-                        borderLeft: (theme) =>
-                          `2px solid ${theme.palette.error.main}`,
+                        borderBottom: `1px solid ${theme.palette.divider}`,
+                        borderLeft: `2px solid ${theme.palette.error.main}`,
                       }}
                     >
                       <AlertTitle>Error during the build</AlertTitle>
@@ -413,9 +551,39 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                   </div>
                 )}
 
+                {buildLogs && buildLogs.length === 0 && (
+                  <Loader css={{ height: "100%" }} />
+                )}
+
                 {buildLogs && buildLogs.length > 0 && (
                   <WorkspaceBuildLogs
-                    sx={{ borderRadius: 0, border: 0 }}
+                    css={{
+                      borderRadius: 0,
+                      border: 0,
+
+                      // Hack to update logs header and lines
+                      "& .logs-header": {
+                        border: 0,
+                        padding: "0 16px",
+                        fontFamily: MONOSPACE_FONT_FAMILY,
+
+                        "&:first-child": {
+                          paddingTop: 16,
+                        },
+
+                        "&:last-child": {
+                          paddingBottom: 16,
+                        },
+                      },
+
+                      "& .logs-line": {
+                        paddingLeft: 16,
+                      },
+
+                      "& .logs-container": {
+                        border: "0 !important",
+                      },
+                    }}
                     hideTimestamps
                     logs={buildLogs}
                   />
@@ -423,13 +591,25 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               </div>
 
               <div
-                css={[
-                  styles.panel,
-                  {
-                    paddingBottom: theme.spacing(2),
-                    display: selectedTab !== 1 ? "none" : undefined,
+                css={{
+                  display: selectedTab !== "resources" ? "none" : undefined,
+                  overflowY: "auto",
+                  height: selectedTab ? 280 : 0,
+
+                  // Hack to access customize resource-card from here
+                  "& .resource-card": {
+                    borderLeft: 0,
+                    borderRight: 0,
+
+                    "&:first-child": {
+                      borderTop: 0,
+                    },
+
+                    "&:last-child": {
+                      borderBottom: 0,
+                    },
                   },
-                ]}
+                }}
               >
                 {resources && (
                   <TemplateResourcesTable
@@ -442,7 +622,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
             </div>
           </div>
         </div>
-      </DashboardFullPage>
+      </div>
 
       <PublishTemplateVersionDialog
         key={templateVersion.name}
@@ -464,86 +644,32 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   );
 };
 
+const TopbarButton: FC<ButtonProps> = ({ children, ...buttonProps }) => {
+  return (
+    <Button
+      {...buttonProps}
+      css={{
+        height: 28,
+        fontSize: 13,
+        borderRadius: 4,
+        padding: "0 12px",
+      }}
+    >
+      {children}
+    </Button>
+  );
+};
+
 const styles = {
-  topbar: (theme) => ({
-    padding: theme.spacing(2),
-    borderBottom: `1px solid ${theme.palette.divider}`,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    height: topbarHeight,
-    background: theme.palette.background.paper,
-  }),
-  topbarSides: (theme) => ({
-    display: "flex",
-    alignItems: "center",
-    gap: theme.spacing(2),
-  }),
-  sidebarAndEditor: {
-    display: "flex",
-    flex: 1,
-    flexBasis: 0,
-    overflow: "hidden",
-  },
-  sidebar: (theme) => ({
-    minWidth: 256,
-    backgroundColor: theme.palette.background.paper,
-    borderRight: `1px solid ${theme.palette.divider}`,
-  }),
-  sidebarTitle: (theme) => ({
-    fontSize: 10,
-    textTransform: "uppercase",
-    padding: theme.spacing(1, 2),
-    color: theme.palette.text.primary,
-    fontWeight: 500,
-    letterSpacing: "0.5px",
-    display: "flex",
-    alignItems: "center",
-  }),
-  sidebarActions: (theme) => ({
-    marginLeft: "auto",
-    "& svg": {
-      fill: theme.palette.text.primary,
-    },
-  }),
-  editor: {
-    flex: 1,
-  },
-  panelWrapper: (theme) => ({
-    flex: 1,
-    borderLeft: `1px solid ${theme.palette.divider}`,
-    overflow: "hidden",
-    display: "flex",
-    flexDirection: "column",
-  }),
-  panel: {
-    overflowY: "auto",
-    height: "100%",
-
-    // Hack to access customize resource-card from here
-    "& .resource-card": {
-      border: 0,
-    },
-  },
-  tabs: (theme) => ({
-    borderBottom: `1px solid ${theme.palette.divider}`,
-    display: "flex",
-    boxShadow: "#000000 0 6px 6px -6px inset",
-
-    "& .MuiTab-root": {
-      padding: 0,
-      fontSize: 14,
-      textTransform: "none",
-      letterSpacing: "unset",
-    },
-  }),
   tab: (theme) => ({
-    cursor: "pointer",
-    padding: theme.spacing(1.5),
+    "&:not(:disabled)": {
+      cursor: "pointer",
+    },
+    padding: 12,
     fontSize: 10,
     textTransform: "uppercase",
     letterSpacing: "0.5px",
-    fontWeight: 600,
+    fontWeight: 500,
     background: "transparent",
     fontFamily: "inherit",
     border: 0,
@@ -567,14 +693,18 @@ const styles = {
         display: "block",
         width: "100%",
         height: 1,
-        backgroundColor: theme.palette.text.primary,
+        backgroundColor: theme.palette.primary.main,
         bottom: -1,
         position: "absolute",
       },
     },
 
-    "&:hover": {
+    "&:not(:disabled):hover": {
       color: theme.palette.text.primary,
+    },
+
+    "&:disabled": {
+      color: theme.palette.text.disabled,
     },
   }),
   tabBar: (theme) => ({

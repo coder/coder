@@ -1,33 +1,26 @@
 import TableCell from "@mui/material/TableCell";
 import TableRow, { type TableRowProps } from "@mui/material/TableRow";
 import { type FC, type ReactNode, cloneElement, isValidElement } from "react";
-import { useTheme } from "@emotion/react";
 import { Loader } from "../Loader/Loader";
 
 export const TableLoader: FC = () => {
-  const theme = useTheme();
-
   return (
     <TableRow>
-      <TableCell
-        colSpan={999}
-        css={{
-          textAlign: "center",
-          height: theme.spacing(20),
-        }}
-      >
+      <TableCell colSpan={999} css={{ textAlign: "center", height: 160 }}>
         <Loader />
       </TableCell>
     </TableRow>
   );
 };
 
-export const TableLoaderSkeleton = ({
+interface TableLoaderSkeletonProps {
+  rows?: number;
+  children?: ReactNode;
+}
+
+export const TableLoaderSkeleton: FC<TableLoaderSkeletonProps> = ({
   rows = 4,
   children,
-}: {
-  rows?: number;
-  children: ReactNode;
 }) => {
   if (!isValidElement(children)) {
     throw new Error(
@@ -43,6 +36,13 @@ export const TableLoaderSkeleton = ({
   );
 };
 
-export const TableRowSkeleton = (props: TableRowProps) => {
-  return <TableRow role="progressbar" data-testid="loader" {...props} />;
+export const TableRowSkeleton: FC<TableRowProps> = ({
+  children,
+  ...rowProps
+}) => {
+  return (
+    <TableRow role="progressbar" data-testid="loader" {...rowProps}>
+      {children}
+    </TableRow>
+  );
 };

@@ -1,15 +1,14 @@
+import Link from "@mui/material/Link";
 import {
+  css,
   type CSSObject,
   type Interpolation,
   type Theme,
   useTheme,
 } from "@emotion/react";
-import Link from "@mui/material/Link";
-import { css } from "@emotion/react";
-import { useState } from "react";
+import { type FC, useState } from "react";
 import { Expander } from "components/Expander/Expander";
 import { Pill } from "components/Pill/Pill";
-import { colors } from "theme/colors";
 
 export const Language = {
   licenseIssue: "License Issue",
@@ -21,10 +20,10 @@ export const Language = {
 };
 
 const styles = {
-  leftContent: (theme) => ({
-    marginRight: theme.spacing(1),
-    marginLeft: theme.spacing(1),
-  }),
+  leftContent: {
+    marginRight: 8,
+    marginLeft: 8,
+  },
 } satisfies Record<string, Interpolation<Theme>>;
 
 export interface LicenseBannerViewProps {
@@ -32,7 +31,7 @@ export interface LicenseBannerViewProps {
   warnings: string[];
 }
 
-export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
+export const LicenseBannerView: FC<LicenseBannerViewProps> = ({
   errors,
   warnings,
 }) => {
@@ -47,16 +46,16 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
 
     display: flex;
     align-items: center;
-    padding: ${theme.spacing(1.5)};
+    padding: 12px;
     background-color: ${type === "error"
-      ? colors.red[12]
-      : theme.palette.warning.main};
+      ? theme.colors.red[10]
+      : theme.colors.orange[10]};
   `;
 
   if (messages.length === 1) {
     return (
       <div css={containerStyles}>
-        <Pill text={Language.licenseIssue} type={type} lightBorder />
+        <Pill text={Language.licenseIssue} type={type} />
         <div css={styles.leftContent}>
           <span>{messages[0]}</span>
           &nbsp;
@@ -70,11 +69,7 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
 
   return (
     <div css={containerStyles}>
-      <Pill
-        text={Language.licenseIssues(messages.length)}
-        type={type}
-        lightBorder
-      />
+      <Pill text={Language.licenseIssues(messages.length)} type={type} />
       <div css={styles.leftContent}>
         <div>
           {Language.exceeded}
@@ -84,9 +79,9 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
           </Link>
         </div>
         <Expander expanded={showDetails} setExpanded={setShowDetails}>
-          <ul css={{ padding: theme.spacing(1), margin: 0 }}>
+          <ul css={{ padding: 8, margin: 0 }}>
             {messages.map((message) => (
-              <li css={{ margin: theme.spacing(0.5) }} key={message}>
+              <li css={{ margin: 4 }} key={message}>
                 {message}
               </li>
             ))}

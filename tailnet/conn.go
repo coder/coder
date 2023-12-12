@@ -788,6 +788,7 @@ func (c *Conn) Close() error {
 	}
 
 	_ = c.netStack.Close()
+	c.logger.Debug(context.Background(), "closed netstack")
 	c.dialCancel()
 	_ = c.wireguardMonitor.Close()
 	_ = c.dialer.Close()
@@ -936,10 +937,12 @@ func (c *Conn) Listen(network, addr string) (net.Listener, error) {
 }
 
 func (c *Conn) DialContextTCP(ctx context.Context, ipp netip.AddrPort) (*gonet.TCPConn, error) {
+	c.logger.Debug(ctx, "dial tcp", slog.F("addr_port", ipp))
 	return c.netStack.DialContextTCP(ctx, ipp)
 }
 
 func (c *Conn) DialContextUDP(ctx context.Context, ipp netip.AddrPort) (*gonet.UDPConn, error) {
+	c.logger.Debug(ctx, "dial udp", slog.F("addr_port", ipp))
 	return c.netStack.DialContextUDP(ctx, ipp)
 }
 

@@ -74,6 +74,8 @@ type AgentProvider interface {
 	// func.
 	AgentConn(ctx context.Context, agentID uuid.UUID) (_ *codersdk.WorkspaceAgentConn, release func(), _ error)
 
+	ServeHTTPDebug(w http.ResponseWriter, r *http.Request)
+
 	Close() error
 }
 

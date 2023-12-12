@@ -1,25 +1,12 @@
-import { User } from "api/typesGenerated";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
-import { nonInitialPage } from "components/PaginationWidget/utils";
-import { useMe } from "hooks/useMe";
-import { usePermissions } from "hooks/usePermissions";
-import { FC, ReactNode, useState } from "react";
-import { Helmet } from "react-helmet-async";
-import { useSearchParams, useNavigate } from "react-router-dom";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { ResetPasswordDialog } from "./ResetPasswordDialog";
-import { pageTitle } from "utils/page";
-import { UsersPageView } from "./UsersPageView";
-import { useStatusFilterMenu } from "./UsersFilter";
-import { useFilter } from "components/Filter/filter";
-import { useDashboard } from "components/Dashboard/DashboardProvider";
-import { useMutation, useQuery, useQueryClient } from "react-query";
+import { type FC, type ReactNode, useState } from "react";
+
+import { type User } from "api/typesGenerated";
 import { roles } from "api/queries/roles";
+import { groupsByUserId } from "api/queries/groups";
+import { getErrorMessage } from "api/errors";
 import { deploymentConfig } from "api/queries/deployment";
-import { prepareQuery } from "utils/filters";
-import { usePagination } from "hooks";
 import {
-  users,
+  paginatedUsers,
   suspendUser,
   activateUser,
   deleteUser,
@@ -27,45 +14,53 @@ import {
   updateRoles,
   authMethods,
 } from "api/queries/users";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { getErrorMessage } from "api/errors";
+
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { useOrganizationId } from "hooks";
+import { useMe } from "hooks/useMe";
+import { usePermissions } from "hooks/usePermissions";
+import { useStatusFilterMenu } from "./UsersFilter";
+import { useFilter } from "components/Filter/filter";
+import { useDashboard } from "components/Dashboard/DashboardProvider";
 import { generateRandomString } from "utils/random";
+
+import { Helmet } from "react-helmet-async";
+import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
+import { isNonInitialPage } from "components/PaginationWidget/utils";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ResetPasswordDialog } from "./ResetPasswordDialog";
+import { pageTitle } from "utils/page";
+import { UsersPageView } from "./UsersPageView";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 
 export const UsersPage: FC<{ children?: ReactNode }> = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+
   const searchParamsResult = useSearchParams();
   const { entitlements } = useDashboard();
   const [searchParams] = searchParamsResult;
-  const filter = searchParams.get("filter") ?? "";
-  const pagination = usePagination({
-    searchParamsResult,
-  });
-  const usersQuery = useQuery(
-    users({
-      q: prepareQuery(filter),
-      limit: pagination.limit,
-      offset: pagination.offset,
-    }),
-  );
+
+  const organizationId = useOrganizationId();
+  const groupsByUserIdQuery = useQuery(groupsByUserId(organizationId));
+  const authMethodsQuery = useQuery(authMethods());
+
+  const me = useMe();
   const { updateUsers: canEditUsers, viewDeploymentValues } = usePermissions();
   const rolesQuery = useQuery(roles());
   const { data: deploymentValues } = useQuery({
     ...deploymentConfig(),
     enabled: viewDeploymentValues,
   });
-  // Indicates if oidc roles are synced from the oidc idp.
-  // Assign 'false' if unknown.
-  const oidcRoleSyncEnabled =
-    viewDeploymentValues &&
-    deploymentValues?.config.oidc?.user_role_field !== "";
-  const me = useMe();
+
+  const usersQuery = usePaginatedQuery(paginatedUsers(searchParamsResult[0]));
   const useFilterResult = useFilter({
     searchParamsResult,
-    onUpdate: () => {
-      pagination.goToPage(1);
-    },
+    onUpdate: usersQuery.goToFirstPage,
   });
+
   const statusMenu = useStatusFilterMenu({
     value: useFilterResult.values.status,
     onChange: (option) =>
@@ -74,36 +69,47 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         status: option?.value,
       }),
   });
-  const authMethodsQuery = useQuery(authMethods());
-  const isLoading =
-    usersQuery.isLoading || rolesQuery.isLoading || authMethodsQuery.isLoading;
 
-  const [confirmSuspendUser, setConfirmSuspendUser] = useState<User>();
+  const [userToSuspend, setUserToSuspend] = useState<User>();
   const suspendUserMutation = useMutation(suspendUser(queryClient));
 
-  const [confirmActivateUser, setConfirmActivateUser] = useState<User>();
+  const [userToActivate, setUserToActivate] = useState<User>();
   const activateUserMutation = useMutation(activateUser(queryClient));
 
-  const [confirmDeleteUser, setConfirmDeleteUser] = useState<User>();
+  const [userToDelete, setUserToDelete] = useState<User>();
   const deleteUserMutation = useMutation(deleteUser(queryClient));
 
   const [confirmResetPassword, setConfirmResetPassword] = useState<{
     user: User;
     newPassword: string;
   }>();
-  const updatePasswordMutation = useMutation(updatePassword());
 
+  const updatePasswordMutation = useMutation(updatePassword());
   const updateRolesMutation = useMutation(updateRoles(queryClient));
+
+  // Indicates if oidc roles are synced from the oidc idp.
+  // Assign 'false' if unknown.
+  const oidcRoleSyncEnabled =
+    viewDeploymentValues &&
+    deploymentValues?.config.oidc?.user_role_field !== "";
+
+  const isLoading =
+    usersQuery.isLoading ||
+    rolesQuery.isLoading ||
+    authMethodsQuery.isLoading ||
+    groupsByUserIdQuery.isLoading;
 
   return (
     <>
       <Helmet>
         <title>{pageTitle("Users")}</title>
       </Helmet>
+
       <UsersPageView
         oidcRoleSyncEnabled={oidcRoleSyncEnabled}
         roles={rolesQuery.data}
         users={usersQuery.data?.users}
+        groupsByUserId={groupsByUserIdQuery.data}
         authMethods={authMethodsQuery.data}
         onListWorkspaces={(user) => {
           navigate(
@@ -116,9 +122,9 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
             "/audit?filter=" + encodeURIComponent(`username:${user.username}`),
           );
         }}
-        onDeleteUser={setConfirmDeleteUser}
-        onSuspendUser={setConfirmSuspendUser}
-        onActivateUser={setConfirmActivateUser}
+        onDeleteUser={setUserToDelete}
+        onSuspendUser={setUserToSuspend}
+        onActivateUser={setUserToActivate}
         onResetUserPassword={(user) => {
           setConfirmResetPassword({
             user,
@@ -142,64 +148,55 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         isLoading={isLoading}
         canEditUsers={canEditUsers}
         canViewActivity={entitlements.features.audit_log.enabled}
-        isNonInitialPage={nonInitialPage(searchParams)}
+        isNonInitialPage={isNonInitialPage(searchParams)}
         actorID={me.id}
         filterProps={{
           filter: useFilterResult,
           error: usersQuery.error,
-          menus: {
-            status: statusMenu,
-          },
+          menus: { status: statusMenu },
         }}
-        count={usersQuery.data?.count}
-        page={pagination.page}
-        limit={pagination.limit}
-        onPageChange={pagination.goToPage}
+        usersQuery={usersQuery}
       />
 
       <DeleteDialog
-        key={confirmDeleteUser?.username}
-        isOpen={confirmDeleteUser !== undefined}
+        key={userToDelete?.username}
+        isOpen={userToDelete !== undefined}
         confirmLoading={deleteUserMutation.isLoading}
-        name={confirmDeleteUser?.username ?? ""}
+        name={userToDelete?.username ?? ""}
         entity="user"
+        onCancel={() => setUserToDelete(undefined)}
         onConfirm={async () => {
           try {
-            await deleteUserMutation.mutateAsync(confirmDeleteUser!.id);
-            setConfirmDeleteUser(undefined);
+            await deleteUserMutation.mutateAsync(userToDelete!.id);
+            setUserToDelete(undefined);
             displaySuccess("Successfully deleted the user.");
           } catch (e) {
             displayError(getErrorMessage(e, "Error deleting user."));
           }
-        }}
-        onCancel={() => {
-          setConfirmDeleteUser(undefined);
         }}
       />
 
       <ConfirmDialog
         type="delete"
         hideCancel={false}
-        open={confirmSuspendUser !== undefined}
+        open={userToSuspend !== undefined}
         confirmLoading={suspendUserMutation.isLoading}
         title="Suspend user"
         confirmText="Suspend"
+        onClose={() => setUserToSuspend(undefined)}
         onConfirm={async () => {
           try {
-            await suspendUserMutation.mutateAsync(confirmSuspendUser!.id);
-            setConfirmSuspendUser(undefined);
+            await suspendUserMutation.mutateAsync(userToSuspend!.id);
+            setUserToSuspend(undefined);
             displaySuccess("Successfully suspended the user.");
           } catch (e) {
             displayError(getErrorMessage(e, "Error suspending user."));
           }
         }}
-        onClose={() => {
-          setConfirmSuspendUser(undefined);
-        }}
         description={
           <>
             Do you want to suspend the user{" "}
-            <strong>{confirmSuspendUser?.username ?? ""}</strong>?
+            <strong>{userToSuspend?.username ?? ""}</strong>?
           </>
         }
       />
@@ -207,26 +204,24 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
       <ConfirmDialog
         type="success"
         hideCancel={false}
-        open={confirmActivateUser !== undefined}
+        open={userToActivate !== undefined}
         confirmLoading={activateUserMutation.isLoading}
         title="Activate user"
         confirmText="Activate"
+        onClose={() => setUserToActivate(undefined)}
         onConfirm={async () => {
           try {
-            await activateUserMutation.mutateAsync(confirmActivateUser!.id);
-            setConfirmActivateUser(undefined);
+            await activateUserMutation.mutateAsync(userToActivate!.id);
+            setUserToActivate(undefined);
             displaySuccess("Successfully activated the user.");
           } catch (e) {
             displayError(getErrorMessage(e, "Error activating user."));
           }
         }}
-        onClose={() => {
-          setConfirmActivateUser(undefined);
-        }}
         description={
           <>
             Do you want to activate{" "}
-            <strong>{confirmActivateUser?.username ?? ""}</strong>?
+            <strong>{userToActivate?.username ?? ""}</strong>?
           </>
         }
       />

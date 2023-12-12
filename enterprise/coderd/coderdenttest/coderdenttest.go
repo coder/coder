@@ -10,7 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -65,6 +66,11 @@ type Options struct {
 func New(t *testing.T, options *Options) (*codersdk.Client, codersdk.CreateFirstUserResponse) {
 	client, _, _, user := NewWithAPI(t, options)
 	return client, user
+}
+
+func NewWithDatabase(t *testing.T, options *Options) (*codersdk.Client, database.Store, codersdk.CreateFirstUserResponse) {
+	client, _, api, user := NewWithAPI(t, options)
+	return client, api.Database, user
 }
 
 func NewWithAPI(t *testing.T, options *Options) (
@@ -133,8 +139,8 @@ func NewWithAPI(t *testing.T, options *Options) (
 					// we check for the in-memory test types so that the real types don't have to exported
 					_, ok := coderAPI.Pubsub.(*pubsub.MemoryPubsub)
 					require.False(t, ok, "FeatureHighAvailability is incompatible with MemoryPubsub")
-					_, ok = coderAPI.Database.(*dbfake.FakeQuerier)
-					require.False(t, ok, "FeatureHighAvailability is incompatible with dbfake")
+					_, ok = coderAPI.Database.(*dbmem.FakeQuerier)
+					require.False(t, ok, "FeatureHighAvailability is incompatible with dbmem")
 				}
 			}
 			_ = AddLicense(t, client, lo)

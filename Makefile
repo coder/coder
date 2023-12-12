@@ -50,7 +50,7 @@ endif
 # Note, all find statements should be written with `.` or `./path` as
 # the search path so that these exclusions match.
 FIND_EXCLUSIONS= \
-	-not \( \( -path '*/.git/*' -o -path './build/*' -o -path './vendor/*' -o -path './.coderv2/*' -o -path '*/node_modules/*' -o -path '*/out/*' -o -path './coderd/apidoc/*' -o -path '*/.next/*' \) -prune \)
+	-not \( \( -path '*/.git/*' -o -path './build/*' -o -path './vendor/*' -o -path './.coderv2/*' -o -path '*/node_modules/*' -o -path '*/out/*' -o -path './coderd/apidoc/*' -o -path '*/.next/*' -o -path '*/.terraform/*' \) -prune \)
 # Source files used for make targets, evaluated on use.
 GO_SRC_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.go' -not -name '*_test.go')
 # All the shell files in the repo, excluding ignored files.
@@ -448,13 +448,15 @@ lint/helm:
 DB_GEN_FILES := \
 	coderd/database/querier.go \
 	coderd/database/unique_constraint.go \
-	coderd/database/dbfake/dbfake.go \
+	coderd/database/dbmem/dbmem.go \
 	coderd/database/dbmetrics/dbmetrics.go \
 	coderd/database/dbauthz/dbauthz.go \
 	coderd/database/dbmock/dbmock.go
 
 # all gen targets should be added here and to gen/mark-fresh
 gen: \
+	tailnet/proto/tailnet.pb.go \
+	agent/proto/agent.pb.go \
 	provisionersdk/proto/provisioner.pb.go \
 	provisionerd/proto/provisionerd.pb.go \
 	coderd/database/dump.sql \
@@ -479,6 +481,8 @@ gen: \
 # used during releases so we don't run generation scripts.
 gen/mark-fresh:
 	files="\
+		tailnet/proto/tailnet.pb.go \
+		agent/proto/agent.pb.go \
 		provisionersdk/proto/provisioner.pb.go \
 		provisionerd/proto/provisionerd.pb.go \
 		coderd/database/dump.sql \
@@ -523,6 +527,22 @@ coderd/database/querier.go: coderd/database/sqlc.yaml coderd/database/dump.sql $
 
 coderd/database/dbmock/dbmock.go: coderd/database/db.go coderd/database/querier.go
 	go generate ./coderd/database/dbmock/
+
+tailnet/proto/tailnet.pb.go: tailnet/proto/tailnet.proto
+	protoc \
+		--go_out=. \
+		--go_opt=paths=source_relative \
+		--go-drpc_out=. \
+		--go-drpc_opt=paths=source_relative \
+		./tailnet/proto/tailnet.proto
+
+agent/proto/agent.pb.go: agent/proto/agent.proto
+	protoc \
+		--go_out=. \
+		--go_opt=paths=source_relative \
+		--go-drpc_out=. \
+		--go-drpc_opt=paths=source_relative \
+		./agent/proto/agent.proto
 
 provisionersdk/proto/provisioner.pb.go: provisionersdk/proto/provisioner.proto
 	protoc \
@@ -575,7 +595,16 @@ coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen $(FIND_EXCLUSIONS) 
 	./scripts/apidocgen/generate.sh
 	pnpm run format:write:only ./docs/api ./docs/manifest.json ./coderd/apidoc/swagger.json
 
-update-golden-files: cli/testdata/.gen-golden helm/coder/tests/testdata/.gen-golden helm/provisioner/tests/testdata/.gen-golden scripts/ci-report/testdata/.gen-golden enterprise/cli/testdata/.gen-golden coderd/.gen-golden provisioner/terraform/testdata/.gen-golden
+update-golden-files: \
+	cli/testdata/.gen-golden \
+	helm/coder/tests/testdata/.gen-golden \
+	helm/provisioner/tests/testdata/.gen-golden \
+	scripts/ci-report/testdata/.gen-golden \
+	enterprise/cli/testdata/.gen-golden \
+	enterprise/tailnet/testdata/.gen-golden \
+	tailnet/testdata/.gen-golden \
+	coderd/.gen-golden \
+	provisioner/terraform/testdata/.gen-golden
 .PHONY: update-golden-files
 
 cli/testdata/.gen-golden: $(wildcard cli/testdata/*.golden) $(wildcard cli/*.tpl) $(GO_SRC_FILES) $(wildcard cli/*_test.go)
@@ -584,6 +613,14 @@ cli/testdata/.gen-golden: $(wildcard cli/testdata/*.golden) $(wildcard cli/*.tpl
 
 enterprise/cli/testdata/.gen-golden: $(wildcard enterprise/cli/testdata/*.golden) $(wildcard cli/*.tpl) $(GO_SRC_FILES) $(wildcard enterprise/cli/*_test.go)
 	go test ./enterprise/cli -run="TestEnterpriseCommandHelp" -update
+	touch "$@"
+
+tailnet/testdata/.gen-golden: $(wildcard tailnet/testdata/*.golden.html) $(GO_SRC_FILES) $(wildcard tailnet/*_test.go)
+	go test ./tailnet -run="TestDebugTemplate" -update
+	touch "$@"
+
+enterprise/tailnet/testdata/.gen-golden: $(wildcard enterprise/tailnet/testdata/*.golden.html) $(GO_SRC_FILES) $(wildcard enterprise/tailnet/*_test.go)
+	go test ./enterprise/tailnet -run="TestDebugTemplate" -update
 	touch "$@"
 
 helm/coder/tests/testdata/.gen-golden: $(wildcard helm/coder/tests/testdata/*.yaml) $(wildcard helm/coder/tests/testdata/*.golden) $(GO_SRC_FILES) $(wildcard helm/coder/tests/*_test.go)

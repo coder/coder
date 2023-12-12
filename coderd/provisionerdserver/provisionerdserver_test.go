@@ -27,8 +27,8 @@ import (
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
@@ -1525,7 +1525,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	}
 	t.Run("NoAgents", func(t *testing.T) {
 		t.Parallel()
-		db := dbfake.New()
+		db := dbmem.New()
 		job := uuid.New()
 		err := insert(db, job, &sdkproto.Resource{
 			Name: "something",
@@ -1538,7 +1538,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	})
 	t.Run("InvalidAgentToken", func(t *testing.T) {
 		t.Parallel()
-		err := insert(dbfake.New(), uuid.New(), &sdkproto.Resource{
+		err := insert(dbmem.New(), uuid.New(), &sdkproto.Resource{
 			Name: "something",
 			Type: "aws_instance",
 			Agents: []*sdkproto.Agent{{
@@ -1551,7 +1551,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	})
 	t.Run("DuplicateApps", func(t *testing.T) {
 		t.Parallel()
-		err := insert(dbfake.New(), uuid.New(), &sdkproto.Resource{
+		err := insert(dbmem.New(), uuid.New(), &sdkproto.Resource{
 			Name: "something",
 			Type: "aws_instance",
 			Agents: []*sdkproto.Agent{{
@@ -1566,7 +1566,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	})
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
-		db := dbfake.New()
+		db := dbmem.New()
 		job := uuid.New()
 		err := insert(db, job, &sdkproto.Resource{
 			Name:      "something",
@@ -1585,6 +1585,16 @@ func TestInsertWorkspaceResource(t *testing.T) {
 				Apps: []*sdkproto.App{{
 					Slug: "a",
 				}},
+				ExtraEnvs: []*sdkproto.Env{
+					{
+						Name:  "something", // Duplicate, already set by Env.
+						Value: "I should be discarded!",
+					},
+					{
+						Name:  "else",
+						Value: "I laugh in the face of danger.",
+					},
+				},
 				Scripts: []*sdkproto.Script{{
 					DisplayName: "Startup",
 					Icon:        "/test.png",
@@ -1609,6 +1619,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		require.Equal(t, "linux", agent.OperatingSystem)
 		want, err := json.Marshal(map[string]string{
 			"something": "test",
+			"else":      "I laugh in the face of danger.",
 		})
 		require.NoError(t, err)
 		got, err := agent.EnvironmentVariables.RawMessage.MarshalJSON()
@@ -1623,7 +1634,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 
 	t.Run("AllDisplayApps", func(t *testing.T) {
 		t.Parallel()
-		db := dbfake.New()
+		db := dbmem.New()
 		job := uuid.New()
 		err := insert(db, job, &sdkproto.Resource{
 			Name: "something",
@@ -1651,7 +1662,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 
 	t.Run("DisableDefaultApps", func(t *testing.T) {
 		t.Parallel()
-		db := dbfake.New()
+		db := dbmem.New()
 		job := uuid.New()
 		err := insert(db, job, &sdkproto.Resource{
 			Name: "something",
@@ -1689,7 +1700,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	db := dbfake.New()
+	db := dbmem.New()
 	ps := pubsub.NewInMemory()
 	deploymentValues := &codersdk.DeploymentValues{}
 	var externalAuthConfigs []*externalauth.Config

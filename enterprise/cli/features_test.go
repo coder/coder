@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/pty/ptytest"
@@ -18,9 +19,10 @@ func TestFeaturesList(t *testing.T) {
 	t.Parallel()
 	t.Run("Table", func(t *testing.T) {
 		t.Parallel()
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
+		client, admin := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
+		anotherClient, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 		inv, conf := newCLI(t, "features", "list")
-		clitest.SetupConfig(t, client, conf)
+		clitest.SetupConfig(t, anotherClient, conf)
 		pty := ptytest.New(t).Attach(inv)
 		clitest.Start(t, inv)
 		pty.ExpectMatch("user_limit")
@@ -29,9 +31,10 @@ func TestFeaturesList(t *testing.T) {
 	t.Run("JSON", func(t *testing.T) {
 		t.Parallel()
 
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
+		client, admin := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
+		anotherClient, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 		inv, conf := newCLI(t, "features", "list", "-o", "json")
-		clitest.SetupConfig(t, client, conf)
+		clitest.SetupConfig(t, anotherClient, conf)
 		doneChan := make(chan struct{})
 
 		buf := bytes.NewBuffer(nil)

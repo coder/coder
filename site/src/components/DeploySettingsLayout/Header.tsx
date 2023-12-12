@@ -14,7 +14,7 @@ export const Header: FC<{
 
   return (
     <Stack alignItems="baseline" direction="row" justifyContent="space-between">
-      <div css={{ maxWidth: 420, marginBottom: theme.spacing(3) }}>
+      <div css={{ maxWidth: 420, marginBottom: 24 }}>
         <h1
           css={[
             {
@@ -24,8 +24,8 @@ export const Header: FC<{
               alignItems: "center",
               lineHeight: "initial",
               margin: 0,
-              marginBottom: theme.spacing(0.5),
-              gap: theme.spacing(1),
+              marginBottom: 4,
+              gap: 8,
             },
             secondary && {
               fontSize: 24,

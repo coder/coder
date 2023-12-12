@@ -112,7 +112,7 @@ export const CreateUserForm: FC<
   return (
     <FullPageForm title="Create user">
       {isApiError(error) && !hasApiFieldErrors(error) && (
-        <ErrorAlert error={error} sx={{ mb: 4 }} />
+        <ErrorAlert error={error} css={{ marginBottom: 32 }} />
       )}
       <form onSubmit={form.handleSubmit} autoComplete="off">
         <Stack spacing={2.5}>

@@ -32,7 +32,7 @@ export const SignInLayout: FC<{ children: ReactNode }> = ({ children }) => {
           css={(theme) => ({
             fontSize: 12,
             color: theme.palette.text.secondary,
-            marginTop: theme.spacing(3),
+            marginTop: 24,
           })}
         >
           {`\u00a9 ${new Date().getFullYear()} Coder Technologies, Inc.`}

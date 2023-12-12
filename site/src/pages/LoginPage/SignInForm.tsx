@@ -1,15 +1,10 @@
-import { makeStyles } from "@mui/styles";
-import { FormikTouched } from "formik";
-import { FC, useState } from "react";
-import { AuthMethods } from "api/typesGenerated";
+import { type Interpolation, type Theme } from "@emotion/react";
+import { ReactNode, type FC } from "react";
+import type { AuthMethods } from "api/typesGenerated";
 import { PasswordSignInForm } from "./PasswordSignInForm";
 import { OAuthSignInForm } from "./OAuthSignInForm";
-import { BuiltInAuthFormValues } from "./SignInForm.types";
-import Button from "@mui/material/Button";
-import EmailIcon from "@mui/icons-material/EmailOutlined";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { getApplicationName } from "utils/appearance";
 
 export const Language = {
   emailLabel: "Email",
@@ -21,15 +16,15 @@ export const Language = {
   oidcSignIn: "OpenID Connect",
 };
 
-const useStyles = makeStyles((theme) => ({
+const styles = {
   root: {
     width: "100%",
   },
   title: {
-    fontSize: theme.spacing(4),
+    fontSize: 32,
     fontWeight: 400,
     margin: 0,
-    marginBottom: theme.spacing(4),
+    marginBottom: 32,
     lineHeight: 1,
 
     "& strong": {
@@ -37,42 +32,40 @@ const useStyles = makeStyles((theme) => ({
     },
   },
   alert: {
-    marginBottom: theme.spacing(4),
+    marginBottom: 32,
   },
   divider: {
-    paddingTop: theme.spacing(3),
-    paddingBottom: theme.spacing(3),
+    paddingTop: 24,
+    paddingBottom: 24,
     display: "flex",
     alignItems: "center",
-    gap: theme.spacing(2),
+    gap: 16,
   },
-  dividerLine: {
+  dividerLine: (theme) => ({
     width: "100%",
     height: 1,
     backgroundColor: theme.palette.divider,
-  },
-  dividerLabel: {
+  }),
+  dividerLabel: (theme) => ({
     flexShrink: 0,
     color: theme.palette.text.secondary,
     textTransform: "uppercase",
     fontSize: 12,
     letterSpacing: 1,
-  },
+  }),
   icon: {
-    width: theme.spacing(2),
-    height: theme.spacing(2),
+    width: 16,
+    height: 16,
   },
-}));
+} satisfies Record<string, Interpolation<Theme>>;
 
 export interface SignInFormProps {
   isSigningIn: boolean;
   redirectTo: string;
   error?: unknown;
-  info?: string;
+  message?: ReactNode;
   authMethods?: AuthMethods;
   onSubmit: (credentials: { email: string; password: string }) => void;
-  // initialTouched is only used for testing the error state of the form.
-  initialTouched?: FormikTouched<BuiltInAuthFormValues>;
 }
 
 export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
@@ -80,50 +73,27 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
   redirectTo,
   isSigningIn,
   error,
-  info,
+  message,
   onSubmit,
-  initialTouched,
 }) => {
   const oAuthEnabled = Boolean(
     authMethods?.github.enabled || authMethods?.oidc.enabled,
   );
   const passwordEnabled = authMethods?.password.enabled ?? true;
-  // Hide password auth by default if any OAuth method is enabled
-  const [showPasswordAuth, setShowPasswordAuth] = useState(!oAuthEnabled);
-  const styles = useStyles();
-  const applicationName = getApplicationName();
 
   return (
-    <div className={styles.root}>
-      <h1 className={styles.title}>
-        Sign in to <strong>{applicationName}</strong>
-      </h1>
+    <div css={styles.root}>
+      <h1 css={styles.title}>Sign in</h1>
 
       {Boolean(error) && (
-        <div className={styles.alert}>
+        <div css={styles.alert}>
           <ErrorAlert error={error} />
         </div>
       )}
 
-      {Boolean(info) && Boolean(error) && (
-        <div className={styles.alert}>
-          <Alert severity="info">{info}</Alert>
-        </div>
-      )}
-
-      {passwordEnabled && showPasswordAuth && (
-        <PasswordSignInForm
-          onSubmit={onSubmit}
-          initialTouched={initialTouched}
-          isSigningIn={isSigningIn}
-        />
-      )}
-
-      {passwordEnabled && showPasswordAuth && oAuthEnabled && (
-        <div className={styles.divider}>
-          <div className={styles.dividerLine} />
-          <div className={styles.dividerLabel}>Or</div>
-          <div className={styles.dividerLine} />
+      {message && (
+        <div css={styles.alert}>
+          <Alert severity="info">{message}</Alert>
         </div>
       )}
 
@@ -135,27 +105,24 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
         />
       )}
 
-      {!passwordEnabled && !oAuthEnabled && (
-        <Alert severity="error">No authentication methods configured!</Alert>
+      {passwordEnabled && oAuthEnabled && (
+        <div css={styles.divider}>
+          <div css={styles.dividerLine} />
+          <div css={styles.dividerLabel}>Or</div>
+          <div css={styles.dividerLine} />
+        </div>
       )}
 
-      {passwordEnabled && !showPasswordAuth && (
-        <>
-          <div className={styles.divider}>
-            <div className={styles.dividerLine} />
-            <div className={styles.dividerLabel}>Or</div>
-            <div className={styles.dividerLine} />
-          </div>
+      {passwordEnabled && (
+        <PasswordSignInForm
+          onSubmit={onSubmit}
+          autoFocus={!oAuthEnabled}
+          isSigningIn={isSigningIn}
+        />
+      )}
 
-          <Button
-            fullWidth
-            size="large"
-            onClick={() => setShowPasswordAuth(true)}
-            startIcon={<EmailIcon className={styles.icon} />}
-          >
-            Email and password
-          </Button>
-        </>
+      {!passwordEnabled && !oAuthEnabled && (
+        <Alert severity="error">No authentication methods configured!</Alert>
       )}
     </div>
   );

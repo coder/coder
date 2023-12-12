@@ -30,6 +30,7 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -236,6 +237,8 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 
 	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.Manifest{
 		AgentID:                  apiAgent.ID,
+		OwnerName:                owner.Username,
+		WorkspaceID:              workspace.ID,
 		Apps:                     convertApps(dbApps, workspaceAgent, owner.Username, workspace),
 		Scripts:                  convertScripts(scripts),
 		DERPMap:                  api.DERPMap(),
@@ -249,6 +252,8 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 		Metadata:                 convertWorkspaceAgentMetadataDesc(metadata),
 	})
 }
+
+const AgentAPIVersionREST = "1.0"
 
 // @Summary Submit workspace agent startup
 // @ID submit-workspace-agent-startup
@@ -321,6 +326,7 @@ func (api *API) postWorkspaceAgentStartup(rw http.ResponseWriter, r *http.Reques
 		Version:           req.Version,
 		ExpandedDirectory: req.ExpandedDirectory,
 		Subsystems:        convertWorkspaceAgentSubsystems(req.Subsystems),
+		APIVersion:        AgentAPIVersionREST,
 	}); err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Error setting agent version",
@@ -1150,7 +1156,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 
 	err = ensureLatestBuild()
 	if err != nil {
-		api.Logger.Debug(ctx, "agent tried to connect from non-latest built",
+		api.Logger.Debug(ctx, "agent tried to connect from non-latest build",
 			slog.F("resource", resource),
 			slog.F("agent", workspaceAgent),
 		)
@@ -1542,6 +1548,7 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 		LogsOverflowed:           dbAgent.LogsOverflowed,
 		LogSources:               logSources,
 		Version:                  dbAgent.Version,
+		APIVersion:               dbAgent.APIVersion,
 		EnvironmentVariables:     envs,
 		Directory:                dbAgent.Directory,
 		ExpandedDirectory:        dbAgent.ExpandedDirectory,
@@ -1667,7 +1674,24 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 	)
 
 	if req.ConnectionCount > 0 {
-		activityBumpWorkspace(ctx, api.Logger.Named("activity_bump"), api.Database, workspace.ID)
+		var nextAutostart time.Time
+		if workspace.AutostartSchedule.String != "" {
+			templateSchedule, err := (*(api.TemplateScheduleStore.Load())).Get(ctx, api.Database, workspace.TemplateID)
+			// If the template schedule fails to load, just default to bumping without the next trasition and log it.
+			if err != nil {
+				api.Logger.Warn(ctx, "failed to load template schedule bumping activity, defaulting to bumping by 60min",
+					slog.F("workspace_id", workspace.ID),
+					slog.F("template_id", workspace.TemplateID),
+					slog.Error(err),
+				)
+			} else {
+				next, allowed := autobuild.NextAutostartSchedule(time.Now(), workspace.AutostartSchedule.String, templateSchedule)
+				if allowed {
+					nextAutostart = next
+				}
+			}
+		}
+		activityBumpWorkspace(ctx, api.Logger.Named("activity_bump"), api.Database, workspace.ID, nextAutostart)
 	}
 
 	now := dbtime.Now()
@@ -1680,16 +1704,18 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		}
 		return nil
 	})
-	errGroup.Go(func() error {
-		err := api.Database.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
-			ID:         workspace.ID,
-			LastUsedAt: now,
+	if req.SessionCount() > 0 {
+		errGroup.Go(func() error {
+			err := api.Database.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
+				ID:         workspace.ID,
+				LastUsedAt: now,
+			})
+			if err != nil {
+				return xerrors.Errorf("can't update workspace LastUsedAt: %w", err)
+			}
+			return nil
 		})
-		if err != nil {
-			return xerrors.Errorf("can't update workspace LastUsedAt: %w", err)
-		}
-		return nil
-	})
+	}
 	if api.Options.UpdateAgentMetrics != nil {
 		errGroup.Go(func() error {
 			user, err := api.Database.GetUserByID(ctx, workspace.OwnerID)
@@ -1763,10 +1789,10 @@ func (api *API) workspaceAgentUpdateMetadata(ctx context.Context, workspaceAgent
 
 	datum := database.UpdateWorkspaceAgentMetadataParams{
 		WorkspaceAgentID: workspaceAgent.ID,
-		Key:              []string{},
-		Value:            []string{},
-		Error:            []string{},
-		CollectedAt:      []time.Time{},
+		Key:              make([]string, 0, len(req.Metadata)),
+		Value:            make([]string, 0, len(req.Metadata)),
+		Error:            make([]string, 0, len(req.Metadata)),
+		CollectedAt:      make([]time.Time, 0, len(req.Metadata)),
 	}
 
 	for _, md := range req.Metadata {
@@ -1831,22 +1857,28 @@ func (api *API) workspaceAgentUpdateMetadata(ctx context.Context, workspaceAgent
 // @Router /workspaceagents/{workspaceagent}/watch-metadata [get]
 // @x-apidocgen {"skip": true}
 func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) {
-	var (
-		ctx            = r.Context()
-		workspaceAgent = httpmw.WorkspaceAgentParam(r)
-		log            = api.Logger.Named("workspace_metadata_watcher").With(
-			slog.F("workspace_agent_id", workspaceAgent.ID),
-		)
+	// Allow us to interrupt watch via cancel.
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+	r = r.WithContext(ctx) // Rewire context for SSE cancellation.
+
+	workspaceAgent := httpmw.WorkspaceAgentParam(r)
+	log := api.Logger.Named("workspace_metadata_watcher").With(
+		slog.F("workspace_agent_id", workspaceAgent.ID),
 	)
 
 	// Send metadata on updates, we must ensure subscription before sending
 	// initial metadata to guarantee that events in-between are not missed.
 	update := make(chan workspaceAgentMetadataChannelPayload, 1)
 	cancelSub, err := api.Pubsub.Subscribe(watchWorkspaceAgentMetadataChannel(workspaceAgent.ID), func(_ context.Context, byt []byte) {
+		if ctx.Err() != nil {
+			return
+		}
+
 		var payload workspaceAgentMetadataChannelPayload
 		err := json.Unmarshal(byt, &payload)
 		if err != nil {
-			api.Logger.Error(ctx, "failed to unmarshal pubsub message", slog.Error(err))
+			log.Error(ctx, "failed to unmarshal pubsub message", slog.Error(err))
 			return
 		}
 
@@ -1854,18 +1886,7 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 
 		select {
 		case prev := <-update:
-			// This update wasn't consumed yet, merge the keys.
-			newKeysSet := make(map[string]struct{})
-			for _, key := range payload.Keys {
-				newKeysSet[key] = struct{}{}
-			}
-			keys := prev.Keys
-			for _, key := range prev.Keys {
-				if _, ok := newKeysSet[key]; !ok {
-					keys = append(keys, key)
-				}
-			}
-			payload.Keys = keys
+			payload.Keys = appendUnique(prev.Keys, payload.Keys)
 		default:
 		}
 		// This can never block since we pop and merge beforehand.
@@ -1877,22 +1898,9 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 	}
 	defer cancelSub()
 
-	sseSendEvent, sseSenderClosed, err := httpapi.ServerSentEventSender(rw, r)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error setting up server-sent events.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	// Prevent handler from returning until the sender is closed.
-	defer func() {
-		<-sseSenderClosed
-	}()
-
 	// We always use the original Request context because it contains
 	// the RBAC actor.
-	md, err := api.Database.GetWorkspaceAgentMetadata(ctx, database.GetWorkspaceAgentMetadataParams{
+	initialMD, err := api.Database.GetWorkspaceAgentMetadata(ctx, database.GetWorkspaceAgentMetadataParams{
 		WorkspaceAgentID: workspaceAgent.ID,
 		Keys:             nil,
 	})
@@ -1904,15 +1912,45 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	metadataMap := make(map[string]database.WorkspaceAgentMetadatum)
-	for _, datum := range md {
+	log.Debug(ctx, "got initial metadata", "num", len(initialMD))
+
+	metadataMap := make(map[string]database.WorkspaceAgentMetadatum, len(initialMD))
+	for _, datum := range initialMD {
 		metadataMap[datum.Key] = datum
 	}
+	//nolint:ineffassign // Release memory.
+	initialMD = nil
+
+	sseSendEvent, sseSenderClosed, err := httpapi.ServerSentEventSender(rw, r)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error setting up server-sent events.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	// Prevent handler from returning until the sender is closed.
+	defer func() {
+		cancel()
+		<-sseSenderClosed
+	}()
+	// Synchronize cancellation from SSE -> context, this lets us simplify the
+	// cancellation logic.
+	go func() {
+		select {
+		case <-ctx.Done():
+		case <-sseSenderClosed:
+			cancel()
+		}
+	}()
 
 	var lastSend time.Time
 	sendMetadata := func() {
 		lastSend = time.Now()
 		values := maps.Values(metadataMap)
+
+		log.Debug(ctx, "sending metadata", "num", len(values))
+
 		_ = sseSendEvent(ctx, codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeData,
 			Data: convertWorkspaceAgentMetadata(values),
@@ -1931,10 +1969,11 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 	fetchedMetadata := make(chan []database.WorkspaceAgentMetadatum)
 	go func() {
 		defer close(fetchedMetadata)
+		defer cancel()
 
 		for {
 			select {
-			case <-sseSenderClosed:
+			case <-ctx.Done():
 				return
 			case payload := <-update:
 				md, err := api.Database.GetWorkspaceAgentMetadata(ctx, database.GetWorkspaceAgentMetadataParams{
@@ -1942,26 +1981,37 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 					Keys:             payload.Keys,
 				})
 				if err != nil {
-					if !errors.Is(err, context.Canceled) {
+					if !database.IsQueryCanceledError(err) {
 						log.Error(ctx, "failed to get metadata", slog.Error(err))
+						_ = sseSendEvent(ctx, codersdk.ServerSentEvent{
+							Type: codersdk.ServerSentEventTypeError,
+							Data: codersdk.Response{
+								Message: "Failed to get metadata.",
+								Detail:  err.Error(),
+							},
+						})
 					}
 					return
 				}
 				select {
-				case <-sseSenderClosed:
+				case <-ctx.Done():
 					return
 				// We want to block here to avoid constantly pinging the
 				// database when the metadata isn't being processed.
 				case fetchedMetadata <- md:
+					log.Debug(ctx, "fetched metadata update for keys", "keys", payload.Keys, "num", len(md))
 				}
 			}
 		}
+	}()
+	defer func() {
+		<-fetchedMetadata
 	}()
 
 	pendingChanges := true
 	for {
 		select {
-		case <-sseSenderClosed:
+		case <-ctx.Done():
 			return
 		case md, ok := <-fetchedMetadata:
 			if !ok {
@@ -1985,9 +2035,24 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 	}
 }
 
+// appendUnique is like append and adds elements from src to dst,
+// skipping any elements that already exist in dst.
+func appendUnique[T comparable](dst, src []T) []T {
+	exists := make(map[T]struct{}, len(dst))
+	for _, key := range dst {
+		exists[key] = struct{}{}
+	}
+	for _, key := range src {
+		if _, ok := exists[key]; !ok {
+			dst = append(dst, key)
+		}
+	}
+	return dst
+}
+
 func convertWorkspaceAgentMetadata(db []database.WorkspaceAgentMetadatum) []codersdk.WorkspaceAgentMetadata {
 	// An empty array is easier for clients to handle than a null.
-	result := []codersdk.WorkspaceAgentMetadata{}
+	result := make([]codersdk.WorkspaceAgentMetadata, 0, len(db))
 	for _, datum := range db {
 		result = append(result, codersdk.WorkspaceAgentMetadata{
 			Result: codersdk.WorkspaceAgentMetadataResult{
@@ -2448,7 +2513,8 @@ func createExternalAuthResponse(typ, token string, extra pqtype.NullRawMessage) 
 			Username: "oauth2",
 			Password: token,
 		}
-	case string(codersdk.EnhancedExternalAuthProviderBitBucket):
+	case string(codersdk.EnhancedExternalAuthProviderBitBucketCloud), string(codersdk.EnhancedExternalAuthProviderBitBucketServer):
+		// The string "bitbucket" was a legacy parameter that needs to still be supported.
 		// https://support.atlassian.com/bitbucket-cloud/docs/use-oauth-on-bitbucket-cloud/#Cloning-a-repository-with-an-access-token
 		resp = agentsdk.ExternalAuthResponse{
 			Username: "x-token-auth",

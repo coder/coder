@@ -13,7 +13,6 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -36,9 +35,12 @@ func TestProvisionerDaemonServe(t *testing.T) {
 				codersdk.FeatureExternalProvisionerDaemons: 1,
 			},
 		}})
+		templateAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleTemplateAdmin())
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
-		srv, err := client.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+		srv, err := templateAdminClient.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+			ID:           uuid.New(),
+			Name:         t.Name(),
 			Organization: user.OrganizationID,
 			Provisioners: []codersdk.ProvisionerType{
 				codersdk.ProvisionerTypeEcho,
@@ -52,9 +54,12 @@ func TestProvisionerDaemonServe(t *testing.T) {
 	t.Run("NoLicense", func(t *testing.T) {
 		t.Parallel()
 		client, user := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
+		templateAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleTemplateAdmin())
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
-		_, err := client.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+		_, err := templateAdminClient.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+			ID:           uuid.New(),
+			Name:         t.Name(),
 			Organization: user.OrganizationID,
 			Provisioners: []codersdk.ProvisionerType{
 				codersdk.ProvisionerTypeEcho,
@@ -78,12 +83,14 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		_, err := another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+			ID:           uuid.New(),
+			Name:         t.Name(),
 			Organization: user.OrganizationID,
 			Provisioners: []codersdk.ProvisionerType{
 				codersdk.ProvisionerTypeEcho,
 			},
 			Tags: map[string]string{
-				provisionerdserver.TagScope: provisionerdserver.ScopeOrganization,
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 			},
 		})
 		require.Error(t, err)
@@ -103,12 +110,14 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		_, err := another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+			ID:           uuid.New(),
+			Name:         t.Name(),
 			Organization: user.OrganizationID,
 			Provisioners: []codersdk.ProvisionerType{
 				codersdk.ProvisionerTypeEcho,
 			},
 			Tags: map[string]string{
-				provisionerdserver.TagScope: provisionerdserver.ScopeOrganization,
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 			},
 		})
 		require.Error(t, err)
@@ -125,7 +134,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 			},
 		}})
 		closer := coderdtest.NewExternalProvisionerDaemon(t, client, user.OrganizationID, map[string]string{
-			provisionerdserver.TagScope: provisionerdserver.ScopeUser,
+			provisionersdk.TagScope: provisionersdk.ScopeUser,
 		})
 		defer closer.Close()
 
@@ -149,6 +158,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
 		})
 		require.NoError(t, err)
+		//nolint:gocritic // Not testing file upload in this test.
 		file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, bytes.NewReader(data))
 		require.NoError(t, err)
 
@@ -158,7 +168,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 			FileID:        file.ID,
 			Provisioner:   codersdk.ProvisionerTypeEcho,
 			ProvisionerTags: map[string]string{
-				provisionerdserver.TagScope: provisionerdserver.ScopeUser,
+				provisionersdk.TagScope: provisionersdk.ScopeUser,
 			},
 		})
 		require.NoError(t, err)
@@ -167,7 +177,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		another, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_ = closer.Close()
 		closer = coderdtest.NewExternalProvisionerDaemon(t, another, user.OrganizationID, map[string]string{
-			provisionerdserver.TagScope: provisionerdserver.ScopeUser,
+			provisionersdk.TagScope: provisionersdk.ScopeUser,
 		})
 		defer closer.Close()
 		workspace := coderdtest.CreateWorkspace(t, another, user.OrganizationID, template.ID)
@@ -193,7 +203,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 				codersdk.ProvisionerTypeEcho,
 			},
 			Tags: map[string]string{
-				provisionerdserver.TagScope: provisionerdserver.ScopeOrganization,
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 			},
 			PreSharedKey: "provisionersftw",
 		})
@@ -242,12 +252,14 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		another := codersdk.New(client.URL)
 		pd := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
 			return another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+				ID:           uuid.New(),
+				Name:         t.Name(),
 				Organization: user.OrganizationID,
 				Provisioners: []codersdk.ProvisionerType{
 					codersdk.ProvisionerTypeEcho,
 				},
 				Tags: map[string]string{
-					provisionerdserver.TagScope: provisionerdserver.ScopeOrganization,
+					provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 				},
 				PreSharedKey: "provisionersftw",
 			})
@@ -258,6 +270,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		defer pd.Close()
 
 		// Patch the 'Everyone' group to give the user quota to build their workspace.
+		//nolint:gocritic // Not testing RBAC here.
 		_, err := client.PatchGroup(ctx, user.OrganizationID, codersdk.PatchGroupRequest{
 			QuotaAllowance: ptr.Ref(1),
 		})
@@ -317,12 +330,14 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		_, err := another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+			ID:           uuid.New(),
+			Name:         t.Name(),
 			Organization: user.OrganizationID,
 			Provisioners: []codersdk.ProvisionerType{
 				codersdk.ProvisionerTypeEcho,
 			},
 			Tags: map[string]string{
-				provisionerdserver.TagScope: provisionerdserver.ScopeOrganization,
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 			},
 			PreSharedKey: "the wrong key",
 		})
@@ -346,12 +361,14 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		defer cancel()
 		another := codersdk.New(client.URL)
 		_, err := another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+			ID:           uuid.New(),
+			Name:         t.Name(),
 			Organization: user.OrganizationID,
 			Provisioners: []codersdk.ProvisionerType{
 				codersdk.ProvisionerTypeEcho,
 			},
 			Tags: map[string]string{
-				provisionerdserver.TagScope: provisionerdserver.ScopeOrganization,
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 			},
 		})
 		require.Error(t, err)
@@ -373,12 +390,14 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		defer cancel()
 		another := codersdk.New(client.URL)
 		_, err := another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+			ID:           uuid.New(),
+			Name:         t.Name(),
 			Organization: user.OrganizationID,
 			Provisioners: []codersdk.ProvisionerType{
 				codersdk.ProvisionerTypeEcho,
 			},
 			Tags: map[string]string{
-				provisionerdserver.TagScope: provisionerdserver.ScopeOrganization,
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 			},
 			PreSharedKey: "provisionersftw",
 		})

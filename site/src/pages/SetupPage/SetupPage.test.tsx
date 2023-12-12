@@ -87,8 +87,8 @@ describe("Setup Page", () => {
             element: <SetupPage />,
           },
           {
-            path: "/",
-            element: <h1>Workspaces</h1>,
+            path: "/templates",
+            element: <h1>Templates</h1>,
           },
         ],
         { initialEntries: ["/setup"] },
@@ -96,6 +96,6 @@ describe("Setup Page", () => {
     );
     await waitForLoaderToBeRemoved();
     await fillForm();
-    await waitFor(() => screen.findByText("Workspaces"));
+    await waitFor(() => screen.findByText("Templates"));
   });
 });

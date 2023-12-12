@@ -446,7 +446,7 @@ func convertUser(user database.User, organizationIDs []uuid.UUID) codersdk.User 
 		Status:          codersdk.UserStatus(user.Status),
 		OrganizationIDs: organizationIDs,
 		Roles:           make([]codersdk.Role, 0, len(user.RBACRoles)),
-		AvatarURL:       user.AvatarURL.String,
+		AvatarURL:       user.AvatarURL,
 		LoginType:       codersdk.LoginType(user.LoginType),
 	}
 

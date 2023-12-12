@@ -30,7 +30,6 @@ import (
 
 	"github.com/coder/pretty"
 
-	"cdr.dev/slog"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
@@ -97,6 +96,7 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 		r.version(defaultVersionInfo),
 
 		// Workspace Commands
+		r.autoupdate(),
 		r.configSSH(),
 		r.create(),
 		r.deleteWorkspace(),
@@ -136,14 +136,22 @@ func (r *RootCmd) RunMain(subcommands []*clibase.Cmd) {
 	}
 	err = cmd.Invoke().WithOS().Run()
 	if err != nil {
+		code := 1
+		var exitErr *exitError
+		if errors.As(err, &exitErr) {
+			code = exitErr.code
+			err = exitErr.err
+		}
 		if errors.Is(err, cliui.Canceled) {
 			//nolint:revive
-			os.Exit(1)
+			os.Exit(code)
 		}
 		f := prettyErrorFormatter{w: os.Stderr, verbose: r.verbose}
-		f.format(err)
+		if err != nil {
+			f.format(err)
+		}
 		//nolint:revive
-		os.Exit(1)
+		os.Exit(code)
 	}
 }
 
@@ -441,21 +449,6 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 	return cmd, nil
 }
 
-type contextKey int
-
-const (
-	contextKeyLogger contextKey = iota
-)
-
-func ContextWithLogger(ctx context.Context, l slog.Logger) context.Context {
-	return context.WithValue(ctx, contextKeyLogger, l)
-}
-
-func LoggerFromContext(ctx context.Context) (slog.Logger, bool) {
-	l, ok := ctx.Value(contextKeyLogger).(slog.Logger)
-	return l, ok
-}
-
 // RootCmd contains parameters and helpers useful to all commands.
 type RootCmd struct {
 	clientURL      *url.URL
@@ -478,11 +471,11 @@ type RootCmd struct {
 }
 
 func addTelemetryHeader(client *codersdk.Client, inv *clibase.Invocation) {
-	transport, ok := client.HTTPClient.Transport.(*headerTransport)
+	transport, ok := client.HTTPClient.Transport.(*codersdk.HeaderTransport)
 	if !ok {
-		transport = &headerTransport{
-			transport: client.HTTPClient.Transport,
-			header:    http.Header{},
+		transport = &codersdk.HeaderTransport{
+			Transport: client.HTTPClient.Transport,
+			Header:    http.Header{},
 		}
 		client.HTTPClient.Transport = transport
 	}
@@ -516,7 +509,7 @@ func addTelemetryHeader(client *codersdk.Client, inv *clibase.Invocation) {
 		return
 	}
 
-	transport.header.Add(codersdk.CLITelemetryHeader, s)
+	transport.Header.Add(codersdk.CLITelemetryHeader, s)
 }
 
 // InitClient sets client to a new client.
@@ -616,10 +609,10 @@ func (r *RootCmd) initClientInternal(client *codersdk.Client, allowTokenMissing 
 	}
 }
 
-func (r *RootCmd) setClient(ctx context.Context, client *codersdk.Client, serverURL *url.URL) error {
-	transport := &headerTransport{
-		transport: http.DefaultTransport,
-		header:    http.Header{},
+func (r *RootCmd) HeaderTransport(ctx context.Context, serverURL *url.URL) (*codersdk.HeaderTransport, error) {
+	transport := &codersdk.HeaderTransport{
+		Transport: http.DefaultTransport,
+		Header:    http.Header{},
 	}
 	headers := r.header
 	if r.headerCommand != "" {
@@ -637,23 +630,32 @@ func (r *RootCmd) setClient(ctx context.Context, client *codersdk.Client, server
 		cmd.Stderr = io.Discard
 		err := cmd.Run()
 		if err != nil {
-			return xerrors.Errorf("failed to run %v: %w", cmd.Args, err)
+			return nil, xerrors.Errorf("failed to run %v: %w", cmd.Args, err)
 		}
 		scanner := bufio.NewScanner(&outBuf)
 		for scanner.Scan() {
 			headers = append(headers, scanner.Text())
 		}
 		if err := scanner.Err(); err != nil {
-			return xerrors.Errorf("scan %v: %w", cmd.Args, err)
+			return nil, xerrors.Errorf("scan %v: %w", cmd.Args, err)
 		}
 	}
 	for _, header := range headers {
 		parts := strings.SplitN(header, "=", 2)
 		if len(parts) < 2 {
-			return xerrors.Errorf("split header %q had less than two parts", header)
+			return nil, xerrors.Errorf("split header %q had less than two parts", header)
 		}
-		transport.header.Add(parts[0], parts[1])
+		transport.Header.Add(parts[0], parts[1])
 	}
+	return transport, nil
+}
+
+func (r *RootCmd) setClient(ctx context.Context, client *codersdk.Client, serverURL *url.URL) error {
+	transport, err := r.HeaderTransport(ctx, serverURL)
+	if err != nil {
+		return xerrors.Errorf("create header transport: %w", err)
+	}
+
 	client.URL = serverURL
 	client.HTTPClient = &http.Client{
 		Transport: transport,
@@ -860,24 +862,6 @@ func (r *RootCmd) Verbosef(inv *clibase.Invocation, fmtStr string, args ...inter
 	}
 }
 
-type headerTransport struct {
-	transport http.RoundTripper
-	header    http.Header
-}
-
-func (h *headerTransport) Header() http.Header {
-	return h.header.Clone()
-}
-
-func (h *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	for k, v := range h.header {
-		for _, vv := range v {
-			req.Header.Add(k, vv)
-		}
-	}
-	return h.transport.RoundTrip(req)
-}
-
 // DumpHandler provides a custom SIGQUIT and SIGTRAP handler that dumps the
 // stacktrace of all goroutines to stderr and a well-known file in the home
 // directory. This is useful for debugging deadlock issues that may occur in
@@ -966,6 +950,30 @@ func DumpHandler(ctx context.Context) {
 			os.Exit(1)
 		}
 	}
+}
+
+type exitError struct {
+	code int
+	err  error
+}
+
+var _ error = (*exitError)(nil)
+
+func (e *exitError) Error() string {
+	if e.err != nil {
+		return fmt.Sprintf("exit code %d: %v", e.code, e.err)
+	}
+	return fmt.Sprintf("exit code %d", e.code)
+}
+
+func (e *exitError) Unwrap() error {
+	return e.err
+}
+
+// ExitError returns an error that will cause the CLI to exit with the given
+// exit code. If err is non-nil, it will be wrapped by the returned error.
+func ExitError(code int, err error) error {
+	return &exitError{code: code, err: err}
 }
 
 // IiConnectionErr is a convenience function for checking if the source of an

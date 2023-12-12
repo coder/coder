@@ -26,17 +26,27 @@ func (a *agent) apiHandler() http.Handler {
 		cpy[k] = b
 	}
 
-	lp := &listeningPortsHandler{ignorePorts: cpy}
+	cacheDuration := 1 * time.Second
+	if a.portCacheDuration > 0 {
+		cacheDuration = a.portCacheDuration
+	}
+
+	lp := &listeningPortsHandler{
+		ignorePorts:   cpy,
+		cacheDuration: cacheDuration,
+	}
 	r.Get("/api/v0/listening-ports", lp.handler)
 
 	return r
 }
 
 type listeningPortsHandler struct {
-	mut         sync.Mutex
-	ports       []codersdk.WorkspaceAgentListeningPort
-	mtime       time.Time
-	ignorePorts map[int]string
+	ignorePorts   map[int]string
+	cacheDuration time.Duration
+
+	mut   sync.Mutex
+	ports []codersdk.WorkspaceAgentListeningPort
+	mtime time.Time
 }
 
 // handler returns a list of listening ports. This is tested by coderd's

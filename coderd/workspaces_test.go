@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -340,6 +341,76 @@ func TestWorkspace(t *testing.T) {
 	})
 }
 
+func TestResolveAutostart(t *testing.T) {
+	t.Parallel()
+
+	ownerClient, db := coderdtest.NewWithDatabase(t, nil)
+	owner := coderdtest.CreateFirstUser(t, ownerClient)
+
+	param := database.TemplateVersionParameter{
+		Name:         "param",
+		DefaultValue: "",
+		Required:     true,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	client, member := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+	resp := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		OwnerID:          member.ID,
+		OrganizationID:   owner.OrganizationID,
+		AutomaticUpdates: database.AutomaticUpdatesAlways,
+	}).Seed(database.WorkspaceBuild{
+		InitiatorID: member.ID,
+	}).Do()
+
+	workspace := resp.Workspace
+	version1 := resp.TemplateVersion
+
+	version2 := dbfake.TemplateVersion(t, db).
+		Seed(database.TemplateVersion{
+			CreatedBy:      owner.UserID,
+			OrganizationID: owner.OrganizationID,
+			TemplateID:     version1.TemplateID,
+		}).
+		Params(param).Do()
+
+	// Autostart shouldn't be possible if parameters do not match.
+	resolveResp, err := client.ResolveAutostart(ctx, workspace.ID.String())
+	require.NoError(t, err)
+	require.True(t, resolveResp.ParameterMismatch)
+
+	_ = dbfake.WorkspaceBuild(t, db, workspace).
+		Seed(database.WorkspaceBuild{
+			BuildNumber:       2,
+			TemplateVersionID: version2.TemplateVersion.ID,
+		}).
+		Params(database.WorkspaceBuildParameter{
+			Name:  "param",
+			Value: "hello",
+		}).Do()
+
+	// We should be able to autostart since parameters are updated.
+	resolveResp, err = client.ResolveAutostart(ctx, workspace.ID.String())
+	require.NoError(t, err)
+	require.False(t, resolveResp.ParameterMismatch)
+
+	// Create another version that has the same parameters as version2.
+	// We should be able to update without issue.
+	_ = dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+		CreatedBy:      owner.UserID,
+		OrganizationID: owner.OrganizationID,
+		TemplateID:     version1.TemplateID,
+	}).Params(param).Do()
+
+	// Even though we're out of date we should still be able to autostart
+	// since parameters resolve.
+	resolveResp, err = client.ResolveAutostart(ctx, workspace.ID.String())
+	require.NoError(t, err)
+	require.False(t, resolveResp.ParameterMismatch)
+}
+
 func TestAdminViewAllWorkspaces(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
@@ -511,7 +582,11 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-		verifyAuditWorkspaceCreated(t, auditor, workspace.Name)
+		assert.True(t, auditor.Contains(t, database.AuditLog{
+			ResourceType:   database.ResourceTypeWorkspace,
+			Action:         database.AuditActionCreate,
+			ResourceTarget: workspace.Name,
+		}))
 	})
 
 	t.Run("CreateFromVersionWithAuditLogs", func(t *testing.T) {
@@ -535,7 +610,11 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 
 		require.Equal(t, testWorkspaceBuild.TemplateVersionID, versionTest.ID)
 		require.Equal(t, defaultWorkspaceBuild.TemplateVersionID, versionDefault.ID)
-		verifyAuditWorkspaceCreated(t, auditor, defaultWorkspace.Name)
+		assert.True(t, auditor.Contains(t, database.AuditLog{
+			ResourceType:   database.ResourceTypeWorkspace,
+			Action:         database.AuditActionCreate,
+			ResourceTarget: defaultWorkspace.Name,
+		}))
 	})
 
 	t.Run("InvalidCombinationOfTemplateAndTemplateVersion", func(t *testing.T) {
@@ -1424,43 +1503,50 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		}, testutil.IntervalMedium, "agent status timeout")
 	})
 
-	t.Run("IsDormant", func(t *testing.T) {
+	t.Run("Dormant", func(t *testing.T) {
 		// this test has a licensed counterpart in enterprise/coderd/workspaces_test.go: FilterQueryHasDeletingByAndLicensed
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{
-			IncludeProvisionerDaemon: true,
-		})
+		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		authToken := uuid.NewString()
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:          echo.ParseComplete,
-			ProvisionPlan:  echo.PlanComplete,
-			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
-		})
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+			OrganizationID: user.OrganizationID,
+			CreatedBy:      user.UserID,
+		}).Do().Template
 
 		// update template with inactivity ttl
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		dormantWorkspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, dormantWorkspace.LatestBuild.ID)
+		dormantWorkspace := dbfake.WorkspaceBuild(t, db, database.Workspace{
+			TemplateID:     template.ID,
+			OwnerID:        user.UserID,
+			OrganizationID: user.OrganizationID,
+		}).Do().Workspace
 
 		// Create another workspace to validate that we do not return active workspaces.
-		_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, dormantWorkspace.LatestBuild.ID)
+		_ = dbfake.WorkspaceBuild(t, db, database.Workspace{
+			TemplateID:     template.ID,
+			OwnerID:        user.UserID,
+			OrganizationID: user.OrganizationID,
+		}).Do()
 
 		err := client.UpdateWorkspaceDormancy(ctx, dormantWorkspace.ID, codersdk.UpdateWorkspaceDormancy{
 			Dormant: true,
 		})
 		require.NoError(t, err)
 
-		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-			FilterQuery: "is-dormant:true",
+		// Test that no filter returns both workspaces.
+		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+		require.NoError(t, err)
+		require.Len(t, res.Workspaces, 2)
+
+		// Test that filtering for dormant only returns our dormant workspace.
+		res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			FilterQuery: "dormant:true",
 		})
 		require.NoError(t, err)
 		require.Len(t, res.Workspaces, 1)
+		require.Equal(t, dormantWorkspace.ID, res.Workspaces[0].ID)
 		require.NotNil(t, res.Workspaces[0].DormantAt)
 	})
 
@@ -2741,7 +2827,11 @@ func TestWorkspaceDormant(t *testing.T) {
 			Dormant: true,
 		})
 		require.NoError(t, err)
-		require.Len(t, auditRecorder.AuditLogs(), 1)
+		require.True(t, auditRecorder.Contains(t, database.AuditLog{
+			Action:         database.AuditActionWrite,
+			ResourceType:   database.ResourceTypeWorkspace,
+			ResourceTarget: workspace.Name,
+		}))
 
 		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
 		require.NoError(t, err, "fetch provisioned workspace")
@@ -2803,26 +2893,4 @@ func TestWorkspaceDormant(t *testing.T) {
 		require.NoError(t, err)
 		coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStop, database.WorkspaceTransitionStart)
 	})
-}
-
-func verifyAuditWorkspaceCreated(t *testing.T, auditor *audit.MockAuditor, workspaceName string) {
-	var auditLogs []database.AuditLog
-	ok := assert.Eventually(t, func() bool {
-		auditLogs = auditor.AuditLogs()
-
-		for _, auditLog := range auditLogs {
-			if auditLog.Action == database.AuditActionCreate &&
-				auditLog.ResourceType == database.ResourceTypeWorkspace &&
-				auditLog.ResourceTarget == workspaceName {
-				return true
-			}
-		}
-		return false
-	}, testutil.WaitMedium, testutil.IntervalFast)
-
-	if !ok {
-		for i, auditLog := range auditLogs {
-			t.Logf("%d. Audit: ID=%s action=%s resourceID=%s resourceType=%s resourceTarget=%s", i+1, auditLog.ID, auditLog.Action, auditLog.ResourceID, auditLog.ResourceType, auditLog.ResourceTarget)
-		}
-	}
 }

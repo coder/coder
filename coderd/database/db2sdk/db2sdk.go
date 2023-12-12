@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/exp/slices"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/parameter"
@@ -14,6 +15,31 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
+
+type ExternalAuthMeta struct {
+	Authenticated bool
+	ValidateError string
+}
+
+func ExternalAuths(auths []database.ExternalAuthLink, meta map[string]ExternalAuthMeta) []codersdk.ExternalAuthLink {
+	out := make([]codersdk.ExternalAuthLink, 0, len(auths))
+	for _, auth := range auths {
+		out = append(out, ExternalAuth(auth, meta[auth.ProviderID]))
+	}
+	return out
+}
+
+func ExternalAuth(auth database.ExternalAuthLink, meta ExternalAuthMeta) codersdk.ExternalAuthLink {
+	return codersdk.ExternalAuthLink{
+		ProviderID:      auth.ProviderID,
+		CreatedAt:       auth.CreatedAt,
+		UpdatedAt:       auth.UpdatedAt,
+		HasRefreshToken: auth.OAuthRefreshToken != "",
+		Expires:         auth.OAuthExpiry,
+		Authenticated:   meta.Authenticated,
+		ValidateError:   meta.ValidateError,
+	}
+}
 
 func WorkspaceBuildParameters(params []database.WorkspaceBuildParameter) []codersdk.WorkspaceBuildParameter {
 	out := make([]codersdk.WorkspaceBuildParameter, len(params))
@@ -28,6 +54,19 @@ func WorkspaceBuildParameter(p database.WorkspaceBuildParameter) codersdk.Worksp
 		Name:  p.Name,
 		Value: p.Value,
 	}
+}
+
+func TemplateVersionParameters(params []database.TemplateVersionParameter) ([]codersdk.TemplateVersionParameter, error) {
+	out := make([]codersdk.TemplateVersionParameter, len(params))
+	var err error
+	for i, p := range params {
+		out[i], err = TemplateVersionParameter(p)
+		if err != nil {
+			return nil, xerrors.Errorf("convert template version parameter %q: %w", p.Name, err)
+		}
+	}
+
+	return out, nil
 }
 
 func TemplateVersionParameter(param database.TemplateVersionParameter) (codersdk.TemplateVersionParameter, error) {
@@ -81,7 +120,7 @@ func User(user database.User, organizationIDs []uuid.UUID) codersdk.User {
 		Status:          codersdk.UserStatus(user.Status),
 		OrganizationIDs: organizationIDs,
 		Roles:           make([]codersdk.Role, 0, len(user.RBACRoles)),
-		AvatarURL:       user.AvatarURL.String,
+		AvatarURL:       user.AvatarURL,
 		LoginType:       codersdk.LoginType(user.LoginType),
 	}
 

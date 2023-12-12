@@ -1,12 +1,16 @@
+import { css } from "@emotion/css";
 import CircularProgress from "@mui/material/CircularProgress";
-import { makeStyles } from "@mui/styles";
 import TextField from "@mui/material/TextField";
 import Autocomplete from "@mui/material/Autocomplete";
-import { User } from "api/typesGenerated";
+import type { User } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/AvatarData/AvatarData";
-import { ChangeEvent, ComponentProps, FC, useState } from "react";
-import Box from "@mui/material/Box";
+import {
+  type ChangeEvent,
+  type ComponentProps,
+  type FC,
+  useState,
+} from "react";
 import { useDebouncedFunction } from "hooks/debounce";
 import { useQuery } from "react-query";
 import { users } from "api/queries/users";
@@ -27,7 +31,6 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
   className,
   size = "small",
 }) => {
-  const styles = useStyles();
   const [autoComplete, setAutoComplete] = useState<{
     value: string;
     open: boolean;
@@ -86,13 +89,13 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
       }
       getOptionLabel={(option) => option.email}
       renderOption={(props, option) => (
-        <Box component="li" {...props}>
+        <li {...props}>
           <AvatarData
             title={option.username}
             subtitle={option.email}
             src={option.avatar_url}
           />
-        </Box>
+        </li>
       )}
       renderInput={(params) => (
         <TextField
@@ -101,7 +104,11 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
           size={size}
           label={label}
           placeholder="User email or username"
-          className={styles.textField}
+          css={{
+            "&:not(:has(label))": {
+              margin: 0,
+            },
+          }}
           InputProps={{
             ...params.InputProps,
             onChange: debouncedInputOnChange,
@@ -118,9 +125,7 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
                 {params.InputProps.endAdornment}
               </>
             ),
-            classes: {
-              root: styles.inputRoot,
-            },
+            classes: { root },
           }}
           InputLabelProps={{
             shrink: true,
@@ -131,14 +136,7 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
   );
 };
 
-export const useStyles = makeStyles((theme) => ({
-  textField: {
-    "&:not(:has(label))": {
-      margin: 0,
-    },
-  },
-  inputRoot: {
-    paddingLeft: `${theme.spacing(1.75)} !important`, // Same padding left as input
-    gap: theme.spacing(0.5),
-  },
-}));
+const root = css`
+  padding-left: 14px !important; // Same padding left as input
+  gap: 4px;
+`;

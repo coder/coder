@@ -1,11 +1,9 @@
-import { makeStyles } from "@mui/styles";
 import dayjs from "dayjs";
-import { ComponentProps, FC, Fragment } from "react";
-import { ProvisionerJobLog } from "api/typesGenerated";
-import { MONOSPACE_FONT_FAMILY } from "theme/constants";
+import { type FC, Fragment, type HTMLAttributes } from "react";
+import type { ProvisionerJobLog } from "api/typesGenerated";
+import { BODY_FONT_FAMILY, MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { Logs } from "./Logs";
-import Box from "@mui/material/Box";
-import { combineClasses } from "utils/combineClasses";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 
 const Language = {
   seconds: "seconds",
@@ -39,31 +37,30 @@ const getStageDurationInSeconds = (logs: ProvisionerJobLog[]) => {
   return completedAt.diff(startedAt, "seconds");
 };
 
-export type WorkspaceBuildLogsProps = {
-  logs: ProvisionerJobLog[];
-  sticky?: boolean;
+interface WorkspaceBuildLogsProps extends HTMLAttributes<HTMLDivElement> {
   hideTimestamps?: boolean;
-} & ComponentProps<typeof Box>;
+  sticky?: boolean;
+  logs: ProvisionerJobLog[];
+}
 
 export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
   hideTimestamps,
   sticky,
   logs,
-  ...boxProps
+  ...attrs
 }) => {
+  const theme = useTheme();
   const groupedLogsByStage = groupLogsByStage(logs);
   const stages = Object.keys(groupedLogsByStage);
-  const styles = useStyles();
 
   return (
-    <Box
-      {...boxProps}
-      sx={{
-        border: (theme) => `1px solid ${theme.palette.divider}`,
-        borderRadius: 1,
+    <div
+      css={{
+        border: `1px solid ${theme.palette.divider}`,
+        borderRadius: 8,
         fontFamily: MONOSPACE_FONT_FAMILY,
-        ...boxProps.sx,
       }}
+      {...attrs}
     >
       {stages.map((stage) => {
         const logs = groupedLogsByStage[stage];
@@ -80,14 +77,12 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
         return (
           <Fragment key={stage}>
             <div
-              className={combineClasses([
-                styles.header,
-                sticky ? styles.sticky : "",
-              ])}
+              css={[styles.header, sticky && styles.sticky]}
+              className="logs-header"
             >
               <div>{stage}</div>
               {shouldDisplayDuration && (
-                <div className={styles.duration}>
+                <div css={styles.duration}>
                   {duration} {Language.seconds}
                 </div>
               )}
@@ -96,18 +91,18 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
           </Fragment>
         );
       })}
-    </Box>
+    </div>
   );
 };
 
-const useStyles = makeStyles((theme) => ({
-  header: {
+const styles = {
+  header: (theme) => ({
     fontSize: 13,
     fontWeight: 600,
-    padding: theme.spacing(0.5, 3),
+    padding: "4px 24px",
     display: "flex",
     alignItems: "center",
-    fontFamily: "Inter",
+    fontFamily: BODY_FONT_FAMILY,
     borderBottom: `1px solid ${theme.palette.divider}`,
     background: theme.palette.background.default,
 
@@ -119,16 +114,16 @@ const useStyles = makeStyles((theme) => ({
     "&:first-child": {
       borderRadius: "8px 8px 0 0",
     },
-  },
+  }),
 
   sticky: {
     position: "sticky",
     top: 0,
   },
 
-  duration: {
+  duration: (theme) => ({
     marginLeft: "auto",
     color: theme.palette.text.secondary,
     fontSize: 12,
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;

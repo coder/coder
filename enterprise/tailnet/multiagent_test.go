@@ -27,11 +27,10 @@ func TestPGCoordinator_MultiAgent(t *testing.T) {
 		t.Skip("test only with postgres")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-	defer cancel()
-
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
 	coord1, err := tailnet.NewPGCoord(ctx, logger.Named("coord1"), ps, store)
 	require.NoError(t, err)
 	defer coord1.Close()
@@ -59,7 +58,7 @@ func TestPGCoordinator_MultiAgent(t *testing.T) {
 	require.NoError(t, agent1.close())
 
 	assertEventuallyNoClientsForAgent(ctx, t, store, agent1.id)
-	assertEventuallyNoAgents(ctx, t, store, agent1.id)
+	assertEventuallyLost(ctx, t, store, agent1.id)
 }
 
 // TestPGCoordinator_MultiAgent_UnsubscribeRace tests a single coordinator with
@@ -75,11 +74,10 @@ func TestPGCoordinator_MultiAgent_UnsubscribeRace(t *testing.T) {
 		t.Skip("test only with postgres")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-	defer cancel()
-
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
 	coord1, err := tailnet.NewPGCoord(ctx, logger.Named("coord1"), ps, store)
 	require.NoError(t, err)
 	defer coord1.Close()
@@ -108,7 +106,7 @@ func TestPGCoordinator_MultiAgent_UnsubscribeRace(t *testing.T) {
 	require.NoError(t, agent1.close())
 
 	assertEventuallyNoClientsForAgent(ctx, t, store, agent1.id)
-	assertEventuallyNoAgents(ctx, t, store, agent1.id)
+	assertEventuallyLost(ctx, t, store, agent1.id)
 }
 
 // TestPGCoordinator_MultiAgent_Unsubscribe tests a single coordinator with a
@@ -124,11 +122,10 @@ func TestPGCoordinator_MultiAgent_Unsubscribe(t *testing.T) {
 		t.Skip("test only with postgres")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
 	coord1, err := tailnet.NewPGCoord(ctx, logger.Named("coord1"), ps, store)
 	require.NoError(t, err)
 	defer coord1.Close()
@@ -171,7 +168,7 @@ func TestPGCoordinator_MultiAgent_Unsubscribe(t *testing.T) {
 	require.NoError(t, agent1.close())
 
 	assertEventuallyNoClientsForAgent(ctx, t, store, agent1.id)
-	assertEventuallyNoAgents(ctx, t, store, agent1.id)
+	assertEventuallyLost(ctx, t, store, agent1.id)
 }
 
 // TestPGCoordinator_MultiAgent_MultiCoordinator tests two coordinators with a
@@ -189,11 +186,10 @@ func TestPGCoordinator_MultiAgent_MultiCoordinator(t *testing.T) {
 		t.Skip("test only with postgres")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-	defer cancel()
-
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
 	coord1, err := tailnet.NewPGCoord(ctx, logger.Named("coord1"), ps, store)
 	require.NoError(t, err)
 	defer coord1.Close()
@@ -224,7 +220,7 @@ func TestPGCoordinator_MultiAgent_MultiCoordinator(t *testing.T) {
 	require.NoError(t, agent1.close())
 
 	assertEventuallyNoClientsForAgent(ctx, t, store, agent1.id)
-	assertEventuallyNoAgents(ctx, t, store, agent1.id)
+	assertEventuallyLost(ctx, t, store, agent1.id)
 }
 
 // TestPGCoordinator_MultiAgent_MultiCoordinator_UpdateBeforeSubscribe tests two
@@ -243,11 +239,10 @@ func TestPGCoordinator_MultiAgent_MultiCoordinator_UpdateBeforeSubscribe(t *test
 		t.Skip("test only with postgres")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-	defer cancel()
-
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
 	coord1, err := tailnet.NewPGCoord(ctx, logger.Named("coord1"), ps, store)
 	require.NoError(t, err)
 	defer coord1.Close()
@@ -278,7 +273,7 @@ func TestPGCoordinator_MultiAgent_MultiCoordinator_UpdateBeforeSubscribe(t *test
 	require.NoError(t, agent1.close())
 
 	assertEventuallyNoClientsForAgent(ctx, t, store, agent1.id)
-	assertEventuallyNoAgents(ctx, t, store, agent1.id)
+	assertEventuallyLost(ctx, t, store, agent1.id)
 }
 
 // TestPGCoordinator_MultiAgent_TwoAgents tests three coordinators with a
@@ -299,11 +294,10 @@ func TestPGCoordinator_MultiAgent_TwoAgents(t *testing.T) {
 		t.Skip("test only with postgres")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-	defer cancel()
-
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
 	coord1, err := tailnet.NewPGCoord(ctx, logger.Named("coord1"), ps, store)
 	require.NoError(t, err)
 	defer coord1.Close()
@@ -350,5 +344,5 @@ func TestPGCoordinator_MultiAgent_TwoAgents(t *testing.T) {
 	require.NoError(t, agent2.close())
 
 	assertEventuallyNoClientsForAgent(ctx, t, store, agent1.id)
-	assertEventuallyNoAgents(ctx, t, store, agent1.id)
+	assertEventuallyLost(ctx, t, store, agent1.id)
 }

@@ -135,6 +135,15 @@ rules:
           message:
             "You should use the Alert component provided on
             components/Alert/Alert"
+        - name: "@mui/material/Popover"
+          message:
+            "You should use the Popover component provided on
+            components/Popover/Popover"
+        - name: "@mui/material/Typography"
+          message:
+            "You should use the native HTML elements as span, p, h1, h2, h3..."
+        - name: "@mui/material/Box"
+          message: "You should use a <div> instead"
   no-unused-vars: "off"
   "object-curly-spacing": "off"
   react-hooks/exhaustive-deps: warn

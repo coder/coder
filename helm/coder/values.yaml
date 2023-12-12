@@ -91,9 +91,24 @@ coder:
     # It is recommended to keep this on if you are using Kubernetes templates
     # within Coder.
     workspacePerms: true
-    # coder.serviceAccount.enableDeployments -- Provides the service account permission
-    # to manage Kubernetes deployments.
+    # coder.serviceAccount.enableDeployments -- Provides the service account
+    # permission to manage Kubernetes deployments. Depends on workspacePerms.
     enableDeployments: true
+    # coder.serviceAccount.extraRules -- Additional permissions added to the SA
+    # role. Depends on workspacePerms.
+    extraRules: []
+    # - apiGroups: [""]
+    #   resources: ["services"]
+    #   verbs:
+    #     - create
+    #     - delete
+    #     - deletecollection
+    #     - get
+    #     - list
+    #     - patch
+    #     - update
+    #     - watch
+
     # coder.serviceAccount.annotations -- The Coder service account annotations.
     annotations: {}
     # coder.serviceAccount.name -- The service account name
@@ -259,12 +274,19 @@ coder:
     # coder.service.annotations -- The service annotations. See:
     # https://kubernetes.io/docs/concepts/services-networking/service/#internal-load-balancer
     annotations: {}
-    # coder.service.httpNodePort -- Enabled if coder.service.type is set to NodePort.
-    # If not set, Kubernetes will allocate a port from the default range, 30000-32767.
+    # coder.service.httpNodePort -- Enabled if coder.service.type is set to
+    # NodePort. If not set, Kubernetes will allocate a port from the default
+    # range, 30000-32767.
     httpNodePort: ""
-    # coder.service.httpsNodePort -- Enabled if coder.service.type is set to NodePort.
-    # If not set, Kubernetes will allocate a port from the default range, 30000-32767.
+    # coder.service.httpsNodePort -- Enabled if coder.service.type is set to
+    # NodePort. If not set, Kubernetes will allocate a port from the default
+    # range, 30000-32767.
     httpsNodePort: ""
+    # coder.service.prometheusNodePort -- Enabled if coder.service.type is set
+    # to NodePort. If not set, Kubernetes will allocate a port from the default
+    # range, 30000-32767. The "prometheus-http" port on the coder service is
+    # only exposed if CODER_PROMETHEUS_ENABLE is set to true.
+    prometheusNodePort: ""
 
   # coder.ingress -- The Ingress object to expose for Coder.
   ingress:

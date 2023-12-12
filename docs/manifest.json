@@ -211,6 +211,23 @@
           ]
         },
         {
+          "title": "Administering templates",
+          "description": "Configuration settings for template admins",
+          "path": "./templates/configuration.md",
+          "children": [
+            {
+              "title": "General settings",
+              "description": "Configure name, display info, and update polices",
+              "path": "./templates/general-settings.md"
+            },
+            {
+              "title": "Permissions",
+              "description": "Configure who can access a template",
+              "path": "./templates/permissions.md"
+            }
+          ]
+        },
+        {
           "title": "Open in Coder",
           "description": "Add an \"Open in Coder\" button to your repos",
           "path": "./templates/open-in-coder.md",
@@ -438,6 +455,12 @@
           "path": "./admin/encryption.md",
           "icon_path": "./images/icons/lock.svg",
           "state": "enterprise"
+        },
+        {
+          "title": "Deployment Health",
+          "description": "Learn how to monitor the health of your Coder deployment",
+          "path": "./admin/healthcheck.md",
+          "icon_path": "./images/icons/health.svg"
         }
       ]
     },
@@ -574,6 +597,11 @@
       "path": "./cli.md",
       "icon_path": "./images/icons/terminal.svg",
       "children": [
+        {
+          "title": "autoupdate",
+          "description": "Toggle auto-update policy for a workspace",
+          "path": "cli/autoupdate.md"
+        },
         {
           "title": "coder",
           "path": "cli.md"
@@ -734,7 +762,7 @@
         },
         {
           "title": "schedule show",
-          "description": "Show workspace schedule",
+          "description": "Show workspace schedules",
           "path": "cli/schedule_show.md"
         },
         {

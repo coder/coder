@@ -1,3 +1,4 @@
+import { css } from "@emotion/css";
 import { type FC, useState, useEffect } from "react";
 import TextField from "@mui/material/TextField";
 import MenuItem from "@mui/material/MenuItem";
@@ -19,7 +20,6 @@ import {
   filterByMaxTokenLifetime,
   customLifetimeDay,
 } from "./utils";
-import { css } from "@emotion/css";
 
 interface CreateTokenFormProps {
   form: FormikContextType<CreateTokenData>;
@@ -29,10 +29,6 @@ interface CreateTokenFormProps {
   isCreating: boolean;
   creationFailed: boolean;
 }
-
-const sectionInfoStyles = css`
-  min-width: 300px;
-`;
 
 export const CreateTokenForm: FC<CreateTokenFormProps> = ({
   form,
@@ -65,7 +61,7 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
       <FormSection
         title="Name"
         description="What is this token for?"
-        classes={{ sectionInfo: sectionInfoStyles }}
+        classes={{ sectionInfo: classNames.sectionInfo }}
       >
         <FormFields>
           <TextField
@@ -88,7 +84,7 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
                 .format("MMMM DD, YYYY")}`
             : "Please set a token expiration."
         }
-        classes={{ sectionInfo: sectionInfoStyles }}
+        classes={{ sectionInfo: classNames.sectionInfo }}
       >
         <FormFields>
           <Stack direction="row">
@@ -151,4 +147,10 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
       />
     </HorizontalForm>
   );
+};
+
+const classNames = {
+  sectionInfo: css`
+    min-width: 300px;
+  `,
 };

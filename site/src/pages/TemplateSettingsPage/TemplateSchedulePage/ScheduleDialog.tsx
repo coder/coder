@@ -71,9 +71,7 @@ export const ScheduleDialog: FC<PropsWithChildren<ScheduleDialogProps>> = ({
                 <div css={styles.dialogDescription}>{`
                 This change will result in ${inactiveWorkspacesToGoDormant} workspaces being immediately transitioned to the dormant state and ${inactiveWorkspacesToGoDormantInWeek} over the next seven days. To prevent this, do you want to reset the inactivity period for all template workspaces?`}</div>
                 <FormControlLabel
-                  sx={{
-                    marginTop: 2,
-                  }}
+                  css={{ marginTop: 16 }}
                   control={
                     <Checkbox
                       size="small"
@@ -90,15 +88,17 @@ export const ScheduleDialog: FC<PropsWithChildren<ScheduleDialogProps>> = ({
 
           {showDeletionWarning && (
             <>
-              <h4>{"Dormancy Auto-Deletion"}</h4>
+              <h4>Dormancy Auto-Deletion</h4>
               <Stack direction="row" spacing={5}>
-                <div
-                  css={styles.dialogDescription}
-                >{`This change will result in ${dormantWorkspacesToBeDeleted} workspaces being immediately deleted and ${dormantWorkspacesToBeDeletedInWeek} over the next 7 days. To prevent this, do you want to reset the dormancy period for all template workspaces?`}</div>
+                <p css={styles.dialogDescription}>
+                  This change will result in {dormantWorkspacesToBeDeleted}{" "}
+                  workspaces being immediately deleted and{" "}
+                  {dormantWorkspacesToBeDeletedInWeek} over the next 7 days. To
+                  prevent this, do you want to reset the dormancy period for all
+                  template workspaces?
+                </p>
                 <FormControlLabel
-                  sx={{
-                    marginTop: 2,
-                  }}
+                  css={{ marginTop: 16 }}
                   control={
                     <Checkbox
                       size="small"
@@ -118,7 +118,6 @@ export const ScheduleDialog: FC<PropsWithChildren<ScheduleDialogProps>> = ({
       <DialogActions>
         <DialogActionButtons
           cancelText={cancelText}
-          confirmDialog
           confirmLoading={confirmLoading}
           confirmText="Submit"
           disabled={disabled}
@@ -137,22 +136,22 @@ const styles = {
       background: theme.palette.background.paper,
       border: `1px solid ${theme.palette.divider}`,
       width: "100%",
-      maxWidth: theme.spacing(125),
+      maxWidth: 1000,
     },
     "& .MuiDialogActions-spacing": {
-      padding: `0 ${theme.spacing(5)} ${theme.spacing(5)}`,
+      padding: "0 40px 40px",
     },
   }),
   dialogContent: (theme) => ({
     color: theme.palette.text.secondary,
-    padding: theme.spacing(5),
+    padding: 40,
   }),
   dialogTitle: (theme) => ({
     margin: 0,
-    marginBottom: theme.spacing(2),
+    marginBottom: 16,
     color: theme.palette.text.primary,
     fontWeight: 400,
-    fontSize: theme.spacing(2.5),
+    fontSize: 20,
   }),
   dialogDescription: (theme) => ({
     color: theme.palette.text.secondary,
@@ -168,7 +167,7 @@ const styles = {
     },
 
     "& > p": {
-      margin: theme.spacing(1, 0),
+      margin: "8px 0",
     },
   }),
 } satisfies Record<string, Interpolation<Theme>>;

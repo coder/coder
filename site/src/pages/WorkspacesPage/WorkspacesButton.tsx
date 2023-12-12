@@ -1,16 +1,10 @@
-import {
-  type PropsWithChildren,
-  type ReactNode,
-  useState,
-  useRef,
-} from "react";
+import { type FC, type ReactNode, useState } from "react";
 import { type Template } from "api/typesGenerated";
 import { type UseQueryResult } from "react-query";
 import {
   Link as RouterLink,
   LinkProps as RouterLinkProps,
 } from "react-router-dom";
-import Box from "@mui/system/Box";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import AddIcon from "@mui/icons-material/AddOutlined";
@@ -20,30 +14,31 @@ import { OverflowY } from "components/OverflowY/OverflowY";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Avatar } from "components/Avatar/Avatar";
 import { SearchBox } from "./WorkspacesSearchBox";
-import Popover from "@mui/material/Popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "components/Popover/Popover";
 
 const ICON_SIZE = 18;
-const COLUMN_GAP = 1.5;
 
 type TemplatesQuery = UseQueryResult<Template[]>;
 
-type WorkspacesButtonProps = PropsWithChildren<{
+interface WorkspacesButtonProps {
+  children?: ReactNode;
   templatesFetchStatus: TemplatesQuery["status"];
   templates: TemplatesQuery["data"];
-}>;
+}
 
-export function WorkspacesButton({
+export const WorkspacesButton: FC<WorkspacesButtonProps> = ({
   children,
   templatesFetchStatus,
   templates,
-}: WorkspacesButtonProps) {
+}) => {
   // Dataset should always be small enough that client-side filtering should be
   // good enough. Can swap out down the line if it becomes an issue
   const [searchTerm, setSearchTerm] = useState("");
   const processed = sortTemplatesByUsersDesc(templates ?? [], searchTerm);
-
-  const anchorRef = useRef<HTMLButtonElement>(null);
-  const [isOpen, setIsOpen] = useState(false);
 
   let emptyState: ReactNode = undefined;
   if (templates?.length === 0) {
@@ -62,51 +57,28 @@ export function WorkspacesButton({
   }
 
   return (
-    <>
-      <Button
-        startIcon={<AddIcon />}
-        variant="contained"
-        ref={anchorRef}
-        onClick={() => {
-          setIsOpen(true);
-        }}
-      >
-        {children}
-      </Button>
-      <Popover
-        disablePortal
-        open={isOpen}
-        onClose={() => setIsOpen(false)}
-        anchorEl={anchorRef.current}
-        anchorOrigin={{
-          vertical: "bottom",
-          horizontal: "right",
-        }}
-        transformOrigin={{
-          vertical: "top",
-          horizontal: "right",
-        }}
-        css={(theme) => ({
-          marginTop: theme.spacing(1),
-          "& .MuiPaper-root": {
-            width: theme.spacing(40),
-          },
-        })}
-      >
+    <Popover>
+      <PopoverTrigger>
+        <Button startIcon={<AddIcon />} variant="contained">
+          {children}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent horizontal="right">
         <SearchBox
           value={searchTerm}
           onValueChange={(newValue) => setSearchTerm(newValue)}
           placeholder="Type/select a workspace template"
           label="Template select for workspace"
-          sx={{ flexShrink: 0, columnGap: COLUMN_GAP }}
+          css={{ flexShrink: 0, columnGap: 12 }}
         />
 
         <OverflowY
           maxHeight={380}
-          sx={{
+          css={{
             display: "flex",
             flexDirection: "column",
-            paddingY: 1,
+            paddingTop: "8px",
+            paddingBottom: "8px",
           }}
         >
           {templatesFetchStatus === "loading" ? (
@@ -122,9 +94,9 @@ export function WorkspacesButton({
           )}
         </OverflowY>
 
-        <Box
+        <div
           css={(theme) => ({
-            padding: theme.spacing(1, 0),
+            padding: "8px 0",
             borderTop: `1px solid ${theme.palette.divider}`,
           })}
         >
@@ -133,35 +105,38 @@ export function WorkspacesButton({
             css={(theme) => ({
               display: "flex",
               alignItems: "center",
-              columnGap: theme.spacing(COLUMN_GAP),
-
+              columnGap: 12,
               color: theme.palette.primary.main,
             })}
           >
             <OpenIcon css={{ width: 14, height: 14 }} />
             <span>See all templates</span>
           </PopoverLink>
-        </Box>
-      </Popover>
-    </>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
+};
+
+interface WorkspaceResultsRowProps {
+  template: Template;
 }
 
-function WorkspaceResultsRow({ template }: { template: Template }) {
+const WorkspaceResultsRow: FC<WorkspaceResultsRowProps> = ({ template }) => {
   return (
     <PopoverLink
       to={`/templates/${template.name}/workspace`}
-      css={(theme) => ({
+      css={{
         display: "flex",
-        gap: theme.spacing(COLUMN_GAP),
+        gap: 12,
         alignItems: "center",
-      })}
+      }}
     >
       <Avatar
         src={template.icon}
         fitImage
         alt={template.display_name || "Coder template"}
-        sx={{
+        css={{
           width: `${ICON_SIZE}px`,
           height: `${ICON_SIZE}px`,
           fontSize: `${ICON_SIZE * 0.5}px`,
@@ -171,7 +146,7 @@ function WorkspaceResultsRow({ template }: { template: Template }) {
         {template.display_name || "-"}
       </Avatar>
 
-      <Box
+      <div
         css={(theme) => ({
           color: theme.palette.text.primary,
           display: "flex",
@@ -199,18 +174,18 @@ function WorkspaceResultsRow({ template }: { template: Template }) {
           developer
           {template.active_user_count === 1 ? "" : "s"}
         </span>
-      </Box>
+      </div>
     </PopoverLink>
   );
-}
+};
 
-function PopoverLink(props: RouterLinkProps) {
+const PopoverLink: FC<RouterLinkProps> = ({ children, ...linkProps }) => {
   return (
     <RouterLink
-      {...props}
+      {...linkProps}
       css={(theme) => ({
         color: theme.palette.text.primary,
-        padding: theme.spacing(1, 2),
+        padding: "8px 16px",
         fontSize: 14,
         outline: "none",
         textDecoration: "none",
@@ -222,9 +197,11 @@ function PopoverLink(props: RouterLinkProps) {
           backgroundColor: theme.palette.action.hover,
         },
       })}
-    />
+    >
+      {children}
+    </RouterLink>
   );
-}
+};
 
 function sortTemplatesByUsersDesc(
   templates: readonly Template[],

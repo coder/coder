@@ -8,8 +8,8 @@ full list of the options, run `coder server --help` or see our
 external URL that users and workspaces use to connect to Coder (e.g.
 <https://coder.example.com>). This should not be localhost.
 
-> Access URL should be a external IP address or domain with DNS records pointing
-> to Coder.
+> Access URL should be an external IP address or domain with DNS records
+> pointing to Coder.
 
 ### Tunnel
 
@@ -29,7 +29,7 @@ export CODER_TLS_ENABLE=true
 export CODER_TLS_ADDRESS=0.0.0.0:443
 
 ## Redirect from HTTP to HTTPS
-export CODER_TLS_REDIRECT_HTTP=true
+export CODER_REDIRECT_TO_ACCESS_URL=true
 
 # Start the Coder server
 coder server

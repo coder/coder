@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strings"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -457,6 +458,9 @@ func ConvertConfig(entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([
 		if entry.Type == string(codersdk.EnhancedExternalAuthProviderAzureDevops) {
 			oauthConfig = &jwtConfig{oc}
 		}
+		if entry.Type == string(codersdk.EnhancedExternalAuthProviderJFrog) {
+			oauthConfig = &exchangeWithClientSecret{oc}
+		}
 
 		cfg := &Config{
 			OAuth2Config:        oauthConfig,
@@ -491,7 +495,36 @@ func ConvertConfig(entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([
 
 // applyDefaultsToConfig applies defaults to the config entry.
 func applyDefaultsToConfig(config *codersdk.ExternalAuthConfig) {
-	defaults := defaults[codersdk.EnhancedExternalAuthProvider(config.Type)]
+	configType := codersdk.EnhancedExternalAuthProvider(config.Type)
+	if configType == "bitbucket" {
+		// For backwards compatibility, we need to support the "bitbucket" string.
+		configType = codersdk.EnhancedExternalAuthProviderBitBucketCloud
+		defer func() {
+			// The config type determines the config ID (if unset). So change the legacy
+			// type to the correct new type after the defaults have been configured.
+			config.Type = string(codersdk.EnhancedExternalAuthProviderBitBucketCloud)
+		}()
+	}
+	// If static defaults exist, apply them.
+	if defaults, ok := staticDefaults[configType]; ok {
+		copyDefaultSettings(config, defaults)
+		return
+	}
+
+	// Dynamic defaults
+	switch codersdk.EnhancedExternalAuthProvider(config.Type) {
+	case codersdk.EnhancedExternalAuthProviderBitBucketServer:
+		copyDefaultSettings(config, bitbucketServerDefaults(config))
+		return
+	default:
+		// No defaults for this type. We still want to run this apply with
+		// an empty set of defaults.
+		copyDefaultSettings(config, codersdk.ExternalAuthConfig{})
+		return
+	}
+}
+
+func copyDefaultSettings(config *codersdk.ExternalAuthConfig, defaults codersdk.ExternalAuthConfig) {
 	if config.AuthURL == "" {
 		config.AuthURL = defaults.AuthURL
 	}
@@ -539,7 +572,43 @@ func applyDefaultsToConfig(config *codersdk.ExternalAuthConfig) {
 	}
 }
 
-var defaults = map[codersdk.EnhancedExternalAuthProvider]codersdk.ExternalAuthConfig{
+func bitbucketServerDefaults(config *codersdk.ExternalAuthConfig) codersdk.ExternalAuthConfig {
+	defaults := codersdk.ExternalAuthConfig{
+		DisplayName: "Bitbucket Server",
+		Scopes:      []string{"PUBLIC_REPOS", "REPO_READ", "REPO_WRITE"},
+		DisplayIcon: "/icon/bitbucket.svg",
+	}
+	// Bitbucket servers will have some base url, e.g. https://bitbucket.coder.com.
+	// We will grab this from the Auth URL. This choice is a bit arbitrary,
+	// but we need to require at least 1 field to be populated.
+	if config.AuthURL == "" {
+		// No auth url, means we cannot guess the urls.
+		return defaults
+	}
+
+	auth, err := url.Parse(config.AuthURL)
+	if err != nil {
+		// We need a valid URL to continue with.
+		return defaults
+	}
+
+	// Populate Regex, ValidateURL, and TokenURL.
+	// Default regex should be anything using the same host as the auth url.
+	defaults.Regex = fmt.Sprintf(`^(https?://)?%s(/.*)?$`, strings.ReplaceAll(auth.Host, ".", `\.`))
+
+	tokenURL := auth.ResolveReference(&url.URL{Path: "/rest/oauth2/latest/token"})
+	defaults.TokenURL = tokenURL.String()
+
+	// validate needs to return a 200 when logged in and a 401 when unauthenticated.
+	// This endpoint returns the count of the number of PR's in the authenticated
+	// user's inbox. Which will work perfectly for our use case.
+	validate := auth.ResolveReference(&url.URL{Path: "/rest/api/latest/inbox/pull-requests/count"})
+	defaults.ValidateURL = validate.String()
+
+	return defaults
+}
+
+var staticDefaults = map[codersdk.EnhancedExternalAuthProvider]codersdk.ExternalAuthConfig{
 	codersdk.EnhancedExternalAuthProviderAzureDevops: {
 		AuthURL:     "https://app.vssps.visualstudio.com/oauth2/authorize",
 		TokenURL:    "https://app.vssps.visualstudio.com/oauth2/token",
@@ -548,7 +617,7 @@ var defaults = map[codersdk.EnhancedExternalAuthProvider]codersdk.ExternalAuthCo
 		Regex:       `^(https?://)?dev\.azure\.com(/.*)?$`,
 		Scopes:      []string{"vso.code_write"},
 	},
-	codersdk.EnhancedExternalAuthProviderBitBucket: {
+	codersdk.EnhancedExternalAuthProviderBitBucketCloud: {
 		AuthURL:     "https://bitbucket.org/site/oauth2/authorize",
 		TokenURL:    "https://bitbucket.org/site/oauth2/access_token",
 		ValidateURL: "https://api.bitbucket.org/2.0/user",
@@ -618,4 +687,32 @@ func (c *jwtConfig) Exchange(ctx context.Context, code string, opts ...oauth2.Au
 			oauth2.SetAuthURLParam("code", ""),
 		)...,
 	)
+}
+
+// exchangeWithClientSecret wraps an OAuth config and adds the client secret
+// to the Exchange request as a Bearer header. This is used by JFrog Artifactory.
+type exchangeWithClientSecret struct {
+	*oauth2.Config
+}
+
+func (e *exchangeWithClientSecret) Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
+	httpClient, ok := ctx.Value(oauth2.HTTPClient).(*http.Client)
+	if httpClient == nil || !ok {
+		httpClient = http.DefaultClient
+	}
+	oldTransport := httpClient.Transport
+	if oldTransport == nil {
+		oldTransport = http.DefaultTransport
+	}
+	httpClient.Transport = roundTripper(func(req *http.Request) (*http.Response, error) {
+		req.Header.Set("Authorization", "Bearer "+e.ClientSecret)
+		return oldTransport.RoundTrip(req)
+	})
+	return e.Config.Exchange(context.WithValue(ctx, oauth2.HTTPClient, httpClient), code, opts...)
+}
+
+type roundTripper func(req *http.Request) (*http.Response, error)
+
+func (r roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	return r(req)
 }

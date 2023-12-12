@@ -19,16 +19,18 @@ import (
 
 const workDirectory = "/tmp/coder/provisioner-34/work"
 
+var now = time.Date(2023, time.June, 3, 4, 5, 6, 0, time.UTC)
+
 func TestStaleSessions(t *testing.T) {
 	t.Parallel()
 
-	prepare := func() (afero.Fs, time.Time, slog.Logger) {
-		fs := afero.NewMemMapFs()
-		now := time.Date(2023, time.June, 3, 4, 5, 6, 0, time.UTC)
+	prepare := func() (afero.Fs, slog.Logger) {
+		tempDir := t.TempDir()
+		fs := afero.NewBasePathFs(afero.NewOsFs(), tempDir)
 		logger := slogtest.Make(t, nil).
 			Leveled(slog.LevelDebug).
 			Named("cleanup-test")
-		return fs, now, logger
+		return fs, logger
 	}
 
 	t.Run("all sessions are stale", func(t *testing.T) {
@@ -37,7 +39,7 @@ func TestStaleSessions(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
-		fs, now, logger := prepare()
+		fs, logger := prepare()
 
 		// given
 		first := provisionersdk.SessionDir(uuid.NewString())
@@ -62,7 +64,7 @@ func TestStaleSessions(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
-		fs, now, logger := prepare()
+		fs, logger := prepare()
 
 		// given
 		first := provisionersdk.SessionDir(uuid.NewString())
@@ -86,7 +88,7 @@ func TestStaleSessions(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
-		fs, now, logger := prepare()
+		fs, logger := prepare()
 
 		// given
 		first := provisionersdk.SessionDir(uuid.NewString())
@@ -104,9 +106,9 @@ func TestStaleSessions(t *testing.T) {
 	})
 }
 
-func addSessionFolder(t *testing.T, fs afero.Fs, sessionName string, accessTime time.Time) {
+func addSessionFolder(t *testing.T, fs afero.Fs, sessionName string, modTime time.Time) {
 	err := fs.MkdirAll(filepath.Join(workDirectory, sessionName), 0o755)
 	require.NoError(t, err, "can't create session folder")
-	fs.Chtimes(filepath.Join(workDirectory, sessionName), accessTime, accessTime)
+	require.NoError(t, fs.Chtimes(filepath.Join(workDirectory, sessionName), now, modTime), "can't chtime of session dir")
 	require.NoError(t, err, "can't set times")
 }

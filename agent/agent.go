@@ -68,6 +68,7 @@ type Options struct {
 	EnvironmentVariables         map[string]string
 	Logger                       slog.Logger
 	IgnorePorts                  map[int]string
+	PortCacheDuration            time.Duration
 	SSHMaxTimeout                time.Duration
 	TailnetListenPort            uint16
 	Subsystems                   []codersdk.AgentSubsystem
@@ -126,6 +127,9 @@ func New(options Options) Agent {
 	if options.ServiceBannerRefreshInterval == 0 {
 		options.ServiceBannerRefreshInterval = 2 * time.Minute
 	}
+	if options.PortCacheDuration == 0 {
+		options.PortCacheDuration = 1 * time.Second
+	}
 
 	prometheusRegistry := options.PrometheusRegistry
 	if prometheusRegistry == nil {
@@ -153,6 +157,7 @@ func New(options Options) Agent {
 		lifecycleReported:            make(chan codersdk.WorkspaceAgentLifecycle, 1),
 		lifecycleStates:              []agentsdk.PostLifecycleRequest{{State: codersdk.WorkspaceAgentLifecycleCreated}},
 		ignorePorts:                  options.IgnorePorts,
+		portCacheDuration:            options.PortCacheDuration,
 		connStatsChan:                make(chan *agentsdk.Stats, 1),
 		reportMetadataInterval:       options.ReportMetadataInterval,
 		serviceBannerRefreshInterval: options.ServiceBannerRefreshInterval,
@@ -181,8 +186,9 @@ type agent struct {
 	// ignorePorts tells the api handler which ports to ignore when
 	// listing all listening ports. This is helpful to hide ports that
 	// are used by the agent, that the user does not care about.
-	ignorePorts map[int]string
-	subsystems  []codersdk.AgentSubsystem
+	ignorePorts       map[int]string
+	portCacheDuration time.Duration
+	subsystems        []codersdk.AgentSubsystem
 
 	reconnectingPTYs       sync.Map
 	reconnectingPTYTimeout time.Duration
@@ -536,6 +542,14 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 			continue
 		case <-report:
 			if len(updatedMetadata) > 0 {
+				select {
+				case <-reportSemaphore:
+				default:
+					// If there's already a report in flight, don't send
+					// another one, wait for next tick instead.
+					continue
+				}
+
 				metadata := make([]agentsdk.Metadata, 0, len(updatedMetadata))
 				for key, result := range updatedMetadata {
 					metadata = append(metadata, agentsdk.Metadata{
@@ -543,14 +557,6 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 						WorkspaceAgentMetadataResult: *result,
 					})
 					delete(updatedMetadata, key)
-				}
-
-				select {
-				case <-reportSemaphore:
-				default:
-					// If there's already a report in flight, don't send
-					// another one, wait for next tick instead.
-					continue
 				}
 
 				go func() {
@@ -743,7 +749,7 @@ func (a *agent) run(ctx context.Context) error {
 				return script.RunOnStart
 			})
 			if err != nil {
-				a.logger.Warn(ctx, "startup script failed", slog.Error(err))
+				a.logger.Warn(ctx, "startup script(s) failed", slog.Error(err))
 				if errors.Is(err, agentscripts.ErrTimeout) {
 					a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleStartTimeout)
 				} else {
@@ -1465,6 +1471,7 @@ func (a *agent) Close() error {
 		return script.RunOnStop
 	})
 	if err != nil {
+		a.logger.Warn(ctx, "shutdown script(s) failed", slog.Error(err))
 		if errors.Is(err, agentscripts.ErrTimeout) {
 			lifecycleState = codersdk.WorkspaceAgentLifecycleShutdownTimeout
 		} else {

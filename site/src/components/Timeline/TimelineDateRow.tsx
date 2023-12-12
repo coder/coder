@@ -14,8 +14,6 @@ export const TimelineDateRow: FC<TimelineDateRow> = ({ date }) => {
   return (
     <TableRow
       css={css`
-        background: ${theme.palette.background.paper};
-
         &:not(:first-of-type) td {
           border-top: 1px solid ${theme.palette.divider};
         }
@@ -23,8 +21,8 @@ export const TimelineDateRow: FC<TimelineDateRow> = ({ date }) => {
     >
       <TableCell
         css={{
-          padding: `${theme.spacing(1, 4)} !important`,
-          background: `${theme.palette.background.paperLight} !important`,
+          padding: `8px 32px !important`,
+          background: `${theme.palette.background.paper} !important`,
           fontSize: 12,
           position: "relative",
           color: theme.palette.text.secondary,

@@ -31,7 +31,7 @@ CREATE TYPE build_reason AS ENUM (
     'initiator',
     'autostart',
     'autostop',
-    'autolock',
+    'dormancy',
     'failedstop',
     'autodelete'
 );
@@ -133,12 +133,18 @@ CREATE TYPE resource_type AS ENUM (
     'workspace_build',
     'license',
     'workspace_proxy',
-    'convert_login'
+    'convert_login',
+    'health_settings'
 );
 
 CREATE TYPE startup_script_behavior AS ENUM (
     'blocking',
     'non-blocking'
+);
+
+CREATE TYPE tailnet_status AS ENUM (
+    'ok',
+    'lost'
 );
 
 CREATE TYPE user_status AS ENUM (
@@ -147,7 +153,7 @@ CREATE TYPE user_status AS ENUM (
     'dormant'
 );
 
-COMMENT ON TYPE user_status IS 'Defines the user status: active, dormant, or suspended.';
+COMMENT ON TYPE user_status IS 'Defines the users status: active, dormant, or suspended.';
 
 CREATE TYPE workspace_agent_lifecycle_state AS ENUM (
     'created',
@@ -289,6 +295,35 @@ CREATE FUNCTION tailnet_notify_coordinator_heartbeat() RETURNS trigger
 BEGIN
 	PERFORM pg_notify('tailnet_coordinator_heartbeat', NEW.id::text);
 	RETURN NULL;
+END;
+$$;
+
+CREATE FUNCTION tailnet_notify_peer_change() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	IF (OLD IS NOT NULL) THEN
+		PERFORM pg_notify('tailnet_peer_update', OLD.id::text);
+		RETURN NULL;
+	END IF;
+	IF (NEW IS NOT NULL) THEN
+		PERFORM pg_notify('tailnet_peer_update', NEW.id::text);
+		RETURN NULL;
+	END IF;
+END;
+$$;
+
+CREATE FUNCTION tailnet_notify_tunnel_change() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	IF (NEW IS NOT NULL) THEN
+		PERFORM pg_notify('tailnet_tunnel_update', NEW.src_id || ',' || NEW.dst_id);
+		RETURN NULL;
+	ELSIF (OLD IS NOT NULL) THEN
+		PERFORM pg_notify('tailnet_tunnel_update', OLD.src_id || ',' || OLD.dst_id);
+		RETURN NULL;
+	END IF;
 END;
 $$;
 
@@ -478,7 +513,9 @@ CREATE TABLE provisioner_daemons (
     name character varying(64) NOT NULL,
     provisioners provisioner_type[] NOT NULL,
     replica_id uuid,
-    tags jsonb DEFAULT '{}'::jsonb NOT NULL
+    tags jsonb DEFAULT '{}'::jsonb NOT NULL,
+    last_seen_at timestamp with time zone,
+    version text DEFAULT ''::text NOT NULL
 );
 
 CREATE TABLE provisioner_job_logs (
@@ -587,6 +624,21 @@ CREATE TABLE tailnet_coordinators (
 
 COMMENT ON TABLE tailnet_coordinators IS 'We keep this separate from replicas in case we need to break the coordinator out into its own service';
 
+CREATE TABLE tailnet_peers (
+    id uuid NOT NULL,
+    coordinator_id uuid NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    node bytea NOT NULL,
+    status tailnet_status DEFAULT 'ok'::tailnet_status NOT NULL
+);
+
+CREATE TABLE tailnet_tunnels (
+    coordinator_id uuid NOT NULL,
+    src_id uuid NOT NULL,
+    dst_id uuid NOT NULL,
+    updated_at timestamp with time zone NOT NULL
+);
+
 CREATE TABLE template_version_parameters (
     template_version_id uuid NOT NULL,
     name text NOT NULL,
@@ -694,13 +746,16 @@ CREATE TABLE users (
     status user_status DEFAULT 'dormant'::user_status NOT NULL,
     rbac_roles text[] DEFAULT '{}'::text[] NOT NULL,
     login_type login_type DEFAULT 'password'::login_type NOT NULL,
-    avatar_url text,
+    avatar_url text DEFAULT ''::text NOT NULL,
     deleted boolean DEFAULT false NOT NULL,
     last_seen_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL,
-    quiet_hours_schedule text DEFAULT ''::text NOT NULL
+    quiet_hours_schedule text DEFAULT ''::text NOT NULL,
+    theme_preference text DEFAULT ''::text NOT NULL
 );
 
 COMMENT ON COLUMN users.quiet_hours_schedule IS 'Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user''s quiet hours. If empty, the default quiet hours on the instance is used instead.';
+
+COMMENT ON COLUMN users.theme_preference IS '"" can be interpreted as "the user does not care", falling back to the default theme';
 
 CREATE VIEW visible_users AS
  SELECT users.id,
@@ -756,7 +811,8 @@ CREATE TABLE templates (
     autostop_requirement_days_of_week smallint DEFAULT 0 NOT NULL,
     autostop_requirement_weeks bigint DEFAULT 0 NOT NULL,
     autostart_block_days_of_week smallint DEFAULT 0 NOT NULL,
-    require_active_version boolean DEFAULT false NOT NULL
+    require_active_version boolean DEFAULT false NOT NULL,
+    deprecated text DEFAULT ''::text NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -774,6 +830,8 @@ COMMENT ON COLUMN templates.autostop_requirement_days_of_week IS 'A bitmap of da
 COMMENT ON COLUMN templates.autostop_requirement_weeks IS 'The number of weeks between restarts. 0 or 1 weeks means "every week", 2 week means "every second week", etc. Weeks are counted from January 2, 2023, which is the first Monday of 2023. This is to ensure workspaces are started consistently for all customers on the same n-week cycles.';
 
 COMMENT ON COLUMN templates.autostart_block_days_of_week IS 'A bitmap of days of week that autostart of a workspace is not allowed. Default allows all days. This is intended as a cost savings measure to prevent auto start on weekends (for example).';
+
+COMMENT ON COLUMN templates.deprecated IS 'If set to a non empty string, the template will no longer be able to be used. The message will be displayed to the user.';
 
 CREATE VIEW template_with_users AS
  SELECT templates.id,
@@ -802,6 +860,7 @@ CREATE VIEW template_with_users AS
     templates.autostop_requirement_weeks,
     templates.autostart_block_days_of_week,
     templates.require_active_version,
+    templates.deprecated,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username
    FROM (public.templates
@@ -817,12 +876,15 @@ CREATE TABLE user_links (
     oauth_refresh_token text DEFAULT ''::text NOT NULL,
     oauth_expiry timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
     oauth_access_token_key_id text,
-    oauth_refresh_token_key_id text
+    oauth_refresh_token_key_id text,
+    debug_context jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
 COMMENT ON COLUMN user_links.oauth_access_token_key_id IS 'The ID of the key used to encrypt the OAuth access token. If this is NULL, the access token is not encrypted';
 
 COMMENT ON COLUMN user_links.oauth_refresh_token_key_id IS 'The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted';
+
+COMMENT ON COLUMN user_links.debug_context IS 'Debug information includes information like id_token and userinfo claims.';
 
 CREATE TABLE workspace_agent_log_sources (
     workspace_agent_id uuid NOT NULL,
@@ -925,6 +987,7 @@ CREATE TABLE workspace_agents (
     ready_at timestamp with time zone,
     subsystems workspace_agent_subsystem[] DEFAULT '{}'::workspace_agent_subsystem[],
     display_apps display_app[] DEFAULT '{vscode,vscode_insiders,web_terminal,ssh_helper,port_forwarding_helper}'::display_app[],
+    api_version text DEFAULT ''::text NOT NULL,
     CONSTRAINT max_logs_length CHECK ((logs_length <= 1048576)),
     CONSTRAINT subsystems_not_none CHECK ((NOT ('none'::workspace_agent_subsystem = ANY (subsystems))))
 );
@@ -1073,7 +1136,8 @@ CREATE TABLE workspace_proxies (
     token_hashed_secret bytea NOT NULL,
     region_id integer NOT NULL,
     derp_enabled boolean DEFAULT true NOT NULL,
-    derp_only boolean DEFAULT false NOT NULL
+    derp_only boolean DEFAULT false NOT NULL,
+    version text DEFAULT ''::text NOT NULL
 );
 
 COMMENT ON COLUMN workspace_proxies.icon IS 'Expects an emoji character. (/emojis/1f1fa-1f1f8.png)';
@@ -1247,6 +1311,12 @@ ALTER TABLE ONLY tailnet_clients
 ALTER TABLE ONLY tailnet_coordinators
     ADD CONSTRAINT tailnet_coordinators_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY tailnet_peers
+    ADD CONSTRAINT tailnet_peers_pkey PRIMARY KEY (id, coordinator_id);
+
+ALTER TABLE ONLY tailnet_tunnels
+    ADD CONSTRAINT tailnet_tunnels_pkey PRIMARY KEY (coordinator_id, src_id, dst_id);
+
 ALTER TABLE ONLY template_version_parameters
     ADD CONSTRAINT template_version_parameters_template_version_id_name_key UNIQUE (template_version_id, name);
 
@@ -1350,6 +1420,8 @@ CREATE INDEX idx_tailnet_agents_coordinator ON tailnet_agents USING btree (coord
 
 CREATE INDEX idx_tailnet_clients_coordinator ON tailnet_clients USING btree (coordinator_id);
 
+CREATE INDEX idx_tailnet_peers_coordinator ON tailnet_peers USING btree (coordinator_id);
+
 CREATE UNIQUE INDEX idx_users_email ON users USING btree (email) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX idx_users_username ON users USING btree (username) WHERE (deleted = false);
@@ -1389,6 +1461,10 @@ CREATE TRIGGER tailnet_notify_client_change AFTER INSERT OR DELETE OR UPDATE ON 
 CREATE TRIGGER tailnet_notify_client_subscription_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_client_subscriptions FOR EACH ROW EXECUTE FUNCTION tailnet_notify_client_subscription_change();
 
 CREATE TRIGGER tailnet_notify_coordinator_heartbeat AFTER INSERT OR UPDATE ON tailnet_coordinators FOR EACH ROW EXECUTE FUNCTION tailnet_notify_coordinator_heartbeat();
+
+CREATE TRIGGER tailnet_notify_peer_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_peers FOR EACH ROW EXECUTE FUNCTION tailnet_notify_peer_change();
+
+CREATE TRIGGER tailnet_notify_tunnel_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_tunnels FOR EACH ROW EXECUTE FUNCTION tailnet_notify_tunnel_change();
 
 CREATE TRIGGER trigger_insert_apikeys BEFORE INSERT ON api_keys FOR EACH ROW EXECUTE FUNCTION insert_apikey_fail_if_user_deleted();
 
@@ -1438,6 +1514,12 @@ ALTER TABLE ONLY tailnet_client_subscriptions
 
 ALTER TABLE ONLY tailnet_clients
     ADD CONSTRAINT tailnet_clients_coordinator_id_fkey FOREIGN KEY (coordinator_id) REFERENCES tailnet_coordinators(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY tailnet_peers
+    ADD CONSTRAINT tailnet_peers_coordinator_id_fkey FOREIGN KEY (coordinator_id) REFERENCES tailnet_coordinators(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY tailnet_tunnels
+    ADD CONSTRAINT tailnet_tunnels_coordinator_id_fkey FOREIGN KEY (coordinator_id) REFERENCES tailnet_coordinators(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY template_version_parameters
     ADD CONSTRAINT template_version_parameters_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;

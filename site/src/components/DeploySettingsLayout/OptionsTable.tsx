@@ -5,7 +5,6 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import { type FC } from "react";
-import Box from "@mui/material/Box";
 import { css } from "@emotion/react";
 import type { ClibaseOption } from "api/typesGenerated";
 import {
@@ -17,10 +16,12 @@ import {
 } from "components/DeploySettingsLayout/Option";
 import { optionValue } from "./optionValue";
 
-const OptionsTable: FC<{
+interface OptionsTableProps {
   options: ClibaseOption[];
   additionalValues?: string[];
-}> = ({ options, additionalValues }) => {
+}
+
+const OptionsTable: FC<OptionsTableProps> = ({ options, additionalValues }) => {
   if (options.length === 0) {
     return <p>No options to configure</p>;
   }
@@ -28,15 +29,15 @@ const OptionsTable: FC<{
   return (
     <TableContainer>
       <Table
-        css={(theme) => css`
+        css={css`
           & td {
-            padding-top: ${theme.spacing(3)};
-            padding-bottom: ${theme.spacing(3)};
+            padding-top: 24px;
+            padding-bottom: 24px;
           }
 
           & td:last-child,
           & th:last-child {
-            padding-left: ${theme.spacing(4)};
+            padding-left: 32px;
           }
         `}
       >
@@ -60,12 +61,12 @@ const OptionsTable: FC<{
                 <TableCell>
                   <OptionName>{option.name}</OptionName>
                   <OptionDescription>{option.description}</OptionDescription>
-                  <Box
-                    sx={{
-                      marginTop: 3,
+                  <div
+                    css={{
+                      marginTop: 24,
                       display: "flex",
                       flexWrap: "wrap",
-                      gap: 1,
+                      gap: 8,
                     }}
                   >
                     {option.flag && (
@@ -92,7 +93,7 @@ const OptionsTable: FC<{
                         {option.yaml}
                       </OptionConfig>
                     )}
-                  </Box>
+                  </div>
                 </TableCell>
 
                 <TableCell>

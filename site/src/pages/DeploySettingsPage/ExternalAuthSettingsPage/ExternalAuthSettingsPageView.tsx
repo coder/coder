@@ -1,13 +1,13 @@
-import { makeStyles } from "@mui/styles";
+import { css } from "@emotion/react";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import { DeploymentValues, ExternalAuthConfig } from "api/typesGenerated";
+import type { DeploymentValues, ExternalAuthConfig } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
-import { EnterpriseBadge } from "components/DeploySettingsLayout/Badges";
+import { EnterpriseBadge } from "components/Badges/Badges";
 import { Header } from "components/DeploySettingsLayout/Header";
 import { docs } from "utils/docs";
 
@@ -18,8 +18,6 @@ export type ExternalAuthSettingsPageViewProps = {
 export const ExternalAuthSettingsPageView = ({
   config,
 }: ExternalAuthSettingsPageViewProps): JSX.Element => {
-  const styles = useStyles();
-
   return (
     <>
       <Header
@@ -40,7 +38,12 @@ export const ExternalAuthSettingsPageView = ({
         }}
       />
 
-      <div className={styles.description}>
+      <div
+        css={{
+          marginTop: 24,
+          marginBottom: 24,
+        }}
+      >
         <Alert severity="info" actions={<EnterpriseBadge key="enterprise" />}>
           Integrating with multiple External authentication providers is an
           Enterprise feature.
@@ -48,7 +51,19 @@ export const ExternalAuthSettingsPageView = ({
       </div>
 
       <TableContainer>
-        <Table className={styles.table}>
+        <Table
+          css={css`
+            & td {
+              padding-top: 24px;
+              padding-bottom: 24px;
+            }
+
+            & td:last-child,
+            & th:last-child {
+              padding-left: 32px;
+            }
+          `}
+        >
           <TableHead>
             <TableRow>
               <TableCell width="25%">ID</TableCell>
@@ -61,7 +76,7 @@ export const ExternalAuthSettingsPageView = ({
               config.external_auth?.length === 0) && (
               <TableRow>
                 <TableCell colSpan={999}>
-                  <div className={styles.empty}>
+                  <div css={{ textAlign: "center" }}>
                     No providers have been configured!
                   </div>
                 </TableCell>
@@ -83,23 +98,3 @@ export const ExternalAuthSettingsPageView = ({
     </>
   );
 };
-
-const useStyles = makeStyles((theme) => ({
-  table: {
-    "& td": {
-      paddingTop: theme.spacing(3),
-      paddingBottom: theme.spacing(3),
-    },
-
-    "& td:last-child, & th:last-child": {
-      paddingLeft: theme.spacing(4),
-    },
-  },
-  description: {
-    marginTop: theme.spacing(3),
-    marginBottom: theme.spacing(3),
-  },
-  empty: {
-    textAlign: "center",
-  },
-}));

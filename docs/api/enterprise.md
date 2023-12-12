@@ -700,16 +700,15 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
   {
     "created_at": "2019-08-24T14:15:22Z",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "last_seen_at": "2019-08-24T14:15:22Z",
     "name": "string",
     "provisioners": ["string"],
     "tags": {
       "property1": "string",
       "property2": "string"
     },
-    "updated_at": {
-      "time": "string",
-      "valid": true
-    }
+    "updated_at": "2019-08-24T14:15:22Z",
+    "version": "string"
   }
 ]
 ```
@@ -724,18 +723,18 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 
 Status Code **200**
 
-| Name                | Type                                   | Required | Restrictions | Description                       |
-| ------------------- | -------------------------------------- | -------- | ------------ | --------------------------------- |
-| `[array item]`      | array                                  | false    |              |                                   |
-| `» created_at`      | string(date-time)                      | false    |              |                                   |
-| `» id`              | string(uuid)                           | false    |              |                                   |
-| `» name`            | string                                 | false    |              |                                   |
-| `» provisioners`    | array                                  | false    |              |                                   |
-| `» tags`            | object                                 | false    |              |                                   |
-| `»» [any property]` | string                                 | false    |              |                                   |
-| `» updated_at`      | [sql.NullTime](schemas.md#sqlnulltime) | false    |              |                                   |
-| `»» time`           | string                                 | false    |              |                                   |
-| `»» valid`          | boolean                                | false    |              | Valid is true if Time is not NULL |
+| Name                | Type              | Required | Restrictions | Description |
+| ------------------- | ----------------- | -------- | ------------ | ----------- |
+| `[array item]`      | array             | false    |              |             |
+| `» created_at`      | string(date-time) | false    |              |             |
+| `» id`              | string(uuid)      | false    |              |             |
+| `» last_seen_at`    | string(date-time) | false    |              |             |
+| `» name`            | string            | false    |              |             |
+| `» provisioners`    | array             | false    |              |             |
+| `» tags`            | object            | false    |              |             |
+| `»» [any property]` | string            | false    |              |             |
+| `» updated_at`      | string(date-time) | false    |              |             |
+| `» version`         | string            | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1513,6 +1512,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceproxies \
           "status": "ok"
         },
         "updated_at": "2019-08-24T14:15:22Z",
+        "version": "string",
         "wildcard_hostname": "string"
       }
     ]
@@ -1551,6 +1551,7 @@ Status Code **200**
 | `»»»» warnings`        | array                                                                    | false    |              | Warnings do not prevent the workspace proxy from being healthy, but should be addressed.                                                                                           |
 | `»»» status`           | [codersdk.ProxyHealthStatus](schemas.md#codersdkproxyhealthstatus)       | false    |              |                                                                                                                                                                                    |
 | `»» updated_at`        | string(date-time)                                                        | false    |              |                                                                                                                                                                                    |
+| `»» version`           | string                                                                   | false    |              |                                                                                                                                                                                    |
 | `»» wildcard_hostname` | string                                                                   | false    |              | Wildcard hostname is the wildcard hostname for subdomain apps. E.g. _.us.example.com E.g. _--suffix.au.example.com Optional. Does not need to be on the same domain as PathAppURL. |
 
 #### Enumerated Values
@@ -1619,6 +1620,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceproxies \
     "status": "ok"
   },
   "updated_at": "2019-08-24T14:15:22Z",
+  "version": "string",
   "wildcard_hostname": "string"
 }
 ```
@@ -1675,6 +1677,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy} \
     "status": "ok"
   },
   "updated_at": "2019-08-24T14:15:22Z",
+  "version": "string",
   "wildcard_hostname": "string"
 }
 ```
@@ -1789,6 +1792,7 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy} 
     "status": "ok"
   },
   "updated_at": "2019-08-24T14:15:22Z",
+  "version": "string",
   "wildcard_hostname": "string"
 }
 ```

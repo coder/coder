@@ -1,16 +1,15 @@
 import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
-import { makeStyles } from "@mui/styles";
+import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
+import { type FC } from "react";
+import { Link as RouterLink } from "react-router-dom";
 import { Fieldset } from "components/DeploySettingsLayout/Fieldset";
 import { Header } from "components/DeploySettingsLayout/Header";
 import { FileUpload } from "components/FileUpload/FileUpload";
-import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Stack } from "components/Stack/Stack";
-import { DividerWithText } from "pages/DeploySettingsPage/LicensesSettingsPage/DividerWithText";
-import { FC } from "react";
-import { Link as RouterLink } from "react-router-dom";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { DividerWithText } from "pages/DeploySettingsPage/LicensesSettingsPage/DividerWithText";
 
 type AddNewLicenseProps = {
   onSaveLicenseKey: (license: string) => void;
@@ -23,8 +22,6 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
   isSavingLicense,
   savingLicenseError,
 }) => {
-  const styles = useStyles();
-
   function handleFileUploaded(files: File[]) {
     const fileReader = new FileReader();
     fileReader.onload = () => {
@@ -76,7 +73,7 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
         description="Select a text file that contains your license key."
       />
 
-      <Stack className={styles.main}>
+      <Stack css={{ paddingTop: 40 }}>
         <DividerWithText>or</DividerWithText>
 
         <Fieldset
@@ -109,9 +106,3 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
     </>
   );
 };
-
-const useStyles = makeStyles((theme) => ({
-  main: {
-    paddingTop: theme.spacing(5),
-  },
-}));

@@ -1,0 +1,94 @@
+syntax = "proto3";
+option go_package = "github.com/coder/coder/v2/tailnet/proto";
+
+package coder.tailnet.v2;
+
+import "google/protobuf/timestamp.proto";
+
+message DERPMap {
+	message HomeParams {
+		map<int32, double> region_score = 1;
+	}
+	HomeParams home_params = 1;
+
+	message Region {
+		int32 region_id = 1;
+		bool embedded_relay = 2;
+		string region_code = 3;
+		string region_name = 4;
+		bool avoid = 5;
+
+		message Node {
+			string name = 1;
+			int32 region_id = 2;
+			string host_name = 3;
+			string cert_name = 4;
+			string ipv4 = 5;
+			string ipv6 = 6;
+			int32 stun_port = 7;
+			bool stun_only = 8;
+			int32 derp_port = 9;
+			bool insecure_for_tests = 10;
+			bool force_http = 11;
+			string stun_test_ip = 12;
+			bool can_port_80 = 13;
+		}
+		repeated Node nodes = 6;
+	}
+	map<int32, Region> regions = 2;
+}
+
+message StreamDERPMapsRequest {}
+
+// defined in tailnet/coordinator.go
+message Node {
+	int64 id = 1;
+	google.protobuf.Timestamp as_of = 2;
+	bytes key = 3;
+	string disco = 4;
+	int32 preferred_derp = 5;
+	map<string, double> derp_latency = 6;
+	map<int32, string> derp_forced_websocket = 7;
+	repeated string addresses = 8;
+	repeated string allowed_ips = 9;
+	repeated string endpoints = 10;
+}
+
+message CoordinateRequest {
+	message UpdateSelf {
+		Node node = 1;
+	}
+	UpdateSelf update_self = 1;
+
+	message Disconnect {}
+	Disconnect disconnect = 2;
+
+	message Tunnel {
+		bytes uuid = 1;
+	}
+	Tunnel add_tunnel = 3;
+	Tunnel remove_tunnel = 4;
+}
+
+message CoordinateResponse {
+	message PeerUpdate {
+		bytes uuid = 1;
+		Node node = 2;
+
+		enum Kind {
+			KIND_UNSPECIFIED = 0;
+			NODE = 1;
+			DISCONNECTED = 2;
+			LOST = 3;
+		}
+		Kind kind = 3;
+
+		string reason = 4;
+	}
+	repeated PeerUpdate peer_updates = 1;
+}
+
+service Client {
+	rpc StreamDERPMaps(StreamDERPMapsRequest) returns (stream DERPMap);
+	rpc CoordinateTailnet(stream CoordinateRequest) returns (stream CoordinateResponse);
+}

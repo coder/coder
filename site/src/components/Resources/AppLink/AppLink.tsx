@@ -7,11 +7,19 @@ import { useTheme } from "@emotion/react";
 import { getApiKey } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import { useProxy } from "contexts/ProxyContext";
-import { PrimaryAgentButton } from "components/Resources/AgentButton";
+import { AgentButton } from "components/Resources/AgentButton";
 import { createAppLinkHref } from "utils/apps";
 import { generateRandomString } from "utils/random";
 import { BaseIcon } from "./BaseIcon";
 import { ShareIcon } from "./ShareIcon";
+
+export const DisplayAppNameMap: Record<TypesGen.DisplayApp, string> = {
+  port_forwarding_helper: "Ports",
+  ssh_helper: "SSH",
+  vscode: "VS Code Desktop",
+  vscode_insiders: "VS Code Insiders",
+  web_terminal: "Terminal",
+};
 
 const Language = {
   appTitle: (appName: string, identifier: string): string =>
@@ -86,7 +94,7 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
   const isPrivateApp = app.sharing_level === "owner";
 
   const button = (
-    <PrimaryAgentButton
+    <AgentButton
       startIcon={icon}
       endIcon={isPrivateApp ? undefined : <ShareIcon app={app} />}
       disabled={!canClick}
@@ -94,13 +102,13 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
       <span
         css={
           !isPrivateApp && {
-            marginRight: theme.spacing(1),
+            marginRight: 8,
           }
         }
       >
         {appDisplayName}
       </span>
-    </PrimaryAgentButton>
+    </AgentButton>
   );
 
   return (

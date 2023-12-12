@@ -19,8 +19,12 @@ import { prometheusPort, pprofPort } from "./constants";
 import { port } from "./playwright.config";
 import * as ssh from "ssh2";
 import { Duplex } from "stream";
-import { WorkspaceBuildParameter } from "api/typesGenerated";
+import {
+  WorkspaceBuildParameter,
+  UpdateTemplateMeta,
+} from "api/typesGenerated";
 import axios from "axios";
+import capitalize from "lodash/capitalize";
 
 // createWorkspace creates a workspace for a template.
 // It does not wait for it to be running, but it does navigate to the page.
@@ -381,8 +385,8 @@ type RecursivePartial<T> = {
   [P in keyof T]?: T[P] extends (infer U)[]
     ? RecursivePartial<U>[]
     : T[P] extends object | undefined
-    ? RecursivePartial<T[P]>
-    : T[P];
+      ? RecursivePartial<T[P]>
+      : T[P];
 };
 
 interface EchoProvisionerResponses {
@@ -473,6 +477,7 @@ const createTemplateVersionTar = async (
             env: {},
             id: randomUUID(),
             metadata: [],
+            extraEnvs: [],
             scripts: [],
             motdFile: "",
             name: "dev",
@@ -642,14 +647,14 @@ export const fillParameters = async (
           buildParameter.value +
           "']",
       );
-      await parameterField.check();
+      await parameterField.click();
     } else if (richParameter.options.length > 0) {
       const parameterField = await parameterLabel.waitForSelector(
         "[data-testid='parameter-field-options'] .MuiRadio-root input[value='" +
           buildParameter.value +
           "']",
       );
-      await parameterField.check();
+      await parameterField.click();
     } else if (richParameter.type === "list(string)") {
       throw new Error("not implemented yet"); // FIXME
     } else {
@@ -707,6 +712,30 @@ export const updateTemplate = async (
   child.stdin.end();
 
   await uploaded.wait();
+};
+
+export const updateTemplateSettings = async (
+  page: Page,
+  templateName: string,
+  templateSettingValues: Pick<
+    UpdateTemplateMeta,
+    "name" | "display_name" | "description"
+  >,
+) => {
+  await page.goto(`/templates/${templateName}/settings`, {
+    waitUntil: "domcontentloaded",
+  });
+  await expect(page).toHaveURL(`/templates/${templateName}/settings`);
+
+  for (const [key, value] of Object.entries(templateSettingValues)) {
+    const labelText = capitalize(key).replace("_", " ");
+    await page.getByLabel(labelText, { exact: true }).fill(value);
+  }
+
+  await page.getByTestId("form-submit").click();
+
+  const name = templateSettingValues.name ?? templateName;
+  await expect(page).toHaveURL(`/templates/${name}`);
 };
 
 export const updateWorkspace = async (

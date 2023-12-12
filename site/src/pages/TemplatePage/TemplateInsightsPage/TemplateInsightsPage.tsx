@@ -1,8 +1,42 @@
 import LinearProgress from "@mui/material/LinearProgress";
-import Box from "@mui/material/Box";
-import { styled, useTheme } from "@mui/material/styles";
-import { BoxProps } from "@mui/system";
+import Tooltip from "@mui/material/Tooltip";
+import Link from "@mui/material/Link";
+import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
+import CancelOutlined from "@mui/icons-material/CancelOutlined";
+import LinkOutlined from "@mui/icons-material/LinkOutlined";
 import { useQuery } from "react-query";
+import { Helmet } from "react-helmet-async";
+import type {
+  Entitlements,
+  Template,
+  TemplateAppUsage,
+  TemplateInsightsResponse,
+  TemplateParameterUsage,
+  TemplateParameterValue,
+  UserActivityInsightsResponse,
+  UserLatencyInsightsResponse,
+} from "api/typesGenerated";
+import { useTheme } from "@emotion/react";
+import {
+  PropsWithChildren,
+  type FC,
+  type ReactNode,
+  HTMLAttributes,
+  useId,
+} from "react";
+import chroma from "chroma-js";
+import {
+  subDays,
+  addWeeks,
+  format,
+  startOfDay,
+  startOfHour,
+  addHours,
+} from "date-fns";
+import { useSearchParams } from "react-router-dom";
+import "react-date-range/dist/styles.css";
+import "react-date-range/dist/theme/default.css";
+
 import {
   ActiveUsersTitle,
   ActiveUserChart,
@@ -15,41 +49,18 @@ import {
 } from "components/HelpTooltip/HelpTooltip";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { getLatencyColor } from "utils/latency";
-import chroma from "chroma-js";
-import { colors } from "theme/colors";
-import { Helmet } from "react-helmet-async";
-import { getTemplatePageTitle } from "../utils";
 import { Loader } from "components/Loader/Loader";
-import {
-  Entitlements,
-  Template,
-  TemplateAppUsage,
-  TemplateInsightsResponse,
-  TemplateParameterUsage,
-  TemplateParameterValue,
-  UserActivityInsightsResponse,
-  UserLatencyInsightsResponse,
-} from "api/typesGenerated";
-import { ComponentProps, ReactNode } from "react";
-import { subDays, addWeeks, format } from "date-fns";
-import "react-date-range/dist/styles.css";
-import "react-date-range/dist/theme/default.css";
-import { DateRange as DailyPicker, DateRangeValue } from "./DateRange";
-import Link from "@mui/material/Link";
-import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
-import CancelOutlined from "@mui/icons-material/CancelOutlined";
-import { lastWeeks } from "./utils";
-import Tooltip from "@mui/material/Tooltip";
-import LinkOutlined from "@mui/icons-material/LinkOutlined";
-import { InsightsInterval, IntervalMenu } from "./IntervalMenu";
-import { WeekPicker, numberOfWeeksOptions } from "./WeekPicker";
 import {
   insightsTemplate,
   insightsUserActivity,
   insightsUserLatency,
 } from "api/queries/insights";
-import { useSearchParams } from "react-router-dom";
 import { entitlements } from "api/queries/entitlements";
+import { getTemplatePageTitle } from "../utils";
+import { DateRange as DailyPicker, DateRangeValue } from "./DateRange";
+import { lastWeeks } from "./utils";
+import { InsightsInterval, IntervalMenu } from "./IntervalMenu";
+import { WeekPicker, numberOfWeeksOptions } from "./WeekPicker";
 
 const DEFAULT_NUMBER_OF_WEEKS = numberOfWeeksOptions[0];
 
@@ -68,10 +79,13 @@ export default function TemplateInsightsPage() {
     setSearchParams(searchParams);
   };
 
+  // date ranges can have different offsets because of daylight savings so to
+  // avoid that we are going to use a common offset
+  const baseOffset = dateRange.endDate.getTimezoneOffset();
   const commonFilters = {
     template_ids: template.id,
-    start_time: toISOLocal(dateRange.startDate),
-    end_time: toISOLocal(dateRange.endDate),
+    start_time: toISOLocal(dateRange.startDate, baseOffset),
+    end_time: toISOLocal(dateRange.endDate, baseOffset),
   };
 
   const insightsFilter = { ...commonFilters, interval };
@@ -138,52 +152,59 @@ const getDateRange = (
   }
 
   if (interval === "day") {
+    // Only instantiate new Date once so that we don't get the wrong interval if
+    // start is 23:59:59.999 and the clock shifts to 00:00:00 before the second
+    // instantiation.
+    const today = new Date();
     return {
-      startDate: subDays(new Date(), 6),
-      endDate: new Date(),
+      startDate: startOfDay(subDays(today, 6)),
+      // Add one hour to endDate to include real-time data for today.
+      endDate: addHours(startOfHour(today), 1),
     };
   }
 
   return lastWeeks(DEFAULT_NUMBER_OF_WEEKS);
 };
 
-export const TemplateInsightsPageView = ({
-  templateInsights,
-  userLatency,
-  userActivity,
-  entitlements,
-  controls,
-  interval,
-}: {
+interface TemplateInsightsPageViewProps {
   templateInsights: TemplateInsightsResponse | undefined;
   userLatency: UserLatencyInsightsResponse | undefined;
   userActivity: UserActivityInsightsResponse | undefined;
   entitlements: Entitlements | undefined;
   controls: ReactNode;
   interval: InsightsInterval;
+}
+
+export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
+  templateInsights,
+  userLatency,
+  userActivity,
+  entitlements,
+  controls,
+  interval,
 }) => {
   return (
     <>
-      <Box
-        css={(theme) => ({
-          marginBottom: theme.spacing(4),
+      <div
+        css={{
+          marginBottom: 32,
           display: "flex",
           alignItems: "center",
-          gap: theme.spacing(1),
-        })}
+          gap: 8,
+        }}
       >
         {controls}
-      </Box>
-      <Box
-        sx={{
+      </div>
+      <div
+        css={{
           display: "grid",
           gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
           gridTemplateRows: "440px 440px auto",
-          gap: (theme) => theme.spacing(3),
+          gap: 24,
         }}
       >
         <ActiveUsersPanel
-          sx={{ gridColumn: "span 2" }}
+          css={{ gridColumn: "span 2" }}
           interval={interval}
           userLimit={
             entitlements?.features.user_limit.enabled
@@ -194,28 +215,30 @@ export const TemplateInsightsPageView = ({
         />
         <UsersLatencyPanel data={userLatency} />
         <TemplateUsagePanel
-          sx={{ gridColumn: "span 2" }}
+          css={{ gridColumn: "span 2" }}
           data={templateInsights?.report?.apps_usage}
         />
         <UsersActivityPanel data={userActivity} />
         <TemplateParametersUsagePanel
-          sx={{ gridColumn: "span 3" }}
+          css={{ gridColumn: "span 3" }}
           data={templateInsights?.report?.parameters_usage}
         />
-      </Box>
+      </div>
     </>
   );
 };
 
-const ActiveUsersPanel = ({
+interface ActiveUsersPanelProps extends PanelProps {
+  data: TemplateInsightsResponse["interval_reports"] | undefined;
+  interval: InsightsInterval;
+  userLimit: number | undefined;
+}
+
+const ActiveUsersPanel: FC<ActiveUsersPanelProps> = ({
   data,
   interval,
   userLimit,
   ...panelProps
-}: PanelProps & {
-  data: TemplateInsightsResponse["interval_reports"] | undefined;
-  interval: InsightsInterval;
-  userLimit: number | undefined;
 }) => {
   return (
     <Panel {...panelProps}>
@@ -225,7 +248,7 @@ const ActiveUsersPanel = ({
         </PanelTitle>
       </PanelHeader>
       <PanelContent>
-        {!data && <Loader sx={{ height: "100%" }} />}
+        {!data && <Loader css={{ height: "100%" }} />}
         {data && data.length === 0 && <NoDataAvailable />}
         {data && data.length > 0 && (
           <ActiveUserChart
@@ -242,17 +265,21 @@ const ActiveUsersPanel = ({
   );
 };
 
-const UsersLatencyPanel = ({
+interface UsersLatencyPanelProps extends PanelProps {
+  data: UserLatencyInsightsResponse | undefined;
+}
+
+const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
   data,
   ...panelProps
-}: PanelProps & { data: UserLatencyInsightsResponse | undefined }) => {
+}) => {
   const theme = useTheme();
   const users = data?.report.users;
 
   return (
-    <Panel {...panelProps} sx={{ overflowY: "auto", ...panelProps.sx }}>
+    <Panel {...panelProps} css={{ overflowY: "auto" }}>
       <PanelHeader>
-        <PanelTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+        <PanelTitle css={{ display: "flex", alignItems: "center", gap: 8 }}>
           Latency by user
           <HelpTooltip size="small">
             <HelpTooltipTitle>How is latency calculated?</HelpTooltipTitle>
@@ -263,31 +290,32 @@ const UsersLatencyPanel = ({
         </PanelTitle>
       </PanelHeader>
       <PanelContent>
-        {!data && <Loader sx={{ height: "100%" }} />}
+        {!data && <Loader css={{ height: "100%" }} />}
         {users && users.length === 0 && <NoDataAvailable />}
         {users &&
           users
             .sort((a, b) => b.latency_ms.p50 - a.latency_ms.p50)
             .map((row) => (
-              <Box
+              <div
                 key={row.user_id}
-                sx={{
+                css={{
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
                   fontSize: 14,
-                  py: 1,
+                  paddingTop: 8,
+                  paddingBottom: 8,
                 }}
               >
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                <div css={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <UserAvatar
                     username={row.username}
                     avatarURL={row.avatar_url}
                   />
-                  <Box sx={{ fontWeight: 500 }}>{row.username}</Box>
-                </Box>
-                <Box
-                  sx={{
+                  <div css={{ fontWeight: 500 }}>{row.username}</div>
+                </div>
+                <div
+                  css={{
                     color: getLatencyColor(theme, row.latency_ms.p50),
                     fontWeight: 500,
                     fontSize: 13,
@@ -295,24 +323,30 @@ const UsersLatencyPanel = ({
                   }}
                 >
                   {row.latency_ms.p50.toFixed(0)}ms
-                </Box>
-              </Box>
+                </div>
+              </div>
             ))}
       </PanelContent>
     </Panel>
   );
 };
 
-const UsersActivityPanel = ({
+interface UsersActivityPanelProps extends PanelProps {
+  data: UserActivityInsightsResponse | undefined;
+}
+
+const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
   data,
   ...panelProps
-}: PanelProps & { data: UserActivityInsightsResponse | undefined }) => {
+}) => {
+  const theme = useTheme();
+
   const users = data?.report.users;
 
   return (
-    <Panel {...panelProps} sx={{ overflowY: "auto", ...panelProps.sx }}>
+    <Panel {...panelProps} css={{ overflowY: "auto" }}>
       <PanelHeader>
-        <PanelTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+        <PanelTitle css={{ display: "flex", alignItems: "center", gap: 8 }}>
           Activity by user
           <HelpTooltip size="small">
             <HelpTooltipTitle>How is activity calculated?</HelpTooltipTitle>
@@ -324,74 +358,79 @@ const UsersActivityPanel = ({
         </PanelTitle>
       </PanelHeader>
       <PanelContent>
-        {!data && <Loader sx={{ height: "100%" }} />}
+        {!data && <Loader css={{ height: "100%" }} />}
         {users && users.length === 0 && <NoDataAvailable />}
         {users &&
           users
             .sort((a, b) => b.seconds - a.seconds)
             .map((row) => (
-              <Box
+              <div
                 key={row.user_id}
-                sx={{
+                css={{
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
                   fontSize: 14,
-                  py: 1,
+                  paddingTop: 8,
+                  paddingBottom: 8,
                 }}
               >
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                <div css={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <UserAvatar
                     username={row.username}
                     avatarURL={row.avatar_url}
                   />
-                  <Box sx={{ fontWeight: 500 }}>{row.username}</Box>
-                </Box>
-                <Box
-                  css={(theme) => ({
+                  <div css={{ fontWeight: 500 }}>{row.username}</div>
+                </div>
+                <div
+                  css={{
                     color: theme.palette.text.secondary,
                     fontSize: 13,
                     textAlign: "right",
-                  })}
+                  }}
                 >
                   {formatTime(row.seconds)}
-                </Box>
-              </Box>
+                </div>
+              </div>
             ))}
       </PanelContent>
     </Panel>
   );
 };
 
-const TemplateUsagePanel = ({
+interface TemplateUsagePanelProps extends PanelProps {
+  data: TemplateAppUsage[] | undefined;
+}
+
+const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
   data,
   ...panelProps
-}: PanelProps & {
-  data: TemplateAppUsage[] | undefined;
 }) => {
+  const theme = useTheme();
   const validUsage = data?.filter((u) => u.seconds > 0);
   const totalInSeconds =
     validUsage?.reduce((total, usage) => total + usage.seconds, 0) ?? 1;
   const usageColors = chroma
-    .scale([colors.green[8], colors.blue[8]])
+    .scale([theme.colors.green[8], theme.colors.blue[8]])
     .mode("lch")
     .colors(validUsage?.length ?? 0);
   // The API returns a row for each app, even if the user didn't use it.
   const hasDataAvailable = validUsage && validUsage.length > 0;
+
   return (
     <Panel {...panelProps} css={{ overflowY: "auto" }}>
       <PanelHeader>
         <PanelTitle>App & IDE Usage</PanelTitle>
       </PanelHeader>
       <PanelContent>
-        {!data && <Loader sx={{ height: "100%" }} />}
+        {!data && <Loader css={{ height: "100%" }} />}
         {data && !hasDataAvailable && <NoDataAvailable />}
         {data && hasDataAvailable && (
-          <Box
-            sx={{
+          <div
+            css={{
               display: "flex",
               flexDirection: "column",
-              gap: 3,
+              gap: 24,
             }}
           >
             {validUsage
@@ -399,13 +438,15 @@ const TemplateUsagePanel = ({
               .map((usage, i) => {
                 const percentage = (usage.seconds / totalInSeconds) * 100;
                 return (
-                  <Box
+                  <div
                     key={usage.slug}
-                    sx={{ display: "flex", gap: 2, alignItems: "center" }}
+                    css={{ display: "flex", gap: 16, alignItems: "center" }}
                   >
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                      <Box
-                        sx={{
+                    <div
+                      css={{ display: "flex", alignItems: "center", gap: 8 }}
+                    >
+                      <div
+                        css={{
                           width: 20,
                           height: 20,
                           display: "flex",
@@ -422,58 +463,62 @@ const TemplateUsagePanel = ({
                             height: "100%",
                           }}
                         />
-                      </Box>
-                      <Box sx={{ fontSize: 13, fontWeight: 500, width: 200 }}>
+                      </div>
+                      <div css={{ fontSize: 13, fontWeight: 500, width: 200 }}>
                         {usage.display_name}
-                      </Box>
-                    </Box>
+                      </div>
+                    </div>
                     <LinearProgress
                       value={percentage}
                       variant="determinate"
-                      sx={{
+                      css={{
                         width: "100%",
                         height: 8,
-                        backgroundColor: (theme) => theme.palette.divider,
+                        backgroundColor: theme.palette.divider,
                         "& .MuiLinearProgress-bar": {
                           backgroundColor: usageColors[i],
                           borderRadius: 999,
                         },
                       }}
                     />
-                    <Box
-                      sx={{
+                    <div
+                      css={{
                         fontSize: 13,
-                        color: (theme) => theme.palette.text.secondary,
+                        color: theme.palette.text.secondary,
                         width: 120,
                         flexShrink: 0,
                       }}
                     >
                       {formatTime(usage.seconds)}
-                    </Box>
-                  </Box>
+                    </div>
+                  </div>
                 );
               })}
-          </Box>
+          </div>
         )}
       </PanelContent>
     </Panel>
   );
 };
 
-const TemplateParametersUsagePanel = ({
+interface TemplateParametersUsagePanelProps extends PanelProps {
+  data: TemplateParameterUsage[] | undefined;
+}
+
+const TemplateParametersUsagePanel: FC<TemplateParametersUsagePanelProps> = ({
   data,
   ...panelProps
-}: PanelProps & {
-  data: TemplateParameterUsage[] | undefined;
 }) => {
+  const theme = useTheme();
+
   return (
     <Panel {...panelProps}>
       <PanelHeader>
         <PanelTitle>Parameters usage</PanelTitle>
       </PanelHeader>
       <PanelContent>
-        {!data && <Loader sx={{ height: 200 }} />}
-        {data && data.length === 0 && <NoDataAvailable sx={{ height: 200 }} />}
+        {!data && <Loader css={{ height: 200 }} />}
+        {data && data.length === 0 && <NoDataAvailable css={{ height: 200 }} />}
         {data &&
           data.length > 0 &&
           data.map((parameter, parameterIndex) => {
@@ -482,49 +527,50 @@ const TemplateParametersUsagePanel = ({
                 ? parameter.display_name
                 : parameter.name;
             return (
-              <Box
+              <div
                 key={parameter.name}
-                sx={{
+                css={{
                   display: "flex",
                   alignItems: "start",
-                  p: 3,
-                  marginX: -3,
-                  borderTop: (theme) => `1px solid ${theme.palette.divider}`,
-                  width: (theme) => `calc(100% + ${theme.spacing(6)})`,
+                  padding: 24,
+                  marginLeft: -24,
+                  marginRight: -24,
+                  borderTop: `1px solid ${theme.palette.divider}`,
+                  width: "calc(100% + 48px)",
                   "&:first-child": {
                     borderTop: 0,
                   },
+                  gap: 24,
                 }}
               >
-                <Box sx={{ flex: 1 }}>
-                  <Box sx={{ fontWeight: 500 }}>{label}</Box>
-                  <Box
-                    component="p"
-                    sx={{
+                <div css={{ flex: 1 }}>
+                  <div css={{ fontWeight: 500 }}>{label}</div>
+                  <p
+                    css={{
                       fontSize: 14,
-                      color: (theme) => theme.palette.text.secondary,
+                      color: theme.palette.text.secondary,
                       maxWidth: 400,
                       margin: 0,
                     }}
                   >
                     {parameter.description}
-                  </Box>
-                </Box>
-                <Box sx={{ flex: 1, fontSize: 14 }}>
+                  </p>
+                </div>
+                <div css={{ flex: 1, fontSize: 14, flexGrow: 2 }}>
                   <ParameterUsageRow
-                    sx={{
-                      color: (theme) => theme.palette.text.secondary,
+                    css={{
+                      color: theme.palette.text.secondary,
                       fontWeight: 500,
                       fontSize: 13,
                       cursor: "default",
                     }}
                   >
-                    <Box>Value</Box>
+                    <div>Value</div>
                     <Tooltip
                       title="The number of workspaces using this value"
                       placement="top"
                     >
-                      <Box>Count</Box>
+                      <div>Count</div>
                     </Tooltip>
                   </ParameterUsageRow>
                   {parameter.values
@@ -538,11 +584,11 @@ const TemplateParametersUsagePanel = ({
                           usage={usage}
                           parameter={parameter}
                         />
-                        <Box sx={{ textAlign: "right" }}>{usage.count}</Box>
+                        <div css={{ textAlign: "right" }}>{usage.count}</div>
                       </ParameterUsageRow>
                     ))}
-                </Box>
-              </Box>
+                </div>
+              </div>
             );
           })}
       </PanelContent>
@@ -560,49 +606,66 @@ const filterOrphanValues = (
   return true;
 };
 
-const ParameterUsageRow = styled(Box)(({ theme }) => ({
-  display: "flex",
-  alignItems: "baseline",
-  justifyContent: "space-between",
-  padding: theme.spacing(0.5, 0),
-  gap: theme.spacing(5),
-}));
+const ParameterUsageRow: FC<HTMLAttributes<HTMLDivElement>> = ({
+  children,
+  ...attrs
+}) => {
+  return (
+    <div
+      css={{
+        display: "flex",
+        alignItems: "baseline",
+        justifyContent: "space-between",
+        padding: "4px 0",
+      }}
+      {...attrs}
+    >
+      {children}
+    </div>
+  );
+};
 
-const ParameterUsageLabel = ({
-  usage,
-  parameter,
-}: {
+interface ParameterUsageLabelProps {
   usage: TemplateParameterValue;
   parameter: TemplateParameterUsage;
+}
+
+const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
+  usage,
+  parameter,
 }) => {
+  const ariaId = useId();
+  const theme = useTheme();
+
   if (parameter.options) {
     const option = parameter.options.find((o) => o.value === usage.value)!;
     const icon = option.icon;
     const label = option.name;
 
     return (
-      <Box
-        sx={{
+      <div
+        css={{
           display: "flex",
           alignItems: "center",
-          gap: 2,
+          gap: 16,
         }}
       >
         {icon && (
-          <Box sx={{ width: 16, height: 16, lineHeight: 1 }}>
-            <Box
-              component="img"
+          <div css={{ width: 16, height: 16, lineHeight: 1 }}>
+            <img
+              alt=""
               src={icon}
-              sx={{
+              css={{
                 objectFit: "contain",
                 width: "100%",
                 height: "100%",
               }}
+              aria-labelledby={ariaId}
             />
-          </Box>
+          </div>
         )}
-        {label}
-      </Box>
+        <span id={ariaId}>{label}</span>
+      </div>
     );
   }
 
@@ -612,19 +675,19 @@ const ParameterUsageLabel = ({
         href={usage.value}
         target="_blank"
         rel="noreferrer"
-        sx={{
+        css={{
           display: "flex",
           alignItems: "center",
           gap: 1,
-          color: (theme) => theme.palette.text.primary,
+          color: theme.palette.text.primary,
         }}
       >
         <TextValue>{usage.value}</TextValue>
         <LinkOutlined
-          sx={{
+          css={{
             width: 14,
             height: 14,
-            color: (theme) => theme.palette.primary.light,
+            color: theme.palette.primary.light,
           }}
         />
       </Link>
@@ -634,42 +697,40 @@ const ParameterUsageLabel = ({
   if (parameter.type === "list(string)") {
     const values = JSON.parse(usage.value) as string[];
     return (
-      <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-        {values.map((v, i) => {
-          return (
-            <Box
-              key={i}
-              sx={{
-                p: (theme) => theme.spacing(0.25, 1.5),
-                borderRadius: 999,
-                background: (theme) => theme.palette.divider,
-                whiteSpace: "nowrap",
-              }}
-            >
-              {v}
-            </Box>
-          );
-        })}
-      </Box>
+      <div css={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {values.map((v, i) => (
+          <div
+            key={i}
+            css={{
+              padding: "2px 12px",
+              borderRadius: 999,
+              background: theme.palette.divider,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {v}
+          </div>
+        ))}
+      </div>
     );
   }
 
   if (parameter.type === "bool") {
     return (
-      <Box
-        sx={{
+      <div
+        css={{
           display: "flex",
           alignItems: "center",
-          gap: 1,
+          gap: 8,
         }}
       >
         {usage.value === "false" ? (
           <>
             <CancelOutlined
-              sx={{
+              css={{
                 width: 16,
                 height: 16,
-                color: (theme) => theme.palette.error.light,
+                color: theme.palette.error.light,
               }}
             />
             False
@@ -677,91 +738,122 @@ const ParameterUsageLabel = ({
         ) : (
           <>
             <CheckCircleOutlined
-              sx={{
+              css={{
                 width: 16,
                 height: 16,
-                color: (theme) => theme.palette.success.light,
+                color: theme.palette.success.light,
               }}
             />
             True
           </>
         )}
-      </Box>
+      </div>
     );
   }
 
   return <TextValue>{usage.value}</TextValue>;
 };
 
-const Panel = styled(Box)(({ theme }) => ({
-  borderRadius: theme.shape.borderRadius,
-  border: `1px solid ${theme.palette.divider}`,
-  backgroundColor: theme.palette.background.paper,
-  display: "flex",
-  flexDirection: "column",
-}));
+interface PanelProps extends HTMLAttributes<HTMLDivElement> {}
 
-type PanelProps = ComponentProps<typeof Panel>;
+const Panel: FC<PanelProps> = ({ children, ...attrs }) => {
+  const theme = useTheme();
 
-const PanelHeader = styled(Box)(({ theme }) => ({
-  padding: theme.spacing(2.5, 3, 3),
-}));
-
-const PanelTitle = styled(Box)(() => ({
-  fontSize: 14,
-  fontWeight: 500,
-}));
-
-const PanelContent = styled(Box)(({ theme }) => ({
-  padding: theme.spacing(0, 3, 3),
-  flex: 1,
-}));
-
-const NoDataAvailable = (props: BoxProps) => {
   return (
-    <Box
+    <div
+      css={{
+        borderRadius: 8,
+        border: `1px solid ${theme.palette.divider}`,
+        backgroundColor: theme.palette.background.paper,
+        display: "flex",
+        flexDirection: "column",
+      }}
+      {...attrs}
+    >
+      {children}
+    </div>
+  );
+};
+
+const PanelHeader: FC<HTMLAttributes<HTMLDivElement>> = ({
+  children,
+  ...attrs
+}) => {
+  return (
+    <div css={{ padding: "20px 24px 24px" }} {...attrs}>
+      {children}
+    </div>
+  );
+};
+
+const PanelTitle: FC<HTMLAttributes<HTMLDivElement>> = ({
+  children,
+  ...attrs
+}) => {
+  return (
+    <div css={{ fontSize: 14, fontWeight: 500 }} {...attrs}>
+      {children}
+    </div>
+  );
+};
+
+const PanelContent: FC<HTMLAttributes<HTMLDivElement>> = ({
+  children,
+  ...attrs
+}) => {
+  return (
+    <div css={{ padding: "0 24px 24px", flex: 1 }} {...attrs}>
+      {children}
+    </div>
+  );
+};
+
+const NoDataAvailable = (props: HTMLAttributes<HTMLDivElement>) => {
+  const theme = useTheme();
+
+  return (
+    <div
       {...props}
-      sx={{
+      css={{
         fontSize: 13,
-        color: (theme) => theme.palette.text.secondary,
+        color: theme.palette.text.secondary,
         textAlign: "center",
         height: "100%",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        ...props.sx,
       }}
     >
       No data available
-    </Box>
+    </div>
   );
 };
 
-const TextValue = ({ children }: { children: ReactNode }) => {
+const TextValue: FC<PropsWithChildren> = ({ children }) => {
+  const theme = useTheme();
+
   return (
-    <Box component="span">
-      <Box
-        component="span"
-        sx={{
-          color: (theme) => theme.palette.text.secondary,
+    <span>
+      <span
+        css={{
+          color: theme.palette.text.secondary,
           weight: 600,
-          mr: 0.25,
+          marginRight: 2,
         }}
       >
         &quot;
-      </Box>
+      </span>
       {children}
-      <Box
-        component="span"
-        sx={{
-          color: (theme) => theme.palette.text.secondary,
+      <span
+        css={{
+          color: theme.palette.text.secondary,
           weight: 600,
-          ml: 0.25,
+          marginLeft: 2,
         }}
       >
         &quot;
-      </Box>
-    </Box>
+      </span>
+    </span>
   );
 };
 
@@ -782,6 +874,19 @@ function formatTime(seconds: number): string {
   }
 }
 
-function toISOLocal(d: Date) {
-  return format(d, "yyyy-MM-dd'T'HH:mm:ssxxx");
+function toISOLocal(d: Date, offset: number) {
+  return format(d, `yyyy-MM-dd'T'HH:mm:ss${formatOffset(offset)}`);
+}
+
+function formatOffset(offset: number): string {
+  // A negative offset means that this is a positive timezone, e.g. GMT+2 = -120.
+  const isPositiveTimezone = offset <= 0;
+  const absoluteOffset = Math.abs(offset);
+  const hours = Math.floor(absoluteOffset / 60);
+  const minutes = Math.abs(offset) % 60;
+  const formattedHours = `${isPositiveTimezone ? "+" : "-"}${String(
+    hours,
+  ).padStart(2, "0")}`;
+  const formattedMinutes = String(minutes).padStart(2, "0");
+  return `${formattedHours}:${formattedMinutes}`;
 }

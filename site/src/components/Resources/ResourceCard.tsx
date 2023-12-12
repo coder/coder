@@ -1,18 +1,19 @@
-import { type FC, useState } from "react";
+import { type FC, type PropsWithChildren, useState } from "react";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import { type CSSObject, type Interpolation, type Theme } from "@emotion/react";
-import { WorkspaceAgent, WorkspaceResource } from "api/typesGenerated";
-import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
-import { CopyableValue } from "components/CopyableValue/CopyableValue";
+import { Children } from "react";
+import type { WorkspaceAgent, WorkspaceResource } from "api/typesGenerated";
+import { DropdownArrow } from "../DropdownArrow/DropdownArrow";
+import { CopyableValue } from "../CopyableValue/CopyableValue";
+import { MemoizedInlineMarkdown } from "../Markdown/Markdown";
 import { Stack } from "../Stack/Stack";
 import { ResourceAvatar } from "./ResourceAvatar";
 import { SensitiveValue } from "./SensitiveValue";
 
 const styles = {
   resourceCard: (theme) => ({
-    background: theme.palette.background.paper,
-    borderRadius: theme.shape.borderRadius,
+    borderRadius: 8,
     border: `1px solid ${theme.palette.divider}`,
 
     "&:not(:first-of-type)": {
@@ -33,7 +34,7 @@ const styles = {
   },
 
   resourceCardHeader: (theme) => ({
-    padding: theme.spacing(3, 4),
+    padding: "24px 32px",
     borderBottom: `1px solid ${theme.palette.divider}`,
 
     "&:last-child": {
@@ -72,22 +73,29 @@ export interface ResourceCardProps {
   agentRow: (agent: WorkspaceAgent) => JSX.Element;
 }
 
+const p = ({ children }: PropsWithChildren) => {
+  const childrens = Children.toArray(children);
+  if (childrens.every((child) => typeof child === "string")) {
+    return <CopyableValue value={childrens.join("")}>{children}</CopyableValue>;
+  }
+  return <>{children}</>;
+};
+
 export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
   const [shouldDisplayAllMetadata, setShouldDisplayAllMetadata] =
     useState(false);
   const metadataToDisplay = resource.metadata ?? [];
+
   const visibleMetadata = shouldDisplayAllMetadata
     ? metadataToDisplay
-    : metadataToDisplay.slice(0, 4);
+    : metadataToDisplay.slice(0, resource.daily_cost > 0 ? 3 : 4);
 
-  // Add one to `metadataLength` if the resource has a cost, and hide one
-  // additional metadata item, because cost is displayed in the same grid.
-  let metadataLength = resource.metadata?.length ?? 0;
-  if (resource.daily_cost > 0) {
-    metadataLength += 1;
-    visibleMetadata.pop();
-  }
-  const gridWidth = metadataLength === 1 ? 1 : 4;
+  const mLength =
+    resource.daily_cost > 0
+      ? (resource.metadata?.length ?? 0) + 1
+      : resource.metadata?.length ?? 0;
+
+  const gridWidth = mLength === 1 ? 1 : 4;
 
   return (
     <div key={resource.id} css={styles.resourceCard} className="resource-card">
@@ -112,18 +120,18 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
         </Stack>
 
         <div
-          css={(theme) => ({
+          css={{
             flexGrow: 2,
             display: "grid",
             gridTemplateColumns: `repeat(${gridWidth}, minmax(0, 1fr))`,
-            gap: theme.spacing(5),
-            rowGap: theme.spacing(3),
-          })}
+            gap: 40,
+            rowGap: 24,
+          }}
         >
           {resource.daily_cost > 0 && (
             <div css={styles.metadata}>
               <div css={styles.metadataLabel}>
-                <b>cost</b>
+                <b>Daily cost</b>
               </div>
               <div css={styles.metadataValue}>{resource.daily_cost}</div>
             </div>
@@ -136,16 +144,16 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
                   {meta.sensitive ? (
                     <SensitiveValue value={meta.value} />
                   ) : (
-                    <CopyableValue value={meta.value}>
+                    <MemoizedInlineMarkdown components={{ p }}>
                       {meta.value}
-                    </CopyableValue>
+                    </MemoizedInlineMarkdown>
                   )}
                 </div>
               </div>
             );
           })}
         </div>
-        {metadataLength > 4 && (
+        {mLength > 4 && (
           <Tooltip
             title={
               shouldDisplayAllMetadata ? "Hide metadata" : "Show all metadata"

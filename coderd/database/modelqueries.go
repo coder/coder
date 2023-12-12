@@ -52,6 +52,7 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 		arg.OrganizationID,
 		arg.ExactName,
 		pq.Array(arg.IDs),
+		arg.Deprecated,
 	)
 	if err != nil {
 		return nil, err
@@ -87,6 +88,7 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 			&i.AutostopRequirementWeeks,
 			&i.AutostartBlockDaysOfWeek,
 			&i.RequireActiveVersion,
+			&i.Deprecated,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 		); err != nil {
@@ -219,7 +221,7 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 		arg.Name,
 		arg.HasAgent,
 		arg.AgentInactiveDisconnectTimeoutSeconds,
-		arg.IsDormant,
+		arg.Dormant,
 		arg.LastUsedBefore,
 		arg.LastUsedAfter,
 		arg.Offset,
@@ -314,6 +316,7 @@ func (q *sqlQuerier) GetAuthorizedUsers(ctx context.Context, arg GetUsersParams,
 			&i.Deleted,
 			&i.LastSeenAt,
 			&i.QuietHoursSchedule,
+			&i.ThemePreference,
 			&i.Count,
 		); err != nil {
 			return nil, err

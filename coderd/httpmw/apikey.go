@@ -378,6 +378,9 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 				OAuthRefreshToken:      link.OAuthRefreshToken,
 				OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
 				OAuthExpiry:            link.OAuthExpiry,
+				// Refresh should keep the same debug context because we use
+				// the original claims for the group/role sync.
+				DebugContext: link.DebugContext,
 			})
 			if err != nil {
 				return write(http.StatusInternalServerError, codersdk.Response{
@@ -534,4 +537,19 @@ func RedirectToLogin(rw http.ResponseWriter, r *http.Request, dashboardURL *url.
 	// See other forces a GET request rather than keeping the current method
 	// (like temporary redirect does).
 	http.Redirect(rw, r, u.String(), http.StatusSeeOther)
+}
+
+// CustomRedirectToLogin redirects the user to the login page with the `message` and
+// `redirect` query parameters set, with a provided code
+func CustomRedirectToLogin(rw http.ResponseWriter, r *http.Request, redirect string, message string, code int) {
+	q := url.Values{}
+	q.Add("message", message)
+	q.Add("redirect", redirect)
+
+	u := &url.URL{
+		Path:     "/login",
+		RawQuery: q.Encode(),
+	}
+
+	http.Redirect(rw, r, u.String(), code)
 }

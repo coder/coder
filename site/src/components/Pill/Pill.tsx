@@ -1,66 +1,42 @@
 import { type FC, type ReactNode, useMemo, forwardRef } from "react";
-import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
-import { colors } from "theme/colors";
+import { css, type Interpolation, type Theme } from "@emotion/react";
+import type { ThemeRole } from "theme/experimental";
 
-export type PillType =
-  | "primary"
-  | "secondary"
-  | "error"
-  | "warning"
-  | "info"
-  | "success"
-  | "neutral";
+export type PillType = ThemeRole | keyof typeof themeOverrides;
 
 export interface PillProps {
   className?: string;
   icon?: ReactNode;
   text: ReactNode;
   type?: PillType;
-  lightBorder?: boolean;
   title?: string;
 }
 
 const themeOverrides = {
-  primary: (lightBorder) => ({
-    backgroundColor: colors.blue[13],
-    borderColor: lightBorder ? colors.blue[5] : colors.blue[7],
+  neutral: (theme) => ({
+    backgroundColor: theme.colors.gray[13],
+    borderColor: theme.colors.gray[6],
   }),
-  secondary: (lightBorder) => ({
-    backgroundColor: colors.indigo[13],
-    borderColor: lightBorder ? colors.indigo[6] : colors.indigo[8],
-  }),
-  neutral: (lightBorder) => ({
-    backgroundColor: colors.gray[13],
-    borderColor: lightBorder ? colors.gray[6] : colors.gray[8],
-  }),
-} satisfies Record<string, (lightBorder?: boolean) => Interpolation<Theme>>;
+} satisfies Record<string, Interpolation<Theme>>;
 
-const themeStyles =
-  (type: PillType, lightBorder?: boolean) => (theme: Theme) => {
-    const palette = theme.palette[type];
-    return {
-      backgroundColor: palette.dark,
-      borderColor: lightBorder ? palette.light : palette.main,
-    };
+const themeStyles = (type: ThemeRole) => (theme: Theme) => {
+  const palette = theme.experimental.roles[type];
+  return {
+    backgroundColor: palette.background,
+    borderColor: palette.outline,
   };
+};
 
 export const Pill: FC<PillProps> = forwardRef<HTMLDivElement, PillProps>(
   (props, ref) => {
-    const {
-      lightBorder,
-      icon,
-      text = null,
-      type = "neutral",
-      ...attrs
-    } = props;
-    const theme = useTheme();
+    const { icon, text = null, type = "neutral", ...attrs } = props;
 
     const typeStyles = useMemo(() => {
       if (type in themeOverrides) {
-        return themeOverrides[type as keyof typeof themeOverrides](lightBorder);
+        return themeOverrides[type as keyof typeof themeOverrides];
       }
-      return themeStyles(type, lightBorder);
-    }, [type, lightBorder]);
+      return themeStyles(type as ThemeRole);
+    }, [type]);
 
     return (
       <div
@@ -75,9 +51,9 @@ export const Pill: FC<PillProps> = forwardRef<HTMLDivElement, PillProps>(
             borderRadius: 99999,
             fontSize: 12,
             color: "#FFF",
-            height: theme.spacing(3),
-            paddingLeft: icon ? theme.spacing(0.75) : theme.spacing(1.5),
-            paddingRight: theme.spacing(1.5),
+            height: 24,
+            paddingLeft: icon ? 6 : 12,
+            paddingRight: 12,
             whiteSpace: "nowrap",
             fontWeight: 400,
           },
@@ -89,9 +65,9 @@ export const Pill: FC<PillProps> = forwardRef<HTMLDivElement, PillProps>(
         {icon && (
           <div
             css={css`
-              margin-right: ${theme.spacing(0.5)};
-              width: ${theme.spacing(1.75)};
-              height: ${theme.spacing(1.75)};
+              margin-right: 4px;
+              width: 14px;
+              height: 14px;
               line-height: 0;
               display: flex;
               align-items: center;
@@ -99,8 +75,8 @@ export const Pill: FC<PillProps> = forwardRef<HTMLDivElement, PillProps>(
 
               & > img,
               & > svg {
-                width: ${theme.spacing(1.75)};
-                height: ${theme.spacing(1.75)};
+                width: 14px;
+                height: 14px;
               }
             `}
           >

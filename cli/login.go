@@ -147,6 +147,10 @@ func (r *RootCmd) login() *clibase.Cmd {
 				rawURL = inv.Args[0]
 			}
 
+			if rawURL == "" {
+				return xerrors.Errorf("no url argument provided")
+			}
+
 			if !strings.HasPrefix(rawURL, "http://") && !strings.HasPrefix(rawURL, "https://") {
 				scheme := "https"
 				if strings.HasPrefix(rawURL, "localhost") {

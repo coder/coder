@@ -3,9 +3,9 @@ import Button from "@mui/material/Button";
 import FormHelperText from "@mui/material/FormHelperText";
 import Tooltip from "@mui/material/Tooltip";
 import { type FC } from "react";
-import { LoadingButton } from "components/LoadingButton/LoadingButton";
 import { Stack } from "components/Stack/Stack";
 import { type ExternalAuthPollingState } from "./CreateWorkspacePage";
+import LoadingButton from "@mui/lab/LoadingButton";
 
 export interface ExternalAuthProps {
   displayName: string;
@@ -15,6 +15,7 @@ export interface ExternalAuthProps {
   externalAuthPollingState: ExternalAuthPollingState;
   startPollingExternalAuth: () => void;
   error?: string;
+  message?: string;
 }
 
 export const ExternalAuth: FC<ExternalAuthProps> = (props) => {
@@ -26,25 +27,34 @@ export const ExternalAuth: FC<ExternalAuthProps> = (props) => {
     externalAuthPollingState,
     startPollingExternalAuth,
     error,
+    message,
   } = props;
 
+  const messageContent =
+    message ??
+    (authenticated
+      ? `Authenticated with ${displayName}`
+      : `Login with ${displayName}`);
   return (
     <Tooltip
       title={authenticated && `${displayName} has already been connected.`}
     >
       <Stack alignItems="center" spacing={1}>
         <LoadingButton
+          loadingPosition="start"
           loading={externalAuthPollingState === "polling"}
           href={authenticateURL}
           variant="contained"
           size="large"
           startIcon={
-            <img
-              src={displayIcon}
-              alt={`${displayName} Icon`}
-              width={24}
-              height={24}
-            />
+            displayIcon && (
+              <img
+                src={displayIcon}
+                alt={`${displayName} Icon`}
+                width={16}
+                height={16}
+              />
+            )
           }
           disabled={authenticated}
           css={{ height: 52 }}
@@ -60,9 +70,7 @@ export const ExternalAuth: FC<ExternalAuthProps> = (props) => {
             startPollingExternalAuth();
           }}
         >
-          {authenticated
-            ? `Authenticated with ${displayName}`
-            : `Login with ${displayName}`}
+          {messageContent}
         </LoadingButton>
 
         {externalAuthPollingState === "abandoned" && (
