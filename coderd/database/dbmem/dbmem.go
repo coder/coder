@@ -4679,9 +4679,8 @@ func (q *FakeQuerier) InsertAuditLog(_ context.Context, arg database.InsertAudit
 			return -1
 		} else if a.Time.Equal(b.Time) {
 			return 0
-		} else {
-			return 1
 		}
+		return 1
 	})
 
 	return alog, nil
