@@ -8758,7 +8758,6 @@ const docTemplate = `{
                 "moons",
                 "workspace_actions",
                 "tailnet_pg_coordinator",
-                "single_tailnet",
                 "template_autostop_requirement",
                 "deployment_health_page",
                 "template_update_policies"
@@ -8767,7 +8766,6 @@ const docTemplate = `{
                 "ExperimentMoons",
                 "ExperimentWorkspaceActions",
                 "ExperimentTailnetPGCoordinator",
-                "ExperimentSingleTailnet",
                 "ExperimentTemplateAutostopRequirement",
                 "ExperimentDeploymentHealthPage",
                 "ExperimentTemplateUpdatePolicies"

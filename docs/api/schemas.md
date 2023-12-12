@@ -2868,7 +2868,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `moons`                         |
 | `workspace_actions`             |
 | `tailnet_pg_coordinator`        |
-| `single_tailnet`                |
 | `template_autostop_requirement` |
 | `deployment_health_page`        |
 | `template_update_policies`      |

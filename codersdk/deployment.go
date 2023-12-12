@@ -2066,11 +2066,6 @@ const (
 	// only Coordinator
 	ExperimentTailnetPGCoordinator Experiment = "tailnet_pg_coordinator"
 
-	// ExperimentSingleTailnet replaces workspace connections inside coderd to
-	// all use a single tailnet, instead of the previous behavior of creating a
-	// single tailnet for each agent.
-	ExperimentSingleTailnet Experiment = "single_tailnet"
-
 	// ExperimentTemplateAutostopRequirement allows template admins to have more
 	// control over when workspaces created on a template are required to
 	// stop, and allows users to ensure these restarts never happen during their
@@ -2099,7 +2094,6 @@ const (
 // not be included here and will be essentially hidden.
 var ExperimentsAll = Experiments{
 	ExperimentDeploymentHealthPage,
-	ExperimentSingleTailnet,
 }
 
 // Experiments is a list of experiments.

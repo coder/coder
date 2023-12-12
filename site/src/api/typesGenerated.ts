@@ -1768,7 +1768,6 @@ export const Entitlements: Entitlement[] = [
 export type Experiment =
   | "deployment_health_page"
   | "moons"
-  | "single_tailnet"
   | "tailnet_pg_coordinator"
   | "template_autostop_requirement"
   | "template_update_policies"
@@ -1776,7 +1775,6 @@ export type Experiment =
 export const Experiments: Experiment[] = [
   "deployment_health_page",
   "moons",
-  "single_tailnet",
   "tailnet_pg_coordinator",
   "template_autostop_requirement",
   "template_update_policies",
