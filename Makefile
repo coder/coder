@@ -712,6 +712,7 @@ sqlc-vet: test-postgres-docker
 	echo "--- sqlc vet"
 	SQLC_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/$(shell go run scripts/migrate-ci/main.go)" \
 	sqlc vet -f coderd/database/sqlc.yaml && echo "Passed sqlc vet"
+.PHONY: sqlc-vet
 
 # When updating -timeout for this test, keep in sync with
 # test-go-postgres (.github/workflows/coder.yaml).
