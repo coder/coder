@@ -788,6 +788,20 @@ func (q *sqlQuerier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest strin
 	return err
 }
 
+const deleteExternalAuthLink = `-- name: DeleteExternalAuthLink :exec
+DELETE FROM external_auth_links WHERE provider_id = $1 AND user_id = $2
+`
+
+type DeleteExternalAuthLinkParams struct {
+	ProviderID string    `db:"provider_id" json:"provider_id"`
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+func (q *sqlQuerier) DeleteExternalAuthLink(ctx context.Context, arg DeleteExternalAuthLinkParams) error {
+	_, err := q.db.ExecContext(ctx, deleteExternalAuthLink, arg.ProviderID, arg.UserID)
+	return err
+}
+
 const getExternalAuthLink = `-- name: GetExternalAuthLink :one
 SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra FROM external_auth_links WHERE provider_id = $1 AND user_id = $2
 `
@@ -1286,7 +1300,7 @@ func (q *sqlQuerier) DeleteGroupMembersByOrgAndUser(ctx context.Context, arg Del
 
 const getGroupMembers = `-- name: GetGroupMembers :many
 SELECT
-	users.id, users.email, users.username, users.hashed_password, users.created_at, users.updated_at, users.status, users.rbac_roles, users.login_type, users.avatar_url, users.deleted, users.last_seen_at, users.quiet_hours_schedule
+	users.id, users.email, users.username, users.hashed_password, users.created_at, users.updated_at, users.status, users.rbac_roles, users.login_type, users.avatar_url, users.deleted, users.last_seen_at, users.quiet_hours_schedule, users.theme_preference
 FROM
 	users
 LEFT JOIN
@@ -1333,6 +1347,7 @@ func (q *sqlQuerier) GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]
 			&i.Deleted,
 			&i.LastSeenAt,
 			&i.QuietHoursSchedule,
+			&i.ThemePreference,
 		); err != nil {
 			return nil, err
 		}
@@ -2310,11 +2325,11 @@ type GetUserActivityInsightsParams struct {
 }
 
 type GetUserActivityInsightsRow struct {
-	UserID       uuid.UUID      `db:"user_id" json:"user_id"`
-	Username     string         `db:"username" json:"username"`
-	AvatarURL    sql.NullString `db:"avatar_url" json:"avatar_url"`
-	TemplateIDs  []uuid.UUID    `db:"template_ids" json:"template_ids"`
-	UsageSeconds int64          `db:"usage_seconds" json:"usage_seconds"`
+	UserID       uuid.UUID   `db:"user_id" json:"user_id"`
+	Username     string      `db:"username" json:"username"`
+	AvatarURL    string      `db:"avatar_url" json:"avatar_url"`
+	TemplateIDs  []uuid.UUID `db:"template_ids" json:"template_ids"`
+	UsageSeconds int64       `db:"usage_seconds" json:"usage_seconds"`
 }
 
 // GetUserActivityInsights returns the ranking with top active users.
@@ -2380,12 +2395,12 @@ type GetUserLatencyInsightsParams struct {
 }
 
 type GetUserLatencyInsightsRow struct {
-	UserID                       uuid.UUID      `db:"user_id" json:"user_id"`
-	Username                     string         `db:"username" json:"username"`
-	AvatarURL                    sql.NullString `db:"avatar_url" json:"avatar_url"`
-	TemplateIDs                  []uuid.UUID    `db:"template_ids" json:"template_ids"`
-	WorkspaceConnectionLatency50 float64        `db:"workspace_connection_latency_50" json:"workspace_connection_latency_50"`
-	WorkspaceConnectionLatency95 float64        `db:"workspace_connection_latency_95" json:"workspace_connection_latency_95"`
+	UserID                       uuid.UUID   `db:"user_id" json:"user_id"`
+	Username                     string      `db:"username" json:"username"`
+	AvatarURL                    string      `db:"avatar_url" json:"avatar_url"`
+	TemplateIDs                  []uuid.UUID `db:"template_ids" json:"template_ids"`
+	WorkspaceConnectionLatency50 float64     `db:"workspace_connection_latency_50" json:"workspace_connection_latency_50"`
+	WorkspaceConnectionLatency95 float64     `db:"workspace_connection_latency_95" json:"workspace_connection_latency_95"`
 }
 
 // GetUserLatencyInsights returns the median and 95th percentile connection
@@ -2986,9 +3001,25 @@ func (q *sqlQuerier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.
 	return items, nil
 }
 
+const deleteOldProvisionerDaemons = `-- name: DeleteOldProvisionerDaemons :exec
+DELETE FROM provisioner_daemons WHERE (
+	(created_at < (NOW() - INTERVAL '7 days') AND updated_at IS NULL) OR
+	(updated_at IS NOT NULL AND updated_at < (NOW() - INTERVAL '7 days'))
+)
+`
+
+// Delete provisioner daemons that have been created at least a week ago
+// and have not connected to coderd since a week.
+// A provisioner daemon with "zeroed" updated_at column indicates possible
+// connectivity issues (no provisioner daemon activity since registration).
+func (q *sqlQuerier) DeleteOldProvisionerDaemons(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deleteOldProvisionerDaemons)
+	return err
+}
+
 const getProvisionerDaemons = `-- name: GetProvisionerDaemons :many
 SELECT
-	id, created_at, updated_at, name, provisioners, replica_id, tags
+	id, created_at, updated_at, name, provisioners, replica_id, tags, last_seen_at, version
 FROM
 	provisioner_daemons
 `
@@ -3010,6 +3041,8 @@ func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDa
 			pq.Array(&i.Provisioners),
 			&i.ReplicaID,
 			&i.Tags,
+			&i.LastSeenAt,
+			&i.Version,
 		); err != nil {
 			return nil, err
 		}
@@ -3031,10 +3064,11 @@ INSERT INTO
 		created_at,
 		"name",
 		provisioners,
-		tags
+		tags,
+		updated_at
 	)
 VALUES
-	($1, $2, $3, $4, $5) RETURNING id, created_at, updated_at, name, provisioners, replica_id, tags
+	($1, $2, $3, $4, $5, $6) RETURNING id, created_at, updated_at, name, provisioners, replica_id, tags, last_seen_at, version
 `
 
 type InsertProvisionerDaemonParams struct {
@@ -3043,6 +3077,7 @@ type InsertProvisionerDaemonParams struct {
 	Name         string            `db:"name" json:"name"`
 	Provisioners []ProvisionerType `db:"provisioners" json:"provisioners"`
 	Tags         StringMap         `db:"tags" json:"tags"`
+	UpdatedAt    sql.NullTime      `db:"updated_at" json:"updated_at"`
 }
 
 func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProvisionerDaemonParams) (ProvisionerDaemon, error) {
@@ -3052,6 +3087,7 @@ func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProv
 		arg.Name,
 		pq.Array(arg.Provisioners),
 		arg.Tags,
+		arg.UpdatedAt,
 	)
 	var i ProvisionerDaemon
 	err := row.Scan(
@@ -3062,6 +3098,8 @@ func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProv
 		pq.Array(&i.Provisioners),
 		&i.ReplicaID,
 		&i.Tags,
+		&i.LastSeenAt,
+		&i.Version,
 	)
 	return i, err
 }
@@ -3667,7 +3705,7 @@ func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, a
 
 const getWorkspaceProxies = `-- name: GetWorkspaceProxies :many
 SELECT
-	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only, version
 FROM
 	workspace_proxies
 WHERE
@@ -3697,6 +3735,7 @@ func (q *sqlQuerier) GetWorkspaceProxies(ctx context.Context) ([]WorkspaceProxy,
 			&i.RegionID,
 			&i.DerpEnabled,
 			&i.DerpOnly,
+			&i.Version,
 		); err != nil {
 			return nil, err
 		}
@@ -3713,7 +3752,7 @@ func (q *sqlQuerier) GetWorkspaceProxies(ctx context.Context) ([]WorkspaceProxy,
 
 const getWorkspaceProxyByHostname = `-- name: GetWorkspaceProxyByHostname :one
 SELECT
-	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only, version
 FROM
 	workspace_proxies
 WHERE
@@ -3772,13 +3811,14 @@ func (q *sqlQuerier) GetWorkspaceProxyByHostname(ctx context.Context, arg GetWor
 		&i.RegionID,
 		&i.DerpEnabled,
 		&i.DerpOnly,
+		&i.Version,
 	)
 	return i, err
 }
 
 const getWorkspaceProxyByID = `-- name: GetWorkspaceProxyByID :one
 SELECT
-	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only, version
 FROM
 	workspace_proxies
 WHERE
@@ -3804,13 +3844,14 @@ func (q *sqlQuerier) GetWorkspaceProxyByID(ctx context.Context, id uuid.UUID) (W
 		&i.RegionID,
 		&i.DerpEnabled,
 		&i.DerpOnly,
+		&i.Version,
 	)
 	return i, err
 }
 
 const getWorkspaceProxyByName = `-- name: GetWorkspaceProxyByName :one
 SELECT
-	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only, version
 FROM
 	workspace_proxies
 WHERE
@@ -3837,6 +3878,7 @@ func (q *sqlQuerier) GetWorkspaceProxyByName(ctx context.Context, name string) (
 		&i.RegionID,
 		&i.DerpEnabled,
 		&i.DerpOnly,
+		&i.Version,
 	)
 	return i, err
 }
@@ -3858,7 +3900,7 @@ INSERT INTO
 		deleted
 	)
 VALUES
-	($1, '', '', $2, $3, $4, $5, $6, $7, $8, $9, false) RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only
+	($1, '', '', $2, $3, $4, $5, $6, $7, $8, $9, false) RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only, version
 `
 
 type InsertWorkspaceProxyParams struct {
@@ -3900,6 +3942,7 @@ func (q *sqlQuerier) InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspa
 		&i.RegionID,
 		&i.DerpEnabled,
 		&i.DerpOnly,
+		&i.Version,
 	)
 	return i, err
 }
@@ -3912,10 +3955,11 @@ SET
 	wildcard_hostname = $2 :: text,
 	derp_enabled = $3 :: boolean,
 	derp_only = $4 :: boolean,
+	version = $5 :: text,
 	updated_at = Now()
 WHERE
-	id = $5
-RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only
+	id = $6
+RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only, version
 `
 
 type RegisterWorkspaceProxyParams struct {
@@ -3923,6 +3967,7 @@ type RegisterWorkspaceProxyParams struct {
 	WildcardHostname string    `db:"wildcard_hostname" json:"wildcard_hostname"`
 	DerpEnabled      bool      `db:"derp_enabled" json:"derp_enabled"`
 	DerpOnly         bool      `db:"derp_only" json:"derp_only"`
+	Version          string    `db:"version" json:"version"`
 	ID               uuid.UUID `db:"id" json:"id"`
 }
 
@@ -3932,6 +3977,7 @@ func (q *sqlQuerier) RegisterWorkspaceProxy(ctx context.Context, arg RegisterWor
 		arg.WildcardHostname,
 		arg.DerpEnabled,
 		arg.DerpOnly,
+		arg.Version,
 		arg.ID,
 	)
 	var i WorkspaceProxy
@@ -3949,6 +3995,7 @@ func (q *sqlQuerier) RegisterWorkspaceProxy(ctx context.Context, arg RegisterWor
 		&i.RegionID,
 		&i.DerpEnabled,
 		&i.DerpOnly,
+		&i.Version,
 	)
 	return i, err
 }
@@ -3971,7 +4018,7 @@ SET
 	updated_at = Now()
 WHERE
 	id = $5
-RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only
+RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only, version
 `
 
 type UpdateWorkspaceProxyParams struct {
@@ -4006,6 +4053,7 @@ func (q *sqlQuerier) UpdateWorkspaceProxy(ctx context.Context, arg UpdateWorkspa
 		&i.RegionID,
 		&i.DerpEnabled,
 		&i.DerpOnly,
+		&i.Version,
 	)
 	return i, err
 }
@@ -4334,6 +4382,18 @@ func (q *sqlQuerier) GetDeploymentID(ctx context.Context) (string, error) {
 	return value, err
 }
 
+const getHealthSettings = `-- name: GetHealthSettings :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'health_settings'), '{}') :: text AS health_settings
+`
+
+func (q *sqlQuerier) GetHealthSettings(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getHealthSettings)
+	var health_settings string
+	err := row.Scan(&health_settings)
+	return health_settings, err
+}
+
 const getLastUpdateCheck = `-- name: GetLastUpdateCheck :one
 SELECT value FROM site_configs WHERE key = 'last_update_check'
 `
@@ -4439,6 +4499,16 @@ func (q *sqlQuerier) UpsertDefaultProxy(ctx context.Context, arg UpsertDefaultPr
 	return err
 }
 
+const upsertHealthSettings = `-- name: UpsertHealthSettings :exec
+INSERT INTO site_configs (key, value) VALUES ('health_settings', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'health_settings'
+`
+
+func (q *sqlQuerier) UpsertHealthSettings(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertHealthSettings, value)
+	return err
+}
+
 const upsertLastUpdateCheck = `-- name: UpsertLastUpdateCheck :exec
 INSERT INTO site_configs (key, value) VALUES ('last_update_check', $1)
 ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'last_update_check'
@@ -4487,6 +4557,31 @@ WHERE heartbeat_at < now() - INTERVAL '24 HOURS'
 
 func (q *sqlQuerier) CleanTailnetCoordinators(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, cleanTailnetCoordinators)
+	return err
+}
+
+const cleanTailnetLostPeers = `-- name: CleanTailnetLostPeers :exec
+DELETE
+FROM tailnet_peers
+WHERE updated_at < now() - INTERVAL '24 HOURS' AND status = 'lost'::tailnet_status
+`
+
+func (q *sqlQuerier) CleanTailnetLostPeers(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, cleanTailnetLostPeers)
+	return err
+}
+
+const cleanTailnetTunnels = `-- name: CleanTailnetTunnels :exec
+DELETE FROM tailnet_tunnels
+WHERE updated_at < now() - INTERVAL '24 HOURS' AND
+      NOT EXISTS (
+        SELECT 1 FROM tailnet_peers
+        WHERE id = tailnet_tunnels.src_id AND coordinator_id = tailnet_tunnels.coordinator_id
+      )
+`
+
+func (q *sqlQuerier) CleanTailnetTunnels(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, cleanTailnetTunnels)
 	return err
 }
 
@@ -4722,6 +4817,100 @@ func (q *sqlQuerier) GetAllTailnetClients(ctx context.Context) ([]GetAllTailnetC
 	return items, nil
 }
 
+const getAllTailnetCoordinators = `-- name: GetAllTailnetCoordinators :many
+
+SELECT id, heartbeat_at FROM tailnet_coordinators
+`
+
+// For PG Coordinator HTMLDebug
+func (q *sqlQuerier) GetAllTailnetCoordinators(ctx context.Context) ([]TailnetCoordinator, error) {
+	rows, err := q.db.QueryContext(ctx, getAllTailnetCoordinators)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TailnetCoordinator
+	for rows.Next() {
+		var i TailnetCoordinator
+		if err := rows.Scan(&i.ID, &i.HeartbeatAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAllTailnetPeers = `-- name: GetAllTailnetPeers :many
+SELECT id, coordinator_id, updated_at, node, status FROM tailnet_peers
+`
+
+func (q *sqlQuerier) GetAllTailnetPeers(ctx context.Context) ([]TailnetPeer, error) {
+	rows, err := q.db.QueryContext(ctx, getAllTailnetPeers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TailnetPeer
+	for rows.Next() {
+		var i TailnetPeer
+		if err := rows.Scan(
+			&i.ID,
+			&i.CoordinatorID,
+			&i.UpdatedAt,
+			&i.Node,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAllTailnetTunnels = `-- name: GetAllTailnetTunnels :many
+SELECT coordinator_id, src_id, dst_id, updated_at FROM tailnet_tunnels
+`
+
+func (q *sqlQuerier) GetAllTailnetTunnels(ctx context.Context) ([]TailnetTunnel, error) {
+	rows, err := q.db.QueryContext(ctx, getAllTailnetTunnels)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TailnetTunnel
+	for rows.Next() {
+		var i TailnetTunnel
+		if err := rows.Scan(
+			&i.CoordinatorID,
+			&i.SrcID,
+			&i.DstID,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getTailnetAgents = `-- name: GetTailnetAgents :many
 SELECT id, coordinator_id, updated_at, node
 FROM tailnet_agents
@@ -4828,22 +5017,23 @@ func (q *sqlQuerier) GetTailnetPeers(ctx context.Context, id uuid.UUID) ([]Tailn
 }
 
 const getTailnetTunnelPeerBindings = `-- name: GetTailnetTunnelPeerBindings :many
-SELECT tailnet_tunnels.dst_id as peer_id, tailnet_peers.coordinator_id, tailnet_peers.updated_at, tailnet_peers.node
+SELECT tailnet_tunnels.dst_id as peer_id, tailnet_peers.coordinator_id, tailnet_peers.updated_at, tailnet_peers.node, tailnet_peers.status
 FROM tailnet_tunnels
 INNER JOIN tailnet_peers ON tailnet_tunnels.dst_id = tailnet_peers.id
 WHERE tailnet_tunnels.src_id = $1
 UNION
-SELECT tailnet_tunnels.src_id as peer_id, tailnet_peers.coordinator_id, tailnet_peers.updated_at, tailnet_peers.node
+SELECT tailnet_tunnels.src_id as peer_id, tailnet_peers.coordinator_id, tailnet_peers.updated_at, tailnet_peers.node, tailnet_peers.status
 FROM tailnet_tunnels
 INNER JOIN tailnet_peers ON tailnet_tunnels.src_id = tailnet_peers.id
 WHERE tailnet_tunnels.dst_id = $1
 `
 
 type GetTailnetTunnelPeerBindingsRow struct {
-	PeerID        uuid.UUID `db:"peer_id" json:"peer_id"`
-	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
-	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
-	Node          []byte    `db:"node" json:"node"`
+	PeerID        uuid.UUID     `db:"peer_id" json:"peer_id"`
+	CoordinatorID uuid.UUID     `db:"coordinator_id" json:"coordinator_id"`
+	UpdatedAt     time.Time     `db:"updated_at" json:"updated_at"`
+	Node          []byte        `db:"node" json:"node"`
+	Status        TailnetStatus `db:"status" json:"status"`
 }
 
 func (q *sqlQuerier) GetTailnetTunnelPeerBindings(ctx context.Context, srcID uuid.UUID) ([]GetTailnetTunnelPeerBindingsRow, error) {
@@ -4860,6 +5050,7 @@ func (q *sqlQuerier) GetTailnetTunnelPeerBindings(ctx context.Context, srcID uui
 			&i.CoordinatorID,
 			&i.UpdatedAt,
 			&i.Node,
+			&i.Status,
 		); err != nil {
 			return nil, err
 		}
@@ -6516,7 +6707,7 @@ func (q *sqlQuerier) InsertTemplateVersionVariable(ctx context.Context, arg Inse
 
 const getUserLinkByLinkedID = `-- name: GetUserLinkByLinkedID :one
 SELECT
-	user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id
+	user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, debug_context
 FROM
 	user_links
 WHERE
@@ -6535,13 +6726,14 @@ func (q *sqlQuerier) GetUserLinkByLinkedID(ctx context.Context, linkedID string)
 		&i.OAuthExpiry,
 		&i.OAuthAccessTokenKeyID,
 		&i.OAuthRefreshTokenKeyID,
+		&i.DebugContext,
 	)
 	return i, err
 }
 
 const getUserLinkByUserIDLoginType = `-- name: GetUserLinkByUserIDLoginType :one
 SELECT
-	user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id
+	user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, debug_context
 FROM
 	user_links
 WHERE
@@ -6565,12 +6757,13 @@ func (q *sqlQuerier) GetUserLinkByUserIDLoginType(ctx context.Context, arg GetUs
 		&i.OAuthExpiry,
 		&i.OAuthAccessTokenKeyID,
 		&i.OAuthRefreshTokenKeyID,
+		&i.DebugContext,
 	)
 	return i, err
 }
 
 const getUserLinksByUserID = `-- name: GetUserLinksByUserID :many
-SELECT user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id FROM user_links WHERE user_id = $1
+SELECT user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, debug_context FROM user_links WHERE user_id = $1
 `
 
 func (q *sqlQuerier) GetUserLinksByUserID(ctx context.Context, userID uuid.UUID) ([]UserLink, error) {
@@ -6591,6 +6784,7 @@ func (q *sqlQuerier) GetUserLinksByUserID(ctx context.Context, userID uuid.UUID)
 			&i.OAuthExpiry,
 			&i.OAuthAccessTokenKeyID,
 			&i.OAuthRefreshTokenKeyID,
+			&i.DebugContext,
 		); err != nil {
 			return nil, err
 		}
@@ -6615,21 +6809,23 @@ INSERT INTO
 		oauth_access_token_key_id,
 		oauth_refresh_token,
 		oauth_refresh_token_key_id,
-		oauth_expiry
+		oauth_expiry,
+	    debug_context
 	)
 VALUES
-	( $1, $2, $3, $4, $5, $6, $7, $8 ) RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id
+	( $1, $2, $3, $4, $5, $6, $7, $8, $9 ) RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, debug_context
 `
 
 type InsertUserLinkParams struct {
-	UserID                 uuid.UUID      `db:"user_id" json:"user_id"`
-	LoginType              LoginType      `db:"login_type" json:"login_type"`
-	LinkedID               string         `db:"linked_id" json:"linked_id"`
-	OAuthAccessToken       string         `db:"oauth_access_token" json:"oauth_access_token"`
-	OAuthAccessTokenKeyID  sql.NullString `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
-	OAuthRefreshToken      string         `db:"oauth_refresh_token" json:"oauth_refresh_token"`
-	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
-	OAuthExpiry            time.Time      `db:"oauth_expiry" json:"oauth_expiry"`
+	UserID                 uuid.UUID       `db:"user_id" json:"user_id"`
+	LoginType              LoginType       `db:"login_type" json:"login_type"`
+	LinkedID               string          `db:"linked_id" json:"linked_id"`
+	OAuthAccessToken       string          `db:"oauth_access_token" json:"oauth_access_token"`
+	OAuthAccessTokenKeyID  sql.NullString  `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
+	OAuthRefreshToken      string          `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	OAuthRefreshTokenKeyID sql.NullString  `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
+	OAuthExpiry            time.Time       `db:"oauth_expiry" json:"oauth_expiry"`
+	DebugContext           json.RawMessage `db:"debug_context" json:"debug_context"`
 }
 
 func (q *sqlQuerier) InsertUserLink(ctx context.Context, arg InsertUserLinkParams) (UserLink, error) {
@@ -6642,6 +6838,7 @@ func (q *sqlQuerier) InsertUserLink(ctx context.Context, arg InsertUserLinkParam
 		arg.OAuthRefreshToken,
 		arg.OAuthRefreshTokenKeyID,
 		arg.OAuthExpiry,
+		arg.DebugContext,
 	)
 	var i UserLink
 	err := row.Scan(
@@ -6653,6 +6850,7 @@ func (q *sqlQuerier) InsertUserLink(ctx context.Context, arg InsertUserLinkParam
 		&i.OAuthExpiry,
 		&i.OAuthAccessTokenKeyID,
 		&i.OAuthRefreshTokenKeyID,
+		&i.DebugContext,
 	)
 	return i, err
 }
@@ -6665,19 +6863,21 @@ SET
 	oauth_access_token_key_id = $2,
 	oauth_refresh_token = $3,
 	oauth_refresh_token_key_id = $4,
-	oauth_expiry = $5
+	oauth_expiry = $5,
+	debug_context = $6
 WHERE
-	user_id = $6 AND login_type = $7 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id
+	user_id = $7 AND login_type = $8 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, debug_context
 `
 
 type UpdateUserLinkParams struct {
-	OAuthAccessToken       string         `db:"oauth_access_token" json:"oauth_access_token"`
-	OAuthAccessTokenKeyID  sql.NullString `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
-	OAuthRefreshToken      string         `db:"oauth_refresh_token" json:"oauth_refresh_token"`
-	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
-	OAuthExpiry            time.Time      `db:"oauth_expiry" json:"oauth_expiry"`
-	UserID                 uuid.UUID      `db:"user_id" json:"user_id"`
-	LoginType              LoginType      `db:"login_type" json:"login_type"`
+	OAuthAccessToken       string          `db:"oauth_access_token" json:"oauth_access_token"`
+	OAuthAccessTokenKeyID  sql.NullString  `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
+	OAuthRefreshToken      string          `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	OAuthRefreshTokenKeyID sql.NullString  `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
+	OAuthExpiry            time.Time       `db:"oauth_expiry" json:"oauth_expiry"`
+	DebugContext           json.RawMessage `db:"debug_context" json:"debug_context"`
+	UserID                 uuid.UUID       `db:"user_id" json:"user_id"`
+	LoginType              LoginType       `db:"login_type" json:"login_type"`
 }
 
 func (q *sqlQuerier) UpdateUserLink(ctx context.Context, arg UpdateUserLinkParams) (UserLink, error) {
@@ -6687,6 +6887,7 @@ func (q *sqlQuerier) UpdateUserLink(ctx context.Context, arg UpdateUserLinkParam
 		arg.OAuthRefreshToken,
 		arg.OAuthRefreshTokenKeyID,
 		arg.OAuthExpiry,
+		arg.DebugContext,
 		arg.UserID,
 		arg.LoginType,
 	)
@@ -6700,6 +6901,7 @@ func (q *sqlQuerier) UpdateUserLink(ctx context.Context, arg UpdateUserLinkParam
 		&i.OAuthExpiry,
 		&i.OAuthAccessTokenKeyID,
 		&i.OAuthRefreshTokenKeyID,
+		&i.DebugContext,
 	)
 	return i, err
 }
@@ -6710,7 +6912,7 @@ UPDATE
 SET
 	linked_id = $1
 WHERE
-	user_id = $2 AND login_type = $3 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id
+	user_id = $2 AND login_type = $3 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, debug_context
 `
 
 type UpdateUserLinkedIDParams struct {
@@ -6731,6 +6933,7 @@ func (q *sqlQuerier) UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinke
 		&i.OAuthExpiry,
 		&i.OAuthAccessTokenKeyID,
 		&i.OAuthRefreshTokenKeyID,
+		&i.DebugContext,
 	)
 	return i, err
 }
@@ -6844,7 +7047,7 @@ func (q *sqlQuerier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.
 
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference
 FROM
 	users
 WHERE
@@ -6876,13 +7079,14 @@ func (q *sqlQuerier) GetUserByEmailOrUsername(ctx context.Context, arg GetUserBy
 		&i.Deleted,
 		&i.LastSeenAt,
 		&i.QuietHoursSchedule,
+		&i.ThemePreference,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference
 FROM
 	users
 WHERE
@@ -6908,6 +7112,7 @@ func (q *sqlQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (User, error
 		&i.Deleted,
 		&i.LastSeenAt,
 		&i.QuietHoursSchedule,
+		&i.ThemePreference,
 	)
 	return i, err
 }
@@ -6930,7 +7135,7 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
 
 const getUsers = `-- name: GetUsers :many
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, COUNT(*) OVER() AS count
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, COUNT(*) OVER() AS count
 FROM
 	users
 WHERE
@@ -7023,10 +7228,11 @@ type GetUsersRow struct {
 	Status             UserStatus     `db:"status" json:"status"`
 	RBACRoles          pq.StringArray `db:"rbac_roles" json:"rbac_roles"`
 	LoginType          LoginType      `db:"login_type" json:"login_type"`
-	AvatarURL          sql.NullString `db:"avatar_url" json:"avatar_url"`
+	AvatarURL          string         `db:"avatar_url" json:"avatar_url"`
 	Deleted            bool           `db:"deleted" json:"deleted"`
 	LastSeenAt         time.Time      `db:"last_seen_at" json:"last_seen_at"`
 	QuietHoursSchedule string         `db:"quiet_hours_schedule" json:"quiet_hours_schedule"`
+	ThemePreference    string         `db:"theme_preference" json:"theme_preference"`
 	Count              int64          `db:"count" json:"count"`
 }
 
@@ -7063,6 +7269,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 			&i.Deleted,
 			&i.LastSeenAt,
 			&i.QuietHoursSchedule,
+			&i.ThemePreference,
 			&i.Count,
 		); err != nil {
 			return nil, err
@@ -7079,7 +7286,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 }
 
 const getUsersByIDs = `-- name: GetUsersByIDs :many
-SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule FROM users WHERE id = ANY($1 :: uuid [ ])
+SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference FROM users WHERE id = ANY($1 :: uuid [ ])
 `
 
 // This shouldn't check for deleted, because it's frequently used
@@ -7108,6 +7315,7 @@ func (q *sqlQuerier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User
 			&i.Deleted,
 			&i.LastSeenAt,
 			&i.QuietHoursSchedule,
+			&i.ThemePreference,
 		); err != nil {
 			return nil, err
 		}
@@ -7135,7 +7343,7 @@ INSERT INTO
 		login_type
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
+	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference
 `
 
 type InsertUserParams struct {
@@ -7175,6 +7383,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		&i.Deleted,
 		&i.LastSeenAt,
 		&i.QuietHoursSchedule,
+		&i.ThemePreference,
 	)
 	return i, err
 }
@@ -7270,7 +7479,7 @@ SET
 	last_seen_at = $2,
 	updated_at = $3
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference
 `
 
 type UpdateUserLastSeenAtParams struct {
@@ -7296,6 +7505,7 @@ func (q *sqlQuerier) UpdateUserLastSeenAt(ctx context.Context, arg UpdateUserLas
 		&i.Deleted,
 		&i.LastSeenAt,
 		&i.QuietHoursSchedule,
+		&i.ThemePreference,
 	)
 	return i, err
 }
@@ -7313,7 +7523,7 @@ SET
 		'':: bytea
 	END
 WHERE
-	id = $2 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
+	id = $2 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference
 `
 
 type UpdateUserLoginTypeParams struct {
@@ -7338,6 +7548,7 @@ func (q *sqlQuerier) UpdateUserLoginType(ctx context.Context, arg UpdateUserLogi
 		&i.Deleted,
 		&i.LastSeenAt,
 		&i.QuietHoursSchedule,
+		&i.ThemePreference,
 	)
 	return i, err
 }
@@ -7351,15 +7562,15 @@ SET
 	avatar_url = $4,
 	updated_at = $5
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference
 `
 
 type UpdateUserProfileParams struct {
-	ID        uuid.UUID      `db:"id" json:"id"`
-	Email     string         `db:"email" json:"email"`
-	Username  string         `db:"username" json:"username"`
-	AvatarURL sql.NullString `db:"avatar_url" json:"avatar_url"`
-	UpdatedAt time.Time      `db:"updated_at" json:"updated_at"`
+	ID        uuid.UUID `db:"id" json:"id"`
+	Email     string    `db:"email" json:"email"`
+	Username  string    `db:"username" json:"username"`
+	AvatarURL string    `db:"avatar_url" json:"avatar_url"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
 func (q *sqlQuerier) UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error) {
@@ -7385,6 +7596,7 @@ func (q *sqlQuerier) UpdateUserProfile(ctx context.Context, arg UpdateUserProfil
 		&i.Deleted,
 		&i.LastSeenAt,
 		&i.QuietHoursSchedule,
+		&i.ThemePreference,
 	)
 	return i, err
 }
@@ -7396,7 +7608,7 @@ SET
 	quiet_hours_schedule = $2
 WHERE
 	id = $1
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference
 `
 
 type UpdateUserQuietHoursScheduleParams struct {
@@ -7421,6 +7633,7 @@ func (q *sqlQuerier) UpdateUserQuietHoursSchedule(ctx context.Context, arg Updat
 		&i.Deleted,
 		&i.LastSeenAt,
 		&i.QuietHoursSchedule,
+		&i.ThemePreference,
 	)
 	return i, err
 }
@@ -7433,7 +7646,7 @@ SET
 	rbac_roles = ARRAY(SELECT DISTINCT UNNEST($1 :: text[]))
 WHERE
 	id = $2
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference
 `
 
 type UpdateUserRolesParams struct {
@@ -7458,6 +7671,7 @@ func (q *sqlQuerier) UpdateUserRoles(ctx context.Context, arg UpdateUserRolesPar
 		&i.Deleted,
 		&i.LastSeenAt,
 		&i.QuietHoursSchedule,
+		&i.ThemePreference,
 	)
 	return i, err
 }
@@ -7469,7 +7683,7 @@ SET
 	status = $2,
 	updated_at = $3
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference
 `
 
 type UpdateUserStatusParams struct {
@@ -7495,6 +7709,7 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 		&i.Deleted,
 		&i.LastSeenAt,
 		&i.QuietHoursSchedule,
+		&i.ThemePreference,
 	)
 	return i, err
 }
@@ -7552,9 +7767,10 @@ FROM users
 WHERE
 	-- TODO: we can add more conditions here, such as:
 	-- 1) The user must be active
-	-- 2) The user must not be deleted
-	-- 3) The workspace must be running
+	-- 2) The workspace must be running
 	workspace_agents.auth_token = $1
+AND
+	workspaces.deleted = FALSE
 GROUP BY
 	workspace_agents.id,
 	workspaces.id,
@@ -8470,7 +8686,7 @@ func (q *sqlQuerier) UpdateWorkspaceAgentStartupByID(ctx context.Context, arg Up
 }
 
 const deleteOldWorkspaceAgentStats = `-- name: DeleteOldWorkspaceAgentStats :exec
-DELETE FROM workspace_agent_stats WHERE created_at < NOW() - INTERVAL '6 months'
+DELETE FROM workspace_agent_stats WHERE created_at < NOW() - INTERVAL '180 days'
 `
 
 func (q *sqlQuerier) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
@@ -10532,6 +10748,44 @@ func (q *sqlQuerier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspace
 	return i, err
 }
 
+const getWorkspaceUniqueOwnerCountByTemplateIDs = `-- name: GetWorkspaceUniqueOwnerCountByTemplateIDs :many
+SELECT
+	template_id, COUNT(DISTINCT owner_id) AS unique_owners_sum
+FROM
+	workspaces
+WHERE
+	template_id = ANY($1 :: uuid[]) AND deleted = false
+GROUP BY template_id
+`
+
+type GetWorkspaceUniqueOwnerCountByTemplateIDsRow struct {
+	TemplateID      uuid.UUID `db:"template_id" json:"template_id"`
+	UniqueOwnersSum int64     `db:"unique_owners_sum" json:"unique_owners_sum"`
+}
+
+func (q *sqlQuerier) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Context, templateIds []uuid.UUID) ([]GetWorkspaceUniqueOwnerCountByTemplateIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceUniqueOwnerCountByTemplateIDs, pq.Array(templateIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetWorkspaceUniqueOwnerCountByTemplateIDsRow
+	for rows.Next() {
+		var i GetWorkspaceUniqueOwnerCountByTemplateIDsRow
+		if err := rows.Scan(&i.TemplateID, &i.UniqueOwnersSum); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspaces = `-- name: GetWorkspaces :many
 SELECT
 	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates,
@@ -10698,13 +10952,11 @@ WHERE
 			) > 0
 		ELSE true
 	END
-	-- Filter by dormant workspaces. By default we do not return dormant
-	-- workspaces since they are considered soft-deleted.
+	-- Filter by dormant workspaces.
 	AND CASE
-		WHEN $10 :: text != '' THEN
+		WHEN $10 :: boolean != 'false' THEN
 			dormant_at IS NOT NULL
-		ELSE
-			dormant_at IS NULL
+		ELSE true
 	END
 	-- Filter by last_used
 	AND CASE
@@ -10745,7 +10997,7 @@ type GetWorkspacesParams struct {
 	Name                                  string      `db:"name" json:"name"`
 	HasAgent                              string      `db:"has_agent" json:"has_agent"`
 	AgentInactiveDisconnectTimeoutSeconds int64       `db:"agent_inactive_disconnect_timeout_seconds" json:"agent_inactive_disconnect_timeout_seconds"`
-	IsDormant                             string      `db:"is_dormant" json:"is_dormant"`
+	Dormant                               bool        `db:"dormant" json:"dormant"`
 	LastUsedBefore                        time.Time   `db:"last_used_before" json:"last_used_before"`
 	LastUsedAfter                         time.Time   `db:"last_used_after" json:"last_used_after"`
 	Offset                                int32       `db:"offset_" json:"offset_"`
@@ -10784,7 +11036,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		arg.Name,
 		arg.HasAgent,
 		arg.AgentInactiveDisconnectTimeoutSeconds,
-		arg.IsDormant,
+		arg.Dormant,
 		arg.LastUsedBefore,
 		arg.LastUsedAfter,
 		arg.Offset,
@@ -11116,20 +11368,30 @@ func (q *sqlQuerier) UpdateWorkspaceDeletedByID(ctx context.Context, arg UpdateW
 
 const updateWorkspaceDormantDeletingAt = `-- name: UpdateWorkspaceDormantDeletingAt :one
 UPDATE
-	workspaces
+    workspaces
 SET
-	dormant_at = $2,
-	-- When a workspace is active we want to update the last_used_at to avoid the workspace going
+    dormant_at = $2,
+    -- When a workspace is active we want to update the last_used_at to avoid the workspace going
     -- immediately dormant. If we're transition the workspace to dormant then we leave it alone.
-	last_used_at = CASE WHEN $2::timestamptz IS NULL THEN now() at time zone 'utc' ELSE last_used_at END,
-	-- If dormant_at is null (meaning active) or the template-defined time_til_dormant_autodelete is 0 we should set
-	-- deleting_at to NULL else set it to the dormant_at + time_til_dormant_autodelete duration.
-	deleting_at = CASE WHEN $2::timestamptz IS NULL OR templates.time_til_dormant_autodelete = 0 THEN NULL ELSE $2::timestamptz + INTERVAL '1 milliseconds' * templates.time_til_dormant_autodelete / 1000000 END
+    last_used_at = CASE WHEN $2::timestamptz IS NULL THEN
+        now() at time zone 'utc'
+    ELSE
+        last_used_at
+    END,
+    -- If dormant_at is null (meaning active) or the template-defined time_til_dormant_autodelete is 0 we should set
+    -- deleting_at to NULL else set it to the dormant_at + time_til_dormant_autodelete duration.
+    deleting_at = CASE WHEN $2::timestamptz IS NULL OR templates.time_til_dormant_autodelete = 0 THEN
+        NULL
+    ELSE
+        $2::timestamptz + (INTERVAL '1 millisecond' * (templates.time_til_dormant_autodelete / 1000000))
+    END
 FROM
-	templates
+    templates
 WHERE
-	workspaces.id = $1
-RETURNING workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates
+    workspaces.id = $1
+    AND templates.id = workspaces.template_id
+RETURNING
+    workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates
 `
 
 type UpdateWorkspaceDormantDeletingAtParams struct {

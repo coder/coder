@@ -20,6 +20,8 @@ const (
 	// ResponseBufferSize is the max number of responses to buffer per connection before we start
 	// dropping updates
 	ResponseBufferSize = 512
+	// RequestBufferSize is the max number of requests to buffer per connection
+	RequestBufferSize = 32
 )
 
 type TrackedConn struct {

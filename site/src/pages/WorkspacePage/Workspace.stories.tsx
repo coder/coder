@@ -3,7 +3,7 @@ import { Meta, StoryObj } from "@storybook/react";
 import { WatchAgentMetadataContext } from "components/Resources/AgentMetadata";
 import { ProvisionerJobLog } from "api/typesGenerated";
 import * as Mocks from "testHelpers/entities";
-import { Workspace, WorkspaceErrors } from "./Workspace";
+import { Workspace } from "./Workspace";
 import { withReactContext } from "storybook-react-context";
 import EventSource from "eventsourcemock";
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
@@ -133,7 +133,7 @@ export const Failed: Story = {
     ...Running.args,
     workspace: Mocks.MockFailedWorkspace,
     workspaceErrors: {
-      [WorkspaceErrors.BUILD_ERROR]: Mocks.mockApiError({
+      buildError: Mocks.mockApiError({
         message: "A workspace build is already active.",
       }),
     },
@@ -172,7 +172,6 @@ export const FailedWithRetry: Story = {
         },
       },
     },
-    canRetryDebugMode: true,
     buildLogs: <WorkspaceBuildLogsSection logs={makeFailedBuildLogs()} />,
   },
 };
@@ -224,7 +223,7 @@ export const GetBuildsError: Story = {
   args: {
     ...Running.args,
     workspaceErrors: {
-      [WorkspaceErrors.GET_BUILDS_ERROR]: Mocks.mockApiError({
+      getBuildsError: Mocks.mockApiError({
         message: "There is a problem fetching builds.",
       }),
     },
@@ -235,7 +234,7 @@ export const CancellationError: Story = {
   args: {
     ...Failed.args,
     workspaceErrors: {
-      [WorkspaceErrors.CANCELLATION_ERROR]: Mocks.mockApiError({
+      cancellationError: Mocks.mockApiError({
         message: "Job could not be canceled.",
       }),
     },

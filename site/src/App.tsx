@@ -6,8 +6,7 @@ import { HelmetProvider } from "react-helmet-async";
 import { AppRouter } from "./AppRouter";
 import { ErrorBoundary } from "./components/ErrorBoundary/ErrorBoundary";
 import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar";
-import { dark } from "./theme/mui";
-import { dark as experimental } from "./theme/experimental";
+import theme from "./theme";
 import "./theme/globalFonts";
 import {
   StyledEngineProvider,
@@ -19,23 +18,16 @@ const defaultQueryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: false,
-      cacheTime: 0,
       refetchOnWindowFocus: false,
-      networkMode: "offlineFirst",
     },
   },
 });
 
-const theme = {
-  ...dark,
-  experimental,
-};
-
 export const ThemeProviders: FC<PropsWithChildren> = ({ children }) => {
   return (
     <StyledEngineProvider injectFirst>
-      <MuiThemeProvider theme={theme}>
-        <EmotionThemeProvider theme={theme}>
+      <MuiThemeProvider theme={theme.dark}>
+        <EmotionThemeProvider theme={theme.dark}>
           <CssBaseline enableColorScheme />
           {children}
         </EmotionThemeProvider>
@@ -44,12 +36,14 @@ export const ThemeProviders: FC<PropsWithChildren> = ({ children }) => {
   );
 };
 
-export const AppProviders = ({
-  children,
-  queryClient = defaultQueryClient,
-}: {
+interface AppProvidersProps {
   children: ReactNode;
   queryClient?: QueryClient;
+}
+
+export const AppProviders: FC<AppProvidersProps> = ({
+  children,
+  queryClient = defaultQueryClient,
 }) => {
   return (
     <HelmetProvider>

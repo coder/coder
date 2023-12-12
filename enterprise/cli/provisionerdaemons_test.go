@@ -26,7 +26,7 @@ func TestProvisionerDaemon_PSK(t *testing.T) {
 			},
 		},
 	})
-	inv, conf := newCLI(t, "provisionerd", "start", "--psk=provisionersftw")
+	inv, conf := newCLI(t, "provisionerd", "start", "--psk=provisionersftw", "--name=matt-daemon")
 	err := conf.URL().Write(client.URL.String())
 	require.NoError(t, err)
 	pty := ptytest.New(t).Attach(inv)
@@ -34,6 +34,7 @@ func TestProvisionerDaemon_PSK(t *testing.T) {
 	defer cancel()
 	clitest.Start(t, inv)
 	pty.ExpectMatchContext(ctx, "starting provisioner daemon")
+	pty.ExpectMatchContext(ctx, "matt-daemon")
 }
 
 func TestProvisionerDaemon_SessionToken(t *testing.T) {

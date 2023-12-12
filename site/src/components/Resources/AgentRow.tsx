@@ -18,7 +18,7 @@ import {
 } from "components/WorkspaceBuildLogs/Logs";
 import { useProxy } from "contexts/ProxyContext";
 import {
-  FC,
+  type FC,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -28,7 +28,6 @@ import {
 } from "react";
 import AutoSizer from "react-virtualized-auto-sizer";
 import { FixedSizeList as List, ListOnScrollProps } from "react-window";
-import { colors } from "theme/colors";
 import { Stack } from "../Stack/Stack";
 import { AgentLatency } from "./AgentLatency";
 import { AgentMetadata } from "./AgentMetadata";
@@ -55,6 +54,7 @@ export interface AgentRowProps {
   hideSSHButton?: boolean;
   hideVSCodeDesktopButton?: boolean;
   serverVersion: string;
+  serverAPIVersion: string;
   onUpdateAgent: () => void;
   storybookLogs?: LineWithID[];
   storybookAgentMetadata?: WorkspaceAgentMetadata[];
@@ -68,6 +68,7 @@ export const AgentRow: FC<AgentRowProps> = ({
   hideSSHButton,
   hideVSCodeDesktopButton,
   serverVersion,
+  serverAPIVersion,
   onUpdateAgent,
   storybookAgentMetadata,
   sshPrefix,
@@ -179,6 +180,7 @@ export const AgentRow: FC<AgentRowProps> = ({
                   <AgentVersion
                     agent={agent}
                     serverVersion={serverVersion}
+                    serverAPIVersion={serverAPIVersion}
                     onUpdate={onUpdateAgent}
                   />
                   <AgentLatency agent={agent} />
@@ -513,7 +515,6 @@ const useAgentLogs = (
 
 const styles = {
   agentRow: (theme) => ({
-    backgroundColor: theme.palette.background.paperLight,
     fontSize: 16,
     borderLeft: `2px solid ${theme.palette.text.secondary}`,
 
@@ -578,6 +579,7 @@ const styles = {
     alignItems: "center",
     gap: 48,
     flexWrap: "wrap",
+    backgroundColor: theme.palette.background.paper,
 
     [theme.breakpoints.down("md")]: {
       gap: 16,
@@ -690,7 +692,7 @@ const styles = {
 
     "&:hover": {
       color: theme.palette.text.primary,
-      backgroundColor: colors.gray[14],
+      backgroundColor: theme.colors.gray[14],
     },
 
     "& svg": {

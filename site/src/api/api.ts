@@ -78,6 +78,7 @@ export const provisioners: TypesGen.ProvisionerDaemon[] = [
     created_at: "",
     provisioners: [],
     tags: {},
+    version: "v2.34.5",
   },
   {
     id: "cdr-basic",
@@ -85,6 +86,7 @@ export const provisioners: TypesGen.ProvisionerDaemon[] = [
     created_at: "",
     provisioners: [],
     tags: {},
+    version: "v2.34.5",
   },
 ];
 
@@ -780,9 +782,8 @@ export const updateUserPassword = async (
   axios.put(`/api/v2/users/${userId}/password`, updatePassword);
 
 export const getRoles = async (): Promise<Array<TypesGen.AssignableRoles>> => {
-  const response = await axios.get<Array<TypesGen.AssignableRoles>>(
-    `/api/v2/users/roles`,
-  );
+  const response =
+    await axios.get<Array<TypesGen.AssignableRoles>>(`/api/v2/users/roles`);
   return response.data;
 };
 
@@ -935,6 +936,19 @@ export const exchangeExternalAuthDevice = async (
     `/api/v2/external-auth/${provider}/device`,
     req,
   );
+  return resp.data;
+};
+
+export const getUserExternalAuthProviders =
+  async (): Promise<TypesGen.ListUserExternalAuthResponse> => {
+    const resp = await axios.get(`/api/v2/external-auth`);
+    return resp.data;
+  };
+
+export const unlinkExternalAuthProvider = async (
+  provider: string,
+): Promise<string> => {
+  const resp = await axios.delete(`/api/v2/external-auth/${provider}`);
   return resp.data;
 };
 
@@ -1110,9 +1124,10 @@ export const getFile = async (fileId: string): Promise<ArrayBuffer> => {
 export const getWorkspaceProxyRegions = async (): Promise<
   TypesGen.RegionsResponse<TypesGen.Region>
 > => {
-  const response = await axios.get<TypesGen.RegionsResponse<TypesGen.Region>>(
-    `/api/v2/regions`,
-  );
+  const response =
+    await axios.get<TypesGen.RegionsResponse<TypesGen.Region>>(
+      `/api/v2/regions`,
+    );
   return response.data;
 };
 
@@ -1293,9 +1308,8 @@ export const updateWorkspace = async (
     getWorkspaceBuildParameters(workspace.latest_build.id),
   ]);
   const activeVersionId = template.active_version_id;
-  const templateParameters = await getTemplateVersionRichParameters(
-    activeVersionId,
-  );
+  const templateParameters =
+    await getTemplateVersionRichParameters(activeVersionId);
   const missingParameters = getMissingParameters(
     oldBuildParameters,
     newBuildParameters,
@@ -1585,6 +1599,22 @@ export const getHealth = async (force: boolean = false) => {
   const params = new URLSearchParams({ force: force.toString() });
   const response = await axios.get<TypesGen.HealthcheckReport>(
     `/api/v2/debug/health?${params}`,
+  );
+  return response.data;
+};
+
+export const getHealthSettings = async () => {
+  return (
+    await axios.get<TypesGen.HealthSettings>(`/api/v2/debug/health/settings`)
+  ).data;
+};
+
+export const updateHealthSettings = async (
+  data: TypesGen.UpdateHealthSettings,
+) => {
+  const response = await axios.put<TypesGen.HealthSettings>(
+    `/api/v2/debug/health/settings`,
+    data,
   );
   return response.data;
 };

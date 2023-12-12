@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -19,6 +18,7 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -57,10 +57,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, ps pubsub.P
 		// primary purpose is to clean up dead replicas.
 		options.CleanupInterval = 30 * time.Minute
 	}
-	hostname, err := os.Hostname()
-	if err != nil {
-		return nil, xerrors.Errorf("get hostname: %w", err)
-	}
+	hostname := cliutil.Hostname()
 	databaseLatency, err := db.Ping(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("ping database: %w", err)
@@ -331,7 +328,26 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 		Primary:         m.self.Primary,
 	})
 	if err != nil {
-		return xerrors.Errorf("update replica: %w", err)
+		if !errors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("update replica: %w", err)
+		}
+		// self replica has been cleaned up, we must reinsert
+		// nolint:gocritic // Updating a replica is a system function.
+		replica, err = m.db.InsertReplica(dbauthz.AsSystemRestricted(ctx), database.InsertReplicaParams{
+			ID:              m.self.ID,
+			CreatedAt:       dbtime.Now(),
+			UpdatedAt:       dbtime.Now(),
+			StartedAt:       m.self.StartedAt,
+			RelayAddress:    m.self.RelayAddress,
+			RegionID:        m.self.RegionID,
+			Hostname:        m.self.Hostname,
+			Version:         m.self.Version,
+			DatabaseLatency: int32(databaseLatency.Microseconds()),
+			Primary:         m.self.Primary,
+		})
+		if err != nil {
+			return xerrors.Errorf("update replica: %w", err)
+		}
 	}
 	if m.self.Error != replica.Error {
 		// Publish an update occurred!

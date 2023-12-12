@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -343,94 +344,71 @@ func TestWorkspace(t *testing.T) {
 func TestResolveAutostart(t *testing.T) {
 	t.Parallel()
 
-	t.Run("OK", func(t *testing.T) {
-		t.Parallel()
-		ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		owner := coderdtest.CreateFirstUser(t, ownerClient)
-		version1 := coderdtest.CreateTemplateVersion(t, ownerClient, owner.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, version1.ID)
-		template := coderdtest.CreateTemplate(t, ownerClient, owner.OrganizationID, version1.ID)
+	ownerClient, db := coderdtest.NewWithDatabase(t, nil)
+	owner := coderdtest.CreateFirstUser(t, ownerClient)
 
-		params := &echo.Responses{
-			Parse: echo.ParseComplete,
-			ProvisionPlan: []*proto.Response{
-				{
-					Type: &proto.Response_Plan{
-						Plan: &proto.PlanComplete{
-							Parameters: []*proto.RichParameter{
-								{
-									Name:        "param",
-									Description: "param",
-									Required:    true,
-									Mutable:     true,
-								},
-							},
-						},
-					},
-				},
-			},
-			ProvisionApply: echo.ApplyComplete,
-		}
-		version2 := coderdtest.CreateTemplateVersion(t, ownerClient, owner.OrganizationID, params, func(ctvr *codersdk.CreateTemplateVersionRequest) {
-			ctvr.TemplateID = template.ID
-		})
-		coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, version2.ID)
+	param := database.TemplateVersionParameter{
+		Name:         "param",
+		DefaultValue: "",
+		Required:     true,
+	}
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
 
-		client, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
-		workspace := coderdtest.CreateWorkspace(t, client, owner.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
-			cwr.AutomaticUpdates = codersdk.AutomaticUpdatesAlways
-		})
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	client, member := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+	resp := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		OwnerID:          member.ID,
+		OrganizationID:   owner.OrganizationID,
+		AutomaticUpdates: database.AutomaticUpdatesAlways,
+	}).Seed(database.WorkspaceBuild{
+		InitiatorID: member.ID,
+	}).Do()
 
-		err := ownerClient.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
-			ID: version2.ID,
-		})
-		require.NoError(t, err)
+	workspace := resp.Workspace
+	version1 := resp.TemplateVersion
 
-		// Autostart shouldn't be possible if parameters do not match.
-		resp, err := client.ResolveAutostart(ctx, workspace.ID.String())
-		require.NoError(t, err)
-		require.True(t, resp.ParameterMismatch)
+	version2 := dbfake.TemplateVersion(t, db).
+		Seed(database.TemplateVersion{
+			CreatedBy:      owner.UserID,
+			OrganizationID: owner.OrganizationID,
+			TemplateID:     version1.TemplateID,
+		}).
+		Params(param).Do()
 
-		update, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-			TemplateVersionID: version2.ID,
-			Transition:        codersdk.WorkspaceTransitionStart,
-			RichParameterValues: []codersdk.WorkspaceBuildParameter{
-				{
-					Name:  "param",
-					Value: "Hello",
-				},
-			},
-		})
-		require.NoError(t, err)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, update.ID)
+	// Autostart shouldn't be possible if parameters do not match.
+	resolveResp, err := client.ResolveAutostart(ctx, workspace.ID.String())
+	require.NoError(t, err)
+	require.True(t, resolveResp.ParameterMismatch)
 
-		// We should be able to autostart since parameters are updated.
-		resp, err = client.ResolveAutostart(ctx, workspace.ID.String())
-		require.NoError(t, err)
-		require.False(t, resp.ParameterMismatch)
+	_ = dbfake.WorkspaceBuild(t, db, workspace).
+		Seed(database.WorkspaceBuild{
+			BuildNumber:       2,
+			TemplateVersionID: version2.TemplateVersion.ID,
+		}).
+		Params(database.WorkspaceBuildParameter{
+			Name:  "param",
+			Value: "hello",
+		}).Do()
 
-		// Create one last version where the parameters are the same as the previous
-		// version.
-		version3 := coderdtest.CreateTemplateVersion(t, ownerClient, owner.OrganizationID, params, func(ctvr *codersdk.CreateTemplateVersionRequest) {
-			ctvr.TemplateID = template.ID
-		})
-		coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, version3.ID)
+	// We should be able to autostart since parameters are updated.
+	resolveResp, err = client.ResolveAutostart(ctx, workspace.ID.String())
+	require.NoError(t, err)
+	require.False(t, resolveResp.ParameterMismatch)
 
-		err = ownerClient.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
-			ID: version3.ID,
-		})
-		require.NoError(t, err)
+	// Create another version that has the same parameters as version2.
+	// We should be able to update without issue.
+	_ = dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+		CreatedBy:      owner.UserID,
+		OrganizationID: owner.OrganizationID,
+		TemplateID:     version1.TemplateID,
+	}).Params(param).Do()
 
-		// Even though we're out of date we should still be able to autostart
-		// since parameters resolve.
-		resp, err = client.ResolveAutostart(ctx, workspace.ID.String())
-		require.NoError(t, err)
-		require.False(t, resp.ParameterMismatch)
-	})
+	// Even though we're out of date we should still be able to autostart
+	// since parameters resolve.
+	resolveResp, err = client.ResolveAutostart(ctx, workspace.ID.String())
+	require.NoError(t, err)
+	require.False(t, resolveResp.ParameterMismatch)
 }
 
 func TestAdminViewAllWorkspaces(t *testing.T) {
@@ -1525,43 +1503,50 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		}, testutil.IntervalMedium, "agent status timeout")
 	})
 
-	t.Run("IsDormant", func(t *testing.T) {
+	t.Run("Dormant", func(t *testing.T) {
 		// this test has a licensed counterpart in enterprise/coderd/workspaces_test.go: FilterQueryHasDeletingByAndLicensed
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{
-			IncludeProvisionerDaemon: true,
-		})
+		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		authToken := uuid.NewString()
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:          echo.ParseComplete,
-			ProvisionPlan:  echo.PlanComplete,
-			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
-		})
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+			OrganizationID: user.OrganizationID,
+			CreatedBy:      user.UserID,
+		}).Do().Template
 
 		// update template with inactivity ttl
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		dormantWorkspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, dormantWorkspace.LatestBuild.ID)
+		dormantWorkspace := dbfake.WorkspaceBuild(t, db, database.Workspace{
+			TemplateID:     template.ID,
+			OwnerID:        user.UserID,
+			OrganizationID: user.OrganizationID,
+		}).Do().Workspace
 
 		// Create another workspace to validate that we do not return active workspaces.
-		_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, dormantWorkspace.LatestBuild.ID)
+		_ = dbfake.WorkspaceBuild(t, db, database.Workspace{
+			TemplateID:     template.ID,
+			OwnerID:        user.UserID,
+			OrganizationID: user.OrganizationID,
+		}).Do()
 
 		err := client.UpdateWorkspaceDormancy(ctx, dormantWorkspace.ID, codersdk.UpdateWorkspaceDormancy{
 			Dormant: true,
 		})
 		require.NoError(t, err)
 
-		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-			FilterQuery: "is-dormant:true",
+		// Test that no filter returns both workspaces.
+		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+		require.NoError(t, err)
+		require.Len(t, res.Workspaces, 2)
+
+		// Test that filtering for dormant only returns our dormant workspace.
+		res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			FilterQuery: "dormant:true",
 		})
 		require.NoError(t, err)
 		require.Len(t, res.Workspaces, 1)
+		require.Equal(t, dormantWorkspace.ID, res.Workspaces[0].ID)
 		require.NotNil(t, res.Workspaces[0].DormantAt)
 	})
 

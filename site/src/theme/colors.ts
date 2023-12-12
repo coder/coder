@@ -1,62 +1,60 @@
-import tw from "./tailwind";
-
-export const colors = {
-  white: "#fff",
+export interface Colors {
+  white: string;
 
   gray: {
-    17: tw.zinc[950],
-    16: tw.zinc[900],
-    14: tw.zinc[800],
-    13: tw.zinc[700],
-    12: tw.zinc[600],
-    11: tw.zinc[500],
-    9: tw.zinc[400],
-    6: tw.zinc[300],
-    4: tw.zinc[200],
-    2: tw.zinc[100],
-    1: tw.zinc[50],
-  },
+    17: string;
+    16: string;
+    14: string;
+    13: string;
+    12: string;
+    11: string;
+    9: string;
+    6: string;
+    4: string;
+    2: string;
+    1: string;
+  };
 
   red: {
-    15: tw.red[950],
-    12: tw.red[800],
-    10: tw.red[700],
-    9: tw.red[600],
-    8: tw.red[500],
-    6: tw.red[400],
-    2: tw.red[50],
-  },
+    15: string;
+    12: string;
+    10: string;
+    9: string;
+    8: string;
+    6: string;
+    2: string;
+  };
 
   orange: {
-    15: tw.amber[950],
-    14: tw.amber[900],
-    12: tw.amber[800],
-    11: tw.amber[700],
-    10: tw.amber[600],
-    9: tw.amber[500],
-    7: tw.amber[400],
-  },
+    15: string;
+    14: string;
+    12: string;
+    11: string;
+    10: string;
+    9: string;
+    7: string;
+  };
 
   yellow: {
-    5: tw.yellow[300],
-  },
+    5: string;
+  };
 
   green: {
-    15: tw.green[950],
-    13: tw.green[700],
-    12: tw.green[600],
-    11: tw.green[500],
-    9: tw.green[400],
-    8: tw.green[300],
-  },
+    15: string;
+    13: string;
+    12: string;
+    11: string;
+    9: string;
+    8: string;
+  };
 
   blue: {
-    14: tw.blue[950],
-    9: tw.blue[600],
-    8: tw.blue[500],
-    7: tw.blue[400],
-    6: tw.blue[300],
-    3: tw.blue[200],
-    1: tw.blue[50],
-  },
-};
+    14: string;
+    9: string;
+    8: string;
+    7: string;
+    6: string;
+    3: string;
+    1: string;
+  };
+}

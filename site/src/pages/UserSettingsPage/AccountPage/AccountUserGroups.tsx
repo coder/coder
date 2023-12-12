@@ -1,12 +1,12 @@
+import Grid from "@mui/material/Grid";
 import { useTheme } from "@emotion/react";
+import { type FC } from "react";
 import { isApiError } from "api/errors";
-import { type Group } from "api/typesGenerated";
-
+import type { Group } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { AvatarCard } from "components/AvatarCard/AvatarCard";
 import { Loader } from "components/Loader/Loader";
 import { Section } from "components/SettingsLayout/Section";
-import Grid from "@mui/material/Grid";
 
 type AccountGroupsProps = {
   groups: readonly Group[] | undefined;
@@ -14,11 +14,11 @@ type AccountGroupsProps = {
   loading: boolean;
 };
 
-export function AccountUserGroups({
+export const AccountUserGroups: FC<AccountGroupsProps> = ({
   groups,
   error,
   loading,
-}: AccountGroupsProps) {
+}) => {
   const theme = useTheme();
 
   return (
@@ -71,4 +71,4 @@ export function AccountUserGroups({
       </div>
     </Section>
   );
-}
+};

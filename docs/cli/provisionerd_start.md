@@ -22,6 +22,15 @@ coder provisionerd start [flags]
 
 Directory to store cached data.
 
+### --name
+
+|             |                                             |
+| ----------- | ------------------------------------------- |
+| Type        | <code>string</code>                         |
+| Environment | <code>$CODER_PROVISIONER_DAEMON_NAME</code> |
+
+Name of this provisioner daemon. Defaults to the current hostname without FQDN.
+
 ### --poll-interval
 
 |             |                                                |

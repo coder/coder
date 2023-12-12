@@ -1,0 +1,26 @@
+app = "sydney-coder"
+primary_region = "syd"
+
+[experimental]
+  entrypoint = ["/opt/coder", "wsproxy", "server"]
+  auto_rollback = true
+
+[build]
+  image = "ghcr.io/coder/coder-preview:main"
+
+[env]
+  CODER_ACCESS_URL = "https://sydney-coder.fly.dev"
+  CODER_HTTP_ADDRESS = "0.0.0.0:3000"
+  CODER_PRIMARY_ACCESS_URL = "https://dev.coder.com"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512

@@ -93,3 +93,17 @@ export const RequireActiveVersionStopped: Story = {
     canChangeVersions: false,
   },
 };
+
+export const AlwaysUpdateStarted: Story = {
+  args: {
+    workspace: Mocks.MockOutdatedRunningWorkspaceAlwaysUpdate,
+    canChangeVersions: true,
+  },
+};
+
+export const AlwaysUpdateStopped: Story = {
+  args: {
+    workspace: Mocks.MockOutdatedStoppedWorkspaceAlwaysUpdate,
+    canChangeVersions: true,
+  },
+};

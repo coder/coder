@@ -23,3 +23,15 @@ export const WithHealthIssues: Story = {
     health: DeploymentHealthUnhealthy,
   },
 };
+
+export const WithDismissedHealthIssues: Story = {
+  args: {
+    health: {
+      ...DeploymentHealthUnhealthy,
+      workspace_proxy: {
+        ...DeploymentHealthUnhealthy.workspace_proxy,
+        dismissed: true,
+      },
+    },
+  },
+};

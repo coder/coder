@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/examples"
+	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 )
 
@@ -1331,7 +1332,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 	}
 
 	// Ensures the "owner" is properly applied.
-	tags := provisionerdserver.MutateTags(apiKey.UserID, req.ProvisionerTags)
+	tags := provisionersdk.MutateTags(apiKey.UserID, req.ProvisionerTags)
 
 	if req.ExampleID != "" && req.FileID != uuid.Nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -1597,7 +1598,7 @@ func convertTemplateVersion(version database.TemplateVersion, job codersdk.Provi
 		CreatedBy: codersdk.MinimalUser{
 			ID:        version.CreatedBy,
 			Username:  version.CreatedByUsername,
-			AvatarURL: version.CreatedByAvatarURL.String,
+			AvatarURL: version.CreatedByAvatarURL,
 		},
 		Archived: version.Archived,
 		Warnings: warnings,

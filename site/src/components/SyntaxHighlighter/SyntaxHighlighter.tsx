@@ -34,11 +34,11 @@ export const SyntaxHighlighter: FC<{
 
   return (
     <div
-      css={(theme) => ({
+      data-chromatic="ignore"
+      css={{
         padding: "8px 0",
-        background: theme.palette.background.paper,
         height: "100%",
-      })}
+      }}
     >
       {hasDiff ? (
         <DiffEditor original={compareWith} modified={value} {...commonProps} />

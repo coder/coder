@@ -275,7 +275,7 @@ const (
 	BuildReasonInitiator  BuildReason = "initiator"
 	BuildReasonAutostart  BuildReason = "autostart"
 	BuildReasonAutostop   BuildReason = "autostop"
-	BuildReasonAutolock   BuildReason = "autolock"
+	BuildReasonDormancy   BuildReason = "dormancy"
 	BuildReasonFailedstop BuildReason = "failedstop"
 	BuildReasonAutodelete BuildReason = "autodelete"
 )
@@ -320,7 +320,7 @@ func (e BuildReason) Valid() bool {
 	case BuildReasonInitiator,
 		BuildReasonAutostart,
 		BuildReasonAutostop,
-		BuildReasonAutolock,
+		BuildReasonDormancy,
 		BuildReasonFailedstop,
 		BuildReasonAutodelete:
 		return true
@@ -333,7 +333,7 @@ func AllBuildReasonValues() []BuildReason {
 		BuildReasonInitiator,
 		BuildReasonAutostart,
 		BuildReasonAutostop,
-		BuildReasonAutolock,
+		BuildReasonDormancy,
 		BuildReasonFailedstop,
 		BuildReasonAutodelete,
 	}
@@ -1158,6 +1158,7 @@ const (
 	ResourceTypeLicense         ResourceType = "license"
 	ResourceTypeWorkspaceProxy  ResourceType = "workspace_proxy"
 	ResourceTypeConvertLogin    ResourceType = "convert_login"
+	ResourceTypeHealthSettings  ResourceType = "health_settings"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -1208,7 +1209,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeWorkspaceBuild,
 		ResourceTypeLicense,
 		ResourceTypeWorkspaceProxy,
-		ResourceTypeConvertLogin:
+		ResourceTypeConvertLogin,
+		ResourceTypeHealthSettings:
 		return true
 	}
 	return false
@@ -1228,6 +1230,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeLicense,
 		ResourceTypeWorkspaceProxy,
 		ResourceTypeConvertLogin,
+		ResourceTypeHealthSettings,
 	}
 }
 
@@ -1347,7 +1350,7 @@ func AllTailnetStatusValues() []TailnetStatus {
 	}
 }
 
-// Defines the user status: active, dormant, or suspended.
+// Defines the users status: active, dormant, or suspended.
 type UserStatus string
 
 const (
@@ -1841,6 +1844,8 @@ type ProvisionerDaemon struct {
 	Provisioners []ProvisionerType `db:"provisioners" json:"provisioners"`
 	ReplicaID    uuid.NullUUID     `db:"replica_id" json:"replica_id"`
 	Tags         StringMap         `db:"tags" json:"tags"`
+	LastSeenAt   sql.NullTime      `db:"last_seen_at" json:"last_seen_at"`
+	Version      string            `db:"version" json:"version"`
 }
 
 type ProvisionerJob struct {
@@ -1967,7 +1972,7 @@ type Template struct {
 	AutostartBlockDaysOfWeek      int16           `db:"autostart_block_days_of_week" json:"autostart_block_days_of_week"`
 	RequireActiveVersion          bool            `db:"require_active_version" json:"require_active_version"`
 	Deprecated                    string          `db:"deprecated" json:"deprecated"`
-	CreatedByAvatarURL            sql.NullString  `db:"created_by_avatar_url" json:"created_by_avatar_url"`
+	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 }
 
@@ -2012,20 +2017,20 @@ type TemplateTable struct {
 
 // Joins in the username + avatar url of the created by user.
 type TemplateVersion struct {
-	ID                    uuid.UUID      `db:"id" json:"id"`
-	TemplateID            uuid.NullUUID  `db:"template_id" json:"template_id"`
-	OrganizationID        uuid.UUID      `db:"organization_id" json:"organization_id"`
-	CreatedAt             time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt             time.Time      `db:"updated_at" json:"updated_at"`
-	Name                  string         `db:"name" json:"name"`
-	Readme                string         `db:"readme" json:"readme"`
-	JobID                 uuid.UUID      `db:"job_id" json:"job_id"`
-	CreatedBy             uuid.UUID      `db:"created_by" json:"created_by"`
-	ExternalAuthProviders []string       `db:"external_auth_providers" json:"external_auth_providers"`
-	Message               string         `db:"message" json:"message"`
-	Archived              bool           `db:"archived" json:"archived"`
-	CreatedByAvatarURL    sql.NullString `db:"created_by_avatar_url" json:"created_by_avatar_url"`
-	CreatedByUsername     string         `db:"created_by_username" json:"created_by_username"`
+	ID                    uuid.UUID     `db:"id" json:"id"`
+	TemplateID            uuid.NullUUID `db:"template_id" json:"template_id"`
+	OrganizationID        uuid.UUID     `db:"organization_id" json:"organization_id"`
+	CreatedAt             time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt             time.Time     `db:"updated_at" json:"updated_at"`
+	Name                  string        `db:"name" json:"name"`
+	Readme                string        `db:"readme" json:"readme"`
+	JobID                 uuid.UUID     `db:"job_id" json:"job_id"`
+	CreatedBy             uuid.UUID     `db:"created_by" json:"created_by"`
+	ExternalAuthProviders []string      `db:"external_auth_providers" json:"external_auth_providers"`
+	Message               string        `db:"message" json:"message"`
+	Archived              bool          `db:"archived" json:"archived"`
+	CreatedByAvatarURL    string        `db:"created_by_avatar_url" json:"created_by_avatar_url"`
+	CreatedByUsername     string        `db:"created_by_username" json:"created_by_username"`
 }
 
 type TemplateVersionParameter struct {
@@ -2109,11 +2114,13 @@ type User struct {
 	Status         UserStatus     `db:"status" json:"status"`
 	RBACRoles      pq.StringArray `db:"rbac_roles" json:"rbac_roles"`
 	LoginType      LoginType      `db:"login_type" json:"login_type"`
-	AvatarURL      sql.NullString `db:"avatar_url" json:"avatar_url"`
+	AvatarURL      string         `db:"avatar_url" json:"avatar_url"`
 	Deleted        bool           `db:"deleted" json:"deleted"`
 	LastSeenAt     time.Time      `db:"last_seen_at" json:"last_seen_at"`
 	// Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user's quiet hours. If empty, the default quiet hours on the instance is used instead.
 	QuietHoursSchedule string `db:"quiet_hours_schedule" json:"quiet_hours_schedule"`
+	// "" can be interpreted as "the user does not care", falling back to the default theme
+	ThemePreference string `db:"theme_preference" json:"theme_preference"`
 }
 
 type UserLink struct {
@@ -2127,13 +2134,15 @@ type UserLink struct {
 	OAuthAccessTokenKeyID sql.NullString `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
 	// The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted
 	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
+	// Debug information includes information like id_token and userinfo claims.
+	DebugContext json.RawMessage `db:"debug_context" json:"debug_context"`
 }
 
 // Visible fields of users are allowed to be joined with other tables for including context of other resources.
 type VisibleUser struct {
-	ID        uuid.UUID      `db:"id" json:"id"`
-	Username  string         `db:"username" json:"username"`
-	AvatarURL sql.NullString `db:"avatar_url" json:"avatar_url"`
+	ID        uuid.UUID `db:"id" json:"id"`
+	Username  string    `db:"username" json:"username"`
+	AvatarURL string    `db:"avatar_url" json:"avatar_url"`
 }
 
 type Workspace struct {
@@ -2316,7 +2325,7 @@ type WorkspaceBuild struct {
 	Reason               BuildReason         `db:"reason" json:"reason"`
 	DailyCost            int32               `db:"daily_cost" json:"daily_cost"`
 	MaxDeadline          time.Time           `db:"max_deadline" json:"max_deadline"`
-	InitiatorByAvatarUrl sql.NullString      `db:"initiator_by_avatar_url" json:"initiator_by_avatar_url"`
+	InitiatorByAvatarUrl string              `db:"initiator_by_avatar_url" json:"initiator_by_avatar_url"`
 	InitiatorByUsername  string              `db:"initiator_by_username" json:"initiator_by_username"`
 }
 
@@ -2364,7 +2373,8 @@ type WorkspaceProxy struct {
 	RegionID          int32  `db:"region_id" json:"region_id"`
 	DerpEnabled       bool   `db:"derp_enabled" json:"derp_enabled"`
 	// Disables app/terminal proxying for this proxy and only acts as a DERP relay.
-	DerpOnly bool `db:"derp_only" json:"derp_only"`
+	DerpOnly bool   `db:"derp_only" json:"derp_only"`
+	Version  string `db:"version" json:"version"`
 }
 
 type WorkspaceResource struct {

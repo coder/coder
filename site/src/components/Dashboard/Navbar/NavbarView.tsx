@@ -2,7 +2,6 @@ import Drawer from "@mui/material/Drawer";
 import IconButton from "@mui/material/IconButton";
 import Divider from "@mui/material/Divider";
 import Skeleton from "@mui/material/Skeleton";
-import Box from "@mui/material/Box";
 import Menu from "@mui/material/Menu";
 import Button from "@mui/material/Button";
 import MenuItem from "@mui/material/MenuItem";
@@ -11,13 +10,12 @@ import MenuIcon from "@mui/icons-material/Menu";
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import { type FC, type ReactNode, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { colors } from "theme/colors";
-import type * as TypesGen from "api/typesGenerated";
 import { BUTTON_SM_HEIGHT, navHeight } from "theme/constants";
-import { ProxyContextValue } from "contexts/ProxyContext";
+import type * as TypesGen from "api/typesGenerated";
+import type { ProxyContextValue } from "contexts/ProxyContext";
 import { displayError } from "components/GlobalSnackbar/utils";
-import { CoderIcon } from "components/Icons/CoderIcon";
 import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency";
+import { CoderIcon } from "components/Icons/CoderIcon";
 import { usePermissions } from "hooks/usePermissions";
 import { UserDropdown } from "./UserDropdown/UserDropdown";
 
@@ -34,6 +32,7 @@ export interface NavbarViewProps {
   canViewAuditLog: boolean;
   canViewDeployment: boolean;
   canViewAllUsers: boolean;
+  canViewHealth: boolean;
   proxyContextValue?: ProxyContextValue;
 }
 
@@ -45,92 +44,22 @@ export const Language = {
   deployment: "Deployment",
 };
 
-const styles = {
-  desktopNavItems: (theme) => css`
-    display: none;
-
-    ${theme.breakpoints.up("md")} {
-      display: flex;
-    }
-  `,
-  mobileMenuButton: (theme) => css`
-    ${theme.breakpoints.up("md")} {
-      display: none;
-    }
-  `,
-  wrapper: (theme) => css`
-    position: relative;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-
-    ${theme.breakpoints.up("md")} {
-      justify-content: flex-start;
-    }
-  `,
-  drawerHeader: {
-    padding: 16,
-    paddingTop: 32,
-    paddingBottom: 32,
-  },
-  logo: (theme) => css`
-    align-items: center;
-    display: flex;
-    height: ${navHeight}px;
-    color: ${theme.palette.text.primary};
-    padding: 16px;
-
-    // svg is for the Coder logo, img is for custom images
-    & svg,
-    & img {
-      height: 100%;
-      object-fit: contain;
-    }
-  `,
-  drawerLogo: {
-    padding: 0,
-    maxHeight: 40,
-  },
-  item: {
-    padding: 0,
-  },
-  link: (theme) => css`
-    align-items: center;
-    color: ${colors.gray[6]};
-    display: flex;
-    flex: 1;
-    font-size: 16px;
-    padding: 12px 16px;
-    text-decoration: none;
-    transition: background-color 0.15s ease-in-out;
-
-    &.active {
-      color: ${theme.palette.text.primary};
-      font-weight: 500;
-    }
-
-    &:hover {
-      background-color: ${theme.palette.action.hover};
-    }
-
-    ${theme.breakpoints.up("md")} {
-      height: ${navHeight}px;
-      padding: 0 24px;
-    }
-  `,
-} satisfies Record<string, Interpolation<Theme>>;
-
 interface NavItemsProps {
   children?: ReactNode;
   className?: string;
   canViewAuditLog: boolean;
   canViewDeployment: boolean;
   canViewAllUsers: boolean;
+  canViewHealth: boolean;
 }
 
-const NavItems: React.FC<NavItemsProps> = (props) => {
-  const { className, canViewAuditLog, canViewDeployment, canViewAllUsers } =
-    props;
+const NavItems: FC<NavItemsProps> = ({
+  className,
+  canViewAuditLog,
+  canViewDeployment,
+  canViewAllUsers,
+  canViewHealth,
+}) => {
   const location = useLocation();
   const theme = useTheme();
 
@@ -166,6 +95,11 @@ const NavItems: React.FC<NavItemsProps> = (props) => {
           {Language.deployment}
         </NavLink>
       )}
+      {canViewHealth && (
+        <NavLink css={styles.link} to="/health">
+          Health
+        </NavLink>
+      )}
     </nav>
   );
 };
@@ -179,17 +113,19 @@ export const NavbarView: FC<NavbarViewProps> = ({
   canViewAuditLog,
   canViewDeployment,
   canViewAllUsers,
+  canViewHealth,
   proxyContextValue,
 }) => {
+  const theme = useTheme();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   return (
     <nav
-      css={(theme) => ({
+      css={{
         height: navHeight,
-        background: theme.palette.background.paper,
+        backgroundColor: theme.palette.background.paper,
         borderBottom: `1px solid ${theme.palette.divider}`,
-      })}
+      }}
     >
       <div css={styles.wrapper}>
         <IconButton
@@ -222,6 +158,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
               canViewAuditLog={canViewAuditLog}
               canViewDeployment={canViewDeployment}
               canViewAllUsers={canViewAllUsers}
+              canViewHealth={canViewHealth}
             />
           </div>
         </Drawer>
@@ -239,15 +176,10 @@ export const NavbarView: FC<NavbarViewProps> = ({
           canViewAuditLog={canViewAuditLog}
           canViewDeployment={canViewDeployment}
           canViewAllUsers={canViewAllUsers}
+          canViewHealth={canViewHealth}
         />
 
-        <Box
-          display="flex"
-          marginLeft={{ md: "auto" }}
-          gap={2}
-          alignItems="center"
-          paddingRight={2}
-        >
+        <div css={styles.navMenus}>
           {proxyContextValue && (
             <ProxyMenu proxyContextValue={proxyContextValue} />
           )}
@@ -259,15 +191,18 @@ export const NavbarView: FC<NavbarViewProps> = ({
               onSignOut={onSignOut}
             />
           )}
-        </Box>
+        </div>
       </div>
     </nav>
   );
 };
 
-const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
-  proxyContextValue,
-}) => {
+interface ProxyMenuProps {
+  proxyContextValue: ProxyContextValue;
+}
+
+const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
+  const theme = useTheme();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [refetchDate, setRefetchDate] = useState<Date>();
@@ -305,7 +240,7 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
       <Skeleton
         width="110px"
         height={BUTTON_SM_HEIGHT}
-        sx={{ borderRadius: "9999px", transform: "none" }}
+        css={{ borderRadius: "9999px", transform: "none" }}
       />
     );
   }
@@ -317,28 +252,29 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
         onClick={() => setIsOpen(true)}
         size="small"
         endIcon={<KeyboardArrowDownOutlined />}
-        sx={{
+        css={{
           borderRadius: "999px",
           "& .MuiSvgIcon-root": { fontSize: 14 },
         }}
       >
         {selectedProxy ? (
-          <Box display="flex" gap={1} alignItems="center">
-            <Box width={16} height={16} lineHeight={0}>
-              <Box
-                component="img"
+          <div css={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <div css={{ width: 16, height: 16, lineHeight: 0 }}>
+              <img
                 src={selectedProxy.icon_url}
                 alt=""
-                sx={{ objectFit: "contain" }}
-                width="100%"
-                height="100%"
+                css={{
+                  objectFit: "contain",
+                  width: "100%",
+                  height: "100%",
+                }}
               />
-            </Box>
+            </div>
             <ProxyStatusLatency
               latency={latencies?.[selectedProxy.id]?.latencyMS}
               isLoading={proxyLatencyLoading(selectedProxy)}
             />
-          </Box>
+          </div>
         ) : (
           "Select Proxy"
         )}
@@ -348,14 +284,14 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
         anchorEl={buttonRef.current}
         onClick={closeMenu}
         onClose={closeMenu}
-        sx={{ "& .MuiMenu-paper": { py: 1 } }}
+        css={{ "& .MuiMenu-paper": { paddingTop: 8, paddingBottom: 8 } }}
       >
-        <Box
-          sx={{
-            w: "100%",
-            fontSize: 14,
-            padding: 2,
+        <div
+          css={{
+            width: "100%",
             maxWidth: "320px",
+            fontSize: 14,
+            padding: 16,
             lineHeight: "140%",
           }}
         >
@@ -371,20 +307,20 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
             Select a region nearest to you
           </h4>
           <p
-            css={(theme) => ({
+            css={{
               fontSize: 13,
               color: theme.palette.text.secondary,
               lineHeight: "inherit",
               marginTop: 0.5,
-            })}
+            }}
           >
             Workspace proxies improve terminal and web app connections to
             workspaces. This does not apply to CLI connections. A region must be
             manually selected, otherwise the default primary region will be
             used.
           </p>
-        </Box>
-        <Divider sx={{ borderColor: (theme) => theme.palette.divider }} />
+        </div>
+        <Divider css={{ borderColor: theme.palette.divider }} />
         {proxyContextValue.proxies
           ?.sort((a, b) => {
             const latencyA = latencies?.[a.id]?.latencyMS ?? Infinity;
@@ -405,33 +341,39 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
               }}
               key={proxy.id}
               selected={proxy.id === selectedProxy?.id}
-              sx={{
-                fontSize: 14,
-              }}
+              css={{ fontSize: 14 }}
             >
-              <Box display="flex" gap={3} alignItems="center" width="100%">
-                <Box width={14} height={14} lineHeight={0}>
-                  <Box
-                    component="img"
+              <div
+                css={{
+                  display: "flex",
+                  gap: 24,
+                  alignItems: "center",
+                  width: "100%",
+                }}
+              >
+                <div css={{ width: 14, height: 14, lineHeight: 0 }}>
+                  <img
                     src={proxy.icon_url}
                     alt=""
-                    sx={{ objectFit: "contain" }}
-                    width="100%"
-                    height="100%"
+                    css={{
+                      objectFit: "contain",
+                      width: "100%",
+                      height: "100%",
+                    }}
                   />
-                </Box>
+                </div>
                 {proxy.display_name}
                 <ProxyStatusLatency
                   latency={latencies?.[proxy.id]?.latencyMS}
                   isLoading={proxyLatencyLoading(proxy)}
                 />
-              </Box>
+              </div>
             </MenuItem>
           ))}
-        <Divider sx={{ borderColor: (theme) => theme.palette.divider }} />
+        <Divider css={{ borderColor: theme.palette.divider }} />
         {Boolean(permissions.editWorkspaceProxies) && (
           <MenuItem
-            sx={{ fontSize: 14 }}
+            css={{ fontSize: 14 }}
             onClick={() => {
               navigate("deployment/workspace-proxies");
             }}
@@ -440,7 +382,7 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
           </MenuItem>
         )}
         <MenuItem
-          sx={{ fontSize: 14 }}
+          css={{ fontSize: 14 }}
           onClick={(e) => {
             // Stop the menu from closing
             e.stopPropagation();
@@ -455,3 +397,85 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
     </>
   );
 };
+
+const styles = {
+  desktopNavItems: (theme) => css`
+    display: none;
+
+    ${theme.breakpoints.up("md")} {
+      display: flex;
+    }
+  `,
+  mobileMenuButton: (theme) => css`
+    ${theme.breakpoints.up("md")} {
+      display: none;
+    }
+  `,
+  navMenus: (theme) => ({
+    display: "flex",
+    gap: 16,
+    alignItems: "center",
+    paddingRight: 16,
+
+    [theme.breakpoints.up("md")]: {
+      marginLeft: "auto",
+    },
+  }),
+  wrapper: (theme) => css`
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    ${theme.breakpoints.up("md")} {
+      justify-content: flex-start;
+    }
+  `,
+  drawerHeader: {
+    padding: 16,
+    paddingTop: 32,
+    paddingBottom: 32,
+  },
+  logo: (theme) => css`
+    align-items: center;
+    display: flex;
+    height: ${navHeight}px;
+    color: ${theme.palette.text.primary};
+    padding: 16px;
+
+    // svg is for the Coder logo, img is for custom images
+    & svg,
+    & img {
+      height: 100%;
+      object-fit: contain;
+    }
+  `,
+  drawerLogo: {
+    padding: 0,
+    maxHeight: 40,
+  },
+  link: (theme) => css`
+    align-items: center;
+    color: ${theme.colors.gray[6]};
+    display: flex;
+    flex: 1;
+    font-size: 16px;
+    padding: 12px 16px;
+    text-decoration: none;
+    transition: background-color 0.15s ease-in-out;
+
+    &.active {
+      color: ${theme.palette.text.primary};
+      font-weight: 500;
+    }
+
+    &:hover {
+      background-color: ${theme.palette.action.hover};
+    }
+
+    ${theme.breakpoints.up("md")} {
+      height: ${navHeight}px;
+      padding: 0 24px;
+    }
+  `,
+} satisfies Record<string, Interpolation<Theme>>;

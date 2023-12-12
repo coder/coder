@@ -46,6 +46,7 @@ export const Language = {
 export interface CreateWorkspacePageViewProps {
   mode: CreateWorkspaceMode;
   error: unknown;
+  resetMutation: () => void;
   defaultName: string;
   defaultOwner: TypesGen.User;
   template: TypesGen.Template;
@@ -67,6 +68,7 @@ export interface CreateWorkspacePageViewProps {
 export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   mode,
   error,
+  resetMutation,
   defaultName,
   defaultOwner,
   template,
@@ -157,7 +159,8 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
             <TextField
               {...getFieldHelpers("name")}
               disabled={creatingWorkspace}
-              onChange={onChangeTrimmed(form)}
+              // resetMutation facilitates the clearing of validation errors
+              onChange={onChangeTrimmed(form, resetMutation)}
               autoFocus
               fullWidth
               label="Workspace Name"

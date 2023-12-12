@@ -3,23 +3,16 @@ package tailnet
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
-	"io"
 	"net"
-	"net/http"
-	"net/netip"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"nhooyr.io/websocket"
-
 	"github.com/coder/coder/v2/tailnet/proto"
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
-	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 	gProto "google.golang.org/protobuf/proto"
 
@@ -28,22 +21,20 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/util/slice"
 	agpl "github.com/coder/coder/v2/tailnet"
 )
 
 const (
-	EventHeartbeats         = "tailnet_coordinator_heartbeat"
-	eventPeerUpdate         = "tailnet_peer_update"
-	eventTunnelUpdate       = "tailnet_tunnel_update"
-	HeartbeatPeriod         = time.Second * 2
-	MissedHeartbeats        = 3
-	numQuerierWorkers       = 10
-	numBinderWorkers        = 10
-	numTunnelerWorkers      = 10
-	dbMaxBackoff            = 10 * time.Second
-	cleanupPeriod           = time.Hour
-	requestResponseBuffSize = 32
+	EventHeartbeats    = "tailnet_coordinator_heartbeat"
+	eventPeerUpdate    = "tailnet_peer_update"
+	eventTunnelUpdate  = "tailnet_tunnel_update"
+	HeartbeatPeriod    = time.Second * 2
+	MissedHeartbeats   = 3
+	numQuerierWorkers  = 10
+	numBinderWorkers   = 10
+	numTunnelerWorkers = 10
+	dbMaxBackoff       = 10 * time.Second
+	cleanupPeriod      = time.Hour
 )
 
 // pgCoord is a postgres-backed coordinator
@@ -164,54 +155,8 @@ func NewPGCoordV2(ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, sto
 	return newPGCoordInternal(ctx, logger, ps, store)
 }
 
-// This is copied from codersdk because importing it here would cause an import
-// cycle. This is just temporary until wsconncache is phased out.
-var legacyAgentIP = netip.MustParseAddr("fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4")
-
 func (c *pgCoord) ServeMultiAgent(id uuid.UUID) agpl.MultiAgentConn {
-	logger := c.logger.With(slog.F("client_id", id)).Named("multiagent")
-	ctx, cancel := context.WithCancel(c.ctx)
-	reqs, resps := c.Coordinate(ctx, id, id.String(), agpl.SingleTailnetTunnelAuth{})
-	ma := (&agpl.MultiAgent{
-		ID: id,
-		AgentIsLegacyFunc: func(agentID uuid.UUID) bool {
-			if n := c.Node(agentID); n == nil {
-				// If we don't have the node at all assume it's legacy for
-				// safety.
-				return true
-			} else if len(n.Addresses) > 0 && n.Addresses[0].Addr() == legacyAgentIP {
-				// An agent is determined to be "legacy" if it's first IP is the
-				// legacy IP. Agents with only the legacy IP aren't compatible
-				// with single_tailnet and must be routed through wsconncache.
-				return true
-			} else {
-				return false
-			}
-		},
-		OnSubscribe: func(enq agpl.Queue, agent uuid.UUID) (*agpl.Node, error) {
-			err := sendCtx(ctx, reqs, &proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{Uuid: agpl.UUIDToByteSlice(agent)}})
-			return c.Node(agent), err
-		},
-		OnUnsubscribe: func(enq agpl.Queue, agent uuid.UUID) error {
-			err := sendCtx(ctx, reqs, &proto.CoordinateRequest{RemoveTunnel: &proto.CoordinateRequest_Tunnel{Uuid: agpl.UUIDToByteSlice(agent)}})
-			return err
-		},
-		OnNodeUpdate: func(id uuid.UUID, node *agpl.Node) error {
-			pn, err := agpl.NodeToProto(node)
-			if err != nil {
-				return err
-			}
-			return sendCtx(c.ctx, reqs, &proto.CoordinateRequest{UpdateSelf: &proto.CoordinateRequest_UpdateSelf{
-				Node: pn,
-			}})
-		},
-		OnRemove: func(_ agpl.Queue) {
-			cancel()
-		},
-	}).Init()
-
-	go v1SendLoop(ctx, cancel, logger, ma, resps)
-	return ma
+	return agpl.ServeMultiAgent(c, c.logger, id)
 }
 
 func (c *pgCoord) Node(id uuid.UUID) *agpl.Node {
@@ -255,111 +200,11 @@ func (c *pgCoord) Node(id uuid.UUID) *agpl.Node {
 }
 
 func (c *pgCoord) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) error {
-	logger := c.logger.With(slog.F("client_id", id), slog.F("agent_id", agent))
-	defer func() {
-		err := conn.Close()
-		if err != nil {
-			logger.Debug(c.ctx, "closing client connection", slog.Error(err))
-		}
-	}()
-	ctx, cancel := context.WithCancel(c.ctx)
-	defer cancel()
-	reqs, resps := c.Coordinate(ctx, id, id.String(), agpl.ClientTunnelAuth{AgentID: agent})
-	err := sendCtx(ctx, reqs, &proto.CoordinateRequest{
-		AddTunnel: &proto.CoordinateRequest_Tunnel{Uuid: agpl.UUIDToByteSlice(agent)},
-	})
-	if err != nil {
-		// can only be a context error, no need to log here.
-		return err
-	}
-	defer func() {
-		_ = sendCtx(ctx, reqs, &proto.CoordinateRequest{
-			RemoveTunnel: &proto.CoordinateRequest_Tunnel{Uuid: agpl.UUIDToByteSlice(agent)},
-		})
-	}()
-
-	tc := agpl.NewTrackedConn(ctx, cancel, conn, id, logger, id.String(), 0, agpl.QueueKindClient)
-	go tc.SendUpdates()
-	go v1SendLoop(ctx, cancel, logger, tc, resps)
-	go v1RecvLoop(ctx, cancel, logger, conn, reqs)
-	<-ctx.Done()
-	return nil
+	return agpl.ServeClientV1(c.ctx, c.logger, c, conn, id, agent)
 }
 
 func (c *pgCoord) ServeAgent(conn net.Conn, id uuid.UUID, name string) error {
-	logger := c.logger.With(slog.F("agent_id", id), slog.F("name", name))
-	defer func() {
-		logger.Debug(c.ctx, "closing agent connection")
-		err := conn.Close()
-		logger.Debug(c.ctx, "closed agent connection", slog.Error(err))
-	}()
-	ctx, cancel := context.WithCancel(c.ctx)
-	defer cancel()
-	reqs, resps := c.Coordinate(ctx, id, name, agpl.AgentTunnelAuth{})
-	tc := agpl.NewTrackedConn(ctx, cancel, conn, id, logger, name, 0, agpl.QueueKindAgent)
-	go tc.SendUpdates()
-	go v1SendLoop(ctx, cancel, logger, tc, resps)
-	go v1RecvLoop(ctx, cancel, logger, conn, reqs)
-	<-ctx.Done()
-	return nil
-}
-
-func v1RecvLoop(ctx context.Context, cancel context.CancelFunc, logger slog.Logger,
-	conn net.Conn, reqs chan<- *proto.CoordinateRequest,
-) {
-	defer cancel()
-	decoder := json.NewDecoder(conn)
-	for {
-		var node agpl.Node
-		err := decoder.Decode(&node)
-		if err != nil {
-			if xerrors.Is(err, io.EOF) ||
-				xerrors.Is(err, io.ErrClosedPipe) ||
-				xerrors.Is(err, context.Canceled) ||
-				xerrors.Is(err, context.DeadlineExceeded) ||
-				websocket.CloseStatus(err) > 0 {
-				logger.Debug(ctx, "exiting recvLoop", slog.Error(err))
-			} else {
-				logger.Error(ctx, "failed to decode Node update", slog.Error(err))
-			}
-			return
-		}
-		logger.Debug(ctx, "got node update", slog.F("node", node))
-		pn, err := agpl.NodeToProto(&node)
-		if err != nil {
-			logger.Critical(ctx, "failed to convert v1 node", slog.F("node", node), slog.Error(err))
-			return
-		}
-		req := &proto.CoordinateRequest{UpdateSelf: &proto.CoordinateRequest_UpdateSelf{
-			Node: pn,
-		}}
-		if err := sendCtx(ctx, reqs, req); err != nil {
-			logger.Debug(ctx, "recvLoop ctx expired", slog.Error(err))
-			return
-		}
-	}
-}
-
-func v1SendLoop(ctx context.Context, cancel context.CancelFunc, logger slog.Logger, q agpl.Queue, resps <-chan *proto.CoordinateResponse) {
-	defer cancel()
-	for {
-		resp, err := recvCtx(ctx, resps)
-		if err != nil {
-			logger.Debug(ctx, "done reading responses", slog.Error(err))
-			return
-		}
-		logger.Debug(ctx, "v1: got response", slog.F("resp", resp))
-		nodes, err := agpl.OnlyNodeUpdates(resp)
-		if err != nil {
-			logger.Critical(ctx, "failed to decode resp", slog.F("resp", resp), slog.Error(err))
-			_ = q.CoordinatorClose()
-			return
-		}
-		err = q.Enqueue(nodes)
-		if err != nil {
-			logger.Error(ctx, "failed to enqueue multi-agent update", slog.Error(err))
-		}
-	}
+	return agpl.ServeAgentV1(c.ctx, c.logger, c, conn, id, name)
 }
 
 func (c *pgCoord) Close() error {
@@ -375,41 +220,20 @@ func (c *pgCoord) Coordinate(
 	chan<- *proto.CoordinateRequest, <-chan *proto.CoordinateResponse,
 ) {
 	logger := c.logger.With(slog.F("peer_id", id))
-	reqs := make(chan *proto.CoordinateRequest, requestResponseBuffSize)
+	reqs := make(chan *proto.CoordinateRequest, agpl.RequestBufferSize)
 	resps := make(chan *proto.CoordinateResponse, agpl.ResponseBufferSize)
 	cIO := newConnIO(c.ctx, ctx, logger, c.bindings, c.tunnelerCh, reqs, resps, id, name, a)
-	err := sendCtx(c.ctx, c.newConnections, cIO)
+	err := agpl.SendCtx(c.ctx, c.newConnections, cIO)
 	if err != nil {
 		// this can only happen if the context is canceled, no need to log
 		return reqs, resps
 	}
 	go func() {
 		<-cIO.Done()
-		_ = sendCtx(c.ctx, c.closeConnections, cIO)
+		_ = agpl.SendCtx(c.ctx, c.closeConnections, cIO)
 	}()
 
 	return reqs, resps
-}
-
-func sendCtx[A any](ctx context.Context, c chan<- A, a A) (err error) {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case c <- a:
-		return nil
-	}
-}
-
-func recvCtx[A any](ctx context.Context, c <-chan A) (a A, err error) {
-	select {
-	case <-ctx.Done():
-		return a, ctx.Err()
-	case a, ok := <-c:
-		if ok {
-			return a, nil
-		}
-		return a, io.EOF
-	}
 }
 
 type tKey struct {
@@ -600,6 +424,7 @@ type bKey uuid.UUID
 type binding struct {
 	bKey
 	node *proto.Node
+	kind proto.CoordinateResponse_PeerUpdate_Kind
 }
 
 // binder reads node bindings from the channel and writes them to the database.  It handles retries with a backoff.
@@ -678,22 +503,7 @@ func (b *binder) worker() {
 
 func (b *binder) writeOne(bnd binding) error {
 	var err error
-	if bnd.node != nil {
-		var nodeRaw []byte
-		nodeRaw, err = gProto.Marshal(bnd.node)
-		if err != nil {
-			// this is very bad news, but it should never happen because the node was Unmarshalled or converted by this
-			// process earlier.
-			b.logger.Critical(b.ctx, "failed to marshal node", slog.Error(err))
-			return err
-		}
-		_, err = b.store.UpsertTailnetPeer(b.ctx, database.UpsertTailnetPeerParams{
-			ID:            uuid.UUID(bnd.bKey),
-			CoordinatorID: b.coordinatorID,
-			Node:          nodeRaw,
-			Status:        database.TailnetStatusOk,
-		})
-	} else {
+	if bnd.kind == proto.CoordinateResponse_PeerUpdate_DISCONNECTED {
 		_, err = b.store.DeleteTailnetPeer(b.ctx, database.DeleteTailnetPeerParams{
 			ID:            uuid.UUID(bnd.bKey),
 			CoordinatorID: b.coordinatorID,
@@ -702,6 +512,25 @@ func (b *binder) writeOne(bnd binding) error {
 		if xerrors.Is(err, sql.ErrNoRows) {
 			err = nil
 		}
+	} else {
+		var nodeRaw []byte
+		nodeRaw, err = gProto.Marshal(bnd.node)
+		if err != nil {
+			// this is very bad news, but it should never happen because the node was Unmarshalled or converted by this
+			// process earlier.
+			b.logger.Critical(b.ctx, "failed to marshal node", slog.Error(err))
+			return err
+		}
+		status := database.TailnetStatusOk
+		if bnd.kind == proto.CoordinateResponse_PeerUpdate_LOST {
+			status = database.TailnetStatusLost
+		}
+		_, err = b.store.UpsertTailnetPeer(b.ctx, database.UpsertTailnetPeerParams{
+			ID:            uuid.UUID(bnd.bKey),
+			CoordinatorID: b.coordinatorID,
+			Node:          nodeRaw,
+			Status:        status,
+		})
 	}
 
 	if err != nil && !database.IsQueryCanceledError(err) {
@@ -713,16 +542,27 @@ func (b *binder) writeOne(bnd binding) error {
 	return err
 }
 
-// storeBinding stores the latest binding, where we interpret node == nil as removing the binding. This keeps the map
+// storeBinding stores the latest binding, where we interpret kind == DISCONNECTED as removing the binding. This keeps the map
 // from growing without bound.
 func (b *binder) storeBinding(bnd binding) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if bnd.node != nil {
+
+	switch bnd.kind {
+	case proto.CoordinateResponse_PeerUpdate_NODE:
 		b.latest[bnd.bKey] = bnd
-	} else {
-		// nil node is interpreted as removing binding
+	case proto.CoordinateResponse_PeerUpdate_DISCONNECTED:
 		delete(b.latest, bnd.bKey)
+	case proto.CoordinateResponse_PeerUpdate_LOST:
+		// we need to coalesce with the previously stored node, since it must
+		// be non-nil in the database
+		old, ok := b.latest[bnd.bKey]
+		if !ok {
+			// lost before we ever got a node update.  No action
+			return
+		}
+		bnd.node = old.node
+		b.latest[bnd.bKey] = bnd
 	}
 }
 
@@ -735,6 +575,7 @@ func (b *binder) retrieveBinding(bk bKey) binding {
 		bnd = binding{
 			bKey: bk,
 			node: nil,
+			kind: proto.CoordinateResponse_PeerUpdate_DISCONNECTED,
 		}
 	}
 	return bnd
@@ -755,9 +596,8 @@ type mapper struct {
 
 	// latest is the most recent, unfiltered snapshot of the mappings we know about
 	latest []mapping
-	// sent is the state of mappings we have actually enqueued; used to compute diffs for updates. It is a map from peer
-	// ID to node.
-	sent map[uuid.UUID]*proto.Node
+	// sent is the state of mappings we have actually enqueued; used to compute diffs for updates.
+	sent map[uuid.UUID]mapping
 
 	// called to filter mappings to healthy coordinators
 	heartbeats *heartbeats
@@ -774,7 +614,7 @@ func newMapper(c *connIO, logger slog.Logger, h *heartbeats) *mapper {
 		update:     make(chan struct{}),
 		mappings:   make(chan []mapping),
 		heartbeats: h,
-		sent:       make(map[uuid.UUID]*proto.Node),
+		sent:       make(map[uuid.UUID]mapping),
 	}
 	go m.run()
 	return m
@@ -782,19 +622,19 @@ func newMapper(c *connIO, logger slog.Logger, h *heartbeats) *mapper {
 
 func (m *mapper) run() {
 	for {
-		var nodes map[uuid.UUID]*proto.Node
+		var best map[uuid.UUID]mapping
 		select {
 		case <-m.ctx.Done():
 			return
 		case mappings := <-m.mappings:
 			m.logger.Debug(m.ctx, "got new mappings")
 			m.latest = mappings
-			nodes = m.mappingsToNodes(mappings)
+			best = m.bestMappings(mappings)
 		case <-m.update:
 			m.logger.Debug(m.ctx, "triggered update")
-			nodes = m.mappingsToNodes(m.latest)
+			best = m.bestMappings(m.latest)
 		}
-		update := m.nodesToUpdate(nodes)
+		update := m.bestToUpdate(best)
 		if update == nil {
 			m.logger.Debug(m.ctx, "skipping nil node update")
 			continue
@@ -805,66 +645,82 @@ func (m *mapper) run() {
 	}
 }
 
-// mappingsToNodes takes a set of mappings and resolves the best set of nodes.  We may get several mappings for a
+// bestMappings takes a set of mappings and resolves the best set of nodes.  We may get several mappings for a
 // particular connection, from different coordinators in the distributed system.  Furthermore, some coordinators
 // might be considered invalid on account of missing heartbeats.  We take the most recent mapping from a valid
 // coordinator as the "best" mapping.
-func (m *mapper) mappingsToNodes(mappings []mapping) map[uuid.UUID]*proto.Node {
+func (m *mapper) bestMappings(mappings []mapping) map[uuid.UUID]mapping {
 	mappings = m.heartbeats.filter(mappings)
 	best := make(map[uuid.UUID]mapping, len(mappings))
-	for _, m := range mappings {
-		bestM, ok := best[m.peer]
-		if !ok || m.updatedAt.After(bestM.updatedAt) {
-			best[m.peer] = m
+	for _, mpng := range mappings {
+		bestM, ok := best[mpng.peer]
+		switch {
+		case !ok:
+			// no current best
+			best[mpng.peer] = mpng
+
+		// NODE always beats LOST mapping, since the LOST could be from a coordinator that's
+		// slow updating the DB, and the peer has reconnected to a different coordinator and
+		// given a NODE mapping.
+		case bestM.kind == proto.CoordinateResponse_PeerUpdate_LOST && mpng.kind == proto.CoordinateResponse_PeerUpdate_NODE:
+			best[mpng.peer] = mpng
+		case mpng.updatedAt.After(bestM.updatedAt) && mpng.kind == proto.CoordinateResponse_PeerUpdate_NODE:
+			// newer, and it's a NODE update.
+			best[mpng.peer] = mpng
 		}
 	}
-	nodes := make(map[uuid.UUID]*proto.Node, len(best))
-	for k, m := range best {
-		nodes[k] = m.node
-	}
-	return nodes
+	return best
 }
 
-func (m *mapper) nodesToUpdate(nodes map[uuid.UUID]*proto.Node) *proto.CoordinateResponse {
+func (m *mapper) bestToUpdate(best map[uuid.UUID]mapping) *proto.CoordinateResponse {
 	resp := new(proto.CoordinateResponse)
 
-	for k, n := range nodes {
-		sn, ok := m.sent[k]
-		if !ok {
-			resp.PeerUpdates = append(resp.PeerUpdates, &proto.CoordinateResponse_PeerUpdate{
-				Uuid:   agpl.UUIDToByteSlice(k),
-				Node:   n,
-				Kind:   proto.CoordinateResponse_PeerUpdate_NODE,
-				Reason: "new",
-			})
+	for k, mpng := range best {
+		var reason string
+		sm, ok := m.sent[k]
+		switch {
+		case !ok && mpng.kind == proto.CoordinateResponse_PeerUpdate_LOST:
+			// we don't need to send a "lost" update if we've never sent an update about this peer
 			continue
-		}
-		eq, err := sn.Equal(n)
-		if err != nil {
-			m.logger.Critical(m.ctx, "failed to compare nodes", slog.F("old", sn), slog.F("new", n))
-		}
-		if !eq {
-			resp.PeerUpdates = append(resp.PeerUpdates, &proto.CoordinateResponse_PeerUpdate{
-				Uuid:   agpl.UUIDToByteSlice(k),
-				Node:   n,
-				Kind:   proto.CoordinateResponse_PeerUpdate_NODE,
-				Reason: "update",
-			})
+		case !ok && mpng.kind == proto.CoordinateResponse_PeerUpdate_NODE:
+			reason = "new"
+		case ok && sm.kind == proto.CoordinateResponse_PeerUpdate_LOST && mpng.kind == proto.CoordinateResponse_PeerUpdate_LOST:
+			// was lost and remains lost, no update needed
 			continue
+		case ok && sm.kind == proto.CoordinateResponse_PeerUpdate_LOST && mpng.kind == proto.CoordinateResponse_PeerUpdate_NODE:
+			reason = "found"
+		case ok && sm.kind == proto.CoordinateResponse_PeerUpdate_NODE && mpng.kind == proto.CoordinateResponse_PeerUpdate_LOST:
+			reason = "lost"
+		case ok && sm.kind == proto.CoordinateResponse_PeerUpdate_NODE && mpng.kind == proto.CoordinateResponse_PeerUpdate_NODE:
+			eq, err := sm.node.Equal(mpng.node)
+			if err != nil {
+				m.logger.Critical(m.ctx, "failed to compare nodes", slog.F("old", sm.node), slog.F("new", mpng.node))
+				continue
+			}
+			if eq {
+				continue
+			}
+			reason = "update"
 		}
+		resp.PeerUpdates = append(resp.PeerUpdates, &proto.CoordinateResponse_PeerUpdate{
+			Uuid:   agpl.UUIDToByteSlice(k),
+			Node:   mpng.node,
+			Kind:   mpng.kind,
+			Reason: reason,
+		})
+		m.sent[k] = mpng
 	}
 
 	for k := range m.sent {
-		if _, ok := nodes[k]; !ok {
+		if _, ok := best[k]; !ok {
 			resp.PeerUpdates = append(resp.PeerUpdates, &proto.CoordinateResponse_PeerUpdate{
 				Uuid:   agpl.UUIDToByteSlice(k),
 				Kind:   proto.CoordinateResponse_PeerUpdate_DISCONNECTED,
 				Reason: "disconnected",
 			})
+			delete(m.sent, k)
 		}
 	}
-
-	m.sent = nodes
 
 	if len(resp.PeerUpdates) == 0 {
 		return nil
@@ -1072,10 +928,6 @@ func (q *querier) mappingQuery(peer mKey) error {
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return err
 	}
-	if len(bindings) == 0 {
-		logger.Debug(q.ctx, "no mappings, nothing to do")
-		return nil
-	}
 	mappings, err := q.bindingsToMappings(bindings)
 	if err != nil {
 		logger.Debug(q.ctx, "failed to convert mappings", slog.Error(err))
@@ -1089,8 +941,7 @@ func (q *querier) mappingQuery(peer mKey) error {
 		return nil
 	}
 	logger.Debug(q.ctx, "sending mappings", slog.F("mapping_len", len(mappings)))
-	mpr.mappings <- mappings
-	return nil
+	return agpl.SendCtx(q.ctx, mpr.mappings, mappings)
 }
 
 func (q *querier) bindingsToMappings(bindings []database.GetTailnetTunnelPeerBindingsRow) ([]mapping, error) {
@@ -1103,11 +954,16 @@ func (q *querier) bindingsToMappings(bindings []database.GetTailnetTunnelPeerBin
 			q.logger.Error(q.ctx, "failed to unmarshal node", slog.Error(err))
 			return nil, backoff.Permanent(err)
 		}
+		kind := proto.CoordinateResponse_PeerUpdate_NODE
+		if binding.Status == database.TailnetStatusLost {
+			kind = proto.CoordinateResponse_PeerUpdate_LOST
+		}
 		mappings = append(mappings, mapping{
 			peer:        binding.PeerID,
 			coordinator: binding.CoordinatorID,
 			updatedAt:   binding.UpdatedAt,
 			node:        node,
+			kind:        kind,
 		})
 	}
 	return mappings, nil
@@ -1267,7 +1123,7 @@ func (q *querier) updateAll() {
 		go func(m *mapper) {
 			// make sure we send on the _mapper_ context, not our own in case the mapper is
 			// shutting down or shut down.
-			_ = sendCtx(m.ctx, m.update, struct{}{})
+			_ = agpl.SendCtx(m.ctx, m.update, struct{}{})
 		}(mpr)
 	}
 }
@@ -1294,29 +1150,6 @@ func (q *querier) setHealthy() {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	q.healthy = true
-}
-
-func (q *querier) getAll(ctx context.Context) (map[uuid.UUID]database.TailnetAgent, map[uuid.UUID][]database.TailnetClient, error) {
-	agents, err := q.store.GetAllTailnetAgents(ctx)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("get all tailnet agents: %w", err)
-	}
-	agentsMap := map[uuid.UUID]database.TailnetAgent{}
-	for _, agent := range agents {
-		agentsMap[agent.ID] = agent
-	}
-	clients, err := q.store.GetAllTailnetClients(ctx)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("get all tailnet clients: %w", err)
-	}
-	clientsMap := map[uuid.UUID][]database.TailnetClient{}
-	for _, client := range clients {
-		for _, agentID := range client.AgentIds {
-			clientsMap[agentID] = append(clientsMap[agentID], client.TailnetClient)
-		}
-	}
-
-	return agentsMap, clientsMap, nil
 }
 
 func parseTunnelUpdate(msg string) ([]uuid.UUID, error) {
@@ -1352,6 +1185,7 @@ type mapping struct {
 	coordinator uuid.UUID
 	updatedAt   time.Time
 	node        *proto.Node
+	kind        proto.CoordinateResponse_PeerUpdate_Kind
 }
 
 // querierWorkKey describes two kinds of work the querier needs to do.  If peerUpdate
@@ -1589,7 +1423,7 @@ func (h *heartbeats) recvBeat(id uuid.UUID) {
 		h.logger.Info(h.ctx, "heartbeats (re)started", slog.F("other_coordinator_id", id))
 		// send on a separate goroutine to avoid holding lock.  Triggering update can be async
 		go func() {
-			_ = sendCtx(h.ctx, h.update, hbUpdate{filter: filterUpdateUpdated})
+			_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{filter: filterUpdateUpdated})
 		}()
 	}
 	h.coordinators[id] = time.Now()
@@ -1636,7 +1470,7 @@ func (h *heartbeats) checkExpiry() {
 	if expired {
 		// send on a separate goroutine to avoid holding lock.  Triggering update can be async
 		go func() {
-			_ = sendCtx(h.ctx, h.update, hbUpdate{filter: filterUpdateUpdated})
+			_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{filter: filterUpdateUpdated})
 		}()
 	}
 	// we need to reset the timer for when the next oldest coordinator will expire, if any.
@@ -1671,14 +1505,14 @@ func (h *heartbeats) sendBeat() {
 		h.failedHeartbeats++
 		if h.failedHeartbeats == 3 {
 			h.logger.Error(h.ctx, "coordinator failed 3 heartbeats and is unhealthy")
-			_ = sendCtx(h.ctx, h.update, hbUpdate{health: healthUpdateUnhealthy})
+			_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{health: healthUpdateUnhealthy})
 		}
 		return
 	}
 	h.logger.Debug(h.ctx, "sent heartbeat")
 	if h.failedHeartbeats >= 3 {
 		h.logger.Info(h.ctx, "coordinator sent heartbeat and is healthy")
-		_ = sendCtx(h.ctx, h.update, hbUpdate{health: healthUpdateHealthy})
+		_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{health: healthUpdateHealthy})
 	}
 	h.failedHeartbeats = 0
 }
@@ -1709,103 +1543,22 @@ func (h *heartbeats) cleanupLoop() {
 	}
 }
 
-// cleanup issues a DB command to clean out any old expired coordinators state.  The cleanup is idempotent, so no need
-// to synchronize with other coordinators.
+// cleanup issues a DB command to clean out any old expired coordinators or lost peer state.  The
+// cleanup is idempotent, so no need to synchronize with other coordinators.
 func (h *heartbeats) cleanup() {
+	// the records we are attempting to clean up do no serious harm other than
+	// accumulating in the tables, so we don't bother retrying if it fails.
 	err := h.store.CleanTailnetCoordinators(h.ctx)
 	if err != nil {
-		// the records we are attempting to clean up do no serious harm other than
-		// accumulating in the tables, so we don't bother retrying if it fails.
 		h.logger.Error(h.ctx, "failed to cleanup old coordinators", slog.Error(err))
-		return
 	}
-	h.logger.Debug(h.ctx, "cleaned up old coordinators")
-}
-
-func (c *pgCoord) ServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	debug, err := c.htmlDebug(ctx)
+	err = h.store.CleanTailnetLostPeers(h.ctx)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(err.Error()))
-		return
+		h.logger.Error(h.ctx, "failed to cleanup lost peers", slog.Error(err))
 	}
-
-	agpl.CoordinatorHTTPDebug(debug)(w, r)
-}
-
-func (c *pgCoord) htmlDebug(ctx context.Context) (agpl.HTMLDebug, error) {
-	now := time.Now()
-	data := agpl.HTMLDebug{}
-	agents, clients, err := c.querier.getAll(ctx)
+	err = h.store.CleanTailnetTunnels(h.ctx)
 	if err != nil {
-		return data, xerrors.Errorf("get all agents and clients: %w", err)
+		h.logger.Error(h.ctx, "failed to cleanup abandoned tunnels", slog.Error(err))
 	}
-
-	for _, agent := range agents {
-		htmlAgent := &agpl.HTMLAgent{
-			ID: agent.ID,
-			// Name: ??, TODO: get agent names
-			LastWriteAge: now.Sub(agent.UpdatedAt).Round(time.Second),
-		}
-		for _, conn := range clients[agent.ID] {
-			htmlAgent.Connections = append(htmlAgent.Connections, &agpl.HTMLClient{
-				ID:           conn.ID,
-				Name:         conn.ID.String(),
-				LastWriteAge: now.Sub(conn.UpdatedAt).Round(time.Second),
-			})
-			data.Nodes = append(data.Nodes, &agpl.HTMLNode{
-				ID:   conn.ID,
-				Node: conn.Node,
-			})
-		}
-		slices.SortFunc(htmlAgent.Connections, func(a, b *agpl.HTMLClient) int {
-			return slice.Ascending(a.Name, b.Name)
-		})
-
-		data.Agents = append(data.Agents, htmlAgent)
-		data.Nodes = append(data.Nodes, &agpl.HTMLNode{
-			ID: agent.ID,
-			// Name: ??, TODO: get agent names
-			Node: agent.Node,
-		})
-	}
-	slices.SortFunc(data.Agents, func(a, b *agpl.HTMLAgent) int {
-		return slice.Ascending(a.Name, b.Name)
-	})
-
-	for agentID, conns := range clients {
-		if len(conns) == 0 {
-			continue
-		}
-
-		if _, ok := agents[agentID]; ok {
-			continue
-		}
-		agent := &agpl.HTMLAgent{
-			Name: "unknown",
-			ID:   agentID,
-		}
-		for _, conn := range conns {
-			agent.Connections = append(agent.Connections, &agpl.HTMLClient{
-				Name:         conn.ID.String(),
-				ID:           conn.ID,
-				LastWriteAge: now.Sub(conn.UpdatedAt).Round(time.Second),
-			})
-			data.Nodes = append(data.Nodes, &agpl.HTMLNode{
-				ID:   conn.ID,
-				Node: conn.Node,
-			})
-		}
-		slices.SortFunc(agent.Connections, func(a, b *agpl.HTMLClient) int {
-			return slice.Ascending(a.Name, b.Name)
-		})
-
-		data.MissingAgents = append(data.MissingAgents, agent)
-	}
-	slices.SortFunc(data.MissingAgents, func(a, b *agpl.HTMLAgent) int {
-		return slice.Ascending(a.Name, b.Name)
-	})
-
-	return data, nil
+	h.logger.Debug(h.ctx, "completed cleanup")
 }

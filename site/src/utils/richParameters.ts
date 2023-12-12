@@ -75,7 +75,7 @@ export const useValidationSchemaForRichParameters = (
                   if (templateParameter.validation_max < Number(val)) {
                     return ctx.createError({
                       path: ctx.path,
-                      message: `Value must be lesser than ${templateParameter.validation_max}.`,
+                      message: `Value must be less than ${templateParameter.validation_max}.`,
                     });
                   }
                 } else if (

@@ -24,6 +24,8 @@ import (
 	"golang.org/x/xerrors"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 
+	"github.com/coder/retry"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 
@@ -34,7 +36,6 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
-	"github.com/coder/retry"
 )
 
 var (
@@ -44,15 +45,16 @@ var (
 
 func (r *RootCmd) ssh() *clibase.Cmd {
 	var (
-		stdio          bool
-		forwardAgent   bool
-		forwardGPG     bool
-		identityAgent  string
-		wsPollInterval time.Duration
-		waitEnum       string
-		noWait         bool
-		logDirPath     string
-		remoteForward  string
+		stdio            bool
+		forwardAgent     bool
+		forwardGPG       bool
+		identityAgent    string
+		wsPollInterval   time.Duration
+		waitEnum         string
+		noWait           bool
+		logDirPath       string
+		remoteForward    string
+		disableAutostart bool
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -143,7 +145,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				}
 			}
 
-			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, codersdk.Me, inv.Args[0])
+			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, !disableAutostart, codersdk.Me, inv.Args[0])
 			if err != nil {
 				return err
 			}
@@ -228,7 +230,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				if err != nil {
 					return xerrors.Errorf("connect SSH: %w", err)
 				}
-				copier := &rawSSHCopier{conn: rawSSH, r: inv.Stdin, w: inv.Stdout}
+				copier := newRawSSHCopier(logger, rawSSH, inv.Stdin, inv.Stdout)
 				if err = stack.push("rawSSHCopier", copier); err != nil {
 					return err
 				}
@@ -379,11 +381,16 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 
 			err = sshSession.Wait()
 			if err != nil {
+				if exitErr := (&gossh.ExitError{}); errors.As(err, &exitErr) {
+					// Clear the error since it's not useful beyond
+					// reporting status.
+					return ExitError(exitErr.ExitStatus(), nil)
+				}
 				// If the connection drops unexpectedly, we get an
 				// ExitMissingError but no other error details, so try to at
 				// least give the user a better message
 				if errors.Is(err, &gossh.ExitMissingError{}) {
-					return xerrors.New("SSH connection ended unexpectedly")
+					return ExitError(255, xerrors.New("SSH connection ended unexpectedly"))
 				}
 				return xerrors.Errorf("session ended: %w", err)
 			}
@@ -454,6 +461,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			FlagShorthand: "R",
 			Value:         clibase.StringOf(&remoteForward),
 		},
+		sshDisableAutostartOption(clibase.BoolOf(&disableAutostart)),
 	}
 	return cmd
 }
@@ -525,9 +533,9 @@ startWatchLoop:
 }
 
 // getWorkspaceAgent returns the workspace and agent selected using either the
-// `<workspace>[.<agent>]` syntax via `in` or picks a random workspace and agent
-// if `shuffle` is true.
-func getWorkspaceAndAgent(ctx context.Context, inv *clibase.Invocation, client *codersdk.Client, userID string, in string) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
+// `<workspace>[.<agent>]` syntax via `in`.
+// If autoStart is true, the workspace will be started if it is not already running.
+func getWorkspaceAndAgent(ctx context.Context, inv *clibase.Invocation, client *codersdk.Client, autostart bool, userID string, in string) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
 	var (
 		workspace      codersdk.Workspace
 		workspaceParts = strings.Split(in, ".")
@@ -540,7 +548,35 @@ func getWorkspaceAndAgent(ctx context.Context, inv *clibase.Invocation, client *
 	}
 
 	if workspace.LatestBuild.Transition != codersdk.WorkspaceTransitionStart {
-		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("workspace must be in start transition to ssh")
+		if !autostart {
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("workspace must be in start transition to ssh")
+		}
+		// Autostart the workspace for the user.
+		// For some failure modes, return a better message.
+		if workspace.LatestBuild.Transition == codersdk.WorkspaceTransitionDelete {
+			// Any sort of deleting status, we should reject with a nicer error.
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace %q is deleted", workspace.Name)
+		}
+		if workspace.LatestBuild.Job.Status == codersdk.ProvisionerJobFailed {
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{},
+				xerrors.Errorf("workspace %q is in failed state, unable to autostart the workspace", workspace.Name)
+		}
+		// The workspace needs to be stopped before we can start it.
+		// It cannot be in any pending or failed state.
+		if workspace.LatestBuild.Status != codersdk.WorkspaceStatusStopped {
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{},
+				xerrors.Errorf("workspace must be in start transition to ssh, was unable to autostart as the last build job is %q, expected %q",
+					workspace.LatestBuild.Status,
+					codersdk.WorkspaceStatusStopped,
+				)
+		}
+		// startWorkspace based on the last build parameters.
+		_, _ = fmt.Fprintf(inv.Stderr, "Workspace was stopped, starting workspace to allow connecting to %q...\n", workspace.Name)
+		build, err := startWorkspace(inv, client, workspace, workspaceParameterFlags{}, WorkspaceStart)
+		if err != nil {
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("unable to start workspace: %w", err)
+		}
+		workspace.LatestBuild = build
 	}
 	if workspace.LatestBuild.Job.CompletedAt == nil {
 		err := cliui.WorkspaceBuild(ctx, inv.Stderr, client, workspace.LatestBuild.ID)
@@ -853,9 +889,16 @@ type rawSSHCopier struct {
 	logger slog.Logger
 	r      io.Reader
 	w      io.Writer
+
+	done chan struct{}
+}
+
+func newRawSSHCopier(logger slog.Logger, conn *gonet.TCPConn, r io.Reader, w io.Writer) *rawSSHCopier {
+	return &rawSSHCopier{conn: conn, logger: logger, r: r, w: w, done: make(chan struct{})}
 }
 
 func (c *rawSSHCopier) copy(wg *sync.WaitGroup) {
+	defer close(c.done)
 	logCtx := context.Background()
 	wg.Add(1)
 	go func() {
@@ -890,5 +933,26 @@ func (c *rawSSHCopier) copy(wg *sync.WaitGroup) {
 }
 
 func (c *rawSSHCopier) Close() error {
-	return c.conn.CloseWrite()
+	err := c.conn.CloseWrite()
+
+	// give the copy() call a chance to return on a timeout, so that we don't
+	// continue tearing down and close the underlying netstack before the SSH
+	// session has a chance to gracefully shut down.
+	t := time.NewTimer(5 * time.Second)
+	defer t.Stop()
+	select {
+	case <-c.done:
+	case <-t.C:
+	}
+	return err
+}
+
+func sshDisableAutostartOption(src *clibase.Bool) clibase.Option {
+	return clibase.Option{
+		Flag:        "disable-autostart",
+		Description: "Disable starting the workspace automatically when connecting via SSH.",
+		Env:         "CODER_SSH_DISABLE_AUTOSTART",
+		Value:       src,
+		Default:     "false",
+	}
 }

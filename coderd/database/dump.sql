@@ -31,7 +31,7 @@ CREATE TYPE build_reason AS ENUM (
     'initiator',
     'autostart',
     'autostop',
-    'autolock',
+    'dormancy',
     'failedstop',
     'autodelete'
 );
@@ -133,7 +133,8 @@ CREATE TYPE resource_type AS ENUM (
     'workspace_build',
     'license',
     'workspace_proxy',
-    'convert_login'
+    'convert_login',
+    'health_settings'
 );
 
 CREATE TYPE startup_script_behavior AS ENUM (
@@ -152,7 +153,7 @@ CREATE TYPE user_status AS ENUM (
     'dormant'
 );
 
-COMMENT ON TYPE user_status IS 'Defines the user status: active, dormant, or suspended.';
+COMMENT ON TYPE user_status IS 'Defines the users status: active, dormant, or suspended.';
 
 CREATE TYPE workspace_agent_lifecycle_state AS ENUM (
     'created',
@@ -512,7 +513,9 @@ CREATE TABLE provisioner_daemons (
     name character varying(64) NOT NULL,
     provisioners provisioner_type[] NOT NULL,
     replica_id uuid,
-    tags jsonb DEFAULT '{}'::jsonb NOT NULL
+    tags jsonb DEFAULT '{}'::jsonb NOT NULL,
+    last_seen_at timestamp with time zone,
+    version text DEFAULT ''::text NOT NULL
 );
 
 CREATE TABLE provisioner_job_logs (
@@ -743,13 +746,16 @@ CREATE TABLE users (
     status user_status DEFAULT 'dormant'::user_status NOT NULL,
     rbac_roles text[] DEFAULT '{}'::text[] NOT NULL,
     login_type login_type DEFAULT 'password'::login_type NOT NULL,
-    avatar_url text,
+    avatar_url text DEFAULT ''::text NOT NULL,
     deleted boolean DEFAULT false NOT NULL,
     last_seen_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL,
-    quiet_hours_schedule text DEFAULT ''::text NOT NULL
+    quiet_hours_schedule text DEFAULT ''::text NOT NULL,
+    theme_preference text DEFAULT ''::text NOT NULL
 );
 
 COMMENT ON COLUMN users.quiet_hours_schedule IS 'Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user''s quiet hours. If empty, the default quiet hours on the instance is used instead.';
+
+COMMENT ON COLUMN users.theme_preference IS '"" can be interpreted as "the user does not care", falling back to the default theme';
 
 CREATE VIEW visible_users AS
  SELECT users.id,
@@ -870,12 +876,15 @@ CREATE TABLE user_links (
     oauth_refresh_token text DEFAULT ''::text NOT NULL,
     oauth_expiry timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
     oauth_access_token_key_id text,
-    oauth_refresh_token_key_id text
+    oauth_refresh_token_key_id text,
+    debug_context jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
 COMMENT ON COLUMN user_links.oauth_access_token_key_id IS 'The ID of the key used to encrypt the OAuth access token. If this is NULL, the access token is not encrypted';
 
 COMMENT ON COLUMN user_links.oauth_refresh_token_key_id IS 'The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted';
+
+COMMENT ON COLUMN user_links.debug_context IS 'Debug information includes information like id_token and userinfo claims.';
 
 CREATE TABLE workspace_agent_log_sources (
     workspace_agent_id uuid NOT NULL,
@@ -1127,7 +1136,8 @@ CREATE TABLE workspace_proxies (
     token_hashed_secret bytea NOT NULL,
     region_id integer NOT NULL,
     derp_enabled boolean DEFAULT true NOT NULL,
-    derp_only boolean DEFAULT false NOT NULL
+    derp_only boolean DEFAULT false NOT NULL,
+    version text DEFAULT ''::text NOT NULL
 );
 
 COMMENT ON COLUMN workspace_proxies.icon IS 'Expects an emoji character. (/emojis/1f1fa-1f1f8.png)';

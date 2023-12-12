@@ -52,12 +52,12 @@ conventions to help people to navigate through it.
   - **@types** - Custom types for dependencies that don't have defined types
     (largely code that has no server-side equivalent)
   - **api** - API code as function calls and types
+    - **queries** - react-query queries and mutations
   - **components** - UI components
   - **hooks** - Hooks that can be used across the application
   - **pages** - Page components
   - **testHelpers** - Helper functions to help with integration tests
   - **util** - Helper functions that can be used across the application
-  - **xServices** - XState machines used to handle complex state representations
 - **static** - Static UI assets like images, fonts, icons, etc
 
 ## Routing
@@ -93,9 +93,9 @@ a `*.stories.ts` file.
 
 ## Fetching data
 
-We use
-[TanStack Query v4](https://tanstack.com/query/v4/docs/react/overview)(previously
-known as react-query) to fetch data from the API.
+We use [TanStack Query v4](https://tanstack.com/query/v4/docs/react/quick-start)
+to fetch data from the API. The queries and mutation should be placed inside of
+the api/queries folder when it is possible.
 
 ### Where to fetch data
 

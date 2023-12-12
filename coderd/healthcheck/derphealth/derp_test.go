@@ -18,6 +18,7 @@ import (
 	"tailscale.com/types/key"
 
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
+	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -67,6 +68,8 @@ func TestDERP(t *testing.T) {
 			for _, node := range region.NodeReports {
 				assert.True(t, node.Healthy)
 				assert.True(t, node.CanExchangeMessages)
+				assert.Empty(t, node.Warnings)
+				assert.NotNil(t, node.Warnings)
 				assert.NotEmpty(t, node.RoundTripPing)
 				assert.Len(t, node.ClientLogs, 2)
 				assert.Len(t, node.ClientLogs[0], 3)
@@ -78,6 +81,66 @@ func TestDERP(t *testing.T) {
 				assert.False(t, node.STUN.CanSTUN)
 				assert.Nil(t, node.STUN.Error)
 			}
+		}
+	})
+
+	t.Run("HealthyWithNodeDegraded", func(t *testing.T) {
+		t.Parallel()
+
+		healthyDerpSrv := derp.NewServer(key.NewNode(), func(format string, args ...any) { t.Logf(format, args...) })
+		defer healthyDerpSrv.Close()
+		healthySrv := httptest.NewServer(derphttp.Handler(healthyDerpSrv))
+		defer healthySrv.Close()
+
+		var (
+			ctx        = context.Background()
+			report     = derphealth.Report{}
+			derpURL, _ = url.Parse(healthySrv.URL)
+			opts       = &derphealth.ReportOptions{
+				DERPMap: &tailcfg.DERPMap{Regions: map[int]*tailcfg.DERPRegion{
+					1: {
+						EmbeddedRelay: true,
+						RegionID:      999,
+						Nodes: []*tailcfg.DERPNode{{
+							Name:             "1a",
+							RegionID:         999,
+							HostName:         derpURL.Host,
+							IPv4:             derpURL.Host,
+							STUNPort:         -1,
+							InsecureForTests: true,
+							ForceHTTP:        true,
+						}, {
+							Name:             "1b",
+							RegionID:         999,
+							HostName:         "derp.is.dead.tld",
+							IPv4:             "derp.is.dead.tld",
+							STUNPort:         -1,
+							InsecureForTests: true,
+							ForceHTTP:        true,
+						}},
+					},
+				}},
+				Dismissed: true, // Let's sneak an extra unit test
+			}
+		)
+
+		report.Run(ctx, opts)
+
+		assert.True(t, report.Healthy)
+		assert.Equal(t, health.SeverityWarning, report.Severity)
+		assert.True(t, report.Dismissed)
+		if assert.NotEmpty(t, report.Warnings) {
+			assert.Contains(t, report.Warnings[0].Code, health.CodeDERPOneNodeUnhealthy)
+		}
+		for _, region := range report.Regions {
+			assert.True(t, region.Healthy)
+			assert.True(t, region.NodeReports[0].Healthy)
+			assert.Empty(t, region.NodeReports[0].Warnings)
+			assert.NotNil(t, region.NodeReports[0].Warnings)
+			assert.Equal(t, health.SeverityOK, region.NodeReports[0].Severity)
+			assert.False(t, region.NodeReports[1].Healthy)
+			assert.Equal(t, health.SeverityError, region.NodeReports[1].Severity)
+			assert.Len(t, region.Warnings, 1)
 		}
 	})
 
@@ -171,12 +234,17 @@ func TestDERP(t *testing.T) {
 		report.Run(ctx, opts)
 
 		assert.True(t, report.Healthy)
-		assert.NotEmpty(t, report.Warnings)
+		assert.Equal(t, health.SeverityWarning, report.Severity)
+		if assert.NotEmpty(t, report.Warnings) {
+			assert.Equal(t, report.Warnings[0].Code, health.CodeDERPNodeUsesWebsocket)
+		}
 		for _, region := range report.Regions {
 			assert.True(t, region.Healthy)
+			assert.Equal(t, health.SeverityWarning, region.Severity)
 			assert.NotEmpty(t, region.Warnings)
 			for _, node := range region.NodeReports {
 				assert.True(t, node.Healthy)
+				assert.Equal(t, health.SeverityWarning, node.Severity)
 				assert.NotEmpty(t, node.Warnings)
 				assert.True(t, node.CanExchangeMessages)
 				assert.NotEmpty(t, node.RoundTripPing)

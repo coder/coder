@@ -159,6 +159,7 @@ type data struct {
 	derpMeshKey             string
 	lastUpdateCheck         []byte
 	serviceBanner           []byte
+	healthSettings          []byte
 	applicationName         string
 	logoURL                 string
 	appSecurityKey          string
@@ -955,6 +956,14 @@ func (*FakeQuerier) CleanTailnetCoordinators(_ context.Context) error {
 	return ErrUnimplemented
 }
 
+func (*FakeQuerier) CleanTailnetLostPeers(context.Context) error {
+	return ErrUnimplemented
+}
+
+func (*FakeQuerier) CleanTailnetTunnels(context.Context) error {
+	return ErrUnimplemented
+}
+
 func (q *FakeQuerier) DeleteAPIKeyByID(_ context.Context, id string) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -1016,6 +1025,29 @@ func (q *FakeQuerier) DeleteApplicationConnectAPIKeysByUserID(_ context.Context,
 
 func (*FakeQuerier) DeleteCoordinator(context.Context, uuid.UUID) error {
 	return ErrUnimplemented
+}
+
+func (q *FakeQuerier) DeleteExternalAuthLink(_ context.Context, arg database.DeleteExternalAuthLinkParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, key := range q.externalAuthLinks {
+		if key.UserID != arg.UserID {
+			continue
+		}
+		if key.ProviderID != arg.ProviderID {
+			continue
+		}
+		q.externalAuthLinks[index] = q.externalAuthLinks[len(q.externalAuthLinks)-1]
+		q.externalAuthLinks = q.externalAuthLinks[:len(q.externalAuthLinks)-1]
+		return nil
+	}
+	return sql.ErrNoRows
 }
 
 func (q *FakeQuerier) DeleteGitSSHKey(_ context.Context, userID uuid.UUID) error {
@@ -1103,13 +1135,67 @@ func (q *FakeQuerier) DeleteLicense(_ context.Context, id int32) (int32, error) 
 	return 0, sql.ErrNoRows
 }
 
-func (*FakeQuerier) DeleteOldWorkspaceAgentLogs(_ context.Context) error {
-	// noop
+func (q *FakeQuerier) DeleteOldProvisionerDaemons(_ context.Context) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	now := dbtime.Now()
+	weekInterval := 7 * 24 * time.Hour
+	weekAgo := now.Add(-weekInterval)
+
+	var validDaemons []database.ProvisionerDaemon
+	for _, p := range q.provisionerDaemons {
+		if (p.CreatedAt.Before(weekAgo) && !p.UpdatedAt.Valid) || (p.UpdatedAt.Valid && p.UpdatedAt.Time.Before(weekAgo)) {
+			continue
+		}
+		validDaemons = append(validDaemons, p)
+	}
+	q.provisionerDaemons = validDaemons
 	return nil
 }
 
-func (*FakeQuerier) DeleteOldWorkspaceAgentStats(_ context.Context) error {
-	// no-op
+func (q *FakeQuerier) DeleteOldWorkspaceAgentLogs(_ context.Context) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	now := dbtime.Now()
+	weekInterval := 7 * 24 * time.Hour
+	weekAgo := now.Add(-weekInterval)
+
+	var validLogs []database.WorkspaceAgentLog
+	for _, log := range q.workspaceAgentLogs {
+		var toBeDeleted bool
+		for _, agent := range q.workspaceAgents {
+			if agent.ID == log.AgentID && agent.LastConnectedAt.Valid && agent.LastConnectedAt.Time.Before(weekAgo) {
+				toBeDeleted = true
+				break
+			}
+		}
+
+		if !toBeDeleted {
+			validLogs = append(validLogs, log)
+		}
+	}
+	q.workspaceAgentLogs = validLogs
+	return nil
+}
+
+func (q *FakeQuerier) DeleteOldWorkspaceAgentStats(_ context.Context) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	now := dbtime.Now()
+	sixMonthInterval := 6 * 30 * 24 * time.Hour
+	sixMonthsAgo := now.Add(-sixMonthInterval)
+
+	var validStats []database.WorkspaceAgentStat
+	for _, stat := range q.workspaceAgentStats {
+		if stat.CreatedAt.Before(sixMonthsAgo) {
+			continue
+		}
+		validStats = append(validStats, stat)
+	}
+	q.workspaceAgentStats = validStats
 	return nil
 }
 
@@ -1272,6 +1358,18 @@ func (*FakeQuerier) GetAllTailnetAgents(_ context.Context) ([]database.TailnetAg
 }
 
 func (*FakeQuerier) GetAllTailnetClients(_ context.Context) ([]database.GetAllTailnetClientsRow, error) {
+	return nil, ErrUnimplemented
+}
+
+func (*FakeQuerier) GetAllTailnetCoordinators(context.Context) ([]database.TailnetCoordinator, error) {
+	return nil, ErrUnimplemented
+}
+
+func (*FakeQuerier) GetAllTailnetPeers(context.Context) ([]database.TailnetPeer, error) {
+	return nil, ErrUnimplemented
+}
+
+func (*FakeQuerier) GetAllTailnetTunnels(context.Context) ([]database.TailnetTunnel, error) {
 	return nil, ErrUnimplemented
 }
 
@@ -1769,6 +1867,17 @@ func (q *FakeQuerier) GetGroupsByOrganizationID(_ context.Context, id uuid.UUID)
 	}
 
 	return groups, nil
+}
+
+func (q *FakeQuerier) GetHealthSettings(_ context.Context) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if q.healthSettings == nil {
+		return "{}", nil
+	}
+
+	return string(q.healthSettings), nil
 }
 
 func (q *FakeQuerier) GetHungProvisionerJobs(_ context.Context, hungSince time.Time) ([]database.ProvisionerJob, error) {
@@ -3653,6 +3762,9 @@ func (q *FakeQuerier) GetWorkspaceAgentAndOwnerByAuthToken(_ context.Context, au
 					if build.WorkspaceID != ws.ID {
 						continue
 					}
+					if ws.Deleted {
+						continue
+					}
 					var row database.GetWorkspaceAgentAndOwnerByAuthTokenRow
 					row.WorkspaceID = ws.ID
 					usr, err := q.getUserByIDNoLock(ws.OwnerID)
@@ -4411,6 +4523,36 @@ func (q *FakeQuerier) GetWorkspaceResourcesCreatedAfter(_ context.Context, after
 	return resources, nil
 }
 
+func (q *FakeQuerier) GetWorkspaceUniqueOwnerCountByTemplateIDs(_ context.Context, templateIds []uuid.UUID) ([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	workspaceOwners := make(map[uuid.UUID]map[uuid.UUID]struct{})
+	for _, workspace := range q.workspaces {
+		if workspace.Deleted {
+			continue
+		}
+		if !slices.Contains(templateIds, workspace.TemplateID) {
+			continue
+		}
+		_, ok := workspaceOwners[workspace.TemplateID]
+		if !ok {
+			workspaceOwners[workspace.TemplateID] = make(map[uuid.UUID]struct{})
+		}
+		workspaceOwners[workspace.TemplateID][workspace.OwnerID] = struct{}{}
+	}
+	resp := make([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow, 0)
+	for _, templateID := range templateIds {
+		count := len(workspaceOwners[templateID])
+		resp = append(resp, database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow{
+			TemplateID:      templateID,
+			UniqueOwnersSum: int64(count),
+		})
+	}
+
+	return resp, nil
+}
+
 func (q *FakeQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesParams) ([]database.GetWorkspacesRow, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return nil, err
@@ -4813,6 +4955,7 @@ func (q *FakeQuerier) InsertProvisionerDaemon(_ context.Context, arg database.In
 		Name:         arg.Name,
 		Provisioners: arg.Provisioners,
 		Tags:         arg.Tags,
+		UpdatedAt:    arg.UpdatedAt,
 	}
 	q.provisionerDaemons = append(q.provisionerDaemons, daemon)
 	return daemon, nil
@@ -5094,6 +5237,7 @@ func (q *FakeQuerier) InsertUserLink(_ context.Context, args database.InsertUser
 		OAuthRefreshToken:      args.OAuthRefreshToken,
 		OAuthRefreshTokenKeyID: args.OAuthRefreshTokenKeyID,
 		OAuthExpiry:            args.OAuthExpiry,
+		DebugContext:           args.DebugContext,
 	}
 
 	q.userLinks = append(q.userLinks, link)
@@ -5563,6 +5707,7 @@ func (q *FakeQuerier) RegisterWorkspaceProxy(_ context.Context, arg database.Reg
 			p.WildcardHostname = arg.WildcardHostname
 			p.DerpEnabled = arg.DerpEnabled
 			p.DerpOnly = arg.DerpOnly
+			p.Version = arg.Version
 			p.UpdatedAt = dbtime.Now()
 			q.workspaceProxies[i] = p
 			return p, nil
@@ -6175,6 +6320,7 @@ func (q *FakeQuerier) UpdateUserLink(_ context.Context, params database.UpdateUs
 			link.OAuthRefreshToken = params.OAuthRefreshToken
 			link.OAuthRefreshTokenKeyID = params.OAuthRefreshTokenKeyID
 			link.OAuthExpiry = params.OAuthExpiry
+			link.DebugContext = params.DebugContext
 
 			q.userLinks[i] = link
 			return link, nil
@@ -6789,6 +6935,14 @@ func (q *FakeQuerier) UpsertDefaultProxy(_ context.Context, arg database.UpsertD
 	return nil
 }
 
+func (q *FakeQuerier) UpsertHealthSettings(_ context.Context, data string) error {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	q.healthSettings = []byte(data)
+	return nil
+}
+
 func (q *FakeQuerier) UpsertLastUpdateCheck(_ context.Context, data string) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -7135,12 +7289,7 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 			}
 		}
 
-		// We omit locked workspaces by default.
-		if arg.IsDormant == "" && workspace.DormantAt.Valid {
-			continue
-		}
-
-		if arg.IsDormant != "" && !workspace.DormantAt.Valid {
+		if arg.Dormant && !workspace.DormantAt.Valid {
 			continue
 		}
 

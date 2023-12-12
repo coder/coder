@@ -2,7 +2,6 @@ import TextField from "@mui/material/TextField";
 import InputAdornment from "@mui/material/InputAdornment";
 import Tooltip from "@mui/material/Tooltip";
 import IconButton from "@mui/material/IconButton";
-import Box from "@mui/material/Box";
 import Link from "@mui/material/Link";
 import SearchIcon from "@mui/icons-material/SearchOutlined";
 import ClearIcon from "@mui/icons-material/CloseOutlined";
@@ -80,7 +79,7 @@ export const IconsPage: FC = () => {
             <Tooltip
               placement="bottom-end"
               title={
-                <Box
+                <p
                   css={{
                     padding: 8,
                     fontSize: 13,
@@ -91,7 +90,7 @@ export const IconsPage: FC = () => {
                   public GitHub repository. Just keep in mind that it should be
                   relevant to many Coder users, and redistributable under a
                   permissive license.
-                </Box>
+                </p>
               }
             >
               <Link href="https://github.com/coder/coder/tree/main/site/static/icon">
@@ -126,7 +125,7 @@ export const IconsPage: FC = () => {
             startAdornment: (
               <InputAdornment position="start">
                 <SearchIcon
-                  sx={{
+                  css={{
                     fontSize: 14,
                     color: theme.palette.text.secondary,
                   }}
@@ -140,7 +139,7 @@ export const IconsPage: FC = () => {
                     size="small"
                     onClick={() => setSearchInputText("")}
                   >
-                    <ClearIcon sx={{ fontSize: 14 }} />
+                    <ClearIcon css={{ fontSize: 14 }} />
                   </IconButton>
                 </Tooltip>
               </InputAdornment>

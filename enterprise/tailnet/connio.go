@@ -24,16 +24,17 @@ type connIO struct {
 	// coordCtx is the parent context, that is, the context of the Coordinator
 	coordCtx context.Context
 	// peerCtx is the context of the connection to our peer
-	peerCtx   context.Context
-	cancel    context.CancelFunc
-	logger    slog.Logger
-	requests  <-chan *proto.CoordinateRequest
-	responses chan<- *proto.CoordinateResponse
-	bindings  chan<- binding
-	tunnels   chan<- tunnel
-	auth      agpl.TunnelAuth
-	mu        sync.Mutex
-	closed    bool
+	peerCtx      context.Context
+	cancel       context.CancelFunc
+	logger       slog.Logger
+	requests     <-chan *proto.CoordinateRequest
+	responses    chan<- *proto.CoordinateResponse
+	bindings     chan<- binding
+	tunnels      chan<- tunnel
+	auth         agpl.TunnelAuth
+	mu           sync.Mutex
+	closed       bool
+	disconnected bool
 
 	name       string
 	start      int64
@@ -76,25 +77,34 @@ func newConnIO(coordContext context.Context,
 
 func (c *connIO) recvLoop() {
 	defer func() {
-		// withdraw bindings & tunnels when we exit.  We need to use the parent context here, since
+		// withdraw bindings & tunnels when we exit.  We need to use the coordinator context here, since
 		// our own context might be canceled, but we still need to withdraw.
 		b := binding{
 			bKey: bKey(c.UniqueID()),
+			kind: proto.CoordinateResponse_PeerUpdate_LOST,
 		}
-		if err := sendCtx(c.coordCtx, c.bindings, b); err != nil {
+		if c.disconnected {
+			b.kind = proto.CoordinateResponse_PeerUpdate_DISCONNECTED
+		}
+		if err := agpl.SendCtx(c.coordCtx, c.bindings, b); err != nil {
 			c.logger.Debug(c.coordCtx, "parent context expired while withdrawing bindings", slog.Error(err))
 		}
-		t := tunnel{
-			tKey:   tKey{src: c.UniqueID()},
-			active: false,
-		}
-		if err := sendCtx(c.coordCtx, c.tunnels, t); err != nil {
-			c.logger.Debug(c.coordCtx, "parent context expired while withdrawing tunnels", slog.Error(err))
+		// only remove tunnels on graceful disconnect.  If we remove tunnels for lost peers, then
+		// this will look like a disconnect from the peer perspective, since we query for active peers
+		// by using the tunnel as a join in the database
+		if c.disconnected {
+			t := tunnel{
+				tKey:   tKey{src: c.UniqueID()},
+				active: false,
+			}
+			if err := agpl.SendCtx(c.coordCtx, c.tunnels, t); err != nil {
+				c.logger.Debug(c.coordCtx, "parent context expired while withdrawing tunnels", slog.Error(err))
+			}
 		}
 	}()
 	defer c.Close()
 	for {
-		req, err := recvCtx(c.peerCtx, c.requests)
+		req, err := agpl.RecvCtx(c.peerCtx, c.requests)
 		if err != nil {
 			if xerrors.Is(err, context.Canceled) ||
 				xerrors.Is(err, context.DeadlineExceeded) ||
@@ -111,6 +121,8 @@ func (c *connIO) recvLoop() {
 	}
 }
 
+var errDisconnect = xerrors.New("graceful disconnect")
+
 func (c *connIO) handleRequest(req *proto.CoordinateRequest) error {
 	c.logger.Debug(c.peerCtx, "got request")
 	if req.UpdateSelf != nil {
@@ -118,8 +130,9 @@ func (c *connIO) handleRequest(req *proto.CoordinateRequest) error {
 		b := binding{
 			bKey: bKey(c.UniqueID()),
 			node: req.UpdateSelf.Node,
+			kind: proto.CoordinateResponse_PeerUpdate_NODE,
 		}
-		if err := sendCtx(c.coordCtx, c.bindings, b); err != nil {
+		if err := agpl.SendCtx(c.coordCtx, c.bindings, b); err != nil {
 			c.logger.Debug(c.peerCtx, "failed to send binding", slog.Error(err))
 			return err
 		}
@@ -143,7 +156,7 @@ func (c *connIO) handleRequest(req *proto.CoordinateRequest) error {
 			},
 			active: true,
 		}
-		if err := sendCtx(c.coordCtx, c.tunnels, t); err != nil {
+		if err := agpl.SendCtx(c.coordCtx, c.tunnels, t); err != nil {
 			c.logger.Debug(c.peerCtx, "failed to send add tunnel", slog.Error(err))
 			return err
 		}
@@ -164,12 +177,16 @@ func (c *connIO) handleRequest(req *proto.CoordinateRequest) error {
 			},
 			active: false,
 		}
-		if err := sendCtx(c.coordCtx, c.tunnels, t); err != nil {
+		if err := agpl.SendCtx(c.coordCtx, c.tunnels, t); err != nil {
 			c.logger.Debug(c.peerCtx, "failed to send remove tunnel", slog.Error(err))
 			return err
 		}
 	}
-	// TODO: (spikecurtis) support Disconnect
+	if req.Disconnect != nil {
+		c.logger.Debug(c.peerCtx, "graceful disconnect")
+		c.disconnected = true
+		return errDisconnect
+	}
 	return nil
 }
 
@@ -180,9 +197,8 @@ func (c *connIO) UniqueID() uuid.UUID {
 func (c *connIO) Enqueue(resp *proto.CoordinateResponse) error {
 	atomic.StoreInt64(&c.lastWrite, time.Now().Unix())
 	c.mu.Lock()
-	closed := c.closed
-	c.mu.Unlock()
-	if closed {
+	defer c.mu.Unlock()
+	if c.closed {
 		return xerrors.New("connIO closed")
 	}
 	select {

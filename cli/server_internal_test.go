@@ -254,7 +254,7 @@ func TestIsDERPPath(t *testing.T) {
 		//{
 		//	path:     "/derp",
 		//	expected: true,
-		//},
+		// },
 		{
 			path:     "/derp/",
 			expected: true,

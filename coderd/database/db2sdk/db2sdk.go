@@ -16,6 +16,31 @@ import (
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
+type ExternalAuthMeta struct {
+	Authenticated bool
+	ValidateError string
+}
+
+func ExternalAuths(auths []database.ExternalAuthLink, meta map[string]ExternalAuthMeta) []codersdk.ExternalAuthLink {
+	out := make([]codersdk.ExternalAuthLink, 0, len(auths))
+	for _, auth := range auths {
+		out = append(out, ExternalAuth(auth, meta[auth.ProviderID]))
+	}
+	return out
+}
+
+func ExternalAuth(auth database.ExternalAuthLink, meta ExternalAuthMeta) codersdk.ExternalAuthLink {
+	return codersdk.ExternalAuthLink{
+		ProviderID:      auth.ProviderID,
+		CreatedAt:       auth.CreatedAt,
+		UpdatedAt:       auth.UpdatedAt,
+		HasRefreshToken: auth.OAuthRefreshToken != "",
+		Expires:         auth.OAuthExpiry,
+		Authenticated:   meta.Authenticated,
+		ValidateError:   meta.ValidateError,
+	}
+}
+
 func WorkspaceBuildParameters(params []database.WorkspaceBuildParameter) []codersdk.WorkspaceBuildParameter {
 	out := make([]codersdk.WorkspaceBuildParameter, len(params))
 	for i, p := range params {
@@ -95,7 +120,7 @@ func User(user database.User, organizationIDs []uuid.UUID) codersdk.User {
 		Status:          codersdk.UserStatus(user.Status),
 		OrganizationIDs: organizationIDs,
 		Roles:           make([]codersdk.Role, 0, len(user.RBACRoles)),
-		AvatarURL:       user.AvatarURL.String,
+		AvatarURL:       user.AvatarURL,
 		LoginType:       codersdk.LoginType(user.LoginType),
 	}
 

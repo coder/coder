@@ -2,13 +2,14 @@ import { FC, PropsWithChildren, useState, useRef } from "react";
 import { getApiKey } from "api/api";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import { VSCodeInsidersIcon } from "components/Icons/VSCodeInsidersIcon";
-import { PrimaryAgentButton } from "components/Resources/AgentButton";
+import { AgentButton } from "components/Resources/AgentButton";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import ButtonGroup from "@mui/material/ButtonGroup";
 import { useLocalStorage } from "hooks";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import { DisplayApp } from "api/typesGenerated";
+import { DisplayAppNameMap } from "../AppLink/AppLink";
 
 export interface VSCodeDesktopButtonProps {
   userName: string;
@@ -50,7 +51,7 @@ export const VSCodeDesktopButton: FC<
       <ButtonGroup
         ref={menuAnchorRef}
         variant="outlined"
-        sx={{
+        css={{
           // Workaround to make the border transitions smoothly on button groups
           "& > button:hover + button": {
             borderLeft: "1px solid #FFF",
@@ -63,7 +64,7 @@ export const VSCodeDesktopButton: FC<
           <VSCodeInsidersButton {...props} />
         )}
 
-        <PrimaryAgentButton
+        <AgentButton
           aria-controls={
             isVariantMenuOpen ? "vscode-variant-button-menu" : undefined
           }
@@ -74,39 +75,39 @@ export const VSCodeDesktopButton: FC<
           onClick={() => {
             setIsVariantMenuOpen(true);
           }}
-          sx={{ px: 0 }}
+          css={{ paddingLeft: 0, paddingRight: 0 }}
         >
-          <KeyboardArrowDownIcon sx={{ fontSize: 16 }} />
-        </PrimaryAgentButton>
+          <KeyboardArrowDownIcon css={{ fontSize: 16 }} />
+        </AgentButton>
       </ButtonGroup>
 
       <Menu
         open={isVariantMenuOpen}
         anchorEl={menuAnchorRef.current}
         onClose={() => setIsVariantMenuOpen(false)}
-        sx={{
+        css={{
           "& .MuiMenu-paper": {
             width: menuAnchorRef.current?.clientWidth,
           },
         }}
       >
         <MenuItem
-          sx={{ fontSize: 14 }}
+          css={{ fontSize: 14 }}
           onClick={() => {
             selectVariant("vscode");
           }}
         >
-          <VSCodeIcon sx={{ width: 12, height: 12 }} />
-          VS Code Desktop
+          <VSCodeIcon css={{ width: 12, height: 12 }} />
+          {DisplayAppNameMap["vscode"]}
         </MenuItem>
         <MenuItem
-          sx={{ fontSize: 14 }}
+          css={{ fontSize: 14 }}
           onClick={() => {
             selectVariant("vscode-insiders");
           }}
         >
-          <VSCodeInsidersIcon sx={{ width: 12, height: 12 }} />
-          VS Code Insiders
+          <VSCodeInsidersIcon css={{ width: 12, height: 12 }} />
+          {DisplayAppNameMap["vscode_insiders"]}
         </MenuItem>
       </Menu>
     </div>
@@ -126,7 +127,7 @@ const VSCodeButton = ({
   const [loading, setLoading] = useState(false);
 
   return (
-    <PrimaryAgentButton
+    <AgentButton
       startIcon={<VSCodeIcon />}
       disabled={loading}
       onClick={() => {
@@ -156,8 +157,8 @@ const VSCodeButton = ({
           });
       }}
     >
-      VS Code Desktop
-    </PrimaryAgentButton>
+      {DisplayAppNameMap["vscode"]}
+    </AgentButton>
   );
 };
 
@@ -170,7 +171,7 @@ const VSCodeInsidersButton = ({
   const [loading, setLoading] = useState(false);
 
   return (
-    <PrimaryAgentButton
+    <AgentButton
       startIcon={<VSCodeInsidersIcon />}
       disabled={loading}
       onClick={() => {
@@ -200,7 +201,7 @@ const VSCodeInsidersButton = ({
           });
       }}
     >
-      VS Code Insiders
-    </PrimaryAgentButton>
+      {DisplayAppNameMap["vscode_insiders"]}
+    </AgentButton>
   );
 };

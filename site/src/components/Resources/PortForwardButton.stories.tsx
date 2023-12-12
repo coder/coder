@@ -1,4 +1,3 @@
-import Box from "@mui/material/Box";
 import { PortForwardPopoverView } from "./PortForwardButton";
 import type { Meta, StoryObj } from "@storybook/react";
 import {
@@ -11,16 +10,16 @@ const meta: Meta<typeof PortForwardPopoverView> = {
   component: PortForwardPopoverView,
   decorators: [
     (Story) => (
-      <Box
-        sx={{
+      <div
+        css={(theme) => ({
           width: 304,
-          border: (theme) => `1px solid ${theme.palette.divider}`,
-          borderRadius: 1,
-          backgroundColor: (theme) => theme.palette.background.paper,
-        }}
+          border: `1px solid ${theme.palette.divider}`,
+          borderRadius: 8,
+          backgroundColor: theme.palette.background.paper,
+        })}
       >
         <Story />
-      </Box>
+      </div>
     ),
   ],
   args: {

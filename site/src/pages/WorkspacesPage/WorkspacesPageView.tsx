@@ -6,16 +6,10 @@ import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 import { WorkspaceHelpTooltip } from "./WorkspaceHelpTooltip";
 import { WorkspacesTable } from "pages/WorkspacesPage/WorkspacesTable";
-import { useLocalStorage } from "hooks";
-import { DormantWorkspaceBanner, Count } from "components/WorkspaceDeletion";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { WorkspacesFilter } from "./filter/filter";
 import { hasError, isApiValidationError } from "api/errors";
-import {
-  PaginationStatus,
-  TableToolbar,
-} from "components/TableToolbar/TableToolbar";
-import Box from "@mui/material/Box";
+import { TableToolbar } from "components/TableToolbar/TableToolbar";
 import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
 import { WorkspacesButton } from "./WorkspacesButton";
 import { UseQueryResult } from "react-query";
@@ -30,6 +24,7 @@ import {
 import KeyboardArrowDownOutlined from "@mui/icons-material/KeyboardArrowDownOutlined";
 import Divider from "@mui/material/Divider";
 import LoadingButton from "@mui/lab/LoadingButton";
+import { PaginationHeader } from "components/PaginationWidget/PaginationHeader";
 
 export const Language = {
   pageTitle: "Workspaces",
@@ -46,7 +41,6 @@ type TemplateQuery = UseQueryResult<Template[]>;
 export interface WorkspacesPageViewProps {
   error: unknown;
   workspaces?: Workspace[];
-  dormantWorkspaces?: Workspace[];
   checkedWorkspaces: Workspace[];
   count?: number;
   filterProps: ComponentProps<typeof WorkspacesFilter>;
@@ -67,7 +61,6 @@ export interface WorkspacesPageViewProps {
 
 export const WorkspacesPageView = ({
   workspaces,
-  dormantWorkspaces,
   error,
   limit,
   count,
@@ -86,15 +79,6 @@ export const WorkspacesPageView = ({
   templatesFetchStatus,
   canCreateTemplate,
 }: WorkspacesPageViewProps) => {
-  const { saveLocal } = useLocalStorage();
-
-  const workspacesDeletionScheduled = dormantWorkspaces
-    ?.filter((workspace) => workspace.deleting_at)
-    .map((workspace) => workspace.id);
-
-  const hasDormantWorkspace =
-    dormantWorkspaces !== undefined && dormantWorkspaces.length > 0;
-
   return (
     <Margins>
       <PageHeader
@@ -119,30 +103,17 @@ export const WorkspacesPageView = ({
         {hasError(error) && !isApiValidationError(error) && (
           <ErrorAlert error={error} />
         )}
-        {/* <DormantWorkspaceBanner/> determines its own visibility */}
-        <DormantWorkspaceBanner
-          workspaces={dormantWorkspaces}
-          shouldRedisplayBanner={hasDormantWorkspace}
-          onDismiss={() =>
-            saveLocal(
-              "dismissedWorkspaceList",
-              JSON.stringify(workspacesDeletionScheduled),
-            )
-          }
-          count={Count.Multiple}
-        />
-
         <WorkspacesFilter error={error} {...filterProps} />
       </Stack>
 
       <TableToolbar>
         {checkedWorkspaces.length > 0 ? (
           <>
-            <Box>
+            <div>
               Selected <strong>{checkedWorkspaces.length}</strong> of{" "}
               <strong>{workspaces?.length}</strong>{" "}
               {workspaces?.length === 1 ? "workspace" : "workspaces"}
-            </Box>
+            </div>
 
             <MoreMenu>
               <MoreMenuTrigger>
@@ -186,11 +157,11 @@ export const WorkspacesPageView = ({
             </MoreMenu>
           </>
         ) : (
-          <PaginationStatus
-            isLoading={!workspaces && !error}
-            showing={workspaces?.length ?? 0}
-            total={count ?? 0}
-            label="workspaces"
+          <PaginationHeader
+            paginationUnitLabel="workspaces"
+            limit={limit}
+            totalRecords={count}
+            currentOffsetStart={(page - 1) * limit + 1}
           />
         )}
       </TableToolbar>
@@ -207,12 +178,17 @@ export const WorkspacesPageView = ({
       />
 
       {count !== undefined && (
-        <PaginationWidgetBase
-          totalRecords={count}
-          pageSize={limit}
-          onPageChange={onPageChange}
-          currentPage={page}
-        />
+        // Temporary styling stopgap before component is migrated to using
+        // PaginationContainer (which renders PaginationWidgetBase using CSS
+        // flexbox gaps)
+        <div css={{ paddingTop: "16px" }}>
+          <PaginationWidgetBase
+            totalRecords={count}
+            pageSize={limit}
+            onPageChange={onPageChange}
+            currentPage={page}
+          />
+        </div>
       )}
     </Margins>
   );

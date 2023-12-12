@@ -1,5 +1,3 @@
-BEGIN;
-
 -- If you need to update this view, put 'DROP VIEW workspace_build_with_user;' before this.
 CREATE VIEW
 	workspace_build_with_user
@@ -34,5 +32,3 @@ FROM
 		template_versions.created_by = visible_users.id;
 
 COMMENT ON VIEW template_version_with_user IS 'Joins in the username + avatar url of the created by user.';
-
-COMMIT;

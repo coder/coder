@@ -13,7 +13,6 @@ import (
 
 // countReadWriteCloser wraps an io.ReadWriteCloser and counts the number of bytes read and written.
 type countReadWriteCloser struct {
-	ctx          context.Context
 	rwc          io.ReadWriteCloser
 	readMetrics  ConnMetrics
 	writeMetrics ConnMetrics

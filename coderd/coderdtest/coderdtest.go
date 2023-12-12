@@ -227,6 +227,12 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.Database, options.Pubsub = dbtestutil.NewDB(t)
 	}
 
+	accessControlStore := &atomic.Pointer[dbauthz.AccessControlStore]{}
+	var acs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
+	accessControlStore.Store(&acs)
+
+	options.Database = dbauthz.New(options.Database, options.Authorizer, *options.Logger, accessControlStore)
+
 	// Some routes expect a deployment ID, so just make sure one exists.
 	// Check first incase the caller already set up this database.
 	// nolint:gocritic // Setting up unit test data inside test helper
@@ -265,10 +271,6 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.StatsBatcher = batcher
 		t.Cleanup(closeBatcher)
 	}
-
-	accessControlStore := &atomic.Pointer[dbauthz.AccessControlStore]{}
-	var acs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
-	accessControlStore.Store(&acs)
 
 	var templateScheduleStore atomic.Pointer[schedule.TemplateScheduleStore]
 	if options.TemplateScheduleStore == nil {
@@ -528,7 +530,7 @@ func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
 	}()
 
 	daemon := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
-		return coderAPI.CreateInMemoryProvisionerDaemon(ctx)
+		return coderAPI.CreateInMemoryProvisionerDaemon(ctx, t.Name())
 	}, &provisionerd.Options{
 		Logger:              coderAPI.Logger.Named("provisionerd").Leveled(slog.LevelDebug),
 		UpdateInterval:      250 * time.Millisecond,
@@ -565,6 +567,8 @@ func NewExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uui
 
 	daemon := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
 		return client.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+			ID:           uuid.New(),
+			Name:         t.Name(),
 			Organization: org,
 			Provisioners: []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho},
 			Tags:         tags,
@@ -615,11 +619,15 @@ func CreateAnotherUserMutators(t testing.TB, client *codersdk.Client, organizati
 }
 
 // AuthzUserSubject does not include the user's groups.
-func AuthzUserSubject(user codersdk.User) rbac.Subject {
+func AuthzUserSubject(user codersdk.User, orgID uuid.UUID) rbac.Subject {
 	roles := make(rbac.RoleNames, 0, len(user.Roles))
+	// Member role is always implied
+	roles = append(roles, rbac.RoleMember())
 	for _, r := range user.Roles {
 		roles = append(roles, r.Name)
 	}
+	// We assume only 1 org exists
+	roles = append(roles, rbac.RoleOrgMember(orgID))
 
 	return rbac.Subject{
 		ID:     user.ID.String(),
@@ -751,6 +759,8 @@ func CreateWorkspaceBuild(
 	transition database.WorkspaceTransition,
 	mutators ...func(*codersdk.CreateWorkspaceBuildRequest),
 ) codersdk.WorkspaceBuild {
+	t.Helper()
+
 	req := codersdk.CreateWorkspaceBuildRequest{
 		Transition: codersdk.WorkspaceTransition(transition),
 	}

@@ -41,7 +41,6 @@ import {
 } from "api/queries/groups";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { getErrorMessage } from "api/errors";
-import Box from "@mui/material/Box";
 import { LastSeen } from "components/LastSeen/LastSeen";
 import { type Interpolation, type Theme } from "@emotion/react";
 import LoadingButton from "@mui/lab/LoadingButton";
@@ -282,8 +281,8 @@ const GroupMemberRow = (props: {
         width="40%"
         css={[styles.status, member.status === "suspended" && styles.suspended]}
       >
-        <Box>{member.status}</Box>
-        <LastSeen value={member.last_seen_at} sx={{ fontSize: 12 }} />
+        <div>{member.status}</div>
+        <LastSeen value={member.last_seen_at} css={{ fontSize: 12 }} />
       </TableCell>
       <TableCell width="1%">
         {canUpdate && (

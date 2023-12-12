@@ -21,14 +21,17 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -46,20 +49,17 @@ func TestWorkspaceAgent(t *testing.T) {
 		tmpDir := t.TempDir()
 		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
-		ws := dbfake.Workspace(t, db, database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        anotherUser.ID,
-		})
-		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
-			Name: "aws_instance",
-			Agents: []*proto.Agent{{
-				Id:        uuid.NewString(),
-				Directory: tmpDir,
-			}},
-		})
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			agents[0].Directory = tmpDir
+			return agents
+		}).Do()
+
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
-		workspace, err := anotherClient.Workspace(ctx, ws.ID)
+		workspace, err := anotherClient.Workspace(ctx, r.Workspace.ID)
 		require.NoError(t, err)
 		require.Equal(t, tmpDir, workspace.LatestBuild.Resources[0].Agents[0].Directory)
 		_, err = anotherClient.WorkspaceAgent(ctx, workspace.LatestBuild.Resources[0].Agents[0].ID)
@@ -71,22 +71,18 @@ func TestWorkspaceAgent(t *testing.T) {
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		tmpDir := t.TempDir()
-		ws := dbfake.Workspace(t, db, database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
-		})
-		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
-			Name: "aws_instance",
-			Agents: []*proto.Agent{{
-				Id:        uuid.NewString(),
-				Directory: tmpDir,
-			}},
-		})
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			agents[0].Directory = tmpDir
+			return agents
+		}).Do()
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 		defer cancel()
 
-		workspace, err := client.Workspace(ctx, ws.ID)
+		workspace, err := client.Workspace(ctx, r.Workspace.ID)
 		require.NoError(t, err)
 		require.NotEmpty(t, workspace.LatestBuild.Resources[0].Agents[0].TroubleshootingURL)
 		t.Log(workspace.LatestBuild.Resources[0].Agents[0].TroubleshootingURL)
@@ -103,23 +99,15 @@ func TestWorkspaceAgent(t *testing.T) {
 
 		wantTroubleshootingURL := "https://example.com/troubleshoot"
 
-		ws := dbfake.Workspace(t, db, database.Workspace{
-			OwnerID:        user.UserID,
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
-		})
-		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
-			Name: "example",
-			Type: "aws_instance",
-			Agents: []*proto.Agent{{
-				Id:        uuid.NewString(),
-				Directory: tmpDir,
-				Auth: &proto.Agent_Token{
-					Token: uuid.NewString(),
-				},
-				ConnectionTimeoutSeconds: 1,
-				TroubleshootingUrl:       wantTroubleshootingURL,
-			}},
-		})
+			OwnerID:        user.UserID,
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			agents[0].Directory = tmpDir
+			agents[0].ConnectionTimeoutSeconds = 1
+			agents[0].TroubleshootingUrl = wantTroubleshootingURL
+			return agents
+		}).Do()
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 		defer cancel()
@@ -127,7 +115,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		var err error
 		var workspace codersdk.Workspace
 		testutil.Eventually(ctx, t, func(ctx context.Context) (done bool) {
-			workspace, err = client.Workspace(ctx, ws.ID)
+			workspace, err = client.Workspace(ctx, r.Workspace.ID)
 			if !assert.NoError(t, err) {
 				return false
 			}
@@ -143,11 +131,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		t.Parallel()
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		ws := dbfake.Workspace(t, db, database.Workspace{
-			OrganizationID: user.OrganizationID,
-			OwnerID:        user.UserID,
-		})
-		authToken := uuid.NewString()
+
 		tmpDir := t.TempDir()
 		apps := &proto.DisplayApps{
 			Vscode:               true,
@@ -156,22 +140,19 @@ func TestWorkspaceAgent(t *testing.T) {
 			PortForwardingHelper: true,
 			SshHelper:            true,
 		}
-		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
-			Agents: []*proto.Agent{
-				{
-					Directory: tmpDir,
-					Auth: &proto.Agent_Token{
-						Token: authToken,
-					},
-					DisplayApps: apps,
-				},
-			},
-		})
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			agents[0].Directory = tmpDir
+			agents[0].DisplayApps = apps
+			return agents
+		}).Do()
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		workspace, err := client.Workspace(ctx, ws.ID)
+		workspace, err := client.Workspace(ctx, r.Workspace.ID)
 		require.NoError(t, err)
 		agent, err := client.WorkspaceAgent(ctx, workspace.LatestBuild.Resources[0].Agents[0].ID)
 		require.NoError(t, err)
@@ -192,22 +173,15 @@ func TestWorkspaceAgent(t *testing.T) {
 		apps.WebTerminal = false
 
 		// Creating another workspace is easier
-		ws = dbfake.Workspace(t, db, database.Workspace{
+		r = dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
-		})
-		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
-			Agents: []*proto.Agent{
-				{
-					Directory: tmpDir,
-					Auth: &proto.Agent_Token{
-						Token: authToken,
-					},
-					DisplayApps: apps,
-				},
-			},
-		})
-		workspace, err = client.Workspace(ctx, ws.ID)
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			agents[0].Directory = tmpDir
+			agents[0].DisplayApps = apps
+			return agents
+		}).Do()
+		workspace, err = client.Workspace(ctx, r.Workspace.ID)
 		require.NoError(t, err)
 
 		agent, err = client.WorkspaceAgent(ctx, workspace.LatestBuild.Resources[0].Agents[0].ID)
@@ -223,13 +197,13 @@ func TestWorkspaceAgentLogs(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		ws, authToken := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
-		})
+		}).WithAgent().Do()
 
 		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(authToken)
+		agentClient.SetSessionToken(r.AgentToken)
 		err := agentClient.PatchLogs(ctx, agentsdk.PatchLogs{
 			Logs: []agentsdk.Log{
 				{
@@ -243,7 +217,7 @@ func TestWorkspaceAgentLogs(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		workspace, err := client.Workspace(ctx, ws.ID)
+		workspace, err := client.Workspace(ctx, r.Workspace.ID)
 		require.NoError(t, err)
 		logs, closer, err := client.WorkspaceAgentLogsAfter(ctx, workspace.LatestBuild.Resources[0].Agents[0].ID, 0, true)
 		require.NoError(t, err)
@@ -265,12 +239,12 @@ func TestWorkspaceAgentLogs(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		ws, authToken := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
-		})
+		}).WithAgent().Do()
 		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(authToken)
+		agentClient.SetSessionToken(r.AgentToken)
 		err := agentClient.PatchLogs(ctx, agentsdk.PatchLogs{
 			Logs: []agentsdk.Log{
 				{
@@ -280,7 +254,7 @@ func TestWorkspaceAgentLogs(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		workspace, err := client.Workspace(ctx, ws.ID)
+		workspace, err := client.Workspace(ctx, r.Workspace.ID)
 		require.NoError(t, err)
 		logs, closer, err := client.WorkspaceAgentLogsAfter(ctx, workspace.LatestBuild.Resources[0].Agents[0].ID, 0, true)
 		require.NoError(t, err)
@@ -307,15 +281,15 @@ func TestWorkspaceAgentLogs(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		ws, authToken := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
-		})
-		updates, err := client.WatchWorkspace(ctx, ws.ID)
+		}).WithAgent().Do()
+		updates, err := client.WatchWorkspace(ctx, r.Workspace.ID)
 		require.NoError(t, err)
 
 		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(authToken)
+		agentClient.SetSessionToken(r.AgentToken)
 		err = agentClient.PatchLogs(ctx, agentsdk.PatchLogs{
 			Logs: []agentsdk.Log{{
 				CreatedAt: dbtime.Now(),
@@ -350,12 +324,12 @@ func TestWorkspaceAgentListen(t *testing.T) {
 
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		ws, authToken := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
-		})
-		_ = agenttest.New(t, client.URL, authToken)
-		resources := coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
+		}).WithAgent().Do()
+		_ = agenttest.New(t, client.URL, r.AgentToken)
+		resources := coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -436,21 +410,28 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 	client, db := coderdtest.NewWithDatabase(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 
-	ws, authToken := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
+	r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
-	})
+	}).WithAgent().Do()
 
-	_ = agenttest.New(t, client.URL, authToken)
-	resources := coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
+	_ = agenttest.New(t, client.URL, r.AgentToken)
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
 
-	ctx, cancelFunc := context.WithCancel(context.Background())
-	defer cancelFunc()
-	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
-		Logger: slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
-	})
+	conn, err := func() (*codersdk.WorkspaceAgentConn, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel() // Connection should remain open even if the dial context is canceled.
+
+		return client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
+			Logger: slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
+		})
+	}()
 	require.NoError(t, err)
 	defer conn.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
 	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
 	session, err := sshClient.NewSession()
@@ -475,21 +456,21 @@ func TestWorkspaceAgentTailnetDirectDisabled(t *testing.T) {
 		DeploymentValues: dv,
 	})
 	user := coderdtest.CreateFirstUser(t, client)
-	ws, authToken := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
+	r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
-	})
+	}).WithAgent().Do()
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	// Verify that the manifest has DisableDirectConnections set to true.
 	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(authToken)
+	agentClient.SetSessionToken(r.AgentToken)
 	manifest, err := agentClient.Manifest(ctx)
 	require.NoError(t, err)
 	require.True(t, manifest.DisableDirectConnections)
 
-	_ = agenttest.New(t, client.URL, authToken)
-	resources := coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
+	_ = agenttest.New(t, client.URL, r.AgentToken)
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
 	agentID := resources[0].Agents[0].ID
 
 	// Verify that the connection data has no STUN ports and
@@ -538,21 +519,17 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 		require.NoError(t, err)
 
 		user := coderdtest.CreateFirstUser(t, client)
-		ws := dbfake.Workspace(t, db, database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			agents[0].Apps = apps
+			return agents
+		}).Do()
+		_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
+			o.PortCacheDuration = time.Millisecond
 		})
-		authToken := uuid.NewString()
-		dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
-			Agents: []*proto.Agent{{
-				Apps: apps,
-				Auth: &proto.Agent_Token{
-					Token: authToken,
-				},
-			}},
-		})
-		_ = agenttest.New(t, client.URL, authToken)
-		resources := coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
+		resources := coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
 		return client, uint16(coderdPort), resources[0].Agents[0].ID
 	}
 
@@ -670,15 +647,21 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 
 			// Close the listener and check that the port is no longer in the response.
 			require.NoError(t, l.Close())
-			time.Sleep(2 * time.Second) // avoid cache
-			res, err = client.WorkspaceAgentListeningPorts(ctx, agentID)
-			require.NoError(t, err)
-
-			for _, port := range res.Ports {
-				if port.Network == "tcp" && port.Port == lPort {
-					t.Fatalf("expected to not find TCP port %d in response", lPort)
+			t.Log("checking for ports after listener close:")
+			require.Eventually(t, func() bool {
+				res, err = client.WorkspaceAgentListeningPorts(ctx, agentID)
+				if !assert.NoError(t, err) {
+					return false
 				}
-			}
+
+				for _, port := range res.Ports {
+					if port.Network == "tcp" && port.Port == lPort {
+						t.Logf("expected to not find TCP port %d in response", lPort)
+						return false
+					}
+				}
+				return true
+			}, testutil.WaitLong, testutil.IntervalMedium)
 		})
 
 		t.Run("Filter", func(t *testing.T) {
@@ -751,7 +734,6 @@ func TestWorkspaceAgentAppHealth(t *testing.T) {
 	t.Parallel()
 	client, db := coderdtest.NewWithDatabase(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
-	authToken := uuid.NewString()
 	apps := []*proto.App{
 		{
 			Slug:    "code-server",
@@ -772,27 +754,19 @@ func TestWorkspaceAgentAppHealth(t *testing.T) {
 			},
 		},
 	}
-	ws := dbfake.Workspace(t, db, database.Workspace{
+	r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
-	})
-	dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
-		Name: "example",
-		Type: "aws_instance",
-		Agents: []*proto.Agent{{
-			Id: uuid.NewString(),
-			Auth: &proto.Agent_Token{
-				Token: authToken,
-			},
-			Apps: apps,
-		}},
-	})
+	}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+		agents[0].Apps = apps
+		return agents
+	}).Do()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
 	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(authToken)
+	agentClient.SetSessionToken(r.AgentToken)
 
 	manifest, err := agentClient.Manifest(ctx)
 	require.NoError(t, err)
@@ -847,13 +821,77 @@ func TestWorkspaceAgentReportStats(t *testing.T) {
 
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		ws, authToken := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
-		})
+		}).WithAgent().Do()
 
 		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(authToken)
+		agentClient.SetSessionToken(r.AgentToken)
+
+		_, err := agentClient.PostStats(context.Background(), &agentsdk.Stats{
+			ConnectionsByProto: map[string]int64{"TCP": 1},
+			// Set connection count to 1 but all session counts to zero to
+			// assert we aren't updating last_used_at for a connections that may
+			// be spawned passively by the dashboard.
+			ConnectionCount:             1,
+			RxPackets:                   1,
+			RxBytes:                     1,
+			TxPackets:                   1,
+			TxBytes:                     1,
+			SessionCountVSCode:          0,
+			SessionCountJetBrains:       0,
+			SessionCountReconnectingPTY: 0,
+			SessionCountSSH:             0,
+			ConnectionMedianLatencyMS:   10,
+		})
+		require.NoError(t, err)
+
+		newWorkspace, err := client.Workspace(context.Background(), r.Workspace.ID)
+		require.NoError(t, err)
+
+		assert.True(t,
+			newWorkspace.LastUsedAt.Equal(r.Workspace.LastUsedAt),
+			"%s and %s should not differ", newWorkspace.LastUsedAt, r.Workspace.LastUsedAt,
+		)
+
+		_, err = agentClient.PostStats(context.Background(), &agentsdk.Stats{
+			ConnectionsByProto:          map[string]int64{"TCP": 1},
+			ConnectionCount:             1,
+			RxPackets:                   1,
+			RxBytes:                     1,
+			TxPackets:                   1,
+			TxBytes:                     1,
+			SessionCountVSCode:          1,
+			SessionCountJetBrains:       0,
+			SessionCountReconnectingPTY: 0,
+			SessionCountSSH:             0,
+			ConnectionMedianLatencyMS:   10,
+		})
+		require.NoError(t, err)
+
+		newWorkspace, err = client.Workspace(context.Background(), r.Workspace.ID)
+		require.NoError(t, err)
+
+		assert.True(t,
+			newWorkspace.LastUsedAt.After(r.Workspace.LastUsedAt),
+			"%s is not after %s", newWorkspace.LastUsedAt, r.Workspace.LastUsedAt,
+		)
+	})
+
+	t.Run("FailDeleted", func(t *testing.T) {
+		t.Parallel()
+
+		owner, db := coderdtest.NewWithDatabase(t, nil)
+		ownerUser := coderdtest.CreateFirstUser(t, owner)
+		client, admin := coderdtest.CreateAnotherUser(t, owner, ownerUser.OrganizationID, rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin())
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+			OrganizationID: admin.OrganizationIDs[0],
+			OwnerID:        admin.ID,
+		}).WithAgent().Do()
+
+		agentClient := agentsdk.New(client.URL)
+		agentClient.SetSessionToken(r.AgentToken)
 
 		_, err := agentClient.PostStats(context.Background(), &agentsdk.Stats{
 			ConnectionsByProto:          map[string]int64{"TCP": 1},
@@ -862,21 +900,40 @@ func TestWorkspaceAgentReportStats(t *testing.T) {
 			RxBytes:                     1,
 			TxPackets:                   1,
 			TxBytes:                     1,
-			SessionCountVSCode:          1,
-			SessionCountJetBrains:       1,
-			SessionCountReconnectingPTY: 1,
-			SessionCountSSH:             1,
+			SessionCountVSCode:          0,
+			SessionCountJetBrains:       0,
+			SessionCountReconnectingPTY: 0,
+			SessionCountSSH:             0,
 			ConnectionMedianLatencyMS:   10,
 		})
 		require.NoError(t, err)
 
-		newWorkspace, err := client.Workspace(context.Background(), ws.ID)
+		newWorkspace, err := client.Workspace(context.Background(), r.Workspace.ID)
 		require.NoError(t, err)
 
-		assert.True(t,
-			newWorkspace.LastUsedAt.After(ws.LastUsedAt),
-			"%s is not after %s", newWorkspace.LastUsedAt, ws.LastUsedAt,
-		)
+		// nolint:gocritic // using db directly over creating a delete job
+		err = db.UpdateWorkspaceDeletedByID(dbauthz.As(context.Background(),
+			coderdtest.AuthzUserSubject(admin, ownerUser.OrganizationID)),
+			database.UpdateWorkspaceDeletedByIDParams{
+				ID:      newWorkspace.ID,
+				Deleted: true,
+			})
+		require.NoError(t, err)
+
+		_, err = agentClient.PostStats(context.Background(), &agentsdk.Stats{
+			ConnectionsByProto:          map[string]int64{"TCP": 1},
+			ConnectionCount:             1,
+			RxPackets:                   1,
+			RxBytes:                     1,
+			TxPackets:                   1,
+			TxBytes:                     1,
+			SessionCountVSCode:          1,
+			SessionCountJetBrains:       0,
+			SessionCountReconnectingPTY: 0,
+			SessionCountSSH:             0,
+			ConnectionMedianLatencyMS:   10,
+		})
+		require.ErrorContains(t, err, "agent is invalid")
 	})
 }
 
@@ -888,11 +945,11 @@ func TestWorkspaceAgent_LifecycleState(t *testing.T) {
 
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		ws, authToken := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
-		})
-		workspace, err := client.Workspace(context.Background(), ws.ID)
+		}).WithAgent().Do()
+		workspace, err := client.Workspace(context.Background(), r.Workspace.ID)
 		require.NoError(t, err)
 		for _, res := range workspace.LatestBuild.Resources {
 			for _, a := range res.Agents {
@@ -901,7 +958,7 @@ func TestWorkspaceAgent_LifecycleState(t *testing.T) {
 		}
 
 		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(authToken)
+		agentClient.SetSessionToken(r.AgentToken)
 
 		tests := []struct {
 			state   codersdk.WorkspaceAgentLifecycle
@@ -953,45 +1010,37 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 
 	client, db := coderdtest.NewWithDatabase(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
-	authToken := uuid.NewString()
-	ws := dbfake.Workspace(t, db, database.Workspace{
+	r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
-	})
-	dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
-		Name: "example",
-		Type: "aws_instance",
-		Agents: []*proto.Agent{{
-			Metadata: []*proto.Agent_Metadata{
-				{
-					DisplayName: "First Meta",
-					Key:         "foo1",
-					Script:      "echo hi",
-					Interval:    10,
-					Timeout:     3,
-				},
-				{
-					DisplayName: "Second Meta",
-					Key:         "foo2",
-					Script:      "echo howdy",
-					Interval:    10,
-					Timeout:     3,
-				},
-				{
-					DisplayName: "TooLong",
-					Key:         "foo3",
-					Script:      "echo howdy",
-					Interval:    10,
-					Timeout:     3,
-				},
+	}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+		agents[0].Metadata = []*proto.Agent_Metadata{
+			{
+				DisplayName: "First Meta",
+				Key:         "foo1",
+				Script:      "echo hi",
+				Interval:    10,
+				Timeout:     3,
 			},
-			Id: uuid.NewString(),
-			Auth: &proto.Agent_Token{
-				Token: authToken,
+			{
+				DisplayName: "Second Meta",
+				Key:         "foo2",
+				Script:      "echo howdy",
+				Interval:    10,
+				Timeout:     3,
 			},
-		}},
-	})
-	workspace, err := client.Workspace(context.Background(), ws.ID)
+			{
+				DisplayName: "TooLong",
+				Key:         "foo3",
+				Script:      "echo howdy",
+				Interval:    10,
+				Timeout:     3,
+			},
+		}
+		return agents
+	}).Do()
+
+	workspace, err := client.Workspace(context.Background(), r.Workspace.ID)
 	require.NoError(t, err)
 	for _, res := range workspace.LatestBuild.Resources {
 		for _, a := range res.Agents {
@@ -1000,7 +1049,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	}
 
 	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(authToken)
+	agentClient.SetSessionToken(r.AgentToken)
 
 	ctx := testutil.Context(t, testutil.WaitMedium)
 
@@ -1008,13 +1057,15 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify manifest API response.
+	require.Equal(t, workspace.ID, manifest.WorkspaceID)
+	require.Equal(t, workspace.OwnerName, manifest.OwnerName)
 	require.Equal(t, "First Meta", manifest.Metadata[0].DisplayName)
 	require.Equal(t, "foo1", manifest.Metadata[0].Key)
 	require.Equal(t, "echo hi", manifest.Metadata[0].Script)
 	require.EqualValues(t, 10, manifest.Metadata[0].Interval)
 	require.EqualValues(t, 3, manifest.Metadata[0].Timeout)
 
-	post := func(key string, mr codersdk.WorkspaceAgentMetadataResult) {
+	post := func(ctx context.Context, key string, mr codersdk.WorkspaceAgentMetadataResult) {
 		err := agentClient.PostMetadata(ctx, agentsdk.PostMetadataRequest{
 			Metadata: []agentsdk.Metadata{
 				{
@@ -1038,8 +1089,11 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 		Value:       "bar",
 	}
 
+	// Setup is complete, reset the context.
+	ctx = testutil.Context(t, testutil.WaitMedium)
+
 	// Initial post must come before the Watch is established.
-	post("foo1", wantMetadata1)
+	post(ctx, "foo1", wantMetadata1)
 
 	updates, errors := client.WatchWorkspaceAgentMetadata(ctx, agentID)
 
@@ -1081,14 +1135,14 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	require.Zero(t, update[1].Result.CollectedAt)
 
 	wantMetadata2 := wantMetadata1
-	post("foo2", wantMetadata2)
+	post(ctx, "foo2", wantMetadata2)
 	update = recvUpdate()
 	require.Len(t, update, 3)
 	check(wantMetadata1, update[0], true)
 	check(wantMetadata2, update[1], true)
 
 	wantMetadata1.Error = "error"
-	post("foo1", wantMetadata1)
+	post(ctx, "foo1", wantMetadata1)
 	update = recvUpdate()
 	require.Len(t, update, 3)
 	check(wantMetadata1, update[0], true)
@@ -1098,7 +1152,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	tooLongValueMetadata.Value = strings.Repeat("a", maxValueLen*2)
 	tooLongValueMetadata.Error = ""
 	tooLongValueMetadata.CollectedAt = time.Now()
-	post("foo3", tooLongValueMetadata)
+	post(ctx, "foo3", tooLongValueMetadata)
 	got := recvUpdate()[2]
 	for i := 0; i < 2 && len(got.Result.Value) != maxValueLen; i++ {
 		got = recvUpdate()[2]
@@ -1107,7 +1161,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	require.NotEmpty(t, got.Result.Error)
 
 	unknownKeyMetadata := wantMetadata1
-	post("unknown", unknownKeyMetadata)
+	post(ctx, "unknown", unknownKeyMetadata)
 }
 
 type testWAMErrorStore struct {
@@ -1136,38 +1190,29 @@ func TestWorkspaceAgent_Metadata_CatchMemoryLeak(t *testing.T) {
 		Logger:                   &logger,
 	})
 	user := coderdtest.CreateFirstUser(t, client)
-	authToken := uuid.NewString()
-	ws := dbfake.Workspace(t, db, database.Workspace{
+	r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
-	})
-	dbfake.WorkspaceBuild(t, db, ws, database.WorkspaceBuild{}, &proto.Resource{
-		Name: "example",
-		Type: "aws_instance",
-		Agents: []*proto.Agent{{
-			Metadata: []*proto.Agent_Metadata{
-				{
-					DisplayName: "First Meta",
-					Key:         "foo1",
-					Script:      "echo hi",
-					Interval:    10,
-					Timeout:     3,
-				},
-				{
-					DisplayName: "Second Meta",
-					Key:         "foo2",
-					Script:      "echo bye",
-					Interval:    10,
-					Timeout:     3,
-				},
+	}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+		agents[0].Metadata = []*proto.Agent_Metadata{
+			{
+				DisplayName: "First Meta",
+				Key:         "foo1",
+				Script:      "echo hi",
+				Interval:    10,
+				Timeout:     3,
 			},
-			Id: uuid.NewString(),
-			Auth: &proto.Agent_Token{
-				Token: authToken,
+			{
+				DisplayName: "Second Meta",
+				Key:         "foo2",
+				Script:      "echo bye",
+				Interval:    10,
+				Timeout:     3,
 			},
-		}},
-	})
-	workspace, err := client.Workspace(context.Background(), ws.ID)
+		}
+		return agents
+	}).Do()
+	workspace, err := client.Workspace(context.Background(), r.Workspace.ID)
 	require.NoError(t, err)
 	for _, res := range workspace.LatestBuild.Resources {
 		for _, a := range res.Agents {
@@ -1176,7 +1221,7 @@ func TestWorkspaceAgent_Metadata_CatchMemoryLeak(t *testing.T) {
 	}
 
 	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(authToken)
+	agentClient.SetSessionToken(r.AgentToken)
 
 	ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitSuperLong))
 
@@ -1274,12 +1319,12 @@ func TestWorkspaceAgent_Startup(t *testing.T) {
 
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		ws, authToken := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
-		})
+		}).WithAgent().Do()
 		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(authToken)
+		agentClient.SetSessionToken(r.AgentToken)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
@@ -1303,7 +1348,7 @@ func TestWorkspaceAgent_Startup(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		workspace, err := client.Workspace(ctx, ws.ID)
+		workspace, err := client.Workspace(ctx, r.Workspace.ID)
 		require.NoError(t, err)
 
 		wsagent, err := client.WorkspaceAgent(ctx, workspace.LatestBuild.Resources[0].Agents[0].ID)
@@ -1320,13 +1365,13 @@ func TestWorkspaceAgent_Startup(t *testing.T) {
 
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		_, authToken := dbfake.WorkspaceWithAgent(t, db, database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
-		})
+		}).WithAgent().Do()
 
 		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(authToken)
+		agentClient.SetSessionToken(r.AgentToken)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
@@ -1368,22 +1413,30 @@ func TestWorkspaceAgent_UpdatedDERP(t *testing.T) {
 	api.DERPMapper.Store(&derpMapFn)
 
 	// Start workspace a workspace agent.
-	ws, agentToken := dbfake.WorkspaceWithAgent(t, api.Database, database.Workspace{
+	r := dbfake.WorkspaceBuild(t, api.Database, database.Workspace{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
-	})
+	}).WithAgent().Do()
 
-	agentCloser := agenttest.New(t, client.URL, agentToken)
-	resources := coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
+	agentCloser := agenttest.New(t, client.URL, r.AgentToken)
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
 	agentID := resources[0].Agents[0].ID
 
 	// Connect from a client.
-	ctx := testutil.Context(t, testutil.WaitLong)
-	conn1, err := client.DialWorkspaceAgent(ctx, agentID, &codersdk.DialWorkspaceAgentOptions{
-		Logger: logger.Named("client1"),
-	})
+	conn1, err := func() (*codersdk.WorkspaceAgentConn, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel() // Connection should remain open even if the dial context is canceled.
+
+		return client.DialWorkspaceAgent(ctx, agentID, &codersdk.DialWorkspaceAgentOptions{
+			Logger: logger.Named("client1"),
+		})
+	}()
 	require.NoError(t, err)
 	defer conn1.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
 	ok := conn1.AwaitReachable(ctx)
 	require.True(t, ok)
 

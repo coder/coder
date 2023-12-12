@@ -199,6 +199,12 @@ data "coder_parameter" "workspace_template" {
     description = "Provisions a medium-sized workspace with no persistent storage."
   }
   option {
+    name        = "Medium (Greedy)"
+    value       = "kubernetes-medium-greedy"
+    icon        = "/emojis/1f436.png" # Dog.
+    description = "Provisions a medium-sized workspace with no persistent storage. Greedy agent variant."
+  }
+  option {
     name        = "Large"
     value       = "kubernetes-large"
     icon        = "/emojis/1f434.png" # Horse.
@@ -216,7 +222,7 @@ data "coder_parameter" "num_workspaces" {
 
   validation {
     min = 0
-    max = 1000
+    max = 2000
   }
 }
 
@@ -335,6 +341,56 @@ data "coder_parameter" "load_scenario_baseline_duration" {
   }
 }
 
+data "coder_parameter" "greedy_agent" {
+  order       = 30
+  type        = "bool"
+  name        = "Greedy Agent"
+  default     = false
+  description = "If true, the agent will attempt to consume all available resources."
+  mutable     = true
+  ephemeral   = true
+}
+
+data "coder_parameter" "greedy_agent_template" {
+  order        = 31
+  name         = "Greedy Agent Template"
+  display_name = "Greedy Agent Template"
+  description  = "The template used for the greedy agent workspace (must not be same as workspace template)."
+  default      = "kubernetes-medium-greedy"
+  icon         = "/emojis/1f4dc.png" # Scroll.
+  mutable      = true
+  option {
+    name        = "Minimal"
+    value       = "kubernetes-minimal" # Feather.
+    icon        = "/emojis/1fab6.png"
+    description = "Sized to fit approx. 32 per t2d-standard-8 instance."
+  }
+  option {
+    name        = "Small"
+    value       = "kubernetes-small"
+    icon        = "/emojis/1f42d.png" # Mouse.
+    description = "Provisions a small-sized workspace with no persistent storage."
+  }
+  option {
+    name        = "Medium"
+    value       = "kubernetes-medium"
+    icon        = "/emojis/1f436.png" # Dog.
+    description = "Provisions a medium-sized workspace with no persistent storage."
+  }
+  option {
+    name        = "Medium (Greedy)"
+    value       = "kubernetes-medium-greedy"
+    icon        = "/emojis/1f436.png" # Dog.
+    description = "Provisions a medium-sized workspace with no persistent storage. Greedy agent variant."
+  }
+  option {
+    name        = "Large"
+    value       = "kubernetes-large"
+    icon        = "/emojis/1f434.png" # Horse.
+    description = "Provisions a large-sized workspace with no persistent storage."
+  }
+}
+
 data "coder_parameter" "namespace" {
   order       = 999
   type        = "string"
@@ -395,6 +451,8 @@ resource "coder_agent" "main" {
     SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_TICK_INTERVAL : "${data.coder_parameter.load_scenario_web_terminal_tick_interval.value}",
     SCALETEST_PARAM_LOAD_SCENARIO_DASHBOARD_TRAFFIC_DURATION : "${data.coder_parameter.load_scenario_dashboard_traffic_duration.value}",
     SCALETEST_PARAM_LOAD_SCENARIO_BASELINE_DURATION : "${data.coder_parameter.load_scenario_baseline_duration.value}",
+    SCALETEST_PARAM_GREEDY_AGENT : data.coder_parameter.greedy_agent.value ? "1" : "0",
+    SCALETEST_PARAM_GREEDY_AGENT_TEMPLATE : data.coder_parameter.greedy_agent_template.value,
 
     GRAFANA_URL : local.grafana_url,
 
@@ -584,7 +642,7 @@ resource "kubernetes_pod" "main" {
   }
   # Set the pod delete timeout to termination_grace_period_seconds + 1m.
   timeouts {
-    delete = "${(local.workspace_pod_termination_grace_period_seconds + 120) / 60}s"
+    delete = "${(local.workspace_pod_termination_grace_period_seconds + 120)}s"
   }
   spec {
     security_context {

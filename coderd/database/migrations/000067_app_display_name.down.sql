@@ -1,5 +1,3 @@
-BEGIN;
-
 -- Select all apps with an extra "row_number" column that determines the "rank"
 -- of the display name against other display names in the same agent.
 WITH row_numbers AS (
@@ -30,5 +28,3 @@ ALTER TABLE "workspace_apps" RENAME COLUMN "display_name" TO "name";
 
 -- restore unique index on "workspace_apps" table
 ALTER TABLE workspace_apps ADD CONSTRAINT workspace_apps_agent_id_name_key UNIQUE ("agent_id", "name");
-
-COMMIT;

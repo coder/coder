@@ -1,4 +1,3 @@
-import Box from "@mui/material/Box";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
@@ -154,9 +153,9 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
       data-testid={`parameter-field-${parameter.name}`}
     >
       <ParameterLabel parameter={parameter} />
-      <Box sx={{ display: "flex", flexDirection: "column" }}>
+      <div css={{ display: "flex", flexDirection: "column" }}>
         <RichParameterField {...fieldProps} size={size} parameter={parameter} />
-      </Box>
+      </div>
     </Stack>
   );
 };
@@ -235,7 +234,7 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
                           </MemoizedMarkdown>
                         }
                       >
-                        <Box>{option.name}</Box>
+                        <div>{option.name}</div>
                       </Tooltip>
                     ) : (
                       <>

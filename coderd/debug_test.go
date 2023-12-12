@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"sync/atomic"
@@ -11,9 +12,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -89,8 +93,11 @@ func TestDebugHealth(t *testing.T) {
 		t.Parallel()
 
 		var (
+			// Need to ignore errors due to ctx timeout
+			logger      = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 			ctx, cancel = context.WithTimeout(context.Background(), testutil.WaitShort)
 			client      = coderdtest.New(t, &coderdtest.Options{
+				Logger:             &logger,
 				HealthcheckTimeout: time.Microsecond,
 				HealthcheckFunc: func(context.Context, string) *healthcheck.Report {
 					t := time.NewTimer(time.Second)
@@ -229,6 +236,130 @@ func TestDebugHealth(t *testing.T) {
 		assert.Contains(t, resStr, "access_url: false")
 		assert.Contains(t, resStr, "websocket: false")
 		assert.Contains(t, resStr, "database: false")
+	})
+}
+
+func TestHealthSettings(t *testing.T) {
+	t.Parallel()
+
+	t.Run("InitialState", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		// given
+		adminClient := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, adminClient)
+
+		// when
+		settings, err := adminClient.HealthSettings(ctx)
+		require.NoError(t, err)
+
+		// then
+		require.Equal(t, codersdk.HealthSettings{DismissedHealthchecks: []codersdk.HealthSection{}}, settings)
+	})
+
+	t.Run("DismissSection", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		// given
+		adminClient := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, adminClient)
+
+		expected := codersdk.HealthSettings{
+			DismissedHealthchecks: []codersdk.HealthSection{codersdk.HealthSectionDERP, codersdk.HealthSectionWebsocket},
+		}
+
+		// when: dismiss "derp" and "websocket"
+		err := adminClient.PutHealthSettings(ctx, expected)
+		require.NoError(t, err)
+
+		// then
+		settings, err := adminClient.HealthSettings(ctx)
+		require.NoError(t, err)
+		require.Equal(t, expected, settings)
+
+		// then
+		res, err := adminClient.Request(ctx, "GET", "/api/v2/debug/health", nil)
+		require.NoError(t, err)
+		bs, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		var hc healthcheck.Report
+		require.NoError(t, json.Unmarshal(bs, &hc))
+		require.True(t, hc.DERP.Dismissed)
+		require.True(t, hc.Websocket.Dismissed)
+	})
+
+	t.Run("UnDismissSection", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		// given
+		adminClient := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, adminClient)
+
+		initial := codersdk.HealthSettings{
+			DismissedHealthchecks: []codersdk.HealthSection{codersdk.HealthSectionDERP, codersdk.HealthSectionWebsocket},
+		}
+
+		err := adminClient.PutHealthSettings(ctx, initial)
+		require.NoError(t, err)
+
+		expected := codersdk.HealthSettings{
+			DismissedHealthchecks: []codersdk.HealthSection{codersdk.HealthSectionDERP},
+		}
+
+		// when: undismiss "websocket"
+		err = adminClient.PutHealthSettings(ctx, expected)
+		require.NoError(t, err)
+
+		// then
+		settings, err := adminClient.HealthSettings(ctx)
+		require.NoError(t, err)
+		require.Equal(t, expected, settings)
+
+		// then
+		res, err := adminClient.Request(ctx, "GET", "/api/v2/debug/health", nil)
+		require.NoError(t, err)
+		bs, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		var hc healthcheck.Report
+		require.NoError(t, json.Unmarshal(bs, &hc))
+		require.True(t, hc.DERP.Dismissed)
+		require.False(t, hc.Websocket.Dismissed)
+	})
+
+	t.Run("NotModified", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		// given
+		adminClient := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, adminClient)
+
+		expected := codersdk.HealthSettings{
+			DismissedHealthchecks: []codersdk.HealthSection{codersdk.HealthSectionDERP, codersdk.HealthSectionWebsocket},
+		}
+
+		err := adminClient.PutHealthSettings(ctx, expected)
+		require.NoError(t, err)
+
+		// when
+		err = adminClient.PutHealthSettings(ctx, expected)
+
+		// then
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "health settings not modified")
 	})
 }
 

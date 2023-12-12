@@ -366,6 +366,58 @@
         }
       }
     },
+    "/debug/health/settings": {
+      "get": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["Debug"],
+        "summary": "Get health settings",
+        "operationId": "get-health-settings",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/codersdk.HealthSettings"
+            }
+          }
+        }
+      },
+      "put": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "tags": ["Debug"],
+        "summary": "Update health settings",
+        "operationId": "update-health-settings",
+        "parameters": [
+          {
+            "description": "Update health settings",
+            "name": "request",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/codersdk.UpdateHealthSettings"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/codersdk.UpdateHealthSettings"
+            }
+          }
+        }
+      }
+    },
     "/debug/tailnet": {
       "get": {
         "security": [
@@ -401,6 +453,35 @@
             "schema": {
               "$ref": "#/definitions/codersdk.Response"
             }
+          }
+        },
+        "x-apidocgen": {
+          "skip": true
+        }
+      }
+    },
+    "/debug/{user}/debug-link": {
+      "get": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "tags": ["Agents"],
+        "summary": "Debug OIDC context for a user",
+        "operationId": "debug-oidc-context-for-a-user",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "User ID, name, or me",
+            "name": "user",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
           }
         },
         "x-apidocgen": {
@@ -557,6 +638,27 @@
         }
       }
     },
+    "/external-auth": {
+      "get": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["Git"],
+        "summary": "Get user external auths",
+        "operationId": "get-user-external-auths",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/codersdk.ExternalAuthLink"
+            }
+          }
+        }
+      }
+    },
     "/external-auth/{externalauth}": {
       "get": {
         "security": [
@@ -584,6 +686,31 @@
             "schema": {
               "$ref": "#/definitions/codersdk.ExternalAuth"
             }
+          }
+        }
+      },
+      "delete": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "tags": ["Git"],
+        "summary": "Delete external auth user link by ID",
+        "operationId": "delete-external-auth-user-link-by-id",
+        "parameters": [
+          {
+            "type": "string",
+            "format": "string",
+            "description": "Git Provider ID",
+            "name": "externalauth",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
           }
         }
       }
@@ -5390,7 +5517,7 @@
         "parameters": [
           {
             "type": "string",
-            "description": "Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, deleting_by.",
+            "description": "Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, is-dormant, last_used_after, last_used_before.",
             "name": "q",
             "in": "query"
           },
@@ -6022,6 +6149,10 @@
         "motd_file": {
           "type": "string"
         },
+        "owner_name": {
+          "description": "OwnerName and WorkspaceID are used by an open-source user to identify the workspace.\nWe do not provide insurance that this will not be removed in the future,\nbut if it's easy to persist lets keep it around.",
+          "type": "string"
+        },
         "scripts": {
           "type": "array",
           "items": {
@@ -6029,6 +6160,9 @@
           }
         },
         "vscode_port_proxy_uri": {
+          "type": "string"
+        },
+        "workspace_id": {
           "type": "string"
         }
       }
@@ -6836,6 +6970,10 @@
     "codersdk.BuildInfoResponse": {
       "type": "object",
       "properties": {
+        "agent_api_version": {
+          "description": "AgentAPIVersion is the current version of the Agent API (back versions\nMAY still be supported).",
+          "type": "string"
+        },
         "dashboard_url": {
           "description": "DashboardURL is the URL to hit the deployment's dashboard.\nFor external workspace proxies, this is the coderd they are connected\nto.",
           "type": "string"
@@ -7856,6 +7994,35 @@
         }
       }
     },
+    "codersdk.ExternalAuthLink": {
+      "type": "object",
+      "properties": {
+        "authenticated": {
+          "type": "boolean"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "expires": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "has_refresh_token": {
+          "type": "boolean"
+        },
+        "provider_id": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "validate_error": {
+          "type": "string"
+        }
+      }
+    },
     "codersdk.ExternalAuthUser": {
       "type": "object",
       "properties": {
@@ -7970,6 +8137,28 @@
       "type": "string",
       "enum": ["user", "oidc"],
       "x-enum-varnames": ["GroupSourceUser", "GroupSourceOIDC"]
+    },
+    "codersdk.HealthSection": {
+      "type": "string",
+      "enum": ["DERP", "AccessURL", "Websocket", "Database", "WorkspaceProxy"],
+      "x-enum-varnames": [
+        "HealthSectionDERP",
+        "HealthSectionAccessURL",
+        "HealthSectionWebsocket",
+        "HealthSectionDatabase",
+        "HealthSectionWorkspaceProxy"
+      ]
+    },
+    "codersdk.HealthSettings": {
+      "type": "object",
+      "properties": {
+        "dismissed_healthchecks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/codersdk.HealthSection"
+          }
+        }
+      }
     },
     "codersdk.Healthcheck": {
       "type": "object",
@@ -8260,6 +8449,12 @@
         "email_field": {
           "type": "string"
         },
+        "group_allow_list": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "group_auto_create": {
           "type": "boolean"
         },
@@ -8482,6 +8677,10 @@
           "type": "string",
           "format": "uuid"
         },
+        "last_seen_at": {
+          "type": "string",
+          "format": "date-time"
+        },
         "name": {
           "type": "string"
         },
@@ -8498,12 +8697,11 @@
           }
         },
         "updated_at": {
-          "format": "date-time",
-          "allOf": [
-            {
-              "$ref": "#/definitions/sql.NullTime"
-            }
-          ]
+          "type": "string",
+          "format": "date-time"
+        },
+        "version": {
+          "type": "string"
         }
       }
     },
@@ -8701,7 +8899,8 @@
         "deployment_stats",
         "replicas",
         "debug_info",
-        "system"
+        "system",
+        "template_insights"
       ],
       "x-enum-varnames": [
         "ResourceWorkspace",
@@ -8725,7 +8924,8 @@
         "ResourceDeploymentStats",
         "ResourceReplicas",
         "ResourceDebugInfo",
-        "ResourceSystem"
+        "ResourceSystem",
+        "ResourceTemplateInsights"
       ]
     },
     "codersdk.RateLimitConfig": {
@@ -8846,6 +9046,7 @@
         "group",
         "license",
         "convert_login",
+        "health_settings",
         "workspace_proxy",
         "organization"
       ],
@@ -8860,6 +9061,7 @@
         "ResourceTypeGroup",
         "ResourceTypeLicense",
         "ResourceTypeConvertLogin",
+        "ResourceTypeHealthSettings",
         "ResourceTypeWorkspaceProxy",
         "ResourceTypeOrganization"
       ]
@@ -9720,6 +9922,17 @@
         "version": {
           "description": "Version is the semantic version for the latest release of Coder.",
           "type": "string"
+        }
+      }
+    },
+    "codersdk.UpdateHealthSettings": {
+      "type": "object",
+      "properties": {
+        "dismissed_healthchecks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/codersdk.HealthSection"
+          }
         }
       }
     },
@@ -10827,6 +11040,9 @@
           "type": "string",
           "format": "date-time"
         },
+        "version": {
+          "type": "string"
+        },
         "wildcard_hostname": {
           "description": "WildcardHostname is the wildcard hostname for subdomain apps.\nE.g. *.us.example.com\nE.g. *--suffix.au.example.com\nOptional. Does not need to be on the same domain as PathAppURL.",
           "type": "string"
@@ -11021,6 +11237,7 @@
           "type": "string"
         },
         "healthy": {
+          "description": "Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.",
           "type": "boolean"
         },
         "node": {
@@ -11035,6 +11252,14 @@
         "round_trip_ping_ms": {
           "type": "integer"
         },
+        "severity": {
+          "enum": ["ok", "warning", "error"],
+          "allOf": [
+            {
+              "$ref": "#/definitions/health.Severity"
+            }
+          ]
+        },
         "stun": {
           "$ref": "#/definitions/derphealth.StunReport"
         },
@@ -11044,7 +11269,7 @@
         "warnings": {
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/definitions/health.Message"
           }
         }
       }
@@ -11056,6 +11281,7 @@
           "type": "string"
         },
         "healthy": {
+          "description": "Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.",
           "type": "boolean"
         },
         "node_reports": {
@@ -11067,10 +11293,18 @@
         "region": {
           "$ref": "#/definitions/tailcfg.DERPRegion"
         },
+        "severity": {
+          "enum": ["ok", "warning", "error"],
+          "allOf": [
+            {
+              "$ref": "#/definitions/health.Severity"
+            }
+          ]
+        },
         "warnings": {
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/definitions/health.Message"
           }
         }
       }
@@ -11078,10 +11312,14 @@
     "derphealth.Report": {
       "type": "object",
       "properties": {
+        "dismissed": {
+          "type": "boolean"
+        },
         "error": {
           "type": "string"
         },
         "healthy": {
+          "description": "Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.",
           "type": "boolean"
         },
         "netcheck": {
@@ -11102,10 +11340,18 @@
             "$ref": "#/definitions/derphealth.RegionReport"
           }
         },
+        "severity": {
+          "enum": ["ok", "warning", "error"],
+          "allOf": [
+            {
+              "$ref": "#/definitions/health.Severity"
+            }
+          ]
+        },
         "warnings": {
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/definitions/health.Message"
           }
         }
       }
@@ -11124,16 +11370,75 @@
         }
       }
     },
+    "health.Code": {
+      "type": "string",
+      "enum": [
+        "EUNKNOWN",
+        "EWP01",
+        "EWP02",
+        "EWP03",
+        "EWP04",
+        "EDB01",
+        "EDB02",
+        "EWS01",
+        "EWS02",
+        "EWS03",
+        "EACS01",
+        "EACS02",
+        "EACS03",
+        "EACS04",
+        "EDERP01",
+        "EDERP02"
+      ],
+      "x-enum-varnames": [
+        "CodeUnknown",
+        "CodeProxyUpdate",
+        "CodeProxyFetch",
+        "CodeProxyVersionMismatch",
+        "CodeProxyUnhealthy",
+        "CodeDatabasePingFailed",
+        "CodeDatabasePingSlow",
+        "CodeWebsocketDial",
+        "CodeWebsocketEcho",
+        "CodeWebsocketMsg",
+        "CodeAccessURLNotSet",
+        "CodeAccessURLInvalid",
+        "CodeAccessURLFetch",
+        "CodeAccessURLNotOK",
+        "CodeDERPNodeUsesWebsocket",
+        "CodeDERPOneNodeUnhealthy"
+      ]
+    },
+    "health.Message": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "$ref": "#/definitions/health.Code"
+        },
+        "message": {
+          "type": "string"
+        }
+      }
+    },
+    "health.Severity": {
+      "type": "string",
+      "enum": ["ok", "warning", "error"],
+      "x-enum-varnames": ["SeverityOK", "SeverityWarning", "SeverityError"]
+    },
     "healthcheck.AccessURLReport": {
       "type": "object",
       "properties": {
         "access_url": {
           "type": "string"
         },
+        "dismissed": {
+          "type": "boolean"
+        },
         "error": {
           "type": "string"
         },
         "healthy": {
+          "description": "Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.",
           "type": "boolean"
         },
         "healthz_response": {
@@ -11142,13 +11447,21 @@
         "reachable": {
           "type": "boolean"
         },
+        "severity": {
+          "enum": ["ok", "warning", "error"],
+          "allOf": [
+            {
+              "$ref": "#/definitions/health.Severity"
+            }
+          ]
+        },
         "status_code": {
           "type": "integer"
         },
         "warnings": {
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/definitions/health.Message"
           }
         }
       }
@@ -11156,10 +11469,14 @@
     "healthcheck.DatabaseReport": {
       "type": "object",
       "properties": {
+        "dismissed": {
+          "type": "boolean"
+        },
         "error": {
           "type": "string"
         },
         "healthy": {
+          "description": "Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.",
           "type": "boolean"
         },
         "latency": {
@@ -11171,13 +11488,21 @@
         "reachable": {
           "type": "boolean"
         },
+        "severity": {
+          "enum": ["ok", "warning", "error"],
+          "allOf": [
+            {
+              "$ref": "#/definitions/health.Severity"
+            }
+          ]
+        },
         "threshold_ms": {
           "type": "integer"
         },
         "warnings": {
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/definitions/health.Message"
           }
         }
       }
@@ -11202,12 +11527,21 @@
           "description": "FailingSections is a list of sections that have failed their healthcheck.",
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/definitions/codersdk.HealthSection"
           }
         },
         "healthy": {
-          "description": "Healthy is true if the report returns no errors.",
+          "description": "Healthy is true if the report returns no errors.\nDeprecated: use `Severity` instead",
           "type": "boolean"
+        },
+        "severity": {
+          "description": "Severity indicates the status of Coder health.",
+          "enum": ["ok", "warning", "error"],
+          "allOf": [
+            {
+              "$ref": "#/definitions/health.Severity"
+            }
+          ]
         },
         "time": {
           "description": "Time is the time the report was generated at.",
@@ -11215,6 +11549,9 @@
         },
         "websocket": {
           "$ref": "#/definitions/healthcheck.WebsocketReport"
+        },
+        "workspace_proxy": {
+          "$ref": "#/definitions/healthcheck.WorkspaceProxyReport"
         }
       }
     },
@@ -11227,17 +11564,55 @@
         "code": {
           "type": "integer"
         },
+        "dismissed": {
+          "type": "boolean"
+        },
         "error": {
           "type": "string"
         },
         "healthy": {
+          "description": "Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.",
           "type": "boolean"
+        },
+        "severity": {
+          "enum": ["ok", "warning", "error"],
+          "allOf": [
+            {
+              "$ref": "#/definitions/health.Severity"
+            }
+          ]
         },
         "warnings": {
           "type": "array",
           "items": {
             "type": "string"
           }
+        }
+      }
+    },
+    "healthcheck.WorkspaceProxyReport": {
+      "type": "object",
+      "properties": {
+        "dismissed": {
+          "type": "boolean"
+        },
+        "error": {
+          "type": "string"
+        },
+        "healthy": {
+          "type": "boolean"
+        },
+        "severity": {
+          "$ref": "#/definitions/health.Severity"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/health.Message"
+          }
+        },
+        "workspace_proxies": {
+          "$ref": "#/definitions/codersdk.RegionsResponse-codersdk_WorkspaceProxy"
         }
       }
     },
@@ -11328,18 +11703,6 @@
         "upnP": {
           "description": "UPnP is whether UPnP appears present on the LAN.\nEmpty means not checked.",
           "type": "string"
-        }
-      }
-    },
-    "sql.NullTime": {
-      "type": "object",
-      "properties": {
-        "time": {
-          "type": "string"
-        },
-        "valid": {
-          "description": "Valid is true if Time is not NULL",
-          "type": "boolean"
         }
       }
     },
