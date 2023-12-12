@@ -908,3 +908,27 @@ jobs:
 
             echo "::endgroup::"
           done
+
+  # sqlc-vet runs a postgres docker container, runs Coder migrations, and then
+  # runs sqlc-vet to ensure all queries are valid. This catches any mistakes
+  # in migrations or sqlc queries that makes a query unable to be prepared.
+  sqlc-vet:
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    needs: changes
+    # TODO: We should do this on any migration or query changes.
+#    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      # We need golang to run the migration main.go
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Setup sqlc
+        uses: ./.github/actions/setup-sqlc
+
+      - name: Setup and run sqlc vet
+        run: |
+          make sqlc-vet
