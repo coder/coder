@@ -95,39 +95,47 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
                 "data-testid": "delete-dialog-name-confirmation",
               }}
             />
-            {canUpdateTemplate && (
-              <div css={styles.orphanContainer}>
-                <div css={{ flexDirection: "column" }}>
-                  <Checkbox
-                    id="orphan_resources"
-                    size="small"
-                    color="warning"
-                    onChange={() => {
-                      setOrphanWorkspace(!orphanWorkspace);
-                    }}
-                    className="option"
-                    name="orphan_resources"
-                    checked={orphanWorkspace}
-                    data-testid="orphan-checkbox"
-                  />
-                </div>
-                <div css={{ flexDirection: "column" }}>
-                  <p className="info">Orphan Resources</p>
-                  <span css={{ fontSize: 12, marginTop: 4, display: "block" }}>
-                    As a Template Admin, you may skip resource cleanup to force
-                    remove a failed workspace. Resources such as volumes and
-                    virtual machines will not be destroyed.&nbsp;
-                    <Link
-                      href={docs("/workspaces#workspace-resources")}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Learn more...
-                    </Link>
-                  </span>
-                </div>
-              </div>
-            )}
+            {
+              // Orphaning is sort of a "last resort" that should really only
+              // be used if Terraform is failing to apply while deleting, which
+              // usually means that builds are failing as well.
+              canUpdateTemplate &&
+                workspace.latest_build.status === "failed" && (
+                  <div css={styles.orphanContainer}>
+                    <div css={{ flexDirection: "column" }}>
+                      <Checkbox
+                        id="orphan_resources"
+                        size="small"
+                        color="warning"
+                        onChange={() => {
+                          setOrphanWorkspace(!orphanWorkspace);
+                        }}
+                        className="option"
+                        name="orphan_resources"
+                        checked={orphanWorkspace}
+                        data-testid="orphan-checkbox"
+                      />
+                    </div>
+                    <div css={{ flexDirection: "column" }}>
+                      <p className="info">Orphan Resources</p>
+                      <span
+                        css={{ fontSize: 12, marginTop: 4, display: "block" }}
+                      >
+                        As a Template Admin, you may skip resource cleanup to
+                        delete a failed workspace. Resources such as volumes and
+                        virtual machines will not be destroyed.&nbsp;
+                        <Link
+                          href={docs("/workspaces#workspace-resources")}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Learn more...
+                        </Link>
+                      </span>
+                    </div>
+                  </div>
+                )
+            }
           </form>
         </>
       }
