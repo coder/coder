@@ -36,6 +36,7 @@ jobs:
       ts: ${{ steps.filter.outputs.ts }}
       k8s: ${{ steps.filter.outputs.k8s }}
       ci: ${{ steps.filter.outputs.ci }}
+      db: ${{ steps.filter.outputs.db }}
       offlinedocs-only: ${{ steps.filter.outputs.offlinedocs_count == steps.filter.outputs.all_count }}
       offlinedocs: ${{ steps.filter.outputs.offlinedocs }}
     steps:
@@ -57,6 +58,12 @@ jobs:
               - "examples/web-server/**"
               - "examples/monitoring/**"
               - "examples/lima/**"
+            db:
+              - "**.sql"
+              - "coderd/database/queries/**"
+              - "coderd/database/migrations"
+              - "coderd/database/sqlc.yaml"
+              - "coderd/database/dump.sql"
             go:
               - "**.sql"
               - "**.go"
@@ -618,6 +625,7 @@ jobs:
       - test-js
       - test-e2e
       - offlinedocs
+      - sqlc-vet
     # Allow this job to run even if the needed jobs fail, are skipped or
     # cancelled.
     if: always()
@@ -908,3 +916,26 @@ jobs:
 
             echo "::endgroup::"
           done
+
+  # sqlc-vet runs a postgres docker container, runs Coder migrations, and then
+  # runs sqlc-vet to ensure all queries are valid. This catches any mistakes
+  # in migrations or sqlc queries that makes a query unable to be prepared.
+  sqlc-vet:
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    needs: changes
+    if: needs.changes.outputs.db == 'true' || github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      # We need golang to run the migration main.go
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Setup sqlc
+        uses: ./.github/actions/setup-sqlc
+
+      - name: Setup and run sqlc vet
+        run: |
+          make sqlc-vet

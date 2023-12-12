@@ -82,6 +82,12 @@ sql:
   - schema: "./dump.sql"
     queries: "./queries"
     engine: "postgresql"
+    # This only works if you are running a local postgres database with the
+    # schema loaded and migrations run. Run `make sqlc-vet` to run the linter.
+    database:
+      uri: "${SQLC_DATABASE_URL}"
+    rules:
+      - sqlc/db-prepare
     gen:
       go:
         package: "database"
