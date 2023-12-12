@@ -787,7 +787,6 @@ func (api *API) putUserThemePreference(rw http.ResponseWriter, r *http.Request) 
 		ThemePreference: params.ThemePreference,
 		UpdatedAt:       dbtime.Now(),
 	})
-
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating user.",
