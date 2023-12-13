@@ -1014,6 +1014,12 @@
       ]
     },
     {
+      "title": "FAQs",
+      "description": "Frequently asked questions",
+      "path": "./faqs.md",
+      "icon_path": "./images/icons/info.svg"
+    },
+    {
       "title": "Guides",
       "description": "Employee-authored tutorials",
       "path": "./security/index.md",

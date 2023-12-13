@@ -36,6 +36,7 @@ jobs:
       ts: ${{ steps.filter.outputs.ts }}
       k8s: ${{ steps.filter.outputs.k8s }}
       ci: ${{ steps.filter.outputs.ci }}
+      db: ${{ steps.filter.outputs.db }}
       offlinedocs-only: ${{ steps.filter.outputs.offlinedocs_count == steps.filter.outputs.all_count }}
       offlinedocs: ${{ steps.filter.outputs.offlinedocs }}
     steps:
@@ -57,6 +58,12 @@ jobs:
               - "examples/web-server/**"
               - "examples/monitoring/**"
               - "examples/lima/**"
+            db:
+              - "**.sql"
+              - "coderd/database/queries/**"
+              - "coderd/database/migrations"
+              - "coderd/database/sqlc.yaml"
+              - "coderd/database/dump.sql"
             go:
               - "**.sql"
               - "**.go"
@@ -221,7 +228,7 @@ jobs:
         with:
           # This doesn't need caching. It's super fast anyways!
           cache: false
-          go-version: 1.20.11
+          go-version: 1.21.5
 
       - name: Install shfmt
         run: go install mvdan.cc/sh/v3/cmd/shfmt@v3.7.0
@@ -618,6 +625,7 @@ jobs:
       - test-js
       - test-e2e
       - offlinedocs
+      - sqlc-vet
     # Allow this job to run even if the needed jobs fail, are skipped or
     # cancelled.
     if: always()
@@ -767,7 +775,7 @@ jobs:
         uses: fluxcd/flux2/action@main
         with:
           # Keep this up to date with the version of flux installed in dogfood cluster
-          version: "2.1.2"
+          version: "2.2.0"
 
       - name: Get Cluster Credentials
         uses: "google-github-actions/get-gke-credentials@v2"
@@ -827,22 +835,14 @@ jobs:
           TOKEN_SAO_PAULO: ${{ secrets.FLY_SAO_PAULO_CODER_PROXY_SESSION_TOKEN }}
 
   deploy-legacy-proxies:
-    name: "deploy-legacy-proxies"
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-16vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: changes
-    if: |
-      github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
-      && needs.changes.outputs.docs-only == 'false'
+    needs: build
+    if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
     permissions:
       contents: read
       id-token: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
@@ -852,30 +852,11 @@ jobs:
       - name: Set up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
-
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-
-      - name: Install goimports
-        run: go install golang.org/x/tools/cmd/goimports@latest
-      - name: Install nfpm
-        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.16.0
-
-      - name: Install zstd
-        run: sudo apt-get install -y zstd
-
-      - name: Build Release
-        run: |
-          set -euo pipefail
-          go mod download
-
-          version="$(./scripts/version.sh)"
-          make gen/mark-fresh
-          make -j \
-            build/coder_"$version"_windows_amd64.zip \
-            build/coder_"$version"_linux_amd64.{tar.gz,deb}
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: coder
+          path: ./build
 
       - name: Install Release
         run: |
@@ -888,11 +869,11 @@ jobs:
             "southamerica-east1-b coder-brazil coder-workspace-proxy"
           )
 
-          deb_pkg="./build/coder_$(./scripts/version.sh)_linux_amd64.deb"
-          if [ ! -f "$deb_pkg" ]; then
-            echo "deb package not found: $deb_pkg"
-            ls -l ./build
-            exit 1
+          deb_pkg=$(find ./build -name "coder_*_linux_amd64.deb" -print -quit)
+          if [ -z "$deb_pkg" ]; then
+              echo "deb package $deb_pkg not found"
+              ls -l ./build
+              exit 1
           fi
 
           gcloud config set project coder-dogfood
@@ -908,3 +889,26 @@ jobs:
 
             echo "::endgroup::"
           done
+
+  # sqlc-vet runs a postgres docker container, runs Coder migrations, and then
+  # runs sqlc-vet to ensure all queries are valid. This catches any mistakes
+  # in migrations or sqlc queries that makes a query unable to be prepared.
+  sqlc-vet:
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    needs: changes
+    if: needs.changes.outputs.db == 'true' || github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      # We need golang to run the migration main.go
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Setup sqlc
+        uses: ./.github/actions/setup-sqlc
+
+      - name: Setup and run sqlc vet
+        run: |
+          make sqlc-vet

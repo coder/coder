@@ -8,7 +8,7 @@ FROM ubuntu:jammy AS go
 
 RUN apt-get update && apt-get install --yes curl gcc
 # Install Go manually, so that we can control the version
-ARG GO_VERSION=1.20.11
+ARG GO_VERSION=1.21.5
 RUN mkdir --parents /usr/local/go
 
 # Boring Go is needed to build FIPS-compliant binaries.
@@ -53,7 +53,7 @@ RUN mkdir --parents "$GOPATH" && \
 	# charts and values files
 	go install github.com/norwoodj/helm-docs/cmd/helm-docs@v1.5.0 && \
 	# sqlc for Go code generation
-	go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.20.0 && \
+	(CGO_ENABLED=1 go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.24.0) && \
 	# gcr-cleaner-cli used by CI to prune unused images
 	go install github.com/sethvargo/gcr-cleaner/cmd/gcr-cleaner-cli@v0.5.1 && \
 	# ruleguard for checking custom rules, without needing to run all of
