@@ -1726,7 +1726,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 				return xerrors.Errorf("can't get user: %w", err)
 			}
 
-			api.Options.UpdateAgentMetrics(ctx, prometheusmetrics.UpdateAgentMetricsLabels{
+			api.Options.UpdateAgentMetrics(ctx, prometheusmetrics.AgentMetricLabels{
 				Username:      user.Username,
 				WorkspaceName: workspace.Name,
 				AgentName:     workspaceAgent.Name,

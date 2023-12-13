@@ -232,6 +232,15 @@ func (*MetricsAggregator) Describe(_ chan<- *prometheus.Desc) {
 
 var agentMetricsLabels = []string{usernameLabel, workspaceNameLabel, agentNameLabel, templateNameLabel}
 
+// AgentMetricLabels are the labels used to decorate an agent's metrics.
+// This list should match the list of labels in agentMetricsLabels.
+type AgentMetricLabels struct {
+	Username      string
+	WorkspaceName string
+	AgentName     string
+	TemplateName  string
+}
+
 func (ma *MetricsAggregator) Collect(ch chan<- prometheus.Metric) {
 	output := make(chan []prometheus.Metric, 1)
 
@@ -249,15 +258,7 @@ func (ma *MetricsAggregator) Collect(ch chan<- prometheus.Metric) {
 	}
 }
 
-// UpdateAgentMetricsLabels are the labels used to decorate an agent's metrics.
-type UpdateAgentMetricsLabels struct {
-	Username      string
-	WorkspaceName string
-	AgentName     string
-	TemplateName  string
-}
-
-func (ma *MetricsAggregator) Update(ctx context.Context, labels UpdateAgentMetricsLabels, metrics []agentsdk.AgentMetric) {
+func (ma *MetricsAggregator) Update(ctx context.Context, labels AgentMetricLabels, metrics []agentsdk.AgentMetric) {
 	select {
 	case ma.updateCh <- updateRequest{
 		username:      labels.Username,
