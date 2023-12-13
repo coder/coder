@@ -173,6 +173,9 @@ type Options struct {
 
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
 
+	// This janky function is used in telemetry to parse fields out of the raw
+	// JWT. It needs to be passed through like this because license parsing is
+	// under the enterprise license, and can't be imported into AGPL.
 	ParseLicenseClaims func(rawJWT string) (email string, trial bool, err error)
 }
 
