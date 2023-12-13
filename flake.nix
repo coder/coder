@@ -10,7 +10,8 @@
   outputs = { self, nixpkgs, flake-utils, drpc }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        pkgs = nixpkgs.legacyPackages.${system};
+        # Workaround for: terraform has an unfree license (‘bsl11’), refusing to evaluate.
+        pkgs = import nixpkgs { inherit system; config.allowUnfree = true; };
         formatter = pkgs.nixpkgs-fmt;
         # Check in https://search.nixos.org/packages to find new packages.
         # Use `nix --extra-experimental-features nix-command --extra-experimental-features flakes flake update`
