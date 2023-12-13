@@ -1124,7 +1124,7 @@ func (m metricsStore) GetWorkspaceBuildsCreatedAfter(ctx context.Context, create
 	return builds, err
 }
 
-func (m metricsStore) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (database.Workspace, error) {
+func (m metricsStore) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (database.GetWorkspaceByAgentIDRow, error) {
 	start := time.Now()
 	workspace, err := m.s.GetWorkspaceByAgentID(ctx, agentID)
 	m.queryLatencies.WithLabelValues("GetWorkspaceByAgentID").Observe(time.Since(start).Seconds())

@@ -1918,7 +1918,7 @@ func (q *querier) GetWorkspaceBuildsCreatedAfter(ctx context.Context, createdAt 
 	return q.db.GetWorkspaceBuildsCreatedAfter(ctx, createdAt)
 }
 
-func (q *querier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (database.Workspace, error) {
+func (q *querier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (database.GetWorkspaceByAgentIDRow, error) {
 	return fetch(q.log, q.auth, q.db.GetWorkspaceByAgentID)(ctx, agentID)
 }
 

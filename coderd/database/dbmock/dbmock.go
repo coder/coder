@@ -2344,10 +2344,10 @@ func (mr *MockStoreMockRecorder) GetWorkspaceBuildsCreatedAfter(arg0, arg1 inter
 }
 
 // GetWorkspaceByAgentID mocks base method.
-func (m *MockStore) GetWorkspaceByAgentID(arg0 context.Context, arg1 uuid.UUID) (database.Workspace, error) {
+func (m *MockStore) GetWorkspaceByAgentID(arg0 context.Context, arg1 uuid.UUID) (database.GetWorkspaceByAgentIDRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetWorkspaceByAgentID", arg0, arg1)
-	ret0, _ := ret[0].(database.Workspace)
+	ret0, _ := ret[0].(database.GetWorkspaceByAgentIDRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

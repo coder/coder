@@ -10539,9 +10539,12 @@ func (q *sqlQuerier) GetDeploymentWorkspaceStats(ctx context.Context) (GetDeploy
 
 const getWorkspaceByAgentID = `-- name: GetWorkspaceByAgentID :one
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates
+	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates,
+	templates.name as template_name
 FROM
 	workspaces
+INNER JOIN
+	templates ON workspaces.template_id = templates.id
 WHERE
 	workspaces.id = (
 		SELECT
@@ -10567,24 +10570,30 @@ WHERE
 	)
 `
 
-func (q *sqlQuerier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (Workspace, error) {
+type GetWorkspaceByAgentIDRow struct {
+	Workspace    Workspace `db:"workspace" json:"workspace"`
+	TemplateName string    `db:"template_name" json:"template_name"`
+}
+
+func (q *sqlQuerier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (GetWorkspaceByAgentIDRow, error) {
 	row := q.db.QueryRowContext(ctx, getWorkspaceByAgentID, agentID)
-	var i Workspace
+	var i GetWorkspaceByAgentIDRow
 	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.OwnerID,
-		&i.OrganizationID,
-		&i.TemplateID,
-		&i.Deleted,
-		&i.Name,
-		&i.AutostartSchedule,
-		&i.Ttl,
-		&i.LastUsedAt,
-		&i.DormantAt,
-		&i.DeletingAt,
-		&i.AutomaticUpdates,
+		&i.Workspace.ID,
+		&i.Workspace.CreatedAt,
+		&i.Workspace.UpdatedAt,
+		&i.Workspace.OwnerID,
+		&i.Workspace.OrganizationID,
+		&i.Workspace.TemplateID,
+		&i.Workspace.Deleted,
+		&i.Workspace.Name,
+		&i.Workspace.AutostartSchedule,
+		&i.Workspace.Ttl,
+		&i.Workspace.LastUsedAt,
+		&i.Workspace.DormantAt,
+		&i.Workspace.DeletingAt,
+		&i.Workspace.AutomaticUpdates,
+		&i.TemplateName,
 	)
 	return i, err
 }

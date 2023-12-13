@@ -4293,11 +4293,24 @@ func (q *FakeQuerier) GetWorkspaceBuildsCreatedAfter(_ context.Context, after ti
 	return workspaceBuilds, nil
 }
 
-func (q *FakeQuerier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (database.Workspace, error) {
+func (q *FakeQuerier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (database.GetWorkspaceByAgentIDRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	return q.getWorkspaceByAgentIDNoLock(ctx, agentID)
+	w, err := q.getWorkspaceByAgentIDNoLock(ctx, agentID)
+	if err != nil {
+		return database.GetWorkspaceByAgentIDRow{}, err
+	}
+
+	tpl, err := q.getTemplateByIDNoLock(ctx, w.TemplateID)
+	if err != nil {
+		return database.GetWorkspaceByAgentIDRow{}, err
+	}
+
+	return database.GetWorkspaceByAgentIDRow{
+		Workspace:    w,
+		TemplateName: tpl.Name,
+	}, nil
 }
 
 func (q *FakeQuerier) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (database.Workspace, error) {

@@ -38,8 +38,10 @@ import (
 	_ "github.com/coder/coder/v2/coderd/apidoc"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
+	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -168,7 +170,7 @@ type Options struct {
 
 	HTTPClient *http.Client
 
-	UpdateAgentMetrics func(ctx context.Context, username, workspaceName, agentName string, metrics []agentsdk.AgentMetric)
+	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []agentsdk.AgentMetric)
 	StatsBatcher       *batchstats.Batcher
 
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions

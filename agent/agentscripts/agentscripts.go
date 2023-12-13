@@ -13,12 +13,14 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/robfig/cron/v3"
 	"github.com/spf13/afero"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -57,6 +59,11 @@ func New(opts Options) *Runner {
 		cronCtxCancel: cronCtxCancel,
 		cron:          cron.New(cron.WithParser(parser)),
 		closed:        make(chan struct{}),
+		scriptsExecuted: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "agent",
+			Subsystem: "scripts",
+			Name:      "executed_total",
+		}, []string{"success"}),
 	}
 }
 
@@ -71,6 +78,19 @@ type Runner struct {
 	cron          *cron.Cron
 	initialized   atomic.Bool
 	scripts       []codersdk.WorkspaceAgentScript
+
+	// scriptsExecuted includes all scripts executed by the workspace agent. Agents
+	// execute startup scripts, and scripts on a cron schedule. Both will increment
+	// this counter.
+	scriptsExecuted *prometheus.CounterVec
+}
+
+func (r *Runner) RegisterMetrics(reg prometheus.Registerer) {
+	if reg == nil {
+		// If no registry, do nothing.
+		return
+	}
+	reg.MustRegister(r.scriptsExecuted)
 }
 
 // Init initializes the runner with the provided scripts.
@@ -90,7 +110,7 @@ func (r *Runner) Init(scripts []codersdk.WorkspaceAgentScript) error {
 		}
 		script := script
 		_, err := r.cron.AddFunc(script.Cron, func() {
-			err := r.run(r.cronCtx, script)
+			err := r.trackRun(r.cronCtx, script)
 			if err != nil {
 				r.Logger.Warn(context.Background(), "run agent script on schedule", slog.Error(err))
 			}
@@ -131,7 +151,7 @@ func (r *Runner) Execute(ctx context.Context, filter func(script codersdk.Worksp
 		}
 		script := script
 		eg.Go(func() error {
-			err := r.run(ctx, script)
+			err := r.trackRun(ctx, script)
 			if err != nil {
 				return xerrors.Errorf("run agent script %q: %w", script.LogSourceID, err)
 			}
@@ -139,6 +159,17 @@ func (r *Runner) Execute(ctx context.Context, filter func(script codersdk.Worksp
 		})
 	}
 	return eg.Wait()
+}
+
+// trackRun wraps "run" with metrics.
+func (r *Runner) trackRun(ctx context.Context, script codersdk.WorkspaceAgentScript) error {
+	err := r.run(ctx, script)
+	if err != nil {
+		r.scriptsExecuted.WithLabelValues("false").Add(1)
+	} else {
+		r.scriptsExecuted.WithLabelValues("true").Add(1)
+	}
+	return err
 }
 
 // run executes the provided script with the timeout.
