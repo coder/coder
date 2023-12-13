@@ -12,7 +12,7 @@ primary_region = "gru"
   CODER_ACCESS_URL = "https://sao-paulo.fly.dev.coder.com"
   CODER_HTTP_ADDRESS = "0.0.0.0:3000"
   CODER_PRIMARY_ACCESS_URL = "https://dev.coder.com"
-  CODER_WILDCARD_ACCESS_URL = "https://*--apps.sao-paulo.fly.dev.coder.com"
+  CODER_WILDCARD_ACCESS_URL = "*--apps.sao-paulo.fly.dev.coder.com"
 
 [http_service]
   internal_port = 3000
