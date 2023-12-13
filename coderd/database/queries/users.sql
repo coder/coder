@@ -83,7 +83,7 @@ WHERE
 	id = $1
 RETURNING *;
 
--- name: UpdateUserThemePreference :one
+-- name: UpdateUserAppearanceSettings :one
 UPDATE
 	users
 SET

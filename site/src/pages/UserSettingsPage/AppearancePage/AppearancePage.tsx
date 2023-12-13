@@ -1,7 +1,7 @@
 import CircularProgress from "@mui/material/CircularProgress";
 import { type FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
-import { updateThemePreference } from "api/queries/users";
+import { updateAppearanceSettings } from "api/queries/users";
 import { Stack } from "components/Stack/Stack";
 import { useMe } from "hooks";
 import { Section } from "../Section";
@@ -10,8 +10,8 @@ import { AppearanceForm } from "./AppearanceForm";
 export const AppearancePage: FC = () => {
   const me = useMe();
   const queryClient = useQueryClient();
-  const updateThemePreferenceMutation = useMutation(
-    updateThemePreference("me", queryClient),
+  const updateAppearanceSettingsMutation = useMutation(
+    updateAppearanceSettings("me", queryClient),
   );
 
   return (
@@ -20,7 +20,7 @@ export const AppearancePage: FC = () => {
         title={
           <Stack direction="row" alignItems="center">
             <span>Theme</span>
-            {updateThemePreferenceMutation.isLoading && (
+            {updateAppearanceSettingsMutation.isLoading && (
               <CircularProgress size={16} />
             )}
           </Stack>
@@ -28,10 +28,10 @@ export const AppearancePage: FC = () => {
         layout="fluid"
       >
         <AppearanceForm
-          isUpdating={updateThemePreferenceMutation.isLoading}
-          error={updateThemePreferenceMutation.error}
+          isUpdating={updateAppearanceSettingsMutation.isLoading}
+          error={updateAppearanceSettingsMutation.error}
           initialValues={{ theme_preference: me.theme_preference }}
-          onSubmit={updateThemePreferenceMutation.mutateAsync}
+          onSubmit={updateAppearanceSettingsMutation.mutateAsync}
         />
       </Section>
     </>

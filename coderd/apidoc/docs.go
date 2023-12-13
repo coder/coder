@@ -4583,7 +4583,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateUserThemePreferenceRequest"
+                            "$ref": "#/definitions/codersdk.UpdateUserAppearanceSettingsRequest"
                         }
                     }
                 ],
@@ -11058,6 +11058,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateUserAppearanceSettingsRequest": {
+            "type": "object",
+            "required": [
+                "theme_preference"
+            ],
+            "properties": {
+                "theme_preference": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.UpdateUserPasswordRequest": {
             "type": "object",
             "required": [
@@ -11091,17 +11102,6 @@ const docTemplate = `{
             "properties": {
                 "schedule": {
                     "description": "Schedule is a cron expression that defines when the user's quiet hours\nwindow is. Schedule must not be empty. For new users, the schedule is set\nto 2am in their browser or computer's timezone. The schedule denotes the\nbeginning of a 4 hour window where the workspace is allowed to\nautomatically stop or restart due to maintenance or template max TTL.\n\nThe schedule must be daily with a single time, and should have a timezone\nspecified via a CRON_TZ prefix (otherwise UTC will be used).\n\nIf the schedule is empty, the user will be updated to use the default\nschedule.",
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.UpdateUserThemePreferenceRequest": {
-            "type": "object",
-            "required": [
-                "theme_preference"
-            ],
-            "properties": {
-                "theme_preference": {
                     "type": "string"
                 }
             }

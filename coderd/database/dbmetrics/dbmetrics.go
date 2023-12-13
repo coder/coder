@@ -1691,6 +1691,13 @@ func (m metricsStore) UpdateTemplateWorkspacesLastUsedAt(ctx context.Context, ar
 	return r0
 }
 
+func (m metricsStore) UpdateUserAppearanceSettings(ctx context.Context, arg database.UpdateUserAppearanceSettingsParams) (database.User, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserAppearanceSettings(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserAppearanceSettings").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) UpdateUserDeletedByID(ctx context.Context, arg database.UpdateUserDeletedByIDParams) error {
 	start := time.Now()
 	err := m.s.UpdateUserDeletedByID(ctx, arg)
@@ -1759,13 +1766,6 @@ func (m metricsStore) UpdateUserStatus(ctx context.Context, arg database.UpdateU
 	user, err := m.s.UpdateUserStatus(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateUserStatus").Observe(time.Since(start).Seconds())
 	return user, err
-}
-
-func (m metricsStore) UpdateUserThemePreference(ctx context.Context, arg database.UpdateUserThemePreferenceParams) (database.User, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpdateUserThemePreference(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateUserThemePreference").Observe(time.Since(start).Seconds())
-	return r0, r1
 }
 
 func (m metricsStore) UpdateWorkspace(ctx context.Context, arg database.UpdateWorkspaceParams) (database.Workspace, error) {

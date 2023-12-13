@@ -1274,10 +1274,10 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/theme \
 
 ### Parameters
 
-| Name   | In   | Type                                                                                             | Required | Description          |
-| ------ | ---- | ------------------------------------------------------------------------------------------------ | -------- | -------------------- |
-| `user` | path | string                                                                                           | true     | User ID, name, or me |
-| `body` | body | [codersdk.UpdateUserThemePreferenceRequest](schemas.md#codersdkupdateuserthemepreferencerequest) | true     | New theme preference |
+| Name   | In   | Type                                                                                                   | Required | Description          |
+| ------ | ---- | ------------------------------------------------------------------------------------------------------ | -------- | -------------------- |
+| `user` | path | string                                                                                                 | true     | User ID, name, or me |
+| `body` | body | [codersdk.UpdateUserAppearanceSettingsRequest](schemas.md#codersdkupdateuserappearancesettingsrequest) | true     | New theme preference |
 
 ### Example responses
 

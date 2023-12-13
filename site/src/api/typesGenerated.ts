@@ -1230,6 +1230,11 @@ export interface UpdateTemplateMeta {
 }
 
 // From codersdk/users.go
+export interface UpdateUserAppearanceSettingsRequest {
+  readonly theme_preference: string;
+}
+
+// From codersdk/users.go
 export interface UpdateUserPasswordRequest {
   readonly old_password: string;
   readonly password: string;
@@ -1243,11 +1248,6 @@ export interface UpdateUserProfileRequest {
 // From codersdk/users.go
 export interface UpdateUserQuietHoursScheduleRequest {
   readonly schedule: string;
-}
-
-// From codersdk/users.go
-export interface UpdateUserThemePreferenceRequest {
-  readonly theme_preference: string;
 }
 
 // From codersdk/workspaces.go

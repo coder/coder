@@ -5286,6 +5286,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `user_perms`       | object                                         | false    |              | User perms should be a mapping of user ID to role. The user ID must be the uuid of the user, not a username or email address. |
 | » `[any property]` | [codersdk.TemplateRole](#codersdktemplaterole) | false    |              |                                                                                                                               |
 
+## codersdk.UpdateUserAppearanceSettingsRequest
+
+```json
+{
+  "theme_preference": "string"
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description |
+| ------------------ | ------ | -------- | ------------ | ----------- |
+| `theme_preference` | string | true     |              |             |
+
 ## codersdk.UpdateUserPasswordRequest
 
 ```json
@@ -5332,20 +5346,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 The schedule must be daily with a single time, and should have a timezone specified via a CRON_TZ prefix (otherwise UTC will be used).
 If the schedule is empty, the user will be updated to use the default schedule.|
-
-## codersdk.UpdateUserThemePreferenceRequest
-
-```json
-{
-  "theme_preference": "string"
-}
-```
-
-### Properties
-
-| Name               | Type   | Required | Restrictions | Description |
-| ------------------ | ------ | -------- | ------------ | ----------- |
-| `theme_preference` | string | true     |              |             |
 
 ## codersdk.UpdateWorkspaceAutomaticUpdatesRequest
 

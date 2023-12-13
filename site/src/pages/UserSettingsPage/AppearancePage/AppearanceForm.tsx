@@ -1,7 +1,7 @@
 import { visuallyHidden } from "@mui/utils";
 import { type Interpolation } from "@emotion/react";
 import { type FC, useMemo } from "react";
-import type { UpdateUserThemePreferenceRequest } from "api/typesGenerated";
+import type { UpdateUserAppearanceSettingsRequest } from "api/typesGenerated";
 import themes, { DEFAULT_THEME, type Theme } from "theme";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Stack } from "components/Stack/Stack";
@@ -9,8 +9,8 @@ import { Stack } from "components/Stack/Stack";
 export interface AppearanceFormProps {
   isUpdating?: boolean;
   error?: unknown;
-  initialValues: UpdateUserThemePreferenceRequest;
-  onSubmit: (values: UpdateUserThemePreferenceRequest) => Promise<unknown>;
+  initialValues: UpdateUserAppearanceSettingsRequest;
+  onSubmit: (values: UpdateUserAppearanceSettingsRequest) => Promise<unknown>;
 
   // temporary, so that storybook can test the right thing without showing
   // a semi-broken auto theme to users. will be removed when light mode is done.

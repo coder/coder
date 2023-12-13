@@ -712,11 +712,11 @@ export const updateProfile = async (
   return response.data;
 };
 
-export const updateThemePreference = async (
+export const updateAppearanceSettings = async (
   userId: string,
-  data: TypesGen.UpdateUserThemePreferenceRequest,
+  data: TypesGen.UpdateUserAppearanceSettingsRequest,
 ): Promise<TypesGen.User> => {
-  const response = await axios.put(`/api/v2/users/${userId}/theme`, data);
+  const response = await axios.put(`/api/v2/users/${userId}/appearance`, data);
   return response.data;
 };
 

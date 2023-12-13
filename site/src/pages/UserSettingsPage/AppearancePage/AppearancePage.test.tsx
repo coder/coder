@@ -9,7 +9,7 @@ describe("appearance page", () => {
   it("changes theme to dark", async () => {
     renderWithAuth(<AppearancePage />);
 
-    jest.spyOn(API, "updateThemePreference").mockResolvedValueOnce({
+    jest.spyOn(API, "updateAppearanceSettings").mockResolvedValueOnce({
       ...MockUser,
       theme_preference: "dark",
     });
@@ -18,8 +18,8 @@ describe("appearance page", () => {
     await userEvent.click(dark);
 
     // Check if the API was called correctly
-    expect(API.updateThemePreference).toBeCalledTimes(1);
-    expect(API.updateThemePreference).toHaveBeenCalledWith("me", {
+    expect(API.updateAppearanceSettings).toBeCalledTimes(1);
+    expect(API.updateAppearanceSettings).toHaveBeenCalledWith("me", {
       theme_preference: "dark",
     });
   });
@@ -27,7 +27,7 @@ describe("appearance page", () => {
   it("changes theme to dark blue", async () => {
     renderWithAuth(<AppearancePage />);
 
-    jest.spyOn(API, "updateThemePreference").mockResolvedValueOnce({
+    jest.spyOn(API, "updateAppearanceSettings").mockResolvedValueOnce({
       ...MockUser,
       theme_preference: "darkBlue",
     });
@@ -36,8 +36,8 @@ describe("appearance page", () => {
     await userEvent.click(darkBlue);
 
     // Check if the API was called correctly
-    expect(API.updateThemePreference).toBeCalledTimes(1);
-    expect(API.updateThemePreference).toHaveBeenCalledWith("me", {
+    expect(API.updateAppearanceSettings).toBeCalledTimes(1);
+    expect(API.updateAppearanceSettings).toHaveBeenCalledWith("me", {
       theme_preference: "darkBlue",
     });
   });

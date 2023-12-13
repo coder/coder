@@ -332,6 +332,7 @@ type sqlcQuerier interface {
 	UpdateTemplateVersionDescriptionByJobID(ctx context.Context, arg UpdateTemplateVersionDescriptionByJobIDParams) error
 	UpdateTemplateVersionExternalAuthProvidersByJobID(ctx context.Context, arg UpdateTemplateVersionExternalAuthProvidersByJobIDParams) error
 	UpdateTemplateWorkspacesLastUsedAt(ctx context.Context, arg UpdateTemplateWorkspacesLastUsedAtParams) error
+	UpdateUserAppearanceSettings(ctx context.Context, arg UpdateUserAppearanceSettingsParams) (User, error)
 	UpdateUserDeletedByID(ctx context.Context, arg UpdateUserDeletedByIDParams) error
 	UpdateUserHashedPassword(ctx context.Context, arg UpdateUserHashedPasswordParams) error
 	UpdateUserLastSeenAt(ctx context.Context, arg UpdateUserLastSeenAtParams) (User, error)
@@ -342,7 +343,6 @@ type sqlcQuerier interface {
 	UpdateUserQuietHoursSchedule(ctx context.Context, arg UpdateUserQuietHoursScheduleParams) (User, error)
 	UpdateUserRoles(ctx context.Context, arg UpdateUserRolesParams) (User, error)
 	UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) (User, error)
-	UpdateUserThemePreference(ctx context.Context, arg UpdateUserThemePreferenceParams) (User, error)
 	UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (Workspace, error)
 	UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg UpdateWorkspaceAgentConnectionByIDParams) error
 	UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg UpdateWorkspaceAgentLifecycleStateByIDParams) error

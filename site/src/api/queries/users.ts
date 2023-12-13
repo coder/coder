@@ -10,7 +10,7 @@ import type {
   GetUsersResponse,
   UpdateUserPasswordRequest,
   UpdateUserProfileRequest,
-  UpdateUserThemePreferenceRequest,
+  UpdateUserAppearanceSettingsRequest,
   UsersRequest,
   User,
 } from "api/typesGenerated";
@@ -194,17 +194,17 @@ export const updateProfile = (userId: string) => {
   };
 };
 
-export const updateThemePreference = (
+export const updateAppearanceSettings = (
   userId: string,
   queryClient: QueryClient,
 ): UseMutationOptions<
   User,
   unknown,
-  UpdateUserThemePreferenceRequest,
+  UpdateUserAppearanceSettingsRequest,
   unknown
 > => {
   return {
-    mutationFn: (req) => API.updateThemePreference(userId, req),
+    mutationFn: (req) => API.updateAppearanceSettings(userId, req),
     onMutate: async (patch) => {
       // Mutate the `queryClient` optimistically to make the theme switcher
       // more responsive.

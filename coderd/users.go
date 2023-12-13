@@ -768,21 +768,21 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 // @Produce json
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
-// @Param request body codersdk.UpdateUserThemePreferenceRequest true "New theme preference"
+// @Param request body codersdk.UpdateUserAppearanceSettingsRequest true "New theme preference"
 // @Success 200 {object} codersdk.User
 // @Router /users/{user}/theme [put]
-func (api *API) putUserThemePreference(rw http.ResponseWriter, r *http.Request) {
+func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx  = r.Context()
 		user = httpmw.UserParam(r)
 	)
 
-	var params codersdk.UpdateUserThemePreferenceRequest
+	var params codersdk.UpdateUserAppearanceSettingsRequest
 	if !httpapi.Read(ctx, rw, r, &params) {
 		return
 	}
 
-	updatedUser, err := api.Database.UpdateUserThemePreference(ctx, database.UpdateUserThemePreferenceParams{
+	updatedUser, err := api.Database.UpdateUserAppearanceSettings(ctx, database.UpdateUserAppearanceSettingsParams{
 		ID:              user.ID,
 		ThemePreference: params.ThemePreference,
 		UpdatedAt:       dbtime.Now(),
