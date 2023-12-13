@@ -36,29 +36,27 @@ coder licenses add -f <path/filename>
 The primary developer use case is a local IDE connecting over SSH to a Coder
 workspace.
 
-Coder's networking stack has intelligence to attempt a peer-to-peer or [Direct
-connection](https://coder.com/docs/v2/latest/networking#direct-connections) between the local IDE and the workspace.
-
-However, this requires some additional protocols like UDP and being able to
-reach a STUN server to echo the IP addresses of the local IDE machine and
-workspace, for sharing using a Wireguard Coordination Server.
-
-By default, Coder assumes Internet and attempts to reach Google's STUN servers
-to perform this IP echo.
+Coder's networking stack has intelligence to attempt a peer-to-peer or
+[Direct connection](https://coder.com/docs/v2/latest/networking#direct-connections)
+between the local IDE and the workspace. However, this requires some additional
+protocols like UDP and being able to reach a STUN server to echo the IP
+addresses of the local IDE machine and workspace, for sharing using a Wireguard
+Coordination Server. By default, Coder assumes Internet and attempts to reach
+Google's STUN servers to perform this IP echo.
 
 Operators experimenting with Coder may run into networking issues if UDP (which
 STUN requires) or the STUN servers are unavailable, potentially resulting in
 lengthy local IDE and SSH connection times as the Coder control plane attempts
 to establish these direct connections.
 
-Setting the following flags as shown disables this logic to simplify troubleshooting.
+Setting the following flags as shown disables this logic to simplify
+troubleshooting.
 
-
-Flag | Value | Meaning
----- | ----- | -------
-[`CODER_BLOCK_DIRECT`](https://coder.com/docs/v2/latest/cli/server#--block-direct-connections) | `true` | Blocks direct connections
-[`CODER_DERP_SERVER_STUN_ADDRESSES`](https://coder.com/docs/v2/latest/cli/server#--derp-server-stun-addresses) | `"disable"` | Disables STUN
-[`CODER_DERP_FORCE_WEBSOCKETS`](https://coder.com/docs/v2/latest/cli/server#--derp-force-websockets) | `true` | Forces websockets over Tailscale DERP
+| Flag                                                                                                           | Value       | Meaning                               |
+| -------------------------------------------------------------------------------------------------------------- | ----------- | ------------------------------------- |
+| [`CODER_BLOCK_DIRECT`](https://coder.com/docs/v2/latest/cli/server#--block-direct-connections)                 | `true`      | Blocks direct connections             |
+| [`CODER_DERP_SERVER_STUN_ADDRESSES`](https://coder.com/docs/v2/latest/cli/server#--derp-server-stun-addresses) | `"disable"` | Disables STUN                         |
+| [`CODER_DERP_FORCE_WEBSOCKETS`](https://coder.com/docs/v2/latest/cli/server#--derp-force-websockets)           | `true`      | Forces websockets over Tailscale DERP |
 
 ## How do I configure NGINX as the reverse proxy in front of Coder?
 
@@ -100,9 +98,11 @@ This example will hide all built-in coder_app icons except the web terminal.
   value: "true"
 ```
 
-2. In the template, set [`coder_app`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app) [`share`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app#share) option to `authenticated` and when a workspace
-   is built with this template, the pretty globe shows up next to path-based
-   `code-server`:
+2. In the template, set
+   [`coder_app`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app)
+   [`share`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app#share)
+   option to `authenticated` and when a workspace is built with this template,
+   the pretty globe shows up next to path-based `code-server`:
 
 ```hcl
 resource "coder_app" "code-server" {
@@ -146,9 +146,10 @@ example, if a template prompts users to choose options like a
 of these values can lead to existing workspaces failing to start. This issue
 occurs because the Terraform state will not be in sync with the new template.
 
-However, a lesser-known CLI sub-command, [`coder update`](https://coder.com/docs/v2/latest/cli/update), can resolve this issue. This
-command re-prompts users to re-enter the input variables, potentially saving the
-workspace from a failed status.
+However, a lesser-known CLI sub-command,
+[`coder update`](https://coder.com/docs/v2/latest/cli/update), can resolve this
+issue. This command re-prompts users to re-enter the input variables,
+potentially saving the workspace from a failed status.
 
 ```sh
 coder update --always-prompt <workspace name>
