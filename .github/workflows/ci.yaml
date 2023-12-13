@@ -871,7 +871,7 @@ jobs:
             "southamerica-east1-b coder-brazil coder-workspace-proxy"
           )
 
-          deb_pkg="./build/coder_$(./scripts/version.sh)_linux_amd64.deb"
+          deb_pkg="./build/coder_*_linux_amd64.deb"
           if [ ! -f "$deb_pkg" ]; then
             echo "deb package not found: $deb_pkg"
             ls -l ./build
