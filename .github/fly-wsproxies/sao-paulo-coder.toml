@@ -2,17 +2,18 @@ app = "sao-paulo-coder"
 primary_region = "gru"
 
 [experimental]
-  entrypoint = ["/opt/coder", "wsproxy", "server"]
+  entrypoint = ["/bin/sh", "-c", "CODER_DERP_SERVER_RELAY_URL=\"http://${FLY_PRIVATE_IP}:3000\" /opt/coder wsproxy server"]
   auto_rollback = true
 
 [build]
   image = "ghcr.io/coder/coder-preview:main"
 
 [env]
-  CODER_ACCESS_URL = "https://sao-paulo-coder.fly.dev"
+  CODER_ACCESS_URL = "https://sao-paulo.fly.dev.coder.com"
   CODER_HTTP_ADDRESS = "0.0.0.0:3000"
   CODER_PRIMARY_ACCESS_URL = "https://dev.coder.com"
-	
+  CODER_WILDCARD_ACCESS_URL = "https://*--apps.sao-paulo.fly.dev.coder.com"
+
 [http_service]
   internal_port = 3000
   force_https = true
@@ -21,6 +22,6 @@ primary_region = "gru"
   min_machines_running = 0
 
 [[vm]]
-  cpu_kind = "shared"
+  cpu_kind = "performance"
   cpus = 1
   memory_mb = 512

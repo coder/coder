@@ -2,16 +2,17 @@ app = "sydney-coder"
 primary_region = "syd"
 
 [experimental]
-  entrypoint = ["/opt/coder", "wsproxy", "server"]
+  entrypoint = ["/bin/sh", "-c", "CODER_DERP_SERVER_RELAY_URL=\"http://${FLY_PRIVATE_IP}:3000\" /opt/coder wsproxy server"]
   auto_rollback = true
 
 [build]
   image = "ghcr.io/coder/coder-preview:main"
 
 [env]
-  CODER_ACCESS_URL = "https://sydney-coder.fly.dev"
+  CODER_ACCESS_URL = "https://sydney.fly.dev.coder.com"
   CODER_HTTP_ADDRESS = "0.0.0.0:3000"
   CODER_PRIMARY_ACCESS_URL = "https://dev.coder.com"
+  CODER_WILDCARD_ACCESS_URL = "https://*--apps.sydney.fly.dev.coder.com"
 
 [http_service]
   internal_port = 3000
@@ -21,6 +22,6 @@ primary_region = "syd"
   min_machines_running = 0
 
 [[vm]]
-  cpu_kind = "shared"
+  cpu_kind = "performance"
   cpus = 1
   memory_mb = 512
