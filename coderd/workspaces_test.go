@@ -2202,7 +2202,10 @@ func TestUpdateWorkspaceAutomaticUpdates_NotFound(t *testing.T) {
 
 func TestWorkspaceWatcher(t *testing.T) {
 	t.Parallel()
-	client, closeFunc := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	client, closeFunc := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+		AllowWorkspaceRenames:    true,
+	})
 	defer closeFunc.Close()
 	user := coderdtest.CreateFirstUser(t, client)
 	authToken := uuid.NewString()
