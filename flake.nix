@@ -32,7 +32,7 @@
           gh
           gnumake
           gnused
-          go_1_20
+          go
           go-migrate
           golangci-lint
           gopls
