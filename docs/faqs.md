@@ -33,13 +33,11 @@ coder licenses add -f <path/filename>
 
 ## I'm experiencing networking issues, so want to disable Tailscale, STUN, Direct connections and force use of websockets
 
-The primary developer IDE use case is a local IDE connecting over SSH to a Coder
+The primary developer use case is a local IDE connecting over SSH to a Coder
 workspace.
 
-Coder's networking stack has intelligence to attempt a peer-to-peer or `Direct`
-connection between the local IDE and the workspace, skipping routing traffic
-through the Coder control plane, thus reducing latency and a better developer
-experience.
+Coder's networking stack has intelligence to attempt a peer-to-peer or [Direct
+connection](https://coder.com/docs/v2/latest/networking#direct-connections) between the local IDE and the workspace.
 
 However, this requires some additional protocols like UDP and being able to
 reach a STUN server to echo the IP addresses of the local IDE machine and
@@ -48,45 +46,19 @@ workspace, for sharing using a Wireguard Coordination Server.
 By default, Coder assumes Internet and attempts to reach Google's STUN servers
 to perform this IP echo.
 
-Operators experimenting with Coder make run into networking issues if UDP (which
+Operators experimenting with Coder may run into networking issues if UDP (which
 STUN requires) or the STUN servers are unavailable, potentially resulting in
 lengthy local IDE and SSH connection times as the Coder control plane attempts
 to establish these direct connections.
 
-A good troubleshooting tip is to just disable STUN, Direct connections, and even
-forcing websockets versus the embedded Tailscale DERP relay server.
+Setting the following flags as shown disables this logic to simplify troubleshooting.
 
-If using a `systemd` configuration of Coder's control plane, add these values to
-`/etc/coder.d/coder.env`:
 
-```sh
-# disable peer-to-peer, force web sockets
-CODER_BLOCK_DIRECT=true
-CODER_DERP_SERVER_STUN_ADDRESSES="disable"
-CODER_DERP_FORCE_WEBSOCKETS=true
-```
-
-If using a Kubernetes deployment, add these values to your `values.yaml` then
-`helm upgrade`:
-
-```yaml
-# disable Peer-to-Peer connections (e.g., local computer with SSH, local VS Code, local JetBrains Gateway)
-- name: CODER_BLOCK_DIRECT
-  value: "false"
-# unset Google STUN servers that are hardcoded into Coder
-- name: CODER_DERP_SERVER_STUN_ADDRESSES
-  value: "disable"
-# force websockets
-- name: CODER_DERP_FORCE_WEBSOCKETS
-  value: "true"
-```
-
-If starting the `coder server`from the command line, set these environment
-variables
-
-```sh
-coder server --block-direct-connections=true --derp-server-stun-addresses=disable --derp-force-websockets=true
-```
+Flag | Value | Meaning
+---- | ----- | -------
+[`CODER_BLOCK_DIRECT`](https://coder.com/docs/v2/latest/cli/server#--block-direct-connections) | `true` | Blocks direct connections
+[`CODER_DERP_SERVER_STUN_ADDRESSES`](https://coder.com/docs/v2/latest/cli/server#--derp-server-stun-addresses) | `"disable"` | Disables STUN
+[`CODER_DERP_FORCE_WEBSOCKETS`](https://coder.com/docs/v2/latest/cli/server#--derp-force-websockets) | `true` | Forces websockets over Tailscale DERP
 
 ## How do I configure NGINX as the reverse proxy in front of Coder?
 
@@ -110,8 +82,7 @@ configure as needed:
   }
 ```
 
-This is example will shown any other `coder_app` entries in the template, and
-the web terminal only.
+This example will hide all built-in coder_app icons except the web terminal.
 
 ## I want to allow code-server to be accessible by other users in my deployment.
 
@@ -129,12 +100,17 @@ the web terminal only.
   value: "true"
 ```
 
-2. In the template, set `coder_app` `share=authenticated` and when a workspace
+2. In the template, set [`coder_app`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app) [`share`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app#share) option to `authenticated` and when a workspace
    is built with this template, the pretty globe shows up next to path-based
-   `code-server`
+   `code-server`:
 
-> KNOWN ISSUE: The first time another user authenticates to Coder with the
-> code-server link, it gives a `404` but if you refresh, it works.
+```hcl
+resource "coder_app" "code-server" {
+  ...
+  share        = "authenticated"
+  ...
+}
+```
 
 ## I installed Coder and created a workspace but the icons do not load.
 
@@ -170,7 +146,7 @@ example, if a template prompts users to choose options like a
 of these values can lead to existing workspaces failing to start. This issue
 occurs because the Terraform state will not be in sync with the new template.
 
-However, a lesser-known CLI sub-command, `update`, can resolve this issue. This
+However, a lesser-known CLI sub-command, [`coder update`](https://coder.com/docs/v2/latest/cli/update), can resolve this issue. This
 command re-prompts users to re-enter the input variables, potentially saving the
 workspace from a failed status.
 
@@ -383,7 +359,7 @@ Microsoft's marketplace.
 https://github.com/sharkymark/v2-templates/blob/main/vs-code-server/main.tf
 
 > Note: these are example templates with no SLAs on them and are not guaranteed
-> long-term support.
+> for long-term support.
 
 ## I want to run Docker for my workspaces but not install Docker Desktop.
 
