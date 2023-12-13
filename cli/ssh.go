@@ -205,6 +205,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				if xerrors.Is(err, context.Canceled) {
 					return cliui.Canceled
 				}
+				return err
 			}
 
 			if r.disableDirect {
