@@ -501,5 +501,7 @@ jobs:
         uses: ./.github/actions/setup-sqlc
 
       - name: Push schema to sqlc cloud
+        # Don't block a release on this
+        continue-on-error: true
         run: |
           make sqlc-push
