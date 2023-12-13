@@ -856,7 +856,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/download-artifact@v3
         with:
           name: coder
           path: ./build
