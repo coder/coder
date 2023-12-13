@@ -539,13 +539,6 @@ func New(options *Options) *API {
 		httpmw.ExtractRealIP(api.RealIPConfig),
 		httpmw.Logger(api.Logger),
 		prometheusMW,
-		// SubdomainAppMW checks if the first subdomain is a valid app URL. If
-		// it is, it will serve that application.
-		//
-		// Workspace apps do their own auth and CORS and must be BEFORE the auth
-		// and CORS middleware.
-		api.workspaceAppServer.HandleSubdomain(apiRateLimiter),
-		cors,
 		// Build-Version is helpful for debugging.
 		func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -553,6 +546,13 @@ func New(options *Options) *API {
 				next.ServeHTTP(w, r)
 			})
 		},
+		// SubdomainAppMW checks if the first subdomain is a valid app URL. If
+		// it is, it will serve that application.
+		//
+		// Workspace apps do their own auth and CORS and must be BEFORE the auth
+		// and CORS middleware.
+		api.workspaceAppServer.HandleSubdomain(apiRateLimiter),
+		cors,
 		// This header stops a browser from trying to MIME-sniff the content type and
 		// forces it to stick with the declared content-type. This is the only valid
 		// value for this header.
