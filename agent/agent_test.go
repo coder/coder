@@ -46,6 +46,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agentproc"
 	"github.com/coder/coder/v2/agent/agentproc/agentproctest"
@@ -2234,6 +2235,17 @@ func TestAgent_Metrics_SSH(t *testing.T) {
 			Name:  "agent_ssh_server_sftp_server_errors_total",
 			Type:  agentsdk.AgentMetricTypeCounter,
 			Value: 0,
+		},
+		{
+			Name:  "coderd_agentstats_startup_script_seconds",
+			Type:  agentsdk.AgentMetricTypeGauge,
+			Value: 0,
+			Labels: []agentsdk.AgentMetricLabel{
+				{
+					Name:  "success",
+					Value: "true",
+				},
+			},
 		},
 	}
 

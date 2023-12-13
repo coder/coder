@@ -2,6 +2,7 @@ package prometheusmetrics_test
 
 import (
 	"context"
+	"sort"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -22,7 +24,15 @@ const (
 	testWorkspaceName = "yogi-workspace"
 	testUsername      = "yogi-bear"
 	testAgentName     = "main-agent"
+	testTemplateName  = "main-template"
 )
+
+var testLabels = prometheusmetrics.AgentMetricLabels{
+	Username:      testUsername,
+	WorkspaceName: testWorkspaceName,
+	AgentName:     testAgentName,
+	TemplateName:  testTemplateName,
+}
 
 func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
 	t.Parallel()
@@ -58,6 +68,7 @@ func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
 		{Name: "agent_name", Value: testAgentName},
 		{Name: "username", Value: testUsername},
 		{Name: "workspace_name", Value: testWorkspaceName},
+		{Name: "template_name", Value: testTemplateName},
 	}
 	expected := []agentsdk.AgentMetric{
 		{Name: "a_counter_one", Type: agentsdk.AgentMetricTypeCounter, Value: 1, Labels: commonLabels},
@@ -69,13 +80,14 @@ func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
 			{Name: "hello", Value: "world"},
 			{Name: "username", Value: testUsername},
 			{Name: "workspace_name", Value: testWorkspaceName},
+			{Name: "template_name", Value: testTemplateName},
 		}},
 		{Name: "d_gauge_four", Type: agentsdk.AgentMetricTypeGauge, Value: 6, Labels: commonLabels},
 	}
 
 	// when
-	metricsAggregator.Update(ctx, testUsername, testWorkspaceName, testAgentName, given1)
-	metricsAggregator.Update(ctx, testUsername, testWorkspaceName, testAgentName, given2)
+	metricsAggregator.Update(ctx, testLabels, given1)
+	metricsAggregator.Update(ctx, testLabels, given2)
 
 	// then
 	require.Eventually(t, func() bool {
@@ -119,6 +131,10 @@ func verifyCollectedMetrics(t *testing.T, expected []agentsdk.AgentMetric, actua
 		}
 
 		dtoLabels := asMetricAgentLabels(d.GetLabel())
+		// dto labels are sorted in alphabetical order.
+		sort.Slice(e.Labels, func(i, j int) bool {
+			return e.Labels[i].Name < e.Labels[j].Name
+		})
 		require.Equal(t, e.Labels, dtoLabels, d.String())
 	}
 	return true
@@ -154,7 +170,7 @@ func TestUpdateMetrics_MetricsExpire(t *testing.T) {
 	}
 
 	// when
-	metricsAggregator.Update(ctx, testUsername, testWorkspaceName, testAgentName, given)
+	metricsAggregator.Update(ctx, testLabels, given)
 
 	time.Sleep(time.Millisecond * 10) // Ensure that metric is expired
 
@@ -220,7 +236,7 @@ func Benchmark_MetricsAggregator_Run(b *testing.B) {
 		b.Logf("N=%d sending %d metrics", b.N, numMetrics)
 		var nGot atomic.Int64
 		b.StartTimer()
-		metricsAggregator.Update(ctx, testUsername, testWorkspaceName, testAgentName, metrics)
+		metricsAggregator.Update(ctx, testLabels, metrics)
 		for i := 0; i < numMetrics; i++ {
 			select {
 			case <-ctx.Done():

@@ -3056,7 +3056,7 @@ func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDa
 	return items, nil
 }
 
-const insertProvisionerDaemon = `-- name: InsertProvisionerDaemon :one
+const upsertProvisionerDaemon = `-- name: UpsertProvisionerDaemon :one
 INSERT INTO
 	provisioner_daemons (
 		id,
@@ -3064,29 +3064,45 @@ INSERT INTO
 		"name",
 		provisioners,
 		tags,
-		last_seen_at
+		last_seen_at,
+		"version"
 	)
-VALUES
-	($1, $2, $3, $4, $5, $6) RETURNING id, created_at, name, provisioners, replica_id, tags, last_seen_at, version
+VALUES (
+	gen_random_uuid(),
+	$1,
+	$2,
+	$3,
+	$4,
+	$5,
+	$6
+) ON CONFLICT("name", lower((tags ->> 'owner'::text))) DO UPDATE SET
+	provisioners = $3,
+	tags = $4,
+	last_seen_at = $5,
+	"version" = $6
+WHERE
+	-- Only ones with the same tags are allowed clobber
+	provisioner_daemons.tags <@ $4 :: jsonb
+RETURNING id, created_at, name, provisioners, replica_id, tags, last_seen_at, version
 `
 
-type InsertProvisionerDaemonParams struct {
-	ID           uuid.UUID         `db:"id" json:"id"`
+type UpsertProvisionerDaemonParams struct {
 	CreatedAt    time.Time         `db:"created_at" json:"created_at"`
 	Name         string            `db:"name" json:"name"`
 	Provisioners []ProvisionerType `db:"provisioners" json:"provisioners"`
 	Tags         StringMap         `db:"tags" json:"tags"`
 	LastSeenAt   sql.NullTime      `db:"last_seen_at" json:"last_seen_at"`
+	Version      string            `db:"version" json:"version"`
 }
 
-func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProvisionerDaemonParams) (ProvisionerDaemon, error) {
-	row := q.db.QueryRowContext(ctx, insertProvisionerDaemon,
-		arg.ID,
+func (q *sqlQuerier) UpsertProvisionerDaemon(ctx context.Context, arg UpsertProvisionerDaemonParams) (ProvisionerDaemon, error) {
+	row := q.db.QueryRowContext(ctx, upsertProvisionerDaemon,
 		arg.CreatedAt,
 		arg.Name,
 		pq.Array(arg.Provisioners),
 		arg.Tags,
 		arg.LastSeenAt,
+		arg.Version,
 	)
 	var i ProvisionerDaemon
 	err := row.Scan(
@@ -4760,47 +4776,6 @@ func (q *sqlQuerier) GetAllTailnetAgents(ctx context.Context) ([]TailnetAgent, e
 			&i.CoordinatorID,
 			&i.UpdatedAt,
 			&i.Node,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getAllTailnetClients = `-- name: GetAllTailnetClients :many
-SELECT tailnet_clients.id, tailnet_clients.coordinator_id, tailnet_clients.updated_at, tailnet_clients.node, array_agg(tailnet_client_subscriptions.agent_id)::uuid[] as agent_ids
-FROM tailnet_clients
-LEFT JOIN tailnet_client_subscriptions
-ON tailnet_clients.id = tailnet_client_subscriptions.client_id
-`
-
-type GetAllTailnetClientsRow struct {
-	TailnetClient TailnetClient `db:"tailnet_client" json:"tailnet_client"`
-	AgentIds      []uuid.UUID   `db:"agent_ids" json:"agent_ids"`
-}
-
-func (q *sqlQuerier) GetAllTailnetClients(ctx context.Context) ([]GetAllTailnetClientsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getAllTailnetClients)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetAllTailnetClientsRow
-	for rows.Next() {
-		var i GetAllTailnetClientsRow
-		if err := rows.Scan(
-			&i.TailnetClient.ID,
-			&i.TailnetClient.CoordinatorID,
-			&i.TailnetClient.UpdatedAt,
-			&i.TailnetClient.Node,
-			pq.Array(&i.AgentIds),
 		); err != nil {
 			return nil, err
 		}
@@ -10604,9 +10579,12 @@ func (q *sqlQuerier) GetDeploymentWorkspaceStats(ctx context.Context) (GetDeploy
 
 const getWorkspaceByAgentID = `-- name: GetWorkspaceByAgentID :one
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates
+	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates,
+	templates.name as template_name
 FROM
 	workspaces
+INNER JOIN
+	templates ON workspaces.template_id = templates.id
 WHERE
 	workspaces.id = (
 		SELECT
@@ -10632,24 +10610,30 @@ WHERE
 	)
 `
 
-func (q *sqlQuerier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (Workspace, error) {
+type GetWorkspaceByAgentIDRow struct {
+	Workspace    Workspace `db:"workspace" json:"workspace"`
+	TemplateName string    `db:"template_name" json:"template_name"`
+}
+
+func (q *sqlQuerier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (GetWorkspaceByAgentIDRow, error) {
 	row := q.db.QueryRowContext(ctx, getWorkspaceByAgentID, agentID)
-	var i Workspace
+	var i GetWorkspaceByAgentIDRow
 	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.OwnerID,
-		&i.OrganizationID,
-		&i.TemplateID,
-		&i.Deleted,
-		&i.Name,
-		&i.AutostartSchedule,
-		&i.Ttl,
-		&i.LastUsedAt,
-		&i.DormantAt,
-		&i.DeletingAt,
-		&i.AutomaticUpdates,
+		&i.Workspace.ID,
+		&i.Workspace.CreatedAt,
+		&i.Workspace.UpdatedAt,
+		&i.Workspace.OwnerID,
+		&i.Workspace.OrganizationID,
+		&i.Workspace.TemplateID,
+		&i.Workspace.Deleted,
+		&i.Workspace.Name,
+		&i.Workspace.AutostartSchedule,
+		&i.Workspace.Ttl,
+		&i.Workspace.LastUsedAt,
+		&i.Workspace.DormantAt,
+		&i.Workspace.DeletingAt,
+		&i.Workspace.AutomaticUpdates,
+		&i.TemplateName,
 	)
 	return i, err
 }

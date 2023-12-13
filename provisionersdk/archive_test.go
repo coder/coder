@@ -15,6 +15,22 @@ import (
 
 func TestTar(t *testing.T) {
 	t.Parallel()
+	t.Run("NoFollowSymlink", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+
+		file, err := os.CreateTemp(dir, "*.tf")
+		require.NoError(t, err)
+		_ = file.Close()
+
+		// If we follow symlinks, Tar would fail.
+		// See https://github.com/coder/coder/issues/5677.
+		err = os.Symlink("no-exists", filepath.Join(dir, "link"))
+		require.NoError(t, err)
+
+		err = provisionersdk.Tar(io.Discard, dir, 1024*1024)
+		require.NoError(t, err)
+	})
 	t.Run("HeaderBreakLimit", func(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()
