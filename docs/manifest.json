@@ -1012,6 +1012,12 @@
           "path": "./security/0001_user_apikeys_invalidation.md"
         }
       ]
+    },
+    {
+      "title": "FAQs",
+      "description": "Frequently asked questions",
+      "path": "./faqs.md",
+      "icon_path": "./images/icons/info.svg"
     }
   ]
 }
