@@ -3056,7 +3056,7 @@ func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDa
 	return items, nil
 }
 
-const insertProvisionerDaemon = `-- name: InsertProvisionerDaemon :one
+const upsertProvisionerDaemon = `-- name: UpsertProvisionerDaemon :one
 INSERT INTO
 	provisioner_daemons (
 		id,
@@ -3064,29 +3064,45 @@ INSERT INTO
 		"name",
 		provisioners,
 		tags,
-		last_seen_at
+		last_seen_at,
+		"version"
 	)
-VALUES
-	($1, $2, $3, $4, $5, $6) RETURNING id, created_at, name, provisioners, replica_id, tags, last_seen_at, version
+VALUES (
+	gen_random_uuid(),
+	$1,
+	$2,
+	$3,
+	$4,
+	$5,
+	$6
+) ON CONFLICT("name", lower((tags ->> 'owner'::text))) DO UPDATE SET
+	provisioners = $3,
+	tags = $4,
+	last_seen_at = $5,
+	"version" = $6
+WHERE
+	-- Only ones with the same tags are allowed clobber
+	provisioner_daemons.tags <@ $4 :: jsonb
+RETURNING id, created_at, name, provisioners, replica_id, tags, last_seen_at, version
 `
 
-type InsertProvisionerDaemonParams struct {
-	ID           uuid.UUID         `db:"id" json:"id"`
+type UpsertProvisionerDaemonParams struct {
 	CreatedAt    time.Time         `db:"created_at" json:"created_at"`
 	Name         string            `db:"name" json:"name"`
 	Provisioners []ProvisionerType `db:"provisioners" json:"provisioners"`
 	Tags         StringMap         `db:"tags" json:"tags"`
 	LastSeenAt   sql.NullTime      `db:"last_seen_at" json:"last_seen_at"`
+	Version      string            `db:"version" json:"version"`
 }
 
-func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProvisionerDaemonParams) (ProvisionerDaemon, error) {
-	row := q.db.QueryRowContext(ctx, insertProvisionerDaemon,
-		arg.ID,
+func (q *sqlQuerier) UpsertProvisionerDaemon(ctx context.Context, arg UpsertProvisionerDaemonParams) (ProvisionerDaemon, error) {
+	row := q.db.QueryRowContext(ctx, upsertProvisionerDaemon,
 		arg.CreatedAt,
 		arg.Name,
 		pq.Array(arg.Provisioners),
 		arg.Tags,
 		arg.LastSeenAt,
+		arg.Version,
 	)
 	var i ProvisionerDaemon
 	err := row.Scan(

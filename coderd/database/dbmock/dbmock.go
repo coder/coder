@@ -2833,21 +2833,6 @@ func (mr *MockStoreMockRecorder) InsertOrganizationMember(arg0, arg1 interface{}
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOrganizationMember", reflect.TypeOf((*MockStore)(nil).InsertOrganizationMember), arg0, arg1)
 }
 
-// InsertProvisionerDaemon mocks base method.
-func (m *MockStore) InsertProvisionerDaemon(arg0 context.Context, arg1 database.InsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertProvisionerDaemon", arg0, arg1)
-	ret0, _ := ret[0].(database.ProvisionerDaemon)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// InsertProvisionerDaemon indicates an expected call of InsertProvisionerDaemon.
-func (mr *MockStoreMockRecorder) InsertProvisionerDaemon(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertProvisionerDaemon", reflect.TypeOf((*MockStore)(nil).InsertProvisionerDaemon), arg0, arg1)
-}
-
 // InsertProvisionerJob mocks base method.
 func (m *MockStore) InsertProvisionerJob(arg0 context.Context, arg1 database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
 	m.ctrl.T.Helper()
@@ -4087,6 +4072,21 @@ func (m *MockStore) UpsertOAuthSigningKey(arg0 context.Context, arg1 string) err
 func (mr *MockStoreMockRecorder) UpsertOAuthSigningKey(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertOAuthSigningKey", reflect.TypeOf((*MockStore)(nil).UpsertOAuthSigningKey), arg0, arg1)
+}
+
+// UpsertProvisionerDaemon mocks base method.
+func (m *MockStore) UpsertProvisionerDaemon(arg0 context.Context, arg1 database.UpsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertProvisionerDaemon", arg0, arg1)
+	ret0, _ := ret[0].(database.ProvisionerDaemon)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertProvisionerDaemon indicates an expected call of UpsertProvisionerDaemon.
+func (mr *MockStoreMockRecorder) UpsertProvisionerDaemon(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertProvisionerDaemon", reflect.TypeOf((*MockStore)(nil).UpsertProvisionerDaemon), arg0, arg1)
 }
 
 // UpsertServiceBanner mocks base method.
