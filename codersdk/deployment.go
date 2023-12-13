@@ -1845,7 +1845,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Allow Workspace Renames",
-			Description: "Allow users to rename their workspaces. This is not recommended for production deployments as it can cause issues with the workspace's internal state. Use only for compatibility reasons.",
+			Description: "DEPRECATED: Allow users to rename their workspaces. Use only for temporary compatibility reasons, this flag will no longer function after 2024-04-01T00:00:00Z00:00.",
 			Flag:        "allow-workspace-renames",
 			Env:         "CODER_ALLOW_WORKSPACE_RENAMES",
 			Default:     "false",
