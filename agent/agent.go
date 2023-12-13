@@ -755,6 +755,8 @@ func (a *agent) run(ctx context.Context) error {
 			err := a.scriptRunner.Execute(ctx, func(script codersdk.WorkspaceAgentScript) bool {
 				return script.RunOnStart
 			})
+			// Measure the time immediately after the script has finished
+			dur := time.Since(start).Seconds()
 			if err != nil {
 				a.logger.Warn(ctx, "startup script(s) failed", slog.Error(err))
 				if errors.Is(err, agentscripts.ErrTimeout) {
@@ -766,7 +768,6 @@ func (a *agent) run(ctx context.Context) error {
 				a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleReady)
 			}
 
-			dur := time.Since(start).Seconds()
 			label := "false"
 			if err == nil {
 				label = "true"
