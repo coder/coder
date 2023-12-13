@@ -1,6 +1,6 @@
 import {
   type UseMutationOptions,
-  QueryClient,
+  type QueryClient,
   type QueryKey,
   type UseQueryOptions,
 } from "react-query";

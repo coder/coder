@@ -81,7 +81,8 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
     userQuery.isLoading ||
     hasFirstUserQuery.isLoading ||
     (userQuery.isSuccess && permissionsQuery.isLoading);
-  const isConfiguringTheFirstUser = !hasFirstUserQuery.data;
+  const isConfiguringTheFirstUser =
+    !hasFirstUserQuery.isLoading && !hasFirstUserQuery.data;
   const isSignedIn = userQuery.isSuccess && userQuery.data !== undefined;
   const isSigningIn = loginMutation.isLoading;
   const isUpdatingProfile = updateProfileMutation.isLoading;

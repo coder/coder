@@ -4,19 +4,19 @@ import {
   waitFor,
   renderHook,
 } from "@testing-library/react";
-import { ReactNode, useState } from "react";
+import { type ReactNode, useState } from "react";
 import { QueryClient } from "react-query";
 import { AppProviders } from "App";
 import { ThemeProviders } from "contexts/ThemeProviders";
 import { DashboardLayout } from "components/Dashboard/DashboardLayout";
+import { RequireAuth } from "components/RequireAuth/RequireAuth";
 import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout";
 import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 import {
-  RouterProvider,
   createMemoryRouter,
-  RouteObject,
+  RouterProvider,
+  type RouteObject,
 } from "react-router-dom";
-import { RequireAuth } from "components/RequireAuth/RequireAuth";
 import { MockUser } from "./entities";
 
 function createTestQueryClient() {

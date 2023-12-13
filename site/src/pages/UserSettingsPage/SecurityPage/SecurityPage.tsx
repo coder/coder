@@ -7,7 +7,7 @@ import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Section } from "../Section";
-import { SecurityForm } from "./SettingsSecurityForm";
+import { SecurityForm } from "./SecurityForm";
 import {
   SingleSignOnSection,
   useSingleSignOnSection,
