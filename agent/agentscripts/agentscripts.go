@@ -79,8 +79,9 @@ type Runner struct {
 	initialized   atomic.Bool
 	scripts       []codersdk.WorkspaceAgentScript
 
-	// Metrics
-	// scripts includes scripts that are scheduled.
+	// scriptsExecuted includes all scripts executed by the workspace agent.
+	// Agents execute startup scripts, and scripts on a cron schedule. Both of
+	// which will increment this counter.
 	scriptsExecuted *prometheus.CounterVec
 }
 
