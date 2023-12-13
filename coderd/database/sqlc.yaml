@@ -86,6 +86,8 @@ sql:
     # schema loaded and migrations run. Run `make sqlc-vet` to run the linter.
     database:
       uri: "${SQLC_DATABASE_URL}"
+    analyzer:
+      database: false
     rules:
       - sqlc/db-prepare
     gen:

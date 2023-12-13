@@ -4,7 +4,7 @@ description: |
 inputs:
   version:
     description: "The Go version to use."
-    default: "1.20.11"
+    default: "1.21.5"
 runs:
   using: "composite"
   steps:
