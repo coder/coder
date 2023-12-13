@@ -1006,7 +1006,7 @@ export const MockWorkspace: TypesGen.Workspace = {
     failing_agents: [],
   },
   automatic_updates: "never",
-  allow_renames: false,
+  allow_renames: true,
 };
 
 export const MockStoppedWorkspace: TypesGen.Workspace = {
