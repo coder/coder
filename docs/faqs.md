@@ -204,7 +204,7 @@ can start Caddy as a `systemd` service.
 The Caddyfile configuration will appear like this where `127.0.0.1:3000` is your
 `CODER_ACCESS_URL`:
 
-```sh
+```text
 coder.example.com {
 
   reverse_proxy 127.0.0.1:3000
@@ -232,7 +232,7 @@ the existing Caddy binary in `usr/bin` and restart the Caddy service.
 
 The updated Caddyfile configuration will look like this:
 
-```sh
+```text
 *.coder.example.com, coder.example.com {
 
 	reverse_proxy 127.0.0.1:3000
@@ -262,7 +262,7 @@ module "central-coder-module" {
   myparam = "custom-for-template1"
 }
 
-resource "ebs_volume` `custom_template1_only_resource ` {
+resource "ebs_volume" "custom_template1_only_resource" {
 }
 ```
 
@@ -274,7 +274,7 @@ module "central-coder-module" {
   myparam2 = "bar"
 }
 
-resource "aws_instance` `custom_template2_only_resource ` {
+resource "aws_instance" "custom_template2_only_resource" {
 }
 ```
 
