@@ -207,14 +207,15 @@ The Caddyfile configuration will appear like this where `127.0.0.1:3000` is your
 ```sh
 coder.example.com {
 
-	reverse_proxy 127.0.0.1:3000
+  reverse_proxy 127.0.0.1:3000
 
 	tls {
-		issuer acme {
-			email mark@example.com
-		}
-	}
 
+		issuer acme {
+			email user@example.com
+		}
+
+	}
 }
 ```
 
@@ -238,7 +239,7 @@ The updated Caddyfile configuration will look like this:
 
 	tls {
 		issuer acme {
-			email mark@example.com
+			email user@example.com
 			dns googleclouddns {
 				gcp_project my-gcp-project
 			}
