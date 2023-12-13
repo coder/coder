@@ -25,4 +25,3 @@ primary_region = "gru"
   cpu_kind = "performance"
   cpus = 1
   memory_mb = 512
-
