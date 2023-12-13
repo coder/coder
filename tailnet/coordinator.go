@@ -810,7 +810,7 @@ func v1RespLoop(ctx context.Context, cancel context.CancelFunc, logger slog.Logg
 			continue
 		}
 		err = q.Enqueue(nodes)
-		if err != nil {
+		if err != nil && !xerrors.Is(err, context.Canceled) {
 			logger.Error(ctx, "v1RespLoop failed to enqueue v1 update", slog.Error(err))
 		}
 	}
