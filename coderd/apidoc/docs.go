@@ -8558,6 +8558,9 @@ const docTemplate = `{
                 "agent_stat_refresh_interval": {
                     "type": "integer"
                 },
+                "allow_workspace_renames": {
+                    "type": "boolean"
+                },
                 "autobuild_poll_interval": {
                     "type": "integer"
                 },
@@ -11443,6 +11446,9 @@ const docTemplate = `{
         "codersdk.Workspace": {
             "type": "object",
             "properties": {
+                "allow_renames": {
+                    "type": "boolean"
+                },
                 "automatic_updates": {
                     "enum": [
                         "always",

@@ -31,6 +31,7 @@ coder server [flags]
 
 The URL that users will use to access the Coder deployment.
 
+<<<<<<< HEAD
 ### --allow-custom-quiet-hours
 
 |             |                                                           |
@@ -41,6 +42,18 @@ The URL that users will use to access the Coder deployment.
 | Default     | <code>true</code>                                         |
 
 Allow users to set their own quiet hours schedule for workspaces to stop in (depending on template autostop requirement settings). If false, users can't change their quiet hours schedule and the site default is always used.
+=======
+### --allow-workspace-renames
+
+|             |                                             |
+| ----------- | ------------------------------------------- |
+| Type        | <code>bool</code>                           |
+| Environment | <code>$CODER_ALLOW_WORKSPACE_RENAMES</code> |
+| YAML        | <code>.allowWorkspaceRenames</code>         |
+| Default     | <code>false</code>                          |
+
+Allow users to rename their workspaces. This is not recommended for production deployments as it can cause issues with the workspace's internal state. Use only for compatibility reasons.
+>>>>>>> 2a4d16f2d (make gen)
 
 ### --block-direct-connections
 
