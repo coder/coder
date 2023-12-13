@@ -106,7 +106,11 @@ export const WorkspaceSettingsForm: FC<{
           </FormFields>
         </FormSection>
       )}
-      <FormFooter onCancel={onCancel} isLoading={form.isSubmitting} submitDisabled={!templatePoliciesEnabled && !workspace.allow_renames}/>
+      <FormFooter
+        onCancel={onCancel}
+        isLoading={form.isSubmitting}
+        submitDisabled={!templatePoliciesEnabled && !workspace.allow_renames}
+      />
     </HorizontalForm>
   );
 };
