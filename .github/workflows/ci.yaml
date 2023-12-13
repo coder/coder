@@ -871,11 +871,11 @@ jobs:
             "southamerica-east1-b coder-brazil coder-workspace-proxy"
           )
 
-          deb_pkg="./build/coder_*_linux_amd64.deb"
-          if [ ! -f "$deb_pkg" ]; then
-            echo "deb package not found: $deb_pkg"
-            ls -l ./build
-            exit 1
+          deb_pkg=$(find ./build -name "coder_*_linux_amd64.deb" -print -quit)
+          if [ -z "$deb_pkg" ]; then
+              echo "deb package $deb_pkg not found"
+              ls -l ./build
+              exit 1
           fi
 
           gcloud config set project coder-dogfood
