@@ -106,7 +106,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		data.builds[0],
 		data.templates[0],
 		ownerName,
-		api.DeploymentValues.AllowWorkspaceRenames.Value(),
+		api.Options.AllowWorkspaceRenames,
 	))
 }
 
@@ -278,7 +278,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		data.builds[0],
 		data.templates[0],
 		ownerName,
-		api.DeploymentValues.AllowWorkspaceRenames.Value(),
+		api.Options.AllowWorkspaceRenames,
 	))
 }
 
@@ -587,7 +587,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		apiBuild,
 		template,
 		member.Username,
-		api.DeploymentValues.AllowWorkspaceRenames.Value(),
+		api.Options.AllowWorkspaceRenames,
 	))
 }
 
@@ -631,9 +631,15 @@ func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	// patched in the future, it's enough if one changes.
 	name := workspace.Name
 	if req.Name != "" || req.Name != workspace.Name {
-		if !api.DeploymentValues.AllowWorkspaceRenames.Value() {
+		if !api.Options.AllowWorkspaceRenames {
 			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 				Message: "Workspace renames are not allowed.",
+			})
+			return
+		}
+		if api.Options.AllowWorkspaceRenamesExpiresAt.Before(time.Now()) {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: "Workspace renames are no longer allowed. Flag expired at " + api.Options.AllowWorkspaceRenamesExpiresAt.String(),
 			})
 			return
 		}
@@ -926,7 +932,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		data.builds[0],
 		data.templates[0],
 		ownerName,
-		api.DeploymentValues.AllowWorkspaceRenames.Value(),
+		api.Options.AllowWorkspaceRenames,
 	))
 }
 
@@ -1252,7 +1258,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 				data.builds[0],
 				data.templates[0],
 				ownerName,
-				api.DeploymentValues.AllowWorkspaceRenames.Value(),
+				api.Options.AllowWorkspaceRenames,
 			),
 		})
 	}
@@ -1362,7 +1368,7 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 		templates:    templates,
 		builds:       apiBuilds,
 		users:        data.users,
-		allowRenames: api.DeploymentValues.AllowWorkspaceRenames.Value(),
+		allowRenames: api.Options.AllowWorkspaceRenames,
 	}, nil
 }
 
