@@ -67,8 +67,9 @@ Tailscale Wireguard networking functions properly.
 ## How do I hide some of the default icons in a workspace like VS Code Desktop, Terminal, SSH, Ports?
 
 The visibility of Coder apps is configurable in the template. To change the
-default (shows all), add this block inside the `coder_agent` of a template and
-configure as needed:
+default (shows all), add this block inside the
+[`coder_agent`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app)
+of a template and configure as needed:
 
 ```hcl
   display_apps {
@@ -117,9 +118,10 @@ resource "coder_app" "code-server" {
 An important concept to understand is that Coder creates workspaces which have
 an agent that must be able to reach the `coder server`.
 
-If the `CODER_ACCESS_URL` is not accessible from a workspace, the workspace may
-build, but the agent cannot reach Coder, and thus the missing icons. e.g.,
-Terminal, IDEs, Apps.
+If the
+[`CODER_ACCESS_URL`](https://coder.com/docs/v2/latest/admin/configure#access-url)
+is not accessible from a workspace, the workspace may build, but the agent
+cannot reach Coder, and thus the missing icons. e.g., Terminal, IDEs, Apps.
 
 > By default, `coder server` automatically creates an Internet-accessible
 > reverse proxy so that workspaces you create can reach the server.
@@ -329,11 +331,13 @@ Selecting the most suitable template depends on how the deployment manages
 JetBrains IDE versions. If downloading from
 [jetbrains.com](https://www.jetbrains.com/remote-development/gateway/) is
 acceptable, see the example templates below which specifies the product code,
-IDE version and build number in the `coder_app` resource. This will present an
-icon in the workspace dashboard which when clicked, will look for a locally
-installed Gateway, and open it. Alternatively, the IDE can be baked into the
-container image and manually open Gateway (or IntelliJ which has Gateway
-built-in), using a session token to Coder and then open the IDE.
+IDE version and build number in the
+[`coder_app`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app#share)
+resource. This will present an icon in the workspace dashboard which when
+clicked, will look for a locally installed Gateway, and open it. Alternatively,
+the IDE can be baked into the container image and manually open Gateway (or
+IntelliJ which has Gateway built-in), using a session token to Coder and then
+open the IDE.
 
 - [IntelliJ IDEA](https://github.com/sharkymark/v2-templates/tree/main/pod-idea)
 - [IntelliJ IDEA with Icon](https://github.com/sharkymark/v2-templates/tree/main/pod-idea-icon)
