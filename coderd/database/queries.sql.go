@@ -3080,11 +3080,9 @@ VALUES (
 	tags = $4,
 	last_seen_at = $5,
 	"version" = $6
-	WHERE
-		CASE WHEN provisioner_daemons.tags::jsonb->'scope' = 'organization'
-			THEN provisioner_daemons.tags::jsonb->'owner' = NULL
-		ELSE provisioner_daemons.tags::jsonb->'owner' = $4::jsonb->'owner'
-	END
+WHERE
+	-- Only ones with the same tags are allowed clobber
+	provisioner_daemons.tags <@ $4 :: jsonb
 RETURNING id, created_at, name, provisioners, replica_id, tags, last_seen_at, version
 `
 

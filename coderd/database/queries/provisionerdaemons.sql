@@ -38,8 +38,7 @@ VALUES (
 	tags = @tags,
 	last_seen_at = @last_seen_at,
 	"version" = @version
-	WHERE
-        -- Only ones with the same tags are allowed clobber
-        provisioner_daemons.tags <@ $4 :: jsonb
-	END
+WHERE
+	-- Only ones with the same tags are allowed clobber
+	provisioner_daemons.tags <@ @tags :: jsonb
 RETURNING *;
