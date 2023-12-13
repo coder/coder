@@ -4567,7 +4567,7 @@ const docTemplate = `{
                 "tags": [
                     "Users"
                 ],
-                "summary": "Update user's theme preference",
+                "summary": "Update user theme preference",
                 "operationId": "update-user-theme-preference",
                 "parameters": [
                     {

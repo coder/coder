@@ -1250,7 +1250,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/status/suspend \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Update user's theme preference
+## Update user theme preference
 
 ### Code samples
 

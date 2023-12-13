@@ -4013,7 +4013,7 @@
         "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["Users"],
-        "summary": "Update user's theme preference",
+        "summary": "Update user theme preference",
         "operationId": "update-user-theme-preference",
         "parameters": [
           {
