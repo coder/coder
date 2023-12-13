@@ -27,6 +27,15 @@ const (
 	testTemplateName  = "main-template"
 )
 
+var (
+	testLabels = prometheusmetrics.AgentMetricLabels{
+		Username:      testUsername,
+		WorkspaceName: testWorkspaceName,
+		AgentName:     testAgentName,
+		TemplateName:  testTemplateName,
+	}
+)
+
 func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
 	t.Parallel()
 
@@ -79,8 +88,8 @@ func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
 	}
 
 	// when
-	metricsAggregator.Update(ctx, testUsername, testWorkspaceName, testAgentName, testTemplateName, given1)
-	metricsAggregator.Update(ctx, testUsername, testWorkspaceName, testAgentName, testTemplateName, given2)
+	metricsAggregator.Update(ctx, testLabels, given1)
+	metricsAggregator.Update(ctx, testLabels, given2)
 
 	// then
 	require.Eventually(t, func() bool {
@@ -163,7 +172,7 @@ func TestUpdateMetrics_MetricsExpire(t *testing.T) {
 	}
 
 	// when
-	metricsAggregator.Update(ctx, testUsername, testWorkspaceName, testAgentName, testTemplateName, given)
+	metricsAggregator.Update(ctx, testLabels, given)
 
 	time.Sleep(time.Millisecond * 10) // Ensure that metric is expired
 
@@ -229,7 +238,7 @@ func Benchmark_MetricsAggregator_Run(b *testing.B) {
 		b.Logf("N=%d sending %d metrics", b.N, numMetrics)
 		var nGot atomic.Int64
 		b.StartTimer()
-		metricsAggregator.Update(ctx, testUsername, testWorkspaceName, testAgentName, testTemplateName, metrics)
+		metricsAggregator.Update(ctx, testLabels, metrics)
 		for i := 0; i < numMetrics; i++ {
 			select {
 			case <-ctx.Done():
