@@ -88,7 +88,7 @@ This example will hide all built-in coder_app icons except the web terminal.
 > It is **not** recommended to share a web IDE, but if required, the following
 > deployment environment variable settings are required.
 
-1. Set deployment (Kubernetes) to allow path app sharing
+Set deployment (Kubernetes) to allow path app sharing
 
 ```yaml
 # allow authenticated users to access path-based workspace apps
@@ -99,11 +99,11 @@ This example will hide all built-in coder_app icons except the web terminal.
   value: "true"
 ```
 
-2. In the template, set
-   [`coder_app`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app)
-   [`share`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app#share)
-   option to `authenticated` and when a workspace is built with this template,
-   the pretty globe shows up next to path-based `code-server`:
+In the template, set
+[`coder_app`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app)
+[`share`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app#share)
+option to `authenticated` and when a workspace is built with this template, the
+pretty globe shows up next to path-based `code-server`:
 
 ```hcl
 resource "coder_app" "code-server" {
@@ -177,8 +177,8 @@ sudo systemctl restart coder.service
 1. Run the `coder server` command below to retrieve the `psql` connection URL
    which includes the database user and password.
 2. `psql` into Postgres, and do a select query on the `users` table.
-3. Restart the `coder server`, pull up the Coder UI and log in (hope you
-   remembered your password)
+3. Restart the `coder server`, pull up the Coder UI and log in (you will still
+   need your password)
 
 ```sh
 coder server postgres-builtin-url
@@ -315,9 +315,9 @@ This code produces a hashed value that will be difficult to replicate.
 
 ```hcl
 locals {
-concatenated_string = "${data.coder_workspace.me.name}+${data.coder_workspace.me.owner}"
-hashed_string = md5(local.concatenated_string)
-truncated_hash = substr(local.hashed_string, 0, 16)
+  concatenated_string = "${data.coder_workspace.me.name}+${data.coder_workspace.me.owner}"
+  hashed_string = md5(local.concatenated_string)
+  truncated_hash = substr(local.hashed_string, 0, 16)
 }
 ```
 
@@ -345,8 +345,10 @@ open the IDE.
 
 ## What options do I have for adding VS Code extensions into code-server, VS Code Desktop or Microsoft's Code Server?
 
-Coder has an open-source project called `code-marketplace` which is a private VS
-Code extension marketplace. There is even integration with JFrog Artifactory.
+Coder has an open-source project called
+[`code-marketplace`](https://github.com/coder/code-marketplace) which is a
+private VS Code extension marketplace. There is even integration with JFrog
+Artifactory.
 
 - [Blog post](https://coder.com/blog/running-a-private-vs-code-extension-marketplace)
 - [OSS project](https://github.com/coder/code-marketplace)
