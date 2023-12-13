@@ -484,7 +484,7 @@ jobs:
   # At present these pushes cannot be tagged, so the last push is always the latest.
   publish-sqlc:
     name: "Publish to schema sqlc cloud"
-    runs-on: 'ubuntu-latest'
+    runs-on: "ubuntu-latest"
     needs: release
     if: ${{ !inputs.dry_run }}
     steps:
