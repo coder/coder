@@ -27,14 +27,12 @@ const (
 	testTemplateName  = "main-template"
 )
 
-var (
-	testLabels = prometheusmetrics.AgentMetricLabels{
-		Username:      testUsername,
-		WorkspaceName: testWorkspaceName,
-		AgentName:     testAgentName,
-		TemplateName:  testTemplateName,
-	}
-)
+var testLabels = prometheusmetrics.AgentMetricLabels{
+	Username:      testUsername,
+	WorkspaceName: testWorkspaceName,
+	AgentName:     testAgentName,
+	TemplateName:  testTemplateName,
+}
 
 func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
 	t.Parallel()
