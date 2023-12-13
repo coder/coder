@@ -33,7 +33,7 @@ VALUES (
 	@tags,
 	@last_seen_at,
 	@version
-) ON CONFLICT("name") DO UPDATE SET
+) ON CONFLICT("name", lower((tags ->> 'owner'::text))) DO UPDATE SET
 	provisioners = @provisioners,
 	tags = @tags,
 	last_seen_at = @last_seen_at,
