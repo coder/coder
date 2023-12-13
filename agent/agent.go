@@ -771,7 +771,7 @@ func (a *agent) run(ctx context.Context) error {
 			if err == nil {
 				label = "true"
 			}
-			a.metrics.startScriptSeconds.WithLabelValues(label).Set(dur)
+			a.metrics.startupScriptSeconds.WithLabelValues(label).Set(dur)
 			a.scriptRunner.StartCron()
 		})
 		if err != nil {

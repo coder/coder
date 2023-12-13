@@ -2237,7 +2237,7 @@ func TestAgent_Metrics_SSH(t *testing.T) {
 			Value: 0,
 		},
 		{
-			Name:  "coderd_agentstats_startup_script_s",
+			Name:  "coderd_agentstats_startup_script_seconds",
 			Type:  agentsdk.AgentMetricTypeGauge,
 			Value: 0,
 			Labels: []agentsdk.AgentMetricLabel{
