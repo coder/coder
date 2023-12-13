@@ -22,6 +22,6 @@ primary_region = "cdg"
   min_machines_running = 0
 
 [[vm]]
-  cpu_kind = "performance"
-  cpus = 1
-  memory_mb = 1024
+  cpu_kind = "shared"
+  cpus = 2
+  memory_mb = 512
