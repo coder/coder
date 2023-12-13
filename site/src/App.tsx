@@ -28,16 +28,16 @@ export const AppProviders: FC<AppProvidersProps> = ({
 }) => {
   return (
     <HelmetProvider>
-      <ErrorBoundary>
-        <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <ThemeProviders>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <ThemeProviders>
+            <ErrorBoundary>
               {children}
               <GlobalSnackbar />
-            </ThemeProviders>
-          </AuthProvider>
-        </QueryClientProvider>
-      </ErrorBoundary>
+            </ErrorBoundary>
+          </ThemeProviders>
+        </AuthProvider>
+      </QueryClientProvider>
     </HelmetProvider>
   );
 };

@@ -628,7 +628,7 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	if err == nil && isDifferentUser {
 		responseErrors := []codersdk.ValidationError{{
 			Field:  "username",
-			Detail: "this username is already in use and should be unique",
+			Detail: "This username is already in use.",
 		}}
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 			Message:     "A user with this username already exists.",

@@ -29,9 +29,11 @@ export const ThemeProviders: FC<PropsWithChildren> = ({ children }) => {
       setPreferredColorScheme(event.matches ? "light" : "dark");
     };
 
-    themeQuery.addEventListener("change", listener);
+    // `addEventListener` here is a recent API that only _very_ up-to-date
+    // browsers support, and that isn't mocked in Jest.
+    themeQuery.addEventListener?.("change", listener);
     return () => {
-      themeQuery.removeEventListener("change", listener);
+      themeQuery.removeEventListener?.("change", listener);
     };
   }, [themeQuery]);
 

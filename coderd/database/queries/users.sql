@@ -80,7 +80,8 @@ SET
 	avatar_url = $4,
 	updated_at = $5
 WHERE
-	id = $1 RETURNING *;
+	id = $1
+RETURNING *;
 
 -- name: UpdateUserThemePreference :one
 UPDATE
@@ -89,7 +90,8 @@ SET
 	theme_preference = $2,
 	updated_at = $3
 WHERE
-	id = $1 RETURNING *;
+	id = $1
+RETURNING *;
 
 -- name: UpdateUserRoles :one
 UPDATE
