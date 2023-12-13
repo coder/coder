@@ -152,11 +152,11 @@ func TestCache_TemplateUsers(t *testing.T) {
 		},
 		{
 			name:     "tzOffset",
-			tzOffset: 1,
+			tzOffset: 3,
 			args: args{
 				rows: []database.InsertWorkspaceAgentStatParams{
-					statRow(zebra, dateH(2022, 1, 2, 1)),
-					statRow(tiger, dateH(2022, 1, 2, 1)),
+					statRow(zebra, dateH(2022, 1, 2, 3)),
+					statRow(tiger, dateH(2022, 1, 2, 3)),
 					// With offset these should be in the previous day
 					statRow(zebra, dateH(2022, 1, 2, 0)),
 					statRow(tiger, dateH(2022, 1, 2, 0)),
