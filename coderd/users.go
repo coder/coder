@@ -761,7 +761,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 	}
 }
 
-// @Summary Update user's theme preference
+// @Summary Update user theme preference
 // @ID update-user-theme-preference
 // @Security CoderSessionToken
 // @Accept json
