@@ -172,6 +172,8 @@ type Options struct {
 	StatsBatcher       *batchstats.Batcher
 
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
+
+	ParseLicenseClaims func(rawJWT string) (email string, trial bool, err error)
 }
 
 // @title Coder API
