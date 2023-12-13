@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/regosql"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisionersdk"
 )
 
 var validProxyByHostnameRegex = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
@@ -4936,25 +4937,6 @@ func (q *FakeQuerier) InsertOrganizationMember(_ context.Context, arg database.I
 	return organizationMember, nil
 }
 
-func (q *FakeQuerier) InsertProvisionerDaemon(_ context.Context, arg database.InsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
-	if err := validateDatabaseType(arg); err != nil {
-		return database.ProvisionerDaemon{}, err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	daemon := database.ProvisionerDaemon{
-		ID:           arg.ID,
-		Name:         arg.Name,
-		Provisioners: arg.Provisioners,
-		Tags:         arg.Tags,
-		LastSeenAt:   arg.LastSeenAt,
-	}
-	q.provisionerDaemons = append(q.provisionerDaemons, daemon)
-	return daemon, nil
-}
-
 func (q *FakeQuerier) InsertProvisionerJob(_ context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.ProvisionerJob{}, err
@@ -6959,6 +6941,43 @@ func (q *FakeQuerier) UpsertOAuthSigningKey(_ context.Context, value string) err
 
 	q.oauthSigningKey = value
 	return nil
+}
+
+func (q *FakeQuerier) UpsertProvisionerDaemon(_ context.Context, arg database.UpsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.ProvisionerDaemon{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+	for _, d := range q.provisionerDaemons {
+		if d.Name == arg.Name {
+			if d.Tags[provisionersdk.TagScope] == provisionersdk.ScopeOrganization && arg.Tags[provisionersdk.TagOwner] != "" {
+				continue
+			}
+			if d.Tags[provisionersdk.TagScope] == provisionersdk.ScopeUser && arg.Tags[provisionersdk.TagOwner] != d.Tags[provisionersdk.TagOwner] {
+				continue
+			}
+			d.Provisioners = arg.Provisioners
+			d.Tags = arg.Tags
+			d.Version = arg.Version
+			d.LastSeenAt = arg.LastSeenAt
+			return d, nil
+		}
+	}
+	d := database.ProvisionerDaemon{
+		ID:           uuid.New(),
+		CreatedAt:    arg.CreatedAt,
+		Name:         arg.Name,
+		Provisioners: arg.Provisioners,
+		Tags:         arg.Tags,
+		ReplicaID:    uuid.NullUUID{},
+		LastSeenAt:   arg.LastSeenAt,
+		Version:      arg.Version,
+	}
+	q.provisionerDaemons = append(q.provisionerDaemons, d)
+	return d, nil
 }
 
 func (q *FakeQuerier) UpsertServiceBanner(_ context.Context, data string) error {

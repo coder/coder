@@ -1284,9 +1284,6 @@ ALTER TABLE ONLY parameter_values
     ADD CONSTRAINT parameter_values_scope_id_name_key UNIQUE (scope_id, name);
 
 ALTER TABLE ONLY provisioner_daemons
-    ADD CONSTRAINT provisioner_daemons_name_key UNIQUE (name);
-
-ALTER TABLE ONLY provisioner_daemons
     ADD CONSTRAINT provisioner_daemons_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY provisioner_job_logs
@@ -1414,6 +1411,10 @@ CREATE INDEX idx_organization_member_user_id_uuid ON organization_members USING 
 CREATE UNIQUE INDEX idx_organization_name ON organizations USING btree (name);
 
 CREATE UNIQUE INDEX idx_organization_name_lower ON organizations USING btree (lower(name));
+
+CREATE UNIQUE INDEX idx_provisioner_daemons_name_owner_key ON provisioner_daemons USING btree (name, lower((tags ->> 'owner'::text)));
+
+COMMENT ON INDEX idx_provisioner_daemons_name_owner_key IS 'Relax uniqueness constraint for provisioner daemon names';
 
 CREATE INDEX idx_tailnet_agents_coordinator ON tailnet_agents USING btree (coordinator_id);
 

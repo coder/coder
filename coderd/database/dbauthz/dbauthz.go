@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi/httpapiconstraints"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/provisionersdk"
 )
 
 var _ database.Store = (*querier)(nil)
@@ -2155,14 +2156,6 @@ func (q *querier) InsertOrganizationMember(ctx context.Context, arg database.Ins
 	return insert(q.log, q.auth, obj, q.db.InsertOrganizationMember)(ctx, arg)
 }
 
-// TODO: We need to create a ProvisionerDaemon resource type
-func (q *querier) InsertProvisionerDaemon(ctx context.Context, arg database.InsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
-	// if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
-	// return database.ProvisionerDaemon{}, err
-	// }
-	return q.db.InsertProvisionerDaemon(ctx, arg)
-}
-
 // TODO: We need to create a ProvisionerJob resource type
 func (q *querier) InsertProvisionerJob(ctx context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
 	// if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
@@ -3061,6 +3054,17 @@ func (q *querier) UpsertOAuthSigningKey(ctx context.Context, value string) error
 		return err
 	}
 	return q.db.UpsertOAuthSigningKey(ctx, value)
+}
+
+func (q *querier) UpsertProvisionerDaemon(ctx context.Context, arg database.UpsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
+	res := rbac.ResourceProvisionerDaemon.All()
+	if arg.Tags[provisionersdk.TagScope] == provisionersdk.ScopeUser {
+		res.Owner = arg.Tags[provisionersdk.TagOwner]
+	}
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, res); err != nil {
+		return database.ProvisionerDaemon{}, err
+	}
+	return q.db.UpsertProvisionerDaemon(ctx, arg)
 }
 
 func (q *querier) UpsertServiceBanner(ctx context.Context, value string) error {
