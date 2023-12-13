@@ -249,13 +249,21 @@ func (ma *MetricsAggregator) Collect(ch chan<- prometheus.Metric) {
 	}
 }
 
-func (ma *MetricsAggregator) Update(ctx context.Context, username, workspaceName, agentName, templateName string, metrics []agentsdk.AgentMetric) {
+// UpdateAgentMetricsLabels are the labels used to decorate an agent's metrics.
+type UpdateAgentMetricsLabels struct {
+	Username      string
+	WorkspaceName string
+	AgentName     string
+	TemplateName  string
+}
+
+func (ma *MetricsAggregator) Update(ctx context.Context, labels UpdateAgentMetricsLabels, metrics []agentsdk.AgentMetric) {
 	select {
 	case ma.updateCh <- updateRequest{
-		username:      username,
-		workspaceName: workspaceName,
-		agentName:     agentName,
-		templateName:  templateName,
+		username:      labels.Username,
+		workspaceName: labels.WorkspaceName,
+		agentName:     labels.AgentName,
+		templateName:  labels.TemplateName,
 		metrics:       metrics,
 
 		timestamp: time.Now(),

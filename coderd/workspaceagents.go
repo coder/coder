@@ -30,7 +30,6 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -38,6 +37,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -1726,7 +1726,12 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 				return xerrors.Errorf("can't get user: %w", err)
 			}
 
-			api.Options.UpdateAgentMetrics(ctx, user.Username, workspace.Name, workspaceAgent.Name, row.TemplateName, req.Metrics)
+			api.Options.UpdateAgentMetrics(ctx, prometheusmetrics.UpdateAgentMetricsLabels{
+				Username:      user.Username,
+				WorkspaceName: workspace.Name,
+				AgentName:     workspaceAgent.Name,
+				TemplateName:  row.TemplateName,
+			}, req.Metrics)
 			return nil
 		})
 	}
