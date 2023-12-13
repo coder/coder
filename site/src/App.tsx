@@ -31,10 +31,8 @@ export const AppProviders: FC<AppProvidersProps> = ({
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <ThemeProviders>
-            <ErrorBoundary>
-              {children}
-              <GlobalSnackbar />
-            </ErrorBoundary>
+            {children}
+            <GlobalSnackbar />
           </ThemeProviders>
         </AuthProvider>
       </QueryClientProvider>
@@ -45,7 +43,9 @@ export const AppProviders: FC<AppProvidersProps> = ({
 export const App: FC = () => {
   return (
     <AppProviders>
-      <AppRouter />
+      <ErrorBoundary>
+        <AppRouter />
+      </ErrorBoundary>
     </AppProviders>
   );
 };
