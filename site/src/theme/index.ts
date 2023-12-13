@@ -9,6 +9,8 @@ export interface Theme extends MuiTheme {
   experimental: NewTheme;
 }
 
+export const DEFAULT_THEME = "auto";
+
 const theme = {
   dark,
   darkBlue,

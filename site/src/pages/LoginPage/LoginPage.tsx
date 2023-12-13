@@ -9,6 +9,7 @@ import { LoginPageView } from "./LoginPageView";
 export const LoginPage: FC = () => {
   const location = useLocation();
   const {
+    isLoading,
     isSignedIn,
     isConfiguringTheFirstUser,
     signIn,
@@ -60,6 +61,7 @@ export const LoginPage: FC = () => {
       <LoginPageView
         authMethods={authMethods}
         error={signInError}
+        isLoading={isLoading}
         isSigningIn={isSigningIn}
         onSignIn={async ({ email, password }) => {
           await signIn(email, password);

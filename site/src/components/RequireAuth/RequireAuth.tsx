@@ -9,7 +9,8 @@ import { DashboardProvider } from "../Dashboard/DashboardProvider";
 import { FullScreenLoader } from "../Loader/FullScreenLoader";
 
 export const RequireAuth: FC = () => {
-  const { signOut, isSigningOut, isSignedOut, isLoading } = useAuth();
+  const { signOut, isSigningOut, isSignedOut, isSignedIn, isLoading } =
+    useAuth();
   const location = useLocation();
   const isHomePage = location.pathname === "/";
   const navigateTo = isHomePage
@@ -17,6 +18,10 @@ export const RequireAuth: FC = () => {
     : embedRedirect(`${location.pathname}${location.search}`);
 
   useEffect(() => {
+    if (isLoading || isSigningOut || !isSignedIn) {
+      return;
+    }
+
     const interceptorHandle = axios.interceptors.response.use(
       (okResponse) => okResponse,
       (error: unknown) => {
@@ -35,7 +40,7 @@ export const RequireAuth: FC = () => {
     return () => {
       axios.interceptors.response.eject(interceptorHandle);
     };
-  }, [signOut]);
+  }, [isLoading, isSigningOut, isSignedIn, signOut]);
 
   if (isLoading || isSigningOut) {
     return <FullScreenLoader />;

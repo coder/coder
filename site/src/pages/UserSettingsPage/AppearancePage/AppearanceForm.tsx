@@ -2,7 +2,7 @@ import { visuallyHidden } from "@mui/utils";
 import { type Interpolation } from "@emotion/react";
 import { type FC, useMemo } from "react";
 import type { UpdateUserThemePreferenceRequest } from "api/typesGenerated";
-import themes, { type Theme } from "theme";
+import themes, { DEFAULT_THEME, type Theme } from "theme";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Stack } from "components/Stack/Stack";
 
@@ -24,6 +24,8 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
   initialValues,
   enableAuto,
 }) => {
+  const currentTheme = initialValues.theme_preference || DEFAULT_THEME;
+
   const onChangeTheme = async (theme: string) => {
     if (isUpdating) {
       return;
@@ -40,20 +42,20 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
         {enableAuto && (
           <AutoThemePreviewButton
             displayName="Auto"
-            active={initialValues.theme_preference === "auto"}
+            active={currentTheme === "auto"}
             themes={[themes.dark, themes.light]}
             onSelect={() => onChangeTheme("auto")}
           />
         )}
         <ThemePreviewButton
           displayName="Dark"
-          active={initialValues.theme_preference === "dark"}
+          active={currentTheme === "dark"}
           theme={themes.dark}
           onSelect={() => onChangeTheme("dark")}
         />
         <ThemePreviewButton
           displayName="Dark blue"
-          active={initialValues.theme_preference === "darkBlue"}
+          active={currentTheme === "darkBlue"}
           theme={themes.darkBlue}
           onSelect={() => onChangeTheme("darkBlue")}
         />

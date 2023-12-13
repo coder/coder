@@ -7,15 +7,19 @@ import {
 import {
   type FC,
   type PropsWithChildren,
+  useContext,
   useEffect,
   useMemo,
   useState,
 } from "react";
-import themes from "theme";
-import { useAuth } from "./AuthProvider/AuthProvider";
+import themes, { DEFAULT_THEME } from "theme";
+import { AuthContext } from "./AuthProvider/AuthProvider";
 
 export const ThemeProviders: FC<PropsWithChildren> = ({ children }) => {
-  const { user } = useAuth();
+  // We need to use the `AuthContext` directly, rather than the `useAuth` hook,
+  // because Storybook and many tests depend on this component, but do not provide
+  // an `AuthProvider`, and `useAuth` will throw in that case.
+  const user = useContext(AuthContext)?.user;
   const themeQuery = useMemo(
     () => window.matchMedia?.("(prefers-color-scheme: light)"),
     [],
@@ -25,6 +29,10 @@ export const ThemeProviders: FC<PropsWithChildren> = ({ children }) => {
   >(themeQuery?.matches ? "light" : "dark");
 
   useEffect(() => {
+    if (!themeQuery) {
+      return;
+    }
+
     const listener = (event: MediaQueryListEvent) => {
       setPreferredColorScheme(event.matches ? "light" : "dark");
     };
@@ -38,7 +46,7 @@ export const ThemeProviders: FC<PropsWithChildren> = ({ children }) => {
   }, [themeQuery]);
 
   // We might not be logged in yet, or the `theme_preference` could be an empty string.
-  const themePreference = user?.theme_preference || "auto";
+  const themePreference = user?.theme_preference || DEFAULT_THEME;
   // The janky casting here is find because of the much more type safe fallback
   // We need to support `themePreference` being wrong anyway because the database
   // value could be anything, like an empty string.

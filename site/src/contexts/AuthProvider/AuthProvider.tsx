@@ -24,7 +24,7 @@ import type {
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { permissionsToCheck, type Permissions } from "./permissions";
 
-type AuthContextValue = {
+export type AuthContextValue = {
   isLoading: boolean;
   isSignedOut: boolean;
   isSigningOut: boolean;
@@ -42,7 +42,9 @@ type AuthContextValue = {
   updateProfile: (data: UpdateUserProfileRequest) => void;
 };
 
-const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+export const AuthContext = createContext<AuthContextValue | undefined>(
+  undefined,
+);
 
 export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
   const queryClient = useQueryClient();

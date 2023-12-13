@@ -5,10 +5,6 @@ import { renderWithAuth } from "testHelpers/renderHelpers";
 import { AccountPage } from "./AccountPage";
 import { mockApiError } from "testHelpers/entities";
 
-const renderPage = () => {
-  return renderWithAuth(<AccountPage />);
-};
-
 const newData = {
   username: "user",
 };
@@ -39,13 +35,13 @@ describe("AccountPage", () => {
           ...data,
         }),
       );
-      const { user } = renderPage();
+      renderWithAuth(<AccountPage />);
       await fillAndSubmitForm();
 
       const successMessage = await screen.findByText("Updated settings.");
       expect(successMessage).toBeDefined();
       expect(API.updateProfile).toBeCalledTimes(1);
-      expect(API.updateProfile).toBeCalledWith(user.id, newData);
+      expect(API.updateProfile).toBeCalledWith("me", newData);
     });
   });
 
@@ -60,7 +56,7 @@ describe("AccountPage", () => {
         }),
       );
 
-      const { user } = renderPage();
+      renderWithAuth(<AccountPage />);
       await fillAndSubmitForm();
 
       const errorMessage = await screen.findByText(
@@ -68,7 +64,7 @@ describe("AccountPage", () => {
       );
       expect(errorMessage).toBeDefined();
       expect(API.updateProfile).toBeCalledTimes(1);
-      expect(API.updateProfile).toBeCalledWith(user.id, newData);
+      expect(API.updateProfile).toBeCalledWith("me", newData);
     });
   });
 
@@ -78,13 +74,13 @@ describe("AccountPage", () => {
         data: "unknown error",
       });
 
-      const { user } = renderPage();
+      renderWithAuth(<AccountPage />);
       await fillAndSubmitForm();
 
       const errorMessage = await screen.findByText("Something went wrong.");
       expect(errorMessage).toBeDefined();
       expect(API.updateProfile).toBeCalledTimes(1);
-      expect(API.updateProfile).toBeCalledWith(user.id, newData);
+      expect(API.updateProfile).toBeCalledWith("me", newData);
     });
   });
 });

@@ -1,51 +1,44 @@
-import { fireEvent, screen, within } from "@testing-library/react";
+import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import * as API from "api/api";
 import { renderWithAuth } from "testHelpers/renderHelpers";
 import { AppearancePage } from "./AppearancePage";
-import { MockGitSSHKey } from "testHelpers/entities";
+import { MockUser } from "testHelpers/entities";
 
-describe("SSH keys Page", () => {
-  it("shows the SSH key", async () => {
+describe("appearance page", () => {
+  it("changes theme to dark", async () => {
     renderWithAuth(<AppearancePage />);
-    await screen.findByText(MockGitSSHKey.public_key);
+
+    jest.spyOn(API, "updateThemePreference").mockResolvedValueOnce({
+      ...MockUser,
+      theme_preference: "dark",
+    });
+
+    const dark = await screen.findByText("Dark");
+    await userEvent.click(dark);
+
+    // Check if the API was called correctly
+    expect(API.updateThemePreference).toBeCalledTimes(1);
+    expect(API.updateThemePreference).toHaveBeenCalledWith("me", {
+      theme_preference: "dark",
+    });
   });
 
-  describe("regenerate SSH key", () => {
-    describe("when it is success", () => {
-      it("shows a success message and updates the ssh key on the page", async () => {
-        renderWithAuth(<AppearancePage />);
+  it("changes theme to dark blue", async () => {
+    renderWithAuth(<AppearancePage />);
 
-        // Wait to the ssh be rendered on the screen
-        await screen.findByText(MockGitSSHKey.public_key);
+    jest.spyOn(API, "updateThemePreference").mockResolvedValueOnce({
+      ...MockUser,
+      theme_preference: "darkBlue",
+    });
 
-        // Click on the "Regenerate" button to display the confirm dialog
-        const regenerateButton = screen.getByTestId("regenerate");
-        fireEvent.click(regenerateButton);
-        const confirmDialog = screen.getByRole("dialog");
-        expect(confirmDialog).toHaveTextContent("foo");
+    const darkBlue = await screen.findByText("Dark blue");
+    await userEvent.click(darkBlue);
 
-        const newUserSSHKey =
-          "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDSC/ouD/LqiT1Rd99vDv/MwUmqzJuinLTMTpk5kVy66";
-        jest.spyOn(API, "regenerateUserSSHKey").mockResolvedValueOnce({
-          ...MockGitSSHKey,
-          public_key: newUserSSHKey,
-        });
-
-        // Click on the "Confirm" button
-        const confirmButton = within(confirmDialog).getByRole("button", {
-          name: "foo",
-        });
-        fireEvent.click(confirmButton);
-
-        // Check if the success message is displayed
-        await screen.findByText("SSH Key regenerated successfully.");
-
-        // Check if the API was called correctly
-        expect(API.regenerateUserSSHKey).toBeCalledTimes(1);
-
-        // Check if the SSH key is updated
-        await screen.findByText(newUserSSHKey);
-      });
+    // Check if the API was called correctly
+    expect(API.updateThemePreference).toBeCalledTimes(1);
+    expect(API.updateThemePreference).toHaveBeenCalledWith("me", {
+      theme_preference: "darkBlue",
     });
   });
 });
