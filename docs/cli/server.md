@@ -49,15 +49,14 @@ Allow users to set their own quiet hours schedule for workspaces to stop in (dep
 | ----------- | ------------------------------------------- |
 | Type        | <code>bool</code>                           |
 | Environment | <code>$CODER_ALLOW_WORKSPACE_RENAMES</code> |
-| YAML        | <code>.allowWorkspaceRenames</code>         |
+| YAML        | <code>allowWorkspaceRenames</code>          |
 | Default     | <code>false</code>                          |
 
-<<<<<<< HEAD
+
 Allow users to rename their workspaces. This is not recommended for production deployments as it can cause issues with the workspace's internal state. Use only for compatibility reasons.
->>>>>>> 2a4d16f2d (make gen)
-=======
+
 DEPRECATED: Allow users to rename their workspaces. Use only for temporary compatibility reasons, this flag will no longer function after 2024-04-01T00:00:00Z00:00.
->>>>>>> a05de9cdc (make gen)
+
 
 ### --block-direct-connections
 

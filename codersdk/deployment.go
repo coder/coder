@@ -1845,12 +1845,11 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Allow Workspace Renames",
-			Description: "DEPRECATED: Allow users to rename their workspaces. Use only for temporary compatibility reasons, this flag will no longer function after 2024-04-01T00:00:00Z00:00.",
+			Description: "DEPRECATED: Allow users to rename their workspaces. Use only for temporary compatibility reasons, this flag will no longer function after 2024-04-01.",
 			Flag:        "allow-workspace-renames",
 			Env:         "CODER_ALLOW_WORKSPACE_RENAMES",
 			Default:     "false",
 			Value:       &c.AllowWorkspaceRenames,
-			Group:       &deploymentGroupConfig,
 			YAML:        "allowWorkspaceRenames",
 		},
 		// Healthcheck Options
