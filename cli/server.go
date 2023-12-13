@@ -583,10 +583,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					HostnamePrefix:   vals.SSHConfig.DeploymentName.String(),
 					SSHConfigOptions: configSSHOptions,
 				},
-				AllowWorkspaceRenames: vals.AllowWorkspaceRenames.Value(),
 				// we are experimenting with self destructing flags that stop working after a certain date.
 				// This flag should be removed after the date specified below.
-				AllowWorkspaceRenamesExpiresAt: mustParseTime(time.RFC3339, "2024-04-01T00:00:00Z00:00"),
+				AllowWorkspaceRenames:          shouldAllowWorkspaceRenames(vals.AllowWorkspaceRenames.Value()),
+				AllowWorkspaceRenamesExpiresAt: workspaceRenamesExpiresAt(),
 			}
 			if httpServers.TLSConfig != nil {
 				options.TLSCertificates = httpServers.TLSConfig.Certificates
@@ -2553,11 +2553,19 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 	return providers, nil
 }
 
-func mustParseTime(layout string, timeString string) time.Time {
-	t, err := time.Parse(layout, timeString)
+const (
+	workspaceRenamesExpiresAtTime = "2024-04-01T00:00:00Z"
+)
+
+func workspaceRenamesExpiresAt() time.Time {
+	t, err := time.Parse(time.RFC3339, workspaceRenamesExpiresAtTime)
 	if err != nil {
 		panic(err)
 	}
 
 	return t
+}
+
+func shouldAllowWorkspaceRenames(value bool) bool {
+	return value && time.Now().Before(workspaceRenamesExpiresAt())
 }
