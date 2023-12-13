@@ -59,7 +59,7 @@ export const WorkspaceSettingsForm: FC<{
         <FormFields>
           <TextField
             {...getFieldHelpers("name")}
-            disabled={form.isSubmitting}
+            disabled={!workspace.allow_renames || form.isSubmitting}
             onChange={onChangeTrimmed(form)}
             autoFocus
             fullWidth
@@ -106,7 +106,7 @@ export const WorkspaceSettingsForm: FC<{
           </FormFields>
         </FormSection>
       )}
-      <FormFooter onCancel={onCancel} isLoading={form.isSubmitting} />
+      <FormFooter onCancel={onCancel} isLoading={form.isSubmitting} submitDisabled={!templatePoliciesEnabled && !workspace.allow_renames}/>
     </HorizontalForm>
   );
 };
