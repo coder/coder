@@ -75,6 +75,9 @@ func Test_agentIsLegacy(t *testing.T) {
 			AllowedIPs:          []netip.Prefix{netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128)},
 			Endpoints:           []string{"192.168.1.1:18842"},
 		}))
+		require.Eventually(t, func() bool {
+			return coordinator.Node(nodeID) != nil
+		}, testutil.WaitShort, testutil.IntervalFast)
 
 		proxyRes, err := client.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
 			Name: namesgenerator.GetRandomName(1),
@@ -139,6 +142,9 @@ func Test_agentIsLegacy(t *testing.T) {
 			AllowedIPs:          []netip.Prefix{netip.PrefixFrom(agpl.IPFromUUID(nodeID), 128)},
 			Endpoints:           []string{"192.168.1.1:18842"},
 		}))
+		require.Eventually(t, func() bool {
+			return coordinator.Node(nodeID) != nil
+		}, testutil.WaitShort, testutil.IntervalFast)
 
 		proxyRes, err := client.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
 			Name: namesgenerator.GetRandomName(1),
