@@ -321,7 +321,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 						r.Get("/", api.oAuth2ProviderAppSecrets)
 						r.Post("/", api.postOAuth2ProviderAppSecret)
 
-						r.Route("/{secret}", func(r chi.Router) {
+						r.Route("/{secretID}", func(r chi.Router) {
 							r.Use(httpmw.ExtractOAuth2ProviderAppSecret(options.Database))
 							r.Delete("/", api.deleteOAuth2ProviderAppSecret)
 						})

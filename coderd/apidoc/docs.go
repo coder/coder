@@ -1545,7 +1545,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/oauth2-provider/apps/{app}/secrets/{secret}": {
+        "/oauth2-provider/apps/{app}/secrets/{secretID}": {
             "delete": {
                 "security": [
                     {
@@ -1568,7 +1568,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Secret ID",
-                        "name": "secret",
+                        "name": "secretID",
                         "in": "path",
                         "required": true
                     }

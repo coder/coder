@@ -241,7 +241,7 @@ func ExtractOAuth2ProviderAppSecret(db database.Store) func(http.Handler) http.H
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			secretID, ok := ParseUUIDParam(rw, r, "secret")
+			secretID, ok := ParseUUIDParam(rw, r, "secretID")
 			if !ok {
 				return
 			}

@@ -752,18 +752,18 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X DELETE http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secrets/{secret} \
+curl -X DELETE http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secrets/{secretID} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /oauth2-provider/apps/{app}/secrets/{secret}`
+`DELETE /oauth2-provider/apps/{app}/secrets/{secretID}`
 
 ### Parameters
 
-| Name     | In   | Type   | Required | Description |
-| -------- | ---- | ------ | -------- | ----------- |
-| `app`    | path | string | true     | App ID      |
-| `secret` | path | string | true     | Secret ID   |
+| Name       | In   | Type   | Required | Description |
+| ---------- | ---- | ------ | -------- | ----------- |
+| `app`      | path | string | true     | App ID      |
+| `secretID` | path | string | true     | Secret ID   |
 
 ### Responses
 

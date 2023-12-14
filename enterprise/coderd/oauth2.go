@@ -224,9 +224,9 @@ func (api *API) postOAuth2ProviderAppSecret(rw http.ResponseWriter, r *http.Requ
 // @Security CoderSessionToken
 // @Tags Enterprise
 // @Param app path string true "App ID"
-// @Param secret path string true "Secret ID"
+// @Param secretID path string true "Secret ID"
 // @Success 204
-// @Router /oauth2-provider/apps/{app}/secrets/{secret} [delete]
+// @Router /oauth2-provider/apps/{app}/secrets/{secretID} [delete]
 func (api *API) deleteOAuth2ProviderAppSecret(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	secret := httpmw.OAuth2ProviderAppSecret(r)
