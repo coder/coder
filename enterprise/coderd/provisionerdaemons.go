@@ -26,6 +26,8 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
@@ -191,7 +193,10 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	if !authorized {
 		api.Logger.Warn(ctx, "unauthorized provisioner daemon serve request", slog.F("tags", tags))
 		httpapi.Write(ctx, rw, http.StatusForbidden,
-			codersdk.Response{Message: "You aren't allowed to create provisioner daemons"})
+			codersdk.Response{
+				Message: fmt.Sprintf("You aren't allowed to create provisioner daemons with scope %q", tags[provisionersdk.TagScope]),
+			},
+		)
 		return
 	}
 	api.Logger.Debug(ctx, "provisioner authorized", slog.F("tags", tags))
@@ -220,6 +225,31 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		slog.F("provisioners", provisioners),
 		slog.F("tags", tags),
 	)
+
+	authCtx := ctx
+	if r.Header.Get(codersdk.ProvisionerDaemonPSK) != "" {
+		//nolint:gocritic // PSK auth means no actor in request,
+		// so use system restricted.
+		authCtx = dbauthz.AsSystemRestricted(ctx)
+	}
+
+	// Create the daemon in the database.
+	_, err := api.Database.UpsertProvisionerDaemon(authCtx, database.UpsertProvisionerDaemonParams{
+		Name:         name,
+		Provisioners: provisioners,
+		Tags:         tags,
+		CreatedAt:    dbtime.Now(),
+		LastSeenAt:   sql.NullTime{Time: dbtime.Now(), Valid: true},
+		Version:      "", // TODO: provisionerd needs to send version
+	})
+	if err != nil {
+		log.Error(ctx, "create provisioner daemon", slog.Error(err))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error creating provisioner daemon.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
 	api.AGPL.WebsocketWaitMutex.Lock()
 	api.AGPL.WebsocketWaitGroup.Add(1)
