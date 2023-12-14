@@ -16,21 +16,25 @@ const (
 // own their own operations.
 // Otherwise, the "owner" tag is always empty.
 func MutateTags(userID uuid.UUID, tags map[string]string) map[string]string {
-	if tags == nil {
-		tags = map[string]string{}
+	// We copy the tags here to avoid overwriting the provided map. This can
+	// cause data races when using dbmem.
+	cp := map[string]string{}
+	for k, v := range tags {
+		cp[k] = v
 	}
-	_, ok := tags[TagScope]
+
+	_, ok := cp[TagScope]
 	if !ok {
-		tags[TagScope] = ScopeOrganization
-		delete(tags, TagOwner)
+		cp[TagScope] = ScopeOrganization
+		delete(cp, TagOwner)
 	}
-	switch tags[TagScope] {
+	switch cp[TagScope] {
 	case ScopeUser:
-		tags[TagOwner] = userID.String()
+		cp[TagOwner] = userID.String()
 	case ScopeOrganization:
-		delete(tags, TagOwner)
+		delete(cp, TagOwner)
 	default:
-		tags[TagScope] = ScopeOrganization
+		cp[TagScope] = ScopeOrganization
 	}
-	return tags
+	return cp
 }
