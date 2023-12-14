@@ -247,7 +247,7 @@ func ExtractOAuth2ProviderAppSecret(db database.Store) func(http.Handler) http.H
 			}
 			app := OAuth2ProviderApp(r)
 			secret, err := db.GetOAuth2ProviderAppSecretByID(ctx, secretID)
-			if httpapi.Is404Error(err) || app.ID != secret.AppID {
+			if httpapi.Is404Error(err) {
 				httpapi.ResourceNotFound(rw)
 				return
 			}
@@ -255,6 +255,15 @@ func ExtractOAuth2ProviderAppSecret(db database.Store) func(http.Handler) http.H
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error fetching OAuth2 app secret.",
 					Detail:  err.Error(),
+				})
+				return
+			}
+			// If the user can read the secret they can probably also read the app it
+			// belongs to and they can read this app as well, so it seems safe to give
+			// them a more helpful message than a 404 on mismatches.
+			if app.ID != secret.AppID {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "App ID does not match secret app ID.",
 				})
 				return
 			}
