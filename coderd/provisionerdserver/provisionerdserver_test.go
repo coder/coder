@@ -95,6 +95,29 @@ func TestAcquireJobWithCancel_Cancel(t *testing.T) {
 	require.Equal(t, "", job.JobId)
 }
 
+func TestHeartbeat(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	heartbeatChan := make(chan struct{})
+	heartbeatFn := func(context.Context) error {
+		heartbeatChan <- struct{}{}
+		return nil
+	}
+	//nolint:dogsled // this is a test
+	_, _, _ = setup(t, false, &overrides{
+		ctx:               ctx,
+		heartbeatFn:       heartbeatFn,
+		heartbeatInterval: testutil.IntervalFast,
+	})
+
+	<-heartbeatChan
+	cancel()
+	close(heartbeatChan)
+	<-time.After(testutil.IntervalFast)
+}
+
 func TestAcquireJob(t *testing.T) {
 	t.Parallel()
 
@@ -1686,6 +1709,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 }
 
 type overrides struct {
+	ctx                         context.Context
 	deploymentValues            *codersdk.DeploymentValues
 	externalAuthConfigs         []*externalauth.Config
 	id                          *uuid.UUID
@@ -1693,12 +1717,12 @@ type overrides struct {
 	userQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
 	timeNowFn                   func() time.Time
 	acquireJobLongPollDuration  time.Duration
+	heartbeatFn                 func(ctx context.Context) error
+	heartbeatInterval           time.Duration
 }
 
 func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisionerDaemonServer, database.Store, pubsub.Pubsub) {
 	t.Helper()
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	db := dbmem.New()
 	ps := pubsub.NewInMemory()
@@ -1710,6 +1734,14 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	var timeNowFn func() time.Time
 	pollDur := time.Duration(0)
 	if ov != nil {
+		if ov.ctx == nil {
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+			ov.ctx = ctx
+		}
+		if ov.heartbeatInterval == 0 {
+			ov.heartbeatInterval = testutil.IntervalMedium
+		}
 		if ov.deploymentValues != nil {
 			deploymentValues = ov.deploymentValues
 		}
@@ -1744,7 +1776,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	}
 
 	srv, err := provisionerdserver.NewServer(
-		ctx,
+		ov.ctx,
 		&url.URL{},
 		srvID,
 		slogtest.Make(t, &slogtest.Options{IgnoreErrors: ignoreLogErrors}),
@@ -1752,7 +1784,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		provisionerdserver.Tags{},
 		db,
 		ps,
-		provisionerdserver.NewAcquirer(ctx, logger.Named("acquirer"), db, ps),
+		provisionerdserver.NewAcquirer(ov.ctx, logger.Named("acquirer"), db, ps),
 		telemetry.NewNoop(),
 		trace.NewNoopTracerProvider().Tracer("noop"),
 		&atomic.Pointer[proto.QuotaCommitter]{},
@@ -1765,6 +1797,8 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 			TimeNowFn:             timeNowFn,
 			OIDCConfig:            &oauth2.Config{},
 			AcquireJobLongPollDur: pollDur,
+			HeartbeatInterval:     ov.heartbeatInterval,
+			HeartbeatFn:           ov.heartbeatFn,
 		},
 	)
 	require.NoError(t, err)

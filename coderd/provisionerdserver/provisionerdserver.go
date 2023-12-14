@@ -44,9 +44,15 @@ import (
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 )
 
-// DefaultAcquireJobLongPollDur is the time the (deprecated) AcquireJob rpc waits to try to obtain a job before
-// canceling and returning an empty job.
-const DefaultAcquireJobLongPollDur = time.Second * 5
+const (
+	// DefaultAcquireJobLongPollDur is the time the (deprecated) AcquireJob rpc waits to try to obtain a job before
+	// canceling and returning an empty job.
+	DefaultAcquireJobLongPollDur = time.Second * 5
+
+	// DefaultHeartbeatInterval is the interval at which the provisioner daemon
+	// will update its last seen at timestamp in the database.
+	DefaultHeartbeatInterval = time.Minute
+)
 
 type Options struct {
 	OIDCConfig          httpmw.OAuth2Config
@@ -56,6 +62,15 @@ type Options struct {
 
 	// AcquireJobLongPollDur is used in tests
 	AcquireJobLongPollDur time.Duration
+
+	// HeartbeatInterval is the interval at which the provisioner daemon
+	// will update its last seen at timestamp in the database.
+	HeartbeatInterval time.Duration
+
+	// HeartbeatFn is the function that will be called at the interval
+	// specified by HeartbeatInterval.
+	// This is only used in tests.
+	HeartbeatFn func(context.Context) error
 }
 
 type server struct {
@@ -85,6 +100,9 @@ type server struct {
 	TimeNowFn func() time.Time
 
 	acquireJobLongPollDur time.Duration
+
+	HeartbeatInterval time.Duration
+	HeartbeatFn       func(ctx context.Context) error
 }
 
 // We use the null byte (0x00) in generating a canonical map key for tags, so
@@ -161,7 +179,11 @@ func NewServer(
 	if options.AcquireJobLongPollDur == 0 {
 		options.AcquireJobLongPollDur = DefaultAcquireJobLongPollDur
 	}
-	return &server{
+	if options.HeartbeatInterval == 0 {
+		options.HeartbeatInterval = DefaultHeartbeatInterval
+	}
+
+	s := &server{
 		lifecycleCtx:                lifecycleCtx,
 		AccessURL:                   accessURL,
 		ID:                          id,
@@ -182,7 +204,13 @@ func NewServer(
 		OIDCConfig:                  options.OIDCConfig,
 		TimeNowFn:                   options.TimeNowFn,
 		acquireJobLongPollDur:       options.AcquireJobLongPollDur,
-	}, nil
+		HeartbeatInterval:           options.HeartbeatInterval,
+		HeartbeatFn:                 options.HeartbeatFn,
+	}
+
+	go s.heartbeat()
+
+	return s, nil
 }
 
 // timeNow should be used when trying to get the current time for math
@@ -192,6 +220,44 @@ func (s *server) timeNow() time.Time {
 		return dbtime.Time(s.TimeNowFn())
 	}
 	return dbtime.Now()
+}
+
+// heartbeat runs heartbeatOnce at the interval specified by HeartbeatInterval
+// until the lifecycle context is canceled.
+func (s *server) heartbeat() {
+	tick := time.NewTicker(time.Nanosecond)
+	defer tick.Stop()
+	for {
+		select {
+		case <-s.lifecycleCtx.Done():
+			return
+		case <-tick.C:
+			hbCtx, hbCancel := context.WithTimeout(s.lifecycleCtx, s.HeartbeatInterval)
+			if err := s.heartbeatOnce(hbCtx); err != nil {
+				s.Logger.Error(hbCtx, "heartbeat failed", slog.Error(err))
+			}
+			hbCancel()
+			tick.Reset(s.HeartbeatInterval)
+		}
+	}
+}
+
+// heartbeatOnce updates the last seen at timestamp in the database.
+// If HeartbeatFn is set, it will be called instead.
+func (s *server) heartbeatOnce(ctx context.Context) error {
+	if s.HeartbeatFn != nil {
+		return s.HeartbeatFn(ctx)
+	}
+
+	if s.lifecycleCtx.Err() != nil {
+		return nil
+	}
+
+	//nolint:gocritic // Provisionerd has specific authz rules.
+	return s.Database.UpdateProvisionerDaemonLastSeenAt(dbauthz.AsProvisionerd(ctx), database.UpdateProvisionerDaemonLastSeenAtParams{
+		ID:         s.ID,
+		LastSeenAt: sql.NullTime{Time: s.timeNow(), Valid: true},
+	})
 }
 
 // AcquireJob queries the database to lock a job.

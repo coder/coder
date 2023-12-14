@@ -234,7 +234,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	// Create the daemon in the database.
-	_, err := api.Database.UpsertProvisionerDaemon(authCtx, database.UpsertProvisionerDaemonParams{
+	daemon, err := api.Database.UpsertProvisionerDaemon(authCtx, database.UpsertProvisionerDaemonParams{
 		Name:         name,
 		Provisioners: provisioners,
 		Tags:         tags,
@@ -295,11 +295,13 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	}
 	mux := drpcmux.New()
 	logger := api.Logger.Named(fmt.Sprintf("ext-provisionerd-%s", name))
+	srvCtx, srvCancel := context.WithCancel(ctx)
+	defer srvCancel()
 	logger.Info(ctx, "starting external provisioner daemon")
 	srv, err := provisionerdserver.NewServer(
-		api.ctx,
+		srvCtx,
 		api.AccessURL,
-		id,
+		daemon.ID,
 		logger,
 		provisioners,
 		tags,
@@ -339,6 +341,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		},
 	})
 	err = server.Serve(ctx, session)
+	srvCancel()
 	logger.Info(ctx, "provisioner daemon disconnected", slog.Error(err))
 	if err != nil && !xerrors.Is(err, io.EOF) {
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("serve: %s", err))
