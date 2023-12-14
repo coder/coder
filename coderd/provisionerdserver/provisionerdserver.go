@@ -234,7 +234,9 @@ func (s *server) heartbeat() {
 		case <-tick.C:
 			hbCtx, hbCancel := context.WithTimeout(s.lifecycleCtx, s.HeartbeatInterval)
 			if err := s.heartbeatOnce(hbCtx); err != nil {
-				s.Logger.Error(hbCtx, "heartbeat failed", slog.Error(err))
+				if !xerrors.Is(err, context.DeadlineExceeded) && !xerrors.Is(err, context.Canceled) {
+					s.Logger.Error(hbCtx, "heartbeat failed", slog.Error(err))
+				}
 			}
 			hbCancel()
 			tick.Reset(s.HeartbeatInterval)
@@ -253,8 +255,8 @@ func (s *server) heartbeatOnce(ctx context.Context) error {
 		return nil
 	}
 
-	//nolint:gocritic // Provisionerd has specific authz rules.
-	return s.Database.UpdateProvisionerDaemonLastSeenAt(dbauthz.AsProvisionerd(ctx), database.UpdateProvisionerDaemonLastSeenAtParams{
+	//nolint:gocritic // This is specifically for updating the last seen at timestamp.
+	return s.Database.UpdateProvisionerDaemonLastSeenAt(dbauthz.AsSystemRestricted(ctx), database.UpdateProvisionerDaemonLastSeenAtParams{
 		ID:         s.ID,
 		LastSeenAt: sql.NullTime{Time: s.timeNow(), Valid: true},
 	})
