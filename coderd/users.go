@@ -761,16 +761,16 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 	}
 }
 
-// @Summary Update user theme preference
-// @ID update-user-theme-preference
+// @Summary Update user appearance settings
+// @ID update-user-appearance-settings
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
-// @Param request body codersdk.UpdateUserAppearanceSettingsRequest true "New theme preference"
+// @Param request body codersdk.UpdateUserAppearanceSettingsRequest true "New appearance settings"
 // @Success 200 {object} codersdk.User
-// @Router /users/{user}/theme [put]
+// @Router /users/{user}/appearance [put]
 func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx  = r.Context()
