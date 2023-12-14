@@ -1,4 +1,4 @@
-import type { StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react";
 import {
   MockOAuth2Apps,
   MockOAuth2AppSecrets,
@@ -6,10 +6,11 @@ import {
 } from "testHelpers/entities";
 import { EditOAuth2AppPageView } from "./EditOAuth2AppPageView";
 
-export default {
+const meta: Meta = {
   title: "pages/DeploySettingsPage/EditOAuth2AppPageView",
   component: EditOAuth2AppPageView,
 };
+export default meta;
 
 type Story = StoryObj<typeof EditOAuth2AppPageView>;
 

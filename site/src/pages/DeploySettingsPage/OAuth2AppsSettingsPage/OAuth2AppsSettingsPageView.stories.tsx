@@ -1,11 +1,12 @@
-import type { StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react";
 import { MockOAuth2Apps } from "testHelpers/entities";
 import OAuth2AppsSettingsPageView from "./OAuth2AppsSettingsPageView";
 
-export default {
+const meta: Meta = {
   title: "pages/DeploySettingsPage/OAuth2AppsSettingsPageView",
   component: OAuth2AppsSettingsPageView,
 };
+export default meta;
 
 type Story = StoryObj<typeof OAuth2AppsSettingsPageView>;
 
