@@ -1845,6 +1845,8 @@ type ProvisionerDaemon struct {
 	Tags         StringMap         `db:"tags" json:"tags"`
 	LastSeenAt   sql.NullTime      `db:"last_seen_at" json:"last_seen_at"`
 	Version      string            `db:"version" json:"version"`
+	// The API version of the provisioner daemon
+	APIVersion string `db:"api_version" json:"api_version"`
 }
 
 type ProvisionerJob struct {
