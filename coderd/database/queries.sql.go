@@ -3019,7 +3019,7 @@ func (q *sqlQuerier) DeleteOldProvisionerDaemons(ctx context.Context) error {
 
 const getProvisionerDaemons = `-- name: GetProvisionerDaemons :many
 SELECT
-	id, created_at, name, provisioners, replica_id, tags, last_seen_at, version
+	id, created_at, name, provisioners, replica_id, tags, last_seen_at, version, api_version
 FROM
 	provisioner_daemons
 `
@@ -3042,6 +3042,7 @@ func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDa
 			&i.Tags,
 			&i.LastSeenAt,
 			&i.Version,
+			&i.APIVersion,
 		); err != nil {
 			return nil, err
 		}
@@ -3083,7 +3084,7 @@ VALUES (
 WHERE
 	-- Only ones with the same tags are allowed clobber
 	provisioner_daemons.tags <@ $4 :: jsonb
-RETURNING id, created_at, name, provisioners, replica_id, tags, last_seen_at, version
+RETURNING id, created_at, name, provisioners, replica_id, tags, last_seen_at, version, api_version
 `
 
 type UpsertProvisionerDaemonParams struct {
@@ -3114,6 +3115,7 @@ func (q *sqlQuerier) UpsertProvisionerDaemon(ctx context.Context, arg UpsertProv
 		&i.Tags,
 		&i.LastSeenAt,
 		&i.Version,
+		&i.APIVersion,
 	)
 	return i, err
 }
