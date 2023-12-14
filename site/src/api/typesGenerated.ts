@@ -1230,6 +1230,11 @@ export interface UpdateTemplateMeta {
 }
 
 // From codersdk/users.go
+export interface UpdateUserAppearanceSettingsRequest {
+  readonly theme_preference: string;
+}
+
+// From codersdk/users.go
 export interface UpdateUserPasswordRequest {
   readonly old_password: string;
   readonly password: string;
@@ -1293,6 +1298,7 @@ export interface User {
   readonly roles: Role[];
   readonly avatar_url: string;
   readonly login_type: LoginType;
+  readonly theme_preference: string;
 }
 
 // From codersdk/insights.go

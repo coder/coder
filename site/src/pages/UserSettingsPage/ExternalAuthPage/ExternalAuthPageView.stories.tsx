@@ -2,12 +2,12 @@ import {
   MockGithubAuthLink,
   MockGithubExternalProvider,
 } from "testHelpers/entities";
-import { UserExternalAuthSettingsPageView } from "./UserExternalAuthSettingsPageView";
+import { ExternalAuthPageView } from "./ExternalAuthPageView";
 import type { Meta, StoryObj } from "@storybook/react";
 
-const meta: Meta<typeof UserExternalAuthSettingsPageView> = {
-  title: "pages/UserExternalAuthSettingsPage/UserExternalAuthSettingsPageView",
-  component: UserExternalAuthSettingsPageView,
+const meta: Meta<typeof ExternalAuthPageView> = {
+  title: "pages/UserSettingsPage/ExternalAuthPageView",
+  component: ExternalAuthPageView,
   args: {
     isLoading: false,
     getAuthsError: undefined,
@@ -22,7 +22,7 @@ const meta: Meta<typeof UserExternalAuthSettingsPageView> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof UserExternalAuthSettingsPageView>;
+type Story = StoryObj<typeof ExternalAuthPageView>;
 
 export const NoProviders: Story = {};
 

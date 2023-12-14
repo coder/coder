@@ -51,40 +51,39 @@ export const AccountForm: FC<AccountFormProps> = ({
   const getFieldHelpers = getFormHelpers(form, updateProfileError);
 
   return (
-    <>
-      <Form onSubmit={form.handleSubmit}>
-        <FormFields>
-          {Boolean(updateProfileError) && (
-            <ErrorAlert error={updateProfileError} />
-          )}
-          <TextField
-            disabled
-            fullWidth
-            label={Language.emailLabel}
-            value={email}
-          />
-          <TextField
-            {...getFieldHelpers("username")}
-            onChange={onChangeTrimmed(form)}
-            aria-disabled={!editable}
-            autoComplete="username"
-            disabled={!editable}
-            fullWidth
-            label={Language.usernameLabel}
-          />
+    <Form onSubmit={form.handleSubmit}>
+      <FormFields>
+        {Boolean(updateProfileError) && (
+          <ErrorAlert error={updateProfileError} />
+        )}
 
-          <div>
-            <LoadingButton
-              loading={isLoading}
-              disabled={!editable}
-              type="submit"
-              variant="contained"
-            >
-              {Language.updateSettings}
-            </LoadingButton>
-          </div>
-        </FormFields>
-      </Form>
-    </>
+        <TextField
+          disabled
+          fullWidth
+          label={Language.emailLabel}
+          value={email}
+        />
+        <TextField
+          {...getFieldHelpers("username")}
+          onChange={onChangeTrimmed(form)}
+          aria-disabled={!editable}
+          autoComplete="username"
+          disabled={!editable}
+          fullWidth
+          label={Language.usernameLabel}
+        />
+
+        <div>
+          <LoadingButton
+            loading={isLoading}
+            disabled={!editable}
+            type="submit"
+            variant="contained"
+          >
+            {Language.updateSettings}
+          </LoadingButton>
+        </div>
+      </FormFields>
+    </Form>
   );
 };

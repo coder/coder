@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { rest } from "msw";
 import { createMemoryRouter } from "react-router-dom";
@@ -29,7 +29,7 @@ const fillForm = async ({
   const submitButton = screen.getByRole("button", {
     name: PageViewLanguage.create,
   });
-  fireEvent.click(submitButton);
+  await userEvent.click(submitButton);
 };
 
 describe("Setup Page", () => {

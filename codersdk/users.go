@@ -55,6 +55,7 @@ type User struct {
 	Roles           []Role      `json:"roles"`
 	AvatarURL       string      `json:"avatar_url" format:"uri"`
 	LoginType       LoginType   `json:"login_type"`
+	ThemePreference string      `json:"theme_preference"`
 }
 
 type GetUsersResponse struct {
@@ -90,6 +91,10 @@ type CreateUserRequest struct {
 
 type UpdateUserProfileRequest struct {
 	Username string `json:"username" validate:"required,username"`
+}
+
+type UpdateUserAppearanceSettingsRequest struct {
+	ThemePreference string `json:"theme_preference" validate:"required"`
 }
 
 type UpdateUserPasswordRequest struct {
@@ -249,7 +254,7 @@ func (c *Client) DeleteUser(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-// UpdateUserProfile enables callers to update profile information
+// UpdateUserProfile updates the username of a user.
 func (c *Client) UpdateUserProfile(ctx context.Context, user string, req UpdateUserProfileRequest) (User, error) {
 	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/profile", user), req)
 	if err != nil {
@@ -284,6 +289,20 @@ func (c *Client) UpdateUserStatus(ctx context.Context, user string, status UserS
 		return User{}, ReadBodyAsError(res)
 	}
 
+	var resp User
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateUserAppearanceSettings updates the appearance settings for a user.
+func (c *Client) UpdateUserAppearanceSettings(ctx context.Context, user string, req UpdateUserAppearanceSettingsRequest) (User, error) {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/appearance", user), req)
+	if err != nil {
+		return User{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return User{}, ReadBodyAsError(res)
+	}
 	var resp User
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }

@@ -16,7 +16,8 @@
       }
     ],
     "avatar_url": "",
-    "login_type": "password"
+    "login_type": "password",
+    "theme_preference": ""
   },
   {
     "id": "[second user ID]",
@@ -30,6 +31,7 @@
     ],
     "roles": [],
     "avatar_url": "",
-    "login_type": "password"
+    "login_type": "password",
+    "theme_preference": ""
   }
 ]
