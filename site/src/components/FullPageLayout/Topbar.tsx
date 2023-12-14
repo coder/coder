@@ -1,6 +1,7 @@
 import Button, { ButtonProps } from "@mui/material/Button";
 import IconButton, { IconButtonProps } from "@mui/material/IconButton";
 import { useTheme } from "@mui/material/styles";
+import { Avatar, AvatarProps } from "components/Avatar/Avatar";
 import { HTMLAttributes, forwardRef } from "react";
 
 export const Topbar = (props: HTMLAttributes<HTMLDivElement>) => {
@@ -56,7 +57,7 @@ export const TopbarButton = (props: ButtonProps) => {
   );
 };
 
-export const TopbarDataGroup = (props: HTMLAttributes<HTMLDivElement>) => {
+export const TopbarData = (props: HTMLAttributes<HTMLDivElement>) => {
   return (
     <div
       {...props}
@@ -76,5 +77,16 @@ export const TopbarDivider = (props: HTMLAttributes<HTMLSpanElement>) => {
     <span {...props} css={{ color: theme.palette.divider }}>
       /
     </span>
+  );
+};
+
+export const TopbarAvatar = (props: AvatarProps) => {
+  return (
+    <Avatar
+      {...props}
+      variant="square"
+      fitImage
+      css={{ width: 16, height: 16 }}
+    />
   );
 };

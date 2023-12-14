@@ -12,7 +12,6 @@ import type {
 } from "api/typesGenerated";
 import { Link as RouterLink } from "react-router-dom";
 import { Alert, AlertDetail } from "components/Alert/Alert";
-import { Avatar } from "components/Avatar/Avatar";
 import { TemplateResourcesTable } from "components/TemplateResourcesTable/TemplateResourcesTable";
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import { PublishVersionData } from "pages/TemplateVersionEditorPage/types";
@@ -47,8 +46,9 @@ import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { Loader } from "components/Loader/Loader";
 import {
   Topbar,
+  TopbarAvatar,
   TopbarButton,
-  TopbarDataGroup,
+  TopbarData,
   TopbarDivider,
   TopbarIconButton,
 } from "components/FullPageLayout/Topbar";
@@ -201,13 +201,8 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
             </Tooltip>
           </div>
 
-          <TopbarDataGroup>
-            <Avatar
-              src={template.icon}
-              variant="square"
-              fitImage
-              css={{ width: 16, height: 16 }}
-            />
+          <TopbarData>
+            <TopbarAvatar src={template.icon} />
             <RouterLink
               to={`/templates/${template.name}`}
               css={{
@@ -225,7 +220,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
             <span css={{ color: theme.palette.text.secondary }}>
               {templateVersion.name}
             </span>
-          </TopbarDataGroup>
+          </TopbarData>
 
           <div
             css={{
