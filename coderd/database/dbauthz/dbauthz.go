@@ -2494,6 +2494,13 @@ func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemb
 	return q.db.UpdateMemberRoles(ctx, arg)
 }
 
+func (q *querier) UpdateProvisionerDaemonLastSeenAt(ctx context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceProvisionerDaemon); err != nil {
+		return err
+	}
+	return q.db.UpdateProvisionerDaemonLastSeenAt(ctx, arg)
+}
+
 // TODO: We need to create a ProvisionerJob resource type
 func (q *querier) UpdateProvisionerJobByID(ctx context.Context, arg database.UpdateProvisionerJobByIDParams) error {
 	// if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {

@@ -3057,6 +3057,20 @@ func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDa
 	return items, nil
 }
 
+const updateProvisionerDaemonLastSeenAt = `-- name: UpdateProvisionerDaemonLastSeenAt :exec
+UPDATE provisioner_daemons SET last_seen_at = $1 WHERE id = $2
+`
+
+type UpdateProvisionerDaemonLastSeenAtParams struct {
+	LastSeenAt sql.NullTime `db:"last_seen_at" json:"last_seen_at"`
+	ID         uuid.UUID    `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateProvisionerDaemonLastSeenAt(ctx context.Context, arg UpdateProvisionerDaemonLastSeenAtParams) error {
+	_, err := q.db.ExecContext(ctx, updateProvisionerDaemonLastSeenAt, arg.LastSeenAt, arg.ID)
+	return err
+}
+
 const upsertProvisionerDaemon = `-- name: UpsertProvisionerDaemon :one
 INSERT INTO
 	provisioner_daemons (

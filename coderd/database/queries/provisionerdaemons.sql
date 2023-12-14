@@ -45,3 +45,6 @@ WHERE
 	-- Only ones with the same tags are allowed clobber
 	provisioner_daemons.tags <@ @tags :: jsonb
 RETURNING *;
+
+-- name: UpdateProvisionerDaemonLastSeenAt :exec
+UPDATE provisioner_daemons SET last_seen_at = @last_seen_at WHERE id = @id;

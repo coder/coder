@@ -241,6 +241,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		CreatedAt:    dbtime.Now(),
 		LastSeenAt:   sql.NullTime{Time: dbtime.Now(), Valid: true},
 		Version:      "", // TODO: provisionerd needs to send version
+		APIVersion:   "1.0",
 	})
 	if err != nil {
 		log.Error(ctx, "create provisioner daemon", slog.Error(err))
