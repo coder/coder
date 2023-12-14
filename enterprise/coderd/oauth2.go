@@ -187,6 +187,7 @@ func (api *API) oAuth2ProviderAppSecrets(rw http.ResponseWriter, r *http.Request
 func (api *API) postOAuth2ProviderAppSecret(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	app := httpmw.OAuth2ProviderApp(r)
+	// 40 characters matches the length of GitHub's client secrets.
 	rawSecret, err := cryptorand.String(40)
 	if err != nil {
 		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
@@ -196,9 +197,12 @@ func (api *API) postOAuth2ProviderAppSecret(rw http.ResponseWriter, r *http.Requ
 	}
 	hashed := sha256.Sum256([]byte(rawSecret))
 	secret, err := api.Database.InsertOAuth2ProviderAppSecret(ctx, database.InsertOAuth2ProviderAppSecretParams{
-		ID:            uuid.New(),
-		CreatedAt:     dbtime.Now(),
-		HashedSecret:  hashed[:],
+		ID:           uuid.New(),
+		CreatedAt:    dbtime.Now(),
+		HashedSecret: hashed[:],
+		// DisplaySecret is the last six characters of the original unhashed secret.
+		// This is done so they can be differentiated and it matches how GitHub
+		// displays their client secrets.
 		DisplaySecret: rawSecret[len(rawSecret)-6:],
 		AppID:         app.ID,
 	})
