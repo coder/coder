@@ -1026,8 +1026,8 @@
       "icon_path": "./images/icons/info.svg",
       "children": [
         {
-          "title": "Configuring Custom Claims/Scopes with Okta",
-          "description": "Fixed in v0.23.0 (Apr 25, 2023)",
+          "title": "Configuring Okta",
+          "description": "Custom claims/scopes with Okta for group/role sync",
           "path": "./guides/configuring-okta.md"
         }
       ]
