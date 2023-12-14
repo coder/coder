@@ -39,7 +39,7 @@ type EditOAuth2AppProps = {
   deleteApp: () => void;
   generateAppSecret: () => void;
   deleteAppSecret: (id: string) => void;
-  secrets?: TypesGen.OAuth2AppSecret[];
+  secrets?: readonly TypesGen.OAuth2AppSecret[];
   newAppSecret?: TypesGen.OAuth2AppSecretFull;
   dismissNewSecret: () => void;
   error?: unknown;
@@ -177,7 +177,7 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 };
 
 type OAuth2AppSecretsTableProps = {
-  secrets?: TypesGen.OAuth2AppSecret[];
+  secrets?: readonly TypesGen.OAuth2AppSecret[];
   generateAppSecret: () => void;
   isLoadingSecrets: boolean;
   isUpdating:
