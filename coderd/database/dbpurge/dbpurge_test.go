@@ -217,6 +217,8 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 		Tags:         database.StringMap{provisionersdk.TagScope: provisionersdk.ScopeOrganization},
 		CreatedAt:    now.Add(-14 * 24 * time.Hour),
 		LastSeenAt:   sql.NullTime{Valid: true, Time: now.Add(-7 * 24 * time.Hour).Add(time.Minute)},
+		Version:      "1.0.0",
+		APIVersion:   "1.0",
 	})
 	require.NoError(t, err)
 	_, err = db.UpsertProvisionerDaemon(ctx, database.UpsertProvisionerDaemonParams{
@@ -226,6 +228,8 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 		Tags:         database.StringMap{provisionersdk.TagScope: provisionersdk.ScopeOrganization},
 		CreatedAt:    now.Add(-8 * 24 * time.Hour),
 		LastSeenAt:   sql.NullTime{Valid: true, Time: now.Add(-8 * 24 * time.Hour).Add(time.Hour)},
+		Version:      "1.0.0",
+		APIVersion:   "1.0",
 	})
 	require.NoError(t, err)
 	_, err = db.UpsertProvisionerDaemon(ctx, database.UpsertProvisionerDaemonParams{
@@ -236,7 +240,9 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 			provisionersdk.TagScope: provisionersdk.ScopeUser,
 			provisionersdk.TagOwner: uuid.NewString(),
 		},
-		CreatedAt: now.Add(-9 * 24 * time.Hour),
+		CreatedAt:  now.Add(-9 * 24 * time.Hour),
+		Version:    "1.0.0",
+		APIVersion: "1.0",
 	})
 	require.NoError(t, err)
 	_, err = db.UpsertProvisionerDaemon(ctx, database.UpsertProvisionerDaemonParams{
@@ -249,6 +255,8 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 		},
 		CreatedAt:  now.Add(-6 * 24 * time.Hour),
 		LastSeenAt: sql.NullTime{Valid: true, Time: now.Add(-6 * 24 * time.Hour)},
+		Version:    "1.0.0",
+		APIVersion: "1.0",
 	})
 	require.NoError(t, err)
 

@@ -3066,7 +3066,8 @@ INSERT INTO
 		provisioners,
 		tags,
 		last_seen_at,
-		"version"
+		"version",
+		api_version
 	)
 VALUES (
 	gen_random_uuid(),
@@ -3075,12 +3076,14 @@ VALUES (
 	$3,
 	$4,
 	$5,
-	$6
+	$6,
+	$7
 ) ON CONFLICT("name", lower((tags ->> 'owner'::text))) DO UPDATE SET
 	provisioners = $3,
 	tags = $4,
 	last_seen_at = $5,
-	"version" = $6
+	"version" = $6,
+	api_version = $7
 WHERE
 	-- Only ones with the same tags are allowed clobber
 	provisioner_daemons.tags <@ $4 :: jsonb
@@ -3094,6 +3097,7 @@ type UpsertProvisionerDaemonParams struct {
 	Tags         StringMap         `db:"tags" json:"tags"`
 	LastSeenAt   sql.NullTime      `db:"last_seen_at" json:"last_seen_at"`
 	Version      string            `db:"version" json:"version"`
+	APIVersion   string            `db:"api_version" json:"api_version"`
 }
 
 func (q *sqlQuerier) UpsertProvisionerDaemon(ctx context.Context, arg UpsertProvisionerDaemonParams) (ProvisionerDaemon, error) {
@@ -3104,6 +3108,7 @@ func (q *sqlQuerier) UpsertProvisionerDaemon(ctx context.Context, arg UpsertProv
 		arg.Tags,
 		arg.LastSeenAt,
 		arg.Version,
+		arg.APIVersion,
 	)
 	var i ProvisionerDaemon
 	err := row.Scan(

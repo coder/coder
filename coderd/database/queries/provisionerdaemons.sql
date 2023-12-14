@@ -23,7 +23,8 @@ INSERT INTO
 		provisioners,
 		tags,
 		last_seen_at,
-		"version"
+		"version",
+		api_version
 	)
 VALUES (
 	gen_random_uuid(),
@@ -32,12 +33,14 @@ VALUES (
 	@provisioners,
 	@tags,
 	@last_seen_at,
-	@version
+	@version,
+	@api_version
 ) ON CONFLICT("name", lower((tags ->> 'owner'::text))) DO UPDATE SET
 	provisioners = @provisioners,
 	tags = @tags,
 	last_seen_at = @last_seen_at,
-	"version" = @version
+	"version" = @version,
+	api_version = @api_version
 WHERE
 	-- Only ones with the same tags are allowed clobber
 	provisioner_daemons.tags <@ @tags :: jsonb
