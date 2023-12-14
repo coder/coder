@@ -25,7 +25,7 @@ import { Stack } from "components/Stack/Stack";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 
 type OAuth2AppsSettingsProps = {
-  apps?: TypesGen.OAuth2App[];
+  apps?: TypesGen.OAuth2ProviderApp[];
   isEntitled: boolean;
   isLoading: boolean;
 };
@@ -55,7 +55,7 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
         <Stack direction="row" spacing={2}>
           <Button
             component={Link}
-            to="/deployment/oauth2-apps/add"
+            to="/deployment/oauth2-provider/apps/add"
             startIcon={<AddIcon />}
           >
             Add application
@@ -92,14 +92,14 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 };
 
 type OAuth2AppRowProps = {
-  app: TypesGen.OAuth2App;
+  app: TypesGen.OAuth2ProviderApp;
 };
 
 const OAuth2AppRow: FC<OAuth2AppRowProps> = ({ app }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const clickableProps = useClickableTableRow({
-    onClick: () => navigate(`/deployment/oauth2-apps/${app.id}`),
+    onClick: () => navigate(`/deployment/oauth2-provider/apps/${app.id}`),
   });
 
   return (

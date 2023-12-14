@@ -1,15 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
-  deleteOAuth2App,
-  deleteOAuth2AppSecret,
-  postOAuth2AppSecret,
-  putOAuth2App,
+  deleteOAuth2ProviderApp,
+  deleteOAuth2ProviderAppSecret,
+  postOAuth2ProviderAppSecret,
+  putOAuth2ProviderApp,
 } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import {
-  oauth2App,
-  oauth2AppSecrets,
-  oauth2AppSecretsKey,
+  oauth2ProviderApp,
+  oauth2ProviderAppSecrets,
+  oauth2ProviderAppSecretsKey,
 } from "api/queries/oauth2";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { FC, useState } from "react";
@@ -23,18 +23,18 @@ const EditOAuth2AppPage: FC = () => {
   const { appId } = useParams() as { appId: string };
   const queryClient = useQueryClient();
   const [newAppSecret, setNewAppSecret] =
-    useState<TypesGen.OAuth2AppSecretFull>();
+    useState<TypesGen.OAuth2ProviderAppSecretFull>();
 
-  const oauth2AppQuery = useQuery(oauth2App(appId));
-  const appName = oauth2AppQuery.data?.name;
+  const appQuery = useQuery(oauth2ProviderApp(appId));
+  const appName = appQuery.data?.name;
 
   const deleteMutation = useMutation({
-    mutationFn: deleteOAuth2App,
+    mutationFn: deleteOAuth2ProviderApp,
     onSuccess: async () => {
       displaySuccess(
         `You have successfully deleted the OAuth2 application "${appName}"`,
       );
-      navigate("/deployment/oauth2-apps?deleted=true");
+      navigate("/deployment/oauth2-provider/apps?deleted=true");
     },
     onError: () => displayError("Failed to delete OAuth2 application"),
   });
@@ -45,35 +45,35 @@ const EditOAuth2AppPage: FC = () => {
       req,
     }: {
       id: string;
-      req: TypesGen.PutOAuth2AppRequest;
-    }) => putOAuth2App(id, req),
+      req: TypesGen.PutOAuth2ProviderAppRequest;
+    }) => putOAuth2ProviderApp(id, req),
     onSuccess: () => {
       displaySuccess(
         `Successfully updated the OAuth2 application "${appName}".`,
       );
-      navigate("/deployment/oauth2-apps?updated=true");
+      navigate("/deployment/oauth2-provider/apps?updated=true");
     },
     onError: () => displayError("Failed to update OAuth2 application"),
   });
 
-  const oauth2AppSecretsQuery = useQuery(oauth2AppSecrets(appId));
+  const secretsQuery = useQuery(oauth2ProviderAppSecrets(appId));
 
   const postSecretMutation = useMutation({
-    mutationFn: postOAuth2AppSecret,
-    onSuccess: async (secret: TypesGen.OAuth2AppSecretFull) => {
+    mutationFn: postOAuth2ProviderAppSecret,
+    onSuccess: async (secret: TypesGen.OAuth2ProviderAppSecretFull) => {
       displaySuccess("Successfully generated OAuth2 client secret");
       setNewAppSecret(secret);
-      await queryClient.invalidateQueries([oauth2AppSecretsKey, appId]);
+      await queryClient.invalidateQueries([oauth2ProviderAppSecretsKey, appId]);
     },
     onError: () => displayError("Failed to generate OAuth2 client secret"),
   });
 
   const deleteSecretMutation = useMutation({
     mutationFn: ({ appId, secretId }: { appId: string; secretId: string }) =>
-      deleteOAuth2AppSecret(appId, secretId),
+      deleteOAuth2ProviderAppSecret(appId, secretId),
     onSuccess: async () => {
       displaySuccess("Successfully deleted an OAuth2 client secret");
-      await queryClient.invalidateQueries([oauth2AppSecretsKey, appId]);
+      await queryClient.invalidateQueries([oauth2ProviderAppSecretsKey, appId]);
     },
     onError: () => displayError("Failed to delete OAuth2 client secret"),
   });
@@ -85,10 +85,10 @@ const EditOAuth2AppPage: FC = () => {
       </Helmet>
 
       <EditOAuth2AppPageView
-        app={oauth2AppQuery.data}
-        secrets={oauth2AppSecretsQuery.data}
-        isLoadingApp={oauth2AppQuery.isLoading}
-        isLoadingSecrets={oauth2AppQuery.isLoading}
+        app={appQuery.data}
+        secrets={secretsQuery.data}
+        isLoadingApp={appQuery.isLoading}
+        isLoadingSecrets={secretsQuery.isLoading}
         mutatingResource={{
           updateApp: putMutation.isLoading,
           deleteApp: deleteMutation.isLoading,
@@ -98,14 +98,14 @@ const EditOAuth2AppPage: FC = () => {
         newAppSecret={newAppSecret}
         dismissNewSecret={() => setNewAppSecret(undefined)}
         error={
-          oauth2AppQuery.error ||
+          appQuery.error ||
           putMutation.error ||
           deleteMutation.error ||
-          oauth2AppSecretsQuery.error ||
+          secretsQuery.error ||
           postSecretMutation.error ||
           deleteSecretMutation.error
         }
-        updateApp={(req: TypesGen.PutOAuth2AppRequest) => {
+        updateApp={(req: TypesGen.PutOAuth2ProviderAppRequest) => {
           putMutation.mutate({ id: appId, req });
         }}
         deleteApp={() => {

@@ -181,23 +181,23 @@ func ExtractOAuth2(config OAuth2Config, client *http.Client, authURLOpts map[str
 }
 
 type (
-	oauth2AppParamContextKey       struct{}
-	oauth2AppSecretParamContextKey struct{}
+	oauth2ProviderAppParamContextKey       struct{}
+	oauth2ProviderAppSecretParamContextKey struct{}
 )
 
-// OAuth2App returns the OAuth2 app from the ExtractOAuth2AppParam handler.
-func OAuth2App(r *http.Request) database.OAuth2App {
-	app, ok := r.Context().Value(oauth2AppParamContextKey{}).(database.OAuth2App)
+// OAuth2ProviderApp returns the OAuth2 app from the ExtractOAuth2ProviderAppParam handler.
+func OAuth2ProviderApp(r *http.Request) database.OAuth2ProviderApp {
+	app, ok := r.Context().Value(oauth2ProviderAppParamContextKey{}).(database.OAuth2ProviderApp)
 	if !ok {
 		panic("developer error: oauth2 app param middleware not provided")
 	}
 	return app
 }
 
-// ExtractOAuth2App grabs an OAuth2 app from the "app" URL parameter.  This
+// ExtractOAuth2ProviderApp grabs an OAuth2 app from the "app" URL parameter.  This
 // middleware requires the API key middleware higher in the call stack for
 // authentication.
-func ExtractOAuth2App(db database.Store) func(http.Handler) http.Handler {
+func ExtractOAuth2ProviderApp(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
@@ -206,7 +206,7 @@ func ExtractOAuth2App(db database.Store) func(http.Handler) http.Handler {
 				return
 			}
 
-			app, err := db.GetOAuth2AppByID(ctx, appID)
+			app, err := db.GetOAuth2ProviderAppByID(ctx, appID)
 			if httpapi.Is404Error(err) {
 				httpapi.ResourceNotFound(rw)
 				return
@@ -218,26 +218,26 @@ func ExtractOAuth2App(db database.Store) func(http.Handler) http.Handler {
 				})
 				return
 			}
-			ctx = context.WithValue(ctx, oauth2AppParamContextKey{}, app)
+			ctx = context.WithValue(ctx, oauth2ProviderAppParamContextKey{}, app)
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}
 }
 
-// OAuth2AppSecret returns the OAuth2 app secret from the
-// ExtractOAuth2AppSecretParam handler.
-func OAuth2AppSecret(r *http.Request) database.OAuth2AppSecret {
-	app, ok := r.Context().Value(oauth2AppSecretParamContextKey{}).(database.OAuth2AppSecret)
+// OAuth2ProviderAppSecret returns the OAuth2 app secret from the
+// ExtractOAuth2ProviderAppSecretParam handler.
+func OAuth2ProviderAppSecret(r *http.Request) database.OAuth2ProviderAppSecret {
+	app, ok := r.Context().Value(oauth2ProviderAppSecretParamContextKey{}).(database.OAuth2ProviderAppSecret)
 	if !ok {
 		panic("developer error: oauth2 app secret param middleware not provided")
 	}
 	return app
 }
 
-// ExtractOAuth2AppSecret grabs an OAuth2 app secret from the "app" and
-// "secret" URL parameters.  This middleware requires the ExtractOAuth2App
+// ExtractOAuth2ProviderAppSecret grabs an OAuth2 app secret from the "app" and
+// "secret" URL parameters.  This middleware requires the ExtractOAuth2ProviderApp
 // middleware higher in the stack
-func ExtractOAuth2AppSecret(db database.Store) func(http.Handler) http.Handler {
+func ExtractOAuth2ProviderAppSecret(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
@@ -245,8 +245,8 @@ func ExtractOAuth2AppSecret(db database.Store) func(http.Handler) http.Handler {
 			if !ok {
 				return
 			}
-			app := OAuth2App(r)
-			secret, err := db.GetOAuth2AppSecretByID(ctx, secretID)
+			app := OAuth2ProviderApp(r)
+			secret, err := db.GetOAuth2ProviderAppSecretByID(ctx, secretID)
 			if httpapi.Is404Error(err) || app.ID != secret.AppID {
 				httpapi.ResourceNotFound(rw)
 				return
@@ -258,7 +258,7 @@ func ExtractOAuth2AppSecret(db database.Store) func(http.Handler) http.Handler {
 				})
 				return
 			}
-			ctx = context.WithValue(ctx, oauth2AppSecretParamContextKey{}, secret)
+			ctx = context.WithValue(ctx, oauth2ProviderAppSecretParamContextKey{}, secret)
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}

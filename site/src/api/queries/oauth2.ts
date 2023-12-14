@@ -1,26 +1,26 @@
 import * as API from "api/api";
 
-export const oauth2AppsKey = ["oauth-apps"];
+export const oauth2ProviderAppsKey = ["oauth-provider-apps"];
 
-export const oauth2Apps = () => {
+export const oauth2ProviderApps = () => {
   return {
-    queryKey: oauth2AppsKey,
-    queryFn: () => API.getOAuth2Apps(),
+    queryKey: oauth2ProviderAppsKey,
+    queryFn: () => API.getOAuth2ProviderApps(),
   };
 };
 
-export const oauth2App = (id: string) => {
+export const oauth2ProviderApp = (id: string) => {
   return {
-    queryKey: [oauth2AppsKey, id],
-    queryFn: () => API.getOAuth2App(id),
+    queryKey: [oauth2ProviderAppsKey, id],
+    queryFn: () => API.getOAuth2ProviderApp(id),
   };
 };
 
-export const oauth2AppSecretsKey = ["oauth-app-secrets"];
+export const oauth2ProviderAppSecretsKey = ["oauth-provider-app-secrets"];
 
-export const oauth2AppSecrets = (id: string) => {
+export const oauth2ProviderAppSecrets = (id: string) => {
   return {
-    queryKey: [oauth2AppSecretsKey, id],
-    queryFn: () => API.getOAuth2AppSecrets(id),
+    queryKey: [oauth2ProviderAppSecretsKey, id],
+    queryFn: () => API.getOAuth2ProviderAppSecrets(id),
   };
 };

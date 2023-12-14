@@ -643,27 +643,6 @@ export interface MinimalUser {
   readonly avatar_url: string;
 }
 
-// From codersdk/oauth2.go
-export interface OAuth2App {
-  readonly id: string;
-  readonly name: string;
-  readonly callback_url: string;
-  readonly icon: string;
-}
-
-// From codersdk/oauth2.go
-export interface OAuth2AppSecret {
-  readonly id: string;
-  readonly last_used_at?: string;
-  readonly client_secret_truncated: string;
-}
-
-// From codersdk/oauth2.go
-export interface OAuth2AppSecretFull {
-  readonly id: string;
-  readonly client_secret_full: string;
-}
-
 // From codersdk/deployment.go
 export interface OAuth2Config {
   readonly github: OAuth2GithubConfig;
@@ -678,6 +657,27 @@ export interface OAuth2GithubConfig {
   readonly allow_signups: boolean;
   readonly allow_everyone: boolean;
   readonly enterprise_base_url: string;
+}
+
+// From codersdk/oauth2.go
+export interface OAuth2ProviderApp {
+  readonly id: string;
+  readonly name: string;
+  readonly callback_url: string;
+  readonly icon: string;
+}
+
+// From codersdk/oauth2.go
+export interface OAuth2ProviderAppSecret {
+  readonly id: string;
+  readonly last_used_at?: string;
+  readonly client_secret_truncated: string;
+}
+
+// From codersdk/oauth2.go
+export interface OAuth2ProviderAppSecretFull {
+  readonly id: string;
+  readonly client_secret_full: string;
 }
 
 // From codersdk/users.go
@@ -771,7 +771,7 @@ export interface PatchWorkspaceProxy {
 }
 
 // From codersdk/oauth2.go
-export interface PostOAuth2AppRequest {
+export interface PostOAuth2ProviderAppRequest {
   readonly name: string;
   readonly callback_url: string;
   readonly icon: string;
@@ -851,7 +851,7 @@ export interface PutExtendWorkspaceRequest {
 }
 
 // From codersdk/oauth2.go
-export interface PutOAuth2AppRequest {
+export interface PutOAuth2ProviderAppRequest {
   readonly name: string;
   readonly callback_url: string;
   readonly icon: string;

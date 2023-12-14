@@ -1,4 +1,4 @@
-INSERT INTO oauth2_apps
+INSERT INTO oauth2_provider_apps
 	(id, created_at, updated_at, name, icon, callback_url)
 VALUES (
 	'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
@@ -9,7 +9,7 @@ VALUES (
 	'http://coder.com/oauth2/callback'
 );
 
-INSERT INTO oauth2_app_secrets
+INSERT INTO oauth2_provider_app_secrets
 	(id, created_at, last_used_at, hashed_secret, display_secret, app_id)
 VALUES (
 	'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',

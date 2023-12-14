@@ -14,8 +14,8 @@ import (
 	"github.com/coder/coder/v2/cryptorand"
 )
 
-func convertApp(app database.OAuth2App) codersdk.OAuth2App {
-	return codersdk.OAuth2App{
+func convertApp(app database.OAuth2ProviderApp) codersdk.OAuth2ProviderApp {
+	return codersdk.OAuth2ProviderApp{
 		ID:          app.ID,
 		Name:        app.Name,
 		CallbackURL: app.CallbackURL,
@@ -28,16 +28,16 @@ func convertApp(app database.OAuth2App) codersdk.OAuth2App {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Success 200 {array} codersdk.OAuth2App
-// @Router /oauth2/apps [get]
-func (api *API) oAuth2Apps(rw http.ResponseWriter, r *http.Request) {
+// @Success 200 {array} codersdk.OAuth2ProviderApp
+// @Router /oauth2-provider/apps [get]
+func (api *API) oAuth2ProviderApps(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	dbApps, err := api.Database.GetOAuth2Apps(ctx)
+	dbApps, err := api.Database.GetOAuth2ProviderApps(ctx)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	apps := []codersdk.OAuth2App{}
+	apps := []codersdk.OAuth2ProviderApp{}
 	for _, app := range dbApps {
 		apps = append(apps, convertApp(app))
 	}
@@ -50,11 +50,11 @@ func (api *API) oAuth2Apps(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Enterprise
 // @Param app path string true "App ID"
-// @Success 200 {object} codersdk.OAuth2App
-// @Router /oauth2/apps/{app} [get]
-func (*API) oAuth2App(rw http.ResponseWriter, r *http.Request) {
+// @Success 200 {object} codersdk.OAuth2ProviderApp
+// @Router /oauth2-provider/apps/{app} [get]
+func (*API) oAuth2ProviderApp(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	app := httpmw.OAuth2App(r)
+	app := httpmw.OAuth2ProviderApp(r)
 	httpapi.Write(ctx, rw, http.StatusOK, convertApp(app))
 }
 
@@ -64,16 +64,16 @@ func (*API) oAuth2App(rw http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Produce json
 // @Tags Enterprise
-// @Param request body codersdk.PostOAuth2AppRequest true "The OAuth2 application to create."
-// @Success 200 {object} codersdk.OAuth2App
-// @Router /oauth2/apps [post]
-func (api *API) postOAuth2App(rw http.ResponseWriter, r *http.Request) {
+// @Param request body codersdk.PostOAuth2ProviderAppRequest true "The OAuth2 application to create."
+// @Success 200 {object} codersdk.OAuth2ProviderApp
+// @Router /oauth2-provider/apps [post]
+func (api *API) postOAuth2ProviderApp(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	var req codersdk.PostOAuth2AppRequest
+	var req codersdk.PostOAuth2ProviderAppRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	app, err := api.Database.InsertOAuth2App(ctx, database.InsertOAuth2AppParams{
+	app, err := api.Database.InsertOAuth2ProviderApp(ctx, database.InsertOAuth2ProviderAppParams{
 		ID:          uuid.New(),
 		CreatedAt:   dbtime.Now(),
 		UpdatedAt:   dbtime.Now(),
@@ -98,17 +98,17 @@ func (api *API) postOAuth2App(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Enterprise
 // @Param app path string true "App ID"
-// @Param request body codersdk.PutOAuth2AppRequest true "Update an OAuth2 application."
-// @Success 200 {object} codersdk.OAuth2App
-// @Router /oauth2/apps/{app} [put]
-func (api *API) putOAuth2App(rw http.ResponseWriter, r *http.Request) {
+// @Param request body codersdk.PutOAuth2ProviderAppRequest true "Update an OAuth2 application."
+// @Success 200 {object} codersdk.OAuth2ProviderApp
+// @Router /oauth2-provider/apps/{app} [put]
+func (api *API) putOAuth2ProviderApp(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	app := httpmw.OAuth2App(r)
-	var req codersdk.PutOAuth2AppRequest
+	app := httpmw.OAuth2ProviderApp(r)
+	var req codersdk.PutOAuth2ProviderAppRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	app, err := api.Database.UpdateOAuth2AppByID(ctx, database.UpdateOAuth2AppByIDParams{
+	app, err := api.Database.UpdateOAuth2ProviderAppByID(ctx, database.UpdateOAuth2ProviderAppByIDParams{
 		ID:          app.ID,
 		UpdatedAt:   dbtime.Now(),
 		Name:        req.Name,
@@ -131,11 +131,11 @@ func (api *API) putOAuth2App(rw http.ResponseWriter, r *http.Request) {
 // @Tags Enterprise
 // @Param app path string true "App ID"
 // @Success 204
-// @Router /oauth2/apps/{app} [delete]
-func (api *API) deleteOAuth2App(rw http.ResponseWriter, r *http.Request) {
+// @Router /oauth2-provider/apps/{app} [delete]
+func (api *API) deleteOAuth2ProviderApp(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	app := httpmw.OAuth2App(r)
-	err := api.Database.DeleteOAuth2AppByID(ctx, app.ID)
+	app := httpmw.OAuth2ProviderApp(r)
+	err := api.Database.DeleteOAuth2ProviderAppByID(ctx, app.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error deleting OAuth2 application.",
@@ -152,12 +152,12 @@ func (api *API) deleteOAuth2App(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Enterprise
 // @Param app path string true "App ID"
-// @Success 200 {array} codersdk.OAuth2AppSecret
-// @Router /oauth2/apps/{app}/secrets [get]
-func (api *API) oAuth2AppSecrets(rw http.ResponseWriter, r *http.Request) {
+// @Success 200 {array} codersdk.OAuth2ProviderAppSecret
+// @Router /oauth2-provider/apps/{app}/secrets [get]
+func (api *API) oAuth2ProviderAppSecrets(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	app := httpmw.OAuth2App(r)
-	dbSecrets, err := api.Database.GetOAuth2AppSecretsByAppID(ctx, app.ID)
+	app := httpmw.OAuth2ProviderApp(r)
+	dbSecrets, err := api.Database.GetOAuth2ProviderAppSecretsByAppID(ctx, app.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting OAuth2 client secrets.",
@@ -165,9 +165,9 @@ func (api *API) oAuth2AppSecrets(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	secrets := []codersdk.OAuth2AppSecret{}
+	secrets := []codersdk.OAuth2ProviderAppSecret{}
 	for _, secret := range dbSecrets {
-		secrets = append(secrets, codersdk.OAuth2AppSecret{
+		secrets = append(secrets, codersdk.OAuth2ProviderAppSecret{
 			ID:                    secret.ID,
 			LastUsedAt:            codersdk.NullTime{NullTime: secret.LastUsedAt},
 			ClientSecretTruncated: secret.DisplaySecret,
@@ -182,11 +182,11 @@ func (api *API) oAuth2AppSecrets(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Enterprise
 // @Param app path string true "App ID"
-// @Success 200 {array} codersdk.OAuth2AppSecretFull
-// @Router /oauth2/apps/{app}/secrets [post]
-func (api *API) postOAuth2AppSecret(rw http.ResponseWriter, r *http.Request) {
+// @Success 200 {array} codersdk.OAuth2ProviderAppSecretFull
+// @Router /oauth2-provider/apps/{app}/secrets [post]
+func (api *API) postOAuth2ProviderAppSecret(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	app := httpmw.OAuth2App(r)
+	app := httpmw.OAuth2ProviderApp(r)
 	rawSecret, err := cryptorand.String(40)
 	if err != nil {
 		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
@@ -195,7 +195,7 @@ func (api *API) postOAuth2AppSecret(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	hashed := sha256.Sum256([]byte(rawSecret))
-	secret, err := api.Database.InsertOAuth2AppSecret(ctx, database.InsertOAuth2AppSecretParams{
+	secret, err := api.Database.InsertOAuth2ProviderAppSecret(ctx, database.InsertOAuth2ProviderAppSecretParams{
 		ID:            uuid.New(),
 		CreatedAt:     dbtime.Now(),
 		HashedSecret:  hashed[:],
@@ -209,7 +209,7 @@ func (api *API) postOAuth2AppSecret(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.OAuth2AppSecretFull{
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.OAuth2ProviderAppSecretFull{
 		ID:               secret.ID,
 		ClientSecretFull: rawSecret,
 	})
@@ -222,11 +222,11 @@ func (api *API) postOAuth2AppSecret(rw http.ResponseWriter, r *http.Request) {
 // @Param app path string true "App ID"
 // @Param secret path string true "Secret ID"
 // @Success 204
-// @Router /oauth2/apps/{app}/secrets/{secret} [delete]
-func (api *API) deleteOAuth2AppSecret(rw http.ResponseWriter, r *http.Request) {
+// @Router /oauth2-provider/apps/{app}/secrets/{secret} [delete]
+func (api *API) deleteOAuth2ProviderAppSecret(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	secret := httpmw.OAuth2AppSecret(r)
-	err := api.Database.DeleteOAuth2AppSecretByID(ctx, secret.ID)
+	secret := httpmw.OAuth2ProviderAppSecret(r)
+	err := api.Database.DeleteOAuth2ProviderAppSecretByID(ctx, secret.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error deleting OAuth2 client secret.",

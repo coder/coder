@@ -1,5 +1,5 @@
 import { useMutation } from "react-query";
-import { postOAuth2App } from "api/api";
+import { postOAuth2ProviderApp } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { FC } from "react";
@@ -12,12 +12,12 @@ const CreateOAuth2AppPage: FC = () => {
   const navigate = useNavigate();
 
   const postMutation = useMutation({
-    mutationFn: postOAuth2App,
-    onSuccess: (newApp: TypesGen.OAuth2App) => {
+    mutationFn: postOAuth2ProviderApp,
+    onSuccess: (newApp: TypesGen.OAuth2ProviderApp) => {
       displaySuccess(
         `Successfully added the OAuth2 application "${newApp.name}".`,
       );
-      navigate(`/deployment/oauth2-apps/${newApp.id}?created=true`);
+      navigate(`/deployment/oauth2-provider/apps/${newApp.id}?created=true`);
     },
     onError: () => displayError("Failed to create OAuth2 application"),
   });
@@ -31,7 +31,7 @@ const CreateOAuth2AppPage: FC = () => {
       <CreateOAuth2AppPageView
         isUpdating={postMutation.isLoading}
         error={postMutation.error}
-        createApp={(req: TypesGen.PostOAuth2AppRequest) => {
+        createApp={(req: TypesGen.PostOAuth2ProviderAppRequest) => {
           postMutation.mutate(req);
         }}
       />

@@ -6,7 +6,7 @@ import type * as TypesGen from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
 
 type OAuth2AppFormProps = {
-  app?: TypesGen.OAuth2App;
+  app?: TypesGen.OAuth2ProviderApp;
   onSubmit: (data: {
     name: string;
     callback_url: string;

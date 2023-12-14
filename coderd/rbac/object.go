@@ -199,19 +199,19 @@ var (
 		Type: "template_insights",
 	}
 
-	// ResourceOAuth2App CRUD.
+	// ResourceOAuth2ProviderApp CRUD.
 	//	create/delete = Make or delete an OAuth2 app.
 	//	update = Update the properties of the OAuth2 app.
 	//	read = Read OAuth2 apps.
-	ResourceOAuth2App = Object{
+	ResourceOAuth2ProviderApp = Object{
 		Type: "oauth2_app",
 	}
 
-	// ResourceOAuth2AppSecrets CRUD.
+	// ResourceOAuth2ProviderAppSecrets CRUD.
 	//	create/delete = Make or delete an OAuth2 app secret.
 	//	update = Update last used date.
 	//	read = Read OAuth2 app hashed or truncated secret.
-	ResourceOAuth2AppSecret = Object{
+	ResourceOAuth2ProviderAppSecret = Object{
 		Type: "oauth2_app_secrets",
 	}
 )

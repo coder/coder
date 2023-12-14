@@ -33,18 +33,18 @@ export type MutatingResource = {
 };
 
 type EditOAuth2AppProps = {
-  app?: TypesGen.OAuth2App;
+  app?: TypesGen.OAuth2ProviderApp;
   isLoadingApp: boolean;
   isLoadingSecrets: boolean;
   // mutatingResource indicates which resources, if any, are currently being
   // mutated.
   mutatingResource: MutatingResource;
-  updateApp: (req: TypesGen.PutOAuth2AppRequest) => void;
+  updateApp: (req: TypesGen.PutOAuth2ProviderAppRequest) => void;
   deleteApp: () => void;
   generateAppSecret: () => void;
   deleteAppSecret: (id: string) => void;
-  secrets?: readonly TypesGen.OAuth2AppSecret[];
-  newAppSecret?: TypesGen.OAuth2AppSecretFull;
+  secrets?: readonly TypesGen.OAuth2ProviderAppSecret[];
+  newAppSecret?: TypesGen.OAuth2ProviderAppSecretFull;
   dismissNewSecret: () => void;
   error?: unknown;
 };
@@ -81,7 +81,7 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
         <Button
           component={Link}
           startIcon={<KeyboardArrowLeft />}
-          to="/deployment/oauth2-apps"
+          to="/deployment/oauth2-provider/apps"
         >
           All OAuth2 Applications
         </Button>
@@ -181,7 +181,7 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 };
 
 type OAuth2AppSecretsTableProps = {
-  secrets?: readonly TypesGen.OAuth2AppSecret[];
+  secrets?: readonly TypesGen.OAuth2ProviderAppSecret[];
   generateAppSecret: () => void;
   isLoadingSecrets: boolean;
   mutatingResource: MutatingResource;
@@ -250,7 +250,7 @@ const OAuth2AppSecretsTable: FC<OAuth2AppSecretsTableProps> = ({
 };
 
 type OAuth2SecretRowProps = {
-  secret: TypesGen.OAuth2AppSecret;
+  secret: TypesGen.OAuth2ProviderAppSecret;
   deleteAppSecret: (id: string) => void;
   mutatingResource: MutatingResource;
 };

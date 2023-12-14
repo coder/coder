@@ -77,8 +77,8 @@ overrides:
       template_ids: TemplateIDs
       active_user_ids: ActiveUserIDs
       display_app_ssh_helper: DisplayAppSSHHelper
-      oauth2_app: OAuth2App
-      oauth2_app_secret: OAuth2AppSecret
+      oauth2_provider_app: OAuth2ProviderApp
+      oauth2_provider_app_secret: OAuth2ProviderAppSecret
       callback_url: CallbackURL
 
 sql:

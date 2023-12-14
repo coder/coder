@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { MockOAuth2Apps } from "testHelpers/entities";
+import { MockOAuth2ProviderApps } from "testHelpers/entities";
 import OAuth2AppsSettingsPageView from "./OAuth2AppsSettingsPageView";
 
 const meta: Meta = {
@@ -19,14 +19,14 @@ export const Loading: Story = {
 export const Unentitled: Story = {
   args: {
     isLoading: false,
-    apps: MockOAuth2Apps,
+    apps: MockOAuth2ProviderApps,
   },
 };
 
 export const Entitled: Story = {
   args: {
     isLoading: false,
-    apps: MockOAuth2Apps,
+    apps: MockOAuth2ProviderApps,
     isEntitled: true,
   },
 };

@@ -3483,60 +3483,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `id`         | string | true     |              |             |
 | `username`   | string | true     |              |             |
 
-## codersdk.OAuth2App
-
-```json
-{
-  "callback_url": "string",
-  "icon": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string"
-}
-```
-
-### Properties
-
-| Name           | Type   | Required | Restrictions | Description |
-| -------------- | ------ | -------- | ------------ | ----------- |
-| `callback_url` | string | false    |              |             |
-| `icon`         | string | false    |              |             |
-| `id`           | string | false    |              |             |
-| `name`         | string | false    |              |             |
-
-## codersdk.OAuth2AppSecret
-
-```json
-{
-  "client_secret_truncated": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "last_used_at": "string"
-}
-```
-
-### Properties
-
-| Name                      | Type   | Required | Restrictions | Description |
-| ------------------------- | ------ | -------- | ------------ | ----------- |
-| `client_secret_truncated` | string | false    |              |             |
-| `id`                      | string | false    |              |             |
-| `last_used_at`            | string | false    |              |             |
-
-## codersdk.OAuth2AppSecretFull
-
-```json
-{
-  "client_secret_full": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
-}
-```
-
-### Properties
-
-| Name                 | Type   | Required | Restrictions | Description |
-| -------------------- | ------ | -------- | ------------ | ----------- |
-| `client_secret_full` | string | false    |              |             |
-| `id`                 | string | false    |              |             |
-
 ## codersdk.OAuth2Config
 
 ```json
@@ -3584,6 +3530,60 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `client_id`           | string          | false    |              |             |
 | `client_secret`       | string          | false    |              |             |
 | `enterprise_base_url` | string          | false    |              |             |
+
+## codersdk.OAuth2ProviderApp
+
+```json
+{
+  "callback_url": "string",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+| -------------- | ------ | -------- | ------------ | ----------- |
+| `callback_url` | string | false    |              |             |
+| `icon`         | string | false    |              |             |
+| `id`           | string | false    |              |             |
+| `name`         | string | false    |              |             |
+
+## codersdk.OAuth2ProviderAppSecret
+
+```json
+{
+  "client_secret_truncated": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "last_used_at": "string"
+}
+```
+
+### Properties
+
+| Name                      | Type   | Required | Restrictions | Description |
+| ------------------------- | ------ | -------- | ------------ | ----------- |
+| `client_secret_truncated` | string | false    |              |             |
+| `id`                      | string | false    |              |             |
+| `last_used_at`            | string | false    |              |             |
+
+## codersdk.OAuth2ProviderAppSecretFull
+
+```json
+{
+  "client_secret_full": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+}
+```
+
+### Properties
+
+| Name                 | Type   | Required | Restrictions | Description |
+| -------------------- | ------ | -------- | ------------ | ----------- |
+| `client_secret_full` | string | false    |              |             |
+| `id`                 | string | false    |              |             |
 
 ## codersdk.OAuthConversionResponse
 
@@ -3802,7 +3802,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `name`             | string  | true     |              |             |
 | `regenerate_token` | boolean | false    |              |             |
 
-## codersdk.PostOAuth2AppRequest
+## codersdk.PostOAuth2ProviderAppRequest
 
 ```json
 {
@@ -4099,7 +4099,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ---------- | ------ | -------- | ------------ | ----------- |
 | `deadline` | string | true     |              |             |
 
-## codersdk.PutOAuth2AppRequest
+## codersdk.PutOAuth2ProviderAppRequest
 
 ```json
 {

@@ -1304,7 +1304,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/oauth2/apps": {
+        "/oauth2-provider/apps": {
             "get": {
                 "security": [
                     {
@@ -1325,7 +1325,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/codersdk.OAuth2App"
+                                "$ref": "#/definitions/codersdk.OAuth2ProviderApp"
                             }
                         }
                     }
@@ -1355,7 +1355,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.PostOAuth2AppRequest"
+                            "$ref": "#/definitions/codersdk.PostOAuth2ProviderAppRequest"
                         }
                     }
                 ],
@@ -1363,13 +1363,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.OAuth2App"
+                            "$ref": "#/definitions/codersdk.OAuth2ProviderApp"
                         }
                     }
                 }
             }
         },
-        "/oauth2/apps/{app}": {
+        "/oauth2-provider/apps/{app}": {
             "get": {
                 "security": [
                     {
@@ -1397,7 +1397,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.OAuth2App"
+                            "$ref": "#/definitions/codersdk.OAuth2ProviderApp"
                         }
                     }
                 }
@@ -1433,7 +1433,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.PutOAuth2AppRequest"
+                            "$ref": "#/definitions/codersdk.PutOAuth2ProviderAppRequest"
                         }
                     }
                 ],
@@ -1441,7 +1441,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.OAuth2App"
+                            "$ref": "#/definitions/codersdk.OAuth2ProviderApp"
                         }
                     }
                 }
@@ -1473,7 +1473,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/oauth2/apps/{app}/secrets": {
+        "/oauth2-provider/apps/{app}/secrets": {
             "get": {
                 "security": [
                     {
@@ -1503,7 +1503,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/codersdk.OAuth2AppSecret"
+                                "$ref": "#/definitions/codersdk.OAuth2ProviderAppSecret"
                             }
                         }
                     }
@@ -1538,14 +1538,14 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/codersdk.OAuth2AppSecretFull"
+                                "$ref": "#/definitions/codersdk.OAuth2ProviderAppSecretFull"
                             }
                         }
                     }
                 }
             }
         },
-        "/oauth2/apps/{app}/secrets/{secret}": {
+        "/oauth2-provider/apps/{app}/secrets/{secret}": {
             "delete": {
                 "security": [
                     {
@@ -9584,51 +9584,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.OAuth2App": {
-            "type": "object",
-            "properties": {
-                "callback_url": {
-                    "type": "string"
-                },
-                "icon": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "name": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.OAuth2AppSecret": {
-            "type": "object",
-            "properties": {
-                "client_secret_truncated": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "last_used_at": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.OAuth2AppSecretFull": {
-            "type": "object",
-            "properties": {
-                "client_secret_full": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                }
-            }
-        },
         "codersdk.OAuth2Config": {
             "type": "object",
             "properties": {
@@ -9666,6 +9621,51 @@ const docTemplate = `{
                 },
                 "enterprise_base_url": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.OAuth2ProviderApp": {
+            "type": "object",
+            "properties": {
+                "callback_url": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.OAuth2ProviderAppSecret": {
+            "type": "object",
+            "properties": {
+                "client_secret_truncated": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "last_used_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.OAuth2ProviderAppSecretFull": {
+            "type": "object",
+            "properties": {
+                "client_secret_full": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -9909,7 +9909,7 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.PostOAuth2AppRequest": {
+        "codersdk.PostOAuth2ProviderAppRequest": {
             "type": "object",
             "required": [
                 "callback_url",
@@ -10206,7 +10206,7 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.PutOAuth2AppRequest": {
+        "codersdk.PutOAuth2ProviderAppRequest": {
             "type": "object",
             "required": [
                 "callback_url",

@@ -304,26 +304,26 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Get("/", api.userQuietHoursSchedule)
 			r.Put("/", api.putUserQuietHoursSchedule)
 		})
-		r.Route("/oauth2", func(r chi.Router) {
+		r.Route("/oauth2-provider", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 
 			r.Route("/apps", func(r chi.Router) {
-				r.Get("/", api.oAuth2Apps)
-				r.Post("/", api.postOAuth2App)
+				r.Get("/", api.oAuth2ProviderApps)
+				r.Post("/", api.postOAuth2ProviderApp)
 
 				r.Route("/{app}", func(r chi.Router) {
-					r.Use(httpmw.ExtractOAuth2App(options.Database))
-					r.Get("/", api.oAuth2App)
-					r.Put("/", api.putOAuth2App)
-					r.Delete("/", api.deleteOAuth2App)
+					r.Use(httpmw.ExtractOAuth2ProviderApp(options.Database))
+					r.Get("/", api.oAuth2ProviderApp)
+					r.Put("/", api.putOAuth2ProviderApp)
+					r.Delete("/", api.deleteOAuth2ProviderApp)
 
 					r.Route("/secrets", func(r chi.Router) {
-						r.Get("/", api.oAuth2AppSecrets)
-						r.Post("/", api.postOAuth2AppSecret)
+						r.Get("/", api.oAuth2ProviderAppSecrets)
+						r.Post("/", api.postOAuth2ProviderAppSecret)
 
 						r.Route("/{secret}", func(r chi.Router) {
-							r.Use(httpmw.ExtractOAuth2AppSecret(options.Database))
-							r.Delete("/", api.deleteOAuth2AppSecret)
+							r.Use(httpmw.ExtractOAuth2ProviderAppSecret(options.Database))
+							r.Delete("/", api.deleteOAuth2ProviderAppSecret)
 						})
 					})
 				})

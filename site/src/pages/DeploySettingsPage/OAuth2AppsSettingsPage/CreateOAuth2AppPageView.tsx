@@ -10,7 +10,7 @@ import { OAuth2AppForm } from "./OAuth2AppForm";
 
 type CreateOAuth2AppProps = {
   isUpdating: boolean;
-  createApp: (req: TypesGen.PostOAuth2AppRequest) => void;
+  createApp: (req: TypesGen.PostOAuth2ProviderAppRequest) => void;
   error?: unknown;
 };
 
@@ -33,7 +33,7 @@ export const CreateOAuth2AppPageView: FC<CreateOAuth2AppProps> = ({
         <Button
           component={Link}
           startIcon={<KeyboardArrowLeft />}
-          to="/deployment/oauth2-apps"
+          to="/deployment/oauth2-provider/apps"
         >
           All OAuth2 Applications
         </Button>

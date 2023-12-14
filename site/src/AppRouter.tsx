@@ -332,10 +332,12 @@ export const AppRouter: FC = () => {
                   element={<ExternalAuthSettingsPage />}
                 />
 
-                <Route path="oauth2-apps">
-                  <Route index element={<OAuth2AppsSettingsPage />} />
-                  <Route path="add" element={<CreateOAuth2AppPage />} />
-                  <Route path=":appId" element={<EditOAuth2AppPage />} />
+                <Route path="oauth2-provider">
+                  <Route path="apps">
+                    <Route index element={<OAuth2AppsSettingsPage />} />
+                    <Route path="add" element={<CreateOAuth2AppPage />} />
+                    <Route path=":appId" element={<EditOAuth2AppPage />} />
+                  </Route>
                 </Route>
 
                 <Route

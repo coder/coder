@@ -1122,7 +1122,7 @@
         }
       }
     },
-    "/oauth2/apps": {
+    "/oauth2-provider/apps": {
       "get": {
         "security": [
           {
@@ -1139,7 +1139,7 @@
             "schema": {
               "type": "array",
               "items": {
-                "$ref": "#/definitions/codersdk.OAuth2App"
+                "$ref": "#/definitions/codersdk.OAuth2ProviderApp"
               }
             }
           }
@@ -1163,7 +1163,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/codersdk.PostOAuth2AppRequest"
+              "$ref": "#/definitions/codersdk.PostOAuth2ProviderAppRequest"
             }
           }
         ],
@@ -1171,13 +1171,13 @@
           "200": {
             "description": "OK",
             "schema": {
-              "$ref": "#/definitions/codersdk.OAuth2App"
+              "$ref": "#/definitions/codersdk.OAuth2ProviderApp"
             }
           }
         }
       }
     },
-    "/oauth2/apps/{app}": {
+    "/oauth2-provider/apps/{app}": {
       "get": {
         "security": [
           {
@@ -1201,7 +1201,7 @@
           "200": {
             "description": "OK",
             "schema": {
-              "$ref": "#/definitions/codersdk.OAuth2App"
+              "$ref": "#/definitions/codersdk.OAuth2ProviderApp"
             }
           }
         }
@@ -1231,7 +1231,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/codersdk.PutOAuth2AppRequest"
+              "$ref": "#/definitions/codersdk.PutOAuth2ProviderAppRequest"
             }
           }
         ],
@@ -1239,7 +1239,7 @@
           "200": {
             "description": "OK",
             "schema": {
-              "$ref": "#/definitions/codersdk.OAuth2App"
+              "$ref": "#/definitions/codersdk.OAuth2ProviderApp"
             }
           }
         }
@@ -1269,7 +1269,7 @@
         }
       }
     },
-    "/oauth2/apps/{app}/secrets": {
+    "/oauth2-provider/apps/{app}/secrets": {
       "get": {
         "security": [
           {
@@ -1295,7 +1295,7 @@
             "schema": {
               "type": "array",
               "items": {
-                "$ref": "#/definitions/codersdk.OAuth2AppSecret"
+                "$ref": "#/definitions/codersdk.OAuth2ProviderAppSecret"
               }
             }
           }
@@ -1326,14 +1326,14 @@
             "schema": {
               "type": "array",
               "items": {
-                "$ref": "#/definitions/codersdk.OAuth2AppSecretFull"
+                "$ref": "#/definitions/codersdk.OAuth2ProviderAppSecretFull"
               }
             }
           }
         }
       }
     },
-    "/oauth2/apps/{app}/secrets/{secret}": {
+    "/oauth2-provider/apps/{app}/secrets/{secret}": {
       "delete": {
         "security": [
           {
@@ -8589,51 +8589,6 @@
         }
       }
     },
-    "codersdk.OAuth2App": {
-      "type": "object",
-      "properties": {
-        "callback_url": {
-          "type": "string"
-        },
-        "icon": {
-          "type": "string"
-        },
-        "id": {
-          "type": "string",
-          "format": "uuid"
-        },
-        "name": {
-          "type": "string"
-        }
-      }
-    },
-    "codersdk.OAuth2AppSecret": {
-      "type": "object",
-      "properties": {
-        "client_secret_truncated": {
-          "type": "string"
-        },
-        "id": {
-          "type": "string",
-          "format": "uuid"
-        },
-        "last_used_at": {
-          "type": "string"
-        }
-      }
-    },
-    "codersdk.OAuth2AppSecretFull": {
-      "type": "object",
-      "properties": {
-        "client_secret_full": {
-          "type": "string"
-        },
-        "id": {
-          "type": "string",
-          "format": "uuid"
-        }
-      }
-    },
     "codersdk.OAuth2Config": {
       "type": "object",
       "properties": {
@@ -8671,6 +8626,51 @@
         },
         "enterprise_base_url": {
           "type": "string"
+        }
+      }
+    },
+    "codersdk.OAuth2ProviderApp": {
+      "type": "object",
+      "properties": {
+        "callback_url": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "codersdk.OAuth2ProviderAppSecret": {
+      "type": "object",
+      "properties": {
+        "client_secret_truncated": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "last_used_at": {
+          "type": "string"
+        }
+      }
+    },
+    "codersdk.OAuth2ProviderAppSecretFull": {
+      "type": "object",
+      "properties": {
+        "client_secret_full": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string",
+          "format": "uuid"
         }
       }
     },
@@ -8904,7 +8904,7 @@
         }
       }
     },
-    "codersdk.PostOAuth2AppRequest": {
+    "codersdk.PostOAuth2ProviderAppRequest": {
       "type": "object",
       "required": ["callback_url", "name"],
       "properties": {
@@ -9175,7 +9175,7 @@
         }
       }
     },
-    "codersdk.PutOAuth2AppRequest": {
+    "codersdk.PutOAuth2ProviderAppRequest": {
       "type": "object",
       "required": ["callback_url", "name"],
       "properties": {

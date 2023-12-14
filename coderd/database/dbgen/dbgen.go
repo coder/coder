@@ -676,8 +676,8 @@ func WorkspaceAgentStat(t testing.TB, db database.Store, orig database.Workspace
 	return scheme
 }
 
-func OAuth2App(t testing.TB, db database.Store, seed database.OAuth2App) database.OAuth2App {
-	app, err := db.InsertOAuth2App(genCtx, database.InsertOAuth2AppParams{
+func OAuth2ProviderApp(t testing.TB, db database.Store, seed database.OAuth2ProviderApp) database.OAuth2ProviderApp {
+	app, err := db.InsertOAuth2ProviderApp(genCtx, database.InsertOAuth2ProviderAppParams{
 		ID:          takeFirst(seed.ID, uuid.New()),
 		Name:        takeFirst(seed.Name, namesgenerator.GetRandomName(1)),
 		CreatedAt:   takeFirst(seed.CreatedAt, dbtime.Now()),
@@ -689,8 +689,8 @@ func OAuth2App(t testing.TB, db database.Store, seed database.OAuth2App) databas
 	return app
 }
 
-func OAuth2AppSecret(t testing.TB, db database.Store, seed database.OAuth2AppSecret) database.OAuth2AppSecret {
-	app, err := db.InsertOAuth2AppSecret(genCtx, database.InsertOAuth2AppSecretParams{
+func OAuth2ProviderAppSecret(t testing.TB, db database.Store, seed database.OAuth2ProviderAppSecret) database.OAuth2ProviderAppSecret {
+	app, err := db.InsertOAuth2ProviderAppSecret(genCtx, database.InsertOAuth2ProviderAppSecretParams{
 		ID:            takeFirst(seed.ID, uuid.New()),
 		CreatedAt:     takeFirst(seed.CreatedAt, dbtime.Now()),
 		HashedSecret:  takeFirstSlice(seed.HashedSecret, []byte("hashed-secret")),

@@ -1,2 +1,2 @@
-DROP TABLE oauth2_app_secrets;
-DROP TABLE oauth2_apps;
+DROP TABLE oauth2_provider_app_secrets;
+DROP TABLE oauth2_provider_apps;

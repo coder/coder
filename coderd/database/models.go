@@ -1788,7 +1788,7 @@ type License struct {
 	UUID uuid.UUID `db:"uuid" json:"uuid"`
 }
 
-type OAuth2App struct {
+type OAuth2ProviderApp struct {
 	ID          uuid.UUID `db:"id" json:"id"`
 	CreatedAt   time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
@@ -1797,7 +1797,7 @@ type OAuth2App struct {
 	CallbackURL string    `db:"callback_url" json:"callback_url"`
 }
 
-type OAuth2AppSecret struct {
+type OAuth2ProviderAppSecret struct {
 	ID           uuid.UUID    `db:"id" json:"id"`
 	CreatedAt    time.Time    `db:"created_at" json:"created_at"`
 	LastUsedAt   sql.NullTime `db:"last_used_at" json:"last_used_at"`

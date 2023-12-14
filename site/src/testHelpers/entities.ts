@@ -3207,7 +3207,7 @@ export const MockGithubAuthLink: TypesGen.ExternalAuthLink = {
   validate_error: "",
 };
 
-export const MockOAuth2Apps: TypesGen.OAuth2App[] = [
+export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
   {
     id: "1",
     name: "foo",
@@ -3216,7 +3216,7 @@ export const MockOAuth2Apps: TypesGen.OAuth2App[] = [
   },
 ];
 
-export const MockOAuth2AppSecrets: TypesGen.OAuth2AppSecret[] = [
+export const MockOAuth2ProviderAppSecrets: TypesGen.OAuth2ProviderAppSecret[] = [
   {
     id: "1",
     last_used_at: undefined,

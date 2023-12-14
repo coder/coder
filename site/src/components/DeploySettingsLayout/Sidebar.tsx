@@ -37,7 +37,7 @@ export const Sidebar: FC = () => {
         External Authentication
       </SidebarNavItem>
       {/* Not exposing this yet since token exchange is not finished yet.
-      <SidebarNavItem href="oauth2-apps" icon={Token}>
+      <SidebarNavItem href="oauth2-provider/apps" icon={Token}>
         OAuth2 Applications
       </SidebarNavItem>*/}
       <SidebarNavItem href="network" icon={Globe}>

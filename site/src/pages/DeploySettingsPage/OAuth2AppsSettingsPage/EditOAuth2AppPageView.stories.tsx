@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import {
-  MockOAuth2Apps,
-  MockOAuth2AppSecrets,
+  MockOAuth2ProviderApps,
+  MockOAuth2ProviderAppSecrets,
   mockApiError,
 } from "testHelpers/entities";
 import { EditOAuth2AppPageView } from "./EditOAuth2AppPageView";
@@ -22,15 +22,15 @@ export const LoadingApp: Story = {
 
 export const LoadingSecrets: Story = {
   args: {
-    app: MockOAuth2Apps[0],
+    app: MockOAuth2ProviderApps[0],
     isLoadingSecrets: true,
   },
 };
 
 export const Error: Story = {
   args: {
-    app: MockOAuth2Apps[0],
-    secrets: MockOAuth2AppSecrets,
+    app: MockOAuth2ProviderApps[0],
+    secrets: MockOAuth2ProviderAppSecrets,
     error: mockApiError({
       message: "Validation failed",
       validations: [
@@ -53,7 +53,7 @@ export const Error: Story = {
 
 export const Default: Story = {
   args: {
-    app: MockOAuth2Apps[0],
-    secrets: MockOAuth2AppSecrets,
+    app: MockOAuth2ProviderApps[0],
+    secrets: MockOAuth2ProviderAppSecrets,
   },
 };

@@ -800,18 +800,18 @@ func (q *querier) DeleteLicense(ctx context.Context, id int32) (int32, error) {
 	return id, nil
 }
 
-func (q *querier) DeleteOAuth2AppByID(ctx context.Context, id uuid.UUID) error {
-	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceOAuth2App); err != nil {
+func (q *querier) DeleteOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) error {
+	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceOAuth2ProviderApp); err != nil {
 		return err
 	}
-	return q.db.DeleteOAuth2AppByID(ctx, id)
+	return q.db.DeleteOAuth2ProviderAppByID(ctx, id)
 }
 
-func (q *querier) DeleteOAuth2AppSecretByID(ctx context.Context, id uuid.UUID) error {
-	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceOAuth2AppSecret); err != nil {
+func (q *querier) DeleteOAuth2ProviderAppSecretByID(ctx context.Context, id uuid.UUID) error {
+	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceOAuth2ProviderAppSecret); err != nil {
 		return err
 	}
-	return q.db.DeleteOAuth2AppSecretByID(ctx, id)
+	return q.db.DeleteOAuth2ProviderAppSecretByID(ctx, id)
 }
 
 func (q *querier) DeleteOldProvisionerDaemons(ctx context.Context) error {
@@ -1140,32 +1140,32 @@ func (q *querier) GetLogoURL(ctx context.Context) (string, error) {
 	return q.db.GetLogoURL(ctx)
 }
 
-func (q *querier) GetOAuth2AppByID(ctx context.Context, id uuid.UUID) (database.OAuth2App, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceOAuth2App); err != nil {
-		return database.OAuth2App{}, err
+func (q *querier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceOAuth2ProviderApp); err != nil {
+		return database.OAuth2ProviderApp{}, err
 	}
-	return q.db.GetOAuth2AppByID(ctx, id)
+	return q.db.GetOAuth2ProviderAppByID(ctx, id)
 }
 
-func (q *querier) GetOAuth2AppSecretByID(ctx context.Context, id uuid.UUID) (database.OAuth2AppSecret, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceOAuth2AppSecret); err != nil {
-		return database.OAuth2AppSecret{}, err
+func (q *querier) GetOAuth2ProviderAppSecretByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderAppSecret, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceOAuth2ProviderAppSecret); err != nil {
+		return database.OAuth2ProviderAppSecret{}, err
 	}
-	return q.db.GetOAuth2AppSecretByID(ctx, id)
+	return q.db.GetOAuth2ProviderAppSecretByID(ctx, id)
 }
 
-func (q *querier) GetOAuth2AppSecretsByAppID(ctx context.Context, appID uuid.UUID) ([]database.OAuth2AppSecret, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceOAuth2AppSecret); err != nil {
-		return []database.OAuth2AppSecret{}, err
+func (q *querier) GetOAuth2ProviderAppSecretsByAppID(ctx context.Context, appID uuid.UUID) ([]database.OAuth2ProviderAppSecret, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceOAuth2ProviderAppSecret); err != nil {
+		return []database.OAuth2ProviderAppSecret{}, err
 	}
-	return q.db.GetOAuth2AppSecretsByAppID(ctx, appID)
+	return q.db.GetOAuth2ProviderAppSecretsByAppID(ctx, appID)
 }
 
-func (q *querier) GetOAuth2Apps(ctx context.Context) ([]database.OAuth2App, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceOAuth2App); err != nil {
-		return []database.OAuth2App{}, err
+func (q *querier) GetOAuth2ProviderApps(ctx context.Context) ([]database.OAuth2ProviderApp, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceOAuth2ProviderApp); err != nil {
+		return []database.OAuth2ProviderApp{}, err
 	}
-	return q.db.GetOAuth2Apps(ctx)
+	return q.db.GetOAuth2ProviderApps(ctx)
 }
 
 func (q *querier) GetOAuthSigningKey(ctx context.Context) (string, error) {
@@ -2182,18 +2182,18 @@ func (q *querier) InsertMissingGroups(ctx context.Context, arg database.InsertMi
 	return q.db.InsertMissingGroups(ctx, arg)
 }
 
-func (q *querier) InsertOAuth2App(ctx context.Context, arg database.InsertOAuth2AppParams) (database.OAuth2App, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceOAuth2App); err != nil {
-		return database.OAuth2App{}, err
+func (q *querier) InsertOAuth2ProviderApp(ctx context.Context, arg database.InsertOAuth2ProviderAppParams) (database.OAuth2ProviderApp, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceOAuth2ProviderApp); err != nil {
+		return database.OAuth2ProviderApp{}, err
 	}
-	return q.db.InsertOAuth2App(ctx, arg)
+	return q.db.InsertOAuth2ProviderApp(ctx, arg)
 }
 
-func (q *querier) InsertOAuth2AppSecret(ctx context.Context, arg database.InsertOAuth2AppSecretParams) (database.OAuth2AppSecret, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceOAuth2AppSecret); err != nil {
-		return database.OAuth2AppSecret{}, err
+func (q *querier) InsertOAuth2ProviderAppSecret(ctx context.Context, arg database.InsertOAuth2ProviderAppSecretParams) (database.OAuth2ProviderAppSecret, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceOAuth2ProviderAppSecret); err != nil {
+		return database.OAuth2ProviderAppSecret{}, err
 	}
-	return q.db.InsertOAuth2AppSecret(ctx, arg)
+	return q.db.InsertOAuth2ProviderAppSecret(ctx, arg)
 }
 
 func (q *querier) InsertOrganization(ctx context.Context, arg database.InsertOrganizationParams) (database.Organization, error) {
@@ -2549,18 +2549,18 @@ func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemb
 	return q.db.UpdateMemberRoles(ctx, arg)
 }
 
-func (q *querier) UpdateOAuth2AppByID(ctx context.Context, arg database.UpdateOAuth2AppByIDParams) (database.OAuth2App, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceOAuth2App); err != nil {
-		return database.OAuth2App{}, err
+func (q *querier) UpdateOAuth2ProviderAppByID(ctx context.Context, arg database.UpdateOAuth2ProviderAppByIDParams) (database.OAuth2ProviderApp, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceOAuth2ProviderApp); err != nil {
+		return database.OAuth2ProviderApp{}, err
 	}
-	return q.db.UpdateOAuth2AppByID(ctx, arg)
+	return q.db.UpdateOAuth2ProviderAppByID(ctx, arg)
 }
 
-func (q *querier) UpdateOAuth2AppSecretByID(ctx context.Context, arg database.UpdateOAuth2AppSecretByIDParams) (database.OAuth2AppSecret, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceOAuth2AppSecret); err != nil {
-		return database.OAuth2AppSecret{}, err
+func (q *querier) UpdateOAuth2ProviderAppSecretByID(ctx context.Context, arg database.UpdateOAuth2ProviderAppSecretByIDParams) (database.OAuth2ProviderAppSecret, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceOAuth2ProviderAppSecret); err != nil {
+		return database.OAuth2ProviderAppSecret{}, err
 	}
-	return q.db.UpdateOAuth2AppSecretByID(ctx, arg)
+	return q.db.UpdateOAuth2ProviderAppSecretByID(ctx, arg)
 }
 
 // TODO: We need to create a ProvisionerJob resource type
