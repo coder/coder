@@ -1,25 +1,28 @@
-import OAuth2AppsSettingsPageView from "./OAuth2AppsSettingsPageView";
+import type { StoryObj } from "@storybook/react";
 import { MockOAuth2Apps } from "testHelpers/entities";
+import OAuth2AppsSettingsPageView from "./OAuth2AppsSettingsPageView";
 
 export default {
   title: "pages/DeploySettingsPage/OAuth2AppsSettingsPageView",
   component: OAuth2AppsSettingsPageView,
 };
 
-export const Loading = {
+type Story = StoryObj<typeof OAuth2AppsSettingsPageView>;
+
+export const Loading: Story = {
   args: {
     isLoading: true,
   },
 };
 
-export const Unentitled = {
+export const Unentitled: Story = {
   args: {
     isLoading: false,
     apps: MockOAuth2Apps,
   },
 };
 
-export const Entitled = {
+export const Entitled: Story = {
   args: {
     isLoading: false,
     apps: MockOAuth2Apps,
@@ -27,9 +30,8 @@ export const Entitled = {
   },
 };
 
-export const Empty = {
+export const Empty: Story = {
   args: {
     isLoading: false,
-    apps: null,
   },
 };

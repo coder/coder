@@ -1,29 +1,32 @@
-import { EditOAuth2AppPageView } from "./EditOAuth2AppPageView";
+import type { StoryObj } from "@storybook/react";
 import {
   MockOAuth2Apps,
   MockOAuth2AppSecrets,
   mockApiError,
 } from "testHelpers/entities";
+import { EditOAuth2AppPageView } from "./EditOAuth2AppPageView";
 
 export default {
   title: "pages/DeploySettingsPage/EditOAuth2AppPageView",
   component: EditOAuth2AppPageView,
 };
 
-export const LoadingApp = {
+type Story = StoryObj<typeof EditOAuth2AppPageView>;
+
+export const LoadingApp: Story = {
   args: {
     isLoadingApp: true,
   },
 };
 
-export const LoadingSecrets = {
+export const LoadingSecrets: Story = {
   args: {
     app: MockOAuth2Apps[0],
     isLoadingSecrets: true,
   },
 };
 
-export const Error = {
+export const Error: Story = {
   args: {
     app: MockOAuth2Apps[0],
     secrets: MockOAuth2AppSecrets,
@@ -47,7 +50,7 @@ export const Error = {
   },
 };
 
-export const Default = {
+export const Default: Story = {
   args: {
     app: MockOAuth2Apps[0],
     secrets: MockOAuth2AppSecrets,

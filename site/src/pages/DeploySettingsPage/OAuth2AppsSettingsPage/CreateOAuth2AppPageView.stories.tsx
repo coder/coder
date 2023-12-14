@@ -1,18 +1,21 @@
-import { CreateOAuth2AppPageView } from "./CreateOAuth2AppPageView";
+import type { StoryObj } from "@storybook/react";
 import { mockApiError } from "testHelpers/entities";
+import { CreateOAuth2AppPageView } from "./CreateOAuth2AppPageView";
 
 export default {
   title: "pages/DeploySettingsPage/CreateOAuth2AppPageView",
   component: CreateOAuth2AppPageView,
 };
 
-export const Updating = {
+type Story = StoryObj<typeof CreateOAuth2AppPageView>;
+
+export const Updating: Story = {
   args: {
     isUpdating: true,
   },
 };
 
-export const Error = {
+export const Error: Story = {
   args: {
     error: mockApiError({
       message: "Validation failed",
@@ -34,7 +37,7 @@ export const Error = {
   },
 };
 
-export const Default = {
+export const Default: Story = {
   args: {
     // Nothing.
   },
