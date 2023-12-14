@@ -1023,7 +1023,7 @@
       "title": "Guides",
       "description": "Employee-authored tutorials",
       "path": "./guides/index.md",
-      "icon_path": "./images/icons/info.svg",
+      "icon_path": "./images/icons/notes.svg",
       "children": [
         {
           "title": "Configuring Okta",
