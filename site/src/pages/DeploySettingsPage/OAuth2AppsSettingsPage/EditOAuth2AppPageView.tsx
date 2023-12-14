@@ -87,8 +87,8 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
         <ConfirmDialog
           hideCancel
           open={Boolean(newAppSecret)}
-          onConfirm={() => dismissNewSecret()}
-          onClose={() => dismissNewSecret()}
+          onConfirm={dismissNewSecret}
+          onClose={dismissNewSecret}
           title="OAuth2 client secret"
           confirmText="OK"
           description={
@@ -130,7 +130,7 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
               confirmLoading={isUpdating === "delete-app"}
               name={app.name}
               entity="OAuth2 application"
-              onConfirm={() => deleteApp()}
+              onConfirm={deleteApp}
               onCancel={() => setShowDelete(false)}
             />
 
@@ -208,7 +208,7 @@ const OAuth2AppSecretsTable: FC<OAuth2AppSecretsTableProps> = ({
           loading={isUpdating === "create-secret"}
           type="submit"
           variant="contained"
-          onClick={() => generateAppSecret()}
+          onClick={generateAppSecret}
         >
           Generate secret
         </LoadingButton>
