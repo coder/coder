@@ -7,21 +7,13 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 )
-
-func convertApp(app database.OAuth2ProviderApp) codersdk.OAuth2ProviderApp {
-	return codersdk.OAuth2ProviderApp{
-		ID:          app.ID,
-		Name:        app.Name,
-		CallbackURL: app.CallbackURL,
-		Icon:        app.Icon,
-	}
-}
 
 // @Summary Get OAuth2 applications.
 // @ID get-oauth2-applications
@@ -37,11 +29,7 @@ func (api *API) oAuth2ProviderApps(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	apps := []codersdk.OAuth2ProviderApp{}
-	for _, app := range dbApps {
-		apps = append(apps, convertApp(app))
-	}
-	httpapi.Write(ctx, rw, http.StatusOK, apps)
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.OAuth2ProviderApps(dbApps))
 }
 
 // @Summary Get OAuth2 application.
@@ -55,7 +43,7 @@ func (api *API) oAuth2ProviderApps(rw http.ResponseWriter, r *http.Request) {
 func (*API) oAuth2ProviderApp(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	app := httpmw.OAuth2ProviderApp(r)
-	httpapi.Write(ctx, rw, http.StatusOK, convertApp(app))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.OAuth2ProviderApp(app))
 }
 
 // @Summary Create OAuth2 application.
@@ -88,7 +76,7 @@ func (api *API) postOAuth2ProviderApp(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusCreated, convertApp(app))
+	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.OAuth2ProviderApp(app))
 }
 
 // @Summary Update OAuth2 application.
@@ -122,7 +110,7 @@ func (api *API) putOAuth2ProviderApp(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, convertApp(app))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.OAuth2ProviderApp(app))
 }
 
 // @Summary Delete OAuth2 application.
