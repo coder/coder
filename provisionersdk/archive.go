@@ -96,6 +96,10 @@ func Tar(w io.Writer, directory string, limit int64) error {
 			// Don't store tfstate!
 			return nil
 		}
+		if rel == "terraform.tfvars" || rel == "terraform.tfvars.json" || strings.HasSuffix(rel, ".auto.tfvars") || strings.HasSuffix(rel, ".auto.tfvars.json") {
+			// Don't store .tfvars, as Coder uses their own variables file.
+			return nil
+		}
 		// Use unix paths in the tar archive.
 		header.Name = filepath.ToSlash(rel)
 		if err := tarWriter.WriteHeader(header); err != nil {

@@ -122,6 +122,18 @@ func TestTar(t *testing.T) {
 			}, {
 				Name:     "terraform.tfstate",
 				Archives: false,
+			}, {
+				Name:     "terraform.tfvars",
+				Archives: false,
+			}, {
+				Name:     "terraform.tfvars.json",
+				Archives: false,
+			}, {
+				Name:     "*.auto.tfvars",
+				Archives: false,
+			}, {
+				Name:     "*.auto.tfvars.json",
+				Archives: false,
 			},
 		}
 		for _, file := range files {
@@ -149,18 +161,17 @@ func TestTar(t *testing.T) {
 		}
 		archive := new(bytes.Buffer)
 		// Headers are chonky so raise the limit to something reasonable
-		err := provisionersdk.Tar(archive, dir, 1024<<2)
+		err := provisionersdk.Tar(archive, dir, 1024<<3)
 		require.NoError(t, err)
 		dir = t.TempDir()
 		err = provisionersdk.Untar(dir, archive)
 		require.NoError(t, err)
 		for _, file := range files {
 			_, err = os.Stat(filepath.Join(dir, file.Name))
-			t.Logf("stat %q %+v", file.Name, err)
 			if file.Archives {
-				require.NoError(t, err)
+				require.NoError(t, err, "stat %q, got error: %+v", file.Name, err)
 			} else {
-				require.ErrorIs(t, err, os.ErrNotExist)
+				require.ErrorIs(t, err, os.ErrNotExist, "stat %q, expected ErrNotExist, got: %+v", file.Name, err)
 			}
 		}
 	})
