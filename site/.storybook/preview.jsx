@@ -4,24 +4,37 @@ import {
   ThemeProvider as MuiThemeProvider,
 } from "@mui/material/styles";
 import { ThemeProvider as EmotionThemeProvider } from "@emotion/react";
+import { DecoratorHelpers } from "@storybook/addon-themes";
 import { withRouter } from "storybook-addon-react-router-v6";
+import { QueryClient, QueryClientProvider } from "react-query";
 import { HelmetProvider } from "react-helmet-async";
-import theme from "theme";
+import themes from "theme";
 import colors from "theme/tailwind";
 import "theme/globalFonts";
-import { QueryClient, QueryClientProvider } from "react-query";
 
+DecoratorHelpers.initializeThemeState(Object.keys(themes), "dark");
+
+/**
+ * @type Decorator[]
+ */
 export const decorators = [
-  (Story) => (
-    <StyledEngineProvider injectFirst>
-      <MuiThemeProvider theme={theme.dark}>
-        <EmotionThemeProvider theme={theme.dark}>
-          <CssBaseline />
-          <Story />
-        </EmotionThemeProvider>
-      </MuiThemeProvider>
-    </StyledEngineProvider>
-  ),
+  (Story, context) => {
+    const selectedTheme = DecoratorHelpers.pluckThemeFromContext(context);
+    const { themeOverride } = DecoratorHelpers.useThemeParameters();
+
+    const selected = themeOverride || selectedTheme || "dark";
+
+    return (
+      <StyledEngineProvider injectFirst>
+        <MuiThemeProvider theme={themes[selected]}>
+          <EmotionThemeProvider theme={themes[selected]}>
+            <CssBaseline />
+            <Story />
+          </EmotionThemeProvider>
+        </MuiThemeProvider>
+      </StyledEngineProvider>
+    );
+  },
   withRouter,
   (Story) => {
     return (
@@ -56,19 +69,6 @@ export const parameters = {
       order: ["design", "pages", "components"],
       locales: "en-US",
     },
-  },
-  backgrounds: {
-    default: "dark",
-    values: [
-      {
-        name: "dark",
-        value: colors.gray[950],
-      },
-      {
-        name: "light",
-        value: colors.gray[50],
-      },
-    ],
   },
   actions: {
     argTypesRegex: "^(on|handler)[A-Z].*",

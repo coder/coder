@@ -5,6 +5,9 @@ settings:
   excludeLinksFromLockfile: false
 
 dependencies:
+  '@storybook/addon-themes':
+    specifier: ^7.6.4
+    version: 7.6.4
   exec:
     specifier: ^0.2.1
     version: 0.2.1
@@ -15,6 +18,12 @@ devDependencies:
     version: 3.0.0
 
 packages:
+
+  /@storybook/addon-themes@7.6.4:
+    resolution: {integrity: sha512-jz6/6LSRVgL9G5vknxROGOakXAsTIIl2sR7tkuC4gyGkCIGwvb9oO9jUaHkUHQ8rtcLXbVpFncQzUXmrwK6CGg==}
+    dependencies:
+      ts-dedent: 2.2.0
+    dev: false
 
   /exec@0.2.1:
     resolution: {integrity: sha512-lE5ZlJgRYh+rmwidatL2AqRA/U9IBoCpKlLriBmnfUIrV/Rj4oLjb63qZ57iBCHWi5j9IjLt5wOWkFYPiTfYAg==}
@@ -27,3 +36,8 @@ packages:
     engines: {node: '>=14'}
     hasBin: true
     dev: true
+
+  /ts-dedent@2.2.0:
+    resolution: {integrity: sha512-q5W7tVM71e2xjHZTlgfTDoPF/SmqKG5hddq9SzR49CH2hayqRKJtQ4mtRlSxKaJlR/+9rEM+mnBHf7I2/BQcpQ==}
+    engines: {node: '>=6.10'}
+    dev: false

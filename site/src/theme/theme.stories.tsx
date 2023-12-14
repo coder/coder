@@ -129,43 +129,15 @@ const MuiExample: FC = () => {
 export default meta;
 type Story = StoryObj<typeof ThemeTestingView>;
 
-const DARK_BACKGROUND = {
-  default: "dark",
-  values: [
-    {
-      name: "dark",
-      value: colors.zinc[950],
-    },
-  ],
-};
-
-const DARK_BLUE_BACKGROUND = {
-  default: "darkBlue",
-  values: [
-    {
-      name: "darkBlue",
-      value: colors.gray[950],
-    },
-  ],
-};
-
-const LIGHT_BACKGROUND = {
-  default: "light",
-  values: [
-    {
-      name: "light",
-      value: colors.gray[50],
-    },
-  ],
-};
-
 export const ExperimentalDark: Story = {
   name: "Experimental (Dark)",
   args: {
     children: <ExperimentalExample />,
   },
   parameters: {
-    backgrounds: DARK_BACKGROUND,
+    themes: {
+      themeOverride: "dark",
+    },
   },
 };
 
@@ -173,9 +145,12 @@ export const ExperimentalDarkBlue: Story = {
   name: "Experimental (Dark blue)",
   args: {
     children: <ExperimentalExample />,
+    theme: theme.darkBlue,
   },
   parameters: {
-    backgrounds: DARK_BLUE_BACKGROUND,
+    themes: {
+      themeOverride: "darkBlue",
+    },
   },
 };
 
@@ -186,7 +161,9 @@ export const ExperimentalLight: Story = {
     theme: theme.light,
   },
   parameters: {
-    backgrounds: LIGHT_BACKGROUND,
+    themes: {
+      themeOverride: "light",
+    },
   },
 };
 
@@ -196,7 +173,9 @@ export const MuiDark: Story = {
     children: <MuiExample />,
   },
   parameters: {
-    backgrounds: DARK_BACKGROUND,
+    themes: {
+      themeOverride: "dark",
+    },
   },
 };
 
@@ -204,9 +183,12 @@ export const MuiDarkBlue: Story = {
   name: "MUI (Dark Blue)",
   args: {
     children: <MuiExample />,
+    theme: theme.darkBlue,
   },
   parameters: {
-    backgrounds: DARK_BLUE_BACKGROUND,
+    themes: {
+      themeOverride: "darkBlue",
+    },
   },
 };
 
@@ -217,6 +199,8 @@ export const MuiLight: Story = {
     theme: theme.light,
   },
   parameters: {
-    backgrounds: LIGHT_BACKGROUND,
+    themes: {
+      themeOverride: "light",
+    },
   },
 };
