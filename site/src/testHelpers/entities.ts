@@ -3216,15 +3216,15 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
   },
 ];
 
-export const MockOAuth2ProviderAppSecrets: TypesGen.OAuth2ProviderAppSecret[] = [
-  {
-    id: "1",
-    last_used_at: undefined,
-    client_secret_truncated: "foo",
-  },
-  {
-    id: "1",
-    last_used_at: "2022-12-16T20:10:45.637452Z",
-    client_secret_truncated: "foo",
-  },
-];
+export const MockOAuth2ProviderAppSecrets: TypesGen.OAuth2ProviderAppSecret[] =
+  [
+    {
+      id: "1",
+      client_secret_truncated: "foo",
+    },
+    {
+      id: "1",
+      last_used_at: "2022-12-16T20:10:45.637452Z",
+      client_secret_truncated: "foo",
+    },
+  ];
