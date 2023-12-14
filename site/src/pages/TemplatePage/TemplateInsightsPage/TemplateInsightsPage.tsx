@@ -18,10 +18,10 @@ import type {
 } from "api/typesGenerated";
 import { useTheme } from "@emotion/react";
 import {
-  PropsWithChildren,
   type FC,
+  type HTMLAttributes,
+  type PropsWithChildren,
   type ReactNode,
-  HTMLAttributes,
   useId,
 } from "react";
 import chroma from "chroma-js";

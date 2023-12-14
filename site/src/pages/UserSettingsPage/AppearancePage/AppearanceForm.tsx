@@ -11,10 +11,6 @@ export interface AppearanceFormProps {
   error?: unknown;
   initialValues: UpdateUserAppearanceSettingsRequest;
   onSubmit: (values: UpdateUserAppearanceSettingsRequest) => Promise<unknown>;
-
-  // temporary, so that storybook can test the right thing without showing
-  // a semi-broken auto theme to users. will be removed when light mode is done.
-  enableAuto?: boolean;
 }
 
 export const AppearanceForm: FC<AppearanceFormProps> = ({
@@ -22,7 +18,6 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
   error,
   onSubmit,
   initialValues,
-  enableAuto,
 }) => {
   const currentTheme = initialValues.theme_preference || DEFAULT_THEME;
 
@@ -39,14 +34,13 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
       {Boolean(error) && <ErrorAlert error={error} />}
 
       <Stack direction="row" wrap="wrap">
-        {enableAuto && (
-          <AutoThemePreviewButton
-            displayName="Auto"
-            active={currentTheme === "auto"}
-            themes={[themes.dark, themes.light]}
-            onSelect={() => onChangeTheme("auto")}
-          />
-        )}
+        <AutoThemePreviewButton
+          displayName="Auto"
+          active={currentTheme === "auto"}
+          themes={[themes.dark, themes.light]}
+          onSelect={() => onChangeTheme("auto")}
+        />
+
         <ThemePreviewButton
           displayName="Dark"
           active={currentTheme === "dark"}
@@ -58,6 +52,12 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
           active={currentTheme === "darkBlue"}
           theme={themes.darkBlue}
           onSelect={() => onChangeTheme("darkBlue")}
+        />
+        <ThemePreviewButton
+          displayName="Light"
+          active={currentTheme === "light"}
+          theme={themes.light}
+          onSelect={() => onChangeTheme("light")}
         />
       </Stack>
     </form>

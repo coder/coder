@@ -6,9 +6,9 @@ import {
 } from "@emotion/react";
 import { type FC, type ReactNode } from "react";
 import theme, { type Theme } from "theme";
-import colors from "theme/tailwind";
 import { InteractiveThemeRole } from "./experimental";
 import { Callout } from "components/Callout/Callout";
+import Button from "@mui/material/Button";
 
 interface ThemeTestingViewProps {
   theme: Theme;
@@ -123,7 +123,16 @@ const ButtonTasteTest: FC<{ role: InteractiveThemeRole }> = ({ role }) => {
 };
 
 const MuiExample: FC = () => {
-  return <p>Hi!</p>;
+  return (
+    <div css={{ display: "flex", gap: 16 }}>
+      <Button>Hi!</Button>
+      <Button variant="contained">Hi!</Button>
+      <Button variant="contained" color="primary">
+        Hi!
+      </Button>
+      <Button variant="outlined">Hi!</Button>
+    </div>
+  );
 };
 
 export default meta;
