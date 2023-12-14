@@ -22,9 +22,8 @@ const EditOAuth2AppPage: FC = () => {
   const navigate = useNavigate();
   const { appId } = useParams() as { appId: string };
   const queryClient = useQueryClient();
-  const [newAppSecret, setNewAppSecret] = useState<
-    TypesGen.OAuth2AppSecretFull | undefined
-  >(undefined);
+  const [newAppSecret, setNewAppSecret] =
+    useState<TypesGen.OAuth2AppSecretFull>();
 
   const oauth2AppQuery = useQuery(oauth2App(appId));
   const appName = oauth2AppQuery.data?.name;
