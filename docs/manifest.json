@@ -1022,13 +1022,13 @@
     {
       "title": "Guides",
       "description": "Employee-authored tutorials",
-      "path": "./security/index.md",
-      "icon_path": "./images/icons/security.svg",
+      "path": "./guides/index.md",
+      "icon_path": "./images/icons/info.svg",
       "children": [
         {
-          "title": "API tokens of deleted users not invalidated",
+          "title": "Configuring Custom Claims/Scopes with Okta",
           "description": "Fixed in v0.23.0 (Apr 25, 2023)",
-          "path": "./security/0001_user_apikeys_invalidation.md"
+          "path": "./guides/configuring-okta.md"
         }
       ]
     }
