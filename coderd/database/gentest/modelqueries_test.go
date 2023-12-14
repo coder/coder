@@ -47,6 +47,7 @@ func TestCustomQueriesSyncedRowScan(t *testing.T) {
 	}
 
 	for a, b := range funcsToTrack {
+		a, b := a, b
 		if !compareFns(t, a, b, merged[a], merged[b]) {
 			defer func() {
 				// Run this at the end so the suggested fix is the last thing printed.
