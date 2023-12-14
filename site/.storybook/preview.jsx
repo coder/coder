@@ -50,6 +50,13 @@ export const decorators = [
 ];
 
 export const parameters = {
+  options: {
+    storySort: {
+      method: "alphabetical",
+      order: ["design", "pages", "components"],
+      locales: "en-US",
+    },
+  },
   backgrounds: {
     default: "dark",
     values: [
