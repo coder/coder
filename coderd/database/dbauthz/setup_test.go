@@ -28,9 +28,10 @@ import (
 )
 
 var skipMethods = map[string]string{
-	"InTx":     "Not relevant",
-	"Ping":     "Not relevant",
-	"Wrappers": "Not relevant",
+	"InTx":       "Not relevant",
+	"Ping":       "Not relevant",
+	"Wrappers":   "Not relevant",
+	"AquireLock": "Not relevant",
 }
 
 // TestMethodTestSuite runs MethodTestSuite.
@@ -62,7 +63,8 @@ func (s *MethodTestSuite) SetupSuite() {
 	mockStore.EXPECT().Wrappers().Return([]string{}).AnyTimes()
 	az := dbauthz.New(mockStore, nil, slog.Make(), coderdtest.AccessControlStorePointer())
 	// Take the underlying type of the interface.
-	azt := reflect.TypeOf(az).Elem()
+	azt := reflect.TypeOf(az)
+	require.Greater(s.T(), azt.NumMethod(), 0, "no methods found on querier")
 	s.methodAccounting = make(map[string]int)
 	for i := 0; i < azt.NumMethod(); i++ {
 		method := azt.Method(i)
