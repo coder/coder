@@ -44,8 +44,8 @@ type EditOAuth2AppProps = {
   generateAppSecret: () => void;
   deleteAppSecret: (id: string) => void;
   secrets?: readonly TypesGen.OAuth2ProviderAppSecret[];
-  newAppSecret?: TypesGen.OAuth2ProviderAppSecretFull;
-  dismissNewSecret: () => void;
+  fullNewSecret?: TypesGen.OAuth2ProviderAppSecretFull;
+  ackFullNewSecret: () => void;
   error?: unknown;
 };
 
@@ -59,8 +59,8 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
   generateAppSecret,
   deleteAppSecret,
   secrets,
-  newAppSecret,
-  dismissNewSecret,
+  fullNewSecret,
+  ackFullNewSecret,
   error,
 }) => {
   const theme = useTheme();
@@ -87,12 +87,12 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
         </Button>
       </Stack>
 
-      {newAppSecret && (
+      {fullNewSecret && (
         <ConfirmDialog
           hideCancel
-          open={Boolean(newAppSecret)}
-          onConfirm={dismissNewSecret}
-          onClose={dismissNewSecret}
+          open={Boolean(fullNewSecret)}
+          onConfirm={ackFullNewSecret}
+          onClose={ackFullNewSecret}
           title="OAuth2 client secret"
           confirmText="OK"
           description={
@@ -102,7 +102,7 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
                 now; you will not be able to see it again.
               </p>
               <CodeExample
-                code={newAppSecret.client_secret_full}
+                code={fullNewSecret.client_secret_full}
                 css={{
                   minHeight: "auto",
                   userSelect: "all",

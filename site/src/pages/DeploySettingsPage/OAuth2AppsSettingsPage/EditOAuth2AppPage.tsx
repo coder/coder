@@ -22,7 +22,11 @@ const EditOAuth2AppPage: FC = () => {
   const navigate = useNavigate();
   const { appId } = useParams() as { appId: string };
   const queryClient = useQueryClient();
-  const [newAppSecret, setNewAppSecret] =
+  // When a new secret is created it is returned with the full secret.  This is
+  // the only time it will be visible.  The secret list only returns a truncated
+  // version of the secret (for differentiation purposes).  Once the user
+  // acknowledges the secret we will clear it from the state.
+  const [fullNewSecret, setFullNewSecret] =
     useState<TypesGen.OAuth2ProviderAppSecretFull>();
 
   const appQuery = useQuery(oauth2ProviderApp(appId));
@@ -62,7 +66,7 @@ const EditOAuth2AppPage: FC = () => {
     mutationFn: postOAuth2ProviderAppSecret,
     onSuccess: async (secret: TypesGen.OAuth2ProviderAppSecretFull) => {
       displaySuccess("Successfully generated OAuth2 client secret");
-      setNewAppSecret(secret);
+      setFullNewSecret(secret);
       await queryClient.invalidateQueries([oauth2ProviderAppSecretsKey, appId]);
     },
     onError: () => displayError("Failed to generate OAuth2 client secret"),
@@ -95,8 +99,8 @@ const EditOAuth2AppPage: FC = () => {
           createSecret: postSecretMutation.isLoading,
           deleteSecret: deleteSecretMutation.isLoading,
         }}
-        newAppSecret={newAppSecret}
-        dismissNewSecret={() => setNewAppSecret(undefined)}
+        fullNewSecret={fullNewSecret}
+        ackFullNewSecret={() => setFullNewSecret(undefined)}
         error={
           appQuery.error ||
           putMutation.error ||
