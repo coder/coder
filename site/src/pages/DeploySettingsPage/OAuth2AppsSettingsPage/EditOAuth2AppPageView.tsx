@@ -225,7 +225,7 @@ const OAuth2AppSecretsTable: FC<OAuth2AppSecretsTableProps> = ({
           </TableHead>
           <TableBody>
             {isLoadingSecrets && <TableLoader />}
-            {!isLoadingSecrets && (!secrets || secrets?.length === 0) && (
+            {!isLoadingSecrets && (!secrets || secrets.length === 0) && (
               <TableRow>
                 <TableCell colSpan={999}>
                   <div css={{ textAlign: "center" }}>
@@ -235,8 +235,6 @@ const OAuth2AppSecretsTable: FC<OAuth2AppSecretsTableProps> = ({
               </TableRow>
             )}
             {!isLoadingSecrets &&
-              secrets &&
-              secrets?.length > 0 &&
               secrets?.map((secret) => (
                 <OAuth2SecretRow
                   key={secret.id}
