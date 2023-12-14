@@ -90,17 +90,12 @@ const EditOAuth2AppPage: FC = () => {
         secrets={oauth2AppSecretsQuery.data}
         isLoadingApp={oauth2AppQuery.isLoading}
         isLoadingSecrets={oauth2AppQuery.isLoading}
-        isUpdating={
-          putMutation.isLoading
-            ? "update-app"
-            : deleteMutation.isLoading
-              ? "delete-app"
-              : postSecretMutation.isLoading
-                ? "create-secret"
-                : deleteSecretMutation.isLoading
-                  ? "delete-secret"
-                  : false
-        }
+        mutatingResource={{
+          updateApp: putMutation.isLoading,
+          deleteApp: deleteMutation.isLoading,
+          createSecret: postSecretMutation.isLoading,
+          deleteSecret: deleteSecretMutation.isLoading,
+        }}
         newAppSecret={newAppSecret}
         dismissNewSecret={() => setNewAppSecret(undefined)}
         error={

@@ -25,16 +25,20 @@ import { TableLoader } from "components/TableLoader/TableLoader";
 import { createDayString } from "utils/createDayString";
 import { OAuth2AppForm } from "./OAuth2AppForm";
 
+export type MutatingResource = {
+  updateApp: boolean;
+  createSecret: boolean;
+  deleteApp: boolean;
+  deleteSecret: boolean;
+};
+
 type EditOAuth2AppProps = {
   app?: TypesGen.OAuth2App;
   isLoadingApp: boolean;
   isLoadingSecrets: boolean;
-  isUpdating:
-    | "update-app"
-    | "create-secret"
-    | "delete-app"
-    | "delete-secret"
-    | false;
+  // mutatingResource indicates which resources, if any, are currently being
+  // mutated.
+  mutatingResource: MutatingResource;
   updateApp: (req: TypesGen.PutOAuth2AppRequest) => void;
   deleteApp: () => void;
   generateAppSecret: () => void;
@@ -49,7 +53,7 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
   app,
   isLoadingApp,
   isLoadingSecrets,
-  isUpdating,
+  mutatingResource,
   updateApp,
   deleteApp,
   generateAppSecret,
@@ -127,7 +131,7 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
           <>
             <DeleteDialog
               isOpen={showDelete}
-              confirmLoading={isUpdating === "delete-app"}
+              confirmLoading={mutatingResource.deleteApp}
               name={app.name}
               entity="OAuth2 application"
               onConfirm={deleteApp}
@@ -146,7 +150,7 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
             <OAuth2AppForm
               app={app}
               onSubmit={updateApp}
-              isUpdating={isUpdating === "update-app"}
+              isUpdating={mutatingResource.updateApp}
               error={error}
               actions={
                 <Button
@@ -167,7 +171,7 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
               generateAppSecret={generateAppSecret}
               deleteAppSecret={deleteAppSecret}
               isLoadingSecrets={isLoadingSecrets}
-              isUpdating={isUpdating}
+              mutatingResource={mutatingResource}
             />
           </>
         )}
@@ -180,12 +184,7 @@ type OAuth2AppSecretsTableProps = {
   secrets?: readonly TypesGen.OAuth2AppSecret[];
   generateAppSecret: () => void;
   isLoadingSecrets: boolean;
-  isUpdating:
-    | "update-app"
-    | "create-secret"
-    | "delete-app"
-    | "delete-secret"
-    | false;
+  mutatingResource: MutatingResource;
   deleteAppSecret: (id: string) => void;
 };
 
@@ -193,7 +192,7 @@ const OAuth2AppSecretsTable: FC<OAuth2AppSecretsTableProps> = ({
   secrets,
   generateAppSecret,
   isLoadingSecrets,
-  isUpdating,
+  mutatingResource,
   deleteAppSecret,
 }) => {
   return (
@@ -205,7 +204,7 @@ const OAuth2AppSecretsTable: FC<OAuth2AppSecretsTableProps> = ({
       >
         <h2>Client secrets</h2>
         <LoadingButton
-          loading={isUpdating === "create-secret"}
+          loading={mutatingResource.createSecret}
           type="submit"
           variant="contained"
           onClick={generateAppSecret}
@@ -239,7 +238,7 @@ const OAuth2AppSecretsTable: FC<OAuth2AppSecretsTableProps> = ({
                 <OAuth2SecretRow
                   key={secret.id}
                   secret={secret}
-                  isUpdating={isUpdating}
+                  mutatingResource={mutatingResource}
                   deleteAppSecret={deleteAppSecret}
                 />
               ))}
@@ -253,18 +252,13 @@ const OAuth2AppSecretsTable: FC<OAuth2AppSecretsTableProps> = ({
 type OAuth2SecretRowProps = {
   secret: TypesGen.OAuth2AppSecret;
   deleteAppSecret: (id: string) => void;
-  isUpdating:
-    | "update-app"
-    | "create-secret"
-    | "delete-app"
-    | "delete-secret"
-    | false;
+  mutatingResource: MutatingResource;
 };
 
 const OAuth2SecretRow: FC<OAuth2SecretRowProps> = ({
   secret,
   deleteAppSecret,
-  isUpdating,
+  mutatingResource,
 }) => {
   const [showDelete, setShowDelete] = useState<boolean>(false);
 
@@ -282,7 +276,7 @@ const OAuth2SecretRow: FC<OAuth2SecretRowProps> = ({
           onConfirm={() => deleteAppSecret(secret.id)}
           onClose={() => setShowDelete(false)}
           title="Delete OAuth2 client secret"
-          confirmLoading={isUpdating === "delete-secret"}
+          confirmLoading={mutatingResource.deleteSecret}
           confirmText="Delete"
           description={
             <>
