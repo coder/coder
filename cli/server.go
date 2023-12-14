@@ -788,6 +788,22 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					Prometheus:         vals.Prometheus.Enable.Value(),
 					STUN:               len(vals.DERP.Server.STUNAddresses) != 0,
 					Tunnel:             tunnel != nil,
+					ParseLicenseJWT: func(lic *telemetry.License) error {
+						// This will be nil when running in AGPL-only mode.
+						if options.ParseLicenseClaims == nil {
+							return nil
+						}
+
+						email, trial, err := options.ParseLicenseClaims(lic.JWT)
+						if err != nil {
+							return err
+						}
+						if email != "" {
+							lic.Email = &email
+						}
+						lic.Trial = &trial
+						return nil
+					},
 				})
 				if err != nil {
 					return xerrors.Errorf("create telemetry reporter: %w", err)
