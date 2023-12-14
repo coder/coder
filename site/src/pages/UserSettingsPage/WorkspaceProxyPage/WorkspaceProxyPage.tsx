@@ -1,9 +1,9 @@
-import { type FC, type PropsWithChildren } from "react";
-import { Section } from "components/SettingsLayout/Section";
-import { WorkspaceProxyView } from "./WorkspaceProxyView";
+import { type FC } from "react";
 import { useProxy } from "contexts/ProxyContext";
+import { Section } from "../Section";
+import { WorkspaceProxyView } from "./WorkspaceProxyView";
 
-export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
+export const WorkspaceProxyPage: FC = () => {
   const description =
     "Workspace proxies improve terminal and web app connections to workspaces.";
 

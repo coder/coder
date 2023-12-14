@@ -196,6 +196,7 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group} \
         }
       ],
       "status": "active",
+      "theme_preference": "string",
       "username": "string"
     }
   ],
@@ -258,6 +259,7 @@ curl -X DELETE http://coder-server:8080/api/v2/groups/{group} \
         }
       ],
       "status": "active",
+      "theme_preference": "string",
       "username": "string"
     }
   ],
@@ -335,6 +337,7 @@ curl -X PATCH http://coder-server:8080/api/v2/groups/{group} \
         }
       ],
       "status": "active",
+      "theme_preference": "string",
       "username": "string"
     }
   ],
@@ -472,6 +475,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups 
           }
         ],
         "status": "active",
+        "theme_preference": "string",
         "username": "string"
       }
     ],
@@ -511,6 +515,7 @@ Status Code **200**
 | `»»» display_name`    | string                                                 | false    |              |             |
 | `»»» name`            | string                                                 | false    |              |             |
 | `»» status`           | [codersdk.UserStatus](schemas.md#codersdkuserstatus)   | false    |              |             |
+| `»» theme_preference` | string                                                 | false    |              |             |
 | `»» username`         | string                                                 | true     |              |             |
 | `» name`              | string                                                 | false    |              |             |
 | `» organization_id`   | string(uuid)                                           | false    |              |             |
@@ -591,6 +596,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/groups
         }
       ],
       "status": "active",
+      "theme_preference": "string",
       "username": "string"
     }
   ],
@@ -654,6 +660,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
         }
       ],
       "status": "active",
+      "theme_preference": "string",
       "username": "string"
     }
   ],
@@ -1014,6 +1021,7 @@ curl -X PATCH http://coder-server:8080/api/v2/scim/v2/Users/{id} \
     }
   ],
   "status": "active",
+  "theme_preference": "string",
   "username": "string"
 }
 ```
@@ -1067,6 +1075,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl \
       }
     ],
     "status": "active",
+    "theme_preference": "string",
     "username": "string"
   }
 ]
@@ -1097,6 +1106,7 @@ Status Code **200**
 | `»» display_name`    | string                                                   | false    |              |             |
 | `»» name`            | string                                                   | false    |              |             |
 | `» status`           | [codersdk.UserStatus](schemas.md#codersdkuserstatus)     | false    |              |             |
+| `» theme_preference` | string                                                   | false    |              |             |
 | `» username`         | string                                                   | true     |              |             |
 
 #### Enumerated Values
@@ -1224,6 +1234,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
               }
             ],
             "status": "active",
+            "theme_preference": "string",
             "username": "string"
           }
         ],
@@ -1249,6 +1260,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
           }
         ],
         "status": "active",
+        "theme_preference": "string",
         "username": "string"
       }
     ]
@@ -1285,6 +1297,7 @@ Status Code **200**
 | `»»»» display_name`    | string                                                 | false    |              |             |
 | `»»»» name`            | string                                                 | false    |              |             |
 | `»»» status`           | [codersdk.UserStatus](schemas.md#codersdkuserstatus)   | false    |              |             |
+| `»»» theme_preference` | string                                                 | false    |              |             |
 | `»»» username`         | string                                                 | true     |              |             |
 | `»» name`              | string                                                 | false    |              |             |
 | `»» organization_id`   | string(uuid)                                           | false    |              |             |
