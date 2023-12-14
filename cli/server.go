@@ -585,8 +585,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				},
 				// we are experimenting with self destructing flags that stop working after a certain date.
 				// This flag should be removed after the date specified below.
-				AllowWorkspaceRenames:          shouldAllowWorkspaceRenames(vals.AllowWorkspaceRenames.Value()),
-				AllowWorkspaceRenamesExpiresAt: workspaceRenamesExpiresAt(),
+				AllowWorkspaceRenames: allowWorkspaceRenames(vals.AllowWorkspaceRenames.Value()),
 			}
 			if httpServers.TLSConfig != nil {
 				options.TLSCertificates = httpServers.TLSConfig.Certificates
@@ -2553,19 +2552,6 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 	return providers, nil
 }
 
-const (
-	workspaceRenamesExpiresAtTime = "2024-04-01T00:00:00Z"
-)
-
-func workspaceRenamesExpiresAt() time.Time {
-	t, err := time.Parse(time.RFC3339, workspaceRenamesExpiresAtTime)
-	if err != nil {
-		panic(err)
-	}
-
-	return t
-}
-
-func shouldAllowWorkspaceRenames(value bool) bool {
-	return value && time.Now().Before(workspaceRenamesExpiresAt())
+func allowWorkspaceRenames(flagValue bool) bool {
+	return flagValue && time.Now().Before(codersdk.WorkspaceRenameDeadline)
 }

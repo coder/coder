@@ -21,6 +21,8 @@ const (
 	AutomaticUpdatesNever  AutomaticUpdates = "never"
 )
 
+var WorkspaceRenameDeadline = time.Date(2024, 04, 01, 0, 0, 0, 0, time.UTC)
+
 // Workspace is a deployment of a template. It references a specific
 // version and can be updated.
 type Workspace struct {

@@ -637,12 +637,6 @@ func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		if api.Options.AllowWorkspaceRenamesExpiresAt.Before(time.Now()) {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Workspace renames are no longer allowed. Flag expired at " + api.Options.AllowWorkspaceRenamesExpiresAt.String(),
-			})
-			return
-		}
 		name = req.Name
 	}
 

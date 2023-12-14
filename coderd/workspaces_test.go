@@ -160,30 +160,6 @@ func TestWorkspace(t *testing.T) {
 		require.ErrorContains(t, err, "Workspace renames are not allowed")
 	})
 
-	t.Run("RenameExpired", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{
-			IncludeProvisionerDaemon:       true,
-			AllowWorkspaceRenames:          true,
-			AllowWorkspaceRenamesExpiresAt: time.Now().Add(-1 * time.Hour),
-		})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		ws1 := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws1.LatestBuild.ID)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-		defer cancel()
-
-		want := "new-name"
-		err := client.UpdateWorkspace(ctx, ws1.ID, codersdk.UpdateWorkspaceRequest{
-			Name: want,
-		})
-		require.ErrorContains(t, err, "Workspace renames are no longer allowed")
-	})
-
 	t.Run("TemplateProperties", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
