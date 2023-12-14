@@ -31,7 +31,7 @@ const CreateOAuth2AppPage: FC = () => {
       <CreateOAuth2AppPageView
         isUpdating={postMutation.isLoading}
         error={postMutation.error}
-        createApp={(req: TypesGen.PostOAuth2ProviderAppRequest) => {
+        createApp={(req) => {
           postMutation.mutate(req);
         }}
       />
