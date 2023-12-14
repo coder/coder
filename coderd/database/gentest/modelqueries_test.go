@@ -57,7 +57,6 @@ func TestCustomQueriesSyncedRowScan(t *testing.T) {
 			}()
 		}
 	}
-
 }
 
 type parsedFunc struct {
