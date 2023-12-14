@@ -28,10 +28,11 @@ import (
 )
 
 var skipMethods = map[string]string{
-	"InTx":       "Not relevant",
-	"Ping":       "Not relevant",
-	"Wrappers":   "Not relevant",
-	"AquireLock": "Not relevant",
+	"InTx":           "Not relevant",
+	"Ping":           "Not relevant",
+	"Wrappers":       "Not relevant",
+	"AquireLock":     "Not relevant",
+	"TryAcquireLock": "Not relevant",
 }
 
 // TestMethodTestSuite runs MethodTestSuite.
