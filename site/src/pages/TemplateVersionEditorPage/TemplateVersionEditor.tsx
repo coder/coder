@@ -1,4 +1,4 @@
-import Button, { type ButtonProps } from "@mui/material/Button";
+import Button from "@mui/material/Button";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import CreateIcon from "@mui/icons-material/AddOutlined";
@@ -45,6 +45,13 @@ import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
 import CloseOutlined from "@mui/icons-material/CloseOutlined";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { Loader } from "components/Loader/Loader";
+import {
+  Topbar,
+  TopbarButton,
+  TopbarDataGroup,
+  TopbarDivider,
+  TopbarIconButton,
+} from "components/FullPageLayout/Topbar";
 
 type Tab = "logs" | "resources" | undefined; // Undefined is to hide the tab
 
@@ -176,42 +183,25 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   return (
     <>
       <div css={{ height: "100%", display: "flex", flexDirection: "column" }}>
-        <div
+        <Topbar
           css={{
-            height: 48,
-            borderBottom: `1px solid ${theme.palette.divider}`,
             display: "grid",
             gridTemplateColumns: "1fr 2fr 1fr",
-            alignItems: "center",
           }}
           data-testid="topbar"
         >
           <div>
             <Tooltip title="Back to the template">
-              <IconButton
+              <TopbarIconButton
                 component={RouterLink}
                 to={`/templates/${template.name}`}
-                size="small"
-                css={{
-                  padding: "0 16px",
-                  borderRadius: 0,
-                  height: 48,
-                }}
               >
-                <ArrowBackOutlined css={{ width: 20, height: 20 }} />
-              </IconButton>
+                <ArrowBackOutlined />
+              </TopbarIconButton>
             </Tooltip>
           </div>
 
-          <div
-            css={{
-              fontSize: 13,
-              display: "flex",
-              gap: 8,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
+          <TopbarDataGroup>
             <Avatar
               src={template.icon}
               variant="square"
@@ -231,11 +221,11 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
             >
               {template.display_name || template.name}
             </RouterLink>
-            <span css={{ color: theme.palette.divider }}>/</span>
+            <TopbarDivider />
             <span css={{ color: theme.palette.text.secondary }}>
               {templateVersion.name}
             </span>
-          </div>
+          </TopbarDataGroup>
 
           <div
             css={{
@@ -273,7 +263,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               Publish
             </TopbarButton>
           </div>
-        </div>
+        </Topbar>
 
         <div
           css={{
@@ -458,7 +448,6 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
             <div
               css={{
                 borderTop: `1px solid ${theme.palette.divider}`,
-
                 overflow: "hidden",
                 display: "flex",
                 flexDirection: "column",
@@ -641,22 +630,6 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
         missingVariables={missingVariables}
       />
     </>
-  );
-};
-
-const TopbarButton: FC<ButtonProps> = ({ children, ...buttonProps }) => {
-  return (
-    <Button
-      {...buttonProps}
-      css={{
-        height: 28,
-        fontSize: 13,
-        borderRadius: 4,
-        padding: "0 12px",
-      }}
-    >
-      {children}
-    </Button>
   );
 };
 
