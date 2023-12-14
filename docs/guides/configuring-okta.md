@@ -1,9 +1,15 @@
 # Configuring Custom Claims/Scopes with Okta for group/role
 
-<a href="https://github.com/Emyrk" style="text-decoration: none; color: inherit;">
-  <span style="vertical-align:middle;">Author: Steven Masley</span>
-  <img src="https://avatars.githubusercontent.com/u/5446298?v=4" width="24px" height="24px" style="vertical-align:middle; margin-right: 10px; margin-left: 5px;"/>
-</a>
+<div style="pad: 0px; margin: 0px;">
+  <span style="vertical-align:middle;">Author: </span>
+  <a href="https://github.com/Emyrk" style="text-decoration: none; color: inherit; margin-bottom: 0px;">
+    <span style="vertical-align:middle;">Steven Masley</span>
+    <img src="https://avatars.githubusercontent.com/u/5446298?v=4" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
+  </a>
+</div>
+December 13, 2023
+
+---
 
 > Okta is an identity provider that can be used for OpenID Connect (OIDC) Single
 > Sign On (SSO) on Coder.
