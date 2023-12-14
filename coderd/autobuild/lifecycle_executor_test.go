@@ -863,6 +863,7 @@ func TestExecutorRequireActiveVersion(t *testing.T) {
 	// template version and assert that the field is not abided
 	// since there is no enterprise license.
 	activeVersion := coderdtest.CreateTemplateVersion(t, ownerClient, owner.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, activeVersion.ID)
 	template := coderdtest.CreateTemplate(t, ownerClient, owner.OrganizationID, activeVersion.ID, func(ctr *codersdk.CreateTemplateRequest) {
 		ctr.RequireActiveVersion = true
 		ctr.VersionID = activeVersion.ID
@@ -870,7 +871,7 @@ func TestExecutorRequireActiveVersion(t *testing.T) {
 	inactiveVersion := coderdtest.CreateTemplateVersion(t, ownerClient, owner.OrganizationID, nil, func(ctvr *codersdk.CreateTemplateVersionRequest) {
 		ctvr.TemplateID = template.ID
 	})
-	coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, activeVersion.ID)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, inactiveVersion.ID)
 	memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 	ws := coderdtest.CreateWorkspace(t, memberClient, owner.OrganizationID, uuid.Nil, func(cwr *codersdk.CreateWorkspaceRequest) {
 		cwr.TemplateVersionID = inactiveVersion.ID
