@@ -103,28 +103,33 @@ func (r *RootCmd) openVSCode() *clibase.Cmd {
 				}
 			}
 
-			var directory string
-			switch {
-			case len(inv.Args) > 1:
-				directory = inv.Args[1]
+			directory := workspaceAgent.ExpandedDirectory // Empty unless agent directory is set.
+			if len(inv.Args) > 1 {
+				d := inv.Args[1]
 
-				// We explicitly use `path.IsAbs` (vs `filepath`) because only
-				// Windows absolute paths may start without "/".
-				isUnixAndNotAbs := workspaceAgent.OperatingSystem != "windows" && !path.IsAbs(directory)
-
-				// Perhaps we could SSH in to expand the directory?
-				if !insideThisWorkspace && (strings.HasPrefix(directory, "~") || isUnixAndNotAbs) {
-					return xerrors.Errorf("directory path %q not supported, use an absolute path instead", directory)
-				}
-				if insideThisWorkspace {
+				switch {
+				case insideThisWorkspace:
 					// TODO(mafredri): Return error if directory doesn't exist?
-					directory, err = filepath.Abs(directory)
+					directory, err = filepath.Abs(d)
 					if err != nil {
 						return xerrors.Errorf("expand directory: %w", err)
 					}
+
+				case d == "~" || strings.HasPrefix(d, "~/"):
+					return xerrors.Errorf("path %q requires expansion and is not supported, use an absolute path instead", d)
+
+				case workspaceAgent.OperatingSystem == "windows":
+					// TODO(mafredri): For now we keep this simple instead of discerning out relative paths on Windows.
+					directory = d
+
+				// Note that we use `path` instead of `filepath` since we want Unix behavior.
+				case directory != "" && !path.IsAbs(d):
+					directory = path.Join(directory, d)
+				case path.IsAbs(d):
+					directory = d
+				default:
+					return xerrors.Errorf("path %q not supported, use an absolute path instead", d)
 				}
-			case workspaceAgent.ExpandedDirectory != "":
-				directory = workspaceAgent.ExpandedDirectory
 			}
 
 			u, err := url.Parse("vscode://coder.coder-remote/open")
