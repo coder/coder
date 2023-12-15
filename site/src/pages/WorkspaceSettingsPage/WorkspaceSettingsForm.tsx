@@ -70,7 +70,7 @@ export const WorkspaceSettingsForm: FC<{
             label="Name"
             helperText={
               !workspace.allow_renames &&
-              "Renaming your workspace can be destructive and are not allowed."
+              "Renaming your workspace can be destructive and has not been enabled for this deployment."
             }
           />
           {form.values.name !== form.initialValues.name && (
