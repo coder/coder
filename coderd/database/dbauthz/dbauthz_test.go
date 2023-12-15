@@ -1950,4 +1950,25 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("GetTemplateDAUs", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.GetTemplateDAUsParams{}).Asserts(rbac.ResourceSystem, rbac.ActionRead)
 	}))
+	s.Run("GetActiveWorkspaceBuildsByTemplateID", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(uuid.New()).Asserts(rbac.ResourceSystem, rbac.ActionRead)
+	}))
+	s.Run("GetDeploymentDAUs", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(int32(0)).Asserts(rbac.ResourceSystem, rbac.ActionRead)
+	}))
+	s.Run("GetAppSecurityKey", s.Subtest(func(db database.Store, check *expects) {
+		check.Args().Asserts()
+	}))
+	s.Run("UpsertAppSecurityKey", s.Subtest(func(db database.Store, check *expects) {
+		check.Args("").Asserts()
+	}))
+	s.Run("GetApplicationName", s.Subtest(func(db database.Store, check *expects) {
+		check.Args().Asserts()
+	}))
+	s.Run("UpsertApplicationName", s.Subtest(func(db database.Store, check *expects) {
+		check.Args("").Asserts(rbac.ResourceDeploymentValues, rbac.ActionCreate)
+	}))
+	s.Run("GetHealthSettings", s.Subtest(func(db database.Store, check *expects) {
+		check.Args().Asserts()
+	}))
 }
