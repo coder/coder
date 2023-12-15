@@ -843,6 +843,30 @@ func (s *MethodTestSuite) TestTemplate() {
 			ID: t1.ID,
 		}).Asserts(t1, rbac.ActionCreate)
 	}))
+	s.Run("UpdateTemplateAccessControlByID", s.Subtest(func(db database.Store, check *expects) {
+		t1 := dbgen.Template(s.T(), db, database.Template{})
+		check.Args(database.UpdateTemplateAccessControlByIDParams{
+			ID: t1.ID,
+		}).Asserts(t1, rbac.ActionUpdate)
+	}))
+	s.Run("UpdateTemplateScheduleByID", s.Subtest(func(db database.Store, check *expects) {
+		t1 := dbgen.Template(s.T(), db, database.Template{})
+		check.Args(database.UpdateTemplateScheduleByIDParams{
+			ID: t1.ID,
+		}).Asserts(t1, rbac.ActionUpdate)
+	}))
+	s.Run("UpdateTemplateWorkspacesLastUsedAt", s.Subtest(func(db database.Store, check *expects) {
+		t1 := dbgen.Template(s.T(), db, database.Template{})
+		check.Args(database.UpdateTemplateWorkspacesLastUsedAtParams{
+			TemplateID: t1.ID,
+		}).Asserts(t1, rbac.ActionUpdate)
+	}))
+	s.Run("UpdateWorkspacesDormantDeletingAtByTemplateID", s.Subtest(func(db database.Store, check *expects) {
+		t1 := dbgen.Template(s.T(), db, database.Template{})
+		check.Args(database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams{
+			TemplateID: t1.ID,
+		}).Asserts(t1, rbac.ActionUpdate)
+	}))
 	s.Run("UpdateTemplateActiveVersionByID", s.Subtest(func(db database.Store, check *expects) {
 		t1 := dbgen.Template(s.T(), db, database.Template{
 			ActiveVersionID: uuid.New(),
@@ -2096,5 +2120,14 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	}))
 	s.Run("GetTemplateAverageBuildTime", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.GetTemplateAverageBuildTimeParams{}).Asserts(rbac.ResourceSystem, rbac.ActionRead)
+	}))
+	s.Run("GetWorkspacesEligibleForTransition", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(time.Time{}).Asserts()
+	}))
+	s.Run("InsertTemplateVersionVariable", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.InsertTemplateVersionVariableParams{}).Asserts(rbac.ResourceSystem, rbac.ActionCreate)
+	}))
+	s.Run("UpdateInactiveUsersToDormant", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.UpdateInactiveUsersToDormantParams{}).Asserts(rbac.ResourceSystem, rbac.ActionCreate)
 	}))
 }
