@@ -79,7 +79,14 @@ export const FormSection: FC<
     alpha?: boolean;
     deprecated?: boolean;
   }
-> = ({ children, title, description, classes = {}, alpha = false, deprecated = false }) => {
+> = ({
+  children,
+  title,
+  description,
+  classes = {},
+  alpha = false,
+  deprecated = false,
+}) => {
   const { direction } = useContext(FormContext);
   const theme = useTheme();
 

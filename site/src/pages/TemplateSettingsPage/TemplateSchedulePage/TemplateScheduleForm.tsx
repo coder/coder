@@ -76,7 +76,10 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       default_ttl_ms: template.default_ttl_ms / MS_HOUR_CONVERSION,
       // the API ignores these values, but to avoid tripping up validation set
       // it to zero if the user can't set the field.
-      use_max_ttl: template.use_max_ttl === undefined ? template.max_ttl_ms > 0 : template.use_max_ttl,
+      use_max_ttl:
+        template.use_max_ttl === undefined
+          ? template.max_ttl_ms > 0
+          : template.use_max_ttl,
       max_ttl_ms: allowAdvancedScheduling
         ? template.max_ttl_ms / MS_HOUR_CONVERSION
         : 0,
@@ -204,9 +207,10 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       default_ttl_ms: form.values.default_ttl_ms
         ? form.values.default_ttl_ms * MS_HOUR_CONVERSION
         : undefined,
-      max_ttl_ms: form.values.max_ttl_ms && form.values.use_max_ttl
-        ? form.values.max_ttl_ms * MS_HOUR_CONVERSION
-        : undefined,
+      max_ttl_ms:
+        form.values.max_ttl_ms && form.values.use_max_ttl
+          ? form.values.max_ttl_ms * MS_HOUR_CONVERSION
+          : undefined,
       failure_ttl_ms: form.values.failure_ttl_ms
         ? form.values.failure_ttl_ms * MS_DAY_CONVERSION
         : undefined,
@@ -217,12 +221,14 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         ? form.values.time_til_dormant_autodelete_ms * MS_DAY_CONVERSION
         : undefined,
 
-      autostop_requirement: form.values.use_max_ttl ? undefined : {
-        days_of_week: calculateAutostopRequirementDaysValue(
-          form.values.autostop_requirement_days_of_week,
-        ),
-        weeks: autostop_requirement_weeks,
-      },
+      autostop_requirement: form.values.use_max_ttl
+        ? undefined
+        : {
+            days_of_week: calculateAutostopRequirementDaysValue(
+              form.values.autostop_requirement_days_of_week,
+            ),
+            weeks: autostop_requirement_weeks,
+          },
       autostart_requirement: {
         days_of_week: form.values.autostart_requirement_days_of_week,
       },
@@ -466,7 +472,11 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                 </>
               ),
             )}
-            disabled={isSubmitting || !form.values.use_max_ttl || !allowAdvancedScheduling}
+            disabled={
+              isSubmitting ||
+              !form.values.use_max_ttl ||
+              !allowAdvancedScheduling
+            }
             fullWidth
             inputProps={{ min: 0, step: 1 }}
             label="Max lifetime (hours)"

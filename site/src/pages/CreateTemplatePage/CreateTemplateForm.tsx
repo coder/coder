@@ -382,7 +382,11 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
                   days={form.values.autostop_requirement_days_of_week}
                 />,
               )}
-              disabled={isSubmitting || form.values.use_max_ttl || !allowAdvancedScheduling}
+              disabled={
+                isSubmitting ||
+                form.values.use_max_ttl ||
+                !allowAdvancedScheduling
+              }
               fullWidth
               select
               value={form.values.autostop_requirement_days_of_week}
@@ -459,7 +463,11 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
                   </>
                 ),
               )}
-              disabled={isSubmitting || !form.values.use_max_ttl || !allowAdvancedScheduling}
+              disabled={
+                isSubmitting ||
+                !form.values.use_max_ttl ||
+                !allowAdvancedScheduling
+              }
               fullWidth
               label="Max lifetime (hours)"
               type="number"
