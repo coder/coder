@@ -31,7 +31,7 @@ var skipMethods = map[string]string{
 	"InTx":           "Not relevant",
 	"Ping":           "Not relevant",
 	"Wrappers":       "Not relevant",
-	"AquireLock":     "Not relevant",
+	"AcquireLock":    "Not relevant",
 	"TryAcquireLock": "Not relevant",
 }
 
