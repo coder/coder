@@ -53,8 +53,8 @@ func TestTimeout(t *testing.T) {
 	require.ErrorIs(t, runner.Execute(context.Background(), nil), agentscripts.ErrTimeout)
 }
 
-// TestCronClose exists because StartCront() can happen after Close(),
-// so the cron go routine is not exited.
+// TestCronClose exists because cron.Run() can happen after cron.Close().
+// If this happens, there used to be a deadlock.
 func TestCronClose(t *testing.T) {
 	t.Parallel()
 	runner := agentscripts.New(agentscripts.Options{})

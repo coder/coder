@@ -135,10 +135,10 @@ func (r *Runner) StartCron() {
 		// So if we are closed, we just return, and skip the Run() entirely.
 		select {
 		case <-r.cronCtx.Done():
+			// The cronCtx is cancelled before cron.Close() happens. So if the ctx is
+			// cancelled, then Close() will be called, or it is about to be called.
+			// So do nothing!
 		default:
-			// There is still a chance the Close() happens right here before we'
-			// r.cron.Run(). Fixing this requires modifying the cron package
-			// to add a hook for when the cron "running" flag is set.
 			r.cron.Run()
 		}
 	})
@@ -326,6 +326,7 @@ func (r *Runner) Close() error {
 		return nil
 	}
 	close(r.closed)
+	// Must cancel the cron ctx BEFORE stopping the cron.
 	r.cronCtxCancel()
 	<-r.cron.Stop().Done()
 	r.cmdCloseWait.Wait()
