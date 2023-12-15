@@ -35,7 +35,7 @@ const vscodeDesktopName = "VS Code Desktop"
 func (r *RootCmd) openVSCode() *clibase.Cmd {
 	var (
 		generateToken bool
-		testNoOpen    bool
+		testOpenError bool
 	)
 
 	client := new(codersdk.Client)
@@ -171,10 +171,10 @@ func (r *RootCmd) openVSCode() *clibase.Cmd {
 			}
 			_, _ = fmt.Fprintf(inv.Stderr, "Opening %s in %s\n", openingPath, vscodeDesktopName)
 
-			if !testNoOpen {
+			if !testOpenError {
 				err = open.Run(u.String())
 			} else {
-				err = xerrors.New("test.no-open")
+				err = xerrors.New("test.open-error")
 			}
 			if err != nil {
 				if !generateToken {
@@ -204,9 +204,9 @@ func (r *RootCmd) openVSCode() *clibase.Cmd {
 			Value: clibase.BoolOf(&generateToken),
 		},
 		{
-			Flag:        "test.no-open",
+			Flag:        "test.open-error",
 			Description: "Don't run the open command.",
-			Value:       clibase.BoolOf(&testNoOpen),
+			Value:       clibase.BoolOf(&testOpenError),
 			Hidden:      true, // This is for testing!
 		},
 	}

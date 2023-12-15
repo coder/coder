@@ -57,31 +57,31 @@ func TestOpen(t *testing.T) {
 		},
 		{
 			name:      "nonexistent workspace",
-			args:      []string{"--test.no-open", workspace.Name + "bad"},
+			args:      []string{"--test.open-error", workspace.Name + "bad"},
 			wantError: true,
 		},
 		{
 			name:    "ok",
-			args:    []string{"--test.no-open", workspace.Name},
+			args:    []string{"--test.open-error", workspace.Name},
 			wantDir: agentDir,
 		},
 		{
 			name:      "relative path error",
-			args:      []string{"--test.no-open", workspace.Name, "my/relative/path"},
+			args:      []string{"--test.open-error", workspace.Name, "my/relative/path"},
 			wantError: true,
 		},
 		{
 			name:    "ok with abs path",
-			args:    []string{"--test.no-open", workspace.Name, agentDir},
+			args:    []string{"--test.open-error", workspace.Name, agentDir},
 			wantDir: agentDir,
 		},
 		{
 			name:      "ok with token",
-			args:      []string{"--test.no-open", workspace.Name, "--generate-token"},
+			args:      []string{"--test.open-error", workspace.Name, "--generate-token"},
 			wantDir:   agentDir,
 			wantToken: true,
 		},
-		// Inside workspace, does not require --test.no-open.
+		// Inside workspace, does not require --test.open-error.
 		{
 			name:    "ok inside workspace",
 			env:     insideWorkspaceEnv,
