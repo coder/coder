@@ -208,8 +208,7 @@ func NewServer(
 		HeartbeatFn:                 options.HeartbeatFn,
 	}
 
-	go s.heartbeat()
-
+	go s.heartbeatLoop()
 	return s, nil
 }
 
@@ -222,44 +221,55 @@ func (s *server) timeNow() time.Time {
 	return dbtime.Now()
 }
 
-// heartbeat runs heartbeatOnce at the interval specified by HeartbeatInterval
+// heartbeatLoop runs heartbeatOnce at the interval specified by HeartbeatInterval
 // until the lifecycle context is canceled.
-func (s *server) heartbeat() {
+func (s *server) heartbeatLoop() {
 	tick := time.NewTicker(time.Nanosecond)
 	defer tick.Stop()
 	for {
 		select {
 		case <-s.lifecycleCtx.Done():
+			s.Logger.Debug(s.lifecycleCtx, "heartbeat loop canceled")
 			return
 		case <-tick.C:
+			if s.lifecycleCtx.Err() != nil {
+				return
+			}
+			start := s.timeNow()
 			hbCtx, hbCancel := context.WithTimeout(s.lifecycleCtx, s.HeartbeatInterval)
-			if err := s.heartbeatOnce(hbCtx); err != nil {
+			if err := s.heartbeat(hbCtx); err != nil {
 				if !xerrors.Is(err, context.DeadlineExceeded) && !xerrors.Is(err, context.Canceled) {
 					s.Logger.Error(hbCtx, "heartbeat failed", slog.Error(err))
 				}
 			}
 			hbCancel()
-			tick.Reset(s.HeartbeatInterval)
+			elapsed := s.timeNow().Sub(start)
+			nextBeat := s.HeartbeatInterval - elapsed
+			// avoid negative interval
+			if nextBeat <= 0 {
+				nextBeat = time.Nanosecond
+			}
+			tick.Reset(nextBeat)
 		}
 	}
 }
 
-// heartbeatOnce updates the last seen at timestamp in the database.
+// heartbeat updates the last seen at timestamp in the database.
 // If HeartbeatFn is set, it will be called instead.
-func (s *server) heartbeatOnce(ctx context.Context) error {
-	if s.HeartbeatFn != nil {
-		return s.HeartbeatFn(ctx)
-	}
-
-	if s.lifecycleCtx.Err() != nil {
+func (s *server) heartbeat(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
 		return nil
+	default:
+		if s.HeartbeatFn != nil {
+			return s.HeartbeatFn(ctx)
+		}
+		//nolint:gocritic // This is specifically for updating the last seen at timestamp.
+		return s.Database.UpdateProvisionerDaemonLastSeenAt(dbauthz.AsSystemRestricted(ctx), database.UpdateProvisionerDaemonLastSeenAtParams{
+			ID:         s.ID,
+			LastSeenAt: sql.NullTime{Time: s.timeNow(), Valid: true},
+		})
 	}
-
-	//nolint:gocritic // This is specifically for updating the last seen at timestamp.
-	return s.Database.UpdateProvisionerDaemonLastSeenAt(dbauthz.AsSystemRestricted(ctx), database.UpdateProvisionerDaemonLastSeenAtParams{
-		ID:         s.ID,
-		LastSeenAt: sql.NullTime{Time: s.timeNow(), Valid: true},
-	})
 }
 
 // AcquireJob queries the database to lock a job.

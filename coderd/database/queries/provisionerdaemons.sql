@@ -47,4 +47,10 @@ WHERE
 RETURNING *;
 
 -- name: UpdateProvisionerDaemonLastSeenAt :exec
-UPDATE provisioner_daemons SET last_seen_at = @last_seen_at WHERE id = @id;
+UPDATE provisioner_daemons
+SET
+	last_seen_at = @last_seen_at
+WHERE
+	id = @id
+AND
+	last_seen_at <= @last_seen_at;

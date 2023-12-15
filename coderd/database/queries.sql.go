@@ -3058,7 +3058,13 @@ func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDa
 }
 
 const updateProvisionerDaemonLastSeenAt = `-- name: UpdateProvisionerDaemonLastSeenAt :exec
-UPDATE provisioner_daemons SET last_seen_at = $1 WHERE id = $2
+UPDATE provisioner_daemons
+SET
+	last_seen_at = $1
+WHERE
+	id = $2
+AND
+	last_seen_at <= $1
 `
 
 type UpdateProvisionerDaemonLastSeenAtParams struct {

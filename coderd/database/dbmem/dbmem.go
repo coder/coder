@@ -5958,6 +5958,9 @@ func (q *FakeQuerier) UpdateProvisionerDaemonLastSeenAt(_ context.Context, arg d
 		if q.provisionerDaemons[idx].ID != arg.ID {
 			continue
 		}
+		if q.provisionerDaemons[idx].LastSeenAt.Time.After(arg.LastSeenAt.Time) {
+			continue
+		}
 		q.provisionerDaemons[idx].LastSeenAt = arg.LastSeenAt
 		return nil
 	}

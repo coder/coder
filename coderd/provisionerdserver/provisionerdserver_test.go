@@ -103,9 +103,15 @@ func TestHeartbeat(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	heartbeatChan := make(chan struct{})
-	heartbeatFn := func(context.Context) error {
-		heartbeatChan <- struct{}{}
-		return nil
+	heartbeatFn := func(hbCtx context.Context) error {
+		t.Logf("heartbeat")
+		select {
+		case <-hbCtx.Done():
+			return hbCtx.Err()
+		default:
+			heartbeatChan <- struct{}{}
+			return nil
+		}
 	}
 	//nolint:dogsled // ｡:ﾟ૮ ˶ˆ ﻌ ˆ˶ ა ﾟ:｡
 	_, _, _, _ = setup(t, false, &overrides{
@@ -114,10 +120,21 @@ func TestHeartbeat(t *testing.T) {
 		heartbeatInterval: testutil.IntervalFast,
 	})
 
-	<-heartbeatChan
+	_, ok := <-heartbeatChan
+	require.True(t, ok, "first heartbeat not received")
+	_, ok = <-heartbeatChan
+	require.True(t, ok, "second heartbeat not received")
 	cancel()
+	// Close the channel to ensure we don't receive any more heartbeats.
+	// The test will fail if we do.
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("heartbeat received after cancel: %v", r)
+		}
+	}()
+
 	close(heartbeatChan)
-	<-time.After(testutil.IntervalFast)
+	<-time.After(testutil.IntervalMedium)
 }
 
 func TestAcquireJob(t *testing.T) {
@@ -1766,7 +1783,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		CreatedAt:    dbtime.Now(),
 		Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho},
 		Tags:         database.StringMap{},
-		LastSeenAt:   sql.NullTime{Time: dbtime.Now(), Valid: true},
+		LastSeenAt:   sql.NullTime{},
 		Version:      "",
 		APIVersion:   "1.0",
 	})
