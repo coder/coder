@@ -987,6 +987,12 @@ func (s *MethodTestSuite) TestUser() {
 			ID: u.ID,
 		}).Asserts(u.UserDataRBACObject(), rbac.ActionUpdate).Returns()
 	}))
+	s.Run("UpdateUserQuietHoursSchedule", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		check.Args(database.UpdateUserQuietHoursScheduleParams{
+			ID: u.ID,
+		}).Asserts(u.UserDataRBACObject(), rbac.ActionUpdate)
+	}))
 	s.Run("UpdateUserLastSeenAt", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		check.Args(database.UpdateUserLastSeenAtParams{
@@ -1152,6 +1158,18 @@ func (s *MethodTestSuite) TestWorkspace() {
 			LifecycleState: database.WorkspaceAgentLifecycleStateCreated,
 		}).Asserts(ws, rbac.ActionUpdate).Returns()
 	}))
+	s.Run("UpdateWorkspaceAgentMetadata", s.Subtest(func(db database.Store, check *expects) {
+		tpl := dbgen.Template(s.T(), db, database.Template{})
+		ws := dbgen.Workspace(s.T(), db, database.Workspace{
+			TemplateID: tpl.ID,
+		})
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
+		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
+		check.Args(database.UpdateWorkspaceAgentMetadataParams{
+			WorkspaceAgentID: agt.ID,
+		}).Asserts(ws, rbac.ActionUpdate).Returns()
+	}))
 	s.Run("UpdateWorkspaceAgentLogOverflowByID", s.Subtest(func(db database.Store, check *expects) {
 		tpl := dbgen.Template(s.T(), db, database.Template{})
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{
@@ -1263,6 +1281,16 @@ func (s *MethodTestSuite) TestWorkspace() {
 			Workspace:    ws,
 			TemplateName: tpl.Name,
 		})
+	}))
+	s.Run("GetWorkspaceAgentsInLatestBuildByWorkspaceID", s.Subtest(func(db database.Store, check *expects) {
+		tpl := dbgen.Template(s.T(), db, database.Template{})
+		ws := dbgen.Workspace(s.T(), db, database.Workspace{
+			TemplateID: tpl.ID,
+		})
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
+		dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
+		check.Args(ws.ID).Asserts(ws, rbac.ActionRead)
 	}))
 	s.Run("GetWorkspaceByOwnerIDAndName", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
@@ -1987,6 +2015,9 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("GetHealthSettings", s.Subtest(func(db database.Store, check *expects) {
 		check.Args().Asserts()
 	}))
+	s.Run("UpsertHealthSettings", s.Subtest(func(db database.Store, check *expects) {
+		check.Args("foo").Asserts(rbac.ResourceDeploymentValues, rbac.ActionCreate)
+	}))
 	s.Run("GetDeploymentWorkspaceAgentStats", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(time.Time{}).Asserts()
 	}))
@@ -1999,11 +2030,27 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("GetHungProvisionerJobs", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(time.Time{}).Asserts()
 	}))
+	s.Run("UpsertOAuthSigningKey", s.Subtest(func(db database.Store, check *expects) {
+		check.Args("foo").Asserts(rbac.ResourceSystem, rbac.ActionUpdate)
+	}))
 	s.Run("GetOAuthSigningKey", s.Subtest(func(db database.Store, check *expects) {
 		db.UpsertOAuthSigningKey(context.Background(), "foo")
 		check.Args().Asserts(rbac.ResourceSystem, rbac.ActionUpdate)
 	}))
 	s.Run("InsertMissingGroups", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertMissingGroupsParams{}).Asserts(rbac.ResourceSystem, rbac.ActionCreate).Errors(matchAnyError)
+	}))
+	s.Run("UpdateUserLoginType", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		check.Args(database.UpdateUserLoginTypeParams{
+			NewLoginType: database.LoginTypePassword,
+			UserID:       u.ID,
+		}).Asserts(rbac.ResourceSystem, rbac.ActionUpdate)
+	}))
+	s.Run("GetWorkspaceAgentStatsAndLabels", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(time.Time{}).Asserts()
+	}))
+	s.Run("GetWorkspaceAgentStats", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(time.Time{}).Asserts()
 	}))
 }
