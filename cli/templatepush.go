@@ -78,7 +78,7 @@ func (pf *templateUploadFlags) upload(inv *clibase.Invocation, client *codersdk.
 
 		pipeReader, pipeWriter := io.Pipe()
 		go func() {
-			err := provisionersdk.Tar(pipeWriter, pf.directory, provisionersdk.TemplateArchiveLimit)
+			err := provisionersdk.Tar(pipeWriter, inv.Logger, pf.directory, provisionersdk.TemplateArchiveLimit)
 			_ = pipeWriter.CloseWithError(err)
 		}()
 		defer pipeReader.Close()
