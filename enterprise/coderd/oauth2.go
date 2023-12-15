@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -14,6 +15,30 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 )
+
+func (api *API) oAuth2ProviderMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		if !buildinfo.IsDev() {
+			httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
+				Message: "OAuth2 provider is under development.",
+			})
+			return
+		}
+
+		api.entitlementsMu.RLock()
+		entitled := api.entitlements.Features[codersdk.FeatureOAuth2Provider].Entitlement != codersdk.EntitlementNotEntitled
+		api.entitlementsMu.RUnlock()
+
+		if !entitled {
+			httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
+				Message: "OAuth2 provider is an Enterprise feature. Contact sales!",
+			})
+			return
+		}
+
+		next.ServeHTTP(rw, r)
+	})
+}
 
 // @Summary Get OAuth2 applications.
 // @ID get-oauth2-applications

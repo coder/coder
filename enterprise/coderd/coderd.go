@@ -312,8 +312,10 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Put("/", api.putUserQuietHoursSchedule)
 		})
 		r.Route("/oauth2-provider", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
-
+			r.Use(
+				apiKeyMiddleware,
+				api.oAuth2ProviderMiddleware,
+			)
 			r.Route("/apps", func(r chi.Router) {
 				r.Get("/", api.oAuth2ProviderApps)
 				r.Post("/", api.postOAuth2ProviderApp)
