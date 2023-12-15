@@ -1,8 +1,15 @@
+import { css } from "@emotion/css";
 import Button, { ButtonProps } from "@mui/material/Button";
 import IconButton, { IconButtonProps } from "@mui/material/IconButton";
 import { useTheme } from "@mui/material/styles";
 import { Avatar, AvatarProps } from "components/Avatar/Avatar";
-import { HTMLAttributes, forwardRef } from "react";
+import {
+  HTMLAttributes,
+  PropsWithChildren,
+  ReactElement,
+  cloneElement,
+  forwardRef,
+} from "react";
 
 export const Topbar = (props: HTMLAttributes<HTMLDivElement>) => {
   const theme = useTheme();
@@ -30,9 +37,10 @@ export const TopbarIconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
         {...props}
         size="small"
         css={{
-          padding: "0 16px",
+          padding: 0,
           borderRadius: 0,
           height: 48,
+          width: 48,
 
           "& svg": {
             fontSize: 20,
@@ -88,5 +96,20 @@ export const TopbarAvatar = (props: AvatarProps) => {
       fitImage
       css={{ width: 16, height: 16 }}
     />
+  );
+};
+
+export const TopbarIcon = ({
+  children,
+  ...props
+}: PropsWithChildren<HTMLAttributes<HTMLOrSVGElement>>) => {
+  const theme = useTheme();
+
+  return cloneElement(
+    children as ReactElement<HTMLAttributes<HTMLOrSVGElement>>,
+    {
+      ...props,
+      className: css({ fontSize: 16, color: theme.palette.text.secondary }),
+    },
   );
 };

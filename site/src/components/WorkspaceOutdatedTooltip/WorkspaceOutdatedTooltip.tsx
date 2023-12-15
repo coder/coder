@@ -28,15 +28,7 @@ interface TooltipProps {
   ariaLabel?: string;
 }
 
-export const WorkspaceOutdatedTooltip: FC<TooltipProps> = ({
-  onUpdateVersion,
-  ariaLabel,
-  latestVersionId,
-  templateName,
-}) => {
-  const { data: activeVersion } = useQuery(templateVersion(latestVersionId));
-  const theme = useTheme();
-
+export const WorkspaceOutdatedTooltip: FC<TooltipProps> = (props) => {
   return (
     <HelpTooltip
       size="small"
@@ -44,6 +36,18 @@ export const WorkspaceOutdatedTooltip: FC<TooltipProps> = ({
       iconStyles={styles.icon}
       buttonStyles={styles.button}
     >
+      <OutdatedTooltipContent {...props} />
+    </HelpTooltip>
+  );
+};
+
+export const OutdatedTooltipContent = (props: TooltipProps) => {
+  const theme = useTheme();
+  const { onUpdateVersion, ariaLabel, latestVersionId, templateName } = props;
+  const { data: activeVersion } = useQuery(templateVersion(latestVersionId));
+
+  return (
+    <>
       <HelpTooltipTitle>{Language.outdatedLabel}</HelpTooltipTitle>
       <HelpTooltipText>{Language.versionTooltipText}</HelpTooltipText>
 
@@ -81,7 +85,7 @@ export const WorkspaceOutdatedTooltip: FC<TooltipProps> = ({
         </div>
       </div>
 
-      <HelpTooltipLinksGroup>
+      {/* <HelpTooltipLinksGroup>
         <HelpTooltipAction
           icon={RefreshIcon}
           onClick={onUpdateVersion}
@@ -89,8 +93,8 @@ export const WorkspaceOutdatedTooltip: FC<TooltipProps> = ({
         >
           {Language.updateVersionLabel}
         </HelpTooltipAction>
-      </HelpTooltipLinksGroup>
-    </HelpTooltip>
+      </HelpTooltipLinksGroup> */}
+    </>
   );
 };
 

@@ -2,7 +2,7 @@ import { type Interpolation, type Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import AlertTitle from "@mui/material/AlertTitle";
 import { type FC, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link as RouterLink } from "react-router-dom";
 import dayjs from "dayjs";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
@@ -28,6 +28,28 @@ import {
 import { BuildsTable } from "./BuildsTable";
 import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
 import { WorkspaceStats } from "./WorkspaceStats";
+import {
+  Topbar,
+  TopbarAvatar,
+  TopbarData,
+  TopbarDivider,
+  TopbarIcon,
+  TopbarIconButton,
+} from "components/FullPageLayout/Topbar";
+import Tooltip from "@mui/material/Tooltip";
+import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
+import { useTheme } from "@mui/material/styles";
+import PersonOutlineOutlined from "@mui/icons-material/PersonOutlineOutlined";
+import LayersOutlined from "@mui/icons-material/LayersOutlined";
+import {
+  OutdatedTooltipContent,
+  WorkspaceOutdatedTooltip,
+} from "components/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "components/Popover/Popover";
 
 export type WorkspaceError =
   | "getBuildsError"
@@ -114,6 +136,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   hasMoreBuilds,
   canAutostart,
 }) => {
+  const theme = useTheme();
   const navigate = useNavigate();
   const { saveLocal, getLocal } = useLocalStorage();
 
@@ -166,7 +189,61 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 
   return (
     <>
-      <FullWidthPageHeader>
+      <Topbar>
+        <Tooltip title="Back to workspaces">
+          <TopbarIconButton component={RouterLink} to="workspaces">
+            <ArrowBackOutlined />
+          </TopbarIconButton>
+        </Tooltip>
+
+        <div
+          css={{
+            paddingLeft: 16,
+            display: "flex",
+            alignItems: "center",
+            gap: 32,
+          }}
+        >
+          <TopbarData>
+            <TopbarAvatar src={workspace.template_icon} />
+            <span css={{ fontWeight: 500 }}>{workspace.name}</span>
+            <TopbarDivider />
+            <span>
+              {workspace.template_display_name ?? workspace.template_name}
+            </span>
+            <TopbarDivider />
+            {workspace.outdated ? (
+              <Popover mode="hover">
+                <PopoverTrigger>
+                  <span css={{ color: theme.palette.warning.light }}>
+                    {workspace.latest_build.template_version_name}
+                  </span>
+                </PopoverTrigger>
+                <PopoverContent>
+                  <OutdatedTooltipContent
+                    templateName={workspace.template_name}
+                    latestVersionId={workspace.template_active_version_id}
+                    onUpdateVersion={handleUpdate}
+                    ariaLabel="update version"
+                  />
+                </PopoverContent>
+              </Popover>
+            ) : (
+              <span css={{ color: theme.palette.text.secondary }}>
+                {workspace.latest_build.template_version_name}
+              </span>
+            )}
+          </TopbarData>
+
+          <TopbarData>
+            <TopbarIcon>
+              <PersonOutlineOutlined />
+            </TopbarIcon>
+            <span>{workspace.owner_name}</span>
+          </TopbarData>
+        </div>
+      </Topbar>
+      {/* <FullWidthPageHeader>
         <Stack direction="row" spacing={3} alignItems="center">
           <Avatar
             size="md"
@@ -214,7 +291,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
             />
           </PageHeaderActions>
         )}
-      </FullWidthPageHeader>
+      </FullWidthPageHeader> */}
 
       <Margins css={styles.content}>
         <Stack direction="column" css={styles.firstColumnSpacer} spacing={4}>
