@@ -31,7 +31,7 @@ CREATE TYPE build_reason AS ENUM (
     'initiator',
     'autostart',
     'autostop',
-    'autolock',
+    'dormancy',
     'failedstop',
     'autodelete'
 );
@@ -509,12 +509,16 @@ CREATE TABLE parameter_values (
 CREATE TABLE provisioner_daemons (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone,
     name character varying(64) NOT NULL,
     provisioners provisioner_type[] NOT NULL,
     replica_id uuid,
-    tags jsonb DEFAULT '{}'::jsonb NOT NULL
+    tags jsonb DEFAULT '{}'::jsonb NOT NULL,
+    last_seen_at timestamp with time zone,
+    version text DEFAULT ''::text NOT NULL,
+    api_version text DEFAULT '1.0'::text NOT NULL
 );
+
+COMMENT ON COLUMN provisioner_daemons.api_version IS 'The API version of the provisioner daemon';
 
 CREATE TABLE provisioner_job_logs (
     job_id uuid NOT NULL,
@@ -744,13 +748,16 @@ CREATE TABLE users (
     status user_status DEFAULT 'dormant'::user_status NOT NULL,
     rbac_roles text[] DEFAULT '{}'::text[] NOT NULL,
     login_type login_type DEFAULT 'password'::login_type NOT NULL,
-    avatar_url text,
+    avatar_url text DEFAULT ''::text NOT NULL,
     deleted boolean DEFAULT false NOT NULL,
     last_seen_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL,
-    quiet_hours_schedule text DEFAULT ''::text NOT NULL
+    quiet_hours_schedule text DEFAULT ''::text NOT NULL,
+    theme_preference text DEFAULT ''::text NOT NULL
 );
 
 COMMENT ON COLUMN users.quiet_hours_schedule IS 'Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user''s quiet hours. If empty, the default quiet hours on the instance is used instead.';
+
+COMMENT ON COLUMN users.theme_preference IS '"" can be interpreted as "the user does not care", falling back to the default theme';
 
 CREATE VIEW visible_users AS
  SELECT users.id,
@@ -807,7 +814,8 @@ CREATE TABLE templates (
     autostop_requirement_weeks bigint DEFAULT 0 NOT NULL,
     autostart_block_days_of_week smallint DEFAULT 0 NOT NULL,
     require_active_version boolean DEFAULT false NOT NULL,
-    deprecated text DEFAULT ''::text NOT NULL
+    deprecated text DEFAULT ''::text NOT NULL,
+    use_max_ttl boolean DEFAULT false NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -856,6 +864,7 @@ CREATE VIEW template_with_users AS
     templates.autostart_block_days_of_week,
     templates.require_active_version,
     templates.deprecated,
+    templates.use_max_ttl,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username
    FROM (public.templates
@@ -1280,9 +1289,6 @@ ALTER TABLE ONLY parameter_values
     ADD CONSTRAINT parameter_values_scope_id_name_key UNIQUE (scope_id, name);
 
 ALTER TABLE ONLY provisioner_daemons
-    ADD CONSTRAINT provisioner_daemons_name_key UNIQUE (name);
-
-ALTER TABLE ONLY provisioner_daemons
     ADD CONSTRAINT provisioner_daemons_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY provisioner_job_logs
@@ -1410,6 +1416,10 @@ CREATE INDEX idx_organization_member_user_id_uuid ON organization_members USING 
 CREATE UNIQUE INDEX idx_organization_name ON organizations USING btree (name);
 
 CREATE UNIQUE INDEX idx_organization_name_lower ON organizations USING btree (lower(name));
+
+CREATE UNIQUE INDEX idx_provisioner_daemons_name_owner_key ON provisioner_daemons USING btree (name, lower((tags ->> 'owner'::text)));
+
+COMMENT ON INDEX idx_provisioner_daemons_name_owner_key IS 'Relax uniqueness constraint for provisioner daemon names';
 
 CREATE INDEX idx_tailnet_agents_coordinator ON tailnet_agents USING btree (coordinator_id);
 

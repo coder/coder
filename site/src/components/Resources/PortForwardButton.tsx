@@ -5,7 +5,6 @@ import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import type { FC } from "react";
 import { useQuery } from "react-query";
-import { colors } from "theme/colors";
 import { docs } from "utils/docs";
 import { getAgentListeningPorts } from "api/api";
 import type {
@@ -26,6 +25,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "components/Popover/Popover";
+import { DisplayAppNameMap } from "./AppLink/AppLink";
 
 export interface PortForwardButtonProps {
   host: string;
@@ -50,7 +50,7 @@ export const PortForwardButton: FC<PortForwardButtonProps> = (props) => {
     <Popover>
       <PopoverTrigger>
         <AgentButton disabled={!portsQuery.data}>
-          Ports
+          {DisplayAppNameMap["port_forwarding_helper"]}
           {portsQuery.data ? (
             <div css={styles.portCount}>{portsQuery.data.ports.length}</div>
           ) : (
@@ -194,7 +194,7 @@ const classNames = {
 } satisfies Record<string, ClassName>;
 
 const styles = {
-  portCount: {
+  portCount: (theme) => ({
     fontSize: 12,
     fontWeight: 500,
     height: 20,
@@ -204,9 +204,9 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.gray[11],
+    backgroundColor: theme.colors.gray[11],
     marginLeft: 8,
-  },
+  }),
 
   portLink: (theme) => ({
     color: theme.palette.text.primary,

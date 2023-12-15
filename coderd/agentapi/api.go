@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -77,7 +78,7 @@ type Options struct {
 	// WorkspaceID avoids a future lookup to find the workspace ID by setting
 	// the cache in advance.
 	WorkspaceID          uuid.UUID
-	UpdateAgentMetricsFn func(ctx context.Context, username, workspaceName, agentName string, metrics []*agentproto.Stats_Metric)
+	UpdateAgentMetricsFn func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 }
 
 func New(opts Options) *API {

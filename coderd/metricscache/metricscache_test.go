@@ -152,11 +152,11 @@ func TestCache_TemplateUsers(t *testing.T) {
 		},
 		{
 			name:     "tzOffset",
-			tzOffset: 1,
+			tzOffset: 3,
 			args: args{
 				rows: []database.InsertWorkspaceAgentStatParams{
-					statRow(zebra, dateH(2022, 1, 2, 1)),
-					statRow(tiger, dateH(2022, 1, 2, 1)),
+					statRow(zebra, dateH(2022, 1, 2, 3)),
+					statRow(tiger, dateH(2022, 1, 2, 3)),
 					// With offset these should be in the previous day
 					statRow(zebra, dateH(2022, 1, 2, 0)),
 					statRow(tiger, dateH(2022, 1, 2, 0)),
@@ -252,6 +252,74 @@ func TestCache_TemplateUsers(t *testing.T) {
 			require.Equal(t, tt.tplWant.uniqueUsers, gotUniqueUsers)
 		})
 	}
+}
+
+func TestCache_TemplateWorkspaceOwners(t *testing.T) {
+	t.Parallel()
+	var ()
+
+	var (
+		db    = dbmem.New()
+		cache = metricscache.New(db, slogtest.Make(t, nil), metricscache.Intervals{
+			TemplateDAUs: testutil.IntervalFast,
+		})
+	)
+
+	defer cache.Close()
+
+	user1 := dbgen.User(t, db, database.User{})
+	user2 := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		Provisioner: database.ProvisionerTypeEcho,
+	})
+	require.Eventuallyf(t, func() bool {
+		count, ok := cache.TemplateWorkspaceOwners(template.ID)
+		return ok && count == 0
+	}, testutil.WaitShort, testutil.IntervalMedium,
+		"TemplateWorkspaceOwners never populated 0 owners",
+	)
+
+	dbgen.Workspace(t, db, database.Workspace{
+		TemplateID: template.ID,
+		OwnerID:    user1.ID,
+	})
+
+	require.Eventuallyf(t, func() bool {
+		count, _ := cache.TemplateWorkspaceOwners(template.ID)
+		return count == 1
+	}, testutil.WaitShort, testutil.IntervalMedium,
+		"TemplateWorkspaceOwners never populated 1 owner",
+	)
+
+	workspace2 := dbgen.Workspace(t, db, database.Workspace{
+		TemplateID: template.ID,
+		OwnerID:    user2.ID,
+	})
+
+	require.Eventuallyf(t, func() bool {
+		count, _ := cache.TemplateWorkspaceOwners(template.ID)
+		return count == 2
+	}, testutil.WaitShort, testutil.IntervalMedium,
+		"TemplateWorkspaceOwners never populated 2 owners",
+	)
+
+	// 3rd workspace should not be counted since we have the same owner as workspace2.
+	dbgen.Workspace(t, db, database.Workspace{
+		TemplateID: template.ID,
+		OwnerID:    user1.ID,
+	})
+
+	db.UpdateWorkspaceDeletedByID(context.Background(), database.UpdateWorkspaceDeletedByIDParams{
+		ID:      workspace2.ID,
+		Deleted: true,
+	})
+
+	require.Eventuallyf(t, func() bool {
+		count, _ := cache.TemplateWorkspaceOwners(template.ID)
+		return count == 1
+	}, testutil.WaitShort, testutil.IntervalMedium,
+		"TemplateWorkspaceOwners never populated 1 owner after delete",
+	)
 }
 
 func clockTime(t time.Time, hour, minute, sec int) time.Time {

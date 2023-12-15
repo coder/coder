@@ -1,15 +1,17 @@
 import { type Interpolation, type Theme } from "@emotion/react";
 import { type FC } from "react";
 import { useLocation } from "react-router-dom";
-import { SignInForm } from "./SignInForm";
-import { retrieveRedirect } from "utils/redirect";
-import { CoderIcon } from "components/Icons/CoderIcon";
-import { getApplicationName, getLogoURL } from "utils/appearance";
 import type { AuthMethods } from "api/typesGenerated";
+import { getApplicationName, getLogoURL } from "utils/appearance";
+import { retrieveRedirect } from "utils/redirect";
+import { Loader } from "components/Loader/Loader";
+import { CoderIcon } from "components/Icons/CoderIcon";
+import { SignInForm } from "./SignInForm";
 
 export interface LoginPageViewProps {
   authMethods: AuthMethods | undefined;
   error: unknown;
+  isLoading: boolean;
   isSigningIn: boolean;
   onSignIn: (credentials: { email: string; password: string }) => void;
 }
@@ -17,6 +19,7 @@ export interface LoginPageViewProps {
 export const LoginPageView: FC<LoginPageViewProps> = ({
   authMethods,
   error,
+  isLoading,
   isSigningIn,
   onSignIn,
 }) => {
@@ -24,7 +27,7 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
   const redirectTo = retrieveRedirect(location.search);
   // This allows messages to be displayed at the top of the sign in form.
   // Helpful for any redirects that want to inform the user of something.
-  const info = new URLSearchParams(location.search).get("info") || undefined;
+  const message = new URLSearchParams(location.search).get("message");
   const applicationName = getApplicationName();
   const logoURL = getLogoURL();
   const applicationLogo = logoURL ? (
@@ -47,14 +50,18 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
     <div css={styles.root}>
       <div css={styles.container}>
         {applicationLogo}
-        <SignInForm
-          authMethods={authMethods}
-          redirectTo={redirectTo}
-          isSigningIn={isSigningIn}
-          error={error}
-          info={info}
-          onSubmit={onSignIn}
-        />
+        {isLoading ? (
+          <Loader />
+        ) : (
+          <SignInForm
+            authMethods={authMethods}
+            redirectTo={redirectTo}
+            isSigningIn={isSigningIn}
+            error={error}
+            message={message}
+            onSubmit={onSignIn}
+          />
+        )}
         <footer css={styles.footer}>
           Copyright © {new Date().getFullYear()} Coder Technologies, Inc.
         </footer>

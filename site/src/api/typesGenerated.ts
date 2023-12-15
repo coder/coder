@@ -162,6 +162,7 @@ export interface BuildInfoResponse {
   readonly version: string;
   readonly dashboard_url: string;
   readonly workspace_proxy: boolean;
+  readonly agent_api_version: string;
 }
 
 // From codersdk/insights.go
@@ -496,6 +497,28 @@ export interface ExternalAuthDeviceExchange {
 }
 
 // From codersdk/externalauth.go
+export interface ExternalAuthLink {
+  readonly provider_id: string;
+  readonly created_at: string;
+  readonly updated_at: string;
+  readonly has_refresh_token: boolean;
+  readonly expires: string;
+  readonly authenticated: boolean;
+  readonly validate_error: string;
+}
+
+// From codersdk/externalauth.go
+export interface ExternalAuthLinkProvider {
+  readonly id: string;
+  readonly type: string;
+  readonly device: boolean;
+  readonly display_name: string;
+  readonly display_icon: string;
+  readonly allow_refresh: boolean;
+  readonly allow_validate: boolean;
+}
+
+// From codersdk/externalauth.go
 export interface ExternalAuthUser {
   readonly login: string;
   readonly avatar_url: string;
@@ -544,7 +567,7 @@ export interface Group {
 
 // From codersdk/health.go
 export interface HealthSettings {
-  readonly dismissed_healthchecks: string[];
+  readonly dismissed_healthchecks: HealthSection[];
 }
 
 // From codersdk/workspaceapps.go
@@ -586,6 +609,12 @@ export interface LinkConfig {
   readonly name: string;
   readonly target: string;
   readonly icon: string;
+}
+
+// From codersdk/externalauth.go
+export interface ListUserExternalAuthResponse {
+  readonly providers: ExternalAuthLinkProvider[];
+  readonly links: ExternalAuthLink[];
 }
 
 // From codersdk/deployment.go
@@ -661,6 +690,7 @@ export interface OIDCConfig {
   readonly ignore_user_info: boolean;
   readonly group_auto_create: boolean;
   readonly group_regex_filter: string;
+  readonly group_allow_list: string[];
   readonly groups_field: string;
   readonly group_mapping: Record<string, string>;
   readonly user_role_field: string;
@@ -747,8 +777,9 @@ export interface ProvisionerConfig {
 export interface ProvisionerDaemon {
   readonly id: string;
   readonly created_at: string;
-  readonly updated_at?: string;
+  readonly last_seen_at?: string;
   readonly name: string;
+  readonly version: string;
   readonly provisioners: ProvisionerType[];
   readonly tags: Record<string, string>;
 }
@@ -927,6 +958,7 @@ export interface Template {
   readonly deprecation_message: string;
   readonly icon: string;
   readonly default_ttl_ms: number;
+  readonly use_max_ttl: boolean;
   readonly max_ttl_ms: number;
   readonly autostop_requirement: TemplateAutostopRequirement;
   readonly autostart_requirement: TemplateAutostartRequirement;
@@ -1162,7 +1194,7 @@ export interface UpdateCheckResponse {
 
 // From codersdk/health.go
 export interface UpdateHealthSettings {
-  readonly dismissed_healthchecks: string[];
+  readonly dismissed_healthchecks: HealthSection[];
 }
 
 // From codersdk/users.go
@@ -1196,6 +1228,11 @@ export interface UpdateTemplateMeta {
   readonly update_workspace_dormant_at: boolean;
   readonly require_active_version: boolean;
   readonly deprecation_message?: string;
+}
+
+// From codersdk/users.go
+export interface UpdateUserAppearanceSettingsRequest {
+  readonly theme_preference: string;
 }
 
 // From codersdk/users.go
@@ -1262,6 +1299,7 @@ export interface User {
   readonly roles: Role[];
   readonly avatar_url: string;
   readonly login_type: LoginType;
+  readonly theme_preference: string;
 }
 
 // From codersdk/insights.go
@@ -1330,12 +1368,14 @@ export interface UserLoginType {
 // From codersdk/deployment.go
 export interface UserQuietHoursScheduleConfig {
   readonly default_schedule: string;
+  readonly allow_user_custom: boolean;
 }
 
 // From codersdk/users.go
 export interface UserQuietHoursScheduleResponse {
   readonly raw_schedule: string;
   readonly user_set: boolean;
+  readonly user_can_set: boolean;
   readonly time: string;
   readonly timezone: string;
   readonly next: string;
@@ -1739,7 +1779,6 @@ export type Experiment =
   | "moons"
   | "single_tailnet"
   | "tailnet_pg_coordinator"
-  | "template_autostop_requirement"
   | "template_update_policies"
   | "workspace_actions";
 export const Experiments: Experiment[] = [
@@ -1747,7 +1786,6 @@ export const Experiments: Experiment[] = [
   "moons",
   "single_tailnet",
   "tailnet_pg_coordinator",
-  "template_autostop_requirement",
   "template_update_policies",
   "workspace_actions",
 ];
@@ -1764,7 +1802,6 @@ export type FeatureName =
   | "high_availability"
   | "multiple_external_auth"
   | "scim"
-  | "template_autostop_requirement"
   | "template_rbac"
   | "user_limit"
   | "user_role_management"
@@ -1781,7 +1818,6 @@ export const FeatureNames: FeatureName[] = [
   "high_availability",
   "multiple_external_auth",
   "scim",
-  "template_autostop_requirement",
   "template_rbac",
   "user_limit",
   "user_role_management",
@@ -1792,6 +1828,21 @@ export const FeatureNames: FeatureName[] = [
 // From codersdk/groups.go
 export type GroupSource = "oidc" | "user";
 export const GroupSources: GroupSource[] = ["oidc", "user"];
+
+// From codersdk/health.go
+export type HealthSection =
+  | "AccessURL"
+  | "DERP"
+  | "Database"
+  | "Websocket"
+  | "WorkspaceProxy";
+export const HealthSections: HealthSection[] = [
+  "AccessURL",
+  "DERP",
+  "Database",
+  "Websocket",
+  "WorkspaceProxy",
+];
 
 // From codersdk/insights.go
 export type InsightsReportInterval = "day" | "week";
@@ -2126,7 +2177,7 @@ export interface HealthcheckReport {
   readonly time: string;
   readonly healthy: boolean;
   readonly severity: HealthSeverity;
-  readonly failing_sections: string[];
+  readonly failing_sections: HealthSection[];
   readonly derp: DerphealthReport;
   readonly access_url: HealthcheckAccessURLReport;
   readonly websocket: HealthcheckWebsocketReport;
@@ -2255,11 +2306,8 @@ export const HealthSeveritys: HealthSeverity[] = ["error", "ok", "warning"];
 // From derphealth/derp.go
 export interface DerphealthNodeReport {
   readonly healthy: boolean;
-  // This is likely an enum in an external package ("github.com/coder/coder/v2/coderd/healthcheck/health.Severity")
-  readonly severity: string;
-  // Named type "github.com/coder/coder/v2/coderd/healthcheck/health.Message" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly warnings: any[];
+  readonly severity: HealthSeverity;
+  readonly warnings: HealthMessage[];
   // Named type "tailscale.com/tailcfg.DERPNode" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly node?: any;
@@ -2279,11 +2327,8 @@ export interface DerphealthNodeReport {
 // From derphealth/derp.go
 export interface DerphealthRegionReport {
   readonly healthy: boolean;
-  // This is likely an enum in an external package ("github.com/coder/coder/v2/coderd/healthcheck/health.Severity")
-  readonly severity: string;
-  // Named type "github.com/coder/coder/v2/coderd/healthcheck/health.Message" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly warnings: any[];
+  readonly severity: HealthSeverity;
+  readonly warnings: HealthMessage[];
   // Named type "tailscale.com/tailcfg.DERPRegion" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly region?: any;
@@ -2294,11 +2339,8 @@ export interface DerphealthRegionReport {
 // From derphealth/derp.go
 export interface DerphealthReport {
   readonly healthy: boolean;
-  // This is likely an enum in an external package ("github.com/coder/coder/v2/coderd/healthcheck/health.Severity")
-  readonly severity: string;
-  // Named type "github.com/coder/coder/v2/coderd/healthcheck/health.Message" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly warnings: any[];
+  readonly severity: HealthSeverity;
+  readonly warnings: HealthMessage[];
   readonly dismissed: boolean;
   readonly regions: Record<number, DerphealthRegionReport>;
   // Named type "tailscale.com/net/netcheck.Report" unknown, using "any"

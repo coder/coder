@@ -10,13 +10,12 @@ import MenuIcon from "@mui/icons-material/Menu";
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import { type FC, type ReactNode, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { colors } from "theme/colors";
-import type * as TypesGen from "api/typesGenerated";
 import { BUTTON_SM_HEIGHT, navHeight } from "theme/constants";
-import { ProxyContextValue } from "contexts/ProxyContext";
+import type * as TypesGen from "api/typesGenerated";
+import type { ProxyContextValue } from "contexts/ProxyContext";
 import { displayError } from "components/GlobalSnackbar/utils";
-import { CoderIcon } from "components/Icons/CoderIcon";
 import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency";
+import { CoderIcon } from "components/Icons/CoderIcon";
 import { usePermissions } from "hooks/usePermissions";
 import { UserDropdown } from "./UserDropdown/UserDropdown";
 
@@ -33,6 +32,7 @@ export interface NavbarViewProps {
   canViewAuditLog: boolean;
   canViewDeployment: boolean;
   canViewAllUsers: boolean;
+  canViewHealth: boolean;
   proxyContextValue?: ProxyContextValue;
 }
 
@@ -50,6 +50,7 @@ interface NavItemsProps {
   canViewAuditLog: boolean;
   canViewDeployment: boolean;
   canViewAllUsers: boolean;
+  canViewHealth: boolean;
 }
 
 const NavItems: FC<NavItemsProps> = ({
@@ -57,6 +58,7 @@ const NavItems: FC<NavItemsProps> = ({
   canViewAuditLog,
   canViewDeployment,
   canViewAllUsers,
+  canViewHealth,
 }) => {
   const location = useLocation();
   const theme = useTheme();
@@ -93,6 +95,11 @@ const NavItems: FC<NavItemsProps> = ({
           {Language.deployment}
         </NavLink>
       )}
+      {canViewHealth && (
+        <NavLink css={styles.link} to="/health">
+          Health
+        </NavLink>
+      )}
     </nav>
   );
 };
@@ -106,6 +113,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
   canViewAuditLog,
   canViewDeployment,
   canViewAllUsers,
+  canViewHealth,
   proxyContextValue,
 }) => {
   const theme = useTheme();
@@ -115,8 +123,8 @@ export const NavbarView: FC<NavbarViewProps> = ({
     <nav
       css={{
         height: navHeight,
-        borderBottom: `1px solid ${theme.palette.divider}`,
         backgroundColor: theme.palette.background.paper,
+        borderBottom: `1px solid ${theme.palette.divider}`,
       }}
     >
       <div css={styles.wrapper}>
@@ -150,6 +158,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
               canViewAuditLog={canViewAuditLog}
               canViewDeployment={canViewDeployment}
               canViewAllUsers={canViewAllUsers}
+              canViewHealth={canViewHealth}
             />
           </div>
         </Drawer>
@@ -167,6 +176,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
           canViewAuditLog={canViewAuditLog}
           canViewDeployment={canViewDeployment}
           canViewAllUsers={canViewAllUsers}
+          canViewHealth={canViewHealth}
         />
 
         <div css={styles.navMenus}>
@@ -279,9 +289,9 @@ const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
         <div
           css={{
             width: "100%",
+            maxWidth: "320px",
             fontSize: 14,
             padding: 16,
-            maxWidth: "320px",
             lineHeight: "140%",
           }}
         >
@@ -297,12 +307,12 @@ const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
             Select a region nearest to you
           </h4>
           <p
-            css={(theme) => ({
+            css={{
               fontSize: 13,
               color: theme.palette.text.secondary,
               lineHeight: "inherit",
               marginTop: 0.5,
-            })}
+            }}
           >
             Workspace proxies improve terminal and web app connections to
             workspaces. This does not apply to CLI connections. A region must be
@@ -446,7 +456,7 @@ const styles = {
   },
   link: (theme) => css`
     align-items: center;
-    color: ${colors.gray[6]};
+    color: ${theme.colors.gray[6]};
     display: flex;
     flex: 1;
     font-size: 16px;

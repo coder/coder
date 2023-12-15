@@ -9,7 +9,7 @@ export const Loader: FC<LoaderProps> = ({ size = 26, ...attrs }) => {
   return (
     <div
       css={{
-        padding: 4,
+        padding: 32,
         width: "100%",
         display: "flex",
         alignItems: "center",

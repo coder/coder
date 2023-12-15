@@ -1,10 +1,16 @@
-import { QueryClient, type UseQueryOptions } from "react-query";
+import {
+  type UseMutationOptions,
+  type QueryClient,
+  type QueryKey,
+  type UseQueryOptions,
+} from "react-query";
 import * as API from "api/api";
 import type {
   AuthorizationRequest,
   GetUsersResponse,
   UpdateUserPasswordRequest,
   UpdateUserProfileRequest,
+  UpdateUserAppearanceSettingsRequest,
   UsersRequest,
   User,
 } from "api/typesGenerated";
@@ -17,12 +23,12 @@ export function usersKey(req: UsersRequest) {
   return ["users", req] as const;
 }
 
-export function paginatedUsers(): UsePaginatedQueryOptions<
-  GetUsersResponse,
-  UsersRequest
-> {
+export function paginatedUsers(
+  searchParams: URLSearchParams,
+): UsePaginatedQueryOptions<GetUsersResponse, UsersRequest> {
   return {
-    queryPayload: ({ limit, offset, searchParams }) => {
+    searchParams,
+    queryPayload: ({ limit, offset }) => {
       return {
         limit,
         offset,
@@ -116,11 +122,13 @@ export const authMethods = () => {
 
 const initialUserData = getMetadataAsJSON<User>("user");
 
+const meKey = ["me"];
+
 export const me = (): UseQueryOptions<User> & {
-  queryKey: NonNullable<UseQueryOptions<User>["queryKey"]>;
+  queryKey: QueryKey;
 } => {
   return {
-    queryKey: ["me"],
+    queryKey: meKey,
     initialData: initialUserData,
     queryFn: API.getAuthenticatedUser,
   };
@@ -179,14 +187,41 @@ export const logout = (queryClient: QueryClient) => {
   };
 };
 
-export const updateProfile = () => {
+export const updateProfile = (userId: string) => {
   return {
-    mutationFn: ({
-      userId,
-      req,
-    }: {
-      userId: string;
-      req: UpdateUserProfileRequest;
-    }) => API.updateProfile(userId, req),
+    mutationFn: (req: UpdateUserProfileRequest) =>
+      API.updateProfile(userId, req),
+  };
+};
+
+export const updateAppearanceSettings = (
+  userId: string,
+  queryClient: QueryClient,
+): UseMutationOptions<
+  User,
+  unknown,
+  UpdateUserAppearanceSettingsRequest,
+  unknown
+> => {
+  return {
+    mutationFn: (req) => API.updateAppearanceSettings(userId, req),
+    onMutate: async (patch) => {
+      // Mutate the `queryClient` optimistically to make the theme switcher
+      // more responsive.
+      const me: User | undefined = queryClient.getQueryData(meKey);
+      if (userId === "me" && me) {
+        queryClient.setQueryData(meKey, {
+          ...me,
+          theme_preference: patch.theme_preference,
+        });
+      }
+    },
+    onSuccess: async () => {
+      // Could technically invalidate more, but we only ever care about the
+      // `theme_preference` for the `me` query.
+      if (userId === "me") {
+        await queryClient.invalidateQueries(meKey);
+      }
+    },
   };
 };

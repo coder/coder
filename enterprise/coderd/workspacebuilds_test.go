@@ -103,7 +103,7 @@ func TestWorkspaceBuild(t *testing.T) {
 			{
 				Name:               "MemberFails",
 				Client:             memberClient,
-				ExpectedStatusCode: http.StatusUnauthorized,
+				ExpectedStatusCode: http.StatusForbidden,
 			},
 		}
 

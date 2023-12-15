@@ -26,10 +26,12 @@ import (
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -442,6 +444,38 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 	require.Equal(t, "test", strings.TrimSpace(string(output)))
 }
 
+func TestWorkspaceAgentClientCoordinate_BadVersion(t *testing.T) {
+	t.Parallel()
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+
+	r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	agentToken, err := uuid.Parse(r.AgentToken)
+	require.NoError(t, err)
+	//nolint: gocritic // testing
+	ao, err := db.GetWorkspaceAgentAndOwnerByAuthToken(dbauthz.AsSystemRestricted(ctx), agentToken)
+	require.NoError(t, err)
+
+	//nolint: bodyclose // closed by ReadBodyAsError
+	resp, err := client.Request(ctx, http.MethodGet,
+		fmt.Sprintf("api/v2/workspaceagents/%s/coordinate", ao.WorkspaceAgent.ID),
+		nil,
+		codersdk.WithQueryParam("version", "99.99"))
+	require.NoError(t, err)
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	err = codersdk.ReadBodyAsError(resp)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, "Unknown or unsupported API version", sdkErr.Message)
+	require.Len(t, sdkErr.Validations, 1)
+	require.Equal(t, "version", sdkErr.Validations[0].Field)
+}
+
 func TestWorkspaceAgentTailnetDirectDisabled(t *testing.T) {
 	t.Parallel()
 
@@ -509,10 +543,12 @@ func TestWorkspaceAgentTailnetDirectDisabled(t *testing.T) {
 func TestWorkspaceAgentListeningPorts(t *testing.T) {
 	t.Parallel()
 
-	setup := func(t *testing.T, apps []*proto.App) (*codersdk.Client, uint16, uuid.UUID) {
+	setup := func(t *testing.T, apps []*proto.App, dv *codersdk.DeploymentValues) (*codersdk.Client, uint16, uuid.UUID) {
 		t.Helper()
 
-		client, db := coderdtest.NewWithDatabase(t, nil)
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			DeploymentValues: dv,
+		})
 		coderdPort, err := strconv.Atoi(client.URL.Port())
 		require.NoError(t, err)
 
@@ -606,61 +642,82 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 			return
 		}
 
-		t.Run("OK", func(t *testing.T) {
-			t.Parallel()
+		for _, tc := range []struct {
+			name  string
+			setDV func(t *testing.T, dv *codersdk.DeploymentValues)
+		}{
+			{
+				name:  "Mainline",
+				setDV: func(*testing.T, *codersdk.DeploymentValues) {},
+			},
+			{
+				name: "BlockDirect",
+				setDV: func(t *testing.T, dv *codersdk.DeploymentValues) {
+					err := dv.DERP.Config.BlockDirect.Set("true")
+					require.NoError(t, err)
+					require.True(t, dv.DERP.Config.BlockDirect.Value())
+				},
+			},
+		} {
+			tc := tc
+			t.Run("OK_"+tc.name, func(t *testing.T) {
+				t.Parallel()
 
-			client, coderdPort, agentID := setup(t, nil)
+				dv := coderdtest.DeploymentValues(t)
+				tc.setDV(t, dv)
+				client, coderdPort, agentID := setup(t, nil, dv)
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			defer cancel()
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+				defer cancel()
 
-			// Generate a random unfiltered port.
-			l, lPort := generateUnfilteredPort(t)
+				// Generate a random unfiltered port.
+				l, lPort := generateUnfilteredPort(t)
 
-			// List ports and ensure that the port we expect to see is there.
-			res, err := client.WorkspaceAgentListeningPorts(ctx, agentID)
-			require.NoError(t, err)
+				// List ports and ensure that the port we expect to see is there.
+				res, err := client.WorkspaceAgentListeningPorts(ctx, agentID)
+				require.NoError(t, err)
 
-			expected := map[uint16]bool{
-				// expect the listener we made
-				lPort: false,
-				// expect the coderdtest server
-				coderdPort: false,
-			}
-			for _, port := range res.Ports {
-				if port.Network == "tcp" {
-					if val, ok := expected[port.Port]; ok {
-						if val {
-							t.Fatalf("expected to find TCP port %d only once in response", port.Port)
-						}
-					}
-					expected[port.Port] = true
+				expected := map[uint16]bool{
+					// expect the listener we made
+					lPort: false,
+					// expect the coderdtest server
+					coderdPort: false,
 				}
-			}
-			for port, found := range expected {
-				if !found {
-					t.Fatalf("expected to find TCP port %d in response", port)
-				}
-			}
-
-			// Close the listener and check that the port is no longer in the response.
-			require.NoError(t, l.Close())
-			t.Log("checking for ports after listener close:")
-			require.Eventually(t, func() bool {
-				res, err = client.WorkspaceAgentListeningPorts(ctx, agentID)
-				if !assert.NoError(t, err) {
-					return false
-				}
-
 				for _, port := range res.Ports {
-					if port.Network == "tcp" && port.Port == lPort {
-						t.Logf("expected to not find TCP port %d in response", lPort)
+					if port.Network == "tcp" {
+						if val, ok := expected[port.Port]; ok {
+							if val {
+								t.Fatalf("expected to find TCP port %d only once in response", port.Port)
+							}
+						}
+						expected[port.Port] = true
+					}
+				}
+				for port, found := range expected {
+					if !found {
+						t.Fatalf("expected to find TCP port %d in response", port)
+					}
+				}
+
+				// Close the listener and check that the port is no longer in the response.
+				require.NoError(t, l.Close())
+				t.Log("checking for ports after listener close:")
+				require.Eventually(t, func() bool {
+					res, err = client.WorkspaceAgentListeningPorts(ctx, agentID)
+					if !assert.NoError(t, err) {
 						return false
 					}
-				}
-				return true
-			}, testutil.WaitLong, testutil.IntervalMedium)
-		})
+
+					for _, port := range res.Ports {
+						if port.Network == "tcp" && port.Port == lPort {
+							t.Logf("expected to not find TCP port %d in response", lPort)
+							return false
+						}
+					}
+					return true
+				}, testutil.WaitLong, testutil.IntervalMedium)
+			})
+		}
 
 		t.Run("Filter", func(t *testing.T) {
 			t.Parallel()
@@ -676,7 +733,7 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 			// Generate a filtered port that should not exist in the response.
 			_, filteredLPort := generateFilteredPort(t)
 
-			client, coderdPort, agentID := setup(t, []*proto.App{app})
+			client, coderdPort, agentID := setup(t, []*proto.App{app}, nil)
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
@@ -711,7 +768,7 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 			return
 		}
 
-		client, _, agentID := setup(t, nil)
+		client, _, agentID := setup(t, nil, nil)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -875,6 +932,63 @@ func TestWorkspaceAgentReportStats(t *testing.T) {
 			newWorkspace.LastUsedAt.After(r.Workspace.LastUsedAt),
 			"%s is not after %s", newWorkspace.LastUsedAt, r.Workspace.LastUsedAt,
 		)
+	})
+
+	t.Run("FailDeleted", func(t *testing.T) {
+		t.Parallel()
+
+		owner, db := coderdtest.NewWithDatabase(t, nil)
+		ownerUser := coderdtest.CreateFirstUser(t, owner)
+		client, admin := coderdtest.CreateAnotherUser(t, owner, ownerUser.OrganizationID, rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin())
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+			OrganizationID: admin.OrganizationIDs[0],
+			OwnerID:        admin.ID,
+		}).WithAgent().Do()
+
+		agentClient := agentsdk.New(client.URL)
+		agentClient.SetSessionToken(r.AgentToken)
+
+		_, err := agentClient.PostStats(context.Background(), &agentsdk.Stats{
+			ConnectionsByProto:          map[string]int64{"TCP": 1},
+			ConnectionCount:             1,
+			RxPackets:                   1,
+			RxBytes:                     1,
+			TxPackets:                   1,
+			TxBytes:                     1,
+			SessionCountVSCode:          0,
+			SessionCountJetBrains:       0,
+			SessionCountReconnectingPTY: 0,
+			SessionCountSSH:             0,
+			ConnectionMedianLatencyMS:   10,
+		})
+		require.NoError(t, err)
+
+		newWorkspace, err := client.Workspace(context.Background(), r.Workspace.ID)
+		require.NoError(t, err)
+
+		// nolint:gocritic // using db directly over creating a delete job
+		err = db.UpdateWorkspaceDeletedByID(dbauthz.As(context.Background(),
+			coderdtest.AuthzUserSubject(admin, ownerUser.OrganizationID)),
+			database.UpdateWorkspaceDeletedByIDParams{
+				ID:      newWorkspace.ID,
+				Deleted: true,
+			})
+		require.NoError(t, err)
+
+		_, err = agentClient.PostStats(context.Background(), &agentsdk.Stats{
+			ConnectionsByProto:          map[string]int64{"TCP": 1},
+			ConnectionCount:             1,
+			RxPackets:                   1,
+			RxBytes:                     1,
+			TxPackets:                   1,
+			TxBytes:                     1,
+			SessionCountVSCode:          1,
+			SessionCountJetBrains:       0,
+			SessionCountReconnectingPTY: 0,
+			SessionCountSSH:             0,
+			ConnectionMedianLatencyMS:   10,
+		})
+		require.ErrorContains(t, err, "agent is invalid")
 	})
 }
 

@@ -47,6 +47,7 @@ type updateRequest struct {
 	username      string
 	workspaceName string
 	agentName     string
+	templateName  string
 
 	metrics []*agentproto.Stats_Metric
 
@@ -59,6 +60,7 @@ type annotatedMetric struct {
 	username      string
 	workspaceName string
 	agentName     string
+	templateName  string
 
 	expiryDate time.Time
 }
@@ -74,7 +76,7 @@ func (am *annotatedMetric) asPrometheus() (prometheus.Metric, error) {
 	labelValues := make([]string, 0, len(agentMetricsLabels)+len(am.Labels))
 
 	labels = append(labels, agentMetricsLabels...)
-	labelValues = append(labelValues, am.username, am.workspaceName, am.agentName)
+	labelValues = append(labelValues, am.username, am.workspaceName, am.agentName, am.templateName)
 
 	for _, l := range am.Labels {
 		labels = append(labels, l.Name)
@@ -161,6 +163,7 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 						username:      req.username,
 						workspaceName: req.workspaceName,
 						agentName:     req.agentName,
+						templateName:  req.templateName,
 						expiryDate:    req.timestamp.Add(ma.metricsCleanupInterval),
 					})
 				}
@@ -225,7 +228,16 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 func (*MetricsAggregator) Describe(_ chan<- *prometheus.Desc) {
 }
 
-var agentMetricsLabels = []string{usernameLabel, workspaceNameLabel, agentNameLabel}
+var agentMetricsLabels = []string{usernameLabel, workspaceNameLabel, agentNameLabel, templateNameLabel}
+
+// AgentMetricLabels are the labels used to decorate an agent's metrics.
+// This list should match the list of labels in agentMetricsLabels.
+type AgentMetricLabels struct {
+	Username      string
+	WorkspaceName string
+	AgentName     string
+	TemplateName  string
+}
 
 func (ma *MetricsAggregator) Collect(ch chan<- prometheus.Metric) {
 	output := make(chan []prometheus.Metric, 1)
@@ -244,12 +256,13 @@ func (ma *MetricsAggregator) Collect(ch chan<- prometheus.Metric) {
 	}
 }
 
-func (ma *MetricsAggregator) Update(ctx context.Context, username, workspaceName, agentName string, metrics []*agentproto.Stats_Metric) {
+func (ma *MetricsAggregator) Update(ctx context.Context, labels AgentMetricLabels, metrics []*agentproto.Stats_Metric) {
 	select {
 	case ma.updateCh <- updateRequest{
-		username:      username,
-		workspaceName: workspaceName,
-		agentName:     agentName,
+		username:      labels.Username,
+		workspaceName: labels.WorkspaceName,
+		agentName:     labels.AgentName,
+		templateName:  labels.TemplateName,
 		metrics:       metrics,
 
 		timestamp: time.Now(),

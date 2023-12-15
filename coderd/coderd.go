@@ -16,16 +16,18 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/prometheusmetrics"
+
+	agentproto "github.com/coder/coder/v2/agent/proto"
+
 	"github.com/andybalholm/brotli"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 	"github.com/klauspost/compress/zstd"
-	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/prometheus/client_golang/prometheus"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"storj.io/drpc/drpcmux"
@@ -36,23 +38,22 @@ import (
 	"tailscale.com/types/key"
 	"tailscale.com/util/singleflight"
 
-	agentproto "github.com/coder/coder/v2/agent/proto"
-	// Used for swagger docs.
-	_ "github.com/coder/coder/v2/coderd/apidoc"
-	"github.com/coder/coder/v2/coderd/externalauth"
-	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
-
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clibase"
+
+	// Used for swagger docs.
+	_ "github.com/coder/coder/v2/coderd/apidoc"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/awsidentity"
 	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/healthcheck"
+	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/metricscache"
@@ -66,6 +67,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/wsconncache"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/site"
@@ -170,10 +172,15 @@ type Options struct {
 
 	HTTPClient *http.Client
 
-	UpdateAgentMetrics func(ctx context.Context, username, workspaceName, agentName string, metrics []*agentproto.Stats_Metric)
+	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 	StatsBatcher       *batchstats.Batcher
 
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
+
+	// This janky function is used in telemetry to parse fields out of the raw
+	// JWT. It needs to be passed through like this because license parsing is
+	// under the enterprise license, and can't be imported into AGPL.
+	ParseLicenseClaims func(rawJWT string) (email string, trial bool, err error)
 }
 
 // @title Coder API
@@ -381,7 +388,7 @@ func New(options *Options) *API {
 		),
 		metricsCache:                metricsCache,
 		Auditor:                     atomic.Pointer[audit.Auditor]{},
-		TailnetCoordinator:          &atomic.Pointer[tailnet.Coordinator]{},
+		TailnetCoordinator:          atomic.Pointer[tailnet.Coordinator]{},
 		TemplateScheduleStore:       options.TemplateScheduleStore,
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
@@ -409,30 +416,26 @@ func New(options *Options) *API {
 
 	if options.HealthcheckFunc == nil {
 		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *healthcheck.Report {
-			dismissedHealthchecks := loadDismissedHealthchecks(ctx, options.Database, options.Logger)
+			// NOTE: dismissed healthchecks are marked in formatHealthcheck.
+			// Not here, as this result gets cached.
 			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
 				Database: healthcheck.DatabaseReportOptions{
 					DB:        options.Database,
 					Threshold: options.DeploymentValues.Healthcheck.ThresholdDatabase.Value(),
-					Dismissed: slices.Contains(dismissedHealthchecks, healthcheck.SectionDatabase),
 				},
 				Websocket: healthcheck.WebsocketReportOptions{
 					AccessURL: options.AccessURL,
 					APIKey:    apiKey,
-					Dismissed: slices.Contains(dismissedHealthchecks, healthcheck.SectionWebsocket),
 				},
 				AccessURL: healthcheck.AccessURLReportOptions{
 					AccessURL: options.AccessURL,
-					Dismissed: slices.Contains(dismissedHealthchecks, healthcheck.SectionAccessURL),
 				},
 				DerpHealth: derphealth.ReportOptions{
-					DERPMap:   api.DERPMap(),
-					Dismissed: slices.Contains(dismissedHealthchecks, healthcheck.SectionDERP),
+					DERPMap: api.DERPMap(),
 				},
 				WorkspaceProxy: healthcheck.WorkspaceProxyReportOptions{
 					CurrentVersion:               buildinfo.Version(),
 					WorkspaceProxiesFetchUpdater: *(options.WorkspaceProxiesFetchUpdater).Load(),
-					Dismissed:                    slices.Contains(dismissedHealthchecks, healthcheck.SectionWorkspaceProxy),
 				},
 			})
 		}
@@ -471,6 +474,11 @@ func New(options *Options) *API {
 		api.agentProvider = &wsconncache.AgentProvider{
 			Cache: wsconncache.New(api._dialWorkspaceAgentTailnet, 0),
 		}
+	}
+	api.TailnetClientService, err = tailnet.NewClientService(
+		api.Logger.Named("tailnetclient"), &api.TailnetCoordinator)
+	if err != nil {
+		api.Logger.Fatal(api.ctx, "failed to initialize tailnet client service", slog.Error(err))
 	}
 
 	workspaceAppsLogger := options.Logger.Named("workspaceapps")
@@ -546,13 +554,6 @@ func New(options *Options) *API {
 		httpmw.ExtractRealIP(api.RealIPConfig),
 		httpmw.Logger(api.Logger),
 		prometheusMW,
-		// SubdomainAppMW checks if the first subdomain is a valid app URL. If
-		// it is, it will serve that application.
-		//
-		// Workspace apps do their own auth and CORS and must be BEFORE the auth
-		// and CORS middleware.
-		api.workspaceAppServer.HandleSubdomain(apiRateLimiter),
-		cors,
 		// Build-Version is helpful for debugging.
 		func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -560,6 +561,13 @@ func New(options *Options) *API {
 				next.ServeHTTP(w, r)
 			})
 		},
+		// SubdomainAppMW checks if the first subdomain is a valid app URL. If
+		// it is, it will serve that application.
+		//
+		// Workspace apps do their own auth and CORS and must be BEFORE the auth
+		// and CORS middleware.
+		api.workspaceAppServer.HandleSubdomain(apiRateLimiter),
+		cors,
 		// This header stops a browser from trying to MIME-sniff the content type and
 		// forces it to stick with the declared content-type. This is the only valid
 		// value for this header.
@@ -661,14 +669,21 @@ func New(options *Options) *API {
 			r.Get("/{fileID}", api.fileByID)
 			r.Post("/", api.postFile)
 		})
-		r.Route("/external-auth/{externalauth}", func(r chi.Router) {
+		r.Route("/external-auth", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				httpmw.ExtractExternalAuthParam(options.ExternalAuthConfigs),
 			)
-			r.Get("/", api.externalAuthByID)
-			r.Post("/device", api.postExternalAuthDeviceByID)
-			r.Get("/device", api.externalAuthDeviceByID)
+			// Get without a specific external auth ID will return all external auths.
+			r.Get("/", api.listUserExternalAuths)
+			r.Route("/{externalauth}", func(r chi.Router) {
+				r.Use(
+					httpmw.ExtractExternalAuthParam(options.ExternalAuthConfigs),
+				)
+				r.Delete("/", api.deleteExternalAuthByID)
+				r.Get("/", api.externalAuthByID)
+				r.Post("/device", api.postExternalAuthDeviceByID)
+				r.Get("/device", api.externalAuthDeviceByID)
+			})
 		})
 		r.Route("/organizations", func(r chi.Router) {
 			r.Use(
@@ -798,6 +813,7 @@ func New(options *Options) *API {
 						r.Put("/suspend", api.putSuspendUserAccount())
 						r.Put("/activate", api.putActivateUserAccount())
 					})
+					r.Put("/appearance", api.putUserAppearanceSettings)
 					r.Route("/password", func(r chi.Router) {
 						r.Put("/", api.putUserPassword)
 					})
@@ -1052,7 +1068,8 @@ type API struct {
 	ID                                uuid.UUID
 	Auditor                           atomic.Pointer[audit.Auditor]
 	WorkspaceClientCoordinateOverride atomic.Pointer[func(rw http.ResponseWriter) bool]
-	TailnetCoordinator                *atomic.Pointer[tailnet.Coordinator]
+	TailnetCoordinator                atomic.Pointer[tailnet.Coordinator]
+	TailnetClientService              *tailnet.ClientService
 	QuotaCommitter                    atomic.Pointer[proto.QuotaCommitter]
 	// WorkspaceProxyHostsFn returns the hosts of healthy workspace proxies
 	// for header reasons.
@@ -1150,9 +1167,9 @@ func compressHandler(h http.Handler) http.Handler {
 
 // CreateInMemoryProvisionerDaemon is an in-memory connection to a provisionerd.
 // Useful when starting coderd and provisionerd in the same process.
-func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context) (client proto.DRPCProvisionerDaemonClient, err error) {
+func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, name string) (client proto.DRPCProvisionerDaemonClient, err error) {
 	tracer := api.TracerProvider.Tracer(tracing.TracerName)
-	clientSession, serverSession := provisionersdk.MemTransportPipe()
+	clientSession, serverSession := drpc.MemTransportPipe()
 	defer func() {
 		if err != nil {
 			_ = clientSession.Close()
@@ -1161,13 +1178,12 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context) (client pro
 	}()
 
 	tags := provisionerdserver.Tags{
-		provisionerdserver.TagScope: provisionerdserver.ScopeOrganization,
+		provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 	}
 
 	mux := drpcmux.New()
-	name := namesgenerator.GetRandomName(1)
+	api.Logger.Info(ctx, "starting in-memory provisioner daemon", slog.F("name", name))
 	logger := api.Logger.Named(fmt.Sprintf("inmem-provisionerd-%s", name))
-	logger.Info(ctx, "starting in-memory provisioner daemon")
 	srv, err := provisionerdserver.NewServer(
 		api.ctx,
 		api.AccessURL,

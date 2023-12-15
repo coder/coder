@@ -71,6 +71,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"icon":                              ActionTrack,
 		"default_ttl":                       ActionTrack,
 		"max_ttl":                           ActionTrack,
+		"use_max_ttl":                       ActionTrack,
 		"autostart_block_days_of_week":      ActionTrack,
 		"autostop_requirement_days_of_week": ActionTrack,
 		"autostop_requirement_weeks":        ActionTrack,
@@ -118,6 +119,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"last_seen_at":         ActionIgnore,
 		"deleted":              ActionTrack,
 		"quiet_hours_schedule": ActionTrack,
+		"theme_preference":     ActionIgnore,
 	},
 	&database.Workspace{}: {
 		"id":                 ActionTrack,

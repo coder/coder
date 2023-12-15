@@ -3,7 +3,7 @@ import { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { useWorkspaceDuplication } from "pages/CreateWorkspacePage/useWorkspaceDuplication";
 
 import { workspaceUpdatePolicy } from "utils/workspace";
-import { type ButtonType, actionsByWorkspaceStatus } from "./constants";
+import { type ActionType, abilitiesByWorkspaceStatus } from "./constants";
 
 import {
   ActionLoadingButton,
@@ -72,7 +72,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   const { duplicateWorkspace, isDuplicationReady } =
     useWorkspaceDuplication(workspace);
 
-  const { actions, canCancel, canAcceptJobs } = actionsByWorkspaceStatus(
+  const { actions, canCancel, canAcceptJobs } = abilitiesByWorkspaceStatus(
     workspace,
     canRetryDebug,
   );
@@ -85,7 +85,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   const canBeUpdated = workspace.outdated && canAcceptJobs;
 
   // A mapping of button type to the corresponding React component
-  const buttonMapping: Record<ButtonType, ReactNode> = {
+  const buttonMapping: Record<ActionType, ReactNode> = {
     update: <UpdateButton handleAction={handleUpdate} />,
     updating: <UpdateButton loading handleAction={handleUpdate} />,
     start: (

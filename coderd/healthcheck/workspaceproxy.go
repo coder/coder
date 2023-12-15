@@ -54,7 +54,7 @@ func (*AGPLWorkspaceProxiesFetchUpdater) Update(context.Context) error {
 func (r *WorkspaceProxyReport) Run(ctx context.Context, opts *WorkspaceProxyReportOptions) {
 	r.Healthy = true
 	r.Severity = health.SeverityOK
-	r.Warnings = []health.Message{}
+	r.Warnings = make([]health.Message, 0)
 	r.Dismissed = opts.Dismissed
 
 	if opts.WorkspaceProxiesFetchUpdater == nil {
@@ -77,6 +77,10 @@ func (r *WorkspaceProxyReport) Run(ctx context.Context, opts *WorkspaceProxyRepo
 	}
 
 	r.WorkspaceProxies = proxies
+	if r.WorkspaceProxies.Regions == nil {
+		r.WorkspaceProxies.Regions = make([]codersdk.WorkspaceProxy, 0)
+	}
+
 	// Stable sort based on create timestamp.
 	sort.Slice(r.WorkspaceProxies.Regions, func(i int, j int) bool {
 		return r.WorkspaceProxies.Regions[i].CreatedAt.Before(r.WorkspaceProxies.Regions[j].CreatedAt)

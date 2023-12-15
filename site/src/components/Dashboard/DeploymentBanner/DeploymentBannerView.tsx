@@ -15,6 +15,7 @@ import BuildingIcon from "@mui/icons-material/Build";
 import Tooltip from "@mui/material/Tooltip";
 import { Link as RouterLink } from "react-router-dom";
 import Link from "@mui/material/Link";
+import { JetBrainsIcon } from "components/Icons/JetBrainsIcon";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import DownloadIcon from "@mui/icons-material/CloudDownload";
 import UploadIcon from "@mui/icons-material/CloudUpload";
@@ -36,7 +37,6 @@ import { RocketIcon } from "components/Icons/RocketIcon";
 import ErrorIcon from "@mui/icons-material/ErrorOutline";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
-import { colors } from "theme/colors";
 import { HelpTooltipTitle } from "components/HelpTooltip/HelpTooltip";
 import { Stack } from "components/Stack/Stack";
 import { type ClassName, useClassName } from "hooks/useClassName";
@@ -105,7 +105,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- We want this to periodically update!
   }, [timeUntilRefresh, stats]);
 
-  const unhealthy = health && !health.healthy;
+  const healthErrors = health ? getHealthErrors(health) : [];
   const displayLatency = stats?.workspaces.connection_latency_ms.P50 || -1;
 
   return (
@@ -131,30 +131,15 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
       <Tooltip
         classes={{ tooltip: summaryTooltip }}
         title={
-          unhealthy ? (
+          healthErrors.length > 0 ? (
             <>
               <HelpTooltipTitle>
                 We have detected problems with your Coder deployment.
               </HelpTooltipTitle>
               <Stack spacing={1}>
-                {!health.access_url.healthy && (
-                  <HealthIssue>
-                    Your access URL may be configured incorrectly.
-                  </HealthIssue>
-                )}
-                {!health.database.healthy && (
-                  <HealthIssue>Your database is unhealthy.</HealthIssue>
-                )}
-                {!health.derp.healthy && (
-                  <HealthIssue>
-                    We&apos;re noticing DERP proxy issues.
-                  </HealthIssue>
-                )}
-                {!health.websocket.healthy && (
-                  <HealthIssue>
-                    We&apos;re noticing websocket issues.
-                  </HealthIssue>
-                )}
+                {healthErrors.map((error) => (
+                  <HealthIssue key={error}>{error}</HealthIssue>
+                ))}
               </Stack>
             </>
           ) : (
@@ -164,7 +149,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
         open={process.env.STORYBOOK === "true" ? true : undefined}
         css={{ marginRight: -16 }}
       >
-        {unhealthy ? (
+        {healthErrors.length > 0 ? (
           <Link
             component={RouterLink}
             to="/health"
@@ -260,6 +245,21 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
               {typeof stats?.session_count.vscode === "undefined"
                 ? "-"
                 : stats?.session_count.vscode}
+            </div>
+          </Tooltip>
+          <ValueSeparator />
+          <Tooltip title="JetBrains Editors">
+            <div css={styles.value}>
+              <JetBrainsIcon
+                css={css`
+                  & * {
+                    fill: currentColor;
+                  }
+                `}
+              />
+              {typeof stats?.session_count.jetbrains === "undefined"
+                ? "-"
+                : stats?.session_count.jetbrains}
             </div>
           </Tooltip>
           <ValueSeparator />
@@ -372,12 +372,43 @@ const ValueSeparator: FC = () => {
 };
 
 const HealthIssue: FC<PropsWithChildren> = ({ children }) => {
+  const theme = useTheme();
+
   return (
     <Stack direction="row" spacing={1} alignItems="center">
-      <ErrorIcon css={{ width: 16, height: 16 }} htmlColor={colors.red[10]} />
+      <ErrorIcon
+        css={{ width: 16, height: 16 }}
+        htmlColor={theme.colors.red[10]}
+      />
       {children}
     </Stack>
   );
+};
+
+const getHealthErrors = (health: HealthcheckReport) => {
+  const warnings: string[] = [];
+  const sections = [
+    "access_url",
+    "database",
+    "derp",
+    "websocket",
+    "workspace_proxy",
+  ] as const;
+  const messages: Record<(typeof sections)[number], string> = {
+    access_url: "Your access URL may be configured incorrectly.",
+    database: "Your database is unhealthy.",
+    derp: "We're noticing DERP proxy issues.",
+    websocket: "We're noticing websocket issues.",
+    workspace_proxy: "We're noticing workspace proxy issues.",
+  } as const;
+
+  sections.forEach((section) => {
+    if (health[section].severity === "error" && !health[section].dismissed) {
+      warnings.push(messages[section]);
+    }
+  });
+
+  return warnings;
 };
 
 const classNames = {
@@ -408,8 +439,8 @@ const styles = {
       height: 16px;
     }
   `,
-  unhealthy: css`
-    background-color: ${colors.red[10]};
+  unhealthy: (theme) => css`
+    background-color: ${theme.colors.red[10]};
   `,
   group: css`
     display: flex;

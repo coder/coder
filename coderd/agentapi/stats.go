@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/schedule"
 )
 
@@ -25,7 +26,7 @@ type StatsAPI struct {
 	StatsBatcher              *batchstats.Batcher
 	TemplateScheduleStore     *atomic.Pointer[schedule.TemplateScheduleStore]
 	AgentStatsRefreshInterval time.Duration
-	UpdateAgentMetricsFn      func(ctx context.Context, username, workspaceName, agentName string, metrics []*agentproto.Stats_Metric)
+	UpdateAgentMetricsFn      func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 }
 
 func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsRequest) (*agentproto.UpdateStatsResponse, error) {
@@ -33,10 +34,11 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 	if err != nil {
 		return nil, err
 	}
-	workspace, err := a.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
+	row, err := a.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
 	if err != nil {
 		return nil, xerrors.Errorf("get workspace by agent ID %q: %w", workspaceAgent.ID, err)
 	}
+	workspace := row.Workspace
 
 	res := &agentproto.UpdateStatsResponse{
 		ReportInterval: durationpb.New(a.AgentStatsRefreshInterval),
@@ -101,7 +103,12 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 				return xerrors.Errorf("can't get user: %w", err)
 			}
 
-			a.UpdateAgentMetricsFn(ctx, user.Username, workspace.Name, workspaceAgent.Name, req.Stats.Metrics)
+			a.UpdateAgentMetricsFn(ctx, prometheusmetrics.AgentMetricLabels{
+				Username:      user.Username,
+				WorkspaceName: workspace.Name,
+				AgentName:     workspaceAgent.Name,
+				TemplateName:  row.TemplateName,
+			}, req.Stats.Metrics)
 			return nil
 		})
 	}

@@ -748,6 +748,31 @@ const docTemplate = `{
                 }
             }
         },
+        "/external-auth": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Git"
+                ],
+                "summary": "Get user external auths",
+                "operationId": "get-user-external-auths",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ExternalAuthLink"
+                        }
+                    }
+                }
+            }
+        },
         "/external-auth/{externalauth}": {
             "get": {
                 "security": [
@@ -779,6 +804,33 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.ExternalAuth"
                         }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Git"
+                ],
+                "summary": "Delete external auth user link by ID",
+                "operationId": "delete-external-auth-user-link-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "string",
+                        "description": "Git Provider ID",
+                        "name": "externalauth",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
                     }
                 }
             }
@@ -3678,6 +3730,52 @@ const docTemplate = `{
                         "name": "user",
                         "in": "path",
                         "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.User"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/{user}/appearance": {
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Update user appearance settings",
+                "operationId": "update-user-appearance-settings",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "New appearance settings",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateUserAppearanceSettingsRequest"
+                        }
                     }
                 ],
                 "responses": {
@@ -7797,6 +7895,10 @@ const docTemplate = `{
         "codersdk.BuildInfoResponse": {
             "type": "object",
             "properties": {
+                "agent_api_version": {
+                    "description": "AgentAPIVersion is the current version of the Agent API (back versions\nMAY still be supported).",
+                    "type": "string"
+                },
                 "dashboard_url": {
                     "description": "DashboardURL is the URL to hit the deployment's dashboard.\nFor external workspace proxies, this is the coderd they are connected\nto.",
                     "type": "string"
@@ -7951,7 +8053,7 @@ const docTemplate = `{
                     ]
                 },
                 "autostop_requirement": {
-                    "description": "AutostopRequirement allows optionally specifying the autostop requirement\nfor workspaces created from this template. This is an enterprise feature.",
+                    "description": "AutostopRequirement allows optionally specifying the autostop requirement\nfor workspaces created from this template. This is an enterprise feature.\nOnly one of MaxTTLMillis or AutostopRequirement can be specified.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.TemplateAutostopRequirement"
@@ -7991,7 +8093,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "max_ttl_ms": {
-                    "description": "TODO(@dean): remove max_ttl once autostop_requirement is matured",
+                    "description": "TODO(@dean): remove max_ttl once autostop_requirement is matured\nOnly one of MaxTTLMillis or AutostopRequirement can be specified.",
                     "type": "integer"
                 },
                 "name": {
@@ -8725,7 +8827,6 @@ const docTemplate = `{
                 "workspace_actions",
                 "tailnet_pg_coordinator",
                 "single_tailnet",
-                "template_autostop_requirement",
                 "deployment_health_page",
                 "template_update_policies"
             ],
@@ -8734,7 +8835,6 @@ const docTemplate = `{
                 "ExperimentWorkspaceActions",
                 "ExperimentTailnetPGCoordinator",
                 "ExperimentSingleTailnet",
-                "ExperimentTemplateAutostopRequirement",
                 "ExperimentDeploymentHealthPage",
                 "ExperimentTemplateUpdatePolicies"
             ]
@@ -8874,6 +8974,35 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ExternalAuthLink": {
+            "type": "object",
+            "properties": {
+                "authenticated": {
+                    "type": "boolean"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "expires": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "has_refresh_token": {
+                    "type": "boolean"
+                },
+                "provider_id": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "validate_error": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.ExternalAuthUser": {
             "type": "object",
             "properties": {
@@ -8995,13 +9124,30 @@ const docTemplate = `{
                 "GroupSourceOIDC"
             ]
         },
+        "codersdk.HealthSection": {
+            "type": "string",
+            "enum": [
+                "DERP",
+                "AccessURL",
+                "Websocket",
+                "Database",
+                "WorkspaceProxy"
+            ],
+            "x-enum-varnames": [
+                "HealthSectionDERP",
+                "HealthSectionAccessURL",
+                "HealthSectionWebsocket",
+                "HealthSectionDatabase",
+                "HealthSectionWorkspaceProxy"
+            ]
+        },
         "codersdk.HealthSettings": {
             "type": "object",
             "properties": {
                 "dismissed_healthchecks": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/codersdk.HealthSection"
                     }
                 }
             }
@@ -9332,6 +9478,12 @@ const docTemplate = `{
                 "email_field": {
                     "type": "string"
                 },
+                "group_allow_list": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "group_auto_create": {
                     "type": "boolean"
                 },
@@ -9564,6 +9716,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "last_seen_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -9579,13 +9735,8 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
-                "updated_at": {
-                    "format": "date-time",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/sql.NullTime"
-                        }
-                    ]
+                "version": {
+                    "type": "string"
                 }
             }
         },
@@ -10247,6 +10398,10 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "use_max_ttl": {
+                    "description": "UseMaxTTL picks whether to use the deprecated max TTL for the template or\nthe new autostop requirement.",
+                    "type": "boolean"
                 }
             }
         },
@@ -10587,6 +10742,9 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "theme_preference": {
+                    "type": "string"
+                },
                 "username": {
                     "type": "string"
                 }
@@ -10881,7 +11039,7 @@ const docTemplate = `{
                 "dismissed_healthchecks": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/codersdk.HealthSection"
                     }
                 }
             }
@@ -10921,6 +11079,17 @@ const docTemplate = `{
                         "4df59e74-c027-470b-ab4d-cbba8963a5e9": "use",
                         "\u003cgroup_id\u003e": "admin"
                     }
+                }
+            }
+        },
+        "codersdk.UpdateUserAppearanceSettingsRequest": {
+            "type": "object",
+            "required": [
+                "theme_preference"
+            ],
+            "properties": {
+                "theme_preference": {
+                    "type": "string"
                 }
             }
         },
@@ -11066,6 +11235,9 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "theme_preference": {
+                    "type": "string"
+                },
                 "username": {
                     "type": "string"
                 }
@@ -11203,6 +11375,9 @@ const docTemplate = `{
         "codersdk.UserQuietHoursScheduleConfig": {
             "type": "object",
             "properties": {
+                "allow_user_custom": {
+                    "type": "boolean"
+                },
                 "default_schedule": {
                     "type": "string"
                 }
@@ -11226,6 +11401,10 @@ const docTemplate = `{
                 "timezone": {
                     "description": "raw format from the cron expression, UTC if unspecified",
                     "type": "string"
+                },
+                "user_can_set": {
+                    "description": "UserCanSet is true if the user is allowed to set their own quiet hours\nschedule. If false, the user cannot set a custom schedule and the default\nschedule will always be used.",
+                    "type": "boolean"
                 },
                 "user_set": {
                     "description": "UserSet is true if the user has set their own quiet hours schedule. If\nfalse, the user is using the default schedule.",
@@ -12569,7 +12748,7 @@ const docTemplate = `{
                     "description": "FailingSections is a list of sections that have failed their healthcheck.",
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/codersdk.HealthSection"
                     }
                 },
                 "healthy": {
@@ -12753,18 +12932,6 @@ const docTemplate = `{
                 "upnP": {
                     "description": "UPnP is whether UPnP appears present on the LAN.\nEmpty means not checked.",
                     "type": "string"
-                }
-            }
-        },
-        "sql.NullTime": {
-            "type": "object",
-            "properties": {
-                "time": {
-                    "type": "string"
-                },
-                "valid": {
-                    "description": "Valid is true if Time is not NULL",
-                    "type": "boolean"
                 }
             }
         },

@@ -3,9 +3,7 @@ package autobuild
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"net/http"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -184,7 +182,6 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						return nil
 					}
 
-					var build *database.WorkspaceBuild
 					if nextTransition != "" {
 						builder := wsbuilder.New(ws, nextTransition).
 							SetLastWorkspaceBuildInTx(&latestBuild).
@@ -197,7 +194,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							builder = builder.ActiveVersion()
 						}
 
-						build, job, err = builder.Build(e.ctx, tx, nil, audit.WorkspaceBuildBaggage{IP: "127.0.0.1"})
+						_, job, err = builder.Build(e.ctx, tx, nil, audit.WorkspaceBuildBaggage{IP: "127.0.0.1"})
 						if err != nil {
 							return xerrors.Errorf("build workspace with transition %q: %w", nextTransition, err)
 						}
@@ -205,7 +202,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 
 					// Transition the workspace to dormant if it has breached the template's
 					// threshold for inactivity.
-					if reason == database.BuildReasonAutolock {
+					if reason == database.BuildReasonDormancy {
 						wsOld := ws
 						ws, err = tx.UpdateWorkspaceDormantDeletingAt(e.ctx, database.UpdateWorkspaceDormantDeletingAtParams{
 							ID: ws.ID,
@@ -216,11 +213,8 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						})
 
 						auditLog = &auditParams{
-							Build:  build,
-							Job:    latestJob,
-							Reason: reason,
-							Old:    wsOld,
-							New:    ws,
+							Old: wsOld,
+							New: ws,
 						}
 						if err != nil {
 							return xerrors.Errorf("update workspace dormant deleting at: %w", err)
@@ -328,11 +322,11 @@ func getNextTransition(
 	case isEligibleForDormantStop(ws, templateSchedule, currentTick):
 		// Only stop started workspaces.
 		if latestBuild.Transition == database.WorkspaceTransitionStart {
-			return database.WorkspaceTransitionStop, database.BuildReasonAutolock, nil
+			return database.WorkspaceTransitionStop, database.BuildReasonDormancy, nil
 		}
 		// We shouldn't transition the workspace but we should still
 		// make it dormant.
-		return "", database.BuildReasonAutolock, nil
+		return "", database.BuildReasonDormancy, nil
 
 	case isEligibleForDelete(ws, templateSchedule, latestBuild, latestJob, currentTick):
 		return database.WorkspaceTransitionDelete, database.BuildReasonAutodelete, nil
@@ -462,45 +456,29 @@ func isEligibleForFailedStop(build database.WorkspaceBuild, job database.Provisi
 }
 
 type auditParams struct {
-	Build   *database.WorkspaceBuild
-	Job     database.ProvisionerJob
-	Reason  database.BuildReason
 	Old     database.Workspace
 	New     database.Workspace
 	Success bool
 }
 
 func auditBuild(ctx context.Context, log slog.Logger, auditor audit.Auditor, params auditParams) {
-	fields := audit.AdditionalFields{
-		WorkspaceName: params.New.Name,
-		BuildReason:   params.Reason,
-	}
-
-	if params.Build != nil {
-		fields.BuildNumber = strconv.FormatInt(int64(params.Build.BuildNumber), 10)
-	}
-
-	raw, err := json.Marshal(fields)
-	if err != nil {
-		log.Error(ctx, "marshal resource info for successful job", slog.Error(err))
-	}
-
 	status := http.StatusInternalServerError
 	if params.Success {
 		status = http.StatusOK
 	}
 
-	audit.WorkspaceBuildAudit(ctx, &audit.BuildAuditParams[database.Workspace]{
-		Audit:            auditor,
-		Log:              log,
-		UserID:           params.Job.InitiatorID,
-		OrganizationID:   params.New.OrganizationID,
-		JobID:            params.Job.ID,
-		Action:           database.AuditActionWrite,
-		Old:              params.Old,
-		New:              params.New,
-		Status:           status,
-		AdditionalFields: raw,
+	audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.Workspace]{
+		Audit:          auditor,
+		Log:            log,
+		UserID:         params.New.OwnerID,
+		OrganizationID: params.New.OrganizationID,
+		// Right now there's no request associated with an autobuild
+		// operation.
+		RequestID: uuid.Nil,
+		Action:    database.AuditActionWrite,
+		Old:       params.Old,
+		New:       params.New,
+		Status:    status,
 	})
 }
 

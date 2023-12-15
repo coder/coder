@@ -66,7 +66,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "require_active_version": true,
     "time_til_dormant_autodelete_ms": 0,
     "time_til_dormant_ms": 0,
-    "updated_at": "2019-08-24T14:15:22Z"
+    "updated_at": "2019-08-24T14:15:22Z",
+    "use_max_ttl": true
   }
 ]
 ```
@@ -118,6 +119,7 @@ Status Code **200**
 | `» time_til_dormant_autodelete_ms`                                                    | integer                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» time_til_dormant_ms`                                                               | integer                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» updated_at`                                                                        | string(date-time)                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» use_max_ttl`                                                                       | boolean                                                                                  | false    |              | Use max ttl picks whether to use the deprecated max TTL for the template or the new autostop requirement.                                                                                                                                                                                                      |
 
 #### Enumerated Values
 
@@ -223,7 +225,8 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "require_active_version": true,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
-  "updated_at": "2019-08-24T14:15:22Z"
+  "updated_at": "2019-08-24T14:15:22Z",
+  "use_max_ttl": true
 }
 ```
 
@@ -361,7 +364,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "require_active_version": true,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
-  "updated_at": "2019-08-24T14:15:22Z"
+  "updated_at": "2019-08-24T14:15:22Z",
+  "use_max_ttl": true
 }
 ```
 
@@ -675,7 +679,8 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   "require_active_version": true,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
-  "updated_at": "2019-08-24T14:15:22Z"
+  "updated_at": "2019-08-24T14:15:22Z",
+  "use_max_ttl": true
 }
 ```
 
@@ -796,7 +801,8 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "require_active_version": true,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
-  "updated_at": "2019-08-24T14:15:22Z"
+  "updated_at": "2019-08-24T14:15:22Z",
+  "use_max_ttl": true
 }
 ```
 

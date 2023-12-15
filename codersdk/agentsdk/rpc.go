@@ -12,7 +12,7 @@ import (
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/coder/v2/codersdk/drpc"
 )
 
 func (c *Client) RPC(ctx context.Context) (agentproto.DRPCAgentClient, error) {
@@ -63,6 +63,6 @@ func (c *Client) RPC(ctx context.Context) (agentproto.DRPCAgentClient, error) {
 		return nil, xerrors.Errorf("create yamux client: %w", err)
 	}
 
-	dconn := provisionersdk.MultiplexedConn(mux)
+	dconn := drpc.MultiplexedConn(mux)
 	return agentproto.NewDRPCAgentClient(dconn), nil
 }

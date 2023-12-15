@@ -35,22 +35,21 @@ const (
 type FeatureName string
 
 const (
-	FeatureUserLimit                   FeatureName = "user_limit"
-	FeatureAuditLog                    FeatureName = "audit_log"
-	FeatureBrowserOnly                 FeatureName = "browser_only"
-	FeatureSCIM                        FeatureName = "scim"
-	FeatureTemplateRBAC                FeatureName = "template_rbac"
-	FeatureUserRoleManagement          FeatureName = "user_role_management"
-	FeatureHighAvailability            FeatureName = "high_availability"
-	FeatureMultipleExternalAuth        FeatureName = "multiple_external_auth"
-	FeatureExternalProvisionerDaemons  FeatureName = "external_provisioner_daemons"
-	FeatureAppearance                  FeatureName = "appearance"
-	FeatureAdvancedTemplateScheduling  FeatureName = "advanced_template_scheduling"
-	FeatureWorkspaceProxy              FeatureName = "workspace_proxy"
-	FeatureExternalTokenEncryption     FeatureName = "external_token_encryption"
-	FeatureTemplateAutostopRequirement FeatureName = "template_autostop_requirement"
-	FeatureWorkspaceBatchActions       FeatureName = "workspace_batch_actions"
-	FeatureAccessControl               FeatureName = "access_control"
+	FeatureUserLimit                  FeatureName = "user_limit"
+	FeatureAuditLog                   FeatureName = "audit_log"
+	FeatureBrowserOnly                FeatureName = "browser_only"
+	FeatureSCIM                       FeatureName = "scim"
+	FeatureTemplateRBAC               FeatureName = "template_rbac"
+	FeatureUserRoleManagement         FeatureName = "user_role_management"
+	FeatureHighAvailability           FeatureName = "high_availability"
+	FeatureMultipleExternalAuth       FeatureName = "multiple_external_auth"
+	FeatureExternalProvisionerDaemons FeatureName = "external_provisioner_daemons"
+	FeatureAppearance                 FeatureName = "appearance"
+	FeatureAdvancedTemplateScheduling FeatureName = "advanced_template_scheduling"
+	FeatureWorkspaceProxy             FeatureName = "workspace_proxy"
+	FeatureExternalTokenEncryption    FeatureName = "external_token_encryption"
+	FeatureWorkspaceBatchActions      FeatureName = "workspace_batch_actions"
+	FeatureAccessControl              FeatureName = "access_control"
 )
 
 // FeatureNames must be kept in-sync with the Feature enum above.
@@ -65,11 +64,9 @@ var FeatureNames = []FeatureName{
 	FeatureExternalProvisionerDaemons,
 	FeatureAppearance,
 	FeatureAdvancedTemplateScheduling,
-	FeatureTemplateAutostopRequirement,
 	FeatureWorkspaceProxy,
 	FeatureUserRoleManagement,
 	FeatureExternalTokenEncryption,
-	FeatureTemplateAutostopRequirement,
 	FeatureWorkspaceBatchActions,
 	FeatureAccessControl,
 }
@@ -291,6 +288,7 @@ type OIDCConfig struct {
 	IgnoreUserInfo      clibase.Bool                        `json:"ignore_user_info" typescript:",notnull"`
 	GroupAutoCreate     clibase.Bool                        `json:"group_auto_create" typescript:",notnull"`
 	GroupRegexFilter    clibase.Regexp                      `json:"group_regex_filter" typescript:",notnull"`
+	GroupAllowList      clibase.StringArray                 `json:"group_allow_list" typescript:",notnull"`
 	GroupField          clibase.String                      `json:"groups_field" typescript:",notnull"`
 	GroupMapping        clibase.Struct[map[string]string]   `json:"group_mapping" typescript:",notnull"`
 	UserRoleField       clibase.String                      `json:"user_role_field" typescript:",notnull"`
@@ -392,6 +390,7 @@ type DangerousConfig struct {
 
 type UserQuietHoursScheduleConfig struct {
 	DefaultSchedule clibase.String `json:"default_schedule" typescript:",notnull"`
+	AllowUserCustom clibase.Bool   `json:"allow_user_custom" typescript:",notnull"`
 	// TODO: add WindowDuration and the ability to postpone max_deadline by this
 	// amount
 	// WindowDuration  clibase.Duration `json:"window_duration" typescript:",notnull"`
@@ -1188,6 +1187,16 @@ when required by your organization's security policy.`,
 			YAML:        "groupRegexFilter",
 		},
 		{
+			Name:        "OIDC Allowed Groups",
+			Description: "If provided any group name not in the list will not be allowed to authenticate. This allows for restricting access to a specific set of groups. This filter is applied after the group mapping and before the regex filter.",
+			Flag:        "oidc-allowed-groups",
+			Env:         "CODER_OIDC_ALLOWED_GROUPS",
+			Default:     "",
+			Value:       &c.OIDC.GroupAllowList,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "groupAllowed",
+		},
+		{
 			Name:        "OIDC User Role Field",
 			Description: "This field must be set if using the user roles sync feature. Set this to the name of the claim used to store the user's role. The roles should be sent as an array of strings.",
 			Flag:        "oidc-user-role-field",
@@ -1619,7 +1628,7 @@ when required by your organization's security policy.`,
 			Flag:        "metrics-cache-refresh-interval",
 			Env:         "CODER_METRICS_CACHE_REFRESH_INTERVAL",
 			Hidden:      true,
-			Default:     time.Hour.String(),
+			Default:     (4 * time.Hour).String(),
 			Value:       &c.MetricsCacheRefreshInterval,
 			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
@@ -1805,13 +1814,23 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Default Quiet Hours Schedule",
-			Description: "The default daily cron schedule applied to users that haven't set a custom quiet hours schedule themselves. The quiet hours schedule determines when workspaces will be force stopped due to the template's max TTL, and will round the max TTL up to be within the user's quiet hours window (or default). The format is the same as the standard cron format, but the day-of-month, month and day-of-week must be *. Only one hour and minute can be specified (ranges or comma separated values are not supported).",
+			Description: "The default daily cron schedule applied to users that haven't set a custom quiet hours schedule themselves. The quiet hours schedule determines when workspaces will be force stopped due to the template's autostop requirement, and will round the max deadline up to be within the user's quiet hours window (or default). The format is the same as the standard cron format, but the day-of-month, month and day-of-week must be *. Only one hour and minute can be specified (ranges or comma separated values are not supported).",
 			Flag:        "default-quiet-hours-schedule",
 			Env:         "CODER_QUIET_HOURS_DEFAULT_SCHEDULE",
-			Default:     "",
+			Default:     "CRON_TZ=UTC 0 0 * * *",
 			Value:       &c.UserQuietHoursSchedule.DefaultSchedule,
 			Group:       &deploymentGroupUserQuietHoursSchedule,
 			YAML:        "defaultQuietHoursSchedule",
+		},
+		{
+			Name:        "Allow Custom Quiet Hours",
+			Description: "Allow users to set their own quiet hours schedule for workspaces to stop in (depending on template autostop requirement settings). If false, users can't change their quiet hours schedule and the site default is always used.",
+			Flag:        "allow-custom-quiet-hours",
+			Env:         "CODER_ALLOW_CUSTOM_QUIET_HOURS",
+			Default:     "true",
+			Value:       &c.UserQuietHoursSchedule.AllowUserCustom,
+			Group:       &deploymentGroupUserQuietHoursSchedule,
+			YAML:        "allowCustomQuietHours",
 		},
 		{
 			Name:        "Web Terminal Renderer",
@@ -2003,6 +2022,10 @@ type BuildInfoResponse struct {
 	DashboardURL string `json:"dashboard_url"`
 
 	WorkspaceProxy bool `json:"workspace_proxy"`
+
+	// AgentAPIVersion is the current version of the Agent API (back versions
+	// MAY still be supported).
+	AgentAPIVersion string `json:"agent_api_version"`
 }
 
 type WorkspaceProxyBuildInfo struct {
@@ -2055,20 +2078,6 @@ const (
 	// all use a single tailnet, instead of the previous behavior of creating a
 	// single tailnet for each agent.
 	ExperimentSingleTailnet Experiment = "single_tailnet"
-
-	// ExperimentTemplateAutostopRequirement allows template admins to have more
-	// control over when workspaces created on a template are required to
-	// stop, and allows users to ensure these restarts never happen during their
-	// business hours.
-	//
-	// This will replace the MaxTTL setting on templates.
-	//
-	// Enables:
-	// - User quiet hours schedule settings
-	// - Template autostop requirement settings
-	// - Changes the max_deadline algorithm to use autostop requirement and user
-	//   quiet hours instead of max_ttl.
-	ExperimentTemplateAutostopRequirement Experiment = "template_autostop_requirement"
 
 	// Deployment health page
 	ExperimentDeploymentHealthPage Experiment = "deployment_health_page"

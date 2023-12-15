@@ -55,7 +55,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
     enabled: viewDeploymentValues,
   });
 
-  const usersQuery = usePaginatedQuery(paginatedUsers());
+  const usersQuery = usePaginatedQuery(paginatedUsers(searchParamsResult[0]));
   const useFilterResult = useFilter({
     searchParamsResult,
     onUpdate: usersQuery.goToFirstPage,

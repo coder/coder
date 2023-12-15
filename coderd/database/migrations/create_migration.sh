@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
 # Usage:
-# ./create_migration name of migration
-# ./create_migration "name of migration"
-# ./create_migration name_of_migration
+# ./create_migration.sh name of migration
+# ./create_migration.sh "name of migration"
+# ./create_migration.sh name_of_migration
 
 set -euo pipefail
 
@@ -27,7 +27,7 @@ CREATE TYPE new_logintype AS ENUM (
 
 ALTER TABLE users
 	ALTER COLUMN login_type DROP DEFAULT, -- if the column has a default, it must be dropped first
-	ALTER COLUMN login_type TYPE new_logintype USING (login_type::text::new_logintype), -- converts the old enum until the new enum using text as an intermediary
+	ALTER COLUMN login_type TYPE new_logintype USING (login_type::text::new_logintype), -- converts the old enum into the new enum using text as an intermediary
 	ALTER COLUMN login_type SET DEFAULT 'password'::new_logintype; -- re-add the default using the new enum
 
 DROP TYPE login_type;

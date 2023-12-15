@@ -5,7 +5,7 @@ import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
 import Link from "@mui/material/Link";
 import { useTheme } from "@emotion/react";
-import { useState } from "react";
+import { type FC, useState } from "react";
 import { BlockPicker } from "react-color";
 import { useFormik } from "formik";
 import type { UpdateAppearanceConfig } from "api/typesGenerated";
@@ -19,7 +19,6 @@ import {
 import { Fieldset } from "components/DeploySettingsLayout/Fieldset";
 import { Stack } from "components/Stack/Stack";
 import { getFormHelpers } from "utils/formUtils";
-import { colors } from "theme/colors";
 
 export type AppearanceSettingsPageViewProps = {
   appearance: UpdateAppearanceConfig;
@@ -30,14 +29,11 @@ export type AppearanceSettingsPageViewProps = {
   ) => void;
 };
 
-const fallbackBgColor = colors.blue[7];
-
-export const AppearanceSettingsPageView = ({
-  appearance,
-  isEntitled,
-  onSaveAppearance,
-}: AppearanceSettingsPageViewProps): JSX.Element => {
+export const AppearanceSettingsPageView: FC<
+  AppearanceSettingsPageViewProps
+> = ({ appearance, isEntitled, onSaveAppearance }) => {
   const theme = useTheme();
+  const fallbackBgColor = theme.colors.blue[7];
 
   const applicationNameForm = useFormik<{
     application_name: string;

@@ -33,7 +33,7 @@ replace github.com/dlclark/regexp2 => github.com/dlclark/regexp2 v1.7.0
 
 // There are a few minor changes we make to Tailscale that we're slowly upstreaming. Compare here:
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
-replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20231106123012-ba3acaa26275
+replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20231205095743-61c97bad8c8b
 
 // Fixes a race-condition in coder/wgtunnel.
 // Upstream PR: https://github.com/WireGuard/wireguard-go/pull/85
@@ -67,6 +67,10 @@ replace github.com/gliderlabs/ssh => github.com/coder/ssh v0.0.0-20231128192721-
 
 // Waiting on https://github.com/imulab/go-scim/pull/95 to merge.
 replace github.com/imulab/go-scim/pkg/v2 => github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136
+
+// Waiting on https://github.com/pkg/sftp/pull/567
+// Fixes https://github.com/coder/coder/issues/6685
+replace github.com/pkg/sftp => github.com/mafredri/sftp v1.13.6-0.20231212144145-8218e927edb0
 
 require (
 	cdr.dev/slog v1.6.2-0.20230929193652-f0c466fabe10

@@ -73,6 +73,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionerd"
@@ -512,7 +513,7 @@ func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
 	// seems t.TempDir() is not safe to call from a different goroutine
 	workDir := t.TempDir()
 
-	echoClient, echoServer := provisionersdk.MemTransportPipe()
+	echoClient, echoServer := drpc.MemTransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(func() {
 		_ = echoClient.Close()
@@ -530,7 +531,7 @@ func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
 	}()
 
 	daemon := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
-		return coderAPI.CreateInMemoryProvisionerDaemon(ctx)
+		return coderAPI.CreateInMemoryProvisionerDaemon(ctx, t.Name())
 	}, &provisionerd.Options{
 		Logger:              coderAPI.Logger.Named("provisionerd").Leveled(slog.LevelDebug),
 		UpdateInterval:      250 * time.Millisecond,
@@ -547,7 +548,7 @@ func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
 }
 
 func NewExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uuid.UUID, tags map[string]string) io.Closer {
-	echoClient, echoServer := provisionersdk.MemTransportPipe()
+	echoClient, echoServer := drpc.MemTransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	serveDone := make(chan struct{})
 	t.Cleanup(func() {
@@ -567,6 +568,8 @@ func NewExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uui
 
 	daemon := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
 		return client.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+			ID:           uuid.New(),
+			Name:         t.Name(),
 			Organization: org,
 			Provisioners: []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho},
 			Tags:         tags,
@@ -617,11 +620,15 @@ func CreateAnotherUserMutators(t testing.TB, client *codersdk.Client, organizati
 }
 
 // AuthzUserSubject does not include the user's groups.
-func AuthzUserSubject(user codersdk.User) rbac.Subject {
+func AuthzUserSubject(user codersdk.User, orgID uuid.UUID) rbac.Subject {
 	roles := make(rbac.RoleNames, 0, len(user.Roles))
+	// Member role is always implied
+	roles = append(roles, rbac.RoleMember())
 	for _, r := range user.Roles {
 		roles = append(roles, r.Name)
 	}
+	// We assume only 1 org exists
+	roles = append(roles, rbac.RoleOrgMember(orgID))
 
 	return rbac.Subject{
 		ID:     user.ID.String(),

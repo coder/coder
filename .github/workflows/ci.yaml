@@ -36,6 +36,7 @@ jobs:
       ts: ${{ steps.filter.outputs.ts }}
       k8s: ${{ steps.filter.outputs.k8s }}
       ci: ${{ steps.filter.outputs.ci }}
+      db: ${{ steps.filter.outputs.db }}
       offlinedocs-only: ${{ steps.filter.outputs.offlinedocs_count == steps.filter.outputs.all_count }}
       offlinedocs: ${{ steps.filter.outputs.offlinedocs }}
     steps:
@@ -57,6 +58,12 @@ jobs:
               - "examples/web-server/**"
               - "examples/monitoring/**"
               - "examples/lima/**"
+            db:
+              - "**.sql"
+              - "coderd/database/queries/**"
+              - "coderd/database/migrations"
+              - "coderd/database/sqlc.yaml"
+              - "coderd/database/dump.sql"
             go:
               - "**.sql"
               - "**.go"
@@ -137,7 +144,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@v1.16.23
+        uses: crate-ci/typos@v1.16.24
         with:
           config: .github/workflows/typos.toml
 
@@ -221,7 +228,7 @@ jobs:
         with:
           # This doesn't need caching. It's super fast anyways!
           cache: false
-          go-version: 1.20.11
+          go-version: 1.21.5
 
       - name: Install shfmt
         run: go install mvdan.cc/sh/v3/cmd/shfmt@v3.7.0
@@ -568,11 +575,25 @@ jobs:
         with:
           directory: offlinedocs
 
+      - name: Install Protoc
+        run: |
+          mkdir -p /tmp/proto
+          pushd /tmp/proto
+          curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.3/protoc-23.3-linux-x86_64.zip
+          unzip protoc.zip
+          cp -r ./bin/* /usr/local/bin
+          cp -r ./include /usr/local/bin/include
+          popd
+
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
       - name: Install go tools
         run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30
+          go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.33
+          go install golang.org/x/tools/cmd/goimports@latest
+          go install github.com/mikefarah/yq/v4@v4.30.6
           go install github.com/golang/mock/mockgen@v1.6.0
 
       - name: Setup sqlc
@@ -604,6 +625,7 @@ jobs:
       - test-js
       - test-e2e
       - offlinedocs
+      - sqlc-vet
     # Allow this job to run even if the needed jobs fail, are skipped or
     # cancelled.
     if: always()
@@ -747,13 +769,16 @@ jobs:
           service_account: coder-ci@coder-dogfood.iam.gserviceaccount.com
 
       - name: Set up Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1
+        uses: google-github-actions/setup-gcloud@v2
 
       - name: Set up Flux CLI
         uses: fluxcd/flux2/action@main
+        with:
+          # Keep this up to date with the version of flux installed in dogfood cluster
+          version: "2.2.0"
 
       - name: Get Cluster Credentials
-        uses: "google-github-actions/get-gke-credentials@v1"
+        uses: "google-github-actions/get-gke-credentials@v2"
         with:
           cluster_name: dogfood-v2
           location: us-central1-a
@@ -767,7 +792,9 @@ jobs:
           flux --namespace flux-system reconcile kustomization flux-system
           flux --namespace flux-system reconcile kustomization coder
           flux --namespace flux-system reconcile source chart coder-coder
+          flux --namespace flux-system reconcile source chart coder-coder-provisioner
           flux --namespace coder reconcile helmrelease coder
+          flux --namespace coder reconcile helmrelease coder-provisioner
 
       # Just updating Flux is usually not enough. The Helm release may get
       # redeployed, but unless something causes the Deployment to update the
@@ -779,6 +806,8 @@ jobs:
           set -euxo pipefail
           kubectl --namespace coder rollout restart deployment/coder
           kubectl --namespace coder rollout status deployment/coder
+          kubectl --namespace coder rollout restart deployment/coder-provisioner
+          kubectl --namespace coder rollout status deployment/coder-provisioner
 
   deploy-wsproxies:
     runs-on: ubuntu-latest
@@ -806,22 +835,14 @@ jobs:
           TOKEN_SAO_PAULO: ${{ secrets.FLY_SAO_PAULO_CODER_PROXY_SESSION_TOKEN }}
 
   deploy-legacy-proxies:
-    name: "deploy-legacy-proxies"
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-16vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: changes
-    if: |
-      github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
-      && needs.changes.outputs.docs-only == 'false'
+    needs: build
+    if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
     permissions:
       contents: read
       id-token: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
@@ -829,32 +850,13 @@ jobs:
           service_account: coder-ci@coder-dogfood.iam.gserviceaccount.com
 
       - name: Set up Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1
+        uses: google-github-actions/setup-gcloud@v2
 
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
-
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-
-      - name: Install goimports
-        run: go install golang.org/x/tools/cmd/goimports@latest
-      - name: Install nfpm
-        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.16.0
-
-      - name: Install zstd
-        run: sudo apt-get install -y zstd
-
-      - name: Build Release
-        run: |
-          set -euo pipefail
-          go mod download
-
-          version="$(./scripts/version.sh)"
-          make gen/mark-fresh
-          make -j \
-            build/coder_"$version"_windows_amd64.zip \
-            build/coder_"$version"_linux_amd64.{tar.gz,deb}
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: coder
+          path: ./build
 
       - name: Install Release
         run: |
@@ -867,11 +869,11 @@ jobs:
             "southamerica-east1-b coder-brazil coder-workspace-proxy"
           )
 
-          deb_pkg="./build/coder_$(./scripts/version.sh)_linux_amd64.deb"
-          if [ ! -f "$deb_pkg" ]; then
-            echo "deb package not found: $deb_pkg"
-            ls -l ./build
-            exit 1
+          deb_pkg=$(find ./build -name "coder_*_linux_amd64.deb" -print -quit)
+          if [ -z "$deb_pkg" ]; then
+              echo "deb package $deb_pkg not found"
+              ls -l ./build
+              exit 1
           fi
 
           gcloud config set project coder-dogfood
@@ -887,3 +889,26 @@ jobs:
 
             echo "::endgroup::"
           done
+
+  # sqlc-vet runs a postgres docker container, runs Coder migrations, and then
+  # runs sqlc-vet to ensure all queries are valid. This catches any mistakes
+  # in migrations or sqlc queries that makes a query unable to be prepared.
+  sqlc-vet:
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    needs: changes
+    if: needs.changes.outputs.db == 'true' || github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      # We need golang to run the migration main.go
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Setup sqlc
+        uses: ./.github/actions/setup-sqlc
+
+      - name: Setup and run sqlc vet
+        run: |
+          make sqlc-vet

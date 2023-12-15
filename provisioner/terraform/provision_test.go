@@ -22,6 +22,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/provisioner/terraform"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -38,7 +39,7 @@ func setupProvisioner(t *testing.T, opts *provisionerServeOptions) (context.Cont
 	}
 	cachePath := t.TempDir()
 	workDir := t.TempDir()
-	client, server := provisionersdk.MemTransportPipe()
+	client, server := drpc.MemTransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	serverErr := make(chan error, 1)
 	t.Cleanup(func() {

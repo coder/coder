@@ -145,6 +145,61 @@ func TestExternalAuthByID(t *testing.T) {
 	})
 }
 
+// TestExternalAuthManagement is for testing the apis interacting with
+// external auths from the user perspective. We assume the external auth
+// will always work, so we can test the managing apis like unlinking and
+// listing.
+func TestExternalAuthManagement(t *testing.T) {
+	t.Parallel()
+	t.Run("ListProviders", func(t *testing.T) {
+		t.Parallel()
+		const githubID = "fake-github"
+		const gitlabID = "fake-gitlab"
+
+		github := oidctest.NewFakeIDP(t, oidctest.WithServing())
+		gitlab := oidctest.NewFakeIDP(t, oidctest.WithServing())
+
+		owner := coderdtest.New(t, &coderdtest.Options{
+			ExternalAuthConfigs: []*externalauth.Config{
+				github.ExternalAuthConfig(t, githubID, nil, func(cfg *externalauth.Config) {
+					cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
+				}),
+				gitlab.ExternalAuthConfig(t, gitlabID, nil, func(cfg *externalauth.Config) {
+					cfg.Type = codersdk.EnhancedExternalAuthProviderGitLab.String()
+				}),
+			},
+		})
+		ownerUser := coderdtest.CreateFirstUser(t, owner)
+		// Just a regular user
+		client, _ := coderdtest.CreateAnotherUser(t, owner, ownerUser.OrganizationID)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// List auths without any links.
+		list, err := client.ListExternalAuths(ctx)
+		require.NoError(t, err)
+		require.Len(t, list.Providers, 2)
+		require.Len(t, list.Links, 0)
+
+		// Log into github
+		github.ExternalLogin(t, client)
+
+		list, err = client.ListExternalAuths(ctx)
+		require.NoError(t, err)
+		require.Len(t, list.Providers, 2)
+		require.Len(t, list.Links, 1)
+		require.Equal(t, list.Links[0].ProviderID, githubID)
+
+		// Unlink
+		err = client.UnlinkExternalAuthByID(ctx, githubID)
+		require.NoError(t, err)
+
+		list, err = client.ListExternalAuths(ctx)
+		require.NoError(t, err)
+		require.Len(t, list.Providers, 2)
+		require.Len(t, list.Links, 0)
+	})
+}
+
 func TestExternalAuthDevice(t *testing.T) {
 	t.Parallel()
 	t.Run("NotSupported", func(t *testing.T) {

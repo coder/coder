@@ -1,12 +1,3 @@
-import { FullScreenLoader } from "components/Loader/FullScreenLoader";
-import { UsersLayout } from "components/UsersLayout/UsersLayout";
-import AuditPage from "pages/AuditPage/AuditPage";
-import LoginPage from "pages/LoginPage/LoginPage";
-import { SetupPage } from "pages/SetupPage/SetupPage";
-import { TemplateLayout } from "pages/TemplatePage/TemplateLayout";
-import TemplatesPage from "pages/TemplatesPage/TemplatesPage";
-import UsersPage from "pages/UsersPage/UsersPage";
-import WorkspacesPage from "pages/WorkspacesPage/WorkspacesPage";
 import { FC, lazy, Suspense } from "react";
 import {
   Route,
@@ -15,11 +6,21 @@ import {
   Navigate,
 } from "react-router-dom";
 import { DashboardLayout } from "./components/Dashboard/DashboardLayout";
+import { DeploySettingsLayout } from "./components/DeploySettingsLayout/DeploySettingsLayout";
+import { FullScreenLoader } from "./components/Loader/FullScreenLoader";
 import { RequireAuth } from "./components/RequireAuth/RequireAuth";
-import { SettingsLayout } from "./components/SettingsLayout/SettingsLayout";
-import { DeploySettingsLayout } from "components/DeploySettingsLayout/DeploySettingsLayout";
-import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout";
-import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
+import { UsersLayout } from "./components/UsersLayout/UsersLayout";
+import AuditPage from "./pages/AuditPage/AuditPage";
+import LoginPage from "./pages/LoginPage/LoginPage";
+import { SetupPage } from "./pages/SetupPage/SetupPage";
+import { TemplateLayout } from "./pages/TemplatePage/TemplateLayout";
+import { HealthLayout } from "./pages/HealthPage/HealthLayout";
+import TemplatesPage from "./pages/TemplatesPage/TemplatesPage";
+import UsersPage from "./pages/UsersPage/UsersPage";
+import WorkspacesPage from "./pages/WorkspacesPage/WorkspacesPage";
+import UserSettingsLayout from "./pages/UserSettingsPage/Layout";
+import { TemplateSettingsLayout } from "./pages/TemplateSettingsPage/TemplateSettingsLayout";
+import { WorkspaceSettingsLayout } from "./pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 
 // Lazy load pages
 // - Pages that are secondary, not in the main navigation or not usually accessed
@@ -30,6 +31,9 @@ const CliAuthenticationPage = lazy(
 );
 const AccountPage = lazy(
   () => import("./pages/UserSettingsPage/AccountPage/AccountPage"),
+);
+const AppearancePage = lazy(
+  () => import("./pages/UserSettingsPage/AppearancePage/AppearancePage"),
 );
 const SchedulePage = lazy(
   () => import("./pages/UserSettingsPage/SchedulePage/SchedulePage"),
@@ -131,6 +135,9 @@ const ObservabilitySettingsPage = lazy(
 const ExternalAuthPage = lazy(
   () => import("./pages/ExternalAuthPage/ExternalAuthPage"),
 );
+const UserExternalAuthSettingsPage = lazy(
+  () => import("./pages/UserSettingsPage/ExternalAuthPage/ExternalAuthPage"),
+);
 const TemplateVersionPage = lazy(
   () => import("./pages/TemplateVersionPage/TemplateVersionPage"),
 );
@@ -197,9 +204,16 @@ const TemplateInsightsPage = lazy(
   () =>
     import("./pages/TemplatePage/TemplateInsightsPage/TemplateInsightsPage"),
 );
-const HealthPage = lazy(() => import("./pages/HealthPage/HealthPage"));
 const GroupsPage = lazy(() => import("./pages/GroupsPage/GroupsPage"));
 const IconsPage = lazy(() => import("./pages/IconsPage/IconsPage"));
+const AccessURLPage = lazy(() => import("./pages/HealthPage/AccessURLPage"));
+const DatabasePage = lazy(() => import("./pages/HealthPage/DatabasePage"));
+const DERPPage = lazy(() => import("./pages/HealthPage/DERPPage"));
+const DERPRegionPage = lazy(() => import("./pages/HealthPage/DERPRegionPage"));
+const WebsocketPage = lazy(() => import("./pages/HealthPage/WebsocketPage"));
+const WorkspaceProxyHealthPage = lazy(
+  () => import("./pages/HealthPage/WorkspaceProxyPage"),
+);
 
 export const AppRouter: FC = () => {
   return (
@@ -213,8 +227,6 @@ export const AppRouter: FC = () => {
           <Route element={<RequireAuth />}>
             <Route element={<DashboardLayout />}>
               <Route index element={<Navigate to="/workspaces" replace />} />
-
-              <Route path="/health" element={<HealthPage />} />
 
               <Route
                 path="/external-auth/:provider"
@@ -309,11 +321,16 @@ export const AppRouter: FC = () => {
                 />
               </Route>
 
-              <Route path="/settings" element={<SettingsLayout />}>
+              <Route path="/settings" element={<UserSettingsLayout />}>
                 <Route path="account" element={<AccountPage />} />
+                <Route path="appearance" element={<AppearancePage />} />
                 <Route path="schedule" element={<SchedulePage />} />
                 <Route path="security" element={<SecurityPage />} />
                 <Route path="ssh-keys" element={<SSHKeysPage />} />
+                <Route
+                  path="external-auth"
+                  element={<UserExternalAuthSettingsPage />}
+                />
                 <Route path="tokens">
                   <Route index element={<TokensPage />} />
                   <Route path="new" element={<CreateTokenPage />} />
@@ -339,6 +356,21 @@ export const AppRouter: FC = () => {
                 <Route path="schedule" element={<WorkspaceSchedulePage />} />
               </Route>
 
+              <Route path="/health" element={<HealthLayout />}>
+                <Route index element={<Navigate to="access-url" />} />
+                <Route path="access-url" element={<AccessURLPage />} />
+                <Route path="database" element={<DatabasePage />} />
+                <Route path="derp" element={<DERPPage />} />
+                <Route
+                  path="derp/regions/:regionId"
+                  element={<DERPRegionPage />}
+                />
+                <Route path="websocket" element={<WebsocketPage />} />
+                <Route
+                  path="workspace-proxy"
+                  element={<WorkspaceProxyHealthPage />}
+                />
+              </Route>
               {/* Using path="*"" means "match anything", so this route
               acts like a catch-all for URLs that we don't have explicit
               routes for. */}
@@ -347,15 +379,15 @@ export const AppRouter: FC = () => {
 
             {/* Pages that don't have the dashboard layout */}
             <Route
+              path="/templates/:template/versions/:version/edit"
+              element={<TemplateVersionEditorPage />}
+            />
+            <Route
               path="/:username/:workspace/terminal"
               element={<TerminalPage />}
             />
             <Route path="/cli-auth" element={<CliAuthenticationPage />} />
             <Route path="/icons" element={<IconsPage />} />
-            <Route
-              path="/templates/:template/versions/:version/edit"
-              element={<TemplateVersionEditorPage />}
-            />
           </Route>
         </Routes>
       </Router>

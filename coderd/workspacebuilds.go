@@ -379,7 +379,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	if xerrors.As(err, &buildErr) {
 		var authErr dbauthz.NotAuthorizedError
 		if xerrors.As(err, &authErr) {
-			buildErr.Status = http.StatusUnauthorized
+			buildErr.Status = http.StatusForbidden
 		}
 
 		if buildErr.Status == http.StatusInternalServerError {

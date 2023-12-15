@@ -2,6 +2,7 @@ import dayjs from "dayjs";
 import * as TypesGen from "api/typesGenerated";
 import * as Mocks from "testHelpers/entities";
 import {
+  agentVersionStatus,
   defaultWorkspaceExtension,
   getDisplayVersionStatus,
   getDisplayWorkspaceBuildInitiatedBy,
@@ -101,23 +102,40 @@ describe("util > workspace", () => {
   });
 
   describe("getDisplayVersionStatus", () => {
-    it.each<[string, string, string, boolean]>([
-      ["", "", "Unknown", false],
-      ["", "v1.2.3", "Unknown", false],
-      ["v1.2.3", "", "v1.2.3", false],
-      ["v1.2.3", "v1.2.3", "v1.2.3", false],
-      ["v1.2.3", "v1.2.4", "v1.2.3", true],
-      ["v1.2.4", "v1.2.3", "v1.2.4", false],
-      ["foo", "bar", "foo", false],
+    it.each<[string, string, string, string, string, agentVersionStatus]>([
+      ["", "", "", "", "Unknown", agentVersionStatus.Updated],
+      ["", "v1.2.3", "", "", "Unknown", agentVersionStatus.Updated],
+      ["v1.2.3", "", "", "", "v1.2.3", agentVersionStatus.Updated],
+      ["v1.2.3", "v1.2.3", "", "", "v1.2.3", agentVersionStatus.Updated],
+      ["v1.2.3", "v1.2.4", "", "", "v1.2.3", agentVersionStatus.Outdated],
+      ["v1.2.4", "v1.2.3", "", "", "v1.2.4", agentVersionStatus.Updated],
+      ["foo", "bar", "", "", "foo", agentVersionStatus.Updated],
+      [
+        "v1.2.3",
+        "v1.2.4",
+        "1.8",
+        "2.1",
+        "v1.2.3",
+        agentVersionStatus.Deprecated,
+      ],
     ])(
-      `getDisplayVersionStatus(theme, %p, %p) returns (%p, %p)`,
-      (agentVersion, serverVersion, expectedVersion, expectedOutdated) => {
-        const { displayVersion, outdated } = getDisplayVersionStatus(
+      `getDisplayVersionStatus(theme, %p, %p, %p, %p) returns (%p, %p)`,
+      (
+        agentVersion,
+        serverVersion,
+        agentAPIVersion,
+        serverAPIVersion,
+        expectedVersion,
+        expectedStatus,
+      ) => {
+        const { displayVersion, status } = getDisplayVersionStatus(
           agentVersion,
           serverVersion,
+          agentAPIVersion,
+          serverAPIVersion,
         );
         expect(displayVersion).toEqual(expectedVersion);
-        expect(expectedOutdated).toEqual(outdated);
+        expect(status).toEqual(expectedStatus);
       },
     );
   });

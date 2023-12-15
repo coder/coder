@@ -280,7 +280,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
       }
     ]
   },
-  "failing_sections": ["string"],
+  "failing_sections": ["DERP"],
   "healthy": true,
   "severity": "ok",
   "time": "string",
@@ -362,7 +362,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/health/settings \
 
 ```json
 {
-  "dismissed_healthchecks": ["string"]
+  "dismissed_healthchecks": ["DERP"]
 }
 ```
 
@@ -392,7 +392,7 @@ curl -X PUT http://coder-server:8080/api/v2/debug/health/settings \
 
 ```json
 {
-  "dismissed_healthchecks": ["string"]
+  "dismissed_healthchecks": ["DERP"]
 }
 ```
 
@@ -408,7 +408,7 @@ curl -X PUT http://coder-server:8080/api/v2/debug/health/settings \
 
 ```json
 {
-  "dismissed_healthchecks": ["string"]
+  "dismissed_healthchecks": ["DERP"]
 }
 ```
 

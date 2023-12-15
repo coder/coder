@@ -40,6 +40,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -81,6 +82,10 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 		return err
 	})
 	err := eg.Wait()
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace agent.",
@@ -162,7 +167,7 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 		AgentFn:            func(_ context.Context) (database.WorkspaceAgent, error) { return workspaceAgent, nil },
 		Database:           api.Database,
 		DerpMapFn:          api.DERPMap,
-		TailnetCoordinator: api.TailnetCoordinator,
+		TailnetCoordinator: &api.TailnetCoordinator,
 	}
 	manifest, err := manifestAPI.GetManifest(ctx, &agentproto.GetManifestRequest{})
 	if err != nil {
@@ -541,7 +546,7 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workspace, err := api.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
+	row, err := api.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace by agent id.",
@@ -549,6 +554,7 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	workspace := row.Workspace
 
 	api.WebsocketWaitMutex.Lock()
 	api.WebsocketWaitGroup.Add(1)
@@ -1354,6 +1360,21 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 		}
 	}
 
+	version := "1.0"
+	qv := r.URL.Query().Get("version")
+	if qv != "" {
+		version = qv
+	}
+	if err := tailnet.ValidateVersion(version); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Unknown or unsupported API version",
+			Validations: []codersdk.ValidationError{
+				{Field: "version", Detail: err.Error()},
+			},
+		})
+		return
+	}
+
 	api.WebsocketWaitMutex.Lock()
 	api.WebsocketWaitGroup.Add(1)
 	api.WebsocketWaitMutex.Unlock()
@@ -1374,8 +1395,8 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	go httpapi.Heartbeat(ctx, conn)
 
 	defer conn.Close(websocket.StatusNormalClosure, "")
-	err = (*api.TailnetCoordinator.Load()).ServeClient(wsNetConn, uuid.New(), workspaceAgent.ID)
-	if err != nil {
+	err = api.TailnetClientService.ServeClient(ctx, version, wsNetConn, uuid.New(), workspaceAgent.ID)
+	if err != nil && !xerrors.Is(err, io.EOF) && !xerrors.Is(err, context.Canceled) {
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
 		return
 	}
@@ -1418,20 +1439,6 @@ func convertScripts(dbScripts []database.WorkspaceAgentScript) []codersdk.Worksp
 	return scripts
 }
 
-func convertWorkspaceAgentMetadataDesc(mds []database.WorkspaceAgentMetadatum) []codersdk.WorkspaceAgentMetadataDescription {
-	metadata := make([]codersdk.WorkspaceAgentMetadataDescription, 0)
-	for _, datum := range mds {
-		metadata = append(metadata, codersdk.WorkspaceAgentMetadataDescription{
-			DisplayName: datum.DisplayName,
-			Key:         datum.Key,
-			Script:      datum.Script,
-			Interval:    datum.Interval,
-			Timeout:     datum.Timeout,
-		})
-	}
-	return metadata
-}
-
 // @Summary Submit workspace agent stats
 // @ID submit-workspace-agent-stats
 // @Security CoderSessionToken
@@ -1445,7 +1452,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 	ctx := r.Context()
 
 	workspaceAgent := httpmw.WorkspaceAgent(r)
-	workspace, err := api.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
+	row, err := api.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to get workspace.",
@@ -1453,6 +1460,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		})
 		return
 	}
+	workspace := row.Workspace
 
 	var req agentsdk.Stats
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -1478,7 +1486,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		var nextAutostart time.Time
 		if workspace.AutostartSchedule.String != "" {
 			templateSchedule, err := (*(api.TemplateScheduleStore.Load())).Get(ctx, api.Database, workspace.TemplateID)
-			// If the template schedule fails to load, just default to bumping without the next trasition and log it.
+			// If the template schedule fails to load, just default to bumping without the next transition and log it.
 			if err != nil {
 				api.Logger.Warn(ctx, "failed to load template schedule bumping activity, defaulting to bumping by 60min",
 					slog.F("workspace_id", workspace.ID),
@@ -1561,7 +1569,12 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 				return xerrors.Errorf("can't get user: %w", err)
 			}
 
-			api.Options.UpdateAgentMetrics(ctx, user.Username, workspace.Name, workspaceAgent.Name, protoStats.Metrics)
+			api.Options.UpdateAgentMetrics(ctx, prometheusmetrics.AgentMetricLabels{
+				Username:      user.Username,
+				WorkspaceName: workspace.Name,
+				AgentName:     workspaceAgent.Name,
+				TemplateName:  row.TemplateName,
+			}, protoStats.Metrics)
 			return nil
 		})
 	}
@@ -1928,7 +1941,7 @@ func (api *API) workspaceAgentReportLifecycle(rw http.ResponseWriter, r *http.Re
 	ctx := r.Context()
 
 	workspaceAgent := httpmw.WorkspaceAgent(r)
-	workspace, err := api.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
+	row, err := api.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to get workspace.",
@@ -1936,6 +1949,7 @@ func (api *API) workspaceAgentReportLifecycle(rw http.ResponseWriter, r *http.Re
 		})
 		return
 	}
+	workspace := row.Workspace
 
 	var req agentsdk.PostLifecycleRequest
 	if !httpapi.Read(ctx, rw, r, &req) {

@@ -1,5 +1,4 @@
 import { type FC, type HTMLAttributes } from "react";
-import { colors } from "theme/colors";
 
 export const Sidebar: FC<HTMLAttributes<HTMLElement>> = ({
   children,
@@ -33,7 +32,7 @@ export const SidebarItem: FC<SidebarItemProps> = ({
   return (
     <button
       css={(theme) => ({
-        background: active ? colors.gray[13] : "none",
+        background: active ? theme.colors.gray[13] : "none",
         border: "none",
         fontSize: 14,
         width: "100%",

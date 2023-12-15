@@ -13,8 +13,8 @@ import { LoginPage } from "./LoginPage";
 
 describe("LoginPage", () => {
   beforeEach(() => {
-    // appear logged out
     server.use(
+      // Appear logged out
       rest.get("/api/v2/users/me", (req, res, ctx) => {
         return res(ctx.status(401), ctx.json({ message: "no user here" }));
       }),
@@ -50,7 +50,8 @@ describe("LoginPage", () => {
   it("redirects to the setup page if there is no first user", async () => {
     // Given
     server.use(
-      rest.get("/api/v2/users/first", async (req, res, ctx) => {
+      // No first user
+      rest.get("/api/v2/users/first", (req, res, ctx) => {
         return res(ctx.status(404));
       }),
     );

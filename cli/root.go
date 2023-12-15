@@ -471,11 +471,11 @@ type RootCmd struct {
 }
 
 func addTelemetryHeader(client *codersdk.Client, inv *clibase.Invocation) {
-	transport, ok := client.HTTPClient.Transport.(*headerTransport)
+	transport, ok := client.HTTPClient.Transport.(*codersdk.HeaderTransport)
 	if !ok {
-		transport = &headerTransport{
-			transport: client.HTTPClient.Transport,
-			header:    http.Header{},
+		transport = &codersdk.HeaderTransport{
+			Transport: client.HTTPClient.Transport,
+			Header:    http.Header{},
 		}
 		client.HTTPClient.Transport = transport
 	}
@@ -509,7 +509,7 @@ func addTelemetryHeader(client *codersdk.Client, inv *clibase.Invocation) {
 		return
 	}
 
-	transport.header.Add(codersdk.CLITelemetryHeader, s)
+	transport.Header.Add(codersdk.CLITelemetryHeader, s)
 }
 
 // InitClient sets client to a new client.
@@ -609,10 +609,10 @@ func (r *RootCmd) initClientInternal(client *codersdk.Client, allowTokenMissing 
 	}
 }
 
-func (r *RootCmd) setClient(ctx context.Context, client *codersdk.Client, serverURL *url.URL) error {
-	transport := &headerTransport{
-		transport: http.DefaultTransport,
-		header:    http.Header{},
+func (r *RootCmd) HeaderTransport(ctx context.Context, serverURL *url.URL) (*codersdk.HeaderTransport, error) {
+	transport := &codersdk.HeaderTransport{
+		Transport: http.DefaultTransport,
+		Header:    http.Header{},
 	}
 	headers := r.header
 	if r.headerCommand != "" {
@@ -630,23 +630,32 @@ func (r *RootCmd) setClient(ctx context.Context, client *codersdk.Client, server
 		cmd.Stderr = io.Discard
 		err := cmd.Run()
 		if err != nil {
-			return xerrors.Errorf("failed to run %v: %w", cmd.Args, err)
+			return nil, xerrors.Errorf("failed to run %v: %w", cmd.Args, err)
 		}
 		scanner := bufio.NewScanner(&outBuf)
 		for scanner.Scan() {
 			headers = append(headers, scanner.Text())
 		}
 		if err := scanner.Err(); err != nil {
-			return xerrors.Errorf("scan %v: %w", cmd.Args, err)
+			return nil, xerrors.Errorf("scan %v: %w", cmd.Args, err)
 		}
 	}
 	for _, header := range headers {
 		parts := strings.SplitN(header, "=", 2)
 		if len(parts) < 2 {
-			return xerrors.Errorf("split header %q had less than two parts", header)
+			return nil, xerrors.Errorf("split header %q had less than two parts", header)
 		}
-		transport.header.Add(parts[0], parts[1])
+		transport.Header.Add(parts[0], parts[1])
 	}
+	return transport, nil
+}
+
+func (r *RootCmd) setClient(ctx context.Context, client *codersdk.Client, serverURL *url.URL) error {
+	transport, err := r.HeaderTransport(ctx, serverURL)
+	if err != nil {
+		return xerrors.Errorf("create header transport: %w", err)
+	}
+
 	client.URL = serverURL
 	client.HTTPClient = &http.Client{
 		Transport: transport,
@@ -851,24 +860,6 @@ func (r *RootCmd) Verbosef(inv *clibase.Invocation, fmtStr string, args ...inter
 	if r.verbose {
 		cliui.Infof(inv.Stdout, fmtStr, args...)
 	}
-}
-
-type headerTransport struct {
-	transport http.RoundTripper
-	header    http.Header
-}
-
-func (h *headerTransport) Header() http.Header {
-	return h.header.Clone()
-}
-
-func (h *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	for k, v := range h.header {
-		for _, vv := range v {
-			req.Header.Add(k, vv)
-		}
-	}
-	return h.transport.RoundTrip(req)
 }
 
 // DumpHandler provides a custom SIGQUIT and SIGTRAP handler that dumps the

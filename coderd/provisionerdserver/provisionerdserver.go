@@ -37,6 +37,7 @@ import (
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/provisioner"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -274,7 +275,8 @@ func (s *server) AcquireJobWithCancel(stream proto.DRPCProvisionerDaemon_Acquire
 		// in the database.  We need to mark this job as failed so the end user can retry if they want to.
 		now := dbtime.Now()
 		err := s.Database.UpdateProvisionerJobWithCompleteByID(
-			context.Background(),
+			//nolint:gocritic // Provisionerd has specific authz rules.
+			dbauthz.AsProvisionerd(context.Background()),
 			database.UpdateProvisionerJobWithCompleteByIDParams{
 				ID: je.job.ID,
 				CompletedAt: sql.NullTime{
@@ -541,8 +543,8 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 	default:
 		return nil, failJob(fmt.Sprintf("unsupported storage method: %s", job.StorageMethod))
 	}
-	if protobuf.Size(protoJob) > provisionersdk.MaxMessageSize {
-		return nil, failJob(fmt.Sprintf("payload was too big: %d > %d", protobuf.Size(protoJob), provisionersdk.MaxMessageSize))
+	if protobuf.Size(protoJob) > drpc.MaxMessageSize {
+		return nil, failJob(fmt.Sprintf("payload was too big: %d > %d", protobuf.Size(protoJob), drpc.MaxMessageSize))
 	}
 
 	return protoJob, err
@@ -914,12 +916,12 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 
 				bag := audit.BaggageFromContext(ctx)
 
-				audit.WorkspaceBuildAudit(ctx, &audit.BuildAuditParams[database.WorkspaceBuild]{
+				audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.WorkspaceBuild]{
 					Audit:            *auditor,
 					Log:              s.Logger,
 					UserID:           job.InitiatorID,
 					OrganizationID:   workspace.OrganizationID,
-					JobID:            job.ID,
+					RequestID:        job.ID,
 					IP:               bag.IP,
 					Action:           auditAction,
 					Old:              previousBuild,
@@ -1131,9 +1133,9 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 
 			err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 				ID:        jobID,
-				UpdatedAt: dbtime.Now(),
+				UpdatedAt: now,
 				CompletedAt: sql.NullTime{
-					Time:  dbtime.Now(),
+					Time:  now,
 					Valid: true,
 				},
 				Error:     sql.NullString{},
@@ -1271,12 +1273,12 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 
 			bag := audit.BaggageFromContext(ctx)
 
-			audit.WorkspaceBuildAudit(ctx, &audit.BuildAuditParams[database.WorkspaceBuild]{
+			audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.WorkspaceBuild]{
 				Audit:            *auditor,
 				Log:              s.Logger,
 				UserID:           job.InitiatorID,
 				OrganizationID:   workspace.OrganizationID,
-				JobID:            job.ID,
+				RequestID:        job.ID,
 				IP:               bag.IP,
 				Action:           auditAction,
 				Old:              previousBuild,
@@ -1387,13 +1389,27 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				Valid:  true,
 			}
 		}
-		var env pqtype.NullRawMessage
-		if prAgent.Env != nil {
-			data, err := json.Marshal(prAgent.Env)
+
+		env := make(map[string]string)
+		// For now, we only support adding extra envs, not overriding
+		// existing ones or performing other manipulations. In future
+		// we may write these to a separate table so we can perform
+		// conditional logic on the agent.
+		for _, e := range prAgent.ExtraEnvs {
+			env[e.Name] = e.Value
+		}
+		// Allow the agent defined envs to override extra envs.
+		for k, v := range prAgent.Env {
+			env[k] = v
+		}
+
+		var envJSON pqtype.NullRawMessage
+		if len(env) > 0 {
+			data, err := json.Marshal(env)
 			if err != nil {
 				return xerrors.Errorf("marshal env: %w", err)
 			}
-			env = pqtype.NullRawMessage{
+			envJSON = pqtype.NullRawMessage{
 				RawMessage: data,
 				Valid:      true,
 			}
@@ -1416,7 +1432,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			AuthToken:                authToken,
 			AuthInstanceID:           instanceID,
 			Architecture:             prAgent.Architecture,
-			EnvironmentVariables:     env,
+			EnvironmentVariables:     envJSON,
 			Directory:                prAgent.Directory,
 			OperatingSystem:          prAgent.OperatingSystem,
 			ConnectionTimeoutSeconds: prAgent.GetConnectionTimeoutSeconds(),

@@ -10,6 +10,7 @@ export interface TemplateScheduleFormValues
     UpdateTemplateMeta,
     "autostop_requirement" | "autostart_requirement"
   > {
+  use_max_ttl: boolean;
   autostart_requirement_days_of_week: TemplateAutostartRequirementDaysValue[];
   autostop_requirement_days_of_week: TemplateAutostopRequirementDaysValue;
   autostop_requirement_weeks: number;

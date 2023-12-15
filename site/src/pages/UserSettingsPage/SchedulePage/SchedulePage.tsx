@@ -1,15 +1,15 @@
-import { FC } from "react";
+import { type FC } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Section } from "components/SettingsLayout/Section";
-import { ScheduleForm } from "./ScheduleForm";
 import { useMe } from "hooks/useMe";
 import { Loader } from "components/Loader/Loader";
-import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
   updateUserQuietHoursSchedule,
   userQuietHoursSchedule,
 } from "api/queries/settings";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { Section } from "../Section";
+import { ScheduleForm } from "./ScheduleForm";
 
 export const SchedulePage: FC = () => {
   const me = useMe();

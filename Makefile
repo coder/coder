@@ -428,7 +428,8 @@ lint/ts:
 
 lint/go:
 	./scripts/check_enterprise_imports.sh
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.53.2
+	linter_ver=$(shell egrep -o 'GOLANGCI_LINT_VERSION=\S+' dogfood/Dockerfile | cut -d '=' -f 2)
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v$$linter_ver
 	golangci-lint run
 .PHONY: lint/go
 
@@ -602,6 +603,7 @@ update-golden-files: \
 	scripts/ci-report/testdata/.gen-golden \
 	enterprise/cli/testdata/.gen-golden \
 	enterprise/tailnet/testdata/.gen-golden \
+	tailnet/testdata/.gen-golden \
 	coderd/.gen-golden \
 	provisioner/terraform/testdata/.gen-golden
 .PHONY: update-golden-files
@@ -612,6 +614,10 @@ cli/testdata/.gen-golden: $(wildcard cli/testdata/*.golden) $(wildcard cli/*.tpl
 
 enterprise/cli/testdata/.gen-golden: $(wildcard enterprise/cli/testdata/*.golden) $(wildcard cli/*.tpl) $(GO_SRC_FILES) $(wildcard enterprise/cli/*_test.go)
 	go test ./enterprise/cli -run="TestEnterpriseCommandHelp" -update
+	touch "$@"
+
+tailnet/testdata/.gen-golden: $(wildcard tailnet/testdata/*.golden.html) $(GO_SRC_FILES) $(wildcard tailnet/*_test.go)
+	go test ./tailnet -run="TestDebugTemplate" -update
 	touch "$@"
 
 enterprise/tailnet/testdata/.gen-golden: $(wildcard enterprise/tailnet/testdata/*.golden.html) $(GO_SRC_FILES) $(wildcard enterprise/tailnet/*_test.go)
@@ -701,6 +707,12 @@ site/.eslintignore site/.prettierignore: .prettierignore Makefile
 test:
 	gotestsum --format standard-quiet -- -v -short -count=1 ./...
 .PHONY: test
+
+sqlc-vet: test-postgres-docker
+	echo "--- sqlc vet"
+	SQLC_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/$(shell go run scripts/migrate-ci/main.go)" \
+	sqlc vet -f coderd/database/sqlc.yaml && echo "Passed sqlc vet"
+.PHONY: sqlc-vet
 
 # When updating -timeout for this test, keep in sync with
 # test-go-postgres (.github/workflows/coder.yaml).

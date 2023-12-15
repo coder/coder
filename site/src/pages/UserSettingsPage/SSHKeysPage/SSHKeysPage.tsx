@@ -1,7 +1,7 @@
-import { PropsWithChildren, FC, useState } from "react";
+import { type FC, useState } from "react";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { Section } from "components/SettingsLayout/Section";
+import { Section } from "../Section";
 import { SSHKeysPageView } from "./SSHKeysPageView";
 import { regenerateUserSSHKey, userSSHKey } from "api/queries/sshKeys";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -18,7 +18,7 @@ export const Language = {
   cancelLabel: "Cancel",
 };
 
-export const SSHKeysPage: FC<PropsWithChildren<unknown>> = () => {
+export const SSHKeysPage: FC = () => {
   const [isConfirmingRegeneration, setIsConfirmingRegeneration] =
     useState(false);
 

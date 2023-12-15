@@ -46,9 +46,12 @@ WHERE
 
 -- name: GetWorkspaceByAgentID :one
 SELECT
-	*
+	sqlc.embed(workspaces),
+	templates.name as template_name
 FROM
 	workspaces
+INNER JOIN
+	templates ON workspaces.template_id = templates.id
 WHERE
 	workspaces.id = (
 		SELECT
@@ -239,13 +242,11 @@ WHERE
 			) > 0
 		ELSE true
 	END
-	-- Filter by dormant workspaces. By default we do not return dormant
-	-- workspaces since they are considered soft-deleted.
+	-- Filter by dormant workspaces.
 	AND CASE
-		WHEN @is_dormant :: text != '' THEN
+		WHEN @dormant :: boolean != 'false' THEN
 			dormant_at IS NOT NULL
-		ELSE
-			dormant_at IS NULL
+		ELSE true
 	END
 	-- Filter by last_used
 	AND CASE
@@ -286,6 +287,15 @@ WHERE
 	AND deleted = @deleted
 	AND LOWER("name") = LOWER(@name)
 ORDER BY created_at DESC;
+
+-- name: GetWorkspaceUniqueOwnerCountByTemplateIDs :many
+SELECT
+	template_id, COUNT(DISTINCT owner_id) AS unique_owners_sum
+FROM
+	workspaces
+WHERE
+	template_id = ANY(@template_ids :: uuid[]) AND deleted = false
+GROUP BY template_id;
 
 -- name: InsertWorkspace :one
 INSERT INTO

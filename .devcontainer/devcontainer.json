@@ -1,6 +1,6 @@
 {
   "name": "Development environments on your infrastructure",
-  "image": "codercom/oss-dogfood:pre-nix",
+  "image": "codercom/oss-dogfood:latest",
 
   "features": {
     // See all possible options here https://github.com/devcontainers/features/tree/main/src/docker-in-docker
