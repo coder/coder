@@ -126,5 +126,11 @@ export default {
         text: colors.white,
       },
     },
+    preview: {
+      background: colors.violet[950],
+      outline: colors.violet[500],
+      fill: colors.violet[400],
+      text: colors.violet[50],
+    },
   },
 } satisfies NewTheme;

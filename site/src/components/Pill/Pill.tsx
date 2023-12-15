@@ -14,8 +14,8 @@ export interface PillProps {
 
 const themeOverrides = {
   neutral: (theme) => ({
-    backgroundColor: theme.colors.gray[13],
-    borderColor: theme.colors.gray[6],
+    backgroundColor: theme.experimental.l1.background,
+    borderColor: theme.experimental.l1.outline,
   }),
 } satisfies Record<string, Interpolation<Theme>>;
 

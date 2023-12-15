@@ -1,3 +1,5 @@
+// eslint-disable-next-line no-restricted-imports -- We need MUI here
+import { alertClasses } from "@mui/material/Alert";
 import { createTheme, type ThemeOptions } from "@mui/material/styles";
 import {
   BODY_FONT_FAMILY,
@@ -7,13 +9,11 @@ import {
   BUTTON_SM_HEIGHT,
   BUTTON_XL_HEIGHT,
 } from "../constants";
-// eslint-disable-next-line no-restricted-imports -- We need MUI here
-import { alertClasses } from "@mui/material/Alert";
 import tw from "../tailwind";
 
 let muiTheme = createTheme({
   palette: {
-    mode: "dark",
+    mode: "light",
     primary: {
       main: tw.sky[600],
       contrastText: tw.sky[50],

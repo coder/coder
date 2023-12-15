@@ -4,7 +4,7 @@ import colors from "../tailwind";
 export default {
   l1: {
     background: colors.gray[50],
-    outline: colors.gray[700],
+    outline: colors.gray[400],
     fill: colors.gray[600],
     text: colors.black,
   },
@@ -125,6 +125,12 @@ export default {
         fill: colors.sky[500],
         text: colors.black,
       },
+    },
+    preview: {
+      background: colors.violet[50],
+      outline: colors.violet[500],
+      fill: colors.violet[600],
+      text: colors.violet[950],
     },
   },
 } satisfies NewTheme;
