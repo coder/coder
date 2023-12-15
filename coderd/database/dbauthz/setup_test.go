@@ -171,7 +171,11 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 			fakeAuthorizer.AlwaysReturn = nil
 
 			outputs, err := callMethod(ctx)
-			s.NoError(err, "method %q returned an error", methodName)
+			if testCase.err == nil {
+				s.NoError(err, "method %q returned an error", methodName)
+			} else {
+				s.EqualError(err, testCase.err.Error(), "method %q returned an unexpected error", methodName)
+			}
 
 			// Some tests may not care about the outputs, so we only assert if
 			// they are provided.
@@ -292,6 +296,7 @@ type expects struct {
 	assertions []AssertRBAC
 	// outputs is optional. Can assert non-error return values.
 	outputs []reflect.Value
+	err     error
 }
 
 // Asserts is required. Asserts the RBAC authorize calls that should be made.
@@ -313,6 +318,12 @@ func (m *expects) Args(args ...any) *expects {
 // Returns is optional. If it is never called, it will not be asserted.
 func (m *expects) Returns(rets ...any) *expects {
 	m.outputs = values(rets...)
+	return m
+}
+
+// Errors is optional. If it is never called, it will not be asserted.
+func (m *expects) Errors(err error) *expects {
+	m.err = err
 	return m
 }
 
