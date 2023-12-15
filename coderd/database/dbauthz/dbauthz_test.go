@@ -1557,6 +1557,28 @@ func (s *MethodTestSuite) TestTailnetFunctions() {
 	}))
 }
 
+func (s *MethodTestSuite) TestDBCrypt() {
+	s.Run("GetDBCryptKeys", s.Subtest(func(db database.Store, check *expects) {
+		check.Args().
+			Asserts(rbac.ResourceSystem, rbac.ActionRead).
+			Returns([]database.DBCryptKey{})
+	}))
+	s.Run("InsertDBCryptKey", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.InsertDBCryptKeyParams{}).
+			Asserts(rbac.ResourceSystem, rbac.ActionCreate).
+			Returns()
+	}))
+	s.Run("RevokeDBCryptKey", s.Subtest(func(db database.Store, check *expects) {
+		err := db.InsertDBCryptKey(context.Background(), database.InsertDBCryptKeyParams{
+			ActiveKeyDigest: "revoke me",
+		})
+		s.NoError(err)
+		check.Args("revoke me").
+			Asserts(rbac.ResourceSystem, rbac.ActionUpdate).
+			Returns()
+	}))
+}
+
 func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("UpdateUserLinkedID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
