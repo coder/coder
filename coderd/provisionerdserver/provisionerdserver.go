@@ -101,8 +101,8 @@ type server struct {
 
 	acquireJobLongPollDur time.Duration
 
-	HeartbeatInterval time.Duration
-	HeartbeatFn       func(ctx context.Context) error
+	heartbeatInterval time.Duration
+	heartbeatFn       func(ctx context.Context) error
 }
 
 // We use the null byte (0x00) in generating a canonical map key for tags, so
@@ -204,8 +204,8 @@ func NewServer(
 		OIDCConfig:                  options.OIDCConfig,
 		TimeNowFn:                   options.TimeNowFn,
 		acquireJobLongPollDur:       options.AcquireJobLongPollDur,
-		HeartbeatInterval:           options.HeartbeatInterval,
-		HeartbeatFn:                 options.HeartbeatFn,
+		heartbeatInterval:           options.HeartbeatInterval,
+		heartbeatFn:                 options.HeartbeatFn,
 	}
 
 	go s.heartbeatLoop()
@@ -236,7 +236,7 @@ func (s *server) heartbeatLoop() {
 				return
 			}
 			start := s.timeNow()
-			hbCtx, hbCancel := context.WithTimeout(s.lifecycleCtx, s.HeartbeatInterval)
+			hbCtx, hbCancel := context.WithTimeout(s.lifecycleCtx, s.heartbeatInterval)
 			if err := s.heartbeat(hbCtx); err != nil {
 				if !xerrors.Is(err, context.DeadlineExceeded) && !xerrors.Is(err, context.Canceled) {
 					s.Logger.Error(hbCtx, "heartbeat failed", slog.Error(err))
@@ -244,7 +244,7 @@ func (s *server) heartbeatLoop() {
 			}
 			hbCancel()
 			elapsed := s.timeNow().Sub(start)
-			nextBeat := s.HeartbeatInterval - elapsed
+			nextBeat := s.heartbeatInterval - elapsed
 			// avoid negative interval
 			if nextBeat <= 0 {
 				nextBeat = time.Nanosecond
@@ -261,8 +261,8 @@ func (s *server) heartbeat(ctx context.Context) error {
 	case <-ctx.Done():
 		return nil
 	default:
-		if s.HeartbeatFn != nil {
-			return s.HeartbeatFn(ctx)
+		if s.heartbeatFn != nil {
+			return s.heartbeatFn(ctx)
 		}
 		//nolint:gocritic // This is specifically for updating the last seen at timestamp.
 		return s.Database.UpdateProvisionerDaemonLastSeenAt(dbauthz.AsSystemRestricted(ctx), database.UpdateProvisionerDaemonLastSeenAtParams{
