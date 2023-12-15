@@ -9,10 +9,13 @@ import { templateVersion } from "api/queries/templates";
 import {
   HelpTooltip,
   HelpTooltipAction,
+  HelpTooltipContent,
   HelpTooltipLinksGroup,
   HelpTooltipText,
   HelpTooltipTitle,
+  HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
+import { usePopover } from "components/Popover/Popover";
 
 export const Language = {
   outdatedLabel: "Outdated",
@@ -28,22 +31,33 @@ interface TooltipProps {
   ariaLabel?: string;
 }
 
-export const WorkspaceOutdatedTooltip: FC<TooltipProps> = ({
-  onUpdateVersion,
-  ariaLabel,
-  latestVersionId,
-  templateName,
-}) => {
-  const { data: activeVersion } = useQuery(templateVersion(latestVersionId));
+export const WorkspaceOutdatedTooltip: FC<TooltipProps> = (props) => {
+  return (
+    <HelpTooltip>
+      <HelpTooltipTrigger
+        size="small"
+        aria-label="More info"
+        css={styles.button}
+      >
+        <InfoIcon css={styles.icon} />
+      </HelpTooltipTrigger>
+
+      <OutdatedTooltipContent {...props} />
+    </HelpTooltip>
+  );
+};
+
+const OutdatedTooltipContent = (props: TooltipProps) => {
+  const popover = usePopover();
+  const { onUpdateVersion, ariaLabel, latestVersionId, templateName } = props;
+  const { data: activeVersion } = useQuery({
+    ...templateVersion(latestVersionId),
+    enabled: popover.isOpen,
+  });
   const theme = useTheme();
 
   return (
-    <HelpTooltip
-      size="small"
-      icon={InfoIcon}
-      iconStyles={styles.icon}
-      buttonStyles={styles.button}
-    >
+    <HelpTooltipContent>
       <HelpTooltipTitle>{Language.outdatedLabel}</HelpTooltipTitle>
       <HelpTooltipText>{Language.versionTooltipText}</HelpTooltipText>
 
@@ -90,7 +104,7 @@ export const WorkspaceOutdatedTooltip: FC<TooltipProps> = ({
           {Language.updateVersionLabel}
         </HelpTooltipAction>
       </HelpTooltipLinksGroup>
-    </HelpTooltip>
+    </HelpTooltipContent>
   );
 };
 

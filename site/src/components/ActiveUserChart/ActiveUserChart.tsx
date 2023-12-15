@@ -17,6 +17,8 @@ import {
   HelpTooltip,
   HelpTooltipTitle,
   HelpTooltipText,
+  HelpTooltipContent,
+  HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import dayjs from "dayjs";
 import { useTheme } from "@emotion/react";
@@ -139,12 +141,15 @@ export const ActiveUsersTitle: FC = () => {
   return (
     <div css={{ display: "flex", alignItems: "center", gap: 8 }}>
       Active Users
-      <HelpTooltip size="small">
-        <HelpTooltipTitle>How do we calculate active users?</HelpTooltipTitle>
-        <HelpTooltipText>
-          When a connection is initiated to a user&apos;s workspace they are
-          considered an active user. e.g. apps, web terminal, SSH
-        </HelpTooltipText>
+      <HelpTooltip>
+        <HelpTooltipTrigger size="small" />
+        <HelpTooltipContent>
+          <HelpTooltipTitle>How do we calculate active users?</HelpTooltipTitle>
+          <HelpTooltipText>
+            When a connection is initiated to a user&apos;s workspace they are
+            considered an active user. e.g. apps, web terminal, SSH
+          </HelpTooltipText>
+        </HelpTooltipContent>
       </HelpTooltip>
     </div>
   );

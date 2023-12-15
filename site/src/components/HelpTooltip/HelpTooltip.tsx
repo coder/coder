@@ -1,114 +1,78 @@
 import Link from "@mui/material/Link";
-// This is used as base for the main HelpTooltip component
-// eslint-disable-next-line no-restricted-imports -- Read above
-import Popover, { type PopoverProps } from "@mui/material/Popover";
 import HelpIcon from "@mui/icons-material/HelpOutline";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import {
-  createContext,
-  useContext,
-  useRef,
-  useState,
   type FC,
   type PropsWithChildren,
   type HTMLAttributes,
   type ReactNode,
+  forwardRef,
+  ComponentProps,
 } from "react";
 import { Stack } from "components/Stack/Stack";
-import type { CSSObject } from "@emotion/css";
+import { type CSSObject } from "@emotion/css";
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
-import { type ClassName, useClassName } from "hooks/useClassName";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  usePopover,
+} from "components/Popover/Popover";
 
 type Icon = typeof HelpIcon;
 
 type Size = "small" | "medium";
 
-export const HelpTooltipContext = createContext<
-  { open: boolean; onClose: () => void } | undefined
->(undefined);
+export const HelpTooltipIcon = HelpIcon;
 
-const useHelpTooltip = () => {
-  const helpTooltipContext = useContext(HelpTooltipContext);
-
-  if (!helpTooltipContext) {
-    throw new Error(
-      "This hook should be used in side of the HelpTooltipContext.",
-    );
-  }
-
-  return helpTooltipContext;
+export const HelpTooltip: FC<ComponentProps<typeof Popover>> = (props) => {
+  return <Popover mode="hover" {...props} />;
 };
 
-interface HelpPopoverProps extends PopoverProps {
-  onOpen: () => void;
-  onClose: () => void;
-}
-
-export const HelpPopover: FC<HelpPopoverProps> = ({
-  onOpen,
-  onClose,
-  children,
-  ...props
-}) => {
-  const popover = useClassName(classNames.popover, []);
-  const paper = useClassName(classNames.paper, []);
+export const HelpTooltipContent = (
+  props: ComponentProps<typeof PopoverContent>,
+) => {
+  const theme = useTheme();
 
   return (
-    <Popover
-      className={popover}
-      classes={{ paper }}
-      onClose={onClose}
-      anchorOrigin={{
-        vertical: "bottom",
-        horizontal: "left",
-      }}
-      transformOrigin={{
-        vertical: "top",
-        horizontal: "left",
-      }}
-      PaperProps={{
-        onMouseEnter: onOpen,
-        onMouseLeave: onClose,
-      }}
+    <PopoverContent
       {...props}
-    >
-      {children}
-    </Popover>
+      css={{
+        "& .MuiPaper-root": {
+          fontSize: 14,
+          width: 304,
+          padding: 20,
+          color: theme.palette.text.secondary,
+        },
+      }}
+    />
   );
 };
 
-export interface HelpTooltipProps {
-  // Useful to test on storybook
-  open?: boolean;
+type HelpTooltipTriggerProps = Omit<
+  HTMLAttributes<HTMLButtonElement>,
+  "size"
+> & {
   size?: Size;
-  icon?: Icon;
-  buttonStyles?: Interpolation<Theme>;
-  iconStyles?: Interpolation<Theme>;
-  children?: ReactNode;
-}
+};
 
-export const HelpTooltip: FC<HelpTooltipProps> = ({
-  children,
-  open = false,
-  size = "medium",
-  icon: Icon = HelpIcon,
-  buttonStyles,
-  iconStyles,
-}) => {
+export const HelpTooltipTrigger = forwardRef<
+  HTMLButtonElement,
+  HelpTooltipTriggerProps
+>((props, ref) => {
   const theme = useTheme();
-  const anchorRef = useRef<HTMLButtonElement>(null);
-  const [isOpen, setIsOpen] = useState(open);
-  const id = isOpen ? "help-popover" : undefined;
-
-  const onClose = () => {
-    setIsOpen(false);
-  };
+  const {
+    size = "medium",
+    children = <HelpTooltipIcon />,
+    ...buttonProps
+  } = props;
 
   return (
-    <>
+    <PopoverTrigger>
       <button
-        ref={anchorRef}
-        aria-describedby={id}
+        {...buttonProps}
+        aria-label="More info"
+        ref={ref}
         css={[
           css`
             display: flex;
@@ -126,45 +90,19 @@ export const HelpTooltip: FC<HelpTooltipProps> = ({
             &:hover {
               opacity: 0.75;
             }
+
+            & svg {
+              width: ${getIconSpacingFromSize(size)}px;
+              height: ${getIconSpacingFromSize(size)}px;
+            }
           `,
-          buttonStyles,
         ]}
-        onClick={(event) => {
-          event.stopPropagation();
-          setIsOpen(true);
-        }}
-        onMouseEnter={() => {
-          setIsOpen(true);
-        }}
-        onMouseLeave={() => {
-          setIsOpen(false);
-        }}
-        aria-label="More info"
       >
-        <Icon
-          css={[
-            {
-              width: theme.spacing(getIconSpacingFromSize(size)),
-              height: theme.spacing(getIconSpacingFromSize(size)),
-            },
-            iconStyles,
-          ]}
-        />
+        {children}
       </button>
-      <HelpPopover
-        id={id}
-        open={isOpen}
-        anchorEl={anchorRef.current}
-        onOpen={() => setIsOpen(true)}
-        onClose={() => setIsOpen(false)}
-      >
-        <HelpTooltipContext.Provider value={{ open: isOpen, onClose }}>
-          {children}
-        </HelpTooltipContext.Provider>
-      </HelpPopover>
-    </>
+    </PopoverTrigger>
   );
-};
+});
 
 export const HelpTooltipTitle: FC<HTMLAttributes<HTMLHeadingElement>> = ({
   children,
@@ -213,7 +151,7 @@ export const HelpTooltipAction: FC<HelpTooltipActionProps> = ({
   onClick,
   ariaLabel,
 }) => {
-  const tooltip = useHelpTooltip();
+  const popover = usePopover();
 
   return (
     <button
@@ -222,7 +160,7 @@ export const HelpTooltipAction: FC<HelpTooltipActionProps> = ({
       onClick={(event) => {
         event.stopPropagation();
         onClick();
-        tooltip.onClose();
+        popover.setIsOpen(false);
       }}
     >
       <Icon css={styles.actionIcon} />
@@ -252,28 +190,12 @@ const getButtonSpacingFromSize = (size?: Size): number => {
 const getIconSpacingFromSize = (size?: Size): number => {
   switch (size) {
     case "small":
-      return 1.5;
+      return 12;
     case "medium":
     default:
-      return 2;
+      return 16;
   }
 };
-
-const classNames = {
-  popover: (css) => css`
-    pointer-events: none;
-  `,
-
-  paper: (css, theme) => css`
-    ${theme.typography.body2 as CSSObject}
-
-    margin-top: 4px;
-    width: 304px;
-    padding: 20px;
-    color: ${theme.palette.text.secondary};
-    pointer-events: auto;
-  `,
-} satisfies Record<string, ClassName>;
 
 const styles = {
   title: (theme) => ({
