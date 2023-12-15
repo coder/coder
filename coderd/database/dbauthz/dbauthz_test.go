@@ -1419,6 +1419,144 @@ func (s *MethodTestSuite) TestExtraMethods() {
 	}))
 }
 
+// All functions in this method test suite are not implemented in dbmem, but
+// we still want to assert RBAC checks.
+func (s *MethodTestSuite) TestTailnetFunctions() {
+	s.Run("CleanTailnetCoordinators", s.Subtest(func(db database.Store, check *expects) {
+		check.Args().
+			Asserts(rbac.ResourceTailnetCoordinator, rbac.ActionDelete).
+			Errors(dbmem.ErrUnimplemented)
+	}))
+	s.Run("CleanTailnetLostPeers", s.Subtest(func(db database.Store, check *expects) {
+		check.Args().
+			Asserts(rbac.ResourceTailnetCoordinator, rbac.ActionDelete).
+			Errors(dbmem.ErrUnimplemented)
+	}))
+	s.Run("CleanTailnetTunnels", s.Subtest(func(db database.Store, check *expects) {
+		check.Args().
+			Asserts(rbac.ResourceTailnetCoordinator, rbac.ActionDelete).
+			Errors(dbmem.ErrUnimplemented)
+	}))
+	s.Run("DeleteAllTailnetClientSubscriptions", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.DeleteAllTailnetClientSubscriptionsParams{}).
+			Asserts(rbac.ResourceTailnetCoordinator, rbac.ActionDelete).
+			Errors(dbmem.ErrUnimplemented)
+	}))
+	s.Run("DeleteAllTailnetTunnels", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.DeleteAllTailnetTunnelsParams{}).
+			Asserts(rbac.ResourceTailnetCoordinator, rbac.ActionDelete).
+			Errors(dbmem.ErrUnimplemented)
+	}))
+	s.Run("DeleteCoordinator", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(uuid.New()).
+			Asserts(rbac.ResourceTailnetCoordinator, rbac.ActionDelete).
+			Errors(dbmem.ErrUnimplemented)
+	}))
+	s.Run("DeleteTailnetAgent", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.DeleteTailnetAgentParams{}).
+			Asserts(rbac.ResourceTailnetCoordinator, rbac.ActionUpdate).
+			Errors(dbmem.ErrUnimplemented)
+	}))
+	s.Run("DeleteTailnetClient", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.DeleteTailnetClientParams{}).
+			Asserts(rbac.ResourceTailnetCoordinator, rbac.ActionDelete).
+			Errors(dbmem.ErrUnimplemented)
+	}))
+	s.Run("DeleteTailnetClientSubscription", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.DeleteTailnetClientSubscriptionParams{}).
+			Asserts(rbac.ResourceTailnetCoordinator, rbac.ActionDelete).
+			Errors(dbmem.ErrUnimplemented)
+	}))
+	s.Run("DeleteTailnetPeer", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.DeleteTailnetPeerParams{}).
+			Asserts(rbac.ResourceTailnetCoordinator, rbac.ActionDelete).
+			Errors(dbmem.ErrUnimplemented)
+	}))
+	s.Run("DeleteTailnetTunnel", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.DeleteTailnetTunnelParams{}).
+			Asserts(rbac.ResourceTailnetCoordinator, rbac.ActionDelete).
+			Errors(dbmem.ErrUnimplemented)
+	}))
+	s.Run("GetAllTailnetAgents", s.Subtest(func(db database.Store, check *expects) {
+		check.Args().
+			Asserts(rbac.ResourceTailnetCoordinator, rbac.ActionRead).
+			Errors(dbmem.ErrUnimplemented)
+	}))
+	s.Run("GetTailnetAgents", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(uuid.New()).
+			Asserts(rbac.ResourceTailnetCoordinator, rbac.ActionRead).
+			Errors(dbmem.ErrUnimplemented)
+	}))
+	s.Run("GetTailnetClientsForAgent", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(uuid.New()).
+			Asserts(rbac.ResourceTailnetCoordinator, rbac.ActionRead).
+			Errors(dbmem.ErrUnimplemented)
+	}))
+	s.Run("GetTailnetPeers", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(uuid.New()).
+			Asserts(rbac.ResourceTailnetCoordinator, rbac.ActionRead).
+			Errors(dbmem.ErrUnimplemented)
+	}))
+	s.Run("GetTailnetTunnelPeerBindings", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(uuid.New()).
+			Asserts(rbac.ResourceTailnetCoordinator, rbac.ActionRead).
+			Errors(dbmem.ErrUnimplemented)
+	}))
+	s.Run("GetTailnetTunnelPeerIDs", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(uuid.New()).
+			Asserts(rbac.ResourceTailnetCoordinator, rbac.ActionRead).
+			Errors(dbmem.ErrUnimplemented)
+	}))
+	s.Run("GetAllTailnetCoordinators", s.Subtest(func(db database.Store, check *expects) {
+		check.Args().
+			Asserts(rbac.ResourceTailnetCoordinator, rbac.ActionRead).
+			Errors(dbmem.ErrUnimplemented)
+	}))
+	s.Run("GetAllTailnetPeers", s.Subtest(func(db database.Store, check *expects) {
+		check.Args().
+			Asserts(rbac.ResourceTailnetCoordinator, rbac.ActionRead).
+			Errors(dbmem.ErrUnimplemented)
+	}))
+	s.Run("GetAllTailnetTunnels", s.Subtest(func(db database.Store, check *expects) {
+		check.Args().
+			Asserts(rbac.ResourceTailnetCoordinator, rbac.ActionRead).
+			Errors(dbmem.ErrUnimplemented)
+	}))
+	s.Run("UpsertTailnetAgent", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.UpsertTailnetAgentParams{}).
+			Asserts(rbac.ResourceTailnetCoordinator, rbac.ActionUpdate).
+			Errors(dbmem.ErrUnimplemented)
+	}))
+	s.Run("UpsertTailnetClient", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.UpsertTailnetClientParams{}).
+			Asserts(rbac.ResourceTailnetCoordinator, rbac.ActionUpdate).
+			Errors(dbmem.ErrUnimplemented)
+
+	}))
+	s.Run("UpsertTailnetClientSubscription", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.UpsertTailnetClientSubscriptionParams{}).
+			Asserts(rbac.ResourceTailnetCoordinator, rbac.ActionUpdate).
+			Errors(dbmem.ErrUnimplemented)
+	}))
+	s.Run("UpsertTailnetCoordinator", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(uuid.New()).
+			Asserts(rbac.ResourceTailnetCoordinator, rbac.ActionUpdate).
+			Errors(dbmem.ErrUnimplemented)
+	}))
+	s.Run("UpsertTailnetPeer", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.UpsertTailnetPeerParams{
+			Status: database.TailnetStatusOk,
+		}).
+			Asserts(rbac.ResourceTailnetCoordinator, rbac.ActionCreate).
+			Errors(dbmem.ErrUnimplemented)
+	}))
+	s.Run("UpsertTailnetTunnel", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.UpsertTailnetTunnelParams{}).
+			Asserts(rbac.ResourceTailnetCoordinator, rbac.ActionCreate).
+			Errors(dbmem.ErrUnimplemented)
+	}))
+}
+
 func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("UpdateUserLinkedID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
