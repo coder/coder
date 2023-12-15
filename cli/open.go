@@ -117,6 +117,7 @@ func (r *RootCmd) openVSCode() *clibase.Cmd {
 					return xerrors.Errorf("directory path %q not supported, use an absolute path instead", directory)
 				}
 				if insideThisWorkspace {
+					// TODO(mafredri): Return error if directory doesn't exist?
 					directory, err = filepath.Abs(directory)
 					if err != nil {
 						return xerrors.Errorf("expand directory: %w", err)
