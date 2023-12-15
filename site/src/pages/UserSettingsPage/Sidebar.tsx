@@ -7,13 +7,13 @@ import ScheduleIcon from "@mui/icons-material/EditCalendarOutlined";
 import SecurityIcon from "@mui/icons-material/LockOutlined";
 import type { User } from "api/typesGenerated";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
-import { useDashboard } from "components/Dashboard/DashboardProvider";
 import {
   Sidebar as BaseSidebar,
   SidebarHeader,
   SidebarNavItem,
 } from "components/Sidebar/Sidebar";
 import { GitIcon } from "components/Icons/GitIcon";
+import { useDashboard } from "components/Dashboard/DashboardProvider";
 
 interface SidebarProps {
   user: User;
@@ -21,8 +21,8 @@ interface SidebarProps {
 
 export const Sidebar: FC<SidebarProps> = ({ user }) => {
   const { entitlements } = useDashboard();
-  const allowAutostopRequirement =
-    entitlements.features.template_autostop_requirement.enabled;
+  const showSchedulePage =
+    entitlements.features.advanced_template_scheduling.enabled;
 
   return (
     <BaseSidebar>
@@ -39,7 +39,7 @@ export const Sidebar: FC<SidebarProps> = ({ user }) => {
       <SidebarNavItem href="appearance" icon={AppearanceIcon}>
         Appearance
       </SidebarNavItem>
-      {allowAutostopRequirement && (
+      {showSchedulePage && (
         <SidebarNavItem href="schedule" icon={ScheduleIcon}>
           Schedule
         </SidebarNavItem>

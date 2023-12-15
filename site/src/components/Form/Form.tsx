@@ -6,7 +6,7 @@ import {
   type PropsWithChildren,
   useContext,
 } from "react";
-import { AlphaBadge } from "components/Badges/Badges";
+import { AlphaBadge, DeprecatedBadge } from "components/Badges/Badges";
 import { Stack } from "components/Stack/Stack";
 import {
   FormFooter as BaseFormFooter,
@@ -77,8 +77,16 @@ export const FormSection: FC<
       infoTitle?: string;
     };
     alpha?: boolean;
+    deprecated?: boolean;
   }
-> = ({ children, title, description, classes = {}, alpha = false }) => {
+> = ({
+  children,
+  title,
+  description,
+  classes = {},
+  alpha = false,
+  deprecated = false,
+}) => {
   const { direction } = useContext(FormContext);
   const theme = useTheme();
 
@@ -121,6 +129,7 @@ export const FormSection: FC<
         >
           {title}
           {alpha && <AlphaBadge />}
+          {deprecated && <DeprecatedBadge />}
         </h2>
         <div css={styles.formSectionInfoDescription}>{description}</div>
       </div>

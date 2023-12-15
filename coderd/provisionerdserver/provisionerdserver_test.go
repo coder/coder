@@ -1113,11 +1113,11 @@ func TestCompleteJob(t *testing.T) {
 				var store schedule.TemplateScheduleStore = schedule.MockTemplateScheduleStore{
 					GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.TemplateScheduleOptions, error) {
 						return schedule.TemplateScheduleOptions{
-							UserAutostartEnabled:   false,
-							UserAutostopEnabled:    c.templateAllowAutostop,
-							DefaultTTL:             c.templateDefaultTTL,
-							MaxTTL:                 c.templateMaxTTL,
-							UseAutostopRequirement: false,
+							UserAutostartEnabled: false,
+							UserAutostopEnabled:  c.templateAllowAutostop,
+							DefaultTTL:           c.templateDefaultTTL,
+							MaxTTL:               c.templateMaxTTL,
+							UseMaxTTL:            true,
 						}, nil
 					},
 				}
@@ -1333,11 +1333,11 @@ func TestCompleteJob(t *testing.T) {
 				var templateScheduleStore schedule.TemplateScheduleStore = schedule.MockTemplateScheduleStore{
 					GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.TemplateScheduleOptions, error) {
 						return schedule.TemplateScheduleOptions{
-							UserAutostartEnabled:   false,
-							UserAutostopEnabled:    true,
-							DefaultTTL:             0,
-							UseAutostopRequirement: true,
-							AutostopRequirement:    c.templateAutostopRequirement,
+							UserAutostartEnabled: false,
+							UserAutostopEnabled:  true,
+							DefaultTTL:           0,
+							UseMaxTTL:            false,
+							AutostopRequirement:  c.templateAutostopRequirement,
 						}, nil
 					},
 				}

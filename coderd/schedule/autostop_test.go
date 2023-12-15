@@ -415,12 +415,12 @@ func TestCalculateAutoStop(t *testing.T) {
 			templateScheduleStore := schedule.MockTemplateScheduleStore{
 				GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.TemplateScheduleOptions, error) {
 					return schedule.TemplateScheduleOptions{
-						UserAutostartEnabled:   false,
-						UserAutostopEnabled:    c.templateAllowAutostop,
-						DefaultTTL:             c.templateDefaultTTL,
-						MaxTTL:                 c.templateMaxTTL,
-						UseAutostopRequirement: !c.useMaxTTL,
-						AutostopRequirement:    c.templateAutostopRequirement,
+						UserAutostartEnabled: false,
+						UserAutostopEnabled:  c.templateAllowAutostop,
+						DefaultTTL:           c.templateDefaultTTL,
+						MaxTTL:               c.templateMaxTTL,
+						UseMaxTTL:            c.useMaxTTL,
+						AutostopRequirement:  c.templateAutostopRequirement,
 					}, nil
 				},
 			}

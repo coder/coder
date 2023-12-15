@@ -958,6 +958,7 @@ export interface Template {
   readonly deprecation_message: string;
   readonly icon: string;
   readonly default_ttl_ms: number;
+  readonly use_max_ttl: boolean;
   readonly max_ttl_ms: number;
   readonly autostop_requirement: TemplateAutostopRequirement;
   readonly autostart_requirement: TemplateAutostartRequirement;
@@ -1776,7 +1777,6 @@ export type Experiment =
   | "moons"
   | "single_tailnet"
   | "tailnet_pg_coordinator"
-  | "template_autostop_requirement"
   | "template_update_policies"
   | "workspace_actions";
 export const Experiments: Experiment[] = [
@@ -1784,7 +1784,6 @@ export const Experiments: Experiment[] = [
   "moons",
   "single_tailnet",
   "tailnet_pg_coordinator",
-  "template_autostop_requirement",
   "template_update_policies",
   "workspace_actions",
 ];
@@ -1801,7 +1800,6 @@ export type FeatureName =
   | "high_availability"
   | "multiple_external_auth"
   | "scim"
-  | "template_autostop_requirement"
   | "template_rbac"
   | "user_limit"
   | "user_role_management"
@@ -1818,7 +1816,6 @@ export const FeatureNames: FeatureName[] = [
   "high_availability",
   "multiple_external_auth",
   "scim",
-  "template_autostop_requirement",
   "template_rbac",
   "user_limit",
   "user_role_management",

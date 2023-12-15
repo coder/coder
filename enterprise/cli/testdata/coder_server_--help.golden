@@ -448,15 +448,15 @@ USER QUIET HOURS SCHEDULE OPTIONS:
 Allow users to set quiet hours schedules each day for workspaces to avoid
 workspaces stopping during the day due to template max TTL.
 
-      --default-quiet-hours-schedule string, $CODER_QUIET_HOURS_DEFAULT_SCHEDULE
+      --default-quiet-hours-schedule string, $CODER_QUIET_HOURS_DEFAULT_SCHEDULE (default: CRON_TZ=UTC 0 0 * * *)
           The default daily cron schedule applied to users that haven't set a
           custom quiet hours schedule themselves. The quiet hours schedule
           determines when workspaces will be force stopped due to the template's
-          max TTL, and will round the max TTL up to be within the user's quiet
-          hours window (or default). The format is the same as the standard cron
-          format, but the day-of-month, month and day-of-week must be *. Only
-          one hour and minute can be specified (ranges or comma separated values
-          are not supported).
+          autostop requirement, and will round the max deadline up to be within
+          the user's quiet hours window (or default). The format is the same as
+          the standard cron format, but the day-of-month, month and day-of-week
+          must be *. Only one hour and minute can be specified (ranges or comma
+          separated values are not supported).
 
 ⚠️ DANGEROUS OPTIONS: 
       --dangerous-allow-path-app-sharing bool, $CODER_DANGEROUS_ALLOW_PATH_APP_SHARING

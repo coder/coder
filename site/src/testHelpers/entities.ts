@@ -445,9 +445,10 @@ export const MockTemplate: TypesGen.Template = {
   },
   description: "This is a test description.",
   default_ttl_ms: 24 * 60 * 60 * 1000,
-  max_ttl_ms: 2 * 24 * 60 * 60 * 1000,
+  use_max_ttl: false,
+  max_ttl_ms: 0,
   autostop_requirement: {
-    days_of_week: [],
+    days_of_week: ["sunday"],
     weeks: 1,
   },
   autostart_requirement: {
