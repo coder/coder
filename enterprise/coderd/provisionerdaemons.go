@@ -244,11 +244,13 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		APIVersion:   "1.0",
 	})
 	if err != nil {
-		log.Error(ctx, "create provisioner daemon", slog.Error(err))
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error creating provisioner daemon.",
-			Detail:  err.Error(),
-		})
+		if !xerrors.Is(err, context.Canceled) {
+			log.Error(ctx, "create provisioner daemon", slog.Error(err))
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error creating provisioner daemon.",
+				Detail:  err.Error(),
+			})
+		}
 		return
 	}
 
