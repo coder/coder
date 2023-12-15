@@ -34,6 +34,9 @@ export const WorkspaceSettingsForm: FC<{
   onCancel: () => void;
   onSubmit: (values: WorkspaceSettingsFormValues) => Promise<void>;
 }> = ({ onCancel, onSubmit, workspace, error, templatePoliciesEnabled }) => {
+  const formEnabled = (templatePoliciesEnabled && !workspace.template_require_active_version)
+    || workspace.allow_renames
+
   const form = useFormik<WorkspaceSettingsFormValues>({
     onSubmit,
     initialValues: {
@@ -54,7 +57,7 @@ export const WorkspaceSettingsForm: FC<{
     <HorizontalForm onSubmit={form.handleSubmit} data-testid="form">
       <FormSection
         title="Workspace Name"
-        description="Update the name of your workspace."
+        description="The name of your workspace."
       >
         <FormFields>
           <TextField
@@ -106,11 +109,13 @@ export const WorkspaceSettingsForm: FC<{
           </FormFields>
         </FormSection>
       )}
-      <FormFooter
-        onCancel={onCancel}
-        isLoading={form.isSubmitting}
-        submitDisabled={!templatePoliciesEnabled && !workspace.allow_renames}
-      />
+      {formEnabled && (
+        <FormFooter
+          onCancel={onCancel}
+          isLoading={form.isSubmitting}
+          submitDisabled={!templatePoliciesEnabled && !workspace.allow_renames}
+        />
+      )}
     </HorizontalForm>
   );
 };
