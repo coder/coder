@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -1846,7 +1845,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Allow Workspace Renames",
-			Description: fmt.Sprintf("DEPRECATED: Allow users to rename their workspaces. Use only for temporary compatibility reasons, this flag will no longer function after %s.", WorkspaceRenameDeadline.Format("2006-01-02")),
+			Description: "DEPRECATED: Allow users to rename their workspaces. Use only for temporary compatibility reasons.",
 			Flag:        "allow-workspace-renames",
 			Env:         "CODER_ALLOW_WORKSPACE_RENAMES",
 			Default:     "false",
