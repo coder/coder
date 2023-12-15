@@ -89,6 +89,7 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 			&i.AutostartBlockDaysOfWeek,
 			&i.RequireActiveVersion,
 			&i.Deprecated,
+			&i.UseMaxTtl,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 		); err != nil {

@@ -4,9 +4,9 @@ import {
   type DeploymentConfig,
 } from "api/api";
 import { FieldError } from "api/errors";
-import * as TypesGen from "api/typesGenerated";
+import type * as TypesGen from "api/typesGenerated";
 import range from "lodash/range";
-import { Permissions } from "components/AuthProvider/permissions";
+import { Permissions } from "contexts/AuthProvider/permissions";
 import { TemplateVersionFiles } from "utils/templateVersion";
 import { FileTree } from "utils/filetree";
 import { ProxyLatencyReport } from "contexts/useProxyLatency";
@@ -284,6 +284,7 @@ export const MockUser: TypesGen.User = {
   avatar_url: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
   last_seen_at: "",
   login_type: "password",
+  theme_preference: "",
 };
 
 export const MockUserAdmin: TypesGen.User = {
@@ -297,6 +298,7 @@ export const MockUserAdmin: TypesGen.User = {
   avatar_url: "",
   last_seen_at: "",
   login_type: "password",
+  theme_preference: "",
 };
 
 export const MockUser2: TypesGen.User = {
@@ -310,6 +312,7 @@ export const MockUser2: TypesGen.User = {
   avatar_url: "",
   last_seen_at: "2022-09-14T19:12:21Z",
   login_type: "oidc",
+  theme_preference: "",
 };
 
 export const SuspendedMockUser: TypesGen.User = {
@@ -323,15 +326,24 @@ export const SuspendedMockUser: TypesGen.User = {
   avatar_url: "",
   last_seen_at: "",
   login_type: "password",
+  theme_preference: "",
 };
 
 export const MockProvisioner: TypesGen.ProvisionerDaemon = {
   created_at: "2022-05-17T17:39:01.382927298Z",
-  updated_at: "2022-05-17T17:39:01.382927298Z",
   id: "test-provisioner",
   name: "Test Provisioner",
   provisioners: ["echo"],
-  tags: {},
+  tags: { scope: "organization" },
+  version: "v2.34.5",
+};
+
+export const MockUserProvisioner: TypesGen.ProvisionerDaemon = {
+  created_at: "2022-05-17T17:39:01.382927298Z",
+  id: "test-user-provisioner",
+  name: "Test User Provisioner",
+  provisioners: ["echo"],
+  tags: { scope: "user", owner: "12345678-abcd-1234-abcd-1234567890abcd" },
   version: "v2.34.5",
 };
 
@@ -433,9 +445,10 @@ export const MockTemplate: TypesGen.Template = {
   },
   description: "This is a test description.",
   default_ttl_ms: 24 * 60 * 60 * 1000,
-  max_ttl_ms: 2 * 24 * 60 * 60 * 1000,
+  use_max_ttl: false,
+  max_ttl_ms: 0,
   autostop_requirement: {
-    days_of_week: [],
+    days_of_week: ["sunday"],
     weeks: 1,
   },
   autostart_requirement: {

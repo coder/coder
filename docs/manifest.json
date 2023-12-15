@@ -211,6 +211,23 @@
           ]
         },
         {
+          "title": "Administering templates",
+          "description": "Configuration settings for template admins",
+          "path": "./templates/configuration.md",
+          "children": [
+            {
+              "title": "General settings",
+              "description": "Configure name, display info, and update polices",
+              "path": "./templates/general-settings.md"
+            },
+            {
+              "title": "Permissions",
+              "description": "Configure who can access a template",
+              "path": "./templates/permissions.md"
+            }
+          ]
+        },
+        {
           "title": "Open in Coder",
           "description": "Add an \"Open in Coder\" button to your repos",
           "path": "./templates/open-in-coder.md",
@@ -995,6 +1012,12 @@
           "path": "./security/0001_user_apikeys_invalidation.md"
         }
       ]
+    },
+    {
+      "title": "FAQs",
+      "description": "Frequently asked questions",
+      "path": "./faqs.md",
+      "icon_path": "./images/icons/info.svg"
     }
   ]
 }

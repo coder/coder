@@ -987,6 +987,7 @@ func (f fakeRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f.roundTrip(req)
 }
 
+//nolint:gosec // these are test credentials
 const testRSAPrivateKey = `-----BEGIN RSA PRIVATE KEY-----
 MIICXQIBAAKBgQDLets8+7M+iAQAqN/5BVyCIjhTQ4cmXulL+gm3v0oGMWzLupUS
 v8KPA+Tp7dgC/DZPfMLaNH1obBBhJ9DhS6RdS3AS3kzeFrdu8zFHLWF53DUBhS92

@@ -68,6 +68,10 @@ replace github.com/gliderlabs/ssh => github.com/coder/ssh v0.0.0-20231128192721-
 // Waiting on https://github.com/imulab/go-scim/pull/95 to merge.
 replace github.com/imulab/go-scim/pkg/v2 => github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136
 
+// Waiting on https://github.com/pkg/sftp/pull/567
+// Fixes https://github.com/coder/coder/issues/6685
+replace github.com/pkg/sftp => github.com/mafredri/sftp v1.13.6-0.20231212144145-8218e927edb0
+
 require (
 	cdr.dev/slog v1.6.2-0.20230929193652-f0c466fabe10
 	cloud.google.com/go/compute/metadata v0.2.3

@@ -1388,13 +1388,27 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				Valid:  true,
 			}
 		}
-		var env pqtype.NullRawMessage
-		if prAgent.Env != nil {
-			data, err := json.Marshal(prAgent.Env)
+
+		env := make(map[string]string)
+		// For now, we only support adding extra envs, not overriding
+		// existing ones or performing other manipulations. In future
+		// we may write these to a separate table so we can perform
+		// conditional logic on the agent.
+		for _, e := range prAgent.ExtraEnvs {
+			env[e.Name] = e.Value
+		}
+		// Allow the agent defined envs to override extra envs.
+		for k, v := range prAgent.Env {
+			env[k] = v
+		}
+
+		var envJSON pqtype.NullRawMessage
+		if len(env) > 0 {
+			data, err := json.Marshal(env)
 			if err != nil {
 				return xerrors.Errorf("marshal env: %w", err)
 			}
-			env = pqtype.NullRawMessage{
+			envJSON = pqtype.NullRawMessage{
 				RawMessage: data,
 				Valid:      true,
 			}
@@ -1417,7 +1431,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			AuthToken:                authToken,
 			AuthInstanceID:           instanceID,
 			Architecture:             prAgent.Architecture,
-			EnvironmentVariables:     env,
+			EnvironmentVariables:     envJSON,
 			Directory:                prAgent.Directory,
 			OperatingSystem:          prAgent.OperatingSystem,
 			ConnectionTimeoutSeconds: prAgent.GetConnectionTimeoutSeconds(),

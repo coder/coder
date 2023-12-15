@@ -79,9 +79,8 @@ func Ascending[T constraints.Ordered](a, b T) int {
 		return -1
 	} else if a == b {
 		return 0
-	} else {
-		return 1
 	}
+	return 1
 }
 
 func Descending[T constraints.Ordered](a, b T) int {

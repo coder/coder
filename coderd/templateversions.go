@@ -1598,7 +1598,7 @@ func convertTemplateVersion(version database.TemplateVersion, job codersdk.Provi
 		CreatedBy: codersdk.MinimalUser{
 			ID:        version.CreatedBy,
 			Username:  version.CreatedByUsername,
-			AvatarURL: version.CreatedByAvatarURL.String,
+			AvatarURL: version.CreatedByAvatarURL,
 		},
 		Archived: version.Archived,
 		Warnings: warnings,

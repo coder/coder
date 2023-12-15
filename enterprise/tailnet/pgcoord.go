@@ -149,12 +149,6 @@ func newPGCoordInternal(
 	return c, nil
 }
 
-// NewPGCoordV2 creates a high-availability coordinator that stores state in the PostgreSQL database and
-// receives notifications of updates via the pubsub.
-func NewPGCoordV2(ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store database.Store) (agpl.CoordinatorV2, error) {
-	return newPGCoordInternal(ctx, logger, ps, store)
-}
-
 func (c *pgCoord) ServeMultiAgent(id uuid.UUID) agpl.MultiAgentConn {
 	return agpl.ServeMultiAgent(c, c.logger, id)
 }
@@ -639,7 +633,7 @@ func (m *mapper) run() {
 			m.logger.Debug(m.ctx, "skipping nil node update")
 			continue
 		}
-		if err := m.c.Enqueue(update); err != nil {
+		if err := m.c.Enqueue(update); err != nil && !xerrors.Is(err, context.Canceled) {
 			m.logger.Error(m.ctx, "failed to enqueue node update", slog.Error(err))
 		}
 	}

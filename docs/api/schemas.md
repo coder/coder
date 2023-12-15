@@ -865,6 +865,7 @@ _None_
             }
           ],
           "status": "active",
+          "theme_preference": "string",
           "username": "string"
         }
       ],
@@ -890,6 +891,7 @@ _None_
         }
       ],
       "status": "active",
+      "theme_preference": "string",
       "username": "string"
     }
   ]
@@ -1175,6 +1177,7 @@ _None_
       }
     ],
     "status": "active",
+    "theme_preference": "string",
     "username": "string"
   },
   "user_agent": "string"
@@ -1252,6 +1255,7 @@ _None_
           }
         ],
         "status": "active",
+        "theme_preference": "string",
         "username": "string"
       },
       "user_agent": "string"
@@ -1603,7 +1607,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `allow_user_autostop`                                                                                                                                                                     | boolean                                                                        | false    |              | Allow user autostop allows users to set a custom workspace TTL to use in place of the template's DefaultTTL field. By default this is true. If false, the DefaultTTL will always be used. This can only be disabled when using an enterprise license.                                                               |
 | `allow_user_cancel_workspace_jobs`                                                                                                                                                        | boolean                                                                        | false    |              | Allow users to cancel in-progress workspace jobs. \*bool as the default value is "true".                                                                                                                                                                                                                            |
 | `autostart_requirement`                                                                                                                                                                   | [codersdk.TemplateAutostartRequirement](#codersdktemplateautostartrequirement) | false    |              | Autostart requirement allows optionally specifying the autostart allowed days for workspaces created from this template. This is an enterprise feature.                                                                                                                                                             |
-| `autostop_requirement`                                                                                                                                                                    | [codersdk.TemplateAutostopRequirement](#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement allows optionally specifying the autostop requirement for workspaces created from this template. This is an enterprise feature.                                                                                                                                                                |
+| `autostop_requirement`                                                                                                                                                                    | [codersdk.TemplateAutostopRequirement](#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement allows optionally specifying the autostop requirement for workspaces created from this template. This is an enterprise feature. Only one of MaxTTLMillis or AutostopRequirement can be specified.                                                                                              |
 | `default_ttl_ms`                                                                                                                                                                          | integer                                                                        | false    |              | Default ttl ms allows optionally specifying the default TTL for all workspaces created from this template.                                                                                                                                                                                                          |
 | `delete_ttl_ms`                                                                                                                                                                           | integer                                                                        | false    |              | Delete ttl ms allows optionally specifying the max lifetime before Coder permanently deletes dormant workspaces created from this template.                                                                                                                                                                         |
 | `description`                                                                                                                                                                             | string                                                                         | false    |              | Description is a description of what the template contains. It must be less than 128 bytes.                                                                                                                                                                                                                         |
@@ -1612,7 +1616,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `dormant_ttl_ms`                                                                                                                                                                          | integer                                                                        | false    |              | Dormant ttl ms allows optionally specifying the max lifetime before Coder locks inactive workspaces created from this template.                                                                                                                                                                                     |
 | `failure_ttl_ms`                                                                                                                                                                          | integer                                                                        | false    |              | Failure ttl ms allows optionally specifying the max lifetime before Coder stops all resources for failed workspaces created from this template.                                                                                                                                                                     |
 | `icon`                                                                                                                                                                                    | string                                                                         | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                                                                                                    |
-| `max_ttl_ms`                                                                                                                                                                              | integer                                                                        | false    |              | Max ttl ms remove max_ttl once autostop_requirement is matured                                                                                                                                                                                                                                                      |
+| `max_ttl_ms`                                                                                                                                                                              | integer                                                                        | false    |              | Max ttl ms remove max_ttl once autostop_requirement is matured Only one of MaxTTLMillis or AutostopRequirement can be specified.                                                                                                                                                                                    |
 | `name`                                                                                                                                                                                    | string                                                                         | true     |              | Name is the name of the template.                                                                                                                                                                                                                                                                                   |
 | `require_active_version`                                                                                                                                                                  | boolean                                                                        | false    |              | Require active version mandates that workspaces are built with the active template version.                                                                                                                                                                                                                         |
 | `template_version_id`                                                                                                                                                                     | string                                                                         | true     |              | Template version ID is an in-progress or completed job to use as an initial version of the template.                                                                                                                                                                                                                |
@@ -2865,15 +2869,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value                           |
-| ------------------------------- |
-| `moons`                         |
-| `workspace_actions`             |
-| `tailnet_pg_coordinator`        |
-| `single_tailnet`                |
-| `template_autostop_requirement` |
-| `deployment_health_page`        |
-| `template_update_policies`      |
+| Value                      |
+| -------------------------- |
+| `moons`                    |
+| `workspace_actions`        |
+| `tailnet_pg_coordinator`   |
+| `single_tailnet`           |
+| `deployment_health_page`   |
+| `template_update_policies` |
 
 ## codersdk.ExternalAuth
 
@@ -3108,6 +3111,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         }
       ],
       "status": "active",
+      "theme_preference": "string",
       "username": "string"
     }
   ]
@@ -3164,6 +3168,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         }
       ],
       "status": "active",
+      "theme_preference": "string",
       "username": "string"
     }
   ],
@@ -3829,7 +3834,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "property1": "string",
     "property2": "string"
   },
-  "updated_at": "2019-08-24T14:15:22Z",
   "version": "string"
 }
 ```
@@ -3845,7 +3849,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `provisioners`     | array of string | false    |              |             |
 | `tags`             | object          | false    |              |             |
 | » `[any property]` | string          | false    |              |             |
-| `updated_at`       | string          | false    |              |             |
 | `version`          | string          | false    |              |             |
 
 ## codersdk.ProvisionerJob
@@ -4499,7 +4502,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "require_active_version": true,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
-  "updated_at": "2019-08-24T14:15:22Z"
+  "updated_at": "2019-08-24T14:15:22Z",
+  "use_max_ttl": true
 }
 ```
 
@@ -4534,6 +4538,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `time_til_dormant_autodelete_ms`   | integer                                                                        | false    |              |                                                                                                                                                                                                 |
 | `time_til_dormant_ms`              | integer                                                                        | false    |              |                                                                                                                                                                                                 |
 | `updated_at`                       | string                                                                         | false    |              |                                                                                                                                                                                                 |
+| `use_max_ttl`                      | boolean                                                                        | false    |              | Use max ttl picks whether to use the deprecated max TTL for the template or the new autostop requirement.                                                                                       |
 
 #### Enumerated Values
 
@@ -4886,6 +4891,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     }
   ],
   "status": "active",
+  "theme_preference": "string",
   "username": "string"
 }
 ```
@@ -4904,6 +4910,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `role`             | [codersdk.TemplateRole](#codersdktemplaterole) | false    |              |             |
 | `roles`            | array of [codersdk.Role](#codersdkrole)        | false    |              |             |
 | `status`           | [codersdk.UserStatus](#codersdkuserstatus)     | false    |              |             |
+| `theme_preference` | string                                         | false    |              |             |
 | `username`         | string                                         | true     |              |             |
 
 #### Enumerated Values
@@ -5282,6 +5289,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `user_perms`       | object                                         | false    |              | User perms should be a mapping of user ID to role. The user ID must be the uuid of the user, not a username or email address. |
 | » `[any property]` | [codersdk.TemplateRole](#codersdktemplaterole) | false    |              |                                                                                                                               |
 
+## codersdk.UpdateUserAppearanceSettingsRequest
+
+```json
+{
+  "theme_preference": "string"
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description |
+| ------------------ | ------ | -------- | ------------ | ----------- |
+| `theme_preference` | string | true     |              |             |
+
 ## codersdk.UpdateUserPasswordRequest
 
 ```json
@@ -5431,6 +5452,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     }
   ],
   "status": "active",
+  "theme_preference": "string",
   "username": "string"
 }
 ```
@@ -5448,6 +5470,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `organization_ids` | array of string                            | false    |              |             |
 | `roles`            | array of [codersdk.Role](#codersdkrole)    | false    |              |             |
 | `status`           | [codersdk.UserStatus](#codersdkuserstatus) | false    |              |             |
+| `theme_preference` | string                                     | false    |              |             |
 | `username`         | string                                     | true     |              |             |
 
 #### Enumerated Values

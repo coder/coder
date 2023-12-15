@@ -357,7 +357,7 @@ func TestCoordinator_AgentUpdateWhileClientConnects(t *testing.T) {
 func TestCoordinator_BidirectionalTunnels(t *testing.T) {
 	t.Parallel()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	coordinator := tailnet.NewCoordinatorV2(logger)
+	coordinator := tailnet.NewCoordinator(logger)
 	ctx := testutil.Context(t, testutil.WaitShort)
 	test.BidirectionalTunnels(ctx, t, coordinator)
 }
@@ -365,7 +365,7 @@ func TestCoordinator_BidirectionalTunnels(t *testing.T) {
 func TestCoordinator_GracefulDisconnect(t *testing.T) {
 	t.Parallel()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	coordinator := tailnet.NewCoordinatorV2(logger)
+	coordinator := tailnet.NewCoordinator(logger)
 	ctx := testutil.Context(t, testutil.WaitShort)
 	test.GracefulDisconnectTest(ctx, t, coordinator)
 }
@@ -373,7 +373,7 @@ func TestCoordinator_GracefulDisconnect(t *testing.T) {
 func TestCoordinator_Lost(t *testing.T) {
 	t.Parallel()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	coordinator := tailnet.NewCoordinatorV2(logger)
+	coordinator := tailnet.NewCoordinator(logger)
 	ctx := testutil.Context(t, testutil.WaitShort)
 	test.LostTest(ctx, t, coordinator)
 }

@@ -233,7 +233,7 @@ export const getDisplayWorkspaceStatus = (
       } as const;
     case "pending":
       return {
-        type: undefined,
+        type: "info",
         text: getPendingWorkspaceStatusText(provisionerJob),
         icon: <QueuedIcon />,
       } as const;

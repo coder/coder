@@ -1473,11 +1473,8 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		}
 
 		needsUpdate := false
-		if user.AvatarURL.String != params.AvatarURL {
-			user.AvatarURL = sql.NullString{
-				String: params.AvatarURL,
-				Valid:  true,
-			}
+		if user.AvatarURL != params.AvatarURL {
+			user.AvatarURL = params.AvatarURL
 			needsUpdate = true
 		}
 

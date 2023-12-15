@@ -3742,6 +3742,52 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/{user}/appearance": {
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Update user appearance settings",
+                "operationId": "update-user-appearance-settings",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "New appearance settings",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateUserAppearanceSettingsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.User"
+                        }
+                    }
+                }
+            }
+        },
         "/users/{user}/convert-login": {
             "post": {
                 "security": [
@@ -7985,7 +8031,7 @@ const docTemplate = `{
                     ]
                 },
                 "autostop_requirement": {
-                    "description": "AutostopRequirement allows optionally specifying the autostop requirement\nfor workspaces created from this template. This is an enterprise feature.",
+                    "description": "AutostopRequirement allows optionally specifying the autostop requirement\nfor workspaces created from this template. This is an enterprise feature.\nOnly one of MaxTTLMillis or AutostopRequirement can be specified.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.TemplateAutostopRequirement"
@@ -8025,7 +8071,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "max_ttl_ms": {
-                    "description": "TODO(@dean): remove max_ttl once autostop_requirement is matured",
+                    "description": "TODO(@dean): remove max_ttl once autostop_requirement is matured\nOnly one of MaxTTLMillis or AutostopRequirement can be specified.",
                     "type": "integer"
                 },
                 "name": {
@@ -8759,7 +8805,6 @@ const docTemplate = `{
                 "workspace_actions",
                 "tailnet_pg_coordinator",
                 "single_tailnet",
-                "template_autostop_requirement",
                 "deployment_health_page",
                 "template_update_policies"
             ],
@@ -8768,7 +8813,6 @@ const docTemplate = `{
                 "ExperimentWorkspaceActions",
                 "ExperimentTailnetPGCoordinator",
                 "ExperimentSingleTailnet",
-                "ExperimentTemplateAutostopRequirement",
                 "ExperimentDeploymentHealthPage",
                 "ExperimentTemplateUpdatePolicies"
             ]
@@ -9669,10 +9713,6 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
-                "updated_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
                 "version": {
                     "type": "string"
                 }
@@ -10336,6 +10376,10 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "use_max_ttl": {
+                    "description": "UseMaxTTL picks whether to use the deprecated max TTL for the template or\nthe new autostop requirement.",
+                    "type": "boolean"
                 }
             }
         },
@@ -10676,6 +10720,9 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "theme_preference": {
+                    "type": "string"
+                },
                 "username": {
                     "type": "string"
                 }
@@ -11013,6 +11060,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateUserAppearanceSettingsRequest": {
+            "type": "object",
+            "required": [
+                "theme_preference"
+            ],
+            "properties": {
+                "theme_preference": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.UpdateUserPasswordRequest": {
             "type": "object",
             "required": [
@@ -11154,6 +11212,9 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.UserStatus"
                         }
                     ]
+                },
+                "theme_preference": {
+                    "type": "string"
                 },
                 "username": {
                     "type": "string"

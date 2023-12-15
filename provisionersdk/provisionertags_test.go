@@ -55,6 +55,27 @@ func TestMutateTags(t *testing.T) {
 			},
 		},
 		{
+			name: "organization scope with owner",
+			tags: map[string]string{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+				provisionersdk.TagOwner: testUserID.String(),
+			},
+			userID: uuid.Nil,
+			want: map[string]string{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+			},
+		},
+		{
+			name: "owner tag with no other context",
+			tags: map[string]string{
+				provisionersdk.TagOwner: testUserID.String(),
+			},
+			userID: uuid.Nil,
+			want: map[string]string{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+			},
+		},
+		{
 			name:   "invalid scope",
 			tags:   map[string]string{provisionersdk.TagScope: "360noscope"},
 			userID: testUserID,
