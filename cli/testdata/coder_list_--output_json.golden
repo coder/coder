@@ -36,6 +36,7 @@
         "worker_id": "[workspace build worker ID]",
         "file_id": "[workspace build file ID]",
         "tags": {
+          "owner": "",
           "scope": "organization"
         },
         "queue_position": 0,
