@@ -62,30 +62,12 @@ func (pf *templateUploadFlags) stdin() bool {
 	return pf.directory == "-"
 }
 
-func (pf *templateUploadFlags) prettyDirectoryPath() string {
-	if pf.stdin() {
-		return ""
-	}
-
-	dir := filepath.Clean(pf.directory)
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return dir
-	}
-	prettyDir := dir
-	if strings.HasPrefix(prettyDir, homeDir) {
-		prettyDir = strings.TrimPrefix(prettyDir, homeDir)
-		prettyDir = "~" + prettyDir
-	}
-	return prettyDir
-}
-
 func (pf *templateUploadFlags) upload(inv *clibase.Invocation, client *codersdk.Client) (*codersdk.UploadResponse, error) {
 	var content io.Reader
 	if pf.stdin() {
 		content = inv.Stdin
 	} else {
-		prettyDir := pf.prettyDirectoryPath()
+		prettyDir := prettyDirectoryPath(pf.directory)
 		_, err := cliui.Prompt(inv, cliui.PromptOptions{
 			Text:      fmt.Sprintf("Upload %q?", prettyDir),
 			IsConfirm: true,
@@ -354,4 +336,21 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 	}
 	cmd.Options = append(cmd.Options, uploadFlags.options()...)
 	return cmd
+}
+
+// prettyDirectoryPath returns a prettified path when inside the users
+// home directory. Falls back to dir if the users home directory cannot
+// discerned. This function calls filepath.Clean on the result.
+func prettyDirectoryPath(dir string) string {
+	dir = filepath.Clean(dir)
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return dir
+	}
+	prettyDir := dir
+	if strings.HasPrefix(prettyDir, homeDir) {
+		prettyDir = strings.TrimPrefix(prettyDir, homeDir)
+		prettyDir = "~" + prettyDir
+	}
+	return prettyDir
 }
