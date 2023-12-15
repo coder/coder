@@ -888,6 +888,20 @@ func (s *MethodTestSuite) TestTemplate() {
 			ExternalAuthProviders: []string{},
 		}).Asserts(t1, rbac.ActionUpdate).Returns()
 	}))
+	s.Run("GetTemplateInsights", s.Subtest(func(db database.Store, check *expects) {
+		//tpl := dbgen.Template(s.T(), db, database.Template{})
+		check.Args(database.GetTemplateInsightsParams{
+			StartTime:   time.Time{},
+			EndTime:     time.Now(),
+			TemplateIDs: []uuid.UUID{},
+		}).Asserts(rbac.ResourceTemplateInsights, rbac.ActionRead)
+	}))
+	s.Run("GetTemplateInsightsByInterval", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.GetTemplateInsightsByIntervalParams{}).Asserts(rbac.ResourceTemplateInsights, rbac.ActionRead)
+	}))
+	s.Run("GetTemplateInsightsByTemplate", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.GetTemplateInsightsByTemplateParams{}).Asserts(rbac.ResourceTemplateInsights, rbac.ActionRead)
+	}))
 }
 
 func (s *MethodTestSuite) TestUser() {
@@ -1932,5 +1946,8 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	}))
 	s.Run("InsertWorkspaceAgentLogSources", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertWorkspaceAgentLogSourcesParams{}).Asserts()
+	}))
+	s.Run("GetTemplateDAUs", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.GetTemplateDAUsParams{}).Asserts(rbac.ResourceSystem, rbac.ActionRead)
 	}))
 }

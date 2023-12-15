@@ -62,6 +62,10 @@ func IsNotAuthorizedError(err error) bool {
 	if err == nil {
 		return false
 	}
+	if xerrors.Is(err, NoActorError) {
+		return true
+	}
+
 	return xerrors.As(err, &NotAuthorizedError{})
 }
 
@@ -1393,7 +1397,7 @@ func (q *querier) GetTemplateDAUs(ctx context.Context, arg database.GetTemplateD
 func (q *querier) GetTemplateInsights(ctx context.Context, arg database.GetTemplateInsightsParams) (database.GetTemplateInsightsRow, error) {
 	// Used by TemplateInsights endpoint
 	// For auditors, check read template_insights, and fall back to update template.
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplateInsights); IsNotAuthorizedError(err) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplateInsights); err != nil {
 		for _, templateID := range arg.TemplateIDs {
 			template, err := q.db.GetTemplateByID(ctx, templateID)
 			if err != nil {
@@ -1416,7 +1420,7 @@ func (q *querier) GetTemplateInsights(ctx context.Context, arg database.GetTempl
 func (q *querier) GetTemplateInsightsByInterval(ctx context.Context, arg database.GetTemplateInsightsByIntervalParams) ([]database.GetTemplateInsightsByIntervalRow, error) {
 	// Used by TemplateInsights endpoint
 	// For auditors, check read template_insights, and fall back to update template.
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplateInsights); IsNotAuthorizedError(err) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplateInsights); err != nil {
 		for _, templateID := range arg.TemplateIDs {
 			template, err := q.db.GetTemplateByID(ctx, templateID)
 			if err != nil {
