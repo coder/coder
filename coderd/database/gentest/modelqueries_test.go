@@ -1,4 +1,4 @@
-package gentest
+package gentest_test
 
 import (
 	"fmt"
