@@ -930,7 +930,6 @@ func (s *MethodTestSuite) TestTemplate() {
 		}).Asserts(t1, rbac.ActionUpdate).Returns()
 	}))
 	s.Run("GetTemplateInsights", s.Subtest(func(db database.Store, check *expects) {
-		//tpl := dbgen.Template(s.T(), db, database.Template{})
 		check.Args(database.GetTemplateInsightsParams{}).Asserts(rbac.ResourceTemplateInsights, rbac.ActionRead)
 	}))
 	s.Run("GetUserLatencyInsights", s.Subtest(func(db database.Store, check *expects) {

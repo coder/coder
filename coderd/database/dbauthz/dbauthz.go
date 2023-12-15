@@ -1661,7 +1661,7 @@ func (q *querier) GetUserCount(ctx context.Context) (int64, error) {
 
 func (q *querier) GetUserLatencyInsights(ctx context.Context, arg database.GetUserLatencyInsightsParams) ([]database.GetUserLatencyInsightsRow, error) {
 	// Used by insights endpoints. Need to check both for auditors and for regular users with template acl perms.
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplateInsights);err != nil {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplateInsights); err != nil {
 		for _, templateID := range arg.TemplateIDs {
 			template, err := q.db.GetTemplateByID(ctx, templateID)
 			if err != nil {
