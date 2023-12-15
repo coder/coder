@@ -16,6 +16,7 @@ export interface ExternalAuthProps {
   startPollingExternalAuth: () => void;
   error?: string;
   message?: string;
+  fullWidth?: boolean;
 }
 
 export const ExternalAuth: FC<ExternalAuthProps> = ({
@@ -27,6 +28,7 @@ export const ExternalAuth: FC<ExternalAuthProps> = ({
   startPollingExternalAuth,
   error,
   message,
+  fullWidth = true,
 }) => {
   const messageContent =
     message ??
@@ -39,7 +41,11 @@ export const ExternalAuth: FC<ExternalAuthProps> = ({
       <Tooltip
         title={authenticated && `${displayName} has already been connected.`}
       >
-        <Stack alignItems="center" spacing={1}>
+        <Stack
+          alignItems="center"
+          spacing={1}
+          css={!fullWidth && { display: "inline-block" }}
+        >
           <LoadingButton
             loadingPosition="start"
             loading={externalAuthPollingState === "polling"}
@@ -58,7 +64,7 @@ export const ExternalAuth: FC<ExternalAuthProps> = ({
             }
             disabled={authenticated}
             css={{ height: 42 }}
-            fullWidth
+            fullWidth={fullWidth}
             onClick={(event) => {
               event.preventDefault();
               // If the user is already authenticated, we don't want to redirect them

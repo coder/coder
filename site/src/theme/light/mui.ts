@@ -168,9 +168,13 @@ muiTheme = createTheme(muiTheme, {
           height: BUTTON_XL_HEIGHT,
         },
         outlined: {
-          boxShadow: "0 1px 4px #0001 !important",
+          boxShadow: "0 1px 4px #0001",
           ":hover": {
+            boxShadow: "0 1px 4px #0001",
             border: `1px solid ${tw.zinc[500]}`,
+          },
+          "&.Mui-disabled": {
+            boxShadow: "none !important",
           },
         },
         outlinedNeutral: {
@@ -186,13 +190,26 @@ muiTheme = createTheme(muiTheme, {
           },
         },
         contained: {
-          boxShadow: "0 1px 4px #0001 !important",
+          boxShadow: "0 1px 4px #0001",
+          "&.Mui-disabled": {
+            boxShadow: "none !important",
+          },
+          ":hover": {
+            boxShadow: "0 1px 4px #0001",
+          },
         },
         containedNeutral: {
-          backgroundColor: tw.zinc[200],
+          backgroundColor: tw.zinc[100],
+          border: `1px solid ${tw.zinc[200]}`,
+
+          "&.Mui-disabled": {
+            backgroundColor: tw.zinc[50],
+            border: `1px solid ${tw.zinc[100]}`,
+          },
 
           "&:hover": {
-            backgroundColor: tw.zinc[300],
+            backgroundColor: tw.zinc[200],
+            border: `1px solid ${tw.zinc[300]}`,
           },
         },
         iconSizeMedium: {
