@@ -18,9 +18,9 @@ import {
   AutomaticUpdateses,
   Workspace,
 } from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
 import MenuItem from "@mui/material/MenuItem";
 import upperFirst from "lodash/upperFirst";
+import { type Theme } from "@emotion/react";
 
 export type WorkspaceSettingsFormValues = {
   name: string;
@@ -58,7 +58,7 @@ export const WorkspaceSettingsForm: FC<{
     <HorizontalForm onSubmit={form.handleSubmit} data-testid="form">
       <FormSection
         title="Workspace Name"
-        description="The name of your workspace."
+        description="Update the name of your workspace."
       >
         <FormFields>
           <TextField
@@ -68,17 +68,13 @@ export const WorkspaceSettingsForm: FC<{
             autoFocus
             fullWidth
             label="Name"
+            css={workspace.allow_renames && styles.nameWarning}
             helperText={
-              !workspace.allow_renames &&
+              workspace.allow_renames ?
+              form.values.name !== form.initialValues.name && "Depending on the template, renaming your workspace may be destructive" :
               "Renaming your workspace can be destructive and has not been enabled for this deployment."
             }
           />
-          {form.values.name !== form.initialValues.name && (
-            <Alert severity="warning">
-              Depending on the template, renaming your workspace may be
-              destructive
-            </Alert>
-          )}
         </FormFields>
       </FormSection>
       {templatePoliciesEnabled && (
@@ -120,3 +116,11 @@ export const WorkspaceSettingsForm: FC<{
     </HorizontalForm>
   );
 };
+
+const styles = {
+  nameWarning: (theme: Theme) => ({
+    "& .MuiFormHelperText-root": {
+      color: theme.palette.warning.light
+    },
+  })
+}
