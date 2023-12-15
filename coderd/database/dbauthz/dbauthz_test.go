@@ -238,6 +238,13 @@ func (s *MethodTestSuite) TestAPIKey() {
 			UserID:     a.UserID,
 		}).Asserts(a, rbac.ActionDelete).Returns()
 	}))
+	s.Run("GetExternalAuthLinksByUserID", s.Subtest(func(db database.Store, check *expects) {
+		a := dbgen.ExternalAuthLink(s.T(), db, database.ExternalAuthLink{})
+		b := dbgen.ExternalAuthLink(s.T(), db, database.ExternalAuthLink{
+			UserID: a.UserID,
+		})
+		check.Args(a.UserID).Asserts(a, rbac.ActionRead, b, rbac.ActionRead)
+	}))
 }
 
 func (s *MethodTestSuite) TestAuditLogs() {
@@ -890,11 +897,7 @@ func (s *MethodTestSuite) TestTemplate() {
 	}))
 	s.Run("GetTemplateInsights", s.Subtest(func(db database.Store, check *expects) {
 		//tpl := dbgen.Template(s.T(), db, database.Template{})
-		check.Args(database.GetTemplateInsightsParams{
-			StartTime:   time.Time{},
-			EndTime:     time.Now(),
-			TemplateIDs: []uuid.UUID{},
-		}).Asserts(rbac.ResourceTemplateInsights, rbac.ActionRead)
+		check.Args(database.GetTemplateInsightsParams{}).Asserts(rbac.ResourceTemplateInsights, rbac.ActionRead)
 	}))
 	s.Run("GetTemplateInsightsByInterval", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.GetTemplateInsightsByIntervalParams{}).Asserts(rbac.ResourceTemplateInsights, rbac.ActionRead)
@@ -902,9 +905,21 @@ func (s *MethodTestSuite) TestTemplate() {
 	s.Run("GetTemplateInsightsByTemplate", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.GetTemplateInsightsByTemplateParams{}).Asserts(rbac.ResourceTemplateInsights, rbac.ActionRead)
 	}))
+	s.Run("GetTemplateAppInsights", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.GetTemplateAppInsightsParams{}).Asserts(rbac.ResourceTemplateInsights, rbac.ActionRead)
+	}))
+	s.Run("GetTemplateAppInsightsByTemplate", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.GetTemplateAppInsightsByTemplateParams{}).Asserts(rbac.ResourceTemplateInsights, rbac.ActionRead)
+	}))
 }
 
 func (s *MethodTestSuite) TestUser() {
+	s.Run("GetAuthorizedUsers", s.Subtest(func(db database.Store, check *expects) {
+		dbgen.User(s.T(), db, database.User{})
+		// No asserts because SQLFilter.
+		check.Args(database.GetUsersParams{}, emptyPreparedAuthorized{}).
+			Asserts()
+	}))
 	s.Run("DeleteAPIKeysByUserID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		check.Args(u.ID).Asserts(rbac.ResourceAPIKey.WithOwner(u.ID.String()), rbac.ActionDelete).Returns()
@@ -1951,7 +1966,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(database.GetTemplateDAUsParams{}).Asserts(rbac.ResourceSystem, rbac.ActionRead)
 	}))
 	s.Run("GetActiveWorkspaceBuildsByTemplateID", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(uuid.New()).Asserts(rbac.ResourceSystem, rbac.ActionRead)
+		check.Args(uuid.New()).Asserts(rbac.ResourceSystem, rbac.ActionRead).Errors(sql.ErrNoRows)
 	}))
 	s.Run("GetDeploymentDAUs", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(int32(0)).Asserts(rbac.ResourceSystem, rbac.ActionRead)
@@ -1963,6 +1978,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args("").Asserts()
 	}))
 	s.Run("GetApplicationName", s.Subtest(func(db database.Store, check *expects) {
+		db.UpsertApplicationName(context.Background(), "foo")
 		check.Args().Asserts()
 	}))
 	s.Run("UpsertApplicationName", s.Subtest(func(db database.Store, check *expects) {
@@ -1970,5 +1986,24 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	}))
 	s.Run("GetHealthSettings", s.Subtest(func(db database.Store, check *expects) {
 		check.Args().Asserts()
+	}))
+	s.Run("GetDeploymentWorkspaceAgentStats", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(time.Time{}).Asserts()
+	}))
+	s.Run("GetDeploymentWorkspaceStats", s.Subtest(func(db database.Store, check *expects) {
+		check.Args().Asserts()
+	}))
+	s.Run("GetFileTemplates", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(uuid.New()).Asserts(rbac.ResourceSystem, rbac.ActionRead)
+	}))
+	s.Run("GetHungProvisionerJobs", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(time.Time{}).Asserts()
+	}))
+	s.Run("GetOAuthSigningKey", s.Subtest(func(db database.Store, check *expects) {
+		db.UpsertOAuthSigningKey(context.Background(), "foo")
+		check.Args().Asserts(rbac.ResourceSystem, rbac.ActionUpdate)
+	}))
+	s.Run("InsertMissingGroups", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.InsertMissingGroupsParams{}).Asserts(rbac.ResourceSystem, rbac.ActionCreate).Errors(matchAnyError)
 	}))
 }
