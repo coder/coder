@@ -181,6 +181,7 @@ type DeploymentValues struct {
 	EnableTerraformDebugMode        clibase.Bool                         `json:"enable_terraform_debug_mode,omitempty" typescript:",notnull"`
 	UserQuietHoursSchedule          UserQuietHoursScheduleConfig         `json:"user_quiet_hours_schedule,omitempty" typescript:",notnull"`
 	WebTerminalRenderer             clibase.String                       `json:"web_terminal_renderer,omitempty" typescript:",notnull"`
+	AllowWorkspaceRenames           clibase.Bool                         `json:"allow_workspace_renames,omitempty" typescript:",notnull"`
 	Healthcheck                     HealthcheckConfig                    `json:"healthcheck,omitempty" typescript:",notnull"`
 
 	Config      clibase.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
@@ -1841,6 +1842,15 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.WebTerminalRenderer,
 			Group:       &deploymentGroupClient,
 			YAML:        "webTerminalRenderer",
+		},
+		{
+			Name:        "Allow Workspace Renames",
+			Description: "DEPRECATED: Allow users to rename their workspaces. Use only for temporary compatibility reasons, this will be removed in a future release.",
+			Flag:        "allow-workspace-renames",
+			Env:         "CODER_ALLOW_WORKSPACE_RENAMES",
+			Default:     "false",
+			Value:       &c.AllowWorkspaceRenames,
+			YAML:        "allowWorkspaceRenames",
 		},
 		// Healthcheck Options
 		{

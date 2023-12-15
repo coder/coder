@@ -42,6 +42,17 @@ The URL that users will use to access the Coder deployment.
 
 Allow users to set their own quiet hours schedule for workspaces to stop in (depending on template autostop requirement settings). If false, users can't change their quiet hours schedule and the site default is always used.
 
+### --allow-workspace-renames
+
+|             |                                             |
+| ----------- | ------------------------------------------- |
+| Type        | <code>bool</code>                           |
+| Environment | <code>$CODER_ALLOW_WORKSPACE_RENAMES</code> |
+| YAML        | <code>allowWorkspaceRenames</code>          |
+| Default     | <code>false</code>                          |
+
+DEPRECATED: Allow users to rename their workspaces. Use only for temporary compatibility reasons, this will be removed in a future release.
+
 ### --block-direct-connections
 
 |             |                                          |

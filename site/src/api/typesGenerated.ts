@@ -424,6 +424,7 @@ export interface DeploymentValues {
   readonly enable_terraform_debug_mode?: boolean;
   readonly user_quiet_hours_schedule?: UserQuietHoursScheduleConfig;
   readonly web_terminal_renderer?: string;
+  readonly allow_workspace_renames?: boolean;
   readonly healthcheck?: HealthcheckConfig;
   readonly config?: string;
   readonly write_config?: boolean;
@@ -1429,6 +1430,7 @@ export interface Workspace {
   readonly dormant_at?: string;
   readonly health: WorkspaceHealth;
   readonly automatic_updates: AutomaticUpdates;
+  readonly allow_renames: boolean;
 }
 
 // From codersdk/workspaceagents.go

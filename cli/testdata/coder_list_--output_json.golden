@@ -59,6 +59,7 @@
       "healthy": true,
       "failing_agents": []
     },
-    "automatic_updates": "never"
+    "automatic_updates": "never",
+    "allow_renames": false
   }
 ]
