@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -106,8 +107,13 @@ func (r *RootCmd) openVSCode() *clibase.Cmd {
 			switch {
 			case len(inv.Args) > 1:
 				directory = inv.Args[1]
+
+				// We explicitly use `path.IsAbs` (vs `filepath`) because only
+				// Windows absolute paths may start without "/".
+				isUnixAndNotAbs := workspaceAgent.OperatingSystem != "windows" && !path.IsAbs(directory)
+
 				// Perhaps we could SSH in to expand the directory?
-				if !insideThisWorkspace && strings.HasPrefix(directory, "~") {
+				if !insideThisWorkspace && (strings.HasPrefix(directory, "~") || isUnixAndNotAbs) {
 					return xerrors.Errorf("directory path %q not supported, use an absolute path instead", directory)
 				}
 				if insideThisWorkspace {
