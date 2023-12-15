@@ -478,6 +478,8 @@ CREATE TABLE oauth2_provider_apps (
     callback_url text NOT NULL
 );
 
+COMMENT ON TABLE oauth2_provider_apps IS 'A table used to configure apps that can use Coder as an OAuth2 provider, the reverse of what we are calling external authentication.';
+
 CREATE TABLE organization_members (
     user_id uuid NOT NULL,
     organization_id uuid NOT NULL,
@@ -1642,3 +1644,4 @@ ALTER TABLE ONLY workspaces
 
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_template_id_fkey FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE RESTRICT;
+
