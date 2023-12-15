@@ -659,6 +659,8 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string)
 	// Set environment variables reliable detection of being inside a
 	// Coder workspace.
 	cmd.Env = append(cmd.Env, "CODER=true")
+	cmd.Env = append(cmd.Env, "CODER_WORKSPACE_NAME="+manifest.WorkspaceName)
+	cmd.Env = append(cmd.Env, "CODER_WORKSPACE_AGENT_NAME="+manifest.AgentName)
 	cmd.Env = append(cmd.Env, fmt.Sprintf("USER=%s", username))
 	// Git on Windows resolves with UNIX-style paths.
 	// If using backslashes, it's unable to find the executable.

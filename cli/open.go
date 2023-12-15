@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"path/filepath"
 	"strings"
 
 	"github.com/skratchdot/open-golang/open"
@@ -28,104 +29,157 @@ func (r *RootCmd) open() *clibase.Cmd {
 	return cmd
 }
 
+const vscodeDesktopName = "VS Code Desktop"
+
 func (r *RootCmd) openVSCode() *clibase.Cmd {
-	var testNoOpen bool
+	var (
+		generateToken bool
+		testNoOpen    bool
+	)
 
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "vscode <workspace> [<directory in workspace>]",
-		Short:       "Open a workspace in Visual Studio Code",
+		Short:       "Open a workspace in Visual Studio Code.",
 		Middleware: clibase.Chain(
-			clibase.RequireRangeArgs(1, -1),
+			clibase.RequireRangeArgs(1, 2),
 			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
-			// Prepare an API key. This is for automagical configuration of
-			// VS Code, however, we could try to probe VS Code settings to see
-			// if the current configuration is valid. Future improvement idea.
-			apiKey, err := client.CreateAPIKey(ctx, codersdk.Me)
-			if err != nil {
-				return xerrors.Errorf("create API key: %w", err)
-			}
+			// Check if we're inside a workspace, and especially inside _this_
+			// workspace so we can perform path resolution/expansion. Generally,
+			// we know that if we're inside a workspace, `open` can't be used.
+			insideAWorkspace := inv.Environ.Get("CODER") == "true"
+			inWorkspaceName := inv.Environ.Get("CODER_WORKSPACE_NAME") + "." + inv.Environ.Get("CODER_WORKSPACE_AGENT_NAME")
 
 			// We need a started workspace to figure out e.g. expanded directory.
 			// Pehraps the vscode-coder extension could handle this by accepting
 			// default_directory=true, then probing the agent. Then we wouldn't
 			// need to wait for the agent to start.
-			workspaceName := inv.Args[0]
+			workspaceQuery := inv.Args[0]
 			autostart := true
-			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, autostart, codersdk.Me, workspaceName)
+			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, autostart, codersdk.Me, workspaceQuery)
 			if err != nil {
 				return xerrors.Errorf("get workspace and agent: %w", err)
 			}
 
-			// We could optionally add a flag to skip wait, like with SSH.
-			wait := false
-			for _, script := range workspaceAgent.Scripts {
-				if script.StartBlocksLogin {
-					wait = true
-					break
-				}
-			}
-			err = cliui.Agent(ctx, inv.Stderr, workspaceAgent.ID, cliui.AgentOptions{
-				Fetch:     client.WorkspaceAgent,
-				FetchLogs: client.WorkspaceAgentLogsAfter,
-				Wait:      wait,
-			})
-			if err != nil {
-				if xerrors.Is(err, context.Canceled) {
-					return cliui.Canceled
-				}
-				return xerrors.Errorf("agent: %w", err)
-			}
+			workspaceName := workspace.Name + "." + workspaceAgent.Name
+			insideThisWorkspace := insideAWorkspace && inWorkspaceName == workspaceName
 
-			// If the ExpandedDirectory was initially missing, it could mean
-			// that the agent hadn't reported it in yet. Retry once.
-			if workspaceAgent.ExpandedDirectory == "" {
-				autostart = false // Don't retry autostart.
-				workspace, workspaceAgent, err = getWorkspaceAndAgent(ctx, inv, client, autostart, codersdk.Me, workspaceName)
+			if !insideThisWorkspace {
+				// We could optionally add a flag to skip wait, like with SSH.
+				wait := false
+				for _, script := range workspaceAgent.Scripts {
+					if script.StartBlocksLogin {
+						wait = true
+						break
+					}
+				}
+				err = cliui.Agent(ctx, inv.Stderr, workspaceAgent.ID, cliui.AgentOptions{
+					Fetch:     client.WorkspaceAgent,
+					FetchLogs: client.WorkspaceAgentLogsAfter,
+					Wait:      wait,
+				})
 				if err != nil {
-					return xerrors.Errorf("get workspace and agent retry: %w", err)
+					if xerrors.Is(err, context.Canceled) {
+						return cliui.Canceled
+					}
+					return xerrors.Errorf("agent: %w", err)
+				}
+
+				// If the ExpandedDirectory was initially missing, it could mean
+				// that the agent hadn't reported it in yet. Retry once.
+				if workspaceAgent.ExpandedDirectory == "" {
+					autostart = false // Don't retry autostart.
+					workspace, workspaceAgent, err = getWorkspaceAndAgent(ctx, inv, client, autostart, codersdk.Me, workspaceName)
+					if err != nil {
+						return xerrors.Errorf("get workspace and agent retry: %w", err)
+					}
 				}
 			}
 
-			var folder string
+			var directory string
 			switch {
 			case len(inv.Args) > 1:
-				folder = inv.Args[1]
+				directory = inv.Args[1]
 				// Perhaps we could SSH in to expand the directory?
-				if strings.HasPrefix(folder, "~") {
-					return xerrors.Errorf("folder path %q not supported, use an absolute path instead", folder)
+				if !insideThisWorkspace && strings.HasPrefix(directory, "~") {
+					return xerrors.Errorf("directory path %q not supported, use an absolute path instead", directory)
+				}
+				if insideThisWorkspace {
+					directory, err = filepath.Abs(directory)
+					if err != nil {
+						return xerrors.Errorf("expand directory: %w", err)
+					}
 				}
 			case workspaceAgent.ExpandedDirectory != "":
-				folder = workspaceAgent.ExpandedDirectory
+				directory = workspaceAgent.ExpandedDirectory
+			}
+
+			u, err := url.Parse("vscode://coder.coder-remote/open")
+			if err != nil {
+				return xerrors.Errorf("parse vscode URI: %w", err)
 			}
 
 			qp := url.Values{}
 
 			qp.Add("url", client.URL.String())
-			qp.Add("token", apiKey.Key)
 			qp.Add("owner", workspace.OwnerName)
 			qp.Add("workspace", workspace.Name)
 			qp.Add("agent", workspaceAgent.Name)
-			if folder != "" {
-				qp.Add("folder", folder)
+			if directory != "" {
+				qp.Add("folder", directory)
 			}
 
-			uri := fmt.Sprintf("vscode://coder.coder-remote/open?%s", qp.Encode())
-			_, _ = fmt.Fprintf(inv.Stdout, "Opening %s\n", strings.ReplaceAll(uri, apiKey.Key, "<REDACTED>"))
+			// We always set the token if we believe we can open without
+			// printing the URI, otherwise the token must be explicitly
+			// requested as it will be printed in plain text.
+			if !insideAWorkspace || generateToken {
+				// Prepare an API key. This is for automagical configuration of
+				// VS Code, however, if running on a local machine we could try
+				// to probe VS Code settings to see if the current configuration
+				// is valid. Future improvement idea.
+				apiKey, err := client.CreateAPIKey(ctx, codersdk.Me)
+				if err != nil {
+					return xerrors.Errorf("create API key: %w", err)
+				}
+				qp.Add("token", apiKey.Key)
+			}
 
-			if testNoOpen {
+			u.RawQuery = qp.Encode()
+
+			openingPath := workspaceName
+			if directory != "" {
+				openingPath += ":" + directory
+			}
+
+			if insideAWorkspace {
+				_, _ = fmt.Fprintf(inv.Stderr, "Opening %s in %s is not supported inside a workspace, please open the following URI on your local machine instead:\n\n", openingPath, vscodeDesktopName)
+				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", u.String())
 				return nil
+			} else {
+				_, _ = fmt.Fprintf(inv.Stderr, "Opening %s in %s\n", openingPath, vscodeDesktopName)
 			}
 
-			err = open.Run(uri)
+			if !testNoOpen {
+				err = open.Run(u.String())
+			} else {
+				err = xerrors.New("test.no-open")
+			}
 			if err != nil {
-				return xerrors.Errorf("open: %w", err)
+				if !generateToken {
+					qp.Del("token")
+					u.RawQuery = qp.Encode()
+				}
+
+				_, _ = fmt.Fprintf(inv.Stderr, "Could not automatically open %s in %s: %s\n", openingPath, vscodeDesktopName, err)
+				_, _ = fmt.Fprintf(inv.Stderr, "Please open the following URI instead:\n\n")
+				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", u.String())
+				return nil
 			}
 
 			return nil
@@ -133,6 +187,16 @@ func (r *RootCmd) openVSCode() *clibase.Cmd {
 	}
 
 	cmd.Options = clibase.OptionSet{
+		{
+			Flag: "generate-token",
+			Env:  "CODER_OPEN_VSCODE_GENERATE_TOKEN",
+			Description: fmt.Sprintf(
+				"Generate an auth token and include it in the vscode:// URI. This is for automagical configuration of %s and not needed if already configured. "+
+					"This flag does not need to be specified when running this command on a local machine unless automatic open fails.",
+				vscodeDesktopName,
+			),
+			Value: clibase.BoolOf(&generateToken),
+		},
 		{
 			Flag:        "test.no-open",
 			Description: "Don't run the open command.",
