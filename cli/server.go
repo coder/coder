@@ -90,6 +90,7 @@ import (
 	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisioner/terraform"
@@ -1298,7 +1299,7 @@ func newProvisionerDaemon(
 
 	connector := provisionerd.LocalProvisioners{}
 	if cfg.Provisioner.DaemonsEcho {
-		echoClient, echoServer := provisionersdk.MemTransportPipe()
+		echoClient, echoServer := drpc.MemTransportPipe()
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -1332,7 +1333,7 @@ func newProvisionerDaemon(
 		}
 
 		tracer := coderAPI.TracerProvider.Tracer(tracing.TracerName)
-		terraformClient, terraformServer := provisionersdk.MemTransportPipe()
+		terraformClient, terraformServer := drpc.MemTransportPipe()
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

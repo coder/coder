@@ -73,6 +73,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionerd"
@@ -512,7 +513,7 @@ func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
 	// seems t.TempDir() is not safe to call from a different goroutine
 	workDir := t.TempDir()
 
-	echoClient, echoServer := provisionersdk.MemTransportPipe()
+	echoClient, echoServer := drpc.MemTransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(func() {
 		_ = echoClient.Close()
@@ -547,7 +548,7 @@ func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
 }
 
 func NewExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uuid.UUID, tags map[string]string) io.Closer {
-	echoClient, echoServer := provisionersdk.MemTransportPipe()
+	echoClient, echoServer := drpc.MemTransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	serveDone := make(chan struct{})
 	t.Cleanup(func() {
