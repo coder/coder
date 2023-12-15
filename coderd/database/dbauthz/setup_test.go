@@ -2,6 +2,7 @@ package dbauthz_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"sort"
@@ -25,6 +26,10 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/regosql"
 	"github.com/coder/coder/v2/coderd/util/slice"
+)
+
+var (
+	matchAnyError = errors.New("match any error")
 )
 
 var skipMethods = map[string]string{
@@ -174,7 +179,12 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 			if testCase.err == nil {
 				s.NoError(err, "method %q returned an error", methodName)
 			} else {
-				s.EqualError(err, testCase.err.Error(), "method %q returned an unexpected error", methodName)
+				if errors.Is(testCase.err, matchAnyError) {
+					// This means we do not care exactly what the error is.
+					s.Error(err, "method %q returned an error", methodName)
+				} else {
+					s.EqualError(err, testCase.err.Error(), "method %q returned an unexpected error", methodName)
+				}
 			}
 
 			// Some tests may not care about the outputs, so we only assert if

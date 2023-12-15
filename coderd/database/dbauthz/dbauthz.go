@@ -2266,10 +2266,12 @@ func (q *querier) InsertWorkspaceAgent(ctx context.Context, arg database.InsertW
 }
 
 func (q *querier) InsertWorkspaceAgentLogSources(ctx context.Context, arg database.InsertWorkspaceAgentLogSourcesParams) ([]database.WorkspaceAgentLogSource, error) {
+	// TODO: This is used by the agent, should we have an rbac check here?
 	return q.db.InsertWorkspaceAgentLogSources(ctx, arg)
 }
 
 func (q *querier) InsertWorkspaceAgentLogs(ctx context.Context, arg database.InsertWorkspaceAgentLogsParams) ([]database.WorkspaceAgentLog, error) {
+	// TODO: This is used by the agent, should we have an rbac check here?
 	return q.db.InsertWorkspaceAgentLogs(ctx, arg)
 }
 

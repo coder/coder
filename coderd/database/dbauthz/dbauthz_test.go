@@ -225,6 +225,19 @@ func (s *MethodTestSuite) TestAPIKey() {
 			ID: a.ID,
 		}).Asserts(a, rbac.ActionUpdate).Returns()
 	}))
+	s.Run("DeleteApplicationConnectAPIKeysByUserID", s.Subtest(func(db database.Store, check *expects) {
+		a, _ := dbgen.APIKey(s.T(), db, database.APIKey{
+			Scope: database.APIKeyScopeApplicationConnect,
+		})
+		check.Args(a.UserID).Asserts(rbac.ResourceAPIKey.WithOwner(a.UserID.String()), rbac.ActionDelete).Returns()
+	}))
+	s.Run("DeleteExternalAuthLink", s.Subtest(func(db database.Store, check *expects) {
+		a := dbgen.ExternalAuthLink(s.T(), db, database.ExternalAuthLink{})
+		check.Args(database.DeleteExternalAuthLinkParams{
+			ProviderID: a.ProviderID,
+			UserID:     a.UserID,
+		}).Asserts(a, rbac.ActionDelete).Returns()
+	}))
 }
 
 func (s *MethodTestSuite) TestAuditLogs() {
@@ -1048,6 +1061,11 @@ func (s *MethodTestSuite) TestUser() {
 			rbac.ResourceRoleAssignment, rbac.ActionDelete,
 		).Returns(o)
 	}))
+	s.Run("AllUserIDs", s.Subtest(func(db database.Store, check *expects) {
+		a := dbgen.User(s.T(), db, database.User{})
+		b := dbgen.User(s.T(), db, database.User{})
+		check.Args().Asserts(rbac.ResourceSystem, rbac.ActionRead).Returns(slice.New(a.ID, b.ID))
+	}))
 }
 
 func (s *MethodTestSuite) TestWorkspace() {
@@ -1405,6 +1423,14 @@ func (s *MethodTestSuite) TestWorkspace() {
 		app := dbgen.WorkspaceApp(s.T(), db, database.WorkspaceApp{AgentID: agt.ID})
 		check.Args(app.ID).Asserts(ws, rbac.ActionRead).Returns(ws)
 	}))
+	s.Run("ActivityBumpWorkspace", s.Subtest(func(db database.Store, check *expects) {
+		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
+		check.Args(database.ActivityBumpWorkspaceParams{
+			WorkspaceID: ws.ID,
+		}).Asserts(ws, rbac.ActionUpdate).Returns()
+	}))
 }
 
 func (s *MethodTestSuite) TestExtraMethods() {
@@ -1416,6 +1442,15 @@ func (s *MethodTestSuite) TestExtraMethods() {
 		})
 		s.NoError(err, "insert provisioner daemon")
 		check.Args().Asserts(d, rbac.ActionRead)
+	}))
+	s.Run("DeleteOldProvisionerDaemons", s.Subtest(func(db database.Store, check *expects) {
+		_, err := db.UpsertProvisionerDaemon(context.Background(), database.UpsertProvisionerDaemonParams{
+			Tags: database.StringMap(map[string]string{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+			}),
+		})
+		s.NoError(err, "insert provisioner daemon")
+		check.Args().Asserts(rbac.ResourceSystem, rbac.ActionDelete)
 	}))
 }
 
@@ -1876,5 +1911,26 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			ID:         r.ID,
 			Transition: database.WorkspaceTransitionStart,
 		}).Asserts(rbac.ResourceSystem, rbac.ActionCreate)
+	}))
+	s.Run("DeleteOldWorkspaceAgentLogs", s.Subtest(func(db database.Store, check *expects) {
+		check.Args().Asserts(rbac.ResourceSystem, rbac.ActionDelete)
+	}))
+	s.Run("InsertWorkspaceAgentStats", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.InsertWorkspaceAgentStatsParams{}).Asserts(rbac.ResourceSystem, rbac.ActionCreate).Errors(matchAnyError)
+	}))
+	s.Run("InsertWorkspaceAppStats", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.InsertWorkspaceAppStatsParams{}).Asserts(rbac.ResourceSystem, rbac.ActionCreate)
+	}))
+	s.Run("InsertWorkspaceAgentScripts", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.InsertWorkspaceAgentScriptsParams{}).Asserts(rbac.ResourceSystem, rbac.ActionCreate)
+	}))
+	s.Run("InsertWorkspaceAgentMetadata", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.InsertWorkspaceAgentMetadataParams{}).Asserts(rbac.ResourceSystem, rbac.ActionCreate)
+	}))
+	s.Run("InsertWorkspaceAgentLogs", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.InsertWorkspaceAgentLogsParams{}).Asserts()
+	}))
+	s.Run("InsertWorkspaceAgentLogSources", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.InsertWorkspaceAgentLogSourcesParams{}).Asserts()
 	}))
 }
