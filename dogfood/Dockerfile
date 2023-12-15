@@ -158,7 +158,6 @@ RUN apt-get update --quiet && apt-get install --yes \
 	docker-ce-cli \
 	docker-compose-plugin \
 	packer \
-	terraform \
 	fish \
 	unzip \
 	zstd \
@@ -168,6 +167,15 @@ RUN apt-get update --quiet && apt-get install --yes \
 	apt-get clean && \
 	# Configure FIPS-compliant policies
 	update-crypto-policies --set FIPS
+
+# NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.5.7
+# as it is the last version licensed under the MPL. Installing the same version
+# here for consistency.
+RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.5.7/terraform_1.5.7_linux_amd64.zip" && \
+		unzip /tmp/terraform.zip -d /usr/local/bin && \
+		rm -f /tmp/terraform.zip && \
+		chmod +x /usr/local/bin/terraform && \
+		terraform --version
 
 # Install the docker buildx component.
 RUN DOCKER_BUILDX_VERSION=$(curl -s "https://api.github.com/repos/docker/buildx/releases/latest" | grep '"tag_name":' |  sed -E 's/.*"(v[^"]+)".*/\1/') && \
