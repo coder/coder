@@ -45,7 +45,7 @@ func TestProvisionerDaemon_PSK(t *testing.T) {
 		if err != nil {
 			return false
 		}
-		return len(daemons) > 0
+		return len(daemons) == 1
 	}, testutil.WaitShort, testutil.IntervalSlow)
 	require.Equal(t, "matt-daemon", daemons[0].Name)
 	require.Equal(t, provisionersdk.ScopeOrganization, daemons[0].Tags[provisionersdk.TagScope])
@@ -79,7 +79,7 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 			if err != nil {
 				return false
 			}
-			return len(daemons) > 0
+			return len(daemons) == 1
 		}, testutil.WaitShort, testutil.IntervalSlow)
 		assert.Equal(t, "my-daemon", daemons[0].Name)
 		assert.Equal(t, provisionersdk.ScopeUser, daemons[0].Tags[provisionersdk.TagScope])
@@ -112,7 +112,7 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 			if err != nil {
 				return false
 			}
-			return len(daemons) > 0
+			return len(daemons) == 1
 		}, testutil.WaitShort, testutil.IntervalSlow)
 		assert.Equal(t, "org-daemon", daemons[0].Name)
 		assert.Equal(t, provisionersdk.ScopeOrganization, daemons[0].Tags[provisionersdk.TagScope])

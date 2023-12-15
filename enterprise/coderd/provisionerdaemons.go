@@ -234,12 +234,13 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	// Create the daemon in the database.
+	now := dbtime.Now()
 	daemon, err := api.Database.UpsertProvisionerDaemon(authCtx, database.UpsertProvisionerDaemonParams{
 		Name:         name,
 		Provisioners: provisioners,
 		Tags:         tags,
-		CreatedAt:    dbtime.Now(),
-		LastSeenAt:   sql.NullTime{Time: dbtime.Now(), Valid: true},
+		CreatedAt:    now,
+		LastSeenAt:   sql.NullTime{Time: now, Valid: true},
 		Version:      "", // TODO: provisionerd needs to send version
 		APIVersion:   "1.0",
 	})
