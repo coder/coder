@@ -3295,7 +3295,7 @@ func (q *sqlQuerier) DeleteOldProvisionerDaemons(ctx context.Context) error {
 
 const getProvisionerDaemons = `-- name: GetProvisionerDaemons :many
 SELECT
-	id, created_at, name, provisioners, replica_id, tags, last_seen_at, version
+	id, created_at, name, provisioners, replica_id, tags, last_seen_at, version, api_version
 FROM
 	provisioner_daemons
 `
@@ -3318,6 +3318,7 @@ func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDa
 			&i.Tags,
 			&i.LastSeenAt,
 			&i.Version,
+			&i.APIVersion,
 		); err != nil {
 			return nil, err
 		}
@@ -3341,7 +3342,8 @@ INSERT INTO
 		provisioners,
 		tags,
 		last_seen_at,
-		"version"
+		"version",
+		api_version
 	)
 VALUES (
 	gen_random_uuid(),
@@ -3350,16 +3352,18 @@ VALUES (
 	$3,
 	$4,
 	$5,
-	$6
+	$6,
+	$7
 ) ON CONFLICT("name", lower((tags ->> 'owner'::text))) DO UPDATE SET
 	provisioners = $3,
 	tags = $4,
 	last_seen_at = $5,
-	"version" = $6
+	"version" = $6,
+	api_version = $7
 WHERE
 	-- Only ones with the same tags are allowed clobber
 	provisioner_daemons.tags <@ $4 :: jsonb
-RETURNING id, created_at, name, provisioners, replica_id, tags, last_seen_at, version
+RETURNING id, created_at, name, provisioners, replica_id, tags, last_seen_at, version, api_version
 `
 
 type UpsertProvisionerDaemonParams struct {
@@ -3369,6 +3373,7 @@ type UpsertProvisionerDaemonParams struct {
 	Tags         StringMap         `db:"tags" json:"tags"`
 	LastSeenAt   sql.NullTime      `db:"last_seen_at" json:"last_seen_at"`
 	Version      string            `db:"version" json:"version"`
+	APIVersion   string            `db:"api_version" json:"api_version"`
 }
 
 func (q *sqlQuerier) UpsertProvisionerDaemon(ctx context.Context, arg UpsertProvisionerDaemonParams) (ProvisionerDaemon, error) {
@@ -3379,6 +3384,7 @@ func (q *sqlQuerier) UpsertProvisionerDaemon(ctx context.Context, arg UpsertProv
 		arg.Tags,
 		arg.LastSeenAt,
 		arg.Version,
+		arg.APIVersion,
 	)
 	var i ProvisionerDaemon
 	err := row.Scan(
@@ -3390,6 +3396,7 @@ func (q *sqlQuerier) UpsertProvisionerDaemon(ctx context.Context, arg UpsertProv
 		&i.Tags,
 		&i.LastSeenAt,
 		&i.Version,
+		&i.APIVersion,
 	)
 	return i, err
 }
@@ -7683,6 +7690,45 @@ func (q *sqlQuerier) UpdateInactiveUsersToDormant(ctx context.Context, arg Updat
 	return items, nil
 }
 
+const updateUserAppearanceSettings = `-- name: UpdateUserAppearanceSettings :one
+UPDATE
+	users
+SET
+	theme_preference = $2,
+	updated_at = $3
+WHERE
+	id = $1
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference
+`
+
+type UpdateUserAppearanceSettingsParams struct {
+	ID              uuid.UUID `db:"id" json:"id"`
+	ThemePreference string    `db:"theme_preference" json:"theme_preference"`
+	UpdatedAt       time.Time `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) UpdateUserAppearanceSettings(ctx context.Context, arg UpdateUserAppearanceSettingsParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateUserAppearanceSettings, arg.ID, arg.ThemePreference, arg.UpdatedAt)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Username,
+		&i.HashedPassword,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.RBACRoles,
+		&i.LoginType,
+		&i.AvatarURL,
+		&i.Deleted,
+		&i.LastSeenAt,
+		&i.QuietHoursSchedule,
+		&i.ThemePreference,
+	)
+	return i, err
+}
+
 const updateUserDeletedByID = `-- name: UpdateUserDeletedByID :exec
 UPDATE
 	users
@@ -7811,7 +7857,8 @@ SET
 	avatar_url = $4,
 	updated_at = $5
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference
+	id = $1
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference
 `
 
 type UpdateUserProfileParams struct {

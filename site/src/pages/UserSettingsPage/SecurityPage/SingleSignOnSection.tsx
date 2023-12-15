@@ -1,25 +1,25 @@
 import { useTheme } from "@emotion/react";
 import { type FC, useState } from "react";
-import { Section } from "components/SettingsLayout/Section";
+import { useMutation } from "react-query";
+import Button from "@mui/material/Button";
+import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
+import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import GitHubIcon from "@mui/icons-material/GitHub";
 import KeyIcon from "@mui/icons-material/VpnKey";
-import Button from "@mui/material/Button";
 import { convertToOAUTH } from "api/api";
+import { getErrorMessage } from "api/errors";
 import type {
   AuthMethods,
   LoginType,
   OIDCAuthMethod,
   UserLoginType,
 } from "api/typesGenerated";
-import { Stack } from "components/Stack/Stack";
-import { useMutation } from "react-query";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { getErrorMessage } from "api/errors";
-import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import Link from "@mui/material/Link";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { Stack } from "components/Stack/Stack";
 import { docs } from "utils/docs";
+import { Section } from "../Section";
 
 type LoginTypeConfirmation =
   | {

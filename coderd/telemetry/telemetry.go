@@ -52,6 +52,7 @@ type Options struct {
 	STUN               bool
 	SnapshotFrequency  time.Duration
 	Tunnel             bool
+	ParseLicenseJWT    func(lic *License) error
 }
 
 // New constructs a reporter for telemetry data.
@@ -446,7 +447,13 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		}
 		snapshot.Licenses = make([]License, 0, len(licenses))
 		for _, license := range licenses {
-			snapshot.Licenses = append(snapshot.Licenses, ConvertLicense(license))
+			tl := ConvertLicense(license)
+			if r.options.ParseLicenseJWT != nil {
+				if err := r.options.ParseLicenseJWT(&tl); err != nil {
+					r.options.Logger.Warn(ctx, "parse license JWT", slog.Error(err))
+				}
+			}
+			snapshot.Licenses = append(snapshot.Licenses, tl)
 		}
 		return nil
 	})
@@ -904,6 +911,10 @@ type License struct {
 	UploadedAt time.Time `json:"uploaded_at"`
 	Exp        time.Time `json:"exp"`
 	UUID       uuid.UUID `json:"uuid"`
+	// These two fields are set by decoding the JWT. If the signing keys aren't
+	// passed in, these will always be nil.
+	Email *string `json:"email"`
+	Trial *bool   `json:"trial"`
 }
 
 type WorkspaceProxy struct {

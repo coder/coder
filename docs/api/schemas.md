@@ -865,6 +865,7 @@ _None_
             }
           ],
           "status": "active",
+          "theme_preference": "string",
           "username": "string"
         }
       ],
@@ -890,6 +891,7 @@ _None_
         }
       ],
       "status": "active",
+      "theme_preference": "string",
       "username": "string"
     }
   ]
@@ -1175,6 +1177,7 @@ _None_
       }
     ],
     "status": "active",
+    "theme_preference": "string",
     "username": "string"
   },
   "user_agent": "string"
@@ -1252,6 +1255,7 @@ _None_
           }
         ],
         "status": "active",
+        "theme_preference": "string",
         "username": "string"
       },
       "user_agent": "string"
@@ -3106,6 +3110,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         }
       ],
       "status": "active",
+      "theme_preference": "string",
       "username": "string"
     }
   ]
@@ -3162,6 +3167,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         }
       ],
       "status": "active",
+      "theme_preference": "string",
       "username": "string"
     }
   ],
@@ -4972,6 +4978,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     }
   ],
   "status": "active",
+  "theme_preference": "string",
   "username": "string"
 }
 ```
@@ -4990,6 +4997,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `role`             | [codersdk.TemplateRole](#codersdktemplaterole) | false    |              |             |
 | `roles`            | array of [codersdk.Role](#codersdkrole)        | false    |              |             |
 | `status`           | [codersdk.UserStatus](#codersdkuserstatus)     | false    |              |             |
+| `theme_preference` | string                                         | false    |              |             |
 | `username`         | string                                         | true     |              |             |
 
 #### Enumerated Values
@@ -5368,6 +5376,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `user_perms`       | object                                         | false    |              | User perms should be a mapping of user ID to role. The user ID must be the uuid of the user, not a username or email address. |
 | » `[any property]` | [codersdk.TemplateRole](#codersdktemplaterole) | false    |              |                                                                                                                               |
 
+## codersdk.UpdateUserAppearanceSettingsRequest
+
+```json
+{
+  "theme_preference": "string"
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description |
+| ------------------ | ------ | -------- | ------------ | ----------- |
+| `theme_preference` | string | true     |              |             |
+
 ## codersdk.UpdateUserPasswordRequest
 
 ```json
@@ -5517,6 +5539,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     }
   ],
   "status": "active",
+  "theme_preference": "string",
   "username": "string"
 }
 ```
@@ -5534,6 +5557,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `organization_ids` | array of string                            | false    |              |             |
 | `roles`            | array of [codersdk.Role](#codersdkrole)    | false    |              |             |
 | `status`           | [codersdk.UserStatus](#codersdkuserstatus) | false    |              |             |
+| `theme_preference` | string                                     | false    |              |             |
 | `username`         | string                                     | true     |              |             |
 
 #### Enumerated Values

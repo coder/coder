@@ -2,7 +2,7 @@ app = "sao-paulo-coder"
 primary_region = "gru"
 
 [experimental]
-  entrypoint = ["/bin/sh", "-c", "CODER_DERP_SERVER_RELAY_URL=\"http://${FLY_PRIVATE_IP}:3000\" /opt/coder wsproxy server"]
+  entrypoint = ["/bin/sh", "-c", "CODER_DERP_SERVER_RELAY_URL=\"http://[${FLY_PRIVATE_IP}]:3000\" /opt/coder wsproxy server"]
   auto_rollback = true
 
 [build]

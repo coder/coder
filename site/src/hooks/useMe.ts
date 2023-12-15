@@ -1,5 +1,5 @@
-import { User } from "api/typesGenerated";
-import { useAuth } from "components/AuthProvider/AuthProvider";
+import type { User } from "api/typesGenerated";
+import { useAuth } from "contexts/AuthProvider/AuthProvider";
 
 export const useMe = (): User => {
   const { user } = useAuth();

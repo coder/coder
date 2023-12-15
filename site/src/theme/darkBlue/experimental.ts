@@ -87,7 +87,7 @@ export default {
     info: {
       background: colors.blue[950],
       outline: colors.blue[400],
-      fill: "#f00",
+      fill: colors.blue[500],
       text: colors.blue[50],
     },
     success: {

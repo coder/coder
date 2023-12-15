@@ -712,6 +712,14 @@ export const updateProfile = async (
   return response.data;
 };
 
+export const updateAppearanceSettings = async (
+  userId: string,
+  data: TypesGen.UpdateUserAppearanceSettingsRequest,
+): Promise<TypesGen.User> => {
+  const response = await axios.put(`/api/v2/users/${userId}/appearance`, data);
+  return response.data;
+};
+
 export const getUserQuietHoursSchedule = async (
   userId: TypesGen.User["id"],
 ): Promise<TypesGen.UserQuietHoursScheduleResponse> => {

@@ -109,6 +109,13 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		}
 	}()
 
+	api.AGPL.Options.ParseLicenseClaims = func(rawJWT string) (email string, trial bool, err error) {
+		c, err := license.ParseClaims(rawJWT, Keys)
+		if err != nil {
+			return "", false, err
+		}
+		return c.Subject, c.Trial, nil
+	}
 	api.AGPL.Options.SetUserGroups = api.setUserGroups
 	api.AGPL.Options.SetUserSiteRoles = api.setUserSiteRoles
 	api.AGPL.SiteHandler.AppearanceFetcher = api.fetchAppearanceConfig

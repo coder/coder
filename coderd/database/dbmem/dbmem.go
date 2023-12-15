@@ -582,6 +582,10 @@ func (q *FakeQuerier) getProvisionerJobByIDNoLock(_ context.Context, id uuid.UUI
 		if provisionerJob.ID != id {
 			continue
 		}
+		// clone the Tags before returning, since maps are reference types and
+		// we don't want the caller to be able to mutate the map we have inside
+		// dbmem!
+		provisionerJob.Tags = maps.Clone(provisionerJob.Tags)
 		return provisionerJob, nil
 	}
 	return database.ProvisionerJob{}, sql.ErrNoRows
@@ -781,6 +785,10 @@ func (q *FakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 		provisionerJob.WorkerID = arg.WorkerID
 		provisionerJob.JobStatus = provisonerJobStatus(provisionerJob)
 		q.provisionerJobs[index] = provisionerJob
+		// clone the Tags before returning, since maps are reference types and
+		// we don't want the caller to be able to mutate the map we have inside
+		// dbmem!
+		provisionerJob.Tags = maps.Clone(provisionerJob.Tags)
 		return provisionerJob, nil
 	}
 	return database.ProvisionerJob{}, sql.ErrNoRows
@@ -1923,6 +1931,10 @@ func (q *FakeQuerier) GetHungProvisionerJobs(_ context.Context, hungSince time.T
 	hungJobs := []database.ProvisionerJob{}
 	for _, provisionerJob := range q.provisionerJobs {
 		if provisionerJob.StartedAt.Valid && !provisionerJob.CompletedAt.Valid && provisionerJob.UpdatedAt.Before(hungSince) {
+			// clone the Tags before appending, since maps are reference types and
+			// we don't want the caller to be able to mutate the map we have inside
+			// dbmem!
+			provisionerJob.Tags = maps.Clone(provisionerJob.Tags)
 			hungJobs = append(hungJobs, provisionerJob)
 		}
 	}
@@ -2292,7 +2304,15 @@ func (q *FakeQuerier) GetProvisionerDaemons(_ context.Context) ([]database.Provi
 	if len(q.provisionerDaemons) == 0 {
 		return nil, sql.ErrNoRows
 	}
-	return q.provisionerDaemons, nil
+	// copy the data so that the caller can't manipulate any data inside dbmem
+	// after returning
+	out := make([]database.ProvisionerDaemon, len(q.provisionerDaemons))
+	copy(out, q.provisionerDaemons)
+	for i := range out {
+		// maps are reference types, so we need to clone them
+		out[i].Tags = maps.Clone(out[i].Tags)
+	}
+	return out, nil
 }
 
 func (q *FakeQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
@@ -2310,6 +2330,10 @@ func (q *FakeQuerier) GetProvisionerJobsByIDs(_ context.Context, ids []uuid.UUID
 	for _, job := range q.provisionerJobs {
 		for _, id := range ids {
 			if id == job.ID {
+				// clone the Tags before appending, since maps are reference types and
+				// we don't want the caller to be able to mutate the map we have inside
+				// dbmem!
+				job.Tags = maps.Clone(job.Tags)
 				jobs = append(jobs, job)
 				break
 			}
@@ -2331,6 +2355,10 @@ func (q *FakeQuerier) GetProvisionerJobsByIDsWithQueuePosition(_ context.Context
 	for _, job := range q.provisionerJobs {
 		for _, id := range ids {
 			if id == job.ID {
+				// clone the Tags before appending, since maps are reference types and
+				// we don't want the caller to be able to mutate the map we have inside
+				// dbmem!
+				job.Tags = maps.Clone(job.Tags)
 				job := database.GetProvisionerJobsByIDsWithQueuePositionRow{
 					ProvisionerJob: job,
 				}
@@ -2361,6 +2389,10 @@ func (q *FakeQuerier) GetProvisionerJobsCreatedAfter(_ context.Context, after ti
 	jobs := make([]database.ProvisionerJob, 0)
 	for _, job := range q.provisionerJobs {
 		if job.CreatedAt.After(after) {
+			// clone the Tags before appending, since maps are reference types and
+			// we don't want the caller to be able to mutate the map we have inside
+			// dbmem!
+			job.Tags = maps.Clone(job.Tags)
 			jobs = append(jobs, job)
 		}
 	}
@@ -5125,7 +5157,7 @@ func (q *FakeQuerier) InsertProvisionerJob(_ context.Context, arg database.Inser
 		FileID:         arg.FileID,
 		Type:           arg.Type,
 		Input:          arg.Input,
-		Tags:           arg.Tags,
+		Tags:           maps.Clone(arg.Tags),
 		TraceMetadata:  arg.TraceMetadata,
 	}
 	job.JobStatus = provisonerJobStatus(job)
@@ -6436,6 +6468,26 @@ func (q *FakeQuerier) UpdateTemplateWorkspacesLastUsedAt(_ context.Context, arg 
 	return nil
 }
 
+func (q *FakeQuerier) UpdateUserAppearanceSettings(_ context.Context, arg database.UpdateUserAppearanceSettingsParams) (database.User, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.User{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, user := range q.users {
+		if user.ID != arg.ID {
+			continue
+		}
+		user.ThemePreference = arg.ThemePreference
+		q.users[index] = user
+		return user, nil
+	}
+	return database.User{}, sql.ErrNoRows
+}
+
 func (q *FakeQuerier) UpdateUserDeletedByID(_ context.Context, params database.UpdateUserDeletedByIDParams) error {
 	if err := validateDatabaseType(params); err != nil {
 		return err
@@ -7187,7 +7239,7 @@ func (q *FakeQuerier) UpsertProvisionerDaemon(_ context.Context, arg database.Up
 				continue
 			}
 			d.Provisioners = arg.Provisioners
-			d.Tags = arg.Tags
+			d.Tags = maps.Clone(arg.Tags)
 			d.Version = arg.Version
 			d.LastSeenAt = arg.LastSeenAt
 			return d, nil
@@ -7198,7 +7250,7 @@ func (q *FakeQuerier) UpsertProvisionerDaemon(_ context.Context, arg database.Up
 		CreatedAt:    arg.CreatedAt,
 		Name:         arg.Name,
 		Provisioners: arg.Provisioners,
-		Tags:         arg.Tags,
+		Tags:         maps.Clone(arg.Tags),
 		ReplicaID:    uuid.NullUUID{},
 		LastSeenAt:   arg.LastSeenAt,
 		Version:      arg.Version,

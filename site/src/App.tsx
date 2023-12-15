@@ -1,18 +1,12 @@
-import CssBaseline from "@mui/material/CssBaseline";
 import { QueryClient, QueryClientProvider } from "react-query";
-import { AuthProvider } from "components/AuthProvider/AuthProvider";
-import type { FC, PropsWithChildren, ReactNode } from "react";
+import type { FC, ReactNode } from "react";
 import { HelmetProvider } from "react-helmet-async";
 import { AppRouter } from "./AppRouter";
+import { ThemeProviders } from "./contexts/ThemeProviders";
+import { AuthProvider } from "./contexts/AuthProvider/AuthProvider";
 import { ErrorBoundary } from "./components/ErrorBoundary/ErrorBoundary";
 import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar";
-import theme from "./theme";
 import "./theme/globalFonts";
-import {
-  StyledEngineProvider,
-  ThemeProvider as MuiThemeProvider,
-} from "@mui/material/styles";
-import { ThemeProvider as EmotionThemeProvider } from "@emotion/react";
 
 const defaultQueryClient = new QueryClient({
   defaultOptions: {
@@ -22,19 +16,6 @@ const defaultQueryClient = new QueryClient({
     },
   },
 });
-
-export const ThemeProviders: FC<PropsWithChildren> = ({ children }) => {
-  return (
-    <StyledEngineProvider injectFirst>
-      <MuiThemeProvider theme={theme.dark}>
-        <EmotionThemeProvider theme={theme.dark}>
-          <CssBaseline enableColorScheme />
-          {children}
-        </EmotionThemeProvider>
-      </MuiThemeProvider>
-    </StyledEngineProvider>
-  );
-};
 
 interface AppProvidersProps {
   children: ReactNode;
@@ -47,16 +28,14 @@ export const AppProviders: FC<AppProvidersProps> = ({
 }) => {
   return (
     <HelmetProvider>
-      <ThemeProviders>
-        <ErrorBoundary>
-          <QueryClientProvider client={queryClient}>
-            <AuthProvider>
-              {children}
-              <GlobalSnackbar />
-            </AuthProvider>
-          </QueryClientProvider>
-        </ErrorBoundary>
-      </ThemeProviders>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <ThemeProviders>
+            {children}
+            <GlobalSnackbar />
+          </ThemeProviders>
+        </AuthProvider>
+      </QueryClientProvider>
     </HelmetProvider>
   );
 };
@@ -64,7 +43,9 @@ export const AppProviders: FC<AppProvidersProps> = ({
 export const App: FC = () => {
   return (
     <AppProviders>
-      <AppRouter />
+      <ErrorBoundary>
+        <AppRouter />
+      </ErrorBoundary>
     </AppProviders>
   );
 };
