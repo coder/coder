@@ -2066,7 +2066,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args().Asserts(rbac.ResourceSystem, rbac.ActionDelete)
 	}))
 	s.Run("InsertWorkspaceAgentStats", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.InsertWorkspaceAgentStatsParams{}).Asserts(rbac.ResourceSystem, rbac.ActionCreate).Errors(matchAnyError)
+		check.Args(database.InsertWorkspaceAgentStatsParams{}).Asserts(rbac.ResourceSystem, rbac.ActionCreate).Errors(errMatchAny)
 	}))
 	s.Run("InsertWorkspaceAppStats", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertWorkspaceAppStatsParams{}).Asserts(rbac.ResourceSystem, rbac.ActionCreate)
@@ -2131,7 +2131,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args().Asserts(rbac.ResourceSystem, rbac.ActionUpdate)
 	}))
 	s.Run("InsertMissingGroups", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.InsertMissingGroupsParams{}).Asserts(rbac.ResourceSystem, rbac.ActionCreate).Errors(matchAnyError)
+		check.Args(database.InsertMissingGroupsParams{}).Asserts(rbac.ResourceSystem, rbac.ActionCreate).Errors(errMatchAny)
 	}))
 	s.Run("UpdateUserLoginType", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})

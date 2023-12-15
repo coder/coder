@@ -28,7 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
-var matchAnyError = errors.New("match any error")
+var errMatchAny = errors.New("match any error")
 
 var skipMethods = map[string]string{
 	"InTx":           "Not relevant",
@@ -177,7 +177,7 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 			if testCase.err == nil {
 				s.NoError(err, "method %q returned an error", methodName)
 			} else {
-				if errors.Is(testCase.err, matchAnyError) {
+				if errors.Is(testCase.err, errMatchAny) {
 					// This means we do not care exactly what the error is.
 					s.Error(err, "method %q returned an error", methodName)
 				} else {
