@@ -34,8 +34,9 @@ export const WorkspaceSettingsForm: FC<{
   onCancel: () => void;
   onSubmit: (values: WorkspaceSettingsFormValues) => Promise<void>;
 }> = ({ onCancel, onSubmit, workspace, error, templatePoliciesEnabled }) => {
-  const formEnabled = (templatePoliciesEnabled && !workspace.template_require_active_version)
-    || workspace.allow_renames
+  const formEnabled =
+    (templatePoliciesEnabled && !workspace.template_require_active_version) ||
+    workspace.allow_renames;
 
   const form = useFormik<WorkspaceSettingsFormValues>({
     onSubmit,
