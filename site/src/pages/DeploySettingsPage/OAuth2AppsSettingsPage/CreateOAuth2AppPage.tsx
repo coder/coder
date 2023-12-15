@@ -1,6 +1,5 @@
-import { useMutation } from "react-query";
-import { postOAuth2ProviderApp } from "api/api";
-import type * as TypesGen from "api/typesGenerated";
+import { useMutation, useQueryClient } from "react-query";
+import { postApp } from "api/queries/oauth2";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { FC } from "react";
 import { useNavigate } from "react-router-dom";
@@ -10,17 +9,8 @@ import { Helmet } from "react-helmet-async";
 
 const CreateOAuth2AppPage: FC = () => {
   const navigate = useNavigate();
-
-  const postMutation = useMutation({
-    mutationFn: postOAuth2ProviderApp,
-    onSuccess: (newApp: TypesGen.OAuth2ProviderApp) => {
-      displaySuccess(
-        `Successfully added the OAuth2 application "${newApp.name}".`,
-      );
-      navigate(`/deployment/oauth2-provider/apps/${newApp.id}?created=true`);
-    },
-    onError: () => displayError("Failed to create OAuth2 application"),
-  });
+  const queryClient = useQueryClient();
+  const postAppMutation = useMutation(postApp(queryClient));
 
   return (
     <>
@@ -29,10 +19,18 @@ const CreateOAuth2AppPage: FC = () => {
       </Helmet>
 
       <CreateOAuth2AppPageView
-        isUpdating={postMutation.isLoading}
-        error={postMutation.error}
-        createApp={(req) => {
-          postMutation.mutate(req);
+        isUpdating={postAppMutation.isLoading}
+        error={postAppMutation.error}
+        createApp={async (req) => {
+          try {
+            const app = await postAppMutation.mutateAsync(req);
+            displaySuccess(
+              `Successfully added the OAuth2 application "${app.name}".`,
+            );
+            navigate(`/deployment/oauth2-provider/apps/${app.id}?created=true`);
+          } catch (ignore) {
+            displayError("Failed to create OAuth2 application");
+          }
         }}
       />
     </>

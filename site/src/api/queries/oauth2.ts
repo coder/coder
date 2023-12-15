@@ -1,26 +1,93 @@
+import type { QueryClient } from "react-query";
 import * as API from "api/api";
+import type * as TypesGen from "api/typesGenerated";
 
-export const oauth2ProviderAppsKey = ["oauth-provider-apps"];
+const appsKey = ["oauth2-provider", "apps"];
+const appKey = (id: string) => appsKey.concat(id);
+const appSecretsKey = (id: string) => appKey(id).concat("secrets");
 
-export const oauth2ProviderApps = () => {
+export const getApps = () => {
   return {
-    queryKey: oauth2ProviderAppsKey,
+    queryKey: appsKey,
     queryFn: () => API.getOAuth2ProviderApps(),
   };
 };
 
-export const oauth2ProviderApp = (id: string) => {
+export const getApp = (id: string) => {
   return {
-    queryKey: [oauth2ProviderAppsKey, id],
+    queryKey: appKey(id),
     queryFn: () => API.getOAuth2ProviderApp(id),
   };
 };
 
-export const oauth2ProviderAppSecretsKey = ["oauth-provider-app-secrets"];
-
-export const oauth2ProviderAppSecrets = (id: string) => {
+export const postApp = (queryClient: QueryClient) => {
   return {
-    queryKey: [oauth2ProviderAppSecretsKey, id],
+    mutationFn: API.postOAuth2ProviderApp,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: appsKey,
+      });
+    },
+  };
+};
+
+export const putApp = (queryClient: QueryClient) => {
+  return {
+    mutationFn: ({
+      id,
+      req,
+    }: {
+      id: string;
+      req: TypesGen.PutOAuth2ProviderAppRequest;
+    }) => API.putOAuth2ProviderApp(id, req),
+    onSuccess: async (app: TypesGen.OAuth2ProviderApp) => {
+      await queryClient.invalidateQueries({
+        queryKey: appKey(app.id),
+      });
+    },
+  };
+};
+
+export const deleteApp = (queryClient: QueryClient) => {
+  return {
+    mutationFn: API.deleteOAuth2ProviderApp,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: appsKey,
+      });
+    },
+  };
+};
+
+export const getAppSecrets = (id: string) => {
+  return {
+    queryKey: appSecretsKey(id),
     queryFn: () => API.getOAuth2ProviderAppSecrets(id),
+  };
+};
+
+export const postAppSecret = (queryClient: QueryClient) => {
+  return {
+    mutationFn: API.postOAuth2ProviderAppSecret,
+    onSuccess: async (
+      _: TypesGen.OAuth2ProviderAppSecretFull,
+      appId: string,
+    ) => {
+      await queryClient.invalidateQueries({
+        queryKey: appSecretsKey(appId),
+      });
+    },
+  };
+};
+
+export const deleteAppSecret = (queryClient: QueryClient) => {
+  return {
+    mutationFn: ({ appId, secretId }: { appId: string; secretId: string }) =>
+      API.deleteOAuth2ProviderAppSecret(appId, secretId),
+    onSuccess: async (_: void, { appId }: { appId: string }) => {
+      await queryClient.invalidateQueries({
+        queryKey: appSecretsKey(appId),
+      });
+    },
   };
 };

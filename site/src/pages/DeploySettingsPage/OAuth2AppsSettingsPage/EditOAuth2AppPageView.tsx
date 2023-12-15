@@ -40,7 +40,7 @@ type EditOAuth2AppProps = {
   // mutated.
   mutatingResource: MutatingResource;
   updateApp: (req: TypesGen.PutOAuth2ProviderAppRequest) => void;
-  deleteApp: () => void;
+  deleteApp: (name: string) => void;
   generateAppSecret: () => void;
   deleteAppSecret: (id: string) => void;
   secrets?: readonly TypesGen.OAuth2ProviderAppSecret[];
@@ -134,7 +134,7 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
               confirmLoading={mutatingResource.deleteApp}
               name={app.name}
               entity="OAuth2 application"
-              onConfirm={deleteApp}
+              onConfirm={() => deleteApp(app.name)}
               onCancel={() => setShowDelete(false)}
             />
 
