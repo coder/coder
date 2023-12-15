@@ -35,7 +35,7 @@ export const WorkspaceSettingsForm: FC<{
   onSubmit: (values: WorkspaceSettingsFormValues) => Promise<void>;
 }> = ({ onCancel, onSubmit, workspace, error, templatePoliciesEnabled }) => {
   const formEnabled =
-    (!templatePoliciesEnabled && !workspace.template_require_active_version) ||
+    (templatePoliciesEnabled && !workspace.template_require_active_version) ||
     workspace.allow_renames;
 
   const form = useFormik<WorkspaceSettingsFormValues>({
@@ -81,7 +81,7 @@ export const WorkspaceSettingsForm: FC<{
           )}
         </FormFields>
       </FormSection>
-      {!templatePoliciesEnabled && (
+      {templatePoliciesEnabled && (
         <FormSection
           title="Automatic Updates"
           description="Configure your workspace to automatically update when started."
