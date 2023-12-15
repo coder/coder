@@ -42,7 +42,7 @@ func (r *RootCmd) openVSCode() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "vscode <workspace> [<directory in workspace>]",
-		Short:       "Open a workspace in Visual Studio Code.",
+		Short:       "Open a workspace in Visual Studio Code",
 		Middleware: clibase.Chain(
 			clibase.RequireRangeArgs(1, 2),
 			r.InitClient(client),
@@ -168,9 +168,8 @@ func (r *RootCmd) openVSCode() *clibase.Cmd {
 				_, _ = fmt.Fprintf(inv.Stderr, "Opening %s in %s is not supported inside a workspace, please open the following URI on your local machine instead:\n\n", openingPath, vscodeDesktopName)
 				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", u.String())
 				return nil
-			} else {
-				_, _ = fmt.Fprintf(inv.Stderr, "Opening %s in %s\n", openingPath, vscodeDesktopName)
 			}
+			_, _ = fmt.Fprintf(inv.Stderr, "Opening %s in %s\n", openingPath, vscodeDesktopName)
 
 			if !testNoOpen {
 				err = open.Run(u.String())
