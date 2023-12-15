@@ -53,6 +53,15 @@ func TestTimeout(t *testing.T) {
 	require.ErrorIs(t, runner.Execute(context.Background(), nil), agentscripts.ErrTimeout)
 }
 
+// TestCronClose exists because StartCront() can happen after Close(),
+// so the cron go routine is not exited.
+func TestCronClose(t *testing.T) {
+	t.Parallel()
+	runner := agentscripts.New(agentscripts.Options{})
+	runner.StartCron()
+	require.NoError(t, runner.Close(), "close runner")
+}
+
 func setup(t *testing.T, patchLogs func(ctx context.Context, req agentsdk.PatchLogs) error) *agentscripts.Runner {
 	t.Helper()
 	if patchLogs == nil {
