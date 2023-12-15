@@ -202,8 +202,9 @@ connectLoop:
 				return
 			}
 			var sdkErr *codersdk.Error
+			// If something is wrong with our auth, stop trying to connect.
 			if errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusForbidden {
-				p.opts.Logger.Error(p.closeContext, "failed to dial coderd", slog.Error(err))
+				p.opts.Logger.Error(p.closeContext, "not authorized to dial coderd", slog.Error(err))
 				return
 			}
 			if p.isClosed() {
