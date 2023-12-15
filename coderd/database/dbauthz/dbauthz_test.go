@@ -665,12 +665,22 @@ func (s *MethodTestSuite) TestWorkspaceProxy() {
 		p, _ := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
 		check.Args(p.ID).Asserts(p, rbac.ActionRead).Returns(p)
 	}))
+	s.Run("GetWorkspaceProxyByName", s.Subtest(func(db database.Store, check *expects) {
+		p, _ := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
+		check.Args(p.Name).Asserts(p, rbac.ActionRead).Returns(p)
+	}))
 	s.Run("UpdateWorkspaceProxyDeleted", s.Subtest(func(db database.Store, check *expects) {
 		p, _ := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
 		check.Args(database.UpdateWorkspaceProxyDeletedParams{
 			ID:      p.ID,
 			Deleted: true,
 		}).Asserts(p, rbac.ActionDelete)
+	}))
+	s.Run("UpdateWorkspaceProxy", s.Subtest(func(db database.Store, check *expects) {
+		p, _ := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
+		check.Args(database.UpdateWorkspaceProxyParams{
+			ID: p.ID,
+		}).Asserts(p, rbac.ActionUpdate)
 	}))
 	s.Run("GetWorkspaceProxies", s.Subtest(func(db database.Store, check *expects) {
 		p1, _ := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
@@ -898,6 +908,15 @@ func (s *MethodTestSuite) TestTemplate() {
 	s.Run("GetTemplateInsights", s.Subtest(func(db database.Store, check *expects) {
 		//tpl := dbgen.Template(s.T(), db, database.Template{})
 		check.Args(database.GetTemplateInsightsParams{}).Asserts(rbac.ResourceTemplateInsights, rbac.ActionRead)
+	}))
+	s.Run("GetUserLatencyInsights", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.GetUserLatencyInsightsParams{}).Asserts(rbac.ResourceTemplateInsights, rbac.ActionRead)
+	}))
+	s.Run("GetUserActivityInsights", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.GetUserActivityInsightsParams{}).Asserts(rbac.ResourceTemplateInsights, rbac.ActionRead)
+	}))
+	s.Run("GetTemplateParameterInsights", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.GetTemplateParameterInsightsParams{}).Asserts(rbac.ResourceTemplateInsights, rbac.ActionRead)
 	}))
 	s.Run("GetTemplateInsightsByInterval", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.GetTemplateInsightsByIntervalParams{}).Asserts(rbac.ResourceTemplateInsights, rbac.ActionRead)
@@ -1415,6 +1434,19 @@ func (s *MethodTestSuite) TestWorkspace() {
 		check.Args(database.UpdateWorkspaceParams{
 			ID: w.ID,
 		}).Asserts(w, rbac.ActionUpdate).Returns(expected)
+	}))
+	s.Run("UpdateWorkspaceDormantDeletingAt", s.Subtest(func(db database.Store, check *expects) {
+		w := dbgen.Workspace(s.T(), db, database.Workspace{})
+		check.Args(database.UpdateWorkspaceDormantDeletingAtParams{
+			ID: w.ID,
+		}).Asserts(w, rbac.ActionUpdate)
+	}))
+	s.Run("UpdateWorkspaceAutomaticUpdates", s.Subtest(func(db database.Store, check *expects) {
+		w := dbgen.Workspace(s.T(), db, database.Workspace{})
+		check.Args(database.UpdateWorkspaceAutomaticUpdatesParams{
+			ID:               w.ID,
+			AutomaticUpdates: database.AutomaticUpdatesAlways,
+		}).Asserts(w, rbac.ActionUpdate)
 	}))
 	s.Run("InsertWorkspaceAgentStat", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
@@ -2052,5 +2084,17 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	}))
 	s.Run("GetWorkspaceAgentStats", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(time.Time{}).Asserts()
+	}))
+	s.Run("GetWorkspaceProxyByHostname", s.Subtest(func(db database.Store, check *expects) {
+		p, _ := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{
+			WildcardHostname: "*.example.com",
+		})
+		check.Args(database.GetWorkspaceProxyByHostnameParams{
+			Hostname:              "foo.example.com",
+			AllowWildcardHostname: true,
+		}).Asserts(rbac.ResourceSystem, rbac.ActionRead).Returns(p)
+	}))
+	s.Run("GetTemplateAverageBuildTime", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.GetTemplateAverageBuildTimeParams{}).Asserts(rbac.ResourceSystem, rbac.ActionRead)
 	}))
 }

@@ -1451,7 +1451,7 @@ func (q *querier) GetTemplateInsightsByTemplate(ctx context.Context, arg databas
 func (q *querier) GetTemplateParameterInsights(ctx context.Context, arg database.GetTemplateParameterInsightsParams) ([]database.GetTemplateParameterInsightsRow, error) {
 	// Used by both insights endpoint and prometheus collector.
 	// For auditors, check read template_insights, and fall back to update template.
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplateInsights); IsNotAuthorizedError(err) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplateInsights); err != nil {
 		for _, templateID := range arg.TemplateIDs {
 			template, err := q.db.GetTemplateByID(ctx, templateID)
 			if err != nil {
@@ -1624,7 +1624,7 @@ func (q *querier) GetUnexpiredLicenses(ctx context.Context) ([]database.License,
 
 func (q *querier) GetUserActivityInsights(ctx context.Context, arg database.GetUserActivityInsightsParams) ([]database.GetUserActivityInsightsRow, error) {
 	// Used by insights endpoints. Need to check both for auditors and for regular users with template acl perms.
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplateInsights); IsNotAuthorizedError(err) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplateInsights); err != nil {
 		for _, templateID := range arg.TemplateIDs {
 			template, err := q.db.GetTemplateByID(ctx, templateID)
 			if err != nil {
@@ -1661,7 +1661,7 @@ func (q *querier) GetUserCount(ctx context.Context) (int64, error) {
 
 func (q *querier) GetUserLatencyInsights(ctx context.Context, arg database.GetUserLatencyInsightsParams) ([]database.GetUserLatencyInsightsRow, error) {
 	// Used by insights endpoints. Need to check both for auditors and for regular users with template acl perms.
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplateInsights); IsNotAuthorizedError(err) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplateInsights);err != nil {
 		for _, templateID := range arg.TemplateIDs {
 			template, err := q.db.GetTemplateByID(ctx, templateID)
 			if err != nil {
