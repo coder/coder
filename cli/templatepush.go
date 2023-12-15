@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -61,12 +62,30 @@ func (pf *templateUploadFlags) stdin() bool {
 	return pf.directory == "-"
 }
 
+func (pf *templateUploadFlags) prettyDirectoryPath() string {
+	if pf.stdin() {
+		return ""
+	}
+
+	dir := filepath.Clean(pf.directory)
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return dir
+	}
+	prettyDir := dir
+	if strings.HasPrefix(prettyDir, homeDir) {
+		prettyDir = strings.TrimPrefix(prettyDir, homeDir)
+		prettyDir = "~" + prettyDir
+	}
+	return prettyDir
+}
+
 func (pf *templateUploadFlags) upload(inv *clibase.Invocation, client *codersdk.Client) (*codersdk.UploadResponse, error) {
 	var content io.Reader
 	if pf.stdin() {
 		content = inv.Stdin
 	} else {
-		prettyDir := prettyDirectoryPath(pf.directory)
+		prettyDir := pf.prettyDirectoryPath()
 		_, err := cliui.Prompt(inv, cliui.PromptOptions{
 			Text:      fmt.Sprintf("Upload %q?", prettyDir),
 			IsConfirm: true,
@@ -155,16 +174,16 @@ func (pf *templateUploadFlags) templateName(args []string) (string, error) {
 
 func (r *RootCmd) templatePush() *clibase.Cmd {
 	var (
-		versionName     string
-		provisioner     string
-		workdir         string
-		variablesFile   string
-		variables       []string
-		alwaysPrompt    bool
-		provisionerTags []string
-		uploadFlags     templateUploadFlags
-		activate        bool
-		create          bool
+		versionName          string
+		provisioner          string
+		workdir              string
+		variablesFile        string
+		commandLineVariables []string
+		alwaysPrompt         bool
+		provisionerTags      []string
+		uploadFlags          templateUploadFlags
+		activate             bool
+		create               bool
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -213,15 +232,21 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				return err
 			}
 
+			userVariableValues, err := ParseUserVariableValues(
+				variablesFile,
+				commandLineVariables)
+			if err != nil {
+				return err
+			}
+
 			args := createValidTemplateVersionArgs{
-				Message:         message,
-				Client:          client,
-				Organization:    organization,
-				Provisioner:     codersdk.ProvisionerType(provisioner),
-				FileID:          resp.ID,
-				ProvisionerTags: tags,
-				VariablesFile:   variablesFile,
-				Variables:       variables,
+				Message:            message,
+				Client:             client,
+				Organization:       organization,
+				Provisioner:        codersdk.ProvisionerType(provisioner),
+				FileID:             resp.ID,
+				ProvisionerTags:    tags,
+				UserVariableValues: userVariableValues,
 			}
 
 			if !createTemplate {
@@ -291,12 +316,12 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 		{
 			Flag:        "variable",
 			Description: "Specify a set of values for Terraform-managed variables.",
-			Value:       clibase.StringArrayOf(&variables),
+			Value:       clibase.StringArrayOf(&commandLineVariables),
 		},
 		{
 			Flag:        "var",
 			Description: "Alias of --variable.",
-			Value:       clibase.StringArrayOf(&variables),
+			Value:       clibase.StringArrayOf(&commandLineVariables),
 		},
 		{
 			Flag:        "provisioner-tag",
