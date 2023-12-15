@@ -2,12 +2,15 @@ package provisionersdk
 
 import (
 	"archive/tar"
+	"context"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/coderd/util/xio"
 )
@@ -39,7 +42,7 @@ func DirHasLockfile(dir string) (bool, error) {
 }
 
 // Tar archives a Terraform directory.
-func Tar(w io.Writer, directory string, limit int64) error {
+func Tar(w io.Writer, logger slog.Logger, directory string, limit int64) error {
 	// The total bytes written must be under the limit, so use -1
 	w = xio.NewLimitWriter(w, limit-1)
 	tarWriter := tar.NewWriter(w)
@@ -94,6 +97,12 @@ func Tar(w io.Writer, directory string, limit int64) error {
 		}
 		if strings.Contains(rel, ".tfstate") {
 			// Don't store tfstate!
+			logger.Debug(context.Background(), "skip state", slog.F("name", rel))
+			return nil
+		}
+		if rel == "terraform.tfvars" || rel == "terraform.tfvars.json" || strings.HasSuffix(rel, ".auto.tfvars") || strings.HasSuffix(rel, ".auto.tfvars.json") {
+			// Don't store .tfvars, as Coder uses their own variables file.
+			logger.Debug(context.Background(), "skip variable definitions", slog.F("name", rel))
 			return nil
 		}
 		// Use unix paths in the tar archive.
