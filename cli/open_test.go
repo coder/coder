@@ -1,8 +1,11 @@
 package cli_test
 
 import (
-	"context"
 	"net/url"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,101 +23,137 @@ import (
 func TestOpen(t *testing.T) {
 	t.Parallel()
 
-	t.Run("VS Code Local", func(t *testing.T) {
-		t.Parallel()
-
-		client, workspace, agentToken := setupWorkspaceForAgent(t, func(agents []*proto.Agent) []*proto.Agent {
-			agents[0].Directory = "/tmp"
-			agents[0].Name = "agent1"
-			return agents
-		})
-
-		_ = agenttest.New(t, client.URL, agentToken)
-		_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-
-		inv, root := clitest.New(t, "open", "vscode", "--test.no-open", workspace.Name)
-		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		cmdDone := tGo(t, func() {
-			err := inv.WithContext(ctx).Run()
-			assert.NoError(t, err)
-		})
-
-		me, err := client.User(ctx, codersdk.Me)
-		require.NoError(t, err)
-
-		// --test.no-open forces the command to print the URI.
-		line := pty.ReadLine(ctx)
-		u, err := url.ParseRequestURI(line)
-		require.NoError(t, err, "line: %q", line)
-
-		qp := u.Query()
-		assert.Equal(t, client.URL.String(), qp.Get("url"))
-		assert.Equal(t, me.Username, qp.Get("owner"))
-		assert.Equal(t, workspace.Name, qp.Get("workspace"))
-		assert.Equal(t, "agent1", qp.Get("agent"))
-		assert.Contains(t, "tmp", qp.Get("folder")) // Soft check for windows compat.
-		assert.Equal(t, "", qp.Get("token"))
-
-		<-cmdDone
+	agentName := "agent1"
+	agentDir := "/tmp"
+	client, workspace, agentToken := setupWorkspaceForAgent(t, func(agents []*proto.Agent) []*proto.Agent {
+		agents[0].Directory = agentDir
+		agents[0].Name = agentName
+		return agents
 	})
-	t.Run("VS Code Inside Workspace Prints URI", func(t *testing.T) {
-		t.Parallel()
 
-		agentName := "agent1"
-		client, workspace, agentToken := setupWorkspaceForAgent(t, func(agents []*proto.Agent) []*proto.Agent {
-			agents[0].Directory = "/tmp"
-			agents[0].Name = agentName
-			return agents
+	_ = agenttest.New(t, client.URL, agentToken)
+	_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+	insideWorkspaceEnv := map[string]string{
+		"CODER":                      "true",
+		"CODER_WORKSPACE_NAME":       workspace.Name,
+		"CODER_WORKSPACE_AGENT_NAME": agentName,
+	}
+
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+
+	tests := []struct {
+		name      string
+		args      []string
+		env       map[string]string
+		wantDir   string
+		wantToken bool
+		wantError bool
+	}{
+		{
+			name:      "no args",
+			wantError: true,
+		},
+		{
+			name:      "nonexistent workspace",
+			args:      []string{"--test.no-open", workspace.Name + "bad"},
+			wantError: true,
+		},
+		{
+			name:    "ok",
+			args:    []string{"--test.no-open", workspace.Name},
+			wantDir: agentDir,
+		},
+		{
+			name:      "relative path error",
+			args:      []string{"--test.no-open", workspace.Name, "my/relative/path"},
+			wantError: true,
+		},
+		{
+			name:    "ok with abs path",
+			args:    []string{"--test.no-open", workspace.Name, agentDir},
+			wantDir: agentDir,
+		},
+		{
+			name:      "ok with token",
+			args:      []string{"--test.no-open", workspace.Name, "--generate-token"},
+			wantDir:   agentDir,
+			wantToken: true,
+		},
+		// Inside workspace, does not require --test.no-open.
+		{
+			name:    "ok inside workspace",
+			env:     insideWorkspaceEnv,
+			args:    []string{workspace.Name},
+			wantDir: agentDir,
+		},
+		{
+			name:    "ok inside workspace relative path",
+			env:     insideWorkspaceEnv,
+			args:    []string{workspace.Name, "foo"},
+			wantDir: filepath.Join(wd, "foo"),
+		},
+		{
+			name:      "ok inside workspace token",
+			env:       insideWorkspaceEnv,
+			args:      []string{workspace.Name, "--generate-token"},
+			wantDir:   agentDir,
+			wantToken: true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			inv, root := clitest.New(t, append([]string{"open", "vscode"}, tt.args...)...)
+			clitest.SetupConfig(t, client, root)
+			pty := ptytest.New(t)
+			inv.Stdin = pty.Input()
+			inv.Stdout = pty.Output()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			inv = inv.WithContext(ctx)
+			for k, v := range tt.env {
+				inv.Environ.Set(k, v)
+			}
+
+			w := clitest.StartWithWaiter(t, inv)
+
+			if tt.wantError {
+				w.RequireError()
+				return
+			}
+
+			me, err := client.User(ctx, codersdk.Me)
+			require.NoError(t, err)
+
+			line := pty.ReadLine(ctx)
+			u, err := url.ParseRequestURI(line)
+			require.NoError(t, err, "line: %q", line)
+
+			qp := u.Query()
+			assert.Equal(t, client.URL.String(), qp.Get("url"))
+			assert.Equal(t, me.Username, qp.Get("owner"))
+			assert.Equal(t, workspace.Name, qp.Get("workspace"))
+			assert.Equal(t, agentName, qp.Get("agent"))
+			if tt.wantDir != "" {
+				if runtime.GOOS == "windows" {
+					tt.wantDir = strings.TrimPrefix(tt.wantDir, "/")
+				}
+				assert.Contains(t, qp.Get("folder"), tt.wantDir)
+			} else {
+				assert.Empty(t, qp.Get("folder"))
+			}
+			if tt.wantToken {
+				assert.NotEmpty(t, qp.Get("token"))
+			} else {
+				assert.Empty(t, qp.Get("token"))
+			}
+
+			w.RequireSuccess()
 		})
-
-		_ = agenttest.New(t, client.URL, agentToken)
-		_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-
-		t.Log(client.SessionToken())
-
-		inv, root := clitest.New(t, "open", "vscode", "--generate-token", workspace.Name)
-		clitest.SetupConfig(t, client, root)
-
-		t.Log(root.Session().Read())
-
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
-
-		inv.Environ.Set("CODER", "true")
-		inv.Environ.Set("CODER_WORKSPACE_NAME", workspace.Name)
-		inv.Environ.Set("CODER_WORKSPACE_AGENT_NAME", agentName)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		cmdDone := tGo(t, func() {
-			err := inv.WithContext(ctx).Run()
-			assert.NoError(t, err)
-		})
-
-		me, err := client.User(ctx, codersdk.Me)
-		require.NoError(t, err)
-
-		line := pty.ReadLine(ctx)
-		u, err := url.ParseRequestURI(line)
-		require.NoError(t, err, "line: %q", line)
-
-		qp := u.Query()
-		assert.Equal(t, client.URL.String(), qp.Get("url"))
-		assert.Equal(t, me.Username, qp.Get("owner"))
-		assert.Equal(t, workspace.Name, qp.Get("workspace"))
-		assert.Equal(t, "agent1", qp.Get("agent"))
-		assert.Equal(t, "/tmp", qp.Get("folder"))
-		assert.NotEmpty(t, qp.Get("token"))
-
-		<-cmdDone
-	})
+	}
 }
