@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/skratchdot/open-golang/open"
@@ -119,8 +120,14 @@ func (r *RootCmd) openVSCode() *clibase.Cmd {
 					return xerrors.Errorf("path %q requires expansion and is not supported, use an absolute path instead", d)
 
 				case workspaceAgent.OperatingSystem == "windows":
-					// TODO(mafredri): For now we keep this simple instead of discerning out relative paths on Windows.
-					directory = d
+					switch {
+					case directory != "" && !isWindowsAbsPath(d):
+						directory = windowsJoinPath(directory, d)
+					case isWindowsAbsPath(d):
+						directory = d
+					default:
+						return xerrors.Errorf("path %q not supported, use an absolute path instead", d)
+					}
 
 				// Note that we use `path` instead of `filepath` since we want Unix behavior.
 				case directory != "" && !path.IsAbs(d):
@@ -217,4 +224,45 @@ func (r *RootCmd) openVSCode() *clibase.Cmd {
 	}
 
 	return cmd
+}
+
+// isWindowsAbsPath checks if the path is an absolute path on Windows. On Unix
+// systems the check is very simplistic and does not cover edge cases.
+//
+//nolint:revive // Shadow path variable for readability.
+func isWindowsAbsPath(path string) bool {
+	if runtime.GOOS == "windows" {
+		return filepath.IsAbs(path)
+	}
+
+	switch {
+	case len(path) >= 2 && path[1] == ':':
+		// Path starts with a drive letter.
+		return len(path) == 2 || (len(path) >= 4 && path[2] == '\\' && path[3] == '\\')
+	default:
+		return false
+	}
+}
+
+// windowsJoinPath joins the elements into a path, using Windows path separator
+// and converting forward slashes to backslashes. On Unix systems a very
+// simplistic join operator is used.
+func windowsJoinPath(elem ...string) string {
+	if runtime.GOOS == "windows" {
+		return filepath.Join(elem...)
+	}
+
+	var s string
+	for _, e := range elem {
+		e = strings.ReplaceAll(e, "/", "\\")
+		if e == "" {
+			continue
+		}
+		if s == "" {
+			s = e
+			continue
+		}
+		s += "\\" + strings.TrimSuffix(s, "\\")
+	}
+	return s
 }

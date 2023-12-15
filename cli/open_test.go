@@ -4,6 +4,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,6 +28,7 @@ func TestOpenVSCode(t *testing.T) {
 	client, workspace, agentToken := setupWorkspaceForAgent(t, func(agents []*proto.Agent) []*proto.Agent {
 		agents[0].Directory = agentDir
 		agents[0].Name = agentName
+		agents[0].OperatingSystem = runtime.GOOS
 		return agents
 	})
 
@@ -161,6 +163,7 @@ func TestOpenVSCode_NoAgentDirectory(t *testing.T) {
 	agentName := "agent1"
 	client, workspace, agentToken := setupWorkspaceForAgent(t, func(agents []*proto.Agent) []*proto.Agent {
 		agents[0].Name = agentName
+		agents[0].OperatingSystem = runtime.GOOS
 		return agents
 	})
 
@@ -175,6 +178,11 @@ func TestOpenVSCode_NoAgentDirectory(t *testing.T) {
 
 	wd, err := os.Getwd()
 	require.NoError(t, err)
+
+	absPath := "/home/coder"
+	if runtime.GOOS == "windows" {
+		absPath = "C:\\home\\coder"
+	}
 
 	tests := []struct {
 		name      string
@@ -196,8 +204,8 @@ func TestOpenVSCode_NoAgentDirectory(t *testing.T) {
 		},
 		{
 			name:    "ok with absolute path",
-			args:    []string{"--test.open-error", workspace.Name, "/home/coder"},
-			wantDir: "/home/coder",
+			args:    []string{"--test.open-error", workspace.Name, absPath},
+			wantDir: absPath,
 		},
 		{
 			name:      "ok with token",
