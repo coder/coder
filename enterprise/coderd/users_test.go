@@ -24,8 +24,7 @@ func TestUserQuietHours(t *testing.T) {
 		adminClient, adminUser := coderdenttest.New(t, &coderdenttest.Options{
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
-					codersdk.FeatureAdvancedTemplateScheduling:  1,
-					codersdk.FeatureTemplateAutostopRequirement: 1,
+					codersdk.FeatureAdvancedTemplateScheduling: 1,
 				},
 			},
 		})
@@ -63,8 +62,7 @@ func TestUserQuietHours(t *testing.T) {
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
-					codersdk.FeatureAdvancedTemplateScheduling:  1,
-					codersdk.FeatureTemplateAutostopRequirement: 1,
+					codersdk.FeatureAdvancedTemplateScheduling: 1,
 				},
 			},
 		})
@@ -164,9 +162,8 @@ func TestUserQuietHours(t *testing.T) {
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
-					codersdk.FeatureAdvancedTemplateScheduling: 1,
 					// Not entitled.
-					// codersdk.FeatureTemplateAutostopRequirement: 1,
+					// codersdk.FeatureAdvancedTemplateScheduling: 1,
 				},
 			},
 		})

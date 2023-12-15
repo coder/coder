@@ -46,7 +46,7 @@ func (s *EnterpriseTemplateScheduleStore) now() time.Time {
 }
 
 // Get implements agpl.TemplateScheduleStore.
-func (s *EnterpriseTemplateScheduleStore) Get(ctx context.Context, db database.Store, templateID uuid.UUID) (agpl.TemplateScheduleOptions, error) {
+func (*EnterpriseTemplateScheduleStore) Get(ctx context.Context, db database.Store, templateID uuid.UUID) (agpl.TemplateScheduleOptions, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -181,7 +181,6 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 			}
 		}
 
-		// TODO: update all workspace max_deadlines to be within new bounds
 		template, err = tx.GetTemplateByID(ctx, tpl.ID)
 		if err != nil {
 			return xerrors.Errorf("get updated template schedule: %w", err)

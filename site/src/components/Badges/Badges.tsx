@@ -128,9 +128,9 @@ export const DeprecatedBadge: FC = () => {
       css={[
         styles.badge,
         {
-          border: `1px solid ${colors.red[600]}`,
-          backgroundColor: colors.red[950],
-          color: colors.red[50],
+          border: `1px solid ${colors.orange[600]}`,
+          backgroundColor: colors.orange[950],
+          color: colors.orange[50],
         },
       ]}
     >

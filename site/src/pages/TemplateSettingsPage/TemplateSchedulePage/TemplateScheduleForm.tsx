@@ -422,29 +422,35 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       >
         <Stack direction="column">
           <Stack direction="row" alignItems="center">
-            <Checkbox
-              id="use_max_ttl"
-              size="small"
-              disabled={isSubmitting || !allowAdvancedScheduling}
-              onChange={handleToggleUseMaxTTL}
-              name="use_max_ttl"
-              checked={form.values.use_max_ttl}
+            <FormControlLabel
+              control={
+                <Checkbox
+                  id="use_max_ttl"
+                  size="small"
+                  disabled={isSubmitting || !allowAdvancedScheduling}
+                  onChange={handleToggleUseMaxTTL}
+                  name="use_max_ttl"
+                  checked={form.values.use_max_ttl}
+                />
+              }
+              label={
+                <Stack spacing={0.5}>
+                  <strong>
+                    Use a max lifetime instead of a required autostop schedule.
+                  </strong>
+                  <span
+                    css={{
+                      fontSize: 12,
+                      color: theme.palette.text.secondary,
+                    }}
+                  >
+                    Use a maximum lifetime for workspaces created from this
+                    template instead of an autostop requirement as configured
+                    above.
+                  </span>
+                </Stack>
+              }
             />
-            <Stack spacing={0.5}>
-              <strong>
-                Use a max lifetime instead of a required autostop schedule.
-              </strong>
-              <span
-                css={{
-                  fontSize: 12,
-                  color: theme.palette.text.secondary,
-                }}
-              >
-                Use a maximum lifetime for workspaces created from this
-                template instead of an autostop requirement as configured
-                above.
-              </span>
-            </Stack>
           </Stack>
 
           <TextField
