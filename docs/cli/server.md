@@ -51,7 +51,7 @@ Allow users to set their own quiet hours schedule for workspaces to stop in (dep
 | YAML        | <code>allowWorkspaceRenames</code>          |
 | Default     | <code>false</code>                          |
 
-DEPRECATED: Allow users to rename their workspaces. Use only for temporary compatibility reasons.
+DEPRECATED: Allow users to rename their workspaces. Use only for temporary compatibility reasons, this will be removed in a future release.
 
 ### --block-direct-connections
 

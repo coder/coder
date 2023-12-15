@@ -463,6 +463,6 @@ userQuietHoursSchedule:
   # (default: true, type: bool)
   allowCustomQuietHours: true
 # DEPRECATED: Allow users to rename their workspaces. Use only for temporary
-# compatibility reasons.
+# compatibility reasons, this will be removed in a future release.
 # (default: false, type: bool)
 allowWorkspaceRenames: false
