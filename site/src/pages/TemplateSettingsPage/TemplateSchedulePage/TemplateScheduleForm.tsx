@@ -419,6 +419,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       <FormSection
         title="Max Lifetime"
         description="Define the maximum lifetime for workspaces created from this template."
+        deprecated
       >
         <Stack direction="column">
           <Stack direction="row" alignItems="center">
