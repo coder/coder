@@ -129,7 +129,18 @@ func (r *Runner) StartCron() {
 	// has exited by the time the `cron.Stop()` context returns, so we need to
 	// track it manually.
 	err := r.trackCommandGoroutine(func() {
-		r.cron.Run()
+		// Since this is run async, in quick unit tests, it is possible the
+		// Close() function gets called before we even start the cron.
+		// In these cases, the Run() will never end.
+		// So if we are closed, we just return, and skip the Run() entirely.
+		select {
+		case <-r.cronCtx.Done():
+		default:
+			// There is still a chance the Close() happens right here before we'
+			// r.cron.Run(). Fixing this requires modifying the cron package
+			// to add a hook for when the cron "running" flag is set.
+			r.cron.Run()
+		}
 	})
 	if err != nil {
 		r.Logger.Warn(context.Background(), "start cron failed", slog.Error(err))
