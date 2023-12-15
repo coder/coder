@@ -67,6 +67,10 @@ export const WorkspaceSettingsForm: FC<{
             autoFocus
             fullWidth
             label="Name"
+            helperText={
+              !workspace.allow_renames &&
+              "Renaming your workspace can be destructive and are not allowed."
+            }
           />
           {form.values.name !== form.initialValues.name && (
             <Alert severity="warning">
