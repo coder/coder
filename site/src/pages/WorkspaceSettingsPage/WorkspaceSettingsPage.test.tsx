@@ -12,7 +12,7 @@ test("Submit the workspace settings page successfully", async () => {
   // Mock the API calls that loads data
   jest
     .spyOn(api, "getWorkspaceByOwnerAndName")
-    .mockResolvedValueOnce({...MockWorkspace,});
+    .mockResolvedValueOnce({ ...MockWorkspace });
   // Mock the API calls that submit data
   const patchWorkspaceSpy = jest
     .spyOn(api, "patchWorkspace")
@@ -44,7 +44,7 @@ test("Name field is disabled if renames are disabled", async () => {
   // Mock the API calls that loads data
   jest
     .spyOn(api, "getWorkspaceByOwnerAndName")
-    .mockResolvedValueOnce({...MockWorkspace, allow_renames: false});
+    .mockResolvedValueOnce({ ...MockWorkspace, allow_renames: false });
   renderWithWorkspaceSettingsLayout(<WorkspaceSettingsPage />, {
     route: "/@test-user/test-workspace/settings",
     path: "/:username/:workspace/settings",

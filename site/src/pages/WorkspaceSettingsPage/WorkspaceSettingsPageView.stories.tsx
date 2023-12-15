@@ -24,6 +24,6 @@ export const AutoUpdates: Story = {
 
 export const RenamesDisabled: Story = {
   args: {
-    workspace: {...MockWorkspace, allow_renames: false}
+    workspace: { ...MockWorkspace, allow_renames: false },
   },
 };

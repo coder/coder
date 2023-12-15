@@ -70,9 +70,10 @@ export const WorkspaceSettingsForm: FC<{
             label="Name"
             css={workspace.allow_renames && styles.nameWarning}
             helperText={
-              workspace.allow_renames ?
-              form.values.name !== form.initialValues.name && "Depending on the template, renaming your workspace may be destructive" :
-              "Renaming your workspace can be destructive and has not been enabled for this deployment."
+              workspace.allow_renames
+                ? form.values.name !== form.initialValues.name &&
+                  "Depending on the template, renaming your workspace may be destructive"
+                : "Renaming your workspace can be destructive and has not been enabled for this deployment."
             }
           />
         </FormFields>
@@ -120,7 +121,7 @@ export const WorkspaceSettingsForm: FC<{
 const styles = {
   nameWarning: (theme: Theme) => ({
     "& .MuiFormHelperText-root": {
-      color: theme.palette.warning.light
+      color: theme.palette.warning.light,
     },
-  })
-}
+  }),
+};
