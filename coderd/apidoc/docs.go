@@ -11353,6 +11353,9 @@ const docTemplate = `{
         "codersdk.UserQuietHoursScheduleConfig": {
             "type": "object",
             "properties": {
+                "allow_user_custom": {
+                    "type": "boolean"
+                },
                 "default_schedule": {
                     "type": "string"
                 }
@@ -11376,6 +11379,10 @@ const docTemplate = `{
                 "timezone": {
                     "description": "raw format from the cron expression, UTC if unspecified",
                     "type": "string"
+                },
+                "user_can_set": {
+                    "description": "UserCanSet is true if the user is allowed to set their own quiet hours\nschedule. If false, the user cannot set a custom schedule and the default\nschedule will always be used.",
+                    "type": "boolean"
                 },
                 "user_set": {
                     "description": "UserSet is true if the user has set their own quiet hours schedule. If\nfalse, the user is using the default schedule.",

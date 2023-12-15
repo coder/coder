@@ -176,4 +176,45 @@ func TestUserQuietHours(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
 	})
+
+	t.Run("UserCannotSet", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.UserQuietHoursSchedule.DefaultSchedule.Set("CRON_TZ=America/Chicago 0 0 * * *")
+		dv.UserQuietHoursSchedule.AllowUserCustom.Set("false")
+
+		adminClient, adminUser := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAdvancedTemplateScheduling: 1,
+				},
+			},
+		})
+
+		// Do it with another user to make sure that we're not hitting RBAC
+		// errors.
+		client, user := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
+
+		// Get the schedule
+		ctx := testutil.Context(t, testutil.WaitLong)
+		sched, err := client.UserQuietHoursSchedule(ctx, user.ID.String())
+		require.NoError(t, err)
+		require.Equal(t, "CRON_TZ=America/Chicago 0 0 * * *", sched.RawSchedule)
+		require.False(t, sched.UserSet)
+		require.False(t, sched.UserCanSet)
+
+		// Try to set
+		_, err = client.UpdateUserQuietHoursSchedule(ctx, user.ID.String(), codersdk.UpdateUserQuietHoursScheduleRequest{
+			Schedule: "CRON_TZ=America/Chicago 30 2 * * *",
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "cannot set custom quiet hours schedule")
+	})
 }

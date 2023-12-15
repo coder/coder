@@ -1352,6 +1352,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/quiet-hours \
     "raw_schedule": "string",
     "time": "string",
     "timezone": "string",
+    "user_can_set": true,
     "user_set": true
   }
 ]
@@ -1367,14 +1368,15 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/quiet-hours \
 
 Status Code **200**
 
-| Name             | Type              | Required | Restrictions | Description                                                                                                            |
-| ---------------- | ----------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------- |
-| `[array item]`   | array             | false    |              |                                                                                                                        |
-| `» next`         | string(date-time) | false    |              | Next is the next time that the quiet hours window will start.                                                          |
-| `» raw_schedule` | string            | false    |              |                                                                                                                        |
-| `» time`         | string            | false    |              | Time is the time of day that the quiet hours window starts in the given Timezone each day.                             |
-| `» timezone`     | string            | false    |              | raw format from the cron expression, UTC if unspecified                                                                |
-| `» user_set`     | boolean           | false    |              | User set is true if the user has set their own quiet hours schedule. If false, the user is using the default schedule. |
+| Name             | Type              | Required | Restrictions | Description                                                                                                                                                                      |
+| ---------------- | ----------------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `[array item]`   | array             | false    |              |                                                                                                                                                                                  |
+| `» next`         | string(date-time) | false    |              | Next is the next time that the quiet hours window will start.                                                                                                                    |
+| `» raw_schedule` | string            | false    |              |                                                                                                                                                                                  |
+| `» time`         | string            | false    |              | Time is the time of day that the quiet hours window starts in the given Timezone each day.                                                                                       |
+| `» timezone`     | string            | false    |              | raw format from the cron expression, UTC if unspecified                                                                                                                          |
+| `» user_can_set` | boolean           | false    |              | User can set is true if the user is allowed to set their own quiet hours schedule. If false, the user cannot set a custom schedule and the default schedule will always be used. |
+| `» user_set`     | boolean           | false    |              | User set is true if the user has set their own quiet hours schedule. If false, the user is using the default schedule.                                                           |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1418,6 +1420,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/quiet-hours \
     "raw_schedule": "string",
     "time": "string",
     "timezone": "string",
+    "user_can_set": true,
     "user_set": true
   }
 ]
@@ -1433,14 +1436,15 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/quiet-hours \
 
 Status Code **200**
 
-| Name             | Type              | Required | Restrictions | Description                                                                                                            |
-| ---------------- | ----------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------- |
-| `[array item]`   | array             | false    |              |                                                                                                                        |
-| `» next`         | string(date-time) | false    |              | Next is the next time that the quiet hours window will start.                                                          |
-| `» raw_schedule` | string            | false    |              |                                                                                                                        |
-| `» time`         | string            | false    |              | Time is the time of day that the quiet hours window starts in the given Timezone each day.                             |
-| `» timezone`     | string            | false    |              | raw format from the cron expression, UTC if unspecified                                                                |
-| `» user_set`     | boolean           | false    |              | User set is true if the user has set their own quiet hours schedule. If false, the user is using the default schedule. |
+| Name             | Type              | Required | Restrictions | Description                                                                                                                                                                      |
+| ---------------- | ----------------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `[array item]`   | array             | false    |              |                                                                                                                                                                                  |
+| `» next`         | string(date-time) | false    |              | Next is the next time that the quiet hours window will start.                                                                                                                    |
+| `» raw_schedule` | string            | false    |              |                                                                                                                                                                                  |
+| `» time`         | string            | false    |              | Time is the time of day that the quiet hours window starts in the given Timezone each day.                                                                                       |
+| `» timezone`     | string            | false    |              | raw format from the cron expression, UTC if unspecified                                                                                                                          |
+| `» user_can_set` | boolean           | false    |              | User can set is true if the user is allowed to set their own quiet hours schedule. If false, the user cannot set a custom schedule and the default schedule will always be used. |
+| `» user_set`     | boolean           | false    |              | User set is true if the user has set their own quiet hours schedule. If false, the user is using the default schedule.                                                           |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

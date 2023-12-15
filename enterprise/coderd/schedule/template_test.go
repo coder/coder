@@ -207,7 +207,7 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			wsBuild, err = db.GetWorkspaceBuildByID(ctx, wsBuild.ID)
 			require.NoError(t, err)
 
-			userQuietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(userQuietHoursSchedule)
+			userQuietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(userQuietHoursSchedule, true)
 			require.NoError(t, err)
 			userQuietHoursStorePtr := &atomic.Pointer[agplschedule.UserQuietHoursScheduleStore]{}
 			userQuietHoursStorePtr.Store(&userQuietHoursStore)
@@ -490,7 +490,7 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	userQuietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(userQuietHoursSchedule)
+	userQuietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(userQuietHoursSchedule, true)
 	require.NoError(t, err)
 	userQuietHoursStorePtr := &atomic.Pointer[agplschedule.UserQuietHoursScheduleStore]{}
 	userQuietHoursStorePtr.Store(&userQuietHoursStore)

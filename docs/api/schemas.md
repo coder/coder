@@ -2324,6 +2324,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     },
     "update_check": true,
     "user_quiet_hours_schedule": {
+      "allow_user_custom": true,
       "default_schedule": "string"
     },
     "verbose": true,
@@ -2700,6 +2701,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   },
   "update_check": true,
   "user_quiet_hours_schedule": {
+    "allow_user_custom": true,
     "default_schedule": "string"
   },
   "verbose": true,
@@ -5659,15 +5661,17 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "allow_user_custom": true,
   "default_schedule": "string"
 }
 ```
 
 ### Properties
 
-| Name               | Type   | Required | Restrictions | Description |
-| ------------------ | ------ | -------- | ------------ | ----------- |
-| `default_schedule` | string | false    |              |             |
+| Name                | Type    | Required | Restrictions | Description |
+| ------------------- | ------- | -------- | ------------ | ----------- |
+| `allow_user_custom` | boolean | false    |              |             |
+| `default_schedule`  | string  | false    |              |             |
 
 ## codersdk.UserQuietHoursScheduleResponse
 
@@ -5677,19 +5681,21 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "raw_schedule": "string",
   "time": "string",
   "timezone": "string",
+  "user_can_set": true,
   "user_set": true
 }
 ```
 
 ### Properties
 
-| Name           | Type    | Required | Restrictions | Description                                                                                                            |
-| -------------- | ------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------- |
-| `next`         | string  | false    |              | Next is the next time that the quiet hours window will start.                                                          |
-| `raw_schedule` | string  | false    |              |                                                                                                                        |
-| `time`         | string  | false    |              | Time is the time of day that the quiet hours window starts in the given Timezone each day.                             |
-| `timezone`     | string  | false    |              | raw format from the cron expression, UTC if unspecified                                                                |
-| `user_set`     | boolean | false    |              | User set is true if the user has set their own quiet hours schedule. If false, the user is using the default schedule. |
+| Name           | Type    | Required | Restrictions | Description                                                                                                                                                                      |
+| -------------- | ------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `next`         | string  | false    |              | Next is the next time that the quiet hours window will start.                                                                                                                    |
+| `raw_schedule` | string  | false    |              |                                                                                                                                                                                  |
+| `time`         | string  | false    |              | Time is the time of day that the quiet hours window starts in the given Timezone each day.                                                                                       |
+| `timezone`     | string  | false    |              | raw format from the cron expression, UTC if unspecified                                                                                                                          |
+| `user_can_set` | boolean | false    |              | User can set is true if the user is allowed to set their own quiet hours schedule. If false, the user cannot set a custom schedule and the default schedule will always be used. |
+| `user_set`     | boolean | false    |              | User set is true if the user has set their own quiet hours schedule. If false, the user is using the default schedule.                                                           |
 
 ## codersdk.UserStatus
 

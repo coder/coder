@@ -4,10 +4,13 @@ import (
 	"net/http"
 	"time"
 
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -62,6 +65,7 @@ func (api *API) userQuietHoursSchedule(rw http.ResponseWriter, r *http.Request) 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserQuietHoursScheduleResponse{
 		RawSchedule: opts.Schedule.String(),
 		UserSet:     opts.UserSet,
+		UserCanSet:  opts.UserCanSet,
 		Time:        opts.Schedule.TimeParsed().Format("15:40"),
 		Timezone:    opts.Schedule.Location().String(),
 		Next:        opts.Schedule.Next(time.Now().In(opts.Schedule.Location())),
@@ -98,7 +102,12 @@ func (api *API) putUserQuietHoursSchedule(rw http.ResponseWriter, r *http.Reques
 	}
 
 	opts, err := (*api.UserQuietHoursScheduleStore.Load()).Set(ctx, api.Database, user.ID, params.Schedule)
-	if err != nil {
+	if xerrors.Is(err, schedule.ErrUserCannotSetQuietHoursSchedule) {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Users cannot set custom quiet hours schedule due to deployment configuration.",
+		})
+		return
+	} else if err != nil {
 		// TODO(@dean): some of these errors are related to bad syntax, so it
 		// would be nice to 400 instead
 		httpapi.InternalServerError(rw, err)
@@ -108,6 +117,7 @@ func (api *API) putUserQuietHoursSchedule(rw http.ResponseWriter, r *http.Reques
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserQuietHoursScheduleResponse{
 		RawSchedule: opts.Schedule.String(),
 		UserSet:     opts.UserSet,
+		UserCanSet:  opts.UserCanSet,
 		Time:        opts.Schedule.TimeParsed().Format("15:40"),
 		Timezone:    opts.Schedule.Location().String(),
 		Next:        opts.Schedule.Next(time.Now().In(opts.Schedule.Location())),

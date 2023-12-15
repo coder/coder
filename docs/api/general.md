@@ -394,6 +394,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     },
     "update_check": true,
     "user_quiet_hours_schedule": {
+      "allow_user_custom": true,
       "default_schedule": "string"
     },
     "verbose": true,

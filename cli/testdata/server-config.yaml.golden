@@ -457,3 +457,8 @@ userQuietHoursSchedule:
   # comma separated values are not supported).
   # (default: CRON_TZ=UTC 0 0 * * *, type: string)
   defaultQuietHoursSchedule: CRON_TZ=UTC 0 0 * * *
+  # Allow users to set their own quiet hours schedule for workspaces to stop in
+  # (depending on template autostop requirement settings). If false, users can't
+  # change their quiet hours schedule and the site default is always used.
+  # (default: true, type: bool)
+  allowCustomQuietHours: true

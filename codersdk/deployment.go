@@ -390,6 +390,7 @@ type DangerousConfig struct {
 
 type UserQuietHoursScheduleConfig struct {
 	DefaultSchedule clibase.String `json:"default_schedule" typescript:",notnull"`
+	AllowUserCustom clibase.Bool   `json:"allow_user_custom" typescript:",notnull"`
 	// TODO: add WindowDuration and the ability to postpone max_deadline by this
 	// amount
 	// WindowDuration  clibase.Duration `json:"window_duration" typescript:",notnull"`
@@ -1820,6 +1821,16 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.UserQuietHoursSchedule.DefaultSchedule,
 			Group:       &deploymentGroupUserQuietHoursSchedule,
 			YAML:        "defaultQuietHoursSchedule",
+		},
+		{
+			Name:        "Allow Custom Quiet Hours",
+			Description: "Allow users to set their own quiet hours schedule for workspaces to stop in (depending on template autostop requirement settings). If false, users can't change their quiet hours schedule and the site default is always used.",
+			Flag:        "allow-custom-quiet-hours",
+			Env:         "CODER_ALLOW_CUSTOM_QUIET_HOURS",
+			Default:     "true",
+			Value:       &c.UserQuietHoursSchedule.AllowUserCustom,
+			Group:       &deploymentGroupUserQuietHoursSchedule,
+			YAML:        "allowCustomQuietHours",
 		},
 		{
 			Name:        "Web Terminal Renderer",

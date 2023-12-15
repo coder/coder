@@ -1368,12 +1368,14 @@ export interface UserLoginType {
 // From codersdk/deployment.go
 export interface UserQuietHoursScheduleConfig {
   readonly default_schedule: string;
+  readonly allow_user_custom: boolean;
 }
 
 // From codersdk/users.go
 export interface UserQuietHoursScheduleResponse {
   readonly raw_schedule: string;
   readonly user_set: boolean;
+  readonly user_can_set: boolean;
   readonly time: string;
   readonly timezone: string;
   readonly next: string;

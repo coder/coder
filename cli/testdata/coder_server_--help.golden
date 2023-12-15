@@ -447,6 +447,12 @@ USER QUIET HOURS SCHEDULE OPTIONS:
 Allow users to set quiet hours schedules each day for workspaces to avoid
 workspaces stopping during the day due to template max TTL.
 
+      --allow-custom-quiet-hours bool, $CODER_ALLOW_CUSTOM_QUIET_HOURS (default: true)
+          Allow users to set their own quiet hours schedule for workspaces to
+          stop in (depending on template autostop requirement settings). If
+          false, users can't change their quiet hours schedule and the site
+          default is always used.
+
       --default-quiet-hours-schedule string, $CODER_QUIET_HOURS_DEFAULT_SCHEDULE (default: CRON_TZ=UTC 0 0 * * *)
           The default daily cron schedule applied to users that haven't set a
           custom quiet hours schedule themselves. The quiet hours schedule
