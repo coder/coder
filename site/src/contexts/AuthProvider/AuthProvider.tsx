@@ -1,3 +1,11 @@
+import {
+  createContext,
+  type FC,
+  type PropsWithChildren,
+  useCallback,
+  useContext,
+} from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { checkAuthorization } from "api/queries/authCheck";
 import {
   authMethods,
@@ -7,25 +15,17 @@ import {
   me,
   updateProfile as updateProfileOptions,
 } from "api/queries/users";
-import {
+import { isApiError } from "api/errors";
+import type {
   AuthMethods,
   UpdateUserProfileRequest,
   User,
 } from "api/typesGenerated";
-import {
-  createContext,
-  FC,
-  PropsWithChildren,
-  useCallback,
-  useContext,
-} from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { permissionsToCheck, Permissions } from "./permissions";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
-import { FullScreenLoader } from "components/Loader/FullScreenLoader";
-import { isApiError } from "api/errors";
+import { permissionsToCheck, type Permissions } from "./permissions";
 
-type AuthContextValue = {
+export type AuthContextValue = {
+  isLoading: boolean;
   isSignedOut: boolean;
   isSigningOut: boolean;
   isConfiguringTheFirstUser: boolean;
@@ -42,7 +42,9 @@ type AuthContextValue = {
   updateProfile: (data: UpdateUserProfileRequest) => void;
 };
 
-const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+export const AuthContext = createContext<AuthContextValue | undefined>(
+  undefined,
+);
 
 export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
   const queryClient = useQueryClient();
@@ -61,7 +63,8 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
   );
   const logoutMutation = useMutation(logout(queryClient));
   const updateProfileMutation = useMutation({
-    ...updateProfileOptions(),
+    ...updateProfileOptions("me"),
+
     onSuccess: (user) => {
       queryClient.setQueryData(meOptions.queryKey, user);
       displaySuccess("Updated settings.");
@@ -78,7 +81,8 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
     userQuery.isLoading ||
     hasFirstUserQuery.isLoading ||
     (userQuery.isSuccess && permissionsQuery.isLoading);
-  const isConfiguringTheFirstUser = !hasFirstUserQuery.data;
+  const isConfiguringTheFirstUser =
+    !hasFirstUserQuery.isLoading && !hasFirstUserQuery.data;
   const isSignedIn = userQuery.isSuccess && userQuery.data !== undefined;
   const isSigningIn = loginMutation.isLoading;
   const isUpdatingProfile = updateProfileMutation.isLoading;
@@ -87,21 +91,24 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
     logoutMutation.mutate();
   }, [logoutMutation]);
 
-  const signIn = async (email: string, password: string) => {
-    await loginMutation.mutateAsync({ email, password });
-  };
+  const signIn = useCallback(
+    async (email: string, password: string) => {
+      await loginMutation.mutateAsync({ email, password });
+    },
+    [loginMutation],
+  );
 
-  const updateProfile = (req: UpdateUserProfileRequest) => {
-    updateProfileMutation.mutate({ userId: userQuery.data!.id, req });
-  };
-
-  if (isLoading) {
-    return <FullScreenLoader />;
-  }
+  const updateProfile = useCallback(
+    (req: UpdateUserProfileRequest) => {
+      updateProfileMutation.mutate(req);
+    },
+    [updateProfileMutation],
+  );
 
   return (
     <AuthContext.Provider
       value={{
+        isLoading,
         isSignedOut,
         isSigningOut,
         isConfiguringTheFirstUser,

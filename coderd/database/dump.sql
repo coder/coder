@@ -509,14 +509,16 @@ CREATE TABLE parameter_values (
 CREATE TABLE provisioner_daemons (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone,
     name character varying(64) NOT NULL,
     provisioners provisioner_type[] NOT NULL,
     replica_id uuid,
     tags jsonb DEFAULT '{}'::jsonb NOT NULL,
     last_seen_at timestamp with time zone,
-    version text DEFAULT ''::text NOT NULL
+    version text DEFAULT ''::text NOT NULL,
+    api_version text DEFAULT '1.0'::text NOT NULL
 );
+
+COMMENT ON COLUMN provisioner_daemons.api_version IS 'The API version of the provisioner daemon';
 
 CREATE TABLE provisioner_job_logs (
     job_id uuid NOT NULL,
@@ -746,7 +748,7 @@ CREATE TABLE users (
     status user_status DEFAULT 'dormant'::user_status NOT NULL,
     rbac_roles text[] DEFAULT '{}'::text[] NOT NULL,
     login_type login_type DEFAULT 'password'::login_type NOT NULL,
-    avatar_url text,
+    avatar_url text DEFAULT ''::text NOT NULL,
     deleted boolean DEFAULT false NOT NULL,
     last_seen_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL,
     quiet_hours_schedule text DEFAULT ''::text NOT NULL,
@@ -1287,9 +1289,6 @@ ALTER TABLE ONLY parameter_values
     ADD CONSTRAINT parameter_values_scope_id_name_key UNIQUE (scope_id, name);
 
 ALTER TABLE ONLY provisioner_daemons
-    ADD CONSTRAINT provisioner_daemons_name_key UNIQUE (name);
-
-ALTER TABLE ONLY provisioner_daemons
     ADD CONSTRAINT provisioner_daemons_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY provisioner_job_logs
@@ -1417,6 +1416,10 @@ CREATE INDEX idx_organization_member_user_id_uuid ON organization_members USING 
 CREATE UNIQUE INDEX idx_organization_name ON organizations USING btree (name);
 
 CREATE UNIQUE INDEX idx_organization_name_lower ON organizations USING btree (lower(name));
+
+CREATE UNIQUE INDEX idx_provisioner_daemons_name_owner_key ON provisioner_daemons USING btree (name, lower((tags ->> 'owner'::text)));
+
+COMMENT ON INDEX idx_provisioner_daemons_name_owner_key IS 'Relax uniqueness constraint for provisioner daemon names';
 
 CREATE INDEX idx_tailnet_agents_coordinator ON tailnet_agents USING btree (coordinator_id);
 

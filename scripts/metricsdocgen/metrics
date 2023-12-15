@@ -15,9 +15,15 @@ coderd_agents_connections{agent_name="main",lifecycle_state="start_timeout",stat
 coderd_agents_connections{agent_name="main",lifecycle_state="start_timeout",status="connected",tailnet_node="nodeid:3779bd45d00be0eb",username="admin",workspace_name="workspace-1"} 1
 # HELP coderd_agents_up The number of active agents per workspace.
 # TYPE coderd_agents_up gauge
-coderd_agents_up{username="admin",workspace_name="workspace-1"} 1
-coderd_agents_up{username="admin",workspace_name="workspace-2"} 1
-coderd_agents_up{username="admin",workspace_name="workspace-3"} 1
+coderd_agents_up{template_name="docker", username="admin",workspace_name="workspace-1"} 1
+coderd_agents_up{template_name="docker", username="admin",workspace_name="workspace-2"} 1
+coderd_agents_up{template_name="gcp", username="admin",workspace_name="workspace-3"} 1
+# HELP coderd_agentstats_startup_script_seconds The number of seconds the startup script took to execute.
+# TYPE coderd_agentstats_startup_script_seconds gauge
+coderd_agentstats_startup_script_seconds{agent_name="main",success="true",template_name="docker",username="admin",workspace_name="workspace-1"} 1.969900304
+# HELP agent_scripts_executed_total Total number of scripts executed by the Coder agent. Includes cron scheduled scripts.
+# TYPE agent_scripts_executed_total counter
+agent_scripts_executed_total{agent_name="main",success="true",template_name="docker",username="admin",workspace_name="workspace-1"} 1
 # HELP coderd_agentstats_connection_count The number of established connections by agent
 # TYPE coderd_agentstats_connection_count gauge
 coderd_agentstats_connection_count{agent_name="main",username="admin",workspace_name="workspace1"} 2

@@ -38,8 +38,10 @@ import (
 	_ "github.com/coder/coder/v2/coderd/apidoc"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
+	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -168,10 +170,15 @@ type Options struct {
 
 	HTTPClient *http.Client
 
-	UpdateAgentMetrics func(ctx context.Context, username, workspaceName, agentName string, metrics []agentsdk.AgentMetric)
+	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []agentsdk.AgentMetric)
 	StatsBatcher       *batchstats.Batcher
 
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
+
+	// This janky function is used in telemetry to parse fields out of the raw
+	// JWT. It needs to be passed through like this because license parsing is
+	// under the enterprise license, and can't be imported into AGPL.
+	ParseLicenseClaims func(rawJWT string) (email string, trial bool, err error)
 }
 
 // @title Coder API
@@ -539,13 +546,6 @@ func New(options *Options) *API {
 		httpmw.ExtractRealIP(api.RealIPConfig),
 		httpmw.Logger(api.Logger),
 		prometheusMW,
-		// SubdomainAppMW checks if the first subdomain is a valid app URL. If
-		// it is, it will serve that application.
-		//
-		// Workspace apps do their own auth and CORS and must be BEFORE the auth
-		// and CORS middleware.
-		api.workspaceAppServer.HandleSubdomain(apiRateLimiter),
-		cors,
 		// Build-Version is helpful for debugging.
 		func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -553,6 +553,13 @@ func New(options *Options) *API {
 				next.ServeHTTP(w, r)
 			})
 		},
+		// SubdomainAppMW checks if the first subdomain is a valid app URL. If
+		// it is, it will serve that application.
+		//
+		// Workspace apps do their own auth and CORS and must be BEFORE the auth
+		// and CORS middleware.
+		api.workspaceAppServer.HandleSubdomain(apiRateLimiter),
+		cors,
 		// This header stops a browser from trying to MIME-sniff the content type and
 		// forces it to stick with the declared content-type. This is the only valid
 		// value for this header.
@@ -798,6 +805,7 @@ func New(options *Options) *API {
 						r.Put("/suspend", api.putSuspendUserAccount())
 						r.Put("/activate", api.putActivateUserAccount())
 					})
+					r.Put("/appearance", api.putUserAppearanceSettings)
 					r.Route("/password", func(r chi.Router) {
 						r.Put("/", api.putUserPassword)
 					})

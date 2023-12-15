@@ -1,6 +1,8 @@
+import { type FC } from "react";
 import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined";
 import FingerprintOutlinedIcon from "@mui/icons-material/FingerprintOutlined";
 import AccountIcon from "@mui/icons-material/Person";
+import AppearanceIcon from "@mui/icons-material/Brush";
 import ScheduleIcon from "@mui/icons-material/EditCalendarOutlined";
 import SecurityIcon from "@mui/icons-material/LockOutlined";
 import type { User } from "api/typesGenerated";
@@ -11,8 +13,17 @@ import {
   SidebarNavItem,
 } from "components/Sidebar/Sidebar";
 import { GitIcon } from "components/Icons/GitIcon";
+import { useDashboard } from "components/Dashboard/DashboardProvider";
 
-export const Sidebar: React.FC<{ user: User }> = ({ user }) => {
+interface SidebarProps {
+  user: User;
+}
+
+export const Sidebar: FC<SidebarProps> = ({ user }) => {
+  const { entitlements } = useDashboard();
+  const showSchedulePage =
+    entitlements.features.advanced_template_scheduling.enabled;
+
   return (
     <BaseSidebar>
       <SidebarHeader
@@ -25,9 +36,14 @@ export const Sidebar: React.FC<{ user: User }> = ({ user }) => {
       <SidebarNavItem href="account" icon={AccountIcon}>
         Account
       </SidebarNavItem>
-      <SidebarNavItem href="schedule" icon={ScheduleIcon}>
-        Schedule
+      <SidebarNavItem href="appearance" icon={AppearanceIcon}>
+        Appearance
       </SidebarNavItem>
+      {showSchedulePage && (
+        <SidebarNavItem href="schedule" icon={ScheduleIcon}>
+          Schedule
+        </SidebarNavItem>
+      )}
       <SidebarNavItem href="security" icon={SecurityIcon}>
         Security
       </SidebarNavItem>

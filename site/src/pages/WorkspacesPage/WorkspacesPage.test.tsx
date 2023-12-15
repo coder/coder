@@ -63,11 +63,17 @@ describe("WorkspacesPage", () => {
 
     await user.click(getWorkspaceCheckbox(workspaces[0]));
     await user.click(getWorkspaceCheckbox(workspaces[1]));
+
     await user.click(screen.getByRole("button", { name: /actions/i }));
     const deleteButton = await screen.findByText(/delete/i);
     await user.click(deleteButton);
-    await user.type(screen.getByLabelText(/type delete to confirm/i), "DELETE");
-    await user.click(screen.getByTestId("confirm-button"));
+
+    // The button changes its text, and advances the content of the modal,
+    // but it is technically the same button being clicked 3 times.
+    const confirmButton = await screen.findByTestId("confirm-button");
+    await user.click(confirmButton);
+    await user.click(confirmButton);
+    await user.click(confirmButton);
 
     await waitFor(() => {
       expect(deleteWorkspace).toHaveBeenCalledTimes(2);

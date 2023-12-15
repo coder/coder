@@ -66,10 +66,15 @@ export const ScheduleDialog: FC<PropsWithChildren<ScheduleDialogProps>> = ({
         <>
           {showDormancyWarning && (
             <>
-              <h4>{"Dormancy Threshold"}</h4>
+              <h4>Dormancy Threshold</h4>
               <Stack direction="row" spacing={5}>
-                <div css={styles.dialogDescription}>{`
-                This change will result in ${inactiveWorkspacesToGoDormant} workspaces being immediately transitioned to the dormant state and ${inactiveWorkspacesToGoDormantInWeek} over the next seven days. To prevent this, do you want to reset the inactivity period for all template workspaces?`}</div>
+                <div css={styles.dialogDescription}>
+                  This change will result in {inactiveWorkspacesToGoDormant}{" "}
+                  workspaces being immediately transitioned to the dormant state
+                  and {inactiveWorkspacesToGoDormantInWeek} over the next seven
+                  days. To prevent this, do you want to reset the inactivity
+                  period for all template workspaces?
+                </div>
                 <FormControlLabel
                   css={{ marginTop: 16 }}
                   control={

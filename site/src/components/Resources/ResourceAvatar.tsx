@@ -10,19 +10,19 @@ const FALLBACK_ICON = "/icon/widgets.svg";
 const BUILT_IN_ICON_PATHS: {
   [resourceType: WorkspaceResource["type"]]: string;
 } = {
-  docker_volume: "/icon/folder.svg",
+  docker_volume: "/icon/database.svg",
   docker_container: "/icon/memory.svg",
-  docker_image: "/icon/image.svg",
-  kubernetes_persistent_volume_claim: "/icon/folder.svg",
+  docker_image: "/icon/container.svg",
+  kubernetes_persistent_volume_claim: "/icon/database.svg",
   kubernetes_pod: "/icon/memory.svg",
-  google_compute_disk: "/icon/folder.svg",
+  google_compute_disk: "/icon/database.svg",
   google_compute_instance: "/icon/memory.svg",
   aws_instance: "/icon/memory.svg",
   kubernetes_deployment: "/icon/memory.svg",
   null_resource: FALLBACK_ICON,
 };
 
-const getIconPathResource = (resourceType: string): string => {
+export const getIconPathResource = (resourceType: string): string => {
   if (resourceType in BUILT_IN_ICON_PATHS) {
     return BUILT_IN_ICON_PATHS[resourceType];
   }
