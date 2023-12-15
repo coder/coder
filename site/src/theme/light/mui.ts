@@ -142,7 +142,6 @@ muiTheme = createTheme(muiTheme, {
           padding: "8px 16px",
           borderRadius: "6px",
           fontSize: 14,
-          boxShadow: "0 1px 4px #0001 !important",
 
           whiteSpace: "nowrap",
           ":focus-visible": {
@@ -169,6 +168,7 @@ muiTheme = createTheme(muiTheme, {
           height: BUTTON_XL_HEIGHT,
         },
         outlined: {
+          boxShadow: "0 1px 4px #0001 !important",
           ":hover": {
             border: `1px solid ${tw.zinc[500]}`,
           },
@@ -184,6 +184,9 @@ muiTheme = createTheme(muiTheme, {
               color: tw.zinc[500],
             },
           },
+        },
+        contained: {
+          boxShadow: "0 1px 4px #0001 !important",
         },
         containedNeutral: {
           backgroundColor: tw.zinc[200],
@@ -489,7 +492,11 @@ muiTheme = createTheme(muiTheme, {
         tooltip: {
           lineHeight: "150%",
           borderRadius: 4,
-          background: muiTheme.palette.divider,
+          background: muiTheme.palette.background.paper,
+          color: muiTheme.palette.secondary.contrastText,
+          border: `1px solid ${muiTheme.palette.divider}`,
+          padding: "8px 16px",
+          boxShadow: "0 1px 4px #0001",
         },
       },
     },

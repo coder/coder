@@ -15,6 +15,7 @@ import { Stack } from "components/Stack/Stack";
 import { Link } from "react-router-dom";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import type { TemplateExample } from "api/typesGenerated";
+import { ExternalIcon } from "components/ExternalIcon/ExternalIcon";
 
 export interface StarterTemplatePageViewProps {
   starterTemplate?: TemplateExample;
@@ -65,21 +66,7 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
         }
       >
         <Stack direction="row" spacing={3} alignItems="center">
-          <div
-            css={{
-              height: 48,
-              width: 48,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-
-              "& img": {
-                width: "100%",
-              },
-            }}
-          >
-            <img src={starterTemplate.icon} alt="" />
-          </div>
+          <ExternalIcon size={48} src={starterTemplate.icon} />
           <div>
             <PageHeaderTitle>{starterTemplate.name}</PageHeaderTitle>
             <PageHeaderSubtitle condensed>

@@ -36,7 +36,7 @@ export const Authenticated: Story = {
   },
 };
 
-export const UnAuthenticated: Story = {
+export const Unauthenticated: Story = {
   args: {
     ...meta.args,
     auths: {

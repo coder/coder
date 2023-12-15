@@ -490,6 +490,7 @@ muiTheme = createTheme(muiTheme, {
           lineHeight: "150%",
           borderRadius: 4,
           background: muiTheme.palette.divider,
+          padding: "8px 16px",
         },
       },
     },
