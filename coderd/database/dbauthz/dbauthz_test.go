@@ -1531,7 +1531,6 @@ func (s *MethodTestSuite) TestTailnetFunctions() {
 		check.Args(database.UpsertTailnetClientParams{}).
 			Asserts(rbac.ResourceTailnetCoordinator, rbac.ActionUpdate).
 			Errors(dbmem.ErrUnimplemented)
-
 	}))
 	s.Run("UpsertTailnetClientSubscription", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.UpsertTailnetClientSubscriptionParams{}).
