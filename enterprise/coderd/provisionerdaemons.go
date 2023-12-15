@@ -123,7 +123,7 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, tags map[string]strin
 		psk := r.Header.Get(codersdk.ProvisionerDaemonPSK)
 		if subtle.ConstantTimeCompare([]byte(p.psk), []byte(psk)) == 1 {
 			// If using PSK auth, the daemon is, by definition, scoped to the organization.
-			tags[provisionersdk.TagScope] = provisionersdk.ScopeOrganization
+			tags = provisionersdk.MutateTags(uuid.Nil, tags)
 			return tags, true
 		}
 	}

@@ -1177,7 +1177,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, name string
 		Provisioners: []database.ProvisionerType{
 			database.ProvisionerTypeEcho, database.ProvisionerTypeTerraform,
 		},
-		Tags:       database.StringMap{provisionersdk.TagScope: provisionersdk.ScopeOrganization},
+		Tags:       provisionersdk.MutateTags(uuid.Nil, nil),
 		LastSeenAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
 		Version:    buildinfo.Version(),
 		APIVersion: "1.0",
