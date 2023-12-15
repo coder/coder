@@ -18,17 +18,19 @@ import (
 // enterprise customers.
 type enterpriseUserQuietHoursScheduleStore struct {
 	defaultSchedule string
+	userCanSet      bool
 }
 
 var _ agpl.UserQuietHoursScheduleStore = &enterpriseUserQuietHoursScheduleStore{}
 
-func NewEnterpriseUserQuietHoursScheduleStore(defaultSchedule string) (agpl.UserQuietHoursScheduleStore, error) {
+func NewEnterpriseUserQuietHoursScheduleStore(defaultSchedule string, userCanSet bool) (agpl.UserQuietHoursScheduleStore, error) {
 	if defaultSchedule == "" {
 		return nil, xerrors.Errorf("default schedule must be set")
 	}
 
 	s := &enterpriseUserQuietHoursScheduleStore{
 		defaultSchedule: defaultSchedule,
+		userCanSet:      userCanSet,
 	}
 
 	// The context is only used for tracing so using a background ctx is fine.
@@ -64,14 +66,19 @@ func (s *enterpriseUserQuietHoursScheduleStore) parseSchedule(ctx context.Contex
 	}
 
 	return agpl.UserQuietHoursScheduleOptions{
-		Schedule: sched,
-		UserSet:  userSet,
+		Schedule:   sched,
+		UserSet:    userSet,
+		UserCanSet: s.userCanSet,
 	}, nil
 }
 
 func (s *enterpriseUserQuietHoursScheduleStore) Get(ctx context.Context, db database.Store, userID uuid.UUID) (agpl.UserQuietHoursScheduleOptions, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
+
+	if !s.userCanSet {
+		return s.parseSchedule(ctx, "")
+	}
 
 	user, err := db.GetUserByID(ctx, userID)
 	if err != nil {
@@ -84,6 +91,10 @@ func (s *enterpriseUserQuietHoursScheduleStore) Get(ctx context.Context, db data
 func (s *enterpriseUserQuietHoursScheduleStore) Set(ctx context.Context, db database.Store, userID uuid.UUID, rawSchedule string) (agpl.UserQuietHoursScheduleOptions, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
+
+	if !s.userCanSet {
+		return agpl.UserQuietHoursScheduleOptions{}, agpl.ErrUserCannotSetQuietHoursSchedule
+	}
 
 	opts, err := s.parseSchedule(ctx, rawSchedule)
 	if err != nil {

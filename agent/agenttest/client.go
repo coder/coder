@@ -24,7 +24,7 @@ func NewClient(t testing.TB,
 	agentID uuid.UUID,
 	manifest agentsdk.Manifest,
 	statsChan chan *agentsdk.Stats,
-	coordinator tailnet.Coordinator,
+	coordinator tailnet.CoordinatorV1,
 ) *Client {
 	if manifest.AgentID == uuid.Nil {
 		manifest.AgentID = agentID
@@ -47,7 +47,7 @@ type Client struct {
 	manifest             agentsdk.Manifest
 	metadata             map[string]agentsdk.Metadata
 	statsChan            chan *agentsdk.Stats
-	coordinator          tailnet.Coordinator
+	coordinator          tailnet.CoordinatorV1
 	LastWorkspaceAgent   func()
 	PatchWorkspaceLogs   func() error
 	GetServiceBannerFunc func() (codersdk.ServiceBannerConfig, error)

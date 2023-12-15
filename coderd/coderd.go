@@ -66,6 +66,7 @@ import (
 	"github.com/coder/coder/v2/coderd/wsconncache"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/site"
@@ -174,6 +175,12 @@ type Options struct {
 	StatsBatcher       *batchstats.Batcher
 
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
+
+	// This janky function is used in telemetry to parse fields out of the raw
+	// JWT. It needs to be passed through like this because license parsing is
+	// under the enterprise license, and can't be imported into AGPL.
+	ParseLicenseClaims    func(rawJWT string) (email string, trial bool, err error)
+	AllowWorkspaceRenames bool
 }
 
 // @title Coder API
@@ -466,6 +473,11 @@ func New(options *Options) *API {
 		api.agentProvider = &wsconncache.AgentProvider{
 			Cache: wsconncache.New(api._dialWorkspaceAgentTailnet, 0),
 		}
+	}
+	api.TailnetClientService, err = tailnet.NewClientService(
+		api.Logger.Named("tailnetclient"), &api.TailnetCoordinator)
+	if err != nil {
+		api.Logger.Fatal(api.ctx, "failed to initialize tailnet client service", slog.Error(err))
 	}
 
 	workspaceAppsLogger := options.Logger.Named("workspaceapps")
@@ -1055,6 +1067,7 @@ type API struct {
 	Auditor                           atomic.Pointer[audit.Auditor]
 	WorkspaceClientCoordinateOverride atomic.Pointer[func(rw http.ResponseWriter) bool]
 	TailnetCoordinator                atomic.Pointer[tailnet.Coordinator]
+	TailnetClientService              *tailnet.ClientService
 	QuotaCommitter                    atomic.Pointer[proto.QuotaCommitter]
 	// WorkspaceProxyHostsFn returns the hosts of healthy workspace proxies
 	// for header reasons.
@@ -1154,7 +1167,7 @@ func compressHandler(h http.Handler) http.Handler {
 // Useful when starting coderd and provisionerd in the same process.
 func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, name string) (client proto.DRPCProvisionerDaemonClient, err error) {
 	tracer := api.TracerProvider.Tracer(tracing.TracerName)
-	clientSession, serverSession := provisionersdk.MemTransportPipe()
+	clientSession, serverSession := drpc.MemTransportPipe()
 	defer func() {
 		if err != nil {
 			_ = clientSession.Close()

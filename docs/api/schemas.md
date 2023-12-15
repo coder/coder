@@ -1607,7 +1607,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `allow_user_autostop`                                                                                                                                                                     | boolean                                                                        | false    |              | Allow user autostop allows users to set a custom workspace TTL to use in place of the template's DefaultTTL field. By default this is true. If false, the DefaultTTL will always be used. This can only be disabled when using an enterprise license.                                                               |
 | `allow_user_cancel_workspace_jobs`                                                                                                                                                        | boolean                                                                        | false    |              | Allow users to cancel in-progress workspace jobs. \*bool as the default value is "true".                                                                                                                                                                                                                            |
 | `autostart_requirement`                                                                                                                                                                   | [codersdk.TemplateAutostartRequirement](#codersdktemplateautostartrequirement) | false    |              | Autostart requirement allows optionally specifying the autostart allowed days for workspaces created from this template. This is an enterprise feature.                                                                                                                                                             |
-| `autostop_requirement`                                                                                                                                                                    | [codersdk.TemplateAutostopRequirement](#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement allows optionally specifying the autostop requirement for workspaces created from this template. This is an enterprise feature.                                                                                                                                                                |
+| `autostop_requirement`                                                                                                                                                                    | [codersdk.TemplateAutostopRequirement](#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement allows optionally specifying the autostop requirement for workspaces created from this template. This is an enterprise feature. Only one of MaxTTLMillis or AutostopRequirement can be specified.                                                                                              |
 | `default_ttl_ms`                                                                                                                                                                          | integer                                                                        | false    |              | Default ttl ms allows optionally specifying the default TTL for all workspaces created from this template.                                                                                                                                                                                                          |
 | `delete_ttl_ms`                                                                                                                                                                           | integer                                                                        | false    |              | Delete ttl ms allows optionally specifying the max lifetime before Coder permanently deletes dormant workspaces created from this template.                                                                                                                                                                         |
 | `description`                                                                                                                                                                             | string                                                                         | false    |              | Description is a description of what the template contains. It must be less than 128 bytes.                                                                                                                                                                                                                         |
@@ -1616,7 +1616,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `dormant_ttl_ms`                                                                                                                                                                          | integer                                                                        | false    |              | Dormant ttl ms allows optionally specifying the max lifetime before Coder locks inactive workspaces created from this template.                                                                                                                                                                                     |
 | `failure_ttl_ms`                                                                                                                                                                          | integer                                                                        | false    |              | Failure ttl ms allows optionally specifying the max lifetime before Coder stops all resources for failed workspaces created from this template.                                                                                                                                                                     |
 | `icon`                                                                                                                                                                                    | string                                                                         | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                                                                                                    |
-| `max_ttl_ms`                                                                                                                                                                              | integer                                                                        | false    |              | Max ttl ms remove max_ttl once autostop_requirement is matured                                                                                                                                                                                                                                                      |
+| `max_ttl_ms`                                                                                                                                                                              | integer                                                                        | false    |              | Max ttl ms remove max_ttl once autostop_requirement is matured Only one of MaxTTLMillis or AutostopRequirement can be specified.                                                                                                                                                                                    |
 | `name`                                                                                                                                                                                    | string                                                                         | true     |              | Name is the name of the template.                                                                                                                                                                                                                                                                                   |
 | `require_active_version`                                                                                                                                                                  | boolean                                                                        | false    |              | Require active version mandates that workspaces are built with the active template version.                                                                                                                                                                                                                         |
 | `template_version_id`                                                                                                                                                                     | string                                                                         | true     |              | Template version ID is an in-progress or completed job to use as an initial version of the template.                                                                                                                                                                                                                |
@@ -2083,6 +2083,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "user": {}
     },
     "agent_stat_refresh_interval": 0,
+    "allow_workspace_renames": true,
     "autobuild_poll_interval": 0,
     "browser_only": true,
     "cache_directory": "string",
@@ -2324,6 +2325,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     },
     "update_check": true,
     "user_quiet_hours_schedule": {
+      "allow_user_custom": true,
       "default_schedule": "string"
     },
     "verbose": true,
@@ -2459,6 +2461,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "user": {}
   },
   "agent_stat_refresh_interval": 0,
+  "allow_workspace_renames": true,
   "autobuild_poll_interval": 0,
   "browser_only": true,
   "cache_directory": "string",
@@ -2700,6 +2703,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   },
   "update_check": true,
   "user_quiet_hours_schedule": {
+    "allow_user_custom": true,
     "default_schedule": "string"
   },
   "verbose": true,
@@ -2730,6 +2734,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `address`                            | [clibase.HostPort](#clibasehostport)                                                                 | false    |              | Address Use HTTPAddress or TLS.Address instead.                    |
 | `agent_fallback_troubleshooting_url` | [clibase.URL](#clibaseurl)                                                                           | false    |              |                                                                    |
 | `agent_stat_refresh_interval`        | integer                                                                                              | false    |              |                                                                    |
+| `allow_workspace_renames`            | boolean                                                                                              | false    |              |                                                                    |
 | `autobuild_poll_interval`            | integer                                                                                              | false    |              |                                                                    |
 | `browser_only`                       | boolean                                                                                              | false    |              |                                                                    |
 | `cache_directory`                    | string                                                                                               | false    |              |                                                                    |
@@ -2867,15 +2872,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value                           |
-| ------------------------------- |
-| `moons`                         |
-| `workspace_actions`             |
-| `tailnet_pg_coordinator`        |
-| `single_tailnet`                |
-| `template_autostop_requirement` |
-| `deployment_health_page`        |
-| `template_update_policies`      |
+| Value                      |
+| -------------------------- |
+| `moons`                    |
+| `workspace_actions`        |
+| `tailnet_pg_coordinator`   |
+| `single_tailnet`           |
+| `deployment_health_page`   |
+| `template_update_policies` |
 
 ## codersdk.ExternalAuth
 
@@ -4501,7 +4505,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "require_active_version": true,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
-  "updated_at": "2019-08-24T14:15:22Z"
+  "updated_at": "2019-08-24T14:15:22Z",
+  "use_max_ttl": true
 }
 ```
 
@@ -4536,6 +4541,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `time_til_dormant_autodelete_ms`   | integer                                                                        | false    |              |                                                                                                                                                                                                 |
 | `time_til_dormant_ms`              | integer                                                                        | false    |              |                                                                                                                                                                                                 |
 | `updated_at`                       | string                                                                         | false    |              |                                                                                                                                                                                                 |
+| `use_max_ttl`                      | boolean                                                                        | false    |              | Use max ttl picks whether to use the deprecated max TTL for the template or the new autostop requirement.                                                                                       |
 
 #### Enumerated Values
 
@@ -5658,15 +5664,17 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "allow_user_custom": true,
   "default_schedule": "string"
 }
 ```
 
 ### Properties
 
-| Name               | Type   | Required | Restrictions | Description |
-| ------------------ | ------ | -------- | ------------ | ----------- |
-| `default_schedule` | string | false    |              |             |
+| Name                | Type    | Required | Restrictions | Description |
+| ------------------- | ------- | -------- | ------------ | ----------- |
+| `allow_user_custom` | boolean | false    |              |             |
+| `default_schedule`  | string  | false    |              |             |
 
 ## codersdk.UserQuietHoursScheduleResponse
 
@@ -5676,19 +5684,21 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "raw_schedule": "string",
   "time": "string",
   "timezone": "string",
+  "user_can_set": true,
   "user_set": true
 }
 ```
 
 ### Properties
 
-| Name           | Type    | Required | Restrictions | Description                                                                                                            |
-| -------------- | ------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------- |
-| `next`         | string  | false    |              | Next is the next time that the quiet hours window will start.                                                          |
-| `raw_schedule` | string  | false    |              |                                                                                                                        |
-| `time`         | string  | false    |              | Time is the time of day that the quiet hours window starts in the given Timezone each day.                             |
-| `timezone`     | string  | false    |              | raw format from the cron expression, UTC if unspecified                                                                |
-| `user_set`     | boolean | false    |              | User set is true if the user has set their own quiet hours schedule. If false, the user is using the default schedule. |
+| Name           | Type    | Required | Restrictions | Description                                                                                                                                                                      |
+| -------------- | ------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `next`         | string  | false    |              | Next is the next time that the quiet hours window will start.                                                                                                                    |
+| `raw_schedule` | string  | false    |              |                                                                                                                                                                                  |
+| `time`         | string  | false    |              | Time is the time of day that the quiet hours window starts in the given Timezone each day.                                                                                       |
+| `timezone`     | string  | false    |              | raw format from the cron expression, UTC if unspecified                                                                                                                          |
+| `user_can_set` | boolean | false    |              | User can set is true if the user is allowed to set their own quiet hours schedule. If false, the user cannot set a custom schedule and the default schedule will always be used. |
+| `user_set`     | boolean | false    |              | User set is true if the user has set their own quiet hours schedule. If false, the user is using the default schedule.                                                           |
 
 ## codersdk.UserStatus
 
@@ -5757,6 +5767,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "allow_renames": true,
   "automatic_updates": "always",
   "autostart_schedule": "string",
   "created_at": "2019-08-24T14:15:22Z",
@@ -5936,6 +5947,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 | Name                                        | Type                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                           |
 | ------------------------------------------- | ------------------------------------------------------ | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `allow_renames`                             | boolean                                                | false    |              |                                                                                                                                                                                                                                                       |
 | `automatic_updates`                         | [codersdk.AutomaticUpdates](#codersdkautomaticupdates) | false    |              |                                                                                                                                                                                                                                                       |
 | `autostart_schedule`                        | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
 | `created_at`                                | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
@@ -7018,6 +7030,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "count": 0,
   "workspaces": [
     {
+      "allow_renames": true,
       "automatic_updates": "always",
       "autostart_schedule": "string",
       "created_at": "2019-08-24T14:15:22Z",

@@ -10,11 +10,16 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/provisionersdk"
 )
 
 func TestTar(t *testing.T) {
 	t.Parallel()
+
+	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
 	t.Run("NoFollowSymlink", func(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()
@@ -28,7 +33,7 @@ func TestTar(t *testing.T) {
 		err = os.Symlink("no-exists", filepath.Join(dir, "link"))
 		require.NoError(t, err)
 
-		err = provisionersdk.Tar(io.Discard, dir, 1024*1024)
+		err = provisionersdk.Tar(io.Discard, log, dir, 1024*1024)
 		require.NoError(t, err)
 	})
 	t.Run("HeaderBreakLimit", func(t *testing.T) {
@@ -38,7 +43,7 @@ func TestTar(t *testing.T) {
 		require.NoError(t, err)
 		_ = file.Close()
 		// A header is 512 bytes
-		err = provisionersdk.Tar(io.Discard, dir, 100)
+		err = provisionersdk.Tar(io.Discard, log, dir, 100)
 		require.Error(t, err)
 	})
 	t.Run("HeaderAndContent", func(t *testing.T) {
@@ -49,11 +54,11 @@ func TestTar(t *testing.T) {
 		_, _ = file.Write(make([]byte, 100))
 		_ = file.Close()
 		// Pay + header is 1024 bytes (padding)
-		err = provisionersdk.Tar(io.Discard, dir, 1025)
+		err = provisionersdk.Tar(io.Discard, log, dir, 1025)
 		require.NoError(t, err)
 
 		// Limit is 1 byte too small (n == limit is a failure, must be under)
-		err = provisionersdk.Tar(io.Discard, dir, 1024)
+		err = provisionersdk.Tar(io.Discard, log, dir, 1024)
 		require.Error(t, err)
 	})
 
@@ -63,7 +68,7 @@ func TestTar(t *testing.T) {
 		file, err := os.CreateTemp(dir, "")
 		require.NoError(t, err)
 		_ = file.Close()
-		err = provisionersdk.Tar(io.Discard, dir, 1024)
+		err = provisionersdk.Tar(io.Discard, log, dir, 1024)
 		require.Error(t, err)
 	})
 	t.Run("Valid", func(t *testing.T) {
@@ -72,7 +77,7 @@ func TestTar(t *testing.T) {
 		file, err := os.CreateTemp(dir, "*.tf")
 		require.NoError(t, err)
 		_ = file.Close()
-		err = provisionersdk.Tar(io.Discard, dir, 1024)
+		err = provisionersdk.Tar(io.Discard, log, dir, 1024)
 		require.NoError(t, err)
 	})
 	t.Run("ValidJSON", func(t *testing.T) {
@@ -81,7 +86,7 @@ func TestTar(t *testing.T) {
 		file, err := os.CreateTemp(dir, "*.tf.json")
 		require.NoError(t, err)
 		_ = file.Close()
-		err = provisionersdk.Tar(io.Discard, dir, 1024)
+		err = provisionersdk.Tar(io.Discard, log, dir, 1024)
 		require.NoError(t, err)
 	})
 	t.Run("HiddenFiles", func(t *testing.T) {
@@ -122,6 +127,18 @@ func TestTar(t *testing.T) {
 			}, {
 				Name:     "terraform.tfstate",
 				Archives: false,
+			}, {
+				Name:     "terraform.tfvars",
+				Archives: false,
+			}, {
+				Name:     "terraform.tfvars.json",
+				Archives: false,
+			}, {
+				Name:     "*.auto.tfvars",
+				Archives: false,
+			}, {
+				Name:     "*.auto.tfvars.json",
+				Archives: false,
 			},
 		}
 		for _, file := range files {
@@ -149,18 +166,17 @@ func TestTar(t *testing.T) {
 		}
 		archive := new(bytes.Buffer)
 		// Headers are chonky so raise the limit to something reasonable
-		err := provisionersdk.Tar(archive, dir, 1024<<2)
+		err := provisionersdk.Tar(archive, log, dir, 1024<<3)
 		require.NoError(t, err)
 		dir = t.TempDir()
 		err = provisionersdk.Untar(dir, archive)
 		require.NoError(t, err)
 		for _, file := range files {
 			_, err = os.Stat(filepath.Join(dir, file.Name))
-			t.Logf("stat %q %+v", file.Name, err)
 			if file.Archives {
-				require.NoError(t, err)
+				require.NoError(t, err, "stat %q, got error: %+v", file.Name, err)
 			} else {
-				require.ErrorIs(t, err, os.ErrNotExist)
+				require.ErrorIs(t, err, os.ErrNotExist, "stat %q, expected ErrNotExist, got: %+v", file.Name, err)
 			}
 		}
 	})
@@ -168,12 +184,14 @@ func TestTar(t *testing.T) {
 
 func TestUntar(t *testing.T) {
 	t.Parallel()
+	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
 	dir := t.TempDir()
 	file, err := os.CreateTemp(dir, "*.tf")
 	require.NoError(t, err)
 	_ = file.Close()
 	archive := new(bytes.Buffer)
-	err = provisionersdk.Tar(archive, dir, 1024)
+	err = provisionersdk.Tar(archive, log, dir, 1024)
 	require.NoError(t, err)
 	dir = t.TempDir()
 	err = provisionersdk.Untar(dir, archive)

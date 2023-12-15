@@ -8031,7 +8031,7 @@ const docTemplate = `{
                     ]
                 },
                 "autostop_requirement": {
-                    "description": "AutostopRequirement allows optionally specifying the autostop requirement\nfor workspaces created from this template. This is an enterprise feature.",
+                    "description": "AutostopRequirement allows optionally specifying the autostop requirement\nfor workspaces created from this template. This is an enterprise feature.\nOnly one of MaxTTLMillis or AutostopRequirement can be specified.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.TemplateAutostopRequirement"
@@ -8071,7 +8071,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "max_ttl_ms": {
-                    "description": "TODO(@dean): remove max_ttl once autostop_requirement is matured",
+                    "description": "TODO(@dean): remove max_ttl once autostop_requirement is matured\nOnly one of MaxTTLMillis or AutostopRequirement can be specified.",
                     "type": "integer"
                 },
                 "name": {
@@ -8558,6 +8558,9 @@ const docTemplate = `{
                 "agent_stat_refresh_interval": {
                     "type": "integer"
                 },
+                "allow_workspace_renames": {
+                    "type": "boolean"
+                },
                 "autobuild_poll_interval": {
                     "type": "integer"
                 },
@@ -8805,7 +8808,6 @@ const docTemplate = `{
                 "workspace_actions",
                 "tailnet_pg_coordinator",
                 "single_tailnet",
-                "template_autostop_requirement",
                 "deployment_health_page",
                 "template_update_policies"
             ],
@@ -8814,7 +8816,6 @@ const docTemplate = `{
                 "ExperimentWorkspaceActions",
                 "ExperimentTailnetPGCoordinator",
                 "ExperimentSingleTailnet",
-                "ExperimentTemplateAutostopRequirement",
                 "ExperimentDeploymentHealthPage",
                 "ExperimentTemplateUpdatePolicies"
             ]
@@ -10378,6 +10379,10 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "use_max_ttl": {
+                    "description": "UseMaxTTL picks whether to use the deprecated max TTL for the template or\nthe new autostop requirement.",
+                    "type": "boolean"
                 }
             }
         },
@@ -11351,6 +11356,9 @@ const docTemplate = `{
         "codersdk.UserQuietHoursScheduleConfig": {
             "type": "object",
             "properties": {
+                "allow_user_custom": {
+                    "type": "boolean"
+                },
                 "default_schedule": {
                     "type": "string"
                 }
@@ -11374,6 +11382,10 @@ const docTemplate = `{
                 "timezone": {
                     "description": "raw format from the cron expression, UTC if unspecified",
                     "type": "string"
+                },
+                "user_can_set": {
+                    "description": "UserCanSet is true if the user is allowed to set their own quiet hours\nschedule. If false, the user cannot set a custom schedule and the default\nschedule will always be used.",
+                    "type": "boolean"
                 },
                 "user_set": {
                     "description": "UserSet is true if the user has set their own quiet hours schedule. If\nfalse, the user is using the default schedule.",
@@ -11434,6 +11446,9 @@ const docTemplate = `{
         "codersdk.Workspace": {
             "type": "object",
             "properties": {
+                "allow_renames": {
+                    "type": "boolean"
+                },
                 "automatic_updates": {
                     "enum": [
                         "always",

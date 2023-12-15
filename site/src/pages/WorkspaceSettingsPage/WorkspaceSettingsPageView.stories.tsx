@@ -21,3 +21,9 @@ export const AutoUpdates: Story = {
     templatePoliciesEnabled: true,
   },
 };
+
+export const RenamesDisabled: Story = {
+  args: {
+    workspace: { ...MockWorkspace, allow_renames: false },
+  },
+};

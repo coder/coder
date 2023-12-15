@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -27,7 +25,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 		provisioner          string
 		provisionerTags      []string
 		variablesFile        string
-		variables            []string
+		commandLineVariables []string
 		disableEveryone      bool
 		requireActiveVersion bool
 
@@ -129,15 +127,21 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 				return err
 			}
 
+			userVariableValues, err := ParseUserVariableValues(
+				variablesFile,
+				commandLineVariables)
+			if err != nil {
+				return err
+			}
+
 			job, err := createValidTemplateVersion(inv, createValidTemplateVersionArgs{
-				Message:         message,
-				Client:          client,
-				Organization:    organization,
-				Provisioner:     codersdk.ProvisionerType(provisioner),
-				FileID:          resp.ID,
-				ProvisionerTags: tags,
-				VariablesFile:   variablesFile,
-				Variables:       variables,
+				Message:            message,
+				Client:             client,
+				Organization:       organization,
+				Provisioner:        codersdk.ProvisionerType(provisioner),
+				FileID:             resp.ID,
+				ProvisionerTags:    tags,
+				UserVariableValues: userVariableValues,
 			})
 			if err != nil {
 				return err
@@ -197,12 +201,12 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 		{
 			Flag:        "variable",
 			Description: "Specify a set of values for Terraform-managed variables.",
-			Value:       clibase.StringArrayOf(&variables),
+			Value:       clibase.StringArrayOf(&commandLineVariables),
 		},
 		{
 			Flag:        "var",
 			Description: "Alias of --variable.",
-			Value:       clibase.StringArrayOf(&variables),
+			Value:       clibase.StringArrayOf(&commandLineVariables),
 		},
 		{
 			Flag:        "provisioner-tag",
@@ -267,31 +271,18 @@ type createValidTemplateVersionArgs struct {
 	Provisioner  codersdk.ProvisionerType
 	FileID       uuid.UUID
 
-	VariablesFile string
-	Variables     []string
-
 	// Template is only required if updating a template's active version.
 	Template *codersdk.Template
 	// ReuseParameters will attempt to reuse params from the Template field
 	// before prompting the user. Set to false to always prompt for param
 	// values.
-	ReuseParameters bool
-	ProvisionerTags map[string]string
+	ReuseParameters    bool
+	ProvisionerTags    map[string]string
+	UserVariableValues []codersdk.VariableValue
 }
 
 func createValidTemplateVersion(inv *clibase.Invocation, args createValidTemplateVersionArgs) (*codersdk.TemplateVersion, error) {
 	client := args.Client
-
-	variableValues, err := loadVariableValuesFromFile(args.VariablesFile)
-	if err != nil {
-		return nil, err
-	}
-
-	variableValuesFromKeyValues, err := loadVariableValuesFromOptions(args.Variables)
-	if err != nil {
-		return nil, err
-	}
-	variableValues = append(variableValues, variableValuesFromKeyValues...)
 
 	req := codersdk.CreateTemplateVersionRequest{
 		Name:               args.Name,
@@ -300,7 +291,7 @@ func createValidTemplateVersion(inv *clibase.Invocation, args createValidTemplat
 		FileID:             args.FileID,
 		Provisioner:        args.Provisioner,
 		ProvisionerTags:    args.ProvisionerTags,
-		UserVariableValues: variableValues,
+		UserVariableValues: args.UserVariableValues,
 	}
 	if args.Template != nil {
 		req.TemplateID = args.Template.ID
@@ -362,23 +353,6 @@ func createValidTemplateVersion(inv *clibase.Invocation, args createValidTemplat
 	}
 
 	return &version, nil
-}
-
-// prettyDirectoryPath returns a prettified path when inside the users
-// home directory. Falls back to dir if the users home directory cannot
-// discerned. This function calls filepath.Clean on the result.
-func prettyDirectoryPath(dir string) string {
-	dir = filepath.Clean(dir)
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return dir
-	}
-	prettyDir := dir
-	if strings.HasPrefix(prettyDir, homeDir) {
-		prettyDir = strings.TrimPrefix(prettyDir, homeDir)
-		prettyDir = "~" + prettyDir
-	}
-	return prettyDir
 }
 
 func ParseProvisionerTags(rawTags []string) (map[string]string, error) {

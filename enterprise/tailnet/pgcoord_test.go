@@ -611,7 +611,7 @@ func TestPGCoordinator_BidirectionalTunnels(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	coordinator, err := tailnet.NewPGCoordV2(ctx, logger, ps, store)
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
 	require.NoError(t, err)
 	defer coordinator.Close()
 	agpltest.BidirectionalTunnels(ctx, t, coordinator)
@@ -626,7 +626,7 @@ func TestPGCoordinator_GracefulDisconnect(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	coordinator, err := tailnet.NewPGCoordV2(ctx, logger, ps, store)
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
 	require.NoError(t, err)
 	defer coordinator.Close()
 	agpltest.GracefulDisconnectTest(ctx, t, coordinator)
@@ -641,7 +641,7 @@ func TestPGCoordinator_Lost(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	coordinator, err := tailnet.NewPGCoordV2(ctx, logger, ps, store)
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
 	require.NoError(t, err)
 	defer coordinator.Close()
 	agpltest.LostTest(ctx, t, coordinator)
@@ -676,7 +676,7 @@ func newTestConn(ids []uuid.UUID) *testConn {
 	return a
 }
 
-func newTestAgent(t *testing.T, coord agpl.Coordinator, name string, id ...uuid.UUID) *testConn {
+func newTestAgent(t *testing.T, coord agpl.CoordinatorV1, name string, id ...uuid.UUID) *testConn {
 	a := newTestConn(id)
 	go func() {
 		err := coord.ServeAgent(a.serverWS, a.id, name)
@@ -731,7 +731,7 @@ func (c *testConn) waitForClose(ctx context.Context, t *testing.T) {
 	}
 }
 
-func newTestClient(t *testing.T, coord agpl.Coordinator, agentID uuid.UUID, id ...uuid.UUID) *testConn {
+func newTestClient(t *testing.T, coord agpl.CoordinatorV1, agentID uuid.UUID, id ...uuid.UUID) *testConn {
 	c := newTestConn(id)
 	go func() {
 		err := coord.ServeClient(c.serverWS, c.id, agentID)

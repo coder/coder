@@ -93,17 +93,24 @@ export const ScheduleForm: FC<React.PropsWithChildren<ScheduleFormProps>> = ({
           </Alert>
         )}
 
+        {!initialValues.user_can_set && (
+          <Alert severity="error">
+            Your administrator has disabled the ability to set a custom quiet
+            hours schedule.
+          </Alert>
+        )}
+
         <Stack direction="row">
           <TextField
             {...getFieldHelpers("time")}
-            disabled={isLoading}
+            disabled={isLoading || !initialValues.user_can_set}
             label="Start time"
             type="time"
             fullWidth
           />
           <TextField
             {...getFieldHelpers("timezone")}
-            disabled={isLoading}
+            disabled={isLoading || !initialValues.user_can_set}
             label="Timezone"
             select
             fullWidth
@@ -126,7 +133,7 @@ export const ScheduleForm: FC<React.PropsWithChildren<ScheduleFormProps>> = ({
         <div>
           <LoadingButton
             loading={isLoading}
-            disabled={isLoading}
+            disabled={isLoading || !initialValues.user_can_set}
             type="submit"
             variant="contained"
           >

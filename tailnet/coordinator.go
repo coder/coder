@@ -27,6 +27,11 @@ import (
 // └──────────────────┘   └────────────────────┘   └───────────────────┘   └──────────────────┘
 // Coordinators have different guarantees for HA support.
 type Coordinator interface {
+	CoordinatorV1
+	CoordinatorV2
+}
+
+type CoordinatorV1 interface {
 	// ServeHTTPDebug serves a debug webpage that shows the internal state of
 	// the coordinator.
 	ServeHTTPDebug(w http.ResponseWriter, r *http.Request)
@@ -137,16 +142,6 @@ var (
 // coordinator is incompatible with multiple Coder replicas as all node data is
 // in-memory.
 func NewCoordinator(logger slog.Logger) Coordinator {
-	return &coordinator{
-		core:       newCore(logger.Named(LoggerName)),
-		closedChan: make(chan struct{}),
-	}
-}
-
-// NewCoordinatorV2 constructs a new in-memory connection coordinator. This
-// coordinator is incompatible with multiple Coder replicas as all node data is
-// in-memory.
-func NewCoordinatorV2(logger slog.Logger) CoordinatorV2 {
 	return &coordinator{
 		core:       newCore(logger.Named(LoggerName)),
 		closedChan: make(chan struct{}),

@@ -15,7 +15,7 @@ import (
 func TestRename(t *testing.T) {
 	t.Parallel()
 
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, AllowWorkspaceRenames: true})
 	owner := coderdtest.CreateFirstUser(t, client)
 	member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 	version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)

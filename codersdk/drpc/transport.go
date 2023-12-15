@@ -1,4 +1,4 @@
-package provisionersdk
+package drpc
 
 import (
 	"context"

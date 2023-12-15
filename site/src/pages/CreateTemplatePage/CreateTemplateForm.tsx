@@ -60,6 +60,7 @@ export interface CreateTemplateData {
   description: string;
   icon: string;
   default_ttl_hours: number;
+  use_max_ttl: boolean;
   max_ttl_hours: number;
   autostart_requirement_days_of_week: TemplateAutostartRequirementDaysValue[];
   autostop_requirement_days_of_week: TemplateAutostopRequirementDaysValue;
@@ -110,6 +111,7 @@ const defaultInitialValues: CreateTemplateData = {
   //
   // The maximum value is 30 days but we default to 7 days as it's a much more
   // sensible value for most teams.
+  use_max_ttl: false, // autostop_requirement is default
   max_ttl_hours: 24 * 7,
   // autostop_requirement is an enterprise-only feature, and the server ignores
   // the value if you are not licensed. We hide the form value based on
@@ -145,6 +147,8 @@ const getInitialValues = ({
     initialValues = {
       ...initialValues,
       max_ttl_hours: 0,
+      autostop_requirement_days_of_week: "off",
+      autostop_requirement_weeks: 1,
     };
   }
 
@@ -202,7 +206,6 @@ export type CreateTemplateFormProps = (
   logs?: ProvisionerJobLog[];
   allowAdvancedScheduling: boolean;
   allowDisableEveryoneAccess: boolean;
-  allowAutostopRequirement: boolean;
 };
 
 export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
@@ -216,7 +219,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
     logs,
     allowAdvancedScheduling,
     allowDisableEveryoneAccess,
-    allowAutostopRequirement,
   } = props;
   const form = useFormik<CreateTemplateData>({
     initialValues: getInitialValues({
@@ -261,6 +263,27 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
       void setFieldValue("autostop_requirement_weeks", 1);
     }
   }, [autostop_requirement_days_of_week, setFieldValue]);
+
+  const handleToggleUseMaxTTL = async () => {
+    const val = !form.values.use_max_ttl;
+    if (val) {
+      // set max_ttl to 1, set autostop_requirement to empty
+      await form.setValues({
+        ...form.values,
+        use_max_ttl: val,
+        max_ttl_hours: 1,
+        autostop_requirement_days_of_week: "off",
+        autostop_requirement_weeks: 1,
+      });
+    } else {
+      // set max_ttl to 0
+      await form.setValues({
+        ...form.values,
+        use_max_ttl: val,
+        max_ttl_hours: 0,
+      });
+    }
+  };
 
   return (
     <HorizontalForm onSubmit={form.handleSubmit}>
@@ -349,78 +372,107 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
               label="Default autostop (hours)"
               type="number"
             />
-
-            {!allowAutostopRequirement && (
-              <TextField
-                {...getFieldHelpers(
-                  "max_ttl_hours",
-                  allowAdvancedScheduling ? (
-                    <MaxTTLHelperText ttl={form.values.max_ttl_hours} />
-                  ) : (
-                    <>
-                      You need an enterprise license to use it.{" "}
-                      <Link href={docs("/enterprise")}>Learn more</Link>.
-                    </>
-                  ),
-                )}
-                disabled={isSubmitting || !allowAdvancedScheduling}
-                fullWidth
-                label="Max lifetime (hours)"
-                type="number"
-              />
-            )}
           </Stack>
 
-          {allowAutostopRequirement && (
-            <Stack direction="row" css={styles.ttlFields}>
-              <TextField
-                {...getFieldHelpers(
-                  "autostop_requirement_days_of_week",
-                  <AutostopRequirementDaysHelperText
-                    days={form.values.autostop_requirement_days_of_week}
-                  />,
-                )}
-                disabled={isSubmitting}
-                fullWidth
-                select
-                value={form.values.autostop_requirement_days_of_week}
-                label="Days with required stop"
-              >
-                <MenuItem key="off" value="off">
-                  Off
-                </MenuItem>
-                <MenuItem key="daily" value="daily">
-                  Daily
-                </MenuItem>
-                <MenuItem key="saturday" value="saturday">
-                  Saturday
-                </MenuItem>
-                <MenuItem key="sunday" value="sunday">
-                  Sunday
-                </MenuItem>
-              </TextField>
+          <Stack direction="row" css={styles.ttlFields}>
+            <TextField
+              {...getFieldHelpers(
+                "autostop_requirement_days_of_week",
+                <AutostopRequirementDaysHelperText
+                  days={form.values.autostop_requirement_days_of_week}
+                />,
+              )}
+              disabled={
+                isSubmitting ||
+                form.values.use_max_ttl ||
+                !allowAdvancedScheduling
+              }
+              fullWidth
+              select
+              value={form.values.autostop_requirement_days_of_week}
+              label="Days with required stop"
+            >
+              <MenuItem key="off" value="off">
+                Off
+              </MenuItem>
+              <MenuItem key="daily" value="daily">
+                Daily
+              </MenuItem>
+              <MenuItem key="saturday" value="saturday">
+                Saturday
+              </MenuItem>
+              <MenuItem key="sunday" value="sunday">
+                Sunday
+              </MenuItem>
+            </TextField>
 
-              <TextField
-                {...getFieldHelpers(
-                  "autostop_requirement_weeks",
-                  <AutostopRequirementWeeksHelperText
-                    days={form.values.autostop_requirement_days_of_week}
-                    weeks={form.values.autostop_requirement_weeks}
-                  />,
-                )}
-                disabled={
-                  isSubmitting ||
-                  !["saturday", "sunday"].includes(
-                    form.values.autostop_requirement_days_of_week || "",
-                  )
-                }
-                fullWidth
-                inputProps={{ min: 1, max: 16, step: 1 }}
-                label="Weeks between required stops"
-                type="number"
+            <TextField
+              {...getFieldHelpers(
+                "autostop_requirement_weeks",
+                <AutostopRequirementWeeksHelperText
+                  days={form.values.autostop_requirement_days_of_week}
+                  weeks={form.values.autostop_requirement_weeks}
+                />,
+              )}
+              disabled={
+                isSubmitting ||
+                form.values.use_max_ttl ||
+                !allowAdvancedScheduling ||
+                !["saturday", "sunday"].includes(
+                  form.values.autostop_requirement_days_of_week || "",
+                )
+              }
+              fullWidth
+              inputProps={{ min: 1, max: 16, step: 1 }}
+              label="Weeks between required stops"
+              type="number"
+            />
+          </Stack>
+
+          <Stack direction="column">
+            <Stack direction="row" alignItems="center">
+              <Checkbox
+                id="use_max_ttl"
+                size="small"
+                disabled={isSubmitting || !allowAdvancedScheduling}
+                onChange={handleToggleUseMaxTTL}
+                name="use_max_ttl"
+                checked={form.values.use_max_ttl}
               />
+              <Stack spacing={0.5}>
+                <strong>
+                  Use a max lifetime instead of a required autostop schedule.
+                </strong>
+                <span css={styles.optionHelperText}>
+                  Use a maximum lifetime for workspaces created from this
+                  template instead of an autostop requirement as configured
+                  above.
+                </span>
+              </Stack>
             </Stack>
-          )}
+
+            <TextField
+              {...getFieldHelpers(
+                "max_ttl_hours",
+                allowAdvancedScheduling ? (
+                  <MaxTTLHelperText ttl={form.values.max_ttl_hours} />
+                ) : (
+                  <>
+                    You need an enterprise license to use it.{" "}
+                    <Link href={docs("/enterprise")}>Learn more</Link>.
+                  </>
+                ),
+              )}
+              disabled={
+                isSubmitting ||
+                !form.values.use_max_ttl ||
+                !allowAdvancedScheduling
+              }
+              fullWidth
+              label="Max lifetime (hours)"
+              type="number"
+            />
+          </Stack>
 
           <Stack direction="column">
             <Stack direction="row" alignItems="center">
@@ -482,8 +534,8 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
                 </strong>
                 <span css={styles.optionHelperText}>
                   Workspaces will always use the default TTL if this is set.
-                  Regardless of this setting, workspaces can only stay on for
-                  the max TTL.
+                  Regardless of this setting, workspaces will still stop due to
+                  the autostop requirement policy.
                 </span>
               </Stack>
             </Stack>

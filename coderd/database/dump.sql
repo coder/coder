@@ -814,7 +814,8 @@ CREATE TABLE templates (
     autostop_requirement_weeks bigint DEFAULT 0 NOT NULL,
     autostart_block_days_of_week smallint DEFAULT 0 NOT NULL,
     require_active_version boolean DEFAULT false NOT NULL,
-    deprecated text DEFAULT ''::text NOT NULL
+    deprecated text DEFAULT ''::text NOT NULL,
+    use_max_ttl boolean DEFAULT false NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -863,6 +864,7 @@ CREATE VIEW template_with_users AS
     templates.autostart_block_days_of_week,
     templates.require_active_version,
     templates.deprecated,
+    templates.use_max_ttl,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username
    FROM (public.templates

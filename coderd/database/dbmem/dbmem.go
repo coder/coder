@@ -880,7 +880,7 @@ func (q *FakeQuerier) AllUserIDs(_ context.Context) ([]uuid.UUID, error) {
 	defer q.mutex.RUnlock()
 	userIDs := make([]uuid.UUID, 0, len(q.users))
 	for idx := range q.users {
-		userIDs[idx] = q.users[idx].ID
+		userIDs = append(userIDs, q.users[idx].ID)
 	}
 	return userIDs, nil
 }
@@ -6158,6 +6158,7 @@ func (q *FakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database
 		tpl.AllowUserAutostop = arg.AllowUserAutostop
 		tpl.UpdatedAt = dbtime.Now()
 		tpl.DefaultTTL = arg.DefaultTTL
+		tpl.UseMaxTtl = arg.UseMaxTtl
 		tpl.MaxTTL = arg.MaxTTL
 		tpl.AutostopRequirementDaysOfWeek = arg.AutostopRequirementDaysOfWeek
 		tpl.AutostopRequirementWeeks = arg.AutostopRequirementWeeks
