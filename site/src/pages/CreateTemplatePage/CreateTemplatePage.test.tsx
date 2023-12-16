@@ -11,7 +11,6 @@ import {
   MockTemplateVersionVariable3,
   MockTemplate,
   MockOrganization,
-  MockProvisionerJob,
 } from "testHelpers/entities";
 
 const renderPage = async (searchParams: URLSearchParams) => {
@@ -28,8 +27,14 @@ const renderPage = async (searchParams: URLSearchParams) => {
   return view;
 };
 
-test("Create template with variables", async () => {
-  // Return pending when creating the first template version
+test("Create template from starter template", async () => {
+  // Render page, fill the name and submit
+  const searchParams = new URLSearchParams({
+    exampleId: MockTemplateExample.id,
+  });
+  const { router, container } = await renderPage(searchParams);
+  const form = container.querySelector("form") as HTMLFormElement;
+
   jest.spyOn(API, "createTemplateVersion").mockResolvedValueOnce({
     ...MockTemplateVersion,
     job: {
@@ -37,7 +42,6 @@ test("Create template with variables", async () => {
       status: "pending",
     },
   });
-  // Return an error requesting for template variables
   jest.spyOn(API, "getTemplateVersion").mockResolvedValue({
     ...MockTemplateVersion,
     job: {
@@ -46,7 +50,6 @@ test("Create template with variables", async () => {
       error_code: "REQUIRED_TEMPLATE_VARIABLES",
     },
   });
-  // Return the template variables
   jest
     .spyOn(API, "getTemplateVersionVariables")
     .mockResolvedValue([
@@ -54,20 +57,13 @@ test("Create template with variables", async () => {
       MockTemplateVersionVariable2,
       MockTemplateVersionVariable3,
     ]);
-
-  // Render page, fill the name and submit
-  const searchParams = new URLSearchParams({
-    exampleId: MockTemplateExample.id,
-  });
-  const { router, container } = await renderPage(searchParams);
-  const form = container.querySelector("form") as HTMLFormElement;
   await userEvent.type(screen.getByLabelText(/Name/), "my-template");
   await userEvent.click(
     within(form).getByRole("button", { name: /create template/i }),
   );
 
   // Wait for the variables form to be rendered and fill it
-  await screen.findByText(/Variables/);
+  await screen.findByText(/Variables/, undefined, { timeout: 5_000 });
 
   // Type first variable
   await userEvent.clear(screen.getByLabelText(/var.first_variable/));
@@ -85,6 +81,7 @@ test("Create template with variables", async () => {
   jest
     .spyOn(API, "createTemplateVersion")
     .mockResolvedValue(MockTemplateVersion);
+  jest.spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
   jest.spyOn(API, "createTemplate").mockResolvedValue(MockTemplate);
   await userEvent.click(
     within(form).getByRole("button", { name: /create template/i }),
@@ -94,7 +91,7 @@ test("Create template with variables", async () => {
     `/templates/${MockTemplate.name}`,
   );
   expect(API.createTemplateVersion).toHaveBeenCalledWith(MockOrganization.id, {
-    file_id: MockProvisionerJob.file_id,
+    example_id: "aws-windows",
     provisioner: "terraform",
     storage_method: "file",
     tags: {},
@@ -106,7 +103,13 @@ test("Create template with variables", async () => {
   });
 });
 
-test("Create template from another template", async () => {
+test("Create template from duplicating a template", async () => {
+  jest.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
+  jest.spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
+  jest
+    .spyOn(API, "getTemplateVersionVariables")
+    .mockResolvedValue([MockTemplateVersionVariable1]);
+
   const searchParams = new URLSearchParams({
     fromTemplate: MockTemplate.name,
   });
@@ -128,11 +131,14 @@ test("Create template from another template", async () => {
   jest
     .spyOn(API, "createTemplateVersion")
     .mockResolvedValue(MockTemplateVersion);
+  jest.spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
   jest.spyOn(API, "createTemplate").mockResolvedValue(MockTemplate);
   await userEvent.click(
     screen.getByRole("button", { name: /create template/i }),
   );
-  expect(router.state.location.pathname).toEqual(
-    `/templates/${MockTemplate.name}`,
-  );
+  await waitFor(() => {
+    expect(router.state.location.pathname).toEqual(
+      `/templates/${MockTemplate.name}`,
+    );
+  });
 });

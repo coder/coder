@@ -5,19 +5,25 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"html/template"
 	"io"
 	"net"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	lru "github.com/hashicorp/golang-lru/v2"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	agpl "github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/tailnet/proto"
 )
 
 // NewCoordinator creates a new high availability coordinator
@@ -57,8 +63,9 @@ func (c *haCoordinator) ServeMultiAgent(id uuid.UUID) agpl.MultiAgentConn {
 		ID:                id,
 		AgentIsLegacyFunc: c.agentIsLegacy,
 		OnSubscribe:       c.clientSubscribeToAgent,
+		OnUnsubscribe:     c.clientUnsubscribeFromAgent,
 		OnNodeUpdate:      c.clientNodeUpdate,
-		OnRemove:          func(enq agpl.Queue) { c.clientDisconnected(enq.UniqueID()) },
+		OnRemove:          c.clientDisconnected,
 	}).Init()
 	c.addClient(id, m)
 	return m
@@ -101,6 +108,22 @@ func (c *haCoordinator) clientSubscribeToAgent(enq agpl.Queue, agentID uuid.UUID
 	return nil, nil
 }
 
+func (c *haCoordinator) clientUnsubscribeFromAgent(enq agpl.Queue, agentID uuid.UUID) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	connectionSockets, ok := c.agentToConnectionSockets[agentID]
+	if !ok {
+		return nil
+	}
+	delete(connectionSockets, enq.UniqueID())
+	if len(connectionSockets) == 0 {
+		delete(c.agentToConnectionSockets, agentID)
+	}
+
+	return nil
+}
+
 type haCoordinator struct {
 	id        uuid.UUID
 	log       slog.Logger
@@ -134,6 +157,24 @@ type haCoordinator struct {
 	legacyAgents map[uuid.UUID]struct{}
 }
 
+func (c *haCoordinator) Coordinate(ctx context.Context, _ uuid.UUID, _ string, _ agpl.TunnelAuth) (chan<- *proto.CoordinateRequest, <-chan *proto.CoordinateResponse) {
+	// HA Coordinator does NOT support v2 API and this is just here to appease the compiler and prevent
+	// panics while we build out v2 support elsewhere.  We will retire the HA Coordinator in favor of
+	// PG Coordinator before we turn on the v2 API.
+	c.log.Warn(ctx, "v2 API invoked but unimplemented")
+	resp := make(chan *proto.CoordinateResponse)
+	close(resp)
+	req := make(chan *proto.CoordinateRequest)
+	go func() {
+		for {
+			if _, ok := <-req; !ok {
+				return
+			}
+		}
+	}()
+	return req, resp
+}
+
 // Node returns an in-memory node by ID.
 func (c *haCoordinator) Node(id uuid.UUID) *agpl.Node {
 	c.mutex.Lock()
@@ -161,7 +202,7 @@ func (c *haCoordinator) ServeClient(conn net.Conn, id, agentID uuid.UUID) error 
 	defer tc.Close()
 
 	c.addClient(id, tc)
-	defer c.clientDisconnected(id)
+	defer c.clientDisconnected(tc)
 
 	agentNode, err := c.clientSubscribeToAgent(tc, agentID)
 	if err != nil {
@@ -200,26 +241,24 @@ func (c *haCoordinator) initOrSetAgentConnectionSocketLocked(agentID uuid.UUID, 
 	c.clientsToAgents[enq.UniqueID()][agentID] = c.agentSockets[agentID]
 }
 
-func (c *haCoordinator) clientDisconnected(id uuid.UUID) {
+func (c *haCoordinator) clientDisconnected(enq agpl.Queue) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	for agentID := range c.clientsToAgents[id] {
-		// Clean all traces of this connection from the map.
-		delete(c.nodes, id)
+	for agentID := range c.clientsToAgents[enq.UniqueID()] {
 		connectionSockets, ok := c.agentToConnectionSockets[agentID]
 		if !ok {
-			return
+			continue
 		}
-		delete(connectionSockets, id)
-		if len(connectionSockets) != 0 {
-			return
+		delete(connectionSockets, enq.UniqueID())
+		if len(connectionSockets) == 0 {
+			delete(c.agentToConnectionSockets, agentID)
 		}
-		delete(c.agentToConnectionSockets, agentID)
 	}
 
-	delete(c.clients, id)
-	delete(c.clientsToAgents, id)
+	delete(c.nodes, enq.UniqueID())
+	delete(c.clients, enq.UniqueID())
+	delete(c.clientsToAgents, enq.UniqueID())
 }
 
 func (c *haCoordinator) handleNextClientMessage(id uuid.UUID, decoder *json.Decoder) error {
@@ -704,7 +743,209 @@ func (c *haCoordinator) ServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 
-	agpl.CoordinatorHTTPDebug(
-		agpl.HTTPDebugFromLocal(true, c.agentSockets, c.agentToConnectionSockets, c.nodes, c.agentNameCache),
+	CoordinatorHTTPDebug(
+		HTTPDebugFromLocal(true, c.agentSockets, c.agentToConnectionSockets, c.nodes, c.agentNameCache),
 	)(w, r)
 }
+
+func HTTPDebugFromLocal(
+	ha bool,
+	agentSocketsMap map[uuid.UUID]agpl.Queue,
+	agentToConnectionSocketsMap map[uuid.UUID]map[uuid.UUID]agpl.Queue,
+	nodesMap map[uuid.UUID]*agpl.Node,
+	agentNameCache *lru.Cache[uuid.UUID, string],
+) HTMLDebugHA {
+	now := time.Now()
+	data := HTMLDebugHA{HA: ha}
+	for id, conn := range agentSocketsMap {
+		start, lastWrite := conn.Stats()
+		agent := &HTMLAgent{
+			Name:         conn.Name(),
+			ID:           id,
+			CreatedAge:   now.Sub(time.Unix(start, 0)).Round(time.Second),
+			LastWriteAge: now.Sub(time.Unix(lastWrite, 0)).Round(time.Second),
+			Overwrites:   int(conn.Overwrites()),
+		}
+
+		for id, conn := range agentToConnectionSocketsMap[id] {
+			start, lastWrite := conn.Stats()
+			agent.Connections = append(agent.Connections, &HTMLClient{
+				Name:         conn.Name(),
+				ID:           id,
+				CreatedAge:   now.Sub(time.Unix(start, 0)).Round(time.Second),
+				LastWriteAge: now.Sub(time.Unix(lastWrite, 0)).Round(time.Second),
+			})
+		}
+		slices.SortFunc(agent.Connections, func(a, b *HTMLClient) int {
+			return slice.Ascending(a.Name, b.Name)
+		})
+
+		data.Agents = append(data.Agents, agent)
+	}
+	slices.SortFunc(data.Agents, func(a, b *HTMLAgent) int {
+		return slice.Ascending(a.Name, b.Name)
+	})
+
+	for agentID, conns := range agentToConnectionSocketsMap {
+		if len(conns) == 0 {
+			continue
+		}
+
+		if _, ok := agentSocketsMap[agentID]; ok {
+			continue
+		}
+
+		agentName, ok := agentNameCache.Get(agentID)
+		if !ok {
+			agentName = "unknown"
+		}
+		agent := &HTMLAgent{
+			Name: agentName,
+			ID:   agentID,
+		}
+		for id, conn := range conns {
+			start, lastWrite := conn.Stats()
+			agent.Connections = append(agent.Connections, &HTMLClient{
+				Name:         conn.Name(),
+				ID:           id,
+				CreatedAge:   now.Sub(time.Unix(start, 0)).Round(time.Second),
+				LastWriteAge: now.Sub(time.Unix(lastWrite, 0)).Round(time.Second),
+			})
+		}
+		slices.SortFunc(agent.Connections, func(a, b *HTMLClient) int {
+			return slice.Ascending(a.Name, b.Name)
+		})
+
+		data.MissingAgents = append(data.MissingAgents, agent)
+	}
+	slices.SortFunc(data.MissingAgents, func(a, b *HTMLAgent) int {
+		return slice.Ascending(a.Name, b.Name)
+	})
+
+	for id, node := range nodesMap {
+		name, _ := agentNameCache.Get(id)
+		data.Nodes = append(data.Nodes, &HTMLNode{
+			ID:   id,
+			Name: name,
+			Node: node,
+		})
+	}
+	slices.SortFunc(data.Nodes, func(a, b *HTMLNode) int {
+		return slice.Ascending(a.Name+a.ID.String(), b.Name+b.ID.String())
+	})
+
+	return data
+}
+
+func CoordinatorHTTPDebug(data HTMLDebugHA) func(w http.ResponseWriter, _ *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+		tmpl, err := template.New("coordinator_debug").Funcs(template.FuncMap{
+			"marshal": func(v any) template.JS {
+				a, err := json.MarshalIndent(v, "", "  ")
+				if err != nil {
+					//nolint:gosec
+					return template.JS(fmt.Sprintf(`{"err": %q}`, err))
+				}
+				//nolint:gosec
+				return template.JS(a)
+			},
+		}).Parse(haCoordinatorDebugTmpl)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(err.Error()))
+			return
+		}
+
+		err = tmpl.Execute(w, data)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(err.Error()))
+			return
+		}
+	}
+}
+
+type HTMLDebugHA struct {
+	HA            bool
+	Agents        []*HTMLAgent
+	MissingAgents []*HTMLAgent
+	Nodes         []*HTMLNode
+}
+
+type HTMLAgent struct {
+	Name         string
+	ID           uuid.UUID
+	CreatedAge   time.Duration
+	LastWriteAge time.Duration
+	Overwrites   int
+	Connections  []*HTMLClient
+}
+
+type HTMLClient struct {
+	Name         string
+	ID           uuid.UUID
+	CreatedAge   time.Duration
+	LastWriteAge time.Duration
+}
+
+type HTMLNode struct {
+	ID   uuid.UUID
+	Name string
+	Node any
+}
+
+var haCoordinatorDebugTmpl = `
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+	</head>
+	<body>
+	{{- if .HA }}
+		<h1>high-availability wireguard coordinator debug</h1>
+		<h4 style="margin-top:-25px">warning: this only provides info from the node that served the request, if there are multiple replicas this data may be incomplete</h4>
+	{{- else }}
+		<h1>in-memory wireguard coordinator debug</h1>
+	{{- end }}
+
+		<h2 id=agents> <a href=#agents>#</a> agents: total {{ len .Agents }} </h2>
+		<ul>
+		{{- range .Agents }}
+			<li style="margin-top:4px">
+				<b>{{ .Name }}</b> (<code>{{ .ID }}</code>): created {{ .CreatedAge }} ago, write {{ .LastWriteAge }} ago, overwrites {{ .Overwrites }}
+				<h3 style="margin:0px;font-size:16px;font-weight:400"> connections: total {{ len .Connections}} </h3>
+				<ul>
+				{{- range .Connections }}
+					<li><b>{{ .Name }}</b> (<code>{{ .ID }}</code>): created {{ .CreatedAge }} ago, write {{ .LastWriteAge }} ago </li>
+				{{- end }}
+				</ul>
+			</li>
+		{{- end }}
+		</ul>
+
+		<h2 id=missing-agents><a href=#missing-agents>#</a> missing agents: total {{ len .MissingAgents }}</h2>
+		<ul>
+		{{- range .MissingAgents}}
+			<li style="margin-top:4px"><b>{{ .Name }}</b> (<code>{{ .ID }}</code>): created ? ago, write ? ago, overwrites ? </li>
+			<h3 style="margin:0px;font-size:16px;font-weight:400"> connections: total {{ len .Connections }} </h3>
+			<ul>
+			{{- range .Connections }}
+				<li><b>{{ .Name }}</b> (<code>{{ .ID }}</code>): created {{ .CreatedAge }} ago, write {{ .LastWriteAge }} ago </li>
+			{{- end }}
+			</ul>
+		{{- end }}
+		</ul>
+
+		<h2 id=nodes><a href=#nodes>#</a> nodes: total {{ len .Nodes }}</h2>
+		<ul>
+		{{- range .Nodes }}
+			<li style="margin-top:4px"><b>{{ .Name }}</b> (<code>{{ .ID }}</code>):
+				<span style="white-space: pre;"><code>{{ marshal .Node }}</code></span>
+			</li>
+		{{- end }}
+		</ul>
+	</body>
+</html>
+`

@@ -2,13 +2,8 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import * as API from "api/api";
 import * as AccountForm from "./AccountForm";
 import { renderWithAuth } from "testHelpers/renderHelpers";
-import * as AuthXService from "xServices/auth/authXService";
 import { AccountPage } from "./AccountPage";
 import { mockApiError } from "testHelpers/entities";
-
-const renderPage = () => {
-  return renderWithAuth(<AccountPage />);
-};
 
 const newData = {
   username: "user",
@@ -36,18 +31,17 @@ describe("AccountPage", () => {
           avatar_url: "",
           last_seen_at: new Date().toString(),
           login_type: "password",
+          theme_preference: "",
           ...data,
         }),
       );
-      const { user } = renderPage();
+      renderWithAuth(<AccountPage />);
       await fillAndSubmitForm();
 
-      const successMessage = await screen.findByText(
-        AuthXService.Language.successProfileUpdate,
-      );
+      const successMessage = await screen.findByText("Updated settings.");
       expect(successMessage).toBeDefined();
       expect(API.updateProfile).toBeCalledTimes(1);
-      expect(API.updateProfile).toBeCalledWith(user.id, newData);
+      expect(API.updateProfile).toBeCalledWith("me", newData);
     });
   });
 
@@ -62,7 +56,7 @@ describe("AccountPage", () => {
         }),
       );
 
-      const { user } = renderPage();
+      renderWithAuth(<AccountPage />);
       await fillAndSubmitForm();
 
       const errorMessage = await screen.findByText(
@@ -70,7 +64,7 @@ describe("AccountPage", () => {
       );
       expect(errorMessage).toBeDefined();
       expect(API.updateProfile).toBeCalledTimes(1);
-      expect(API.updateProfile).toBeCalledWith(user.id, newData);
+      expect(API.updateProfile).toBeCalledWith("me", newData);
     });
   });
 
@@ -80,13 +74,13 @@ describe("AccountPage", () => {
         data: "unknown error",
       });
 
-      const { user } = renderPage();
+      renderWithAuth(<AccountPage />);
       await fillAndSubmitForm();
 
       const errorMessage = await screen.findByText("Something went wrong.");
       expect(errorMessage).toBeDefined();
       expect(API.updateProfile).toBeCalledTimes(1);
-      expect(API.updateProfile).toBeCalledWith(user.id, newData);
+      expect(API.updateProfile).toBeCalledWith("me", newData);
     });
   });
 });

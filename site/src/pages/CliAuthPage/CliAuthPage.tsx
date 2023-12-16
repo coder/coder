@@ -1,7 +1,7 @@
 import { useEffect, useState, FC, PropsWithChildren } from "react";
 import { Helmet } from "react-helmet-async";
-import { getApiKey } from "../../api/api";
-import { pageTitle } from "../../utils/page";
+import { getApiKey } from "api/api";
+import { pageTitle } from "utils/page";
 import { CliAuthPageView } from "./CliAuthPageView";
 
 export const CliAuthenticationPage: FC<PropsWithChildren<unknown>> = () => {

@@ -16,6 +16,15 @@ const meta: Meta<typeof DeleteDialog> = {
 };
 
 export default meta;
+
 type Story = StoryObj<typeof DeleteDialog>;
 
-export const Example: Story = {};
+const Example: Story = {};
+
+export const Loading: Story = {
+  args: {
+    confirmLoading: true,
+  },
+};
+
+export { Example as DeleteDialog };

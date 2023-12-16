@@ -53,6 +53,7 @@ curl -X GET http://coder-server:8080/api/v2/buildinfo \
 
 ```json
 {
+  "agent_api_version": "string",
   "dashboard_url": "string",
   "external_url": "string",
   "version": "string",
@@ -152,6 +153,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "user": {}
     },
     "agent_stat_refresh_interval": 0,
+    "allow_workspace_renames": true,
     "autobuild_poll_interval": 0,
     "browser_only": true,
     "cache_directory": "string",
@@ -212,8 +214,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     },
     "enable_terraform_debug_mode": true,
     "experiments": ["string"],
-    "external_token_encryption_keys": ["string"],
-    "git_auth": {
+    "external_auth": {
       "value": [
         {
           "app_install_url": "string",
@@ -222,6 +223,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "client_id": "string",
           "device_code_url": "string",
           "device_flow": true,
+          "display_icon": "string",
+          "display_name": "string",
+          "extra_token_keys": ["string"],
           "id": "string",
           "no_refresh": true,
           "regex": "string",
@@ -231,6 +235,11 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "validate_url": "string"
         }
       ]
+    },
+    "external_token_encryption_keys": ["string"],
+    "healthcheck": {
+      "refresh": 0,
+      "threshold_database": 0
     },
     "http_address": "string",
     "in_memory_database": true,
@@ -264,6 +273,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "client_secret": "string",
       "email_domain": ["string"],
       "email_field": "string",
+      "group_allow_list": ["string"],
       "group_auto_create": true,
       "group_mapping": {},
       "group_regex_filter": {},
@@ -365,6 +375,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "host": "string",
         "port": "string"
       },
+      "allow_insecure_ciphers": true,
       "cert_file": ["string"],
       "client_auth": "string",
       "client_ca_file": "string",
@@ -373,7 +384,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "enable": true,
       "key_file": ["string"],
       "min_version": "string",
-      "redirect_http": true
+      "redirect_http": true,
+      "supported_ciphers": ["string"]
     },
     "trace": {
       "capture_logs": true,
@@ -383,9 +395,11 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     },
     "update_check": true,
     "user_quiet_hours_schedule": {
+      "allow_user_custom": true,
       "default_schedule": "string"
     },
     "verbose": true,
+    "web_terminal_renderer": "string",
     "wgtunnel_host": "string",
     "wildcard_access_url": {
       "forceQuery": true,
@@ -531,7 +545,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/stats \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get experiments
+## Get enabled experiments
 
 ### Code samples
 
@@ -558,7 +572,44 @@ curl -X GET http://coder-server:8080/api/v2/experiments \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.Experiment](schemas.md#codersdkexperiment) |
 
-<h3 id="get-experiments-responseschema">Response Schema</h3>
+<h3 id="get-enabled-experiments-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name           | Type  | Required | Restrictions | Description |
+| -------------- | ----- | -------- | ------------ | ----------- |
+| `[array item]` | array | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get safe experiments
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/experiments/available \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /experiments/available`
+
+### Example responses
+
+> 200 Response
+
+```json
+["moons"]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                        |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.Experiment](schemas.md#codersdkexperiment) |
+
+<h3 id="get-safe-experiments-responseschema">Response Schema</h3>
 
 Status Code **200**
 

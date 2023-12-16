@@ -124,6 +124,15 @@ func (t Template) DeepCopy() Template {
 	return cpy
 }
 
+// AutostartAllowedDays returns the inverse of 'AutostartBlockDaysOfWeek'.
+// It is more useful to have the days that are allowed to autostart from a UX
+// POV. The database prefers the 0 value being 'all days allowed'.
+func (t Template) AutostartAllowedDays() uint8 {
+	// Just flip the binary 0s to 1s and vice versa.
+	// There is an extra day with the 8th bit that needs to be zeroed.
+	return ^uint8(t.AutostartBlockDaysOfWeek) & 0b01111111
+}
+
 func (TemplateVersion) RBACObject(template Template) rbac.Object {
 	// Just use the parent template resource for controlling versions
 	return template.RBACObject()
@@ -137,6 +146,10 @@ func (v TemplateVersion) RBACObjectNoTemplate() rbac.Object {
 func (g Group) RBACObject() rbac.Object {
 	return rbac.ResourceGroup.WithID(g.ID).
 		InOrg(g.OrganizationID)
+}
+
+func (w GetWorkspaceByAgentIDRow) RBACObject() rbac.Object {
+	return w.Workspace.RBACObject()
 }
 
 func (w Workspace) RBACObject() rbac.Object {
@@ -170,7 +183,7 @@ func (w Workspace) ApplicationConnectRBAC() rbac.Object {
 }
 
 func (w Workspace) WorkspaceBuildRBAC(transition WorkspaceTransition) rbac.Object {
-	// If a workspace is locked it cannot be built.
+	// If a workspace is dormant it cannot be built.
 	// However we need to allow stopping a workspace by a caller once a workspace
 	// is locked (e.g. for autobuild). Additionally, if a user wants to delete
 	// a locked workspace, they shouldn't have to have it unlocked first.
@@ -250,7 +263,7 @@ func (u GitSSHKey) RBACObject() rbac.Object {
 	return rbac.ResourceUserData.WithID(u.UserID).WithOwner(u.UserID.String())
 }
 
-func (u GitAuthLink) RBACObject() rbac.Object {
+func (u ExternalAuthLink) RBACObject() rbac.Object {
 	// I assume UserData is ok?
 	return rbac.ResourceUserData.WithID(u.UserID).WithOwner(u.UserID.String())
 }
@@ -323,18 +336,19 @@ func ConvertUserRows(rows []GetUsersRow) []User {
 	users := make([]User, len(rows))
 	for i, r := range rows {
 		users[i] = User{
-			ID:             r.ID,
-			Email:          r.Email,
-			Username:       r.Username,
-			HashedPassword: r.HashedPassword,
-			CreatedAt:      r.CreatedAt,
-			UpdatedAt:      r.UpdatedAt,
-			Status:         r.Status,
-			RBACRoles:      r.RBACRoles,
-			LoginType:      r.LoginType,
-			AvatarURL:      r.AvatarURL,
-			Deleted:        r.Deleted,
-			LastSeenAt:     r.LastSeenAt,
+			ID:              r.ID,
+			Email:           r.Email,
+			Username:        r.Username,
+			HashedPassword:  r.HashedPassword,
+			CreatedAt:       r.CreatedAt,
+			UpdatedAt:       r.UpdatedAt,
+			Status:          r.Status,
+			RBACRoles:       r.RBACRoles,
+			LoginType:       r.LoginType,
+			AvatarURL:       r.AvatarURL,
+			Deleted:         r.Deleted,
+			LastSeenAt:      r.LastSeenAt,
+			ThemePreference: r.ThemePreference,
 		}
 	}
 
@@ -358,6 +372,7 @@ func ConvertWorkspaceRows(rows []GetWorkspacesRow) []Workspace {
 			LastUsedAt:        r.LastUsedAt,
 			DormantAt:         r.DormantAt,
 			DeletingAt:        r.DeletingAt,
+			AutomaticUpdates:  r.AutomaticUpdates,
 		}
 	}
 
@@ -366,4 +381,20 @@ func ConvertWorkspaceRows(rows []GetWorkspacesRow) []Workspace {
 
 func (g Group) IsEveryone() bool {
 	return g.ID == g.OrganizationID
+}
+
+func (p ProvisionerJob) Finished() bool {
+	return p.CanceledAt.Valid || p.CompletedAt.Valid
+}
+
+func (p ProvisionerJob) FinishedAt() time.Time {
+	if p.CompletedAt.Valid {
+		return p.CompletedAt.Time
+	}
+
+	if p.CanceledAt.Valid {
+		return p.CanceledAt.Time
+	}
+
+	return time.Time{}
 }

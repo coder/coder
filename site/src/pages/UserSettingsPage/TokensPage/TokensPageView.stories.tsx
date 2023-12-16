@@ -3,7 +3,7 @@ import { TokensPageView } from "./TokensPageView";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof TokensPageView> = {
-  title: "pages/TokensPageView",
+  title: "pages/UserSettingsPage/TokensPageView",
   component: TokensPageView,
   args: {
     isLoading: false,

@@ -27,11 +27,11 @@ import (
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
-	"github.com/coder/coder/v2/coderd/gitauth"
+	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
@@ -143,7 +143,7 @@ func TestAcquireJob(t *testing.T) {
 			gitAuthProvider := "github"
 			srv, db, ps := setup(t, false, &overrides{
 				deploymentValues: dv,
-				gitAuthConfigs: []*gitauth.Config{{
+				externalAuthConfigs: []*externalauth.Config{{
 					ID:           gitAuthProvider,
 					OAuth2Config: &testutil.OAuth2Config{},
 				}},
@@ -158,7 +158,7 @@ func TestAcquireJob(t *testing.T) {
 				OAuthExpiry:      dbtime.Now().Add(time.Hour),
 				OAuthAccessToken: "access-token",
 			})
-			dbgen.GitAuthLink(t, db, database.GitAuthLink{
+			dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
 				ProviderID: gitAuthProvider,
 				UserID:     user.ID,
 			})
@@ -175,10 +175,10 @@ func TestAcquireJob(t *testing.T) {
 				},
 				JobID: uuid.New(),
 			})
-			err := db.UpdateTemplateVersionGitAuthProvidersByJobID(ctx, database.UpdateTemplateVersionGitAuthProvidersByJobIDParams{
-				JobID:            version.JobID,
-				GitAuthProviders: []string{gitAuthProvider},
-				UpdatedAt:        dbtime.Now(),
+			err := db.UpdateTemplateVersionExternalAuthProvidersByJobID(ctx, database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
+				JobID:                 version.JobID,
+				ExternalAuthProviders: []string{gitAuthProvider},
+				UpdatedAt:             dbtime.Now(),
 			})
 			require.NoError(t, err)
 			// Import version job
@@ -288,7 +288,7 @@ func TestAcquireJob(t *testing.T) {
 							Value: "second_value",
 						},
 					},
-					GitAuthProviders: []*sdkproto.GitAuthProvider{{
+					ExternalAuthProviders: []*sdkproto.ExternalAuthProvider{{
 						Id:          gitAuthProvider,
 						AccessToken: "access_token",
 					}},
@@ -783,7 +783,8 @@ func TestFailJob(t *testing.T) {
 		srvID := uuid.New()
 		srv, db, ps := setup(t, ignoreLogErrors, &overrides{id: &srvID})
 		workspace, err := db.InsertWorkspace(ctx, database.InsertWorkspaceParams{
-			ID: uuid.New(),
+			ID:               uuid.New(),
+			AutomaticUpdates: database.AutomaticUpdatesNever,
 		})
 		require.NoError(t, err)
 		buildID := uuid.New()
@@ -923,8 +924,8 @@ func TestCompleteJob(t *testing.T) {
 							Name: "hello",
 							Type: "aws_instance",
 						}},
-						StopResources:    []*sdkproto.Resource{},
-						GitAuthProviders: []string{"github"},
+						StopResources:         []*sdkproto.Resource{},
+						ExternalAuthProviders: []string{"github"},
 					},
 				},
 			})
@@ -933,7 +934,7 @@ func TestCompleteJob(t *testing.T) {
 		completeJob()
 		job, err = db.GetProvisionerJobByID(ctx, job.ID)
 		require.NoError(t, err)
-		require.Contains(t, job.Error.String, `git auth provider "github" is not configured`)
+		require.Contains(t, job.Error.String, `external auth provider "github" is not configured`)
 	})
 
 	t.Run("TemplateImport_WithGitAuth", func(t *testing.T) {
@@ -941,7 +942,7 @@ func TestCompleteJob(t *testing.T) {
 		srvID := uuid.New()
 		srv, db, _ := setup(t, false, &overrides{
 			id: &srvID,
-			gitAuthConfigs: []*gitauth.Config{{
+			externalAuthConfigs: []*externalauth.Config{{
 				ID: "github",
 			}},
 		})
@@ -977,8 +978,8 @@ func TestCompleteJob(t *testing.T) {
 							Name: "hello",
 							Type: "aws_instance",
 						}},
-						StopResources:    []*sdkproto.Resource{},
-						GitAuthProviders: []string{"github"},
+						StopResources:         []*sdkproto.Resource{},
+						ExternalAuthProviders: []string{"github"},
 					},
 				},
 			})
@@ -1112,11 +1113,11 @@ func TestCompleteJob(t *testing.T) {
 				var store schedule.TemplateScheduleStore = schedule.MockTemplateScheduleStore{
 					GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.TemplateScheduleOptions, error) {
 						return schedule.TemplateScheduleOptions{
-							UserAutostartEnabled:   false,
-							UserAutostopEnabled:    c.templateAllowAutostop,
-							DefaultTTL:             c.templateDefaultTTL,
-							MaxTTL:                 c.templateMaxTTL,
-							UseAutostopRequirement: false,
+							UserAutostartEnabled: false,
+							UserAutostopEnabled:  c.templateAllowAutostop,
+							DefaultTTL:           c.templateDefaultTTL,
+							MaxTTL:               c.templateMaxTTL,
+							UseMaxTTL:            true,
 						}, nil
 					},
 				}
@@ -1332,11 +1333,11 @@ func TestCompleteJob(t *testing.T) {
 				var templateScheduleStore schedule.TemplateScheduleStore = schedule.MockTemplateScheduleStore{
 					GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.TemplateScheduleOptions, error) {
 						return schedule.TemplateScheduleOptions{
-							UserAutostartEnabled:   false,
-							UserAutostopEnabled:    true,
-							DefaultTTL:             0,
-							UseAutostopRequirement: true,
-							AutostopRequirement:    c.templateAutostopRequirement,
+							UserAutostartEnabled: false,
+							UserAutostopEnabled:  true,
+							DefaultTTL:           0,
+							UseMaxTTL:            false,
+							AutostopRequirement:  c.templateAutostopRequirement,
 						}, nil
 					},
 				}
@@ -1524,7 +1525,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	}
 	t.Run("NoAgents", func(t *testing.T) {
 		t.Parallel()
-		db := dbfake.New()
+		db := dbmem.New()
 		job := uuid.New()
 		err := insert(db, job, &sdkproto.Resource{
 			Name: "something",
@@ -1537,7 +1538,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	})
 	t.Run("InvalidAgentToken", func(t *testing.T) {
 		t.Parallel()
-		err := insert(dbfake.New(), uuid.New(), &sdkproto.Resource{
+		err := insert(dbmem.New(), uuid.New(), &sdkproto.Resource{
 			Name: "something",
 			Type: "aws_instance",
 			Agents: []*sdkproto.Agent{{
@@ -1550,7 +1551,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	})
 	t.Run("DuplicateApps", func(t *testing.T) {
 		t.Parallel()
-		err := insert(dbfake.New(), uuid.New(), &sdkproto.Resource{
+		err := insert(dbmem.New(), uuid.New(), &sdkproto.Resource{
 			Name: "something",
 			Type: "aws_instance",
 			Agents: []*sdkproto.Agent{{
@@ -1565,7 +1566,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	})
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
-		db := dbfake.New()
+		db := dbmem.New()
 		job := uuid.New()
 		err := insert(db, job, &sdkproto.Resource{
 			Name:      "something",
@@ -1576,7 +1577,6 @@ func TestInsertWorkspaceResource(t *testing.T) {
 				Env: map[string]string{
 					"something": "test",
 				},
-				StartupScript:   "value",
 				OperatingSystem: "linux",
 				Architecture:    "amd64",
 				Auth: &sdkproto.Agent_Token{
@@ -1585,7 +1585,20 @@ func TestInsertWorkspaceResource(t *testing.T) {
 				Apps: []*sdkproto.App{{
 					Slug: "a",
 				}},
-				ShutdownScript: "shutdown",
+				ExtraEnvs: []*sdkproto.Env{
+					{
+						Name:  "something", // Duplicate, already set by Env.
+						Value: "I should be discarded!",
+					},
+					{
+						Name:  "else",
+						Value: "I laugh in the face of danger.",
+					},
+				},
+				Scripts: []*sdkproto.Script{{
+					DisplayName: "Startup",
+					Icon:        "/test.png",
+				}},
 				DisplayApps: &sdkproto.DisplayApps{
 					Vscode:               true,
 					PortForwardingHelper: true,
@@ -1604,10 +1617,9 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		agent := agents[0]
 		require.Equal(t, "amd64", agent.Architecture)
 		require.Equal(t, "linux", agent.OperatingSystem)
-		require.Equal(t, "value", agent.StartupScript.String)
-		require.Equal(t, "shutdown", agent.ShutdownScript.String)
 		want, err := json.Marshal(map[string]string{
 			"something": "test",
+			"else":      "I laugh in the face of danger.",
 		})
 		require.NoError(t, err)
 		got, err := agent.EnvironmentVariables.RawMessage.MarshalJSON()
@@ -1622,7 +1634,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 
 	t.Run("AllDisplayApps", func(t *testing.T) {
 		t.Parallel()
-		db := dbfake.New()
+		db := dbmem.New()
 		job := uuid.New()
 		err := insert(db, job, &sdkproto.Resource{
 			Name: "something",
@@ -1650,7 +1662,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 
 	t.Run("DisableDefaultApps", func(t *testing.T) {
 		t.Parallel()
-		db := dbfake.New()
+		db := dbmem.New()
 		job := uuid.New()
 		err := insert(db, job, &sdkproto.Resource{
 			Name: "something",
@@ -1675,7 +1687,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 
 type overrides struct {
 	deploymentValues            *codersdk.DeploymentValues
-	gitAuthConfigs              []*gitauth.Config
+	externalAuthConfigs         []*externalauth.Config
 	id                          *uuid.UUID
 	templateScheduleStore       *atomic.Pointer[schedule.TemplateScheduleStore]
 	userQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
@@ -1688,10 +1700,10 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	db := dbfake.New()
+	db := dbmem.New()
 	ps := pubsub.NewInMemory()
 	deploymentValues := &codersdk.DeploymentValues{}
-	var gitAuthConfigs []*gitauth.Config
+	var externalAuthConfigs []*externalauth.Config
 	srvID := uuid.New()
 	tss := testTemplateScheduleStore()
 	uqhss := testUserQuietHoursScheduleStore()
@@ -1701,8 +1713,8 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		if ov.deploymentValues != nil {
 			deploymentValues = ov.deploymentValues
 		}
-		if ov.gitAuthConfigs != nil {
-			gitAuthConfigs = ov.gitAuthConfigs
+		if ov.externalAuthConfigs != nil {
+			externalAuthConfigs = ov.externalAuthConfigs
 		}
 		if ov.id != nil {
 			srvID = *ov.id
@@ -1732,6 +1744,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	}
 
 	srv, err := provisionerdserver.NewServer(
+		ctx,
 		&url.URL{},
 		srvID,
 		slogtest.Make(t, &slogtest.Options{IgnoreErrors: ignoreLogErrors}),
@@ -1748,7 +1761,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		uqhss,
 		deploymentValues,
 		provisionerdserver.Options{
-			GitAuthConfigs:        gitAuthConfigs,
+			ExternalAuthConfigs:   externalAuthConfigs,
 			TimeNowFn:             timeNowFn,
 			OIDCConfig:            &oauth2.Config{},
 			AcquireJobLongPollDur: pollDur,

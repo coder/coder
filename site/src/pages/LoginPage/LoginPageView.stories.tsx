@@ -1,10 +1,14 @@
-import { action } from "@storybook/addon-actions";
-import { MockAuthMethods, mockApiError } from "testHelpers/entities";
+import {
+  MockAuthMethodsAll,
+  MockAuthMethodsExternal,
+  MockAuthMethodsPasswordOnly,
+  mockApiError,
+} from "testHelpers/entities";
 import { LoginPageView } from "./LoginPageView";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof LoginPageView> = {
-  title: "pages/LoginPageView",
+  title: "pages/LoginPage",
   component: LoginPageView,
 };
 
@@ -13,51 +17,49 @@ type Story = StoryObj<typeof LoginPageView>;
 
 export const Example: Story = {
   args: {
-    isLoading: false,
-    onSignIn: action("onSignIn"),
-    context: {
-      data: {
-        authMethods: MockAuthMethods,
-        hasFirstUser: false,
-      },
-    },
+    authMethods: MockAuthMethodsPasswordOnly,
+  },
+};
+
+export const WithExternalAuthMethods: Story = {
+  args: {
+    authMethods: MockAuthMethodsExternal,
+  },
+};
+
+export const WithAllAuthMethods: Story = {
+  args: {
+    authMethods: MockAuthMethodsAll,
   },
 };
 
 export const AuthError: Story = {
   args: {
-    isLoading: false,
-    onSignIn: action("onSignIn"),
-    context: {
-      error: mockApiError({
-        message: "User or password is incorrect",
-        detail: "Please, try again",
-      }),
-      data: {
-        authMethods: MockAuthMethods,
-        hasFirstUser: false,
-      },
-    },
+    error: mockApiError({
+      message: "Incorrect email or password.",
+    }),
+    authMethods: MockAuthMethodsPasswordOnly,
   },
 };
 
-export const LoadingInitialData: Story = {
+export const ExternalAuthError: Story = {
   args: {
-    isLoading: true,
-    onSignIn: action("onSignIn"),
-    context: {},
+    error: mockApiError({
+      message: "Incorrect email or password.",
+    }),
+    authMethods: MockAuthMethodsAll,
+  },
+};
+
+export const LoadingAuthMethods: Story = {
+  args: {
+    authMethods: undefined,
   },
 };
 
 export const SigningIn: Story = {
   args: {
     isSigningIn: true,
-    onSignIn: action("onSignIn"),
-    context: {
-      data: {
-        authMethods: MockAuthMethods,
-        hasFirstUser: false,
-      },
-    },
+    authMethods: MockAuthMethodsPasswordOnly,
   },
 };

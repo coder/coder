@@ -18,6 +18,26 @@ import (
 func TestUserQuietHours(t *testing.T) {
 	t.Parallel()
 
+	t.Run("DefaultToUTC", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, adminUser := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAdvancedTemplateScheduling: 1,
+				},
+			},
+		})
+
+		client, user := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		res, err := client.UserQuietHoursSchedule(ctx, user.ID.String())
+		require.NoError(t, err)
+		require.Equal(t, "UTC", res.Timezone)
+		require.Equal(t, "00:00", res.Time)
+		require.Equal(t, "CRON_TZ=UTC 0 0 * * *", res.RawSchedule)
+	})
+
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
@@ -35,19 +55,21 @@ func TestUserQuietHours(t *testing.T) {
 
 		dv := coderdtest.DeploymentValues(t)
 		dv.UserQuietHoursSchedule.DefaultSchedule.Set(defaultQuietHoursSchedule)
-		dv.Experiments.Set(string(codersdk.ExperimentTemplateAutostopRequirement))
 
-		client, user := coderdenttest.New(t, &coderdenttest.Options{
+		adminClient, adminUser := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
-					codersdk.FeatureAdvancedTemplateScheduling:  1,
-					codersdk.FeatureTemplateAutostopRequirement: 1,
+					codersdk.FeatureAdvancedTemplateScheduling: 1,
 				},
 			},
 		})
+
+		// Do it with another user to make sure that we're not hitting RBAC
+		// errors.
+		client, user := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
 
 		// Get quiet hours for a user that doesn't have them set.
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -72,7 +94,7 @@ func TestUserQuietHours(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		sched2, err := client.UpdateUserQuietHoursSchedule(ctx, user.UserID.String(), codersdk.UpdateUserQuietHoursScheduleRequest{
+		sched2, err := client.UpdateUserQuietHoursSchedule(ctx, user.ID.String(), codersdk.UpdateUserQuietHoursScheduleRequest{
 			Schedule: customQuietHoursSchedule,
 		})
 		require.NoError(t, err)
@@ -83,7 +105,7 @@ func TestUserQuietHours(t *testing.T) {
 		require.WithinDuration(t, customScheduleParsed.Next(time.Now()), sched2.Next, 15*time.Second)
 
 		// Get quiet hours for a user that has them set.
-		sched3, err := client.UserQuietHoursSchedule(ctx, user.UserID.String())
+		sched3, err := client.UserQuietHoursSchedule(ctx, user.ID.String())
 		require.NoError(t, err)
 		require.Equal(t, customScheduleParsed.String(), sched3.RawSchedule)
 		require.True(t, sched3.UserSet)
@@ -92,33 +114,33 @@ func TestUserQuietHours(t *testing.T) {
 		require.WithinDuration(t, customScheduleParsed.Next(time.Now()), sched3.Next, 15*time.Second)
 
 		// Try setting a garbage schedule.
-		_, err = client.UpdateUserQuietHoursSchedule(ctx, user.UserID.String(), codersdk.UpdateUserQuietHoursScheduleRequest{
+		_, err = client.UpdateUserQuietHoursSchedule(ctx, user.ID.String(), codersdk.UpdateUserQuietHoursScheduleRequest{
 			Schedule: "garbage",
 		})
 		require.Error(t, err)
 		require.ErrorContains(t, err, "parse daily schedule")
 
 		// Try setting a non-daily schedule.
-		_, err = client.UpdateUserQuietHoursSchedule(ctx, user.UserID.String(), codersdk.UpdateUserQuietHoursScheduleRequest{
+		_, err = client.UpdateUserQuietHoursSchedule(ctx, user.ID.String(), codersdk.UpdateUserQuietHoursScheduleRequest{
 			Schedule: "CRON_TZ=America/Chicago 0 0 * * 1",
 		})
 		require.Error(t, err)
 		require.ErrorContains(t, err, "parse daily schedule")
 
 		// Try setting a schedule with a timezone that doesn't exist.
-		_, err = client.UpdateUserQuietHoursSchedule(ctx, user.UserID.String(), codersdk.UpdateUserQuietHoursScheduleRequest{
+		_, err = client.UpdateUserQuietHoursSchedule(ctx, user.ID.String(), codersdk.UpdateUserQuietHoursScheduleRequest{
 			Schedule: "CRON_TZ=Deans/House 0 0 * * *",
 		})
 		require.Error(t, err)
 		require.ErrorContains(t, err, "parse daily schedule")
 
 		// Try setting a schedule with more than one time.
-		_, err = client.UpdateUserQuietHoursSchedule(ctx, user.UserID.String(), codersdk.UpdateUserQuietHoursScheduleRequest{
+		_, err = client.UpdateUserQuietHoursSchedule(ctx, user.ID.String(), codersdk.UpdateUserQuietHoursScheduleRequest{
 			Schedule: "CRON_TZ=America/Chicago 0 0,12 * * *",
 		})
 		require.Error(t, err)
 		require.ErrorContains(t, err, "more than one time")
-		_, err = client.UpdateUserQuietHoursSchedule(ctx, user.UserID.String(), codersdk.UpdateUserQuietHoursScheduleRequest{
+		_, err = client.UpdateUserQuietHoursSchedule(ctx, user.ID.String(), codersdk.UpdateUserQuietHoursScheduleRequest{
 			Schedule: "CRON_TZ=America/Chicago 0-30 0 * * *",
 		})
 		require.Error(t, err)
@@ -133,81 +155,66 @@ func TestUserQuietHours(t *testing.T) {
 
 		dv := coderdtest.DeploymentValues(t)
 		dv.UserQuietHoursSchedule.DefaultSchedule.Set("CRON_TZ=America/Chicago 0 0 * * *")
-		dv.Experiments.Set(string(codersdk.ExperimentTemplateAutostopRequirement))
 
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					// Not entitled.
+					// codersdk.FeatureAdvancedTemplateScheduling: 1,
+				},
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		//nolint:gocritic // We want to test the lack of entitlement, not RBAC.
+		_, err := client.UserQuietHoursSchedule(ctx, user.UserID.String())
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+	})
+
+	t.Run("UserCannotSet", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.UserQuietHoursSchedule.DefaultSchedule.Set("CRON_TZ=America/Chicago 0 0 * * *")
+		dv.UserQuietHoursSchedule.AllowUserCustom.Set("false")
+
+		adminClient, adminUser := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureAdvancedTemplateScheduling: 1,
-					// Not entitled.
-					// codersdk.FeatureTemplateAutostopRequirement: 1,
 				},
 			},
 		})
 
+		// Do it with another user to make sure that we're not hitting RBAC
+		// errors.
+		client, user := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
+
+		// Get the schedule
 		ctx := testutil.Context(t, testutil.WaitLong)
-		_, err := client.UserQuietHoursSchedule(ctx, user.UserID.String())
+		sched, err := client.UserQuietHoursSchedule(ctx, user.ID.String())
+		require.NoError(t, err)
+		require.Equal(t, "CRON_TZ=America/Chicago 0 0 * * *", sched.RawSchedule)
+		require.False(t, sched.UserSet)
+		require.False(t, sched.UserCanSet)
+
+		// Try to set
+		_, err = client.UpdateUserQuietHoursSchedule(ctx, user.ID.String(), codersdk.UpdateUserQuietHoursScheduleRequest{
+			Schedule: "CRON_TZ=America/Chicago 30 2 * * *",
+		})
 		require.Error(t, err)
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
-	})
-
-	t.Run("NotEnabled", func(t *testing.T) {
-		t.Parallel()
-
-		dv := coderdtest.DeploymentValues(t)
-		dv.UserQuietHoursSchedule.DefaultSchedule.Set("")
-		dv.Experiments.Set(string(codersdk.ExperimentTemplateAutostopRequirement))
-
-		client, user := coderdenttest.New(t, &coderdenttest.Options{
-			NoDefaultQuietHoursSchedule: true,
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAdvancedTemplateScheduling:  1,
-					codersdk.FeatureTemplateAutostopRequirement: 1,
-				},
-			},
-		})
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		_, err := client.UserQuietHoursSchedule(ctx, user.UserID.String())
-		require.Error(t, err)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
-	})
-
-	t.Run("NoFeatureFlag", func(t *testing.T) {
-		t.Parallel()
-
-		dv := coderdtest.DeploymentValues(t)
-		dv.UserQuietHoursSchedule.DefaultSchedule.Set("CRON_TZ=America/Chicago 0 0 * * *")
-		dv.UserQuietHoursSchedule.DefaultSchedule.Set("")
-
-		client, user := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAdvancedTemplateScheduling:  1,
-					codersdk.FeatureTemplateAutostopRequirement: 1,
-				},
-			},
-		})
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		_, err := client.UserQuietHoursSchedule(ctx, user.UserID.String())
-		require.Error(t, err)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "cannot set custom quiet hours schedule")
 	})
 }

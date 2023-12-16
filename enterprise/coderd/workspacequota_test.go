@@ -108,7 +108,7 @@ func TestWorkspaceQuota(t *testing.T) {
 				},
 			}},
 		})
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 		// Spin up three workspaces fine
@@ -118,7 +118,7 @@ func TestWorkspaceQuota(t *testing.T) {
 			go func() {
 				defer wg.Done()
 				workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-				build := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+				build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 				assert.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
 			}()
 		}
@@ -127,7 +127,7 @@ func TestWorkspaceQuota(t *testing.T) {
 
 		// Next one must fail
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		build := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		// Consumed shouldn't bump
 		verifyQuota(ctx, t, client, 4, 4)
@@ -145,14 +145,14 @@ func TestWorkspaceQuota(t *testing.T) {
 				Transition: codersdk.WorkspaceTransitionDelete,
 			})
 			require.NoError(t, err)
-			coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
 			verifyQuota(ctx, t, client, 3, 4)
 			break
 		}
 
 		// Next one should now succeed
 		workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		build = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		verifyQuota(ctx, t, client, 4, 4)
 		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
@@ -195,7 +195,7 @@ func TestWorkspaceQuota(t *testing.T) {
 			},
 		})
 
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 		// Spin up two workspaces.
@@ -204,7 +204,7 @@ func TestWorkspaceQuota(t *testing.T) {
 		for i := 0; i < 2; i++ {
 			workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 			workspaces = append(workspaces, workspace)
-			build := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+			build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 			assert.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
 		}
 		wg.Wait()
@@ -212,7 +212,7 @@ func TestWorkspaceQuota(t *testing.T) {
 
 		// Next one must fail
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		build := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 		require.Contains(t, build.Job.Error, "quota")
 
 		// Consumed shouldn't bump
@@ -220,14 +220,14 @@ func TestWorkspaceQuota(t *testing.T) {
 		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
 
 		build = coderdtest.CreateWorkspaceBuild(t, client, workspaces[0], database.WorkspaceTransitionStop)
-		build = coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+		build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
 
 		// Quota goes down one
 		verifyQuota(ctx, t, client, 3, 4)
 		require.Equal(t, codersdk.WorkspaceStatusStopped, build.Status)
 
 		build = coderdtest.CreateWorkspaceBuild(t, client, workspaces[0], database.WorkspaceTransitionStart)
-		build = coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+		build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
 
 		// Quota goes back up
 		verifyQuota(ctx, t, client, 4, 4)

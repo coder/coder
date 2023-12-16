@@ -369,13 +369,18 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		// If the API Key is associated with a user_link (e.g. Github/OIDC)
 		// then we want to update the relevant oauth fields.
 		if link.UserID != uuid.Nil {
-			// nolint:gocritic
+			//nolint:gocritic // system needs to update user link
 			link, err = cfg.DB.UpdateUserLink(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLinkParams{
-				UserID:            link.UserID,
-				LoginType:         link.LoginType,
-				OAuthAccessToken:  link.OAuthAccessToken,
-				OAuthRefreshToken: link.OAuthRefreshToken,
-				OAuthExpiry:       link.OAuthExpiry,
+				UserID:                 link.UserID,
+				LoginType:              link.LoginType,
+				OAuthAccessToken:       link.OAuthAccessToken,
+				OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will update as required
+				OAuthRefreshToken:      link.OAuthRefreshToken,
+				OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
+				OAuthExpiry:            link.OAuthExpiry,
+				// Refresh should keep the same debug context because we use
+				// the original claims for the group/role sync.
+				DebugContext: link.DebugContext,
 			})
 			if err != nil {
 				return write(http.StatusInternalServerError, codersdk.Response{
@@ -388,7 +393,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		// We only want to update this occasionally to reduce DB write
 		// load. We update alongside the UserLink and APIKey since it's
 		// easier on the DB to colocate writes.
-		// nolint:gocritic
+		//nolint:gocritic // system needs to update user last seen at
 		_, err = cfg.DB.UpdateUserLastSeenAt(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLastSeenAtParams{
 			ID:         key.UserID,
 			LastSeenAt: dbtime.Now(),
@@ -405,7 +410,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 	// If the key is valid, we also fetch the user roles and status.
 	// The roles are used for RBAC authorize checks, and the status
 	// is to block 'suspended' users from accessing the platform.
-	// nolint:gocritic
+	//nolint:gocritic // system needs to update user roles
 	roles, err := cfg.DB.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), key.UserID)
 	if err != nil {
 		return write(http.StatusUnauthorized, codersdk.Response{
@@ -532,4 +537,19 @@ func RedirectToLogin(rw http.ResponseWriter, r *http.Request, dashboardURL *url.
 	// See other forces a GET request rather than keeping the current method
 	// (like temporary redirect does).
 	http.Redirect(rw, r, u.String(), http.StatusSeeOther)
+}
+
+// CustomRedirectToLogin redirects the user to the login page with the `message` and
+// `redirect` query parameters set, with a provided code
+func CustomRedirectToLogin(rw http.ResponseWriter, r *http.Request, redirect string, message string, code int) {
+	q := url.Values{}
+	q.Add("message", message)
+	q.Add("redirect", redirect)
+
+	u := &url.URL{
+		Path:     "/login",
+		RawQuery: q.Encode(),
+	}
+
+	http.Redirect(rw, r, u.String(), code)
 }

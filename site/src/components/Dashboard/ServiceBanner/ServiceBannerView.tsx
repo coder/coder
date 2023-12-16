@@ -1,8 +1,7 @@
-import { makeStyles } from "@mui/styles";
 import { Pill } from "components/Pill/Pill";
 import ReactMarkdown from "react-markdown";
-import { colors } from "theme/colors";
-import { hex } from "color-convert";
+import { css, useTheme } from "@emotion/react";
+import { readableForegroundColor } from "utils/colors";
 
 export interface ServiceBannerViewProps {
   message: string;
@@ -15,7 +14,7 @@ export const ServiceBannerView: React.FC<ServiceBannerViewProps> = ({
   backgroundColor,
   isPreview,
 }) => {
-  const styles = useStyles();
+  const theme = useTheme();
   // We don't want anything funky like an image or a heading in the service
   // banner.
   const markdownElementsAllowed = [
@@ -31,19 +30,32 @@ export const ServiceBannerView: React.FC<ServiceBannerViewProps> = ({
   ];
   return (
     <div
-      className={styles.container}
-      style={{ backgroundColor: backgroundColor }}
+      css={css`
+        padding: 12px;
+        background-color: ${backgroundColor ?? theme.palette.warning.main};
+        display: flex;
+        align-items: center;
+
+        &.error {
+          background-color: ${theme.colors.red[12]};
+        }
+      `}
     >
-      {isPreview && <Pill text="Preview" type="info" lightBorder />}
+      {isPreview && <Pill text="Preview" type="info" />}
       <div
-        className={styles.centerContent}
-        style={{
-          color: readableForegroundColor(backgroundColor),
-        }}
+        css={css`
+          margin-right: auto;
+          margin-left: auto;
+          font-weight: 400;
+          color: ${readableForegroundColor(backgroundColor)};
+
+          & a {
+            color: inherit;
+          }
+        `}
       >
         <ReactMarkdown
           allowedElements={markdownElementsAllowed}
-          linkTarget="_blank"
           unwrapDisallowed
         >
           {message}
@@ -51,37 +63,4 @@ export const ServiceBannerView: React.FC<ServiceBannerViewProps> = ({
       </div>
     </div>
   );
-};
-
-const useStyles = makeStyles((theme) => ({
-  container: {
-    padding: theme.spacing(1.5),
-    backgroundColor: theme.palette.warning.main,
-    display: "flex",
-    alignItems: "center",
-    "&.error": {
-      backgroundColor: colors.red[12],
-    },
-  },
-  flex: {
-    display: "column",
-  },
-  centerContent: {
-    marginRight: "auto",
-    marginLeft: "auto",
-    fontWeight: 400,
-    "& a": {
-      color: "inherit",
-    },
-  },
-}));
-
-const readableForegroundColor = (backgroundColor: string): string => {
-  const rgb = hex.rgb(backgroundColor);
-
-  // Logic taken from here:
-  // https://github.com/casesandberg/react-color/blob/bc9a0e1dc5d11b06c511a8e02a95bd85c7129f4b/src/helpers/color.js#L56
-  // to be consistent with the color-picker label.
-  const yiq = (rgb[0] * 299 + rgb[1] * 587 + rgb[2] * 114) / 1000;
-  return yiq >= 128 ? "#000" : "#fff";
 };

@@ -6,6 +6,9 @@ USAGE:
   Start a shell into a workspace
 
 OPTIONS:
+      --disable-autostart bool, $CODER_SSH_DISABLE_AUTOSTART (default: false)
+          Disable starting the workspace automatically when connecting via SSH.
+
   -A, --forward-agent bool, $CODER_SSH_FORWARD_AGENT
           Specifies whether to forward the SSH agent specified in
           $SSH_AUTH_SOCK.

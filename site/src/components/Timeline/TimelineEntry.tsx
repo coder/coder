@@ -1,56 +1,49 @@
-import { makeStyles } from "@mui/styles";
-import TableRow, { TableRowProps } from "@mui/material/TableRow";
-import { PropsWithChildren } from "react";
-import { combineClasses } from "utils/combineClasses";
+import TableRow, { type TableRowProps } from "@mui/material/TableRow";
+import { type PropsWithChildren, forwardRef } from "react";
 
-interface TimelineEntryProps {
-  clickable?: boolean;
-}
+type TimelineEntryProps = PropsWithChildren<
+  TableRowProps & {
+    clickable?: boolean;
+  }
+>;
 
-export const TimelineEntry = ({
-  children,
-  clickable = true,
-  ...props
-}: PropsWithChildren<TimelineEntryProps & TableRowProps>): JSX.Element => {
-  const styles = useStyles();
+export const TimelineEntry = forwardRef(function TimelineEntry(
+  { children, clickable = true, ...props }: TimelineEntryProps,
+  ref?: React.ForwardedRef<HTMLTableRowElement>,
+) {
   return (
     <TableRow
-      className={combineClasses({
-        [styles.timelineEntry]: true,
-        [styles.clickable]: clickable,
-      })}
+      ref={ref}
+      css={(theme) => [
+        {
+          position: "relative",
+          "&:focus": {
+            outlineStyle: "solid",
+            outlineOffset: -1,
+            outlineWidth: 2,
+            outlineColor: theme.palette.primary.main,
+          },
+          "& td:before": {
+            position: "absolute",
+            left: 50,
+            display: "block",
+            content: "''",
+            height: "100%",
+            width: 2,
+            background: theme.palette.divider,
+          },
+        },
+        clickable && {
+          cursor: "pointer",
+
+          "&:hover": {
+            backgroundColor: theme.palette.action.hover,
+          },
+        },
+      ]}
       {...props}
     >
       {children}
     </TableRow>
   );
-};
-
-const useStyles = makeStyles((theme) => ({
-  clickable: {
-    cursor: "pointer",
-
-    "&:hover": {
-      backgroundColor: theme.palette.action.hover,
-    },
-  },
-
-  timelineEntry: {
-    position: "relative",
-    "&:focus": {
-      outlineStyle: "solid",
-      outlineOffset: -1,
-      outlineWidth: 2,
-      outlineColor: theme.palette.secondary.dark,
-    },
-    "& td:before": {
-      position: "absolute",
-      left: 50,
-      display: "block",
-      content: "''",
-      height: "100%",
-      width: 2,
-      background: theme.palette.divider,
-    },
-  },
-}));
+});

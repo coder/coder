@@ -10,6 +10,9 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
+
+	"github.com/coder/coder/v2/provisionersdk"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
@@ -27,6 +30,8 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 )
@@ -98,8 +103,8 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, tags map[string]strin
 	ctx := r.Context()
 	apiKey, ok := httpmw.APIKeyOptional(r)
 	if ok {
-		tags = provisionerdserver.MutateTags(apiKey.UserID, tags)
-		if tags[provisionerdserver.TagScope] == provisionerdserver.ScopeUser {
+		tags = provisionersdk.MutateTags(apiKey.UserID, tags)
+		if tags[provisionersdk.TagScope] == provisionersdk.ScopeUser {
 			// Any authenticated user can create provisioner daemons scoped
 			// for jobs that they own,
 			return tags, true
@@ -116,7 +121,7 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, tags map[string]strin
 		psk := r.Header.Get(codersdk.ProvisionerDaemonPSK)
 		if subtle.ConstantTimeCompare([]byte(p.psk), []byte(psk)) == 1 {
 			// If using PSK auth, the daemon is, by definition, scoped to the organization.
-			tags[provisionerdserver.TagScope] = provisionerdserver.ScopeOrganization
+			tags[provisionersdk.TagScope] = provisionersdk.ScopeOrganization
 			return tags, true
 		}
 	}
@@ -155,6 +160,11 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	id, _ := uuid.Parse(r.URL.Query().Get("id"))
+	if id == uuid.Nil {
+		id = uuid.New()
+	}
+
 	provisionersMap := map[codersdk.ProvisionerType]struct{}{}
 	for _, provisioner := range r.URL.Query()["provisioner"] {
 		switch provisioner {
@@ -168,6 +178,13 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 			})
 			return
 		}
+	}
+
+	name := namesgenerator.GetRandomName(10)
+	if vals, ok := r.URL.Query()["name"]; ok && len(vals) > 0 {
+		name = vals[0]
+	} else {
+		api.Logger.Warn(ctx, "unnamed provisioner daemon")
 	}
 
 	tags, authorized := api.provisionerDaemonAuth.authorize(r, tags)
@@ -198,7 +215,6 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	name := namesgenerator.GetRandomName(1)
 	log := api.Logger.With(
 		slog.F("name", name),
 		slog.F("provisioners", provisioners),
@@ -209,6 +225,13 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	api.AGPL.WebsocketWaitGroup.Add(1)
 	api.AGPL.WebsocketWaitMutex.Unlock()
 	defer api.AGPL.WebsocketWaitGroup.Done()
+
+	tep := telemetry.ConvertExternalProvisioner(id, tags, provisioners)
+	api.Telemetry.Report(&telemetry.Snapshot{ExternalProvisioners: []telemetry.ExternalProvisioner{tep}})
+	defer func() {
+		tep.ShutdownAt = ptr.Ref(time.Now())
+		api.Telemetry.Report(&telemetry.Snapshot{ExternalProvisioners: []telemetry.ExternalProvisioner{tep}})
+	}()
 
 	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
 		// Need to disable compression to avoid a data-race.
@@ -243,8 +266,9 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	logger := api.Logger.Named(fmt.Sprintf("ext-provisionerd-%s", name))
 	logger.Info(ctx, "starting external provisioner daemon")
 	srv, err := provisionerdserver.NewServer(
+		api.ctx,
 		api.AccessURL,
-		uuid.New(),
+		id,
 		logger,
 		provisioners,
 		tags,
@@ -259,8 +283,8 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		api.AGPL.UserQuietHoursScheduleStore,
 		api.DeploymentValues,
 		provisionerdserver.Options{
-			GitAuthConfigs: api.GitAuthConfigs,
-			OIDCConfig:     api.OIDCConfig,
+			ExternalAuthConfigs: api.ExternalAuthConfigs,
+			OIDCConfig:          api.OIDCConfig,
 		},
 	)
 	if err != nil {
@@ -294,11 +318,12 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 
 func convertProvisionerDaemon(daemon database.ProvisionerDaemon) codersdk.ProvisionerDaemon {
 	result := codersdk.ProvisionerDaemon{
-		ID:        daemon.ID,
-		CreatedAt: daemon.CreatedAt,
-		UpdatedAt: daemon.UpdatedAt,
-		Name:      daemon.Name,
-		Tags:      daemon.Tags,
+		ID:         daemon.ID,
+		CreatedAt:  daemon.CreatedAt,
+		LastSeenAt: codersdk.NullTime{NullTime: daemon.LastSeenAt},
+		Name:       daemon.Name,
+		Tags:       daemon.Tags,
+		Version:    daemon.Version,
 	}
 	for _, provisionerType := range daemon.Provisioners {
 		result.Provisioners = append(result.Provisioners, codersdk.ProvisionerType(provisionerType))

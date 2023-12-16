@@ -10,10 +10,9 @@ import (
 
 	"golang.org/x/exp/slices"
 
-	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/scaletest/workspacetraffic"
@@ -33,7 +32,8 @@ func TestRun(t *testing.T) {
 		t.Skip("Race detector enabled, skipping time-sensitive test.")
 	}
 
-	t.Run("PTY", func(t *testing.T) {
+	//nolint:dupl
+	t.Run("RPTY", func(t *testing.T) {
 		t.Parallel()
 		// We need to stand up an in-memory coderd and run a fake workspace.
 		var (
@@ -64,29 +64,21 @@ func TestRun(t *testing.T) {
 				}},
 			})
 			template = coderdtest.CreateTemplate(t, client, firstUser.OrganizationID, version.ID)
-			_        = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			_        = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 			// In order to be picked up as a scaletest workspace, the workspace must be named specifically
 			ws = coderdtest.CreateWorkspace(t, client, firstUser.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 				cwr.Name = "scaletest-test"
 			})
-			_ = coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
+			_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 		)
 
 		// We also need a running agent to run this test.
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(authToken)
-		agentCloser := agent.New(agent.Options{
-			Client: agentClient,
-		})
-
+		_ = agenttest.New(t, client.URL, authToken)
+		resources := coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
-		t.Cleanup(func() {
-			_ = agentCloser.Close()
-		})
 
 		// Make sure the agent is connected before we go any further.
-		resources := coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
 		var agentID uuid.UUID
 		for _, res := range resources {
 			for _, agt := range res.Agents {
@@ -99,7 +91,6 @@ func TestRun(t *testing.T) {
 		var (
 			bytesPerTick = 1024
 			tickInterval = 1000 * time.Millisecond
-			fudgeWrite   = 12 // The ReconnectingPTY payload incurs some overhead
 			readMetrics  = &testMetrics{}
 			writeMetrics = &testMetrics{}
 		)
@@ -111,6 +102,7 @@ func TestRun(t *testing.T) {
 			ReadMetrics:  readMetrics,
 			WriteMetrics: writeMetrics,
 			SSH:          false,
+			Echo:         false,
 		})
 
 		var logs strings.Builder
@@ -147,7 +139,7 @@ func TestRun(t *testing.T) {
 		t.Logf("bytes written total: %.0f\n", writeMetrics.Total())
 
 		// We want to ensure the metrics are somewhat accurate.
-		assert.InDelta(t, bytesPerTick+fudgeWrite, writeMetrics.Total(), 0.1)
+		assert.InDelta(t, bytesPerTick, writeMetrics.Total(), 0.1)
 		// Read is highly variable, depending on how far we read before stopping.
 		// Just ensure it's not zero.
 		assert.NotZero(t, readMetrics.Total())
@@ -159,6 +151,7 @@ func TestRun(t *testing.T) {
 		assert.Zero(t, writeMetrics.Errors())
 	})
 
+	//nolint:dupl
 	t.Run("SSH", func(t *testing.T) {
 		t.Parallel()
 		// We need to stand up an in-memory coderd and run a fake workspace.
@@ -190,29 +183,22 @@ func TestRun(t *testing.T) {
 				}},
 			})
 			template = coderdtest.CreateTemplate(t, client, firstUser.OrganizationID, version.ID)
-			_        = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			_        = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 			// In order to be picked up as a scaletest workspace, the workspace must be named specifically
 			ws = coderdtest.CreateWorkspace(t, client, firstUser.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 				cwr.Name = "scaletest-test"
 			})
-			_ = coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
+			_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 		)
 
 		// We also need a running agent to run this test.
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(authToken)
-		agentCloser := agent.New(agent.Options{
-			Client: agentClient,
-		})
+		_ = agenttest.New(t, client.URL, authToken)
+		resources := coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
 
 		ctx, cancel := context.WithCancel(context.Background())
-		t.Cleanup(func() {
-			cancel()
-			_ = agentCloser.Close()
-		})
+		t.Cleanup(cancel)
 
 		// Make sure the agent is connected before we go any further.
-		resources := coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
 		var agentID uuid.UUID
 		for _, res := range resources {
 			for _, agt := range res.Agents {
@@ -225,7 +211,6 @@ func TestRun(t *testing.T) {
 		var (
 			bytesPerTick = 1024
 			tickInterval = 1000 * time.Millisecond
-			fudgeWrite   = 2 // We send \r\n, which is two bytes
 			readMetrics  = &testMetrics{}
 			writeMetrics = &testMetrics{}
 		)
@@ -237,6 +222,7 @@ func TestRun(t *testing.T) {
 			ReadMetrics:  readMetrics,
 			WriteMetrics: writeMetrics,
 			SSH:          true,
+			Echo:         true,
 		})
 
 		var logs strings.Builder
@@ -273,7 +259,7 @@ func TestRun(t *testing.T) {
 		t.Logf("bytes written total: %.0f\n", writeMetrics.Total())
 
 		// We want to ensure the metrics are somewhat accurate.
-		assert.InDelta(t, bytesPerTick+fudgeWrite, writeMetrics.Total(), 0.1)
+		assert.InDelta(t, bytesPerTick, writeMetrics.Total(), 0.1)
 		// Read is highly variable, depending on how far we read before stopping.
 		// Just ensure it's not zero.
 		assert.NotZero(t, readMetrics.Total())

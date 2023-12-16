@@ -45,6 +45,7 @@ func TestBlockNonBrowser(t *testing.T) {
 			},
 		})
 		_, agent := setupWorkspaceAgent(t, client, user, 0)
+		//nolint:gocritic // Testing that even the owner gets blocked.
 		_, err := client.DialWorkspaceAgent(context.Background(), agent.ID, nil)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -63,6 +64,7 @@ func TestBlockNonBrowser(t *testing.T) {
 			},
 		})
 		_, agent := setupWorkspaceAgent(t, client, user, 0)
+		//nolint:gocritic // Testing RBAC is not the point of this test.
 		conn, err := client.DialWorkspaceAgent(context.Background(), agent.ID, nil)
 		require.NoError(t, err)
 		_ = conn.Close()
@@ -111,10 +113,10 @@ func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.Cr
 			},
 		}},
 	})
-	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 	agentClient := agentsdk.New(client.URL)
 	agentClient.SDK.HTTPClient = &http.Client{
 		Transport: &http.Transport{

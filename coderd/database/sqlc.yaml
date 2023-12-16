@@ -38,6 +38,7 @@ overrides:
       api_key_scope: APIKeyScope
       api_key_scope_all: APIKeyScopeAll
       api_key_scope_application_connect: APIKeyScopeApplicationConnect
+      api_version: APIVersion
       avatar_url: AvatarURL
       created_by_avatar_url: CreatedByAvatarURL
       dbcrypt_key: DBCryptKey
@@ -53,6 +54,7 @@ overrides:
       oauth_id_token: OAuthIDToken
       oauth_refresh_token: OAuthRefreshToken
       oauth_refresh_token_key_id: OAuthRefreshTokenKeyID
+      oauth_extra: OAuthExtra
       parameter_type_system_hcl: ParameterTypeSystemHCL
       userstatus: UserStatus
       gitsshkey: GitSSHKey
@@ -80,6 +82,14 @@ sql:
   - schema: "./dump.sql"
     queries: "./queries"
     engine: "postgresql"
+    # This only works if you are running a local postgres database with the
+    # schema loaded and migrations run. Run `make sqlc-vet` to run the linter.
+    database:
+      uri: "${SQLC_DATABASE_URL}"
+    analyzer:
+      database: false
+    rules:
+      - sqlc/db-prepare
     gen:
       go:
         package: "database"

@@ -12,7 +12,7 @@ resource "google_compute_subnetwork" "subnet" {
   project       = var.project_id
   region        = var.region
   network       = google_compute_network.vpc.name
-  ip_cidr_range = "10.200.0.0/24"
+  ip_cidr_range = var.subnet_cidr
 }
 
 resource "google_compute_global_address" "sql_peering" {

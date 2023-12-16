@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clibase"
@@ -20,6 +21,39 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+func TestCustomLogoAndCompanyName(t *testing.T) {
+	t.Parallel()
+
+	// Prepare enterprise deployment
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	adminClient, adminUser := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
+	coderdenttest.AddLicense(t, adminClient, coderdenttest.LicenseOptions{
+		Features: license.Features{
+			codersdk.FeatureAppearance: 1,
+		},
+	})
+
+	anotherClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
+
+	// Update logo and application name
+	uac := codersdk.UpdateAppearanceConfig{
+		ApplicationName: "ACME Ltd",
+		LogoURL:         "http://logo-url/file.png",
+	}
+
+	err := adminClient.UpdateAppearance(ctx, uac)
+	require.NoError(t, err)
+
+	// Verify update
+	got, err := anotherClient.Appearance(ctx)
+	require.NoError(t, err)
+
+	require.Equal(t, uac.ApplicationName, got.ApplicationName)
+	require.Equal(t, uac.LogoURL, got.LogoURL)
+}
+
 func TestServiceBanners(t *testing.T) {
 	t.Parallel()
 
@@ -30,9 +64,10 @@ func TestServiceBanners(t *testing.T) {
 		defer cancel()
 
 		adminClient, adminUser := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
+		basicUserClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
 
 		// Even without a license, the banner should return as disabled.
-		sb, err := adminClient.Appearance(ctx)
+		sb, err := basicUserClient.Appearance(ctx)
 		require.NoError(t, err)
 		require.False(t, sb.ServiceBanner.Enabled)
 
@@ -43,11 +78,9 @@ func TestServiceBanners(t *testing.T) {
 		})
 
 		// Default state
-		sb, err = adminClient.Appearance(ctx)
+		sb, err = basicUserClient.Appearance(ctx)
 		require.NoError(t, err)
 		require.False(t, sb.ServiceBanner.Enabled)
-
-		basicUserClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
 
 		uac := codersdk.UpdateAppearanceConfig{
 			ServiceBanner: sb.ServiceBanner,
@@ -68,7 +101,7 @@ func TestServiceBanners(t *testing.T) {
 		wantBanner.ServiceBanner.BackgroundColor = "#00FF00"
 		err = adminClient.UpdateAppearance(ctx, wantBanner)
 		require.NoError(t, err)
-		gotBanner, err := adminClient.Appearance(ctx)
+		gotBanner, err := adminClient.Appearance(ctx) //nolint:gocritic // we should assert at least once that the owner can get the banner
 		require.NoError(t, err)
 		gotBanner.SupportLinks = nil // clean "support links" before comparison
 		require.Equal(t, wantBanner.ServiceBanner, gotBanner.ServiceBanner)
@@ -77,6 +110,13 @@ func TestServiceBanners(t *testing.T) {
 		wantBanner.ServiceBanner.BackgroundColor = "#bad color"
 		err = adminClient.UpdateAppearance(ctx, wantBanner)
 		require.Error(t, err)
+
+		var sdkErr *codersdk.Error
+		if assert.ErrorAs(t, err, &sdkErr) {
+			assert.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+			assert.Contains(t, sdkErr.Message, "Invalid color format")
+			assert.Contains(t, sdkErr.Detail, "expected # prefix and 6 characters")
+		}
 	})
 
 	t.Run("Agent", func(t *testing.T) {
@@ -115,9 +155,9 @@ func TestServiceBanners(t *testing.T) {
 			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		banner, err := agentClient.GetServiceBanner(ctx)
 		require.NoError(t, err)
@@ -161,7 +201,7 @@ func TestCustomSupportLinks(t *testing.T) {
 		Value: supportLinks,
 	}
 
-	client, _ := coderdenttest.New(t, &coderdenttest.Options{
+	adminClient, adminUser := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			DeploymentValues: cfg,
 		},
@@ -172,10 +212,11 @@ func TestCustomSupportLinks(t *testing.T) {
 		},
 	})
 
+	anotherClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()
 
-	appearance, err := client.Appearance(ctx)
+	appearance, err := anotherClient.Appearance(ctx)
 	require.NoError(t, err)
 	require.Equal(t, supportLinks, appearance.SupportLinks)
 }
@@ -184,12 +225,13 @@ func TestDefaultSupportLinks(t *testing.T) {
 	t.Parallel()
 
 	// Don't need to set the license, as default links are passed without it.
-	client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
+	adminClient, adminUser := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
+	anotherClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()
 
-	appearance, err := client.Appearance(ctx)
+	appearance, err := anotherClient.Appearance(ctx)
 	require.NoError(t, err)
 	require.Equal(t, coderd.DefaultSupportLinks, appearance.SupportLinks)
 }

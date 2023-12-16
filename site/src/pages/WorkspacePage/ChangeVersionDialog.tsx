@@ -1,22 +1,21 @@
-import { DialogProps } from "components/Dialogs/Dialog";
-import { FC, useRef, useState } from "react";
-import { FormFields } from "components/Form/Form";
+import { type FC, useRef, useState } from "react";
 import TextField from "@mui/material/TextField";
-import { makeStyles } from "@mui/styles";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { Stack } from "components/Stack/Stack";
-import { Template, TemplateVersion } from "api/typesGenerated";
-import { Loader } from "components/Loader/Loader";
 import Autocomplete from "@mui/material/Autocomplete";
-import { createDayString } from "utils/createDayString";
+import CircularProgress from "@mui/material/CircularProgress";
+import AlertTitle from "@mui/material/AlertTitle";
+import InfoIcon from "@mui/icons-material/InfoOutlined";
+import { css } from "@emotion/css";
+import type { Template, TemplateVersion } from "api/typesGenerated";
+import { Alert, AlertDetail } from "components/Alert/Alert";
+import type { DialogProps } from "components/Dialogs/Dialog";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { FormFields } from "components/Form/Form";
+import { Stack } from "components/Stack/Stack";
+import { Loader } from "components/Loader/Loader";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { Pill } from "components/Pill/Pill";
 import { Avatar } from "components/Avatar/Avatar";
-import CircularProgress from "@mui/material/CircularProgress";
-import Box from "@mui/material/Box";
-import { Alert, AlertDetail } from "components/Alert/Alert";
-import AlertTitle from "@mui/material/AlertTitle";
-import InfoIcon from "@mui/icons-material/InfoOutlined";
+import { createDayString } from "utils/createDayString";
 
 export type ChangeVersionDialogProps = DialogProps & {
   template: Template | undefined;
@@ -37,8 +36,9 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
   const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false);
   const selectedTemplateVersion = useRef<TemplateVersion | undefined>();
   const version = selectedTemplateVersion.current;
-
-  const styles = useStyles();
+  const validTemplateVersions = templateVersions?.filter((version) => {
+    return version.job.status === "succeeded";
+  });
 
   return (
     <ConfirmDialog
@@ -57,12 +57,12 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
       description={
         <Stack>
           <p>You are about to change the version of this workspace.</p>
-          {templateVersions ? (
+          {validTemplateVersions ? (
             <>
               <FormFields>
                 <Autocomplete
                   disableClearable
-                  options={templateVersions}
+                  options={validTemplateVersions}
                   defaultValue={defaultTemplateVersion}
                   id="template-version-autocomplete"
                   open={isAutocompleteOpen}
@@ -82,7 +82,7 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
                   ) => option.id === value.id}
                   getOptionLabel={(option) => option.name}
                   renderOption={(props, option: TemplateVersion) => (
-                    <Box component="li" {...props}>
+                    <li {...props}>
                       <AvatarData
                         avatar={
                           <Avatar src={option.created_by.avatar_url}>
@@ -102,12 +102,7 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
                             >
                               {option.name}
                               {option.message && (
-                                <InfoIcon
-                                  sx={(theme) => ({
-                                    width: theme.spacing(1.5),
-                                    height: theme.spacing(1.5),
-                                  })}
-                                />
+                                <InfoIcon css={{ width: 12, height: 12 }} />
                               )}
                             </Stack>
                             {template?.active_version_id === option.id && (
@@ -117,7 +112,7 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
                         }
                         subtitle={createDayString(option.created_at)}
                       />
-                    </Box>
+                    </li>
                   )}
                   renderInput={(params) => (
                     <>
@@ -135,9 +130,7 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
                               {params.InputProps.endAdornment}
                             </>
                           ),
-                          classes: {
-                            root: styles.inputRoot,
-                          },
+                          classes: { root: classNames.root },
                         }}
                       />
                     </>
@@ -164,8 +157,9 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
   );
 };
 
-export const useStyles = makeStyles((theme) => ({
-  inputRoot: {
-    paddingLeft: `${theme.spacing(1.75)} !important`, // Same padding left as input
-  },
-}));
+const classNames = {
+  // Same `padding-left` as input
+  root: css`
+    padding-left: 14px !important;
+  `,
+};

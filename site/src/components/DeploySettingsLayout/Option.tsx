@@ -1,49 +1,99 @@
-import { makeStyles } from "@mui/styles";
-import { PropsWithChildren, FC } from "react";
+import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
+import { css, useTheme } from "@emotion/react";
+import type { HTMLAttributes, PropsWithChildren, FC } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
-import { DisabledBadge, EnabledBadge } from "./Badges";
-import Box, { BoxProps } from "@mui/material/Box";
+import { DisabledBadge, EnabledBadge } from "../Badges/Badges";
 
 export const OptionName: FC<PropsWithChildren> = ({ children }) => {
-  const styles = useStyles();
-  return <span className={styles.optionName}>{children}</span>;
+  return <span css={{ display: "block" }}>{children}</span>;
 };
 
 export const OptionDescription: FC<PropsWithChildren> = ({ children }) => {
-  const styles = useStyles();
-  return <span className={styles.optionDescription}>{children}</span>;
+  const theme = useTheme();
+
+  return (
+    <span
+      css={{
+        display: "block",
+        color: theme.palette.text.secondary,
+        fontSize: 14,
+        marginTop: 4,
+      }}
+    >
+      {children}
+    </span>
+  );
 };
 
-const NotSet: FC = () => {
-  const styles = useStyles();
+interface OptionValueProps {
+  children?: boolean | number | string | string[] | Record<string, boolean>;
+}
 
-  return <span className={styles.optionValue}>Not set</span>;
-};
+export const OptionValue: FC<OptionValueProps> = (props) => {
+  const { children: value } = props;
+  const theme = useTheme();
 
-export const OptionValue: FC<{ children?: unknown }> = ({ children }) => {
-  const styles = useStyles();
-
-  if (typeof children === "boolean") {
-    return children ? <EnabledBadge /> : <DisabledBadge />;
+  if (typeof value === "boolean") {
+    return value ? <EnabledBadge /> : <DisabledBadge />;
   }
 
-  if (typeof children === "number") {
-    return <span className={styles.optionValue}>{children}</span>;
+  if (typeof value === "number") {
+    return <span css={styles.option}>{value}</span>;
   }
 
-  if (typeof children === "string") {
-    return <span className={styles.optionValue}>{children}</span>;
+  if (!value || value.length === 0) {
+    return <span css={styles.option}>Not set</span>;
   }
 
-  if (Array.isArray(children)) {
-    if (children.length === 0) {
-      return <NotSet />;
-    }
+  if (typeof value === "string") {
+    return <span css={styles.option}>{value}</span>;
+  }
 
+  if (typeof value === "object" && !Array.isArray(value)) {
     return (
-      <ul className={styles.optionValueList}>
-        {children.map((item) => (
-          <li key={item} className={styles.optionValue}>
+      <ul css={{ listStyle: "none" }}>
+        {Object.entries(value)
+          .sort((a, b) => a[0].localeCompare(b[0]))
+          .map(([option, isEnabled]) => (
+            <li
+              key={option}
+              css={[
+                styles.option,
+                !isEnabled && {
+                  marginLeft: 32,
+                  color: theme.palette.text.disabled,
+                },
+              ]}
+            >
+              <div
+                css={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                }}
+              >
+                {isEnabled && (
+                  <CheckCircleOutlined
+                    css={(theme) => ({
+                      width: 16,
+                      height: 16,
+                      color: theme.palette.success.light,
+                      margin: "0 8px",
+                    })}
+                  />
+                )}
+                {option}
+              </div>
+            </li>
+          ))}
+      </ul>
+    );
+  }
+
+  if (Array.isArray(value)) {
+    return (
+      <ul css={{ listStylePosition: "inside" }}>
+        {value.map((item) => (
+          <li key={item} css={styles.option}>
             {item}
           </li>
         ))}
@@ -51,81 +101,83 @@ export const OptionValue: FC<{ children?: unknown }> = ({ children }) => {
     );
   }
 
-  if (children === "") {
-    return <NotSet />;
-  }
-
-  return <span className={styles.optionValue}>{JSON.stringify(children)}</span>;
+  return <span css={styles.option}>{JSON.stringify(value)}</span>;
 };
 
-export const OptionConfig = (props: BoxProps) => {
+interface OptionConfigProps extends HTMLAttributes<HTMLDivElement> {
+  source?: boolean;
+}
+
+// OptionConfig takes a source bool to indicate if the Option is the source of the configured value.
+export const OptionConfig: FC<OptionConfigProps> = ({
+  children,
+  source,
+  ...attrs
+}) => {
+  const theme = useTheme();
+  const borderColor = source ? undefined : theme.palette.divider;
+
   return (
-    <Box
-      {...props}
-      sx={{
+    <div
+      {...attrs}
+      css={{
         fontSize: 13,
         fontFamily: MONOSPACE_FONT_FAMILY,
         fontWeight: 600,
-        backgroundColor: (theme) => theme.palette.background.paperLight,
+        backgroundColor: source
+          ? theme.palette.primary.dark
+          : theme.palette.background.paper,
         display: "inline-flex",
         alignItems: "center",
-        borderRadius: 0.25,
-        padding: (theme) => theme.spacing(0, 1),
-        border: (theme) => `1px solid ${theme.palette.divider}`,
-        ...props.sx,
+        borderRadius: 2,
+        padding: "0 8px",
+        border: `1px solid ${borderColor}`,
       }}
-    />
+    >
+      {children}
+    </div>
   );
 };
 
-export const OptionConfigFlag = (props: BoxProps) => {
+interface OptionConfigFlagProps extends HTMLAttributes<HTMLDivElement> {
+  source?: boolean;
+}
+
+export const OptionConfigFlag: FC<OptionConfigFlagProps> = ({
+  children,
+  source,
+  ...attrs
+}) => {
+  const theme = useTheme();
+
   return (
-    <Box
-      {...props}
-      sx={{
+    <div
+      {...attrs}
+      css={{
         fontSize: 10,
         fontWeight: 600,
-        margin: (theme) => theme.spacing(0, 0.75, 0, -0.5),
+        margin: "0 6px 0 -4px",
         display: "block",
-        backgroundColor: (theme) => theme.palette.divider,
+        backgroundColor: source ? "rgba(0, 0, 0, 0.7)" : theme.palette.divider,
         lineHeight: 1,
-        padding: (theme) => theme.spacing(0.25, 0.5),
-        borderRadius: 0.25,
-        ...props.sx,
+        padding: "2px 4px",
+        borderRadius: 2,
       }}
-    />
+    >
+      {children}
+    </div>
   );
 };
 
-const useStyles = makeStyles((theme) => ({
-  optionName: {
-    display: "block",
-  },
+const styles = {
+  option: css`
+    font-size: 14px;
+    font-family: ${MONOSPACE_FONT_FAMILY};
+    overflow-wrap: anywhere;
+    user-select: all;
 
-  optionDescription: {
-    display: "block",
-    color: theme.palette.text.secondary,
-    fontSize: 14,
-    marginTop: theme.spacing(0.5),
-  },
-
-  optionValue: {
-    fontSize: 14,
-    fontFamily: MONOSPACE_FONT_FAMILY,
-    overflowWrap: "anywhere",
-    userSelect: "all",
-
-    "& ul": {
-      padding: theme.spacing(2),
-    },
-  },
-
-  optionValueList: {
-    margin: 0,
-    padding: 0,
-    listStylePosition: "inside",
-    display: "flex",
-    flexDirection: "column",
-    gap: theme.spacing(0.5),
-  },
-}));
+    & ul {
+      padding: 16px;
+    }
+  `,
+};

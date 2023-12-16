@@ -2,7 +2,6 @@ import TextField from "@mui/material/TextField";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { Stack } from "components/Stack/Stack";
 import { ChangeEvent, FC, useState } from "react";
-import Typography from "@mui/material/Typography";
 import { allowedExtensions, isAllowedFile } from "utils/templateVersion";
 import { FileTree, isFolder, validatePath } from "utils/filetree";
 
@@ -59,11 +58,11 @@ export const CreateFileDialog: FC<{
       confirmText="Create"
       title="Create File"
       description={
-        <Stack>
-          <Typography>
+        <Stack spacing={4}>
+          <p>
             Specify the path to a file to be created. This path can contain
             slashes too.
-          </Typography>
+          </p>
           <TextField
             autoFocus
             onKeyDown={(event) => {

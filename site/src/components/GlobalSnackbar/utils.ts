@@ -1,4 +1,4 @@
-import { dispatchCustomEvent } from "../../utils/events";
+import { dispatchCustomEvent } from "utils/events";
 
 ///////////////////////////////////////////////////////////////////////////////
 // Notification Types

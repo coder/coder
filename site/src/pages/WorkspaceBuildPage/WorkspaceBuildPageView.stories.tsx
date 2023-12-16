@@ -3,7 +3,7 @@ import {
   MockFailedWorkspaceBuild,
   MockWorkspaceBuild,
   MockWorkspaceBuildLogs,
-} from "../../testHelpers/entities";
+} from "testHelpers/entities";
 import { WorkspaceBuildPageView } from "./WorkspaceBuildPageView";
 
 const defaultBuilds = Array.from({ length: 15 }, (_, i) => ({
@@ -13,7 +13,7 @@ const defaultBuilds = Array.from({ length: 15 }, (_, i) => ({
 }));
 
 const meta: Meta<typeof WorkspaceBuildPageView> = {
-  title: "pages/WorkspaceBuildPageView",
+  title: "pages/WorkspaceBuildPage",
   component: WorkspaceBuildPageView,
   args: {
     build: MockWorkspaceBuild,

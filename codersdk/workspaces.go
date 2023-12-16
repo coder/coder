@@ -14,6 +14,13 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 )
 
+type AutomaticUpdates string
+
+const (
+	AutomaticUpdatesAlways AutomaticUpdates = "always"
+	AutomaticUpdatesNever  AutomaticUpdates = "never"
+)
+
 // Workspace is a deployment of a template. It references a specific
 // version and can be updated.
 type Workspace struct {
@@ -29,6 +36,7 @@ type Workspace struct {
 	TemplateIcon                         string         `json:"template_icon"`
 	TemplateAllowUserCancelWorkspaceJobs bool           `json:"template_allow_user_cancel_workspace_jobs"`
 	TemplateActiveVersionID              uuid.UUID      `json:"template_active_version_id" format:"uuid"`
+	TemplateRequireActiveVersion         bool           `json:"template_require_active_version"`
 	LatestBuild                          WorkspaceBuild `json:"latest_build"`
 	Outdated                             bool           `json:"outdated"`
 	Name                                 string         `json:"name"`
@@ -47,7 +55,9 @@ type Workspace struct {
 	DormantAt *time.Time `json:"dormant_at" format:"date-time"`
 	// Health shows the health of the workspace and information about
 	// what is causing an unhealthy status.
-	Health WorkspaceHealth `json:"health"`
+	Health           WorkspaceHealth  `json:"health"`
+	AutomaticUpdates AutomaticUpdates `json:"automatic_updates" enums:"always,never"`
+	AllowRenames     bool             `json:"allow_renames"`
 }
 
 func (w Workspace) FullName() string {
@@ -135,9 +145,9 @@ func (c *Client) getWorkspace(ctx context.Context, id uuid.UUID, opts ...Request
 }
 
 type WorkspaceBuildsRequest struct {
-	WorkspaceID uuid.UUID
+	WorkspaceID uuid.UUID `json:"workspace_id" format:"uuid" typescript:"-"`
 	Pagination
-	Since time.Time
+	Since time.Time `json:"since,omitempty" format:"date-time"`
 }
 
 func (c *Client) WorkspaceBuilds(ctx context.Context, req WorkspaceBuildsRequest) ([]WorkspaceBuild, error) {
@@ -316,6 +326,25 @@ func (c *Client) UpdateWorkspaceDormancy(ctx context.Context, id uuid.UUID, req 
 	return nil
 }
 
+// UpdateWorkspaceAutomaticUpdatesRequest is a request to updates a workspace's automatic updates setting.
+type UpdateWorkspaceAutomaticUpdatesRequest struct {
+	AutomaticUpdates AutomaticUpdates `json:"automatic_updates"`
+}
+
+// UpdateWorkspaceAutomaticUpdates sets the automatic updates setting for workspace by id.
+func (c *Client) UpdateWorkspaceAutomaticUpdates(ctx context.Context, id uuid.UUID, req UpdateWorkspaceAutomaticUpdatesRequest) error {
+	path := fmt.Sprintf("/api/v2/workspaces/%s/autoupdates", id.String())
+	res, err := c.Request(ctx, http.MethodPut, path, req)
+	if err != nil {
+		return xerrors.Errorf("update workspace automatic updates: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
 type WorkspaceFilter struct {
 	// Owner can be "me" or a username
 	Owner string `json:"owner,omitempty" typescript:"-"`
@@ -419,6 +448,23 @@ func (c *Client) WorkspaceQuota(ctx context.Context, userID string) (WorkspaceQu
 	}
 	var quota WorkspaceQuota
 	return quota, json.NewDecoder(res.Body).Decode(&quota)
+}
+
+type ResolveAutostartResponse struct {
+	ParameterMismatch bool `json:"parameter_mismatch"`
+}
+
+func (c *Client) ResolveAutostart(ctx context.Context, workspaceID string) (ResolveAutostartResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/resolve-autostart", workspaceID), nil)
+	if err != nil {
+		return ResolveAutostartResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ResolveAutostartResponse{}, ReadBodyAsError(res)
+	}
+	var response ResolveAutostartResponse
+	return response, json.NewDecoder(res.Body).Decode(&response)
 }
 
 // WorkspaceNotifyChannel is the PostgreSQL NOTIFY

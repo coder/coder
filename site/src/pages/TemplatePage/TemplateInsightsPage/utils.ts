@@ -1,26 +1,8 @@
-import { addDays, addHours, format, startOfDay, startOfHour } from "date-fns";
+import { startOfDay, subDays } from "date-fns";
 
-export function getDateRangeFilter({
-  startDate,
-  endDate,
-  now,
-  isToday,
-}: {
-  startDate: Date;
-  endDate: Date;
-  now: Date;
-  isToday: (date: Date) => boolean;
-}) {
-  return {
-    start_time: toISOLocal(startOfDay(startDate)),
-    end_time: toISOLocal(
-      isToday(endDate)
-        ? startOfHour(addHours(now, 1))
-        : startOfDay(addDays(endDate, 1)),
-    ),
-  };
-}
-
-function toISOLocal(d: Date) {
-  return format(d, "yyyy-MM-dd'T'HH:mm:ssxxx");
-}
+export const lastWeeks = (numberOfWeeks: number) => {
+  const now = new Date();
+  const endDate = startOfDay(subDays(now, 1));
+  const startDate = startOfDay(subDays(endDate, 7 * numberOfWeeks));
+  return { startDate, endDate };
+};

@@ -1,26 +1,31 @@
+import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
-import Popover from "@mui/material/Popover";
-import { makeStyles } from "@mui/styles";
-import { useRef, useState } from "react";
-import { colors } from "theme/colors";
+import CircularProgress from "@mui/material/CircularProgress";
+import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import type { FC } from "react";
+import { useQuery } from "react-query";
+import { docs } from "utils/docs";
+import { getAgentListeningPorts } from "api/api";
+import type {
+  WorkspaceAgent,
+  WorkspaceAgentListeningPort,
+} from "api/typesGenerated";
+import { portForwardURL } from "utils/portForward";
+import { type ClassName, useClassName } from "hooks/useClassName";
 import {
   HelpTooltipLink,
   HelpTooltipLinksGroup,
   HelpTooltipText,
   HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
-import { SecondaryAgentButton } from "components/Resources/AgentButton";
-import { docs } from "utils/docs";
-import Box from "@mui/material/Box";
-import { useQuery } from "@tanstack/react-query";
-import { getAgentListeningPorts } from "api/api";
+import { AgentButton } from "components/Resources/AgentButton";
 import {
-  WorkspaceAgent,
-  WorkspaceAgentListeningPort,
-} from "api/typesGenerated";
-import CircularProgress from "@mui/material/CircularProgress";
-import { portForwardURL } from "utils/portForward";
-import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "components/Popover/Popover";
+import { DisplayAppNameMap } from "./AppLink/AppLink";
 
 export interface PortForwardButtonProps {
   host: string;
@@ -29,166 +34,101 @@ export interface PortForwardButtonProps {
   agent: WorkspaceAgent;
 }
 
-export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
-  const anchorRef = useRef<HTMLButtonElement>(null);
-  const [isOpen, setIsOpen] = useState(false);
-  const id = isOpen ? "schedule-popover" : undefined;
-  const styles = useStyles();
+export const PortForwardButton: FC<PortForwardButtonProps> = (props) => {
+  const { agent } = props;
+
+  const paper = useClassName(classNames.paper, []);
+
   const portsQuery = useQuery({
-    queryKey: ["portForward", props.agent.id],
-    queryFn: () => getAgentListeningPorts(props.agent.id),
-    enabled: props.agent.status === "connected",
+    queryKey: ["portForward", agent.id],
+    queryFn: () => getAgentListeningPorts(agent.id),
+    enabled: agent.status === "connected",
     refetchInterval: 5_000,
   });
 
-  const onClose = () => {
-    setIsOpen(false);
-  };
-
   return (
-    <>
-      <SecondaryAgentButton
-        disabled={!portsQuery.data}
-        ref={anchorRef}
-        onClick={() => {
-          setIsOpen(true);
-        }}
-      >
-        Ports
-        {portsQuery.data ? (
-          <Box
-            sx={{
-              fontSize: 12,
-              fontWeight: 500,
-              height: 20,
-              minWidth: 20,
-              padding: (theme) => theme.spacing(0, 0.5),
-              borderRadius: "50%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: colors.gray[11],
-              ml: 1,
-            }}
-          >
-            {portsQuery.data.ports.length}
-          </Box>
-        ) : (
-          <CircularProgress size={10} sx={{ ml: 1 }} />
-        )}
-      </SecondaryAgentButton>
-      <Popover
-        classes={{ paper: styles.popoverPaper }}
-        id={id}
-        open={isOpen}
-        anchorEl={anchorRef.current}
-        onClose={onClose}
-        anchorOrigin={{
-          vertical: "bottom",
-          horizontal: "right",
-        }}
-        transformOrigin={{
-          vertical: "top",
-          horizontal: "right",
-        }}
-      >
+    <Popover>
+      <PopoverTrigger>
+        <AgentButton disabled={!portsQuery.data}>
+          {DisplayAppNameMap["port_forwarding_helper"]}
+          {portsQuery.data ? (
+            <div css={styles.portCount}>{portsQuery.data.ports.length}</div>
+          ) : (
+            <CircularProgress size={10} css={{ marginLeft: 8 }} />
+          )}
+        </AgentButton>
+      </PopoverTrigger>
+      <PopoverContent horizontal="right" classes={{ paper }}>
         <PortForwardPopoverView {...props} ports={portsQuery.data?.ports} />
-      </Popover>
-    </>
+      </PopoverContent>
+    </Popover>
   );
 };
 
-export const PortForwardPopoverView: React.FC<
-  PortForwardButtonProps & { ports?: WorkspaceAgentListeningPort[] }
-> = (props) => {
-  const { host, workspaceName, agent, username, ports } = props;
+interface PortForwardPopoverViewProps extends PortForwardButtonProps {
+  ports?: WorkspaceAgentListeningPort[];
+}
+
+export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
+  host,
+  workspaceName,
+  agent,
+  username,
+  ports,
+}) => {
+  const theme = useTheme();
 
   return (
     <>
-      <Box
-        sx={{
-          padding: (theme) => theme.spacing(2.5),
-          borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
+      <div
+        css={{
+          padding: 20,
+          borderBottom: `1px solid ${theme.palette.divider}`,
         }}
       >
         <HelpTooltipTitle>Forwarded ports</HelpTooltipTitle>
-        <HelpTooltipText
-          sx={{ color: (theme) => theme.palette.text.secondary }}
-        >
+        <HelpTooltipText css={{ color: theme.palette.text.secondary }}>
           {ports?.length === 0
             ? "No open ports were detected."
             : "The forwarded ports are exclusively accessible to you."}
         </HelpTooltipText>
-        <Box sx={{ marginTop: (theme) => theme.spacing(1.5) }}>
-          {ports?.map((p) => {
+        <div css={{ marginTop: 12 }}>
+          {ports?.map((port) => {
             const url = portForwardURL(
               host,
-              p.port,
+              port.port,
               agent.name,
               workspaceName,
               username,
             );
-            const label = p.process_name !== "" ? p.process_name : p.port;
+            const label =
+              port.process_name !== "" ? port.process_name : port.port;
             return (
               <Link
                 underline="none"
-                sx={{
-                  color: (theme) => theme.palette.text.primary,
-                  fontSize: 14,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 1,
-                  py: 0.5,
-                  fontWeight: 500,
-                }}
-                key={p.port}
+                css={styles.portLink}
+                key={port.port}
                 href={url}
                 target="_blank"
                 rel="noreferrer"
               >
-                <OpenInNewOutlined sx={{ width: 14, height: 14 }} />
+                <OpenInNewOutlined css={{ width: 14, height: 14 }} />
                 {label}
-                <Box
-                  component="span"
-                  sx={{
-                    ml: "auto",
-                    color: (theme) => theme.palette.text.secondary,
-                    fontSize: 13,
-                    fontWeight: 400,
-                  }}
-                >
-                  {p.port}
-                </Box>
+                <span css={styles.portNumber}>{port.port}</span>
               </Link>
             );
           })}
-        </Box>
-      </Box>
+        </div>
+      </div>
 
-      <Box
-        sx={{
-          padding: (theme) => theme.spacing(2.5),
-        }}
-      >
+      <div css={{ padding: 20 }}>
         <HelpTooltipTitle>Forward port</HelpTooltipTitle>
-        <HelpTooltipText
-          sx={{ color: (theme) => theme.palette.text.secondary }}
-        >
+        <HelpTooltipText css={{ color: theme.palette.text.secondary }}>
           Access ports running on the agent:
         </HelpTooltipText>
 
-        <Box
-          component="form"
-          sx={{
-            border: (theme) => `1px solid ${theme.palette.divider}`,
-            borderRadius: "4px",
-            mt: 2,
-            display: "flex",
-            alignItems: "center",
-            "&:focus-within": {
-              borderColor: (theme) => theme.palette.primary.main,
-            },
-          }}
+        <form
+          css={styles.newPortForm}
           onSubmit={(e) => {
             e.preventDefault();
             const formData = new FormData(e.currentTarget);
@@ -203,73 +143,110 @@ export const PortForwardPopoverView: React.FC<
             window.open(url, "_blank");
           }}
         >
-          <Box
+          <input
             aria-label="Port number"
             name="portNumber"
-            component="input"
             type="number"
             placeholder="Type a port number..."
             min={0}
             max={65535}
             required
-            sx={{
-              fontSize: 14,
-              height: 34,
-              p: (theme) => theme.spacing(0, 1.5),
-              background: "none",
-              border: 0,
-              outline: "none",
-              color: (theme) => theme.palette.text.primary,
-              appearance: "textfield",
-              display: "block",
-              width: "100%",
-            }}
+            css={styles.newPortInput}
           />
-          <OpenInNewOutlined
-            sx={{
-              flexShrink: 0,
-              width: 14,
-              height: 14,
-              marginRight: (theme) => theme.spacing(1.5),
-              color: (theme) => theme.palette.text.primary,
+          <Button
+            type="submit"
+            size="small"
+            variant="text"
+            css={{
+              paddingLeft: 12,
+              paddingRight: 12,
+              minWidth: 0,
             }}
-          />
-        </Box>
+          >
+            <OpenInNewOutlined
+              css={{
+                flexShrink: 0,
+                width: 14,
+                height: 14,
+                color: theme.palette.text.primary,
+              }}
+            />
+          </Button>
+        </form>
 
         <HelpTooltipLinksGroup>
           <HelpTooltipLink href={docs("/networking/port-forwarding#dashboard")}>
             Learn more
           </HelpTooltipLink>
         </HelpTooltipLinksGroup>
-      </Box>
+      </div>
     </>
   );
 };
 
-const useStyles = makeStyles((theme) => ({
-  popoverPaper: {
-    padding: 0,
-    width: theme.spacing(38),
+const classNames = {
+  paper: (css, theme) => css`
+    padding: 0;
+    width: 304px;
+    color: ${theme.palette.text.secondary};
+    margin-top: 4px;
+  `,
+} satisfies Record<string, ClassName>;
+
+const styles = {
+  portCount: (theme) => ({
+    fontSize: 12,
+    fontWeight: 500,
+    height: 20,
+    minWidth: 20,
+    padding: "0 4px",
+    borderRadius: "50%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.gray[11],
+    marginLeft: 8,
+  }),
+
+  portLink: (theme) => ({
+    color: theme.palette.text.primary,
+    fontSize: 14,
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    paddingTop: 4,
+    paddingBottom: 4,
+    fontWeight: 500,
+  }),
+
+  portNumber: (theme) => ({
+    marginLeft: "auto",
     color: theme.palette.text.secondary,
-    marginTop: theme.spacing(0.5),
-  },
+    fontSize: 13,
+    fontWeight: 400,
+  }),
 
-  openUrlButton: {
-    flexShrink: 0,
-  },
-
-  portField: {
-    // The default border don't contrast well with the popover
-    "& .MuiOutlinedInput-root .MuiOutlinedInput-notchedOutline": {
-      borderColor: colors.gray[10],
+  newPortForm: (theme) => ({
+    border: `1px solid ${theme.palette.divider}`,
+    borderRadius: "4px",
+    marginTop: 16,
+    display: "flex",
+    alignItems: "center",
+    "&:focus-within": {
+      borderColor: theme.palette.primary.main,
     },
-  },
+  }),
 
-  code: {
-    margin: theme.spacing(2, 0),
-  },
-
-  form: {
-    margin: theme.spacing(2, 0),
-  },
-}));
+  newPortInput: (theme) => ({
+    fontSize: 14,
+    height: 34,
+    padding: "0 12px",
+    background: "none",
+    border: 0,
+    outline: "none",
+    color: theme.palette.text.primary,
+    appearance: "textfield",
+    display: "block",
+    width: "100%",
+  }),
+} satisfies Record<string, Interpolation<Theme>>;

@@ -1,6 +1,5 @@
-import { makeStyles } from "@mui/styles";
-import { FC } from "react";
-import * as TypesGen from "api/typesGenerated";
+import { type FC } from "react";
+import type * as TypesGen from "api/typesGenerated";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 
@@ -26,12 +25,18 @@ export const Language = {
 export const ResetPasswordDialog: FC<
   React.PropsWithChildren<ResetPasswordDialogProps>
 > = ({ open, onClose, onConfirm, user, newPassword, loading }) => {
-  const styles = useStyles();
-
   const description = (
     <>
       <p>{Language.message(user?.username)}</p>
-      <CodeExample code={newPassword ?? ""} className={styles.codeExample} />
+      <CodeExample
+        code={newPassword ?? ""}
+        css={{
+          minHeight: "auto",
+          userSelect: "all",
+          width: "100%",
+          marginTop: 24,
+        }}
+      />
     </>
   );
 
@@ -49,12 +54,3 @@ export const ResetPasswordDialog: FC<
     />
   );
 };
-
-const useStyles = makeStyles((theme) => ({
-  codeExample: {
-    minHeight: "auto",
-    userSelect: "all",
-    width: "100%",
-    marginTop: theme.spacing(3),
-  },
-}));

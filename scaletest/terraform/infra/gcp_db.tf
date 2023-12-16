@@ -32,6 +32,10 @@ resource "google_sql_database_instance" "db" {
       record_client_address   = false
     }
   }
+
+  lifecycle {
+    ignore_changes = [deletion_protection, timeouts]
+  }
 }
 
 resource "google_sql_database" "coder" {
@@ -40,6 +44,9 @@ resource "google_sql_database" "coder" {
   name     = "${var.name}-coder"
   # required for postgres, otherwise db fails to delete
   deletion_policy = "ABANDON"
+  lifecycle {
+    ignore_changes = [deletion_policy]
+  }
 }
 
 resource "random_password" "coder-postgres-password" {
@@ -58,6 +65,9 @@ resource "google_sql_user" "coder" {
   password = random_password.coder-postgres-password.result
   # required for postgres, otherwise user fails to delete
   deletion_policy = "ABANDON"
+  lifecycle {
+    ignore_changes = [deletion_policy, password]
+  }
 }
 
 resource "google_sql_user" "prometheus" {
@@ -68,6 +78,9 @@ resource "google_sql_user" "prometheus" {
   password = random_password.prometheus-postgres-password.result
   # required for postgres, otherwise user fails to delete
   deletion_policy = "ABANDON"
+  lifecycle {
+    ignore_changes = [deletion_policy, password]
+  }
 }
 
 locals {

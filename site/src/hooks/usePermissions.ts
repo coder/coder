@@ -1,13 +1,12 @@
-import { useAuth } from "components/AuthProvider/AuthProvider";
-import { isAuthenticated, Permissions } from "xServices/auth/authXService";
+import { useAuth } from "contexts/AuthProvider/AuthProvider";
+import type { Permissions } from "contexts/AuthProvider/permissions";
 
 export const usePermissions = (): Permissions => {
-  const [authState] = useAuth();
-  const { data } = authState.context;
+  const { permissions } = useAuth();
 
-  if (isAuthenticated(data)) {
-    return data.permissions;
+  if (!permissions) {
+    throw new Error("User is not authenticated.");
   }
 
-  throw new Error("User is not authenticated.");
+  return permissions;
 };

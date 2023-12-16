@@ -83,6 +83,14 @@ networking:
     # Path to key for client TLS authentication. It requires a PEM-encoded file.
     # (default: <unset>, type: string)
     clientKeyFile: ""
+    # Specify specific TLS ciphers that allowed to be used. See
+    # https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L53-L75.
+    # (default: <unset>, type: string-array)
+    tlsCiphers: []
+    # By default, only ciphers marked as 'secure' are allowed to be used. See
+    # https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L82-L95.
+    # (default: false, type: bool)
+    tlsAllowInsecureCiphers: false
     # Controls if the 'Strict-Transport-Security' header is set on all static file
     # responses. This header should only be set if the server is accessed via HTTPS.
     # This value is the MaxAge in seconds of the header.
@@ -224,6 +232,15 @@ introspection:
     # Allow administrators to enable Terraform debug output.
     # (default: false, type: bool)
     enableTerraformDebugMode: false
+  healthcheck:
+    # Refresh interval for healthchecks.
+    # (default: 10m0s, type: duration)
+    refresh: 10m0s
+    # The threshold for the database health check. If the median latency of the
+    # database exceeds this threshold over 5 attempts, the database is considered
+    # unhealthy. The default value is 15ms.
+    # (default: 15ms, type: duration)
+    thresholdDatabase: 15ms
 oauth2:
   github:
     # Client ID for Login with GitHub.
@@ -306,6 +323,11 @@ oidc:
   # mapping.
   # (default: .*, type: regexp)
   groupRegexFilter: .*
+  # If provided any group name not in the list will not be allowed to authenticate.
+  # This allows for restricting access to a specific set of groups. This filter is
+  # applied after the group mapping and before the regex filter.
+  # (default: <unset>, type: string-array)
+  groupAllowed: []
   # This field must be set if using the user roles sync feature. Set this to the
   # name of the claim used to store the user's role. The roles should be sent as an
   # array of strings.
@@ -411,6 +433,10 @@ client:
   # incorrectly can break SSH to your deployment, use cautiously.
   # (default: <unset>, type: string-array)
   sshConfigOptions: []
+  # The renderer to use when opening a web terminal. Valid values are 'canvas',
+  # 'webgl', or 'dom'.
+  # (default: canvas, type: string)
+  webTerminalRenderer: canvas
 # Support links to display in the top right drop down menu.
 # (default: <unset>, type: struct[[]codersdk.LinkConfig])
 supportLinks: []
@@ -424,10 +450,19 @@ wgtunnelHost: ""
 userQuietHoursSchedule:
   # The default daily cron schedule applied to users that haven't set a custom quiet
   # hours schedule themselves. The quiet hours schedule determines when workspaces
-  # will be force stopped due to the template's max TTL, and will round the max TTL
-  # up to be within the user's quiet hours window (or default). The format is the
-  # same as the standard cron format, but the day-of-month, month and day-of-week
-  # must be *. Only one hour and minute can be specified (ranges or comma separated
-  # values are not supported).
-  # (default: <unset>, type: string)
-  defaultQuietHoursSchedule: ""
+  # will be force stopped due to the template's autostop requirement, and will round
+  # the max deadline up to be within the user's quiet hours window (or default). The
+  # format is the same as the standard cron format, but the day-of-month, month and
+  # day-of-week must be *. Only one hour and minute can be specified (ranges or
+  # comma separated values are not supported).
+  # (default: CRON_TZ=UTC 0 0 * * *, type: string)
+  defaultQuietHoursSchedule: CRON_TZ=UTC 0 0 * * *
+  # Allow users to set their own quiet hours schedule for workspaces to stop in
+  # (depending on template autostop requirement settings). If false, users can't
+  # change their quiet hours schedule and the site default is always used.
+  # (default: true, type: bool)
+  allowCustomQuietHours: true
+# DEPRECATED: Allow users to rename their workspaces. Use only for temporary
+# compatibility reasons, this will be removed in a future release.
+# (default: false, type: bool)
+allowWorkspaceRenames: false

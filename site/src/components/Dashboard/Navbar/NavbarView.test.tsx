@@ -1,9 +1,6 @@
 import { screen } from "@testing-library/react";
-import {
-  MockPrimaryWorkspaceProxy,
-  MockUser,
-} from "../../../testHelpers/entities";
-import { renderWithAuth } from "../../../testHelpers/renderHelpers";
+import { MockPrimaryWorkspaceProxy, MockUser } from "testHelpers/entities";
+import { renderWithAuth } from "testHelpers/renderHelpers";
 import { Language as navLanguage, NavbarView } from "./NavbarView";
 import { ProxyContextValue } from "contexts/ProxyContext";
 import { action } from "@storybook/addon-actions";
@@ -36,6 +33,7 @@ describe("NavbarView", () => {
         canViewAuditLog
         canViewDeployment
         canViewAllUsers
+        canViewHealth
       />,
     );
     const workspacesLink = await screen.findByText(navLanguage.workspaces);
@@ -51,6 +49,7 @@ describe("NavbarView", () => {
         canViewAuditLog
         canViewDeployment
         canViewAllUsers
+        canViewHealth
       />,
     );
     const templatesLink = await screen.findByText(navLanguage.templates);
@@ -66,6 +65,7 @@ describe("NavbarView", () => {
         canViewAuditLog
         canViewDeployment
         canViewAllUsers
+        canViewHealth
       />,
     );
     const userLink = await screen.findByText(navLanguage.users);
@@ -81,6 +81,7 @@ describe("NavbarView", () => {
         canViewAuditLog
         canViewDeployment
         canViewAllUsers
+        canViewHealth
       />,
     );
     const auditLink = await screen.findByText(navLanguage.audit);
@@ -96,6 +97,7 @@ describe("NavbarView", () => {
         canViewAuditLog
         canViewDeployment
         canViewAllUsers
+        canViewHealth
       />,
     );
     const auditLink = await screen.findByText(navLanguage.deployment);

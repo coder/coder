@@ -18,6 +18,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
 
 ```json
 {
+  "automatic_updates": "always",
   "autostart_schedule": "string",
   "name": "string",
   "rich_parameter_values": [
@@ -46,6 +47,8 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
 
 ```json
 {
+  "allow_renames": true,
+  "automatic_updates": "always",
   "autostart_schedule": "string",
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
@@ -88,6 +91,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
       {
         "agents": [
           {
+            "api_version": "string",
             "apps": [
               {
                 "command": "string",
@@ -138,19 +142,35 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
               }
             },
             "lifecycle_state": "created",
-            "login_before_ready": true,
+            "log_sources": [
+              {
+                "created_at": "2019-08-24T14:15:22Z",
+                "display_name": "string",
+                "icon": "string",
+                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+              }
+            ],
             "logs_length": 0,
             "logs_overflowed": true,
             "name": "string",
             "operating_system": "string",
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-            "shutdown_script": "string",
-            "shutdown_script_timeout_seconds": 0,
+            "scripts": [
+              {
+                "cron": "string",
+                "log_path": "string",
+                "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                "run_on_start": true,
+                "run_on_stop": true,
+                "script": "string",
+                "start_blocks_login": true,
+                "timeout": 0
+              }
+            ],
             "started_at": "2019-08-24T14:15:22Z",
-            "startup_script": "string",
             "startup_script_behavior": "blocking",
-            "startup_script_timeout_seconds": 0,
             "status": "connecting",
             "subsystems": ["envbox"],
             "troubleshooting_url": "string",
@@ -197,6 +217,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
   "template_icon": "string",
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_name": "string",
+  "template_require_active_version": true,
   "ttl_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -237,6 +258,8 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
 
 ```json
 {
+  "allow_renames": true,
+  "automatic_updates": "always",
   "autostart_schedule": "string",
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
@@ -279,6 +302,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
       {
         "agents": [
           {
+            "api_version": "string",
             "apps": [
               {
                 "command": "string",
@@ -329,19 +353,35 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
               }
             },
             "lifecycle_state": "created",
-            "login_before_ready": true,
+            "log_sources": [
+              {
+                "created_at": "2019-08-24T14:15:22Z",
+                "display_name": "string",
+                "icon": "string",
+                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+              }
+            ],
             "logs_length": 0,
             "logs_overflowed": true,
             "name": "string",
             "operating_system": "string",
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-            "shutdown_script": "string",
-            "shutdown_script_timeout_seconds": 0,
+            "scripts": [
+              {
+                "cron": "string",
+                "log_path": "string",
+                "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                "run_on_start": true,
+                "run_on_stop": true,
+                "script": "string",
+                "start_blocks_login": true,
+                "timeout": 0
+              }
+            ],
             "started_at": "2019-08-24T14:15:22Z",
-            "startup_script": "string",
             "startup_script_behavior": "blocking",
-            "startup_script_timeout_seconds": 0,
             "status": "connecting",
             "subsystems": ["envbox"],
             "troubleshooting_url": "string",
@@ -388,6 +428,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
   "template_icon": "string",
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_name": "string",
+  "template_require_active_version": true,
   "ttl_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -416,11 +457,11 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
 
 ### Parameters
 
-| Name     | In    | Type    | Required | Description                                                                                                        |
-| -------- | ----- | ------- | -------- | ------------------------------------------------------------------------------------------------------------------ |
-| `q`      | query | string  | false    | Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, deleting_by. |
-| `limit`  | query | integer | false    | Page limit                                                                                                         |
-| `offset` | query | integer | false    | Page offset                                                                                                        |
+| Name     | In    | Type    | Required | Description                                                                                                                                          |
+| -------- | ----- | ------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `q`      | query | string  | false    | Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, is-dormant, last_used_after, last_used_before. |
+| `limit`  | query | integer | false    | Page limit                                                                                                                                           |
+| `offset` | query | integer | false    | Page offset                                                                                                                                          |
 
 ### Example responses
 
@@ -431,6 +472,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
   "count": 0,
   "workspaces": [
     {
+      "allow_renames": true,
+      "automatic_updates": "always",
       "autostart_schedule": "string",
       "created_at": "2019-08-24T14:15:22Z",
       "deleting_at": "2019-08-24T14:15:22Z",
@@ -473,6 +516,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
           {
             "agents": [
               {
+                "api_version": "string",
                 "apps": [
                   {
                     "command": "string",
@@ -519,19 +563,35 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                   }
                 },
                 "lifecycle_state": "created",
-                "login_before_ready": true,
+                "log_sources": [
+                  {
+                    "created_at": "2019-08-24T14:15:22Z",
+                    "display_name": "string",
+                    "icon": "string",
+                    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                    "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+                  }
+                ],
                 "logs_length": 0,
                 "logs_overflowed": true,
                 "name": "string",
                 "operating_system": "string",
                 "ready_at": "2019-08-24T14:15:22Z",
                 "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-                "shutdown_script": "string",
-                "shutdown_script_timeout_seconds": 0,
+                "scripts": [
+                  {
+                    "cron": "string",
+                    "log_path": "string",
+                    "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                    "run_on_start": true,
+                    "run_on_stop": true,
+                    "script": "string",
+                    "start_blocks_login": true,
+                    "timeout": 0
+                  }
+                ],
                 "started_at": "2019-08-24T14:15:22Z",
-                "startup_script": "string",
                 "startup_script_behavior": "blocking",
-                "startup_script_timeout_seconds": 0,
                 "status": "connecting",
                 "subsystems": ["envbox"],
                 "troubleshooting_url": "string",
@@ -578,6 +638,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
       "template_icon": "string",
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
+      "template_require_active_version": true,
       "ttl_ms": 0,
       "updated_at": "2019-08-24T14:15:22Z"
     }
@@ -619,6 +680,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
 
 ```json
 {
+  "allow_renames": true,
+  "automatic_updates": "always",
   "autostart_schedule": "string",
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
@@ -661,6 +724,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
       {
         "agents": [
           {
+            "api_version": "string",
             "apps": [
               {
                 "command": "string",
@@ -711,19 +775,35 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
               }
             },
             "lifecycle_state": "created",
-            "login_before_ready": true,
+            "log_sources": [
+              {
+                "created_at": "2019-08-24T14:15:22Z",
+                "display_name": "string",
+                "icon": "string",
+                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+              }
+            ],
             "logs_length": 0,
             "logs_overflowed": true,
             "name": "string",
             "operating_system": "string",
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-            "shutdown_script": "string",
-            "shutdown_script_timeout_seconds": 0,
+            "scripts": [
+              {
+                "cron": "string",
+                "log_path": "string",
+                "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                "run_on_start": true,
+                "run_on_stop": true,
+                "script": "string",
+                "start_blocks_login": true,
+                "timeout": 0
+              }
+            ],
             "started_at": "2019-08-24T14:15:22Z",
-            "startup_script": "string",
             "startup_script_behavior": "blocking",
-            "startup_script_timeout_seconds": 0,
             "status": "connecting",
             "subsystems": ["envbox"],
             "troubleshooting_url": "string",
@@ -770,6 +850,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
   "template_icon": "string",
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_name": "string",
+  "template_require_active_version": true,
   "ttl_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -855,6 +936,42 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/autostart \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Update workspace automatic updates by ID
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/autoupdates \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /workspaces/{workspace}/autoupdates`
+
+> Body parameter
+
+```json
+{
+  "automatic_updates": "always"
+}
+```
+
+### Parameters
+
+| Name        | In   | Type                                                                                                         | Required | Description               |
+| ----------- | ---- | ------------------------------------------------------------------------------------------------------------ | -------- | ------------------------- |
+| `workspace` | path | string(uuid)                                                                                                 | true     | Workspace ID              |
+| `body`      | body | [codersdk.UpdateWorkspaceAutomaticUpdatesRequest](schemas.md#codersdkupdateworkspaceautomaticupdatesrequest) | true     | Automatic updates request |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+| ------ | --------------------------------------------------------------- | ----------- | ------ |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Update workspace dormancy status by id.
 
 ### Code samples
@@ -890,6 +1007,8 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
 
 ```json
 {
+  "allow_renames": true,
+  "automatic_updates": "always",
   "autostart_schedule": "string",
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
@@ -932,6 +1051,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
       {
         "agents": [
           {
+            "api_version": "string",
             "apps": [
               {
                 "command": "string",
@@ -982,19 +1102,35 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
               }
             },
             "lifecycle_state": "created",
-            "login_before_ready": true,
+            "log_sources": [
+              {
+                "created_at": "2019-08-24T14:15:22Z",
+                "display_name": "string",
+                "icon": "string",
+                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+              }
+            ],
             "logs_length": 0,
             "logs_overflowed": true,
             "name": "string",
             "operating_system": "string",
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-            "shutdown_script": "string",
-            "shutdown_script_timeout_seconds": 0,
+            "scripts": [
+              {
+                "cron": "string",
+                "log_path": "string",
+                "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                "run_on_start": true,
+                "run_on_stop": true,
+                "script": "string",
+                "start_blocks_login": true,
+                "timeout": 0
+              }
+            ],
             "started_at": "2019-08-24T14:15:22Z",
-            "startup_script": "string",
             "startup_script_behavior": "blocking",
-            "startup_script_timeout_seconds": 0,
             "status": "connecting",
             "subsystems": ["envbox"],
             "troubleshooting_url": "string",
@@ -1041,6 +1177,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
   "template_icon": "string",
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_name": "string",
+  "template_require_active_version": true,
   "ttl_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -1105,6 +1242,43 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/extend \
 | Status | Meaning                                                 | Description | Schema                                           |
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Resolve workspace autostart by id.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/resolve-autostart \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaces/{workspace}/resolve-autostart`
+
+### Parameters
+
+| Name        | In   | Type         | Required | Description  |
+| ----------- | ---- | ------------ | -------- | ------------ |
+| `workspace` | path | string(uuid) | true     | Workspace ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "parameter_mismatch": true
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                           |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ResolveAutostartResponse](schemas.md#codersdkresolveautostartresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

@@ -1,5 +1,4 @@
 import turbosnap from "vite-plugin-turbosnap";
-import { mergeConfig } from "vite";
 
 module.exports = {
   stories: ["../src/**/*.stories.tsx"],

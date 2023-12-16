@@ -430,6 +430,35 @@ func (discardValue) Type() string {
 	return "discard"
 }
 
+func (discardValue) UnmarshalJSON([]byte) error {
+	return nil
+}
+
+// jsonValue is intentionally not exported. It is just used to store the raw JSON
+// data for a value to defer it's unmarshal. It implements the pflag.Value to be
+// usable in an Option.
+type jsonValue json.RawMessage
+
+func (jsonValue) Set(string) error {
+	return xerrors.Errorf("json value is read-only")
+}
+
+func (jsonValue) String() string {
+	return ""
+}
+
+func (jsonValue) Type() string {
+	return "json"
+}
+
+func (j *jsonValue) UnmarshalJSON(data []byte) error {
+	if j == nil {
+		return xerrors.New("json.RawMessage: UnmarshalJSON on nil pointer")
+	}
+	*j = append((*j)[0:0], data...)
+	return nil
+}
+
 var _ pflag.Value = (*Enum)(nil)
 
 type Enum struct {
@@ -463,6 +492,25 @@ func (e *Enum) String() string {
 }
 
 type Regexp regexp.Regexp
+
+func (r *Regexp) MarshalJSON() ([]byte, error) {
+	return json.Marshal(r.String())
+}
+
+func (r *Regexp) UnmarshalJSON(data []byte) error {
+	var source string
+	err := json.Unmarshal(data, &source)
+	if err != nil {
+		return err
+	}
+
+	exp, err := regexp.Compile(source)
+	if err != nil {
+		return xerrors.Errorf("invalid regex expression: %w", err)
+	}
+	*r = Regexp(*exp)
+	return nil
+}
 
 func (r *Regexp) MarshalYAML() (interface{}, error) {
 	return yaml.Node{

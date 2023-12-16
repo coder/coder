@@ -1,12 +1,11 @@
-import Box from "@mui/material/Box";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableRow from "@mui/material/TableRow";
 import { Timeline } from "components/Timeline/Timeline";
-import { FC } from "react";
-import * as TypesGen from "api/typesGenerated";
+import { type FC } from "react";
+import type * as TypesGen from "api/typesGenerated";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import { VersionRow } from "./VersionRow";
@@ -20,17 +19,23 @@ export const Language = {
 
 export interface VersionsTableProps {
   activeVersionId: string;
-  onPromoteClick?: (templateVersionId: string) => void;
   versions?: TypesGen.TemplateVersion[];
+  onPromoteClick?: (templateVersionId: string) => void;
+  onArchiveClick?: (templateVersionId: string) => void;
 }
 
-export const VersionsTable: FC<React.PropsWithChildren<VersionsTableProps>> = ({
-  versions,
-  onPromoteClick,
+export const VersionsTable: FC<VersionsTableProps> = ({
   activeVersionId,
+  versions,
+  onArchiveClick,
+  onPromoteClick,
 }) => {
   const latestVersionId = versions?.reduce(
     (latestSoFar, against) => {
+      if (against.job.status !== "succeeded") {
+        return latestSoFar;
+      }
+
       if (!latestSoFar) {
         return against;
       }
@@ -53,6 +58,7 @@ export const VersionsTable: FC<React.PropsWithChildren<VersionsTableProps>> = ({
               getDate={(version) => new Date(version.created_at)}
               row={(version) => (
                 <VersionRow
+                  onArchiveClick={onArchiveClick}
                   onPromoteClick={onPromoteClick}
                   version={version}
                   key={version.id}
@@ -68,9 +74,9 @@ export const VersionsTable: FC<React.PropsWithChildren<VersionsTableProps>> = ({
           {versions && versions.length === 0 && (
             <TableRow>
               <TableCell colSpan={999}>
-                <Box p={4}>
+                <div css={{ padding: 32 }}>
                   <EmptyState message={Language.emptyMessage} />
-                </Box>
+                </div>
               </TableCell>
             </TableRow>
           )}

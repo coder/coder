@@ -1,11 +1,8 @@
+import { type Interpolation, type Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
-import { makeStyles } from "@mui/styles";
-import {
-  CloseDropdown,
-  OpenDropdown,
-} from "components/DropdownArrows/DropdownArrows";
-import { FC, useState } from "react";
-import { WorkspaceAgent, WorkspaceResource } from "../../api/typesGenerated";
+import { type FC, useState } from "react";
+import type { WorkspaceAgent, WorkspaceResource } from "api/typesGenerated";
+import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Stack } from "../Stack/Stack";
 import { ResourceCard } from "./ResourceCard";
 
@@ -22,7 +19,6 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
   resources,
   agentRow,
 }) => {
-  const styles = useStyles();
   const [shouldDisplayHideResources, setShouldDisplayHideResources] =
     useState(false);
   const displayResources = shouldDisplayHideResources
@@ -43,21 +39,14 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
         />
       ))}
       {hasHideResources && (
-        <div className={styles.buttonWrapper}>
+        <div css={styles.buttonWrapper}>
           <Button
-            className={styles.showMoreButton}
+            css={styles.showMoreButton}
             size="small"
             onClick={() => setShouldDisplayHideResources((v) => !v)}
           >
-            {shouldDisplayHideResources ? (
-              <>
-                Hide resources <CloseDropdown />
-              </>
-            ) : (
-              <>
-                Show hidden resources <OpenDropdown />
-              </>
-            )}
+            {shouldDisplayHideResources ? "Hide" : "Show hidden"} resources
+            <DropdownArrow close={shouldDisplayHideResources} />
           </Button>
         </div>
       )}
@@ -65,12 +54,12 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
   );
 };
 
-const useStyles = makeStyles((theme) => ({
+const styles = {
   buttonWrapper: {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: theme.spacing(2),
+    marginTop: 16,
   },
 
   showMoreButton: {
@@ -78,4 +67,4 @@ const useStyles = makeStyles((theme) => ({
     width: "100%",
     maxWidth: 260,
   },
-}));
+} satisfies Record<string, Interpolation<Theme>>;

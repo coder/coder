@@ -6,7 +6,9 @@ export const port = process.env.CODER_E2E_PORT
   ? Number(process.env.CODER_E2E_PORT)
   : defaultPort;
 
-const coderMain = path.join(__dirname, "../../enterprise/cmd/coder/main.go");
+export const wsEndpoint = process.env.CODER_E2E_WS_ENDPOINT;
+
+const coderMain = path.join(__dirname, "../../enterprise/cmd/coder");
 
 export const STORAGE_STATE = path.join(__dirname, ".auth.json");
 
@@ -27,16 +29,24 @@ export default defineConfig({
       use: {
         storageState: STORAGE_STATE,
       },
-      timeout: 60000,
+      timeout: 60_000,
     },
   ],
   reporter: [["./reporter.ts"]],
   use: {
     baseURL: `http://localhost:${port}`,
     video: "retain-on-failure",
-    launchOptions: {
-      args: ["--disable-webgl"],
-    },
+    ...(wsEndpoint
+      ? {
+          connectOptions: {
+            wsEndpoint: wsEndpoint,
+          },
+        }
+      : {
+          launchOptions: {
+            args: ["--disable-webgl"],
+          },
+        }),
   },
   webServer: {
     url: `http://localhost:${port}/api/v2/deployment/config`,
@@ -49,6 +59,7 @@ export default defineConfig({
       `--dangerous-disable-rate-limits ` +
       `--provisioner-daemons 10 ` +
       `--provisioner-daemons-echo ` +
+      `--web-terminal-renderer=dom ` +
       `--pprof-enable`,
     env: {
       ...process.env,
@@ -57,6 +68,7 @@ export default defineConfig({
       CODER_GITAUTH_0_ID: gitAuth.deviceProvider,
       CODER_GITAUTH_0_TYPE: "github",
       CODER_GITAUTH_0_CLIENT_ID: "client",
+      CODER_GITAUTH_0_CLIENT_SECRET: "secret",
       CODER_GITAUTH_0_DEVICE_FLOW: "true",
       CODER_GITAUTH_0_APP_INSTALL_URL:
         "https://github.com/apps/coder/installations/new",

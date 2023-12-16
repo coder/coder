@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
@@ -262,13 +263,13 @@ func TestPostLogin(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, nil)
-		admin := coderdtest.CreateFirstUser(t, client)
+		owner := coderdtest.CreateFirstUser(t, client)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
 		split := strings.Split(client.SessionToken(), "-")
-		key, err := client.APIKeyByID(ctx, admin.UserID.String(), split[0])
+		key, err := client.APIKeyByID(ctx, owner.UserID.String(), split[0])
 		require.NoError(t, err, "fetch login key")
 		require.Equal(t, int64(86400), key.LifetimeSeconds, "default should be 86400")
 
@@ -276,7 +277,7 @@ func TestPostLogin(t *testing.T) {
 		token, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{})
 		require.NoError(t, err, "make new token api key")
 		split = strings.Split(token.Key, "-")
-		apiKey, err := client.APIKeyByID(ctx, admin.UserID.String(), split[0])
+		apiKey, err := client.APIKeyByID(ctx, owner.UserID.String(), split[0])
 		require.NoError(t, err, "fetch api key")
 
 		require.True(t, apiKey.ExpiresAt.After(time.Now().Add(time.Hour*24*29)), "default tokens lasts more than 29 days")
@@ -326,7 +327,7 @@ func TestDeleteUser(t *testing.T) {
 		err := client.DeleteUser(context.Background(), firstUser.UserID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
 	t.Run("HasWorkspaces", func(t *testing.T) {
 		t.Parallel()
@@ -334,7 +335,7 @@ func TestDeleteUser(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		anotherClient, another := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.CreateWorkspace(t, anotherClient, user.OrganizationID, template.ID)
 		err := client.DeleteUser(context.Background(), another.ID)
@@ -364,14 +365,14 @@ func TestPostLogout(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
 		numLogs := len(auditor.AuditLogs())
 
-		admin := coderdtest.CreateFirstUser(t, client)
+		owner := coderdtest.CreateFirstUser(t, client)
 		numLogs++ // add an audit log for login
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
 		keyID := strings.Split(client.SessionToken(), "-")[0]
-		apiKey, err := client.APIKeyByID(ctx, admin.UserID.String(), keyID)
+		apiKey, err := client.APIKeyByID(ctx, owner.UserID.String(), keyID)
 		require.NoError(t, err)
 		require.Equal(t, keyID, apiKey.ID, "API key should exist in the database")
 
@@ -400,7 +401,7 @@ func TestPostLogout(t *testing.T) {
 		}
 		require.True(t, found, "auth cookie should be returned")
 
-		_, err = client.APIKeyByID(ctx, admin.UserID.String(), keyID)
+		_, err = client.APIKeyByID(ctx, owner.UserID.String(), keyID)
 		sdkErr := &codersdk.Error{}
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode(), "Expecting 401")
@@ -707,13 +708,13 @@ func TestUpdateUserPassword(t *testing.T) {
 	t.Run("MemberCantUpdateAdminPassword", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		admin := coderdtest.CreateFirstUser(t, client)
-		member, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		err := member.UpdateUserPassword(ctx, admin.UserID.String(), codersdk.UpdateUserPasswordRequest{
+		err := member.UpdateUserPassword(ctx, owner.UserID.String(), codersdk.UpdateUserPasswordRequest{
 			Password: "newpassword",
 		})
 		require.Error(t, err, "member should not be able to update admin password")
@@ -722,7 +723,7 @@ func TestUpdateUserPassword(t *testing.T) {
 	t.Run("AdminCanUpdateMemberPassword", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		admin := coderdtest.CreateFirstUser(t, client)
+		owner := coderdtest.CreateFirstUser(t, client)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -731,7 +732,7 @@ func TestUpdateUserPassword(t *testing.T) {
 			Email:          "coder@coder.com",
 			Username:       "coder",
 			Password:       "SomeStrongPassword!",
-			OrganizationID: admin.OrganizationID,
+			OrganizationID: owner.OrganizationID,
 		})
 		require.NoError(t, err, "create member")
 		err = client.UpdateUserPassword(ctx, member.ID.String(), codersdk.UpdateUserPasswordRequest{
@@ -751,11 +752,11 @@ func TestUpdateUserPassword(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
 		numLogs := len(auditor.AuditLogs())
 
-		admin := coderdtest.CreateFirstUser(t, client)
+		owner := coderdtest.CreateFirstUser(t, client)
 		numLogs++ // add an audit log for user create
 		numLogs++ // add an audit log for login
 
-		member, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 		numLogs++ // add an audit log for user create
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -775,8 +776,8 @@ func TestUpdateUserPassword(t *testing.T) {
 	t.Run("MemberCantUpdateOwnPasswordWithoutOldPassword", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		admin := coderdtest.CreateFirstUser(t, client)
-		member, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -930,7 +931,7 @@ func TestGrantSiteRoles(t *testing.T) {
 			AssignToUser: first.UserID.String(),
 			Roles:        []string{},
 			Error:        true,
-			StatusCode:   http.StatusForbidden,
+			StatusCode:   http.StatusBadRequest,
 		},
 		{
 			// Cannot update your own roles
@@ -1595,7 +1596,7 @@ func TestWorkspacesByUser(t *testing.T) {
 		newUserClient := codersdk.New(client.URL)
 		newUserClient.SetSessionToken(auth.SessionToken)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 
@@ -1699,7 +1700,7 @@ func TestSuspendedPagination(t *testing.T) {
 // them using different page sizes.
 func TestPaginatedUsers(t *testing.T) {
 	t.Parallel()
-	client := coderdtest.New(t, nil)
+	client, db := coderdtest.NewWithDatabase(t, nil)
 	coderdtest.CreateFirstUser(t, client)
 
 	// This test takes longer than a long time.
@@ -1708,15 +1709,17 @@ func TestPaginatedUsers(t *testing.T) {
 
 	me, err := client.User(ctx, codersdk.Me)
 	require.NoError(t, err)
-	orgID := me.OrganizationIDs[0]
 
 	// When 50 users exist
 	total := 50
-	allUsers := make([]codersdk.User, total+1) // +1 forme
-	allUsers[0] = me
-	specialUsers := make([]codersdk.User, total/2)
+	allUsers := make([]database.User, total+1)
+	allUsers[0] = database.User{
+		Email:    me.Email,
+		Username: me.Username,
+	}
+	specialUsers := make([]database.User, total/2)
 
-	eg, egCtx := errgroup.WithContext(ctx)
+	eg, _ := errgroup.WithContext(ctx)
 	// Create users
 	for i := 0; i < total; i++ {
 		i := i
@@ -1730,21 +1733,14 @@ func TestPaginatedUsers(t *testing.T) {
 			if i%3 == 0 {
 				username = strings.ToUpper(username)
 			}
-			// One side effect of having to use the api vs the db calls directly, is you cannot
-			// mock time. Ideally I could pass in mocked times and space these users out.
-			//
-			// But this also serves as a good test. Postgres has microsecond precision on its timestamps.
-			// If 2 users share the same created_at, that could cause an issue if you are strictly paginating via
-			// timestamps. The pagination goes by timestamps and uuids.
-			newUser, err := client.CreateUser(egCtx, codersdk.CreateUserRequest{
-				Email:          email,
-				Username:       username,
-				Password:       "MySecurePassword!",
-				OrganizationID: orgID,
+
+			// We used to use the API to ceate users, but that is slow.
+			// Instead, we create them directly in the database now
+			// to prevent timeout flakes.
+			newUser := dbgen.User(t, db, database.User{
+				Email:    email,
+				Username: username,
 			})
-			if err != nil {
-				return err
-			}
 			allUsers[i+1] = newUser
 			if i%2 == 0 {
 				specialUsers[i/2] = newUser
@@ -1757,8 +1753,8 @@ func TestPaginatedUsers(t *testing.T) {
 	require.NoError(t, err, "create users failed")
 
 	// Sorting the users will sort by username.
-	sortUsers(allUsers)
-	sortUsers(specialUsers)
+	sortDatabaseUsers(allUsers)
+	sortDatabaseUsers(specialUsers)
 
 	gmailSearch := func(request codersdk.UsersRequest) codersdk.UsersRequest {
 		request.Search = "gmail"
@@ -1772,7 +1768,7 @@ func TestPaginatedUsers(t *testing.T) {
 	tests := []struct {
 		name     string
 		limit    int
-		allUsers []codersdk.User
+		allUsers []database.User
 		opt      func(request codersdk.UsersRequest) codersdk.UsersRequest
 	}{
 		{name: "all users", limit: 10, allUsers: allUsers},
@@ -1800,7 +1796,7 @@ func TestPaginatedUsers(t *testing.T) {
 // Assert pagination will page through the list of all users using the given
 // limit for each page. The 'allUsers' is the expected full list to compare
 // against.
-func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client, limit int, allUsers []codersdk.User,
+func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client, limit int, allUsers []database.User,
 	opt func(request codersdk.UsersRequest) codersdk.UsersRequest,
 ) {
 	var count int
@@ -1817,7 +1813,7 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 		},
 	}))
 	require.NoError(t, err, "first page")
-	require.Equalf(t, page.Users, allUsers[:limit], "first page, limit=%d", limit)
+	require.Equalf(t, onlyUsernames(page.Users), onlyUsernames(allUsers[:limit]), "first page, limit=%d", limit)
 	count += len(page.Users)
 
 	for {
@@ -1846,14 +1842,14 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 		}))
 		require.NoError(t, err, "next offset page")
 
-		var expected []codersdk.User
+		var expected []database.User
 		if count+limit > len(allUsers) {
 			expected = allUsers[count:]
 		} else {
 			expected = allUsers[count : count+limit]
 		}
-		require.Equalf(t, page.Users, expected, "next users, after=%s, limit=%d", afterCursor, limit)
-		require.Equalf(t, offsetPage.Users, expected, "offset users, offset=%d, limit=%d", count, limit)
+		require.Equalf(t, onlyUsernames(page.Users), onlyUsernames(expected), "next users, after=%s, limit=%d", afterCursor, limit)
+		require.Equalf(t, onlyUsernames(offsetPage.Users), onlyUsernames(expected), "offset users, offset=%d, limit=%d", count, limit)
 
 		// Also check the before
 		prevPage, err := client.Users(ctx, opt(codersdk.UsersRequest{
@@ -1863,7 +1859,7 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 			},
 		}))
 		require.NoError(t, err, "prev page")
-		require.Equal(t, allUsers[count-limit:count], prevPage.Users, "prev users")
+		require.Equal(t, onlyUsernames(allUsers[count-limit:count]), onlyUsernames(prevPage.Users), "prev users")
 		count += len(page.Users)
 	}
 }
@@ -1873,6 +1869,25 @@ func sortUsers(users []codersdk.User) {
 	slices.SortFunc(users, func(a, b codersdk.User) int {
 		return slice.Ascending(strings.ToLower(a.Username), strings.ToLower(b.Username))
 	})
+}
+
+func sortDatabaseUsers(users []database.User) {
+	slices.SortFunc(users, func(a, b database.User) int {
+		return slice.Ascending(strings.ToLower(a.Username), strings.ToLower(b.Username))
+	})
+}
+
+func onlyUsernames[U codersdk.User | database.User](users []U) []string {
+	var out []string
+	for _, u := range users {
+		switch u := (any(u)).(type) {
+		case codersdk.User:
+			out = append(out, u.Username)
+		case database.User:
+			out = append(out, u.Username)
+		}
+	}
+	return out
 }
 
 func BenchmarkUsersMe(b *testing.B) {

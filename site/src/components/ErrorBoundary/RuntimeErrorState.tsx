@@ -1,14 +1,14 @@
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
-import { makeStyles } from "@mui/styles";
 import RefreshOutlined from "@mui/icons-material/RefreshOutlined";
-import { BuildInfoResponse } from "api/typesGenerated";
+import { type FC, useEffect, useState } from "react";
+import { Helmet } from "react-helmet-async";
+import { css, type Interpolation, type Theme } from "@emotion/react";
+import type { BuildInfoResponse } from "api/typesGenerated";
 import { CopyButton } from "components/CopyButton/CopyButton";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { FullScreenLoader } from "components/Loader/FullScreenLoader";
 import { Stack } from "components/Stack/Stack";
-import { FC, useEffect, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import { Margins } from "components/Margins/Margins";
 
 const fetchDynamicallyImportedModuleError =
@@ -17,7 +17,6 @@ const fetchDynamicallyImportedModuleError =
 export type RuntimeErrorStateProps = { error: Error };
 
 export const RuntimeErrorState: FC<RuntimeErrorStateProps> = ({ error }) => {
-  const styles = useStyles();
   const [checkingError, setCheckingError] = useState(true);
   const [staticBuildInfo, setStaticBuildInfo] = useState<BuildInfoResponse>();
   const coderVersion = staticBuildInfo?.version;
@@ -52,11 +51,11 @@ export const RuntimeErrorState: FC<RuntimeErrorStateProps> = ({ error }) => {
         <title>Something went wrong...</title>
       </Helmet>
       {!checkingError ? (
-        <Margins className={styles.root}>
-          <div className={styles.innerRoot}>
-            <CoderIcon className={styles.logo} />
-            <h1 className={styles.title}>Something went wrong...</h1>
-            <p className={styles.text}>
+        <Margins css={styles.root}>
+          <div css={{ width: "100%" }}>
+            <CoderIcon css={styles.logo} />
+            <h1 css={styles.title}>Something went wrong...</h1>
+            <p css={styles.text}>
               Please try reloading the page, if that doesn&lsquo;t work, you can
               ask for help in the{" "}
               <Link href="https://discord.gg/coder">
@@ -93,20 +92,20 @@ export const RuntimeErrorState: FC<RuntimeErrorStateProps> = ({ error }) => {
               </Button>
             </Stack>
             {error.stack && (
-              <div className={styles.stack}>
-                <div className={styles.stackHeader}>
+              <div css={styles.stack}>
+                <div css={styles.stackHeader}>
                   Stacktrace
                   <CopyButton
-                    buttonClassName={styles.copyButton}
+                    buttonStyles={styles.copyButton}
                     text={error.stack}
                     tooltipTitle="Copy stacktrace"
                   />
                 </div>
-                <pre className={styles.stackCode}>{error.stack}</pre>
+                <pre css={styles.stackCode}>{error.stack}</pre>
               </div>
             )}
             {coderVersion && (
-              <div className={styles.version}>Version: {coderVersion}</div>
+              <div css={styles.version}>Version: {coderVersion}</div>
             )}
           </div>
         </Margins>
@@ -132,85 +131,82 @@ const getStaticBuildInfo = () => {
   }
 };
 
-const useStyles = makeStyles((theme) => ({
+const styles = {
   root: {
-    paddingTop: theme.spacing(4),
-    paddingBottom: theme.spacing(4),
+    paddingTop: 32,
+    paddingBottom: 32,
     textAlign: "center",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     minHeight: "100%",
-    maxWidth: theme.spacing(75),
+    maxWidth: 600,
   },
 
-  innerRoot: { width: "100%" },
-
   logo: {
-    fontSize: theme.spacing(8),
+    fontSize: 64,
   },
 
   title: {
-    fontSize: theme.spacing(4),
+    fontSize: 32,
     fontWeight: 400,
   },
 
-  text: {
+  text: (theme) => ({
     fontSize: 16,
     color: theme.palette.text.secondary,
     lineHeight: "160%",
-    marginBottom: theme.spacing(4),
-  },
+    marginBottom: 32,
+  }),
 
-  stack: {
-    backgroundColor: theme.palette.background.paper,
+  stack: (theme) => ({
     border: `1px solid ${theme.palette.divider}`,
     borderRadius: 4,
-    marginTop: theme.spacing(8),
+    marginTop: 64,
     display: "block",
     textAlign: "left",
-  },
+  }),
 
-  stackHeader: {
+  stackHeader: (theme) => ({
     fontSize: 10,
     textTransform: "uppercase",
     fontWeight: 600,
     letterSpacing: 1,
-    padding: theme.spacing(1, 1, 1, 2),
-    backgroundColor: theme.palette.background.paperLight,
+    padding: "8px 8px 8px 16px",
+    backgroundColor: theme.palette.background.paper,
     borderBottom: `1px solid ${theme.palette.divider}`,
     color: theme.palette.text.secondary,
     display: "flex",
     flexAlign: "center",
     justifyContent: "space-between",
     alignItems: "center",
-  },
+  }),
 
   stackCode: {
-    padding: theme.spacing(2),
+    padding: 16,
     margin: 0,
     wordWrap: "break-word",
     whiteSpace: "break-spaces",
   },
 
-  copyButton: {
-    backgroundColor: "transparent",
-    border: 0,
-    borderRadius: 999,
-    minHeight: theme.spacing(4),
-    minWidth: theme.spacing(4),
-    height: theme.spacing(4),
-    width: theme.spacing(4),
-
-    "& svg": {
-      width: 16,
-      height: 16,
-    },
-  },
-
-  version: {
-    marginTop: theme.spacing(4),
+  version: (theme) => ({
+    marginTop: 32,
     fontSize: 12,
     color: theme.palette.text.secondary,
-  },
-}));
+  }),
+
+  copyButton: css`
+    background-color: transparent;
+    border: 0;
+    border-radius: 999px;
+    min-height: 32px;
+    min-width: 32px;
+    height: 32px;
+    width: 32px;
+
+    & svg {
+      width: 16px;
+      height: 16px;
+    }
+  `,
+} satisfies Record<string, Interpolation<Theme>>;

@@ -1,20 +1,19 @@
-import Box from "@mui/material/Box";
 import Checkbox from "@mui/material/Checkbox";
-import { makeStyles } from "@mui/styles";
 import TextField from "@mui/material/TextField";
-import Typography from "@mui/material/Typography";
-import { LoadingButton } from "components/LoadingButton/LoadingButton";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
-import { Stack } from "components/Stack/Stack";
-import { Welcome } from "components/Welcome/Welcome";
-import { FormikContextType, useFormik } from "formik";
+import { type FormikContextType, useFormik } from "formik";
 import {
   getFormHelpers,
   nameValidator,
   onChangeTrimmed,
 } from "utils/formUtils";
 import * as Yup from "yup";
-import * as TypesGen from "../../api/typesGenerated";
+import type * as TypesGen from "api/typesGenerated";
+import LoadingButton from "@mui/lab/LoadingButton";
+import { FormFields, VerticalForm } from "components/Form/Form";
+import { CoderIcon } from "components/Icons/CoderIcon";
+import Link from "@mui/material/Link";
+import { docs } from "utils/docs";
 
 export const Language = {
   emailLabel: "Email",
@@ -53,7 +52,7 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
         email: "",
         password: "",
         username: "",
-        trial: true,
+        trial: false,
       },
       validationSchema,
       onSubmit,
@@ -62,14 +61,38 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
     form,
     error,
   );
-  const styles = useStyles();
 
   return (
     <SignInLayout>
-      <Welcome message={Language.welcomeMessage} />
-      <form onSubmit={form.handleSubmit}>
-        <Stack>
+      <header css={{ textAlign: "center", marginBottom: 32 }}>
+        <CoderIcon
+          css={(theme) => ({
+            color: theme.palette.text.primary,
+            fontSize: 64,
+          })}
+        />
+        <h1
+          css={{
+            fontWeight: 400,
+            margin: 0,
+            marginTop: 16,
+          }}
+        >
+          Welcome to <strong>Coder</strong>
+        </h1>
+        <div
+          css={(theme) => ({
+            marginTop: 12,
+            color: theme.palette.text.secondary,
+          })}
+        >
+          Let&lsquo;s create your first admin user account
+        </div>
+      </header>
+      <VerticalForm onSubmit={form.handleSubmit}>
+        <FormFields>
           <TextField
+            autoFocus
             {...getFieldHelpers("username")}
             onChange={onChangeTrimmed(form)}
             autoComplete="username"
@@ -91,46 +114,65 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
             label={Language.passwordLabel}
             type="password"
           />
-          <div className={styles.callout}>
-            <Box display="flex">
-              <div>
-                <Checkbox
-                  id="trial"
-                  name="trial"
-                  defaultChecked
-                  value={form.values.trial}
-                  onChange={form.handleChange}
-                  data-testid="trial"
-                />
-              </div>
 
-              <Box>
-                <Typography variant="h6" style={{ fontSize: 14 }}>
-                  Start a 30-day free trial of Enterprise
-                </Typography>
-                <Typography variant="caption" color="textSecondary">
-                  Get access to high availability, template RBAC, audit logging,
-                  quotas, and more.
-                </Typography>
-              </Box>
-            </Box>
-          </div>
+          <label
+            htmlFor="trial"
+            css={{
+              display: "flex",
+              cursor: "pointer",
+              alignItems: "flex-start",
+              gap: 4,
+              marginTop: -4,
+              marginBottom: 8,
+            }}
+          >
+            <Checkbox
+              id="trial"
+              name="trial"
+              checked={form.values.trial}
+              onChange={form.handleChange}
+              data-testid="trial"
+              size="small"
+            />
+
+            <div css={{ fontSize: 14, paddingTop: 4 }}>
+              <span css={{ display: "block", fontWeight: 600 }}>
+                Start a 30-day free trial of Enterprise
+              </span>
+              <span
+                css={(theme) => ({
+                  display: "block",
+                  fontSize: 13,
+                  color: theme.palette.text.secondary,
+                  lineHeight: "1.6",
+                })}
+              >
+                Get access to high availability, template RBAC, audit logging,
+                quotas, and more.
+              </span>
+              <Link
+                href={docs("/enterprise")}
+                target="_blank"
+                css={{ marginTop: 4, display: "inline-block", fontSize: 13 }}
+              >
+                Read more
+              </Link>
+            </div>
+          </label>
+
           <LoadingButton
             fullWidth
             loading={isLoading}
             type="submit"
             data-testid="create"
+            size="large"
+            variant="contained"
+            color="primary"
           >
             {Language.create}
           </LoadingButton>
-        </Stack>
-      </form>
+        </FormFields>
+      </VerticalForm>
     </SignInLayout>
   );
 };
-
-const useStyles = makeStyles(() => ({
-  callout: {
-    borderRadius: 16,
-  },
-}));

@@ -21,6 +21,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/wsconncache"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/site"
@@ -37,6 +38,8 @@ func init() {
 		panic("dev error: default transport is the wrong type")
 	}
 }
+
+var _ workspaceapps.AgentProvider = (*ServerTailnet)(nil)
 
 // NewServerTailnet creates a new tailnet intended for use by coderd. It
 // automatically falls back to wsconncache if a legacy agent is encountered.
@@ -229,6 +232,10 @@ func (s *ServerTailnet) watchAgentUpdates() {
 
 		err := s.conn.UpdateNodes(nodes, false)
 		if err != nil {
+			if xerrors.Is(err, tailnet.ErrConnClosed) {
+				s.logger.Warn(context.Background(), "tailnet conn closed, exiting watchAgentUpdates", slog.Error(err))
+				return
+			}
 			s.logger.Error(context.Background(), "update node in server tailnet", slog.Error(err))
 			return
 		}
@@ -413,6 +420,10 @@ func (s *ServerTailnet) DialAgentNetConn(ctx context.Context, agentID uuid.UUID,
 	return &netConnCloser{Conn: nc, close: func() {
 		release()
 	}}, err
+}
+
+func (s *ServerTailnet) ServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
+	s.conn.MagicsockServeHTTPDebug(w, r)
 }
 
 type netConnCloser struct {

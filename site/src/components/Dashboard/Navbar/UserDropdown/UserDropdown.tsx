@@ -1,113 +1,103 @@
 import Badge from "@mui/material/Badge";
-import MenuItem from "@mui/material/MenuItem";
-import { makeStyles } from "@mui/styles";
-import { useState, FC, PropsWithChildren, MouseEvent } from "react";
-import { colors } from "theme/colors";
-import * as TypesGen from "api/typesGenerated";
-import { navHeight } from "theme/constants";
-import { BorderedMenu } from "./BorderedMenu";
-import {
-  CloseDropdown,
-  OpenDropdown,
-} from "components/DropdownArrows/DropdownArrows";
+import { type FC, type ReactNode } from "react";
+import type * as TypesGen from "api/typesGenerated";
+import { BUTTON_SM_HEIGHT, navHeight } from "theme/constants";
+import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { UserDropdownContent } from "./UserDropdownContent";
-import { BUTTON_SM_HEIGHT } from "theme/theme";
+import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "components/Popover/Popover";
 
 export interface UserDropdownProps {
   user: TypesGen.User;
   buildInfo?: TypesGen.BuildInfoResponse;
   supportLinks?: TypesGen.LinkConfig[];
   onSignOut: () => void;
+  isDefaultOpen?: boolean;
+  children?: ReactNode;
 }
 
-export const UserDropdown: FC<PropsWithChildren<UserDropdownProps>> = ({
+export const UserDropdown: FC<UserDropdownProps> = ({
   buildInfo,
   user,
   supportLinks,
   onSignOut,
-}: UserDropdownProps) => {
-  const styles = useStyles();
-  const [anchorEl, setAnchorEl] = useState<HTMLElement | undefined>();
-
-  const handleDropdownClick = (ev: MouseEvent<HTMLLIElement>): void => {
-    setAnchorEl(ev.currentTarget);
-  };
-  const onPopoverClose = () => {
-    setAnchorEl(undefined);
-  };
+  isDefaultOpen,
+}) => {
+  const theme = useTheme();
 
   return (
-    <>
-      <MenuItem
-        className={styles.menuItem}
-        onClick={handleDropdownClick}
-        data-testid="user-dropdown-trigger"
-      >
-        <div className={styles.inner}>
-          <Badge overlap="circular">
-            <UserAvatar
-              sx={{
-                width: BUTTON_SM_HEIGHT,
-                height: BUTTON_SM_HEIGHT,
-                fontSize: 16,
-              }}
-              username={user.username}
-              avatarURL={user.avatar_url}
-            />
-          </Badge>
-          {anchorEl ? (
-            <CloseDropdown color={colors.gray[6]} />
-          ) : (
-            <OpenDropdown color={colors.gray[6]} />
-          )}
-        </div>
-      </MenuItem>
+    <Popover isDefaultOpen={isDefaultOpen}>
+      {(popover) => (
+        <>
+          <PopoverTrigger>
+            <button css={styles.button} data-testid="user-dropdown-trigger">
+              <div css={styles.badgeContainer}>
+                <Badge overlap="circular">
+                  <UserAvatar
+                    css={styles.avatar}
+                    username={user.username}
+                    avatarURL={user.avatar_url}
+                  />
+                </Badge>
+                <DropdownArrow
+                  color={theme.colors.gray[6]}
+                  close={popover.isOpen}
+                />
+              </div>
+            </button>
+          </PopoverTrigger>
 
-      <BorderedMenu
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        anchorOrigin={{
-          vertical: "bottom",
-          horizontal: "right",
-        }}
-        transformOrigin={{
-          vertical: "top",
-          horizontal: "right",
-        }}
-        marginThreshold={0}
-        variant="user-dropdown"
-        onClose={onPopoverClose}
-      >
-        <UserDropdownContent
-          user={user}
-          buildInfo={buildInfo}
-          supportLinks={supportLinks}
-          onPopoverClose={onPopoverClose}
-          onSignOut={onSignOut}
-        />
-      </BorderedMenu>
-    </>
+          <PopoverContent
+            horizontal="right"
+            css={{
+              ".MuiPaper-root": {
+                minWidth: "auto",
+                width: 260,
+                boxShadow: theme.shadows[6],
+              },
+            }}
+          >
+            <UserDropdownContent
+              user={user}
+              buildInfo={buildInfo}
+              supportLinks={supportLinks}
+              onSignOut={onSignOut}
+            />
+          </PopoverContent>
+        </>
+      )}
+    </Popover>
   );
 };
 
-export const useStyles = makeStyles((theme) => ({
-  divider: {
-    marginTop: theme.spacing(1),
-    marginBottom: theme.spacing(1),
-  },
-  inner: {
+const styles = {
+  button: css`
+    background: none;
+    border: 0;
+    cursor: pointer;
+    height: ${navHeight}px;
+    padding: 12px 0;
+
+    &:hover {
+      background-color: transparent;
+    }
+  `,
+
+  badgeContainer: {
     display: "flex",
     alignItems: "center",
     minWidth: 0,
     maxWidth: 300,
   },
-  menuItem: {
-    height: navHeight,
-    padding: theme.spacing(1.5, 0),
 
-    "&:hover": {
-      backgroundColor: "transparent",
-    },
+  avatar: {
+    width: BUTTON_SM_HEIGHT,
+    height: BUTTON_SM_HEIGHT,
+    fontSize: 16,
   },
-}));
+} satisfies Record<string, Interpolation<Theme>>;

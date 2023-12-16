@@ -122,7 +122,7 @@ func TestLicensesAddReal(t *testing.T) {
 			t,
 			"licenses", "add", "-l", fakeLicenseJWT,
 		)
-		clitest.SetupConfig(t, client, conf)
+		clitest.SetupConfig(t, client, conf) //nolint:gocritic // requires owner
 
 		waiter := clitest.StartWithWaiter(t, inv)
 		var coderError *codersdk.Error
@@ -180,7 +180,7 @@ func TestLicensesListReal(t *testing.T) {
 		inv.Stdout = stdout
 		stderr := new(bytes.Buffer)
 		inv.Stderr = stderr
-		clitest.SetupConfig(t, client, conf)
+		clitest.SetupConfig(t, client, conf) //nolint:gocritic // requires owner
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		errC := make(chan error)
@@ -216,7 +216,7 @@ func TestLicensesDeleteReal(t *testing.T) {
 		inv, conf := newCLI(
 			t,
 			"licenses", "delete", "1")
-		clitest.SetupConfig(t, client, conf)
+		clitest.SetupConfig(t, client, conf) //nolint:gocritic // requires owner
 
 		var coderError *codersdk.Error
 		clitest.StartWithWaiter(t, inv).RequireAs(&coderError)
@@ -254,6 +254,7 @@ func newFakeLicenseAPI(t *testing.T) http.Handler {
 	r.Post("/api/v2/licenses", a.postLicense)
 	r.Get("/api/v2/licenses", a.licenses)
 	r.Get("/api/v2/buildinfo", a.noop)
+	r.Get("/api/v2/users/me", a.noop)
 	r.Delete("/api/v2/licenses/{id}", a.deleteLicense)
 	r.Get("/api/v2/entitlements", a.entitlements)
 	return r

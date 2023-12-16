@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,9 +15,9 @@ import (
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 
+	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionerd/runner"
-	"github.com/coder/coder/v2/provisionersdk"
 )
 
 type LogSource string
@@ -39,8 +38,9 @@ const (
 type ProvisionerDaemon struct {
 	ID           uuid.UUID         `json:"id" format:"uuid"`
 	CreatedAt    time.Time         `json:"created_at" format:"date-time"`
-	UpdatedAt    sql.NullTime      `json:"updated_at" format:"date-time"`
+	LastSeenAt   NullTime          `json:"last_seen_at,omitempty" format:"date-time"`
 	Name         string            `json:"name"`
+	Version      string            `json:"version"`
 	Provisioners []ProvisionerType `json:"provisioners"`
 	Tags         map[string]string `json:"tags"`
 }
@@ -64,6 +64,7 @@ const (
 	ProvisionerJobCanceling ProvisionerJobStatus = "canceling"
 	ProvisionerJobCanceled  ProvisionerJobStatus = "canceled"
 	ProvisionerJobFailed    ProvisionerJobStatus = "failed"
+	ProvisionerJobUnknown   ProvisionerJobStatus = "unknown"
 )
 
 // JobErrorCode defines the error code returned by job runner.
@@ -173,6 +174,10 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 // ServeProvisionerDaemonRequest are the parameters to call ServeProvisionerDaemon with
 // @typescript-ignore ServeProvisionerDaemonRequest
 type ServeProvisionerDaemonRequest struct {
+	// ID is a unique ID for a provisioner daemon.
+	ID uuid.UUID `json:"id" format:"uuid"`
+	// Name is the human-readable unique identifier for the daemon.
+	Name string `json:"name" example:"my-cool-provisioner-daemon"`
 	// Organization is the organization for the URL.  At present provisioner daemons ARE NOT scoped to organizations
 	// and so the organization ID is optional.
 	Organization uuid.UUID `json:"organization" format:"uuid"`
@@ -193,6 +198,8 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
 	query := serverURL.Query()
+	query.Add("id", req.ID.String())
+	query.Add("name", req.Name)
 	for _, provisioner := range req.Provisioners {
 		query.Add("provisioner", string(provisioner))
 	}
@@ -245,7 +252,7 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 		_ = wsNetConn.Close()
 		return nil, xerrors.Errorf("multiplex client: %w", err)
 	}
-	return proto.NewDRPCProvisionerDaemonClient(provisionersdk.MultiplexedConn(session)), nil
+	return proto.NewDRPCProvisionerDaemonClient(drpc.MultiplexedConn(session)), nil
 }
 
 // wsNetConn wraps net.Conn created by websocket.NetConn(). Cancel func

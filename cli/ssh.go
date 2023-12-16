@@ -22,17 +22,20 @@ import (
 	gosshagent "golang.org/x/crypto/ssh/agent"
 	"golang.org/x/term"
 	"golang.org/x/xerrors"
+	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
+
+	"github.com/coder/retry"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/autobuild/notify"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
-	"github.com/coder/retry"
 )
 
 var (
@@ -42,15 +45,16 @@ var (
 
 func (r *RootCmd) ssh() *clibase.Cmd {
 	var (
-		stdio          bool
-		forwardAgent   bool
-		forwardGPG     bool
-		identityAgent  string
-		wsPollInterval time.Duration
-		waitEnum       string
-		noWait         bool
-		logDirPath     string
-		remoteForward  string
+		stdio            bool
+		forwardAgent     bool
+		forwardGPG       bool
+		identityAgent    string
+		wsPollInterval   time.Duration
+		waitEnum         string
+		noWait           bool
+		logDirPath       string
+		remoteForward    string
+		disableAutostart bool
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -62,10 +66,18 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) (retErr error) {
-			ctx, cancel := context.WithCancel(inv.Context())
+			// Before dialing the SSH server over TCP, capture Interrupt signals
+			// so that if we are interrupted, we have a chance to tear down the
+			// TCP session cleanly before exiting.  If we don't, then the TCP
+			// session can persist for up to 72 hours, since we set a long
+			// timeout on the Agent side of the connection.  In particular,
+			// OpenSSH sends SIGHUP to terminate a proxy command.
+			ctx, stop := inv.SignalNotifyContext(inv.Context(), InterruptSignals...)
+			defer stop()
+			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
 
-			logger := slog.Make() // empty logger
+			logger := inv.Logger
 			defer func() {
 				if retErr != nil {
 					// catch and log all returned errors so we see them in the
@@ -106,12 +118,13 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				if err != nil {
 					return xerrors.Errorf("error opening %s for logging: %w", logDirPath, err)
 				}
+				dc := cliutil.DiscardAfterClose(logFile)
 				go func() {
 					wg.Wait()
-					_ = logFile.Close()
+					_ = dc.Close()
 				}()
 
-				logger = slog.Make(sloghuman.Sink(logFile))
+				logger = logger.AppendSinks(sloghuman.Sink(dc))
 				if r.verbose {
 					logger = logger.Leveled(slog.LevelDebug)
 				}
@@ -119,6 +132,8 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				// log HTTP requests
 				client.SetLogger(logger)
 			}
+			stack := newCloserStack(ctx, logger)
+			defer stack.close(nil)
 
 			if remoteForward != "" {
 				isValid := validateRemoteForward(remoteForward)
@@ -130,7 +145,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				}
 			}
 
-			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, codersdk.Me, inv.Args[0])
+			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, !disableAutostart, codersdk.Me, inv.Args[0])
 			if err != nil {
 				return err
 			}
@@ -143,13 +158,11 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			case "no":
 				wait = false
 			case "auto":
-				switch workspaceAgent.StartupScriptBehavior {
-				case codersdk.WorkspaceAgentStartupScriptBehaviorBlocking:
-					wait = true
-				case codersdk.WorkspaceAgentStartupScriptBehaviorNonBlocking:
-					wait = false
-				default:
-					return xerrors.Errorf("unknown startup script behavior %q", workspaceAgent.StartupScriptBehavior)
+				for _, script := range workspaceAgent.Scripts {
+					if script.StartBlocksLogin {
+						wait = true
+						break
+					}
 				}
 			default:
 				return xerrors.Errorf("unknown wait value %q", waitEnum)
@@ -204,7 +217,9 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			if err != nil {
 				return xerrors.Errorf("dial agent: %w", err)
 			}
-			defer conn.Close()
+			if err = stack.push("agent conn", conn); err != nil {
+				return err
+			}
 			conn.AwaitReachable(ctx)
 
 			stopPolling := tryPollWorkspaceAutostop(ctx, client, workspace)
@@ -215,37 +230,20 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				if err != nil {
 					return xerrors.Errorf("connect SSH: %w", err)
 				}
-				defer rawSSH.Close()
+				copier := newRawSSHCopier(logger, rawSSH, inv.Stdin, inv.Stdout)
+				if err = stack.push("rawSSHCopier", copier); err != nil {
+					return err
+				}
 
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
 					watchAndClose(ctx, func() error {
-						return rawSSH.Close()
+						stack.close(xerrors.New("watchAndClose"))
+						return nil
 					}, logger, client, workspace)
 				}()
-
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					// Ensure stdout copy closes incase stdin is closed
-					// unexpectedly. Typically we wouldn't worry about
-					// this since OpenSSH should kill the proxy command.
-					defer rawSSH.Close()
-
-					_, err := io.Copy(rawSSH, inv.Stdin)
-					if err != nil {
-						logger.Error(ctx, "copy stdin error", slog.Error(err))
-					} else {
-						logger.Debug(ctx, "copy stdin complete")
-					}
-				}()
-				_, err = io.Copy(inv.Stdout, rawSSH)
-				if err != nil {
-					logger.Error(ctx, "copy stdout error", slog.Error(err))
-				} else {
-					logger.Debug(ctx, "copy stdout complete")
-				}
+				copier.copy(&wg)
 				return nil
 			}
 
@@ -253,13 +251,17 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			if err != nil {
 				return xerrors.Errorf("ssh client: %w", err)
 			}
-			defer sshClient.Close()
+			if err = stack.push("ssh client", sshClient); err != nil {
+				return err
+			}
 
 			sshSession, err := sshClient.NewSession()
 			if err != nil {
 				return xerrors.Errorf("ssh session: %w", err)
 			}
-			defer sshSession.Close()
+			if err = stack.push("sshSession", sshSession); err != nil {
+				return err
+			}
 
 			wg.Add(1)
 			go func() {
@@ -267,10 +269,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				watchAndClose(
 					ctx,
 					func() error {
-						err := sshSession.Close()
-						logger.Debug(ctx, "session close", slog.Error(err))
-						err = sshClient.Close()
-						logger.Debug(ctx, "client close", slog.Error(err))
+						stack.close(xerrors.New("watchAndClose"))
 						return nil
 					},
 					logger,
@@ -306,7 +305,9 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				if err != nil {
 					return xerrors.Errorf("forward GPG socket: %w", err)
 				}
-				defer closer.Close()
+				if err = stack.push("forwardGPGAgent", closer); err != nil {
+					return err
+				}
 			}
 
 			if remoteForward != "" {
@@ -319,7 +320,9 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				if err != nil {
 					return xerrors.Errorf("ssh remote forward: %w", err)
 				}
-				defer closer.Close()
+				if err = stack.push("sshRemoteForward", closer); err != nil {
+					return err
+				}
 			}
 
 			stdoutFile, validOut := inv.Stdout.(*os.File)
@@ -378,11 +381,16 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 
 			err = sshSession.Wait()
 			if err != nil {
+				if exitErr := (&gossh.ExitError{}); errors.As(err, &exitErr) {
+					// Clear the error since it's not useful beyond
+					// reporting status.
+					return ExitError(exitErr.ExitStatus(), nil)
+				}
 				// If the connection drops unexpectedly, we get an
 				// ExitMissingError but no other error details, so try to at
 				// least give the user a better message
 				if errors.Is(err, &gossh.ExitMissingError{}) {
-					return xerrors.New("SSH connection ended unexpectedly")
+					return ExitError(255, xerrors.New("SSH connection ended unexpectedly"))
 				}
 				return xerrors.Errorf("session ended: %w", err)
 			}
@@ -453,6 +461,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			FlagShorthand: "R",
 			Value:         clibase.StringOf(&remoteForward),
 		},
+		sshDisableAutostartOption(clibase.BoolOf(&disableAutostart)),
 	}
 	return cmd
 }
@@ -524,9 +533,9 @@ startWatchLoop:
 }
 
 // getWorkspaceAgent returns the workspace and agent selected using either the
-// `<workspace>[.<agent>]` syntax via `in` or picks a random workspace and agent
-// if `shuffle` is true.
-func getWorkspaceAndAgent(ctx context.Context, inv *clibase.Invocation, client *codersdk.Client, userID string, in string) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
+// `<workspace>[.<agent>]` syntax via `in`.
+// If autoStart is true, the workspace will be started if it is not already running.
+func getWorkspaceAndAgent(ctx context.Context, inv *clibase.Invocation, client *codersdk.Client, autostart bool, userID string, in string) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
 	var (
 		workspace      codersdk.Workspace
 		workspaceParts = strings.Split(in, ".")
@@ -539,7 +548,35 @@ func getWorkspaceAndAgent(ctx context.Context, inv *clibase.Invocation, client *
 	}
 
 	if workspace.LatestBuild.Transition != codersdk.WorkspaceTransitionStart {
-		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("workspace must be in start transition to ssh")
+		if !autostart {
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("workspace must be in start transition to ssh")
+		}
+		// Autostart the workspace for the user.
+		// For some failure modes, return a better message.
+		if workspace.LatestBuild.Transition == codersdk.WorkspaceTransitionDelete {
+			// Any sort of deleting status, we should reject with a nicer error.
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace %q is deleted", workspace.Name)
+		}
+		if workspace.LatestBuild.Job.Status == codersdk.ProvisionerJobFailed {
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{},
+				xerrors.Errorf("workspace %q is in failed state, unable to autostart the workspace", workspace.Name)
+		}
+		// The workspace needs to be stopped before we can start it.
+		// It cannot be in any pending or failed state.
+		if workspace.LatestBuild.Status != codersdk.WorkspaceStatusStopped {
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{},
+				xerrors.Errorf("workspace must be in start transition to ssh, was unable to autostart as the last build job is %q, expected %q",
+					workspace.LatestBuild.Status,
+					codersdk.WorkspaceStatusStopped,
+				)
+		}
+		// startWorkspace based on the last build parameters.
+		_, _ = fmt.Fprintf(inv.Stderr, "Workspace was stopped, starting workspace to allow connecting to %q...\n", workspace.Name)
+		build, err := startWorkspace(inv, client, workspace, workspaceParameterFlags{}, WorkspaceStart)
+		if err != nil {
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("unable to start workspace: %w", err)
+		}
+		workspace.LatestBuild = build
 	}
 	if workspace.LatestBuild.Job.CompletedAt == nil {
 		err := cliui.WorkspaceBuild(ctx, inv.Stderr, client, workspace.LatestBuild.ID)
@@ -787,4 +824,135 @@ func remoteGPGAgentSocket(sshClient *gossh.Client) (string, error) {
 	}
 
 	return string(bytes.TrimSpace(remoteSocket)), nil
+}
+
+type closerWithName struct {
+	name   string
+	closer io.Closer
+}
+
+type closerStack struct {
+	sync.Mutex
+	closers []closerWithName
+	closed  bool
+	logger  slog.Logger
+	err     error
+}
+
+func newCloserStack(ctx context.Context, logger slog.Logger) *closerStack {
+	cs := &closerStack{logger: logger}
+	go cs.closeAfterContext(ctx)
+	return cs
+}
+
+func (c *closerStack) closeAfterContext(ctx context.Context) {
+	<-ctx.Done()
+	c.close(ctx.Err())
+}
+
+func (c *closerStack) close(err error) {
+	c.Lock()
+	if c.closed {
+		c.Unlock()
+		return
+	}
+	c.closed = true
+	c.err = err
+	c.Unlock()
+
+	for i := len(c.closers) - 1; i >= 0; i-- {
+		cwn := c.closers[i]
+		cErr := cwn.closer.Close()
+		c.logger.Debug(context.Background(),
+			"closed item from stack", slog.F("name", cwn.name), slog.Error(cErr))
+	}
+}
+
+func (c *closerStack) push(name string, closer io.Closer) error {
+	c.Lock()
+	if c.closed {
+		c.Unlock()
+		// since we're refusing to push it on the stack, close it now
+		err := closer.Close()
+		c.logger.Error(context.Background(),
+			"closed item rejected push", slog.F("name", name), slog.Error(err))
+		return xerrors.Errorf("already closed: %w", c.err)
+	}
+	c.closers = append(c.closers, closerWithName{name: name, closer: closer})
+	c.Unlock()
+	return nil
+}
+
+// rawSSHCopier handles copying raw SSH data between the conn and the pair (r, w).
+type rawSSHCopier struct {
+	conn   *gonet.TCPConn
+	logger slog.Logger
+	r      io.Reader
+	w      io.Writer
+
+	done chan struct{}
+}
+
+func newRawSSHCopier(logger slog.Logger, conn *gonet.TCPConn, r io.Reader, w io.Writer) *rawSSHCopier {
+	return &rawSSHCopier{conn: conn, logger: logger, r: r, w: w, done: make(chan struct{})}
+}
+
+func (c *rawSSHCopier) copy(wg *sync.WaitGroup) {
+	defer close(c.done)
+	logCtx := context.Background()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		// We close connections using CloseWrite instead of Close, so that the SSH server sees the
+		// closed connection while reading, and shuts down cleanly.  This will trigger the io.Copy
+		// in the server-to-client direction to also be closed and the copy() routine will exit.
+		// This ensures that we don't leave any state in the server, like forwarded ports if
+		// copy() were to return and the underlying tailnet connection torn down before the TCP
+		// session exits. This is a bit of a hack to block shut down at the application layer, since
+		// we can't serialize the TCP and tailnet layers shutting down.
+		//
+		// Of course, if the underlying transport is broken, io.Copy will still return.
+		defer func() {
+			cwErr := c.conn.CloseWrite()
+			c.logger.Debug(logCtx, "closed raw SSH connection for writing", slog.Error(cwErr))
+		}()
+
+		_, err := io.Copy(c.conn, c.r)
+		if err != nil {
+			c.logger.Error(logCtx, "copy stdin error", slog.Error(err))
+		} else {
+			c.logger.Debug(logCtx, "copy stdin complete")
+		}
+	}()
+	_, err := io.Copy(c.w, c.conn)
+	if err != nil {
+		c.logger.Error(logCtx, "copy stdout error", slog.Error(err))
+	} else {
+		c.logger.Debug(logCtx, "copy stdout complete")
+	}
+}
+
+func (c *rawSSHCopier) Close() error {
+	err := c.conn.CloseWrite()
+
+	// give the copy() call a chance to return on a timeout, so that we don't
+	// continue tearing down and close the underlying netstack before the SSH
+	// session has a chance to gracefully shut down.
+	t := time.NewTimer(5 * time.Second)
+	defer t.Stop()
+	select {
+	case <-c.done:
+	case <-t.C:
+	}
+	return err
+}
+
+func sshDisableAutostartOption(src *clibase.Bool) clibase.Option {
+	return clibase.Option{
+		Flag:        "disable-autostart",
+		Description: "Disable starting the workspace automatically when connecting via SSH.",
+		Env:         "CODER_SSH_DISABLE_AUTOSTART",
+		Value:       src,
+		Default:     "false",
+	}
 }

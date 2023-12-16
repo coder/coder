@@ -1,5 +1,5 @@
 import { renderHook, waitFor } from "@testing-library/react";
-import { dispatchCustomEvent } from "../utils/events";
+import { dispatchCustomEvent } from "utils/events";
 import { useCustomEvent } from "./events";
 
 describe("useCustomEvent", () => {

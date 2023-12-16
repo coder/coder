@@ -259,7 +259,7 @@ func TestMigrateUpWithFixtures(t *testing.T) {
 	// but we should eventually add fixtures for them.
 	ignoredTablesForStats := []string{
 		"audit_logs",
-		"git_auth_links",
+		"external_auth_links",
 		"group_members",
 		"licenses",
 		"replicas",

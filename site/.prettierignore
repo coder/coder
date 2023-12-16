@@ -23,7 +23,6 @@ yarn-error.log
 
 # Front-end ignore patterns.
 .next/
-**/*.typegen.ts
 build-storybook.log
 coverage/
 storybook-static/
@@ -33,14 +32,13 @@ e2e/states/*.json
 e2e/.auth.json
 playwright-report/*
 .swc
-dist/
 
 # Make target for updating golden files (any dir).
 .gen-golden
 
 # Build
-../build/
-../dist/
+build/
+dist/
 out/
 
 # Bundle analysis
@@ -70,6 +68,9 @@ result
 
 # Data dumps from unit tests
 **/*.test.sql
+
+# Filebrowser.db
+**/filebrowser.db
 # .prettierignore.include:
 # Helm templates contain variables that are invalid YAML and can't be formatted
 # by Prettier.
@@ -81,6 +82,8 @@ result
 
 # Testdata shouldn't be formatted.
 ../scripts/apitypings/testdata/**/*.ts
+../enterprise/tailnet/testdata/*.golden.html
+../tailnet/testdata/*.golden.html
 
 # Generated files shouldn't be formatted.
 e2e/provisionerGenerated.ts

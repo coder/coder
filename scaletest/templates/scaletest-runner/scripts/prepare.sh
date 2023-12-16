@@ -28,13 +28,6 @@ for dir in "${HOME}/scaletest-"*; do
 	fi
 done
 
-log "Cloning coder/coder repo..."
-
-if [[ ! -d "${HOME}/coder" ]]; then
-	git clone https://github.com/coder/coder.git "${HOME}/coder"
-fi
-(cd "${HOME}/coder" && git pull)
-
 log "Creating coder CLI token (needed for cleanup during shutdown)..."
 
 mkdir -p "${CODER_CONFIG_DIR}"
@@ -43,10 +36,13 @@ echo -n "${CODER_URL}" >"${CODER_CONFIG_DIR}/url"
 set +x # Avoid logging the token.
 # Persist configuration for shutdown script too since the
 # owner token is invalidated immediately on workspace stop.
-export CODER_SESSION_TOKEN=$CODER_USER_TOKEN
+export CODER_SESSION_TOKEN=${CODER_USER_TOKEN}
 coder tokens delete scaletest_runner >/dev/null 2>&1 || true
 # TODO(mafredri): Set TTL? This could interfere with delayed stop though.
 token=$(coder tokens create --name scaletest_runner)
+if [[ $DRY_RUN == 1 ]]; then
+	token=${CODER_SESSION_TOKEN}
+fi
 unset CODER_SESSION_TOKEN
 echo -n "${token}" >"${CODER_CONFIG_DIR}/session"
 [[ $VERBOSE == 1 ]] && set -x # Restore logging (if enabled).
@@ -55,3 +51,15 @@ log "Cleaning up from previous runs (if applicable)..."
 "${SCRIPTS_DIR}/cleanup.sh" "prepare"
 
 log "Preparation complete!"
+
+PROVISIONER_REPLICA_COUNT="${SCALETEST_PARAM_CREATE_CONCURRENCY:-0}"
+if [[ "${PROVISIONER_REPLICA_COUNT}" -eq 0 ]]; then
+	# TODO(Cian): what is a good default value here?
+	echo "Setting PROVISIONER_REPLICA_COUNT to 10 since SCALETEST_PARAM_CREATE_CONCURRENCY is 0"
+	PROVISIONER_REPLICA_COUNT=10
+fi
+log "Scaling up provisioners to ${PROVISIONER_REPLICA_COUNT}..."
+maybedryrun "$DRY_RUN" kubectl scale deployment/coder-provisioner \
+	--replicas "${PROVISIONER_REPLICA_COUNT}"
+log "Waiting for provisioners to scale up..."
+maybedryrun "$DRY_RUN" kubectl rollout status deployment/coder-provisioner

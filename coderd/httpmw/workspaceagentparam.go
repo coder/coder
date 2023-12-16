@@ -2,8 +2,6 @@ package httpmw
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -35,9 +33,9 @@ func ExtractWorkspaceAgentParam(db database.Store) func(http.Handler) http.Handl
 			}
 
 			agent, err := db.GetWorkspaceAgentByID(ctx, agentUUID)
-			if errors.Is(err, sql.ErrNoRows) {
+			if httpapi.Is404Error(err) {
 				httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-					Message: "Agent doesn't exist with that id.",
+					Message: "Agent doesn't exist with that id, or you do not have access to it.",
 				})
 				return
 			}

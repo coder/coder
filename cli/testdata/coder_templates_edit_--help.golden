@@ -17,16 +17,36 @@ OPTIONS:
       --allow-user-cancel-workspace-jobs bool (default: true)
           Allow users to cancel in-progress workspace jobs.
 
+      --autostart-requirement-weekdays string-array
+          Edit the template autostart requirement weekdays - workspaces created
+          from this template can only autostart on the given weekdays. To unset
+          this value for the template (and allow autostart on all days), pass
+          'all'.
+
       --default-ttl duration
           Edit the template default time before shutdown - workspaces created
           from this template default to this value. Maps to "Default autostop"
           in the UI.
+
+      --deprecated string
+          Sets the template as deprecated. Must be a message explaining why the
+          template is deprecated.
 
       --description string
           Edit the template description.
 
       --display-name string
           Edit the template display name.
+
+      --dormancy-auto-deletion duration (default: 0h)
+          Specify a duration workspaces may be in the dormant state prior to
+          being deleted. This licensed feature's default is 0h (off). Maps to
+          "Dormancy Auto-Deletion" in the UI.
+
+      --dormancy-threshold duration (default: 0h)
+          Specify a duration workspaces may be inactive prior to being moved to
+          the dormant state. This licensed feature's default is 0h (off). Maps
+          to "Dormancy threshold" in the UI.
 
       --failure-ttl duration (default: 0h)
           Specify a failure TTL for workspaces created from this template. It is
@@ -37,13 +57,6 @@ OPTIONS:
       --icon string
           Edit the template icon path.
 
-      --inactivity-ttl duration (default: 0h)
-          Specify an inactivity TTL for workspaces created from this template.
-          It is the amount of time the workspace is not used before it is be
-          stopped and auto-locked. This includes across multiple builds (e.g.
-          auto-starts and stops). This licensed feature's default is 0h (off).
-          Maps to "Dormancy threshold" in the UI.
-
       --max-ttl duration
           Edit the template maximum time before shutdown - workspaces created
           from this template must shutdown within the given duration after
@@ -52,6 +65,11 @@ OPTIONS:
 
       --name string
           Edit the template name.
+
+      --require-active-version bool (default: false)
+          Requires workspace builds to use the active template version. This
+          setting does not apply to template admins. This is an enterprise-only
+          feature.
 
   -y, --yes bool
           Bypass prompts.

@@ -50,7 +50,7 @@ endif
 # Note, all find statements should be written with `.` or `./path` as
 # the search path so that these exclusions match.
 FIND_EXCLUSIONS= \
-	-not \( \( -path '*/.git/*' -o -path './build/*' -o -path './vendor/*' -o -path './.coderv2/*' -o -path '*/node_modules/*' -o -path '*/out/*' -o -path './coderd/apidoc/*' -o -path '*/.next/*' \) -prune \)
+	-not \( \( -path '*/.git/*' -o -path './build/*' -o -path './vendor/*' -o -path './.coderv2/*' -o -path '*/node_modules/*' -o -path '*/out/*' -o -path './coderd/apidoc/*' -o -path '*/.next/*' -o -path '*/.terraform/*' \) -prune \)
 # Source files used for make targets, evaluated on use.
 GO_SRC_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.go' -not -name '*_test.go')
 # All the shell files in the repo, excluding ignored files.
@@ -107,9 +107,9 @@ endif
 
 
 clean:
-	rm -rf build site/out
-	mkdir -p build site/out/bin
-	git restore site/out
+	rm -rf build/ site/build/ site/out/
+	mkdir -p build/ site/out/bin/
+	git restore site/out/
 .PHONY: clean
 
 build-slim: $(CODER_SLIM_BINARIES)
@@ -419,7 +419,6 @@ lint: lint/shellcheck lint/go lint/ts lint/helm lint/site-icons
 
 lint/site-icons:
 	./scripts/check_site_icons.sh
-
 .PHONY: lint/site-icons
 
 lint/ts:
@@ -429,7 +428,8 @@ lint/ts:
 
 lint/go:
 	./scripts/check_enterprise_imports.sh
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.53.2
+	linter_ver=$(shell egrep -o 'GOLANGCI_LINT_VERSION=\S+' dogfood/Dockerfile | cut -d '=' -f 2)
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v$$linter_ver
 	golangci-lint run
 .PHONY: lint/go
 
@@ -449,13 +449,15 @@ lint/helm:
 DB_GEN_FILES := \
 	coderd/database/querier.go \
 	coderd/database/unique_constraint.go \
-	coderd/database/dbfake/dbfake.go \
+	coderd/database/dbmem/dbmem.go \
 	coderd/database/dbmetrics/dbmetrics.go \
 	coderd/database/dbauthz/dbauthz.go \
 	coderd/database/dbmock/dbmock.go
 
 # all gen targets should be added here and to gen/mark-fresh
 gen: \
+	tailnet/proto/tailnet.pb.go \
+	agent/proto/agent.pb.go \
 	provisionersdk/proto/provisioner.pb.go \
 	provisionerd/proto/provisionerd.pb.go \
 	coderd/database/dump.sql \
@@ -472,6 +474,7 @@ gen: \
 	site/.prettierignore \
 	site/.eslintignore \
 	site/e2e/provisionerGenerated.ts \
+	site/src/theme/icons.json \
 	examples/examples.gen.json
 .PHONY: gen
 
@@ -479,6 +482,8 @@ gen: \
 # used during releases so we don't run generation scripts.
 gen/mark-fresh:
 	files="\
+		tailnet/proto/tailnet.pb.go \
+		agent/proto/agent.pb.go \
 		provisionersdk/proto/provisioner.pb.go \
 		provisionerd/proto/provisionerd.pb.go \
 		coderd/database/dump.sql \
@@ -495,6 +500,7 @@ gen/mark-fresh:
 		site/.prettierignore \
 		site/.eslintignore \
 		site/e2e/provisionerGenerated.ts \
+		site/src/theme/icons.json \
 		examples/examples.gen.json \
 	"
 	for file in $$files; do
@@ -515,11 +521,29 @@ coderd/database/dump.sql: coderd/database/gen/dump/main.go $(wildcard coderd/dat
 	go run ./coderd/database/gen/dump/main.go
 
 # Generates Go code for querying the database.
+# coderd/database/queries.sql.go
+# coderd/database/models.go
 coderd/database/querier.go: coderd/database/sqlc.yaml coderd/database/dump.sql $(wildcard coderd/database/queries/*.sql)
 	./coderd/database/generate.sh
 
 coderd/database/dbmock/dbmock.go: coderd/database/db.go coderd/database/querier.go
 	go generate ./coderd/database/dbmock/
+
+tailnet/proto/tailnet.pb.go: tailnet/proto/tailnet.proto
+	protoc \
+		--go_out=. \
+		--go_opt=paths=source_relative \
+		--go-drpc_out=. \
+		--go-drpc_opt=paths=source_relative \
+		./tailnet/proto/tailnet.proto
+
+agent/proto/agent.pb.go: agent/proto/agent.proto
+	protoc \
+		--go_out=. \
+		--go_opt=paths=source_relative \
+		--go-drpc_out=. \
+		--go-drpc_opt=paths=source_relative \
+		./agent/proto/agent.proto
 
 provisionersdk/proto/provisioner.pb.go: provisionersdk/proto/provisioner.proto
 	protoc \
@@ -537,16 +561,18 @@ provisionerd/proto/provisionerd.pb.go: provisionerd/proto/provisionerd.proto
 		--go-drpc_opt=paths=source_relative \
 		./provisionerd/proto/provisionerd.proto
 
-site/src/api/typesGenerated.ts: scripts/apitypings/main.go $(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go')
-	go run scripts/apitypings/main.go > site/src/api/typesGenerated.ts
-	cd site
-	pnpm run format:types ./src/api/typesGenerated.ts
+site/src/api/typesGenerated.ts: $(wildcard scripts/apitypings/*) $(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go')
+	go run ./scripts/apitypings/ > $@
+	pnpm run format:write:only "$@"
 
-site/e2e/provisionerGenerated.ts:
+site/e2e/provisionerGenerated.ts: provisionerd/proto/provisionerd.pb.go provisionersdk/proto/provisioner.pb.go
 	cd site
 	../scripts/pnpm_install.sh
 	pnpm run gen:provisioner
 
+site/src/theme/icons.json: $(wildcard scripts/gensite/*) $(wildcard site/static/icon/*)
+	go run ./scripts/gensite/ -icons "$@"
+	pnpm run format:write:only "$@"
 
 examples/examples.gen.json: scripts/examplegen/main.go examples/examples.go $(shell find ./examples/templates)
 	go run ./scripts/examplegen/main.go > examples/examples.gen.json
@@ -562,7 +588,7 @@ docs/cli.md: scripts/clidocgen/main.go examples/examples.gen.json $(GO_SRC_FILES
 	CI=true BASE_PATH="." go run ./scripts/clidocgen
 	pnpm run format:write:only ./docs/cli.md ./docs/cli/*.md ./docs/manifest.json
 
-docs/admin/audit-logs.md: scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go
+docs/admin/audit-logs.md: coderd/database/querier.go scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go
 	go run scripts/auditdocgen/main.go
 	pnpm run format:write:only ./docs/admin/audit-logs.md
 
@@ -570,7 +596,16 @@ coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen $(FIND_EXCLUSIONS) 
 	./scripts/apidocgen/generate.sh
 	pnpm run format:write:only ./docs/api ./docs/manifest.json ./coderd/apidoc/swagger.json
 
-update-golden-files: cli/testdata/.gen-golden helm/coder/tests/testdata/.gen-golden helm/provisioner/tests/testdata/.gen-golden scripts/ci-report/testdata/.gen-golden enterprise/cli/testdata/.gen-golden coderd/.gen-golden provisioner/terraform/testdata/.gen-golden
+update-golden-files: \
+	cli/testdata/.gen-golden \
+	helm/coder/tests/testdata/.gen-golden \
+	helm/provisioner/tests/testdata/.gen-golden \
+	scripts/ci-report/testdata/.gen-golden \
+	enterprise/cli/testdata/.gen-golden \
+	enterprise/tailnet/testdata/.gen-golden \
+	tailnet/testdata/.gen-golden \
+	coderd/.gen-golden \
+	provisioner/terraform/testdata/.gen-golden
 .PHONY: update-golden-files
 
 cli/testdata/.gen-golden: $(wildcard cli/testdata/*.golden) $(wildcard cli/*.tpl) $(GO_SRC_FILES) $(wildcard cli/*_test.go)
@@ -579,6 +614,14 @@ cli/testdata/.gen-golden: $(wildcard cli/testdata/*.golden) $(wildcard cli/*.tpl
 
 enterprise/cli/testdata/.gen-golden: $(wildcard enterprise/cli/testdata/*.golden) $(wildcard cli/*.tpl) $(GO_SRC_FILES) $(wildcard enterprise/cli/*_test.go)
 	go test ./enterprise/cli -run="TestEnterpriseCommandHelp" -update
+	touch "$@"
+
+tailnet/testdata/.gen-golden: $(wildcard tailnet/testdata/*.golden.html) $(GO_SRC_FILES) $(wildcard tailnet/*_test.go)
+	go test ./tailnet -run="TestDebugTemplate" -update
+	touch "$@"
+
+enterprise/tailnet/testdata/.gen-golden: $(wildcard enterprise/tailnet/testdata/*.golden.html) $(GO_SRC_FILES) $(wildcard enterprise/tailnet/*_test.go)
+	go test ./enterprise/tailnet -run="TestDebugTemplate" -update
 	touch "$@"
 
 helm/coder/tests/testdata/.gen-golden: $(wildcard helm/coder/tests/testdata/*.yaml) $(wildcard helm/coder/tests/testdata/*.golden) $(GO_SRC_FILES) $(wildcard helm/coder/tests/*_test.go)
@@ -664,6 +707,12 @@ site/.eslintignore site/.prettierignore: .prettierignore Makefile
 test:
 	gotestsum --format standard-quiet -- -v -short -count=1 ./...
 .PHONY: test
+
+sqlc-vet: test-postgres-docker
+	echo "--- sqlc vet"
+	SQLC_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/$(shell go run scripts/migrate-ci/main.go)" \
+	sqlc vet -f coderd/database/sqlc.yaml && echo "Passed sqlc vet"
+.PHONY: sqlc-vet
 
 # When updating -timeout for this test, keep in sync with
 # test-go-postgres (.github/workflows/coder.yaml).

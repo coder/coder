@@ -1,34 +1,26 @@
-import { makeStyles } from "@mui/styles";
 import TableCell from "@mui/material/TableCell";
-import TableRow, { TableRowProps } from "@mui/material/TableRow";
-import { FC, ReactNode, cloneElement, isValidElement } from "react";
+import TableRow, { type TableRowProps } from "@mui/material/TableRow";
+import { type FC, type ReactNode, cloneElement, isValidElement } from "react";
 import { Loader } from "../Loader/Loader";
 
 export const TableLoader: FC = () => {
-  const styles = useStyles();
-
   return (
     <TableRow>
-      <TableCell colSpan={999} className={styles.cell}>
+      <TableCell colSpan={999} css={{ textAlign: "center", height: 160 }}>
         <Loader />
       </TableCell>
     </TableRow>
   );
 };
 
-const useStyles = makeStyles((theme) => ({
-  cell: {
-    textAlign: "center",
-    height: theme.spacing(20),
-  },
-}));
+interface TableLoaderSkeletonProps {
+  rows?: number;
+  children?: ReactNode;
+}
 
-export const TableLoaderSkeleton = ({
+export const TableLoaderSkeleton: FC<TableLoaderSkeletonProps> = ({
   rows = 4,
   children,
-}: {
-  rows?: number;
-  children: ReactNode;
 }) => {
   if (!isValidElement(children)) {
     throw new Error(
@@ -44,6 +36,13 @@ export const TableLoaderSkeleton = ({
   );
 };
 
-export const TableRowSkeleton = (props: TableRowProps) => {
-  return <TableRow role="progressbar" data-testid="loader" {...props} />;
+export const TableRowSkeleton: FC<TableRowProps> = ({
+  children,
+  ...rowProps
+}) => {
+  return (
+    <TableRow role="progressbar" data-testid="loader" {...rowProps}>
+      {children}
+    </TableRow>
+  );
 };

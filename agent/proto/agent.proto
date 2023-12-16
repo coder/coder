@@ -1,0 +1,211 @@
+syntax = "proto3";
+option go_package = "github.com/coder/coder/v2/agent/proto";
+
+package coder.agent.v2;
+
+import "tailnet/proto/tailnet.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+
+message WorkspaceApp {
+	bytes uuid = 1;
+	string url = 2;
+	bool external = 3;
+	string slug = 4;
+	string display_name = 5;
+	string command = 6;
+	string icon = 7;
+	bool subdomain = 8;
+	string subdomain_name = 9;
+
+	enum SharingLevel {
+		SHARING_LEVEL_UNSPECIFIED = 0;
+		OWNER = 1;
+		AUTHENTICATED = 2;
+		PUBLIC = 3;
+	}
+	SharingLevel sharing_level = 10;
+
+	message HealthCheck {
+		string url = 1;
+		int32 interval = 2;
+		int32 threshold = 3;
+	}
+	HealthCheck healthcheck = 11;
+
+	enum Health {
+		HEALTH_UNSPECIFIED = 0;
+		DISABLED = 1;
+		INITIALIZING = 2;
+		HEALTHY = 3;
+		UNHEALTHY = 4;
+	}
+	Health health = 12;
+}
+
+message Manifest {
+	uint32 git_auth_configs = 1;
+	string vs_code_port_proxy_uri = 2;
+	repeated WorkspaceApp apps = 3;
+	coder.tailnet.v2.DERPMap derp_map = 4;
+}
+
+message GetManifestRequest {}
+
+message ServiceBanner {
+	bool enabled = 1;
+	string message = 2;
+	string background_color = 3;
+}
+
+message GetServiceBannerRequest {}
+
+message Stats {
+	// ConnectionsByProto is a count of connections by protocol.
+	map<string, int64> connections_by_proto = 1;
+	// ConnectionCount is the number of connections received by an agent.
+	int64 connection_count = 2;
+	// ConnectionMedianLatencyMS is the median latency of all connections in milliseconds.
+	double connection_median_latency_ms = 3;
+	// RxPackets is the number of received packets.
+	int64 rx_packets = 4;
+	// RxBytes is the number of received bytes.
+	int64 rx_bytes = 5;
+	// TxPackets is the number of transmitted bytes.
+	int64 tx_packets = 6;
+	// TxBytes is the number of transmitted bytes.
+	int64 tx_bytes = 7;
+
+	// SessionCountVSCode is the number of connections received by an agent
+	// that are from our VS Code extension.
+	int64 session_count_vscode = 8;
+	// SessionCountJetBrains is the number of connections received by an agent
+	// that are from our JetBrains extension.
+	int64 session_count_jetbrains = 9;
+	// SessionCountReconnectingPTY is the number of connections received by an agent
+	// that are from the reconnecting web terminal.
+	int64 session_count_reconnecting_pty = 10;
+	// SessionCountSSH is the number of connections received by an agent
+	// that are normal, non-tagged SSH sessions.
+	int64 session_count_ssh = 11;
+
+	message Metric {
+		string name = 1;
+
+		enum Type {
+			TYPE_UNSPECIFIED = 0;
+			COUNTER = 1;
+			GAUGE = 2;
+		}
+		Type type = 2;
+
+		double value = 3;
+		map<string, string> labels = 4;
+	}
+}
+
+message UpdateStatsRequest{
+	Stats stats = 1;
+}
+
+message UpdateStatsResponse {
+	google.protobuf.Duration report_interval_nanoseconds = 1;
+}
+
+message Lifecycle {
+	enum State {
+		STATE_UNSPECIFIED = 0;
+		CREATED = 1;
+		STARTED = 2;
+		START_TIMEOUT = 3;
+		START_ERROR = 4;
+		READY = 5;
+		SHUTTING_DOWN = 6;
+		SHUTDOWN_TIMEOUT = 7;
+		SHUTDOWN_ERROR = 8;
+		OFF = 9;
+	}
+	State state = 1;
+}
+
+message UpdateLifecycleRequest {
+	Lifecycle lifecycle = 1;
+}
+
+enum AppHealth {
+	APP_HEALTH_UNSPECIFIED = 0;
+	DISABLED = 1;
+	INITIALIZING = 2;
+	HEALTHY = 3;
+	UNHEALTHY = 4;
+}
+
+message BatchUpdateAppHealthRequest {
+	message HealthUpdate {
+		bytes uuid = 1;
+		AppHealth health = 2;
+	}
+	repeated HealthUpdate updates = 1;
+}
+
+message BatchUpdateAppHealthResponse {}
+
+message Startup {
+	string version = 1;
+	string expanded_directory = 2;
+	repeated string subsystems = 3;
+}
+
+message UpdateStartupRequest{
+	Startup startup = 1;
+}
+
+message Metadata {
+	string key = 1;
+	google.protobuf.Timestamp collected_at = 2;
+	int64 age = 3;
+	string value = 4;
+	string error = 5;
+}
+
+message BatchUpdateMetadataRequest {
+	repeated Metadata metadata = 2;
+}
+
+message BatchUpdateMetadataResponse {}
+
+message Log {
+	google.protobuf.Timestamp created_at = 1;
+	string output = 2;
+
+	enum Level {
+		LEVEL_UNSPECIFIED = 0;
+		TRACE = 1;
+		DEBUG = 2;
+		INFO = 3;
+		WARN = 4;
+		ERROR = 5;
+	}
+	Level level = 3;
+}
+
+message BatchCreateLogsRequest {
+	bytes source_id = 1;
+	repeated Log logs = 2;
+}
+
+message BatchCreateLogsResponse {}
+
+service Agent {
+	rpc GetManifest(GetManifestRequest) returns (Manifest);
+	rpc GetServiceBanner(GetServiceBannerRequest) returns (ServiceBanner);
+	rpc UpdateStats(UpdateStatsRequest) returns (UpdateStatsResponse);
+	rpc UpdateLifecycle(UpdateLifecycleRequest) returns (Lifecycle);
+	rpc BatchUpdateAppHealths(BatchUpdateAppHealthRequest) returns (BatchUpdateAppHealthResponse);
+	rpc UpdateStartup(UpdateStartupRequest) returns (Startup);
+	rpc BatchUpdateMetadata(BatchUpdateMetadataRequest) returns (BatchUpdateMetadataResponse);
+	rpc BatchCreateLogs(BatchCreateLogsRequest) returns (BatchCreateLogsResponse);
+
+	rpc StreamDERPMaps(tailnet.v2.StreamDERPMapsRequest) returns (stream tailnet.v2.DERPMap);
+	rpc CoordinateTailnet(stream tailnet.v2.CoordinateRequest) returns (stream tailnet.v2.CoordinateResponse);
+}

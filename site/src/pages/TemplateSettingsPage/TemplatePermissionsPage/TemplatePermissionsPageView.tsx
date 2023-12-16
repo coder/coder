@@ -1,6 +1,5 @@
 import MenuItem from "@mui/material/MenuItem";
-import Select, { SelectProps } from "@mui/material/Select";
-import { makeStyles } from "@mui/styles";
+import Select, { type SelectProps } from "@mui/material/Select";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -8,7 +7,8 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import PersonAdd from "@mui/icons-material/PersonAdd";
-import {
+import { type Interpolation, type Theme } from "@emotion/react";
+import type {
   Group,
   TemplateACL,
   TemplateGroup,
@@ -18,19 +18,24 @@ import {
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { LoadingButton } from "components/LoadingButton/LoadingButton";
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
-import { TableRowMenu } from "components/TableRowMenu/TableRowMenu";
 import {
   UserOrGroupAutocomplete,
   UserOrGroupAutocompleteValue,
-} from "components/UserOrGroupAutocomplete/UserOrGroupAutocomplete";
-import { FC, useState } from "react";
-import { Maybe } from "components/Conditionals/Maybe";
+} from "./UserOrGroupAutocomplete";
+import { type FC, useState } from "react";
 import { GroupAvatar } from "components/GroupAvatar/GroupAvatar";
 import { getGroupSubtitle } from "utils/groups";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
+import LoadingButton from "@mui/lab/LoadingButton";
+import {
+  MoreMenu,
+  MoreMenuContent,
+  MoreMenuItem,
+  MoreMenuTrigger,
+  ThreeDotsButton,
+} from "components/MoreMenu/MoreMenu";
 
 type AddTemplateUserOrGroupProps = {
   organizationId: string;
@@ -47,11 +52,9 @@ type AddTemplateUserOrGroupProps = {
 const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
   isLoading,
   onSubmit,
-  organizationId,
   templateID,
   templateACL,
 }) => {
-  const styles = useStyles();
   const [selectedOption, setSelectedOption] =
     useState<UserOrGroupAutocompleteValue>(null);
   const [selectedRole, setSelectedRole] = useState<TemplateRole>("use");
@@ -84,7 +87,6 @@ const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
       <Stack direction="row" alignItems="center" spacing={1}>
         <UserOrGroupAutocomplete
           exclude={excludeFromAutocomplete}
-          organizationId={organizationId}
           templateID={templateID}
           value={selectedOption}
           onChange={(newValue) => {
@@ -95,7 +97,7 @@ const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
         <Select
           defaultValue="use"
           size="small"
-          className={styles.select}
+          css={styles.select}
           disabled={isLoading}
           onChange={(event) => {
             setSelectedRole(event.target.value as TemplateRole);
@@ -110,6 +112,7 @@ const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
         </Select>
 
         <LoadingButton
+          loadingPosition="start"
           disabled={!selectedRole || !selectedOption}
           type="submit"
           startIcon={<PersonAdd />}
@@ -123,26 +126,24 @@ const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
 };
 
 const RoleSelect: FC<SelectProps> = (props) => {
-  const styles = useStyles();
-
   return (
     <Select
-      renderValue={(value) => <div className={styles.role}>{`${value}`}</div>}
-      className={styles.updateSelect}
+      renderValue={(value) => <div css={styles.role}>{`${value}`}</div>}
+      css={styles.updateSelect}
       {...props}
     >
-      <MenuItem key="use" value="use" className={styles.menuItem}>
+      <MenuItem key="use" value="use" css={styles.menuItem}>
         <div>
           <div>Use</div>
-          <div className={styles.menuItemSecondary}>
+          <div css={styles.menuItemSecondary}>
             Can read and use this template to create workspaces.
           </div>
         </div>
       </MenuItem>
-      <MenuItem key="admin" value="admin" className={styles.menuItem}>
+      <MenuItem key="admin" value="admin" css={styles.menuItem}>
         <div>
           <div>Admin</div>
-          <div className={styles.menuItemSecondary}>
+          <div css={styles.menuItemSecondary}>
             Can modify all aspects of this template including permissions,
             metadata, and template versions.
           </div>
@@ -165,7 +166,7 @@ export interface TemplatePermissionsPageViewProps {
   ) => void;
   isAddingUser: boolean;
   onUpdateUser: (user: TemplateUser, role: TemplateRole) => void;
-  updatingUser: TemplateUser | undefined;
+  updatingUserId: TemplateUser["id"] | undefined;
   onRemoveUser: (user: TemplateUser) => void;
   // Group
   onAddGroup: (
@@ -175,7 +176,7 @@ export interface TemplatePermissionsPageViewProps {
   ) => void;
   isAddingGroup: boolean;
   onUpdateGroup: (group: TemplateGroup, role: TemplateRole) => void;
-  updatingGroup: TemplateGroup | undefined;
+  updatingGroupId?: TemplateGroup["id"] | undefined;
   onRemoveGroup: (group: Group) => void;
 }
 
@@ -189,17 +190,16 @@ export const TemplatePermissionsPageView: FC<
   // User
   onAddUser,
   isAddingUser,
-  updatingUser,
+  updatingUserId,
   onUpdateUser,
   onRemoveUser,
   // Group
   onAddGroup,
   isAddingGroup,
-  updatingGroup,
+  updatingGroupId,
   onUpdateGroup,
   onRemoveGroup,
 }) => {
-  const styles = useStyles();
   const isEmpty = Boolean(
     templateACL &&
       templateACL.users.length === 0 &&
@@ -208,12 +208,12 @@ export const TemplatePermissionsPageView: FC<
 
   return (
     <>
-      <PageHeader className={styles.pageHeader}>
+      <PageHeader css={styles.pageHeader}>
         <PageHeaderTitle>Permissions</PageHeaderTitle>
       </PageHeader>
 
       <Stack spacing={2.5}>
-        <Maybe condition={canUpdatePermissions}>
+        {canUpdatePermissions && (
           <AddTemplateUserOrGroup
             templateACL={templateACL}
             templateID={templateID}
@@ -225,7 +225,7 @@ export const TemplatePermissionsPageView: FC<
                 : onAddUser(value, role, resetAutocomplete)
             }
           />
-        </Maybe>
+        )}
         <TableContainer>
           <Table>
             <TableHead>
@@ -270,9 +270,7 @@ export const TemplatePermissionsPageView: FC<
                           <Cond condition={canUpdatePermissions}>
                             <RoleSelect
                               value={group.role}
-                              disabled={
-                                updatingGroup && updatingGroup.id === group.id
-                              }
+                              disabled={updatingGroupId === group.id}
                               onChange={(event) => {
                                 onUpdateGroup(
                                   group,
@@ -282,24 +280,27 @@ export const TemplatePermissionsPageView: FC<
                             />
                           </Cond>
                           <Cond>
-                            <div className={styles.role}>{group.role}</div>
+                            <div css={styles.role}>{group.role}</div>
                           </Cond>
                         </ChooseOne>
                       </TableCell>
 
                       <TableCell>
-                        <Maybe condition={canUpdatePermissions}>
-                          <TableRowMenu
-                            data={group}
-                            menuItems={[
-                              {
-                                label: "Remove",
-                                onClick: () => onRemoveGroup(group),
-                                disabled: false,
-                              },
-                            ]}
-                          />
-                        </Maybe>
+                        {canUpdatePermissions && (
+                          <MoreMenu>
+                            <MoreMenuTrigger>
+                              <ThreeDotsButton />
+                            </MoreMenuTrigger>
+                            <MoreMenuContent>
+                              <MoreMenuItem
+                                danger
+                                onClick={() => onRemoveGroup(group)}
+                              >
+                                Remove
+                              </MoreMenuItem>
+                            </MoreMenuContent>
+                          </MoreMenu>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -318,9 +319,7 @@ export const TemplatePermissionsPageView: FC<
                           <Cond condition={canUpdatePermissions}>
                             <RoleSelect
                               value={user.role}
-                              disabled={
-                                updatingUser && updatingUser.id === user.id
-                              }
+                              disabled={updatingUserId === user.id}
                               onChange={(event) => {
                                 onUpdateUser(
                                   user,
@@ -330,24 +329,27 @@ export const TemplatePermissionsPageView: FC<
                             />
                           </Cond>
                           <Cond>
-                            <div className={styles.role}>{user.role}</div>
+                            <div css={styles.role}>{user.role}</div>
                           </Cond>
                         </ChooseOne>
                       </TableCell>
 
                       <TableCell>
-                        <Maybe condition={canUpdatePermissions}>
-                          <TableRowMenu
-                            data={user}
-                            menuItems={[
-                              {
-                                label: "Remove",
-                                onClick: () => onRemoveUser(user),
-                                disabled: false,
-                              },
-                            ]}
-                          />
-                        </Maybe>
+                        {canUpdatePermissions && (
+                          <MoreMenu>
+                            <MoreMenuTrigger>
+                              <ThreeDotsButton />
+                            </MoreMenuTrigger>
+                            <MoreMenuContent>
+                              <MoreMenuItem
+                                danger
+                                onClick={() => onRemoveUser(user)}
+                              >
+                                Remove
+                              </MoreMenuItem>
+                            </MoreMenuContent>
+                          </MoreMenu>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -361,7 +363,7 @@ export const TemplatePermissionsPageView: FC<
   );
 };
 
-export const useStyles = makeStyles((theme) => ({
+const styles = {
   select: {
     // Match button small height
     fontSize: 14,
@@ -372,12 +374,12 @@ export const useStyles = makeStyles((theme) => ({
     margin: 0,
     // Set a fixed width for the select. It avoids selects having different sizes
     // depending on how many roles they have selected.
-    width: theme.spacing(25),
+    width: 200,
 
     "& .MuiSelect-root": {
       // Adjusting padding because it does not have label
-      paddingTop: theme.spacing(1.5),
-      paddingBottom: theme.spacing(1.5),
+      paddingTop: 12,
+      paddingBottom: 12,
 
       ".secondary": {
         display: "none",
@@ -391,18 +393,18 @@ export const useStyles = makeStyles((theme) => ({
 
   menuItem: {
     lineHeight: "140%",
-    paddingTop: theme.spacing(1.5),
-    paddingBottom: theme.spacing(1.5),
+    paddingTop: 12,
+    paddingBottom: 12,
     whiteSpace: "normal",
     inlineSize: "250px",
   },
 
-  menuItemSecondary: {
+  menuItemSecondary: (theme) => ({
     fontSize: 14,
     color: theme.palette.text.secondary,
-  },
+  }),
 
   pageHeader: {
     paddingTop: 0,
   },
-}));
+} satisfies Record<string, Interpolation<Theme>>;

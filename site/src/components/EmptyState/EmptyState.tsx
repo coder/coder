@@ -1,14 +1,10 @@
-import Box from "@mui/material/Box";
-import { makeStyles } from "@mui/styles";
-import Typography from "@mui/material/Typography";
-import { FC, ReactNode } from "react";
-import { combineClasses } from "../../utils/combineClasses";
+import type { FC, ReactNode } from "react";
 
 export interface EmptyStateProps {
   /** Text Message to display, placed inside Typography component */
   message: string;
   /** Longer optional description to display below the message */
-  description?: string | React.ReactNode;
+  description?: string | ReactNode;
   cta?: ReactNode;
   className?: string;
   image?: ReactNode;
@@ -18,61 +14,45 @@ export interface EmptyStateProps {
  * Component to place on screens or in lists that have no content. Optionally
  * provide a button that would allow the user to return from where they were,
  * or to add an item that they currently have none of.
- *
- * EmptyState's props extend the [Material UI Box component](https://material-ui.com/components/box/)
- * that you can directly pass props through to to customize the shape and layout of it.
  */
-export const EmptyState: FC<React.PropsWithChildren<EmptyStateProps>> = (
-  props,
-) => {
-  const { message, description, cta, className, image, ...boxProps } = props;
-  const styles = useStyles();
-
+export const EmptyState: FC<EmptyStateProps> = ({
+  message,
+  description,
+  cta,
+  image,
+  ...attrs
+}) => {
   return (
-    <Box className={combineClasses([styles.root, className])} {...boxProps}>
-      <Typography variant="h5" className={styles.title}>
-        {message}
-      </Typography>
+    <div
+      css={{
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
+        alignItems: "center",
+        textAlign: "center",
+        minHeight: 360,
+        padding: "80px 40px",
+        position: "relative",
+      }}
+      {...attrs}
+    >
+      <h5 css={{ fontSize: 24, fontWeight: 500, margin: 0 }}>{message}</h5>
       {description && (
-        <Typography
-          variant="body2"
-          color="textSecondary"
-          className={styles.description}
+        <p
+          css={(theme) => ({
+            marginTop: 16,
+            fontSize: 16,
+            lineHeight: "140%",
+            maxWidth: 480,
+            color: theme.palette.text.secondary,
+          })}
         >
           {description}
-        </Typography>
+        </p>
       )}
-      {cta && <div className={styles.cta}>{cta}</div>}
+      {cta && <div css={{ marginTop: 24 }}>{cta}</div>}
       {image}
-    </Box>
+    </div>
   );
 };
-
-const useStyles = makeStyles((theme) => ({
-  root: {
-    overflow: "hidden",
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "center",
-    alignItems: "center",
-    textAlign: "center",
-    minHeight: 360,
-    padding: theme.spacing(10, 5),
-    position: "relative",
-  },
-
-  title: {
-    fontSize: theme.spacing(3),
-  },
-
-  description: {
-    marginTop: theme.spacing(1.5),
-    fontSize: theme.spacing(2),
-    lineHeight: "140%",
-    maxWidth: theme.spacing(60),
-  },
-
-  cta: {
-    marginTop: theme.spacing(4),
-  },
-}));

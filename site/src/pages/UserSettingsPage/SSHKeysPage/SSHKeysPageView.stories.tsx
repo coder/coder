@@ -3,7 +3,7 @@ import { SSHKeysPageView } from "./SSHKeysPageView";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof SSHKeysPageView> = {
-  title: "pages/SSHKeysPageView",
+  title: "pages/UserSettingsPage/SSHKeysPageView",
   component: SSHKeysPageView,
   args: {
     isLoading: false,
@@ -32,14 +32,6 @@ export const WithGetSSHKeyError: Story = {
     sshKey: undefined,
     getSSHKeyError: mockApiError({
       message: "Failed to get SSH key",
-    }),
-  },
-};
-
-export const WithRegenerateSSHKeyError: Story = {
-  args: {
-    regenerateSSHKeyError: mockApiError({
-      message: "Failed to regenerate SSH key",
     }),
   },
 };

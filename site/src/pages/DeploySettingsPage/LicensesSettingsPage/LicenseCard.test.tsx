@@ -1,5 +1,5 @@
 import { screen } from "@testing-library/react";
-import { render } from "../../../testHelpers/renderHelpers";
+import { render } from "testHelpers/renderHelpers";
 import { LicenseCard } from "./LicenseCard";
 import { MockLicenseResponse } from "testHelpers/entities";
 

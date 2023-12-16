@@ -1,26 +1,24 @@
-import { useState } from "react";
+import InputAdornment from "@mui/material/InputAdornment";
+import Button from "@mui/material/Button";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import Switch from "@mui/material/Switch";
+import TextField from "@mui/material/TextField";
+import Link from "@mui/material/Link";
+import { useTheme } from "@emotion/react";
+import { type FC, useState } from "react";
+import { BlockPicker } from "react-color";
+import { useFormik } from "formik";
+import type { UpdateAppearanceConfig } from "api/typesGenerated";
 import { Header } from "components/DeploySettingsLayout/Header";
 import {
   Badges,
   DisabledBadge,
   EnterpriseBadge,
   EntitledBadge,
-} from "components/DeploySettingsLayout/Badges";
-import InputAdornment from "@mui/material/InputAdornment";
+} from "components/Badges/Badges";
 import { Fieldset } from "components/DeploySettingsLayout/Fieldset";
-import { getFormHelpers } from "utils/formUtils";
-import Button from "@mui/material/Button";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import { BlockPicker } from "react-color";
-import makeStyles from "@mui/styles/makeStyles";
-import Switch from "@mui/material/Switch";
-import TextField from "@mui/material/TextField";
-import { UpdateAppearanceConfig } from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
-import { useFormik } from "formik";
-import { useTheme } from "@mui/styles";
-import Link from "@mui/material/Link";
-import { colors } from "theme/colors";
+import { getFormHelpers } from "utils/formUtils";
 
 export type AppearanceSettingsPageViewProps = {
   appearance: UpdateAppearanceConfig;
@@ -30,13 +28,23 @@ export type AppearanceSettingsPageViewProps = {
     preview: boolean,
   ) => void;
 };
-export const AppearanceSettingsPageView = ({
-  appearance,
-  isEntitled,
-  onSaveAppearance,
-}: AppearanceSettingsPageViewProps): JSX.Element => {
-  const styles = useStyles();
+
+export const AppearanceSettingsPageView: FC<
+  AppearanceSettingsPageViewProps
+> = ({ appearance, isEntitled, onSaveAppearance }) => {
   const theme = useTheme();
+  const fallbackBgColor = theme.colors.blue[7];
+
+  const applicationNameForm = useFormik<{
+    application_name: string;
+  }>({
+    initialValues: {
+      application_name: appearance.application_name,
+    },
+    onSubmit: (values) => onSaveAppearance(values, false),
+  });
+  const applicationNameFieldHelpers = getFormHelpers(applicationNameForm);
+
   const logoForm = useFormik<{
     logo_url: string;
   }>({
@@ -53,7 +61,7 @@ export const AppearanceSettingsPageView = ({
         message: appearance.service_banner.message,
         enabled: appearance.service_banner.enabled,
         background_color:
-          appearance.service_banner.background_color ?? colors.blue[7],
+          appearance.service_banner.background_color ?? fallbackBgColor,
       },
       onSubmit: (values) =>
         onSaveAppearance(
@@ -65,9 +73,11 @@ export const AppearanceSettingsPageView = ({
     },
   );
   const serviceBannerFieldHelpers = getFormHelpers(serviceBannerForm);
+
   const [backgroundColor, setBackgroundColor] = useState(
     serviceBannerForm.values.background_color,
   );
+
   return (
     <>
       <Header
@@ -79,6 +89,22 @@ export const AppearanceSettingsPageView = ({
         {isEntitled ? <EntitledBadge /> : <DisabledBadge />}
         <EnterpriseBadge />
       </Badges>
+
+      <Fieldset
+        title="Application name"
+        subtitle="Specify a custom application name to be displayed on the login page."
+        validation={!isEntitled ? "This is an Enterprise only feature." : ""}
+        onSubmit={applicationNameForm.handleSubmit}
+        button={!isEntitled && <Button disabled>Submit</Button>}
+      >
+        <TextField
+          {...applicationNameFieldHelpers("application_name")}
+          defaultValue={appearance.application_name}
+          fullWidth
+          placeholder='Leave empty to display "Coder".'
+          disabled={!isEntitled}
+        />
+      </Fieldset>
 
       <Fieldset
         title="Logo URL"
@@ -100,7 +126,17 @@ export const AppearanceSettingsPageView = ({
           disabled={!isEntitled}
           InputProps={{
             endAdornment: (
-              <InputAdornment position="end" className={styles.logoAdornment}>
+              <InputAdornment
+                position="end"
+                css={{
+                  width: 24,
+                  height: 24,
+
+                  "& img": {
+                    maxWidth: "100%",
+                  },
+                }}
+              >
                 <img
                   alt=""
                   src={logoForm.values.logo_url}
@@ -231,17 +267,3 @@ export const AppearanceSettingsPageView = ({
     </>
   );
 };
-
-const useStyles = makeStyles((theme) => ({
-  form: {
-    maxWidth: "500px",
-  },
-  logoAdornment: {
-    width: theme.spacing(3),
-    height: theme.spacing(3),
-
-    "& img": {
-      maxWidth: "100%",
-    },
-  },
-}));

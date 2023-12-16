@@ -1,6 +1,6 @@
+import { type Interpolation, type Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
-import { makeStyles } from "@mui/styles";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -20,14 +20,13 @@ import {
   TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
-import { FC } from "react";
+import { type FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { Paywall } from "components/Paywall/Paywall";
-import { Group } from "api/typesGenerated";
+import type { Group } from "api/typesGenerated";
 import { GroupAvatar } from "components/GroupAvatar/GroupAvatar";
 import { docs } from "utils/docs";
 import Skeleton from "@mui/material/Skeleton";
-import { Box } from "@mui/system";
 import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
 
 export type GroupsPageViewProps = {
@@ -44,7 +43,6 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
   const isLoading = Boolean(groups === undefined);
   const isEmpty = Boolean(groups && groups.length === 0);
   const navigate = useNavigate();
-  const styles = useStyles();
 
   return (
     <>
@@ -137,7 +135,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
                               navigate(groupPageLink);
                             }
                           }}
-                          className={styles.clickableTableRow}
+                          css={styles.clickableTableRow}
                         >
                           <TableCell>
                             <AvatarData
@@ -157,7 +155,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
                             <AvatarGroup
                               max={10}
                               total={group.members.length}
-                              sx={{ justifyContent: "flex-end" }}
+                              css={{ justifyContent: "flex-end" }}
                             >
                               {group.members.map((member) => (
                                 <UserAvatar
@@ -170,10 +168,8 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
                           </TableCell>
 
                           <TableCell>
-                            <div className={styles.arrowCell}>
-                              <KeyboardArrowRight
-                                className={styles.arrowRight}
-                              />
+                            <div css={styles.arrowCell}>
+                              <KeyboardArrowRight css={styles.arrowRight} />
                             </div>
                           </TableCell>
                         </TableRow>
@@ -195,9 +191,9 @@ const TableLoader = () => {
     <TableLoaderSkeleton>
       <TableRowSkeleton>
         <TableCell>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <div css={{ display: "flex", alignItems: "center", gap: 8 }}>
             <AvatarDataSkeleton />
-          </Box>
+          </div>
         </TableCell>
         <TableCell>
           <Skeleton variant="text" width="25%" />
@@ -210,8 +206,8 @@ const TableLoader = () => {
   );
 };
 
-const useStyles = makeStyles((theme) => ({
-  clickableTableRow: {
+const styles = {
+  clickableTableRow: (theme) => ({
     cursor: "pointer",
 
     "&:hover td": {
@@ -219,21 +215,21 @@ const useStyles = makeStyles((theme) => ({
     },
 
     "&:focus": {
-      outline: `1px solid ${theme.palette.secondary.dark}`,
+      outline: `1px solid ${theme.palette.primary.main}`,
     },
 
     "& .MuiTableCell-root:last-child": {
-      paddingRight: theme.spacing(2),
+      paddingRight: `16px !important`,
     },
-  },
-  arrowRight: {
+  }),
+  arrowRight: (theme) => ({
     color: theme.palette.text.secondary,
     width: 20,
     height: 20,
-  },
+  }),
   arrowCell: {
     display: "flex",
   },
-}));
+} satisfies Record<string, Interpolation<Theme>>;
 
 export default GroupsPageView;

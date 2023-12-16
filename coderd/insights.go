@@ -59,6 +59,93 @@ func (api *API) deploymentDAUs(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
+// @Summary Get insights about user activity
+// @ID get-insights-about-user-activity
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Insights
+// @Success 200 {object} codersdk.UserActivityInsightsResponse
+// @Router /insights/user-activity [get]
+func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	p := httpapi.NewQueryParamParser().
+		Required("start_time").
+		Required("end_time")
+	vals := r.URL.Query()
+	var (
+		// The QueryParamParser does not preserve timezone, so we need
+		// to parse the time ourselves.
+		startTimeString = p.String(vals, "", "start_time")
+		endTimeString   = p.String(vals, "", "end_time")
+		templateIDs     = p.UUIDs(vals, []uuid.UUID{}, "template_ids")
+	)
+	p.ErrorExcessParams(vals)
+	if len(p.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Query parameters have invalid values.",
+			Validations: p.Errors,
+		})
+		return
+	}
+
+	startTime, endTime, ok := parseInsightsStartAndEndTime(ctx, rw, time.Now(), startTimeString, endTimeString)
+	if !ok {
+		return
+	}
+
+	rows, err := api.Database.GetUserActivityInsights(ctx, database.GetUserActivityInsightsParams{
+		StartTime:   startTime,
+		EndTime:     endTime,
+		TemplateIDs: templateIDs,
+	})
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching user activity.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	templateIDSet := make(map[uuid.UUID]struct{})
+	userActivities := make([]codersdk.UserActivity, 0, len(rows))
+	for _, row := range rows {
+		for _, templateID := range row.TemplateIDs {
+			templateIDSet[templateID] = struct{}{}
+		}
+		userActivities = append(userActivities, codersdk.UserActivity{
+			TemplateIDs: row.TemplateIDs,
+			UserID:      row.UserID,
+			Username:    row.Username,
+			AvatarURL:   row.AvatarURL,
+			Seconds:     row.UsageSeconds,
+		})
+	}
+
+	// TemplateIDs that contributed to the data.
+	seenTemplateIDs := make([]uuid.UUID, 0, len(templateIDSet))
+	for templateID := range templateIDSet {
+		seenTemplateIDs = append(seenTemplateIDs, templateID)
+	}
+	slices.SortFunc(seenTemplateIDs, func(a, b uuid.UUID) int {
+		return slice.Ascending(a.String(), b.String())
+	})
+
+	resp := codersdk.UserActivityInsightsResponse{
+		Report: codersdk.UserActivityInsightsReport{
+			StartTime:   startTime,
+			EndTime:     endTime,
+			TemplateIDs: seenTemplateIDs,
+			Users:       userActivities,
+		},
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
 // @Summary Get insights about user latency
 // @ID get-insights-about-user-latency
 // @Security CoderSessionToken
@@ -89,7 +176,7 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	startTime, endTime, ok := parseInsightsStartAndEndTime(ctx, rw, startTimeString, endTimeString)
+	startTime, endTime, ok := parseInsightsStartAndEndTime(ctx, rw, time.Now(), startTimeString, endTimeString)
 	if !ok {
 		return
 	}
@@ -121,7 +208,7 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 			TemplateIDs: row.TemplateIDs,
 			UserID:      row.UserID,
 			Username:    row.Username,
-			AvatarURL:   row.AvatarURL.String,
+			AvatarURL:   row.AvatarURL,
 			LatencyMS: codersdk.ConnectionLatency{
 				P50: row.WorkspaceConnectionLatency50,
 				P95: row.WorkspaceConnectionLatency95,
@@ -170,6 +257,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		endTimeString   = p.String(vals, "", "end_time")
 		intervalString  = p.String(vals, "", "interval")
 		templateIDs     = p.UUIDs(vals, []uuid.UUID{}, "template_ids")
+		sectionStrings  = p.Strings(vals, templateInsightsSectionAsStrings(codersdk.TemplateInsightsSectionIntervalReports, codersdk.TemplateInsightsSectionReport), "sections")
 	)
 	p.ErrorExcessParams(vals)
 	if len(p.Errors) > 0 {
@@ -180,11 +268,15 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	startTime, endTime, ok := parseInsightsStartAndEndTime(ctx, rw, startTimeString, endTimeString)
+	startTime, endTime, ok := parseInsightsStartAndEndTime(ctx, rw, time.Now(), startTimeString, endTimeString)
 	if !ok {
 		return
 	}
 	interval, ok := parseInsightsInterval(ctx, rw, intervalString, startTime, endTime)
+	if !ok {
+		return
+	}
+	sections, ok := parseTemplateInsightsSections(ctx, rw, sectionStrings)
 	if !ok {
 		return
 	}
@@ -202,7 +294,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	// overhead from a transaction is not worth it.
 	eg.Go(func() error {
 		var err error
-		if interval != "" {
+		if interval != "" && slices.Contains(sections, codersdk.TemplateInsightsSectionIntervalReports) {
 			dailyUsage, err = api.Database.GetTemplateInsightsByInterval(egCtx, database.GetTemplateInsightsByIntervalParams{
 				StartTime:    startTime,
 				EndTime:      endTime,
@@ -216,6 +308,10 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	eg.Go(func() error {
+		if !slices.Contains(sections, codersdk.TemplateInsightsSectionReport) {
+			return nil
+		}
+
 		var err error
 		usage, err = api.Database.GetTemplateInsights(egCtx, database.GetTemplateInsightsParams{
 			StartTime:   startTime,
@@ -228,6 +324,10 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	eg.Go(func() error {
+		if !slices.Contains(sections, codersdk.TemplateInsightsSectionReport) {
+			return nil
+		}
+
 		var err error
 		appUsage, err = api.Database.GetTemplateAppInsights(egCtx, database.GetTemplateAppInsightsParams{
 			StartTime:   startTime,
@@ -243,6 +343,10 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	// Template parameter insights have no risk of inconsistency with the other
 	// insights.
 	eg.Go(func() error {
+		if !slices.Contains(sections, codersdk.TemplateInsightsSectionReport) {
+			return nil
+		}
+
 		var err error
 		parameterRows, err = api.Database.GetTemplateParameterInsights(ctx, database.GetTemplateParameterInsightsParams{
 			StartTime:   startTime,
@@ -278,16 +382,20 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := codersdk.TemplateInsightsResponse{
-		Report: codersdk.TemplateInsightsReport{
+		IntervalReports: []codersdk.TemplateInsightsIntervalReport{},
+	}
+
+	if slices.Contains(sections, codersdk.TemplateInsightsSectionReport) {
+		resp.Report = &codersdk.TemplateInsightsReport{
 			StartTime:       startTime,
 			EndTime:         endTime,
 			TemplateIDs:     convertTemplateInsightsTemplateIDs(usage, appUsage),
 			ActiveUsers:     convertTemplateInsightsActiveUsers(usage, appUsage),
 			AppsUsage:       convertTemplateInsightsApps(usage, appUsage),
 			ParametersUsage: parametersUsage,
-		},
-		IntervalReports: []codersdk.TemplateInsightsIntervalReport{},
+		}
 	}
+
 	for _, row := range dailyUsage {
 		resp.IntervalReports = append(resp.IntervalReports, codersdk.TemplateInsightsIntervalReport{
 			// NOTE(mafredri): This might not be accurate over DST since the
@@ -344,7 +452,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 		{
 			TemplateIDs: usage.TemplateIDs,
 			Type:        codersdk.TemplateAppsTypeBuiltin,
-			DisplayName: "Visual Studio Code",
+			DisplayName: codersdk.TemplateBuiltinAppDisplayNameVSCode,
 			Slug:        "vscode",
 			Icon:        "/icon/code.svg",
 			Seconds:     usage.UsageVscodeSeconds,
@@ -352,7 +460,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 		{
 			TemplateIDs: usage.TemplateIDs,
 			Type:        codersdk.TemplateAppsTypeBuiltin,
-			DisplayName: "JetBrains",
+			DisplayName: codersdk.TemplateBuiltinAppDisplayNameJetBrains,
 			Slug:        "jetbrains",
 			Icon:        "/icon/intellij.svg",
 			Seconds:     usage.UsageJetbrainsSeconds,
@@ -366,7 +474,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 		{
 			TemplateIDs: usage.TemplateIDs,
 			Type:        codersdk.TemplateAppsTypeBuiltin,
-			DisplayName: "Web Terminal",
+			DisplayName: codersdk.TemplateBuiltinAppDisplayNameWebTerminal,
 			Slug:        "reconnecting-pty",
 			Icon:        "/icon/terminal.svg",
 			Seconds:     usage.UsageReconnectingPtySeconds,
@@ -374,7 +482,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 		{
 			TemplateIDs: usage.TemplateIDs,
 			Type:        codersdk.TemplateAppsTypeBuiltin,
-			DisplayName: "SSH",
+			DisplayName: codersdk.TemplateBuiltinAppDisplayNameSSH,
 			Slug:        "ssh",
 			Icon:        "/icon/terminal.svg",
 			Seconds:     usage.UsageSshSeconds,
@@ -431,9 +539,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 // time are not zero and that the end time is not before the start time. The
 // clock must be set to 00:00:00, except for "today", where end time is allowed
 // to provide the hour of the day (e.g. 14:00:00).
-func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, startTimeString, endTimeString string) (startTime, endTime time.Time, ok bool) {
-	now := time.Now()
-
+func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, now time.Time, startTimeString, endTimeString string) (startTime, endTime time.Time, ok bool) {
 	for _, qp := range []struct {
 		name, value string
 		dest        *time.Time
@@ -454,6 +560,9 @@ func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, s
 			})
 			return time.Time{}, time.Time{}, false
 		}
+
+		// Change now to the same timezone as the parsed time.
+		now := now.In(t.Location())
 
 		if t.IsZero() {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -496,7 +605,7 @@ func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, s
 				Validations: []codersdk.ValidationError{
 					{
 						Field:  qp.name,
-						Detail: fmt.Sprintf("Query param %q must have the clock set to 00:00:00", qp.name),
+						Detail: fmt.Sprintf("Query param %q must have the clock set to 00:00:00, got %s", qp.name, qp.value),
 					},
 				},
 			})
@@ -507,7 +616,7 @@ func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, s
 				Validations: []codersdk.ValidationError{
 					{
 						Field:  qp.name,
-						Detail: fmt.Sprintf("Query param %q must have the clock set to %02d:00:00", qp.name, h),
+						Detail: fmt.Sprintf("Query param %q must have the clock set to %02d:00:00, got %s", qp.name, h, qp.value),
 					},
 				},
 			})
@@ -566,4 +675,34 @@ func lastReportIntervalHasAtLeastSixDays(startTime, endTime time.Time) bool {
 	// Ensure that the last interval has at least 6 days, or check the special case, forward DST change,
 	// when the duration can be shorter than 6 days: 5 days 23 hours.
 	return lastReportIntervalDays >= 6*24*time.Hour || startTime.AddDate(0, 0, 6).Equal(endTime)
+}
+
+func templateInsightsSectionAsStrings(sections ...codersdk.TemplateInsightsSection) []string {
+	t := make([]string, len(sections))
+	for i, s := range sections {
+		t[i] = string(s)
+	}
+	return t
+}
+
+func parseTemplateInsightsSections(ctx context.Context, rw http.ResponseWriter, sections []string) ([]codersdk.TemplateInsightsSection, bool) {
+	t := make([]codersdk.TemplateInsightsSection, len(sections))
+	for i, s := range sections {
+		switch v := codersdk.TemplateInsightsSection(s); v {
+		case codersdk.TemplateInsightsSectionIntervalReports, codersdk.TemplateInsightsSectionReport:
+			t[i] = v
+		default:
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Query parameter has invalid value.",
+				Validations: []codersdk.ValidationError{
+					{
+						Field:  "sections",
+						Detail: fmt.Sprintf("must be one of %v", []codersdk.TemplateInsightsSection{codersdk.TemplateInsightsSectionIntervalReports, codersdk.TemplateInsightsSectionReport}),
+					},
+				},
+			})
+			return nil, false
+		}
+	}
+	return t, true
 }

@@ -5,7 +5,7 @@ import { FC, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import GroupsPageView from "./GroupsPageView";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from "react-query";
 import { groups } from "api/queries/groups";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { getErrorMessage } from "api/errors";

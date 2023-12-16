@@ -4,7 +4,7 @@ import duration from "dayjs/plugin/duration";
 import minMax from "dayjs/plugin/minMax";
 import utc from "dayjs/plugin/utc";
 import semver from "semver";
-import * as TypesGen from "../api/typesGenerated";
+import * as TypesGen from "api/typesGenerated";
 import CircularProgress from "@mui/material/CircularProgress";
 import ErrorIcon from "@mui/icons-material/ErrorOutline";
 import StopIcon from "@mui/icons-material/StopOutlined";
@@ -51,6 +51,8 @@ export const getDisplayWorkspaceBuildStatus = (
         color: theme.palette.primary.main,
         status: DisplayWorkspaceBuildStatusLanguage.running,
       } as const;
+    // Just handle unknown as failed
+    case "unknown":
     case "failed":
       return {
         type: "error",
@@ -106,26 +108,38 @@ export const displayWorkspaceBuildDuration = (
   return duration ? `${duration} seconds` : inProgressLabel;
 };
 
+export const enum agentVersionStatus {
+  Updated = 1,
+  Outdated = 2,
+  Deprecated = 3,
+}
+
 export const getDisplayVersionStatus = (
   agentVersion: string,
   serverVersion: string,
-): { displayVersion: string; outdated: boolean } => {
-  if (!semver.valid(serverVersion) || !semver.valid(agentVersion)) {
-    return {
-      displayVersion: agentVersion || DisplayAgentVersionLanguage.unknown,
-      outdated: false,
-    };
-  } else if (semver.lt(agentVersion, serverVersion)) {
-    return {
-      displayVersion: agentVersion,
-      outdated: true,
-    };
-  } else {
-    return {
-      displayVersion: agentVersion,
-      outdated: false,
-    };
+  agentAPIVersion: string,
+  serverAPIVersion: string,
+): { displayVersion: string; status: agentVersionStatus } => {
+  // APIVersions only have major.minor so coerce them to major.minor.0, so we can use semver.major()
+  const a = semver.coerce(agentAPIVersion);
+  const s = semver.coerce(serverAPIVersion);
+  let status = agentVersionStatus.Updated;
+  if (
+    semver.valid(agentVersion) &&
+    semver.valid(serverVersion) &&
+    semver.lt(agentVersion, serverVersion)
+  ) {
+    status = agentVersionStatus.Outdated;
   }
+  // deprecated overrides and implies Outdated
+  if (a !== null && s !== null && semver.major(a) < semver.major(s)) {
+    status = agentVersionStatus.Deprecated;
+  }
+  const displayVersion = agentVersion || DisplayAgentVersionLanguage.unknown;
+  return {
+    displayVersion: displayVersion,
+    status: status,
+  };
 };
 
 export const isWorkspaceOn = (workspace: TypesGen.Workspace): boolean => {
@@ -143,44 +157,6 @@ export const defaultWorkspaceExtension = (
   return {
     deadline: fourHoursFromNow.format(),
   };
-};
-
-// You can see the favicon designs here: https://www.figma.com/file/YIGBkXUcnRGz2ZKNmLaJQf/Coder-v2-Design?node-id=560%3A620
-
-type FaviconType =
-  | "favicon"
-  | "favicon-success"
-  | "favicon-error"
-  | "favicon-warning"
-  | "favicon-running";
-
-export const getFaviconByStatus = (
-  build: TypesGen.WorkspaceBuild,
-): FaviconType => {
-  switch (build.status) {
-    case undefined:
-      return "favicon";
-    case "running":
-      return "favicon-success";
-    case "starting":
-      return "favicon-running";
-    case "stopping":
-      return "favicon-running";
-    case "stopped":
-      return "favicon";
-    case "deleting":
-      return "favicon";
-    case "deleted":
-      return "favicon";
-    case "canceling":
-      return "favicon-warning";
-    case "canceled":
-      return "favicon";
-    case "failed":
-      return "favicon-error";
-    case "pending":
-      return "favicon";
-  }
 };
 
 export const getDisplayWorkspaceTemplateName = (
@@ -209,43 +185,43 @@ export const getDisplayWorkspaceStatus = (
       } as const;
     case "starting":
       return {
-        type: "success",
+        type: "active",
         text: "Starting",
         icon: <LoadingIcon />,
       } as const;
     case "stopping":
       return {
-        type: "warning",
+        type: "notice",
         text: "Stopping",
         icon: <LoadingIcon />,
       } as const;
     case "stopped":
       return {
-        type: "warning",
+        type: "notice",
         text: "Stopped",
         icon: <StopIcon />,
       } as const;
     case "deleting":
       return {
-        type: "warning",
+        type: "danger",
         text: "Deleting",
         icon: <LoadingIcon />,
       } as const;
     case "deleted":
       return {
-        type: "error",
+        type: "danger",
         text: "Deleted",
         icon: <ErrorIcon />,
       } as const;
     case "canceling":
       return {
-        type: "warning",
+        type: "notice",
         text: "Canceling",
         icon: <LoadingIcon />,
       } as const;
     case "canceled":
       return {
-        type: "warning",
+        type: "notice",
         text: "Canceled",
         icon: <ErrorIcon />,
       } as const;
@@ -284,3 +260,32 @@ export const hasJobError = (workspace: TypesGen.Workspace) => {
 export const paramsUsedToCreateWorkspace = (
   param: TypesGen.TemplateVersionParameter,
 ) => !param.ephemeral;
+
+export const getMatchingAgentOrFirst = (
+  workspace: TypesGen.Workspace,
+  agentName: string | undefined,
+): TypesGen.WorkspaceAgent | undefined => {
+  return workspace.latest_build.resources
+    .map((resource) => {
+      if (!resource.agents || resource.agents.length === 0) {
+        return;
+      }
+      if (!agentName) {
+        return resource.agents[0];
+      }
+      return resource.agents.find((agent) => agent.name === agentName);
+    })
+    .filter((a) => a)[0];
+};
+
+export const workspaceUpdatePolicy = (
+  workspace: TypesGen.Workspace,
+  canChangeVersions: boolean,
+): TypesGen.AutomaticUpdates => {
+  // If a template requires the active version and you cannot change versions
+  // (restricted to template admins), then your policy must be "Always".
+  if (workspace.template_require_active_version && !canChangeVersions) {
+    return "always";
+  }
+  return workspace.automatic_updates;
+};

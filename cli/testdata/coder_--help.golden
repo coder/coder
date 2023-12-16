@@ -14,12 +14,14 @@ USAGE:
        $ coder templates init
 
 SUBCOMMANDS:
+    autoupdate        Toggle auto-update policy for a workspace
     config-ssh        Add an SSH Host entry for your workspaces "ssh
                       coder.workspace"
     create            Create a workspace
     delete            Delete a workspace
     dotfiles          Personalize your workspace by applying a canonical
                       dotfiles repository
+    external-auth     Manage external authentication
     list              List workspaces
     login             Authenticate with Coder deployment
     logout            Unauthenticate your local session

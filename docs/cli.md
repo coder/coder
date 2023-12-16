@@ -25,10 +25,12 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 
 | Name                                                   | Purpose                                                                                               |
 | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| [<code>autoupdate</code>](./cli/autoupdate.md)         | Toggle auto-update policy for a workspace                                                             |
 | [<code>config-ssh</code>](./cli/config-ssh.md)         | Add an SSH Host entry for your workspaces "ssh coder.workspace"                                       |
 | [<code>create</code>](./cli/create.md)                 | Create a workspace                                                                                    |
 | [<code>delete</code>](./cli/delete.md)                 | Delete a workspace                                                                                    |
 | [<code>dotfiles</code>](./cli/dotfiles.md)             | Personalize your workspace by applying a canonical dotfiles repository                                |
+| [<code>external-auth</code>](./cli/external-auth.md)   | Manage external authentication                                                                        |
 | [<code>features</code>](./cli/features.md)             | List Enterprise features                                                                              |
 | [<code>groups</code>](./cli/groups.md)                 | Manage groups                                                                                         |
 | [<code>licenses</code>](./cli/licenses.md)             | Add, delete, and list licenses                                                                        |

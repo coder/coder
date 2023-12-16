@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -20,7 +20,7 @@ func TestUserParam(t *testing.T) {
 	t.Parallel()
 	setup := func(t *testing.T) (database.Store, *httptest.ResponseRecorder, *http.Request) {
 		var (
-			db = dbfake.New()
+			db = dbmem.New()
 			r  = httptest.NewRequest("GET", "/", nil)
 			rw = httptest.NewRecorder()
 		)
@@ -44,7 +44,7 @@ func TestUserParam(t *testing.T) {
 			r = returnedRequest
 		})).ServeHTTP(rw, r)
 
-		httpmw.ExtractUserParam(db, false)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		httpmw.ExtractUserParam(db)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			rw.WriteHeader(http.StatusOK)
 		})).ServeHTTP(rw, r)
 		res := rw.Result()
@@ -66,7 +66,7 @@ func TestUserParam(t *testing.T) {
 		routeContext := chi.NewRouteContext()
 		routeContext.URLParams.Add("user", "ben")
 		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, routeContext))
-		httpmw.ExtractUserParam(db, false)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		httpmw.ExtractUserParam(db)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			rw.WriteHeader(http.StatusOK)
 		})).ServeHTTP(rw, r)
 		res := rw.Result()
@@ -88,7 +88,7 @@ func TestUserParam(t *testing.T) {
 		routeContext := chi.NewRouteContext()
 		routeContext.URLParams.Add("user", "me")
 		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, routeContext))
-		httpmw.ExtractUserParam(db, false)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		httpmw.ExtractUserParam(db)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			_ = httpmw.UserParam(r)
 			rw.WriteHeader(http.StatusOK)
 		})).ServeHTTP(rw, r)

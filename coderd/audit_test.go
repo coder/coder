@@ -53,9 +53,9 @@ func TestAuditLogs(t *testing.T) {
 			template = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		)
 
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		buildResourceInfo := audit.AdditionalFields{
 			WorkspaceName: workspace.Name,
@@ -100,7 +100,7 @@ func TestAuditLogsFilter(t *testing.T) {
 			template = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		)
 
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 
 		// Create two logs with "Create"

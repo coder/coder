@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -18,6 +18,7 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -56,10 +57,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, ps pubsub.P
 		// primary purpose is to clean up dead replicas.
 		options.CleanupInterval = 30 * time.Minute
 	}
-	hostname, err := os.Hostname()
-	if err != nil {
-		return nil, xerrors.Errorf("get hostname: %w", err)
-	}
+	hostname := cliutil.Hostname()
 	databaseLatency, err := db.Ping(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("ping database: %w", err)
@@ -274,7 +272,19 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 		wg.Add(1)
 		go func(peer database.Replica) {
 			defer wg.Done()
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, peer.RelayAddress, nil)
+			ra, err := url.Parse(peer.RelayAddress)
+			if err != nil {
+				m.logger.Warn(ctx, "could not parse relay address",
+					slog.F("relay_address", peer.RelayAddress), slog.Error(err))
+				return
+			}
+			target, err := ra.Parse("/derp/latency-check")
+			if err != nil {
+				m.logger.Warn(ctx, "could not resolve /derp/latency-check endpoint",
+					slog.F("relay_address", peer.RelayAddress), slog.Error(err))
+				return
+			}
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
 			if err != nil {
 				m.logger.Warn(ctx, "create http request for relay probe",
 					slog.F("relay_address", peer.RelayAddress), slog.Error(err))
@@ -318,7 +328,26 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 		Primary:         m.self.Primary,
 	})
 	if err != nil {
-		return xerrors.Errorf("update replica: %w", err)
+		if !errors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("update replica: %w", err)
+		}
+		// self replica has been cleaned up, we must reinsert
+		// nolint:gocritic // Updating a replica is a system function.
+		replica, err = m.db.InsertReplica(dbauthz.AsSystemRestricted(ctx), database.InsertReplicaParams{
+			ID:              m.self.ID,
+			CreatedAt:       dbtime.Now(),
+			UpdatedAt:       dbtime.Now(),
+			StartedAt:       m.self.StartedAt,
+			RelayAddress:    m.self.RelayAddress,
+			RegionID:        m.self.RegionID,
+			Hostname:        m.self.Hostname,
+			Version:         m.self.Version,
+			DatabaseLatency: int32(databaseLatency.Microseconds()),
+			Primary:         m.self.Primary,
+		})
+		if err != nil {
+			return xerrors.Errorf("update replica: %w", err)
+		}
 	}
 	if m.self.Error != replica.Error {
 		// Publish an update occurred!
@@ -420,11 +449,13 @@ func (m *Manager) Close() error {
 			Time:  dbtime.Now(),
 			Valid: true,
 		},
-		RelayAddress: m.self.RelayAddress,
-		RegionID:     m.self.RegionID,
-		Hostname:     m.self.Hostname,
-		Version:      m.self.Version,
-		Error:        m.self.Error,
+		RelayAddress:    m.self.RelayAddress,
+		RegionID:        m.self.RegionID,
+		Hostname:        m.self.Hostname,
+		Version:         m.self.Version,
+		Error:           m.self.Error,
+		DatabaseLatency: 0,     // A stopped replica has no latency.
+		Primary:         false, // A stopped replica cannot be primary.
 	})
 	if err != nil {
 		return xerrors.Errorf("update replica: %w", err)

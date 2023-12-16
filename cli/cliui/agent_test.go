@@ -5,12 +5,14 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
@@ -25,9 +27,31 @@ import (
 func TestAgent(t *testing.T) {
 	t.Parallel()
 
+	waitLines := func(t *testing.T, output <-chan string, lines ...string) error {
+		t.Helper()
+
+		var got []string
+	outerLoop:
+		for _, want := range lines {
+			for {
+				select {
+				case line := <-output:
+					got = append(got, line)
+					if strings.Contains(line, want) {
+						continue outerLoop
+					}
+				case <-time.After(testutil.WaitShort):
+					assert.Failf(t, "timed out waiting for line", "want: %q; got: %q", want, got)
+					return xerrors.Errorf("timed out waiting for line: %q; got: %q", want, got)
+				}
+			}
+		}
+		return nil
+	}
+
 	for _, tc := range []struct {
 		name    string
-		iter    []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentLog) error
+		iter    []func(context.Context, *testing.T, *codersdk.WorkspaceAgent, <-chan string, chan []codersdk.WorkspaceAgentLog) error
 		logs    chan []codersdk.WorkspaceAgentLog
 		opts    cliui.AgentOptions
 		want    []string
@@ -38,12 +62,15 @@ func TestAgent(t *testing.T) {
 			opts: cliui.AgentOptions{
 				FetchInterval: time.Millisecond,
 			},
-			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentLog) error{
-				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentLog) error {
+			iter: []func(context.Context, *testing.T, *codersdk.WorkspaceAgent, <-chan string, chan []codersdk.WorkspaceAgentLog) error{
+				func(_ context.Context, _ *testing.T, agent *codersdk.WorkspaceAgent, _ <-chan string, _ chan []codersdk.WorkspaceAgentLog) error {
 					agent.Status = codersdk.WorkspaceAgentConnecting
 					return nil
 				},
-				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentLog) error {
+				func(_ context.Context, t *testing.T, agent *codersdk.WorkspaceAgent, output <-chan string, _ chan []codersdk.WorkspaceAgentLog) error {
+					return waitLines(t, output, "⧗ Waiting for the workspace agent to connect")
+				},
+				func(_ context.Context, _ *testing.T, agent *codersdk.WorkspaceAgent, _ <-chan string, _ chan []codersdk.WorkspaceAgentLog) error {
 					agent.Status = codersdk.WorkspaceAgentConnected
 					agent.FirstConnectedAt = ptr.Ref(time.Now())
 					return nil
@@ -52,9 +79,37 @@ func TestAgent(t *testing.T) {
 			want: []string{
 				"⧗ Waiting for the workspace agent to connect",
 				"✔ Waiting for the workspace agent to connect",
-				"⧗ Running workspace agent startup script (non-blocking)",
-				"Notice: The startup script is still running and your workspace may be incomplete.",
+				"⧗ Running workspace agent startup scripts (non-blocking)",
+				"Notice: The startup scripts are still running and your workspace may be incomplete.",
 				"For more information and troubleshooting, see",
+			},
+		},
+		{
+			name: "Start timeout",
+			opts: cliui.AgentOptions{
+				FetchInterval: time.Millisecond,
+			},
+			iter: []func(context.Context, *testing.T, *codersdk.WorkspaceAgent, <-chan string, chan []codersdk.WorkspaceAgentLog) error{
+				func(_ context.Context, _ *testing.T, agent *codersdk.WorkspaceAgent, _ <-chan string, _ chan []codersdk.WorkspaceAgentLog) error {
+					agent.Status = codersdk.WorkspaceAgentConnecting
+					return nil
+				},
+				func(_ context.Context, t *testing.T, agent *codersdk.WorkspaceAgent, output <-chan string, _ chan []codersdk.WorkspaceAgentLog) error {
+					return waitLines(t, output, "⧗ Waiting for the workspace agent to connect")
+				},
+				func(_ context.Context, _ *testing.T, agent *codersdk.WorkspaceAgent, _ <-chan string, _ chan []codersdk.WorkspaceAgentLog) error {
+					agent.Status = codersdk.WorkspaceAgentConnected
+					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleStartTimeout
+					agent.FirstConnectedAt = ptr.Ref(time.Now())
+					return nil
+				},
+			},
+			want: []string{
+				"⧗ Waiting for the workspace agent to connect",
+				"✔ Waiting for the workspace agent to connect",
+				"⧗ Running workspace agent startup scripts (non-blocking)",
+				"✘ Running workspace agent startup scripts (non-blocking)",
+				"Warning: A startup script timed out and your workspace may be incomplete.",
 			},
 		},
 		{
@@ -62,18 +117,24 @@ func TestAgent(t *testing.T) {
 			opts: cliui.AgentOptions{
 				FetchInterval: 1 * time.Millisecond,
 			},
-			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentLog) error{
-				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentLog) error {
+			iter: []func(context.Context, *testing.T, *codersdk.WorkspaceAgent, <-chan string, chan []codersdk.WorkspaceAgentLog) error{
+				func(_ context.Context, _ *testing.T, agent *codersdk.WorkspaceAgent, _ <-chan string, _ chan []codersdk.WorkspaceAgentLog) error {
 					agent.Status = codersdk.WorkspaceAgentConnecting
 					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleStarting
 					agent.StartedAt = ptr.Ref(time.Now())
 					return nil
 				},
-				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentLog) error {
+				func(_ context.Context, t *testing.T, agent *codersdk.WorkspaceAgent, output <-chan string, _ chan []codersdk.WorkspaceAgentLog) error {
+					return waitLines(t, output, "⧗ Waiting for the workspace agent to connect")
+				},
+				func(_ context.Context, _ *testing.T, agent *codersdk.WorkspaceAgent, _ <-chan string, _ chan []codersdk.WorkspaceAgentLog) error {
 					agent.Status = codersdk.WorkspaceAgentTimeout
 					return nil
 				},
-				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentLog) error {
+				func(_ context.Context, t *testing.T, agent *codersdk.WorkspaceAgent, output <-chan string, _ chan []codersdk.WorkspaceAgentLog) error {
+					return waitLines(t, output, "The workspace agent is having trouble connecting, wait for it to connect or restart your workspace.")
+				},
+				func(_ context.Context, _ *testing.T, agent *codersdk.WorkspaceAgent, _ <-chan string, _ chan []codersdk.WorkspaceAgentLog) error {
 					agent.Status = codersdk.WorkspaceAgentConnected
 					agent.FirstConnectedAt = ptr.Ref(time.Now())
 					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleReady
@@ -86,8 +147,8 @@ func TestAgent(t *testing.T) {
 				"The workspace agent is having trouble connecting, wait for it to connect or restart your workspace.",
 				"For more information and troubleshooting, see",
 				"✔ Waiting for the workspace agent to connect",
-				"⧗ Running workspace agent startup script (non-blocking)",
-				"✔ Running workspace agent startup script (non-blocking)",
+				"⧗ Running workspace agent startup scripts (non-blocking)",
+				"✔ Running workspace agent startup scripts (non-blocking)",
 			},
 		},
 		{
@@ -95,8 +156,8 @@ func TestAgent(t *testing.T) {
 			opts: cliui.AgentOptions{
 				FetchInterval: 1 * time.Millisecond,
 			},
-			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentLog) error{
-				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentLog) error {
+			iter: []func(context.Context, *testing.T, *codersdk.WorkspaceAgent, <-chan string, chan []codersdk.WorkspaceAgentLog) error{
+				func(_ context.Context, _ *testing.T, agent *codersdk.WorkspaceAgent, _ <-chan string, _ chan []codersdk.WorkspaceAgentLog) error {
 					agent.Status = codersdk.WorkspaceAgentDisconnected
 					agent.FirstConnectedAt = ptr.Ref(time.Now().Add(-1 * time.Minute))
 					agent.LastConnectedAt = ptr.Ref(time.Now().Add(-1 * time.Minute))
@@ -106,8 +167,12 @@ func TestAgent(t *testing.T) {
 					agent.ReadyAt = ptr.Ref(time.Now())
 					return nil
 				},
-				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentLog) error {
+				func(_ context.Context, t *testing.T, agent *codersdk.WorkspaceAgent, output <-chan string, _ chan []codersdk.WorkspaceAgentLog) error {
+					return waitLines(t, output, "⧗ The workspace agent lost connection")
+				},
+				func(_ context.Context, _ *testing.T, agent *codersdk.WorkspaceAgent, _ <-chan string, _ chan []codersdk.WorkspaceAgentLog) error {
 					agent.Status = codersdk.WorkspaceAgentConnected
+					agent.DisconnectedAt = nil
 					agent.LastConnectedAt = ptr.Ref(time.Now())
 					return nil
 				},
@@ -120,26 +185,31 @@ func TestAgent(t *testing.T) {
 			},
 		},
 		{
-			name: "Startup script logs",
+			name: "Startup Logs",
 			opts: cliui.AgentOptions{
 				FetchInterval: time.Millisecond,
 				Wait:          true,
 			},
-			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentLog) error{
-				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentLog) error {
+			iter: []func(context.Context, *testing.T, *codersdk.WorkspaceAgent, <-chan string, chan []codersdk.WorkspaceAgentLog) error{
+				func(_ context.Context, _ *testing.T, agent *codersdk.WorkspaceAgent, _ <-chan string, logs chan []codersdk.WorkspaceAgentLog) error {
 					agent.Status = codersdk.WorkspaceAgentConnected
 					agent.FirstConnectedAt = ptr.Ref(time.Now())
 					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleStarting
 					agent.StartedAt = ptr.Ref(time.Now())
+					agent.LogSources = []codersdk.WorkspaceAgentLogSource{{
+						ID:          uuid.Nil,
+						DisplayName: "testing",
+					}}
 					logs <- []codersdk.WorkspaceAgentLog{
 						{
 							CreatedAt: time.Now(),
 							Output:    "Hello world",
+							SourceID:  uuid.Nil,
 						},
 					}
 					return nil
 				},
-				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentLog) error {
+				func(_ context.Context, _ *testing.T, agent *codersdk.WorkspaceAgent, _ <-chan string, logs chan []codersdk.WorkspaceAgentLog) error {
 					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleReady
 					agent.ReadyAt = ptr.Ref(time.Now())
 					logs <- []codersdk.WorkspaceAgentLog{
@@ -152,10 +222,10 @@ func TestAgent(t *testing.T) {
 				},
 			},
 			want: []string{
-				"⧗ Running workspace agent startup script",
-				"Hello world",
+				"⧗ Running workspace agent startup scripts",
+				"testing: Hello world",
 				"Bye now",
-				"✔ Running workspace agent startup script",
+				"✔ Running workspace agent startup scripts",
 			},
 		},
 		{
@@ -164,8 +234,8 @@ func TestAgent(t *testing.T) {
 				FetchInterval: time.Millisecond,
 				Wait:          true,
 			},
-			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentLog) error{
-				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentLog) error {
+			iter: []func(context.Context, *testing.T, *codersdk.WorkspaceAgent, <-chan string, chan []codersdk.WorkspaceAgentLog) error{
+				func(_ context.Context, _ *testing.T, agent *codersdk.WorkspaceAgent, output <-chan string, logs chan []codersdk.WorkspaceAgentLog) error {
 					agent.Status = codersdk.WorkspaceAgentConnected
 					agent.FirstConnectedAt = ptr.Ref(time.Now())
 					agent.StartedAt = ptr.Ref(time.Now())
@@ -181,10 +251,10 @@ func TestAgent(t *testing.T) {
 				},
 			},
 			want: []string{
-				"⧗ Running workspace agent startup script",
+				"⧗ Running workspace agent startup scripts",
 				"Hello world",
-				"✘ Running workspace agent startup script",
-				"Warning: The startup script exited with an error and your workspace may be incomplete.",
+				"✘ Running workspace agent startup scripts",
+				"Warning: A startup script exited with an error and your workspace may be incomplete.",
 				"For more information and troubleshooting, see",
 			},
 		},
@@ -193,8 +263,8 @@ func TestAgent(t *testing.T) {
 			opts: cliui.AgentOptions{
 				FetchInterval: time.Millisecond,
 			},
-			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentLog) error{
-				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentLog) error {
+			iter: []func(context.Context, *testing.T, *codersdk.WorkspaceAgent, <-chan string, chan []codersdk.WorkspaceAgentLog) error{
+				func(_ context.Context, _ *testing.T, agent *codersdk.WorkspaceAgent, output <-chan string, logs chan []codersdk.WorkspaceAgentLog) error {
 					agent.Status = codersdk.WorkspaceAgentDisconnected
 					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleOff
 					return nil
@@ -208,8 +278,8 @@ func TestAgent(t *testing.T) {
 				FetchInterval: time.Millisecond,
 				Wait:          true,
 			},
-			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentLog) error{
-				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentLog) error {
+			iter: []func(context.Context, *testing.T, *codersdk.WorkspaceAgent, <-chan string, chan []codersdk.WorkspaceAgentLog) error{
+				func(_ context.Context, _ *testing.T, agent *codersdk.WorkspaceAgent, output <-chan string, logs chan []codersdk.WorkspaceAgentLog) error {
 					agent.Status = codersdk.WorkspaceAgentConnected
 					agent.FirstConnectedAt = ptr.Ref(time.Now())
 					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleStarting
@@ -222,16 +292,19 @@ func TestAgent(t *testing.T) {
 					}
 					return nil
 				},
-				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentLog) error {
+				func(_ context.Context, t *testing.T, agent *codersdk.WorkspaceAgent, output <-chan string, _ chan []codersdk.WorkspaceAgentLog) error {
+					return waitLines(t, output, "Hello world")
+				},
+				func(_ context.Context, _ *testing.T, agent *codersdk.WorkspaceAgent, _ <-chan string, _ chan []codersdk.WorkspaceAgentLog) error {
 					agent.ReadyAt = ptr.Ref(time.Now())
 					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleShuttingDown
 					return nil
 				},
 			},
 			want: []string{
-				"⧗ Running workspace agent startup script",
+				"⧗ Running workspace agent startup scripts",
 				"Hello world",
-				"✔ Running workspace agent startup script",
+				"✔ Running workspace agent startup scripts",
 			},
 			wantErr: true,
 		},
@@ -241,12 +314,15 @@ func TestAgent(t *testing.T) {
 				FetchInterval: time.Millisecond,
 				Wait:          true,
 			},
-			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentLog) error{
-				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentLog) error {
+			iter: []func(context.Context, *testing.T, *codersdk.WorkspaceAgent, <-chan string, chan []codersdk.WorkspaceAgentLog) error{
+				func(_ context.Context, _ *testing.T, agent *codersdk.WorkspaceAgent, _ <-chan string, _ chan []codersdk.WorkspaceAgentLog) error {
 					agent.Status = codersdk.WorkspaceAgentConnecting
 					return nil
 				},
-				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentLog) error {
+				func(_ context.Context, t *testing.T, agent *codersdk.WorkspaceAgent, output <-chan string, _ chan []codersdk.WorkspaceAgentLog) error {
+					return waitLines(t, output, "⧗ Waiting for the workspace agent to connect")
+				},
+				func(_ context.Context, _ *testing.T, agent *codersdk.WorkspaceAgent, _ <-chan string, _ chan []codersdk.WorkspaceAgentLog) error {
 					return xerrors.New("bad")
 				},
 			},
@@ -261,13 +337,16 @@ func TestAgent(t *testing.T) {
 				FetchInterval: time.Millisecond,
 				Wait:          true,
 			},
-			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentLog) error{
-				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentLog) error {
+			iter: []func(context.Context, *testing.T, *codersdk.WorkspaceAgent, <-chan string, chan []codersdk.WorkspaceAgentLog) error{
+				func(_ context.Context, _ *testing.T, agent *codersdk.WorkspaceAgent, _ <-chan string, _ chan []codersdk.WorkspaceAgentLog) error {
 					agent.Status = codersdk.WorkspaceAgentTimeout
 					agent.TroubleshootingURL = "https://troubleshoot"
 					return nil
 				},
-				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentLog) error {
+				func(_ context.Context, t *testing.T, agent *codersdk.WorkspaceAgent, output <-chan string, _ chan []codersdk.WorkspaceAgentLog) error {
+					return waitLines(t, output, "The workspace agent is having trouble connecting, wait for it to connect or restart your workspace.")
+				},
+				func(_ context.Context, _ *testing.T, agent *codersdk.WorkspaceAgent, output <-chan string, _ chan []codersdk.WorkspaceAgentLog) error {
 					return xerrors.New("bad")
 				},
 			},
@@ -286,22 +365,27 @@ func TestAgent(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 			defer cancel()
 
-			var buf bytes.Buffer
+			r, w, err := os.Pipe()
+			require.NoError(t, err, "create pipe failed")
+			defer r.Close()
+			defer w.Close()
+
 			agent := codersdk.WorkspaceAgent{
-				ID:                    uuid.New(),
-				Status:                codersdk.WorkspaceAgentConnecting,
-				StartupScriptBehavior: codersdk.WorkspaceAgentStartupScriptBehaviorNonBlocking,
-				CreatedAt:             time.Now(),
-				LifecycleState:        codersdk.WorkspaceAgentLifecycleCreated,
+				ID:             uuid.New(),
+				Status:         codersdk.WorkspaceAgentConnecting,
+				CreatedAt:      time.Now(),
+				LifecycleState: codersdk.WorkspaceAgentLifecycleCreated,
 			}
+			output := make(chan string, 100) // Buffered to avoid blocking, overflow is discarded.
 			logs := make(chan []codersdk.WorkspaceAgentLog, 1)
 
 			cmd := &clibase.Cmd{
 				Handler: func(inv *clibase.Invocation) error {
 					tc.opts.Fetch = func(_ context.Context, _ uuid.UUID) (codersdk.WorkspaceAgent, error) {
+						t.Log("iter", len(tc.iter))
 						var err error
 						if len(tc.iter) > 0 {
-							err = tc.iter[0](ctx, &agent, logs)
+							err = tc.iter[0](ctx, t, &agent, output, logs)
 							tc.iter = tc.iter[1:]
 						}
 						return agent, err
@@ -322,23 +406,24 @@ func TestAgent(t *testing.T) {
 						close(fetchLogs)
 						return fetchLogs, closeFunc(func() error { return nil }), nil
 					}
-					err := cliui.Agent(inv.Context(), &buf, uuid.Nil, tc.opts)
+					err := cliui.Agent(inv.Context(), w, uuid.Nil, tc.opts)
+					_ = w.Close()
 					return err
 				},
 			}
 			inv := cmd.Invoke()
 
-			w := clitest.StartWithWaiter(t, inv)
-			if tc.wantErr {
-				w.RequireError()
-			} else {
-				w.RequireSuccess()
-			}
+			waiter := clitest.StartWithWaiter(t, inv)
 
-			s := bufio.NewScanner(&buf)
+			s := bufio.NewScanner(r)
 			for s.Scan() {
 				line := s.Text()
 				t.Log(line)
+				select {
+				case output <- line:
+				default:
+					t.Logf("output overflow: %s", line)
+				}
 				if len(tc.want) == 0 {
 					require.Fail(t, "unexpected line", line)
 				}
@@ -348,6 +433,12 @@ func TestAgent(t *testing.T) {
 			require.NoError(t, s.Err())
 			if len(tc.want) > 0 {
 				require.Fail(t, "missing lines: "+strings.Join(tc.want, ", "))
+			}
+
+			if tc.wantErr {
+				waiter.RequireError()
+			} else {
+				waiter.RequireSuccess()
 			}
 		})
 	}

@@ -1,28 +1,18 @@
-import { FC, PropsWithChildren, useState } from "react";
-import { Section } from "components/SettingsLayout/Section";
-import { TokensPageView } from "./TokensPageView";
-import makeStyles from "@mui/styles/makeStyles";
-import { useTokensData } from "./hooks";
-import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
-import { Stack } from "components/Stack/Stack";
-import Button from "@mui/material/Button";
+import { css, type Interpolation, type Theme } from "@emotion/react";
+import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
+import Button from "@mui/material/Button";
 import AddIcon from "@mui/icons-material/AddOutlined";
-import { APIKeyWithOwner } from "api/typesGenerated";
+import type { APIKeyWithOwner } from "api/typesGenerated";
+import { Stack } from "components/Stack/Stack";
+import { Section } from "../Section";
+import { useTokensData } from "./hooks";
+import { TokensPageView } from "./TokensPageView";
+import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
 
-export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
-  const styles = useStyles();
+const cliCreateCommand = "coder tokens create";
 
-  const cliCreateCommand = "coder tokens create";
-
-  const TokenActions = () => (
-    <Stack direction="row" justifyContent="end" className={styles.tokenActions}>
-      <Button startIcon={<AddIcon />} component={RouterLink} to="new">
-        Add token
-      </Button>
-    </Stack>
-  );
-
+export const TokensPage: FC = () => {
   const [tokenToDelete, setTokenToDelete] = useState<
     APIKeyWithOwner | undefined
   >(undefined);
@@ -43,7 +33,7 @@ export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
     <>
       <Section
         title="Tokens"
-        className={styles.section}
+        css={styles.section}
         description={
           <>
             Tokens are used to authenticate with the Coder API. You can create a
@@ -73,19 +63,24 @@ export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
   );
 };
 
-const useStyles = makeStyles((theme) => ({
-  section: {
-    "& code": {
-      background: theme.palette.divider,
-      fontSize: 12,
-      padding: "2px 4px",
-      color: theme.palette.text.primary,
-      borderRadius: 2,
-    },
-  },
-  tokenActions: {
-    marginBottom: theme.spacing(1),
-  },
-}));
+const TokenActions: FC = () => (
+  <Stack direction="row" justifyContent="end" css={{ marginBottom: 8 }}>
+    <Button startIcon={<AddIcon />} component={RouterLink} to="new">
+      Add token
+    </Button>
+  </Stack>
+);
+
+const styles = {
+  section: (theme) => css`
+    & code {
+      background: ${theme.palette.divider};
+      font-size: 12px;
+      padding: 2px 4px;
+      color: ${theme.palette.text.primary};
+      border-radius: 2px;
+    }
+  `,
+} satisfies Record<string, Interpolation<Theme>>;
 
 export default TokensPage;

@@ -11,6 +11,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
+	"go.opentelemetry.io/otel/baggage"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
@@ -45,14 +47,16 @@ type Request[T Auditable] struct {
 	Action database.AuditAction
 }
 
-type BuildAuditParams[T Auditable] struct {
+type BackgroundAuditParams[T Auditable] struct {
 	Audit Auditor
 	Log   slog.Logger
 
 	UserID           uuid.UUID
-	JobID            uuid.UUID
+	RequestID        uuid.UUID
 	Status           int
 	Action           database.AuditAction
+	OrganizationID   uuid.UUID
+	IP               string
 	AdditionalFields json.RawMessage
 
 	New T
@@ -89,6 +93,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.Name
 	case database.AuditOAuthConvertState:
 		return string(typed.ToLoginType)
+	case database.HealthSettings:
+		return "" // no target?
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
@@ -119,6 +125,9 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 	case database.AuditOAuthConvertState:
 		// The merge state is for the given user
 		return typed.UserID
+	case database.HealthSettings:
+		// Artificial ID for auditing purposes
+		return typed.ID
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
@@ -148,6 +157,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeWorkspaceProxy
 	case database.AuditOAuthConvertState:
 		return database.ResourceTypeConvertLogin
+	case database.HealthSettings:
+		return database.ResourceTypeHealthSettings
 	default:
 		panic(fmt.Sprintf("unknown resource %T", typed))
 	}
@@ -244,12 +255,10 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 	}
 }
 
-// BuildAudit creates an audit log for a workspace build.
+// BackgroundAudit creates an audit log for a background event.
 // The audit log is committed upon invocation.
-func BuildAudit[T Auditable](ctx context.Context, p *BuildAuditParams[T]) {
-	// As the audit request has not been initiated directly by a user, we omit
-	// certain user details.
-	ip := parseIP("")
+func BackgroundAudit[T Auditable](ctx context.Context, p *BackgroundAuditParams[T]) {
+	ip := parseIP(p.IP)
 
 	diff := Diff(p.Audit, p.Old, p.New)
 	var err error
@@ -267,6 +276,7 @@ func BuildAudit[T Auditable](ctx context.Context, p *BuildAuditParams[T]) {
 		ID:               uuid.New(),
 		Time:             dbtime.Now(),
 		UserID:           p.UserID,
+		OrganizationID:   p.OrganizationID,
 		Ip:               ip,
 		UserAgent:        sql.NullString{},
 		ResourceType:     either(p.Old, p.New, ResourceType[T], p.Action),
@@ -275,17 +285,71 @@ func BuildAudit[T Auditable](ctx context.Context, p *BuildAuditParams[T]) {
 		Action:           p.Action,
 		Diff:             diffRaw,
 		StatusCode:       int32(p.Status),
-		RequestID:        p.JobID,
+		RequestID:        p.RequestID,
 		AdditionalFields: p.AdditionalFields,
 	}
-	exportErr := p.Audit.Export(ctx, auditLog)
-	if exportErr != nil {
+	err = p.Audit.Export(ctx, auditLog)
+	if err != nil {
 		p.Log.Error(ctx, "export audit log",
 			slog.F("audit_log", auditLog),
 			slog.Error(err),
 		)
-		return
 	}
+}
+
+type WorkspaceBuildBaggage struct {
+	IP string
+}
+
+func (b WorkspaceBuildBaggage) Props() ([]baggage.Property, error) {
+	ipProp, err := baggage.NewKeyValueProperty("ip", b.IP)
+	if err != nil {
+		return nil, xerrors.Errorf("create ip kv property: %w", err)
+	}
+
+	return []baggage.Property{ipProp}, nil
+}
+
+func WorkspaceBuildBaggageFromRequest(r *http.Request) WorkspaceBuildBaggage {
+	return WorkspaceBuildBaggage{IP: r.RemoteAddr}
+}
+
+type Baggage interface {
+	Props() ([]baggage.Property, error)
+}
+
+func BaggageToContext(ctx context.Context, d Baggage) (context.Context, error) {
+	props, err := d.Props()
+	if err != nil {
+		return ctx, xerrors.Errorf("create baggage properties: %w", err)
+	}
+
+	m, err := baggage.NewMember("audit", "baggage", props...)
+	if err != nil {
+		return ctx, xerrors.Errorf("create new baggage member: %w", err)
+	}
+
+	b, err := baggage.New(m)
+	if err != nil {
+		return ctx, xerrors.Errorf("create new baggage carrier: %w", err)
+	}
+
+	return baggage.ContextWithBaggage(ctx, b), nil
+}
+
+func BaggageFromContext(ctx context.Context) WorkspaceBuildBaggage {
+	d := WorkspaceBuildBaggage{}
+	b := baggage.FromContext(ctx)
+	props := b.Member("audit").Properties()
+	for _, prop := range props {
+		switch prop.Key() {
+		case "ip":
+			d.IP, _ = prop.Value()
+		default:
+		}
+	}
+
+	return d
 }
 
 func either[T Auditable, R any](old, new T, fn func(T) R, auditAction database.AuditAction) R {
@@ -297,9 +361,8 @@ func either[T Auditable, R any](old, new T, fn func(T) R, auditAction database.A
 		// If the request action is a login or logout, we always want to audit it even if
 		// there is no diff. See the comment in audit.InitRequest for more detail.
 		return fn(old)
-	} else {
-		panic("both old and new are nil")
 	}
+	panic("both old and new are nil")
 }
 
 func parseIP(ipStr string) pqtype.Inet {

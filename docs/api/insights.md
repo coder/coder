@@ -115,6 +115,50 @@ curl -X GET http://coder-server:8080/api/v2/insights/templates \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get insights about user activity
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/insights/user-activity \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /insights/user-activity`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "report": {
+    "end_time": "2019-08-24T14:15:22Z",
+    "start_time": "2019-08-24T14:15:22Z",
+    "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+    "users": [
+      {
+        "avatar_url": "http://example.com",
+        "seconds": 80500,
+        "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+        "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+        "username": "string"
+      }
+    ]
+  }
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                   |
+| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UserActivityInsightsResponse](schemas.md#codersdkuseractivityinsightsresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get insights about user latency
 
 ### Code samples

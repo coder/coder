@@ -1,75 +1,90 @@
-import { PaletteColor, Theme } from "@mui/material/styles";
-import { makeStyles } from "@mui/styles";
-import { FC } from "react";
-import { PaletteIndex } from "theme/theme";
-import { combineClasses } from "utils/combineClasses";
+import { type FC, type ReactNode, useMemo, forwardRef } from "react";
+import { css, type Interpolation, type Theme } from "@emotion/react";
+import type { ThemeRole } from "theme/experimental";
+
+export type PillType = ThemeRole | keyof typeof themeOverrides;
 
 export interface PillProps {
   className?: string;
-  icon?: React.ReactNode;
-  text: string;
-  type?: PaletteIndex;
-  lightBorder?: boolean;
+  icon?: ReactNode;
+  text: ReactNode;
+  type?: PillType;
   title?: string;
 }
 
-export const Pill: FC<PillProps> = (props) => {
-  const { className, icon, text = false, title } = props;
-  const styles = useStyles(props);
-  return (
-    <div
-      className={combineClasses([styles.wrapper, styles.pillColor, className])}
-      role="status"
-      title={title}
-    >
-      {icon && <div className={styles.iconWrapper}>{icon}</div>}
-      {text}
-    </div>
-  );
+const themeOverrides = {
+  neutral: (theme) => ({
+    backgroundColor: theme.colors.gray[13],
+    borderColor: theme.colors.gray[6],
+  }),
+} satisfies Record<string, Interpolation<Theme>>;
+
+const themeStyles = (type: ThemeRole) => (theme: Theme) => {
+  const palette = theme.experimental.roles[type];
+  return {
+    backgroundColor: palette.background,
+    borderColor: palette.outline,
+  };
 };
 
-const useStyles = makeStyles<Theme, PillProps>((theme) => ({
-  wrapper: {
-    display: "inline-flex",
-    alignItems: "center",
-    borderWidth: 1,
-    borderStyle: "solid",
-    borderRadius: 99999,
-    fontSize: 12,
-    color: "#FFF",
-    height: theme.spacing(3),
-    paddingLeft: ({ icon }) =>
-      icon ? theme.spacing(0.75) : theme.spacing(1.5),
-    paddingRight: theme.spacing(1.5),
-    whiteSpace: "nowrap",
-    fontWeight: 400,
-  },
+export const Pill: FC<PillProps> = forwardRef<HTMLDivElement, PillProps>(
+  (props, ref) => {
+    const { icon, text = null, type = "neutral", ...attrs } = props;
 
-  pillColor: {
-    backgroundColor: ({ type }) =>
-      type
-        ? (theme.palette[type] as PaletteColor).dark
-        : theme.palette.text.secondary,
-    borderColor: ({ type, lightBorder }) =>
-      type
-        ? lightBorder
-          ? (theme.palette[type] as PaletteColor).light
-          : (theme.palette[type] as PaletteColor).main
-        : theme.palette.text.secondary,
-  },
+    const typeStyles = useMemo(() => {
+      if (type in themeOverrides) {
+        return themeOverrides[type as keyof typeof themeOverrides];
+      }
+      return themeStyles(type as ThemeRole);
+    }, [type]);
 
-  iconWrapper: {
-    marginRight: theme.spacing(0.5),
-    width: theme.spacing(1.75),
-    height: theme.spacing(1.75),
-    lineHeight: 0,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
+    return (
+      <div
+        ref={ref}
+        css={[
+          {
+            cursor: "default",
+            display: "inline-flex",
+            alignItems: "center",
+            borderWidth: 1,
+            borderStyle: "solid",
+            borderRadius: 99999,
+            fontSize: 12,
+            color: "#FFF",
+            height: 24,
+            paddingLeft: icon ? 6 : 12,
+            paddingRight: 12,
+            whiteSpace: "nowrap",
+            fontWeight: 400,
+          },
+          typeStyles,
+        ]}
+        role="status"
+        {...attrs}
+      >
+        {icon && (
+          <div
+            css={css`
+              margin-right: 4px;
+              width: 14px;
+              height: 14px;
+              line-height: 0;
+              display: flex;
+              align-items: center;
+              justify-content: center;
 
-    "& > svg": {
-      width: theme.spacing(1.75),
-      height: theme.spacing(1.75),
-    },
+              & > img,
+              & > svg {
+                width: 14px;
+                height: 14px;
+              }
+            `}
+          >
+            {icon}
+          </div>
+        )}
+        {text}
+      </div>
+    );
   },
-}));
+);

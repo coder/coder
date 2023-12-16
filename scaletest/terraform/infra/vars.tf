@@ -25,6 +25,11 @@ variable "zone" {
   default     = "us-east1-c"
 }
 
+variable "subnet_cidr" {
+  description = "CIDR range for the subnet."
+  default     = "10.200.0.0/24"
+}
+
 variable "k8s_version" {
   description = "Kubernetes version to provision."
   default     = "1.24"

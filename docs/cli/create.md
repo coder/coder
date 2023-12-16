@@ -20,6 +20,25 @@ coder create [flags] [name]
 
 ## Options
 
+### --automatic-updates
+
+|             |                                                 |
+| ----------- | ----------------------------------------------- |
+| Type        | <code>string</code>                             |
+| Environment | <code>$CODER_WORKSPACE_AUTOMATIC_UPDATES</code> |
+| Default     | <code>never</code>                              |
+
+Specify automatic updates setting for the workspace (accepts 'always' or 'never').
+
+### --copy-parameters-from
+
+|             |                                                    |
+| ----------- | -------------------------------------------------- |
+| Type        | <code>string</code>                                |
+| Environment | <code>$CODER_WORKSPACE_COPY_PARAMETERS_FROM</code> |
+
+Specify the source workspace name to copy parameters from.
+
 ### --parameter
 
 |             |                                    |

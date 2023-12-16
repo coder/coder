@@ -2,7 +2,7 @@ package dashboard
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"io"
 	"math/rand"
 	"time"
@@ -27,6 +27,18 @@ var (
 
 func NewRunner(client *codersdk.Client, metrics Metrics, cfg Config) *Runner {
 	client.Trace = cfg.Trace
+	if cfg.WaitLoaded == nil {
+		cfg.WaitLoaded = waitForWorkspacesPageLoaded
+	}
+	if cfg.ActionFunc == nil {
+		cfg.ActionFunc = clickRandomElement
+	}
+	if cfg.Screenshot == nil {
+		cfg.Screenshot = Screenshot
+	}
+	if cfg.RandIntn == nil {
+		cfg.RandIntn = rand.Intn
+	}
 	return &Runner{
 		client:  client,
 		cfg:     cfg,
@@ -35,97 +47,84 @@ func NewRunner(client *codersdk.Client, metrics Metrics, cfg Config) *Runner {
 }
 
 func (r *Runner) Run(ctx context.Context, _ string, _ io.Writer) error {
+	err := r.runUntilDeadlineExceeded(ctx)
+	// If the context deadline exceeded, don't return an error.
+	// This just means the test finished.
+	if err == nil || errors.Is(err, context.DeadlineExceeded) {
+		return nil
+	}
+	return err
+}
+
+func (r *Runner) runUntilDeadlineExceeded(ctx context.Context) error {
+	if r.client == nil {
+		return xerrors.Errorf("client is nil")
+	}
 	me, err := r.client.User(ctx, codersdk.Me)
 	if err != nil {
-		return err
+		return xerrors.Errorf("get scaletest user: %w", err)
 	}
+	//nolint:gocritic
+	r.cfg.Logger.Info(ctx, "running as user", slog.F("username", me.Username))
 	if len(me.OrganizationIDs) == 0 {
 		return xerrors.Errorf("user has no organizations")
 	}
 
-	c := &cache{}
-	if err := c.fill(ctx, r.client); err != nil {
-		return err
+	cdpCtx, cdpCancel, err := initChromeDPCtx(ctx, r.cfg.Logger, r.client.URL, r.client.SessionToken(), r.cfg.Headless)
+	if err != nil {
+		return xerrors.Errorf("init chromedp ctx: %w", err)
 	}
-
-	p := &Params{
-		client: r.client,
-		me:     me,
-		c:      c,
+	defer cdpCancel()
+	t := time.NewTicker(1) // First one should be immediate
+	defer t.Stop()
+	r.cfg.Logger.Info(ctx, "waiting for workspaces page to load")
+	loadWorkspacePageDeadline := time.Now().Add(r.cfg.Interval)
+	if err := r.cfg.WaitLoaded(cdpCtx, loadWorkspacePageDeadline); err != nil {
+		return xerrors.Errorf("wait for workspaces page to load: %w", err)
 	}
-	rolls := make(chan int)
-	go func() {
-		t := time.NewTicker(r.randWait())
-		defer t.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-t.C:
-				rolls <- rand.Intn(r.cfg.RollTable.max() + 1) // nolint:gosec
-				t.Reset(r.randWait())
-			}
-		}
-	}()
-
 	for {
 		select {
-		case <-ctx.Done():
+		case <-cdpCtx.Done():
 			return nil
-		case n := <-rolls:
-			act := r.cfg.RollTable.choose(n)
-			go r.do(ctx, act, p)
+		case <-t.C:
+			var offset time.Duration
+			if r.cfg.Jitter > 0 {
+				offset = time.Duration(r.cfg.RandIntn(int(2*r.cfg.Jitter)) - int(r.cfg.Jitter))
+			}
+			wait := r.cfg.Interval + offset
+			actionCompleteByDeadline := time.Now().Add(wait)
+			t.Reset(wait)
+			l, act, err := r.cfg.ActionFunc(cdpCtx, r.cfg.Logger, r.cfg.RandIntn, actionCompleteByDeadline)
+			if err != nil {
+				r.cfg.Logger.Error(ctx, "calling ActionFunc", slog.Error(err))
+				sPath, sErr := r.cfg.Screenshot(cdpCtx, me.Username)
+				if sErr != nil {
+					r.cfg.Logger.Error(ctx, "screenshot failed", slog.Error(sErr))
+				}
+				r.cfg.Logger.Info(ctx, "screenshot saved", slog.F("path", sPath))
+				continue
+			}
+			start := time.Now()
+			err = act(cdpCtx)
+			elapsed := time.Since(start)
+			r.metrics.ObserveDuration(string(l), elapsed)
+			if err != nil {
+				r.metrics.IncErrors(string(l))
+				//nolint:gocritic
+				r.cfg.Logger.Error(ctx, "action failed", slog.F("label", l), slog.Error(err))
+				sPath, sErr := r.cfg.Screenshot(cdpCtx, me.Username+"-"+string(l))
+				if sErr != nil {
+					r.cfg.Logger.Error(ctx, "screenshot failed", slog.Error(sErr))
+				}
+				r.cfg.Logger.Info(ctx, "screenshot saved", slog.F("path", sPath))
+			} else {
+				//nolint:gocritic
+				r.cfg.Logger.Info(ctx, "action success", slog.F("label", l))
+			}
 		}
 	}
 }
 
-func (*Runner) Cleanup(_ context.Context, _ string) error {
+func (*Runner) Cleanup(_ context.Context, _ string, _ io.Writer) error {
 	return nil
-}
-
-func (r *Runner) do(ctx context.Context, act RollTableEntry, p *Params) {
-	select {
-	case <-ctx.Done():
-		r.cfg.Logger.Info(ctx, "context done, stopping")
-		return
-	default:
-		var errored bool
-		cancelCtx, cancel := context.WithTimeout(ctx, r.cfg.MaxWait)
-		defer cancel()
-		start := time.Now()
-		err := act.Fn(cancelCtx, p)
-		cancel()
-		elapsed := time.Since(start)
-		if err != nil {
-			errored = true
-			r.cfg.Logger.Error( //nolint:gocritic
-				ctx, "action failed",
-				slog.Error(err),
-				slog.F("action", act.Label),
-				slog.F("elapsed", elapsed),
-			)
-		} else {
-			r.cfg.Logger.Info(ctx, "completed successfully",
-				slog.F("action", act.Label),
-				slog.F("elapsed", elapsed),
-			)
-		}
-		codeLabel := "200"
-		if apiErr, ok := codersdk.AsError(err); ok {
-			codeLabel = fmt.Sprintf("%d", apiErr.StatusCode())
-		} else if xerrors.Is(err, context.Canceled) {
-			codeLabel = "timeout"
-		}
-		r.metrics.ObserveDuration(act.Label, elapsed)
-		r.metrics.IncStatuses(act.Label, codeLabel)
-		if errored {
-			r.metrics.IncErrors(act.Label)
-		}
-	}
-}
-
-func (r *Runner) randWait() time.Duration {
-	// nolint:gosec // This is not for cryptographic purposes. Chill, gosec. Chill.
-	wait := time.Duration(rand.Intn(int(r.cfg.MaxWait) - int(r.cfg.MinWait)))
-	return r.cfg.MinWait + wait
 }

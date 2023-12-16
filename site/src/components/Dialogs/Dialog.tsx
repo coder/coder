@@ -1,23 +1,16 @@
 import MuiDialog, { DialogProps as MuiDialogProps } from "@mui/material/Dialog";
-import { makeStyles } from "@mui/styles";
-import * as React from "react";
-import { colors } from "theme/colors";
-import { combineClasses } from "../../utils/combineClasses";
-import {
-  LoadingButton,
-  LoadingButtonProps,
-} from "../LoadingButton/LoadingButton";
+import { type ReactNode } from "react";
 import { ConfirmDialogType } from "./types";
+import { type Interpolation, type Theme } from "@emotion/react";
+import LoadingButton, { LoadingButtonProps } from "@mui/lab/LoadingButton";
 
 export interface DialogActionButtonsProps {
   /** Text to display in the cancel button */
   cancelText?: string;
   /** Text to display in the confirm button */
-  confirmText?: React.ReactNode;
+  confirmText?: ReactNode;
   /** Whether or not confirm is loading, also disables cancel when true */
   confirmLoading?: boolean;
-  /** Whether or not this is a confirm dialog */
-  confirmDialog?: boolean;
   /** Whether or not the submit button is disabled */
   disabled?: boolean;
   /** Called when cancel is clicked */
@@ -46,8 +39,6 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
   onConfirm,
   type = "info",
 }) => {
-  const styles = useButtonStyles({ type });
-
   return (
     <>
       {onCancel && (
@@ -55,6 +46,7 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
           {cancelText}
         </LoadingButton>
       )}
+
       {onConfirm && (
         <LoadingButton
           fullWidth
@@ -65,10 +57,10 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
           loading={confirmLoading}
           disabled={disabled}
           type="submit"
-          className={combineClasses({
-            [styles.errorButton]: type === "delete",
-            [styles.successButton]: type === "success",
-          })}
+          css={[
+            type === "delete" && styles.warningButton,
+            type === "success" && styles.successButton,
+          ]}
         >
           {confirmText}
         </LoadingButton>
@@ -77,41 +69,57 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
   );
 };
 
-const useButtonStyles = makeStyles((theme) => ({
-  errorButton: {
+const styles = {
+  warningButton: (theme) => ({
     "&.MuiButton-contained": {
-      backgroundColor: colors.red[10],
-      borderColor: colors.red[9],
-      color: theme.palette.text.primary,
+      backgroundColor: theme.palette.warning.main,
+      borderColor: theme.palette.warning.main,
+
+      "&:not(.MuiLoadingButton-loading)": {
+        color: theme.palette.text.primary,
+      },
 
       "&:hover:not(:disabled)": {
-        backgroundColor: colors.red[9],
-        borderColor: colors.red[9],
+        backgroundColor: theme.palette.warning.main,
+        borderColor: theme.palette.warning.main,
       },
 
       "&.Mui-disabled": {
-        backgroundColor: colors.red[15],
-        borderColor: colors.red[15],
-        color: colors.red[9],
+        backgroundColor: theme.palette.warning.dark,
+        borderColor: theme.palette.warning.dark,
+
+        "&:not(.MuiLoadingButton-loading)": {
+          color: theme.palette.warning.main,
+        },
       },
     },
-  },
-  successButton: {
+  }),
+  successButton: (theme) => ({
     "&.MuiButton-contained": {
-      backgroundColor: theme.palette.success.main,
-      color: theme.palette.primary.contrastText,
+      backgroundColor: theme.palette.success.dark,
+
+      "&:not(.MuiLoadingButton-loading)": {
+        color: theme.palette.primary.contrastText,
+      },
+
       "&:hover": {
-        backgroundColor: theme.palette.success.dark,
+        backgroundColor: theme.palette.success.main,
+
         "@media (hover: none)": {
           backgroundColor: "transparent",
         },
+
         "&.Mui-disabled": {
           backgroundColor: "transparent",
         },
       },
+
       "&.Mui-disabled": {
-        backgroundColor: theme.palette.action.disabledBackground,
-        color: theme.palette.text.secondary,
+        backgroundColor: theme.palette.success.dark,
+
+        "&:not(.MuiLoadingButton-loading)": {
+          color: theme.palette.text.secondary,
+        },
       },
     },
 
@@ -145,8 +153,8 @@ const useButtonStyles = makeStyles((theme) => ({
         color: theme.palette.text.secondary,
       },
     },
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;
 
 export type DialogProps = MuiDialogProps;
 

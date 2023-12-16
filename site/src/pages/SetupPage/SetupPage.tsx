@@ -1,28 +1,37 @@
-import { useAuth } from "components/AuthProvider/AuthProvider";
-import { FC } from "react";
+import { type FC } from "react";
 import { Helmet } from "react-helmet-async";
+import { useMutation } from "react-query";
+import { Navigate, useNavigate } from "react-router-dom";
 import { pageTitle } from "utils/page";
-import { SetupPageView } from "./SetupPageView";
-import { Navigate } from "react-router-dom";
-import { useMutation } from "@tanstack/react-query";
 import { createFirstUser } from "api/queries/users";
+import { useAuth } from "contexts/AuthProvider/AuthProvider";
+import { FullScreenLoader } from "components/Loader/FullScreenLoader";
+import { SetupPageView } from "./SetupPageView";
 
 export const SetupPage: FC = () => {
-  const [authState, authSend] = useAuth();
+  const {
+    isLoading,
+    signIn,
+    isConfiguringTheFirstUser,
+    isSignedIn,
+    isSigningIn,
+  } = useAuth();
   const createFirstUserMutation = useMutation(createFirstUser());
-  const userIsSignedIn = authState.matches("signedIn");
-  const setupIsComplete =
-    !authState.matches("loadingInitialAuthData") &&
-    !authState.matches("configuringTheFirstUser");
+  const setupIsComplete = !isConfiguringTheFirstUser;
+  const navigate = useNavigate();
+
+  if (isLoading) {
+    return <FullScreenLoader />;
+  }
 
   // If the user is logged in, navigate to the app
-  if (userIsSignedIn) {
-    return <Navigate to="/" state={{ isRedirect: true }} />;
+  if (isSignedIn) {
+    return <Navigate to="/" state={{ isRedirect: true }} replace />;
   }
 
   // If we've already completed setup, navigate to the login page
   if (setupIsComplete) {
-    return <Navigate to="/login" state={{ isRedirect: true }} />;
+    return <Navigate to="/login" state={{ isRedirect: true }} replace />;
   }
 
   return (
@@ -31,15 +40,12 @@ export const SetupPage: FC = () => {
         <title>{pageTitle("Set up your account")}</title>
       </Helmet>
       <SetupPageView
-        isLoading={createFirstUserMutation.isLoading}
+        isLoading={isSigningIn || createFirstUserMutation.isLoading}
         error={createFirstUserMutation.error}
         onSubmit={async (firstUser) => {
           await createFirstUserMutation.mutateAsync(firstUser);
-          authSend({
-            type: "SIGN_IN",
-            email: firstUser.email,
-            password: firstUser.password,
-          });
+          await signIn(firstUser.email, firstUser.password);
+          navigate("/templates");
         }}
       />
     </>

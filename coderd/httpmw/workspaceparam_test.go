@@ -16,8 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
@@ -75,7 +75,7 @@ func TestWorkspaceParam(t *testing.T) {
 
 	t.Run("None", func(t *testing.T) {
 		t.Parallel()
-		db := dbfake.New()
+		db := dbmem.New()
 		rtr := chi.NewRouter()
 		rtr.Use(httpmw.ExtractWorkspaceParam(db))
 		rtr.Get("/", nil)
@@ -90,7 +90,7 @@ func TestWorkspaceParam(t *testing.T) {
 
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
-		db := dbfake.New()
+		db := dbmem.New()
 		rtr := chi.NewRouter()
 		rtr.Use(httpmw.ExtractWorkspaceParam(db))
 		rtr.Get("/", nil)
@@ -106,7 +106,7 @@ func TestWorkspaceParam(t *testing.T) {
 
 	t.Run("Found", func(t *testing.T) {
 		t.Parallel()
-		db := dbfake.New()
+		db := dbmem.New()
 		rtr := chi.NewRouter()
 		rtr.Use(
 			httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
@@ -121,9 +121,10 @@ func TestWorkspaceParam(t *testing.T) {
 		})
 		r, user := setup(db)
 		workspace, err := db.InsertWorkspace(context.Background(), database.InsertWorkspaceParams{
-			ID:      uuid.New(),
-			OwnerID: user.ID,
-			Name:    "hello",
+			ID:               uuid.New(),
+			OwnerID:          user.ID,
+			Name:             "hello",
+			AutomaticUpdates: database.AutomaticUpdatesNever,
 		})
 		require.NoError(t, err)
 		chi.RouteContext(r.Context()).URLParams.Add("workspace", workspace.ID.String())
@@ -314,7 +315,7 @@ func TestWorkspaceAgentByNameParam(t *testing.T) {
 					DB:              db,
 					RedirectToLogin: true,
 				}),
-				httpmw.ExtractUserParam(db, false),
+				httpmw.ExtractUserParam(db),
 				httpmw.ExtractWorkspaceAndAgentParam(db),
 			)
 			rtr.Get("/", func(w http.ResponseWriter, r *http.Request) {
@@ -347,7 +348,7 @@ type setupConfig struct {
 
 func setupWorkspaceWithAgents(t testing.TB, cfg setupConfig) (database.Store, *http.Request) {
 	t.Helper()
-	db := dbfake.New()
+	db := dbmem.New()
 
 	var (
 		user     = dbgen.User(t, db, database.User{})

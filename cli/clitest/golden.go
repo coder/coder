@@ -182,14 +182,14 @@ func prepareTestData(t *testing.T) (*codersdk.Client, map[string]string) {
 	})
 	require.NoError(t, err)
 	version := coderdtest.CreateTemplateVersion(t, rootClient, firstUser.OrganizationID, nil)
-	version = coderdtest.AwaitTemplateVersionJob(t, rootClient, version.ID)
+	version = coderdtest.AwaitTemplateVersionJobCompleted(t, rootClient, version.ID)
 	template := coderdtest.CreateTemplate(t, rootClient, firstUser.OrganizationID, version.ID, func(req *codersdk.CreateTemplateRequest) {
 		req.Name = "test-template"
 	})
 	workspace := coderdtest.CreateWorkspace(t, rootClient, firstUser.OrganizationID, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
 		req.Name = "test-workspace"
 	})
-	workspaceBuild := coderdtest.AwaitWorkspaceBuildJob(t, rootClient, workspace.LatestBuild.ID)
+	workspaceBuild := coderdtest.AwaitWorkspaceBuildJobCompleted(t, rootClient, workspace.LatestBuild.ID)
 
 	replacements := map[string]string{
 		firstUser.UserID.String():            "[first user ID]",

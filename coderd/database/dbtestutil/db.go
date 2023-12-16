@@ -18,7 +18,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/postgres"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 )
@@ -31,6 +31,7 @@ func WillUsePostgres() bool {
 type options struct {
 	fixedTimezone string
 	dumpOnFailure bool
+	returnSQLDB   func(*sql.DB)
 }
 
 type Option func(*options)
@@ -49,6 +50,27 @@ func WithDumpOnFailure() Option {
 	}
 }
 
+func withReturnSQLDB(f func(*sql.DB)) Option {
+	return func(o *options) {
+		o.returnSQLDB = f
+	}
+}
+
+func NewDBWithSQLDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub, *sql.DB) {
+	t.Helper()
+
+	if !WillUsePostgres() {
+		t.Fatal("cannot use NewDBWithSQLDB without PostgreSQL, consider adding `if !dbtestutil.WillUsePostgres() { t.Skip() }` to this test")
+	}
+
+	var sqlDB *sql.DB
+	opts = append(opts, withReturnSQLDB(func(db *sql.DB) {
+		sqlDB = db
+	}))
+	db, ps := NewDB(t, opts...)
+	return db, ps, sqlDB
+}
+
 func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 	t.Helper()
 
@@ -57,7 +79,7 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 		opt(&o)
 	}
 
-	db := dbfake.New()
+	db := dbmem.New()
 	ps := pubsub.NewInMemory()
 	if WillUsePostgres() {
 		connectionURL := os.Getenv("CODER_PG_CONNECTION_URL")
@@ -88,6 +110,9 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 		t.Cleanup(func() {
 			_ = sqlDB.Close()
 		})
+		if o.returnSQLDB != nil {
+			o.returnSQLDB(sqlDB)
+		}
 		if o.dumpOnFailure {
 			t.Cleanup(func() { DumpOnFailure(t, connectionURL) })
 		}
@@ -186,7 +211,7 @@ func pgDump(dbURL string) ([]byte, error) {
 	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...) // nolint:gosec
 	cmd.Env = []string{
 		// "PGTZ=UTC", // This is probably not going to be useful if tz has been changed.
-		"PGCLIENTENCODINDG=UTF8",
+		"PGCLIENTENCODING=UTF8",
 		"PGDATABASE=", // we should always specify the database name in the connection string
 	}
 	var stdout bytes.Buffer

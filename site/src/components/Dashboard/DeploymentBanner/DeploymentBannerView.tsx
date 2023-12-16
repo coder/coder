@@ -1,44 +1,69 @@
-import { DeploymentStats, WorkspaceStatus } from "api/typesGenerated";
-import { FC, useMemo, useEffect, useState } from "react";
+import type {
+  DeploymentStats,
+  HealthcheckReport,
+  WorkspaceStatus,
+} from "api/typesGenerated";
+import {
+  type FC,
+  type PropsWithChildren,
+  useMemo,
+  useEffect,
+  useState,
+} from "react";
 import prettyBytes from "pretty-bytes";
 import BuildingIcon from "@mui/icons-material/Build";
-import { makeStyles } from "@mui/styles";
-import { RocketIcon } from "components/Icons/RocketIcon";
-import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import Tooltip from "@mui/material/Tooltip";
 import { Link as RouterLink } from "react-router-dom";
 import Link from "@mui/material/Link";
+import { JetBrainsIcon } from "components/Icons/JetBrainsIcon";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import DownloadIcon from "@mui/icons-material/CloudDownload";
 import UploadIcon from "@mui/icons-material/CloudUpload";
 import LatencyIcon from "@mui/icons-material/SettingsEthernet";
 import WebTerminalIcon from "@mui/icons-material/WebAsset";
-import { TerminalIcon } from "components/Icons/TerminalIcon";
-import dayjs from "dayjs";
 import CollectedIcon from "@mui/icons-material/Compare";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import Button from "@mui/material/Button";
+import {
+  css,
+  type CSSObject,
+  type Theme,
+  type Interpolation,
+  useTheme,
+} from "@emotion/react";
+import dayjs from "dayjs";
+import { TerminalIcon } from "components/Icons/TerminalIcon";
+import { RocketIcon } from "components/Icons/RocketIcon";
+import ErrorIcon from "@mui/icons-material/ErrorOutline";
+import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
+import { HelpTooltipTitle } from "components/HelpTooltip/HelpTooltip";
+import { Stack } from "components/Stack/Stack";
+import { type ClassName, useClassName } from "hooks/useClassName";
 
 export const bannerHeight = 36;
 
 export interface DeploymentBannerViewProps {
-  fetchStats?: () => void;
+  health?: HealthcheckReport;
   stats?: DeploymentStats;
+  fetchStats?: () => void;
 }
 
 export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
+  health,
   stats,
   fetchStats,
 }) => {
-  const styles = useStyles();
+  const theme = useTheme();
+  const summaryTooltip = useClassName(classNames.summaryTooltip, []);
+
   const aggregatedMinutes = useMemo(() => {
     if (!stats) {
       return;
     }
     return dayjs(stats.collected_at).diff(stats.aggregated_from, "minutes");
   }, [stats]);
-  const displayLatency = stats?.workspaces.connection_latency_ms.P50 || -1;
+
   const [timeUntilRefresh, setTimeUntilRefresh] = useState(0);
   useEffect(() => {
     if (!stats || !fetchStats) {
@@ -67,6 +92,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
       clearTimeout(timeout);
     };
   }, [fetchStats, stats]);
+
   const lastAggregated = useMemo(() => {
     if (!stats) {
       return;
@@ -79,16 +105,68 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- We want this to periodically update!
   }, [timeUntilRefresh, stats]);
 
+  const healthErrors = health ? getHealthErrors(health) : [];
+  const displayLatency = stats?.workspaces.connection_latency_ms.P50 || -1;
+
   return (
-    <div className={styles.container}>
-      <Tooltip title="Status of your Coder deployment. Only visible for admins!">
-        <div className={styles.rocket}>
-          <RocketIcon />
-        </div>
+    <div
+      css={{
+        position: "sticky",
+        lineHeight: 1,
+        height: bannerHeight,
+        bottom: 0,
+        zIndex: 1,
+        paddingRight: 16,
+        backgroundColor: theme.palette.background.paper,
+        display: "flex",
+        alignItems: "center",
+        fontFamily: MONOSPACE_FONT_FAMILY,
+        fontSize: 12,
+        gap: 32,
+        borderTop: `1px solid ${theme.palette.divider}`,
+        overflowX: "auto",
+        whiteSpace: "nowrap",
+      }}
+    >
+      <Tooltip
+        classes={{ tooltip: summaryTooltip }}
+        title={
+          healthErrors.length > 0 ? (
+            <>
+              <HelpTooltipTitle>
+                We have detected problems with your Coder deployment.
+              </HelpTooltipTitle>
+              <Stack spacing={1}>
+                {healthErrors.map((error) => (
+                  <HealthIssue key={error}>{error}</HealthIssue>
+                ))}
+              </Stack>
+            </>
+          ) : (
+            <>Status of your Coder deployment. Only visible for admins!</>
+          )
+        }
+        open={process.env.STORYBOOK === "true" ? true : undefined}
+        css={{ marginRight: -16 }}
+      >
+        {healthErrors.length > 0 ? (
+          <Link
+            component={RouterLink}
+            to="/health"
+            css={[styles.statusBadge, styles.unhealthy]}
+          >
+            <ErrorIcon />
+          </Link>
+        ) : (
+          <div css={styles.statusBadge}>
+            <RocketIcon />
+          </div>
+        )}
       </Tooltip>
-      <div className={styles.group}>
-        <div className={styles.category}>Workspaces</div>
-        <div className={styles.values}>
+
+      <div css={styles.group}>
+        <div css={styles.category}>Workspaces</div>
+        <div css={styles.values}>
           <WorkspaceBuildValue
             status="pending"
             count={stats?.workspaces.pending}
@@ -115,21 +193,22 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
           />
         </div>
       </div>
-      <div className={styles.group}>
+
+      <div css={styles.group}>
         <Tooltip title={`Activity in the last ~${aggregatedMinutes} minutes`}>
-          <div className={styles.category}>Transmission</div>
+          <div css={styles.category}>Transmission</div>
         </Tooltip>
 
-        <div className={styles.values}>
+        <div css={styles.values}>
           <Tooltip title="Data sent to workspaces">
-            <div className={styles.value}>
+            <div css={styles.value}>
               <DownloadIcon />
               {stats ? prettyBytes(stats.workspaces.rx_bytes) : "-"}
             </div>
           </Tooltip>
           <ValueSeparator />
           <Tooltip title="Data sent from workspaces">
-            <div className={styles.value}>
+            <div css={styles.value}>
               <UploadIcon />
               {stats ? prettyBytes(stats.workspaces.tx_bytes) : "-"}
             </div>
@@ -142,28 +221,50 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
                 : "The average latency of user connections to workspaces"
             }
           >
-            <div className={styles.value}>
+            <div css={styles.value}>
               <LatencyIcon />
               {displayLatency > 0 ? displayLatency?.toFixed(2) + " ms" : "-"}
             </div>
           </Tooltip>
         </div>
       </div>
-      <div className={styles.group}>
-        <div className={styles.category}>Active Connections</div>
 
-        <div className={styles.values}>
+      <div css={styles.group}>
+        <div css={styles.category}>Active Connections</div>
+
+        <div css={styles.values}>
           <Tooltip title="VS Code Editors with the Coder Remote Extension">
-            <div className={styles.value}>
-              <VSCodeIcon className={styles.iconStripColor} />
+            <div css={styles.value}>
+              <VSCodeIcon
+                css={css`
+                  & * {
+                    fill: currentColor;
+                  }
+                `}
+              />
               {typeof stats?.session_count.vscode === "undefined"
                 ? "-"
                 : stats?.session_count.vscode}
             </div>
           </Tooltip>
           <ValueSeparator />
+          <Tooltip title="JetBrains Editors">
+            <div css={styles.value}>
+              <JetBrainsIcon
+                css={css`
+                  & * {
+                    fill: currentColor;
+                  }
+                `}
+              />
+              {typeof stats?.session_count.jetbrains === "undefined"
+                ? "-"
+                : stats?.session_count.jetbrains}
+            </div>
+          </Tooltip>
+          <ValueSeparator />
           <Tooltip title="SSH Sessions">
-            <div className={styles.value}>
+            <div css={styles.value}>
               <TerminalIcon />
               {typeof stats?.session_count.ssh === "undefined"
                 ? "-"
@@ -172,7 +273,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
           </Tooltip>
           <ValueSeparator />
           <Tooltip title="Web Terminal Sessions">
-            <div className={styles.value}>
+            <div css={styles.value}>
               <WebTerminalIcon />
               {typeof stats?.session_count.reconnecting_pty === "undefined"
                 ? "-"
@@ -181,9 +282,18 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
           </Tooltip>
         </div>
       </div>
-      <div className={styles.refresh}>
+
+      <div
+        css={{
+          color: theme.palette.text.primary,
+          marginLeft: "auto",
+          display: "flex",
+          alignItems: "center",
+          gap: 16,
+        }}
+      >
         <Tooltip title="The last time stats were aggregated. Workspaces report statistics periodically, so it may take a bit for these to update!">
-          <div className={styles.value}>
+          <div css={styles.value}>
             <CollectedIcon />
             {lastAggregated}
           </div>
@@ -191,7 +301,24 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 
         <Tooltip title="A countdown until stats are fetched again. Click to refresh!">
           <Button
-            className={`${styles.value} ${styles.refreshButton}`}
+            css={[
+              styles.value,
+              css`
+                margin: 0;
+                padding: 0 8px;
+                height: unset;
+                min-height: unset;
+                font-size: unset;
+                color: unset;
+                border: 0;
+                min-width: unset;
+                font-family: inherit;
+
+                & svg {
+                  margin-right: 4px;
+                }
+              `,
+            ]}
             onClick={() => {
               if (fetchStats) {
                 fetchStats();
@@ -208,16 +335,15 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
   );
 };
 
-const ValueSeparator: FC = () => {
-  const styles = useStyles();
-  return <div className={styles.valueSeparator}>/</div>;
-};
-
-const WorkspaceBuildValue: FC<{
+interface WorkspaceBuildValueProps {
   status: WorkspaceStatus;
   count?: number;
-}> = ({ status, count }) => {
-  const styles = useStyles();
+}
+
+const WorkspaceBuildValue: FC<WorkspaceBuildValueProps> = ({
+  status,
+  count,
+}) => {
   const displayStatus = getDisplayWorkspaceStatus(status);
   let statusText = displayStatus.text;
   let icon = displayStatus.icon;
@@ -232,7 +358,7 @@ const WorkspaceBuildValue: FC<{
         component={RouterLink}
         to={`/workspaces?filter=${encodeURIComponent("status:" + status)}`}
       >
-        <div className={styles.value}>
+        <div css={styles.value}>
           {icon}
           {typeof count === "undefined" ? "-" : count}
         </div>
@@ -241,87 +367,105 @@ const WorkspaceBuildValue: FC<{
   );
 };
 
-const useStyles = makeStyles((theme) => ({
-  rocket: {
-    display: "flex",
-    alignItems: "center",
+const ValueSeparator: FC = () => {
+  return <div css={styles.separator}>/</div>;
+};
 
-    "& svg": {
-      width: 16,
-      height: 16,
-    },
+const HealthIssue: FC<PropsWithChildren> = ({ children }) => {
+  const theme = useTheme();
 
-    [theme.breakpoints.down("lg")]: {
-      display: "none",
-    },
-  },
-  container: {
-    position: "sticky",
-    height: bannerHeight,
-    bottom: 0,
-    zIndex: 1,
-    padding: theme.spacing(0, 2),
-    backgroundColor: theme.palette.background.paper,
-    display: "flex",
-    alignItems: "center",
-    fontFamily: MONOSPACE_FONT_FAMILY,
-    fontSize: 12,
-    gap: theme.spacing(4),
-    borderTop: `1px solid ${theme.palette.divider}`,
-    overflowX: "auto",
-    whiteSpace: "nowrap",
-  },
-  group: {
-    display: "flex",
-    alignItems: "center",
-  },
-  category: {
-    marginRight: theme.spacing(2),
+  return (
+    <Stack direction="row" spacing={1} alignItems="center">
+      <ErrorIcon
+        css={{ width: 16, height: 16 }}
+        htmlColor={theme.colors.red[10]}
+      />
+      {children}
+    </Stack>
+  );
+};
+
+const getHealthErrors = (health: HealthcheckReport) => {
+  const warnings: string[] = [];
+  const sections = [
+    "access_url",
+    "database",
+    "derp",
+    "websocket",
+    "workspace_proxy",
+  ] as const;
+  const messages: Record<(typeof sections)[number], string> = {
+    access_url: "Your access URL may be configured incorrectly.",
+    database: "Your database is unhealthy.",
+    derp: "We're noticing DERP proxy issues.",
+    websocket: "We're noticing websocket issues.",
+    workspace_proxy: "We're noticing workspace proxy issues.",
+  } as const;
+
+  sections.forEach((section) => {
+    if (health[section].severity === "error" && !health[section].dismissed) {
+      warnings.push(messages[section]);
+    }
+  });
+
+  return warnings;
+};
+
+const classNames = {
+  summaryTooltip: (css, theme) => css`
+    ${theme.typography.body2 as CSSObject}
+
+    margin: 0 0 4px 12px;
+    width: 400px;
+    padding: 16px;
+    color: ${theme.palette.text.primary};
+    background-color: ${theme.palette.background.paper};
+    border: 1px solid ${theme.palette.divider};
+    pointer-events: none;
+  `,
+} satisfies Record<string, ClassName>;
+
+const styles = {
+  statusBadge: css`
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 12px;
+    height: 100%;
+    color: #fff;
+
+    & svg {
+      width: 16px;
+      height: 16px;
+    }
+  `,
+  unhealthy: (theme) => css`
+    background-color: ${theme.colors.red[10]};
+  `,
+  group: css`
+    display: flex;
+    align-items: center;
+  `,
+  category: (theme) => ({
+    marginRight: 16,
     color: theme.palette.text.primary,
-  },
-  values: {
+  }),
+  values: (theme) => ({
     display: "flex",
-    gap: theme.spacing(1),
+    gap: 8,
     color: theme.palette.text.secondary,
-  },
-  valueSeparator: {
+  }),
+  value: css`
+    display: flex;
+    align-items: center;
+    gap: 4px;
+
+    & svg {
+      width: 12px;
+      height: 12px;
+    }
+  `,
+  separator: (theme) => ({
     color: theme.palette.text.disabled,
-  },
-  value: {
-    display: "flex",
-    alignItems: "center",
-    gap: theme.spacing(0.5),
-
-    "& svg": {
-      width: 12,
-      height: 12,
-    },
-  },
-  iconStripColor: {
-    "& *": {
-      fill: "currentColor",
-    },
-  },
-  refresh: {
-    color: theme.palette.text.primary,
-    marginLeft: "auto",
-    display: "flex",
-    alignItems: "center",
-    gap: theme.spacing(2),
-  },
-  refreshButton: {
-    margin: 0,
-    padding: "0px 8px",
-    height: "unset",
-    minHeight: "unset",
-    fontSize: "unset",
-    color: "unset",
-    border: 0,
-    minWidth: "unset",
-    fontFamily: "inherit",
-
-    "& svg": {
-      marginRight: theme.spacing(0.5),
-    },
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;

@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "react-query";
 import { updateTemplateMeta } from "api/api";
 import { UpdateTemplateMeta } from "api/typesGenerated";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
@@ -24,8 +24,6 @@ const TemplateSchedulePage: FC = () => {
   // This check can be removed when https://github.com/coder/coder/milestone/19
   // is merged up
   const allowWorkspaceActions = experiments.includes("workspace_actions");
-  const allowAutostopRequirement =
-    entitlements.features["template_autostop_requirement"].enabled;
   const { clearLocal } = useLocalStorage();
 
   const {
@@ -55,7 +53,6 @@ const TemplateSchedulePage: FC = () => {
       <TemplateSchedulePageView
         allowAdvancedScheduling={allowAdvancedScheduling}
         allowWorkspaceActions={allowWorkspaceActions}
-        allowAutostopRequirement={allowAutostopRequirement}
         isSubmitting={isSubmitting}
         template={template}
         submitError={submitError}

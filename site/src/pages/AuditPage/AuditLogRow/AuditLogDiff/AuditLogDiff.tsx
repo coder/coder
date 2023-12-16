@@ -1,9 +1,8 @@
-import { makeStyles } from "@mui/styles";
-import { AuditLog } from "api/typesGenerated";
-import { colors } from "theme/colors";
+import { type Interpolation, type Theme } from "@emotion/react";
+import { type FC } from "react";
+import type { AuditLog } from "api/typesGenerated";
+import colors from "theme/tailwind";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
-import { combineClasses } from "utils/combineClasses";
-import { FC } from "react";
 
 const getDiffValue = (value: unknown): string => {
   if (typeof value === "string") {
@@ -23,43 +22,32 @@ const getDiffValue = (value: unknown): string => {
 };
 
 export const AuditLogDiff: FC<{ diff: AuditLog["diff"] }> = ({ diff }) => {
-  const styles = useStyles();
   const diffEntries = Object.entries(diff);
 
   return (
-    <div className={styles.diff}>
-      <div className={combineClasses([styles.diffColumn, styles.diffOld])}>
+    <div css={styles.diff}>
+      <div css={[styles.diffColumn, styles.diffOld]}>
         {diffEntries.map(([attrName, valueDiff], index) => (
-          <div key={attrName} className={styles.diffRow}>
-            <div className={styles.diffLine}>{index + 1}</div>
-            <div className={styles.diffIcon}>-</div>
+          <div key={attrName} css={styles.diffRow}>
+            <div css={styles.diffLine}>{index + 1}</div>
+            <div css={styles.diffIcon}>-</div>
             <div>
               {attrName}:{" "}
-              <span
-                className={combineClasses([
-                  styles.diffValue,
-                  styles.diffValueOld,
-                ])}
-              >
+              <span css={[styles.diffValue, styles.diffValueOld]}>
                 {valueDiff.secret ? "••••••••" : getDiffValue(valueDiff.old)}
               </span>
             </div>
           </div>
         ))}
       </div>
-      <div className={combineClasses([styles.diffColumn, styles.diffNew])}>
+      <div css={[styles.diffColumn, styles.diffNew]}>
         {diffEntries.map(([attrName, valueDiff], index) => (
-          <div key={attrName} className={styles.diffRow}>
-            <div className={styles.diffLine}>{index + 1}</div>
-            <div className={styles.diffIcon}>+</div>
+          <div key={attrName} css={styles.diffRow}>
+            <div css={styles.diffLine}>{index + 1}</div>
+            <div css={styles.diffIcon}>+</div>
             <div>
               {attrName}:{" "}
-              <span
-                className={combineClasses([
-                  styles.diffValue,
-                  styles.diffValueNew,
-                ])}
-              >
+              <span css={[styles.diffValue, styles.diffValueNew]}>
                 {valueDiff.secret ? "••••••••" : getDiffValue(valueDiff.new)}
               </span>
             </div>
@@ -70,8 +58,8 @@ export const AuditLogDiff: FC<{ diff: AuditLog["diff"] }> = ({ diff }) => {
   );
 };
 
-const useStyles = makeStyles((theme) => ({
-  diff: {
+const styles = {
+  diff: (theme) => ({
     display: "flex",
     alignItems: "flex-start",
     fontSize: theme.typography.body2.fontSize,
@@ -79,21 +67,21 @@ const useStyles = makeStyles((theme) => ({
     fontFamily: MONOSPACE_FONT_FAMILY,
     position: "relative",
     zIndex: 2,
-  },
+  }),
 
   diffColumn: {
     flex: 1,
-    paddingTop: theme.spacing(2),
-    paddingBottom: theme.spacing(2.5),
-    paddingRight: theme.spacing(2),
+    paddingTop: 16,
+    paddingBottom: 20,
+    paddingRight: 16,
     lineHeight: "160%",
     alignSelf: "stretch",
     overflowWrap: "anywhere",
   },
 
   diffOld: {
-    backgroundColor: theme.palette.error.dark,
-    color: theme.palette.error.contrastText,
+    backgroundColor: colors.red[950],
+    color: colors.red[50],
   },
 
   diffRow: {
@@ -103,33 +91,33 @@ const useStyles = makeStyles((theme) => ({
 
   diffLine: {
     opacity: 0.5,
-    width: theme.spacing(6),
+    width: 48,
     textAlign: "right",
     flexShrink: 0,
   },
 
-  diffIcon: {
-    width: theme.spacing(4),
+  diffIcon: (theme) => ({
+    width: 32,
     textAlign: "center",
     fontSize: theme.typography.body1.fontSize,
     flexShrink: 0,
-  },
+  }),
 
   diffNew: {
-    backgroundColor: theme.palette.success.dark,
-    color: theme.palette.success.contrastText,
+    backgroundColor: colors.green[950],
+    color: colors.green[50],
   },
 
   diffValue: {
     padding: 1,
-    borderRadius: theme.shape.borderRadius / 2,
+    borderRadius: 4,
   },
 
   diffValueOld: {
-    backgroundColor: colors.red[12],
+    backgroundColor: colors.red[800],
   },
 
   diffValueNew: {
-    backgroundColor: colors.green[12],
+    backgroundColor: colors.green[800],
   },
-}));
+} satisfies Record<string, Interpolation<Theme>>;

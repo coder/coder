@@ -1,10 +1,6 @@
-import { Template } from "api/typesGenerated";
-
-export type TemplateAutostopRequirementDaysValue =
-  | "off"
-  | "daily"
-  | "saturday"
-  | "sunday";
+import { type FC } from "react";
+import type { Template } from "api/typesGenerated";
+import type { TemplateAutostopRequirementDaysValue } from "utils/schedule";
 
 const autostopRequirementDescriptions = {
   off: "Workspaces are not required to stop periodically.",
@@ -31,44 +27,24 @@ export const convertAutostopRequirementDaysValue = (
   return "off";
 };
 
-export const calculateAutostopRequirementDaysValue = (
-  value: TemplateAutostopRequirementDaysValue,
-): Template["autostop_requirement"]["days_of_week"] => {
-  switch (value) {
-    case "daily":
-      return [
-        "monday",
-        "tuesday",
-        "wednesday",
-        "thursday",
-        "friday",
-        "saturday",
-        "sunday",
-      ];
-    case "saturday":
-      return ["saturday"];
-    case "sunday":
-      return ["sunday"];
-  }
-
-  return [];
-};
-
-export const AutostopRequirementDaysHelperText = ({
-  days = "off",
-}: {
+interface AutostopRequirementDaysHelperTextProps {
   days: TemplateAutostopRequirementDaysValue;
-}) => {
+}
+
+export const AutostopRequirementDaysHelperText: FC<
+  AutostopRequirementDaysHelperTextProps
+> = ({ days = "off" }) => {
   return <span>{autostopRequirementDescriptions[days]}</span>;
 };
 
-export const AutostopRequirementWeeksHelperText = ({
-  days,
-  weeks,
-}: {
+interface AutostopRequirementWeeksHelperTextProps {
   days: TemplateAutostopRequirementDaysValue;
   weeks: number;
-}) => {
+}
+
+export const AutostopRequirementWeeksHelperText: FC<
+  AutostopRequirementWeeksHelperTextProps
+> = ({ days, weeks }) => {
   // Disabled
   if (days !== "saturday" && days !== "sunday") {
     return (

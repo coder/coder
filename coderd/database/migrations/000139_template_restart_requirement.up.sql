@@ -1,5 +1,3 @@
-BEGIN;
-
 ALTER TABLE templates
 	-- The max_ttl column will be dropped eventually when the new "restart
 	-- requirement" feature flag is fully rolled out.
@@ -31,5 +29,3 @@ AS
 	ON
 	    templates.created_by = visible_users.id;
 COMMENT ON VIEW template_with_users IS 'Joins in the username + avatar url of the created by user.';
-
-COMMIT;

@@ -47,6 +47,8 @@ import (
 	"github.com/coder/coder/v2/cryptorand"
 )
 
+var ErrConnClosed = xerrors.New("connection closed")
+
 const (
 	WorkspaceAgentSSHPort             = 1
 	WorkspaceAgentReconnectingPTYPort = 2
@@ -496,7 +498,7 @@ func (c *Conn) UpdateNodes(nodes []*Node, replacePeers bool) error {
 	defer c.mutex.Unlock()
 
 	if c.isClosed() {
-		return xerrors.New("connection closed")
+		return ErrConnClosed
 	}
 
 	status := c.Status()
@@ -590,7 +592,7 @@ func (c *Conn) RemovePeer(selector PeerSelector) (deleted bool, err error) {
 	defer c.mutex.Unlock()
 
 	if c.isClosed() {
-		return false, xerrors.New("connection closed")
+		return false, ErrConnClosed
 	}
 
 	deleted = false
@@ -786,6 +788,7 @@ func (c *Conn) Close() error {
 	}
 
 	_ = c.netStack.Close()
+	c.logger.Debug(context.Background(), "closed netstack")
 	c.dialCancel()
 	_ = c.wireguardMonitor.Close()
 	_ = c.dialer.Close()
@@ -919,7 +922,7 @@ func (c *Conn) Listen(network, addr string) (net.Listener, error) {
 	c.mutex.Lock()
 	if c.isClosed() {
 		c.mutex.Unlock()
-		return nil, xerrors.New("closed")
+		return nil, ErrConnClosed
 	}
 	if c.listeners == nil {
 		c.listeners = map[listenKey]*listener{}
@@ -934,14 +937,17 @@ func (c *Conn) Listen(network, addr string) (net.Listener, error) {
 }
 
 func (c *Conn) DialContextTCP(ctx context.Context, ipp netip.AddrPort) (*gonet.TCPConn, error) {
+	c.logger.Debug(ctx, "dial tcp", slog.F("addr_port", ipp))
 	return c.netStack.DialContextTCP(ctx, ipp)
 }
 
 func (c *Conn) DialContextUDP(ctx context.Context, ipp netip.AddrPort) (*gonet.UDPConn, error) {
+	c.logger.Debug(ctx, "dial udp", slog.F("addr_port", ipp))
 	return c.netStack.DialContextUDP(ctx, ipp)
 }
 
-func (c *Conn) forwardTCP(_, dst netip.AddrPort) (handler func(net.Conn), opts []tcpip.SettableSocketOption, intercept bool) {
+func (c *Conn) forwardTCP(src, dst netip.AddrPort) (handler func(net.Conn), opts []tcpip.SettableSocketOption, intercept bool) {
+	logger := c.logger.Named("tcp").With(slog.F("src", src.String()), slog.F("dst", dst.String()))
 	c.mutex.Lock()
 	ln, ok := c.listeners[listenKey{"tcp", "", fmt.Sprint(dst.Port())}]
 	c.mutex.Unlock()
@@ -959,10 +965,14 @@ func (c *Conn) forwardTCP(_, dst netip.AddrPort) (handler func(net.Conn), opts [
 		defer t.Stop()
 		select {
 		case ln.conn <- conn:
+			logger.Info(context.Background(), "accepted connection")
 			return
 		case <-ln.closed:
+			logger.Info(context.Background(), "listener closed; closing connection")
 		case <-c.closed:
+			logger.Info(context.Background(), "tailnet closed; closing connection")
 		case <-t.C:
+			logger.Info(context.Background(), "listener timed out accepting; closing connection")
 		}
 		_ = conn.Close()
 	}, opts, true

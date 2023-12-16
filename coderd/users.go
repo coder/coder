@@ -28,6 +28,47 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// userDebugOIDC returns the OIDC debug context for the user.
+// Not going to expose this via swagger as the return payload is not guaranteed
+// to be consistent between releases.
+//
+// @Summary Debug OIDC context for a user
+// @ID debug-oidc-context-for-a-user
+// @Security CoderSessionToken
+// @Tags Agents
+// @Success 200 "Success"
+// @Param user path string true "User ID, name, or me"
+// @Router /debug/{user}/debug-link [get]
+// @x-apidocgen {"skip": true}
+func (api *API) userDebugOIDC(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx  = r.Context()
+		user = httpmw.UserParam(r)
+	)
+
+	if user.LoginType != database.LoginTypeOIDC {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "User is not an OIDC user.",
+		})
+		return
+	}
+
+	link, err := api.Database.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
+		UserID:    user.ID,
+		LoginType: database.LoginTypeOIDC,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get user links.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// This will encode properly because it is a json.RawMessage.
+	httpapi.Write(ctx, rw, http.StatusOK, link.DebugContext)
+}
+
 // Returns whether the initial user has been created or not.
 //
 // @Summary Check initial user created
@@ -501,7 +542,7 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Users
-// @Param user path string true "User ID, name, or me"
+// @Param user path string true "User ID, username, or me"
 // @Success 200 {object} codersdk.User
 // @Router /users/{user} [get]
 func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
@@ -585,15 +626,12 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	isDifferentUser := existentUser.ID != user.ID
 
 	if err == nil && isDifferentUser {
-		responseErrors := []codersdk.ValidationError{}
-		if existentUser.Username == params.Username {
-			responseErrors = append(responseErrors, codersdk.ValidationError{
-				Field:  "username",
-				Detail: "this value is already in use and should be unique",
-			})
-		}
+		responseErrors := []codersdk.ValidationError{{
+			Field:  "username",
+			Detail: "This username is already in use.",
+		}}
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-			Message:     "User already exists.",
+			Message:     "A user with this username already exists.",
 			Validations: responseErrors,
 		})
 		return
@@ -721,6 +759,52 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 
 		httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(suspendedUser, organizations))
 	}
+}
+
+// @Summary Update user appearance settings
+// @ID update-user-appearance-settings
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Param request body codersdk.UpdateUserAppearanceSettingsRequest true "New appearance settings"
+// @Success 200 {object} codersdk.User
+// @Router /users/{user}/appearance [put]
+func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx  = r.Context()
+		user = httpmw.UserParam(r)
+	)
+
+	var params codersdk.UpdateUserAppearanceSettingsRequest
+	if !httpapi.Read(ctx, rw, r, &params) {
+		return
+	}
+
+	updatedUser, err := api.Database.UpdateUserAppearanceSettings(ctx, database.UpdateUserAppearanceSettingsParams{
+		ID:              user.ID,
+		ThemePreference: params.ThemePreference,
+		UpdatedAt:       dbtime.Now(),
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating user.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	organizationIDs, err := userOrganizationIDs(ctx, api, user)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching user's organizations.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(updatedUser, organizationIDs))
 }
 
 // @Summary Update user password
@@ -1079,10 +1163,11 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			}
 
 			organization, err := tx.InsertOrganization(ctx, database.InsertOrganizationParams{
-				ID:        uuid.New(),
-				Name:      req.Username,
-				CreatedAt: dbtime.Now(),
-				UpdatedAt: dbtime.Now(),
+				ID:          uuid.New(),
+				Name:        req.Username,
+				CreatedAt:   dbtime.Now(),
+				UpdatedAt:   dbtime.Now(),
+				Description: "",
 			})
 			if err != nil {
 				return xerrors.Errorf("create organization: %w", err)
@@ -1101,11 +1186,12 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		}
 
 		params := database.InsertUserParams{
-			ID:        uuid.New(),
-			Email:     req.Email,
-			Username:  req.Username,
-			CreatedAt: dbtime.Now(),
-			UpdatedAt: dbtime.Now(),
+			ID:             uuid.New(),
+			Email:          req.Email,
+			Username:       req.Username,
+			CreatedAt:      dbtime.Now(),
+			UpdatedAt:      dbtime.Now(),
+			HashedPassword: []byte{},
 			// All new users are defaulted to members of the site.
 			RBACRoles: []string{},
 			LoginType: req.LoginType,
@@ -1165,23 +1251,23 @@ func convertUsers(users []database.User, organizationIDsByUserID map[uuid.UUID][
 
 func userOrganizationIDs(ctx context.Context, api *API, user database.User) ([]uuid.UUID, error) {
 	organizationIDsByMemberIDsRows, err := api.Database.GetOrganizationIDsByMemberIDs(ctx, []uuid.UUID{user.ID})
-	if errors.Is(err, sql.ErrNoRows) {
-		return []uuid.UUID{}, xerrors.Errorf("user %q must be a member of at least one organization", user.Email)
-	}
 	if err != nil {
 		return []uuid.UUID{}, err
+	}
+	if len(organizationIDsByMemberIDsRows) == 0 {
+		return []uuid.UUID{}, xerrors.Errorf("user %q must be a member of at least one organization", user.Email)
 	}
 	member := organizationIDsByMemberIDsRows[0]
 	return member.OrganizationIDs, nil
 }
 
-func findUser(id uuid.UUID, users []database.User) *database.User {
-	for _, u := range users {
-		if u.ID == id {
-			return &u
+func usernameWithID(id uuid.UUID, users []database.User) (string, bool) {
+	for _, user := range users {
+		if id == user.ID {
+			return user.Username, true
 		}
 	}
-	return nil
+	return "", false
 }
 
 func convertAPIKey(k database.APIKey) codersdk.APIKey {

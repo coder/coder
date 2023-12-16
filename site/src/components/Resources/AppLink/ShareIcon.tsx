@@ -1,7 +1,7 @@
 import PublicOutlinedIcon from "@mui/icons-material/PublicOutlined";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import LaunchOutlinedIcon from "@mui/icons-material/LaunchOutlined";
-import * as TypesGen from "../../../api/typesGenerated";
+import * as TypesGen from "api/typesGenerated";
 import Tooltip from "@mui/material/Tooltip";
 
 export interface ShareIconProps {

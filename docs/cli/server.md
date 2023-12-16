@@ -31,6 +31,28 @@ coder server [flags]
 
 The URL that users will use to access the Coder deployment.
 
+### --allow-custom-quiet-hours
+
+|             |                                                           |
+| ----------- | --------------------------------------------------------- |
+| Type        | <code>bool</code>                                         |
+| Environment | <code>$CODER_ALLOW_CUSTOM_QUIET_HOURS</code>              |
+| YAML        | <code>userQuietHoursSchedule.allowCustomQuietHours</code> |
+| Default     | <code>true</code>                                         |
+
+Allow users to set their own quiet hours schedule for workspaces to stop in (depending on template autostop requirement settings). If false, users can't change their quiet hours schedule and the site default is always used.
+
+### --allow-workspace-renames
+
+|             |                                             |
+| ----------- | ------------------------------------------- |
+| Type        | <code>bool</code>                           |
+| Environment | <code>$CODER_ALLOW_WORKSPACE_RENAMES</code> |
+| YAML        | <code>allowWorkspaceRenames</code>          |
+| Default     | <code>false</code>                          |
+
+DEPRECATED: Allow users to rename their workspaces. Use only for temporary compatibility reasons, this will be removed in a future release.
+
 ### --block-direct-connections
 
 |             |                                          |
@@ -179,8 +201,9 @@ Addresses for STUN servers to establish P2P connections. It's recommended to hav
 | Type        | <code>string</code>                                           |
 | Environment | <code>$CODER_QUIET_HOURS_DEFAULT_SCHEDULE</code>              |
 | YAML        | <code>userQuietHoursSchedule.defaultQuietHoursSchedule</code> |
+| Default     | <code>CRON_TZ=UTC 0 0 \* \* \*</code>                         |
 
-The default daily cron schedule applied to users that haven't set a custom quiet hours schedule themselves. The quiet hours schedule determines when workspaces will be force stopped due to the template's max TTL, and will round the max TTL up to be within the user's quiet hours window (or default). The format is the same as the standard cron format, but the day-of-month, month and day-of-week must be \*. Only one hour and minute can be specified (ranges or comma separated values are not supported).
+The default daily cron schedule applied to users that haven't set a custom quiet hours schedule themselves. The quiet hours schedule determines when workspaces will be force stopped due to the template's autostop requirement, and will round the max deadline up to be within the user's quiet hours window (or default). The format is the same as the standard cron format, but the day-of-month, month and day-of-week must be \*. Only one hour and minute can be specified (ranges or comma separated values are not supported).
 
 ### --disable-owner-workspace-access
 
@@ -305,6 +328,28 @@ Time to force cancel provisioning tasks that are stuck.
 
 HTTP bind address of the server. Unset to disable the HTTP endpoint.
 
+### --health-check-refresh
+
+|             |                                                |
+| ----------- | ---------------------------------------------- |
+| Type        | <code>duration</code>                          |
+| Environment | <code>$CODER_HEALTH_CHECK_REFRESH</code>       |
+| YAML        | <code>introspection.healthcheck.refresh</code> |
+| Default     | <code>10m0s</code>                             |
+
+Refresh interval for healthchecks.
+
+### --health-check-threshold-database
+
+|             |                                                          |
+| ----------- | -------------------------------------------------------- |
+| Type        | <code>duration</code>                                    |
+| Environment | <code>$CODER_HEALTH_CHECK_THRESHOLD_DATABASE</code>      |
+| YAML        | <code>introspection.healthcheck.thresholdDatabase</code> |
+| Default     | <code>15ms</code>                                        |
+
+The threshold for the database health check. If the median latency of the database exceeds this threshold over 5 attempts, the database is considered unhealthy. The default value is 15ms.
+
 ### --log-human
 
 |             |                                              |
@@ -426,6 +471,16 @@ Base URL of a GitHub Enterprise deployment to use for Login with GitHub.
 | Default     | <code>true</code>                      |
 
 Whether new users can sign up with OIDC.
+
+### --oidc-allowed-groups
+
+|             |                                         |
+| ----------- | --------------------------------------- |
+| Type        | <code>string-array</code>               |
+| Environment | <code>$CODER_OIDC_ALLOWED_GROUPS</code> |
+| YAML        | <code>oidc.groupAllowed</code>          |
+
+If provided any group name not in the list will not be allowed to authenticate. This allows for restricting access to a specific set of groups. This filter is applied after the group mapping and before the regex filter.
 
 ### --oidc-auth-url-params
 
@@ -874,6 +929,17 @@ Two optional fields can be set in the Strict-Transport-Security header; 'include
 
 HTTPS bind address of the server.
 
+### --tls-allow-insecure-ciphers
+
+|             |                                                     |
+| ----------- | --------------------------------------------------- |
+| Type        | <code>bool</code>                                   |
+| Environment | <code>$CODER_TLS_ALLOW_INSECURE_CIPHERS</code>      |
+| YAML        | <code>networking.tls.tlsAllowInsecureCiphers</code> |
+| Default     | <code>false</code>                                  |
+
+By default, only ciphers marked as 'secure' are allowed to be used. See https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L82-L95.
+
 ### --tls-cert-file
 
 |             |                                       |
@@ -883,6 +949,16 @@ HTTPS bind address of the server.
 | YAML        | <code>networking.tls.certFiles</code> |
 
 Path to each certificate for TLS. It requires a PEM-encoded file. To configure the listener to use a CA certificate, concatenate the primary certificate and the CA certificate together. The primary certificate should appear first in the combined file.
+
+### --tls-ciphers
+
+|             |                                        |
+| ----------- | -------------------------------------- |
+| Type        | <code>string-array</code>              |
+| Environment | <code>$CODER_TLS_CIPHERS</code>        |
+| YAML        | <code>networking.tls.tlsCiphers</code> |
+
+Specify specific TLS ciphers that allowed to be used. See https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L53-L75.
 
 ### --tls-client-auth
 
@@ -996,6 +1072,17 @@ Enables trace exporting to Honeycomb.io using the provided API Key.
 | Default     | <code>false</code>               |
 
 Periodically check for new releases of Coder and inform the owner. The check is performed once per day.
+
+### --web-terminal-renderer
+
+|             |                                           |
+| ----------- | ----------------------------------------- |
+| Type        | <code>string</code>                       |
+| Environment | <code>$CODER_WEB_TERMINAL_RENDERER</code> |
+| YAML        | <code>client.webTerminalRenderer</code>   |
+| Default     | <code>canvas</code>                       |
+
+The renderer to use when opening a web terminal. Valid values are 'canvas', 'webgl', or 'dom'.
 
 ### --wildcard-access-url
 

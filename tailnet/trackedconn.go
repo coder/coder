@@ -13,9 +13,16 @@ import (
 	"cdr.dev/slog"
 )
 
-// WriteTimeout is the amount of time we wait to write a node update to a connection before we declare it hung.
-// It is exported so that tests can use it.
-const WriteTimeout = time.Second * 5
+const (
+	// WriteTimeout is the amount of time we wait to write a node update to a connection before we
+	// declare it hung. It is exported so that tests can use it.
+	WriteTimeout = time.Second * 5
+	// ResponseBufferSize is the max number of responses to buffer per connection before we start
+	// dropping updates
+	ResponseBufferSize = 512
+	// RequestBufferSize is the max number of requests to buffer per connection
+	RequestBufferSize = 32
+)
 
 type TrackedConn struct {
 	ctx      context.Context
@@ -48,7 +55,7 @@ func NewTrackedConn(ctx context.Context, cancel func(),
 	// coordinator mutex while queuing.  Node updates don't
 	// come quickly, so 512 should be plenty for all but
 	// the most pathological cases.
-	updates := make(chan []*Node, 512)
+	updates := make(chan []*Node, ResponseBufferSize)
 	now := time.Now().Unix()
 	return &TrackedConn{
 		ctx:        ctx,

@@ -1,47 +1,99 @@
 // This is the only place MuiAvatar can be used
 // eslint-disable-next-line no-restricted-imports -- Read above
-import MuiAvatar, { AvatarProps as MuiAvatarProps } from "@mui/material/Avatar";
-import { makeStyles } from "@mui/styles";
-import { FC } from "react";
-import { combineClasses } from "utils/combineClasses";
+import MuiAvatar, {
+  type AvatarProps as MuiAvatarProps,
+} from "@mui/material/Avatar";
+import { type FC, useId } from "react";
+import { css, type Interpolation, type Theme } from "@emotion/react";
+import { visuallyHidden } from "@mui/utils";
 
 export type AvatarProps = MuiAvatarProps & {
-  size?: "sm" | "md" | "xl";
-  colorScheme?: "light" | "darken";
+  size?: "xs" | "sm" | "md" | "xl";
+  background?: boolean;
   fitImage?: boolean;
 };
 
+const sizeStyles = {
+  xs: {
+    width: 16,
+    height: 16,
+    fontSize: 8,
+    fontWeight: 700,
+  },
+  sm: {
+    width: 24,
+    height: 24,
+    fontSize: 12,
+    fontWeight: 600,
+  },
+  md: {},
+  xl: {
+    width: 48,
+    height: 48,
+    fontSize: 24,
+  },
+} satisfies Record<string, Interpolation<Theme>>;
+
+const fitImageStyles = css`
+  & .MuiAvatar-img {
+    object-fit: contain;
+  }
+`;
+
 export const Avatar: FC<AvatarProps> = ({
   size = "md",
-  colorScheme = "light",
   fitImage,
-  className,
   children,
+  background,
   ...muiProps
 }) => {
-  const styles = useStyles();
+  const fromName = !muiProps.src && typeof children === "string";
 
   return (
     <MuiAvatar
       {...muiProps}
-      className={combineClasses([
-        className,
-        styles[size],
-        styles[colorScheme],
-        fitImage && styles.fitImage,
-      ])}
+      css={[
+        sizeStyles[size],
+        fitImage && fitImageStyles,
+        (theme) => ({
+          background:
+            background || fromName ? theme.palette.divider : undefined,
+          color: theme.palette.text.primary,
+        }),
+      ]}
     >
       {typeof children === "string" ? firstLetter(children) : children}
     </MuiAvatar>
   );
 };
 
+type AvatarIconProps = {
+  src: string;
+  alt: string;
+};
+
 /**
  * Use it to make an img element behaves like a MaterialUI Icon component
  */
-export const AvatarIcon: FC<{ src: string }> = ({ src }) => {
-  const styles = useStyles();
-  return <img src={src} alt="" className={styles.avatarIcon} />;
+export const AvatarIcon: FC<AvatarIconProps> = ({ src, alt }) => {
+  const hookId = useId();
+  const avatarId = `${hookId}-avatar`;
+
+  // We use a `visuallyHidden` element instead of setting `alt` to avoid
+  // splatting the text out on the screen if the image fails to load.
+  return (
+    <>
+      <img
+        src={src}
+        alt=""
+        css={{ maxWidth: "50%" }}
+        aria-labelledby={avatarId}
+      />
+      <div id={avatarId} css={{ ...visuallyHidden }}>
+        {alt}
+      </div>
+    </>
+  );
 };
 
 const firstLetter = (str: string): string => {
@@ -51,36 +103,3 @@ const firstLetter = (str: string): string => {
 
   return "";
 };
-
-const useStyles = makeStyles((theme) => ({
-  // Size styles
-  sm: {
-    width: theme.spacing(3),
-    height: theme.spacing(3),
-    fontSize: theme.spacing(1.5),
-  },
-  // Just use the default value from theme
-  md: {},
-  xl: {
-    width: theme.spacing(6),
-    height: theme.spacing(6),
-    fontSize: theme.spacing(3),
-  },
-  // Colors
-  // Just use the default value from theme
-  light: {},
-  darken: {
-    background: theme.palette.divider,
-    color: theme.palette.text.primary,
-  },
-  // Avatar icon
-  avatarIcon: {
-    maxWidth: "50%",
-  },
-  // Fit image
-  fitImage: {
-    "& .MuiAvatar-img": {
-      objectFit: "contain",
-    },
-  },
-}));

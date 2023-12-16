@@ -10,19 +10,22 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/coder/coder/v2/codersdk"
+
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/tailnet"
 )
 
 const (
+	templateNameLabel  = "template_name"
 	agentNameLabel     = "agent_name"
 	usernameLabel      = "username"
 	workspaceNameLabel = "workspace_name"
@@ -119,7 +122,7 @@ func Workspaces(ctx context.Context, registerer prometheus.Registerer, db databa
 
 		gauge.Reset()
 		for _, job := range jobs {
-			status := db2sdk.ProvisionerJobStatus(job)
+			status := codersdk.ProvisionerJobStatus(job.JobStatus)
 			gauge.WithLabelValues(string(status)).Add(1)
 		}
 	}
@@ -153,7 +156,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		Subsystem: "agents",
 		Name:      "up",
 		Help:      "The number of active agents per workspace.",
-	}, []string{usernameLabel, workspaceNameLabel, "template_name", "template_version"}))
+	}, []string{usernameLabel, workspaceNameLabel, templateNameLabel, "template_version"}))
 	err := registerer.Register(agentsGauge)
 	if err != nil {
 		return nil, err

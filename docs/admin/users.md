@@ -13,7 +13,8 @@ Coder offers these user roles in the community edition:
 | Manage groups (enterprise)                            |         | ✅         |                | ✅    |
 | Change User roles                                     |         |            |                | ✅    |
 | Manage **ALL** Templates                              |         |            | ✅             | ✅    |
-| View, update and delete **ALL** Workspaces            |         |            | ✅             | ✅    |
+| View **ALL** Workspaces                               |         |            | ✅             | ✅    |
+| Update and delete **ALL** Workspaces                  |         |            |                | ✅    |
 | Run [external provisioners](./provisioners.md)        |         |            | ✅             | ✅    |
 | Execute and use **ALL** Workspaces                    |         |            |                | ✅    |
 | View all user operation [Audit Logs](./audit-logs.md) | ✅      |            |                | ✅    |
@@ -66,6 +67,9 @@ suspended accounts and decide whether to lift the suspension and allow the user
 back into the Coder environment. This level of control ensures that
 administrators can enforce security measures and handle any compliance-related
 issues promptly.
+
+Similar to dormant users, suspended users do not count towards the total number
+of licensed seats.
 
 ## Create a user
 

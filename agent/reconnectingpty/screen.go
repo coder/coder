@@ -206,12 +206,13 @@ func (rpty *screenReconnectingPTY) doAttach(ctx context.Context, conn net.Conn, 
 	cmd := pty.CommandContext(ctx, "screen", append([]string{
 		// -S is for setting the session's name.
 		"-S", rpty.id,
+		// -U tells screen to use UTF-8 encoding.
 		// -x allows attaching to an already attached session.
 		// -RR reattaches to the daemon or creates the session daemon if missing.
 		// -q disables the "New screen..." message that appears for five seconds
 		//    when creating a new session with -RR.
 		// -c is the flag for the config file.
-		"-xRRqc", rpty.configFile,
+		"-UxRRqc", rpty.configFile,
 		rpty.command.Path,
 		// pty.Cmd duplicates Path as the first argument so remove it.
 	}, rpty.command.Args[1:]...)...)

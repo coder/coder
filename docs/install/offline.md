@@ -54,7 +54,7 @@ RUN mkdir -p /opt/terraform
 # The below step is optional if you wish to keep the existing version.
 # See https://github.com/coder/coder/blob/main/provisioner/terraform/install.go#L23-L24
 # for supported Terraform versions.
-ARG TERRAFORM_VERSION=1.3.9
+ARG TERRAFORM_VERSION=1.5.6
 RUN apk update && \
     apk del terraform && \
     curl -LOs https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip \
@@ -67,49 +67,49 @@ ENV PATH=/opt/terraform:${PATH}
 # to download the Terraform providers used in Coder templates.
 # There are two options:
 
-# Option 1) Use a filesystem mirror. We can seed this at build-time
-#    or by mounting a volume to /opt/terraform/plugins in the container.
-#    https://developer.hashicorp.com/terraform/cli/config/config-file#filesystem_mirror
-#    Be sure to add all the providers you use in your templates to /opt/terraform/plugins
+# Option 1) Use a filesystem mirror.
+#  We can seed this at build-time or by mounting a volume to
+#  /opt/terraform/plugins in the container.
+#  https://developer.hashicorp.com/terraform/cli/config/config-file#filesystem_mirror
+#  Be sure to add all the providers you use in your templates to /opt/terraform/plugins
 
-RUN mkdir -p /opt/terraform/plugins
-ADD filesystem-mirror-example.tfrc /opt/terraform/config.tfrc
+RUN mkdir -p /home/coder/.terraform.d/plugins/registry.terraform.io
+ADD filesystem-mirror-example.tfrc /home/coder/.terraformrc
 
 # Optionally, we can "seed" the filesystem mirror with common providers.
 # Comment out lines 40-49 if you plan on only using a volume or network mirror:
-RUN mkdir -p /opt/terraform/plugins/registry.terraform.io
-WORKDIR /opt/terraform/plugins/registry.terraform.io
-ARG CODER_PROVIDER_VERSION=0.6.10
+WORKDIR /home/coder/.terraform.d/plugins/registry.terraform.io
+ARG CODER_PROVIDER_VERSION=0.12.1
 RUN echo "Adding coder/coder v${CODER_PROVIDER_VERSION}" \
     && mkdir -p coder/coder && cd coder/coder \
     && curl -LOs https://github.com/coder/terraform-provider-coder/releases/download/v${CODER_PROVIDER_VERSION}/terraform-provider-coder_${CODER_PROVIDER_VERSION}_linux_amd64.zip
-ARG DOCKER_PROVIDER_VERSION=3.0.1
+ARG DOCKER_PROVIDER_VERSION=3.0.2
 RUN echo "Adding kreuzwerker/docker v${DOCKER_PROVIDER_VERSION}" \
     && mkdir -p kreuzwerker/docker && cd kreuzwerker/docker \
     && curl -LOs https://github.com/kreuzwerker/terraform-provider-docker/releases/download/v${DOCKER_PROVIDER_VERSION}/terraform-provider-docker_${DOCKER_PROVIDER_VERSION}_linux_amd64.zip
-ARG KUBERNETES_PROVIDER_VERSION=2.18.1
+ARG KUBERNETES_PROVIDER_VERSION=2.23.0
 RUN echo "Adding kubernetes/kubernetes v${KUBERNETES_PROVIDER_VERSION}" \
-    && mkdir -p kubernetes/kubernetes && cd kubernetes/kubernetes \
+    && mkdir -p hashicorp/kubernetes && cd hashicorp/kubernetes \
     && curl -LOs https://releases.hashicorp.com/terraform-provider-kubernetes/${KUBERNETES_PROVIDER_VERSION}/terraform-provider-kubernetes_${KUBERNETES_PROVIDER_VERSION}_linux_amd64.zip
-ARG AWS_PROVIDER_VERSION=4.59.0
+ARG AWS_PROVIDER_VERSION=5.19.0
 RUN echo "Adding aws/aws v${AWS_PROVIDER_VERSION}" \
     && mkdir -p aws/aws && cd aws/aws \
     && curl -LOs https://releases.hashicorp.com/terraform-provider-aws/${AWS_PROVIDER_VERSION}/terraform-provider-aws_${AWS_PROVIDER_VERSION}_linux_amd64.zip
 
-RUN chown -R coder:coder /opt/terraform/plugins
+RUN chown -R coder:coder /home/coder/.terraform*
 WORKDIR /home/coder
 
 # Option 2) Use a network mirror.
-#    https://developer.hashicorp.com/terraform/cli/config/config-file#network_mirror
-#    Be sure uncomment line 60 and edit network-mirror-example.tfrc to
-#    specify the HTTPS base URL of your mirror.
+#  https://developer.hashicorp.com/terraform/cli/config/config-file#network_mirror
+#  Be sure uncomment line 60 and edit network-mirror-example.tfrc to
+#  specify the HTTPS base URL of your mirror.
 
-# ADD network-mirror-example.tfrc /opt/terraform/config.tfrc
+# ADD network-mirror-example.tfrc /home/coder/.terraformrc
 
 USER coder
 
-# Use the tfrc file to inform
-ENV TF_CLI_CONFIG_FILE=/opt/terraform/config.tfrc
+# Use the .terraformrc file to inform Terraform of the locally installed providers.
+ENV TF_CLI_CONFIG_FILE=/home/coder/.terraformrc
 ```
 
 > If you are bundling Terraform providers into your Coder image, be sure the
@@ -121,7 +121,7 @@ ENV TF_CLI_CONFIG_FILE=/opt/terraform/config.tfrc
 # filesystem-mirror-example.tfrc
 provider_installation {
   filesystem_mirror {
-    path = "/opt/terraform/plugins"
+    path = "/home/coder/.terraform.d/plugins"
   }
 }
 ```
@@ -165,7 +165,8 @@ services:
     # ...
   environment:
     CODER_TELEMETRY_ENABLE: "false" # Disable telemetry
-    CODER_DERP_SERVER_STUN_ADDRESSES: "" # Only use relayed connections
+    CODER_BLOCK_DIRECT: "true" # force SSH traffic through control plane's DERP proxy
+    CODER_DERP_SERVER_STUN_ADDRESSES: "disable" # Only use relayed connections
     CODER_UPDATE_CHECK: "false" # Disable automatic update checks
   database:
     image: registry.example.com/postgres:13
@@ -197,9 +198,12 @@ coder:
     # Disable automatic update checks
     - name: "CODER_UPDATE_CHECK"
       value: "false"
+    # force SSH traffic through control plane's DERP proxy
+    - name: CODER_BLOCK_DIRECT
+      value: "true"
     # Only use relayed connections
     - name: "CODER_DERP_SERVER_STUN_ADDRESSES"
-      value: ""
+      value: "disable"
     # You must set up an external PostgreSQL database
     - name: "CODER_PG_CONNECTION_URL"
       value: ""
@@ -236,3 +240,19 @@ Coder is installed.
 - open-vsx.org (optional if someone would use code-server)
 - registry.terraform.io (to create and push template)
 - v2-licensor.coder.com (developing Coder in Coder)
+
+## JetBrains IDEs
+
+Gateway, JetBrains' remote development product that works with Coder,
+[has documented offline deployment steps.](../ides/gateway.md#jetbrains-gateway-in-an-offline-environment)
+
+## Microsoft VS Code Remote - SSH
+
+Installation of the
+[Visual Studio Code Remote - SSH extension](https://code.visualstudio.com/docs/remote/ssh)
+(for connecting a local VS Code to a remote Coder workspace) requires that your
+local machine has outbound HTTPS (port 443) connectivity to:
+
+- update.code.visualstudio.com
+- vscode.blob.core.windows.net
+- \*.vo.msecnd.net

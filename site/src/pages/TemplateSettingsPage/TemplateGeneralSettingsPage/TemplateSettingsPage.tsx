@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "react-query";
 import { updateTemplateMeta } from "api/api";
 import { UpdateTemplateMeta } from "api/typesGenerated";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
@@ -10,6 +10,10 @@ import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateSettingsPageView } from "./TemplateSettingsPageView";
 import { templateByNameKey } from "api/queries/templates";
 import { useOrganizationId } from "hooks";
+import {
+  useDashboard,
+  useTemplatePoliciesEnabled,
+} from "components/Dashboard/DashboardProvider";
 
 export const TemplateSettingsPage: FC = () => {
   const { template: templateName } = useParams() as { template: string };
@@ -17,6 +21,10 @@ export const TemplateSettingsPage: FC = () => {
   const orgId = useOrganizationId();
   const { template } = useTemplateSettings();
   const queryClient = useQueryClient();
+  const { entitlements } = useDashboard();
+  const accessControlEnabled = entitlements.features.access_control.enabled;
+  const templatePoliciesEnabled = useTemplatePoliciesEnabled();
+
   const {
     mutate: updateTemplate,
     isLoading: isSubmitting,
@@ -24,11 +32,13 @@ export const TemplateSettingsPage: FC = () => {
   } = useMutation(
     (data: UpdateTemplateMeta) => updateTemplateMeta(template.id, data),
     {
-      onSuccess: async () => {
+      onSuccess: async (data) => {
+        // we use data.name because an admin may have updated templateName to something new
         await queryClient.invalidateQueries(
-          templateByNameKey(orgId, templateName),
+          templateByNameKey(orgId, data.name),
         );
         displaySuccess("Template updated successfully");
+        navigate(`/templates/${data.name}`);
       },
     },
   );
@@ -51,7 +61,11 @@ export const TemplateSettingsPage: FC = () => {
             ...templateSettings,
           });
         }}
+        accessControlEnabled={accessControlEnabled}
+        templatePoliciesEnabled={templatePoliciesEnabled}
       />
     </>
   );
 };
+
+export default TemplateSettingsPage;

@@ -1,13 +1,12 @@
 import {
   withDefaultFeatures,
-  GetLicensesResponse,
-  DeploymentConfig,
+  type GetLicensesResponse,
+  type DeploymentConfig,
 } from "api/api";
 import { FieldError } from "api/errors";
-import { everyOneGroup } from "utils/groups";
-import * as TypesGen from "api/typesGenerated";
+import type * as TypesGen from "api/typesGenerated";
 import range from "lodash/range";
-import { Permissions } from "xServices/auth/authXService";
+import { Permissions } from "contexts/AuthProvider/permissions";
 import { TemplateVersionFiles } from "utils/templateVersion";
 import { FileTree } from "utils/filetree";
 import { ProxyLatencyReport } from "contexts/useProxyLatency";
@@ -30,9 +29,9 @@ export const MockTemplateDAUResponse: TypesGen.DAUsResponse = {
 export const MockDeploymentDAUResponse: TypesGen.DAUsResponse = {
   tz_hour_offset: 0,
   entries: [
-    { date: "2022-08-27T00:00:00Z", amount: 1 },
-    { date: "2022-08-29T00:00:00Z", amount: 2 },
-    { date: "2022-08-30T00:00:00Z", amount: 1 },
+    { date: "2022-08-27T00:00:00Z", amount: 10 },
+    { date: "2022-08-29T00:00:00Z", amount: 22 },
+    { date: "2022-08-30T00:00:00Z", amount: 14 },
   ],
 };
 export const MockSessionToken: TypesGen.LoginWithPasswordResponse = {
@@ -86,6 +85,7 @@ export const MockPrimaryWorkspaceProxy: TypesGen.WorkspaceProxy = {
   derp_only: false,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
+  version: "v2.34.5-test+primary",
   deleted: false,
   status: {
     status: "ok",
@@ -106,6 +106,7 @@ export const MockHealthyWildWorkspaceProxy: TypesGen.WorkspaceProxy = {
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
   deleted: false,
+  version: "v2.34.5-test+haswildcard",
   status: {
     status: "ok",
     checked_at: new Date().toISOString(),
@@ -124,6 +125,7 @@ export const MockUnhealthyWildWorkspaceProxy: TypesGen.WorkspaceProxy = {
   derp_only: true,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
+  version: "v2.34.5-test+unhealthy",
   deleted: false,
   status: {
     status: "unhealthy",
@@ -152,6 +154,7 @@ export const MockWorkspaceProxies: TypesGen.WorkspaceProxy[] = [
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     deleted: false,
+    version: "v2.34.5-test+nowildcard",
     status: {
       status: "ok",
       checked_at: new Date().toISOString(),
@@ -191,6 +194,7 @@ export const MockProxyLatencies: Record<string, ProxyLatencyReport> = {
 };
 
 export const MockBuildInfo: TypesGen.BuildInfoResponse = {
+  agent_api_version: "1.0",
   external_url: "file:///mock-url",
   version: "v99.999.9999+c9cdf14",
   dashboard_url: "https:///mock-url",
@@ -280,6 +284,7 @@ export const MockUser: TypesGen.User = {
   avatar_url: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
   last_seen_at: "",
   login_type: "password",
+  theme_preference: "",
 };
 
 export const MockUserAdmin: TypesGen.User = {
@@ -293,6 +298,7 @@ export const MockUserAdmin: TypesGen.User = {
   avatar_url: "",
   last_seen_at: "",
   login_type: "password",
+  theme_preference: "",
 };
 
 export const MockUser2: TypesGen.User = {
@@ -306,6 +312,7 @@ export const MockUser2: TypesGen.User = {
   avatar_url: "",
   last_seen_at: "2022-09-14T19:12:21Z",
   login_type: "oidc",
+  theme_preference: "",
 };
 
 export const SuspendedMockUser: TypesGen.User = {
@@ -319,14 +326,25 @@ export const SuspendedMockUser: TypesGen.User = {
   avatar_url: "",
   last_seen_at: "",
   login_type: "password",
+  theme_preference: "",
 };
 
 export const MockProvisioner: TypesGen.ProvisionerDaemon = {
-  created_at: "",
+  created_at: "2022-05-17T17:39:01.382927298Z",
   id: "test-provisioner",
   name: "Test Provisioner",
   provisioners: ["echo"],
-  tags: {},
+  tags: { scope: "organization" },
+  version: "v2.34.5",
+};
+
+export const MockUserProvisioner: TypesGen.ProvisionerDaemon = {
+  created_at: "2022-05-17T17:39:01.382927298Z",
+  id: "test-user-provisioner",
+  name: "Test User Provisioner",
+  provisioners: ["echo"],
+  tags: { scope: "user", owner: "12345678-abcd-1234-abcd-1234567890abcd" },
+  version: "v2.34.5",
 };
 
 export const MockProvisionerJob: TypesGen.ProvisionerJob = {
@@ -379,6 +397,7 @@ You can add instructions here
 
 [Some link info](https://coder.com)`,
   created_by: MockUser,
+  archived: false,
 };
 
 export const MockTemplateVersion2: TypesGen.TemplateVersion = {
@@ -397,19 +416,7 @@ You can add instructions here
 
 [Some link info](https://coder.com)`,
   created_by: MockUser,
-};
-
-export const MockTemplateVersion3: TypesGen.TemplateVersion = {
-  id: "test-template-version-3",
-  created_at: "2022-05-17T17:39:01.382927298Z",
-  updated_at: "2022-05-17T17:39:01.382927298Z",
-  template_id: "test-template",
-  job: MockProvisionerJob,
-  name: "test-version-3",
-  message: "first version",
-  readme: "README",
-  created_by: MockUser,
-  warnings: ["UNSUPPORTED_WORKSPACES"],
+  archived: false,
 };
 
 export const MockTemplate: TypesGen.Template = {
@@ -438,10 +445,22 @@ export const MockTemplate: TypesGen.Template = {
   },
   description: "This is a test description.",
   default_ttl_ms: 24 * 60 * 60 * 1000,
-  max_ttl_ms: 2 * 24 * 60 * 60 * 1000,
+  use_max_ttl: false,
+  max_ttl_ms: 0,
   autostop_requirement: {
-    days_of_week: [],
+    days_of_week: ["sunday"],
     weeks: 1,
+  },
+  autostart_requirement: {
+    days_of_week: [
+      "monday",
+      "tuesday",
+      "wednesday",
+      "thursday",
+      "friday",
+      "saturday",
+      "sunday",
+    ],
   },
   created_by_id: "test-creator-id",
   created_by_name: "test_creator",
@@ -450,8 +469,11 @@ export const MockTemplate: TypesGen.Template = {
   failure_ttl_ms: 0,
   time_til_dormant_ms: 0,
   time_til_dormant_autodelete_ms: 0,
-  allow_user_autostart: false,
-  allow_user_autostop: false,
+  allow_user_autostart: true,
+  allow_user_autostop: true,
+  require_active_version: false,
+  deprecated: false,
+  deprecation_message: "",
 };
 
 export const MockTemplateVersionFiles: TemplateVersionFiles = {
@@ -539,6 +561,25 @@ export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
   },
 };
 
+export const MockWorkspaceAgentLogSource: TypesGen.WorkspaceAgentLogSource = {
+  created_at: "2023-05-04T11:30:41.402072Z",
+  id: "dc790496-eaec-4f88-a53f-8ce1f61a1fff",
+  display_name: "Startup Script",
+  icon: "",
+  workspace_agent_id: "",
+};
+
+export const MockWorkspaceAgentScript: TypesGen.WorkspaceAgentScript = {
+  log_source_id: MockWorkspaceAgentLogSource.id,
+  cron: "",
+  log_path: "",
+  run_on_start: true,
+  run_on_stop: false,
+  script: "echo 'hello world'",
+  start_blocks_login: false,
+  timeout: 0,
+};
+
 export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   apps: [MockWorkspaceApp],
   architecture: "amd64",
@@ -551,6 +592,7 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   status: "connected",
   updated_at: "",
   version: MockBuildInfo.version,
+  api_version: "1.0",
   latency: {
     "Coder Embedded DERP": {
       latency_ms: 32.55,
@@ -560,12 +602,11 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   connection_timeout_seconds: 120,
   troubleshooting_url: "https://coder.com/troubleshoot",
   lifecycle_state: "starting",
-  login_before_ready: false, // Deprecated.
-  startup_script_behavior: "blocking",
   logs_length: 0,
   logs_overflowed: false,
-  startup_script_timeout_seconds: 120,
-  shutdown_script_timeout_seconds: 120,
+  log_sources: [MockWorkspaceAgentLogSource],
+  scripts: [MockWorkspaceAgentScript],
+  startup_script_behavior: "non-blocking",
   subsystems: ["envbox", "exectrace"],
   health: {
     healthy: true,
@@ -598,6 +639,31 @@ export const MockWorkspaceAgentOutdated: TypesGen.WorkspaceAgent = {
   id: "test-workspace-agent-3",
   name: "an-outdated-workspace-agent",
   version: "v99.999.9998+abcdef",
+  operating_system: "Windows",
+  latency: {
+    ...MockWorkspaceAgent.latency,
+    Chicago: {
+      preferred: false,
+      latency_ms: 95.11,
+    },
+    "San Francisco": {
+      preferred: false,
+      latency_ms: 111.55,
+    },
+    Paris: {
+      preferred: false,
+      latency_ms: 221.66,
+    },
+  },
+  lifecycle_state: "ready",
+};
+
+export const MockWorkspaceAgentDeprecated: TypesGen.WorkspaceAgent = {
+  ...MockWorkspaceAgent,
+  id: "test-workspace-agent-3",
+  name: "an-outdated-workspace-agent",
+  version: "v99.999.9998+abcdef",
+  api_version: "1.99",
   operating_system: "Windows",
   latency: {
     ...MockWorkspaceAgent.latency,
@@ -718,57 +784,78 @@ export const MockWorkspaceAgentOff: TypesGen.WorkspaceAgent = {
 };
 
 export const MockWorkspaceResource: TypesGen.WorkspaceResource = {
-  agents: [
-    MockWorkspaceAgent,
-    MockWorkspaceAgentConnecting,
-    MockWorkspaceAgentOutdated,
-  ],
-  created_at: "",
   id: "test-workspace-resource",
-  job_id: "",
   name: "a-workspace-resource",
+  agents: [MockWorkspaceAgent],
+  created_at: "",
+  job_id: "",
   type: "google_compute_disk",
   workspace_transition: "start",
   hide: false,
   icon: "",
+  metadata: [{ key: "size", value: "32GB", sensitive: false }],
+  daily_cost: 10,
+};
+
+export const MockWorkspaceResourceSensitive: TypesGen.WorkspaceResource = {
+  ...MockWorkspaceResource,
+  id: "test-workspace-resource-sensitive",
+  name: "workspace-resource-sensitive",
   metadata: [{ key: "api_key", value: "12345678", sensitive: true }],
-  daily_cost: 10,
 };
 
-export const MockWorkspaceResource2: TypesGen.WorkspaceResource = {
+export const MockWorkspaceResourceMultipleAgents: TypesGen.WorkspaceResource = {
+  ...MockWorkspaceResource,
+  id: "test-workspace-resource-multiple-agents",
+  name: "workspace-resource-multiple-agents",
   agents: [
     MockWorkspaceAgent,
     MockWorkspaceAgentDisconnected,
     MockWorkspaceAgentOutdated,
   ],
+};
+
+export const MockWorkspaceResourceHidden: TypesGen.WorkspaceResource = {
+  ...MockWorkspaceResource,
+  id: "test-workspace-resource-hidden",
+  name: "workspace-resource-hidden",
+  hide: true,
+};
+
+export const MockWorkspaceVolumeResource: TypesGen.WorkspaceResource = {
+  id: "test-workspace-volume-resource",
   created_at: "",
-  id: "test-workspace-resource-2",
   job_id: "",
-  name: "another-workspace-resource",
-  type: "google_compute_disk",
   workspace_transition: "start",
+  type: "docker_volume",
+  name: "home_volume",
   hide: false,
   icon: "",
-  metadata: [{ key: "size", value: "32GB", sensitive: false }],
-  daily_cost: 10,
+  daily_cost: 0,
 };
 
-export const MockWorkspaceResource3: TypesGen.WorkspaceResource = {
-  agents: [
-    MockWorkspaceAgent,
-    MockWorkspaceAgentDisconnected,
-    MockWorkspaceAgentOutdated,
-  ],
+export const MockWorkspaceImageResource: TypesGen.WorkspaceResource = {
+  id: "test-workspace-image-resource",
   created_at: "",
-  id: "test-workspace-resource-3",
   job_id: "",
-  name: "another-workspace-resource",
-  type: "google_compute_disk",
   workspace_transition: "start",
-  hide: true,
+  type: "docker_image",
+  name: "main",
+  hide: false,
   icon: "",
-  metadata: [{ key: "size", value: "32GB", sensitive: false }],
-  daily_cost: 20,
+  daily_cost: 0,
+};
+
+export const MockWorkspaceContainerResource: TypesGen.WorkspaceResource = {
+  id: "test-workspace-container-resource",
+  created_at: "",
+  job_id: "",
+  workspace_transition: "start",
+  type: "docker_container",
+  name: "workspace",
+  hide: false,
+  icon: "",
+  daily_cost: 0,
 };
 
 export const MockWorkspaceAutostartDisabled: TypesGen.UpdateWorkspaceAutostartRequest =
@@ -905,6 +992,7 @@ export const MockWorkspace: TypesGen.Workspace = {
   template_allow_user_cancel_workspace_jobs:
     MockTemplate.allow_user_cancel_workspace_jobs,
   template_active_version_id: MockTemplate.active_version_id,
+  template_require_active_version: MockTemplate.require_active_version,
   outdated: false,
   owner_id: MockUser.id,
   organization_id: MockOrganization.id,
@@ -917,6 +1005,8 @@ export const MockWorkspace: TypesGen.Workspace = {
     healthy: true,
     failing_agents: [],
   },
+  automatic_updates: "never",
+  allow_renames: true,
 };
 
 export const MockStoppedWorkspace: TypesGen.Workspace = {
@@ -995,6 +1085,46 @@ export const MockOutdatedWorkspace: TypesGen.Workspace = {
   ...MockFailedWorkspace,
   id: "test-outdated-workspace",
   outdated: true,
+};
+
+export const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspace =
+  {
+    ...MockWorkspace,
+    id: "test-outdated-workspace-require-active-version",
+    outdated: true,
+    template_require_active_version: true,
+    latest_build: {
+      ...MockWorkspaceBuild,
+      status: "running",
+    },
+  };
+
+export const MockOutdatedRunningWorkspaceAlwaysUpdate: TypesGen.Workspace = {
+  ...MockWorkspace,
+  id: "test-outdated-workspace-always-update",
+  outdated: true,
+  automatic_updates: "always",
+  latest_build: {
+    ...MockWorkspaceBuild,
+    status: "running",
+  },
+};
+
+export const MockOutdatedStoppedWorkspaceRequireActiveVersion: TypesGen.Workspace =
+  {
+    ...MockOutdatedRunningWorkspaceRequireActiveVersion,
+    latest_build: {
+      ...MockWorkspaceBuild,
+      status: "stopped",
+    },
+  };
+
+export const MockOutdatedStoppedWorkspaceAlwaysUpdate: TypesGen.Workspace = {
+  ...MockOutdatedRunningWorkspaceAlwaysUpdate,
+  latest_build: {
+    ...MockWorkspaceBuild,
+    status: "stopped",
+  },
 };
 
 export const MockPendingWorkspace: TypesGen.Workspace = {
@@ -1151,17 +1281,23 @@ export const MockTemplateVersionVariable5: TypesGen.TemplateVersionVariable = {
   sensitive: false,
 };
 
-// requests the MockWorkspace
 export const MockWorkspaceRequest: TypesGen.CreateWorkspaceRequest = {
   name: "test",
-  template_id: "test-template",
-  rich_parameter_values: [
-    {
-      name: MockTemplateVersionParameter1.name,
-      value: MockTemplateVersionParameter1.default_value,
-    },
-  ],
+  template_version_id: "test-template-version",
+  rich_parameter_values: [],
 };
+
+export const MockWorkspaceRichParametersRequest: TypesGen.CreateWorkspaceRequest =
+  {
+    name: "test",
+    template_version_id: "test-template-version",
+    rich_parameter_values: [
+      {
+        name: MockTemplateVersionParameter1.name,
+        value: MockTemplateVersionParameter1.default_value,
+      },
+    ],
+  };
 
 export const MockUserAgent = {
   browser: "Chrome 99.0.4844",
@@ -1170,16 +1306,30 @@ export const MockUserAgent = {
   os: "Windows 10",
 };
 
-export const MockAuthMethods: TypesGen.AuthMethods = {
+export const MockAuthMethodsPasswordOnly: TypesGen.AuthMethods = {
   password: { enabled: true },
   github: { enabled: false },
   oidc: { enabled: false, signInText: "", iconUrl: "" },
 };
 
-export const MockAuthMethodsWithPasswordType: TypesGen.AuthMethods = {
-  ...MockAuthMethods,
+export const MockAuthMethodsExternal: TypesGen.AuthMethods = {
+  password: { enabled: false },
   github: { enabled: true },
-  oidc: { enabled: true, signInText: "", iconUrl: "" },
+  oidc: {
+    enabled: true,
+    signInText: "Google",
+    iconUrl: "/icon/google.svg",
+  },
+};
+
+export const MockAuthMethodsAll: TypesGen.AuthMethods = {
+  password: { enabled: true },
+  github: { enabled: true },
+  oidc: {
+    enabled: true,
+    signInText: "Google",
+    iconUrl: "/icon/google.svg",
+  },
 };
 
 export const MockGitSSHKey: TypesGen.GitSSHKey = {
@@ -1879,10 +2029,23 @@ export const MockEntitlementsWithScheduling: TypesGen.Entitlements = {
   }),
 };
 
-export const MockExperiments: TypesGen.Experiment[] = [
-  "workspace_actions",
-  "moons",
-];
+export const MockEntitlementsWithUserLimit: TypesGen.Entitlements = {
+  errors: [],
+  warnings: [],
+  has_license: true,
+  require_telemetry: false,
+  trial: false,
+  refreshed_at: "2022-05-20T16:45:57.122Z",
+  features: withDefaultFeatures({
+    user_limit: {
+      enabled: true,
+      entitlement: "entitled",
+      limit: 25,
+    },
+  }),
+};
+
+export const MockExperiments: TypesGen.Experiment[] = ["moons"];
 
 export const MockAuditLog: TypesGen.AuditLog = {
   id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
@@ -2048,6 +2211,17 @@ export const MockGroup: TypesGen.Group = {
   source: "user",
 };
 
+const everyOneGroup = (organizationId: string): TypesGen.Group => ({
+  id: organizationId,
+  name: "Everyone",
+  display_name: "",
+  organization_id: organizationId,
+  members: [],
+  avatar_url: "",
+  quota_allowance: 0,
+  source: "user",
+});
+
 export const MockTemplateACL: TypesGen.TemplateACL = {
   group: [
     { ...everyOneGroup(MockOrganization.id), role: "use" },
@@ -2088,13 +2262,14 @@ export const MockPermissions: Permissions = {
   createTemplates: true,
   createUser: true,
   deleteTemplates: true,
+  updateTemplates: true,
   readAllUsers: true,
   updateUsers: true,
   viewAuditLog: true,
   viewDeploymentValues: true,
   viewUpdateCheck: true,
   viewDeploymentStats: true,
-  viewGitAuthConfig: true,
+  viewExternalAuthConfig: true,
   editWorkspaceProxies: true,
 };
 
@@ -2106,6 +2281,7 @@ export const MockDeploymentConfig: DeploymentConfig = {
 };
 
 export const MockAppearanceConfig: TypesGen.AppearanceConfig = {
+  application_name: "",
   logo_url: "",
   service_banner: {
     enabled: false,
@@ -2137,12 +2313,25 @@ export const MockWorkspaceBuildParameter5: TypesGen.WorkspaceBuildParameter = {
   value: "5",
 };
 
-export const MockTemplateVersionGitAuth: TypesGen.TemplateVersionGitAuth = {
-  id: "github",
-  type: "github",
-  authenticate_url: "https://example.com/gitauth/github",
-  authenticated: false,
-};
+export const MockTemplateVersionExternalAuthGithub: TypesGen.TemplateVersionExternalAuth =
+  {
+    id: "github",
+    type: "github",
+    authenticate_url: "https://example.com/external-auth/github",
+    authenticated: false,
+    display_icon: "/icon/github.svg",
+    display_name: "GitHub",
+  };
+
+export const MockTemplateVersionExternalAuthGithubAuthenticated: TypesGen.TemplateVersionExternalAuth =
+  {
+    id: "github",
+    type: "github",
+    authenticate_url: "https://example.com/external-auth/github",
+    authenticated: true,
+    display_icon: "/icon/github.svg",
+    display_name: "GitHub",
+  };
 
 export const MockDeploymentStats: TypesGen.DeploymentStats = {
   aggregated_from: "2023-03-06T19:08:55.211625Z",
@@ -2180,6 +2369,7 @@ export const MockWorkspaceAgentLogs: TypesGen.WorkspaceAgentLog[] = [
     created_at: "2023-05-04T11:30:41.402072Z",
     output: "+ curl -fsSL https://code-server.dev/install.sh",
     level: "info",
+    source_id: MockWorkspaceAgentLogSource.id,
   },
   {
     id: 166664,
@@ -2187,18 +2377,21 @@ export const MockWorkspaceAgentLogs: TypesGen.WorkspaceAgentLog[] = [
     output:
       "+ sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.8.3",
     level: "info",
+    source_id: MockWorkspaceAgentLogSource.id,
   },
   {
     id: 166665,
     created_at: "2023-05-04T11:30:42.590731Z",
     output: "Ubuntu 22.04.2 LTS",
     level: "info",
+    source_id: MockWorkspaceAgentLogSource.id,
   },
   {
     id: 166666,
     created_at: "2023-05-04T11:30:42.593686Z",
     output: "Installing v4.8.3 of the amd64 release from GitHub.",
     level: "info",
+    source_id: MockWorkspaceAgentLogSource.id,
   },
 ];
 
@@ -2244,15 +2437,21 @@ export const MockLicenseResponse: GetLicensesResponse[] = [
   },
 ];
 
-export const MockHealth = {
+export const MockHealth: TypesGen.HealthcheckReport = {
   time: "2023-08-01T16:51:03.29792825Z",
   healthy: true,
-  failing_sections: null,
+  severity: "ok",
+  failing_sections: [],
   derp: {
     healthy: true,
+    severity: "ok",
+    warnings: [],
+    dismissed: false,
     regions: {
       "999": {
         healthy: true,
+        severity: "ok",
+        warnings: [],
         region: {
           EmbeddedRelay: true,
           RegionID: 999,
@@ -2278,6 +2477,8 @@ export const MockHealth = {
         node_reports: [
           {
             healthy: true,
+            severity: "ok",
+            warnings: [],
             node: {
               Name: "999stun0",
               RegionID: 999,
@@ -2290,19 +2491,20 @@ export const MockHealth = {
               TokenBucketBytesBurst: 0,
             },
             can_exchange_messages: false,
-            round_trip_ping: 0,
+            round_trip_ping: "0",
+            round_trip_ping_ms: 0,
             uses_websocket: false,
             client_logs: [],
             client_errs: [],
-            error: null,
             stun: {
               Enabled: true,
               CanSTUN: true,
-              Error: null,
             },
           },
           {
             healthy: true,
+            severity: "ok",
+            warnings: [],
             node: {
               Name: "999b",
               RegionID: 999,
@@ -2315,7 +2517,8 @@ export const MockHealth = {
               TokenBucketBytesBurst: 0,
             },
             can_exchange_messages: true,
-            round_trip_ping: 7674330,
+            round_trip_ping: "7674330",
+            round_trip_ping_ms: 7674330,
             uses_websocket: false,
             client_logs: [
               [
@@ -2326,18 +2529,17 @@ export const MockHealth = {
               ],
             ],
             client_errs: [[], []],
-            error: null,
             stun: {
               Enabled: false,
               CanSTUN: false,
-              Error: null,
             },
           },
         ],
-        error: null,
       },
       "10007": {
         healthy: true,
+        severity: "ok",
+        warnings: [],
         region: {
           EmbeddedRelay: false,
           RegionID: 10007,
@@ -2363,6 +2565,8 @@ export const MockHealth = {
         node_reports: [
           {
             healthy: true,
+            severity: "ok",
+            warnings: [],
             node: {
               Name: "10007stun0",
               RegionID: 10007,
@@ -2375,19 +2579,20 @@ export const MockHealth = {
               TokenBucketBytesBurst: 0,
             },
             can_exchange_messages: false,
-            round_trip_ping: 0,
+            round_trip_ping: "0",
+            round_trip_ping_ms: 0,
             uses_websocket: false,
             client_logs: [],
             client_errs: [],
-            error: null,
             stun: {
               Enabled: true,
               CanSTUN: true,
-              Error: null,
             },
           },
           {
             healthy: true,
+            severity: "ok",
+            warnings: [],
             node: {
               Name: "10007a",
               RegionID: 10007,
@@ -2400,7 +2605,8 @@ export const MockHealth = {
               TokenBucketBytesBurst: 0,
             },
             can_exchange_messages: true,
-            round_trip_ping: 170527034,
+            round_trip_ping: "170527034",
+            round_trip_ping_ms: 170527034,
             uses_websocket: false,
             client_logs: [
               [
@@ -2411,18 +2617,17 @@ export const MockHealth = {
               ],
             ],
             client_errs: [[], []],
-            error: null,
             stun: {
               Enabled: false,
               CanSTUN: false,
-              Error: null,
             },
           },
         ],
-        error: null,
       },
       "10008": {
         healthy: true,
+        severity: "ok",
+        warnings: [],
         region: {
           EmbeddedRelay: false,
           RegionID: 10008,
@@ -2448,6 +2653,8 @@ export const MockHealth = {
         node_reports: [
           {
             healthy: true,
+            severity: "ok",
+            warnings: [],
             node: {
               Name: "10008stun0",
               RegionID: 10008,
@@ -2460,19 +2667,20 @@ export const MockHealth = {
               TokenBucketBytesBurst: 0,
             },
             can_exchange_messages: false,
-            round_trip_ping: 0,
+            round_trip_ping: "0",
+            round_trip_ping_ms: 0,
             uses_websocket: false,
             client_logs: [],
             client_errs: [],
-            error: null,
             stun: {
               Enabled: true,
               CanSTUN: true,
-              Error: null,
             },
           },
           {
             healthy: true,
+            severity: "ok",
+            warnings: [],
             node: {
               Name: "10008a",
               RegionID: 10008,
@@ -2485,7 +2693,8 @@ export const MockHealth = {
               TokenBucketBytesBurst: 0,
             },
             can_exchange_messages: true,
-            round_trip_ping: 111329690,
+            round_trip_ping: "111329690",
+            round_trip_ping_ms: 111329690,
             uses_websocket: false,
             client_logs: [
               [
@@ -2496,18 +2705,17 @@ export const MockHealth = {
               ],
             ],
             client_errs: [[], []],
-            error: null,
             stun: {
               Enabled: false,
               CanSTUN: false,
-              Error: null,
             },
           },
         ],
-        error: null,
       },
       "10009": {
         healthy: true,
+        severity: "ok",
+        warnings: [],
         region: {
           EmbeddedRelay: false,
           RegionID: 10009,
@@ -2533,6 +2741,8 @@ export const MockHealth = {
         node_reports: [
           {
             healthy: true,
+            severity: "ok",
+            warnings: [],
             node: {
               Name: "10009stun0",
               RegionID: 10009,
@@ -2545,19 +2755,20 @@ export const MockHealth = {
               TokenBucketBytesBurst: 0,
             },
             can_exchange_messages: false,
-            round_trip_ping: 0,
+            round_trip_ping: "0",
+            round_trip_ping_ms: 0,
             uses_websocket: false,
             client_logs: [],
             client_errs: [],
-            error: null,
             stun: {
               Enabled: true,
               CanSTUN: true,
-              Error: null,
             },
           },
           {
             healthy: true,
+            severity: "ok",
+            warnings: [],
             node: {
               Name: "10009a",
               RegionID: 10009,
@@ -2570,7 +2781,8 @@ export const MockHealth = {
               TokenBucketBytesBurst: 0,
             },
             can_exchange_messages: true,
-            round_trip_ping: 138185506,
+            round_trip_ping: "138185506",
+            round_trip_ping_ms: 138185506,
             uses_websocket: false,
             client_logs: [
               [
@@ -2581,15 +2793,12 @@ export const MockHealth = {
               ],
             ],
             client_errs: [[], []],
-            error: null,
             stun: {
               Enabled: false,
               CanSTUN: false,
-              Error: null,
             },
           },
         ],
-        error: null,
       },
     },
     netcheck: {
@@ -2623,7 +2832,6 @@ export const MockHealth = {
       GlobalV6: "",
       CaptivePortal: null,
     },
-    netcheck_err: null,
     netcheck_logs: [
       "netcheck: netcheck.runProbe: got STUN response for 10007stun0 from 34.71.26.24:55368 (9b07930007da49dd7df79bc7) in 1.791799ms",
       "netcheck: netcheck.runProbe: got STUN response for 999stun0 from 34.71.26.24:55368 (7397fec097f1d5b01364566b) in 1.791529ms",
@@ -2636,29 +2844,260 @@ export const MockHealth = {
       "netcheck: [v1] measureAllICMPLatency: listen ip4:icmp 0.0.0.0: socket: operation not permitted",
       "netcheck: [v1] report: udp=true v6=false v6os=true mapvarydest=false hair= portmap= v4a=34.71.26.24:55368 derp=999 derpdist=999v4:2ms,10007v4:175ms,10008v4:112ms,10009v4:139ms",
     ],
-    error: null,
   },
   access_url: {
-    access_url: "https://dev.coder.com",
     healthy: true,
+    severity: "ok",
+    warnings: [],
+    dismissed: false,
+    access_url: "https://dev.coder.com",
     reachable: true,
     status_code: 200,
     healthz_response: "OK",
-    error: null,
   },
   websocket: {
     healthy: true,
-    response: {
-      body: "",
-      code: 101,
-    },
-    error: null,
+    severity: "ok",
+    warnings: [],
+    dismissed: false,
+    body: "",
+    code: 101,
   },
   database: {
     healthy: true,
+    severity: "ok",
+    warnings: [],
+    dismissed: false,
     reachable: true,
-    latency: 92570,
-    error: null,
+    latency: "92570",
+    latency_ms: 92570,
+    threshold_ms: 92570,
+  },
+  workspace_proxy: {
+    healthy: true,
+    severity: "warning",
+    warnings: [
+      {
+        code: "EWP04",
+        message:
+          'unhealthy: request to proxy failed: Get "http://127.0.0.1:3001/healthz-report": dial tcp 127.0.0.1:3001: connect: connection refused',
+      },
+    ],
+    dismissed: false,
+    error: undefined,
+    workspace_proxies: {
+      regions: [
+        {
+          id: "1a3e5eb8-d785-4f7d-9188-2eeab140cd06",
+          name: "primary",
+          display_name: "Council Bluffs, Iowa",
+          icon_url: "/emojis/1f3e1.png",
+          healthy: true,
+          path_app_url: "https://dev.coder.com",
+          wildcard_hostname: "*--apps.dev.coder.com",
+          derp_enabled: false,
+          derp_only: false,
+          status: {
+            status: "ok",
+            report: {
+              errors: [],
+              warnings: [],
+            },
+            checked_at: "2023-12-05T14:14:05.829032482Z",
+          },
+          created_at: "0001-01-01T00:00:00Z",
+          updated_at: "0001-01-01T00:00:00Z",
+          deleted: false,
+          version: "",
+        },
+        {
+          id: "2876ab4d-bcee-4643-944f-d86323642840",
+          name: "sydney",
+          display_name: "Sydney GCP",
+          icon_url: "/emojis/1f1e6-1f1fa.png",
+          healthy: true,
+          path_app_url: "https://sydney.dev.coder.com",
+          wildcard_hostname: "*--apps.sydney.dev.coder.com",
+          derp_enabled: true,
+          derp_only: false,
+          status: {
+            status: "ok",
+            report: {
+              errors: [],
+              warnings: [],
+            },
+            checked_at: "2023-12-05T14:14:05.250322277Z",
+          },
+          created_at: "2023-05-01T19:15:56.606593Z",
+          updated_at: "2023-12-05T14:13:36.647535Z",
+          deleted: false,
+          version: "v2.4.0-devel+5fad61102",
+        },
+        {
+          id: "9d786ce0-55b1-4ace-8acc-a4672ff8d41f",
+          name: "europe-frankfurt",
+          display_name: "Europe GCP (Frankfurt)",
+          icon_url: "/emojis/1f1e9-1f1ea.png",
+          healthy: true,
+          path_app_url: "https://europe.dev.coder.com",
+          wildcard_hostname: "*--apps.europe.dev.coder.com",
+          derp_enabled: true,
+          derp_only: false,
+          status: {
+            status: "ok",
+            report: {
+              errors: [],
+              warnings: [],
+            },
+            checked_at: "2023-12-05T14:14:05.250322277Z",
+          },
+          created_at: "2023-05-01T20:34:11.114005Z",
+          updated_at: "2023-12-05T14:13:45.941716Z",
+          deleted: false,
+          version: "v2.4.0-devel+5fad61102",
+        },
+        {
+          id: "2e209786-73b1-4838-ba78-e01c9334450a",
+          name: "brazil-saopaulo",
+          display_name: "Brazil GCP (Sao Paulo)",
+          icon_url: "/emojis/1f1e7-1f1f7.png",
+          healthy: true,
+          path_app_url: "https://brazil.dev.coder.com",
+          wildcard_hostname: "*--apps.brazil.dev.coder.com",
+          derp_enabled: true,
+          derp_only: false,
+          status: {
+            status: "ok",
+            report: {
+              errors: [],
+              warnings: [],
+            },
+            checked_at: "2023-12-05T14:14:05.250322277Z",
+          },
+          created_at: "2023-05-01T20:41:02.76448Z",
+          updated_at: "2023-12-05T14:13:41.968568Z",
+          deleted: false,
+          version: "v2.4.0-devel+5fad61102",
+        },
+        {
+          id: "c272e80c-0cce-49d6-9782-1b5cf90398e8",
+          name: "unregistered",
+          display_name: "UnregisteredProxy",
+          icon_url: "/emojis/274c.png",
+          healthy: false,
+          path_app_url: "",
+          wildcard_hostname: "",
+          derp_enabled: true,
+          derp_only: false,
+          status: {
+            status: "unregistered",
+            report: {
+              errors: [],
+              warnings: [],
+            },
+            checked_at: "2023-12-05T14:14:05.250322277Z",
+          },
+          created_at: "2023-07-10T14:51:11.539222Z",
+          updated_at: "2023-07-10T14:51:11.539223Z",
+          deleted: false,
+          version: "",
+        },
+        {
+          id: "a3efbff1-587b-4677-80a4-dc4f892fed3e",
+          name: "unhealthy",
+          display_name: "Unhealthy",
+          icon_url: "/emojis/1f92e.png",
+          healthy: false,
+          path_app_url: "http://127.0.0.1:3001",
+          wildcard_hostname: "",
+          derp_enabled: true,
+          derp_only: false,
+          status: {
+            status: "unreachable",
+            report: {
+              errors: [
+                'request to proxy failed: Get "http://127.0.0.1:3001/healthz-report": dial tcp 127.0.0.1:3001: connect: connection refused',
+              ],
+              warnings: [],
+            },
+            checked_at: "2023-12-05T14:14:05.250322277Z",
+          },
+          created_at: "2023-07-10T14:51:48.407017Z",
+          updated_at: "2023-07-10T14:51:57.993682Z",
+          deleted: false,
+          version: "",
+        },
+        {
+          id: "b6cefb69-cb6f-46e2-9c9c-39c089fb7e42",
+          name: "paris-coder",
+          display_name: "Europe (Paris)",
+          icon_url: "/emojis/1f1eb-1f1f7.png",
+          healthy: true,
+          path_app_url: "https://paris-coder.fly.dev",
+          wildcard_hostname: "",
+          derp_enabled: true,
+          derp_only: false,
+          status: {
+            status: "ok",
+            report: {
+              errors: [],
+              warnings: [],
+            },
+            checked_at: "2023-12-05T14:14:05.250322277Z",
+          },
+          created_at: "2023-12-01T09:21:15.996267Z",
+          updated_at: "2023-12-05T14:13:59.663174Z",
+          deleted: false,
+          version: "v2.4.0-devel+5fad61102",
+        },
+        {
+          id: "72649dc9-03c7-46a8-bc95-96775e93ddc1",
+          name: "sydney-coder",
+          display_name: "Australia (Sydney)",
+          icon_url: "/emojis/1f1e6-1f1fa.png",
+          healthy: true,
+          path_app_url: "https://sydney-coder.fly.dev",
+          wildcard_hostname: "",
+          derp_enabled: true,
+          derp_only: false,
+          status: {
+            status: "ok",
+            report: {
+              errors: [],
+              warnings: [],
+            },
+            checked_at: "2023-12-05T14:14:05.250322277Z",
+          },
+          created_at: "2023-12-01T09:23:44.505529Z",
+          updated_at: "2023-12-05T14:13:55.769058Z",
+          deleted: false,
+          version: "v2.4.0-devel+5fad61102",
+        },
+        {
+          id: "1f78398f-e5ae-4c38-aa89-30222181d443",
+          name: "sao-paulo-coder",
+          display_name: "Brazil (Sau Paulo)",
+          icon_url: "/emojis/1f1e7-1f1f7.png",
+          healthy: true,
+          path_app_url: "https://sao-paulo-coder.fly.dev",
+          wildcard_hostname: "",
+          derp_enabled: true,
+          derp_only: false,
+          status: {
+            status: "ok",
+            report: {
+              errors: [],
+              warnings: [],
+            },
+            checked_at: "2023-12-05T14:14:05.250322277Z",
+          },
+          created_at: "2023-12-01T09:36:00.231252Z",
+          updated_at: "2023-12-05T14:13:47.015031Z",
+          deleted: false,
+          version: "v2.4.0-devel+5fad61102",
+        },
+      ],
+    },
   },
   coder_version: "v0.27.1-devel+c575292",
 };
@@ -2671,3 +3110,105 @@ export const MockListeningPortsResponse: TypesGen.WorkspaceAgentListeningPortsRe
       { process_name: "", network: "", port: 8081 },
     ],
   };
+
+export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
+  healthy: false,
+  severity: "ok",
+  failing_sections: [], // apparently this property is not used at all?
+  time: "2023-10-12T23:15:00.000000000Z",
+  coder_version: "v2.3.0-devel+8cca4915a",
+  access_url: {
+    healthy: true,
+    severity: "ok",
+    warnings: [],
+    dismissed: false,
+    access_url: "",
+    healthz_response: "",
+    reachable: true,
+    status_code: 0,
+  },
+  database: {
+    healthy: false,
+    severity: "ok",
+    warnings: [],
+    dismissed: false,
+    latency: "",
+    latency_ms: 0,
+    reachable: true,
+    threshold_ms: 92570,
+  },
+  derp: {
+    healthy: false,
+    severity: "ok",
+    warnings: [],
+    dismissed: false,
+    regions: [],
+    netcheck_logs: [],
+  },
+  websocket: {
+    healthy: false,
+    severity: "ok",
+    warnings: [],
+    dismissed: false,
+    body: "",
+    code: 0,
+  },
+  workspace_proxy: {
+    healthy: false,
+    error: "some error",
+    severity: "error",
+    warnings: [],
+    dismissed: false,
+    workspace_proxies: {
+      regions: [
+        {
+          id: "df7e4b2b-2d40-47e5-a021-e5d08b219c77",
+          name: "unhealthy",
+          display_name: "unhealthy",
+          icon_url: "/emojis/1f5fa.png",
+          healthy: false,
+          path_app_url: "http://127.0.0.1:3001",
+          wildcard_hostname: "",
+          derp_enabled: true,
+          derp_only: false,
+          status: {
+            status: "unreachable",
+            report: {
+              errors: ["some error"],
+              warnings: [],
+            },
+            checked_at: "2023-11-24T12:14:05.743303497Z",
+          },
+          created_at: "2023-11-23T15:37:25.513213Z",
+          updated_at: "2023-11-23T18:09:19.734747Z",
+          deleted: false,
+          version: "v2.4.0-devel+89bae7eff",
+        },
+      ],
+    },
+  },
+};
+
+export const MockHealthSettings: TypesGen.HealthSettings = {
+  dismissed_healthchecks: [],
+};
+
+export const MockGithubExternalProvider: TypesGen.ExternalAuthLinkProvider = {
+  id: "github",
+  type: "github",
+  device: false,
+  display_icon: "/icon/github.svg",
+  display_name: "GitHub",
+  allow_refresh: true,
+  allow_validate: true,
+};
+
+export const MockGithubAuthLink: TypesGen.ExternalAuthLink = {
+  provider_id: "github",
+  created_at: "",
+  updated_at: "",
+  has_refresh_token: true,
+  expires: "",
+  authenticated: true,
+  validate_error: "",
+};

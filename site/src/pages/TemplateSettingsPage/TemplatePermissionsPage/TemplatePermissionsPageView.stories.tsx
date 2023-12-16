@@ -7,7 +7,7 @@ import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof TemplatePermissionsPageView> = {
-  title: "pages/TemplatePermissionsPageView",
+  title: "pages/TemplateSettingsPage/TemplatePermissionsPageView",
   component: TemplatePermissionsPageView,
 };
 

@@ -1,25 +1,25 @@
-import { FC, useState, useEffect } from "react";
+import { css } from "@emotion/css";
+import { type FC, useState, useEffect } from "react";
+import TextField from "@mui/material/TextField";
+import MenuItem from "@mui/material/MenuItem";
+import type { FormikContextType } from "formik";
+import dayjs from "dayjs";
+import { useNavigate } from "react-router-dom";
 import {
   FormFields,
   FormSection,
   FormFooter,
   HorizontalForm,
 } from "components/Form/Form";
-import makeStyles from "@mui/styles/makeStyles";
+import { Stack } from "components/Stack/Stack";
 import { onChangeTrimmed, getFormHelpers } from "utils/formUtils";
-import TextField from "@mui/material/TextField";
-import MenuItem from "@mui/material/MenuItem";
 import {
   NANO_HOUR,
-  CreateTokenData,
+  type CreateTokenData,
   determineDefaultLtValue,
   filterByMaxTokenLifetime,
   customLifetimeDay,
 } from "./utils";
-import { FormikContextType } from "formik";
-import dayjs from "dayjs";
-import { useNavigate } from "react-router-dom";
-import { Stack } from "components/Stack/Stack";
 
 interface CreateTokenFormProps {
   form: FormikContextType<CreateTokenData>;
@@ -38,7 +38,6 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
   isCreating,
   creationFailed,
 }) => {
-  const styles = useStyles();
   const navigate = useNavigate();
 
   const [expDays, setExpDays] = useState<number>(1);
@@ -62,7 +61,7 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
       <FormSection
         title="Name"
         description="What is this token for?"
-        classes={{ sectionInfo: styles.formSectionInfo }}
+        classes={{ sectionInfo: classNames.sectionInfo }}
       >
         <FormFields>
           <TextField
@@ -85,7 +84,7 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
                 .format("MMMM DD, YYYY")}`
             : "Please set a token expiration."
         }
-        classes={{ sectionInfo: styles.formSectionInfo }}
+        classes={{ sectionInfo: classNames.sectionInfo }}
       >
         <FormFields>
           <Stack direction="row">
@@ -150,8 +149,8 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
   );
 };
 
-const useStyles = makeStyles(() => ({
-  formSectionInfo: {
-    minWidth: "300px",
-  },
-}));
+const classNames = {
+  sectionInfo: css`
+    min-width: 300px;
+  `,
+};

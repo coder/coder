@@ -3,7 +3,7 @@ import {
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import TemplateEmbedPage from "./TemplateEmbedPage";
-import { TemplateLayout } from "components/TemplateLayout/TemplateLayout";
+import { TemplateLayout } from "pages/TemplatePage/TemplateLayout";
 import {
   MockTemplate,
   MockTemplateVersionParameter1 as parameter1,

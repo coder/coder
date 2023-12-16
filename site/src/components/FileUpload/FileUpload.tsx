@@ -1,13 +1,12 @@
-import { makeStyles } from "@mui/styles";
 import { Stack } from "components/Stack/Stack";
-import { FC, DragEvent, useRef, ReactNode } from "react";
+import { type FC, type DragEvent, useRef, type ReactNode } from "react";
 import UploadIcon from "@mui/icons-material/CloudUploadOutlined";
 import { useClickable } from "hooks/useClickable";
 import CircularProgress from "@mui/material/CircularProgress";
-import { combineClasses } from "utils/combineClasses";
 import IconButton from "@mui/material/IconButton";
 import RemoveIcon from "@mui/icons-material/DeleteOutline";
 import FileIcon from "@mui/icons-material/FolderOutlined";
+import { css, type Interpolation, type Theme } from "@emotion/react";
 
 const useFileDrop = (
   callback: (file: File) => void,
@@ -62,10 +61,10 @@ export const FileUpload: FC<FileUploadProps> = ({
   extension,
   fileTypeRequired,
 }) => {
-  const styles = useStyles();
   const inputRef = useRef<HTMLInputElement>(null);
   const tarDrop = useFileDrop(onUpload, fileTypeRequired);
-  const clickable = useClickable(() => {
+
+  const clickable = useClickable<HTMLDivElement>(() => {
     if (inputRef.current) {
       inputRef.current.click();
     }
@@ -74,7 +73,7 @@ export const FileUpload: FC<FileUploadProps> = ({
   if (!isUploading && file) {
     return (
       <Stack
-        className={styles.file}
+        css={styles.file}
         direction="row"
         justifyContent="space-between"
         alignItems="center"
@@ -94,10 +93,7 @@ export const FileUpload: FC<FileUploadProps> = ({
   return (
     <>
       <div
-        className={combineClasses({
-          [styles.root]: true,
-          [styles.disabled]: isUploading,
-        })}
+        css={[styles.root, isUploading && styles.disabled]}
         {...clickable}
         {...tarDrop}
       >
@@ -105,12 +101,12 @@ export const FileUpload: FC<FileUploadProps> = ({
           {isUploading ? (
             <CircularProgress size={32} />
           ) : (
-            <UploadIcon className={styles.icon} />
+            <UploadIcon css={styles.icon} />
           )}
 
           <Stack alignItems="center" spacing={0.5}>
-            <span className={styles.title}>{title}</span>
-            <span className={styles.description}>{description}</span>
+            <span css={styles.title}>{title}</span>
+            <span css={styles.description}>{description}</span>
           </Stack>
         </Stack>
       </div>
@@ -119,7 +115,7 @@ export const FileUpload: FC<FileUploadProps> = ({
         type="file"
         data-testid="file-upload"
         ref={inputRef}
-        className={styles.input}
+        css={styles.input}
         accept={extension}
         onChange={(event) => {
           const file = event.currentTarget.files?.[0];
@@ -132,20 +128,20 @@ export const FileUpload: FC<FileUploadProps> = ({
   );
 };
 
-const useStyles = makeStyles((theme) => ({
-  root: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.shape.borderRadius,
-    border: `2px dashed ${theme.palette.divider}`,
-    padding: theme.spacing(6),
-    cursor: "pointer",
+const styles = {
+  root: (theme) => css`
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    border: 2px dashed ${theme.palette.divider};
+    padding: 48px;
+    cursor: pointer;
 
-    "&:hover": {
-      backgroundColor: theme.palette.background.paper,
-    },
-  },
+    &:hover {
+      background-color: ${theme.palette.background.paper};
+    }
+  `,
 
   disabled: {
     pointerEvents: "none",
@@ -153,27 +149,27 @@ const useStyles = makeStyles((theme) => ({
   },
 
   icon: {
-    fontSize: theme.spacing(8),
+    fontSize: 64,
   },
 
   title: {
-    fontSize: theme.spacing(2),
+    fontSize: 16,
   },
 
-  description: {
+  description: (theme) => ({
     color: theme.palette.text.secondary,
     textAlign: "center",
-    maxWidth: theme.spacing(50),
-  },
+    maxWidth: 400,
+  }),
 
   input: {
     display: "none",
   },
 
-  file: {
-    borderRadius: theme.shape.borderRadius,
+  file: (theme) => ({
+    borderRadius: 8,
     border: `1px solid ${theme.palette.divider}`,
-    padding: theme.spacing(2),
+    padding: 16,
     background: theme.palette.background.paper,
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;

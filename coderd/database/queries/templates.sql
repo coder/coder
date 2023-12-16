@@ -34,6 +34,17 @@ WHERE
 			id = ANY(@ids)
 		ELSE true
 	END
+	-- Filter by deprecated
+	AND CASE
+		WHEN sqlc.narg('deprecated') :: boolean IS NOT NULL THEN
+			CASE
+				WHEN sqlc.narg('deprecated') :: boolean THEN
+					deprecated != ''
+				ELSE
+					deprecated = ''
+			END
+		ELSE true
+	END
   -- Authorize Filter clause will be injected below in GetAuthorizedTemplates
   -- @authorize_filter
 ORDER BY (name, id) ASC
@@ -117,12 +128,14 @@ SET
 	allow_user_autostart = $3,
 	allow_user_autostop = $4,
 	default_ttl = $5,
-	max_ttl = $6,
-	autostop_requirement_days_of_week = $7,
-	autostop_requirement_weeks = $8,
-	failure_ttl = $9,
-	time_til_dormant = $10,
-	time_til_dormant_autodelete = $11
+	use_max_ttl = $6,
+	max_ttl = $7,
+	autostop_requirement_days_of_week = $8,
+	autostop_requirement_weeks = $9,
+	autostart_block_days_of_week = $10,
+	failure_ttl = $11,
+	time_til_dormant = $12,
+	time_til_dormant_autodelete = $13
 WHERE
 	id = $1
 ;
@@ -167,4 +180,14 @@ SELECT
 	coalesce((PERCENTILE_DISC(0.95) WITHIN GROUP(ORDER BY exec_time_sec) FILTER (WHERE transition = 'stop')), -1)::FLOAT AS stop_95,
 	coalesce((PERCENTILE_DISC(0.95) WITHIN GROUP(ORDER BY exec_time_sec) FILTER (WHERE transition = 'delete')), -1)::FLOAT AS delete_95
 FROM build_times
+;
+
+-- name: UpdateTemplateAccessControlByID :exec
+UPDATE
+	templates
+SET
+	require_active_version = $2,
+	deprecated = $3
+WHERE
+	id = $1
 ;

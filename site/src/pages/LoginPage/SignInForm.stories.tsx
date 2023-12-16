@@ -3,7 +3,7 @@ import { SignInForm } from "./SignInForm";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof SignInForm> = {
-  title: "components/SignInForm",
+  title: "pages/LoginPage/SignInForm",
   component: SignInForm,
   args: {
     isSigningIn: false,
@@ -37,9 +37,6 @@ export const WithError: Story = {
         },
       ],
     }),
-    initialTouched: {
-      password: true,
-    },
   },
 };
 

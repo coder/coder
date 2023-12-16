@@ -52,6 +52,7 @@ type Options struct {
 	STUN               bool
 	SnapshotFrequency  time.Duration
 	Tunnel             bool
+	ParseLicenseJWT    func(lic *License) error
 }
 
 // New constructs a reporter for telemetry data.
@@ -446,7 +447,13 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		}
 		snapshot.Licenses = make([]License, 0, len(licenses))
 		for _, license := range licenses {
-			snapshot.Licenses = append(snapshot.Licenses, ConvertLicense(license))
+			tl := ConvertLicense(license)
+			if r.options.ParseLicenseJWT != nil {
+				if err := r.options.ParseLicenseJWT(&tl); err != nil {
+					r.options.Logger.Warn(ctx, "parse license JWT", slog.Error(err))
+				}
+			}
+			snapshot.Licenses = append(snapshot.Licenses, tl)
 		}
 		return nil
 	})
@@ -506,6 +513,7 @@ func ConvertWorkspace(workspace database.Workspace) Workspace {
 		Deleted:           workspace.Deleted,
 		Name:              workspace.Name,
 		AutostartSchedule: workspace.AutostartSchedule.String,
+		AutomaticUpdates:  string(workspace.AutomaticUpdates),
 	}
 }
 
@@ -559,10 +567,8 @@ func ConvertWorkspaceAgent(agent database.WorkspaceAgent) WorkspaceAgent {
 		Architecture:             agent.Architecture,
 		OperatingSystem:          agent.OperatingSystem,
 		EnvironmentVariables:     agent.EnvironmentVariables.Valid,
-		StartupScript:            agent.StartupScript.Valid,
 		Directory:                agent.Directory != "",
 		ConnectionTimeoutSeconds: agent.ConnectionTimeoutSeconds,
-		ShutdownScript:           agent.ShutdownScript.Valid,
 		Subsystems:               subsystems,
 	}
 	if agent.FirstConnectedAt.Valid {
@@ -674,9 +680,13 @@ func ConvertTemplateVersion(version database.TemplateVersion) TemplateVersion {
 	return snapVersion
 }
 
-// ConvertLicense anonymizes a license.
 func ConvertLicense(license database.License) License {
+	// License is intentionally not anonymized because it's
+	// deployment-wide, and we already have an index of all issued
+	// licenses.
 	return License{
+		JWT:        license.JWT,
+		Exp:        license.Exp,
 		UploadedAt: license.UploadedAt,
 		UUID:       license.UUID,
 	}
@@ -695,6 +705,23 @@ func ConvertWorkspaceProxy(proxy database.WorkspaceProxy) WorkspaceProxy {
 	}
 }
 
+func ConvertExternalProvisioner(id uuid.UUID, tags map[string]string, provisioners []database.ProvisionerType) ExternalProvisioner {
+	tagsCopy := make(map[string]string, len(tags))
+	for k, v := range tags {
+		tagsCopy[k] = v
+	}
+	strProvisioners := make([]string, 0, len(provisioners))
+	for _, prov := range provisioners {
+		strProvisioners = append(strProvisioners, string(prov))
+	}
+	return ExternalProvisioner{
+		ID:           id.String(),
+		Tags:         tagsCopy,
+		Provisioners: strProvisioners,
+		StartedAt:    time.Now(),
+	}
+}
+
 // Snapshot represents a point-in-time anonymized database dump.
 // Data is aggregated by latest on the server-side, so partial data
 // can be sent without issue.
@@ -702,20 +729,21 @@ type Snapshot struct {
 	DeploymentID string `json:"deployment_id"`
 
 	APIKeys                   []APIKey                    `json:"api_keys"`
-	ProvisionerJobs           []ProvisionerJob            `json:"provisioner_jobs"`
-	Licenses                  []License                   `json:"licenses"`
-	Templates                 []Template                  `json:"templates"`
-	TemplateVersions          []TemplateVersion           `json:"template_versions"`
-	Users                     []User                      `json:"users"`
-	Workspaces                []Workspace                 `json:"workspaces"`
-	WorkspaceApps             []WorkspaceApp              `json:"workspace_apps"`
-	WorkspaceAgents           []WorkspaceAgent            `json:"workspace_agents"`
-	WorkspaceAgentStats       []WorkspaceAgentStat        `json:"workspace_agent_stats"`
-	WorkspaceBuilds           []WorkspaceBuild            `json:"workspace_build"`
-	WorkspaceResources        []WorkspaceResource         `json:"workspace_resources"`
-	WorkspaceResourceMetadata []WorkspaceResourceMetadata `json:"workspace_resource_metadata"`
-	WorkspaceProxies          []WorkspaceProxy            `json:"workspace_proxies"`
 	CLIInvocations            []clitelemetry.Invocation   `json:"cli_invocations"`
+	ExternalProvisioners      []ExternalProvisioner       `json:"external_provisioners"`
+	Licenses                  []License                   `json:"licenses"`
+	ProvisionerJobs           []ProvisionerJob            `json:"provisioner_jobs"`
+	TemplateVersions          []TemplateVersion           `json:"template_versions"`
+	Templates                 []Template                  `json:"templates"`
+	Users                     []User                      `json:"users"`
+	WorkspaceAgentStats       []WorkspaceAgentStat        `json:"workspace_agent_stats"`
+	WorkspaceAgents           []WorkspaceAgent            `json:"workspace_agents"`
+	WorkspaceApps             []WorkspaceApp              `json:"workspace_apps"`
+	WorkspaceBuilds           []WorkspaceBuild            `json:"workspace_build"`
+	WorkspaceProxies          []WorkspaceProxy            `json:"workspace_proxies"`
+	WorkspaceResourceMetadata []WorkspaceResourceMetadata `json:"workspace_resource_metadata"`
+	WorkspaceResources        []WorkspaceResource         `json:"workspace_resources"`
+	Workspaces                []Workspace                 `json:"workspaces"`
 }
 
 // Deployment contains information about the host running Coder.
@@ -792,13 +820,11 @@ type WorkspaceAgent struct {
 	Architecture             string     `json:"architecture"`
 	OperatingSystem          string     `json:"operating_system"`
 	EnvironmentVariables     bool       `json:"environment_variables"`
-	StartupScript            bool       `json:"startup_script"`
 	Directory                bool       `json:"directory"`
 	FirstConnectedAt         *time.Time `json:"first_connected_at"`
 	LastConnectedAt          *time.Time `json:"last_connected_at"`
 	DisconnectedAt           *time.Time `json:"disconnected_at"`
 	ConnectionTimeoutSeconds int32      `json:"connection_timeout_seconds"`
-	ShutdownScript           bool       `json:"shutdown_script"`
 	Subsystems               []string   `json:"subsystems"`
 }
 
@@ -844,6 +870,7 @@ type Workspace struct {
 	Deleted           bool      `json:"deleted"`
 	Name              string    `json:"name"`
 	AutostartSchedule string    `json:"autostart_schedule"`
+	AutomaticUpdates  string    `json:"automatic_updates"`
 }
 
 type Template struct {
@@ -879,16 +906,15 @@ type ProvisionerJob struct {
 	Type           database.ProvisionerJobType `json:"type"`
 }
 
-type ParameterSchema struct {
-	ID                  uuid.UUID `json:"id"`
-	JobID               uuid.UUID `json:"job_id"`
-	Name                string    `json:"name"`
-	ValidationCondition string    `json:"validation_condition"`
-}
-
 type License struct {
+	JWT        string    `json:"jwt"`
 	UploadedAt time.Time `json:"uploaded_at"`
+	Exp        time.Time `json:"exp"`
 	UUID       uuid.UUID `json:"uuid"`
+	// These two fields are set by decoding the JWT. If the signing keys aren't
+	// passed in, these will always be nil.
+	Email *string `json:"email"`
+	Trial *bool   `json:"trial"`
 }
 
 type WorkspaceProxy struct {
@@ -901,6 +927,14 @@ type WorkspaceProxy struct {
 	// No Status since it may contain sensitive information.
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type ExternalProvisioner struct {
+	ID           string            `json:"id"`
+	Tags         map[string]string `json:"tags"`
+	Provisioners []string          `json:"provisioners"`
+	StartedAt    time.Time         `json:"started_at"`
+	ShutdownAt   *time.Time        `json:"shutdown_at"`
 }
 
 type noopReporter struct{}

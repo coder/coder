@@ -1,13 +1,13 @@
+import { type Interpolation, type Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
-import { makeStyles } from "@mui/styles";
-import { TemplateExample } from "api/typesGenerated";
+import { Link as RouterLink } from "react-router-dom";
+import { type FC } from "react";
+import type { TemplateExample } from "api/typesGenerated";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import { Stack } from "components/Stack/Stack";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import { TemplateExampleCard } from "components/TemplateExampleCard/TemplateExampleCard";
-import { FC } from "react";
-import { Link as RouterLink } from "react-router-dom";
 import { docs } from "utils/docs";
 
 // Those are from https://github.com/coder/coder/tree/main/examples/templates
@@ -39,20 +39,18 @@ export const EmptyTemplates: FC<{
   canCreateTemplates: boolean;
   examples: TemplateExample[];
 }> = ({ canCreateTemplates, examples }) => {
-  const styles = useStyles();
   const featuredExamples = findFeaturedExamples(examples);
 
   if (canCreateTemplates) {
     return (
       <TableEmpty
-        message="Create a Template"
+        message="Create your first template"
         description={
           <>
             Templates are written in Terraform and describe the infrastructure
-            for workspaces (e.g., docker_container, aws_instance,
-            kubernetes_pod). Select a starter template below or
+            for workspaces. You can start using a starter template below or{" "}
             <Link
-              href={docs("/templates#add-a-template")}
+              href={docs("/templates/tutorial")}
               target="_blank"
               rel="noreferrer"
             >
@@ -63,13 +61,9 @@ export const EmptyTemplates: FC<{
         }
         cta={
           <Stack alignItems="center" spacing={4}>
-            <div className={styles.featuredExamples}>
+            <div css={styles.featuredExamples}>
               {featuredExamples.map((example) => (
-                <TemplateExampleCard
-                  example={example}
-                  key={example.id}
-                  className={styles.template}
-                />
+                <TemplateExampleCard example={example} key={example.id} />
               ))}
             </div>
 
@@ -77,7 +71,7 @@ export const EmptyTemplates: FC<{
               size="small"
               component={RouterLink}
               to="/starter-templates"
-              className={styles.viewAllButton}
+              css={{ borderRadius: 9999 }}
             >
               View all starter templates
             </Button>
@@ -89,12 +83,12 @@ export const EmptyTemplates: FC<{
 
   return (
     <TableEmpty
-      className={styles.withImage}
+      css={styles.withImage}
       message="Create a Template"
       description="Contact your Coder administrator to create a template. You can share the code below."
       cta={<CodeExample code="coder templates init" />}
       image={
-        <div className={styles.emptyImage}>
+        <div css={styles.emptyImage}>
           <img src="/featured/templates.webp" alt="" />
         </div>
       }
@@ -102,14 +96,14 @@ export const EmptyTemplates: FC<{
   );
 };
 
-const useStyles = makeStyles((theme) => ({
+const styles = {
   withImage: {
     paddingBottom: 0,
   },
 
   emptyImage: {
     maxWidth: "50%",
-    height: theme.spacing(40),
+    height: 320,
     overflow: "hidden",
     opacity: 0.85,
 
@@ -119,22 +113,9 @@ const useStyles = makeStyles((theme) => ({
   },
 
   featuredExamples: {
-    maxWidth: theme.spacing(100),
-    display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: theme.spacing(2),
-    gridAutoRows: "min-content",
+    display: "flex",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 16,
   },
-
-  template: {
-    backgroundColor: theme.palette.background.paperLight,
-
-    "&:hover": {
-      backgroundColor: theme.palette.divider,
-    },
-  },
-
-  viewAllButton: {
-    borderRadius: 9999,
-  },
-}));
+} satisfies Record<string, Interpolation<Theme>>;

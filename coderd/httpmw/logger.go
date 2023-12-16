@@ -26,9 +26,18 @@ func Logger(log slog.Logger) func(next http.Handler) http.Handler {
 				slog.F("path", r.URL.Path),
 				slog.F("proto", r.Proto),
 				slog.F("remote_addr", r.RemoteAddr),
+				// Include the start timestamp in the log so that we have the
+				// source of truth. There is at least a theoretical chance that
+				// there can be a delay between `next.ServeHTTP` ending and us
+				// actually logging the request. This can also be useful when
+				// filtering logs that started at a certain time (compared to
+				// trying to compute the value).
+				slog.F("start", start),
 			)
 
 			next.ServeHTTP(sw, r)
+
+			end := time.Now()
 
 			// Don't log successful health check requests.
 			if r.URL.Path == "/api/v2" && sw.Status == http.StatusOK {
@@ -36,9 +45,9 @@ func Logger(log slog.Logger) func(next http.Handler) http.Handler {
 			}
 
 			httplog = httplog.With(
-				slog.F("took", time.Since(start)),
+				slog.F("took", end.Sub(start)),
 				slog.F("status_code", sw.Status),
-				slog.F("latency_ms", float64(time.Since(start)/time.Millisecond)),
+				slog.F("latency_ms", float64(end.Sub(start)/time.Millisecond)),
 			)
 
 			// For status codes 400 and higher we

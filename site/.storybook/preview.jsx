@@ -1,18 +1,25 @@
 import CssBaseline from "@mui/material/CssBaseline";
-import { StyledEngineProvider, ThemeProvider } from "@mui/material/styles";
+import {
+  StyledEngineProvider,
+  ThemeProvider as MuiThemeProvider,
+} from "@mui/material/styles";
+import { ThemeProvider as EmotionThemeProvider } from "@emotion/react";
 import { withRouter } from "storybook-addon-react-router-v6";
 import { HelmetProvider } from "react-helmet-async";
-import { dark } from "../src/theme";
-import "../src/theme/globalFonts";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import theme from "theme";
+import colors from "theme/tailwind";
+import "theme/globalFonts";
+import { QueryClient, QueryClientProvider } from "react-query";
 
 export const decorators = [
   (Story) => (
     <StyledEngineProvider injectFirst>
-      <ThemeProvider theme={dark}>
-        <CssBaseline />
-        <Story />
-      </ThemeProvider>
+      <MuiThemeProvider theme={theme.dark}>
+        <EmotionThemeProvider theme={theme.dark}>
+          <CssBaseline />
+          <Story />
+        </EmotionThemeProvider>
+      </MuiThemeProvider>
     </StyledEngineProvider>
   ),
   withRouter,
@@ -25,7 +32,17 @@ export const decorators = [
   },
   (Story) => {
     return (
-      <QueryClientProvider client={new QueryClient()}>
+      <QueryClientProvider
+        client={
+          new QueryClient({
+            defaultOptions: {
+              queries: {
+                staleTime: Infinity,
+              },
+            },
+          })
+        }
+      >
         <Story />
       </QueryClientProvider>
     );
@@ -33,6 +50,19 @@ export const decorators = [
 ];
 
 export const parameters = {
+  backgrounds: {
+    default: "dark",
+    values: [
+      {
+        name: "dark",
+        value: colors.gray[950],
+      },
+      {
+        name: "light",
+        value: colors.gray[50],
+      },
+    ],
+  },
   actions: {
     argTypesRegex: "^(on|handler)[A-Z].*",
   },

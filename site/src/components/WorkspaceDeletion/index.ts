@@ -1,3 +1,3 @@
-export * from "./ImpendingDeletionStat";
-export * from "./ImpendingDeletionText";
-export * from "./ImpendingDeletionBanner";
+export * from "./DormantDeletionStat";
+export * from "./DormantDeletionText";
+export * from "./DormantWorkspaceBanner";

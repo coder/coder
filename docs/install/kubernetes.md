@@ -81,7 +81,7 @@ locally in order to log in and manage templates.
      # to the workspace provisioner (so you can consume them in your Terraform
      # templates for auth keys etc.).
      #
-     # Please keep in mind that you should not set `CODER_ADDRESS`,
+     # Please keep in mind that you should not set `CODER_HTTP_ADDRESS`,
      # `CODER_TLS_ENABLE`, `CODER_TLS_CERT_FILE` or `CODER_TLS_KEY_FILE` as
      # they are already set by the Helm chart and will cause conflicts.
      env:

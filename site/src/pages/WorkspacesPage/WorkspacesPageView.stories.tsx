@@ -16,6 +16,7 @@ import {
   mockApiError,
   MockUser,
   MockPendingProvisionerJob,
+  MockTemplate,
 } from "testHelpers/entities";
 import { WorkspacesPageView } from "./WorkspacesPageView";
 import { DashboardProviderContext } from "components/Dashboard/DashboardProvider";
@@ -29,6 +30,8 @@ const createWorkspace = (
   status: WorkspaceStatus,
   outdated = false,
   lastUsedAt = "0001-01-01",
+  dormantAt?: string,
+  deletingAt?: string,
 ): Workspace => {
   return {
     ...MockWorkspace,
@@ -43,6 +46,8 @@ const createWorkspace = (
           : MockWorkspace.latest_build.job,
     },
     last_used_at: lastUsedAt,
+    dormant_at: dormantAt,
+    deleting_at: deletingAt,
   };
 };
 
@@ -62,6 +67,22 @@ const additionalWorkspaces: Record<string, Workspace> = {
     "running",
     true,
     dayjs().subtract(1, "month").subtract(4, "day").toString(),
+  ),
+};
+
+const dormantWorkspaces: Record<string, Workspace> = {
+  dormantNoDelete: createWorkspace(
+    "stopped",
+    false,
+    dayjs().subtract(1, "month").toString(),
+    dayjs().subtract(1, "month").toString(),
+  ),
+  dormantAutoDelete: createWorkspace(
+    "stopped",
+    false,
+    dayjs().subtract(1, "month").toString(),
+    dayjs().subtract(1, "month").toString(),
+    dayjs().add(29, "day").toString(),
   ),
 };
 
@@ -92,14 +113,31 @@ const defaultFilterProps = getDefaultFilterProps<FilterProps>({
   },
 });
 
+const mockTemplates = [
+  MockTemplate,
+  ...[1, 2, 3, 4].map((num) => {
+    return {
+      ...MockTemplate,
+      active_user_count: Math.floor(Math.random() * 10) * num,
+      display_name: `Extra Template ${num}`,
+      description: "Auto-Generated template",
+      icon: num % 2 === 0 ? "" : "/icon/goland.svg",
+    };
+  }),
+];
+
 const meta: Meta<typeof WorkspacesPageView> = {
-  title: "pages/WorkspacesPageView",
+  title: "pages/WorkspacesPage",
   component: WorkspacesPageView,
   args: {
     limit: DEFAULT_RECORDS_PER_PAGE,
     filterProps: defaultFilterProps,
     checkedWorkspaces: [],
     canCheckWorkspaces: true,
+    templates: mockTemplates,
+    templatesFetchStatus: "success",
+    count: 13,
+    page: 1,
   },
   decorators: [
     (Story) => (
@@ -131,6 +169,33 @@ export const OwnerHasNoWorkspaces: Story = {
   args: {
     workspaces: [],
     count: 0,
+    canCreateTemplate: true,
+  },
+};
+
+export const OwnerHasNoWorkspacesAndNoTemplates: Story = {
+  args: {
+    workspaces: [],
+    templates: [],
+    count: 0,
+    canCreateTemplate: true,
+  },
+};
+
+export const UserHasNoWorkspaces: Story = {
+  args: {
+    workspaces: [],
+    count: 0,
+    canCreateTemplate: false,
+  },
+};
+
+export const UserHasNoWorkspacesAndNoTemplates: Story = {
+  args: {
+    workspaces: [],
+    templates: [],
+    count: 0,
+    canCreateTemplate: false,
   },
 };
 
@@ -160,6 +225,13 @@ export const UnhealthyWorkspace: Story = {
         },
       },
     ],
+  },
+};
+
+export const DormantWorkspaces: Story = {
+  args: {
+    workspaces: Object.values(dormantWorkspaces),
+    count: Object.values(dormantWorkspaces).length,
   },
 };
 

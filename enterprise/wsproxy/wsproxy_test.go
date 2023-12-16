@@ -15,7 +15,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -23,7 +23,6 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/workspaceapps/apptest"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -168,9 +167,9 @@ func TestDERP(t *testing.T) {
 		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
 	})
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-	build := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 	workspace.LatestBuild = build
 
 	agentID := uuid.Nil
@@ -184,16 +183,8 @@ resourceLoop:
 	require.NotEqual(t, uuid.Nil, agentID)
 
 	// Connect an agent to the workspace
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(authToken)
-	agentCloser := agent.New(agent.Options{
-		Client: agentClient,
-		Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
-	})
-	t.Cleanup(func() {
-		_ = agentCloser.Close()
-	})
-	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+	_ = agenttest.New(t, client.URL, authToken)
+	_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 	t.Run("ReturnedInDERPMap", func(t *testing.T) {
 		t.Parallel()
@@ -401,9 +392,9 @@ func TestDERPEndToEnd(t *testing.T) {
 		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
 	})
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-	build := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 	workspace.LatestBuild = build
 
 	agentID := uuid.Nil
@@ -417,16 +408,8 @@ resourceLoop:
 	require.NotEqual(t, uuid.Nil, agentID)
 
 	// Connect an agent to the workspace
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(authToken)
-	agentCloser := agent.New(agent.Options{
-		Client: agentClient,
-		Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
-	})
-	t.Cleanup(func() {
-		_ = agentCloser.Close()
-	})
-	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+	_ = agenttest.New(t, client.URL, authToken)
+	_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 	// Connect to the workspace agent.
 	ctx := testutil.Context(t, testutil.WaitLong)

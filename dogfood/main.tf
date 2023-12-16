@@ -1,8 +1,7 @@
 terraform {
   required_providers {
     coder = {
-      source  = "coder/coder"
-      version = "0.11.0"
+      source = "coder/coder"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -12,15 +11,17 @@ terraform {
 }
 
 locals {
-  // These are Tailscale IP addresses. Ask Dean or Kyle for help.
+  // These are cluster service addresses mapped to Tailscale nodes. Ask Dean or
+  // Kyle for help.
   docker_host = {
-    ""              = "tcp://100.94.74.63:2375"
-    "us-pittsburgh" = "tcp://100.94.74.63:2375"
-    "eu-helsinki"   = "tcp://100.117.102.81:2375"
-    "ap-sydney"     = "tcp://100.87.194.110:2375"
-    "sa-saopaulo"   = "tcp://100.99.64.123:2375"
-    "eu-paris"      = "tcp://100.74.161.61:2375"
+    ""              = "tcp://dogfood-ts-cdr-dev.tailscale.svc.cluster.local:2375"
+    "us-pittsburgh" = "tcp://dogfood-ts-cdr-dev.tailscale.svc.cluster.local:2375"
+    "eu-helsinki"   = "tcp://reinhard-hel-cdr-dev.tailscale.svc.cluster.local:2375"
+    "ap-sydney"     = "tcp://hildegard-sydney-cdr-dev.tailscale.svc.cluster.local:2375"
+    "sa-saopaulo"   = "tcp://oberstein-sao-cdr-dev.tailscale.svc.cluster.local:2375"
   }
+
+  repo_dir = replace(data.coder_parameter.repo_dir.value, "/^~\\//", "/home/coder/")
 }
 
 data "coder_parameter" "repo_dir" {
@@ -28,14 +29,6 @@ data "coder_parameter" "repo_dir" {
   name        = "Coder Repository Directory"
   default     = "~/coder"
   description = "The directory specified will be created and [coder/coder](https://github.com/coder/coder) will be automatically cloned into it 🪄."
-  mutable     = true
-}
-
-data "coder_parameter" "dotfiles_url" {
-  type        = "string"
-  name        = "Dotfiles URL"
-  description = "A path to your dotfiles. See: https://dotfiles.github.io"
-  default     = " "
   mutable     = true
 }
 
@@ -64,42 +57,6 @@ data "coder_parameter" "region" {
     name  = "São Paulo"
     value = "sa-saopaulo"
   }
-  # option {
-  #   icon = "/emojis/1f1eb-1f1f7.png"
-  #   name = "Phorcys' Server in Paris"
-  #   value = "eu-paris"
-  # }
-}
-
-data "coder_parameter" "jetbrains_ide" {
-  type         = "list(string)"
-  name         = "jetbrains_ide"
-  display_name = "JetBrains IDE"
-  icon         = "/icon/gateway.svg"
-  mutable      = true
-  default = jsonencode([
-    "GO",
-    "232.9559.64",
-    "https://download.jetbrains.com/go/goland-2023.2.1.tar.gz"
-  ])
-  option {
-    icon = "/icon/goland.svg"
-    name = "GoLand"
-    value = jsonencode([
-      "GO",
-      "232.9559.64",
-      "https://download.jetbrains.com/go/goland-2023.2.1.tar.gz"
-    ])
-  }
-  option {
-    icon = "/icon/webstorm.svg"
-    name = "WebStorm"
-    value = jsonencode([
-      "WS",
-      "232.9559.54",
-      "https://download.jetbrains.com/webstorm/WebStorm-2023.2.1.tar.gz"
-    ])
-  }
 }
 
 provider "docker" {
@@ -108,23 +65,79 @@ provider "docker" {
 
 provider "coder" {}
 
-data "coder_git_auth" "github" {
+data "coder_external_auth" "github" {
   id = "github"
 }
 
 data "coder_workspace" "me" {}
+
+module "slackme" {
+  source           = "https://registry.coder.com/modules/slackme"
+  agent_id         = coder_agent.dev.id
+  auth_provider_id = "slack"
+}
+
+module "dotfiles" {
+  source   = "https://registry.coder.com/modules/dotfiles"
+  agent_id = coder_agent.dev.id
+}
+
+module "git-clone" {
+  source   = "https://registry.coder.com/modules/git-clone"
+  agent_id = coder_agent.dev.id
+  url      = "https://github.com/coder/coder"
+  path     = local.repo_dir
+}
+
+module "personalize" {
+  source   = "https://registry.coder.com/modules/personalize"
+  agent_id = coder_agent.dev.id
+}
+
+module "code-server" {
+  source   = "https://registry.coder.com/modules/code-server"
+  agent_id = coder_agent.dev.id
+  folder   = local.repo_dir
+}
+
+module "jetbrains_gateway" {
+  source         = "https://registry.coder.com/modules/jetbrains-gateway"
+  agent_id       = coder_agent.dev.id
+  agent_name     = "dev"
+  folder         = local.repo_dir
+  jetbrains_ides = ["GO", "WS"]
+  default        = "GO"
+}
+
+module "vscode-desktop" {
+  source   = "https://registry.coder.com/modules/vscode-desktop"
+  agent_id = coder_agent.dev.id
+  folder   = local.repo_dir
+}
+
+module "filebrowser" {
+  source   = "https://registry.coder.com/modules/filebrowser"
+  agent_id = coder_agent.dev.id
+}
+
+module "coder-login" {
+  source   = "https://registry.coder.com/modules/coder-login"
+  agent_id = coder_agent.dev.id
+}
 
 resource "coder_agent" "dev" {
   arch = "amd64"
   os   = "linux"
   dir  = data.coder_parameter.repo_dir.value
   env = {
-    GITHUB_TOKEN : data.coder_git_auth.github.access_token,
+    GITHUB_TOKEN : data.coder_external_auth.github.access_token,
     OIDC_TOKEN : data.coder_workspace.me.owner_oidc_access_token,
-    CODER_USER_TOKEN : data.coder_workspace.me.owner_session_token,
-    CODER_DEPLOYMENT_URL : data.coder_workspace.me.access_url
   }
   startup_script_behavior = "blocking"
+
+  display_apps {
+    vscode = false
+  }
 
   # The following metadata blocks are optional. They are used to display
   # information about your workspace in the dashboard. You can remove them
@@ -165,6 +178,7 @@ resource "coder_agent" "dev" {
     display_name = "Swap Usage (Host)"
     key          = "4_swap_usage_host"
     script       = <<EOT
+      #!/bin/bash
       echo "$(free -b | awk '/^Swap/ { printf("%.1f/%.1f", $3/1024.0/1024.0/1024.0, $2/1024.0/1024.0/1024.0) }') GiB"
     EOT
     interval     = 10
@@ -176,6 +190,7 @@ resource "coder_agent" "dev" {
     key          = "5_load_host"
     # get load avg scaled by number of cores
     script   = <<EOT
+      #!/bin/bash
       echo "`cat /proc/loadavg | awk '{ print $1 }'` `nproc`" | awk '{ printf "%0.2f", $1/$2 }'
     EOT
     interval = 60
@@ -194,91 +209,18 @@ resource "coder_agent" "dev" {
     display_name = "Word of the Day"
     key          = "7_word"
     script       = <<EOT
+      #!/bin/bash
       curl -o - --silent https://www.merriam-webster.com/word-of-the-day 2>&1 | awk ' $0 ~ "Word of the Day: [A-z]+" { print $5; exit }'
     EOT
     interval     = 86400
     timeout      = 5
   }
 
-
   startup_script_timeout = 60
   startup_script         = <<-EOT
     set -eux -o pipefail
-
-    # change to home
-    cd "$HOME"
-
-    # install and start code-server
-    curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.8.3
-    /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
-
-    # Install and launch filebrowser
-    curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
-    filebrowser --noauth --root /home/coder --port 13338 >/tmp/filebrowser.log 2>&1 &
-
-    repo_dir="${data.coder_parameter.repo_dir.value}"
-    repo_dir="$${repo_dir/#~\//$HOME\/}"
-    if [ ! -d "$repo_dir" ]; then
-      mkdir -p "$repo_dir"
-      git clone https://github.com/coder/coder "$repo_dir"
-    fi
-
     sudo service docker start
-    DOTFILES_URI="${data.coder_parameter.dotfiles_url.value}"
-    rm -f ~/.personalize.log
-    if [ -n "$${DOTFILES_URI// }" ]; then
-      coder dotfiles "$DOTFILES_URI" -y 2>&1 | tee -a ~/.personalize.log
-    fi
-    if [ -x ~/personalize ]; then
-      ~/personalize 2>&1 | tee -a ~/.personalize.log
-    elif [ -f ~/personalize ]; then
-      echo "~/personalize is not executable, skipping..." | tee -a ~/.personalize.log
-    fi
-
-    # Automatically authenticate the user if they are not
-    # logged in to another deployment
-    if ! coder list >/dev/null 2>&1; then
-      set +x; coder login --token=$CODER_USER_TOKEN --url=$CODER_DEPLOYMENT_URL
-    else
-      echo "You are already authenticated with coder"
-    fi
-
   EOT
-}
-
-resource "coder_app" "code-server" {
-  agent_id     = coder_agent.dev.id
-  slug         = "code-server"
-  display_name = "code-server"
-  url          = "http://localhost:13337/?folder=${replace(data.coder_parameter.repo_dir.value, "/^~\\//", "/home/coder/")}"
-  icon         = "/icon/code.svg"
-  subdomain    = false
-  share        = "owner"
-
-  healthcheck {
-    url       = "http://localhost:13337/healthz"
-    interval  = 3
-    threshold = 10
-  }
-}
-
-resource "coder_app" "filebrowser" {
-  agent_id     = coder_agent.dev.id
-  display_name = "File Browser"
-  slug         = "filebrowser"
-  url          = "http://localhost:13338"
-  icon         = "https://raw.githubusercontent.com/matifali/logos/main/database.svg"
-  subdomain    = true
-  share        = "owner"
-}
-
-resource "coder_app" "gateway" {
-  agent_id     = coder_agent.dev.id
-  display_name = data.coder_parameter.jetbrains_ide.option[index(data.coder_parameter.jetbrains_ide.option.*.value, data.coder_parameter.jetbrains_ide.value)].name
-  slug         = "gateway"
-  url          = "jetbrains-gateway://connect#type=coder&workspace=${data.coder_workspace.me.name}&agent=dev&folder=${replace(data.coder_parameter.repo_dir.value, "/^~\\//", "/home/coder/")}&url=${data.coder_workspace.me.access_url}&token=${data.coder_workspace.me.owner_session_token}&ide_product_code=${jsondecode(data.coder_parameter.jetbrains_ide.value)[0]}&ide_build_number=${jsondecode(data.coder_parameter.jetbrains_ide.value)[1]}&ide_download_link=${jsondecode(data.coder_parameter.jetbrains_ide.value)[2]}"
-  icon         = data.coder_parameter.jetbrains_ide.option[index(data.coder_parameter.jetbrains_ide.option.*.value, data.coder_parameter.jetbrains_ide.value)].icon
-  external     = true
 }
 
 resource "docker_volume" "home_volume" {
@@ -313,15 +255,15 @@ locals {
   registry_name  = "codercom/oss-dogfood"
 }
 data "docker_registry_image" "dogfood" {
-  // This is temporarily pinned to a pre-nix version of the image at commit
-  // 6cdf1c73c until the Nix kinks are worked out.
-  name = "${local.registry_name}:pre-nix"
+  name = "${local.registry_name}:latest"
 }
 
 resource "docker_image" "dogfood" {
   name = "${local.registry_name}@${data.docker_registry_image.dogfood.sha256_digest}"
   pull_triggers = [
-    data.docker_registry_image.dogfood.sha256_digest
+    data.docker_registry_image.dogfood.sha256_digest,
+    sha1(join("", [for f in fileset(path.module, "files/*") : filesha1(f)])),
+    filesha1("Dockerfile"),
   ]
   keep_locally = true
 }
@@ -339,6 +281,7 @@ resource "docker_container" "workspace" {
   runtime = "sysbox-runc"
   env = [
     "CODER_AGENT_TOKEN=${coder_agent.dev.token}",
+    "USE_CAP_NET_ADMIN=true",
   ]
   host {
     host = "host.docker.internal"
@@ -348,6 +291,9 @@ resource "docker_container" "workspace" {
     container_path = "/home/coder/"
     volume_name    = docker_volume.home_volume.name
     read_only      = false
+  }
+  capabilities {
+    add = ["CAP_NET_ADMIN", "CAP_SYS_NICE"]
   }
   # Add labels in Docker to keep track of orphan resources.
   labels {

@@ -10,7 +10,21 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func loadVariableValuesFromFile(variablesFile string) ([]codersdk.VariableValue, error) {
+func ParseUserVariableValues(variablesFile string, commandLineVariables []string) ([]codersdk.VariableValue, error) {
+	fromFile, err := parseVariableValuesFromFile(variablesFile)
+	if err != nil {
+		return nil, err
+	}
+
+	fromCommandLine, err := parseVariableValuesFromCommandLine(commandLineVariables)
+	if err != nil {
+		return nil, err
+	}
+
+	return combineVariableValues(fromFile, fromCommandLine), nil
+}
+
+func parseVariableValuesFromFile(variablesFile string) ([]codersdk.VariableValue, error) {
 	var values []codersdk.VariableValue
 	if variablesFile == "" {
 		return values, nil
@@ -50,7 +64,7 @@ func createVariablesMapFromFile(variablesFile string) (map[string]string, error)
 	return variablesMap, nil
 }
 
-func loadVariableValuesFromOptions(variables []string) ([]codersdk.VariableValue, error) {
+func parseVariableValuesFromCommandLine(variables []string) ([]codersdk.VariableValue, error) {
 	var values []codersdk.VariableValue
 	for _, keyValue := range variables {
 		split := strings.SplitN(keyValue, "=", 2)
@@ -64,4 +78,21 @@ func loadVariableValuesFromOptions(variables []string) ([]codersdk.VariableValue
 		})
 	}
 	return values, nil
+}
+
+func combineVariableValues(valuesSets ...[]codersdk.VariableValue) []codersdk.VariableValue {
+	combinedValues := make(map[string]string)
+
+	for _, values := range valuesSets {
+		for _, v := range values {
+			combinedValues[v.Name] = v.Value
+		}
+	}
+
+	var result []codersdk.VariableValue
+	for name, value := range combinedValues {
+		result = append(result, codersdk.VariableValue{Name: name, Value: value})
+	}
+
+	return result
 }

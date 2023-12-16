@@ -1,6 +1,8 @@
 package oidctest
 
 import (
+	"database/sql"
+	"encoding/json"
 	"net/http"
 	"testing"
 	"time"
@@ -46,6 +48,14 @@ func (h *LoginHelper) Login(t *testing.T, idTokenClaims jwt.MapClaims) (*codersd
 	return h.fake.Login(t, unauthenticatedClient, idTokenClaims)
 }
 
+// AttemptLogin does not assert a successful login.
+func (h *LoginHelper) AttemptLogin(t *testing.T, idTokenClaims jwt.MapClaims) (*codersdk.Client, *http.Response) {
+	t.Helper()
+	unauthenticatedClient := codersdk.New(h.client.URL)
+
+	return h.fake.AttemptLogin(t, unauthenticatedClient, idTokenClaims)
+}
+
 // ExpireOauthToken expires the oauth token for the given user.
 func (*LoginHelper) ExpireOauthToken(t *testing.T, db database.Store, user *codersdk.Client) database.UserLink {
 	t.Helper()
@@ -69,11 +79,14 @@ func (*LoginHelper) ExpireOauthToken(t *testing.T, db database.Store, user *code
 
 	// Expire the oauth link for the given user.
 	updated, err := db.UpdateUserLink(ctx, database.UpdateUserLinkParams{
-		OAuthAccessToken:  link.OAuthAccessToken,
-		OAuthRefreshToken: link.OAuthRefreshToken,
-		OAuthExpiry:       time.Now().Add(time.Hour * -1),
-		UserID:            link.UserID,
-		LoginType:         link.LoginType,
+		OAuthAccessToken:       link.OAuthAccessToken,
+		OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will update as required
+		OAuthRefreshToken:      link.OAuthRefreshToken,
+		OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
+		OAuthExpiry:            time.Now().Add(time.Hour * -1),
+		UserID:                 link.UserID,
+		LoginType:              link.LoginType,
+		DebugContext:           json.RawMessage("{}"),
 	})
 	require.NoError(t, err, "expire user link")
 

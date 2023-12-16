@@ -71,6 +71,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"icon":                              ActionTrack,
 		"default_ttl":                       ActionTrack,
 		"max_ttl":                           ActionTrack,
+		"use_max_ttl":                       ActionTrack,
+		"autostart_block_days_of_week":      ActionTrack,
 		"autostop_requirement_days_of_week": ActionTrack,
 		"autostop_requirement_weeks":        ActionTrack,
 		"created_by":                        ActionTrack,
@@ -84,21 +86,24 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"failure_ttl":                       ActionTrack,
 		"time_til_dormant":                  ActionTrack,
 		"time_til_dormant_autodelete":       ActionTrack,
+		"require_active_version":            ActionTrack,
+		"deprecated":                        ActionTrack,
 	},
 	&database.TemplateVersion{}: {
-		"id":                    ActionTrack,
-		"template_id":           ActionTrack,
-		"organization_id":       ActionIgnore, // Never changes.
-		"created_at":            ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
-		"updated_at":            ActionIgnore, // Changes, but is implicit and not helpful in a diff.
-		"name":                  ActionTrack,
-		"message":               ActionIgnore, // Never changes after creation.
-		"readme":                ActionTrack,
-		"job_id":                ActionIgnore, // Not helpful in a diff because jobs aren't tracked in audit logs.
-		"created_by":            ActionTrack,
-		"git_auth_providers":    ActionIgnore, // Not helpful because this can only change when new versions are added.
-		"created_by_avatar_url": ActionIgnore,
-		"created_by_username":   ActionIgnore,
+		"id":                      ActionTrack,
+		"template_id":             ActionTrack,
+		"organization_id":         ActionIgnore, // Never changes.
+		"created_at":              ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
+		"updated_at":              ActionIgnore, // Changes, but is implicit and not helpful in a diff.
+		"name":                    ActionTrack,
+		"message":                 ActionIgnore, // Never changes after creation.
+		"readme":                  ActionTrack,
+		"job_id":                  ActionIgnore, // Not helpful in a diff because jobs aren't tracked in audit logs.
+		"created_by":              ActionTrack,
+		"external_auth_providers": ActionIgnore, // Not helpful because this can only change when new versions are added.
+		"created_by_avatar_url":   ActionIgnore,
+		"created_by_username":     ActionIgnore,
+		"archived":                ActionTrack,
 	},
 	&database.User{}: {
 		"id":                   ActionTrack,
@@ -114,6 +119,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"last_seen_at":         ActionIgnore,
 		"deleted":              ActionTrack,
 		"quiet_hours_schedule": ActionTrack,
+		"theme_preference":     ActionIgnore,
 	},
 	&database.Workspace{}: {
 		"id":                 ActionTrack,
@@ -129,6 +135,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"last_used_at":       ActionIgnore,
 		"dormant_at":         ActionTrack,
 		"deleting_at":        ActionTrack,
+		"automatic_updates":  ActionTrack,
 	},
 	&database.WorkspaceBuild{}: {
 		"id":                      ActionIgnore,
@@ -179,6 +186,10 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"to_login_type":   ActionTrack,
 		"user_id":         ActionTrack,
 	},
+	&database.HealthSettings{}: {
+		"id":                     ActionIgnore,
+		"dismissed_healthchecks": ActionTrack,
+	},
 	// TODO: track an ID here when the below ticket is completed:
 	// https://github.com/coder/coder/pull/6012
 	&database.License{}: {
@@ -202,6 +213,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"derp_enabled":        ActionTrack,
 		"derp_only":           ActionTrack,
 		"region_id":           ActionTrack,
+		"version":             ActionTrack,
 	},
 }
 

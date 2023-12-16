@@ -10,7 +10,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
-	"os/signal"
 	"regexp"
 	rpprof "runtime/pprof"
 	"time"
@@ -44,7 +43,7 @@ func (c *closers) Add(f func()) {
 	*c = append(*c, f)
 }
 
-func (*RootCmd) proxyServer() *clibase.Cmd {
+func (r *RootCmd) proxyServer() *clibase.Cmd {
 	var (
 		cfg = new(codersdk.DeploymentValues)
 		// Filter options for only relevant ones.
@@ -142,7 +141,7 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 			//
 			// To get out of a graceful shutdown, the user can send
 			// SIGQUIT with ctrl+\ or SIGKILL with `kill -9`.
-			notifyCtx, notifyStop := signal.NotifyContext(ctx, cli.InterruptSignals...)
+			notifyCtx, notifyStop := inv.SignalNotifyContext(ctx, cli.InterruptSignals...)
 			defer notifyStop()
 
 			// Clean up idle connections at the end, e.g.
@@ -158,7 +157,7 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 				logger.Debug(ctx, "tracing closed", slog.Error(traceCloseErr))
 			}()
 
-			httpServers, err := cli.ConfigureHTTPServers(inv, cfg)
+			httpServers, err := cli.ConfigureHTTPServers(logger, inv, cfg)
 			if err != nil {
 				return xerrors.Errorf("configure http(s): %w", err)
 			}
@@ -192,6 +191,15 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 			}
 			defer httpClient.CloseIdleConnections()
 			closers.Add(httpClient.CloseIdleConnections)
+
+			// Attach header transport so we process --header and
+			// --header-command flags
+			headerTransport, err := r.HeaderTransport(ctx, primaryAccessURL.Value())
+			if err != nil {
+				return xerrors.Errorf("configure header transport: %w", err)
+			}
+			headerTransport.Transport = httpClient.Transport
+			httpClient.Transport = headerTransport
 
 			// A newline is added before for visibility in terminal output.
 			cliui.Infof(inv.Stdout, "\nView the Web UI: %s", cfg.AccessURL.String())

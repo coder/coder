@@ -8,7 +8,6 @@ import (
 	"net/http/pprof"
 	"net/url"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -117,7 +116,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				defer logWriter.Close()
 
 				sinks = append(sinks, sloghuman.Sink(logWriter))
-				logger := slog.Make(sinks...).Leveled(slog.LevelDebug)
+				logger := inv.Logger.AppendSinks(sinks...).Leveled(slog.LevelDebug)
 
 				logger.Info(ctx, "spawning reaper process")
 				// Do not start a reaper on the child process. It's important
@@ -144,7 +143,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			// Note that we don't want to handle these signals in the
 			// process that runs as PID 1, that's why we do this after
 			// the reaper forked.
-			ctx, stopNotify := signal.NotifyContext(ctx, InterruptSignals...)
+			ctx, stopNotify := inv.SignalNotifyContext(ctx, InterruptSignals...)
 			defer stopNotify()
 
 			// DumpHandler does signal handling, so we call it after the
@@ -154,13 +153,14 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			logWriter := &lumberjackWriteCloseFixer{w: &lumberjack.Logger{
 				Filename: filepath.Join(logDir, "coder-agent.log"),
 				MaxSize:  5, // MB
-				// Without this, rotated logs will never be deleted.
-				MaxBackups: 1,
+				// Per customer incident on November 17th, 2023, its helpful
+				// to have the log of the last few restarts to debug a failing agent.
+				MaxBackups: 10,
 			}}
 			defer logWriter.Close()
 
 			sinks = append(sinks, sloghuman.Sink(logWriter))
-			logger := slog.Make(sinks...).Leveled(slog.LevelDebug)
+			logger := inv.Logger.AppendSinks(sinks...).Leveled(slog.LevelDebug)
 
 			version := buildinfo.Version()
 			logger.Info(ctx, "agent is starting now",
@@ -199,9 +199,19 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			var exchangeToken func(context.Context) (agentsdk.AuthenticateResponse, error)
 			switch auth {
 			case "token":
-				token, err := inv.ParsedFlags().GetString(varAgentToken)
-				if err != nil {
-					return xerrors.Errorf("CODER_AGENT_TOKEN must be set for token auth: %w", err)
+				token, _ := inv.ParsedFlags().GetString(varAgentToken)
+				if token == "" {
+					tokenFile, _ := inv.ParsedFlags().GetString(varAgentTokenFile)
+					if tokenFile != "" {
+						tokenBytes, err := os.ReadFile(tokenFile)
+						if err != nil {
+							return xerrors.Errorf("read token file %q: %w", tokenFile, err)
+						}
+						token = strings.TrimSpace(string(tokenBytes))
+					}
+				}
+				if token == "" {
+					return xerrors.Errorf("CODER_AGENT_TOKEN or CODER_AGENT_TOKEN_FILE must be set for token auth")
 				}
 				client.SetSessionToken(token)
 			case "google-instance-identity":

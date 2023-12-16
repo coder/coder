@@ -1,15 +1,15 @@
-import { makeStyles } from "@mui/styles";
-import { LogLevel } from "api/typesGenerated";
+import { type Interpolation, type Theme } from "@emotion/react";
+import type { LogLevel } from "api/typesGenerated";
 import dayjs from "dayjs";
-import { FC, useMemo } from "react";
-import { MONOSPACE_FONT_FAMILY } from "theme/constants";
-import { combineClasses } from "utils/combineClasses";
+import { type FC, type ReactNode, useMemo } from "react";
 import AnsiToHTML from "ansi-to-html";
+import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 
 export interface Line {
   time: string;
   output: string;
   level: LogLevel;
+  source_id: string;
 }
 
 export interface LogsProps {
@@ -23,19 +23,21 @@ export const Logs: FC<React.PropsWithChildren<LogsProps>> = ({
   lines,
   className = "",
 }) => {
-  const styles = useStyles();
-
   return (
-    <div className={combineClasses([className, styles.root])}>
-      <div className={styles.scrollWrapper}>
+    <div css={styles.root} className={`${className} logs-container`}>
+      <div css={{ minWidth: "fit-content" }}>
         {lines.map((line, idx) => (
-          <div className={combineClasses([styles.line, line.level])} key={idx}>
+          <div
+            css={[styles.line]}
+            className={`${line.level} logs-line`}
+            key={idx}
+          >
             {!hideTimestamps && (
               <>
-                <span className={styles.time}>
+                <span css={styles.time}>
                   {dayjs(line.time).format(`HH:mm:ss.SSS`)}
                 </span>
-                <span className={styles.space} />
+                <span css={styles.space} />
               </>
             )}
             <span>{line.output}</span>
@@ -55,8 +57,9 @@ export const LogLine: FC<{
   hideTimestamp?: boolean;
   number?: number;
   style?: React.CSSProperties;
-}> = ({ line, hideTimestamp, number, style }) => {
-  const styles = useStyles();
+  sourceIcon?: ReactNode;
+  maxNumber?: number;
+}> = ({ line, hideTimestamp, number, maxNumber, sourceIcon, style }) => {
   const output = useMemo(() => {
     return convert.toHtml(line.output.split(/\r/g).pop() as string);
   }, [line.output]);
@@ -64,24 +67,22 @@ export const LogLine: FC<{
 
   return (
     <div
-      className={combineClasses([
-        styles.line,
-        line.level,
-        isUsingLineNumber && styles.lineNumber,
-      ])}
+      css={[styles.line, isUsingLineNumber && { paddingLeft: 16 }]}
+      className={line.level}
       style={style}
     >
+      {sourceIcon}
       {!hideTimestamp && (
         <>
           <span
-            className={combineClasses([
-              styles.time,
-              isUsingLineNumber && styles.number,
-            ])}
+            css={[styles.time, isUsingLineNumber && styles.number]}
+            style={{
+              minWidth: `${maxNumber ? maxNumber.toString().length - 1 : 0}em`,
+            }}
           >
             {number ? number : dayjs(line.time).format(`HH:mm:ss.SSS`)}
           </span>
-          <span className={styles.space} />
+          <span css={styles.space} />
         </>
       )}
       <span
@@ -93,11 +94,11 @@ export const LogLine: FC<{
   );
 };
 
-const useStyles = makeStyles((theme) => ({
-  root: {
+const styles = {
+  root: (theme) => ({
     minHeight: 156,
-    padding: theme.spacing(1, 0),
-    borderRadius: theme.shape.borderRadius,
+    padding: "8px 0",
+    borderRadius: 8,
     overflowX: "auto",
     background: theme.palette.background.default,
 
@@ -105,51 +106,45 @@ const useStyles = makeStyles((theme) => ({
       borderBottom: `1px solid ${theme.palette.divider}`,
       borderRadius: 0,
     },
-  },
-  scrollWrapper: {
-    minWidth: "fit-content",
-  },
-  line: {
+  }),
+  line: (theme) => ({
     wordBreak: "break-all",
     display: "flex",
+    alignItems: "center",
     fontSize: 14,
     color: theme.palette.text.primary,
     fontFamily: MONOSPACE_FONT_FAMILY,
     height: "auto",
     // Whitespace is significant in terminal output for alignment
     whiteSpace: "pre",
-    padding: theme.spacing(0, 4),
+    padding: "0 32px",
 
     "&.error": {
       backgroundColor: theme.palette.error.dark,
     },
 
     "&.debug": {
-      backgroundColor: theme.palette.background.paperLight,
+      backgroundColor: theme.palette.background.paper,
     },
 
     "&.warn": {
       backgroundColor: theme.palette.warning.dark,
     },
-  },
-  lineNumber: {
-    paddingLeft: theme.spacing(2),
-  },
+  }),
   space: {
     userSelect: "none",
-    width: theme.spacing(3),
+    width: 24,
     display: "block",
     flexShrink: 0,
   },
-  time: {
+  time: (theme) => ({
     userSelect: "none",
-    width: theme.spacing(12.5),
     whiteSpace: "pre",
     display: "inline-block",
     color: theme.palette.text.secondary,
-  },
+  }),
   number: {
-    width: theme.spacing(4),
+    width: 32,
     textAlign: "right",
   },
-}));
+} satisfies Record<string, Interpolation<Theme>>;

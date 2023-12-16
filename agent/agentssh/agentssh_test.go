@@ -3,9 +3,12 @@
 package agentssh_test
 
 import (
+	"bufio"
 	"bytes"
 	"context"
+	"fmt"
 	"net"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -23,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestMain(m *testing.M) {
@@ -56,8 +60,8 @@ func TestNewServer_ServeClient(t *testing.T) {
 
 	var b bytes.Buffer
 	sess, err := c.NewSession()
-	sess.Stdout = &b
 	require.NoError(t, err)
+	sess.Stdout = &b
 	err = sess.Start("echo hello")
 	require.NoError(t, err)
 
@@ -69,6 +73,42 @@ func TestNewServer_ServeClient(t *testing.T) {
 	err = s.Close()
 	require.NoError(t, err)
 	<-done
+}
+
+func TestNewServer_ExecuteShebang(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("bash doesn't exist on Windows")
+	}
+
+	ctx := context.Background()
+	logger := slogtest.Make(t, nil)
+	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), 0, "")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = s.Close()
+	})
+	s.AgentToken = func() string { return "" }
+	s.Manifest = atomic.NewPointer(&agentsdk.Manifest{})
+
+	t.Run("Basic", func(t *testing.T) {
+		t.Parallel()
+		cmd, err := s.CreateCommand(ctx, `#!/bin/bash
+		echo test`, nil)
+		require.NoError(t, err)
+		output, err := cmd.AsExec().CombinedOutput()
+		require.NoError(t, err)
+		require.Equal(t, "test\n", string(output))
+	})
+	t.Run("Args", func(t *testing.T) {
+		t.Parallel()
+		cmd, err := s.CreateCommand(ctx, `#!/usr/bin/env bash
+		echo test`, nil)
+		require.NoError(t, err)
+		output, err := cmd.AsExec().CombinedOutput()
+		require.NoError(t, err)
+		require.Equal(t, "test\n", string(output))
+	})
 }
 
 func TestNewServer_CloseActiveConnections(t *testing.T) {
@@ -102,6 +142,7 @@ func TestNewServer_CloseActiveConnections(t *testing.T) {
 		defer wg.Done()
 		c := sshClient(t, ln.Addr().String())
 		sess, err := c.NewSession()
+		assert.NoError(t, err)
 		sess.Stdin = pty.Input()
 		sess.Stdout = pty.Output()
 		sess.Stderr = pty.Output()
@@ -120,6 +161,159 @@ func TestNewServer_CloseActiveConnections(t *testing.T) {
 	require.NoError(t, err)
 
 	wg.Wait()
+}
+
+func TestNewServer_Signal(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Stdout", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		logger := slogtest.Make(t, nil)
+		s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), 0, "")
+		require.NoError(t, err)
+		defer s.Close()
+
+		// The assumption is that these are set before serving SSH connections.
+		s.AgentToken = func() string { return "" }
+		s.Manifest = atomic.NewPointer(&agentsdk.Manifest{})
+
+		ln, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			err := s.Serve(ln)
+			assert.Error(t, err) // Server is closed.
+		}()
+		defer func() {
+			err := s.Close()
+			require.NoError(t, err)
+			<-done
+		}()
+
+		c := sshClient(t, ln.Addr().String())
+
+		sess, err := c.NewSession()
+		require.NoError(t, err)
+		r, err := sess.StdoutPipe()
+		require.NoError(t, err)
+
+		// Perform multiple sleeps since the interrupt signal doesn't propagate to
+		// the process group, this lets us exit early.
+		sleeps := strings.Repeat("sleep 1 && ", int(testutil.WaitMedium.Seconds()))
+		err = sess.Start(fmt.Sprintf("echo hello && %s echo bye", sleeps))
+		require.NoError(t, err)
+
+		sc := bufio.NewScanner(r)
+		for sc.Scan() {
+			t.Log(sc.Text())
+			if strings.Contains(sc.Text(), "hello") {
+				break
+			}
+		}
+		require.NoError(t, sc.Err())
+
+		err = sess.Signal(ssh.SIGKILL)
+		require.NoError(t, err)
+
+		// Assumption, signal propagates and the command exists, closing stdout.
+		for sc.Scan() {
+			t.Log(sc.Text())
+			require.NotContains(t, sc.Text(), "bye")
+		}
+		require.NoError(t, sc.Err())
+
+		err = sess.Wait()
+		exitErr := &ssh.ExitError{}
+		require.ErrorAs(t, err, &exitErr)
+		wantCode := 255
+		if runtime.GOOS == "windows" {
+			wantCode = 1
+		}
+		require.Equal(t, wantCode, exitErr.ExitStatus())
+	})
+	t.Run("PTY", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		logger := slogtest.Make(t, nil)
+		s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), 0, "")
+		require.NoError(t, err)
+		defer s.Close()
+
+		// The assumption is that these are set before serving SSH connections.
+		s.AgentToken = func() string { return "" }
+		s.Manifest = atomic.NewPointer(&agentsdk.Manifest{})
+
+		ln, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			err := s.Serve(ln)
+			assert.Error(t, err) // Server is closed.
+		}()
+		defer func() {
+			err := s.Close()
+			require.NoError(t, err)
+			<-done
+		}()
+
+		c := sshClient(t, ln.Addr().String())
+
+		pty := ptytest.New(t)
+
+		sess, err := c.NewSession()
+		require.NoError(t, err)
+		r, err := sess.StdoutPipe()
+		require.NoError(t, err)
+
+		// Note, we request pty but don't use ptytest here because we can't
+		// easily test for no text before EOF.
+		sess.Stdin = pty.Input()
+		sess.Stderr = pty.Output()
+
+		err = sess.RequestPty("xterm", 80, 80, nil)
+		require.NoError(t, err)
+
+		// Perform multiple sleeps since the interrupt signal doesn't propagate to
+		// the process group, this lets us exit early.
+		sleeps := strings.Repeat("sleep 1 && ", int(testutil.WaitMedium.Seconds()))
+		err = sess.Start(fmt.Sprintf("echo hello && %s echo bye", sleeps))
+		require.NoError(t, err)
+
+		sc := bufio.NewScanner(r)
+		for sc.Scan() {
+			t.Log(sc.Text())
+			if strings.Contains(sc.Text(), "hello") {
+				break
+			}
+		}
+		require.NoError(t, sc.Err())
+
+		err = sess.Signal(ssh.SIGKILL)
+		require.NoError(t, err)
+
+		// Assumption, signal propagates and the command exists, closing stdout.
+		for sc.Scan() {
+			t.Log(sc.Text())
+			require.NotContains(t, sc.Text(), "bye")
+		}
+		require.NoError(t, sc.Err())
+
+		err = sess.Wait()
+		exitErr := &ssh.ExitError{}
+		require.ErrorAs(t, err, &exitErr)
+		wantCode := 255
+		if runtime.GOOS == "windows" {
+			wantCode = 1
+		}
+		require.Equal(t, wantCode, exitErr.ExitStatus())
+	})
 }
 
 func sshClient(t *testing.T, addr string) *ssh.Client {

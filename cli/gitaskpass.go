@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os/signal"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -13,6 +12,7 @@ import (
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/gitauth"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/retry"
 )
 
@@ -25,7 +25,7 @@ func (r *RootCmd) gitAskpass() *clibase.Cmd {
 		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
 
-			ctx, stop := signal.NotifyContext(ctx, InterruptSignals...)
+			ctx, stop := inv.SignalNotifyContext(ctx, InterruptSignals...)
 			defer stop()
 
 			user, host, err := gitauth.ParseAskpass(inv.Args[0])
@@ -38,7 +38,9 @@ func (r *RootCmd) gitAskpass() *clibase.Cmd {
 				return xerrors.Errorf("create agent client: %w", err)
 			}
 
-			token, err := client.GitAuth(ctx, host, false)
+			token, err := client.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{
+				Match: host,
+			})
 			if err != nil {
 				var apiError *codersdk.Error
 				if errors.As(err, &apiError) && apiError.StatusCode() == http.StatusNotFound {
@@ -63,7 +65,10 @@ func (r *RootCmd) gitAskpass() *clibase.Cmd {
 				}
 
 				for r := retry.New(250*time.Millisecond, 10*time.Second); r.Wait(ctx); {
-					token, err = client.GitAuth(ctx, host, true)
+					token, err = client.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{
+						Match:  host,
+						Listen: true,
+					})
 					if err != nil {
 						continue
 					}

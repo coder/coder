@@ -2,6 +2,7 @@ package dbauthz_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"sort"
@@ -16,20 +17,25 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/regosql"
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
+var errMatchAny = errors.New("match any error")
+
 var skipMethods = map[string]string{
-	"InTx":     "Not relevant",
-	"Ping":     "Not relevant",
-	"Wrappers": "Not relevant",
+	"InTx":           "Not relevant",
+	"Ping":           "Not relevant",
+	"Wrappers":       "Not relevant",
+	"AcquireLock":    "Not relevant",
+	"TryAcquireLock": "Not relevant",
 }
 
 // TestMethodTestSuite runs MethodTestSuite.
@@ -59,9 +65,10 @@ func (s *MethodTestSuite) SetupSuite() {
 	mockStore := dbmock.NewMockStore(ctrl)
 	// We intentionally set no expectations apart from this.
 	mockStore.EXPECT().Wrappers().Return([]string{}).AnyTimes()
-	az := dbauthz.New(mockStore, nil, slog.Make())
+	az := dbauthz.New(mockStore, nil, slog.Make(), coderdtest.AccessControlStorePointer())
 	// Take the underlying type of the interface.
-	azt := reflect.TypeOf(az).Elem()
+	azt := reflect.TypeOf(az)
+	require.Greater(s.T(), azt.NumMethod(), 0, "no methods found on querier")
 	s.methodAccounting = make(map[string]int)
 	for i := 0; i < azt.NumMethod(); i++ {
 		method := azt.Method(i)
@@ -103,14 +110,14 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 		methodName := names[len(names)-1]
 		s.methodAccounting[methodName]++
 
-		db := dbfake.New()
+		db := dbmem.New()
 		fakeAuthorizer := &coderdtest.FakeAuthorizer{
 			AlwaysReturn: nil,
 		}
 		rec := &coderdtest.RecordingAuthorizer{
 			Wrapped: fakeAuthorizer,
 		}
-		az := dbauthz.New(db, rec, slog.Make())
+		az := dbauthz.New(db, rec, slog.Make(), coderdtest.AccessControlStorePointer())
 		actor := rbac.Subject{
 			ID:     uuid.NewString(),
 			Roles:  rbac.RoleNames{rbac.RoleOwner()},
@@ -167,7 +174,16 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 			fakeAuthorizer.AlwaysReturn = nil
 
 			outputs, err := callMethod(ctx)
-			s.NoError(err, "method %q returned an error", methodName)
+			if testCase.err == nil {
+				s.NoError(err, "method %q returned an error", methodName)
+			} else {
+				if errors.Is(testCase.err, errMatchAny) {
+					// This means we do not care exactly what the error is.
+					s.Error(err, "method %q returned an error", methodName)
+				} else {
+					s.EqualError(err, testCase.err.Error(), "method %q returned an unexpected error", methodName)
+				}
+			}
 
 			// Some tests may not care about the outputs, so we only assert if
 			// they are provided.
@@ -288,6 +304,7 @@ type expects struct {
 	assertions []AssertRBAC
 	// outputs is optional. Can assert non-error return values.
 	outputs []reflect.Value
+	err     error
 }
 
 // Asserts is required. Asserts the RBAC authorize calls that should be made.
@@ -309,6 +326,12 @@ func (m *expects) Args(args ...any) *expects {
 // Returns is optional. If it is never called, it will not be asserted.
 func (m *expects) Returns(rets ...any) *expects {
 	m.outputs = values(rets...)
+	return m
+}
+
+// Errors is optional. If it is never called, it will not be asserted.
+func (m *expects) Errors(err error) *expects {
+	m.err = err
 	return m
 }
 

@@ -1,11 +1,11 @@
 import Link from "@mui/material/Link";
-import { SecondaryAgentButton } from "components/Resources/AgentButton";
+import { AgentButton } from "components/Resources/AgentButton";
 import { FC } from "react";
-import * as TypesGen from "../../../api/typesGenerated";
-import { generateRandomString } from "../../../utils/random";
+import * as TypesGen from "api/typesGenerated";
+import { generateRandomString } from "utils/random";
+import { DisplayAppNameMap } from "../AppLink/AppLink";
 
 export const Language = {
-  linkText: "Terminal",
   terminalTitle: (identifier: string): string => `Terminal - ${identifier}`,
 };
 
@@ -46,7 +46,7 @@ export const TerminalLink: FC<React.PropsWithChildren<TerminalLinkProps>> = ({
       }}
       data-testid="terminal"
     >
-      <SecondaryAgentButton>{Language.linkText}</SecondaryAgentButton>
+      <AgentButton>{DisplayAppNameMap["web_terminal"]}</AgentButton>
     </Link>
   );
 };

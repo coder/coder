@@ -1,5 +1,5 @@
+import { type Interpolation, type Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
-import { makeStyles } from "@mui/styles";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -7,9 +7,7 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import AddIcon from "@mui/icons-material/AddOutlined";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
-import { Maybe } from "components/Conditionals/Maybe";
-import { FC } from "react";
+import { type FC } from "react";
 import { useNavigate, Link as RouterLink } from "react-router-dom";
 import { createDayString } from "utils/createDayString";
 import {
@@ -37,16 +35,14 @@ import {
 } from "components/HelpTooltip/HelpTooltip";
 import { EmptyTemplates } from "./EmptyTemplates";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
-import { Template, TemplateExample } from "api/typesGenerated";
-import { combineClasses } from "utils/combineClasses";
-import { colors } from "theme/colors";
+import type { Template, TemplateExample } from "api/typesGenerated";
 import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined";
 import { Avatar } from "components/Avatar/Avatar";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { docs } from "utils/docs";
 import Skeleton from "@mui/material/Skeleton";
-import { Box } from "@mui/system";
 import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
+import { Pill } from "components/Pill/Pill";
 
 export const Language = {
   developerCount: (activeCount: number): string => {
@@ -64,13 +60,13 @@ export const Language = {
   templateTooltipLink: "Manage templates",
 };
 
-const TemplateHelpTooltip: React.FC = () => {
+const TemplateHelpTooltip: FC = () => {
   return (
     <HelpTooltip>
       <HelpTooltipTitle>{Language.templateTooltipTitle}</HelpTooltipTitle>
       <HelpTooltipText>{Language.templateTooltipText}</HelpTooltipText>
       <HelpTooltipLinksGroup>
-        <HelpTooltipLink href={docs("/templates#manage-templates")}>
+        <HelpTooltipLink href={docs("/templates")}>
           {Language.templateTooltipLink}
         </HelpTooltipLink>
       </HelpTooltipLinksGroup>
@@ -78,22 +74,25 @@ const TemplateHelpTooltip: React.FC = () => {
   );
 };
 
-const TemplateRow: FC<{ template: Template }> = ({ template }) => {
+interface TemplateRowProps {
+  template: Template;
+}
+
+const TemplateRow: FC<TemplateRowProps> = ({ template }) => {
   const templatePageLink = `/templates/${template.name}`;
   const hasIcon = template.icon && template.icon !== "";
   const navigate = useNavigate();
-  const styles = useStyles();
-  const { className: clickableClassName, ...clickableRow } =
-    useClickableTableRow(() => {
-      navigate(templatePageLink);
-    });
+
+  const { css: clickableCss, ...clickableRow } = useClickableTableRow({
+    onClick: () => navigate(templatePageLink),
+  });
 
   return (
     <TableRow
       key={template.id}
       data-testid={`template-${template.id}`}
       {...clickableRow}
-      className={combineClasses([clickableClassName, styles.tableRow])}
+      css={[clickableCss, styles.tableRow]}
     >
       <TableCell>
         <AvatarData
@@ -109,31 +108,36 @@ const TemplateRow: FC<{ template: Template }> = ({ template }) => {
         />
       </TableCell>
 
-      <TableCell className={styles.secondary}>
+      <TableCell css={styles.secondary}>
         {Language.developerCount(template.active_user_count)}
       </TableCell>
 
-      <TableCell className={styles.secondary}>
+      <TableCell css={styles.secondary}>
         {formatTemplateBuildTime(template.build_time_stats.start.P50)}
       </TableCell>
 
-      <TableCell data-chromatic="ignore" className={styles.secondary}>
+      <TableCell data-chromatic="ignore" css={styles.secondary}>
         {createDayString(template.updated_at)}
       </TableCell>
 
-      <TableCell className={styles.actionCell}>
-        <Button
-          size="small"
-          className={styles.actionButton}
-          startIcon={<ArrowForwardOutlined />}
-          title={`Create a workspace using the ${template.display_name} template`}
-          onClick={(e) => {
-            e.stopPropagation();
-            navigate(`/templates/${template.name}/workspace`);
-          }}
-        >
-          Create Workspace
-        </Button>
+      <TableCell css={styles.actionCell}>
+        {template.deprecated ? (
+          <Pill text="Deprecated" type="warning" />
+        ) : (
+          <Button
+            size="small"
+            css={styles.actionButton}
+            className="actionButton"
+            startIcon={<ArrowForwardOutlined />}
+            title={`Create a workspace using the ${template.display_name} template`}
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate(`/templates/${template.name}/workspace`);
+            }}
+          >
+            Create Workspace
+          </Button>
+        )}
       </TableCell>
     </TableRow>
   );
@@ -153,25 +157,27 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
   canCreateTemplates,
 }) => {
   const isLoading = !templates;
-  const isEmpty = Boolean(templates && templates.length === 0);
+  const isEmpty = templates && templates.length === 0;
 
   return (
     <Margins>
       <PageHeader
         actions={
-          <Maybe condition={canCreateTemplates}>
-            <Button component={RouterLink} to="/starter-templates">
-              Starter Templates
-            </Button>
-            <Button
-              startIcon={<AddIcon />}
-              component={RouterLink}
-              to="new"
-              variant="contained"
-            >
-              Create Template
-            </Button>
-          </Maybe>
+          canCreateTemplates && (
+            <>
+              <Button component={RouterLink} to="/starter-templates">
+                Starter Templates
+              </Button>
+              <Button
+                startIcon={<AddIcon />}
+                component={RouterLink}
+                to="new"
+                variant="contained"
+              >
+                Create Template
+              </Button>
+            </>
+          )
         }
       >
         <PageHeaderTitle>
@@ -180,66 +186,56 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
             <TemplateHelpTooltip />
           </Stack>
         </PageHeaderTitle>
-        <Maybe condition={Boolean(templates && templates.length > 0)}>
+        {templates && templates.length > 0 && (
           <PageHeaderSubtitle>
             Select a template to create a workspace.
           </PageHeaderSubtitle>
-        </Maybe>
+        )}
       </PageHeader>
 
-      <ChooseOne>
-        <Cond condition={Boolean(error)}>
-          <ErrorAlert error={error} />
-        </Cond>
+      {error ? (
+        <ErrorAlert error={error} />
+      ) : (
+        <TableContainer>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell width="35%">{Language.nameLabel}</TableCell>
+                <TableCell width="15%">{Language.usedByLabel}</TableCell>
+                <TableCell width="10%">{Language.buildTimeLabel}</TableCell>
+                <TableCell width="15%">{Language.lastUpdatedLabel}</TableCell>
+                <TableCell width="1%"></TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {isLoading && <TableLoader />}
 
-        <Cond>
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell width="35%">{Language.nameLabel}</TableCell>
-                  <TableCell width="15%">{Language.usedByLabel}</TableCell>
-                  <TableCell width="10%">{Language.buildTimeLabel}</TableCell>
-                  <TableCell width="15%">{Language.lastUpdatedLabel}</TableCell>
-                  <TableCell width="1%"></TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                <Maybe condition={isLoading}>
-                  <TableLoader />
-                </Maybe>
-
-                <ChooseOne>
-                  <Cond condition={isEmpty}>
-                    <EmptyTemplates
-                      canCreateTemplates={canCreateTemplates}
-                      examples={examples ?? []}
-                    />
-                  </Cond>
-
-                  <Cond>
-                    {templates?.map((template) => (
-                      <TemplateRow key={template.id} template={template} />
-                    ))}
-                  </Cond>
-                </ChooseOne>
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Cond>
-      </ChooseOne>
+              {isEmpty ? (
+                <EmptyTemplates
+                  canCreateTemplates={canCreateTemplates}
+                  examples={examples ?? []}
+                />
+              ) : (
+                templates?.map((template) => (
+                  <TemplateRow key={template.id} template={template} />
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
     </Margins>
   );
 };
 
-const TableLoader = () => {
+const TableLoader: FC = () => {
   return (
     <TableLoaderSkeleton>
       <TableRowSkeleton>
         <TableCell>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <div css={{ display: "flex", alignItems: "center", gap: 8 }}>
             <AvatarDataSkeleton />
-          </Box>
+          </div>
         </TableCell>
         <TableCell>
           <Skeleton variant="text" width="25%" />
@@ -258,7 +254,7 @@ const TableLoader = () => {
   );
 };
 
-const useStyles = makeStyles((theme) => ({
+const styles = {
   templateIconWrapper: {
     // Same size then the avatar component
     width: 36,
@@ -272,20 +268,20 @@ const useStyles = makeStyles((theme) => ({
   actionCell: {
     whiteSpace: "nowrap",
   },
-  secondary: {
+  secondary: (theme) => ({
     color: theme.palette.text.secondary,
-  },
-  tableRow: {
-    "&:hover $actionButton": {
+  }),
+  tableRow: (theme) => ({
+    "&:hover .actionButton": {
       color: theme.palette.text.primary,
-      borderColor: colors.gray[11],
+      borderColor: theme.colors.gray[11],
       "&:hover": {
         borderColor: theme.palette.text.primary,
       },
     },
-  },
-  actionButton: {
+  }),
+  actionButton: (theme) => ({
     color: theme.palette.text.secondary,
     transition: "none",
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;

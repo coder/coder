@@ -1,26 +1,29 @@
-import { ComponentProps, FC } from "react";
-import { makeStyles } from "@mui/styles";
+import { type ComponentProps, type FC } from "react";
+import { useTheme } from "@emotion/react";
 import RefreshIcon from "@mui/icons-material/RefreshOutlined";
 import {
-  HelpTooltipText,
   HelpPopover,
-  HelpTooltipTitle,
   HelpTooltipAction,
-  HelpTooltipLinksGroup,
   HelpTooltipContext,
+  HelpTooltipLinksGroup,
+  HelpTooltipText,
+  HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
-import { WorkspaceAgent } from "api/typesGenerated";
+import type { WorkspaceAgent } from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
+import { agentVersionStatus } from "../../utils/workspace";
 
 type AgentOutdatedTooltipProps = ComponentProps<typeof HelpPopover> & {
   agent: WorkspaceAgent;
   serverVersion: string;
+  status: agentVersionStatus;
   onUpdate: () => void;
 };
 
 export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
   agent,
   serverVersion,
+  status,
   onUpdate,
   onOpen,
   id,
@@ -28,7 +31,23 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
   onClose,
   anchorEl,
 }) => {
-  const styles = useStyles();
+  const theme = useTheme();
+  const versionLabelStyles = {
+    fontWeight: 600,
+    color: theme.palette.text.primary,
+  };
+  const title =
+    status === agentVersionStatus.Outdated
+      ? "Agent Outdated"
+      : "Agent Deprecated";
+  const opener =
+    status === agentVersionStatus.Outdated
+      ? "This agent is an older version than the Coder server."
+      : "This agent is using a deprecated version of the API.";
+  const text =
+    opener +
+    " This can happen after you update Coder with running workspaces. " +
+    "To fix this, you can stop and start the workspace.";
 
   return (
     <HelpPopover
@@ -41,21 +60,17 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
       <HelpTooltipContext.Provider value={{ open, onClose }}>
         <Stack spacing={1}>
           <div>
-            <HelpTooltipTitle>Agent Outdated</HelpTooltipTitle>
-            <HelpTooltipText>
-              This agent is an older version than the Coder server. This can
-              happen after you update Coder with running workspaces. To fix
-              this, you can stop and start the workspace.
-            </HelpTooltipText>
+            <HelpTooltipTitle>{title}</HelpTooltipTitle>
+            <HelpTooltipText>{text}</HelpTooltipText>
           </div>
 
           <Stack spacing={0.5}>
-            <span className={styles.versionLabel}>Agent version</span>
+            <span css={versionLabelStyles}>Agent version</span>
             <span>{agent.version}</span>
           </Stack>
 
           <Stack spacing={0.5}>
-            <span className={styles.versionLabel}>Server version</span>
+            <span css={versionLabelStyles}>Server version</span>
             <span>{serverVersion}</span>
           </Stack>
 
@@ -73,10 +88,3 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
     </HelpPopover>
   );
 };
-
-const useStyles = makeStyles((theme) => ({
-  versionLabel: {
-    fontWeight: 600,
-    color: theme.palette.text.primary,
-  },
-}));

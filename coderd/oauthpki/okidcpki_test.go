@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+//nolint:gosec // these are just for testing
 const (
 	testClientKey = `-----BEGIN RSA PRIVATE KEY-----
 MIIEpAIBAAKCAQEAnUryZEfn5kA8wuk9a7ogFuWbk3uPHEhioYuAg9m3/tIdqSqu

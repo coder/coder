@@ -106,7 +106,7 @@ func (s *server) Plan(
 	}
 	s.logger.Debug(ctx, "ran initialization")
 
-	env, err := provisionEnv(sess.Config, request.Metadata, request.RichParameterValues, request.GitAuthProviders)
+	env, err := provisionEnv(sess.Config, request.Metadata, request.RichParameterValues, request.ExternalAuthProviders)
 	if err != nil {
 		return provisionersdk.PlanErrorf("setup env: %s", err)
 	}
@@ -183,7 +183,7 @@ func planVars(plan *proto.PlanRequest) ([]string, error) {
 
 func provisionEnv(
 	config *proto.Config, metadata *proto.Metadata,
-	richParams []*proto.RichParameterValue, gitAuth []*proto.GitAuthProvider,
+	richParams []*proto.RichParameterValue, externalAuth []*proto.ExternalAuthProvider,
 ) ([]string, error) {
 	env := safeEnviron()
 	env = append(env,
@@ -198,6 +198,7 @@ func provisionEnv(
 		"CODER_WORKSPACE_OWNER_SESSION_TOKEN="+metadata.GetWorkspaceOwnerSessionToken(),
 		"CODER_WORKSPACE_TEMPLATE_ID="+metadata.GetTemplateId(),
 		"CODER_WORKSPACE_TEMPLATE_NAME="+metadata.GetTemplateName(),
+		"CODER_WORKSPACE_TEMPLATE_VERSION="+metadata.GetTemplateVersion(),
 	)
 	for key, value := range provisionersdk.AgentScriptEnv() {
 		env = append(env, key+"="+value)
@@ -205,8 +206,9 @@ func provisionEnv(
 	for _, param := range richParams {
 		env = append(env, provider.ParameterEnvironmentVariable(param.Name)+"="+param.Value)
 	}
-	for _, gitAuth := range gitAuth {
-		env = append(env, provider.GitAuthAccessTokenEnvironmentVariable(gitAuth.Id)+"="+gitAuth.AccessToken)
+	for _, extAuth := range externalAuth {
+		env = append(env, provider.GitAuthAccessTokenEnvironmentVariable(extAuth.Id)+"="+extAuth.AccessToken)
+		env = append(env, provider.ExternalAuthAccessTokenEnvironmentVariable(extAuth.Id)+"="+extAuth.AccessToken)
 	}
 
 	if config.ProvisionerLogLevel != "" {

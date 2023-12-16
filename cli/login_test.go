@@ -3,6 +3,8 @@ package cli_test
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"runtime"
 	"testing"
 
@@ -34,6 +36,39 @@ func TestLogin(t *testing.T) {
 		err := root.Run()
 		errMsg := fmt.Sprintf("Failed to check server %q for first user, is the URL correct and is coder accessible from your browser?", badLoginURL)
 		require.ErrorContains(t, err, errMsg)
+	})
+
+	t.Run("InitialUserNonCoderURLFail", func(t *testing.T) {
+		t.Parallel()
+
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte("Not Found"))
+		}))
+		defer ts.Close()
+
+		badLoginURL := ts.URL
+		root, _ := clitest.New(t, "login", badLoginURL)
+		err := root.Run()
+		errMsg := fmt.Sprintf("Failed to check server %q for first user, is the URL correct and is coder accessible from your browser?", badLoginURL)
+		require.ErrorContains(t, err, errMsg)
+	})
+
+	t.Run("InitialUserNonCoderURLSuccess", func(t *testing.T) {
+		t.Parallel()
+
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("X-Coder-Build-Version", "something")
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte("Not Found"))
+		}))
+		defer ts.Close()
+
+		badLoginURL := ts.URL
+		root, _ := clitest.New(t, "login", badLoginURL)
+		err := root.Run()
+		// this means we passed the check for a valid coder server
+		require.ErrorContains(t, err, "the initial user cannot be created in non-interactive mode")
 	})
 
 	t.Run("InitialUserTTY", func(t *testing.T) {

@@ -143,7 +143,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 
 	memberRole := Role{
 		Name:        member,
-		DisplayName: "",
+		DisplayName: "Member",
 		Site: Permissions(map[string][]Action{
 			ResourceRoleAssignment.Type: {ActionRead},
 			// All users can see the provisioner daemons.
@@ -165,10 +165,14 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		Site: Permissions(map[string][]Action{
 			// Should be able to read all template details, even in orgs they
 			// are not in.
-			ResourceTemplate.Type: {ActionRead},
-			ResourceAuditLog.Type: {ActionRead},
-			ResourceUser.Type:     {ActionRead},
-			ResourceGroup.Type:    {ActionRead},
+			ResourceTemplate.Type:         {ActionRead},
+			ResourceTemplateInsights.Type: {ActionRead},
+			ResourceAuditLog.Type:         {ActionRead},
+			ResourceUser.Type:             {ActionRead},
+			ResourceGroup.Type:            {ActionRead},
+			// Allow auditors to query deployment stats and insights.
+			ResourceDeploymentStats.Type:  {ActionRead},
+			ResourceDeploymentValues.Type: {ActionRead},
 			// Org roles are not really used yet, so grant the perm at the site level.
 			ResourceOrganizationMember.Type: {ActionRead},
 		}),
@@ -192,6 +196,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			ResourceGroup.Type:        {ActionRead},
 			// Org roles are not really used yet, so grant the perm at the site level.
 			ResourceOrganizationMember.Type: {ActionRead},
+			// Template admins can read all template insights data
+			ResourceTemplateInsights.Type: {ActionRead},
 		}),
 		Org:  map[string][]Permission{},
 		User: []Permission{},
@@ -203,6 +209,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		Site: Permissions(map[string][]Action{
 			ResourceRoleAssignment.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 			ResourceUser.Type:           {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+			ResourceUserData.Type:       {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 			// Full perms to manage org members
 			ResourceOrganizationMember.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 			ResourceGroup.Type:              {ActionCreate, ActionRead, ActionUpdate, ActionDelete},

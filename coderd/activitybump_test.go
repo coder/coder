@@ -9,14 +9,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -31,7 +30,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 	// max_deadline on the build directly in the database.
 	setupActivityTest := func(t *testing.T, deadline ...time.Duration) (client *codersdk.Client, workspace codersdk.Workspace, assertBumped func(want bool)) {
 		t.Helper()
-		const ttl = time.Minute
+		const ttl = time.Hour
 		maxTTL := time.Duration(0)
 		if len(deadline) > 0 {
 			maxTTL = deadline[0]
@@ -66,42 +65,35 @@ func TestWorkspaceActivityBump(t *testing.T) {
 			ProvisionApply: echo.ProvisionApplyWithAgent(agentToken),
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 			cwr.TTLMillis = &ttlMillis
 		})
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
+		var maxDeadline time.Time
 		// Update the max deadline.
 		if maxTTL != 0 {
-			dbBuild, err := db.GetWorkspaceBuildByID(ctx, workspace.LatestBuild.ID)
-			require.NoError(t, err)
-
-			err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
-				ID:          workspace.LatestBuild.ID,
-				UpdatedAt:   dbtime.Now(),
-				Deadline:    dbBuild.Deadline,
-				MaxDeadline: dbtime.Now().Add(maxTTL),
-			})
-			require.NoError(t, err)
+			maxDeadline = dbtime.Now().Add(maxTTL)
 		}
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(agentToken)
-		agentCloser := agent.New(agent.Options{
-			Client: agentClient,
-			Logger: slogtest.Make(t, nil).Named("agent"),
+		err := db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+			ID:        workspace.LatestBuild.ID,
+			UpdatedAt: dbtime.Now(),
+			// Make the deadline really close so it needs to be bumped immediately.
+			Deadline:    dbtime.Now().Add(time.Minute),
+			MaxDeadline: maxDeadline,
 		})
-		t.Cleanup(func() {
-			_ = agentCloser.Close()
-		})
+		require.NoError(t, err)
+
+		_ = agenttest.New(t, client.URL, agentToken)
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
-		// Sanity-check that deadline is near.
-		workspace, err := client.Workspace(ctx, workspace.ID)
+		// Sanity-check that deadline is nearing requiring a bump.
+		workspace, err = client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err)
 		require.WithinDuration(t,
-			time.Now().Add(time.Duration(ttlMillis)*time.Millisecond),
+			time.Now().Add(time.Minute),
 			workspace.LatestBuild.Deadline.Time,
 			testutil.WaitMedium,
 		)
@@ -142,7 +134,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 					workspace, err = client.Workspace(ctx, workspace.ID)
 					require.NoError(t, err)
 					updatedAfter = dbtime.Now()
-					if workspace.LatestBuild.Deadline.Time == firstDeadline {
+					if workspace.LatestBuild.Deadline.Time.Equal(firstDeadline) {
 						updatedAfter = time.Now()
 						return false
 					}
@@ -160,6 +152,13 @@ func TestWorkspaceActivityBump(t *testing.T) {
 				require.LessOrEqual(t, workspace.LatestBuild.Deadline.Time, workspace.LatestBuild.MaxDeadline.Time)
 				return
 			}
+			now := dbtime.Now()
+			zone, offset := time.Now().Zone()
+			t.Logf("[Zone=%s %d] originDeadline: %s, deadline: %s, now %s, (now-deadline)=%s",
+				zone, offset,
+				firstDeadline, workspace.LatestBuild.Deadline.Time, now,
+				now.Sub(workspace.LatestBuild.Deadline.Time),
+			)
 			require.WithinDuration(t, dbtime.Now().Add(ttl), workspace.LatestBuild.Deadline.Time, testutil.WaitShort)
 		}
 	}
@@ -201,9 +200,9 @@ func TestWorkspaceActivityBump(t *testing.T) {
 	t.Run("NotExceedMaxDeadline", func(t *testing.T) {
 		t.Parallel()
 
-		// Set the max deadline to be in 61 seconds. We bump by 1 minute, so we
+		// Set the max deadline to be in 30min. We bump by 1 hour, so we
 		// should expect the deadline to match the max deadline exactly.
-		client, workspace, assertBumped := setupActivityTest(t, 61*time.Second)
+		client, workspace, assertBumped := setupActivityTest(t, time.Minute*30)
 
 		// Bump by dialing the workspace and sending traffic.
 		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)

@@ -1,22 +1,20 @@
+import { css } from "@emotion/css";
 import CircularProgress from "@mui/material/CircularProgress";
-import { makeStyles } from "@mui/styles";
 import TextField from "@mui/material/TextField";
 import Autocomplete from "@mui/material/Autocomplete";
-import { useMachine } from "@xstate/react";
-import { User } from "api/typesGenerated";
+import type { User } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import {
-  ChangeEvent,
-  ComponentProps,
-  FC,
-  useEffect,
-  useRef,
+  type ChangeEvent,
+  type ComponentProps,
+  type FC,
   useState,
 } from "react";
-import { searchUserMachine } from "xServices/users/searchUserXService";
-import Box from "@mui/material/Box";
 import { useDebouncedFunction } from "hooks/debounce";
+import { useQuery } from "react-query";
+import { users } from "api/queries/users";
+import { prepareQuery } from "utils/filters";
 
 export type UserAutocompleteProps = {
   value: User | null;
@@ -33,54 +31,57 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
   className,
   size = "small",
 }) => {
-  const styles = useStyles();
-  const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false);
-  const [searchState, sendSearch] = useMachine(searchUserMachine);
-  const { searchResults } = searchState.context;
+  const [autoComplete, setAutoComplete] = useState<{
+    value: string;
+    open: boolean;
+  }>({
+    value: value?.email ?? "",
+    open: false,
+  });
+  const usersQuery = useQuery({
+    ...users({
+      q: prepareQuery(encodeURI(autoComplete.value)),
+      limit: 25,
+    }),
+    enabled: autoComplete.open,
+    keepPreviousData: true,
+  });
 
-  // Seed list of options on the first page load if a user passes in a value.
-  // Since some organizations have long lists of users, we do not want to load
-  // all options on page load.
-  const onMountRef = useRef(value);
-  useEffect(() => {
-    const mountValue = onMountRef.current;
-    if (mountValue) {
-      sendSearch("SEARCH", { query: mountValue.email });
-    }
-
-    // This isn't in XState's docs, but its source code guarantees that the
-    // memory reference of sendSearch will stay stable across renders. This
-    // useEffect call will behave like an on-mount effect and will not ever need
-    // to resynchronize
-  }, [sendSearch]);
-
-  const { debounced: debouncedOnChange } = useDebouncedFunction(
+  const { debounced: debouncedInputOnChange } = useDebouncedFunction(
     (event: ChangeEvent<HTMLInputElement>) => {
-      sendSearch("SEARCH", { query: event.target.value });
+      setAutoComplete((state) => ({
+        ...state,
+        value: event.target.value,
+      }));
     },
-    1000,
+    750,
   );
 
   return (
     <Autocomplete
-      noOptionsText="Start typing to search..."
+      // Since the values are filtered by the API we don't need to filter them
+      // in the FE because it can causes some mismatches.
+      filterOptions={(user) => user}
+      noOptionsText="No users found"
       className={className}
-      options={searchResults ?? []}
-      loading={searchState.matches("searching")}
+      options={usersQuery.data?.users ?? []}
+      loading={usersQuery.isLoading}
       value={value}
       id="user-autocomplete"
-      open={isAutocompleteOpen}
+      open={autoComplete.open}
       onOpen={() => {
-        setIsAutocompleteOpen(true);
+        setAutoComplete((state) => ({
+          ...state,
+          open: true,
+        }));
       }}
       onClose={() => {
-        setIsAutocompleteOpen(false);
+        setAutoComplete({
+          value: value?.email ?? "",
+          open: false,
+        });
       }}
       onChange={(_, newValue) => {
-        if (newValue === null) {
-          sendSearch("CLEAR_RESULTS");
-        }
-
         onChange(newValue);
       }}
       isOptionEqualToValue={(option: User, value: User) =>
@@ -88,61 +89,54 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
       }
       getOptionLabel={(option) => option.email}
       renderOption={(props, option) => (
-        <Box component="li" {...props}>
+        <li {...props}>
           <AvatarData
             title={option.username}
             subtitle={option.email}
             src={option.avatar_url}
           />
-        </Box>
+        </li>
       )}
       renderInput={(params) => (
-        <>
-          <TextField
-            {...params}
-            fullWidth
-            size={size}
-            label={label}
-            placeholder="User email or username"
-            className={styles.textField}
-            InputProps={{
-              ...params.InputProps,
-              onChange: debouncedOnChange,
-              startAdornment: value && (
-                <Avatar size="sm" src={value.avatar_url}>
-                  {value.username}
-                </Avatar>
-              ),
-              endAdornment: (
-                <>
-                  {searchState.matches("searching") ? (
-                    <CircularProgress size={16} />
-                  ) : null}
-                  {params.InputProps.endAdornment}
-                </>
-              ),
-              classes: {
-                root: styles.inputRoot,
-              },
-            }}
-            InputLabelProps={{
-              shrink: true,
-            }}
-          />
-        </>
+        <TextField
+          {...params}
+          fullWidth
+          size={size}
+          label={label}
+          placeholder="User email or username"
+          css={{
+            "&:not(:has(label))": {
+              margin: 0,
+            },
+          }}
+          InputProps={{
+            ...params.InputProps,
+            onChange: debouncedInputOnChange,
+            startAdornment: value && (
+              <Avatar size="sm" src={value.avatar_url}>
+                {value.username}
+              </Avatar>
+            ),
+            endAdornment: (
+              <>
+                {usersQuery.isFetching && autoComplete.open ? (
+                  <CircularProgress size={16} />
+                ) : null}
+                {params.InputProps.endAdornment}
+              </>
+            ),
+            classes: { root },
+          }}
+          InputLabelProps={{
+            shrink: true,
+          }}
+        />
       )}
     />
   );
 };
 
-export const useStyles = makeStyles((theme) => ({
-  textField: {
-    "&:not(:has(label))": {
-      margin: 0,
-    },
-  },
-  inputRoot: {
-    paddingLeft: `${theme.spacing(1.75)} !important`, // Same padding left as input
-    gap: theme.spacing(0.5),
-  },
-}));
+const root = css`
+  padding-left: 14px !important; // Same padding left as input
+  gap: 4px;
+`;

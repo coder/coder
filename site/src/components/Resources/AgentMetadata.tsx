@@ -1,29 +1,34 @@
-import makeStyles from "@mui/styles/makeStyles";
-import { watchAgentMetadata } from "api/api";
-import { WorkspaceAgent, WorkspaceAgentMetadata } from "api/typesGenerated";
-import { Stack } from "components/Stack/Stack";
 import dayjs from "dayjs";
+import Skeleton from "@mui/material/Skeleton";
+import Tooltip from "@mui/material/Tooltip";
+import { type Interpolation, type Theme } from "@emotion/react";
 import {
   createContext,
-  FC,
+  type FC,
+  type HTMLAttributes,
   useContext,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
-import Skeleton from "@mui/material/Skeleton";
+import { watchAgentMetadata } from "api/api";
+import type {
+  WorkspaceAgent,
+  WorkspaceAgentMetadata,
+} from "api/typesGenerated";
+import { Stack } from "components/Stack/Stack";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
-import { combineClasses } from "utils/combineClasses";
-import Tooltip from "@mui/material/Tooltip";
-import Box, { BoxProps } from "@mui/material/Box";
 
 type ItemStatus = "stale" | "valid" | "loading";
 
 export const WatchAgentMetadataContext = createContext(watchAgentMetadata);
 
-const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
-  const styles = useStyles();
+interface MetadataItemProps {
+  item: WorkspaceAgentMetadata;
+}
 
+const MetadataItem: FC<MetadataItemProps> = ({ item }) => {
   if (item.result === undefined) {
     throw new Error("Metadata item result is undefined");
   }
@@ -56,42 +61,30 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
   // could be buggy. But, how common is that anyways?
   const value =
     status === "loading" ? (
-      <Skeleton
-        width={65}
-        height={12}
-        variant="text"
-        className={styles.skeleton}
-      />
+      <Skeleton width={65} height={12} variant="text" css={styles.skeleton} />
     ) : status === "stale" ? (
       <Tooltip title="This data is stale and no longer up to date">
-        <StaticWidth
-          className={combineClasses([
-            styles.metadataValue,
-            styles.metadataStale,
-          ])}
-        >
+        <StaticWidth css={[styles.metadataValue, styles.metadataStale]}>
           {item.result.value}
         </StaticWidth>
       </Tooltip>
     ) : (
       <StaticWidth
-        className={combineClasses([
+        css={[
           styles.metadataValue,
           item.result.error.length === 0
             ? styles.metadataValueSuccess
             : styles.metadataValueError,
-        ])}
+        ]}
       >
         {item.result.value}
       </StaticWidth>
     );
 
   return (
-    <div className={styles.metadata}>
-      <div className={styles.metadataLabel}>
-        {item.description.display_name}
-      </div>
-      <Box>{value}</Box>
+    <div css={styles.metadata}>
+      <div css={styles.metadataLabel}>{item.description.display_name}</div>
+      <div>{value}</div>
     </div>
   );
 };
@@ -101,12 +94,11 @@ export interface AgentMetadataViewProps {
 }
 
 export const AgentMetadataView: FC<AgentMetadataViewProps> = ({ metadata }) => {
-  const styles = useStyles();
   if (metadata.length === 0) {
     return <></>;
   }
   return (
-    <div className={styles.root}>
+    <div css={styles.root}>
       <Stack alignItems="baseline" direction="row" spacing={6}>
         {metadata.map((m) => {
           if (m.description === undefined) {
@@ -119,15 +111,19 @@ export const AgentMetadataView: FC<AgentMetadataViewProps> = ({ metadata }) => {
   );
 };
 
-export const AgentMetadata: FC<{
+interface AgentMetadataProps {
   agent: WorkspaceAgent;
   storybookMetadata?: WorkspaceAgentMetadata[];
-}> = ({ agent, storybookMetadata }) => {
+}
+
+export const AgentMetadata: FC<AgentMetadataProps> = ({
+  agent,
+  storybookMetadata,
+}) => {
   const [metadata, setMetadata] = useState<
     WorkspaceAgentMetadata[] | undefined
   >(undefined);
   const watchAgentMetadata = useContext(WatchAgentMetadataContext);
-  const styles = useStyles();
 
   useEffect(() => {
     if (storybookMetadata !== undefined) {
@@ -166,7 +162,7 @@ export const AgentMetadata: FC<{
 
   if (metadata === undefined) {
     return (
-      <div className={styles.root}>
+      <div css={styles.root}>
         <AgentMetadataSkeleton />
       </div>
     );
@@ -176,21 +172,19 @@ export const AgentMetadata: FC<{
 };
 
 export const AgentMetadataSkeleton: FC = () => {
-  const styles = useStyles();
-
   return (
     <Stack alignItems="baseline" direction="row" spacing={6}>
-      <div className={styles.metadata}>
+      <div css={styles.metadata}>
         <Skeleton width={40} height={12} variant="text" />
         <Skeleton width={65} height={14} variant="text" />
       </div>
 
-      <div className={styles.metadata}>
+      <div css={styles.metadata}>
         <Skeleton width={40} height={12} variant="text" />
         <Skeleton width={65} height={14} variant="text" />
       </div>
 
-      <div className={styles.metadata}>
+      <div css={styles.metadata}>
         <Skeleton width={40} height={12} variant="text" />
         <Skeleton width={65} height={14} variant="text" />
       </div>
@@ -198,10 +192,13 @@ export const AgentMetadataSkeleton: FC = () => {
   );
 };
 
-const StaticWidth = (props: BoxProps) => {
+const StaticWidth: FC<HTMLAttributes<HTMLDivElement>> = ({
+  children,
+  ...attrs
+}) => {
   const ref = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     // Ignore this in storybook
     if (!ref.current || process.env.STORYBOOK === "true") {
       return;
@@ -212,43 +209,46 @@ const StaticWidth = (props: BoxProps) => {
     const autoWidth = ref.current.getBoundingClientRect().width;
     ref.current.style.width =
       autoWidth > currentWidth ? `${autoWidth}px` : `${currentWidth}px`;
-  }, [props.children]);
+  }, [children]);
 
-  return <Box {...props} ref={ref} />;
+  return (
+    <div ref={ref} {...attrs}>
+      {children}
+    </div>
+  );
 };
 
 // These are more or less copied from
 // site/src/components/Resources/ResourceCard.tsx
-const useStyles = makeStyles((theme) => ({
-  root: {
-    padding: theme.spacing(2.5, 4),
+const styles = {
+  root: (theme) => ({
+    padding: "20px 32px",
     borderTop: `1px solid ${theme.palette.divider}`,
-    background: theme.palette.background.paper,
     overflowX: "auto",
-    scrollPadding: theme.spacing(0, 4),
-  },
+    scrollPadding: "0 32px",
+  }),
 
   metadata: {
     fontSize: 12,
     lineHeight: "normal",
     display: "flex",
     flexDirection: "column",
-    gap: theme.spacing(0.5),
+    gap: 4,
     overflow: "visible",
 
     // Because of scrolling
     "&:last-child": {
-      paddingRight: theme.spacing(4),
+      paddingRight: 32,
     },
   },
 
-  metadataLabel: {
+  metadataLabel: (theme) => ({
     color: theme.palette.text.secondary,
     textOverflow: "ellipsis",
     overflow: "hidden",
     whiteSpace: "nowrap",
     fontWeight: 500,
-  },
+  }),
 
   metadataValue: {
     textOverflow: "ellipsis",
@@ -258,29 +258,29 @@ const useStyles = makeStyles((theme) => ({
     fontSize: 14,
   },
 
-  metadataValueSuccess: {
+  metadataValueSuccess: (theme) => ({
     color: theme.palette.success.light,
-  },
+  }),
 
-  metadataValueError: {
+  metadataValueError: (theme) => ({
     color: theme.palette.error.main,
-  },
+  }),
 
-  metadataStale: {
+  metadataStale: (theme) => ({
     color: theme.palette.text.disabled,
     cursor: "pointer",
-  },
+  }),
 
   skeleton: {
-    marginTop: theme.spacing(0.5),
+    marginTop: 4,
   },
 
-  inlineCommand: {
+  inlineCommand: (theme) => ({
     fontFamily: MONOSPACE_FONT_FAMILY,
     display: "inline-block",
     fontWeight: 600,
     margin: 0,
     borderRadius: 4,
     color: theme.palette.text.primary,
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;

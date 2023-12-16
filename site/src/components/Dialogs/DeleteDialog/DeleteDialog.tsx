@@ -1,7 +1,13 @@
-import makeStyles from "@mui/styles/makeStyles";
+import {
+  type FC,
+  type FormEvent,
+  type PropsWithChildren,
+  useId,
+  useState,
+} from "react";
+
+import { useTheme } from "@emotion/react";
 import TextField from "@mui/material/TextField";
-import { Maybe } from "components/Conditionals/Maybe";
-import { ChangeEvent, useState, PropsWithChildren, FC } from "react";
 import { ConfirmDialog } from "../ConfirmDialog/ConfirmDialog";
 
 export interface DeleteDialogProps {
@@ -12,6 +18,10 @@ export interface DeleteDialogProps {
   name: string;
   info?: string;
   confirmLoading?: boolean;
+  verb?: string;
+  title?: string;
+  label?: string;
+  confirmText?: string;
 }
 
 export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
@@ -22,74 +32,85 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
   info,
   name,
   confirmLoading,
+  // All optional to change the verbiage. For example, "unlinking" vs "deleting"
+  verb,
+  title,
+  label,
+  confirmText,
 }) => {
-  const styles = useStyles();
-  const [nameValue, setNameValue] = useState("");
-  const confirmed = name === nameValue;
-  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
-    setNameValue(event.target.value);
+  const hookId = useId();
+  const theme = useTheme();
+
+  const [userConfirmationText, setUserConfirmationText] = useState("");
+  const [isFocused, setIsFocused] = useState(false);
+
+  const deletionConfirmed = name === userConfirmationText;
+  const onSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    if (deletionConfirmed) {
+      onConfirm();
+    }
   };
-  const hasError = nameValue.length > 0 && !confirmed;
 
-  const content = (
-    <>
-      <p>Deleting this {entity} is irreversible!</p>
-      <Maybe condition={info !== undefined}>
-        <p className={styles.warning}>{info}</p>
-      </Maybe>
-      <p>Are you sure you want to proceed?</p>
-      <p>Type {name} below to confirm.</p>
-
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (confirmed) {
-            onConfirm();
-          }
-        }}
-      >
-        <TextField
-          fullWidth
-          autoFocus
-          className={styles.textField}
-          name="confirmation"
-          autoComplete="off"
-          id="confirmation"
-          placeholder={name}
-          value={nameValue}
-          onChange={handleChange}
-          label={`Name of the ${entity} to delete`}
-          error={hasError}
-          helperText={
-            hasError && `${nameValue} does not match the name of this ${entity}`
-          }
-          inputProps={{ ["data-testid"]: "delete-dialog-name-confirmation" }}
-        />
-      </form>
-    </>
-  );
+  const hasError = !deletionConfirmed && userConfirmationText.length > 0;
+  const displayErrorMessage = hasError && !isFocused;
+  const inputColor = hasError ? "error" : "primary";
 
   return (
     <ConfirmDialog
       type="delete"
       hideCancel={false}
       open={isOpen}
-      title={`Delete ${entity}`}
+      title={title ?? `Delete ${entity}`}
       onConfirm={onConfirm}
       onClose={onCancel}
-      description={content}
       confirmLoading={confirmLoading}
-      disabled={!confirmed}
+      disabled={!deletionConfirmed}
+      confirmText={confirmText}
+      description={
+        <>
+          <p>
+            {verb ?? "Deleting"} this {entity} is irreversible!
+          </p>
+
+          {Boolean(info) && (
+            <p css={{ color: theme.palette.warning.light }}>{info}</p>
+          )}
+
+          <p>Are you sure you want to proceed?</p>
+
+          <p>
+            Type &ldquo;<strong>{name}</strong>&rdquo; below to confirm.
+          </p>
+
+          <form onSubmit={onSubmit}>
+            <TextField
+              fullWidth
+              autoFocus
+              css={{ marginTop: 24 }}
+              name="confirmation"
+              autoComplete="off"
+              id={`${hookId}-confirm`}
+              placeholder={name}
+              value={userConfirmationText}
+              onChange={(event) => setUserConfirmationText(event.target.value)}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
+              label={label ?? `Name of the ${entity} to delete`}
+              color={inputColor}
+              error={displayErrorMessage}
+              helperText={
+                displayErrorMessage &&
+                `${userConfirmationText} does not match the name of this ${entity}`
+              }
+              InputProps={{ color: inputColor }}
+              inputProps={{
+                "data-testid": "delete-dialog-name-confirmation",
+              }}
+            />
+          </form>
+        </>
+      }
     />
   );
 };
-
-const useStyles = makeStyles((theme) => ({
-  warning: {
-    color: theme.palette.warning.light,
-  },
-
-  textField: {
-    marginTop: theme.spacing(3),
-  },
-}));

@@ -4,7 +4,7 @@ import duration from "dayjs/plugin/duration";
 import relativeTime from "dayjs/plugin/relativeTime";
 import timezone from "dayjs/plugin/timezone";
 import utc from "dayjs/plugin/utc";
-import { Workspace } from "api/typesGenerated";
+import { Template, Workspace } from "api/typesGenerated";
 import { isWorkspaceOn } from "./workspace";
 import cronParser from "cron-parser";
 
@@ -88,7 +88,12 @@ export const isShuttingDown = (
   return isWorkspaceOn(workspace) && now.isAfter(deadline);
 };
 
-export const autostopDisplay = (workspace: Workspace): string => {
+export const autostopDisplay = (
+  workspace: Workspace,
+): {
+  message: string;
+  tooltip?: string;
+} => {
   const ttl = workspace.ttl_ms;
 
   if (isWorkspaceOn(workspace) && workspace.latest_build.deadline) {
@@ -100,19 +105,29 @@ export const autostopDisplay = (workspace: Workspace): string => {
 
     const deadline = dayjs(workspace.latest_build.deadline).utc();
     if (isShuttingDown(workspace, deadline)) {
-      return Language.workspaceShuttingDownLabel;
+      return {
+        message: Language.workspaceShuttingDownLabel,
+      };
     } else {
-      return deadline.tz(dayjs.tz.guess()).format("MMMM D, YYYY h:mm A");
+      const deadlineTz = deadline.tz(dayjs.tz.guess());
+      return {
+        message: deadlineTz.fromNow(),
+        tooltip: deadlineTz.format("MMMM D, YYYY h:mm A"),
+      };
     }
   } else if (!ttl || ttl < 1) {
     // If the workspace is not on, and the ttl is 0 or undefined, then the
     // workspace is set to manually shutdown.
-    return Language.manual;
+    return {
+      message: Language.manual,
+    };
   } else {
     // The workspace has a ttl set, but is either in an unknown state or is
     // not running. Therefore, we derive from workspace.ttl.
     const duration = dayjs.duration(ttl, "milliseconds");
-    return `${duration.humanize()} ${Language.afterStart}`;
+    return {
+      message: `${duration.humanize()} ${Language.afterStart}`,
+    };
   }
 };
 
@@ -156,7 +171,14 @@ export const getMaxDeadlineChange = (
   extremeDeadline: dayjs.Dayjs,
 ): number => Math.abs(deadline.diff(extremeDeadline, "hours"));
 
+export const validTime = (time: string): boolean => {
+  return /^[0-9][0-9]:[0-9][0-9]$/.test(time);
+};
+
 export const timeToCron = (time: string, tz?: string) => {
+  if (!validTime(time)) {
+    throw new Error(`Invalid time: ${time}`);
+  }
   const [HH, mm] = time.split(":");
   let prefix = "";
   if (tz) {
@@ -170,6 +192,10 @@ export const quietHoursDisplay = (
   tz: string,
   now: Date | undefined,
 ): string => {
+  if (!validTime(time)) {
+    return "Invalid time";
+  }
+
   // The cron-parser package doesn't accept a timezone in the cron string, but
   // accepts it as an option.
   const cron = timeToCron(time);
@@ -195,7 +221,45 @@ export const quietHoursDisplay = (
     display += ` on ${day.format("dddd, MMMM D")}`;
   }
 
-  display += ` (${day.from(today)})`;
+  display += ` (${day.from(today)}) in ${tz}`;
 
   return display;
+};
+
+export type TemplateAutostartRequirementDaysValue =
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday"
+  | "sunday";
+
+export type TemplateAutostopRequirementDaysValue =
+  | "off"
+  | "daily"
+  | "saturday"
+  | "sunday";
+
+export const calculateAutostopRequirementDaysValue = (
+  value: TemplateAutostopRequirementDaysValue,
+): Template["autostop_requirement"]["days_of_week"] => {
+  switch (value) {
+    case "daily":
+      return [
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+        "sunday",
+      ];
+    case "saturday":
+      return ["saturday"];
+    case "sunday":
+      return ["sunday"];
+  }
+
+  return [];
 };

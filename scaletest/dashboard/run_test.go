@@ -2,15 +2,17 @@ package dashboard_test
 
 import (
 	"context"
+	"math/rand"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/scaletest/dashboard"
@@ -26,35 +28,50 @@ func Test_Run(t *testing.T) {
 		t.Skip("skipping test on Windows")
 	}
 
-	client := coderdtest.New(t, nil)
-	_ = coderdtest.CreateFirstUser(t, client)
-
-	successfulAction := func(context.Context, *dashboard.Params) error {
+	successAction := func(_ context.Context) error {
+		<-time.After(testutil.IntervalFast)
 		return nil
 	}
-	failingAction := func(context.Context, *dashboard.Params) error {
-		return xerrors.Errorf("failed")
-	}
-	hangingAction := func(ctx context.Context, _ *dashboard.Params) error {
-		<-ctx.Done()
-		return ctx.Err()
+
+	failAction := func(_ context.Context) error {
+		<-time.After(testutil.IntervalMedium)
+		return assert.AnError
 	}
 
-	testActions := []dashboard.RollTableEntry{
-		{0, successfulAction, "succeeds"},
-		{1, failingAction, "fails"},
-		{2, hangingAction, "hangs"},
-	}
+	//nolint: gosec // just for testing
+	rg := rand.New(rand.NewSource(0)) // deterministic for testing
+
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
 
 	log := slogtest.Make(t, &slogtest.Options{
 		IgnoreErrors: true,
 	})
 	m := &testMetrics{}
+	var (
+		waitLoadedCalled atomic.Bool
+		screenshotCalled atomic.Bool
+	)
 	cfg := dashboard.Config{
-		MinWait:   time.Millisecond,
-		MaxWait:   10 * time.Millisecond,
-		Logger:    log,
-		RollTable: testActions,
+		Interval: 500 * time.Millisecond,
+		Jitter:   100 * time.Millisecond,
+		Logger:   log,
+		Headless: true,
+		WaitLoaded: func(_ context.Context, _ time.Time) error {
+			waitLoadedCalled.Store(true)
+			return nil
+		},
+		ActionFunc: func(_ context.Context, _ slog.Logger, rnd func(int) int, _ time.Time) (dashboard.Label, dashboard.Action, error) {
+			if rnd(2) == 0 {
+				return "fails", failAction, nil
+			}
+			return "succeeds", successAction, nil
+		},
+		Screenshot: func(_ context.Context, name string) (string, error) {
+			screenshotCalled.Store(true)
+			return "/fake/path/to/" + name + ".png", nil
+		},
+		RandIntn: rg.Intn,
 	}
 	r := dashboard.NewRunner(client, m, cfg)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -68,23 +85,14 @@ func Test_Run(t *testing.T) {
 	assert.True(t, ok)
 	require.NoError(t, err)
 
-	if assert.NotEmpty(t, m.ObservedDurations["succeeds"]) {
-		assert.NotZero(t, m.ObservedDurations["succeeds"][0])
+	for _, dur := range m.ObservedDurations["succeeds"] {
+		assert.NotZero(t, dur)
 	}
-
-	if assert.NotEmpty(t, m.ObservedDurations["fails"]) {
-		assert.NotZero(t, m.ObservedDurations["fails"][0])
-	}
-
-	if assert.NotEmpty(t, m.ObservedDurations["hangs"]) {
-		assert.GreaterOrEqual(t, m.ObservedDurations["hangs"][0], cfg.MaxWait.Seconds())
+	for _, dur := range m.ObservedDurations["fails"] {
+		assert.NotZero(t, dur)
 	}
 	assert.Zero(t, m.Errors["succeeds"])
 	assert.NotZero(t, m.Errors["fails"])
-	assert.NotZero(t, m.Errors["hangs"])
-	assert.NotEmpty(t, m.Statuses["succeeds"])
-	assert.NotEmpty(t, m.Statuses["fails"])
-	assert.NotEmpty(t, m.Statuses["hangs"])
 }
 
 type testMetrics struct {

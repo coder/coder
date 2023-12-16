@@ -79,6 +79,7 @@ func TestServerDBCrypt(t *testing.T) {
 	inv.Stdout = pty.Output()
 	err = inv.Run()
 	require.NoError(t, err)
+	require.NoError(t, pty.Close())
 
 	// Validate that all existing data has been encrypted with cipher A.
 	for _, usr := range users {
@@ -101,6 +102,7 @@ func TestServerDBCrypt(t *testing.T) {
 	inv.Stdout = pty.Output()
 	err = inv.Run()
 	require.NoError(t, err)
+	require.NoError(t, pty.Close())
 
 	// Validate that all data has been re-encrypted with cipher B.
 	for _, usr := range users {
@@ -142,6 +144,7 @@ func TestServerDBCrypt(t *testing.T) {
 	inv.Stdout = pty.Output()
 	err = inv.Run()
 	require.NoError(t, err)
+	require.NoError(t, pty.Close())
 
 	// Validate that both keys have been revoked.
 	keys, err = db.GetDBCryptKeys(ctx)
@@ -172,6 +175,7 @@ func TestServerDBCrypt(t *testing.T) {
 	inv.Stdout = pty.Output()
 	err = inv.Run()
 	require.NoError(t, err)
+	require.NoError(t, pty.Close())
 
 	// Validate that all data has been re-encrypted with cipher C.
 	for _, usr := range users {
@@ -189,13 +193,14 @@ func TestServerDBCrypt(t *testing.T) {
 	inv.Stdout = pty.Output()
 	err = inv.Run()
 	require.NoError(t, err)
+	require.NoError(t, pty.Close())
 
 	// Assert that no user links remain.
 	for _, usr := range users {
 		userLinks, err := db.GetUserLinksByUserID(ctx, usr.ID)
 		require.NoError(t, err, "failed to get user links for user %s", usr.ID)
 		require.Empty(t, userLinks)
-		gitAuthLinks, err := db.GetGitAuthLinksByUserID(ctx, usr.ID)
+		gitAuthLinks, err := db.GetExternalAuthLinksByUserID(ctx, usr.ID)
 		require.NoError(t, err, "failed to get git auth links for user %s", usr.ID)
 		require.Empty(t, gitAuthLinks)
 	}
@@ -217,12 +222,15 @@ func genData(t *testing.T, db database.Store) []database.User {
 	for _, status := range database.AllUserStatusValues() {
 		for _, loginType := range database.AllLoginTypeValues() {
 			for _, deleted := range []bool{false, true} {
+				randName := mustString(t, 32)
 				usr := dbgen.User(t, db, database.User{
+					Username:  randName,
+					Email:     randName + "@notcoder.com",
 					LoginType: loginType,
 					Status:    status,
 					Deleted:   deleted,
 				})
-				_ = dbgen.GitAuthLink(t, db, database.GitAuthLink{
+				_ = dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
 					UserID:            usr.ID,
 					ProviderID:        "fake",
 					OAuthAccessToken:  "access-" + usr.ID.String(),
@@ -277,7 +285,7 @@ func requireEncryptedWithCipher(ctx context.Context, t *testing.T, db database.S
 		require.Equal(t, c.HexDigest(), ul.OAuthAccessTokenKeyID.String)
 		require.Equal(t, c.HexDigest(), ul.OAuthRefreshTokenKeyID.String)
 	}
-	gitAuthLinks, err := db.GetGitAuthLinksByUserID(ctx, userID)
+	gitAuthLinks, err := db.GetExternalAuthLinksByUserID(ctx, userID)
 	require.NoError(t, err, "failed to get git auth links for user %s", userID)
 	for _, gal := range gitAuthLinks {
 		requireEncryptedEquals(t, c, "access-"+userID.String(), gal.OAuthAccessToken)

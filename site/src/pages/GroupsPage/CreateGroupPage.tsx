@@ -4,7 +4,7 @@ import { Helmet } from "react-helmet-async";
 import { useNavigate } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import CreateGroupPageView from "./CreateGroupPageView";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "react-query";
 import { createGroup } from "api/queries/groups";
 
 export const CreateGroupPage: FC = () => {

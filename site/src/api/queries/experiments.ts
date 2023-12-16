@@ -1,11 +1,22 @@
 import * as API from "api/api";
-import { Experiments } from "api/typesGenerated";
 import { getMetadataAsJSON } from "utils/metadata";
+import { type Experiments } from "api/typesGenerated";
+import { type UseQueryOptions } from "react-query";
 
-export const experiments = () => {
+const initialExperimentsData = getMetadataAsJSON<Experiments>("experiments");
+const experimentsKey = ["experiments"] as const;
+
+export const experiments = (): UseQueryOptions<Experiments> => {
   return {
-    queryKey: ["experiments"],
-    queryFn: async () =>
-      getMetadataAsJSON<Experiments>("experiments") ?? API.getExperiments(),
+    queryKey: experimentsKey,
+    initialData: initialExperimentsData,
+    queryFn: () => API.getExperiments(),
+  } satisfies UseQueryOptions<Experiments>;
+};
+
+export const availableExperiments = () => {
+  return {
+    queryKey: ["availableExperiments"],
+    queryFn: async () => API.getAvailableExperiments(),
   };
 };

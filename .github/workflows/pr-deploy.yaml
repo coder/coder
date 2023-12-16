@@ -419,7 +419,6 @@ jobs:
 
           # Create template
           cd ./.github/pr-deployments/template
-          terraform init
           coder templates create -y --variable namespace=pr${{ env.PR_NUMBER }} kubernetes
 
           # Create workspace

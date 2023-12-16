@@ -1,6 +1,6 @@
 import { StatusOption, TemplateOption } from "./options";
 import { getTemplates } from "api/api";
-import { WorkspaceStatuses } from "api/typesGenerated";
+import { WorkspaceStatus } from "api/typesGenerated";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
 import { UseFilterMenuOptions, useFilterMenu } from "components/Filter/menu";
 
@@ -17,6 +17,7 @@ export const useTemplateFilterMenu = ({
     value,
     id: "template",
     getSelectedOption: async () => {
+      // Show all templates including deprecated
       const templates = await getTemplates(orgId);
       const template = templates.find((template) => template.name === value);
       if (template) {
@@ -32,6 +33,7 @@ export const useTemplateFilterMenu = ({
       return null;
     },
     getOptions: async (query) => {
+      // Show all templates including deprecated
       const templates = await getTemplates(orgId);
       const filteredTemplates = templates.filter(
         (template) =>
@@ -54,7 +56,13 @@ export const useStatusFilterMenu = ({
   value,
   onChange,
 }: Pick<UseFilterMenuOptions<StatusOption>, "value" | "onChange">) => {
-  const statusOptions = WorkspaceStatuses.map((status) => {
+  const statusesToFilter: WorkspaceStatus[] = [
+    "running",
+    "stopped",
+    "failed",
+    "pending",
+  ];
+  const statusOptions = statusesToFilter.map((status) => {
     const display = getDisplayWorkspaceStatus(status);
     return {
       label: display.text,

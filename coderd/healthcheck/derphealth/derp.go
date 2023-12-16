@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 	"tailscale.com/derp"
 	"tailscale.com/derp/derphttp"
@@ -21,12 +22,24 @@ import (
 	"tailscale.com/types/key"
 	tslogger "tailscale.com/types/logger"
 
+	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/slice"
+)
+
+const (
+	warningNodeUsesWebsocket = `Node uses WebSockets because the "Upgrade: DERP" header may be blocked on the load balancer.`
+	oneNodeUnhealthy         = "Region is operational, but performance might be degraded as one node is unhealthy."
+	missingNodeReport        = "Missing node health report, probably a developer error."
 )
 
 // @typescript-generate Report
 type Report struct {
-	Healthy bool `json:"healthy"`
+	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
+	Healthy   bool             `json:"healthy"`
+	Severity  health.Severity  `json:"severity" enums:"ok,warning,error"`
+	Warnings  []health.Message `json:"warnings"`
+	Dismissed bool             `json:"dismissed"`
 
 	Regions map[int]*RegionReport `json:"regions"`
 
@@ -39,8 +52,12 @@ type Report struct {
 
 // @typescript-generate RegionReport
 type RegionReport struct {
-	mu      sync.Mutex
-	Healthy bool `json:"healthy"`
+	mu sync.Mutex
+
+	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
+	Healthy  bool             `json:"healthy"`
+	Severity health.Severity  `json:"severity" enums:"ok,warning,error"`
+	Warnings []health.Message `json:"warnings"`
 
 	Region      *tailcfg.DERPRegion `json:"region"`
 	NodeReports []*NodeReport       `json:"node_reports"`
@@ -52,8 +69,12 @@ type NodeReport struct {
 	mu            sync.Mutex
 	clientCounter int
 
-	Healthy bool              `json:"healthy"`
-	Node    *tailcfg.DERPNode `json:"node"`
+	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
+	Healthy  bool             `json:"healthy"`
+	Severity health.Severity  `json:"severity" enums:"ok,warning,error"`
+	Warnings []health.Message `json:"warnings"`
+
+	Node *tailcfg.DERPNode `json:"node"`
 
 	ServerInfo          derp.ServerInfoMessage `json:"node_info"`
 	CanExchangeMessages bool                   `json:"can_exchange_messages"`
@@ -75,11 +96,17 @@ type StunReport struct {
 }
 
 type ReportOptions struct {
+	Dismissed bool
+
 	DERPMap *tailcfg.DERPMap
 }
 
 func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 	r.Healthy = true
+	r.Severity = health.SeverityOK
+	r.Warnings = []health.Message{}
+	r.Dismissed = opts.Dismissed
+
 	r.Regions = map[int]*RegionReport{}
 
 	wg := &sync.WaitGroup{}
@@ -108,6 +135,8 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 			if !regionReport.Healthy {
 				r.Healthy = false
 			}
+
+			r.Warnings = append(r.Warnings, regionReport.Warnings...)
 			mu.Unlock()
 		}()
 	}
@@ -126,13 +155,23 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 	r.NetcheckErr = convertError(netcheckErr)
 
 	wg.Wait()
+
+	// Review region reports and select the highest severity.
+	for _, regionReport := range r.Regions {
+		if regionReport.Severity.Value() > r.Severity.Value() {
+			r.Severity = regionReport.Severity
+		}
+	}
 }
 
 func (r *RegionReport) Run(ctx context.Context) {
 	r.Healthy = true
+	r.Severity = health.SeverityOK
 	r.NodeReports = []*NodeReport{}
+	r.Warnings = []health.Message{}
 
 	wg := &sync.WaitGroup{}
+	var unhealthyNodes int // atomic.Int64 is not mandatory as we depend on RegionReport mutex.
 
 	wg.Add(len(r.Region.Nodes))
 	for _, node := range r.Region.Nodes {
@@ -149,6 +188,7 @@ func (r *RegionReport) Run(ctx context.Context) {
 			defer func() {
 				if err := recover(); err != nil {
 					nodeReport.Error = ptr.Ref(fmt.Sprint(err))
+					nodeReport.Severity = health.SeverityError
 				}
 			}()
 
@@ -156,14 +196,45 @@ func (r *RegionReport) Run(ctx context.Context) {
 
 			r.mu.Lock()
 			r.NodeReports = append(r.NodeReports, &nodeReport)
-			if !nodeReport.Healthy {
-				r.Healthy = false
+			if nodeReport.Severity != health.SeverityOK {
+				unhealthyNodes++
 			}
+
+			r.Warnings = append(r.Warnings, nodeReport.Warnings...)
 			r.mu.Unlock()
 		}()
 	}
-
 	wg.Wait()
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	sortNodeReports(r.NodeReports)
+
+	if len(r.Region.Nodes) != len(r.NodeReports) {
+		r.Healthy = false
+		r.Severity = health.SeverityError
+		r.Error = ptr.Ref(missingNodeReport)
+		return
+	}
+
+	if len(r.Region.Nodes) == 1 {
+		r.Healthy = r.NodeReports[0].Severity != health.SeverityError
+		r.Severity = r.NodeReports[0].Severity
+	} else if unhealthyNodes == 1 {
+		// r.Healthy = true (by default)
+		r.Severity = health.SeverityWarning
+		r.Warnings = append(r.Warnings, health.Messagef(health.CodeDERPOneNodeUnhealthy, oneNodeUnhealthy))
+	} else if unhealthyNodes > 1 {
+		r.Healthy = false
+
+		// Review node reports and select the highest severity.
+		for _, nodeReport := range r.NodeReports {
+			if nodeReport.Severity.Value() > r.Severity.Value() {
+				r.Severity = nodeReport.Severity
+			}
+		}
+	}
 }
 
 func (r *NodeReport) derpURL() *url.URL {
@@ -189,8 +260,10 @@ func (r *NodeReport) Run(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
+	r.Severity = health.SeverityOK
 	r.ClientLogs = [][]string{}
 	r.ClientErrs = [][]string{}
+	r.Warnings = []health.Message{}
 
 	wg := &sync.WaitGroup{}
 
@@ -208,13 +281,15 @@ func (r *NodeReport) Run(ctx context.Context) {
 
 	// We can't exchange messages with the node,
 	if (!r.CanExchangeMessages && !r.Node.STUNOnly) ||
-		// A node may use websockets because `Upgrade: DERP` may be blocked on
-		// the load balancer. This is unhealthy because websockets are slower
-		// than the regular DERP protocol.
-		r.UsesWebsocket ||
 		// The node was marked as STUN compatible but the STUN test failed.
 		r.STUN.Error != nil {
 		r.Healthy = false
+		r.Severity = health.SeverityError
+	}
+
+	if r.UsesWebsocket {
+		r.Warnings = append(r.Warnings, health.Messagef(health.CodeDERPNodeUsesWebsocket, warningNodeUsesWebsocket))
+		r.Severity = health.SeverityWarning
 	}
 }
 
@@ -466,4 +541,10 @@ func convertError(err error) *string {
 	}
 
 	return nil
+}
+
+func sortNodeReports(reports []*NodeReport) {
+	slices.SortFunc(reports, func(a, b *NodeReport) int {
+		return slice.Ascending(a.Node.Name, b.Node.Name)
+	})
 }

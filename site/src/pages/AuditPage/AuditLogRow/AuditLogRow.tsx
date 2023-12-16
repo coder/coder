@@ -1,12 +1,9 @@
+import { type CSSObject, type Interpolation, type Theme } from "@emotion/react";
 import Collapse from "@mui/material/Collapse";
-import { makeStyles } from "@mui/styles";
 import TableCell from "@mui/material/TableCell";
-import { AuditLog } from "api/typesGenerated";
-import {
-  CloseDropdown,
-  OpenDropdown,
-} from "components/DropdownArrows/DropdownArrows";
-import { Pill } from "components/Pill/Pill";
+import type { AuditLog } from "api/typesGenerated";
+import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
+import { Pill, type PillType } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
@@ -14,10 +11,9 @@ import { useState } from "react";
 import userAgentParser from "ua-parser-js";
 import { AuditLogDiff } from "./AuditLogDiff/AuditLogDiff";
 import { AuditLogDescription } from "./AuditLogDescription/AuditLogDescription";
-import { PaletteIndex } from "theme/theme";
 import { determineGroupDiff } from "./AuditLogDiff/auditUtils";
 
-const httpStatusColor = (httpStatus: number): PaletteIndex => {
+const httpStatusColor = (httpStatus: number): PillType => {
   // redirects are successful
   if (httpStatus === 307) {
     return "success";
@@ -44,7 +40,6 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
   auditLog,
   defaultIsDiffOpen = false,
 }) => {
-  const styles = useStyles();
   const [isDiffOpen, setIsDiffOpen] = useState(defaultIsDiffOpen);
   const diffs = Object.entries(auditLog.diff);
   const shouldDisplayDiff = diffs.length > 0;
@@ -69,11 +64,11 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
       data-testid={`audit-log-row-${auditLog.id}`}
       clickable={shouldDisplayDiff}
     >
-      <TableCell className={styles.auditLogCell}>
+      <TableCell css={styles.auditLogCell}>
         <Stack
           direction="row"
           alignItems="center"
-          className={styles.auditLogHeader}
+          css={styles.auditLogHeader}
           tabIndex={0}
           onClick={toggle}
           onKeyDown={(event) => {
@@ -85,13 +80,9 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
           <Stack
             direction="row"
             alignItems="center"
-            className={styles.auditLogHeaderInfo}
+            css={styles.auditLogHeaderInfo}
           >
-            <Stack
-              direction="row"
-              alignItems="center"
-              className={styles.fullWidth}
-            >
+            <Stack direction="row" alignItems="center" css={styles.fullWidth}>
               <UserAvatar
                 username={auditLog.user?.username ?? "?"}
                 avatarURL={auditLog.user?.avatar_url}
@@ -99,23 +90,23 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
 
               <Stack
                 alignItems="baseline"
-                className={styles.fullWidth}
+                css={styles.fullWidth}
                 justifyContent="space-between"
                 direction="row"
               >
                 <Stack
-                  className={styles.auditLogSummary}
+                  css={styles.auditLogSummary}
                   direction="row"
                   alignItems="baseline"
                   spacing={1}
                 >
                   <AuditLogDescription auditLog={auditLog} />
                   {auditLog.is_deleted && (
-                    <span className={styles.deletedLabel}>
+                    <span css={styles.deletedLabel}>
                       <>(deleted)</>
                     </span>
                   )}
-                  <span className={styles.auditLogTime}>
+                  <span css={styles.auditLogTime}>
                     {new Date(auditLog.time).toLocaleTimeString()}
                   </span>
                 </Stack>
@@ -123,19 +114,19 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
                 <Stack direction="row" alignItems="center">
                   <Stack direction="row" spacing={1} alignItems="baseline">
                     {auditLog.ip && (
-                      <span className={styles.auditLogInfo}>
+                      <span css={styles.auditLogInfo}>
                         <>IP: </>
                         <strong>{auditLog.ip}</strong>
                       </span>
                     )}
                     {os.name && (
-                      <span className={styles.auditLogInfo}>
+                      <span css={styles.auditLogInfo}>
                         <>OS: </>
                         <strong>{os.name}</strong>
                       </span>
                     )}
                     {browser.name && (
-                      <span className={styles.auditLogInfo}>
+                      <span css={styles.auditLogInfo}>
                         <>Browser: </>
                         <strong>
                           {browser.name} {browser.version}
@@ -145,7 +136,7 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
                   </Stack>
 
                   <Pill
-                    className={styles.httpStatusPill}
+                    css={styles.httpStatusPill}
                     type={httpStatusColor(auditLog.status_code)}
                     text={auditLog.status_code.toString()}
                   />
@@ -155,9 +146,9 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
           </Stack>
 
           {shouldDisplayDiff ? (
-            <div> {isDiffOpen ? <CloseDropdown /> : <OpenDropdown />}</div>
+            <div> {<DropdownArrow close={isDiffOpen} />}</div>
           ) : (
-            <div className={styles.columnWithoutDiff}></div>
+            <div css={styles.columnWithoutDiff}></div>
           )}
         </Stack>
 
@@ -171,37 +162,37 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
   );
 };
 
-const useStyles = makeStyles((theme) => ({
+const styles = {
   auditLogCell: {
     padding: "0 !important",
     border: 0,
   },
 
   auditLogHeader: {
-    padding: theme.spacing(2, 4),
+    padding: "16px 32px",
   },
 
   auditLogHeaderInfo: {
     flex: 1,
   },
 
-  auditLogSummary: {
-    ...theme.typography.body1,
+  auditLogSummary: (theme) => ({
+    ...(theme.typography.body1 as CSSObject),
     fontFamily: "inherit",
-  },
+  }),
 
-  auditLogTime: {
+  auditLogTime: (theme) => ({
     color: theme.palette.text.secondary,
     fontSize: 12,
-  },
+  }),
 
-  auditLogInfo: {
-    ...theme.typography.body2,
+  auditLogInfo: (theme) => ({
+    ...(theme.typography.body2 as CSSObject),
     fontSize: 12,
     fontFamily: "inherit",
     color: theme.palette.text.secondary,
     display: "block",
-  },
+  }),
 
   // offset the absence of the arrow icon on diff-less logs
   columnWithoutDiff: {
@@ -220,8 +211,8 @@ const useStyles = makeStyles((theme) => ({
     fontWeight: 600,
   },
 
-  deletedLabel: {
-    ...theme.typography.caption,
+  deletedLabel: (theme) => ({
+    ...(theme.typography.caption as CSSObject),
     color: theme.palette.text.secondary,
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;

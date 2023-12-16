@@ -1,13 +1,16 @@
-import { QueryClient } from "@tanstack/react-query";
+import { QueryClient, type UseQueryOptions } from "react-query";
 import * as API from "api/api";
-import { AppearanceConfig } from "api/typesGenerated";
+import { type AppearanceConfig } from "api/typesGenerated";
 import { getMetadataAsJSON } from "utils/metadata";
 
-export const appearance = () => {
+const initialAppearanceData = getMetadataAsJSON<AppearanceConfig>("appearance");
+const appearanceConfigKey = ["appearance"] as const;
+
+export const appearance = (): UseQueryOptions<AppearanceConfig> => {
   return {
     queryKey: ["appearance"],
-    queryFn: async () =>
-      getMetadataAsJSON<AppearanceConfig>("appearance") ?? API.getAppearance(),
+    initialData: initialAppearanceData,
+    queryFn: () => API.getAppearance(),
   };
 };
 
@@ -15,7 +18,7 @@ export const updateAppearance = (queryClient: QueryClient) => {
   return {
     mutationFn: API.updateAppearance,
     onSuccess: (newConfig: AppearanceConfig) => {
-      queryClient.setQueryData(["appearance"], newConfig);
+      queryClient.setQueryData(appearanceConfigKey, newConfig);
     },
   };
 };

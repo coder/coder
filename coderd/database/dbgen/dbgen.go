@@ -66,6 +66,12 @@ func AuditLog(t testing.TB, db database.Store, seed database.AuditLog) database.
 
 func Template(t testing.TB, db database.Store, seed database.Template) database.Template {
 	id := takeFirst(seed.ID, uuid.New())
+	if seed.GroupACL == nil {
+		// By default, all users in the organization can read the template.
+		seed.GroupACL = database.TemplateACL{
+			seed.OrganizationID.String(): []rbac.Action{rbac.ActionRead},
+		}
+	}
 	err := db.InsertTemplate(genCtx, database.InsertTemplateParams{
 		ID:                           id,
 		CreatedAt:                    takeFirst(seed.CreatedAt, dbtime.Now()),
@@ -84,7 +90,7 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 	})
 	require.NoError(t, err, "insert template")
 
-	template, err := db.GetTemplateByID(context.Background(), id)
+	template, err := db.GetTemplateByID(genCtx, id)
 	require.NoError(t, err, "get template")
 	return template
 }
@@ -125,7 +131,7 @@ func APIKey(t testing.TB, db database.Store, seed database.APIKey) (key database
 }
 
 func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgent) database.WorkspaceAgent {
-	workspace, err := db.InsertWorkspaceAgent(genCtx, database.InsertWorkspaceAgentParams{
+	agt, err := db.InsertWorkspaceAgent(genCtx, database.InsertWorkspaceAgentParams{
 		ID:         takeFirst(orig.ID, uuid.New()),
 		CreatedAt:  takeFirst(orig.CreatedAt, dbtime.Now()),
 		UpdatedAt:  takeFirst(orig.UpdatedAt, dbtime.Now()),
@@ -142,11 +148,7 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 			Valid:      takeFirst(orig.EnvironmentVariables.Valid, false),
 		},
 		OperatingSystem: takeFirst(orig.OperatingSystem, "linux"),
-		StartupScript: sql.NullString{
-			String: takeFirst(orig.StartupScript.String, ""),
-			Valid:  takeFirst(orig.StartupScript.Valid, false),
-		},
-		Directory: takeFirst(orig.Directory, ""),
+		Directory:       takeFirst(orig.Directory, ""),
 		InstanceMetadata: pqtype.NullRawMessage{
 			RawMessage: takeFirstSlice(orig.ResourceMetadata.RawMessage, []byte("{}")),
 			Valid:      takeFirst(orig.ResourceMetadata.Valid, false),
@@ -155,17 +157,18 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 			RawMessage: takeFirstSlice(orig.ResourceMetadata.RawMessage, []byte("{}")),
 			Valid:      takeFirst(orig.ResourceMetadata.Valid, false),
 		},
-		ConnectionTimeoutSeconds:    takeFirst(orig.ConnectionTimeoutSeconds, 3600),
-		TroubleshootingURL:          takeFirst(orig.TroubleshootingURL, "https://example.com"),
-		MOTDFile:                    takeFirst(orig.TroubleshootingURL, ""),
-		StartupScriptBehavior:       takeFirst(orig.StartupScriptBehavior, "non-blocking"),
-		StartupScriptTimeoutSeconds: takeFirst(orig.StartupScriptTimeoutSeconds, 3600),
+		ConnectionTimeoutSeconds: takeFirst(orig.ConnectionTimeoutSeconds, 3600),
+		TroubleshootingURL:       takeFirst(orig.TroubleshootingURL, "https://example.com"),
+		MOTDFile:                 takeFirst(orig.TroubleshootingURL, ""),
+		DisplayApps:              append([]database.DisplayApp{}, orig.DisplayApps...),
 	})
 	require.NoError(t, err, "insert workspace agent")
-	return workspace
+	return agt
 }
 
 func Workspace(t testing.TB, db database.Store, orig database.Workspace) database.Workspace {
+	t.Helper()
+
 	workspace, err := db.InsertWorkspace(genCtx, database.InsertWorkspaceParams{
 		ID:                takeFirst(orig.ID, uuid.New()),
 		OwnerID:           takeFirst(orig.OwnerID, uuid.New()),
@@ -177,12 +180,27 @@ func Workspace(t testing.TB, db database.Store, orig database.Workspace) databas
 		Name:              takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
 		AutostartSchedule: orig.AutostartSchedule,
 		Ttl:               orig.Ttl,
+		AutomaticUpdates:  takeFirst(orig.AutomaticUpdates, database.AutomaticUpdatesNever),
 	})
 	require.NoError(t, err, "insert workspace")
 	return workspace
 }
 
+func WorkspaceAgentLogSource(t testing.TB, db database.Store, orig database.WorkspaceAgentLogSource) database.WorkspaceAgentLogSource {
+	sources, err := db.InsertWorkspaceAgentLogSources(genCtx, database.InsertWorkspaceAgentLogSourcesParams{
+		WorkspaceAgentID: takeFirst(orig.WorkspaceAgentID, uuid.New()),
+		ID:               []uuid.UUID{takeFirst(orig.ID, uuid.New())},
+		CreatedAt:        takeFirst(orig.CreatedAt, dbtime.Now()),
+		DisplayName:      []string{takeFirst(orig.DisplayName, namesgenerator.GetRandomName(1))},
+		Icon:             []string{takeFirst(orig.Icon, namesgenerator.GetRandomName(1))},
+	})
+	require.NoError(t, err, "insert workspace agent log source")
+	return sources[0]
+}
+
 func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuild) database.WorkspaceBuild {
+	t.Helper()
+
 	buildID := takeFirst(orig.ID, uuid.New())
 	var build database.WorkspaceBuild
 	err := db.InTx(func(db database.Store) error {
@@ -198,6 +216,7 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 			JobID:             takeFirst(orig.JobID, uuid.New()),
 			ProvisionerState:  takeFirstSlice(orig.ProvisionerState, []byte{}),
 			Deadline:          takeFirst(orig.Deadline, dbtime.Now().Add(time.Hour)),
+			MaxDeadline:       takeFirst(orig.MaxDeadline, time.Time{}),
 			Reason:            takeFirst(orig.Reason, database.BuildReasonInitiator),
 		})
 		if err != nil {
@@ -212,6 +231,38 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 	require.NoError(t, err, "insert workspace build")
 
 	return build
+}
+
+func WorkspaceBuildParameters(t testing.TB, db database.Store, orig []database.WorkspaceBuildParameter) []database.WorkspaceBuildParameter {
+	if len(orig) == 0 {
+		return nil
+	}
+
+	var (
+		names  = make([]string, 0, len(orig))
+		values = make([]string, 0, len(orig))
+		params []database.WorkspaceBuildParameter
+	)
+	for _, param := range orig {
+		names = append(names, param.Name)
+		values = append(values, param.Value)
+	}
+	err := db.InTx(func(tx database.Store) error {
+		id := takeFirst(orig[0].WorkspaceBuildID, uuid.New())
+		err := tx.InsertWorkspaceBuildParameters(genCtx, database.InsertWorkspaceBuildParametersParams{
+			WorkspaceBuildID: id,
+			Name:             names,
+			Value:            values,
+		})
+		if err != nil {
+			return err
+		}
+
+		params, err = tx.GetWorkspaceBuildParameters(genCtx, id)
+		return err
+	}, nil)
+	require.NoError(t, err)
+	return params
 }
 
 func User(t testing.TB, db database.Store, orig database.User) database.User {
@@ -320,16 +371,18 @@ func GroupMember(t testing.TB, db database.Store, orig database.GroupMember) dat
 // ProvisionerJob is a bit more involved to get the values such as "completedAt", "startedAt", "cancelledAt" set.  ps
 // can be set to nil if you are SURE that you don't require a provisionerdaemon to acquire the job in your test.
 func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig database.ProvisionerJob) database.ProvisionerJob {
-	id := takeFirst(orig.ID, uuid.New())
+	t.Helper()
+
+	jobID := takeFirst(orig.ID, uuid.New())
 	// Always set some tags to prevent Acquire from grabbing jobs it should not.
 	if !orig.StartedAt.Time.IsZero() {
 		if orig.Tags == nil {
 			orig.Tags = make(database.StringMap)
 		}
 		// Make sure when we acquire the job, we only get this one.
-		orig.Tags[id.String()] = "true"
+		orig.Tags[jobID.String()] = "true"
 	}
-	jobID := takeFirst(orig.ID, uuid.New())
+
 	job, err := db.InsertProvisionerJob(genCtx, database.InsertProvisionerJobParams{
 		ID:             jobID,
 		CreatedAt:      takeFirst(orig.CreatedAt, dbtime.Now()),
@@ -342,6 +395,7 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 		Type:           takeFirst(orig.Type, database.ProvisionerJobTypeWorkspaceBuild),
 		Input:          takeFirstSlice(orig.Input, []byte("{}")),
 		Tags:           orig.Tags,
+		TraceMetadata:  pqtype.NullRawMessage{},
 	})
 	require.NoError(t, err, "insert job")
 	if ps != nil {
@@ -353,8 +407,11 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 			StartedAt: orig.StartedAt,
 			Types:     []database.ProvisionerType{database.ProvisionerTypeEcho},
 			Tags:      must(json.Marshal(orig.Tags)),
+			WorkerID:  uuid.NullUUID{},
 		})
 		require.NoError(t, err)
+		// There is no easy way to make sure we acquire the correct job.
+		require.Equal(t, jobID, job.ID, "acquired incorrect job")
 	}
 
 	if !orig.CompletedAt.Time.IsZero() || orig.Error.String != "" {
@@ -454,6 +511,8 @@ func WorkspaceProxy(t testing.TB, db database.Store, orig database.WorkspaceProx
 		TokenHashedSecret: hashedSecret[:],
 		CreatedAt:         takeFirst(orig.CreatedAt, dbtime.Now()),
 		UpdatedAt:         takeFirst(orig.UpdatedAt, dbtime.Now()),
+		DerpEnabled:       takeFirst(orig.DerpEnabled, false),
+		DerpOnly:          takeFirst(orig.DerpEnabled, false),
 	})
 	require.NoError(t, err, "insert proxy")
 
@@ -492,14 +551,16 @@ func UserLink(t testing.TB, db database.Store, orig database.UserLink) database.
 		OAuthRefreshToken:      takeFirst(orig.OAuthRefreshToken, uuid.NewString()),
 		OAuthRefreshTokenKeyID: takeFirst(orig.OAuthRefreshTokenKeyID, sql.NullString{}),
 		OAuthExpiry:            takeFirst(orig.OAuthExpiry, dbtime.Now().Add(time.Hour*24)),
+		DebugContext:           takeFirstSlice(orig.DebugContext, json.RawMessage("{}")),
 	})
 
 	require.NoError(t, err, "insert link")
 	return link
 }
 
-func GitAuthLink(t testing.TB, db database.Store, orig database.GitAuthLink) database.GitAuthLink {
-	link, err := db.InsertGitAuthLink(genCtx, database.InsertGitAuthLinkParams{
+func ExternalAuthLink(t testing.TB, db database.Store, orig database.ExternalAuthLink) database.ExternalAuthLink {
+	msg := takeFirst(&orig.OAuthExtra, &pqtype.NullRawMessage{})
+	link, err := db.InsertExternalAuthLink(genCtx, database.InsertExternalAuthLinkParams{
 		ProviderID:             takeFirst(orig.ProviderID, uuid.New().String()),
 		UserID:                 takeFirst(orig.UserID, uuid.New()),
 		OAuthAccessToken:       takeFirst(orig.OAuthAccessToken, uuid.NewString()),
@@ -509,9 +570,10 @@ func GitAuthLink(t testing.TB, db database.Store, orig database.GitAuthLink) dat
 		OAuthExpiry:            takeFirst(orig.OAuthExpiry, dbtime.Now().Add(time.Hour*24)),
 		CreatedAt:              takeFirst(orig.CreatedAt, dbtime.Now()),
 		UpdatedAt:              takeFirst(orig.UpdatedAt, dbtime.Now()),
+		OAuthExtra:             *msg,
 	})
 
-	require.NoError(t, err, "insert git auth link")
+	require.NoError(t, err, "insert external auth link")
 	return link
 }
 
@@ -521,7 +583,7 @@ func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVers
 		versionID := takeFirst(orig.ID, uuid.New())
 		err := db.InsertTemplateVersion(genCtx, database.InsertTemplateVersionParams{
 			ID:             versionID,
-			TemplateID:     orig.TemplateID,
+			TemplateID:     takeFirst(orig.TemplateID, uuid.NullUUID{}),
 			OrganizationID: takeFirst(orig.OrganizationID, uuid.New()),
 			CreatedAt:      takeFirst(orig.CreatedAt, dbtime.Now()),
 			UpdatedAt:      takeFirst(orig.UpdatedAt, dbtime.Now()),
@@ -558,6 +620,32 @@ func TemplateVersionVariable(t testing.TB, db database.Store, orig database.Temp
 		Sensitive:         takeFirst(orig.Sensitive, false),
 	})
 	require.NoError(t, err, "insert template version variable")
+	return version
+}
+
+func TemplateVersionParameter(t testing.TB, db database.Store, orig database.TemplateVersionParameter) database.TemplateVersionParameter {
+	t.Helper()
+
+	version, err := db.InsertTemplateVersionParameter(genCtx, database.InsertTemplateVersionParameterParams{
+		TemplateVersionID:   takeFirst(orig.TemplateVersionID, uuid.New()),
+		Name:                takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
+		Description:         takeFirst(orig.Description, namesgenerator.GetRandomName(1)),
+		Type:                takeFirst(orig.Type, "string"),
+		Mutable:             takeFirst(orig.Mutable, false),
+		DefaultValue:        takeFirst(orig.DefaultValue, namesgenerator.GetRandomName(1)),
+		Icon:                takeFirst(orig.Icon, namesgenerator.GetRandomName(1)),
+		Options:             takeFirstSlice(orig.Options, []byte("[]")),
+		ValidationRegex:     takeFirst(orig.ValidationRegex, ""),
+		ValidationMin:       takeFirst(orig.ValidationMin, sql.NullInt32{}),
+		ValidationMax:       takeFirst(orig.ValidationMax, sql.NullInt32{}),
+		ValidationError:     takeFirst(orig.ValidationError, ""),
+		ValidationMonotonic: takeFirst(orig.ValidationMonotonic, ""),
+		Required:            takeFirst(orig.Required, false),
+		DisplayName:         takeFirst(orig.DisplayName, namesgenerator.GetRandomName(1)),
+		DisplayOrder:        takeFirst(orig.DisplayOrder, 0),
+		Ephemeral:           takeFirst(orig.Ephemeral, false),
+	})
+	require.NoError(t, err, "insert template version parameter")
 	return version
 }
 

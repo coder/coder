@@ -43,14 +43,15 @@ func TestApplicationURLString(t *testing.T) {
 			Expected: "8080--agent--workspace--user",
 		},
 		{
-			Name: "LongAppName",
+			Name: "Prefix",
 			URL: httpapi.ApplicationURL{
-				AppSlugOrPort: "0123456789012345678901234567890123456789",
+				Prefix:        "yolo---",
+				AppSlugOrPort: "app",
 				AgentName:     "agent",
 				WorkspaceName: "workspace",
 				Username:      "user",
 			},
-			Expected: "app-90667f72",
+			Expected: "yolo---app--agent--workspace--user",
 		},
 	}
 
@@ -131,6 +132,17 @@ func TestParseSubdomainAppURL(t *testing.T) {
 				AgentName:     "agent-name",
 				WorkspaceName: "workspace-name",
 				Username:      "user-name",
+			},
+		},
+		{
+			Name:      "Prefix",
+			Subdomain: "dean---was---here---app--agent--workspace--user",
+			Expected: httpapi.ApplicationURL{
+				Prefix:        "dean---was---here---",
+				AppSlugOrPort: "app",
+				AgentName:     "agent",
+				WorkspaceName: "workspace",
+				Username:      "user",
 			},
 		},
 	}

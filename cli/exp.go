@@ -12,6 +12,7 @@ func (r *RootCmd) expCmd() *clibase.Cmd {
 		Hidden: true,
 		Children: []*clibase.Cmd{
 			r.scaletestCmd(),
+			r.errorExample(),
 		},
 	}
 	return cmd

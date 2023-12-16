@@ -1,28 +1,12 @@
 import Badge from "@mui/material/Badge";
-import { useTheme, withStyles } from "@mui/styles";
-import { FC } from "react";
-import { WorkspaceBuild } from "api/typesGenerated";
+import { css, cx } from "@emotion/css";
+import { useTheme } from "@emotion/react";
+import { type FC } from "react";
+import type { WorkspaceBuild } from "api/typesGenerated";
 import { getDisplayWorkspaceBuildStatus } from "utils/workspace";
+import { useClassName } from "hooks/useClassName";
 import { Avatar, AvatarProps } from "components/Avatar/Avatar";
-import { PaletteIndex } from "theme/theme";
-import { Theme } from "@mui/material/styles";
 import { BuildIcon } from "components/BuildIcon/BuildIcon";
-
-interface StylesBadgeProps {
-  type: PaletteIndex;
-}
-
-const StyledBadge = withStyles((theme) => ({
-  badge: {
-    backgroundColor: ({ type }: StylesBadgeProps) => theme.palette[type].light,
-    borderRadius: "100%",
-    width: 8,
-    minWidth: 8,
-    height: 8,
-    display: "block",
-    padding: 0,
-  },
-}))(Badge);
 
 export interface BuildAvatarProps {
   build: WorkspaceBuild;
@@ -30,25 +14,39 @@ export interface BuildAvatarProps {
 }
 
 export const BuildAvatar: FC<BuildAvatarProps> = ({ build, size }) => {
-  const theme = useTheme<Theme>();
-  const displayBuildStatus = getDisplayWorkspaceBuildStatus(theme, build);
+  const theme = useTheme();
+  const { status, type } = getDisplayWorkspaceBuildStatus(theme, build);
+  const badgeType = useClassName(
+    (css, theme) => css`
+      background-color: ${theme.palette[type].light};
+    `,
+    [type],
+  );
 
   return (
-    <StyledBadge
+    <Badge
       role="status"
-      type={displayBuildStatus.type}
-      arial-label={displayBuildStatus.status}
-      title={displayBuildStatus.status}
+      aria-label={status}
+      title={status}
       overlap="circular"
-      anchorOrigin={{
-        vertical: "bottom",
-        horizontal: "right",
-      }}
+      anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
       badgeContent={<div></div>}
+      classes={{ badge: cx(classNames.badge, badgeType) }}
     >
-      <Avatar size={size} colorScheme="darken">
+      <Avatar background size={size}>
         <BuildIcon transition={build.transition} />
       </Avatar>
-    </StyledBadge>
+    </Badge>
   );
+};
+
+const classNames = {
+  badge: css({
+    borderRadius: "100%",
+    width: 8,
+    minWidth: 8,
+    height: 8,
+    display: "block",
+    padding: 0,
+  }),
 };

@@ -1,10 +1,8 @@
-import { useTheme } from "@mui/styles";
+import { useTheme } from "@emotion/react";
 import Editor, { loader } from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
-import { FC, useLayoutEffect, useMemo, useState } from "react";
+import { FC, useMemo } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
-import { hslToHex } from "utils/colors";
-import type { editor } from "monaco-editor";
 
 loader.config({ monaco });
 
@@ -14,22 +12,6 @@ export const MonacoEditor: FC<{
   onChange?: (value: string) => void;
 }> = ({ onChange, value, path }) => {
   const theme = useTheme();
-  const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>();
-  useLayoutEffect(() => {
-    if (!editor) {
-      return;
-    }
-    const resizeListener = () => {
-      editor.layout({
-        height: 0,
-        width: 0,
-      });
-    };
-    window.addEventListener("resize", resizeListener);
-    return () => {
-      window.removeEventListener("resize", resizeListener);
-    };
-  }, [editor]);
 
   const language = useMemo(() => {
     if (path?.endsWith(".tf")) {
@@ -57,7 +39,7 @@ export const MonacoEditor: FC<{
       options={{
         automaticLayout: true,
         fontFamily: MONOSPACE_FONT_FAMILY,
-        fontSize: 16,
+        fontSize: 14,
         wordWrap: "on",
         padding: {
           top: 16,
@@ -81,8 +63,6 @@ export const MonacoEditor: FC<{
             //
           },
         );
-
-        setEditor(editor);
 
         document.fonts.ready
           .then(() => {
@@ -124,8 +104,8 @@ export const MonacoEditor: FC<{
             },
           ],
           colors: {
-            "editor.foreground": hslToHex(theme.palette.text.primary),
-            "editor.background": hslToHex(theme.palette.background.default),
+            "editor.foreground": theme.palette.text.primary,
+            "editor.background": theme.palette.background.paper,
           },
         });
         editor.updateOptions({

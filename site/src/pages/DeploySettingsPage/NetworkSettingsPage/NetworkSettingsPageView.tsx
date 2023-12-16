@@ -1,9 +1,5 @@
-import { DeploymentOption } from "api/api";
-import {
-  Badges,
-  EnabledBadge,
-  DisabledBadge,
-} from "components/DeploySettingsLayout/Badges";
+import type { ClibaseOption } from "api/typesGenerated";
+import { Badges, EnabledBadge, DisabledBadge } from "components/Badges/Badges";
 import { Header } from "components/DeploySettingsLayout/Header";
 import OptionsTable from "components/DeploySettingsLayout/OptionsTable";
 import { Stack } from "components/Stack/Stack";
@@ -14,7 +10,7 @@ import {
 import { docs } from "utils/docs";
 
 export type NetworkSettingsPageViewProps = {
-  options: DeploymentOption[];
+  options: ClibaseOption[];
 };
 
 export const NetworkSettingsPageView = ({

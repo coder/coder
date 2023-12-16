@@ -17,7 +17,6 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -124,6 +123,32 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		return
 	}
 
+	// nolint:gocritic // GetWorkspaceAgentScriptsByAgentIDs is a system function.
+	scripts, err := api.Database.GetWorkspaceAgentScriptsByAgentIDs(dbauthz.AsSystemRestricted(ctx), resourceAgentIDs)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace agent scripts.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// nolint:gocritic // GetWorkspaceAgentLogSourcesByAgentIDs is a system function.
+	logSources, err := api.Database.GetWorkspaceAgentLogSourcesByAgentIDs(dbauthz.AsSystemRestricted(ctx), resourceAgentIDs)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace agent log sources.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	// nolint:gocritic // GetWorkspaceResourceMetadataByResourceIDs is a system function.
 	resourceMetadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
 	if err != nil {
@@ -147,9 +172,21 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 					dbApps = append(dbApps, app)
 				}
 			}
+			dbScripts := make([]database.WorkspaceAgentScript, 0)
+			for _, script := range scripts {
+				if script.WorkspaceAgentID == agent.ID {
+					dbScripts = append(dbScripts, script)
+				}
+			}
+			dbLogSources := make([]database.WorkspaceAgentLogSource, 0)
+			for _, logSource := range logSources {
+				if logSource.WorkspaceAgentID == agent.ID {
+					dbLogSources = append(dbLogSources, logSource)
+				}
+			}
 
 			apiAgent, err := convertWorkspaceAgent(
-				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, convertProvisionedApps(dbApps), api.AgentInactiveDisconnectTimeout,
+				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, convertProvisionedApps(dbApps), convertScripts(dbScripts), convertLogSources(dbLogSources), api.AgentInactiveDisconnectTimeout,
 				api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 			)
 			if err != nil {
@@ -220,7 +257,7 @@ func convertProvisionerJob(pj database.GetProvisionerJobsByIDsWithQueuePositionR
 	if provisionerJob.WorkerID.Valid {
 		job.WorkerID = &provisionerJob.WorkerID.UUID
 	}
-	job.Status = db2sdk.ProvisionerJobStatus(provisionerJob)
+	job.Status = codersdk.ProvisionerJobStatus(pj.ProvisionerJob.JobStatus)
 
 	return job
 }
@@ -244,7 +281,7 @@ func fetchAndWriteLogs(ctx context.Context, db database.Store, jobID uuid.UUID, 
 }
 
 func jobIsComplete(logger slog.Logger, job database.ProvisionerJob) bool {
-	status := db2sdk.ProvisionerJobStatus(job)
+	status := codersdk.ProvisionerJobStatus(job.JobStatus)
 	switch status {
 	case codersdk.ProvisionerJobCanceled:
 		return true

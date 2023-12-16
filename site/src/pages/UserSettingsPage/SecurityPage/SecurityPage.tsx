@@ -1,32 +1,29 @@
+import { type ComponentProps, type FC } from "react";
+import { useMutation, useQuery } from "react-query";
+import { getUserLoginType } from "api/api";
+import { authMethods, updatePassword } from "api/queries/users";
 import { useMe } from "hooks/useMe";
-import { ComponentProps, FC } from "react";
-import { Section } from "components/SettingsLayout/Section";
-import { SecurityForm } from "./SettingsSecurityForm";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { getAuthMethods, getUserLoginType } from "api/api";
+import { Loader } from "components/Loader/Loader";
+import { Stack } from "components/Stack/Stack";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { Section } from "../Section";
+import { SecurityForm } from "./SecurityForm";
 import {
   SingleSignOnSection,
   useSingleSignOnSection,
 } from "./SingleSignOnSection";
-import { Loader } from "components/Loader/Loader";
-import { Stack } from "components/Stack/Stack";
-import { updatePassword } from "api/queries/users";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
 
 export const SecurityPage: FC = () => {
   const me = useMe();
   const updatePasswordMutation = useMutation(updatePassword());
-  const { data: authMethods } = useQuery({
-    queryKey: ["authMethods"],
-    queryFn: getAuthMethods,
-  });
+  const authMethodsQuery = useQuery(authMethods());
   const { data: userLoginType } = useQuery({
     queryKey: ["loginType"],
     queryFn: getUserLoginType,
   });
   const singleSignOnSection = useSingleSignOnSection();
 
-  if (!authMethods || !userLoginType) {
+  if (!authMethodsQuery.data || !userLoginType) {
     return <Loader />;
   }
 
@@ -51,7 +48,7 @@ export const SecurityPage: FC = () => {
       }}
       oidc={{
         section: {
-          authMethods,
+          authMethods: authMethodsQuery.data,
           userLoginType,
           ...singleSignOnSection,
         },
@@ -60,16 +57,18 @@ export const SecurityPage: FC = () => {
   );
 };
 
-export const SecurityPageView = ({
-  security,
-  oidc,
-}: {
+interface SecurityPageViewProps {
   security: {
     form: ComponentProps<typeof SecurityForm>;
   };
   oidc?: {
     section: ComponentProps<typeof SingleSignOnSection>;
   };
+}
+
+export const SecurityPageView: FC<SecurityPageViewProps> = ({
+  security,
+  oidc,
 }) => {
   return (
     <Stack spacing={6}>
