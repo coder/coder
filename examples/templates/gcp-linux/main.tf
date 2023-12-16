@@ -129,7 +129,6 @@ resource "coder_app" "code-server" {
 
 resource "google_compute_instance" "dev" {
   zone           = data.coder_parameter.zone.value
-  count          = data.coder_workspace.me.start_count
   name           = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}-root"
   machine_type   = "e2-medium"
   desired_status = (data.coder_workspace.me.owner == "default" || data.coder_workspace.me.start_count == 1 ? "RUNNING" : "TERMINATED")
@@ -162,7 +161,7 @@ resource "google_compute_instance" "dev" {
       echo "${local.linux_user} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/coder-user
     fi
     # Start the agent
-    exec sudo -u "${local.linux_user}" sh -c '${try(coder_agent.mainp[0].init_script, "")}'
+    exec sudo -u "${local.linux_user}" sh -c '${try(coder_agent.main[0].init_script, "")}'
     EOMETA
   }
 }
