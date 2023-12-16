@@ -66,14 +66,13 @@ resource "google_compute_disk" "root" {
   name  = "coder-${data.coder_workspace.me.id}-root"
   type  = "pd-ssd"
   zone  = data.coder_parameter.zone.value
-  image = "debian-cloud/debian-12"
+  image = "debian-cloud/debian-11"
   lifecycle {
     ignore_changes = [name, image]
   }
 }
 
 resource "coder_agent" "main" {
-  count                  = data.coder_workspace.me.start_count
   auth                   = "google-instance-identity"
   arch                   = "amd64"
   os                     = "linux"
@@ -82,7 +81,7 @@ resource "coder_agent" "main" {
     set -e
 
     # install and start code-server
-    curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server
+    curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.11.0
     /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
   EOT
 
@@ -91,28 +90,39 @@ resource "coder_agent" "main" {
     display_name = "CPU Usage"
     interval     = 5
     timeout      = 5
-    script       = "coder stat cpu"
+    script       = <<-EOT
+      #!/bin/bash
+      set -e
+      top -bn1 | grep "Cpu(s)" | awk '{print $2 + $4 "%"}'
+    EOT
   }
   metadata {
     key          = "memory"
     display_name = "Memory Usage"
     interval     = 5
     timeout      = 5
-    script       = "coder stat mem"
+    script       = <<-EOT
+      #!/bin/bash
+      set -e
+      free -m | awk 'NR==2{printf "%.2f%%\t", $3*100/$2 }'
+    EOT
   }
   metadata {
     key          = "disk"
     display_name = "Disk Usage"
     interval     = 600 # every 10 minutes
     timeout      = 30  # df can take a while on large filesystems
-    script       = "coder stat disk"
+    script       = <<-EOT
+      #!/bin/bash
+      set -e
+      df /home/coder | awk '$NF=="/"{printf "%s", $5}'
+    EOT
   }
 }
 
 # code-server
 resource "coder_app" "code-server" {
-  count        = data.coder_workspace.me.start_count
-  agent_id     = coder_agent.main[0].id
+  agent_id     = coder_agent.main.id
   slug         = "code-server"
   display_name = "code-server"
   icon         = "/icon/code.svg"
@@ -128,11 +138,10 @@ resource "coder_app" "code-server" {
 }
 
 resource "google_compute_instance" "dev" {
-  zone           = data.coder_parameter.zone.value
-  name           = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}-root"
-  machine_type   = "e2-medium"
-  desired_status = (data.coder_workspace.me.owner == "default" || data.coder_workspace.me.start_count == 1 ? "RUNNING" : "TERMINATED")
-
+  zone         = data.coder_parameter.zone.value
+  count        = data.coder_workspace.me.start_count
+  name         = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}-root"
+  machine_type = "e2-medium"
   network_interface {
     network = "default"
     access_config {
@@ -150,20 +159,18 @@ resource "google_compute_instance" "dev" {
   # The startup script runs as root with no $HOME environment set up, so instead of directly
   # running the agent init script, create a user (with a homedir, default shell and sudo
   # permissions) and execute the init script as that user.
-  metadata = {
-    startup_script = <<-EOMETA
-    #!/usr/bin/env sh
-    set -eux
+  metadata_startup_script = <<EOMETA
+#!/usr/bin/env sh
+set -eux
 
-    # If user does not exist, create it and set up passwordless sudo
-    if ! id -u "${local.linux_user}" >/dev/null 2>&1; then
-      useradd -m -s /bin/bash "${local.linux_user}"
-      echo "${local.linux_user} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/coder-user
-    fi
-    # Start the agent
-    exec sudo -u "${local.linux_user}" sh -c '${try(coder_agent.main[0].init_script, "")}'
-    EOMETA
-  }
+# If user does not exist, create it and set up passwordless sudo
+if ! id -u "${local.linux_user}" >/dev/null 2>&1; then
+  useradd -m -s /bin/bash "${local.linux_user}"
+  echo "${local.linux_user} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/coder-user
+fi
+
+exec sudo -u "${local.linux_user}" sh -c '${coder_agent.main.init_script}'
+EOMETA
 }
 
 locals {
@@ -173,11 +180,11 @@ locals {
 
 resource "coder_metadata" "workspace_info" {
   count       = data.coder_workspace.me.start_count
-  resource_id = google_compute_instance.dev.id
+  resource_id = google_compute_instance.dev[0].id
 
   item {
     key   = "type"
-    value = google_compute_instance.dev.machine_type
+    value = google_compute_instance.dev[0].machine_type
   }
 }
 

@@ -49,7 +49,7 @@ a service account:
 
 This template provisions the following resources:
 
-- GCP VM (persistent)
+- GCP VM (ephemeral)
 - GCP Disk (persistent, mounted to root)
 
 Coder persists the root volume. The full filesystem is preserved when the workspace restarts. See this [community example](https://github.com/bpmct/coder-templates/tree/main/aws-linux-ephemeral) of an ephemeral AWS instance.
