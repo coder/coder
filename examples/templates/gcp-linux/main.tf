@@ -111,7 +111,8 @@ resource "coder_agent" "main" {
 
 # code-server
 resource "coder_app" "code-server" {
-  agent_id     = coder_agent.main.id
+  count        = data.coder_workspace.me.start_count
+  agent_id     = coder_agent.main[0].id
   slug         = "code-server"
   display_name = "code-server"
   icon         = "/icon/code.svg"
