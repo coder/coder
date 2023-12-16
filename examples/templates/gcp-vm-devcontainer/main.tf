@@ -72,11 +72,21 @@ resource "google_compute_disk" "root" {
   }
 }
 
-resource "coder_agent" "main" {
+data "coder_parameter" "repo_url" {
+  name         = "repo_url"
+  display_name = "Repository URL"
+  default      = "https://github.com/coder/envbuilder-starter-devcontainer"
+  description  = "Repository URL"
+  mutable      = true
+}
+
+resource "coder_agent" "dev" {
   count                  = data.coder_workspace.me.start_count
-  auth                   = "google-instance-identity"
   arch                   = "amd64"
+  auth                   = "token"
   os                     = "linux"
+  dir                    = "/worskpaces"
+  connection_timeout     = 0
   startup_script_timeout = 180
   startup_script         = <<-EOT
     set -e
@@ -103,13 +113,12 @@ resource "coder_agent" "main" {
   metadata {
     key          = "disk"
     display_name = "Disk Usage"
-    interval     = 600 # every 10 minutes
-    timeout      = 30  # df can take a while on large filesystems
+    interval     = 5
+    timeout      = 5
     script       = "coder stat disk"
   }
 }
 
-# code-server
 resource "coder_app" "code-server" {
   agent_id     = coder_agent.main.id
   slug         = "code-server"
@@ -126,12 +135,12 @@ resource "coder_app" "code-server" {
   }
 }
 
-resource "google_compute_instance" "dev" {
-  zone           = data.coder_parameter.zone.value
-  count          = data.coder_workspace.me.start_count
-  name           = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}-root"
-  machine_type   = "e2-medium"
-  desired_status = (data.coder_workspace.me.owner == "default" || data.coder_workspace.me.start_count == 1 ? "RUNNING" : "TERMINATED")
+resource "google_compute_instance" "vm" {
+  zone         = data.coder_parameter.zone.value
+  name         = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}-root"
+  machine_type = "e2-medium"
+  # data.coder_workspace.me.owner == "default"  is a workaround to suppress error in the terraform plan phase while creating a new workspace.
+  desired_status = (data.coder_workspace.me.owner == "default" || data.coder_workspace.me.start_count == 1) ? "RUNNING" : "TERMINATED"
 
   network_interface {
     network = "default"
@@ -139,19 +148,22 @@ resource "google_compute_instance" "dev" {
       // Ephemeral public IP
     }
   }
+
   boot_disk {
     auto_delete = false
     source      = google_compute_disk.root.name
   }
+
   service_account {
     email  = data.google_compute_default_service_account.default.email
     scopes = ["cloud-platform"]
   }
-  # The startup script runs as root with no $HOME environment set up, so instead of directly
-  # running the agent init script, create a user (with a homedir, default shell and sudo
-  # permissions) and execute the init script as that user.
+
   metadata = {
-    startup_script = <<-EOMETA
+    # The startup script runs as root with no $HOME environment set up, so instead of directly
+    # running the agent init script, create a user (with a homedir, default shell and sudo
+    # permissions) and execute the init script as that user.
+    startup-script = <<-META
     #!/usr/bin/env sh
     set -eux
 
@@ -160,9 +172,27 @@ resource "google_compute_instance" "dev" {
       useradd -m -s /bin/bash "${local.linux_user}"
       echo "${local.linux_user} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/coder-user
     fi
-    # Start the agent
-    exec sudo -u "${local.linux_user}" sh -c '${try(coder_agent.mainp[0].init_script, "")}'
-    EOMETA
+
+    # Check for Docker, install if not present
+    if ! command -v docker &> /dev/null
+    then
+      echo "Docker not found, installing..."
+      curl -fsSL https://get.docker.com -o get-docker.sh && sudo sh get-docker.sh 2>&1 >/dev/null
+      sudo usermod -aG docker ${local.linux_user}
+      newgrp docker
+    else
+      echo "Docker is already installed."
+    fi
+    # Start envbuilder
+    docker run --rm \
+      -v /tmp/envbuilder:/workspaces \
+      -e CODER_AGENT_TOKEN="${try(coder_agent.dev[0].token, "")}" \
+      -e CODER_AGENT_URL="${data.coder_workspace.me.access_url}" \
+      -e GIT_URL="${data.coder_parameter.repo_url.value}" \
+      -e INIT_SCRIPT="echo ${base64encode(try(coder_agent.dev[0].init_script, ""))} | base64 -d | sh" \
+      -e FALLBACK_IMAGE="codercom/enterprise-base:ubuntu" \
+      ghcr.io/coder/envbuilder
+    META
   }
 }
 
@@ -173,11 +203,16 @@ locals {
 
 resource "coder_metadata" "workspace_info" {
   count       = data.coder_workspace.me.start_count
-  resource_id = google_compute_instance.dev.id
+  resource_id = google_compute_instance.vm.id
 
   item {
     key   = "type"
-    value = google_compute_instance.dev.machine_type
+    value = google_compute_instance.vm.machine_type
+  }
+
+  item {
+    key   = "zone"
+    value = data.coder_parameter.zone.value
   }
 }
 

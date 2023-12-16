@@ -212,7 +212,7 @@ resource "coder_app" "code-server" {
 
 locals {
   linux_user = "coder"
-  user_data = <<-EOT
+  user_data  = <<-EOT
   Content-Type: multipart/mixed; boundary="//"
   MIME-Version: 1.0
 
