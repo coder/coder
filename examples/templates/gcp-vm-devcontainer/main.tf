@@ -65,7 +65,6 @@ data "coder_workspace" "me" {
 resource "google_compute_disk" "root" {
   name  = "coder-${data.coder_workspace.me.id}-root"
   type  = "pd-ssd"
-  zone  = data.coder_parameter.zone.value
   image = "debian-cloud/debian-12"
   lifecycle {
     ignore_changes = [name, image]
@@ -137,7 +136,6 @@ resource "coder_app" "code-server" {
 }
 
 resource "google_compute_instance" "vm" {
-  zone         = data.coder_parameter.zone.value
   name         = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}-root"
   machine_type = "e2-medium"
   # data.coder_workspace.me.owner == "default"  is a workaround to suppress error in the terraform plan phase while creating a new workspace.
