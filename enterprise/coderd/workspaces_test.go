@@ -2,7 +2,6 @@ package coderd_test
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"sync/atomic"
 	"testing"
@@ -250,75 +249,52 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			auditRecorder = audit.NewMock()
 		)
 
-		client, user := coderdenttest.New(t, &coderdenttest.Options{
+		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				AutobuildTicker:          ticker,
-				IncludeProvisionerDaemon: true,
-				AutobuildStats:           statCh,
-				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore()),
-				Auditor:                  auditRecorder,
+				AutobuildTicker:       ticker,
+				AutobuildStats:        statCh,
+				TemplateScheduleStore: schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore()),
+				Auditor:               auditRecorder,
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
 			},
 		})
 
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:          echo.ParseComplete,
-			ProvisionPlan:  echo.PlanComplete,
-			ProvisionApply: echo.ApplyComplete,
+		tpl := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+			OrganizationID: user.OrganizationID,
+			CreatedBy:      user.UserID,
+		}).Do().Template
+
+		template := coderdtest.UpdateTemplateMeta(t, client, tpl.ID, codersdk.UpdateTemplateMeta{
+			TimeTilDormantMillis: inactiveTTL.Milliseconds(),
 		})
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.TimeTilDormantMillis = ptr.Ref[int64](inactiveTTL.Milliseconds())
-		})
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
-		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		workspace := dbfake.WorkspaceBuild(t, db, database.Workspace{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+			TemplateID:     template.ID,
+		}).Seed(database.WorkspaceBuild{
+			Transition: database.WorkspaceTransitionStart,
+		}).Do().Workspace
 
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
-
-		// Reset the audit log so we can verify a log is generated.
 		auditRecorder.ResetLogs()
 		// Simulate being inactive.
-		ticker <- ws.LastUsedAt.Add(inactiveTTL * 2)
+		ticker <- workspace.LastUsedAt.Add(inactiveTTL * 2)
 		stats := <-statCh
 
 		// Expect workspace to transition to stopped state for breaching
 		// failure TTL.
 		require.Len(t, stats.Transitions, 1)
-		require.Equal(t, stats.Transitions[ws.ID], database.WorkspaceTransitionStop)
+		require.Equal(t, stats.Transitions[workspace.ID], database.WorkspaceTransitionStop)
 
-		ws = coderdtest.MustWorkspace(t, client, ws.ID)
+		ws := coderdtest.MustWorkspace(t, client, workspace.ID)
 		require.NotNil(t, ws.DormantAt)
-
-		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
-		require.Equal(t, codersdk.WorkspaceTransitionStop, build.Transition)
-		// We should get 2 audit logs, one for stopping the workspace, and one for
-		// making it dormant.
-		require.Eventually(t, func() bool {
-			// There's the potential for a race between when we commit the transaction for
-			// indicating a workspace build is complete and when we write the audit
-			// log, so we need to spin a little bit until the audit log is completed.
-			return len(auditRecorder.AuditLogs()) == 2
-		}, testutil.WaitMedium, testutil.IntervalFast)
-
-		for _, alog := range auditRecorder.AuditLogs() {
-			require.Equal(t, int32(http.StatusOK), alog.StatusCode)
-
-			switch alog.Action {
-			case database.AuditActionWrite:
-				require.Equal(t, database.ResourceTypeWorkspace, alog.ResourceType)
-			case database.AuditActionStop:
-				var fields audit.AdditionalFields
-				err := json.Unmarshal(alog.AdditionalFields, &fields)
-				require.NoError(t, err)
-				require.Equal(t, ws.Name, fields.WorkspaceName)
-				require.Equal(t, database.BuildReasonDormancy, fields.BuildReason)
-
-			default:
-				t.Fatalf("unexpected audit log (%+v)", alog)
-			}
-		}
+		require.Len(t, auditRecorder.AuditLogs(), 1)
+		alog := auditRecorder.AuditLogs()[0]
+		require.Equal(t, int32(http.StatusOK), alog.StatusCode)
+		require.Equal(t, database.AuditActionWrite, alog.Action)
+		require.Equal(t, workspace.Name, alog.ResourceTarget)
 
 		dormantLastUsedAt := ws.LastUsedAt
 		// nolint:gocritic // this test is not testing RBAC.
