@@ -59,6 +59,4 @@ Coder persists the root volume. The full filesystem is preserved when the worksp
 
 ## code-server
 
-`code-server` is installed via the `startup_script` argument in the `coder_agent`
-resource block. The `coder_app` resource is defined to access `code-server` through
-the dashboard UI over `localhost:13337`.
+`code-server` is installed via the [`code-server`](https://registry.coder.com/modules/code-server) registry module. For a list of all modules and templates pplease check [Coder Registry](https://registry.coder.com).
