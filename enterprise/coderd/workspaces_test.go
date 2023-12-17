@@ -270,13 +270,15 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			TimeTilDormantMillis: inactiveTTL.Milliseconds(),
 		})
 
-		workspace := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		resp := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 			TemplateID:     template.ID,
 		}).Seed(database.WorkspaceBuild{
 			Transition: database.WorkspaceTransitionStart,
-		}).Do().Workspace
+		}).Do()
+		require.Equal(t, database.WorkspaceTransitionStart, resp.Build.Transition)
+		workspace := resp.Workspace
 
 		auditRecorder.ResetLogs()
 		// Simulate being inactive.
@@ -289,7 +291,10 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		require.Equal(t, stats.Transitions[workspace.ID], database.WorkspaceTransitionStop)
 
 		ws := coderdtest.MustWorkspace(t, client, workspace.ID)
+		// Should be dormant now.
 		require.NotNil(t, ws.DormantAt)
+		// Should be transitioned to stop.
+		require.Equal(t, codersdk.WorkspaceTransitionStop, ws.LatestBuild.Transition)
 		require.Len(t, auditRecorder.AuditLogs(), 1)
 		alog := auditRecorder.AuditLogs()[0]
 		require.Equal(t, int32(http.StatusOK), alog.StatusCode)
