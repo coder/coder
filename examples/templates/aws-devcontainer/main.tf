@@ -99,8 +99,9 @@ resource "coder_agent" "dev" {
 }
 
 module "code-server" {
+  count  = data.coder_workspace.me.start_count
   source = "https://registry.coder.com/modules/code-server"
-  agent_id = coder_agent.dev.id
+  agent_id = coder_agent.dev[0].id
 }
 
 locals {
