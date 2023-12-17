@@ -86,15 +86,7 @@ resource "coder_agent" "dev" {
   os                     = "linux"
   dir                    = "/worskpaces"
   connection_timeout     = 0
-  startup_script_timeout = 180
-  startup_script         = <<-EOT
-    set -e
-
-    # install and start code-server
-    curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server
-    /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
-  EOT
-
+  
   metadata {
     key          = "cpu"
     display_name = "CPU Usage"
@@ -118,21 +110,10 @@ resource "coder_agent" "dev" {
   }
 }
 
-resource "coder_app" "code-server" {
-  count        = data.coder_workspace.me.start_count
-  agent_id     = coder_agent.dev[0].id
-  slug         = "code-server"
-  display_name = "code-server"
-  icon         = "/icon/code.svg"
-  url          = "http://localhost:13337?folder=/home/coder"
-  subdomain    = false
-  share        = "owner"
-
-  healthcheck {
-    url       = "http://localhost:13337/healthz"
-    interval  = 3
-    threshold = 10
-  }
+module "code-server" {
+  count  = data.coder_workspace.me.start_count
+  source = "https://registry.coder.com/modules/code-server"
+  agent_id = coder_agent.dev[0].id
 }
 
 resource "google_compute_instance" "vm" {
