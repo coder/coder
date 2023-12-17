@@ -1781,14 +1781,12 @@ export type Experiment =
   | "moons"
   | "single_tailnet"
   | "tailnet_pg_coordinator"
-  | "template_update_policies"
   | "workspace_actions";
 export const Experiments: Experiment[] = [
   "deployment_health_page",
   "moons",
   "single_tailnet",
   "tailnet_pg_coordinator",
-  "template_update_policies",
   "workspace_actions",
 ];
 
