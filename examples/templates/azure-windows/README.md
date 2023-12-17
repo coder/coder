@@ -1,23 +1,35 @@
 ---
-name: Develop in Windows on Azure
-description: Get started with Windows development on Microsoft Azure.
-tags: [cloud, azure, windows]
-icon: /icon/azure.png
+display_name: Azure VM (Windows)
+description: Provision Azure VMs as Coder workspaces
+icon: ../../../site/static/icon/azure.png
+maintainer_github: coder
+verified: true
+tags: [vm, windows, azure]
 ---
 
-# azure-windows
+# Remote Development on Azure VMs (Windows)
 
-To get started, run `coder templates init`. When prompted, select this template.
-Follow the on-screen instructions to proceed.
+Provision AWS EC2 VMs as [Coder workspaces](https://coder.com/docs/coder-v2/latest) with this example template.
 
-## Authentication
+<!-- TODO: Add screenshot -->
+
+## Prerequisites
+
+### Authentication
 
 This template assumes that coderd is run in an environment that is authenticated
 with Azure. For example, run `az login` then `az account set --subscription=<id>`
 to import credentials on the system and user running coderd. For other ways to
-authenticate [consult the Terraform docs](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs#authenticating-to-azure).
+authenticate, [consult the Terraform docs](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs#authenticating-to-azure).
 
-## Dependencies
+## Architecture
 
-This template depends on the Azure CLI tool (`az`) to start and stop the Windows VM. Ensure this
-tool is installed and available in the path on the machine that runs coderd.
+This template provisions the following resources:
+
+- Azure VM (ephemeral, deleted on stop)
+- Managed disk (persistent, mounted to `F:`)
+
+This means, when the workspace restarts, any tools or files outside of the data directory are not persisted. To pre-bake tools into the workspace (e.g. `python3`), modify the VM image, or use a [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script).
+
+> **Note**
+> This template is designed to be a starting point! Edit the Terraform to extend the template to support your use case.

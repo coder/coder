@@ -1,13 +1,20 @@
 ---
-name: Develop in a Nomad Docker Container
-description: Get started with Nomad Workspaces.
-tags: [cloud, nomad]
-icon: /icon/nomad.svg
+display_name: Nomad
+description: Provision Nomad Jobs as Coder workspaces
+icon: ../../../site/static/icon/nomad.svg
+maintainer_github: coder
+verified: true
+tags: [nomad, container]
 ---
 
-# Develop in a Nomad Docker Container
+# Remote Development on Nomad
 
-This example shows how to use Nomad service tasks to be used as a development environment using docker and host csi volumes.
+Provision Nomad Jobs as [Coder workspaces](https://coder.com/docs/coder-v2/latest) with this example template. This example shows how to use Nomad service tasks to be used as a development environment using docker and host csi volumes.
+
+<!-- TODO: Add screenshot -->
+
+> **Note**
+> This template is designed to be a starting point! Edit the Terraform to extend the template to support your use case.
 
 ## Prerequisites
 
