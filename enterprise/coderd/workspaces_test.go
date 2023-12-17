@@ -291,13 +291,18 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		ws = coderdtest.MustWorkspace(t, client, ws.ID)
 		require.NotNil(t, ws.DormantAt)
 
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+		require.Equal(t, codersdk.WorkspaceTransitionStop, build.Transition)
 		// We should get 2 audit logs, one for stopping the workspace, and one for
 		// making it dormant.
-		alogs := auditRecorder.AuditLogs()
-		require.Len(t, alogs, 2)
+		require.Eventually(t, func() bool {
+			// There's the potential for a race between when we commit the transaction for
+			// indicating a workspace build is complete and when we write the audit
+			// log, so we need to spin a little bit until the audit log is completed.
+			return len(auditRecorder.AuditLogs()) == 2
+		}, testutil.WaitMedium, testutil.IntervalFast)
 
-		for _, alog := range alogs {
+		for _, alog := range auditRecorder.AuditLogs() {
 			require.Equal(t, int32(http.StatusOK), alog.StatusCode)
 
 			switch alog.Action {
