@@ -50,7 +50,6 @@ export interface TemplateSettingsForm {
   // Helpful to show field errors on Storybook
   initialTouched?: FormikTouched<UpdateTemplateMeta>;
   accessControlEnabled: boolean;
-  templatePoliciesEnabled: boolean;
 }
 
 export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
@@ -61,7 +60,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
   isSubmitting,
   initialTouched,
   accessControlEnabled,
-  templatePoliciesEnabled,
 }) => {
   const validationSchema = getValidationSchema();
   const form: FormikContextType<UpdateTemplateMeta> =
@@ -174,7 +172,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
               </Stack>
             </Stack>
           </label>
-          {templatePoliciesEnabled && (
+          {
             <label htmlFor="require_active_version">
               <Stack direction="row" spacing={1}>
                 <Checkbox
@@ -205,7 +203,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
                 </Stack>
               </Stack>
             </label>
-          )}
+          }
         </Stack>
       </FormSection>
 
