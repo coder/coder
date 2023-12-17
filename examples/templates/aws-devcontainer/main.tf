@@ -98,6 +98,11 @@ resource "coder_agent" "dev" {
   }
 }
 
+module "code-server" {
+  source = "https://registry.coder.com/modules/code-server"
+  agent_id = coder_agent.dev.id
+}
+
 locals {
   linux_user = "coder"
   user_data = <<-EOT
