@@ -80,13 +80,13 @@ data "coder_parameter" "repo_url" {
 }
 
 resource "coder_agent" "dev" {
-  count                  = data.coder_workspace.me.start_count
-  arch                   = "amd64"
-  auth                   = "token"
-  os                     = "linux"
-  dir                    = "/worskpaces"
-  connection_timeout     = 0
-  
+  count              = data.coder_workspace.me.start_count
+  arch               = "amd64"
+  auth               = "token"
+  os                 = "linux"
+  dir                = "/worskpaces"
+  connection_timeout = 0
+
   metadata {
     key          = "cpu"
     display_name = "CPU Usage"
@@ -111,8 +111,8 @@ resource "coder_agent" "dev" {
 }
 
 module "code-server" {
-  count  = data.coder_workspace.me.start_count
-  source = "https://registry.coder.com/modules/code-server"
+  count    = data.coder_workspace.me.start_count
+  source   = "https://registry.coder.com/modules/code-server"
   agent_id = coder_agent.dev[0].id
 }
 
