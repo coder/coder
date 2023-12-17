@@ -80,7 +80,9 @@ const fillAndSubmitForm = async ({
   await userEvent.clear(iconField);
   await userEvent.type(iconField, icon);
 
-  const allowCancelJobsField = screen.getByRole("checkbox");
+  const allowCancelJobsField = screen.getByRole("checkbox", {
+    name: "allow_user_cancel_workspace_jobs",
+  });
   // checkbox is checked by default, so it must be clicked to get unchecked
   if (!allow_user_cancel_workspace_jobs) {
     await userEvent.click(allowCancelJobsField);
