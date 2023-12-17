@@ -10,7 +10,7 @@ terraform {
 }
 
 module "aws_region" {
-  source = "https://registry.coder.com/modules/aws-region"
+  source  = "https://registry.coder.com/modules/aws-region"
   default = "us-east-1"
 }
 
@@ -75,11 +75,11 @@ data "coder_parameter" "repo_url" {
 }
 
 resource "coder_agent" "dev" {
-  count = data.coder_workspace.me.start_count
-  arch  = "amd64"
-  auth  = "token"
-  os    = "linux"
-  dir   = "/worskpaces"
+  count              = data.coder_workspace.me.start_count
+  arch               = "amd64"
+  auth               = "token"
+  os                 = "linux"
+  dir                = "/worskpaces"
   connection_timeout = 0
 
   metadata {
@@ -99,14 +99,14 @@ resource "coder_agent" "dev" {
 }
 
 module "code-server" {
-  count  = data.coder_workspace.me.start_count
-  source = "https://registry.coder.com/modules/code-server"
+  count    = data.coder_workspace.me.start_count
+  source   = "https://registry.coder.com/modules/code-server"
   agent_id = coder_agent.dev[0].id
 }
 
 locals {
   linux_user = "coder"
-  user_data = <<-EOT
+  user_data  = <<-EOT
   Content-Type: multipart/mixed; boundary="//"
   MIME-Version: 1.0
 
