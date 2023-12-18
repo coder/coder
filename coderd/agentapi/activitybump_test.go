@@ -242,7 +242,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 
 				// Bump duration is measured from the time of the bump, so we measure from here.
 				start := dbtime.Now()
-				activityBumpWorkspace(ctx, log, db, bld.WorkspaceID, tt.nextAutostart(start))
+				agentapi.ActivityBumpWorkspace(ctx, log, db, bld.WorkspaceID, tt.nextAutostart(start))
 				end := dbtime.Now()
 
 				// Validate our state after bump
