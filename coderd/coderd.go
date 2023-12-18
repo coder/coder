@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"database/sql"
 	"flag"
 	"fmt"
 	"io"
@@ -49,6 +50,7 @@ import (
 	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
@@ -1178,22 +1180,32 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, name string
 		}
 	}()
 
-	tags := provisionerdserver.Tags{
-		provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+	//nolint:gocritic // in-memory provisioners are owned by system
+	daemon, err := api.Database.UpsertProvisionerDaemon(dbauthz.AsSystemRestricted(ctx), database.UpsertProvisionerDaemonParams{
+		Name:      name,
+		CreatedAt: dbtime.Now(),
+		Provisioners: []database.ProvisionerType{
+			database.ProvisionerTypeEcho, database.ProvisionerTypeTerraform,
+		},
+		Tags:       provisionersdk.MutateTags(uuid.Nil, nil),
+		LastSeenAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
+		Version:    buildinfo.Version(),
+		APIVersion: "1.0",
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("failed to create in-memory provisioner daemon: %w", err)
 	}
 
 	mux := drpcmux.New()
 	api.Logger.Info(ctx, "starting in-memory provisioner daemon", slog.F("name", name))
 	logger := api.Logger.Named(fmt.Sprintf("inmem-provisionerd-%s", name))
 	srv, err := provisionerdserver.NewServer(
-		api.ctx,
+		api.ctx, // use the same ctx as the API
 		api.AccessURL,
-		uuid.New(),
+		daemon.ID,
 		logger,
-		[]database.ProvisionerType{
-			database.ProvisionerTypeEcho, database.ProvisionerTypeTerraform,
-		},
-		tags,
+		daemon.Provisioners,
+		provisionerdserver.Tags(daemon.Tags),
 		api.Database,
 		api.Pubsub,
 		api.Acquirer,
