@@ -1,6 +1,5 @@
 import { type Interpolation, type Theme } from "@emotion/react";
 import { type FC, type ImgHTMLAttributes } from "react";
-import colors from "theme/tailwind";
 
 interface ExternalIconProps extends ImgHTMLAttributes<HTMLImageElement> {
   size?: number;
