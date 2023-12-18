@@ -2,34 +2,12 @@ package proto
 
 import (
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
-	"google.golang.org/protobuf/types/known/durationpb"
 
-	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/codersdk"
 )
-
-func DBAgentMetadataToProtoDescription(metadata []database.WorkspaceAgentMetadatum) []*WorkspaceAgentMetadata_Description {
-	ret := make([]*WorkspaceAgentMetadata_Description, len(metadata))
-	for i, metadatum := range metadata {
-		ret[i] = DBAgentMetadatumToProtoDescription(metadatum)
-	}
-	return ret
-}
-
-func DBAgentMetadatumToProtoDescription(metadatum database.WorkspaceAgentMetadatum) *WorkspaceAgentMetadata_Description {
-	return &WorkspaceAgentMetadata_Description{
-		DisplayName: metadatum.DisplayName,
-		Key:         metadatum.Key,
-		Script:      metadatum.Script,
-		Interval:    durationpb.New(time.Duration(metadatum.Interval)),
-		Timeout:     durationpb.New(time.Duration(metadatum.Timeout)),
-	}
-}
 
 func SDKAgentMetadataDescriptionsFromProto(descriptions []*WorkspaceAgentMetadata_Description) []codersdk.WorkspaceAgentMetadataDescription {
 	ret := make([]codersdk.WorkspaceAgentMetadataDescription, len(descriptions))
@@ -46,27 +24,6 @@ func SDKAgentMetadataDescriptionFromProto(description *WorkspaceAgentMetadata_De
 		Script:      description.Script,
 		Interval:    int64(description.Interval.AsDuration()),
 		Timeout:     int64(description.Timeout.AsDuration()),
-	}
-}
-
-func DBAgentScriptsToProto(scripts []database.WorkspaceAgentScript) []*WorkspaceAgentScript {
-	ret := make([]*WorkspaceAgentScript, len(scripts))
-	for i, script := range scripts {
-		ret[i] = DBAgentScriptToProto(script)
-	}
-	return ret
-}
-
-func DBAgentScriptToProto(script database.WorkspaceAgentScript) *WorkspaceAgentScript {
-	return &WorkspaceAgentScript{
-		LogSourceId:      script.LogSourceID[:],
-		LogPath:          script.LogPath,
-		Script:           script.Script,
-		Cron:             script.Cron,
-		RunOnStart:       script.RunOnStart,
-		RunOnStop:        script.RunOnStop,
-		StartBlocksLogin: script.StartBlocksLogin,
-		Timeout:          durationpb.New(time.Duration(script.TimeoutSeconds) * time.Second),
 	}
 }
 
@@ -97,49 +54,6 @@ func SDKAgentScriptFromProto(protoScript *WorkspaceAgentScript) (codersdk.Worksp
 		RunOnStop:        protoScript.RunOnStop,
 		StartBlocksLogin: protoScript.StartBlocksLogin,
 		Timeout:          protoScript.Timeout.AsDuration(),
-	}, nil
-}
-
-func DBAppsToProto(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, ownerName string, workspace database.Workspace) ([]*WorkspaceApp, error) {
-	ret := make([]*WorkspaceApp, len(dbApps))
-	for i, dbApp := range dbApps {
-		var err error
-		ret[i], err = DBAppToProto(dbApp, agent, ownerName, workspace)
-		if err != nil {
-			return nil, xerrors.Errorf("parse app %v (%q): %w", i, dbApp.Slug, err)
-		}
-	}
-	return ret, nil
-}
-
-func DBAppToProto(dbApp database.WorkspaceApp, agent database.WorkspaceAgent, ownerName string, workspace database.Workspace) (*WorkspaceApp, error) {
-	sharingLevelRaw, ok := WorkspaceApp_SharingLevel_value[strings.ToUpper(string(dbApp.SharingLevel))]
-	if !ok {
-		return nil, xerrors.Errorf("unknown app sharing level: %q", dbApp.SharingLevel)
-	}
-
-	healthRaw, ok := WorkspaceApp_Health_value[strings.ToUpper(string(dbApp.Health))]
-	if !ok {
-		return nil, xerrors.Errorf("unknown app health: %q", dbApp.SharingLevel)
-	}
-
-	return &WorkspaceApp{
-		Id:            dbApp.ID[:],
-		Url:           dbApp.Url.String,
-		External:      dbApp.External,
-		Slug:          dbApp.Slug,
-		DisplayName:   dbApp.DisplayName,
-		Command:       dbApp.Command.String,
-		Icon:          dbApp.Icon,
-		Subdomain:     dbApp.Subdomain,
-		SubdomainName: db2sdk.AppSubdomain(dbApp, agent.Name, workspace.Name, ownerName),
-		SharingLevel:  WorkspaceApp_SharingLevel(sharingLevelRaw),
-		Healthcheck: &WorkspaceApp_Healthcheck{
-			Url:       dbApp.HealthcheckUrl,
-			Interval:  durationpb.New(time.Duration(dbApp.HealthcheckInterval) * time.Second),
-			Threshold: dbApp.HealthcheckThreshold,
-		},
-		Health: WorkspaceApp_Health(healthRaw),
 	}, nil
 }
 
