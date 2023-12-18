@@ -18,9 +18,9 @@ import {
   AutomaticUpdateses,
   Workspace,
 } from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
 import MenuItem from "@mui/material/MenuItem";
 import upperFirst from "lodash/upperFirst";
+import { type Theme } from "@emotion/react";
 
 export type WorkspaceSettingsFormValues = {
   name: string;
@@ -34,6 +34,10 @@ export const WorkspaceSettingsForm: FC<{
   onCancel: () => void;
   onSubmit: (values: WorkspaceSettingsFormValues) => Promise<void>;
 }> = ({ onCancel, onSubmit, workspace, error, templatePoliciesEnabled }) => {
+  const formEnabled =
+    (templatePoliciesEnabled && !workspace.template_require_active_version) ||
+    workspace.allow_renames;
+
   const form = useFormik<WorkspaceSettingsFormValues>({
     onSubmit,
     initialValues: {
@@ -59,18 +63,19 @@ export const WorkspaceSettingsForm: FC<{
         <FormFields>
           <TextField
             {...getFieldHelpers("name")}
-            disabled={form.isSubmitting}
+            disabled={!workspace.allow_renames || form.isSubmitting}
             onChange={onChangeTrimmed(form)}
             autoFocus
             fullWidth
             label="Name"
+            css={workspace.allow_renames && styles.nameWarning}
+            helperText={
+              workspace.allow_renames
+                ? form.values.name !== form.initialValues.name &&
+                  "Depending on the template, renaming your workspace may be destructive"
+                : "Renaming your workspace can be destructive and has not been enabled for this deployment."
+            }
           />
-          {form.values.name !== form.initialValues.name && (
-            <Alert severity="warning">
-              Depending on the template, renaming your workspace may be
-              destructive
-            </Alert>
-          )}
         </FormFields>
       </FormSection>
       {templatePoliciesEnabled && (
@@ -106,7 +111,17 @@ export const WorkspaceSettingsForm: FC<{
           </FormFields>
         </FormSection>
       )}
-      <FormFooter onCancel={onCancel} isLoading={form.isSubmitting} />
+      {formEnabled && (
+        <FormFooter onCancel={onCancel} isLoading={form.isSubmitting} />
+      )}
     </HorizontalForm>
   );
+};
+
+const styles = {
+  nameWarning: (theme: Theme) => ({
+    "& .MuiFormHelperText-root": {
+      color: theme.palette.warning.light,
+    },
+  }),
 };

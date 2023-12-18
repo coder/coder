@@ -112,13 +112,12 @@ func CalculateAutostop(ctx context.Context, params CalculateAutostopParams) (Aut
 
 	// Use the old algorithm for calculating max_deadline if the instance isn't
 	// configured or entitled to use the new feature flag yet.
-	// TODO(@dean): remove this once the feature flag is enabled for all
-	if !templateSchedule.UseAutostopRequirement && templateSchedule.MaxTTL > 0 {
+	if templateSchedule.UseMaxTTL && templateSchedule.MaxTTL > 0 {
 		autostop.MaxDeadline = now.Add(templateSchedule.MaxTTL)
 	}
 
-	// TODO(@dean): remove extra conditional
-	if templateSchedule.UseAutostopRequirement && templateSchedule.AutostopRequirement.DaysOfWeek != 0 {
+	// Otherwise, use the autostop_requirement algorithm.
+	if !templateSchedule.UseMaxTTL && templateSchedule.AutostopRequirement.DaysOfWeek != 0 {
 		// The template has a autostop requirement, so determine the max deadline
 		// of this workspace build.
 
@@ -130,8 +129,8 @@ func CalculateAutostop(ctx context.Context, params CalculateAutostopParams) (Aut
 		}
 
 		// If the schedule is nil, that means the deployment isn't entitled to
-		// use quiet hours or the default schedule has not been set. In this
-		// case, do not set a max deadline on the workspace.
+		// use quiet hours. In this case, do not set a max deadline on the
+		// workspace.
 		if userQuietHoursSchedule.Schedule != nil {
 			loc := userQuietHoursSchedule.Schedule.Location()
 			now := now.In(loc)

@@ -37,15 +37,22 @@ import (
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/provisioner"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 )
 
-// DefaultAcquireJobLongPollDur is the time the (deprecated) AcquireJob rpc waits to try to obtain a job before
-// canceling and returning an empty job.
-const DefaultAcquireJobLongPollDur = time.Second * 5
+const (
+	// DefaultAcquireJobLongPollDur is the time the (deprecated) AcquireJob rpc waits to try to obtain a job before
+	// canceling and returning an empty job.
+	DefaultAcquireJobLongPollDur = time.Second * 5
+
+	// DefaultHeartbeatInterval is the interval at which the provisioner daemon
+	// will update its last seen at timestamp in the database.
+	DefaultHeartbeatInterval = time.Minute
+)
 
 type Options struct {
 	OIDCConfig          httpmw.OAuth2Config
@@ -55,6 +62,16 @@ type Options struct {
 
 	// AcquireJobLongPollDur is used in tests
 	AcquireJobLongPollDur time.Duration
+
+	// HeartbeatInterval is the interval at which the provisioner daemon
+	// will update its last seen at timestamp in the database.
+	HeartbeatInterval time.Duration
+
+	// HeartbeatFn is the function that will be called at the interval
+	// specified by HeartbeatInterval.
+	// The default function just calls UpdateProvisionerDaemonLastSeenAt.
+	// This is mainly used for testing.
+	HeartbeatFn func(context.Context) error
 }
 
 type server struct {
@@ -84,6 +101,9 @@ type server struct {
 	TimeNowFn func() time.Time
 
 	acquireJobLongPollDur time.Duration
+
+	heartbeatInterval time.Duration
+	heartbeatFn       func(ctx context.Context) error
 }
 
 // We use the null byte (0x00) in generating a canonical map key for tags, so
@@ -160,7 +180,11 @@ func NewServer(
 	if options.AcquireJobLongPollDur == 0 {
 		options.AcquireJobLongPollDur = DefaultAcquireJobLongPollDur
 	}
-	return &server{
+	if options.HeartbeatInterval == 0 {
+		options.HeartbeatInterval = DefaultHeartbeatInterval
+	}
+
+	s := &server{
 		lifecycleCtx:                lifecycleCtx,
 		AccessURL:                   accessURL,
 		ID:                          id,
@@ -181,7 +205,16 @@ func NewServer(
 		OIDCConfig:                  options.OIDCConfig,
 		TimeNowFn:                   options.TimeNowFn,
 		acquireJobLongPollDur:       options.AcquireJobLongPollDur,
-	}, nil
+		heartbeatInterval:           options.HeartbeatInterval,
+		heartbeatFn:                 options.HeartbeatFn,
+	}
+
+	if s.heartbeatFn == nil {
+		s.heartbeatFn = s.defaultHeartbeat
+	}
+
+	go s.heartbeatLoop()
+	return s, nil
 }
 
 // timeNow should be used when trying to get the current time for math
@@ -191,6 +224,58 @@ func (s *server) timeNow() time.Time {
 		return dbtime.Time(s.TimeNowFn())
 	}
 	return dbtime.Now()
+}
+
+// heartbeatLoop runs heartbeatOnce at the interval specified by HeartbeatInterval
+// until the lifecycle context is canceled.
+func (s *server) heartbeatLoop() {
+	tick := time.NewTicker(time.Nanosecond)
+	defer tick.Stop()
+	for {
+		select {
+		case <-s.lifecycleCtx.Done():
+			s.Logger.Debug(s.lifecycleCtx, "heartbeat loop canceled")
+			return
+		case <-tick.C:
+			if s.lifecycleCtx.Err() != nil {
+				return
+			}
+			start := s.timeNow()
+			hbCtx, hbCancel := context.WithTimeout(s.lifecycleCtx, s.heartbeatInterval)
+			if err := s.heartbeat(hbCtx); err != nil {
+				if !xerrors.Is(err, context.DeadlineExceeded) && !xerrors.Is(err, context.Canceled) {
+					s.Logger.Error(hbCtx, "heartbeat failed", slog.Error(err))
+				}
+			}
+			hbCancel()
+			elapsed := s.timeNow().Sub(start)
+			nextBeat := s.heartbeatInterval - elapsed
+			// avoid negative interval
+			if nextBeat <= 0 {
+				nextBeat = time.Nanosecond
+			}
+			tick.Reset(nextBeat)
+		}
+	}
+}
+
+// heartbeat updates the last seen at timestamp in the database.
+// If HeartbeatFn is set, it will be called instead.
+func (s *server) heartbeat(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return nil
+	default:
+		return s.heartbeatFn(ctx)
+	}
+}
+
+func (s *server) defaultHeartbeat(ctx context.Context) error {
+	//nolint:gocritic // This is specifically for updating the last seen at timestamp.
+	return s.Database.UpdateProvisionerDaemonLastSeenAt(dbauthz.AsSystemRestricted(ctx), database.UpdateProvisionerDaemonLastSeenAtParams{
+		ID:         s.ID,
+		LastSeenAt: sql.NullTime{Time: s.timeNow(), Valid: true},
+	})
 }
 
 // AcquireJob queries the database to lock a job.
@@ -542,8 +627,8 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 	default:
 		return nil, failJob(fmt.Sprintf("unsupported storage method: %s", job.StorageMethod))
 	}
-	if protobuf.Size(protoJob) > provisionersdk.MaxMessageSize {
-		return nil, failJob(fmt.Sprintf("payload was too big: %d > %d", protobuf.Size(protoJob), provisionersdk.MaxMessageSize))
+	if protobuf.Size(protoJob) > drpc.MaxMessageSize {
+		return nil, failJob(fmt.Sprintf("payload was too big: %d > %d", protobuf.Size(protoJob), drpc.MaxMessageSize))
 	}
 
 	return protoJob, err

@@ -57,6 +57,7 @@ type Workspace struct {
 	// what is causing an unhealthy status.
 	Health           WorkspaceHealth  `json:"health"`
 	AutomaticUpdates AutomaticUpdates `json:"automatic_updates" enums:"always,never"`
+	AllowRenames     bool             `json:"allow_renames"`
 }
 
 func (w Workspace) FullName() string {

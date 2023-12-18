@@ -444,6 +444,38 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 	require.Equal(t, "test", strings.TrimSpace(string(output)))
 }
 
+func TestWorkspaceAgentClientCoordinate_BadVersion(t *testing.T) {
+	t.Parallel()
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+
+	r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	agentToken, err := uuid.Parse(r.AgentToken)
+	require.NoError(t, err)
+	//nolint: gocritic // testing
+	ao, err := db.GetWorkspaceAgentAndOwnerByAuthToken(dbauthz.AsSystemRestricted(ctx), agentToken)
+	require.NoError(t, err)
+
+	//nolint: bodyclose // closed by ReadBodyAsError
+	resp, err := client.Request(ctx, http.MethodGet,
+		fmt.Sprintf("api/v2/workspaceagents/%s/coordinate", ao.WorkspaceAgent.ID),
+		nil,
+		codersdk.WithQueryParam("version", "99.99"))
+	require.NoError(t, err)
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	err = codersdk.ReadBodyAsError(resp)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, "Unknown or unsupported API version", sdkErr.Message)
+	require.Len(t, sdkErr.Validations, 1)
+	require.Equal(t, "version", sdkErr.Validations[0].Field)
+}
+
 func TestWorkspaceAgentTailnetDirectDisabled(t *testing.T) {
 	t.Parallel()
 

@@ -1,36 +1,50 @@
 ---
-name: Devcontainers in Docker
-description: Develop using devcontainers in Docker
-tags: [local, docker]
-icon: /icon/docker.png
+display_name: Devcontainers (Docker)
+description: Provision envbuilder containers as Coder workspaces
+icon: ../../../site/static/icon/docker.png
+maintainer_github: coder
+verified: true
+tags: [container, docker, devcontainer]
 ---
 
-# devcontainer-docker
+# Remote Development on Docker Containers (with Devcontainers)
 
-Develop using [devcontainers](https://containers.dev) in Docker.
+Provision Docker containers as [Coder workspaces](https://coder.com/docs/coder-v2/latest) with this example template.
 
-To get started, run `coder templates init`. When prompted, select this template.
-Follow the on-screen instructions to proceed.
+<!-- TODO: Add screenshot -->
 
-## How it works
+## Prerequisites
+
+### Infrastructure
+
+The VM you run Coder on must have a running Docker socket and the `coder` user must be added to the Docker group:
+
+```sh
+# Add coder user to Docker group
+sudo adduser coder docker
+
+# Restart Coder server
+sudo systemctl restart coder
+
+# Test Docker
+sudo -u coder docker ps
+```
+
+## Architecture
 
 Coder supports devcontainers with [envbuilder](https://github.com/coder/envbuilder), an open source project. Read more about this in [Coder's documentation](https://coder.com/docs/v2/latest/templates/devcontainers).
 
-## code-server
+This template provisions the following resources:
 
-`code-server` is installed via the `startup_script` argument in the `coder_agent`
-resource block. The `coder_app` resource is defined to access `code-server` through
-the dashboard UI over `localhost:13337`.
+- Docker image (built by Docker socket and kept locally)
+- Docker container pod (ephemeral)
+- Docker volume (persistent on `/home/coder`)
 
-## Extending this template
+This means, when the workspace restarts, any tools or files outside of the home directory are not persisted. To pre-bake tools into the workspace (e.g. `python3`), modify the container image. Alternatively, individual developers can [personalize](https://coder.com/docs/v2/latest/dotfiles) their workspaces with dotfiles.
 
-See the [kreuzwerker/docker](https://registry.terraform.io/providers/kreuzwerker/docker) Terraform provider documentation to add the following features to your Coder template:
+> **Note**
+> This template is designed to be a starting point! Edit the Terraform to extend the template to support your use case.
 
-- SSH/TCP docker host
-- Registry authentication
-- Build args
-- Volume mounts
-- Custom container spec
-- More
+### Editing the image
 
-We also welcome contributions!
+Edit the `Dockerfile` and run `coder templates push` to update workspaces.

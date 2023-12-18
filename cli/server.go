@@ -90,6 +90,7 @@ import (
 	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisioner/terraform"
@@ -582,6 +583,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					HostnamePrefix:   vals.SSHConfig.DeploymentName.String(),
 					SSHConfigOptions: configSSHOptions,
 				},
+				AllowWorkspaceRenames: vals.AllowWorkspaceRenames.Value(),
 			}
 			if httpServers.TLSConfig != nil {
 				options.TLSCertificates = httpServers.TLSConfig.Certificates
@@ -847,7 +849,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			defer closeBatcher()
 
 			// We use a separate coderAPICloser so the Enterprise API
-			// can have it's own close functions. This is cleaner
+			// can have its own close functions. This is cleaner
 			// than abstracting the Coder API itself.
 			coderAPI, coderAPICloser, err := newAPI(ctx, options)
 			if err != nil {
@@ -1298,7 +1300,7 @@ func newProvisionerDaemon(
 
 	connector := provisionerd.LocalProvisioners{}
 	if cfg.Provisioner.DaemonsEcho {
-		echoClient, echoServer := provisionersdk.MemTransportPipe()
+		echoClient, echoServer := drpc.MemTransportPipe()
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -1332,7 +1334,7 @@ func newProvisionerDaemon(
 		}
 
 		tracer := coderAPI.TracerProvider.Tracer(tracing.TracerName)
-		terraformClient, terraformServer := provisionersdk.MemTransportPipe()
+		terraformClient, terraformServer := drpc.MemTransportPipe()
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

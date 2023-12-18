@@ -30,4 +30,5 @@ extend-exclude = [
 	"**/*_test.go",
 	"**/*.test.tsx",
 	"**/pnpm-lock.yaml",
+	"tailnet/testdata/**",
 ]
