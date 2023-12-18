@@ -86,6 +86,40 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 		assert.Equal(t, anotherUser.ID.String(), daemons[0].Tags[provisionersdk.TagOwner])
 	})
 
+	t.Run("ScopeAnotherUser", func(t *testing.T) {
+		t.Parallel()
+		client, admin := coderdenttest.New(t, &coderdenttest.Options{
+			ProvisionerDaemonPSK: "provisionersftw",
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+				},
+			},
+		})
+		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		inv, conf := newCLI(t, "provisionerd", "start", "--tag", "scope=user", "--tag", "owner="+admin.UserID.String(), "--name", "my-daemon")
+		clitest.SetupConfig(t, anotherClient, conf)
+		pty := ptytest.New(t).Attach(inv)
+		ctx, cancel := context.WithTimeout(inv.Context(), testutil.WaitLong)
+		defer cancel()
+		clitest.Start(t, inv)
+		pty.ExpectMatchContext(ctx, "starting provisioner daemon")
+
+		var daemons []codersdk.ProvisionerDaemon
+		var err error
+		require.Eventually(t, func() bool {
+			daemons, err = client.ProvisionerDaemons(ctx)
+			if err != nil {
+				return false
+			}
+			return len(daemons) == 1
+		}, testutil.WaitShort, testutil.IntervalSlow)
+		assert.Equal(t, "my-daemon", daemons[0].Name)
+		assert.Equal(t, provisionersdk.ScopeUser, daemons[0].Tags[provisionersdk.TagScope])
+		// This should get clobbered to the user who started the daemon.
+		assert.Equal(t, anotherUser.ID.String(), daemons[0].Tags[provisionersdk.TagOwner])
+	})
+
 	t.Run("ScopeOrg", func(t *testing.T) {
 		t.Parallel()
 		client, admin := coderdenttest.New(t, &coderdenttest.Options{
