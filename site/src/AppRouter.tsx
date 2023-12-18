@@ -335,6 +335,7 @@ export const AppRouter: FC = () => {
                 />
 
                 <Route path="oauth2-provider">
+                  <Route index element={<NotFoundPage />} />
                   <Route path="apps">
                     <Route index element={<OAuth2AppsSettingsPage />} />
                     <Route path="add" element={<CreateOAuth2AppPage />} />
