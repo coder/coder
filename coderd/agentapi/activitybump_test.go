@@ -143,8 +143,9 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			tz := tz
 			t.Run(tt.name+"/"+tz, func(t *testing.T) {
 				t.Parallel()
+				nextAutostart := tt.nextAutostart
 				if tt.nextAutostart == nil {
-					tt.nextAutostart = func(now time.Time) time.Time { return time.Time{} }
+					nextAutostart = func(now time.Time) time.Time { return time.Time{} }
 				}
 
 				var (
@@ -242,7 +243,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 
 				// Bump duration is measured from the time of the bump, so we measure from here.
 				start := dbtime.Now()
-				agentapi.ActivityBumpWorkspace(ctx, log, db, bld.WorkspaceID, tt.nextAutostart(start))
+				agentapi.ActivityBumpWorkspace(ctx, log, db, bld.WorkspaceID, nextAutostart(start))
 				end := dbtime.Now()
 
 				// Validate our state after bump
