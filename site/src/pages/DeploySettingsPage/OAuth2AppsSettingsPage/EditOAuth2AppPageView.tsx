@@ -1,4 +1,6 @@
 import { useTheme } from "@emotion/react";
+import CopyIcon from "@mui/icons-material/FileCopyOutlined";
+import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
 import Divider from "@mui/material/Divider";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Button from "@mui/material/Button";
@@ -8,7 +10,6 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
 import { type FC, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import type * as TypesGen from "api/typesGenerated";
@@ -138,12 +139,16 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
               onCancel={() => setShowDelete(false)}
             />
 
-            <Stack direction="row">
-              <div>
-                <strong>Client ID:</strong>
-              </div>
-              <CopyableValue value={app.id}>{app.id}</CopyableValue>
-            </Stack>
+            <h2 css={{ marginBottom: 0 }}>Client ID</h2>
+            <CopyableValue value={app.id}>
+              {app.id}{" "}
+              <CopyIcon
+                css={{
+                  width: 16,
+                  height: 16,
+                }}
+              />
+            </CopyableValue>
 
             <Divider css={{ borderColor: theme.palette.divider }} />
 
