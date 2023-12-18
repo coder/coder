@@ -90,6 +90,9 @@ const EditOAuth2AppPage: FC = () => {
           try {
             await deleteSecretMutation.mutateAsync({ appId, secretId });
             displaySuccess("Successfully deleted an OAuth2 client secret");
+            if (fullNewSecret?.id === secretId) {
+              setFullNewSecret(undefined);
+            }
           } catch (ignore) {
             displayError("Failed to delete OAuth2 client secret");
           }
