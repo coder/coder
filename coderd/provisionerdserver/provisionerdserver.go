@@ -69,7 +69,8 @@ type Options struct {
 
 	// HeartbeatFn is the function that will be called at the interval
 	// specified by HeartbeatInterval.
-	// This is only used in tests.
+	// The default function just calls UpdateProvisionerDaemonLastSeenAt.
+	// This is mainly used for testing.
 	HeartbeatFn func(context.Context) error
 }
 
@@ -182,6 +183,16 @@ func NewServer(
 	if options.HeartbeatInterval == 0 {
 		options.HeartbeatInterval = DefaultHeartbeatInterval
 	}
+	// Avoid a nil check in s.heartbeat.
+	if options.HeartbeatFn == nil {
+		options.HeartbeatFn = func(hbCtx context.Context) error {
+			//nolint:gocritic // This is specifically for updating the last seen at timestamp.
+			return db.UpdateProvisionerDaemonLastSeenAt(dbauthz.AsSystemRestricted(hbCtx), database.UpdateProvisionerDaemonLastSeenAtParams{
+				ID:         id,
+				LastSeenAt: sql.NullTime{Time: time.Now(), Valid: true},
+			})
+		}
+	}
 
 	s := &server{
 		lifecycleCtx:                lifecycleCtx,
@@ -261,14 +272,7 @@ func (s *server) heartbeat(ctx context.Context) error {
 	case <-ctx.Done():
 		return nil
 	default:
-		if s.heartbeatFn != nil {
-			return s.heartbeatFn(ctx)
-		}
-		//nolint:gocritic // This is specifically for updating the last seen at timestamp.
-		return s.Database.UpdateProvisionerDaemonLastSeenAt(dbauthz.AsSystemRestricted(ctx), database.UpdateProvisionerDaemonLastSeenAtParams{
-			ID:         s.ID,
-			LastSeenAt: sql.NullTime{Time: s.timeNow(), Valid: true},
-		})
+		return s.heartbeatFn(ctx)
 	}
 }
 
