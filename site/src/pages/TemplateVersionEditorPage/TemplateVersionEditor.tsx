@@ -422,6 +422,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                 }
               }}
               onRename={(file) => setRenameFileOpen(file)}
+              activePath={activePath}
             />
           </div>
 

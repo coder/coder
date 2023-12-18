@@ -33,10 +33,12 @@ interface FileTreeViewProps {
   onDelete: (path: string) => void;
   onRename: (path: string) => void;
   fileTree: FileTree;
+  activePath?: string;
 }
 
 export const FileTreeView: FC<FileTreeViewProps> = ({
   fileTree,
+  activePath,
   onDelete,
   onRename,
   onSelect,
@@ -150,6 +152,7 @@ export const FileTreeView: FC<FileTreeViewProps> = ({
       defaultCollapseIcon={<ExpandMoreIcon />}
       defaultExpandIcon={<ChevronRightIcon />}
       aria-label="Files"
+      defaultSelected={activePath}
     >
       {Object.keys(fileTree)
         .sort(sortFileTree(fileTree))
