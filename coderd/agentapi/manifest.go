@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"tailscale.com/tailcfg"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
@@ -128,7 +129,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		}
 	}
 
-	apps, err := agentproto.DBAppsToProto(dbApps, workspaceAgent, owner.Username, workspace)
+	apps, err := dbAppsToProto(dbApps, workspaceAgent, owner.Username, workspace)
 	if err != nil {
 		return nil, xerrors.Errorf("converting workspace apps: %w", err)
 	}
@@ -146,8 +147,90 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		DerpForceWebsockets:      a.DerpForceWebSockets,
 
 		DerpMap:  tailnet.DERPMapToProto(a.DerpMapFn()),
-		Scripts:  agentproto.DBAgentScriptsToProto(scripts),
+		Scripts:  dbAgentScriptsToProto(scripts),
 		Apps:     apps,
-		Metadata: agentproto.DBAgentMetadataToProtoDescription(metadata),
+		Metadata: dbAgentMetadataToProtoDescription(metadata),
+	}, nil
+}
+
+func dbAgentMetadataToProtoDescription(metadata []database.WorkspaceAgentMetadatum) []*agentproto.WorkspaceAgentMetadata_Description {
+	ret := make([]*agentproto.WorkspaceAgentMetadata_Description, len(metadata))
+	for i, metadatum := range metadata {
+		ret[i] = dbAgentMetadatumToProtoDescription(metadatum)
+	}
+	return ret
+}
+
+func dbAgentMetadatumToProtoDescription(metadatum database.WorkspaceAgentMetadatum) *agentproto.WorkspaceAgentMetadata_Description {
+	return &agentproto.WorkspaceAgentMetadata_Description{
+		DisplayName: metadatum.DisplayName,
+		Key:         metadatum.Key,
+		Script:      metadatum.Script,
+		Interval:    durationpb.New(time.Duration(metadatum.Interval)),
+		Timeout:     durationpb.New(time.Duration(metadatum.Timeout)),
+	}
+}
+
+func dbAgentScriptsToProto(scripts []database.WorkspaceAgentScript) []*agentproto.WorkspaceAgentScript {
+	ret := make([]*agentproto.WorkspaceAgentScript, len(scripts))
+	for i, script := range scripts {
+		ret[i] = dbAgentScriptToProto(script)
+	}
+	return ret
+}
+
+func dbAgentScriptToProto(script database.WorkspaceAgentScript) *agentproto.WorkspaceAgentScript {
+	return &agentproto.WorkspaceAgentScript{
+		LogSourceId:      script.LogSourceID[:],
+		LogPath:          script.LogPath,
+		Script:           script.Script,
+		Cron:             script.Cron,
+		RunOnStart:       script.RunOnStart,
+		RunOnStop:        script.RunOnStop,
+		StartBlocksLogin: script.StartBlocksLogin,
+		Timeout:          durationpb.New(time.Duration(script.TimeoutSeconds) * time.Second),
+	}
+}
+
+func dbAppsToProto(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, ownerName string, workspace database.Workspace) ([]*agentproto.WorkspaceApp, error) {
+	ret := make([]*agentproto.WorkspaceApp, len(dbApps))
+	for i, dbApp := range dbApps {
+		var err error
+		ret[i], err = dbAppToProto(dbApp, agent, ownerName, workspace)
+		if err != nil {
+			return nil, xerrors.Errorf("parse app %v (%q): %w", i, dbApp.Slug, err)
+		}
+	}
+	return ret, nil
+}
+
+func dbAppToProto(dbApp database.WorkspaceApp, agent database.WorkspaceAgent, ownerName string, workspace database.Workspace) (*agentproto.WorkspaceApp, error) {
+	sharingLevelRaw, ok := agentproto.WorkspaceApp_SharingLevel_value[strings.ToUpper(string(dbApp.SharingLevel))]
+	if !ok {
+		return nil, xerrors.Errorf("unknown app sharing level: %q", dbApp.SharingLevel)
+	}
+
+	healthRaw, ok := agentproto.WorkspaceApp_Health_value[strings.ToUpper(string(dbApp.Health))]
+	if !ok {
+		return nil, xerrors.Errorf("unknown app health: %q", dbApp.SharingLevel)
+	}
+
+	return &agentproto.WorkspaceApp{
+		Id:            dbApp.ID[:],
+		Url:           dbApp.Url.String,
+		External:      dbApp.External,
+		Slug:          dbApp.Slug,
+		DisplayName:   dbApp.DisplayName,
+		Command:       dbApp.Command.String,
+		Icon:          dbApp.Icon,
+		Subdomain:     dbApp.Subdomain,
+		SubdomainName: db2sdk.AppSubdomain(dbApp, agent.Name, workspace.Name, ownerName),
+		SharingLevel:  agentproto.WorkspaceApp_SharingLevel(sharingLevelRaw),
+		Healthcheck: &agentproto.WorkspaceApp_Healthcheck{
+			Url:       dbApp.HealthcheckUrl,
+			Interval:  durationpb.New(time.Duration(dbApp.HealthcheckInterval) * time.Second),
+			Threshold: dbApp.HealthcheckThreshold,
+		},
+		Health: agentproto.WorkspaceApp_Health(healthRaw),
 	}, nil
 }
