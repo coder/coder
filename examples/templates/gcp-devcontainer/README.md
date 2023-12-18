@@ -1,5 +1,5 @@
 ---
-display_name: Google Compute Engine Devcontainer (Linux)
+display_name: Google Compute Engine Devcontainer
 description: Provision a Devcontainer on Google Compute Engine instances as Coder workspaces
 icon: ../../../site/static/icon/gcp.png
 maintainer_github: coder
