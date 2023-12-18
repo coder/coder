@@ -1,7 +1,9 @@
 package tailnet_test
 
 import (
+	"encoding/json"
 	"net/netip"
+	"os"
 	"testing"
 	"time"
 
@@ -111,22 +113,22 @@ func TestOnlyNodeUpdates(t *testing.T) {
 	resp := &proto.CoordinateResponse{
 		PeerUpdates: []*proto.CoordinateResponse_PeerUpdate{
 			{
-				Uuid: []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+				Id:   []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
 				Kind: proto.CoordinateResponse_PeerUpdate_NODE,
 				Node: p,
 			},
 			{
-				Uuid:   []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2},
+				Id:     []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2},
 				Kind:   proto.CoordinateResponse_PeerUpdate_DISCONNECTED,
 				Reason: "disconnected",
 			},
 			{
-				Uuid:   []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3},
+				Id:     []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3},
 				Kind:   proto.CoordinateResponse_PeerUpdate_LOST,
 				Reason: "disconnected",
 			},
 			{
-				Uuid: []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+				Id: []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},
 			},
 		},
 	}
@@ -145,9 +147,63 @@ func TestSingleNodeUpdate(t *testing.T) {
 	require.Len(t, resp.PeerUpdates, 1)
 	up := resp.PeerUpdates[0]
 	require.Equal(t, proto.CoordinateResponse_PeerUpdate_NODE, up.Kind)
-	u2, err := uuid.FromBytes(up.Uuid)
+	u2, err := uuid.FromBytes(up.Id)
 	require.NoError(t, err)
 	require.Equal(t, u, u2)
 	require.Equal(t, "unit test", up.Reason)
 	require.EqualValues(t, 1, up.Node.Id)
+}
+
+func TestDERPMap(t *testing.T) {
+	t.Parallel()
+
+	// Tailscale DERP map on 2023-11-20 for testing purposes.
+	tailscaleDERPMap, err := os.ReadFile("testdata/tailscale_derpmap.json")
+	require.NoError(t, err)
+
+	derpMap := &tailcfg.DERPMap{}
+	err = json.Unmarshal(tailscaleDERPMap, derpMap)
+	require.NoError(t, err)
+
+	// The tailscale DERPMap doesn't have HomeParams.
+	derpMap.HomeParams = &tailcfg.DERPHomeParams{
+		RegionScore: map[int]float64{
+			1: 2,
+			2: 3,
+		},
+	}
+
+	// Add a region and node that uses every single field.
+	derpMap.Regions[999] = &tailcfg.DERPRegion{
+		RegionID:      999,
+		EmbeddedRelay: true,
+		RegionCode:    "zzz",
+		RegionName:    "Cool Region",
+		Avoid:         true,
+
+		Nodes: []*tailcfg.DERPNode{
+			{
+				Name:             "zzz1",
+				RegionID:         999,
+				HostName:         "coolderp.com",
+				IPv4:             "1.2.3.4",
+				IPv6:             "2001:db8::1",
+				STUNPort:         1234,
+				STUNOnly:         true,
+				DERPPort:         5678,
+				InsecureForTests: true,
+				ForceHTTP:        true,
+				STUNTestIP:       "5.6.7.8",
+				CanPort80:        true,
+			},
+		},
+	}
+
+	protoMap := tailnet.DERPMapToProto(derpMap)
+	require.NotNil(t, protoMap)
+
+	derpMap2 := tailnet.DERPMapFromProto(protoMap)
+	require.NotNil(t, derpMap2)
+
+	require.Equal(t, derpMap, derpMap2)
 }

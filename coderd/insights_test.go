@@ -20,6 +20,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agenttest"
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -658,12 +659,12 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					connectionCount = 0
 				}
 				for createdAt.Before(stat.endedAt) {
-					err = batcher.Add(createdAt, workspace.agentID, workspace.template.id, workspace.user.(*testUser).sdk.ID, workspace.id, agentsdk.Stats{
+					err = batcher.Add(createdAt, workspace.agentID, workspace.template.id, workspace.user.(*testUser).sdk.ID, workspace.id, &agentproto.Stats{
 						ConnectionCount:             connectionCount,
-						SessionCountVSCode:          stat.sessionCountVSCode,
-						SessionCountJetBrains:       stat.sessionCountJetBrains,
-						SessionCountReconnectingPTY: stat.sessionCountReconnectingPTY,
-						SessionCountSSH:             stat.sessionCountSSH,
+						SessionCountVscode:          stat.sessionCountVSCode,
+						SessionCountJetbrains:       stat.sessionCountJetBrains,
+						SessionCountReconnectingPty: stat.sessionCountReconnectingPTY,
+						SessionCountSsh:             stat.sessionCountSSH,
 					})
 					require.NoError(t, err, "want no error inserting agent stats")
 					createdAt = createdAt.Add(30 * time.Second)
@@ -1545,12 +1546,12 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 					connectionCount = 0
 				}
 				for createdAt.Before(stat.endedAt) {
-					err = batcher.Add(createdAt, workspace.agentID, workspace.template.id, workspace.user.(*testUser).sdk.ID, workspace.id, agentsdk.Stats{
+					err = batcher.Add(createdAt, workspace.agentID, workspace.template.id, workspace.user.(*testUser).sdk.ID, workspace.id, &agentproto.Stats{
 						ConnectionCount:             connectionCount,
-						SessionCountVSCode:          stat.sessionCountVSCode,
-						SessionCountJetBrains:       stat.sessionCountJetBrains,
-						SessionCountReconnectingPTY: stat.sessionCountReconnectingPTY,
-						SessionCountSSH:             stat.sessionCountSSH,
+						SessionCountVscode:          stat.sessionCountVSCode,
+						SessionCountJetbrains:       stat.sessionCountJetBrains,
+						SessionCountReconnectingPty: stat.sessionCountReconnectingPTY,
+						SessionCountSsh:             stat.sessionCountSSH,
 					})
 					require.NoError(t, err, "want no error inserting agent stats")
 					createdAt = createdAt.Add(30 * time.Second)

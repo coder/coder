@@ -17,6 +17,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/prometheusmetrics"
+
+	agentproto "github.com/coder/coder/v2/agent/proto"
+
 	"github.com/andybalholm/brotli"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -35,16 +39,12 @@ import (
 	"tailscale.com/types/key"
 	"tailscale.com/util/singleflight"
 
-	// Used for swagger docs.
-	_ "github.com/coder/coder/v2/coderd/apidoc"
-	"github.com/coder/coder/v2/coderd/externalauth"
-	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
-	"github.com/coder/coder/v2/coderd/prometheusmetrics"
-
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clibase"
+
+	// Used for swagger docs.
+	_ "github.com/coder/coder/v2/coderd/apidoc"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/awsidentity"
 	"github.com/coder/coder/v2/coderd/batchstats"
@@ -52,8 +52,10 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/healthcheck"
+	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/metricscache"
@@ -67,7 +69,6 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/wsconncache"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -173,7 +174,7 @@ type Options struct {
 
 	HTTPClient *http.Client
 
-	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []agentsdk.AgentMetric)
+	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 	StatsBatcher       *batchstats.Batcher
 
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
@@ -390,6 +391,7 @@ func New(options *Options) *API {
 		),
 		metricsCache:                metricsCache,
 		Auditor:                     atomic.Pointer[audit.Auditor]{},
+		TailnetCoordinator:          atomic.Pointer[tailnet.Coordinator]{},
 		TemplateScheduleStore:       options.TemplateScheduleStore,
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
@@ -868,6 +870,7 @@ func New(options *Options) *API {
 					DB:       options.Database,
 					Optional: false,
 				}))
+				r.Get("/rpc", api.workspaceAgentRPC)
 				r.Get("/manifest", api.workspaceAgentManifest)
 				// This route is deprecated and will be removed in a future release.
 				// New agents will use /me/manifest instead.
