@@ -46,7 +46,7 @@ const StartTimeoutLifecycle: React.FC<{
 }> = ({ agent }) => {
   return (
     <HelpTooltip>
-      <HelpTooltipTrigger role="status">
+      <HelpTooltipTrigger role="status" hoverEffect={false}>
         <WarningRounded css={styles.timeoutWarning} />
       </HelpTooltipTrigger>
 
@@ -73,7 +73,11 @@ const StartErrorLifecycle: React.FC<{
 }> = ({ agent }) => {
   return (
     <HelpTooltip>
-      <HelpTooltipTrigger role="status" aria-label="Start error">
+      <HelpTooltipTrigger
+        role="status"
+        hoverEffect={false}
+        aria-label="Start error"
+      >
         <WarningRounded css={styles.errorWarning} />
       </HelpTooltipTrigger>
       <HelpTooltipContent>
@@ -111,7 +115,11 @@ const ShutdownTimeoutLifecycle: React.FC<{
 }> = ({ agent }) => {
   return (
     <HelpTooltip>
-      <HelpTooltipTrigger role="status" aria-label="Stop timeout">
+      <HelpTooltipTrigger
+        role="status"
+        hoverEffect={false}
+        aria-label="Stop timeout"
+      >
         <WarningRounded css={styles.timeoutWarning} />
       </HelpTooltipTrigger>
       <HelpTooltipContent>
@@ -137,7 +145,11 @@ const ShutdownErrorLifecycle: React.FC<{
 }> = ({ agent }) => {
   return (
     <HelpTooltip>
-      <HelpTooltipTrigger role="status" aria-label="Stop error">
+      <HelpTooltipTrigger
+        role="status"
+        hoverEffect={false}
+        aria-label="Stop error"
+      >
         <WarningRounded css={styles.errorWarning} />
       </HelpTooltipTrigger>
       <HelpTooltipContent>
@@ -237,7 +249,11 @@ const TimeoutStatus: React.FC<{
 }> = ({ agent }) => {
   return (
     <HelpTooltip>
-      <HelpTooltipTrigger role="status" aria-label="Timeout">
+      <HelpTooltipTrigger
+        role="status"
+        hoverEffect={false}
+        aria-label="Timeout"
+      >
         <WarningRounded css={styles.timeoutWarning} />
       </HelpTooltipTrigger>
       <HelpTooltipContent>

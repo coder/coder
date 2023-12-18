@@ -41,7 +41,7 @@ export const AgentLatency: FC<{ agent: WorkspaceAgent }> = ({ agent }) => {
 
   return (
     <HelpTooltip>
-      <HelpTooltipTrigger>
+      <HelpTooltipTrigger hoverEffect={false}>
         <span
           role="presentation"
           aria-label="latency"

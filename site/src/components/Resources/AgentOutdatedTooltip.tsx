@@ -47,7 +47,7 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
 
   return (
     <HelpTooltip>
-      <HelpTooltipTrigger>
+      <HelpTooltipTrigger hoverEffect={false}>
         <span role="status" css={{ cursor: "pointer" }}>
           {status === agentVersionStatus.Outdated ? "Outdated" : "Deprecated"}
         </span>

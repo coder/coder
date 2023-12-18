@@ -51,6 +51,7 @@ export const HelpTooltipContent = (
 
 type HelpTooltipTriggerProps = HTMLAttributes<HTMLButtonElement> & {
   size?: Size;
+  hoverEffect?: boolean;
 };
 
 export const HelpTooltipTrigger = forwardRef<
@@ -61,8 +62,16 @@ export const HelpTooltipTrigger = forwardRef<
   const {
     size = "medium",
     children = <HelpTooltipIcon />,
+    hoverEffect = true,
     ...buttonProps
   } = props;
+
+  const hoverEffectStyles = css({
+    opacity: 0.5,
+    "&:hover": {
+      opacity: 0.75,
+    },
+  });
 
   return (
     <PopoverTrigger>
@@ -75,24 +84,19 @@ export const HelpTooltipTrigger = forwardRef<
             display: flex;
             align-items: center;
             justify-content: center;
-            width: ${theme.spacing(getButtonSpacingFromSize(size))};
-            height: ${theme.spacing(getButtonSpacingFromSize(size))};
-            padding: 0;
+            padding: 4px 0;
             border: 0;
             background: transparent;
-            color: ${theme.palette.text.primary};
-            opacity: 0.5;
             cursor: pointer;
-
-            &:hover {
-              opacity: 0.75;
-            }
+            color: inherit;
 
             & svg {
+              color: ${theme.palette.text.primary};
               width: ${getIconSpacingFromSize(size)}px;
               height: ${getIconSpacingFromSize(size)}px;
             }
           `,
+          hoverEffect ? hoverEffectStyles : null,
         ]}
       >
         {children}
@@ -172,16 +176,6 @@ export const HelpTooltipLinksGroup: FC<PropsWithChildren> = ({ children }) => {
       {children}
     </Stack>
   );
-};
-
-const getButtonSpacingFromSize = (size?: Size): number => {
-  switch (size) {
-    case "small":
-      return 2.5;
-    case "medium":
-    default:
-      return 3;
-  }
 };
 
 const getIconSpacingFromSize = (size?: Size): number => {
