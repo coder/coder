@@ -109,7 +109,7 @@ export default {
       },
     },
     active: {
-      background: colors.sky[50],
+      background: colors.sky[100],
       outline: colors.sky[500],
       fill: colors.sky[600],
       text: colors.sky[950],
