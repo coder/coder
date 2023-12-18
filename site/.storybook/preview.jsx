@@ -76,4 +76,16 @@ export const parameters = {
       date: /Date$/,
     },
   },
+  viewport: {
+    viewports: {
+      ipad: {
+        name: "iPad Mini",
+        styles: {
+          height: "1024px",
+          width: "768px",
+        },
+        type: "tablet",
+      },
+    },
+  },
 };
