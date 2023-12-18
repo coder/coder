@@ -107,21 +107,18 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		Database:                          api.Database,
 		Pubsub:                            api.Pubsub,
 		DerpMapFn:                         api.DERPMap,
-		TailnetCoordinator:                &api.TailnetCoordinator,
 		TemplateScheduleStore:             api.TemplateScheduleStore,
 		StatsBatcher:                      api.statsBatcher,
 		PublishWorkspaceUpdateFn:          api.publishWorkspaceUpdate,
 		PublishWorkspaceAgentLogsUpdateFn: api.publishWorkspaceAgentLogsUpdate,
 
-		AccessURL:                       api.AccessURL,
-		AppHostname:                     api.AppHostname,
-		AgentInactiveDisconnectTimeout:  api.AgentInactiveDisconnectTimeout,
-		AgentFallbackTroubleshootingURL: api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
-		AgentStatsRefreshInterval:       api.AgentStatsRefreshInterval,
-		DisableDirectConnections:        api.DeploymentValues.DERP.Config.BlockDirect.Value(),
-		DerpForceWebSockets:             api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
-		DerpMapUpdateFrequency:          api.Options.DERPMapUpdateFrequency,
-		ExternalAuthConfigs:             api.ExternalAuthConfigs,
+		AccessURL:                 api.AccessURL,
+		AppHostname:               api.AppHostname,
+		AgentStatsRefreshInterval: api.AgentStatsRefreshInterval,
+		DisableDirectConnections:  api.DeploymentValues.DERP.Config.BlockDirect.Value(),
+		DerpForceWebSockets:       api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
+		DerpMapUpdateFrequency:    api.Options.DERPMapUpdateFrequency,
+		ExternalAuthConfigs:       api.ExternalAuthConfigs,
 
 		// Optional:
 		WorkspaceID:          build.WorkspaceID, // saves the extra lookup later

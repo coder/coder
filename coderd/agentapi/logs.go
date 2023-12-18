@@ -2,6 +2,7 @@ package agentapi
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -19,12 +20,24 @@ type LogsAPI struct {
 	Log                               slog.Logger
 	PublishWorkspaceUpdateFn          func(context.Context, *database.WorkspaceAgent) error
 	PublishWorkspaceAgentLogsUpdateFn func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage)
+
+	TimeNowFn func() time.Time // defaults to dbtime.Now()
+}
+
+func (a *LogsAPI) now() time.Time {
+	if a.TimeNowFn != nil {
+		return a.TimeNowFn()
+	}
+	return dbtime.Now()
 }
 
 func (a *LogsAPI) BatchCreateLogs(ctx context.Context, req *agentproto.BatchCreateLogsRequest) (*agentproto.BatchCreateLogsResponse, error) {
 	workspaceAgent, err := a.AgentFn(ctx)
 	if err != nil {
 		return nil, err
+	}
+	if workspaceAgent.LogsOverflowed {
+		return nil, xerrors.New("workspace agent logs overflowed")
 	}
 
 	if len(req.Logs) == 0 {
@@ -42,7 +55,7 @@ func (a *LogsAPI) BatchCreateLogs(ctx context.Context, req *agentproto.BatchCrea
 		// Use the external log source
 		externalSources, err := a.Database.InsertWorkspaceAgentLogSources(ctx, database.InsertWorkspaceAgentLogSourcesParams{
 			WorkspaceAgentID: workspaceAgent.ID,
-			CreatedAt:        dbtime.Now(),
+			CreatedAt:        a.now(),
 			ID:               []uuid.UUID{agentsdk.ExternalLogSourceID},
 			DisplayName:      []string{"External"},
 			Icon:             []string{"/emojis/1f310.png"},
@@ -88,7 +101,7 @@ func (a *LogsAPI) BatchCreateLogs(ctx context.Context, req *agentproto.BatchCrea
 
 	logs, err := a.Database.InsertWorkspaceAgentLogs(ctx, database.InsertWorkspaceAgentLogsParams{
 		AgentID:      workspaceAgent.ID,
-		CreatedAt:    dbtime.Now(),
+		CreatedAt:    a.now(),
 		Output:       output,
 		Level:        level,
 		LogSourceID:  logSourceID,
@@ -97,9 +110,6 @@ func (a *LogsAPI) BatchCreateLogs(ctx context.Context, req *agentproto.BatchCrea
 	if err != nil {
 		if !database.IsWorkspaceAgentLogsLimitError(err) {
 			return nil, xerrors.Errorf("insert workspace agent logs: %w", err)
-		}
-		if workspaceAgent.LogsOverflowed {
-			return nil, xerrors.New("workspace agent logs overflowed")
 		}
 		err := a.Database.UpdateWorkspaceAgentLogOverflowByID(ctx, database.UpdateWorkspaceAgentLogOverflowByIDParams{
 			ID:             workspaceAgent.ID,
@@ -112,21 +122,25 @@ func (a *LogsAPI) BatchCreateLogs(ctx context.Context, req *agentproto.BatchCrea
 			a.Log.Warn(ctx, "failed to update workspace agent log overflow", slog.Error(err))
 		}
 
-		err = a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent)
-		if err != nil {
-			return nil, xerrors.Errorf("publish workspace update: %w", err)
+		if a.PublishWorkspaceUpdateFn != nil {
+			err = a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent)
+			if err != nil {
+				return nil, xerrors.Errorf("publish workspace update: %w", err)
+			}
 		}
 		return nil, xerrors.New("workspace agent log limit exceeded")
 	}
 
 	// Publish by the lowest log ID inserted so the log stream will fetch
 	// everything from that point.
-	lowestLogID := logs[0].ID
-	a.PublishWorkspaceAgentLogsUpdateFn(ctx, workspaceAgent.ID, agentsdk.LogsNotifyMessage{
-		CreatedAfter: lowestLogID - 1,
-	})
+	if a.PublishWorkspaceAgentLogsUpdateFn != nil {
+		lowestLogID := logs[0].ID
+		a.PublishWorkspaceAgentLogsUpdateFn(ctx, workspaceAgent.ID, agentsdk.LogsNotifyMessage{
+			CreatedAfter: lowestLogID - 1,
+		})
+	}
 
-	if workspaceAgent.LogsLength == 0 {
+	if workspaceAgent.LogsLength == 0 && a.PublishWorkspaceUpdateFn != nil {
 		// If these are the first logs being appended, we publish a UI update
 		// to notify the UI that logs are now available.
 		err = a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent)

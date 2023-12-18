@@ -25,7 +25,6 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
-	"github.com/coder/coder/v2/tailnet"
 )
 
 const AgentAPIVersionDRPC = "2.0"
@@ -58,21 +57,18 @@ type Options struct {
 	Database                          database.Store
 	Pubsub                            pubsub.Pubsub
 	DerpMapFn                         func() *tailcfg.DERPMap
-	TailnetCoordinator                *atomic.Pointer[tailnet.Coordinator]
 	TemplateScheduleStore             *atomic.Pointer[schedule.TemplateScheduleStore]
 	StatsBatcher                      *batchstats.Batcher
 	PublishWorkspaceUpdateFn          func(ctx context.Context, workspaceID uuid.UUID)
 	PublishWorkspaceAgentLogsUpdateFn func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage)
 
-	AccessURL                       *url.URL
-	AppHostname                     string
-	AgentInactiveDisconnectTimeout  time.Duration
-	AgentFallbackTroubleshootingURL string
-	AgentStatsRefreshInterval       time.Duration
-	DisableDirectConnections        bool
-	DerpForceWebSockets             bool
-	DerpMapUpdateFrequency          time.Duration
-	ExternalAuthConfigs             []*externalauth.Config
+	AccessURL                 *url.URL
+	AppHostname               string
+	AgentStatsRefreshInterval time.Duration
+	DisableDirectConnections  bool
+	DerpForceWebSockets       bool
+	DerpMapUpdateFrequency    time.Duration
+	ExternalAuthConfigs       []*externalauth.Config
 
 	// Optional:
 	// WorkspaceID avoids a future lookup to find the workspace ID by setting
@@ -89,17 +85,15 @@ func New(opts Options) *API {
 	}
 
 	api.ManifestAPI = &ManifestAPI{
-		AccessURL:                       opts.AccessURL,
-		AppHostname:                     opts.AppHostname,
-		AgentInactiveDisconnectTimeout:  opts.AgentInactiveDisconnectTimeout,
-		AgentFallbackTroubleshootingURL: opts.AgentFallbackTroubleshootingURL,
-		ExternalAuthConfigs:             opts.ExternalAuthConfigs,
-		DisableDirectConnections:        opts.DisableDirectConnections,
-		DerpForceWebSockets:             opts.DerpForceWebSockets,
-		AgentFn:                         api.agent,
-		Database:                        opts.Database,
-		DerpMapFn:                       opts.DerpMapFn,
-		TailnetCoordinator:              opts.TailnetCoordinator,
+		AccessURL:                opts.AccessURL,
+		AppHostname:              opts.AppHostname,
+		ExternalAuthConfigs:      opts.ExternalAuthConfigs,
+		DisableDirectConnections: opts.DisableDirectConnections,
+		DerpForceWebSockets:      opts.DerpForceWebSockets,
+		AgentFn:                  api.agent,
+		WorkspaceIDFn:            api.workspaceID,
+		Database:                 opts.Database,
+		DerpMapFn:                opts.DerpMapFn,
 	}
 
 	api.ServiceBannerAPI = &ServiceBannerAPI{

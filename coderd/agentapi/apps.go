@@ -90,9 +90,11 @@ func (a *AppsAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.Bat
 		}
 	}
 
-	err = a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent)
-	if err != nil {
-		return nil, xerrors.Errorf("publish workspace update: %w", err)
+	if a.PublishWorkspaceUpdateFn != nil && len(newApps) > 0 {
+		err = a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent)
+		if err != nil {
+			return nil, xerrors.Errorf("publish workspace update: %w", err)
+		}
 	}
 	return &agentproto.BatchUpdateAppHealthResponse{}, nil
 }
