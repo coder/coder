@@ -5,7 +5,7 @@ import { NavbarView } from "./NavbarView";
 
 const meta: Meta<typeof NavbarView> = {
   title: "components/NavbarView",
-  parameters: { chromatic: chromaticWithTablet },
+  parameters: { chromatic: chromaticWithTablet, layout: "fullscreen" },
   component: NavbarView,
   args: {
     user: MockUser,
