@@ -76,39 +76,37 @@ export const WorkspaceSettingsForm: FC<{
           />
         </FormFields>
       </FormSection>
-      {
-        <FormSection
-          title="Automatic Updates"
-          description="Configure your workspace to automatically update when started."
-        >
-          <FormFields>
-            <TextField
-              {...getFieldHelpers("automatic_updates")}
-              id="automatic_updates"
-              label="Update Policy"
-              value={
-                workspace.template_require_active_version
-                  ? "always"
-                  : form.values.automatic_updates
-              }
-              select
-              disabled={
-                form.isSubmitting || workspace.template_require_active_version
-              }
-              helperText={
-                workspace.template_require_active_version &&
-                "The template for this workspace requires automatic updates."
-              }
-            >
-              {AutomaticUpdateses.map((value) => (
-                <MenuItem value={value} key={value}>
-                  {upperFirst(value)}
-                </MenuItem>
-              ))}
-            </TextField>
-          </FormFields>
-        </FormSection>
-      }
+      <FormSection
+        title="Automatic Updates"
+        description="Configure your workspace to automatically update when started."
+      >
+        <FormFields>
+          <TextField
+            {...getFieldHelpers("automatic_updates")}
+            id="automatic_updates"
+            label="Update Policy"
+            value={
+              workspace.template_require_active_version
+                ? "always"
+                : form.values.automatic_updates
+            }
+            select
+            disabled={
+              form.isSubmitting || workspace.template_require_active_version
+            }
+            helperText={
+              workspace.template_require_active_version &&
+              "The template for this workspace requires automatic updates."
+            }
+          >
+            {AutomaticUpdateses.map((value) => (
+              <MenuItem value={value} key={value}>
+                {upperFirst(value)}
+              </MenuItem>
+            ))}
+          </TextField>
+        </FormFields>
+      </FormSection>
       {formEnabled && (
         <FormFooter onCancel={onCancel} isLoading={form.isSubmitting} />
       )}

@@ -172,38 +172,36 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
               </Stack>
             </Stack>
           </label>
-          {
-            <label htmlFor="require_active_version">
-              <Stack direction="row" spacing={1}>
-                <Checkbox
-                  id="require_active_version"
-                  name="require_active_version"
-                  checked={form.values.require_active_version}
-                  onChange={form.handleChange}
-                />
+          <label htmlFor="require_active_version">
+            <Stack direction="row" spacing={1}>
+              <Checkbox
+                id="require_active_version"
+                name="require_active_version"
+                checked={form.values.require_active_version}
+                onChange={form.handleChange}
+              />
 
-                <Stack direction="column" spacing={0.5}>
-                  <Stack
-                    direction="row"
-                    alignItems="center"
-                    spacing={0.5}
-                    css={styles.optionText}
-                  >
-                    Require workspaces automatically update when started.
-                    <HelpTooltip>
-                      <HelpTooltipText>
-                        This setting is not enforced for template admins.
-                      </HelpTooltipText>
-                    </HelpTooltip>
-                  </Stack>
-                  <span css={styles.optionHelperText}>
-                    Workspaces that are manually started or auto-started will
-                    use the active template version.
-                  </span>
+              <Stack direction="column" spacing={0.5}>
+                <Stack
+                  direction="row"
+                  alignItems="center"
+                  spacing={0.5}
+                  css={styles.optionText}
+                >
+                  Require workspaces automatically update when started.
+                  <HelpTooltip>
+                    <HelpTooltipText>
+                      This setting is not enforced for template admins.
+                    </HelpTooltipText>
+                  </HelpTooltip>
                 </Stack>
+                <span css={styles.optionHelperText}>
+                  Workspaces that are manually started or auto-started will use
+                  the active template version.
+                </span>
               </Stack>
-            </label>
-          }
+            </Stack>
+          </label>
         </Stack>
       </FormSection>
 
