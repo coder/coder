@@ -14,6 +14,11 @@ SUBCOMMANDS:
                               PostgreSQL deployment.
 
 OPTIONS:
+      --allow-workspace-renames bool, $CODER_ALLOW_WORKSPACE_RENAMES (default: false)
+          DEPRECATED: Allow users to rename their workspaces. Use only for
+          temporary compatibility reasons, this will be removed in a future
+          release.
+
       --cache-dir string, $CODER_CACHE_DIRECTORY (default: [cache dir])
           The directory to cache temporary files. If unspecified and
           $CACHE_DIRECTORY is set, it will be used for compatibility with

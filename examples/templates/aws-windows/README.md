@@ -1,23 +1,27 @@
 ---
-name: Develop in Windows on AWS
-description: Get started with Windows development on AWS.
-tags: [cloud, aws]
-icon: /icon/aws.png
+display_name: AWS EC2 (Windows)
+description: Provision AWS EC2 VMs as Coder workspaces
+icon: ../../../site/static/icon/aws.png
+maintainer_github: coder
+verified: true
+tags: [vm, windows, aws]
 ---
 
-# aws-windows
+# Remote Development on AWS EC2 VMs (Windows)
 
-## Getting started
+Provision AWS EC2 VMs as [Coder workspaces](https://coder.com/docs/coder-v2/latest) with this example template.
 
-To get started, run `coder templates init`. When prompted, select this template.
-Follow the on-screen instructions to proceed.
+<!-- TODO: Add screenshot -->
 
-## Authentication
+## Prerequisites
 
-This template assumes that coderd is run in an environment that is authenticated
-with AWS. For example, run `aws configure import` to import credentials on the
-system and user running coderd. For other ways to authenticate [consult the
-Terraform docs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs#authentication-and-configuration).
+### Authentication
+
+By default, this template authenticates to AWS with using the provider's default [authentication methods](https://registry.terraform.io/providers/hashicorp/aws/latest/docs#authentication-and-configuration).
+
+The simplest way (without making changes to the template) is via environment variables (e.g. `AWS_ACCESS_KEY_ID`) or a [credentials file](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html#cli-configure-files-format). If you are running Coder on a VM, this file must be in `/home/coder/aws/credentials`.
+
+To use another [authentication method](https://registry.terraform.io/providers/hashicorp/aws/latest/docs#authentication), edit the template.
 
 ## Required permissions / policy
 
@@ -72,3 +76,20 @@ instances provisioned by Coder:
   ]
 }
 ```
+
+## Architecture
+
+This template provisions the following resources:
+
+- AWS Instance
+
+Coder uses `aws_ec2_instance_state` to start and stop the VM. This example template is fully persistent, meaning the full filesystem is preserved when the workspace restarts. See this [community example](https://github.com/bpmct/coder-templates/tree/main/aws-linux-ephemeral) of an ephemeral AWS instance.
+
+> **Note**
+> This template is designed to be a starting point! Edit the Terraform to extend the template to support your use case.
+
+## code-server
+
+`code-server` is installed via the `startup_script` argument in the `coder_agent`
+resource block. The `coder_app` resource is defined to access `code-server` through
+the dashboard UI over `localhost:13337`.

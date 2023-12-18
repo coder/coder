@@ -212,36 +212,35 @@ resource "coder_app" "code-server" {
 
 locals {
   linux_user = "coder"
-  user_data = data.coder_workspace.me.start_count > 0 ? trimspace(<<EOT
-Content-Type: multipart/mixed; boundary="//"
-MIME-Version: 1.0
+  user_data  = <<-EOT
+  Content-Type: multipart/mixed; boundary="//"
+  MIME-Version: 1.0
 
---//
-Content-Type: text/cloud-config; charset="us-ascii"
-MIME-Version: 1.0
-Content-Transfer-Encoding: 7bit
-Content-Disposition: attachment; filename="cloud-config.txt"
+  --//
+  Content-Type: text/cloud-config; charset="us-ascii"
+  MIME-Version: 1.0
+  Content-Transfer-Encoding: 7bit
+  Content-Disposition: attachment; filename="cloud-config.txt"
 
-#cloud-config
-cloud_final_modules:
-- [scripts-user, always]
-hostname: ${lower(data.coder_workspace.me.name)}
-users:
-- name: ${local.linux_user}
-  sudo: ALL=(ALL) NOPASSWD:ALL
-  shell: /bin/bash
+  #cloud-config
+  cloud_final_modules:
+  - [scripts-user, always]
+  hostname: ${lower(data.coder_workspace.me.name)}
+  users:
+  - name: ${local.linux_user}
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
 
---//
-Content-Type: text/x-shellscript; charset="us-ascii"
-MIME-Version: 1.0
-Content-Transfer-Encoding: 7bit
-Content-Disposition: attachment; filename="userdata.txt"
+  --//
+  Content-Type: text/x-shellscript; charset="us-ascii"
+  MIME-Version: 1.0
+  Content-Transfer-Encoding: 7bit
+  Content-Disposition: attachment; filename="userdata.txt"
 
-#!/bin/bash
-sudo -u ${local.linux_user} sh -c '${coder_agent.dev[0].init_script}'
---//--
-EOT
-  ) : ""
+  #!/bin/bash
+  sudo -u ${local.linux_user} sh -c '${try(coder_agent.dev[0].init_script, "")}'
+  --//--
+  EOT
 }
 
 resource "aws_instance" "dev" {

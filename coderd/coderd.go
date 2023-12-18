@@ -181,7 +181,8 @@ type Options struct {
 	// This janky function is used in telemetry to parse fields out of the raw
 	// JWT. It needs to be passed through like this because license parsing is
 	// under the enterprise license, and can't be imported into AGPL.
-	ParseLicenseClaims func(rawJWT string) (email string, trial bool, err error)
+	ParseLicenseClaims    func(rawJWT string) (email string, trial bool, err error)
+	AllowWorkspaceRenames bool
 }
 
 // @title Coder API
@@ -474,6 +475,11 @@ func New(options *Options) *API {
 		api.agentProvider = &wsconncache.AgentProvider{
 			Cache: wsconncache.New(api._dialWorkspaceAgentTailnet, 0),
 		}
+	}
+	api.TailnetClientService, err = tailnet.NewClientService(
+		api.Logger.Named("tailnetclient"), &api.TailnetCoordinator)
+	if err != nil {
+		api.Logger.Fatal(api.ctx, "failed to initialize tailnet client service", slog.Error(err))
 	}
 
 	workspaceAppsLogger := options.Logger.Named("workspaceapps")
@@ -1063,6 +1069,7 @@ type API struct {
 	Auditor                           atomic.Pointer[audit.Auditor]
 	WorkspaceClientCoordinateOverride atomic.Pointer[func(rw http.ResponseWriter) bool]
 	TailnetCoordinator                atomic.Pointer[tailnet.Coordinator]
+	TailnetClientService              *tailnet.ClientService
 	QuotaCommitter                    atomic.Pointer[proto.QuotaCommitter]
 	// WorkspaceProxyHostsFn returns the hosts of healthy workspace proxies
 	// for header reasons.
