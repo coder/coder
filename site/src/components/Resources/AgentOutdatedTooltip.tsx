@@ -8,11 +8,11 @@ import {
   HelpTooltipLinksGroup,
   HelpTooltipText,
   HelpTooltipTitle,
-  HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import type { WorkspaceAgent } from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
 import { agentVersionStatus } from "../../utils/workspace";
+import { PopoverTrigger } from "components/Popover/Popover";
 
 type AgentOutdatedTooltipProps = {
   agent: WorkspaceAgent;
@@ -47,11 +47,11 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
 
   return (
     <HelpTooltip>
-      <HelpTooltipTrigger>
+      <PopoverTrigger>
         <span role="status" css={{ cursor: "pointer" }}>
           {status === agentVersionStatus.Outdated ? "Outdated" : "Deprecated"}
         </span>
-      </HelpTooltipTrigger>
+      </PopoverTrigger>
       <HelpTooltipContent>
         <Stack spacing={1}>
           <div>

@@ -6,11 +6,11 @@ import {
   HelpTooltipText,
   HelpTooltip,
   HelpTooltipTitle,
-  HelpTooltipTrigger,
   HelpTooltipContent,
 } from "components/HelpTooltip/HelpTooltip";
 import { Stack } from "components/Stack/Stack";
 import { getLatencyColor } from "utils/latency";
+import { PopoverTrigger } from "components/Popover/Popover";
 
 const getDisplayLatency = (theme: Theme, agent: WorkspaceAgent) => {
   // Find the right latency to display
@@ -41,7 +41,7 @@ export const AgentLatency: FC<{ agent: WorkspaceAgent }> = ({ agent }) => {
 
   return (
     <HelpTooltip>
-      <HelpTooltipTrigger>
+      <PopoverTrigger>
         <span
           role="presentation"
           aria-label="latency"
@@ -49,7 +49,7 @@ export const AgentLatency: FC<{ agent: WorkspaceAgent }> = ({ agent }) => {
         >
           {Math.round(latency.latency_ms)}ms
         </span>
-      </HelpTooltipTrigger>
+      </PopoverTrigger>
       <HelpTooltipContent>
         <HelpTooltipTitle>Latency</HelpTooltipTitle>
         <HelpTooltipText>

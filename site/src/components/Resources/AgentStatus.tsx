@@ -8,9 +8,9 @@ import {
   HelpTooltipContent,
   HelpTooltipText,
   HelpTooltipTitle,
-  HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import Link from "@mui/material/Link";
+import { PopoverTrigger } from "components/Popover/Popover";
 
 // If we think in the agent status and lifecycle into a single enum/state I’d
 // say we would have: connecting, timeout, disconnected, connected:created,
@@ -46,9 +46,9 @@ const StartTimeoutLifecycle: React.FC<{
 }> = ({ agent }) => {
   return (
     <HelpTooltip>
-      <HelpTooltipTrigger role="status">
+      <PopoverTrigger role="status" aria-label="Agent timeout">
         <WarningRounded css={styles.timeoutWarning} />
-      </HelpTooltipTrigger>
+      </PopoverTrigger>
 
       <HelpTooltipContent>
         <HelpTooltipTitle>Agent is taking too long to start</HelpTooltipTitle>
@@ -73,9 +73,9 @@ const StartErrorLifecycle: React.FC<{
 }> = ({ agent }) => {
   return (
     <HelpTooltip>
-      <HelpTooltipTrigger role="status" aria-label="Start error">
+      <PopoverTrigger role="status" aria-label="Start error">
         <WarningRounded css={styles.errorWarning} />
-      </HelpTooltipTrigger>
+      </PopoverTrigger>
       <HelpTooltipContent>
         <HelpTooltipTitle>Error starting the agent</HelpTooltipTitle>
         <HelpTooltipText>
@@ -111,9 +111,9 @@ const ShutdownTimeoutLifecycle: React.FC<{
 }> = ({ agent }) => {
   return (
     <HelpTooltip>
-      <HelpTooltipTrigger role="status" aria-label="Stop timeout">
+      <PopoverTrigger role="status" aria-label="Stop timeout">
         <WarningRounded css={styles.timeoutWarning} />
-      </HelpTooltipTrigger>
+      </PopoverTrigger>
       <HelpTooltipContent>
         <HelpTooltipTitle>Agent is taking too long to stop</HelpTooltipTitle>
         <HelpTooltipText>
@@ -137,9 +137,9 @@ const ShutdownErrorLifecycle: React.FC<{
 }> = ({ agent }) => {
   return (
     <HelpTooltip>
-      <HelpTooltipTrigger role="status" aria-label="Stop error">
+      <PopoverTrigger role="status" aria-label="Stop error">
         <WarningRounded css={styles.errorWarning} />
-      </HelpTooltipTrigger>
+      </PopoverTrigger>
       <HelpTooltipContent>
         <HelpTooltipTitle>Error stopping the agent</HelpTooltipTitle>
         <HelpTooltipText>
@@ -237,9 +237,9 @@ const TimeoutStatus: React.FC<{
 }> = ({ agent }) => {
   return (
     <HelpTooltip>
-      <HelpTooltipTrigger role="status" aria-label="Timeout">
+      <PopoverTrigger role="status" aria-label="Timeout">
         <WarningRounded css={styles.timeoutWarning} />
-      </HelpTooltipTrigger>
+      </PopoverTrigger>
       <HelpTooltipContent>
         <HelpTooltipTitle>Agent is taking too long to connect</HelpTooltipTitle>
         <HelpTooltipText>
