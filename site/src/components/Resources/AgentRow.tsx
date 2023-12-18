@@ -426,28 +426,14 @@ export const AgentRow: FC<AgentRowProps> = ({
             </AutoSizer>
           </Collapse>
 
-          <div css={styles.logsPanelButtons}>
-            {showLogs ? (
-              <button
-                css={[styles.logsPanelButton, styles.toggleLogsButton]}
-                onClick={() => {
-                  setShowLogs((v) => !v);
-                }}
-              >
-                <DropdownArrow close />
-                Hide logs
-              </button>
-            ) : (
-              <button
-                css={[styles.logsPanelButton, styles.toggleLogsButton]}
-                onClick={() => {
-                  setShowLogs((v) => !v);
-                }}
-              >
-                <DropdownArrow />
-                Show logs
-              </button>
-            )}
+          <div css={{ display: "flex" }}>
+            <button
+              css={styles.logsPanelButton}
+              onClick={() => setShowLogs((v) => !v)}
+            >
+              <DropdownArrow close={showLogs} />
+              {showLogs ? "Hide" : "Show"} logs
+            </button>
           </div>
         </div>
       )}
@@ -673,10 +659,6 @@ const styles = {
     borderTop: `1px solid ${theme.palette.divider}`,
   }),
 
-  logsPanelButtons: {
-    display: "flex",
-  },
-
   logsPanelButton: (theme) => ({
     textAlign: "left",
     background: "transparent",
@@ -689,20 +671,17 @@ const styles = {
     alignItems: "center",
     gap: 8,
     whiteSpace: "nowrap",
+    width: "100%",
 
     "&:hover": {
       color: theme.palette.text.primary,
-      backgroundColor: theme.colors.gray[14],
+      backgroundColor: theme.experimental.l2.hover.background,
     },
 
     "& svg": {
       color: "inherit",
     },
   }),
-
-  toggleLogsButton: {
-    width: "100%",
-  },
 
   buttonSkeleton: {
     borderRadius: 4,

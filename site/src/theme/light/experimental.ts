@@ -21,7 +21,7 @@ export default {
       text: colors.gray[200],
     },
     hover: {
-      background: "#f00",
+      background: colors.gray[200],
       outline: "#f00",
       fill: "#f00",
       text: colors.black,
@@ -80,7 +80,7 @@ export default {
     },
     notice: {
       background: colors.yellow[50],
-      outline: colors.yellow[200],
+      outline: colors.yellow[600],
       fill: colors.yellow[500],
       text: colors.yellow[950],
     },

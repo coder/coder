@@ -1,9 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { chromatic } from "testHelpers/chromatic";
 import { MockUser, MockUser2 } from "testHelpers/entities";
 import { NavbarView } from "./NavbarView";
 
 const meta: Meta<typeof NavbarView> = {
   title: "components/NavbarView",
+  parameters: { chromatic },
   component: NavbarView,
   args: {
     user: MockUser,

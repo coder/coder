@@ -3,25 +3,25 @@ import colors from "../tailwind";
 
 export default {
   l1: {
-    background: colors.gray[950],
-    outline: colors.gray[700],
-    fill: colors.gray[600],
+    background: colors.zinc[950],
+    outline: colors.zinc[700],
+    fill: colors.zinc[600],
     text: colors.white,
   },
 
   l2: {
-    background: colors.gray[900],
-    outline: colors.gray[700],
+    background: colors.zinc[900],
+    outline: colors.zinc[700],
     fill: "#f00",
     text: colors.white,
     disabled: {
       background: "#f00",
       outline: "#f00",
       fill: "#f00",
-      text: colors.gray[200],
+      text: colors.zinc[200],
     },
     hover: {
-      background: "#f00",
+      background: colors.zinc[800],
       outline: "#f00",
       fill: "#f00",
       text: colors.white,
@@ -29,15 +29,15 @@ export default {
   },
 
   l3: {
-    background: colors.gray[800],
-    outline: colors.gray[700],
-    fill: colors.gray[600],
+    background: colors.zinc[800],
+    outline: colors.zinc[700],
+    fill: colors.zinc[600],
     text: colors.white,
     disabled: {
       background: "#f00",
       outline: "#f00",
       fill: "#f00",
-      text: colors.gray[200],
+      text: colors.zinc[200],
     },
     hover: {
       background: "#f00",

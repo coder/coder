@@ -234,8 +234,8 @@ devDependencies:
     specifier: 7.5.2
     version: 7.5.2
   '@storybook/addon-themes':
-    specifier: ^7.6.4
-    version: 7.6.5
+    specifier: 7.6.4
+    version: 7.6.4
   '@storybook/react':
     specifier: 7.5.2
     version: 7.5.2(react-dom@18.2.0)(react@18.2.0)(typescript@5.2.2)
@@ -4090,8 +4090,8 @@ packages:
       - '@types/react-dom'
     dev: true
 
-  /@storybook/addon-themes@7.6.5:
-    resolution: {integrity: sha512-TzGCxwdYAAlgeYuTYhMnL5KLutLVHrAXjVtWsYCYV+SVx+JklqCTk4zNUod64Z+sIYRMYd+YVC1KsWF2LHirow==}
+  /@storybook/addon-themes@7.6.4:
+    resolution: {integrity: sha512-jz6/6LSRVgL9G5vknxROGOakXAsTIIl2sR7tkuC4gyGkCIGwvb9oO9jUaHkUHQ8rtcLXbVpFncQzUXmrwK6CGg==}
     dependencies:
       ts-dedent: 2.2.0
     dev: true
