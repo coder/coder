@@ -3,10 +3,16 @@ import turbosnap from "vite-plugin-turbosnap";
 module.exports = {
   stories: ["../src/**/*.stories.tsx"],
   addons: [
+    {
+      name: "@storybook/addon-essentials",
+      options: {
+        backgrounds: false,
+      },
+    },
     "@storybook/addon-links",
-    "@storybook/addon-essentials",
     "@storybook/addon-mdx-gfm",
     "@storybook/addon-actions",
+    "@storybook/addon-themes",
   ],
   staticDirs: ["../static"],
   framework: {

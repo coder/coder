@@ -1,5 +1,5 @@
 import { type FC, type ReactNode, useMemo, forwardRef } from "react";
-import { css, type Interpolation, type Theme } from "@emotion/react";
+import { css, useTheme, type Interpolation, type Theme } from "@emotion/react";
 import type { ThemeRole } from "theme/experimental";
 
 export type PillType = ThemeRole | keyof typeof themeOverrides;
@@ -14,8 +14,8 @@ export interface PillProps {
 
 const themeOverrides = {
   neutral: (theme) => ({
-    backgroundColor: theme.colors.gray[13],
-    borderColor: theme.colors.gray[6],
+    backgroundColor: theme.experimental.l1.background,
+    borderColor: theme.experimental.l1.outline,
   }),
 } satisfies Record<string, Interpolation<Theme>>;
 
@@ -30,6 +30,7 @@ const themeStyles = (type: ThemeRole) => (theme: Theme) => {
 export const Pill: FC<PillProps> = forwardRef<HTMLDivElement, PillProps>(
   (props, ref) => {
     const { icon, text = null, type = "neutral", ...attrs } = props;
+    const theme = useTheme();
 
     const typeStyles = useMemo(() => {
       if (type in themeOverrides) {
@@ -50,7 +51,7 @@ export const Pill: FC<PillProps> = forwardRef<HTMLDivElement, PillProps>(
             borderStyle: "solid",
             borderRadius: 99999,
             fontSize: 12,
-            color: "#FFF",
+            color: theme.experimental.l1.text,
             height: 24,
             paddingLeft: icon ? 6 : 12,
             paddingRight: 12,

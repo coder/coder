@@ -59,6 +59,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
                   rel="noreferrer"
                   startIcon={<ArrowRightAltOutlined />}
                   variant="contained"
+                  color="primary"
                 >
                   Learn about Enterprise
                 </Button>
@@ -68,7 +69,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
                   target="_blank"
                   rel="noreferrer"
                 >
-                  Read the docs
+                  Read the documentation
                 </Link>
               </Stack>
             }

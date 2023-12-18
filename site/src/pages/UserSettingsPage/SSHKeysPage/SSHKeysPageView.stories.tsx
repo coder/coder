@@ -11,7 +11,8 @@ const meta: Meta<typeof SSHKeysPageView> = {
       user_id: "test-user-id",
       created_at: "2022-07-28T07:45:50.795918897Z",
       updated_at: "2022-07-28T07:45:50.795919142Z",
-      public_key: "SSH-Key",
+      public_key:
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICnKzATuWwmmt5+CKTPuRGN0R1PBemA+6/SStpLiyX+L",
     },
   },
 };
