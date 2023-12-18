@@ -183,16 +183,6 @@ func NewServer(
 	if options.HeartbeatInterval == 0 {
 		options.HeartbeatInterval = DefaultHeartbeatInterval
 	}
-	// Avoid a nil check in s.heartbeat.
-	if options.HeartbeatFn == nil {
-		options.HeartbeatFn = func(hbCtx context.Context) error {
-			//nolint:gocritic // This is specifically for updating the last seen at timestamp.
-			return db.UpdateProvisionerDaemonLastSeenAt(dbauthz.AsSystemRestricted(hbCtx), database.UpdateProvisionerDaemonLastSeenAtParams{
-				ID:         id,
-				LastSeenAt: sql.NullTime{Time: time.Now(), Valid: true},
-			})
-		}
-	}
 
 	s := &server{
 		lifecycleCtx:                lifecycleCtx,
@@ -217,6 +207,10 @@ func NewServer(
 		acquireJobLongPollDur:       options.AcquireJobLongPollDur,
 		heartbeatInterval:           options.HeartbeatInterval,
 		heartbeatFn:                 options.HeartbeatFn,
+	}
+
+	if s.heartbeatFn == nil {
+		s.heartbeatFn = s.defaultHeartbeat
 	}
 
 	go s.heartbeatLoop()
@@ -274,6 +268,14 @@ func (s *server) heartbeat(ctx context.Context) error {
 	default:
 		return s.heartbeatFn(ctx)
 	}
+}
+
+func (s *server) defaultHeartbeat(ctx context.Context) error {
+	//nolint:gocritic // This is specifically for updating the last seen at timestamp.
+	return s.Database.UpdateProvisionerDaemonLastSeenAt(dbauthz.AsSystemRestricted(ctx), database.UpdateProvisionerDaemonLastSeenAtParams{
+		ID:         s.ID,
+		LastSeenAt: sql.NullTime{Time: s.timeNow(), Valid: true},
+	})
 }
 
 // AcquireJob queries the database to lock a job.
