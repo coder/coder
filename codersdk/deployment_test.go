@@ -292,6 +292,25 @@ func TestExternalAuthYAMLConfig(t *testing.T) {
 		require.NoError(t, err, "read testdata file %q", name)
 		return string(data)
 	}
+	githubCfg := codersdk.ExternalAuthConfig{
+		Type:                "github",
+		ClientID:            "client_id",
+		ClientSecret:        "client_secret",
+		ID:                  "id",
+		AuthURL:             "https://example.com/auth",
+		TokenURL:            "https://example.com/token",
+		ValidateURL:         "https://example.com/validate",
+		AppInstallURL:       "https://example.com/install",
+		AppInstallationsURL: "https://example.com/installations",
+		NoRefresh:           true,
+		Scopes:              []string{"user:email", "read:org"},
+		ExtraTokenKeys:      []string{"extra", "token"},
+		DeviceFlow:          true,
+		DeviceCodeURL:       "https://example.com/device",
+		Regex:               "^https://example.com/.*$",
+		DisplayName:         "GitHub",
+		DisplayIcon:         "/static/icons/github.svg",
+	}
 
 	testCases := []struct {
 		Name     string
@@ -300,27 +319,15 @@ func TestExternalAuthYAMLConfig(t *testing.T) {
 	}{
 		{
 			Name: "GitHub",
-			YAML: file(t, "githubcfg.yaml"),
+			// Just load the GitHub config twice to test loading 2
+			YAML: func() string {
+				f := file(t, "githubcfg.yaml")
+				lines := strings.SplitN(f, "\n", 2)
+				// Append github config twice
+				return f + "\n" + lines[1]
+			}(),
 			Expected: []codersdk.ExternalAuthConfig{
-				{
-					Type:                "github",
-					ClientID:            "client_id",
-					ClientSecret:        "client_secret",
-					ID:                  "id",
-					AuthURL:             "https://example.com/auth",
-					TokenURL:            "https://example.com/token",
-					ValidateURL:         "https://example.com/validate",
-					AppInstallURL:       "https://example.com/install",
-					AppInstallationsURL: "https://example.com/installations",
-					NoRefresh:           true,
-					Scopes:              []string{"user:email", "read:org"},
-					ExtraTokenKeys:      []string{"extra", "token"},
-					DeviceFlow:          true,
-					DeviceCodeURL:       "https://example.com/device",
-					Regex:               "^https://example.com/.*$",
-					DisplayName:         "GitHub",
-					DisplayIcon:         "/static/icons/github.svg",
-				},
+				githubCfg, githubCfg,
 			},
 		},
 	}
