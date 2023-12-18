@@ -42,28 +42,27 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
         direction="row"
         justifyContent="space-between"
       >
-        <Header
-          title="OAuth2 Applications"
-          description="Configure applications to use Coder as an OAuth2 provider."
-        />
+        <div>
+          <Header
+            title="OAuth2 Applications"
+            description="Configure applications to use Coder as an OAuth2 provider."
+          />
+          <Badges>
+            {isEntitled ? <EntitledBadge /> : <DisabledBadge />}
+            <EnterpriseBadge />
+          </Badges>
+        </div>
 
-        <Badges>
-          {isEntitled ? <EntitledBadge /> : <DisabledBadge />}
-          <EnterpriseBadge />
-        </Badges>
-
-        <Stack direction="row" spacing={2}>
-          <Button
-            component={Link}
-            to="/deployment/oauth2-provider/apps/add"
-            startIcon={<AddIcon />}
-          >
-            Add application
-          </Button>
-        </Stack>
+        <Button
+          component={Link}
+          to="/deployment/oauth2-provider/apps/add"
+          startIcon={<AddIcon />}
+        >
+          Add application
+        </Button>
       </Stack>
 
-      <TableContainer>
+      <TableContainer css={{ marginTop: 32 }}>
         <Table>
           <TableHead>
             <TableRow>
