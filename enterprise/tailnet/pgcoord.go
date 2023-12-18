@@ -697,7 +697,7 @@ func (m *mapper) bestToUpdate(best map[uuid.UUID]mapping) *proto.CoordinateRespo
 			reason = "update"
 		}
 		resp.PeerUpdates = append(resp.PeerUpdates, &proto.CoordinateResponse_PeerUpdate{
-			Uuid:   agpl.UUIDToByteSlice(k),
+			Id:     agpl.UUIDToByteSlice(k),
 			Node:   mpng.node,
 			Kind:   mpng.kind,
 			Reason: reason,
@@ -708,7 +708,7 @@ func (m *mapper) bestToUpdate(best map[uuid.UUID]mapping) *proto.CoordinateRespo
 	for k := range m.sent {
 		if _, ok := best[k]; !ok {
 			resp.PeerUpdates = append(resp.PeerUpdates, &proto.CoordinateResponse_PeerUpdate{
-				Uuid:   agpl.UUIDToByteSlice(k),
+				Id:     agpl.UUIDToByteSlice(k),
 				Kind:   proto.CoordinateResponse_PeerUpdate_DISCONNECTED,
 				Reason: "disconnected",
 			})

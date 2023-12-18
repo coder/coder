@@ -133,7 +133,7 @@ func TestClientService_ServeClient_V2(t *testing.T) {
 		{
 			Kind: proto.CoordinateResponse_PeerUpdate_NODE,
 			Node: &proto.Node{PreferredDerp: 22},
-			Uuid: agentID[:],
+			Id:   agentID[:],
 		},
 	}}
 	resp, err := stream.Recv()

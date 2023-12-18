@@ -10,7 +10,7 @@ import (
 
 	"cdr.dev/slog"
 
-	"github.com/coder/coder/v2/codersdk/agentsdk"
+	agentproto "github.com/coder/coder/v2/agent/proto"
 )
 
 const (
@@ -49,13 +49,13 @@ type updateRequest struct {
 	agentName     string
 	templateName  string
 
-	metrics []agentsdk.AgentMetric
+	metrics []*agentproto.Stats_Metric
 
 	timestamp time.Time
 }
 
 type annotatedMetric struct {
-	agentsdk.AgentMetric
+	*agentproto.Stats_Metric
 
 	username      string
 	workspaceName string
@@ -67,7 +67,7 @@ type annotatedMetric struct {
 
 var _ prometheus.Collector = new(MetricsAggregator)
 
-func (am *annotatedMetric) is(req updateRequest, m agentsdk.AgentMetric) bool {
+func (am *annotatedMetric) is(req updateRequest, m *agentproto.Stats_Metric) bool {
 	return am.username == req.username && am.workspaceName == req.workspaceName && am.agentName == req.agentName && am.Name == m.Name && slices.Equal(am.Labels, m.Labels)
 }
 
@@ -152,21 +152,19 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 				for _, m := range req.metrics {
 					for i, q := range ma.queue {
 						if q.is(req, m) {
-							ma.queue[i].AgentMetric.Value = m.Value
+							ma.queue[i].Stats_Metric.Value = m.Value
 							ma.queue[i].expiryDate = req.timestamp.Add(ma.metricsCleanupInterval)
 							continue UpdateLoop
 						}
 					}
 
 					ma.queue = append(ma.queue, annotatedMetric{
+						Stats_Metric:  m,
 						username:      req.username,
 						workspaceName: req.workspaceName,
 						agentName:     req.agentName,
 						templateName:  req.templateName,
-
-						AgentMetric: m,
-
-						expiryDate: req.timestamp.Add(ma.metricsCleanupInterval),
+						expiryDate:    req.timestamp.Add(ma.metricsCleanupInterval),
 					})
 				}
 
@@ -258,7 +256,7 @@ func (ma *MetricsAggregator) Collect(ch chan<- prometheus.Metric) {
 	}
 }
 
-func (ma *MetricsAggregator) Update(ctx context.Context, labels AgentMetricLabels, metrics []agentsdk.AgentMetric) {
+func (ma *MetricsAggregator) Update(ctx context.Context, labels AgentMetricLabels, metrics []*agentproto.Stats_Metric) {
 	select {
 	case ma.updateCh <- updateRequest{
 		username:      labels.Username,
@@ -276,11 +274,11 @@ func (ma *MetricsAggregator) Update(ctx context.Context, labels AgentMetricLabel
 	}
 }
 
-func asPrometheusValueType(metricType agentsdk.AgentMetricType) (prometheus.ValueType, error) {
+func asPrometheusValueType(metricType agentproto.Stats_Metric_Type) (prometheus.ValueType, error) {
 	switch metricType {
-	case agentsdk.AgentMetricTypeGauge:
+	case agentproto.Stats_Metric_GAUGE:
 		return prometheus.GaugeValue, nil
-	case agentsdk.AgentMetricTypeCounter:
+	case agentproto.Stats_Metric_COUNTER:
 		return prometheus.CounterValue, nil
 	default:
 		return -1, xerrors.Errorf("unsupported value type: %s", metricType)
