@@ -3098,7 +3098,7 @@ VALUES (
 	$5,
 	$6,
 	$7
-) ON CONFLICT("name", lower((tags ->> 'owner'::text))) DO UPDATE SET
+) ON CONFLICT("name", lower(COALESCE(tags ->> 'owner'::text, ''::text))) DO UPDATE SET
 	provisioners = $3,
 	tags = $4,
 	last_seen_at = $5,
