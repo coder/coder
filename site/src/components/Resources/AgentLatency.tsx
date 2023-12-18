@@ -47,7 +47,7 @@ export const AgentLatency: FC<{ agent: WorkspaceAgent }> = ({ agent }) => {
           aria-label="latency"
           css={{ cursor: "pointer", color: latency.color }}
         >
-          {Math.round(Math.round(latency.latency_ms))}ms
+          {Math.round(latency.latency_ms)}ms
         </span>
       </HelpTooltipTrigger>
       <HelpTooltipContent>
