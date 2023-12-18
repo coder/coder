@@ -1,11 +1,14 @@
 package codersdk_test
 
 import (
+	"embed"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/codersdk"
@@ -275,5 +278,71 @@ func TestDeploymentValues_DurationFormatNanoseconds(t *testing.T) {
 		t.Logf("To fix this, add the following to the option declaration:")
 		t.Logf(`Annotations: clibase.Annotations{}.Mark(annotationFormatDurationNS, "true"),`)
 		t.FailNow()
+	}
+}
+
+//go:embed testdata/*
+var testData embed.FS
+
+func TestExternalAuthYAMLConfig(t *testing.T) {
+	t.Parallel()
+
+	file := func(t *testing.T, name string) string {
+		data, err := testData.ReadFile(fmt.Sprintf("testdata/%s", name))
+		require.NoError(t, err, "read testdata file %q", name)
+		return string(data)
+	}
+
+	testCases := []struct {
+		Name     string
+		YAML     string
+		Expected []codersdk.ExternalAuthConfig
+	}{
+		{
+			Name: "GitHub",
+			YAML: file(t, "githubcfg.yaml"),
+			Expected: []codersdk.ExternalAuthConfig{
+				{
+					Type:                "github",
+					ClientID:            "client_id",
+					ClientSecret:        "client_secret",
+					ID:                  "id",
+					AuthURL:             "https://example.com/auth",
+					TokenURL:            "https://example.com/token",
+					ValidateURL:         "https://example.com/validate",
+					AppInstallURL:       "https://example.com/install",
+					AppInstallationsURL: "https://example.com/installations",
+					NoRefresh:           true,
+					Scopes:              []string{"user:email", "read:org"},
+					ExtraTokenKeys:      []string{"extra", "token"},
+					DeviceFlow:          true,
+					DeviceCodeURL:       "https://example.com/device",
+					Regex:               "^https://example.com/.*$",
+					DisplayName:         "GitHub",
+					DisplayIcon:         "/static/icons/github.svg",
+				},
+			},
+		},
+	}
+
+	for _, c := range testCases {
+		c := c
+		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
+
+			dv := codersdk.DeploymentValues{}
+			opts := dv.Options()
+			c.YAML = strings.ReplaceAll(c.YAML, "\t", "  ")
+
+			// This is the order things are done in the cli, so just
+			// keep it the same.
+			var n yaml.Node
+			err := yaml.Unmarshal([]byte(c.YAML), &n)
+			require.NoError(t, err)
+
+			err = n.Decode(&opts)
+			require.NoError(t, err)
+			require.ElementsMatchf(t, c.Expected, dv.ExternalAuthConfigs.Value, "from yaml")
+		})
 	}
 }
