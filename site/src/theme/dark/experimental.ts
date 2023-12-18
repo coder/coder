@@ -69,7 +69,7 @@ export default {
     error: {
       background: colors.red[950],
       outline: colors.red[500],
-      fill: colors.red[600],
+      fill: colors.red[400],
       text: colors.red[50],
     },
     warning: {
