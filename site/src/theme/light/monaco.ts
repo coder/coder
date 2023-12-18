@@ -34,4 +34,4 @@ export default {
     "editor.foreground": muiTheme.palette.text.primary,
     "editor.background": muiTheme.palette.background.paper,
   },
-} satisfies monaco.editor.IStandaloneThemeData;
+} satisfies monaco.editor.IStandaloneThemeData as monaco.editor.IStandaloneThemeData;

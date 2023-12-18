@@ -1,6 +1,5 @@
 import { type FC, useRef, useState } from "react";
-import { useTheme } from "@emotion/react";
-import { Theme } from "@mui/material/styles";
+import { type Theme, useTheme } from "@emotion/react";
 import type { WorkspaceAgent, DERPRegion } from "api/typesGenerated";
 import {
   HelpTooltipText,
@@ -29,7 +28,11 @@ const getDisplayLatency = (theme: Theme, agent: WorkspaceAgent) => {
   };
 };
 
-export const AgentLatency: FC<{ agent: WorkspaceAgent }> = ({ agent }) => {
+interface AgentLatencyProps {
+  agent: WorkspaceAgent;
+}
+
+export const AgentLatency: FC<AgentLatencyProps> = ({ agent }) => {
   const theme = useTheme();
   const anchorRef = useRef<HTMLButtonElement>(null);
   const [isOpen, setIsOpen] = useState(false);

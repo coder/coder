@@ -2,10 +2,6 @@ import type { PaletteColor, PaletteColorOptions } from "@mui/material/styles";
 import type { NewTheme } from "theme/experimental";
 
 declare module "@mui/material/styles" {
-  interface Theme {
-    experimental: NewTheme;
-  }
-
   interface Palette {
     neutral: PaletteColor;
   }
