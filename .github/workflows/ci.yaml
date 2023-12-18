@@ -144,7 +144,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@v1.16.24
+        uses: crate-ci/typos@v1.16.25
         with:
           config: .github/workflows/typos.toml
 
@@ -478,7 +478,7 @@ jobs:
 
       - name: Upload Playwright Failed Tests
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: failed-test-videos
           path: ./site/test-results/**/*.webm
@@ -486,7 +486,7 @@ jobs:
 
       - name: Upload pprof dumps
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: debug-pprof-dumps
           path: ./site/test-results/**/debug-pprof-*.txt
@@ -734,7 +734,7 @@ jobs:
           prune-untagged: true
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: coder
           path: |
@@ -853,7 +853,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Download build artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: coder
           path: ./build
