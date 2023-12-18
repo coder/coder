@@ -49,10 +49,7 @@ export const HelpTooltipContent = (
   );
 };
 
-type HelpTooltipTriggerProps = Omit<
-  HTMLAttributes<HTMLButtonElement>,
-  "size"
-> & {
+type HelpTooltipTriggerProps = HTMLAttributes<HTMLButtonElement> & {
   size?: Size;
 };
 
