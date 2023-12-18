@@ -306,7 +306,7 @@ jobs:
 
       - name: Upload artifacts to actions (if dry-run)
         if: ${{ inputs.dry_run }}
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: release-artifacts
           path: |
