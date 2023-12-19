@@ -185,6 +185,9 @@ func (c *pgCoord) Node(id uuid.UUID) *agpl.Node {
 			bestT = m.updatedAt
 		}
 	}
+	if bestN == nil {
+		return nil
+	}
 	node, err := agpl.ProtoToNode(bestN)
 	if err != nil {
 		c.logger.Critical(c.ctx, "failed to convert node", slog.F("node", bestN), slog.Error(err))
