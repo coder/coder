@@ -143,11 +143,11 @@ const AddTimeContent: FC<AddTimeContentProps> = ({
 
   return (
     <>
-      <span css={styles.timePopoverTitle}>Add hours to deadline</span>
-      <span css={styles.timePopoverDescription}>
+      <h4 css={styles.timePopoverTitle}>Add hours to deadline</h4>
+      <p css={styles.timePopoverDescription}>
         Delay the shutdown of this workspace for a few more hours. This is only
         applied once.
-      </span>
+      </p>
       <form
         css={styles.timePopoverForm}
         onSubmit={(e) => {
@@ -195,11 +195,11 @@ export const DecreaseTimeContent: FC<DecreaseTimeContentProps> = ({
 
   return (
     <>
-      <span css={styles.timePopoverTitle}>Subtract hours to deadline</span>
-      <span css={styles.timePopoverDescription}>
+      <h4 css={styles.timePopoverTitle}>Subtract hours to deadline</h4>
+      <p css={styles.timePopoverDescription}>
         Anticipate the shutdown of this workspace for a few more hours. This is
         only applied once.
-      </span>
+      </p>
       <form
         css={styles.timePopoverForm}
         onSubmit={(e) => {
@@ -359,11 +359,13 @@ const styles = {
 
   timePopoverTitle: {
     fontWeight: 600,
+    margin: 0,
     marginBottom: 8,
   },
 
   timePopoverDescription: (theme) => ({
     color: theme.palette.text.secondary,
+    margin: 0,
   }),
 
   timePopoverForm: {
