@@ -7825,7 +7825,8 @@ GROUP BY
 	workspaces.id,
 	users.id,
 	organization_members.organization_id,
-	workspace_builds.build_number
+	workspace_builds.build_number,
+	workspace_builds.template_version_id
 ORDER BY
 	workspace_builds.build_number DESC
 LIMIT 1
