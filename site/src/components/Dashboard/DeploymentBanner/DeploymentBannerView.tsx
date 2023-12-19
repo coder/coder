@@ -378,7 +378,7 @@ const HealthIssue: FC<PropsWithChildren> = ({ children }) => {
     <Stack direction="row" spacing={1} alignItems="center">
       <ErrorIcon
         css={{ width: 16, height: 16 }}
-        htmlColor={theme.colors.red[10]}
+        htmlColor={theme.experimental.roles.error.outline}
       />
       {children}
     </Stack>

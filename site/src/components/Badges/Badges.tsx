@@ -131,11 +131,11 @@ export const DeprecatedBadge: FC = () => {
     <span
       css={[
         styles.badge,
-        {
-          border: `1px solid ${colors.orange[600]}`,
-          backgroundColor: colors.orange[950],
-          color: colors.orange[50],
-        },
+        (theme) => ({
+          border: `1px solid ${theme.experimental.roles.danger.outline}`,
+          backgroundColor: theme.experimental.roles.danger.background,
+          color: theme.experimental.roles.danger.text,
+        }),
       ]}
     >
       Deprecated

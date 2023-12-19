@@ -12,17 +12,17 @@ export default {
   l2: {
     background: colors.zinc[900],
     outline: colors.zinc[700],
-    fill: "#f00",
-    text: colors.white,
+    fill: colors.zinc[500],
+    text: colors.zinc[50],
     disabled: {
       background: "#f00",
       outline: "#f00",
-      fill: "#f00",
+      fill: colors.zinc[500],
       text: colors.zinc[200],
     },
     hover: {
       background: colors.zinc[800],
-      outline: "#f00",
+      outline: colors.zinc[600],
       fill: "#f00",
       text: colors.white,
     },
@@ -68,7 +68,7 @@ export default {
     },
     error: {
       background: colors.red[950],
-      outline: colors.red[500],
+      outline: colors.red[600],
       fill: colors.red[400],
       text: colors.red[50],
     },

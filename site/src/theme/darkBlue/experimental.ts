@@ -12,17 +12,17 @@ export default {
   l2: {
     background: colors.gray[900],
     outline: colors.gray[700],
-    fill: "#f00",
-    text: colors.white,
+    fill: colors.gray[500],
+    text: colors.gray[50],
     disabled: {
       background: "#f00",
       outline: "#f00",
-      fill: "#f00",
+      fill: colors.gray[500],
       text: colors.gray[200],
     },
     hover: {
       background: "#f00",
-      outline: "#f00",
+      outline: colors.gray[600],
       fill: "#f00",
       text: colors.white,
     },

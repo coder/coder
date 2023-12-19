@@ -11,18 +11,18 @@ export default {
 
   l2: {
     background: colors.gray[100],
-    outline: colors.gray[700],
-    fill: "#f00",
-    text: colors.black,
+    outline: colors.gray[600],
+    fill: colors.gray[500],
+    text: colors.gray[950],
     disabled: {
       background: "#f00",
       outline: "#f00",
-      fill: "#f00",
+      fill: colors.gray[500],
       text: colors.gray[200],
     },
     hover: {
       background: colors.gray[200],
-      outline: "#f00",
+      outline: colors.gray[700],
       fill: "#f00",
       text: colors.black,
     },
@@ -67,7 +67,7 @@ export default {
       },
     },
     error: {
-      background: colors.red[50],
+      background: colors.red[100],
       outline: colors.red[500],
       fill: colors.red[600],
       text: colors.red[950],
