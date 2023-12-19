@@ -243,14 +243,15 @@ func isWindowsAbsPath(p string) bool {
 		return filepath.IsAbs(p)
 	}
 
+	// Remove the drive letter, if present.
+	if len(p) >= 2 && p[1] == ':' {
+		p = p[2:]
+	}
+
 	switch {
-	case len(p) < 2:
+	case len(p) == 0:
 		return false
-	case p[1] == ':':
-		// Path starts with a drive letter.
-		return len(p) == 2 || (len(p) >= 3 && p[2] == '\\')
-	case p[0] == '\\' && p[1] == '\\':
-		// Path starts with \\.
+	case p[0] == '/' || p[0] == '\\':
 		return true
 	default:
 		return false
@@ -309,7 +310,7 @@ func resolveAgentAbsPath(workingDirectory, relOrAbsPath, agentOS string, local b
 		case workingDirectory != "" && !isWindowsAbsPath(relOrAbsPath):
 			return windowsJoinPath(workingDirectory, relOrAbsPath), nil
 		case isWindowsAbsPath(relOrAbsPath):
-			return relOrAbsPath, nil
+			return windowsJoinPath(relOrAbsPath), nil
 		default:
 			return "", xerrors.Errorf("path %q not supported, use an absolute path instead", relOrAbsPath)
 		}

@@ -33,6 +33,8 @@ func Test_resolveAgentAbsPath(t *testing.T) {
 		{"ok with working directory and rel path on windows", args{workingDirectory: "C:\\some\\path", relOrAbsPath: "other\\path", agentOS: "windows"}, "C:\\some\\path\\other\\path", false},
 		{"ok with working directory and abs path on windows", args{workingDirectory: "C:\\some\\path", relOrAbsPath: "C:\\other\\path", agentOS: "windows"}, "C:\\other\\path", false},
 		{"ok with no working directory and abs path on windows", args{relOrAbsPath: "C:\\other\\path", agentOS: "windows"}, "C:\\other\\path", false},
+		{"ok abs unix path on windows", args{workingDirectory: "C:\\some\\path", relOrAbsPath: "/other/path", agentOS: "windows"}, "\\other\\path", false},
+		{"ok rel unix path on windows", args{workingDirectory: "C:\\some\\path", relOrAbsPath: "other/path", agentOS: "windows"}, "C:\\some\\path\\other\\path", false},
 
 		{"fail with no working directory and rel path on windows", args{relOrAbsPath: "other\\path", agentOS: "windows"}, "", true},
 	}
