@@ -110,8 +110,9 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 				// Fall back to a basic logger
 				logger = slog.Make(sloghuman.Sink(inv.Stderr))
 				logger.Error(ctx, "failed to initialize logger", slog.Error(err))
+			} else {
+				defer closeLogger()
 			}
-			defer closeLogger()
 
 			if len(tags) != 0 {
 				logger.Info(ctx, "note: tagged provisioners can currently pick up jobs from untagged templates")

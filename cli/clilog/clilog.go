@@ -32,10 +32,7 @@ type (
 )
 
 func New(opts ...Option) *Builder {
-	b := &Builder{
-		Human:  "/dev/stderr",
-		Filter: []string{},
-	}
+	b := &Builder{}
 	for _, opt := range opts {
 		opt(b)
 	}
@@ -89,11 +86,20 @@ func FromDeploymentValues(vals *codersdk.DeploymentValues) Option {
 	}
 }
 
-func (b *Builder) Build(inv *clibase.Invocation) (slog.Logger, func(), error) {
+func (b *Builder) Build(inv *clibase.Invocation) (log slog.Logger, closeLog func(), err error) {
 	var (
 		sinks   = []slog.Sink{}
 		closers = []func() error{}
 	)
+	defer func() {
+		if err != nil {
+			for _, closer := range closers {
+				_ = closer()
+			}
+		}
+	}()
+
+	noopClose := func() {}
 
 	addSinkIfProvided := func(sinkFn func(io.Writer) slog.Sink, loc string) error {
 		switch loc {
@@ -116,17 +122,17 @@ func (b *Builder) Build(inv *clibase.Invocation) (slog.Logger, func(), error) {
 		return nil
 	}
 
-	err := addSinkIfProvided(sloghuman.Sink, b.Human)
+	err = addSinkIfProvided(sloghuman.Sink, b.Human)
 	if err != nil {
-		return slog.Logger{}, nil, xerrors.Errorf("add human sink: %w", err)
+		return slog.Logger{}, noopClose, xerrors.Errorf("add human sink: %w", err)
 	}
 	err = addSinkIfProvided(slogjson.Sink, b.JSON)
 	if err != nil {
-		return slog.Logger{}, nil, xerrors.Errorf("add json sink: %w", err)
+		return slog.Logger{}, noopClose, xerrors.Errorf("add json sink: %w", err)
 	}
 	err = addSinkIfProvided(slogstackdriver.Sink, b.Stackdriver)
 	if err != nil {
-		return slog.Logger{}, nil, xerrors.Errorf("add stackdriver sink: %w", err)
+		return slog.Logger{}, noopClose, xerrors.Errorf("add stackdriver sink: %w", err)
 	}
 
 	if b.Trace {
@@ -135,14 +141,14 @@ func (b *Builder) Build(inv *clibase.Invocation) (slog.Logger, func(), error) {
 
 	// User should log to null device if they don't want logs.
 	if len(sinks) == 0 {
-		return slog.Logger{}, nil, xerrors.New("no loggers provided")
+		return slog.Logger{}, noopClose, xerrors.New("no loggers provided, use /dev/null to disable logging")
 	}
 
 	filter := &debugFilterSink{next: sinks}
 
 	err = filter.compile(b.Filter)
 	if err != nil {
-		return slog.Logger{}, nil, xerrors.Errorf("compile filters: %w", err)
+		return slog.Logger{}, noopClose, xerrors.Errorf("compile filters: %w", err)
 	}
 
 	level := slog.LevelInfo
