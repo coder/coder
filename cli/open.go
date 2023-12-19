@@ -268,7 +268,7 @@ func windowsJoinPath(elem ...string) string {
 
 	var s string
 	for _, e := range elem {
-		e = strings.ReplaceAll(e, "/", "\\")
+		e = unixToWindowsPath(e)
 		if e == "" {
 			continue
 		}
@@ -279,6 +279,10 @@ func windowsJoinPath(elem ...string) string {
 		s += "\\" + strings.TrimSuffix(e, "\\")
 	}
 	return s
+}
+
+func unixToWindowsPath(p string) string {
+	return strings.ReplaceAll(p, "/", "\\")
 }
 
 // resolveAgentAbsPath resolves the absolute path to a file or directory in the
@@ -305,7 +309,7 @@ func resolveAgentAbsPath(workingDirectory, relOrAbsPath, agentOS string, local b
 		return p, nil
 
 	case agentOS == "windows":
-		relOrAbsPath = strings.ReplaceAll(relOrAbsPath, "/", "\\")
+		relOrAbsPath = unixToWindowsPath(relOrAbsPath)
 		switch {
 		case workingDirectory != "" && !isWindowsAbsPath(relOrAbsPath):
 			return windowsJoinPath(workingDirectory, relOrAbsPath), nil
