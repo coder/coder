@@ -1,33 +1,21 @@
-import { css } from "@emotion/css";
 import { type Interpolation, type Theme } from "@emotion/react";
-import Link, { LinkProps } from "@mui/material/Link";
+import Link from "@mui/material/Link";
 import { WorkspaceOutdatedTooltip } from "components/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
-import { forwardRef, type FC } from "react";
+import { type FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
-import {
-  getDisplayWorkspaceTemplateName,
-  isWorkspaceOn,
-} from "utils/workspace";
+import { getDisplayWorkspaceTemplateName } from "utils/workspace";
 import type { Workspace } from "api/typesGenerated";
 import { Stats, StatsItem } from "components/Stats/Stats";
-import { autostartDisplay, autostopDisplay } from "utils/schedule";
-import IconButton from "@mui/material/IconButton";
-import RemoveIcon from "@mui/icons-material/RemoveOutlined";
-import AddIcon from "@mui/icons-material/AddOutlined";
-import TextField from "@mui/material/TextField";
-import Button from "@mui/material/Button";
 import { WorkspaceStatusText } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge";
 import { DormantDeletionStat } from "components/WorkspaceDeletion";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-  usePopover,
-} from "components/Popover/Popover";
 import { workspaceQuota } from "api/queries/workspaceQuota";
 import { useQuery } from "react-query";
-import Tooltip from "@mui/material/Tooltip";
 import _ from "lodash";
+import {
+  WorkspaceScheduleControls,
+  scheduleLabel,
+  shouldDisplayScheduleControls,
+} from "./WorkspaceScheduleControls";
 
 const Language = {
   workspaceDetails: "Workspace Details",
@@ -38,26 +26,16 @@ const Language = {
 
 export interface WorkspaceStatsProps {
   workspace: Workspace;
-  maxDeadlineIncrease: number;
-  maxDeadlineDecrease: number;
   canUpdateWorkspace: boolean;
-  onDeadlinePlus: (hours: number) => void;
-  onDeadlineMinus: (hours: number) => void;
   handleUpdate: () => void;
 }
 
 export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
   workspace,
-  maxDeadlineDecrease,
-  maxDeadlineIncrease,
   canUpdateWorkspace,
   handleUpdate,
-  onDeadlineMinus,
-  onDeadlinePlus,
 }) => {
   const displayTemplateName = getDisplayWorkspaceTemplateName(workspace);
-  const deadlinePlusEnabled = maxDeadlineIncrease >= 1;
-  const deadlineMinusEnabled = maxDeadlineDecrease >= 1;
   const quotaQuery = useQuery(workspaceQuota(workspace.owner_name));
   const quotaBudget = quotaQuery.data?.budget;
 
@@ -107,69 +85,15 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
           }
         />
 
-        {shouldDisplayScheduleLabel(workspace) && (
+        {shouldDisplayScheduleControls(workspace) && (
           <StatsItem
             css={styles.statsItem}
             label={scheduleLabel(workspace)}
             value={
-              <div css={styles.scheduleValue}>
-                {isWorkspaceOn(workspace) ? (
-                  <AutoStopDisplay workspace={workspace} />
-                ) : (
-                  <ScheduleSettingsLink>
-                    {autostartDisplay(workspace.autostart_schedule)}
-                  </ScheduleSettingsLink>
-                )}
-
-                {canUpdateWorkspace && canEditDeadline(workspace) && (
-                  <span css={styles.scheduleControls}>
-                    <Popover>
-                      <PopoverTrigger>
-                        <IconButton
-                          disabled={!deadlineMinusEnabled}
-                          size="small"
-                          title="Subtract hours from deadline"
-                          css={styles.scheduleButton}
-                        >
-                          <RemoveIcon />
-                        </IconButton>
-                      </PopoverTrigger>
-                      <PopoverContent
-                        id="schedule-sub"
-                        classes={{ paper: classNames.paper }}
-                        horizontal="right"
-                      >
-                        <DecreaseTimeContent
-                          maxDeadlineDecrease={maxDeadlineDecrease}
-                          onDeadlineMinus={onDeadlineMinus}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <Popover>
-                      <PopoverTrigger>
-                        <IconButton
-                          disabled={!deadlinePlusEnabled}
-                          size="small"
-                          title="Add hours to deadline"
-                          css={styles.scheduleButton}
-                        >
-                          <AddIcon />
-                        </IconButton>
-                      </PopoverTrigger>
-                      <PopoverContent
-                        id="schedule-add"
-                        classes={{ paper: classNames.paper }}
-                        horizontal="right"
-                      >
-                        <AddTimeContent
-                          maxDeadlineIncrease={maxDeadlineIncrease}
-                          onDeadlinePlus={onDeadlinePlus}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </span>
-                )}
-              </div>
+              <WorkspaceScheduleControls
+                workspace={workspace}
+                canUpdateSchedule={canUpdateWorkspace}
+              />
             }
           />
         )}
@@ -185,206 +109,6 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
       </Stats>
     </>
   );
-};
-
-interface AddTimeContentProps {
-  maxDeadlineIncrease: number;
-  onDeadlinePlus: (value: number) => void;
-}
-
-const AddTimeContent: FC<AddTimeContentProps> = ({
-  maxDeadlineIncrease,
-  onDeadlinePlus,
-}) => {
-  const popover = usePopover();
-
-  return (
-    <>
-      <span css={styles.timePopoverTitle}>Add hours to deadline</span>
-      <span css={styles.timePopoverDescription}>
-        Delay the shutdown of this workspace for a few more hours. This is only
-        applied once.
-      </span>
-      <form
-        css={styles.timePopoverForm}
-        onSubmit={(e) => {
-          e.preventDefault();
-          const formData = new FormData(e.currentTarget);
-          const hours = Number(formData.get("hours"));
-          onDeadlinePlus(hours);
-          popover.setIsOpen(false);
-        }}
-      >
-        <TextField
-          autoFocus
-          name="hours"
-          type="number"
-          size="small"
-          fullWidth
-          css={styles.timePopoverField}
-          InputProps={{ className: classNames.deadlineFormInput }}
-          inputProps={{
-            min: 0,
-            max: maxDeadlineIncrease,
-            step: 1,
-            defaultValue: 1,
-          }}
-        />
-
-        <Button css={styles.timePopoverButton} type="submit">
-          Apply
-        </Button>
-      </form>
-    </>
-  );
-};
-
-interface DecreaseTimeContentProps {
-  maxDeadlineDecrease: number;
-  onDeadlineMinus: (hours: number) => void;
-}
-
-export const DecreaseTimeContent: FC<DecreaseTimeContentProps> = ({
-  maxDeadlineDecrease,
-  onDeadlineMinus,
-}) => {
-  const popover = usePopover();
-
-  return (
-    <>
-      <span css={styles.timePopoverTitle}>Subtract hours to deadline</span>
-      <span css={styles.timePopoverDescription}>
-        Anticipate the shutdown of this workspace for a few more hours. This is
-        only applied once.
-      </span>
-      <form
-        css={styles.timePopoverForm}
-        onSubmit={(e) => {
-          e.preventDefault();
-          const formData = new FormData(e.currentTarget);
-          const hours = Number(formData.get("hours"));
-          onDeadlineMinus(hours);
-          popover.setIsOpen(false);
-        }}
-      >
-        <TextField
-          autoFocus
-          name="hours"
-          type="number"
-          size="small"
-          fullWidth
-          css={styles.timePopoverField}
-          InputProps={{ className: classNames.deadlineFormInput }}
-          inputProps={{
-            min: 0,
-            max: maxDeadlineDecrease,
-            step: 1,
-            defaultValue: 1,
-          }}
-        />
-
-        <Button css={styles.timePopoverButton} type="submit">
-          Apply
-        </Button>
-      </form>
-    </>
-  );
-};
-
-interface AutoStopDisplayProps {
-  workspace: Workspace;
-}
-
-const AutoStopDisplay: FC<AutoStopDisplayProps> = ({ workspace }) => {
-  const display = autostopDisplay(workspace);
-
-  if (display.tooltip) {
-    return (
-      <Tooltip title={display.tooltip}>
-        <ScheduleSettingsLink
-          css={(theme) => ({
-            color: isShutdownSoon(workspace)
-              ? `${theme.palette.warning.light} !important`
-              : undefined,
-          })}
-        >
-          {display.message}
-        </ScheduleSettingsLink>
-      </Tooltip>
-    );
-  }
-
-  return <ScheduleSettingsLink>{display.message}</ScheduleSettingsLink>;
-};
-
-const ScheduleSettingsLink = forwardRef<HTMLAnchorElement, LinkProps>(
-  (props, ref) => {
-    return (
-      <Link
-        ref={ref}
-        component={RouterLink}
-        to="settings/schedule"
-        css={{
-          "&:first-letter": {
-            textTransform: "uppercase",
-          },
-        }}
-        {...props}
-      />
-    );
-  },
-);
-
-const hasDeadline = (workspace: Workspace): boolean => {
-  return Boolean(workspace.latest_build.deadline);
-};
-
-const hasAutoStart = (workspace: Workspace): boolean => {
-  return Boolean(workspace.autostart_schedule);
-};
-
-export const canEditDeadline = (workspace: Workspace): boolean => {
-  return isWorkspaceOn(workspace) && hasDeadline(workspace);
-};
-
-export const shouldDisplayScheduleLabel = (workspace: Workspace): boolean => {
-  const willAutoStop = isWorkspaceOn(workspace) && hasDeadline(workspace);
-  const willAutoStart = !isWorkspaceOn(workspace) && hasAutoStart(workspace);
-  return willAutoStop || willAutoStart;
-};
-
-const scheduleLabel = (workspace: Workspace) => {
-  return isWorkspaceOn(workspace) ? "Stops" : "Starts at";
-};
-
-const isShutdownSoon = (workspace: Workspace): boolean => {
-  const deadline = workspace.latest_build.deadline;
-  if (!deadline) {
-    return false;
-  }
-  const deadlineDate = new Date(deadline);
-  const now = new Date();
-  const diff = deadlineDate.getTime() - now.getTime();
-  const oneHour = 1000 * 60 * 60;
-  return diff < oneHour;
-};
-
-const classNames = {
-  paper: css`
-    padding: 24px;
-    max-width: 288px;
-    margin-top: 8px;
-    border-radius: 4px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  `,
-
-  deadlineFormInput: css`
-    font-size: 14px;
-    padding: 0px;
-    border-radius: 4px;
-  `,
 };
 
 const styles = {
@@ -412,57 +136,5 @@ const styles = {
       fontSize: 12,
       fontWeight: 500,
     },
-  },
-
-  scheduleValue: {
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-  },
-
-  scheduleControls: {
-    display: "flex",
-    alignItems: "center",
-    gap: 4,
-  },
-
-  scheduleButton: (theme) => ({
-    border: `1px solid ${theme.palette.divider}`,
-    borderRadius: 4,
-    width: 20,
-    height: 20,
-
-    "& svg.MuiSvgIcon-root": {
-      width: 12,
-      height: 12,
-    },
-  }),
-
-  timePopoverTitle: {
-    fontWeight: 600,
-    marginBottom: 8,
-  },
-
-  timePopoverDescription: (theme) => ({
-    color: theme.palette.text.secondary,
-  }),
-
-  timePopoverForm: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    padding: "8px 0",
-    marginTop: 12,
-  },
-
-  timePopoverField: {
-    margin: 0,
-  },
-
-  timePopoverButton: {
-    borderRadius: 4,
-    paddingLeft: 16,
-    paddingRight: 16,
-    flexShrink: 0,
   },
 } satisfies Record<string, Interpolation<Theme>>;
