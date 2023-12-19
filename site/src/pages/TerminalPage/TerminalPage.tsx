@@ -13,7 +13,6 @@ import "xterm/css/xterm.css";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { pageTitle } from "utils/page";
 import { useProxy } from "contexts/ProxyContext";
-import { useDashboard } from "components/Dashboard/DashboardProvider";
 import type { Region } from "api/typesGenerated";
 import { getLatencyColor } from "utils/latency";
 import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency";
@@ -67,7 +66,6 @@ const TerminalPage: FC = () => {
   const workspaceAgent = workspace.data
     ? getMatchingAgentOrFirst(workspace.data, workspaceNameParts?.[1])
     : undefined;
-  const dashboard = useDashboard();
   const selectedProxy = proxy.proxy;
   const latency = selectedProxy ? proxyLatencies[selectedProxy.id] : undefined;
 
@@ -312,11 +310,9 @@ const TerminalPage: FC = () => {
           prevLifecycleState.current === "starting" && <LoadedScriptsAlert />}
         {terminalState === "disconnected" && <DisconnectedAlert />}
         <div css={styles.terminal} ref={xtermRef} data-testid="terminal" />
-        {dashboard.experiments.includes("moons") &&
-          selectedProxy &&
-          latency && (
-            <BottomBar proxy={selectedProxy} latency={latency.latencyMS} />
-          )}
+        {selectedProxy && latency && (
+          <BottomBar proxy={selectedProxy} latency={latency.latencyMS} />
+        )}
       </div>
     </>
   );

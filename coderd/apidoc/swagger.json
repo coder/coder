@@ -7904,7 +7904,6 @@
     "codersdk.Experiment": {
       "type": "string",
       "enum": [
-        "moons",
         "workspace_actions",
         "tailnet_pg_coordinator",
         "single_tailnet",
@@ -7912,7 +7911,6 @@
         "template_update_policies"
       ],
       "x-enum-varnames": [
-        "ExperimentMoons",
         "ExperimentWorkspaceActions",
         "ExperimentTailnetPGCoordinator",
         "ExperimentSingleTailnet",

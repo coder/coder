@@ -31,12 +31,6 @@ func Test_agentIsLegacy(t *testing.T) {
 	t.Run("Legacy", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{
-			string(codersdk.ExperimentMoons),
-			"*",
-		}
-
 		var (
 			ctx, cancel = context.WithTimeout(context.Background(), testutil.WaitShort)
 			db, pubsub  = dbtestutil.NewDB(t)
@@ -44,10 +38,9 @@ func Test_agentIsLegacy(t *testing.T) {
 			coordinator = agpl.NewCoordinator(logger)
 			client, _   = coderdenttest.New(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
-					Database:         db,
-					Pubsub:           pubsub,
-					DeploymentValues: dv,
-					Coordinator:      coordinator,
+					Database:    db,
+					Pubsub:      pubsub,
+					Coordinator: coordinator,
 				},
 				LicenseOptions: &coderdenttest.LicenseOptions{
 					Features: license.Features{
@@ -98,12 +91,6 @@ func Test_agentIsLegacy(t *testing.T) {
 	t.Run("NotLegacy", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{
-			string(codersdk.ExperimentMoons),
-			"*",
-		}
-
 		var (
 			ctx, cancel = context.WithTimeout(context.Background(), testutil.WaitShort)
 			db, pubsub  = dbtestutil.NewDB(t)
@@ -111,10 +98,9 @@ func Test_agentIsLegacy(t *testing.T) {
 			coordinator = agpl.NewCoordinator(logger)
 			client, _   = coderdenttest.New(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
-					Database:         db,
-					Pubsub:           pubsub,
-					DeploymentValues: dv,
-					Coordinator:      coordinator,
+					Database:    db,
+					Pubsub:      pubsub,
+					Coordinator: coordinator,
 				},
 				LicenseOptions: &coderdenttest.LicenseOptions{
 					Features: license.Features{

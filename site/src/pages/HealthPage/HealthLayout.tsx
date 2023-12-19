@@ -17,11 +17,9 @@ import { Suspense } from "react";
 import { HealthIcon } from "./Content";
 import { HealthSeverity } from "api/typesGenerated";
 import NotificationsOffOutlined from "@mui/icons-material/NotificationsOffOutlined";
-import { useDashboard } from "components/Dashboard/DashboardProvider";
 
 export function HealthLayout() {
   const theme = useTheme();
-  const dashboard = useDashboard();
   const queryClient = useQueryClient();
   const { data: healthStatus } = useQuery({
     ...health(),
@@ -35,9 +33,7 @@ export function HealthLayout() {
     access_url: "Access URL",
     websocket: "Websocket",
     database: "Database",
-    workspace_proxy: dashboard.experiments.includes("moons")
-      ? "Workspace Proxy"
-      : undefined,
+    workspace_proxy: "Workspace Proxy",
   } as const;
   const visibleSections = filterVisibleSections(sections);
 
