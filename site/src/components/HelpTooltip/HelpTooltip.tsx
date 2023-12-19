@@ -58,7 +58,6 @@ export const HelpTooltipTrigger = forwardRef<
   HTMLButtonElement,
   HelpTooltipTriggerProps
 >((props, ref) => {
-  const theme = useTheme();
   const {
     size = "medium",
     children = <HelpTooltipIcon />,
@@ -91,7 +90,6 @@ export const HelpTooltipTrigger = forwardRef<
             color: inherit;
 
             & svg {
-              color: ${theme.palette.text.primary};
               width: ${getIconSpacingFromSize(size)}px;
               height: ${getIconSpacingFromSize(size)}px;
             }
