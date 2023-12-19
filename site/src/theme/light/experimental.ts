@@ -120,8 +120,8 @@ export default {
         text: colors.sky[200],
       },
       hover: {
-        background: colors.sky[100],
-        outline: colors.sky[500],
+        background: colors.sky[200],
+        outline: colors.sky[400],
         fill: colors.sky[500],
         text: colors.black,
       },
