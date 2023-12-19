@@ -9,6 +9,7 @@ import (
 
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/clilog"
+	"github.com/coder/coder/v2/codersdk"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,11 +25,11 @@ func TestBuilder(t *testing.T) {
 		cmd := &clibase.Cmd{
 			Use: "test",
 			Handler: func(inv *clibase.Invocation) error {
-				logger, closeLog, err := clilog.New().
-					WithFilter("foo", "baz").
-					WithHuman(tempFile).
-					WithVerbose().
-					Build(inv)
+				logger, closeLog, err := clilog.New(
+					clilog.WithFilter("foo", "baz"),
+					clilog.WithHuman(tempFile),
+					clilog.WithVerbose(),
+				).Build(inv)
 				if err != nil {
 					return err
 				}
@@ -58,8 +59,8 @@ func TestBuilder(t *testing.T) {
 		cmd := &clibase.Cmd{
 			Use: "test",
 			Handler: func(inv *clibase.Invocation) error {
-				logger, closeLog, err := clilog.New().
-					WithHuman(tempFile).
+				logger, closeLog, err := clilog.New(
+					clilog.WithHuman(tempFile)).
 					Build(inv)
 				if err != nil {
 					return err
@@ -90,8 +91,8 @@ func TestBuilder(t *testing.T) {
 		cmd := &clibase.Cmd{
 			Use: "test",
 			Handler: func(inv *clibase.Invocation) error {
-				logger, closeLog, err := clilog.New().
-					WithJSON(tempFile).
+				logger, closeLog, err := clilog.New(
+					clilog.WithJSON(tempFile)).
 					Build(inv)
 				if err != nil {
 					return err
@@ -124,15 +125,26 @@ func TestBuilder(t *testing.T) {
 		require.Equal(t, "bar is also not a useful message", entry.Message)
 	})
 
-	t.Run("WithStackdriver", func(t *testing.T) {
+	t.Run("FromDeploymentValues", func(t *testing.T) {
 		t.Parallel()
 
 		tempFile := filepath.Join(t.TempDir(), "test.log")
+		tempJSON := filepath.Join(t.TempDir(), "test.json")
+		dv := &codersdk.DeploymentValues{
+			Logging: codersdk.LoggingConfig{
+				Filter: []string{"foo", "baz"},
+				Human:  clibase.String(tempFile),
+				JSON:   clibase.String(tempJSON),
+			},
+			Verbose: true,
+			Trace: codersdk.TraceConfig{
+				Enable: true,
+			},
+		}
 		cmd := &clibase.Cmd{
 			Use: "test",
 			Handler: func(inv *clibase.Invocation) error {
-				logger, closeLog, err := clilog.New().
-					WithStackdriver(tempFile).
+				logger, closeLog, err := clilog.New(clilog.FromDeploymentValues(dv)).
 					Build(inv)
 				if err != nil {
 					return err
@@ -149,20 +161,21 @@ func TestBuilder(t *testing.T) {
 		data, err := os.ReadFile(tempFile)
 		require.NoError(t, err)
 		logs := strings.Split(strings.TrimSpace(string(data)), "\n")
-		if !assert.Len(t, logs, 1) {
+		if !assert.Len(t, logs, 2) {
 			t.Logf(string(data))
 			t.FailNow()
 		}
-		require.Contains(t, logs[0], "bar is also not a useful message")
+		require.Contains(t, logs[0], "foo is not a useful message")
+		require.Contains(t, logs[1], "bar is also not a useful message")
 
-		var entry struct {
-			Severity string `json:"severity"`
-			Message  string `json:"message"`
-		}
-
-		err = json.NewDecoder(strings.NewReader(logs[0])).Decode(&entry)
+		data, err = os.ReadFile(tempJSON)
 		require.NoError(t, err)
-		require.Equal(t, "INFO", entry.Severity)
-		require.Equal(t, "bar is also not a useful message", entry.Message)
+		logs = strings.Split(strings.TrimSpace(string(data)), "\n")
+		if !assert.Len(t, logs, 2) {
+			t.Logf(string(data))
+			t.FailNow()
+		}
+		require.Contains(t, logs[0], "foo is not a useful message")
+		require.Contains(t, logs[1], "bar is also not a useful message")
 	})
 }

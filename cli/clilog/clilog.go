@@ -29,51 +29,62 @@ type Builder struct {
 	Verbose     bool
 }
 
-func New() *Builder {
-	return &Builder{
+func New(opts ...Option) *Builder {
+	b := &Builder{
 		Human:  "/dev/stderr",
 		Filter: []string{},
 	}
-}
-
-func (b *Builder) WithFilter(filters ...string) *Builder {
-	b.Filter = filters
+	for _, opt := range opts {
+		opt(b)
+	}
 	return b
 }
 
-func (b *Builder) WithHuman(loc string) *Builder {
-	b.Human = loc
-	return b
+func WithFilter(filters ...string) Option {
+	return func(b *Builder) {
+		b.Filter = filters
+	}
 }
 
-func (b *Builder) WithJSON(loc string) *Builder {
-	b.JSON = loc
-	return b
+func WithHuman(loc string) Option {
+	return func(b *Builder) {
+		b.Human = loc
+	}
 }
 
-func (b *Builder) WithStackdriver(loc string) *Builder {
-	b.Stackdriver = loc
-	return b
+func WithJSON(loc string) Option {
+	return func(b *Builder) {
+		b.JSON = loc
+	}
 }
 
-func (b *Builder) WithTrace() *Builder {
-	b.Trace = true
-	return b
-
-}
-func (b *Builder) WithVerbose() *Builder {
-	b.Verbose = true
-	return b
+func WithStackdriver(loc string) Option {
+	return func(b *Builder) {
+		b.Stackdriver = loc
+	}
 }
 
-func (b *Builder) FromDeploymentValues(vals *codersdk.DeploymentValues) *Builder {
-	b.Filter = vals.Logging.Filter.Value()
-	b.Human = vals.Logging.Human.Value()
-	b.JSON = vals.Logging.JSON.Value()
-	b.Stackdriver = vals.Logging.Stackdriver.Value()
-	b.Trace = vals.Trace.Enable.Value()
-	b.Verbose = vals.Verbose.Value()
-	return b
+func WithTrace() Option {
+	return func(b *Builder) {
+		b.Trace = true
+	}
+
+}
+func WithVerbose() Option {
+	return func(b *Builder) {
+		b.Verbose = true
+	}
+}
+
+func FromDeploymentValues(vals *codersdk.DeploymentValues) Option {
+	return func(b *Builder) {
+		b.Filter = vals.Logging.Filter.Value()
+		b.Human = vals.Logging.Human.Value()
+		b.JSON = vals.Logging.JSON.Value()
+		b.Stackdriver = vals.Logging.Stackdriver.Value()
+		b.Trace = vals.Trace.Enable.Value()
+		b.Verbose = vals.Verbose.Value()
+	}
 }
 
 func (b *Builder) Build(inv *clibase.Invocation) (slog.Logger, func(), error) {
