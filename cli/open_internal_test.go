@@ -18,25 +18,25 @@ func Test_resolveAgentAbsPath(t *testing.T) {
 		wantErr bool
 	}{
 		{"ok no args", args{}, "", false},
-		{"ok only working directory", args{workingDirectory: "/some/path"}, "/some/path", false},
-		{"ok with working directory and rel path", args{workingDirectory: "/some/path", relOrAbsPath: "other/path"}, "/some/path/other/path", false},
-		{"ok with working directory and abs path", args{workingDirectory: "/some/path", relOrAbsPath: "/other/path"}, "/other/path", false},
-		{"ok with no working directory and abs path", args{relOrAbsPath: "/other/path"}, "/other/path", false},
+		{"ok only working directory", args{workingDirectory: "/workdir"}, "/workdir", false},
+		{"ok with working directory and rel path", args{workingDirectory: "/workdir", relOrAbsPath: "my/path"}, "/workdir/my/path", false},
+		{"ok with working directory and abs path", args{workingDirectory: "/workdir", relOrAbsPath: "/my/path"}, "/my/path", false},
+		{"ok with no working directory and abs path", args{relOrAbsPath: "/my/path"}, "/my/path", false},
 
 		{"fail tilde", args{relOrAbsPath: "~"}, "", true},
-		{"fail tilde with working directory", args{workingDirectory: "/some/path", relOrAbsPath: "~"}, "", true},
-		{"fail tilde path", args{relOrAbsPath: "~/some/path"}, "", true},
-		{"fail tilde path with working directory", args{workingDirectory: "/some/path", relOrAbsPath: "~/some/path"}, "", true},
+		{"fail tilde with working directory", args{workingDirectory: "/workdir", relOrAbsPath: "~"}, "", true},
+		{"fail tilde path", args{relOrAbsPath: "~/workdir"}, "", true},
+		{"fail tilde path with working directory", args{workingDirectory: "/workdir", relOrAbsPath: "~/workdir"}, "", true},
 		{"fail relative dot with no working directory", args{relOrAbsPath: "."}, "", true},
-		{"fail relative with no working directory", args{relOrAbsPath: "some/path"}, "", true},
+		{"fail relative with no working directory", args{relOrAbsPath: "workdir"}, "", true},
 
-		{"ok with working directory and rel path on windows", args{workingDirectory: "C:\\some\\path", relOrAbsPath: "other\\path", agentOS: "windows"}, "C:\\some\\path\\other\\path", false},
-		{"ok with working directory and abs path on windows", args{workingDirectory: "C:\\some\\path", relOrAbsPath: "C:\\other\\path", agentOS: "windows"}, "C:\\other\\path", false},
-		{"ok with no working directory and abs path on windows", args{relOrAbsPath: "C:\\other\\path", agentOS: "windows"}, "C:\\other\\path", false},
-		{"ok abs unix path on windows", args{workingDirectory: "C:\\some\\path", relOrAbsPath: "/other/path", agentOS: "windows"}, "\\other\\path", false},
-		{"ok rel unix path on windows", args{workingDirectory: "C:\\some\\path", relOrAbsPath: "other/path", agentOS: "windows"}, "C:\\some\\path\\other\\path", false},
+		{"ok with working directory and rel path on windows", args{workingDirectory: "C:\\workdir", relOrAbsPath: "my\\path", agentOS: "windows"}, "C:\\workdir\\my\\path", false},
+		{"ok with working directory and abs path on windows", args{workingDirectory: "C:\\workdir", relOrAbsPath: "C:\\my\\path", agentOS: "windows"}, "C:\\my\\path", false},
+		{"ok with no working directory and abs path on windows", args{relOrAbsPath: "C:\\my\\path", agentOS: "windows"}, "C:\\my\\path", false},
+		{"ok abs unix path on windows", args{workingDirectory: "C:\\workdir", relOrAbsPath: "/my/path", agentOS: "windows"}, "\\my\\path", false},
+		{"ok rel unix path on windows", args{workingDirectory: "C:\\workdir", relOrAbsPath: "my/path", agentOS: "windows"}, "C:\\workdir\\my\\path", false},
 
-		{"fail with no working directory and rel path on windows", args{relOrAbsPath: "other\\path", agentOS: "windows"}, "", true},
+		{"fail with no working directory and rel path on windows", args{relOrAbsPath: "my\\path", agentOS: "windows"}, "", true},
 	}
 	for _, tt := range tests {
 		tt := tt
