@@ -143,8 +143,6 @@ export const FormFields: FC<PropsWithChildren> = ({ children }) => {
 
 const styles = {
   formSectionInfoTitle: (theme) => ({
-    display: "flex",
-    gap: 6,
     fontSize: 20,
     color: theme.palette.text.primary,
     fontWeight: 400,
