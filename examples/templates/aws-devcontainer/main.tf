@@ -79,7 +79,7 @@ resource "coder_agent" "dev" {
   arch               = "amd64"
   auth               = "token"
   os                 = "linux"
-  dir                = "/worskpaces"
+  dir                = "/workspaces"
   connection_timeout = 0
 
   metadata {
@@ -145,7 +145,7 @@ locals {
 
   # Start envbuilder
   docker run --rm \
-    -v /tmp/envbuilder:/workspaces \
+    -v /home/${local.linux_user}/envbuilder:/workspaces \
     -e CODER_AGENT_TOKEN="${try(coder_agent.dev[0].token, "")}" \
     -e CODER_AGENT_URL="${data.coder_workspace.me.access_url}" \
     -e GIT_URL="${data.coder_parameter.repo_url.value}" \
