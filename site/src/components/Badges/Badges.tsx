@@ -2,7 +2,6 @@ import type { PropsWithChildren, FC } from "react";
 import Tooltip from "@mui/material/Tooltip";
 import { type Interpolation, type Theme } from "@emotion/react";
 import { Stack } from "components/Stack/Stack";
-import colors from "theme/tailwind";
 
 const styles = {
   badge: {
