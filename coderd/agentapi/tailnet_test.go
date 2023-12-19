@@ -2,6 +2,7 @@ package agentapi_test
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -45,10 +46,13 @@ func TestStreamDERPMaps(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
+		derpMapMu := sync.Mutex{}
 		derpMap := tailcfg.DERPMap{}
 		api := &agentapi.TailnetAPI{
 			Ctx: context.Background(),
 			DerpMapFn: func() *tailcfg.DERPMap {
+				derpMapMu.Lock()
+				defer derpMapMu.Unlock()
 				derp := (&derpMap).Clone()
 				return derp
 			},
@@ -91,14 +95,18 @@ func TestStreamDERPMaps(t *testing.T) {
 		require.Equal(t, tailnet.DERPMapToProto(&derpMap), gotMap)
 
 		// Update the map, should get an update.
+		derpMapMu.Lock()
 		derpMap.Regions = map[int]*tailcfg.DERPRegion{
 			1: {},
 		}
+		derpMapMu.Unlock()
 		gotMap = <-maps
 		require.Equal(t, tailnet.DERPMapToProto(&derpMap), gotMap)
 
 		// Update the map again, should get an update.
+		derpMapMu.Lock()
 		derpMap.Regions = nil
+		derpMapMu.Unlock()
 		gotMap = <-maps
 		require.Equal(t, tailnet.DERPMapToProto(&derpMap), gotMap)
 
