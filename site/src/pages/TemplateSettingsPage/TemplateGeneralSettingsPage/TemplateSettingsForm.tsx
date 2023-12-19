@@ -22,7 +22,9 @@ import { Stack } from "components/Stack/Stack";
 import Checkbox from "@mui/material/Checkbox";
 import {
   HelpTooltip,
+  HelpTooltipContent,
   HelpTooltipText,
+  HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { EnterpriseBadge } from "components/Badges/Badges";
 
@@ -161,9 +163,13 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
                 >
                   Allow users to cancel in-progress workspace jobs.
                   <HelpTooltip>
-                    <HelpTooltipText>
-                      If checked, users may be able to corrupt their workspace.
-                    </HelpTooltipText>
+                    <HelpTooltipTrigger />
+                    <HelpTooltipContent>
+                      <HelpTooltipText>
+                        If checked, users may be able to corrupt their
+                        workspace.
+                      </HelpTooltipText>
+                    </HelpTooltipContent>
                   </HelpTooltip>
                 </Stack>
                 <span css={styles.optionHelperText}>
@@ -193,9 +199,12 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
                   >
                     Require workspaces automatically update when started.
                     <HelpTooltip>
-                      <HelpTooltipText>
-                        This setting is not enforced for template admins.
-                      </HelpTooltipText>
+                      <HelpTooltipTrigger />
+                      <HelpTooltipContent>
+                        <HelpTooltipText>
+                          This setting is not enforced for template admins.
+                        </HelpTooltipText>
+                      </HelpTooltipContent>
                     </HelpTooltip>
                   </Stack>
                   <span css={styles.optionHelperText}>
