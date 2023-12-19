@@ -2,6 +2,7 @@ package clilog_test
 
 import (
 	"encoding/json"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -166,7 +167,7 @@ func TestBuilder(t *testing.T) {
 			},
 		}
 		err := cmd.Invoke().Run()
-		require.ErrorContains(t, err, "no such file or directory")
+		require.ErrorIs(t, err, fs.ErrNotExist)
 	})
 }
 
