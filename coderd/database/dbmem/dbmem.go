@@ -3796,6 +3796,7 @@ func (q *FakeQuerier) GetWorkspaceAgentAndOwnerByAuthToken(_ context.Context, au
 					}
 					var row database.GetWorkspaceAgentAndOwnerByAuthTokenRow
 					row.WorkspaceID = ws.ID
+					row.TemplateID = ws.TemplateID
 					usr, err := q.getUserByIDNoLock(ws.OwnerID)
 					if err != nil {
 						return database.GetWorkspaceAgentAndOwnerByAuthTokenRow{}, sql.ErrNoRows
@@ -3805,6 +3806,7 @@ func (q *FakeQuerier) GetWorkspaceAgentAndOwnerByAuthToken(_ context.Context, au
 					// We also need to get org roles for the user
 					row.OwnerName = usr.Username
 					row.WorkspaceAgent = agt
+					row.TemplateVersionID = build.TemplateVersionID
 					for _, mem := range q.organizationMembers {
 						if mem.UserID == usr.ID {
 							row.OwnerRoles = append(row.OwnerRoles, fmt.Sprintf("organization-member:%s", mem.OrganizationID.String()))

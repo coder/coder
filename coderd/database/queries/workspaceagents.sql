@@ -219,6 +219,8 @@ SELECT
 	users.id AS owner_id,
 	users.username AS owner_name,
 	users.status AS owner_status,
+	workspaces.template_id AS template_id,
+	workspace_builds.template_version_id AS template_version_id,
 	array_cat(
 		array_append(users.rbac_roles, 'member'),
 		array_append(ARRAY[]::text[], 'organization-member:' || organization_members.organization_id::text)

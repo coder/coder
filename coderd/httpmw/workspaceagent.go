@@ -97,7 +97,12 @@ func ExtractWorkspaceAgent(opts ExtractWorkspaceAgentConfig) func(http.Handler) 
 				ID:     row.OwnerID.String(),
 				Roles:  rbac.RoleNames(row.OwnerRoles),
 				Groups: row.OwnerGroups,
-				Scope:  rbac.WorkspaceAgentScope(row.WorkspaceID, row.OwnerID),
+				Scope: rbac.WorkspaceAgentScope(rbac.WorkspaceAgentScopeParams{
+					WorkspaceID: row.WorkspaceID,
+					OwnerID:     row.OwnerID,
+					TemplateID:  row.TemplateID,
+					VersionID:   row.TemplateVersionID,
+				}),
 			}.WithCachedASTValue()
 
 			ctx = context.WithValue(ctx, workspaceAgentContextKey{}, row.WorkspaceAgent)

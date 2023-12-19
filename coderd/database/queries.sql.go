@@ -7781,6 +7781,8 @@ SELECT
 	users.id AS owner_id,
 	users.username AS owner_name,
 	users.status AS owner_status,
+	workspaces.template_id AS template_id,
+	workspace_builds.template_version_id AS template_version_id,
 	array_cat(
 		array_append(users.rbac_roles, 'member'),
 		array_append(ARRAY[]::text[], 'organization-member:' || organization_members.organization_id::text)
@@ -7830,13 +7832,15 @@ LIMIT 1
 `
 
 type GetWorkspaceAgentAndOwnerByAuthTokenRow struct {
-	WorkspaceAgent WorkspaceAgent `db:"workspace_agent" json:"workspace_agent"`
-	WorkspaceID    uuid.UUID      `db:"workspace_id" json:"workspace_id"`
-	OwnerID        uuid.UUID      `db:"owner_id" json:"owner_id"`
-	OwnerName      string         `db:"owner_name" json:"owner_name"`
-	OwnerStatus    UserStatus     `db:"owner_status" json:"owner_status"`
-	OwnerRoles     []string       `db:"owner_roles" json:"owner_roles"`
-	OwnerGroups    []string       `db:"owner_groups" json:"owner_groups"`
+	WorkspaceAgent    WorkspaceAgent `db:"workspace_agent" json:"workspace_agent"`
+	WorkspaceID       uuid.UUID      `db:"workspace_id" json:"workspace_id"`
+	OwnerID           uuid.UUID      `db:"owner_id" json:"owner_id"`
+	OwnerName         string         `db:"owner_name" json:"owner_name"`
+	OwnerStatus       UserStatus     `db:"owner_status" json:"owner_status"`
+	TemplateID        uuid.UUID      `db:"template_id" json:"template_id"`
+	TemplateVersionID uuid.UUID      `db:"template_version_id" json:"template_version_id"`
+	OwnerRoles        []string       `db:"owner_roles" json:"owner_roles"`
+	OwnerGroups       []string       `db:"owner_groups" json:"owner_groups"`
 }
 
 func (q *sqlQuerier) GetWorkspaceAgentAndOwnerByAuthToken(ctx context.Context, authToken uuid.UUID) (GetWorkspaceAgentAndOwnerByAuthTokenRow, error) {
@@ -7877,6 +7881,8 @@ func (q *sqlQuerier) GetWorkspaceAgentAndOwnerByAuthToken(ctx context.Context, a
 		&i.OwnerID,
 		&i.OwnerName,
 		&i.OwnerStatus,
+		&i.TemplateID,
+		&i.TemplateVersionID,
 		pq.Array(&i.OwnerRoles),
 		pq.Array(&i.OwnerGroups),
 	)
