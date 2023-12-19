@@ -251,7 +251,7 @@ func isWindowsAbsPath(p string) bool {
 	switch {
 	case len(p) == 0:
 		return false
-	case p[0] == '/' || p[0] == '\\':
+	case p[0] == '\\':
 		return true
 	default:
 		return false
@@ -305,11 +305,12 @@ func resolveAgentAbsPath(workingDirectory, relOrAbsPath, agentOS string, local b
 		return p, nil
 
 	case agentOS == "windows":
+		relOrAbsPath = strings.ReplaceAll(relOrAbsPath, "/", "\\")
 		switch {
 		case workingDirectory != "" && !isWindowsAbsPath(relOrAbsPath):
 			return windowsJoinPath(workingDirectory, relOrAbsPath), nil
 		case isWindowsAbsPath(relOrAbsPath):
-			return windowsJoinPath(relOrAbsPath), nil
+			return relOrAbsPath, nil
 		default:
 			return "", xerrors.Errorf("path %q not supported, use an absolute path instead", relOrAbsPath)
 		}
