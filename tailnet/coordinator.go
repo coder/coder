@@ -27,6 +27,11 @@ import (
 // └──────────────────┘   └────────────────────┘   └───────────────────┘   └──────────────────┘
 // Coordinators have different guarantees for HA support.
 type Coordinator interface {
+	CoordinatorV1
+	CoordinatorV2
+}
+
+type CoordinatorV1 interface {
 	// ServeHTTPDebug serves a debug webpage that shows the internal state of
 	// the coordinator.
 	ServeHTTPDebug(w http.ResponseWriter, r *http.Request)
@@ -143,16 +148,6 @@ func NewCoordinator(logger slog.Logger) Coordinator {
 	}
 }
 
-// NewCoordinatorV2 constructs a new in-memory connection coordinator. This
-// coordinator is incompatible with multiple Coder replicas as all node data is
-// in-memory.
-func NewCoordinatorV2(logger slog.Logger) CoordinatorV2 {
-	return &coordinator{
-		core:       newCore(logger.Named(LoggerName)),
-		closedChan: make(chan struct{}),
-	}
-}
-
 // coordinator exchanges nodes with agents to establish connections entirely in-memory.
 // The Enterprise implementation provides this for high-availability.
 // ┌──────────────────┐   ┌────────────────────┐   ┌───────────────────┐   ┌──────────────────┐
@@ -243,11 +238,11 @@ func ServeMultiAgent(c CoordinatorV2, logger slog.Logger, id uuid.UUID) MultiAge
 			return false
 		},
 		OnSubscribe: func(enq Queue, agent uuid.UUID) (*Node, error) {
-			err := SendCtx(ctx, reqs, &proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{Uuid: UUIDToByteSlice(agent)}})
+			err := SendCtx(ctx, reqs, &proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{Id: UUIDToByteSlice(agent)}})
 			return c.Node(agent), err
 		},
 		OnUnsubscribe: func(enq Queue, agent uuid.UUID) error {
-			err := SendCtx(ctx, reqs, &proto.CoordinateRequest{RemoveTunnel: &proto.CoordinateRequest_Tunnel{Uuid: UUIDToByteSlice(agent)}})
+			err := SendCtx(ctx, reqs, &proto.CoordinateRequest{RemoveTunnel: &proto.CoordinateRequest_Tunnel{Id: UUIDToByteSlice(agent)}})
 			return err
 		},
 		OnNodeUpdate: func(id uuid.UUID, node *Node) error {
@@ -353,7 +348,7 @@ func ServeClientV1(ctx context.Context, logger slog.Logger, c CoordinatorV2, con
 	defer cancel()
 	reqs, resps := c.Coordinate(ctx, id, id.String(), ClientTunnelAuth{AgentID: agent})
 	err := SendCtx(ctx, reqs, &proto.CoordinateRequest{
-		AddTunnel: &proto.CoordinateRequest_Tunnel{Uuid: UUIDToByteSlice(agent)},
+		AddTunnel: &proto.CoordinateRequest_Tunnel{Id: UUIDToByteSlice(agent)},
 	})
 	if err != nil {
 		// can only be a context error, no need to log here.
@@ -388,7 +383,7 @@ func (c *core) handleRequest(p *peer, req *proto.CoordinateRequest) error {
 		}
 	}
 	if req.AddTunnel != nil {
-		dstID, err := uuid.FromBytes(req.AddTunnel.Uuid)
+		dstID, err := uuid.FromBytes(req.AddTunnel.Id)
 		if err != nil {
 			// this shouldn't happen unless there is a client error.  Close the connection so the client
 			// doesn't just happily continue thinking everything is fine.
@@ -403,7 +398,7 @@ func (c *core) handleRequest(p *peer, req *proto.CoordinateRequest) error {
 		}
 	}
 	if req.RemoveTunnel != nil {
-		dstID, err := uuid.FromBytes(req.RemoveTunnel.Uuid)
+		dstID, err := uuid.FromBytes(req.RemoveTunnel.Id)
 		if err != nil {
 			// this shouldn't happen unless there is a client error.  Close the connection so the client
 			// doesn't just happily continue thinking everything is fine.

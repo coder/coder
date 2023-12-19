@@ -1,6 +1,16 @@
 You can install and run Coder using the official Docker images published on
 [GitHub Container Registry](https://github.com/coder/coder/pkgs/container/coder).
 
+<blockquote class="warning">
+**Before you install**
+If you would like your workspaces to be able to run Docker, we recommend that you <a href="https://github.com/nestybox/sysbox#installation" target="_blank">install Sysbox</a> before proceeding.
+
+As part of the Sysbox installation you will be required to remove all existing
+Docker containers including containers used by Coder workspaces. Installing
+Sysbox ahead of time will reduce disruption to your Coder instance.
+
+</blockquote>
+
 ## Requirements
 
 Docker is required. See the

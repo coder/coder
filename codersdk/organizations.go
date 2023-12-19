@@ -85,9 +85,11 @@ type CreateTemplateRequest struct {
 	// for all workspaces created from this template.
 	DefaultTTLMillis *int64 `json:"default_ttl_ms,omitempty"`
 	// TODO(@dean): remove max_ttl once autostop_requirement is matured
+	// Only one of MaxTTLMillis or AutostopRequirement can be specified.
 	MaxTTLMillis *int64 `json:"max_ttl_ms,omitempty"`
 	// AutostopRequirement allows optionally specifying the autostop requirement
 	// for workspaces created from this template. This is an enterprise feature.
+	// Only one of MaxTTLMillis or AutostopRequirement can be specified.
 	AutostopRequirement *TemplateAutostopRequirement `json:"autostop_requirement,omitempty"`
 	// AutostartRequirement allows optionally specifying the autostart allowed days
 	// for workspaces created from this template. This is an enterprise feature.
@@ -162,9 +164,6 @@ func (c *Client) Organization(ctx context.Context, id uuid.UUID) (Organization, 
 }
 
 // ProvisionerDaemons returns provisioner daemons available.
-//
-// Deprecated: We no longer track provisioner daemons as they connect.  This function may return historical data
-// but new provisioner daemons will not appear.
 func (c *Client) ProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, error) {
 	res, err := c.Request(ctx, http.MethodGet,
 		// TODO: the organization path parameter is currently ignored.

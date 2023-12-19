@@ -14,7 +14,7 @@ and is the only service that communicates with Postgres.
 
 It offers:
 
-- Dashboard
+- Dashboard (UI)
 - HTTP API
 - Dev URLs (HTTP reverse proxy to workspaces)
 - Workspace Web Applications (e.g easily access code-server)

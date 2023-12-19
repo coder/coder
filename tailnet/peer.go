@@ -114,7 +114,7 @@ func (p *peer) storeMappingLocked(
 		p.sent[id] = n
 	}
 	return &proto.CoordinateResponse_PeerUpdate{
-		Uuid:   id[:],
+		Id:     id[:],
 		Kind:   k,
 		Node:   n,
 		Reason: reason,

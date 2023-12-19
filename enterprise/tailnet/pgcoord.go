@@ -149,12 +149,6 @@ func newPGCoordInternal(
 	return c, nil
 }
 
-// NewPGCoordV2 creates a high-availability coordinator that stores state in the PostgreSQL database and
-// receives notifications of updates via the pubsub.
-func NewPGCoordV2(ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store database.Store) (agpl.CoordinatorV2, error) {
-	return newPGCoordInternal(ctx, logger, ps, store)
-}
-
 func (c *pgCoord) ServeMultiAgent(id uuid.UUID) agpl.MultiAgentConn {
 	return agpl.ServeMultiAgent(c, c.logger, id)
 }
@@ -190,6 +184,9 @@ func (c *pgCoord) Node(id uuid.UUID) *agpl.Node {
 			bestN = m.node
 			bestT = m.updatedAt
 		}
+	}
+	if bestN == nil {
+		return nil
 	}
 	node, err := agpl.ProtoToNode(bestN)
 	if err != nil {
@@ -703,7 +700,7 @@ func (m *mapper) bestToUpdate(best map[uuid.UUID]mapping) *proto.CoordinateRespo
 			reason = "update"
 		}
 		resp.PeerUpdates = append(resp.PeerUpdates, &proto.CoordinateResponse_PeerUpdate{
-			Uuid:   agpl.UUIDToByteSlice(k),
+			Id:     agpl.UUIDToByteSlice(k),
 			Node:   mpng.node,
 			Kind:   mpng.kind,
 			Reason: reason,
@@ -714,7 +711,7 @@ func (m *mapper) bestToUpdate(best map[uuid.UUID]mapping) *proto.CoordinateRespo
 	for k := range m.sent {
 		if _, ok := best[k]; !ok {
 			resp.PeerUpdates = append(resp.PeerUpdates, &proto.CoordinateResponse_PeerUpdate{
-				Uuid:   agpl.UUIDToByteSlice(k),
+				Id:     agpl.UUIDToByteSlice(k),
 				Kind:   proto.CoordinateResponse_PeerUpdate_DISCONNECTED,
 				Reason: "disconnected",
 			})

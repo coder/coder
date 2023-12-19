@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	agpl "github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/tailnet/proto"
 )
 
 // NewCoordinator creates a new high availability coordinator
@@ -154,6 +155,24 @@ type haCoordinator struct {
 	// with the new ServerTailnet, so they must be connected through
 	// wsconncache.
 	legacyAgents map[uuid.UUID]struct{}
+}
+
+func (c *haCoordinator) Coordinate(ctx context.Context, _ uuid.UUID, _ string, _ agpl.TunnelAuth) (chan<- *proto.CoordinateRequest, <-chan *proto.CoordinateResponse) {
+	// HA Coordinator does NOT support v2 API and this is just here to appease the compiler and prevent
+	// panics while we build out v2 support elsewhere.  We will retire the HA Coordinator in favor of
+	// PG Coordinator before we turn on the v2 API.
+	c.log.Warn(ctx, "v2 API invoked but unimplemented")
+	resp := make(chan *proto.CoordinateResponse)
+	close(resp)
+	req := make(chan *proto.CoordinateRequest)
+	go func() {
+		for {
+			if _, ok := <-req; !ok {
+				return
+			}
+		}
+	}()
+	return req, resp
 }
 
 // Node returns an in-memory node by ID.

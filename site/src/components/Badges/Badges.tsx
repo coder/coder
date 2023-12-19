@@ -122,6 +122,23 @@ export const AlphaBadge: FC = () => {
   );
 };
 
+export const DeprecatedBadge: FC = () => {
+  return (
+    <span
+      css={[
+        styles.badge,
+        {
+          border: `1px solid ${colors.orange[600]}`,
+          backgroundColor: colors.orange[950],
+          color: colors.orange[50],
+        },
+      ]}
+    >
+      Deprecated
+    </span>
+  );
+};
+
 export const Badges: FC<PropsWithChildren> = ({ children }) => {
   return (
     <Stack

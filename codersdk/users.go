@@ -107,6 +107,10 @@ type UserQuietHoursScheduleResponse struct {
 	// UserSet is true if the user has set their own quiet hours schedule. If
 	// false, the user is using the default schedule.
 	UserSet bool `json:"user_set"`
+	// UserCanSet is true if the user is allowed to set their own quiet hours
+	// schedule. If false, the user cannot set a custom schedule and the default
+	// schedule will always be used.
+	UserCanSet bool `json:"user_can_set"`
 	// Time is the time of day that the quiet hours window starts in the given
 	// Timezone each day.
 	Time     string `json:"time"`     // HH:mm (24-hour)

@@ -47,19 +47,18 @@ func init() {
 
 type Options struct {
 	*coderdtest.Options
-	AuditLogging                bool
-	BrowserOnly                 bool
-	EntitlementsUpdateInterval  time.Duration
-	SCIMAPIKey                  []byte
-	UserWorkspaceQuota          int
-	ProxyHealthInterval         time.Duration
-	LicenseOptions              *LicenseOptions
-	NoDefaultQuietHoursSchedule bool
-	DontAddLicense              bool
-	DontAddFirstUser            bool
-	ReplicaSyncUpdateInterval   time.Duration
-	ExternalTokenEncryption     []dbcrypt.Cipher
-	ProvisionerDaemonPSK        string
+	AuditLogging               bool
+	BrowserOnly                bool
+	EntitlementsUpdateInterval time.Duration
+	SCIMAPIKey                 []byte
+	UserWorkspaceQuota         int
+	ProxyHealthInterval        time.Duration
+	LicenseOptions             *LicenseOptions
+	DontAddLicense             bool
+	DontAddFirstUser           bool
+	ReplicaSyncUpdateInterval  time.Duration
+	ExternalTokenEncryption    []dbcrypt.Cipher
+	ProvisionerDaemonPSK       string
 }
 
 // New constructs a codersdk client connected to an in-memory Enterprise API instance.
@@ -86,10 +85,6 @@ func NewWithAPI(t *testing.T, options *Options) (
 	}
 	require.False(t, options.DontAddFirstUser && !options.DontAddLicense, "DontAddFirstUser requires DontAddLicense")
 	setHandler, cancelFunc, serverURL, oop := coderdtest.NewOptions(t, options.Options)
-	if !options.NoDefaultQuietHoursSchedule && oop.DeploymentValues.UserQuietHoursSchedule.DefaultSchedule.Value() == "" {
-		err := oop.DeploymentValues.UserQuietHoursSchedule.DefaultSchedule.Set("0 0 * * *")
-		require.NoError(t, err)
-	}
 	coderAPI, err := coderd.New(context.Background(), &coderd.Options{
 		RBAC:                       true,
 		AuditLogging:               options.AuditLogging,

@@ -9,10 +9,6 @@ on:
       - main
   workflow_dispatch:
     inputs:
-      pr_number:
-        description: "PR number"
-        type: number
-        required: true
       experiments:
         description: "Experiments to enable"
         required: false
