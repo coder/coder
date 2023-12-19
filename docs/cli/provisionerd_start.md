@@ -22,6 +22,43 @@ coder provisionerd start [flags]
 
 Directory to store cached data.
 
+### --log-filter
+
+|             |                                             |
+| ----------- | ------------------------------------------- |
+| Type        | <code>string-array</code>                   |
+| Environment | <code>$CODER_PROVISIONERD_LOG_FILTER</code> |
+
+Filter debug logs by matching against a given regex. Use .\* to match all debug logs.
+
+### --log-human
+
+|             |                                            |
+| ----------- | ------------------------------------------ |
+| Type        | <code>string</code>                        |
+| Environment | <code>$CODER_PROVISIONERD_LOG_HUMAN</code> |
+| Default     | <code>/dev/stderr</code>                   |
+
+Log in human-readable format to the given path.
+
+### --log-json
+
+|             |                                           |
+| ----------- | ----------------------------------------- |
+| Type        | <code>string</code>                       |
+| Environment | <code>$CODER_PROVISIONERD_LOG_JSON</code> |
+
+Log in JSON format to the given path.
+
+### --log-stackdriver
+
+|             |                                                  |
+| ----------- | ------------------------------------------------ |
+| Type        | <code>string</code>                              |
+| Environment | <code>$CODER_PROVISIONERD_LOG_STACKDRIVER</code> |
+
+Log in Stackdriver format to the given path.
+
 ### --name
 
 |             |                                             |
@@ -68,3 +105,13 @@ Pre-shared key to authenticate with Coder server.
 | Environment | <code>$CODER_PROVISIONERD_TAGS</code> |
 
 Tags to filter provisioner jobs by.
+
+### --verbose
+
+|             |                                          |
+| ----------- | ---------------------------------------- |
+| Type        | <code>bool</code>                        |
+| Environment | <code>$CODER_PROVISIONERD_VERBOSE</code> |
+| Default     | <code>false</code>                       |
+
+Enable verbose logging. This is useful for debugging, but can be noisy when running in production.
