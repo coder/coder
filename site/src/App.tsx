@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "react-query";
 import type { FC, ReactNode } from "react";
 import { HelmetProvider } from "react-helmet-async";
 import { AppRouter } from "./AppRouter";
-import { ThemeProviders } from "./contexts/ThemeProviders";
+import { ThemeProvider } from "./contexts/ThemeProvider";
 import { AuthProvider } from "./contexts/AuthProvider/AuthProvider";
 import { ErrorBoundary } from "./components/ErrorBoundary/ErrorBoundary";
 import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar";
@@ -30,10 +30,10 @@ export const AppProviders: FC<AppProvidersProps> = ({
     <HelmetProvider>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <ThemeProviders>
+          <ThemeProvider>
             {children}
             <GlobalSnackbar />
-          </ThemeProviders>
+          </ThemeProvider>
         </AuthProvider>
       </QueryClientProvider>
     </HelmetProvider>

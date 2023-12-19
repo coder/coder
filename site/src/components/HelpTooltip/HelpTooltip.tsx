@@ -295,6 +295,7 @@ const styles = {
     display: "flex",
     alignItems: "center",
     ...(theme.typography.body2 as CSSObject),
+    color: theme.experimental.roles.active.fill,
   }),
 
   linkIcon: {

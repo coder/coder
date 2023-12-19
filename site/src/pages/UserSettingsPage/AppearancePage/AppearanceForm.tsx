@@ -6,7 +6,7 @@ import themes, { DEFAULT_THEME, type Theme } from "theme";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Stack } from "components/Stack/Stack";
 import { BetaBadge } from "components/Badges/Badges";
-import { ThemeOverride } from "contexts/ThemeProviders";
+import { ThemeOverride } from "contexts/ThemeProvider";
 
 export interface AppearanceFormProps {
   isUpdating?: boolean;

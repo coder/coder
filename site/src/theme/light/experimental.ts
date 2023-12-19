@@ -5,13 +5,13 @@ export default {
   l1: {
     background: colors.gray[50],
     outline: colors.gray[300],
-    fill: colors.gray[600],
+    fill: colors.gray[700],
     text: colors.black,
   },
 
   l2: {
     background: colors.gray[100],
-    outline: colors.gray[600],
+    outline: colors.gray[500],
     fill: colors.gray[500],
     text: colors.gray[950],
     disabled: {
