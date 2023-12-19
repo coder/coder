@@ -479,3 +479,29 @@ jobs:
           # For gh CLI. We need a real token since we're commenting on a PR in a
           # different repo.
           GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+
+  # publish-sqlc pushes the latest schema to sqlc cloud.
+  # At present these pushes cannot be tagged, so the last push is always the latest.
+  publish-sqlc:
+    name: "Publish to schema sqlc cloud"
+    runs-on: "ubuntu-latest"
+    needs: release
+    if: ${{ !inputs.dry_run }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # We need golang to run the migration main.go
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Setup sqlc
+        uses: ./.github/actions/setup-sqlc
+
+      - name: Push schema to sqlc cloud
+        # Don't block a release on this
+        continue-on-error: true
+        run: |
+          make sqlc-push
