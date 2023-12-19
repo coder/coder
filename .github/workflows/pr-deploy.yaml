@@ -351,6 +351,7 @@ jobs:
       - name: Install/Upgrade Helm chart
         run: |
           set -euo pipefail
+          helm dependency update --skip-refresh ./helm/coder
           helm upgrade --install "pr${{ env.PR_NUMBER }}" ./helm/coder \
           --namespace "pr${{ env.PR_NUMBER }}" \
           --values ./pr-deploy-values.yaml \
