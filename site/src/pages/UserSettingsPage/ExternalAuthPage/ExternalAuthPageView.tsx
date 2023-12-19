@@ -149,6 +149,7 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
           message={authenticated ? "Authenticated" : "Click to Login"}
           externalAuthPollingState={externalAuthPollingState}
           startPollingExternalAuth={startPollingExternalAuth}
+          fullWidth={false}
         />
       </TableCell>
       <TableCell>
