@@ -329,33 +329,33 @@ type TraceConfig struct {
 
 type ExternalAuthConfig struct {
 	// Type is the type of external auth config.
-	Type         string `json:"type"`
-	ClientID     string `json:"client_id"`
+	Type         string `json:"type" yaml:"type"`
+	ClientID     string `json:"client_id" yaml:"client_id"`
 	ClientSecret string `json:"-" yaml:"client_secret"`
 	// ID is a unique identifier for the auth config.
 	// It defaults to `type` when not provided.
-	ID                  string   `json:"id"`
-	AuthURL             string   `json:"auth_url"`
-	TokenURL            string   `json:"token_url"`
-	ValidateURL         string   `json:"validate_url"`
-	AppInstallURL       string   `json:"app_install_url"`
-	AppInstallationsURL string   `json:"app_installations_url"`
-	NoRefresh           bool     `json:"no_refresh"`
-	Scopes              []string `json:"scopes"`
-	ExtraTokenKeys      []string `json:"extra_token_keys"`
-	DeviceFlow          bool     `json:"device_flow"`
-	DeviceCodeURL       string   `json:"device_code_url"`
+	ID                  string   `json:"id" yaml:"id"`
+	AuthURL             string   `json:"auth_url" yaml:"auth_url"`
+	TokenURL            string   `json:"token_url" yaml:"token_url"`
+	ValidateURL         string   `json:"validate_url" yaml:"validate_url"`
+	AppInstallURL       string   `json:"app_install_url" yaml:"app_install_url"`
+	AppInstallationsURL string   `json:"app_installations_url" yaml:"app_installations_url"`
+	NoRefresh           bool     `json:"no_refresh" yaml:"no_refresh"`
+	Scopes              []string `json:"scopes" yaml:"scopes"`
+	ExtraTokenKeys      []string `json:"extra_token_keys" yaml:"extra_token_keys"`
+	DeviceFlow          bool     `json:"device_flow" yaml:"device_flow"`
+	DeviceCodeURL       string   `json:"device_code_url" yaml:"device_code_url"`
 	// Regex allows API requesters to match an auth config by
 	// a string (e.g. coder.com) instead of by it's type.
 	//
 	// Git clone makes use of this by parsing the URL from:
 	// 'Username for "https://github.com":'
 	// And sending it to the Coder server to match against the Regex.
-	Regex string `json:"regex"`
+	Regex string `json:"regex" yaml:"regex"`
 	// DisplayName is shown in the UI to identify the auth config.
-	DisplayName string `json:"display_name"`
+	DisplayName string `json:"display_name" yaml:"display_name"`
 	// DisplayIcon is a URL to an icon to display in the UI.
-	DisplayIcon string `json:"display_icon"`
+	DisplayIcon string `json:"display_icon" yaml:"display_icon"`
 }
 
 type ProvisionerConfig struct {
@@ -1788,7 +1788,7 @@ Write out the current server config as YAML to stdout.`,
 			Description: "External Authentication providers.",
 			// We need extra scrutiny to ensure this works, is documented, and
 			// tested before enabling.
-			// YAML:        "gitAuthProviders",
+			YAML:   "externalAuthProviders",
 			Value:  &c.ExternalAuthConfigs,
 			Hidden: true,
 		},

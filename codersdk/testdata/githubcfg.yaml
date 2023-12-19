@@ -1,0 +1,22 @@
+externalAuthProviders:
+  - type: github
+    client_id: client_id
+    client_secret: client_secret
+    id: id
+    auth_url: https://example.com/auth
+    token_url: https://example.com/token
+    validate_url: https://example.com/validate
+    app_install_url: https://example.com/install
+    app_installations_url: https://example.com/installations
+    no_refresh: true
+    scopes:
+      - user:email
+      - read:org
+    extra_token_keys:
+      - extra
+      - token
+    device_flow: true
+    device_code_url: https://example.com/device
+    regex: ^https://example.com/.*$
+    display_name: GitHub
+    display_icon: /static/icons/github.svg
