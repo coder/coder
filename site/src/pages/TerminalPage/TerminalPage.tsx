@@ -67,7 +67,6 @@ const TerminalPage: FC = () => {
   const workspaceAgent = workspace.data
     ? getMatchingAgentOrFirst(workspace.data, workspaceNameParts?.[1])
     : undefined;
-  const dashboard = useDashboard();
   const selectedProxy = proxy.proxy;
   const latency = selectedProxy ? proxyLatencies[selectedProxy.id] : undefined;
 

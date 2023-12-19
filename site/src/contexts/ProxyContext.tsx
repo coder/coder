@@ -1,7 +1,6 @@
 import { useQuery } from "react-query";
 import { getWorkspaceProxies, getWorkspaceProxyRegions } from "api/api";
 import { Region, WorkspaceProxy } from "api/typesGenerated";
-import { useDashboard } from "components/Dashboard/DashboardProvider";
 import {
   createContext,
   FC,
