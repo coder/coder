@@ -290,11 +290,10 @@ func windowsJoinPath(elem ...string) string {
 // If the path is being resolved within the workspace, the path will be resolved
 // relative to the current working directory.
 func resolveAgentAbsPath(workingDirectory, relOrAbsPath, agentOS string, local bool) (string, error) {
-	if relOrAbsPath == "" {
-		return workingDirectory, nil
-	}
-
 	switch {
+	case relOrAbsPath == "":
+		return workingDirectory, nil
+
 	case relOrAbsPath == "~" || strings.HasPrefix(relOrAbsPath, "~/"):
 		return "", xerrors.Errorf("path %q requires expansion and is not supported, use an absolute path instead", relOrAbsPath)
 
