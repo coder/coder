@@ -23,12 +23,17 @@ func CSRF(secureCookie bool) func(next http.Handler) http.Handler {
 		// All GET requests are exempt by default.
 		mw.ExemptPath("/api/v2/csp/reports")
 
-		// Top level agent routes.
-		mw.ExemptRegexp(regexp.MustCompile("api/v2/workspaceagents/[^/]*$"))
 		// Agent authenticated routes
 		mw.ExemptRegexp(regexp.MustCompile("api/v2/workspaceagents/me/*"))
+		mw.ExemptRegexp(regexp.MustCompile("api/v2/workspaceagents/*"))
+		// Workspace Proxy routes
+		mw.ExemptRegexp(regexp.MustCompile("api/v2/workspaceproxies/me/*"))
 		// Derp routes
 		mw.ExemptRegexp(regexp.MustCompile("derp/*"))
+		// Scim
+		mw.ExemptRegexp(regexp.MustCompile("api/v2/scim/*"))
+		// Provisioner daemon routes
+		mw.ExemptRegexp(regexp.MustCompile("/organizations/[^/]+/provisionerdaemons/*"))
 
 		mw.ExemptFunc(func(r *http.Request) bool {
 			// CSRF only affects requests that automatically attach credentials via a cookie.
