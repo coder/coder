@@ -47,7 +47,8 @@ export default defineConfig({
       // this "Set-Cookie" header. The Vite webserver needs to replicate this
       // behavior. Instead of implementing CSRF though, we just use static
       // values for simplicity.
-      "Set-Cookie":  "csrf_token=JXm9hOUdZctWt0ZZGAy9xiS/gxMKYOThdxjjMnMUyn4=; Path=/; HttpOnly; SameSite=Lax",
+      "Set-Cookie":
+        "csrf_token=JXm9hOUdZctWt0ZZGAy9xiS/gxMKYOThdxjjMnMUyn4=; Path=/; HttpOnly; SameSite=Lax",
     },
     proxy: {
       "/api": {
