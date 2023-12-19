@@ -1,9 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { TemplateInsightsPageView } from "./TemplateInsightsPage";
+import { chromatic } from "testHelpers/chromatic";
 import { MockEntitlementsWithUserLimit } from "testHelpers/entities";
+import { TemplateInsightsPageView } from "./TemplateInsightsPage";
 
 const meta: Meta<typeof TemplateInsightsPageView> = {
   title: "pages/TemplatePage/TemplateInsightsPageView",
+  parameters: { chromatic },
   component: TemplateInsightsPageView,
 };
 

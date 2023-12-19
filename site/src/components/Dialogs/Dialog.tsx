@@ -58,7 +58,7 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
           disabled={disabled}
           type="submit"
           css={[
-            type === "delete" && styles.warningButton,
+            type === "delete" && styles.dangerButton,
             type === "success" && styles.successButton,
           ]}
         >
@@ -70,7 +70,7 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
 };
 
 const styles = {
-  warningButton: (theme) => ({
+  dangerButton: (theme) => ({
     "&.MuiButton-contained": {
       backgroundColor: theme.experimental.roles.danger.fill,
       borderColor: theme.experimental.roles.danger.outline,

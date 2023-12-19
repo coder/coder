@@ -51,7 +51,7 @@ export default {
     danger: {
       background: colors.orange[950],
       outline: colors.orange[500],
-      fill: colors.orange[600],
+      fill: colors.orange[700],
       text: colors.orange[50],
       disabled: {
         background: colors.orange[950],
