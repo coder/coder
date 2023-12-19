@@ -24,40 +24,40 @@ Directory to store cached data.
 
 ### --log-filter
 
-|             |                                             |
-| ----------- | ------------------------------------------- |
-| Type        | <code>string-array</code>                   |
-| Environment | <code>$CODER_PROVISIONERD_LOG_FILTER</code> |
+|             |                                                   |
+| ----------- | ------------------------------------------------- |
+| Type        | <code>string-array</code>                         |
+| Environment | <code>$CODER_PROVISIONER_DAEMON_LOG_FILTER</code> |
 
 Filter debug logs by matching against a given regex. Use .\* to match all debug logs.
 
 ### --log-human
 
-|             |                                            |
-| ----------- | ------------------------------------------ |
-| Type        | <code>string</code>                        |
-| Environment | <code>$CODER_PROVISIONERD_LOG_HUMAN</code> |
-| Default     | <code>/dev/stderr</code>                   |
+|             |                                                      |
+| ----------- | ---------------------------------------------------- |
+| Type        | <code>string</code>                                  |
+| Environment | <code>$CODER_PROVISIONER_DAEMON_LOGGING_HUMAN</code> |
+| Default     | <code>/dev/stderr</code>                             |
 
-Log in human-readable format to the given path.
+Output human-readable logs to a given file.
 
 ### --log-json
 
-|             |                                           |
-| ----------- | ----------------------------------------- |
-| Type        | <code>string</code>                       |
-| Environment | <code>$CODER_PROVISIONERD_LOG_JSON</code> |
+|             |                                                     |
+| ----------- | --------------------------------------------------- |
+| Type        | <code>string</code>                                 |
+| Environment | <code>$CODER_PROVISIONER_DAEMON_LOGGING_JSON</code> |
 
-Log in JSON format to the given path.
+Output JSON logs to a given file.
 
 ### --log-stackdriver
 
-|             |                                                  |
-| ----------- | ------------------------------------------------ |
-| Type        | <code>string</code>                              |
-| Environment | <code>$CODER_PROVISIONERD_LOG_STACKDRIVER</code> |
+|             |                                                            |
+| ----------- | ---------------------------------------------------------- |
+| Type        | <code>string</code>                                        |
+| Environment | <code>$CODER_PROVISIONER_DAEMON_LOGGING_STACKDRIVER</code> |
 
-Log in Stackdriver format to the given path.
+Output Stackdriver compatible logs to a given file.
 
 ### --name
 
@@ -108,10 +108,10 @@ Tags to filter provisioner jobs by.
 
 ### --verbose
 
-|             |                                          |
-| ----------- | ---------------------------------------- |
-| Type        | <code>bool</code>                        |
-| Environment | <code>$CODER_PROVISIONERD_VERBOSE</code> |
-| Default     | <code>false</code>                       |
+|             |                                                |
+| ----------- | ---------------------------------------------- |
+| Type        | <code>bool</code>                              |
+| Environment | <code>$CODER_PROVISIONER_DAEMON_VERBOSE</code> |
+| Default     | <code>false</code>                             |
 
-Enable verbose logging. This is useful for debugging, but can be noisy when running in production.
+Output debug-level logs.
