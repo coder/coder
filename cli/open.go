@@ -236,13 +236,9 @@ func waitForAgentCond(ctx context.Context, client *codersdk.Client, workspace co
 	return workspace, workspaceAgent, xerrors.New("watch workspace: unexpected closed channel")
 }
 
-// isWindowsAbsPath checks if the path is an absolute path on Windows. On Unix
-// systems the check is very simplistic and does not cover edge cases.
+// isWindowsAbsPath does a simplistic check for if the path is an absolute path
+// on Windows. Drive letter or preceding `\` is interpreted as absolute.
 func isWindowsAbsPath(p string) bool {
-	if runtime.GOOS == "windows" {
-		return filepath.IsAbs(p)
-	}
-
 	// Remove the drive letter, if present.
 	if len(p) >= 2 && p[1] == ':' {
 		p = p[2:]
@@ -259,8 +255,7 @@ func isWindowsAbsPath(p string) bool {
 }
 
 // windowsJoinPath joins the elements into a path, using Windows path separator
-// and converting forward slashes to backslashes. On Unix systems a very
-// simplistic join operator is used.
+// and converting forward slashes to backslashes.
 func windowsJoinPath(elem ...string) string {
 	if runtime.GOOS == "windows" {
 		return filepath.Join(elem...)
