@@ -19,9 +19,8 @@ func CSRF(secureCookie bool) func(next http.Handler) http.Handler {
 		mw.SetFailureHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Something is wrong with your CSRF token. Please refresh the page. If this error persists, try clearing your cookies.", http.StatusBadRequest)
 		}))
-
 		// Exempt all requests that do not require CSRF protection.
-		// All GET requests are exempt by default.
+		// All GET requests are exempt by default and no not need to be added here.
 		mw.ExemptPath("/api/v2/csp/reports")
 
 		// Top level agent routes.
@@ -30,6 +29,9 @@ func CSRF(secureCookie bool) func(next http.Handler) http.Handler {
 		mw.ExemptRegexp(regexp.MustCompile("api/v2/workspaceagents/me/*"))
 		// Derp routes
 		mw.ExemptRegexp(regexp.MustCompile("derp/*"))
+		// Some extra non-auth
+		mw.ExemptRegexp(regexp.MustCompile("/externa-auth/*"))
+		mw.ExemptRegexp(regexp.MustCompile("/github/*"))
 
 		mw.ExemptFunc(func(r *http.Request) bool {
 			// CSRF only affects requests that automatically attach credentials via a cookie.
