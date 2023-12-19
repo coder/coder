@@ -8826,7 +8826,6 @@ const docTemplate = `{
         "codersdk.Experiment": {
             "type": "string",
             "enum": [
-                "moons",
                 "workspace_actions",
                 "tailnet_pg_coordinator",
                 "single_tailnet",
@@ -8834,7 +8833,6 @@ const docTemplate = `{
                 "template_update_policies"
             ],
             "x-enum-varnames": [
-                "ExperimentMoons",
                 "ExperimentWorkspaceActions",
                 "ExperimentTailnetPGCoordinator",
                 "ExperimentSingleTailnet",

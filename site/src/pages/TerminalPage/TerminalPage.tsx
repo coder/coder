@@ -312,11 +312,9 @@ const TerminalPage: FC = () => {
           prevLifecycleState.current === "starting" && <LoadedScriptsAlert />}
         {terminalState === "disconnected" && <DisconnectedAlert />}
         <div css={styles.terminal} ref={xtermRef} data-testid="terminal" />
-        {dashboard.experiments.includes("moons") &&
-          selectedProxy &&
-          latency && (
-            <BottomBar proxy={selectedProxy} latency={latency.latencyMS} />
-          )}
+        {selectedProxy && latency && (
+          <BottomBar proxy={selectedProxy} latency={latency.latencyMS} />
+        )}
       </div>
     </>
   );

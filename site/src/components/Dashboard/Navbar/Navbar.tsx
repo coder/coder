@@ -34,9 +34,7 @@ export const Navbar: FC = () => {
       canViewDeployment={canViewDeployment}
       canViewAllUsers={canViewAllUsers}
       canViewHealth={canViewHealth}
-      proxyContextValue={
-        dashboard.experiments.includes("moons") ? proxyContextValue : undefined
-      }
+      proxyContextValue={proxyContextValue}
     />
   );
 };

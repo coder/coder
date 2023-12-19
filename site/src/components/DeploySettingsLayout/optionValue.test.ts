@@ -116,7 +116,7 @@ describe("optionValue", () => {
       option: {
         ...defaultOption,
         name: "Experiments",
-        value: ["*", "moons", "single_tailnet"],
+        value: ["*", "single_tailnet"],
       },
       additionalValues: ["single_tailnet"],
       expected: { moons: true, single_tailnet: true },
