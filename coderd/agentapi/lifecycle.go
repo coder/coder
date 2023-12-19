@@ -3,6 +3,7 @@ package agentapi
 import (
 	"context"
 	"database/sql"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,12 +17,26 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 )
 
+type WorkspaceAgentAPIVersionContextKey struct{}
+
+func WorkspaceAgentAPIVersion(ctx context.Context) string {
+	v, ok := ctx.Value(WorkspaceAgentAPIVersionContextKey{}).(string)
+	if !ok {
+		return AgentAPIVersionDRPC
+	}
+	return v
+}
+
+func SetWorkspaceAgentAPIVersion(ctx context.Context, version string) context.Context {
+	return context.WithValue(ctx, WorkspaceAgentAPIVersionContextKey{}, version)
+}
+
 type LifecycleAPI struct {
 	AgentFn                  func(context.Context) (database.WorkspaceAgent, error)
 	WorkspaceIDFn            func(context.Context, *database.WorkspaceAgent) (uuid.UUID, error)
 	Database                 database.Store
 	Log                      slog.Logger
-	PublishWorkspaceUpdateFn func(context.Context, *database.WorkspaceAgent) error
+	PublishWorkspaceUpdateFn func(context.Context, uuid.UUID)
 
 	TimeNowFn func() time.Time // defaults to dbtime.Now()
 }
@@ -113,10 +128,7 @@ func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.Upda
 	}
 
 	if a.PublishWorkspaceUpdateFn != nil {
-		err = a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent)
-		if err != nil {
-			return nil, xerrors.Errorf("publish workspace update: %w", err)
-		}
+		a.PublishWorkspaceUpdateFn(ctx, workspaceID)
 	}
 
 	return req.Lifecycle, nil
@@ -165,12 +177,20 @@ func (a *LifecycleAPI) UpdateStartup(ctx context.Context, req *agentproto.Update
 		}
 	}
 
+	// Sort subsystems.
+	sort.Slice(dbSubsystems, func(i, j int) bool {
+		return dbSubsystems[i] < dbSubsystems[j]
+	})
+
+	// Get API version from context (or default to DRPC). This is only used when
+	// shimming an old version to this version.
+	apiVersion := WorkspaceAgentAPIVersion(ctx)
 	err = a.Database.UpdateWorkspaceAgentStartupByID(ctx, database.UpdateWorkspaceAgentStartupByIDParams{
 		ID:                workspaceAgent.ID,
 		Version:           req.Startup.Version,
 		ExpandedDirectory: req.Startup.ExpandedDirectory,
 		Subsystems:        dbSubsystems,
-		APIVersion:        AgentAPIVersionDRPC,
+		APIVersion:        apiVersion,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("update workspace agent startup in database: %w", err)

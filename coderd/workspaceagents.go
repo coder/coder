@@ -23,7 +23,6 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
-	"golang.org/x/mod/semver"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
@@ -252,16 +251,23 @@ const AgentAPIVersionREST = "1.0"
 func (api *API) postWorkspaceAgentStartup(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
-	apiAgent, err := db2sdk.WorkspaceAgent(
-		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, nil, nil, nil, api.AgentInactiveDisconnectTimeout,
-		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
-	)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error reading workspace agent.",
-			Detail:  err.Error(),
-		})
-		return
+
+	// As this API becomes deprecated, use the new protobuf API and convert the
+	// types back to the SDK types.
+	lifecycleAPI := &agentapi.LifecycleAPI{
+		AgentFn: func(_ context.Context) (database.WorkspaceAgent, error) { return workspaceAgent, nil },
+		WorkspaceIDFn: func(ctx context.Context, wa *database.WorkspaceAgent) (uuid.UUID, error) {
+			ws, err := api.Database.GetWorkspaceByAgentID(ctx, wa.ID)
+			if err != nil {
+				return uuid.Nil, err
+			}
+			return ws.Workspace.ID, nil
+		},
+		Database: api.Database,
+		Log:      api.Logger,
+		PublishWorkspaceUpdateFn: func(ctx context.Context, workspaceID uuid.UUID) {
+			api.publishWorkspaceUpdate(ctx, workspaceID)
+		},
 	}
 
 	var req agentsdk.PostStartupRequest
@@ -269,51 +275,36 @@ func (api *API) postWorkspaceAgentStartup(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	api.Logger.Debug(
-		ctx,
-		"post workspace agent version",
-		slog.F("agent_id", apiAgent.ID),
-		slog.F("agent_version", req.Version),
-		slog.F("remote_addr", r.RemoteAddr),
-	)
-
-	if !semver.IsValid(req.Version) {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid workspace agent version provided.",
-			Detail:  fmt.Sprintf("invalid semver version: %q", req.Version),
-		})
-		return
-	}
-
-	// Validate subsystems.
-	seen := make(map[codersdk.AgentSubsystem]bool)
-	for _, s := range req.Subsystems {
-		if !s.Valid() {
+	// Convert subsystems.
+	protoSubsystems := make([]agentproto.Startup_Subsystem, len(req.Subsystems))
+	for i, s := range req.Subsystems {
+		switch s {
+		case codersdk.AgentSubsystemEnvbox:
+			protoSubsystems[i] = agentproto.Startup_ENVBOX
+		case codersdk.AgentSubsystemEnvbuilder:
+			protoSubsystems[i] = agentproto.Startup_ENVBUILDER
+		case codersdk.AgentSubsystemExectrace:
+			protoSubsystems[i] = agentproto.Startup_EXECTRACE
+		default:
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid workspace agent subsystem provided.",
 				Detail:  fmt.Sprintf("invalid subsystem: %q", s),
 			})
 			return
 		}
-		if seen[s] {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid workspace agent subsystem provided.",
-				Detail:  fmt.Sprintf("duplicate subsystem: %q", s),
-			})
-			return
-		}
-		seen[s] = true
 	}
 
-	if err := api.Database.UpdateWorkspaceAgentStartupByID(ctx, database.UpdateWorkspaceAgentStartupByIDParams{
-		ID:                apiAgent.ID,
-		Version:           req.Version,
-		ExpandedDirectory: req.ExpandedDirectory,
-		Subsystems:        convertWorkspaceAgentSubsystems(req.Subsystems),
-		APIVersion:        AgentAPIVersionREST,
-	}); err != nil {
+	ctx = agentapi.SetWorkspaceAgentAPIVersion(ctx, AgentAPIVersionREST)
+	_, err := lifecycleAPI.UpdateStartup(ctx, &agentproto.UpdateStartupRequest{
+		Startup: &agentproto.Startup{
+			Version:           req.Version,
+			ExpandedDirectory: req.ExpandedDirectory,
+			Subsystems:        protoSubsystems,
+		},
+	})
+	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Error setting agent version",
+			Message: "Internal error updating workspace agent startup.",
 			Detail:  err.Error(),
 		})
 		return

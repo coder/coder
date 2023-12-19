@@ -74,9 +74,8 @@ func TestUpdateLifecycle(t *testing.T) {
 			},
 			Database: dbM,
 			Log:      slogtest.Make(t, nil),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent) error {
+			PublishWorkspaceUpdateFn: func(context.Context, uuid.UUID) {
 				atomic.AddInt64(&publishCalled, 1)
-				return nil
 			},
 		}
 
@@ -161,9 +160,8 @@ func TestUpdateLifecycle(t *testing.T) {
 			},
 			Database: dbM,
 			Log:      slogtest.Make(t, nil),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent) error {
+			PublishWorkspaceUpdateFn: func(context.Context, uuid.UUID) {
 				atomic.AddInt64(&publishCalled, 1)
-				return nil
 			},
 		}
 
@@ -244,9 +242,8 @@ func TestUpdateLifecycle(t *testing.T) {
 			},
 			Database: dbM,
 			Log:      slogtest.Make(t, nil),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent) error {
+			PublishWorkspaceUpdateFn: func(context.Context, uuid.UUID) {
 				atomic.AddInt64(&publishCalled, 1)
-				return nil
 			},
 		}
 
@@ -318,9 +315,8 @@ func TestUpdateLifecycle(t *testing.T) {
 			},
 			Database: dbM,
 			Log:      slogtest.Make(t, nil),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent) error {
+			PublishWorkspaceUpdateFn: func(context.Context, uuid.UUID) {
 				atomic.AddInt64(&publishCalled, 1)
-				return nil
 			},
 		}
 

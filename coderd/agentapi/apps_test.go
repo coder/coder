@@ -21,7 +21,8 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 	t.Parallel()
 
 	var (
-		agent = database.WorkspaceAgent{
+		workspaceID = uuid.New()
+		agent       = database.WorkspaceAgent{
 			ID: uuid.New(),
 		}
 		app1 = database.WorkspaceApp{
@@ -61,11 +62,13 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
+			WorkspaceIDFn: func(context.Context, *database.WorkspaceAgent) (uuid.UUID, error) {
+				return workspaceID, nil
+			},
 			Database: dbM,
 			Log:      slogtest.Make(t, nil),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent) error {
+			PublishWorkspaceUpdateFn: func(context.Context, uuid.UUID) {
 				atomic.AddInt64(&publishCalled, 1)
-				return nil
 			},
 		}
 
@@ -99,11 +102,13 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
+			WorkspaceIDFn: func(context.Context, *database.WorkspaceAgent) (uuid.UUID, error) {
+				return workspaceID, nil
+			},
 			Database: dbM,
 			Log:      slogtest.Make(t, nil),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent) error {
+			PublishWorkspaceUpdateFn: func(context.Context, uuid.UUID) {
 				atomic.AddInt64(&publishCalled, 1)
-				return nil
 			},
 		}
 
@@ -138,11 +143,13 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
+			WorkspaceIDFn: func(context.Context, *database.WorkspaceAgent) (uuid.UUID, error) {
+				return workspaceID, nil
+			},
 			Database: dbM,
 			Log:      slogtest.Make(t, nil),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent) error {
+			PublishWorkspaceUpdateFn: func(context.Context, uuid.UUID) {
 				atomic.AddInt64(&publishCalled, 1)
-				return nil
 			},
 		}
 
@@ -173,6 +180,9 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
+			WorkspaceIDFn: func(context.Context, *database.WorkspaceAgent) (uuid.UUID, error) {
+				return workspaceID, nil
+			},
 			Database:                 dbM,
 			Log:                      slogtest.Make(t, nil),
 			PublishWorkspaceUpdateFn: nil,
@@ -201,6 +211,9 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 		api := &agentapi.AppsAPI{
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
+			},
+			WorkspaceIDFn: func(context.Context, *database.WorkspaceAgent) (uuid.UUID, error) {
+				return workspaceID, nil
 			},
 			Database:                 dbM,
 			Log:                      slogtest.Make(t, nil),
@@ -231,6 +244,9 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 		api := &agentapi.AppsAPI{
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
+			},
+			WorkspaceIDFn: func(context.Context, *database.WorkspaceAgent) (uuid.UUID, error) {
+				return workspaceID, nil
 			},
 			Database:                 dbM,
 			Log:                      slogtest.Make(t, nil),

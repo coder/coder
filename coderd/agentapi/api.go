@@ -114,14 +114,15 @@ func New(opts Options) *API {
 		WorkspaceIDFn:            api.workspaceID,
 		Database:                 opts.Database,
 		Log:                      opts.Log,
-		PublishWorkspaceUpdateFn: api.publishWorkspaceUpdate,
+		PublishWorkspaceUpdateFn: opts.PublishWorkspaceUpdateFn,
 	}
 
 	api.AppsAPI = &AppsAPI{
 		AgentFn:                  api.agent,
+		WorkspaceIDFn:            api.workspaceID,
 		Database:                 opts.Database,
 		Log:                      opts.Log,
-		PublishWorkspaceUpdateFn: api.publishWorkspaceUpdate,
+		PublishWorkspaceUpdateFn: opts.PublishWorkspaceUpdateFn,
 	}
 
 	api.MetadataAPI = &MetadataAPI{
@@ -133,9 +134,10 @@ func New(opts Options) *API {
 
 	api.LogsAPI = &LogsAPI{
 		AgentFn:                           api.agent,
+		WorkspaceIDFn:                     api.workspaceID,
 		Database:                          opts.Database,
 		Log:                               opts.Log,
-		PublishWorkspaceUpdateFn:          api.publishWorkspaceUpdate,
+		PublishWorkspaceUpdateFn:          opts.PublishWorkspaceUpdateFn,
 		PublishWorkspaceAgentLogsUpdateFn: opts.PublishWorkspaceAgentLogsUpdateFn,
 	}
 
@@ -209,14 +211,4 @@ func (a *API) workspaceID(ctx context.Context, agent *database.WorkspaceAgent) (
 	a.cachedWorkspaceID = getWorkspaceAgentByIDRow.Workspace.ID
 	a.mu.Unlock()
 	return getWorkspaceAgentByIDRow.Workspace.ID, nil
-}
-
-func (a *API) publishWorkspaceUpdate(ctx context.Context, agent *database.WorkspaceAgent) error {
-	workspaceID, err := a.workspaceID(ctx, agent)
-	if err != nil {
-		return err
-	}
-
-	a.opts.PublishWorkspaceUpdateFn(ctx, workspaceID)
-	return nil
 }

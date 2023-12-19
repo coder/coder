@@ -26,7 +26,8 @@ func TestBatchCreateLogs(t *testing.T) {
 	t.Parallel()
 
 	var (
-		agent = database.WorkspaceAgent{
+		workspaceID = uuid.New()
+		agent       = database.WorkspaceAgent{
 			ID: uuid.New(),
 		}
 		logSource = database.WorkspaceAgentLogSource{
@@ -48,11 +49,13 @@ func TestBatchCreateLogs(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
+			WorkspaceIDFn: func(context.Context, *database.WorkspaceAgent) (uuid.UUID, error) {
+				return workspaceID, nil
+			},
 			Database: dbM,
 			Log:      slogtest.Make(t, nil),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent) error {
+			PublishWorkspaceUpdateFn: func(context.Context, uuid.UUID) {
 				atomic.AddInt64(&publishWorkspaceUpdateCalled, 1)
-				return nil
 			},
 			PublishWorkspaceAgentLogsUpdateFn: func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage) {
 				atomic.AddInt64(&publishWorkspaceAgentLogsUpdateCalled, 1)
@@ -152,11 +155,13 @@ func TestBatchCreateLogs(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agentWithLogs, nil
 			},
+			WorkspaceIDFn: func(context.Context, *database.WorkspaceAgent) (uuid.UUID, error) {
+				return workspaceID, nil
+			},
 			Database: dbM,
 			Log:      slogtest.Make(t, nil),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent) error {
+			PublishWorkspaceUpdateFn: func(context.Context, uuid.UUID) {
 				atomic.AddInt64(&publishWorkspaceUpdateCalled, 1)
-				return nil
 			},
 			PublishWorkspaceAgentLogsUpdateFn: func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage) {
 				atomic.AddInt64(&publishWorkspaceAgentLogsUpdateCalled, 1)
@@ -200,11 +205,13 @@ func TestBatchCreateLogs(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return overflowedAgent, nil
 			},
+			WorkspaceIDFn: func(context.Context, *database.WorkspaceAgent) (uuid.UUID, error) {
+				return workspaceID, nil
+			},
 			Database: dbM,
 			Log:      slogtest.Make(t, nil),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent) error {
+			PublishWorkspaceUpdateFn: func(context.Context, uuid.UUID) {
 				atomic.AddInt64(&publishWorkspaceUpdateCalled, 1)
-				return nil
 			},
 			PublishWorkspaceAgentLogsUpdateFn: func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage) {
 				atomic.AddInt64(&publishWorkspaceAgentLogsUpdateCalled, 1)
@@ -230,6 +237,9 @@ func TestBatchCreateLogs(t *testing.T) {
 		api := &agentapi.LogsAPI{
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
+			},
+			WorkspaceIDFn: func(context.Context, *database.WorkspaceAgent) (uuid.UUID, error) {
+				return workspaceID, nil
 			},
 			Database: dbM,
 			Log:      slogtest.Make(t, nil),
@@ -293,11 +303,13 @@ func TestBatchCreateLogs(t *testing.T) {
 				AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 					return agent, nil
 				},
+				WorkspaceIDFn: func(context.Context, *database.WorkspaceAgent) (uuid.UUID, error) {
+					return workspaceID, nil
+				},
 				Database: dbM,
 				Log:      slogtest.Make(t, nil),
-				PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent) error {
+				PublishWorkspaceUpdateFn: func(context.Context, uuid.UUID) {
 					atomic.AddInt64(&publishWorkspaceUpdateCalled, 1)
-					return nil
 				},
 				PublishWorkspaceAgentLogsUpdateFn: func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage) {
 					atomic.AddInt64(&publishWorkspaceAgentLogsUpdateCalled, 1)
@@ -337,11 +349,13 @@ func TestBatchCreateLogs(t *testing.T) {
 				AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 					return agent, nil
 				},
+				WorkspaceIDFn: func(context.Context, *database.WorkspaceAgent) (uuid.UUID, error) {
+					return workspaceID, nil
+				},
 				Database: dbM,
 				Log:      slogtest.Make(t, nil),
-				PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent) error {
+				PublishWorkspaceUpdateFn: func(context.Context, uuid.UUID) {
 					atomic.AddInt64(&publishWorkspaceUpdateCalled, 1)
-					return nil
 				},
 				PublishWorkspaceAgentLogsUpdateFn: func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage) {
 					atomic.AddInt64(&publishWorkspaceAgentLogsUpdateCalled, 1)
@@ -384,11 +398,13 @@ func TestBatchCreateLogs(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
+			WorkspaceIDFn: func(context.Context, *database.WorkspaceAgent) (uuid.UUID, error) {
+				return workspaceID, nil
+			},
 			Database: dbM,
 			Log:      slogtest.Make(t, nil),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent) error {
+			PublishWorkspaceUpdateFn: func(context.Context, uuid.UUID) {
 				atomic.AddInt64(&publishWorkspaceUpdateCalled, 1)
-				return nil
 			},
 			PublishWorkspaceAgentLogsUpdateFn: func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage) {
 				atomic.AddInt64(&publishWorkspaceAgentLogsUpdateCalled, 1)

@@ -1431,12 +1431,14 @@ func TestWorkspaceAgent_Startup(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		err := agentClient.PostStartup(ctx, agentsdk.PostStartupRequest{
-			Version: "1.2.3",
+			Version: "1.2.3", // missing "v"
 		})
 		require.Error(t, err)
 		cerr, ok := codersdk.AsError(err)
 		require.True(t, ok)
-		require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
+		// This is supposed to be a 400, but during the deprecation phase it
+		// will be a 500 due to it calling the proto API.
+		require.Equal(t, http.StatusInternalServerError, cerr.StatusCode())
 	})
 }
 

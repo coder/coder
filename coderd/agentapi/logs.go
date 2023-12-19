@@ -16,9 +16,10 @@ import (
 
 type LogsAPI struct {
 	AgentFn                           func(context.Context) (database.WorkspaceAgent, error)
+	WorkspaceIDFn                     func(context.Context, *database.WorkspaceAgent) (uuid.UUID, error)
 	Database                          database.Store
 	Log                               slog.Logger
-	PublishWorkspaceUpdateFn          func(context.Context, *database.WorkspaceAgent) error
+	PublishWorkspaceUpdateFn          func(context.Context, uuid.UUID)
 	PublishWorkspaceAgentLogsUpdateFn func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage)
 
 	TimeNowFn func() time.Time // defaults to dbtime.Now()
@@ -46,6 +47,11 @@ func (a *LogsAPI) BatchCreateLogs(ctx context.Context, req *agentproto.BatchCrea
 	logSourceID, err := uuid.FromBytes(req.LogSourceId)
 	if err != nil {
 		return nil, xerrors.Errorf("parse log source ID %q: %w", req.LogSourceId, err)
+	}
+
+	workspaceID, err := a.WorkspaceIDFn(ctx, &workspaceAgent)
+	if err != nil {
+		return nil, err
 	}
 
 	// This is to support the legacy API where the log source ID was
@@ -123,10 +129,7 @@ func (a *LogsAPI) BatchCreateLogs(ctx context.Context, req *agentproto.BatchCrea
 		}
 
 		if a.PublishWorkspaceUpdateFn != nil {
-			err = a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent)
-			if err != nil {
-				return nil, xerrors.Errorf("publish workspace update: %w", err)
-			}
+			a.PublishWorkspaceUpdateFn(ctx, workspaceID)
 		}
 		return nil, xerrors.New("workspace agent log limit exceeded")
 	}
@@ -143,10 +146,7 @@ func (a *LogsAPI) BatchCreateLogs(ctx context.Context, req *agentproto.BatchCrea
 	if workspaceAgent.LogsLength == 0 && a.PublishWorkspaceUpdateFn != nil {
 		// If these are the first logs being appended, we publish a UI update
 		// to notify the UI that logs are now available.
-		err = a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent)
-		if err != nil {
-			return nil, xerrors.Errorf("publish workspace update: %w", err)
-		}
+		a.PublishWorkspaceUpdateFn(ctx, workspaceID)
 	}
 
 	return &agentproto.BatchCreateLogsResponse{}, nil

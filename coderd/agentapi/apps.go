@@ -13,9 +13,10 @@ import (
 
 type AppsAPI struct {
 	AgentFn                  func(context.Context) (database.WorkspaceAgent, error)
+	WorkspaceIDFn            func(context.Context, *database.WorkspaceAgent) (uuid.UUID, error)
 	Database                 database.Store
 	Log                      slog.Logger
-	PublishWorkspaceUpdateFn func(context.Context, *database.WorkspaceAgent) error
+	PublishWorkspaceUpdateFn func(context.Context, uuid.UUID)
 }
 
 func (a *AppsAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.BatchUpdateAppHealthRequest) (*agentproto.BatchUpdateAppHealthResponse, error) {
@@ -91,10 +92,11 @@ func (a *AppsAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.Bat
 	}
 
 	if a.PublishWorkspaceUpdateFn != nil && len(newApps) > 0 {
-		err = a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent)
+		workspaceID, err := a.WorkspaceIDFn(ctx, &workspaceAgent)
 		if err != nil {
-			return nil, xerrors.Errorf("publish workspace update: %w", err)
+			return nil, err
 		}
+		a.PublishWorkspaceUpdateFn(ctx, workspaceID)
 	}
 	return &agentproto.BatchUpdateAppHealthResponse{}, nil
 }
