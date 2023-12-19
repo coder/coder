@@ -220,7 +220,11 @@ func (c *Client) WatchWorkspace(ctx context.Context, id uuid.UUID) (<-chan Works
 				if err != nil {
 					return
 				}
-				wc <- ws
+				select {
+				case <-ctx.Done():
+					return
+				case wc <- ws:
+				}
 			}
 		}
 	}()

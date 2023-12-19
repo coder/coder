@@ -43,7 +43,7 @@ func (r *RootCmd) openVSCode() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "vscode <workspace> [<directory in workspace>]",
-		Short:       "Open a workspace in Visual Studio Code",
+		Short:       fmt.Sprintf("Open a workspace in %s", vscodeDesktopName),
 		Middleware: clibase.Chain(
 			clibase.RequireRangeArgs(1, 2),
 			r.InitClient(client),
@@ -73,18 +73,12 @@ func (r *RootCmd) openVSCode() *clibase.Cmd {
 			insideThisWorkspace := insideAWorkspace && inWorkspaceName == workspaceName
 
 			if !insideThisWorkspace {
-				// We could optionally add a flag to skip wait, like with SSH.
-				wait := false
-				for _, script := range workspaceAgent.Scripts {
-					if script.StartBlocksLogin {
-						wait = true
-						break
-					}
-				}
+				// Wait for the agent to connect, we don't care about readiness
+				// otherwise (e.g. wait).
 				err = cliui.Agent(ctx, inv.Stderr, workspaceAgent.ID, cliui.AgentOptions{
 					Fetch:     client.WorkspaceAgent,
-					FetchLogs: client.WorkspaceAgentLogsAfter,
-					Wait:      wait,
+					FetchLogs: nil,
+					Wait:      false,
 				})
 				if err != nil {
 					if xerrors.Is(err, context.Canceled) {
@@ -93,55 +87,33 @@ func (r *RootCmd) openVSCode() *clibase.Cmd {
 					return xerrors.Errorf("agent: %w", err)
 				}
 
-				// If the ExpandedDirectory was initially missing, it could mean
-				// that the agent hadn't reported it in yet. Retry once.
-				if workspaceAgent.ExpandedDirectory == "" {
-					autostart = false // Don't retry autostart.
-					workspace, workspaceAgent, err = getWorkspaceAndAgent(ctx, inv, client, autostart, codersdk.Me, workspaceName)
+				// The agent will report it's expanded directory before leaving
+				// the created state, so we need to wait for that to happen.
+				// However, if no directory is set, the expanded directory will
+				// not be set either.
+				if workspaceAgent.Directory != "" {
+					workspace, workspaceAgent, err = waitForAgentCond(ctx, client, workspace, workspaceAgent, func(a codersdk.WorkspaceAgent) bool {
+						return workspaceAgent.LifecycleState != codersdk.WorkspaceAgentLifecycleCreated
+					})
 					if err != nil {
-						return xerrors.Errorf("get workspace and agent retry: %w", err)
+						return xerrors.Errorf("wait for agent: %w", err)
 					}
 				}
 			}
 
-			directory := workspaceAgent.ExpandedDirectory // Empty unless agent directory is set.
+			var directory string
 			if len(inv.Args) > 1 {
-				d := inv.Args[1]
-
-				switch {
-				case insideThisWorkspace:
-					// TODO(mafredri): Return error if directory doesn't exist?
-					directory, err = filepath.Abs(d)
-					if err != nil {
-						return xerrors.Errorf("expand directory: %w", err)
-					}
-
-				case d == "~" || strings.HasPrefix(d, "~/"):
-					return xerrors.Errorf("path %q requires expansion and is not supported, use an absolute path instead", d)
-
-				case workspaceAgent.OperatingSystem == "windows":
-					switch {
-					case directory != "" && !isWindowsAbsPath(d):
-						directory = windowsJoinPath(directory, d)
-					case isWindowsAbsPath(d):
-						directory = d
-					default:
-						return xerrors.Errorf("path %q not supported, use an absolute path instead", d)
-					}
-
-				// Note that we use `path` instead of `filepath` since we want Unix behavior.
-				case directory != "" && !path.IsAbs(d):
-					directory = path.Join(directory, d)
-				case path.IsAbs(d):
-					directory = d
-				default:
-					return xerrors.Errorf("path %q not supported, use an absolute path instead", d)
-				}
+				directory = inv.Args[1]
+			}
+			directory, err = resolveAgentAbsPath(workspaceAgent.ExpandedDirectory, directory, workspaceAgent.OperatingSystem, insideThisWorkspace)
+			if err != nil {
+				return xerrors.Errorf("resolve agent path: %w", err)
 			}
 
-			u, err := url.Parse("vscode://coder.coder-remote/open")
-			if err != nil {
-				return xerrors.Errorf("parse vscode URI: %w", err)
+			u := &url.URL{
+				Scheme: "vscode",
+				Host:   "coder.coder-remote",
+				Path:   "/open",
 			}
 
 			qp := url.Values{}
@@ -190,6 +162,16 @@ func (r *RootCmd) openVSCode() *clibase.Cmd {
 			}
 			if err != nil {
 				if !generateToken {
+					// This is not an important step, so we don't want
+					// to block the user here.
+					token := qp.Get("token")
+					wait := doAsync(func() {
+						// Best effort, we don't care if this fails.
+						apiKeyID := strings.SplitN(token, "-", 2)[0]
+						_ = client.DeleteAPIKey(ctx, codersdk.Me, apiKeyID)
+					})
+					defer wait()
+
 					qp.Del("token")
 					u.RawQuery = qp.Encode()
 				}
@@ -226,19 +208,50 @@ func (r *RootCmd) openVSCode() *clibase.Cmd {
 	return cmd
 }
 
+// waitForAgentCond uses the watch workspace API to update the agent information
+// until the condition is met.
+func waitForAgentCond(ctx context.Context, client *codersdk.Client, workspace codersdk.Workspace, workspaceAgent codersdk.WorkspaceAgent, cond func(codersdk.WorkspaceAgent) bool) (codersdk.Workspace, codersdk.WorkspaceAgent, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	if cond(workspaceAgent) {
+		return workspace, workspaceAgent, nil
+	}
+
+	wc, err := client.WatchWorkspace(ctx, workspace.ID)
+	if err != nil {
+		return workspace, workspaceAgent, xerrors.Errorf("watch workspace: %w", err)
+	}
+
+	for workspace = range wc {
+		workspaceAgent, err = getWorkspaceAgent(workspace, workspaceAgent.Name)
+		if err != nil {
+			return workspace, workspaceAgent, xerrors.Errorf("get workspace agent: %w", err)
+		}
+		if cond(workspaceAgent) {
+			return workspace, workspaceAgent, nil
+		}
+	}
+
+	return workspace, workspaceAgent, xerrors.New("watch workspace: unexpected closed channel")
+}
+
 // isWindowsAbsPath checks if the path is an absolute path on Windows. On Unix
 // systems the check is very simplistic and does not cover edge cases.
-//
-//nolint:revive // Shadow path variable for readability.
-func isWindowsAbsPath(path string) bool {
+func isWindowsAbsPath(p string) bool {
 	if runtime.GOOS == "windows" {
-		return filepath.IsAbs(path)
+		return filepath.IsAbs(p)
 	}
 
 	switch {
-	case len(path) >= 2 && path[1] == ':':
+	case len(p) < 2:
+		return false
+	case p[1] == ':':
 		// Path starts with a drive letter.
-		return len(path) == 2 || (len(path) >= 4 && path[2] == '\\' && path[3] == '\\')
+		return len(p) == 2 || (len(p) >= 3 && p[2] == '\\')
+	case p[0] == '\\' && p[1] == '\\':
+		// Path starts with \\.
+		return true
 	default:
 		return false
 	}
@@ -262,7 +275,62 @@ func windowsJoinPath(elem ...string) string {
 			s = e
 			continue
 		}
-		s += "\\" + strings.TrimSuffix(s, "\\")
+		s += "\\" + strings.TrimSuffix(e, "\\")
 	}
 	return s
+}
+
+// resolveAgentAbsPath resolves the absolute path to a file or directory in the
+// workspace. If the path is relative, it will be resolved relative to the
+// workspace's expanded directory. If the path is absolute, it will be returned
+// as-is. If the path is relative and the workspace directory is not expanded,
+// an error will be returned.
+//
+// If the path is being resolved within the workspace, the path will be resolved
+// relative to the current working directory.
+func resolveAgentAbsPath(workingDirectory, relOrAbsPath, agentOS string, local bool) (string, error) {
+	if relOrAbsPath == "" {
+		return workingDirectory, nil
+	}
+
+	switch {
+	case relOrAbsPath == "~" || strings.HasPrefix(relOrAbsPath, "~/"):
+		return "", xerrors.Errorf("path %q requires expansion and is not supported, use an absolute path instead", relOrAbsPath)
+
+	case local:
+		p, err := filepath.Abs(relOrAbsPath)
+		if err != nil {
+			return "", xerrors.Errorf("expand path: %w", err)
+		}
+		return p, nil
+
+	case agentOS == "windows":
+		switch {
+		case workingDirectory != "" && !isWindowsAbsPath(relOrAbsPath):
+			return windowsJoinPath(workingDirectory, relOrAbsPath), nil
+		case isWindowsAbsPath(relOrAbsPath):
+			return relOrAbsPath, nil
+		default:
+			return "", xerrors.Errorf("path %q not supported, use an absolute path instead", relOrAbsPath)
+		}
+
+	// Note that we use `path` instead of `filepath` since we want Unix behavior.
+	case workingDirectory != "" && !path.IsAbs(relOrAbsPath):
+		return path.Join(workingDirectory, relOrAbsPath), nil
+	case path.IsAbs(relOrAbsPath):
+		return relOrAbsPath, nil
+	default:
+		return "", xerrors.Errorf("path %q not supported, use an absolute path instead", relOrAbsPath)
+	}
+}
+
+func doAsync(f func()) (wait func()) {
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		f()
+	}()
+	return func() {
+		<-done
+	}
 }
