@@ -13,7 +13,6 @@ import "xterm/css/xterm.css";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { pageTitle } from "utils/page";
 import { useProxy } from "contexts/ProxyContext";
-import { useDashboard } from "components/Dashboard/DashboardProvider";
 import type { Region } from "api/typesGenerated";
 import { getLatencyColor } from "utils/latency";
 import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency";
