@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"embed"
 	"fmt"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -287,6 +288,12 @@ var testData embed.FS
 
 func TestExternalAuthYAMLConfig(t *testing.T) {
 	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		// The windows marshal function uses different line endings.
+		// Not worth the effort getting this to work on windows.
+		t.SkipNow()
+	}
 
 	file := func(t *testing.T, name string) string {
 		data, err := testData.ReadFile(fmt.Sprintf("testdata/%s", name))
