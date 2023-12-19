@@ -1,6 +1,6 @@
 import { type FC } from "react";
 import type { WorkspaceResource } from "api/typesGenerated";
-import { ExternalIcon } from "components/ExternalIcon/ExternalIcon";
+import { Avatar, AvatarIcon } from "components/Avatar/Avatar";
 
 const FALLBACK_ICON = "/icon/widgets.svg";
 
@@ -28,5 +28,9 @@ export type ResourceAvatarProps = { resource: WorkspaceResource };
 export const ResourceAvatar: FC<ResourceAvatarProps> = ({ resource }) => {
   const avatarSrc = resource.icon || getIconPathResource(resource.type);
 
-  return <ExternalIcon src={avatarSrc} alt={resource.name} />;
+  return (
+    <Avatar background>
+      <AvatarIcon src={avatarSrc} alt={resource.name} />
+    </Avatar>
+  );
 };

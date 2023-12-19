@@ -14,8 +14,9 @@ import type {
   ExternalAuthLink,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Avatar } from "components/Avatar/Avatar";
+import { AvatarData } from "components/AvatarData/AvatarData";
 import { FullScreenLoader } from "components/Loader/FullScreenLoader";
-import { Stack } from "components/Stack/Stack";
 import {
   MoreMenu,
   MoreMenuContent,
@@ -24,10 +25,7 @@ import {
   ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
 import { ExternalAuth } from "pages/CreateWorkspacePage/ExternalAuth";
-import type { ExternalAuthPollingState } from "pages/CreateWorkspacePage/CreateWorkspacePage";
-import { ExternalIcon } from "components/ExternalIcon/ExternalIcon";
-
-const FALLBACK_ICON = "/icon/widgets.svg";
+import { ExternalAuthPollingState } from "pages/CreateWorkspacePage/CreateWorkspacePage";
 
 export type ExternalAuthPageViewProps = {
   isLoading: boolean;
@@ -131,13 +129,14 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
   return (
     <TableRow key={name}>
       <TableCell>
-        <Stack direction="row" alignItems="center">
-          <ExternalIcon
-            title={app.display_name || app.id}
-            src={app.display_icon || FALLBACK_ICON}
-          />
-          <span>{app.display_name}</span>
-        </Stack>
+        <AvatarData
+          title={app.display_name || app.id}
+          avatar={
+            app.display_icon && (
+              <Avatar src={app.display_icon} variant="square" fitImage />
+            )
+          }
+        />
       </TableCell>
       <TableCell>
         <ExternalAuth
@@ -150,7 +149,6 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
           message={authenticated ? "Authenticated" : "Click to Login"}
           externalAuthPollingState={externalAuthPollingState}
           startPollingExternalAuth={startPollingExternalAuth}
-          fullWidth={false}
         />
       </TableCell>
       <TableCell>
