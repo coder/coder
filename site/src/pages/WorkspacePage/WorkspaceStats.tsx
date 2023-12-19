@@ -87,7 +87,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
           css={styles.statsItem}
           label="Version"
           value={
-            <>
+            <span css={{ display: "flex", alignItems: "center", gap: 4 }}>
               <Link
                 component={RouterLink}
                 to={`/templates/${workspace.template_name}/versions/${workspace.latest_build.template_version_name}`}
@@ -103,7 +103,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
                   ariaLabel="update version"
                 />
               )}
-            </>
+            </span>
           }
         />
 

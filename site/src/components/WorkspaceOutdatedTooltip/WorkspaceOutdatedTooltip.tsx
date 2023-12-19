@@ -4,7 +4,7 @@ import Skeleton from "@mui/material/Skeleton";
 import Link from "@mui/material/Link";
 import { type FC } from "react";
 import { useQuery } from "react-query";
-import { type Interpolation, type Theme, css, useTheme } from "@emotion/react";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import { templateVersion } from "api/queries/templates";
 import {
   HelpTooltip,
@@ -37,7 +37,7 @@ export const WorkspaceOutdatedTooltip: FC<TooltipProps> = (props) => {
       <HelpTooltipTrigger
         size="small"
         aria-label="More info"
-        css={styles.button}
+        hoverEffect={false}
       >
         <InfoIcon css={styles.icon} />
       </HelpTooltipTrigger>
@@ -112,14 +112,6 @@ const styles = {
   icon: (theme) => ({
     color: theme.experimental.roles.notice.outline,
   }),
-
-  button: css`
-    opacity: 1;
-
-    &:hover {
-      opacity: 1;
-    }
-  `,
 
   container: {
     display: "flex",

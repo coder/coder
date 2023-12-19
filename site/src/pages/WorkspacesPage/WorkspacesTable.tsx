@@ -146,7 +146,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                         title={
                           <Stack
                             direction="row"
-                            spacing={0}
+                            spacing={0.5}
                             alignItems="center"
                           >
                             {workspace.name}
