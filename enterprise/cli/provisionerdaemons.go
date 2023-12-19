@@ -13,6 +13,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
 	agpl "github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/clilog"
@@ -105,6 +106,11 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 			}
 
 			logger, closeLogger, err := clilog.New(logOpts...).Build(inv)
+			if err != nil {
+				// Fall back to a basic logger
+				logger = slog.Make(sloghuman.Sink(inv.Stderr))
+				logger.Error(ctx, "failed to initialize logger", slog.Error(err))
+			}
 			defer closeLogger()
 
 			if len(tags) != 0 {
