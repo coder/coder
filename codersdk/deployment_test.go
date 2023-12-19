@@ -1,6 +1,7 @@
 package codersdk_test
 
 import (
+	"bytes"
 	"embed"
 	"fmt"
 	"strings"
@@ -312,44 +313,40 @@ func TestExternalAuthYAMLConfig(t *testing.T) {
 		DisplayIcon:         "/static/icons/github.svg",
 	}
 
-	testCases := []struct {
-		Name     string
-		YAML     string
-		Expected []codersdk.ExternalAuthConfig
-	}{
-		{
-			Name: "GitHub",
-			// Just load the GitHub config twice to test loading 2
-			YAML: func() string {
-				f := file(t, "githubcfg.yaml")
-				lines := strings.SplitN(f, "\n", 2)
-				// Append github config twice
-				return f + "\n" + lines[1]
-			}(),
-			Expected: []codersdk.ExternalAuthConfig{
-				githubCfg, githubCfg,
-			},
-		},
+	// Input the github section twice for testing a slice of configs.
+	inputYAML := func() string {
+		f := file(t, "githubcfg.yaml")
+		lines := strings.SplitN(f, "\n", 2)
+		// Append github config twice
+		return f + lines[1]
+	}()
+
+	expected := []codersdk.ExternalAuthConfig{
+		githubCfg, githubCfg,
 	}
 
-	for _, c := range testCases {
-		c := c
-		t.Run(c.Name, func(t *testing.T) {
-			t.Parallel()
+	dv := codersdk.DeploymentValues{}
+	opts := dv.Options()
+	// replace any tabs with the proper space indentation
+	inputYAML = strings.ReplaceAll(inputYAML, "\t", "  ")
 
-			dv := codersdk.DeploymentValues{}
-			opts := dv.Options()
-			c.YAML = strings.ReplaceAll(c.YAML, "\t", "  ")
+	// This is the order things are done in the cli, so just
+	// keep it the same.
+	var n yaml.Node
+	err := yaml.Unmarshal([]byte(inputYAML), &n)
+	require.NoError(t, err)
 
-			// This is the order things are done in the cli, so just
-			// keep it the same.
-			var n yaml.Node
-			err := yaml.Unmarshal([]byte(c.YAML), &n)
-			require.NoError(t, err)
+	err = n.Decode(&opts)
+	require.NoError(t, err)
+	require.ElementsMatchf(t, expected, dv.ExternalAuthConfigs.Value, "from yaml")
 
-			err = n.Decode(&opts)
-			require.NoError(t, err)
-			require.ElementsMatchf(t, c.Expected, dv.ExternalAuthConfigs.Value, "from yaml")
-		})
-	}
+	var out bytes.Buffer
+	enc := yaml.NewEncoder(&out)
+	enc.SetIndent(2)
+	err = enc.Encode(dv.ExternalAuthConfigs)
+	require.NoError(t, err)
+
+	// Because we only marshal the 1 section, the correct section name is not applied.
+	output := strings.Replace(out.String(), "value:", "externalAuthProviders:", 1)
+	require.Equal(t, inputYAML, output, "re-marshaled is the same as input")
 }
