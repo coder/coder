@@ -42,7 +42,7 @@ import { useTheme } from "@mui/material/styles";
 import PersonOutlineOutlined from "@mui/icons-material/PersonOutlineOutlined";
 import LayersOutlined from "@mui/icons-material/LayersOutlined";
 import {
-  OutdatedTooltipContent,
+  WorkspaceOutdatedTooltipContent,
   WorkspaceOutdatedTooltip,
 } from "components/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
 import {
@@ -215,18 +215,23 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
             {workspace.outdated ? (
               <Popover mode="hover">
                 <PopoverTrigger>
-                  <span css={{ color: theme.palette.warning.light }}>
+                  <span
+                    css={{
+                      color: theme.palette.warning.light,
+                      cursor: "pointer",
+                      display: "block",
+                      padding: "8px 0",
+                    }}
+                  >
                     {workspace.latest_build.template_version_name}
                   </span>
                 </PopoverTrigger>
-                <PopoverContent>
-                  <OutdatedTooltipContent
-                    templateName={workspace.template_name}
-                    latestVersionId={workspace.template_active_version_id}
-                    onUpdateVersion={handleUpdate}
-                    ariaLabel="update version"
-                  />
-                </PopoverContent>
+                <WorkspaceOutdatedTooltipContent
+                  templateName={workspace.template_name}
+                  latestVersionId={workspace.template_active_version_id}
+                  onUpdateVersion={handleUpdate}
+                  ariaLabel="update version"
+                />
               </Popover>
             ) : (
               <span css={{ color: theme.palette.text.secondary }}>
