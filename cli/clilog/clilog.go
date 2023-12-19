@@ -19,15 +19,17 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-type Option func(*Builder)
-type Builder struct {
-	Filter      []string
-	Human       string
-	JSON        string
-	Stackdriver string
-	Trace       bool
-	Verbose     bool
-}
+type (
+	Option  func(*Builder)
+	Builder struct {
+		Filter      []string
+		Human       string
+		JSON        string
+		Stackdriver string
+		Trace       bool
+		Verbose     bool
+	}
+)
 
 func New(opts ...Option) *Builder {
 	b := &Builder{
