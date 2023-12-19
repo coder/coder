@@ -10,7 +10,7 @@ tags: [vm, linux, gcp, devcontainer]
 # Remote Development in a Devcontainer on Google Compute Engine
 
 ## Prerequisites
-
+![Architecture Diagram](./architecture.svg)
 ### Authentication
 
 This template assumes that coderd is run in an environment that is authenticated
