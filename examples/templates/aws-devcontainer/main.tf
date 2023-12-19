@@ -79,7 +79,7 @@ resource "coder_agent" "dev" {
   arch               = "amd64"
   auth               = "token"
   os                 = "linux"
-  dir                = "/workspaces"
+  dir                = "/workspaces/${trimsuffix(basename(data.coder_parameter.repo_url.value), ".git")}"
   connection_timeout = 0
 
   metadata {
