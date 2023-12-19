@@ -8,8 +8,10 @@ import UserIcon from "@mui/icons-material/PersonOutline";
 import { Role } from "api/typesGenerated";
 import {
   HelpTooltip,
+  HelpTooltipContent,
   HelpTooltipText,
   HelpTooltipTitle,
+  HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import {
   Popover,
@@ -101,11 +103,14 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
 
   if (!canSetRoles) {
     return (
-      <HelpTooltip size="small">
-        <HelpTooltipTitle>Externally controlled</HelpTooltipTitle>
-        <HelpTooltipText>
-          Roles for this user are controlled by the OIDC identity provider.
-        </HelpTooltipText>
+      <HelpTooltip>
+        <HelpTooltipTrigger size="small" />
+        <HelpTooltipContent>
+          <HelpTooltipTitle>Externally controlled</HelpTooltipTitle>
+          <HelpTooltipText>
+            Roles for this user are controlled by the OIDC identity provider.
+          </HelpTooltipText>
+        </HelpTooltipContent>
       </HelpTooltip>
     );
   }

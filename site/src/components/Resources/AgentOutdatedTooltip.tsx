@@ -1,10 +1,10 @@
-import { type ComponentProps, type FC } from "react";
+import { type FC } from "react";
 import { useTheme } from "@emotion/react";
 import RefreshIcon from "@mui/icons-material/RefreshOutlined";
 import {
-  HelpPopover,
+  HelpTooltip,
   HelpTooltipAction,
-  HelpTooltipContext,
+  HelpTooltipContent,
   HelpTooltipLinksGroup,
   HelpTooltipText,
   HelpTooltipTitle,
@@ -12,8 +12,9 @@ import {
 import type { WorkspaceAgent } from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
 import { agentVersionStatus } from "../../utils/workspace";
+import { PopoverTrigger } from "components/Popover/Popover";
 
-type AgentOutdatedTooltipProps = ComponentProps<typeof HelpPopover> & {
+type AgentOutdatedTooltipProps = {
   agent: WorkspaceAgent;
   serverVersion: string;
   status: agentVersionStatus;
@@ -25,11 +26,6 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
   serverVersion,
   status,
   onUpdate,
-  onOpen,
-  id,
-  open,
-  onClose,
-  anchorEl,
 }) => {
   const theme = useTheme();
   const versionLabelStyles = {
@@ -50,14 +46,13 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
     "To fix this, you can stop and start the workspace.";
 
   return (
-    <HelpPopover
-      id={id}
-      open={open}
-      anchorEl={anchorEl}
-      onOpen={onOpen}
-      onClose={onClose}
-    >
-      <HelpTooltipContext.Provider value={{ open, onClose }}>
+    <HelpTooltip>
+      <PopoverTrigger>
+        <span role="status" css={{ cursor: "pointer" }}>
+          {status === agentVersionStatus.Outdated ? "Outdated" : "Deprecated"}
+        </span>
+      </PopoverTrigger>
+      <HelpTooltipContent>
         <Stack spacing={1}>
           <div>
             <HelpTooltipTitle>{title}</HelpTooltipTitle>
@@ -84,7 +79,7 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
             </HelpTooltipAction>
           </HelpTooltipLinksGroup>
         </Stack>
-      </HelpTooltipContext.Provider>
-    </HelpPopover>
+      </HelpTooltipContent>
+    </HelpTooltip>
   );
 };

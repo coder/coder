@@ -38,11 +38,9 @@ export const Sidebar: FC = () => {
       <SidebarNavItem href="network" icon={Globe}>
         Network
       </SidebarNavItem>
-      {dashboard.experiments.includes("moons") && (
-        <SidebarNavItem href="workspace-proxies" icon={HubOutlinedIcon}>
-          Workspace Proxies
-        </SidebarNavItem>
-      )}
+      <SidebarNavItem href="workspace-proxies" icon={HubOutlinedIcon}>
+        Workspace Proxies
+      </SidebarNavItem>
       <SidebarNavItem href="security" icon={LockRounded}>
         Security
       </SidebarNavItem>

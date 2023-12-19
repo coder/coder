@@ -28,10 +28,12 @@ import {
 } from "components/TableLoader/TableLoader";
 import {
   HelpTooltip,
+  HelpTooltipContent,
   HelpTooltipLink,
   HelpTooltipLinksGroup,
   HelpTooltipText,
   HelpTooltipTitle,
+  HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { EmptyTemplates } from "./EmptyTemplates";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
@@ -63,13 +65,16 @@ export const Language = {
 const TemplateHelpTooltip: FC = () => {
   return (
     <HelpTooltip>
-      <HelpTooltipTitle>{Language.templateTooltipTitle}</HelpTooltipTitle>
-      <HelpTooltipText>{Language.templateTooltipText}</HelpTooltipText>
-      <HelpTooltipLinksGroup>
-        <HelpTooltipLink href={docs("/templates")}>
-          {Language.templateTooltipLink}
-        </HelpTooltipLink>
-      </HelpTooltipLinksGroup>
+      <HelpTooltipTrigger />
+      <HelpTooltipContent>
+        <HelpTooltipTitle>{Language.templateTooltipTitle}</HelpTooltipTitle>
+        <HelpTooltipText>{Language.templateTooltipText}</HelpTooltipText>
+        <HelpTooltipLinksGroup>
+          <HelpTooltipLink href={docs("/templates")}>
+            {Language.templateTooltipLink}
+          </HelpTooltipLink>
+        </HelpTooltipLinksGroup>
+      </HelpTooltipContent>
     </HelpTooltip>
   );
 };

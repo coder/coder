@@ -708,6 +708,27 @@ test:
 	gotestsum --format standard-quiet -- -v -short -count=1 ./...
 .PHONY: test
 
+# sqlc-cloud-is-setup will fail if no SQLc auth token is set. Use this as a
+# dependency for any sqlc-cloud related targets.
+sqlc-cloud-is-setup:
+	if [[ "$(SQLC_AUTH_TOKEN)" == "" ]]; then
+		echo "ERROR: 'SQLC_AUTH_TOKEN' must be set to auth with sqlc cloud before running verify." 1>&2
+		exit 1
+	fi
+.PHONY: sqlc-cloud-is-setup
+
+sqlc-push: sqlc-cloud-is-setup test-postgres-docker
+	echo "--- sqlc push"
+	SQLC_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/$(shell go run scripts/migrate-ci/main.go)" \
+	sqlc push -f coderd/database/sqlc.yaml && echo "Passed sqlc push"
+.PHONY: sqlc-push
+
+sqlc-verify: sqlc-cloud-is-setup test-postgres-docker
+	echo "--- sqlc verify"
+	SQLC_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/$(shell go run scripts/migrate-ci/main.go)" \
+	sqlc verify -f coderd/database/sqlc.yaml && echo "Passed sqlc verify"
+.PHONY: sqlc-verify
+
 sqlc-vet: test-postgres-docker
 	echo "--- sqlc vet"
 	SQLC_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/$(shell go run scripts/migrate-ci/main.go)" \
