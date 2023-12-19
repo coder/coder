@@ -62,6 +62,10 @@ func IsNotAuthorizedError(err error) bool {
 	if err == nil {
 		return false
 	}
+	if xerrors.Is(err, NoActorError) {
+		return true
+	}
+
 	return xerrors.As(err, &NotAuthorizedError{})
 }
 
@@ -228,6 +232,7 @@ var (
 					rbac.ResourceOrganization.Type:       {rbac.ActionCreate},
 					rbac.ResourceOrganizationMember.Type: {rbac.ActionCreate},
 					rbac.ResourceOrgRoleAssignment.Type:  {rbac.ActionCreate},
+					rbac.ResourceProvisionerDaemon.Type:  {rbac.ActionCreate, rbac.ActionUpdate},
 					rbac.ResourceUser.Type:               {rbac.ActionCreate, rbac.ActionUpdate, rbac.ActionDelete},
 					rbac.ResourceUserData.Type:           {rbac.ActionCreate, rbac.ActionUpdate},
 					rbac.ResourceWorkspace.Type:          {rbac.ActionUpdate},
@@ -1338,7 +1343,7 @@ func (q *querier) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUID) 
 func (q *querier) GetTemplateAppInsights(ctx context.Context, arg database.GetTemplateAppInsightsParams) ([]database.GetTemplateAppInsightsRow, error) {
 	// Used by TemplateAppInsights endpoint
 	// For auditors, check read template_insights, and fall back to update template.
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplateInsights); IsNotAuthorizedError(err) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplateInsights); err != nil {
 		for _, templateID := range arg.TemplateIDs {
 			template, err := q.db.GetTemplateByID(ctx, templateID)
 			if err != nil {
@@ -1393,7 +1398,7 @@ func (q *querier) GetTemplateDAUs(ctx context.Context, arg database.GetTemplateD
 func (q *querier) GetTemplateInsights(ctx context.Context, arg database.GetTemplateInsightsParams) (database.GetTemplateInsightsRow, error) {
 	// Used by TemplateInsights endpoint
 	// For auditors, check read template_insights, and fall back to update template.
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplateInsights); IsNotAuthorizedError(err) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplateInsights); err != nil {
 		for _, templateID := range arg.TemplateIDs {
 			template, err := q.db.GetTemplateByID(ctx, templateID)
 			if err != nil {
@@ -1416,7 +1421,7 @@ func (q *querier) GetTemplateInsights(ctx context.Context, arg database.GetTempl
 func (q *querier) GetTemplateInsightsByInterval(ctx context.Context, arg database.GetTemplateInsightsByIntervalParams) ([]database.GetTemplateInsightsByIntervalRow, error) {
 	// Used by TemplateInsights endpoint
 	// For auditors, check read template_insights, and fall back to update template.
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplateInsights); IsNotAuthorizedError(err) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplateInsights); err != nil {
 		for _, templateID := range arg.TemplateIDs {
 			template, err := q.db.GetTemplateByID(ctx, templateID)
 			if err != nil {
@@ -1447,7 +1452,7 @@ func (q *querier) GetTemplateInsightsByTemplate(ctx context.Context, arg databas
 func (q *querier) GetTemplateParameterInsights(ctx context.Context, arg database.GetTemplateParameterInsightsParams) ([]database.GetTemplateParameterInsightsRow, error) {
 	// Used by both insights endpoint and prometheus collector.
 	// For auditors, check read template_insights, and fall back to update template.
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplateInsights); IsNotAuthorizedError(err) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplateInsights); err != nil {
 		for _, templateID := range arg.TemplateIDs {
 			template, err := q.db.GetTemplateByID(ctx, templateID)
 			if err != nil {
@@ -1620,7 +1625,7 @@ func (q *querier) GetUnexpiredLicenses(ctx context.Context) ([]database.License,
 
 func (q *querier) GetUserActivityInsights(ctx context.Context, arg database.GetUserActivityInsightsParams) ([]database.GetUserActivityInsightsRow, error) {
 	// Used by insights endpoints. Need to check both for auditors and for regular users with template acl perms.
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplateInsights); IsNotAuthorizedError(err) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplateInsights); err != nil {
 		for _, templateID := range arg.TemplateIDs {
 			template, err := q.db.GetTemplateByID(ctx, templateID)
 			if err != nil {
@@ -1657,7 +1662,7 @@ func (q *querier) GetUserCount(ctx context.Context) (int64, error) {
 
 func (q *querier) GetUserLatencyInsights(ctx context.Context, arg database.GetUserLatencyInsightsParams) ([]database.GetUserLatencyInsightsRow, error) {
 	// Used by insights endpoints. Need to check both for auditors and for regular users with template acl perms.
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplateInsights); IsNotAuthorizedError(err) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplateInsights); err != nil {
 		for _, templateID := range arg.TemplateIDs {
 			template, err := q.db.GetTemplateByID(ctx, templateID)
 			if err != nil {
@@ -2266,10 +2271,12 @@ func (q *querier) InsertWorkspaceAgent(ctx context.Context, arg database.InsertW
 }
 
 func (q *querier) InsertWorkspaceAgentLogSources(ctx context.Context, arg database.InsertWorkspaceAgentLogSourcesParams) ([]database.WorkspaceAgentLogSource, error) {
+	// TODO: This is used by the agent, should we have an rbac check here?
 	return q.db.InsertWorkspaceAgentLogSources(ctx, arg)
 }
 
 func (q *querier) InsertWorkspaceAgentLogs(ctx context.Context, arg database.InsertWorkspaceAgentLogsParams) ([]database.WorkspaceAgentLog, error) {
+	// TODO: This is used by the agent, should we have an rbac check here?
 	return q.db.InsertWorkspaceAgentLogs(ctx, arg)
 }
 
@@ -2491,6 +2498,13 @@ func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemb
 	}
 
 	return q.db.UpdateMemberRoles(ctx, arg)
+}
+
+func (q *querier) UpdateProvisionerDaemonLastSeenAt(ctx context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceProvisionerDaemon); err != nil {
+		return err
+	}
+	return q.db.UpdateProvisionerDaemonLastSeenAt(ctx, arg)
 }
 
 // TODO: We need to create a ProvisionerJob resource type

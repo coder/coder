@@ -17,6 +17,7 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -185,7 +186,7 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 				}
 			}
 
-			apiAgent, err := convertWorkspaceAgent(
+			apiAgent, err := db2sdk.WorkspaceAgent(
 				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, convertProvisionedApps(dbApps), convertScripts(dbScripts), convertLogSources(dbLogSources), api.AgentInactiveDisconnectTimeout,
 				api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 			)

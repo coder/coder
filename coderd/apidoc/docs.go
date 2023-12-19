@@ -5269,6 +5269,28 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/me/rpc": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Workspace agent RPC API",
+                "operationId": "workspace-agent-rpc-api",
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/workspaceagents/me/startup": {
             "post": {
                 "security": [
@@ -8558,6 +8580,9 @@ const docTemplate = `{
                 "agent_stat_refresh_interval": {
                     "type": "integer"
                 },
+                "allow_workspace_renames": {
+                    "type": "boolean"
+                },
                 "autobuild_poll_interval": {
                     "type": "integer"
                 },
@@ -11443,6 +11468,9 @@ const docTemplate = `{
         "codersdk.Workspace": {
             "type": "object",
             "properties": {
+                "allow_renames": {
+                    "type": "boolean"
+                },
                 "automatic_updates": {
                     "enum": [
                         "always",

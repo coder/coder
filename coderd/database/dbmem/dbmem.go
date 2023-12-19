@@ -880,7 +880,7 @@ func (q *FakeQuerier) AllUserIDs(_ context.Context) ([]uuid.UUID, error) {
 	defer q.mutex.RUnlock()
 	userIDs := make([]uuid.UUID, 0, len(q.users))
 	for idx := range q.users {
-		userIDs[idx] = q.users[idx].ID
+		userIDs = append(userIDs, q.users[idx].ID)
 	}
 	return userIDs, nil
 }
@@ -5943,6 +5943,28 @@ func (q *FakeQuerier) UpdateMemberRoles(_ context.Context, arg database.UpdateMe
 	}
 
 	return database.OrganizationMember{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateProvisionerDaemonLastSeenAt(_ context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for idx := range q.provisionerDaemons {
+		if q.provisionerDaemons[idx].ID != arg.ID {
+			continue
+		}
+		if q.provisionerDaemons[idx].LastSeenAt.Time.After(arg.LastSeenAt.Time) {
+			continue
+		}
+		q.provisionerDaemons[idx].LastSeenAt = arg.LastSeenAt
+		return nil
+	}
+	return sql.ErrNoRows
 }
 
 func (q *FakeQuerier) UpdateProvisionerJobByID(_ context.Context, arg database.UpdateProvisionerJobByIDParams) error {

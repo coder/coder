@@ -3057,6 +3057,26 @@ func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDa
 	return items, nil
 }
 
+const updateProvisionerDaemonLastSeenAt = `-- name: UpdateProvisionerDaemonLastSeenAt :exec
+UPDATE provisioner_daemons
+SET
+	last_seen_at = $1
+WHERE
+	id = $2
+AND
+	last_seen_at <= $1
+`
+
+type UpdateProvisionerDaemonLastSeenAtParams struct {
+	LastSeenAt sql.NullTime `db:"last_seen_at" json:"last_seen_at"`
+	ID         uuid.UUID    `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateProvisionerDaemonLastSeenAt(ctx context.Context, arg UpdateProvisionerDaemonLastSeenAtParams) error {
+	_, err := q.db.ExecContext(ctx, updateProvisionerDaemonLastSeenAt, arg.LastSeenAt, arg.ID)
+	return err
+}
+
 const upsertProvisionerDaemon = `-- name: UpsertProvisionerDaemon :one
 INSERT INTO
 	provisioner_daemons (
@@ -3078,7 +3098,7 @@ VALUES (
 	$5,
 	$6,
 	$7
-) ON CONFLICT("name", lower((tags ->> 'owner'::text))) DO UPDATE SET
+) ON CONFLICT("name", LOWER(COALESCE(tags ->> 'owner'::text, ''::text))) DO UPDATE SET
 	provisioners = $3,
 	tags = $4,
 	last_seen_at = $5,

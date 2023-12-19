@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -155,16 +156,16 @@ func (pf *templateUploadFlags) templateName(args []string) (string, error) {
 
 func (r *RootCmd) templatePush() *clibase.Cmd {
 	var (
-		versionName     string
-		provisioner     string
-		workdir         string
-		variablesFile   string
-		variables       []string
-		alwaysPrompt    bool
-		provisionerTags []string
-		uploadFlags     templateUploadFlags
-		activate        bool
-		create          bool
+		versionName          string
+		provisioner          string
+		workdir              string
+		variablesFile        string
+		commandLineVariables []string
+		alwaysPrompt         bool
+		provisionerTags      []string
+		uploadFlags          templateUploadFlags
+		activate             bool
+		create               bool
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -213,15 +214,21 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				return err
 			}
 
+			userVariableValues, err := ParseUserVariableValues(
+				variablesFile,
+				commandLineVariables)
+			if err != nil {
+				return err
+			}
+
 			args := createValidTemplateVersionArgs{
-				Message:         message,
-				Client:          client,
-				Organization:    organization,
-				Provisioner:     codersdk.ProvisionerType(provisioner),
-				FileID:          resp.ID,
-				ProvisionerTags: tags,
-				VariablesFile:   variablesFile,
-				Variables:       variables,
+				Message:            message,
+				Client:             client,
+				Organization:       organization,
+				Provisioner:        codersdk.ProvisionerType(provisioner),
+				FileID:             resp.ID,
+				ProvisionerTags:    tags,
+				UserVariableValues: userVariableValues,
 			}
 
 			if !createTemplate {
@@ -291,12 +298,12 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 		{
 			Flag:        "variable",
 			Description: "Specify a set of values for Terraform-managed variables.",
-			Value:       clibase.StringArrayOf(&variables),
+			Value:       clibase.StringArrayOf(&commandLineVariables),
 		},
 		{
 			Flag:        "var",
 			Description: "Alias of --variable.",
-			Value:       clibase.StringArrayOf(&variables),
+			Value:       clibase.StringArrayOf(&commandLineVariables),
 		},
 		{
 			Flag:        "provisioner-tag",
@@ -329,4 +336,21 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 	}
 	cmd.Options = append(cmd.Options, uploadFlags.options()...)
 	return cmd
+}
+
+// prettyDirectoryPath returns a prettified path when inside the users
+// home directory. Falls back to dir if the users home directory cannot
+// discerned. This function calls filepath.Clean on the result.
+func prettyDirectoryPath(dir string) string {
+	dir = filepath.Clean(dir)
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return dir
+	}
+	prettyDir := dir
+	if strings.HasPrefix(prettyDir, homeDir) {
+		prettyDir = strings.TrimPrefix(prettyDir, homeDir)
+		prettyDir = "~" + prettyDir
+	}
+	return prettyDir
 }

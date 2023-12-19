@@ -139,7 +139,7 @@ func (c *connIO) handleRequest(req *proto.CoordinateRequest) error {
 	}
 	if req.AddTunnel != nil {
 		c.logger.Debug(c.peerCtx, "got add tunnel", slog.F("tunnel", req.AddTunnel))
-		dst, err := uuid.FromBytes(req.AddTunnel.Uuid)
+		dst, err := uuid.FromBytes(req.AddTunnel.Id)
 		if err != nil {
 			c.logger.Error(c.peerCtx, "unable to convert bytes to UUID", slog.Error(err))
 			// this shouldn't happen unless there is a client error.  Close the connection so the client
@@ -163,7 +163,7 @@ func (c *connIO) handleRequest(req *proto.CoordinateRequest) error {
 	}
 	if req.RemoveTunnel != nil {
 		c.logger.Debug(c.peerCtx, "got remove tunnel", slog.F("tunnel", req.RemoveTunnel))
-		dst, err := uuid.FromBytes(req.RemoveTunnel.Uuid)
+		dst, err := uuid.FromBytes(req.RemoveTunnel.Id)
 		if err != nil {
 			c.logger.Error(c.peerCtx, "unable to convert bytes to UUID", slog.Error(err))
 			// this shouldn't happen unless there is a client error.  Close the connection so the client
