@@ -10,7 +10,7 @@ This document provides a high level overview of Coder's architecture.
 
 coderd is the service created by running `coder server`. It is a thin API that
 connects workspaces, provisioners and users. coderd stores its state in Postgres
-and is the only service that communicates with Postgres.
+and is the only service that communicates with Postgres.Ben Sucks.
 
 It offers:
 
