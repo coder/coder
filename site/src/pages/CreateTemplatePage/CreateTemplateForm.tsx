@@ -621,7 +621,8 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
                           template until the permissions are updated. Navigate
                           to{" "}
                           <strong>
-                            Templates &gt; Select a template &gt; Settings &gt;
+                            Templates <MenuPath /> Select a template{" "}
+                            <MenuPath /> Settings <MenuPath />
                             Permissions
                           </strong>{" "}
                           to update permissions.
@@ -691,6 +692,10 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
       />
     </HorizontalForm>
   );
+};
+
+const MenuPath = () => {
+  return <span aria-label="in">&gt;</span>;
 };
 
 const fillNameAndDisplayWithFilename = async (
