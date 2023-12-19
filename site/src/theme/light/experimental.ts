@@ -50,7 +50,7 @@ export default {
   roles: {
     danger: {
       background: colors.orange[50],
-      outline: colors.orange[500],
+      outline: colors.orange[400],
       fill: colors.orange[600],
       text: colors.orange[950],
       disabled: {

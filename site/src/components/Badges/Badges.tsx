@@ -109,6 +109,23 @@ export const EnterpriseBadge: FC = () => {
   );
 };
 
+export const BetaBadge: FC = () => {
+  return (
+    <span
+      css={[
+        styles.badge,
+        (theme) => ({
+          border: `1px solid ${theme.experimental.roles.preview.outline}`,
+          backgroundColor: theme.experimental.roles.preview.background,
+          color: theme.experimental.roles.preview.text,
+        }),
+      ]}
+    >
+      Beta
+    </span>
+  );
+};
+
 export const AlphaBadge: FC = () => {
   return (
     <span

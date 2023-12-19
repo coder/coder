@@ -12,7 +12,7 @@ export interface Theme extends MuiTheme {
   monaco: monaco.editor.IStandaloneThemeData;
 }
 
-export const DEFAULT_THEME = "auto";
+export const DEFAULT_THEME = "dark";
 
 const theme = {
   dark,

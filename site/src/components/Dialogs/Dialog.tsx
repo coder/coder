@@ -72,24 +72,24 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
 const styles = {
   warningButton: (theme) => ({
     "&.MuiButton-contained": {
-      backgroundColor: theme.palette.warning.main,
-      borderColor: theme.palette.warning.main,
+      backgroundColor: theme.experimental.roles.danger.fill,
+      borderColor: theme.experimental.roles.danger.outline,
 
       "&:not(.MuiLoadingButton-loading)": {
-        color: theme.palette.text.primary,
+        color: theme.experimental.roles.danger.text,
       },
 
       "&:hover:not(:disabled)": {
-        backgroundColor: theme.palette.warning.main,
-        borderColor: theme.palette.warning.main,
+        backgroundColor: theme.experimental.roles.danger.disabled.fill,
+        borderColor: theme.experimental.roles.danger.disabled.outline,
       },
 
       "&.Mui-disabled": {
-        backgroundColor: theme.palette.warning.dark,
-        borderColor: theme.palette.warning.dark,
+        backgroundColor: theme.experimental.roles.danger.disabled.background,
+        borderColor: theme.experimental.roles.danger.disabled.outline,
 
         "&:not(.MuiLoadingButton-loading)": {
-          color: theme.palette.warning.main,
+          color: theme.experimental.roles.danger.disabled.text,
         },
       },
     },
