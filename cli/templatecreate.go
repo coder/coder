@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -46,6 +47,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
+<<<<<<< HEAD
 			isTemplateSchedulingOptionsSet := failureTTL != 0 || dormancyThreshold != 0 || dormancyAutoDeletion != 0 || maxTTL != 0
 
 			if isTemplateSchedulingOptionsSet || requireActiveVersion {
@@ -79,6 +81,19 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 						return xerrors.Errorf("your license is not entitled to use enterprise access control, so you cannot set --require-active-version")
 					}
 				}
+=======
+			err := handleEntitlements(inv.Context(), handleEntitlementsArgs{
+				client:               client,
+				requireActiveVersion: requireActiveVersion,
+				defaultTTL:           defaultTTL,
+				failureTTL:           failureTTL,
+				dormancyThreshold:    dormancyThreshold,
+				dormancyAutoDeletion: dormancyAutoDeletion,
+				maxTTL:               maxTTL,
+			})
+			if err != nil {
+				return err
+>>>>>>> 7b0afe8e9 (fix: make template push a superset of template create)
 			}
 
 			organization, err := CurrentOrganization(inv, client)
@@ -356,4 +371,62 @@ func ParseProvisionerTags(rawTags []string) (map[string]string, error) {
 		tags[parts[0]] = parts[1]
 	}
 	return tags, nil
+}
+
+type handleEntitlementsArgs struct {
+	client               *codersdk.Client
+	requireActiveVersion bool
+	defaultTTL           time.Duration
+	failureTTL           time.Duration
+	dormancyThreshold    time.Duration
+	dormancyAutoDeletion time.Duration
+	maxTTL               time.Duration
+}
+
+func handleEntitlements(ctx context.Context, args handleEntitlementsArgs) error {
+	isTemplateSchedulingOptionsSet := args.failureTTL != 0 || args.dormancyThreshold != 0 || args.dormancyAutoDeletion != 0 || args.maxTTL != 0
+
+	if isTemplateSchedulingOptionsSet || args.requireActiveVersion {
+		if args.failureTTL != 0 || args.dormancyThreshold != 0 || args.dormancyAutoDeletion != 0 {
+			// This call can be removed when workspace_actions is no longer experimental
+			experiments, exErr := args.client.Experiments(ctx)
+			if exErr != nil {
+				return xerrors.Errorf("get experiments: %w", exErr)
+			}
+
+			if !experiments.Enabled(codersdk.ExperimentWorkspaceActions) {
+				return xerrors.Errorf("--failure-ttl, --dormancy-threshold, and --dormancy-auto-deletion are experimental features. Use the workspace_actions CODER_EXPERIMENTS flag to set these configuration values.")
+			}
+		}
+
+		entitlements, err := args.client.Entitlements(ctx)
+		if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusNotFound {
+			return xerrors.Errorf("your deployment appears to be an AGPL deployment, so you cannot set enterprise-only flags")
+		} else if err != nil {
+			return xerrors.Errorf("get entitlements: %w", err)
+		}
+
+		if isTemplateSchedulingOptionsSet {
+			if !entitlements.Features[codersdk.FeatureAdvancedTemplateScheduling].Enabled {
+				return xerrors.Errorf("your license is not entitled to use advanced template scheduling, so you cannot set --failure-ttl, --inactivity-ttl, or --max-ttl")
+			}
+		}
+
+		if args.requireActiveVersion {
+			if !entitlements.Features[codersdk.FeatureAccessControl].Enabled {
+				return xerrors.Errorf("your license is not entitled to use enterprise access control, so you cannot set --require-active-version")
+			}
+
+			experiments, exErr := args.client.Experiments(ctx)
+			if exErr != nil {
+				return xerrors.Errorf("get experiments: %w", exErr)
+			}
+
+			if !experiments.Enabled(codersdk.ExperimentTemplateUpdatePolicies) {
+				return xerrors.Errorf("--require-active-version is an experimental feature, contact an administrator to enable the 'template_update_policies' experiment on your Coder server")
+			}
+		}
+	}
+
+	return nil
 }

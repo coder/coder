@@ -2,12 +2,15 @@ package cli
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/briandowns/spinner"
 	"golang.org/x/xerrors"
@@ -158,14 +161,20 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 	var (
 		versionName          string
 		provisioner          string
-		workdir              string
 		variablesFile        string
 		commandLineVariables []string
 		alwaysPrompt         bool
 		provisionerTags      []string
 		uploadFlags          templateUploadFlags
 		activate             bool
-		create               bool
+
+		requireActiveVersion bool
+		disableEveryone      bool
+		defaultTTL           time.Duration
+		failureTTL           time.Duration
+		dormancyThreshold    time.Duration
+		dormancyAutoDeletion time.Duration
+		maxTTL               time.Duration
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -176,7 +185,18 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
-			uploadFlags.setWorkdir(workdir)
+			err := handleEntitlements(inv.Context(), handleEntitlementsArgs{
+				client:               client,
+				requireActiveVersion: requireActiveVersion,
+				defaultTTL:           defaultTTL,
+				failureTTL:           failureTTL,
+				dormancyThreshold:    dormancyThreshold,
+				dormancyAutoDeletion: dormancyAutoDeletion,
+				maxTTL:               maxTTL,
+			})
+			if err != nil {
+				return err
+			}
 
 			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
@@ -188,10 +208,15 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				return err
 			}
 
+			if utf8.RuneCountInString(name) > 31 {
+				return xerrors.Errorf("Template name must be less than 32 characters")
+			}
+
 			var createTemplate bool
 			template, err := client.TemplateByName(inv.Context(), organization.ID, name)
 			if err != nil {
-				if !create {
+				var apiError *codersdk.Error
+				if errors.As(err, &apiError) && apiError.StatusCode() != http.StatusNotFound {
 					return err
 				}
 				createTemplate = true
@@ -268,6 +293,48 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				}
 			}
 
+			editTemplate := requireActiveVersion ||
+				disableEveryone ||
+				defaultTTL != 0 ||
+				failureTTL != 0 ||
+				dormancyThreshold != 0 ||
+				dormancyAutoDeletion != 0 ||
+				maxTTL != 0
+			if editTemplate {
+				if defaultTTL == 0 {
+					defaultTTL = time.Duration(template.DefaultTTLMillis) * time.Millisecond
+				}
+				if failureTTL == 0 {
+					failureTTL = time.Duration(template.FailureTTLMillis) * time.Millisecond
+				}
+				if dormancyThreshold == 0 {
+					dormancyThreshold = time.Duration(template.TimeTilDormantMillis) * time.Millisecond
+				}
+				if dormancyAutoDeletion == 0 {
+					dormancyAutoDeletion = time.Duration(template.TimeTilDormantAutoDeleteMillis) * time.Millisecond
+				}
+				if maxTTL == 0 {
+					maxTTL = time.Duration(template.MaxTTLMillis) * time.Millisecond
+				}
+				req := codersdk.UpdateTemplateMeta{
+					RequireActiveVersion:           requireActiveVersion,
+					DisableEveryone:                disableEveryone,
+					DefaultTTLMillis:               defaultTTL.Milliseconds(),
+					FailureTTLMillis:               failureTTL.Milliseconds(),
+					TimeTilDormantMillis:           dormancyThreshold.Milliseconds(),
+					TimeTilDormantAutoDeleteMillis: dormancyAutoDeletion.Milliseconds(),
+					MaxTTLMillis:                   maxTTL.Milliseconds(),
+				}
+
+				_, err = client.UpdateTemplateMeta(inv.Context(), template.ID, req)
+				if err != nil {
+					return xerrors.Errorf("update template metadata: %w", err)
+				}
+				if err != nil {
+					return err
+				}
+			}
+
 			_, _ = fmt.Fprintf(inv.Stdout, "Updated version at %s!\n", pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, time.Now().Format(time.Stamp)))
 			return nil
 		},
@@ -279,14 +346,6 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			Description: "Customize the provisioner backend.",
 			Default:     "terraform",
 			Value:       clibase.StringOf(&provisioner),
-			// This is for testing!
-			Hidden: true,
-		},
-		{
-			Flag:        "test.workdir",
-			Description: "Customize the working directory.",
-			Default:     "",
-			Value:       clibase.StringOf(&workdir),
 			// This is for testing!
 			Hidden: true,
 		},
@@ -327,10 +386,45 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			Value:       clibase.BoolOf(&activate),
 		},
 		{
-			Flag:        "create",
-			Description: "Create the template if it does not exist.",
+			Flag:        "require-active-version",
+			Description: "Requires workspace builds to use the active template version. This setting does not apply to template admins. This is an enterprise-only feature.",
+			Value:       clibase.BoolOf(&requireActiveVersion),
 			Default:     "false",
-			Value:       clibase.BoolOf(&create),
+		},
+		{
+			Flag:        "default-ttl",
+			Description: "Specify a default TTL for workspaces created from this template. It is the default time before shutdown - workspaces created from this template default to this value. Maps to \"Default autostop\" in the UI.",
+			Default:     "24h",
+			Value:       clibase.DurationOf(&defaultTTL),
+		},
+		{
+			Flag:        "failure-ttl",
+			Description: "Specify a failure TTL for workspaces created from this template. It is the amount of time after a failed \"start\" build before coder automatically schedules a \"stop\" build to cleanup.This licensed feature's default is 0h (off). Maps to \"Failure cleanup\"in the UI.",
+			Default:     "0h",
+			Value:       clibase.DurationOf(&failureTTL),
+		},
+		{
+			Flag:        "dormancy-threshold",
+			Description: "Specify a duration workspaces may be inactive prior to being moved to the dormant state. This licensed feature's default is 0h (off). Maps to \"Dormancy threshold\" in the UI.",
+			Default:     "0h",
+			Value:       clibase.DurationOf(&dormancyThreshold),
+		},
+		{
+			Flag:        "dormancy-auto-deletion",
+			Description: "Specify a duration workspaces may be in the dormant state prior to being deleted. This licensed feature's default is 0h (off). Maps to \"Dormancy Auto-Deletion\" in the UI.",
+			Default:     "0h",
+			Value:       clibase.DurationOf(&dormancyAutoDeletion),
+		},
+		{
+			Flag:        "max-ttl",
+			Description: "Edit the template maximum time before shutdown - workspaces created from this template must shutdown within the given duration after starting. This is an enterprise-only feature.",
+			Value:       clibase.DurationOf(&maxTTL),
+		},
+		{
+			Flag: "private",
+			Description: "Disable the default behavior of granting template access to the 'everyone' group. " +
+				"The template permissions must be updated to allow non-admin users to use this template.",
+			Value: clibase.BoolOf(&disableEveryone),
 		},
 		cliui.SkipPromptOption(),
 	}
