@@ -6075,19 +6075,21 @@ SET
 	name = $4,
 	icon = $5,
 	display_name = $6,
-	allow_user_cancel_workspace_jobs = $7
+	allow_user_cancel_workspace_jobs = $7,
+	group_acl = $8
 WHERE
 	id = $1
 `
 
 type UpdateTemplateMetaByIDParams struct {
-	ID                           uuid.UUID `db:"id" json:"id"`
-	UpdatedAt                    time.Time `db:"updated_at" json:"updated_at"`
-	Description                  string    `db:"description" json:"description"`
-	Name                         string    `db:"name" json:"name"`
-	Icon                         string    `db:"icon" json:"icon"`
-	DisplayName                  string    `db:"display_name" json:"display_name"`
-	AllowUserCancelWorkspaceJobs bool      `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
+	ID                           uuid.UUID   `db:"id" json:"id"`
+	UpdatedAt                    time.Time   `db:"updated_at" json:"updated_at"`
+	Description                  string      `db:"description" json:"description"`
+	Name                         string      `db:"name" json:"name"`
+	Icon                         string      `db:"icon" json:"icon"`
+	DisplayName                  string      `db:"display_name" json:"display_name"`
+	AllowUserCancelWorkspaceJobs bool        `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
+	GroupACL                     TemplateACL `db:"group_acl" json:"group_acl"`
 }
 
 func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTemplateMetaByIDParams) error {
@@ -6099,6 +6101,7 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 		arg.Icon,
 		arg.DisplayName,
 		arg.AllowUserCancelWorkspaceJobs,
+		arg.GroupACL,
 	)
 	return err
 }
