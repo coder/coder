@@ -326,11 +326,65 @@ Users who are not in a matching group will see the following error:
 
 ![Unauthorized group error](../images/admin/group-allowlist.png)
 
-### Troubleshooting
+## Role sync (enterprise)
 
-Some common issues when enabling group sync.
+If your OpenID Connect provider supports roles claims, you can configure Coder
+to synchronize roles in your auth provider to deployment-wide roles within
+Coder.
 
-#### User not being assigned / Group does not exist
+Set the following in your Coder server [configuration](./configure.md).
+
+```env
+ # Depending on your identity provider configuration, you may need to explicitly request a "roles" scope
+CODER_OIDC_SCOPES=openid,profile,email,roles
+
+# The following fields are required for role sync:
+CODER_OIDC_USER_ROLE_FIELD=roles
+CODER_OIDC_USER_ROLE_MAPPING='{"TemplateAuthor":["template-admin","user-admin"]}'
+```
+
+> One role from your identity provider can be mapped to many roles in Coder
+> (e.g. the example above maps to 2 roles in Coder.)
+
+## Troubleshooting group/role sync
+
+Some common issues when enabling group/role sync.
+
+### General guidelines
+
+If you are running into issues with group/role sync, is best to view your Coder
+server logs and enable
+[verbose mode](https://coder.com/docs/v2/v2.5.1/cli#-v---verbose). To reduce
+noise, you can filter for only logs related to group/role sync:
+
+```sh
+CODER_VERBOSE=true
+CODER_LOG_FILTER=".*userauth.*|.*groups returned.*"
+```
+
+Be sure to restart the server after changing these configuration values. Then,
+attempt to log in, preferably with a user who has the `Owner` role.
+
+The logs for a successful group sync look like this (human-readable):
+
+```sh
+[debu]  coderd.userauth: got oidc claims  request_id=49e86507-6842-4b0b-94d4-f245e62e49f3  source=id_token  claim_fields="[aio aud email exp groups iat idp iss name nbf oid preferred_username rh sub tid uti ver]"  blank=[]
+
+[debu]  coderd.userauth: got oidc claims  request_id=49e86507-6842-4b0b-94d4-f245e62e49f3  source=userinfo  claim_fields="[email family_name given_name name picture sub]"  blank=[]
+
+[debu]  coderd.userauth: got oidc claims  request_id=49e86507-6842-4b0b-94d4-f245e62e49f3  source=merged  claim_fields="[aio aud email exp family_name given_name groups iat idp iss name nbf oid picture preferred_username rh sub tid uti ver]"  blank=[]
+
+[debu]  coderd: groups returned in oidc claims  request_id=49e86507-6842-4b0b-94d4-f245e62e49f3  email=ben@coder.com  username=ben  len=3  groups="[c8048e91-f5c3-47e5-9693-834de84034ad 66ad2cc3-a42f-4574-a281-40d1922e5b65 70b48175-107b-4ad8-b405-4d888a1c466f]"
+```
+
+To view the full claim, the Owner role can visit this endpoint on their Coder
+deployment after logging in:
+
+```sh
+https://[coder.example.com]/api/v2/debug/[username]/debug-link
+```
+
+### User not being assigned / Group does not exist
 
 If you want Coder to create groups that do not exist, you can set the following
 environment variable. If you enable this, your OIDC provider might be sending
@@ -364,7 +418,7 @@ CODER_OIDC_GROUP_REGEX_FILTER="^my-group-.*$"
 --oidc-group-regex-filter="^my-group-.*$"
 ```
 
-#### Invalid Scope
+### Invalid Scope
 
 If you see an error like the following, you may have an invalid scope.
 
@@ -380,7 +434,7 @@ configuring the name of this scope.
 The solution is to update the value of `CODER_OIDC_SCOPES` to the correct value
 for the identity provider.
 
-#### No `group` claim in the `got oidc claims` log
+### No `group` claim in the `got oidc claims` log
 
 Steps to troubleshoot.
 
@@ -395,26 +449,6 @@ Steps to troubleshoot.
    less than the limit for your IDP.
    - [Azure AD limit is 200, and omits groups if exceeded.](https://learn.microsoft.com/en-us/azure/active-directory/hybrid/connect/how-to-connect-fed-group-claims#options-for-applications-to-consume-group-information)
    - [Okta limit is 100, and returns an error if exceeded.](https://developer.okta.com/docs/reference/api/oidc/#scope-dependent-claims-not-always-returned)
-
-## Role sync (enterprise)
-
-If your OpenID Connect provider supports roles claims, you can configure Coder
-to synchronize roles in your auth provider to deployment-wide roles within
-Coder.
-
-Set the following in your Coder server [configuration](./configure.md).
-
-```env
- # Depending on your identity provider configuration, you may need to explicitly request a "roles" scope
-CODER_OIDC_SCOPES=openid,profile,email,roles
-
-# The following fields are required for role sync:
-CODER_OIDC_USER_ROLE_FIELD=roles
-CODER_OIDC_USER_ROLE_MAPPING='{"TemplateAuthor":["template-admin","user-admin"]}'
-```
-
-> One role from your identity provider can be mapped to many roles in Coder
-> (e.g. the example above maps to 2 roles in Coder.)
 
 ## Provider-Specific Guides
 
