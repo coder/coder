@@ -9,15 +9,8 @@ import { Alert, AlertDetail } from "components/Alert/Alert";
 import { Margins } from "components/Margins/Margins";
 import { Resources } from "components/Resources/Resources";
 import { Stack } from "components/Stack/Stack";
-import {
-  FullWidthPageHeader,
-  PageHeaderActions,
-  PageHeaderTitle,
-  PageHeaderSubtitle,
-} from "components/PageHeader/FullWidthPageHeader";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { DormantWorkspaceBanner } from "components/WorkspaceDeletion";
-import { Avatar } from "components/Avatar/Avatar";
 import { AgentRow } from "components/Resources/AgentRow";
 import { useLocalStorage } from "hooks";
 import { WorkspaceActions } from "pages/WorkspacePage/WorkspaceActions/WorkspaceActions";
@@ -27,7 +20,6 @@ import {
 } from "./WorkspaceBuildProgress";
 import { BuildsTable } from "./BuildsTable";
 import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
-import { WorkspaceStats } from "./WorkspaceStats";
 import {
   Topbar,
   TopbarAvatar,
@@ -38,20 +30,13 @@ import {
 } from "components/FullPageLayout/Topbar";
 import Tooltip from "@mui/material/Tooltip";
 import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
-import { useTheme } from "@mui/material/styles";
 import PersonOutlineOutlined from "@mui/icons-material/PersonOutlineOutlined";
-import LayersOutlined from "@mui/icons-material/LayersOutlined";
-import {
-  WorkspaceOutdatedTooltipContent,
-  WorkspaceOutdatedTooltip,
-} from "components/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "components/Popover/Popover";
+import { WorkspaceOutdatedTooltipContent } from "components/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
+import { Popover, PopoverTrigger } from "components/Popover/Popover";
 import ScheduleOutlined from "@mui/icons-material/ScheduleOutlined";
 import { WorkspaceScheduleControls } from "./WorkspaceScheduleControls";
+import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge";
+import { Pill } from "components/Pill/Pill";
 
 export type WorkspaceError =
   | "getBuildsError"
@@ -131,7 +116,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   hasMoreBuilds,
   canAutostart,
 }) => {
-  const theme = useTheme();
   const navigate = useNavigate();
   const { saveLocal, getLocal } = useLocalStorage();
 
@@ -206,20 +190,14 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
             <span>
               {workspace.template_display_name ?? workspace.template_name}
             </span>
-            <TopbarDivider />
+
             {workspace.outdated ? (
               <Popover mode="hover">
                 <PopoverTrigger>
-                  <span
-                    css={{
-                      color: theme.palette.warning.light,
-                      cursor: "pointer",
-                      display: "block",
-                      padding: "8px 0",
-                    }}
-                  >
-                    {workspace.latest_build.template_version_name}
-                  </span>
+                  <Pill
+                    type="warning"
+                    text={workspace.latest_build.template_version_name}
+                  />
                 </PopoverTrigger>
                 <WorkspaceOutdatedTooltipContent
                   templateName={workspace.template_name}
@@ -229,9 +207,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
                 />
               </Popover>
             ) : (
-              <span css={{ color: theme.palette.text.secondary }}>
-                {workspace.latest_build.template_version_name}
-              </span>
+              <Pill text={workspace.latest_build.template_version_name} />
             )}
           </TopbarData>
 
@@ -251,6 +227,35 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               canUpdateSchedule={canUpdateWorkspace}
             />
           </TopbarData>
+        </div>
+
+        <div
+          css={{
+            marginLeft: "auto",
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+          }}
+        >
+          <WorkspaceStatusBadge workspace={workspace} />
+          <WorkspaceActions
+            workspace={workspace}
+            handleStart={handleStart}
+            handleStop={handleStop}
+            handleRestart={handleRestart}
+            handleDelete={handleDelete}
+            handleUpdate={handleUpdate}
+            handleCancel={handleCancel}
+            handleSettings={handleSettings}
+            handleRetry={handleBuildRetry}
+            handleRetryDebug={handleBuildRetryDebug}
+            handleChangeVersion={handleChangeVersion}
+            handleDormantActivate={handleDormantActivate}
+            canRetryDebug={canRetryDebugMode}
+            canChangeVersions={canChangeVersions}
+            isUpdating={isUpdating}
+            isRestarting={isRestarting}
+          />
         </div>
       </Topbar>
       {/* <FullWidthPageHeader>

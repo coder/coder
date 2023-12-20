@@ -51,19 +51,23 @@ export const TopbarIconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
   },
 ) as typeof IconButton;
 
-export const TopbarButton = (props: ButtonProps) => {
-  return (
-    <Button
-      {...props}
-      css={{
-        height: 28,
-        fontSize: 13,
-        borderRadius: 4,
-        padding: "0 12px",
-      }}
-    />
-  );
-};
+export const TopbarButton = forwardRef<HTMLButtonElement, ButtonProps>(
+  (props: ButtonProps, ref) => {
+    return (
+      <Button
+        ref={ref}
+        color="neutral"
+        css={{
+          height: 28,
+          fontSize: 13,
+          borderRadius: 4,
+          padding: "0 12px",
+        }}
+        {...props}
+      />
+    );
+  },
+);
 
 export const TopbarData = (props: HTMLAttributes<HTMLDivElement>) => {
   return (
