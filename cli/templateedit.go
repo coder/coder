@@ -103,14 +103,9 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 			}
 
 			unsetAutostopRequirementDaysOfWeek, err := editTemplateEntitlementsCheck(inv.Context(), editTemplateEntitlementsArgs{
-				client:   client,
-				inv:      inv,
-				template: template,
+				client: client,
+				inv:    inv,
 
-				name:                           name,
-				displayName:                    displayName,
-				description:                    description,
-				icon:                           icon,
 				defaultTTL:                     defaultTTL,
 				maxTTL:                         maxTTL,
 				autostopRequirementDaysOfWeek:  autostopRequirementDaysOfWeek,
@@ -123,8 +118,6 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				allowUserAutostart:             allowUserAutostart,
 				allowUserAutostop:              allowUserAutostop,
 				requireActiveVersion:           requireActiveVersion,
-				deprecationMessage:             deprecationMessage,
-				disableEveryone:                false, // TODO: Add new flag
 			})
 
 			req := updateTemplateMetaRequest(updateTemplateMetaArgs{
