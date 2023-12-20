@@ -66,16 +66,6 @@ type Story = StoryObj<typeof Workspace>;
 
 export const Running: Story = {
   args: {
-    scheduleProps: {
-      onDeadlineMinus: () => {
-        // do nothing, this is just for storybook
-      },
-      onDeadlinePlus: () => {
-        // do nothing, this is just for storybook
-      },
-      maxDeadlineDecrease: 0,
-      maxDeadlineIncrease: 24,
-    },
     workspace: Mocks.MockWorkspace,
     handleStart: action("start"),
     handleStop: action("stop"),
