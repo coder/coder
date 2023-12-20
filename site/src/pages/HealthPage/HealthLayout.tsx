@@ -122,6 +122,7 @@ export function HealthLayout() {
                 <div css={{ display: "flex", flexDirection: "column" }}>
                   <span css={{ fontWeight: 500 }}>Last check</span>
                   <span
+                    data-chromatic="ignore"
                     css={{
                       color: theme.palette.text.secondary,
                       lineHeight: "150%",
@@ -134,6 +135,7 @@ export function HealthLayout() {
                 <div css={{ display: "flex", flexDirection: "column" }}>
                   <span css={{ fontWeight: 500 }}>Version</span>
                   <span
+                    data-chromatic="ignore"
                     css={{
                       color: theme.palette.text.secondary,
                       lineHeight: "150%",

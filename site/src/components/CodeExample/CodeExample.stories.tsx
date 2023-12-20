@@ -1,22 +1,22 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { CodeExample } from "./CodeExample";
 
-const sampleCode = `echo "Hello, world"`;
-
 const meta: Meta<typeof CodeExample> = {
   title: "components/CodeExample",
   component: CodeExample,
-  argTypes: {
-    code: { control: "string", defaultValue: sampleCode },
+  args: {
+    code: `echo "hello, friend!"`,
   },
 };
 
 export default meta;
 type Story = StoryObj<typeof CodeExample>;
 
-export const Example: Story = {
+export const Example: Story = {};
+
+export const Secret: Story = {
   args: {
-    code: sampleCode,
+    secret: true,
   },
 };
 

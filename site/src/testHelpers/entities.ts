@@ -2933,7 +2933,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
           created_at: "2023-05-01T19:15:56.606593Z",
           updated_at: "2023-12-05T14:13:36.647535Z",
           deleted: false,
-          version: "v2.4.0-devel+5fad61102",
+          version: "v2.5.0-devel+5fad61102",
         },
         {
           id: "9d786ce0-55b1-4ace-8acc-a4672ff8d41f",
@@ -2956,7 +2956,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
           created_at: "2023-05-01T20:34:11.114005Z",
           updated_at: "2023-12-05T14:13:45.941716Z",
           deleted: false,
-          version: "v2.4.0-devel+5fad61102",
+          version: "v2.5.0-devel+5fad61102",
         },
         {
           id: "2e209786-73b1-4838-ba78-e01c9334450a",
@@ -2979,7 +2979,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
           created_at: "2023-05-01T20:41:02.76448Z",
           updated_at: "2023-12-05T14:13:41.968568Z",
           deleted: false,
-          version: "v2.4.0-devel+5fad61102",
+          version: "v2.5.0-devel+5fad61102",
         },
         {
           id: "c272e80c-0cce-49d6-9782-1b5cf90398e8",
@@ -3050,7 +3050,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
           created_at: "2023-12-01T09:21:15.996267Z",
           updated_at: "2023-12-05T14:13:59.663174Z",
           deleted: false,
-          version: "v2.4.0-devel+5fad61102",
+          version: "v2.5.0-devel+5fad61102",
         },
         {
           id: "72649dc9-03c7-46a8-bc95-96775e93ddc1",
@@ -3073,7 +3073,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
           created_at: "2023-12-01T09:23:44.505529Z",
           updated_at: "2023-12-05T14:13:55.769058Z",
           deleted: false,
-          version: "v2.4.0-devel+5fad61102",
+          version: "v2.5.0-devel+5fad61102",
         },
         {
           id: "1f78398f-e5ae-4c38-aa89-30222181d443",
@@ -3096,12 +3096,12 @@ export const MockHealth: TypesGen.HealthcheckReport = {
           created_at: "2023-12-01T09:36:00.231252Z",
           updated_at: "2023-12-05T14:13:47.015031Z",
           deleted: false,
-          version: "v2.4.0-devel+5fad61102",
+          version: "v2.5.0-devel+5fad61102",
         },
       ],
     },
   },
-  coder_version: "v0.27.1-devel+c575292",
+  coder_version: "v2.5.0-devel+5fad61102",
 };
 
 export const MockListeningPortsResponse: TypesGen.WorkspaceAgentListeningPortsResponse =
@@ -3184,7 +3184,7 @@ export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
           created_at: "2023-11-23T15:37:25.513213Z",
           updated_at: "2023-11-23T18:09:19.734747Z",
           deleted: false,
-          version: "v2.4.0-devel+89bae7eff",
+          version: "v2.5.0-devel+89bae7eff",
         },
       ],
     },

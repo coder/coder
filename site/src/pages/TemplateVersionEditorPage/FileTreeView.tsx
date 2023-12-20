@@ -92,8 +92,8 @@ export const FileTreeView: FC<FileTreeViewProps> = ({
             }
 
             &.Mui-selected {
-              color: ${theme.palette.text.primary};
-              background: ${theme.colors.gray[14]};
+              color: ${theme.experimental.roles.active.text};
+              background: ${theme.experimental.roles.active.background};
             }
 
             &.Mui-focused {
@@ -133,16 +133,13 @@ export const FileTreeView: FC<FileTreeViewProps> = ({
           } as CSSProperties
         }
       >
-        {isFolder ? (
+        {isFolder &&
           Object.keys(content)
             .sort(sortFileTree(content))
             .map((filename) => {
               const child = content[filename];
               return buildTreeItems(filename, child, currentPath);
-            })
-        ) : (
-          <></>
-        )}
+            })}
       </TreeItem>
     );
   };

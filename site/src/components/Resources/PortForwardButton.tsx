@@ -10,6 +10,7 @@ import { getAgentListeningPorts } from "api/api";
 import type {
   WorkspaceAgent,
   WorkspaceAgentListeningPort,
+  WorkspaceAgentListeningPortsResponse,
 } from "api/typesGenerated";
 import { portForwardURL } from "utils/portForward";
 import { type ClassName, useClassName } from "hooks/useClassName";
@@ -32,34 +33,43 @@ export interface PortForwardButtonProps {
   username: string;
   workspaceName: string;
   agent: WorkspaceAgent;
+
+  /**
+   * Only for use in Storybook
+   */
+  storybook?: {
+    portsQueryData?: WorkspaceAgentListeningPortsResponse;
+  };
 }
 
 export const PortForwardButton: FC<PortForwardButtonProps> = (props) => {
-  const { agent } = props;
+  const { agent, storybook } = props;
 
   const paper = useClassName(classNames.paper, []);
 
   const portsQuery = useQuery({
     queryKey: ["portForward", agent.id],
     queryFn: () => getAgentListeningPorts(agent.id),
-    enabled: agent.status === "connected",
+    enabled: !storybook && agent.status === "connected",
     refetchInterval: 5_000,
   });
+
+  const data = storybook ? storybook.portsQueryData : portsQuery.data;
 
   return (
     <Popover>
       <PopoverTrigger>
-        <AgentButton disabled={!portsQuery.data}>
+        <AgentButton disabled={!data}>
           {DisplayAppNameMap["port_forwarding_helper"]}
-          {portsQuery.data ? (
-            <div css={styles.portCount}>{portsQuery.data.ports.length}</div>
+          {data ? (
+            <div css={styles.portCount}>{data.ports.length}</div>
           ) : (
             <CircularProgress size={10} css={{ marginLeft: 8 }} />
           )}
         </AgentButton>
       </PopoverTrigger>
       <PopoverContent horizontal="right" classes={{ paper }}>
-        <PortForwardPopoverView {...props} ports={portsQuery.data?.ports} />
+        <PortForwardPopoverView {...props} ports={data?.ports} />
       </PopoverContent>
     </Popover>
   );
@@ -204,7 +214,7 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: theme.colors.gray[11],
+    backgroundColor: theme.experimental.l2.background,
     marginLeft: 8,
   }),
 

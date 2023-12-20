@@ -96,6 +96,7 @@ export const ActiveUserChart: FC<ActiveUserChartProps> = ({
     },
     scales: {
       y: {
+        grid: { color: theme.palette.divider },
         suggestedMin: 0,
         ticks: {
           precision: 0,
@@ -103,6 +104,7 @@ export const ActiveUserChart: FC<ActiveUserChartProps> = ({
       },
 
       x: {
+        grid: { color: theme.palette.divider },
         ticks: {
           stepSize: data.length > 10 ? 2 : undefined,
         },
@@ -124,11 +126,9 @@ export const ActiveUserChart: FC<ActiveUserChartProps> = ({
           {
             label: `${interval === "day" ? "Daily" : "Weekly"} Active Users`,
             data: chartData,
-            pointBackgroundColor: theme.palette.info.light,
-            pointBorderColor: theme.palette.info.light,
-            borderColor: theme.palette.info.light,
-            backgroundColor: theme.palette.info.dark,
-            fill: "origin",
+            pointBackgroundColor: theme.experimental.roles.active.outline,
+            pointBorderColor: theme.experimental.roles.active.outline,
+            borderColor: theme.experimental.roles.active.outline,
           },
         ],
       }}

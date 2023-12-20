@@ -32,7 +32,7 @@ export const SidebarItem: FC<SidebarItemProps> = ({
   return (
     <button
       css={(theme) => ({
-        background: active ? theme.colors.gray[13] : "none",
+        background: active ? theme.experimental.l2.background : "none",
         border: "none",
         fontSize: 14,
         width: "100%",

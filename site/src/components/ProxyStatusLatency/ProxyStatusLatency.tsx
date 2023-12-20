@@ -1,4 +1,4 @@
-import { useTheme } from "@mui/material/styles";
+import { useTheme } from "@emotion/react";
 import HelpOutline from "@mui/icons-material/HelpOutline";
 import Tooltip from "@mui/material/Tooltip";
 import { type FC } from "react";

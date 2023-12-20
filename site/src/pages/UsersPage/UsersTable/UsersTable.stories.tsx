@@ -4,6 +4,10 @@ import {
   MockAssignableSiteRoles,
   MockAuthMethodsPasswordOnly,
   MockGroup,
+  MockUserAdminRole,
+  MockTemplateAdminRole,
+  MockMemberRole,
+  MockAuditorRole,
 } from "testHelpers/entities";
 import { UsersTable } from "./UsersTable";
 import type { Meta, StoryObj } from "@storybook/react";
@@ -43,7 +47,12 @@ export const Editable: Story = {
         ...MockUser,
         username: "John Doe",
         email: "john.doe@coder.com",
-        roles: [],
+        roles: [
+          MockUserAdminRole,
+          MockTemplateAdminRole,
+          MockMemberRole,
+          MockAuditorRole,
+        ],
         status: "dormant",
       },
       {

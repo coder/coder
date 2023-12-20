@@ -378,7 +378,7 @@ const HealthIssue: FC<PropsWithChildren> = ({ children }) => {
     <Stack direction="row" spacing={1} alignItems="center">
       <ErrorIcon
         css={{ width: 16, height: 16 }}
-        htmlColor={theme.colors.red[10]}
+        htmlColor={theme.experimental.roles.error.outline}
       />
       {children}
     </Stack>
@@ -426,13 +426,13 @@ const classNames = {
 } satisfies Record<string, ClassName>;
 
 const styles = {
-  statusBadge: css`
+  statusBadge: (theme) => css`
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 0 12px;
     height: 100%;
-    color: #fff;
+    color: ${theme.experimental.l1.text};
 
     & svg {
       width: 16px;
