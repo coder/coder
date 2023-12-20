@@ -322,7 +322,9 @@ jobs:
 
   test-go-pg:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
-    needs: changes
+    needs:
+      - changes
+      - sqlc-vet # No point in testing the DB if the queries are invalid
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     # This timeout must be greater than the timeout set by `go test` in
     # `make test-postgres` to ensure we receive a trace of running
@@ -896,7 +898,7 @@ jobs:
   sqlc-vet:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     needs: changes
-    if: needs.changes.outputs.db == 'true' || github.ref == 'refs/heads/main'
+    if: needs.changes.outputs.db == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
