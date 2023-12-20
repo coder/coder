@@ -7,7 +7,6 @@ import { getDisplayWorkspaceTemplateName } from "utils/workspace";
 import type { Workspace } from "api/typesGenerated";
 import { Stats, StatsItem } from "components/Stats/Stats";
 import { WorkspaceStatusText } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge";
-import { DormantDeletionStat } from "components/WorkspaceDeletion";
 import { workspaceQuota } from "api/queries/workspaceQuota";
 import { useQuery } from "react-query";
 import _ from "lodash";
@@ -46,7 +45,6 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
           label="Status"
           value={<WorkspaceStatusText workspace={workspace} />}
         />
-        <DormantDeletionStat workspace={workspace} />
         <StatsItem
           css={styles.statsItem}
           label={Language.templateLabel}

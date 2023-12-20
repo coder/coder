@@ -2,7 +2,7 @@ import { type Interpolation, type Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import AlertTitle from "@mui/material/AlertTitle";
 import { type FC, useEffect, useState } from "react";
-import { useNavigate, Link as RouterLink } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import dayjs from "dayjs";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
@@ -13,30 +13,13 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { DormantWorkspaceBanner } from "components/WorkspaceDeletion";
 import { AgentRow } from "components/Resources/AgentRow";
 import { useLocalStorage } from "hooks";
-import { WorkspaceActions } from "pages/WorkspacePage/WorkspaceActions/WorkspaceActions";
 import {
   ActiveTransition,
   WorkspaceBuildProgress,
 } from "./WorkspaceBuildProgress";
 import { BuildsTable } from "./BuildsTable";
 import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
-import {
-  Topbar,
-  TopbarAvatar,
-  TopbarData,
-  TopbarDivider,
-  TopbarIcon,
-  TopbarIconButton,
-} from "components/FullPageLayout/Topbar";
-import Tooltip from "@mui/material/Tooltip";
-import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
-import PersonOutlineOutlined from "@mui/icons-material/PersonOutlineOutlined";
-import { WorkspaceOutdatedTooltipContent } from "components/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
-import { Popover, PopoverTrigger } from "components/Popover/Popover";
-import ScheduleOutlined from "@mui/icons-material/ScheduleOutlined";
-import { WorkspaceScheduleControls } from "./WorkspaceScheduleControls";
-import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge";
-import { Pill } from "components/Pill/Pill";
+import { WorkspaceTopbar } from "./WorkspaceTopbar/WorkspaceTopbar";
 
 export type WorkspaceError =
   | "getBuildsError"
@@ -168,141 +151,25 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 
   return (
     <>
-      <Topbar>
-        <Tooltip title="Back to workspaces">
-          <TopbarIconButton component={RouterLink} to="workspaces">
-            <ArrowBackOutlined />
-          </TopbarIconButton>
-        </Tooltip>
-
-        <div
-          css={{
-            paddingLeft: 16,
-            display: "flex",
-            alignItems: "center",
-            gap: 32,
-          }}
-        >
-          <TopbarData>
-            <TopbarAvatar src={workspace.template_icon} />
-            <span css={{ fontWeight: 500 }}>{workspace.name}</span>
-            <TopbarDivider />
-            <span>
-              {workspace.template_display_name ?? workspace.template_name}
-            </span>
-
-            {workspace.outdated ? (
-              <Popover mode="hover">
-                <PopoverTrigger>
-                  <Pill
-                    type="warning"
-                    text={workspace.latest_build.template_version_name}
-                  />
-                </PopoverTrigger>
-                <WorkspaceOutdatedTooltipContent
-                  templateName={workspace.template_name}
-                  latestVersionId={workspace.template_active_version_id}
-                  onUpdateVersion={handleUpdate}
-                  ariaLabel="update version"
-                />
-              </Popover>
-            ) : (
-              <Pill text={workspace.latest_build.template_version_name} />
-            )}
-          </TopbarData>
-
-          <TopbarData>
-            <TopbarIcon>
-              <PersonOutlineOutlined />
-            </TopbarIcon>
-            <span>{workspace.owner_name}</span>
-          </TopbarData>
-
-          <TopbarData>
-            <TopbarIcon>
-              <ScheduleOutlined />
-            </TopbarIcon>
-            <WorkspaceScheduleControls
-              workspace={workspace}
-              canUpdateSchedule={canUpdateWorkspace}
-            />
-          </TopbarData>
-        </div>
-
-        <div
-          css={{
-            marginLeft: "auto",
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-          }}
-        >
-          <WorkspaceStatusBadge workspace={workspace} />
-          <WorkspaceActions
-            workspace={workspace}
-            handleStart={handleStart}
-            handleStop={handleStop}
-            handleRestart={handleRestart}
-            handleDelete={handleDelete}
-            handleUpdate={handleUpdate}
-            handleCancel={handleCancel}
-            handleSettings={handleSettings}
-            handleRetry={handleBuildRetry}
-            handleRetryDebug={handleBuildRetryDebug}
-            handleChangeVersion={handleChangeVersion}
-            handleDormantActivate={handleDormantActivate}
-            canRetryDebug={canRetryDebugMode}
-            canChangeVersions={canChangeVersions}
-            isUpdating={isUpdating}
-            isRestarting={isRestarting}
-          />
-        </div>
-      </Topbar>
-      {/* <FullWidthPageHeader>
-        <Stack direction="row" spacing={3} alignItems="center">
-          <Avatar
-            size="md"
-            src={workspace.template_icon}
-            variant={workspace.template_icon ? "square" : undefined}
-            fitImage={Boolean(workspace.template_icon)}
-          >
-            {workspace.name}
-          </Avatar>
-          <div>
-            <PageHeaderTitle>{workspace.name}</PageHeaderTitle>
-            <PageHeaderSubtitle>{workspace.owner_name}</PageHeaderSubtitle>
-          </div>
-        </Stack>
-
-        <WorkspaceStats
-          workspace={workspace}
-          handleUpdate={handleUpdate}
-          canUpdateWorkspace={canUpdateWorkspace}
-        />
-
-        {canUpdateWorkspace && (
-          <PageHeaderActions>
-            <WorkspaceActions
-              workspace={workspace}
-              handleStart={handleStart}
-              handleStop={handleStop}
-              handleRestart={handleRestart}
-              handleDelete={handleDelete}
-              handleUpdate={handleUpdate}
-              handleCancel={handleCancel}
-              handleSettings={handleSettings}
-              handleRetry={handleBuildRetry}
-              handleRetryDebug={handleBuildRetryDebug}
-              handleChangeVersion={handleChangeVersion}
-              handleDormantActivate={handleDormantActivate}
-              canRetryDebug={canRetryDebugMode}
-              canChangeVersions={canChangeVersions}
-              isUpdating={isUpdating}
-              isRestarting={isRestarting}
-            />
-          </PageHeaderActions>
-        )}
-      </FullWidthPageHeader> */}
+      <WorkspaceTopbar
+        workspace={workspace}
+        handleStart={handleStart}
+        handleStop={handleStop}
+        handleRestart={handleRestart}
+        handleDelete={handleDelete}
+        handleUpdate={handleUpdate}
+        handleCancel={handleCancel}
+        handleSettings={handleSettings}
+        handleBuildRetry={handleBuildRetry}
+        handleBuildRetryDebug={handleBuildRetryDebug}
+        handleChangeVersion={handleChangeVersion}
+        handleDormantActivate={handleDormantActivate}
+        canRetryDebugMode={canRetryDebugMode}
+        canChangeVersions={canChangeVersions}
+        isUpdating={isUpdating}
+        isRestarting={isRestarting}
+        canUpdateWorkspace={canUpdateWorkspace}
+      />
 
       <Margins css={styles.content}>
         <Stack direction="column" css={styles.firstColumnSpacer} spacing={4}>

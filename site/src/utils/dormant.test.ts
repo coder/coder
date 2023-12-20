@@ -1,6 +1,6 @@
 import * as TypesGen from "api/typesGenerated";
 import * as Mocks from "testHelpers/entities";
-import { displayDormantDeletion } from "./utils";
+import { displayDormantDeletion } from "./dormant";
 
 describe("displayDormantDeletion", () => {
   const today = new Date();
