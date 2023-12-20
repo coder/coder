@@ -56,7 +56,7 @@ This template provisions the following resources:
 
 Coder persists the root volume. The full filesystem is preserved when the workspace restarts.
 
-> [!NOTE]
+> **Note**
 > This template is designed to be a starting point! Edit the Terraform to extend the template to support your use case.
 
 ## code-server
