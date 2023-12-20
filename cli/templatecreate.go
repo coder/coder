@@ -48,6 +48,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 		),
 		Handler: func(inv *clibase.Invocation) error {
 <<<<<<< HEAD
+<<<<<<< HEAD
 			isTemplateSchedulingOptionsSet := failureTTL != 0 || dormancyThreshold != 0 || dormancyAutoDeletion != 0 || maxTTL != 0
 
 			if isTemplateSchedulingOptionsSet || requireActiveVersion {
@@ -83,6 +84,9 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 				}
 =======
 			err := handleEntitlements(inv.Context(), handleEntitlementsArgs{
+=======
+			err := createEntitlementsCheck(inv.Context(), handleEntitlementsArgs{
+>>>>>>> 3c377e5d3 (combine edit flags)
 				client:               client,
 				requireActiveVersion: requireActiveVersion,
 				defaultTTL:           defaultTTL,
@@ -383,7 +387,7 @@ type handleEntitlementsArgs struct {
 	maxTTL               time.Duration
 }
 
-func handleEntitlements(ctx context.Context, args handleEntitlementsArgs) error {
+func createEntitlementsCheck(ctx context.Context, args handleEntitlementsArgs) error {
 	isTemplateSchedulingOptionsSet := args.failureTTL != 0 || args.dormancyThreshold != 0 || args.dormancyAutoDeletion != 0 || args.maxTTL != 0
 
 	if isTemplateSchedulingOptionsSet || args.requireActiveVersion {

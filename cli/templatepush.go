@@ -169,13 +169,23 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 		uploadFlags          templateUploadFlags
 		activate             bool
 
-		requireActiveVersion bool
-		disableEveryone      bool
-		defaultTTL           time.Duration
-		failureTTL           time.Duration
-		dormancyThreshold    time.Duration
-		dormancyAutoDeletion time.Duration
-		maxTTL               time.Duration
+		displayName                    string
+		description                    string
+		icon                           string
+		requireActiveVersion           bool
+		disableEveryone                bool
+		defaultTTL                     time.Duration
+		failureTTL                     time.Duration
+		dormancyThreshold              time.Duration
+		dormancyAutoDeletion           time.Duration
+		maxTTL                         time.Duration
+		autostopRequirementDaysOfWeek  []string
+		autostopRequirementWeeks       int64
+		autostartRequirementDaysOfWeek []string
+		allowUserAutostart             bool
+		allowUserAutostop              bool
+		allowUserCancelWorkspaceJobs   bool
+		deprecationMessage             string
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -188,7 +198,7 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 		Handler: func(inv *clibase.Invocation) error {
 			uploadFlags.setWorkdir(workdir)
 
-			err := handleEntitlements(inv.Context(), handleEntitlementsArgs{
+			err := createEntitlementsCheck(inv.Context(), handleEntitlementsArgs{
 				client:               client,
 				requireActiveVersion: requireActiveVersion,
 				defaultTTL:           defaultTTL,
@@ -200,6 +210,23 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			if err != nil {
 				return err
 			}
+
+			unsetAutostopRequirementDaysOfWeek, err := editTemplateEntitlementsCheck(inv.Context(), editTemplateEntitlementsArgs{
+				client:                         client,
+				inv:                            inv,
+				defaultTTL:                     defaultTTL,
+				maxTTL:                         maxTTL,
+				autostopRequirementDaysOfWeek:  autostopRequirementDaysOfWeek,
+				autostopRequirementWeeks:       autostopRequirementWeeks,
+				autostartRequirementDaysOfWeek: autostartRequirementDaysOfWeek,
+				failureTTL:                     failureTTL,
+				dormancyThreshold:              dormancyThreshold,
+				dormancyAutoDeletion:           dormancyAutoDeletion,
+				allowUserCancelWorkspaceJobs:   allowUserCancelWorkspaceJobs,
+				allowUserAutostart:             allowUserAutostart,
+				allowUserAutostop:              allowUserAutostop,
+				requireActiveVersion:           requireActiveVersion,
+			})
 
 			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
@@ -304,30 +331,34 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				dormancyAutoDeletion != 0 ||
 				maxTTL != 0
 			if editTemplate {
-				if defaultTTL == 0 {
-					defaultTTL = time.Duration(template.DefaultTTLMillis) * time.Millisecond
+				template, err := client.TemplateByName(inv.Context(), organization.ID, name)
+				if err != nil {
+					return err
 				}
-				if failureTTL == 0 {
-					failureTTL = time.Duration(template.FailureTTLMillis) * time.Millisecond
-				}
-				if dormancyThreshold == 0 {
-					dormancyThreshold = time.Duration(template.TimeTilDormantMillis) * time.Millisecond
-				}
-				if dormancyAutoDeletion == 0 {
-					dormancyAutoDeletion = time.Duration(template.TimeTilDormantAutoDeleteMillis) * time.Millisecond
-				}
-				if maxTTL == 0 {
-					maxTTL = time.Duration(template.MaxTTLMillis) * time.Millisecond
-				}
-				req := codersdk.UpdateTemplateMeta{
-					RequireActiveVersion:           requireActiveVersion,
-					DisableEveryoneGroupAccess:     disableEveryone,
-					DefaultTTLMillis:               defaultTTL.Milliseconds(),
-					FailureTTLMillis:               failureTTL.Milliseconds(),
-					TimeTilDormantMillis:           dormancyThreshold.Milliseconds(),
-					TimeTilDormantAutoDeleteMillis: dormancyAutoDeletion.Milliseconds(),
-					MaxTTLMillis:                   maxTTL.Milliseconds(),
-				}
+				req := updateTemplateMetaRequest(updateTemplateMetaArgs{
+					client:                             client,
+					inv:                                inv,
+					template:                           template,
+					unsetAutostopRequirementDaysOfWeek: unsetAutostopRequirementDaysOfWeek,
+
+					displayName:                    displayName,
+					description:                    description,
+					icon:                           icon,
+					requireActiveVersion:           requireActiveVersion,
+					disableEveryone:                disableEveryone,
+					defaultTTL:                     defaultTTL,
+					failureTTL:                     failureTTL,
+					dormancyThreshold:              dormancyThreshold,
+					dormancyAutoDeletion:           dormancyAutoDeletion,
+					maxTTL:                         maxTTL,
+					autostopRequirementDaysOfWeek:  autostopRequirementDaysOfWeek,
+					autostopRequirementWeeks:       autostopRequirementWeeks,
+					autostartRequirementDaysOfWeek: autostartRequirementDaysOfWeek,
+					allowUserAutostart:             allowUserAutostart,
+					allowUserAutostop:              allowUserAutostop,
+					allowUserCancelWorkspaceJobs:   allowUserCancelWorkspaceJobs,
+					deprecationMessage:             deprecationMessage,
+				})
 
 				_, err = client.UpdateTemplateMeta(inv.Context(), template.ID, req)
 				if err != nil {
@@ -386,6 +417,27 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			Value:       clibase.StringOf(&versionName),
 		},
 		{
+			Flag:        "display-name",
+			Description: "Edit the template display name.",
+			Value:       clibase.StringOf(&displayName),
+		},
+		{
+			Flag:        "description",
+			Description: "Edit the template description.",
+			Value:       clibase.StringOf(&description),
+		},
+		{
+			Name:        "Deprecated",
+			Flag:        "deprecated",
+			Description: "Sets the template as deprecated. Must be a message explaining why the template is deprecated.",
+			Value:       clibase.StringOf(&deprecationMessage),
+		},
+		{
+			Flag:        "icon",
+			Description: "Edit the template icon path.",
+			Value:       clibase.StringOf(&icon),
+		},
+		{
 			Flag:        "always-prompt",
 			Description: "Always prompt all parameters. Does not pull parameter values from active template version.",
 			Value:       clibase.BoolOf(&alwaysPrompt),
@@ -436,6 +488,76 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			Description: "Disable the default behavior of granting template access to the 'everyone' group. " +
 				"The template permissions must be updated to allow non-admin users to use this template.",
 			Value: clibase.BoolOf(&disableEveryone),
+		},
+		{
+			Flag: "autostart-requirement-weekdays",
+			// workspaces created from this template must be restarted on the given weekdays. To unset this value for the template (and disable the autostop requirement for the template), pass 'none'.
+			Description: "Edit the template autostart requirement weekdays - workspaces created from this template can only autostart on the given weekdays. To unset this value for the template (and allow autostart on all days), pass 'all'.",
+			Value: clibase.Validate(clibase.StringArrayOf(&autostartRequirementDaysOfWeek), func(value *clibase.StringArray) error {
+				v := value.GetSlice()
+				if len(v) == 1 && v[0] == "all" {
+					return nil
+				}
+				_, err := codersdk.WeekdaysToBitmap(v)
+				if err != nil {
+					return xerrors.Errorf("invalid autostart requirement days of week %q: %w", strings.Join(v, ","), err)
+				}
+				return nil
+			}),
+		},
+		{
+			Flag:        "autostop-requirement-weekdays",
+			Description: "Edit the template autostop requirement weekdays - workspaces created from this template must be restarted on the given weekdays. To unset this value for the template (and disable the autostop requirement for the template), pass 'none'.",
+			// TODO(@dean): unhide when we delete max_ttl
+			Hidden: true,
+			Value: clibase.Validate(clibase.StringArrayOf(&autostopRequirementDaysOfWeek), func(value *clibase.StringArray) error {
+				v := value.GetSlice()
+				if len(v) == 1 && v[0] == "none" {
+					return nil
+				}
+				_, err := codersdk.WeekdaysToBitmap(v)
+				if err != nil {
+					return xerrors.Errorf("invalid autostop requirement days of week %q: %w", strings.Join(v, ","), err)
+				}
+				return nil
+			}),
+		},
+		{
+			Flag:        "autostop-requirement-weeks",
+			Description: "Edit the template autostop requirement weeks - workspaces created from this template must be restarted on an n-weekly basis.",
+			// TODO(@dean): unhide when we delete max_ttl
+			Hidden: true,
+			Value:  clibase.Int64Of(&autostopRequirementWeeks),
+		},
+		{
+			Flag:        "dormancy-threshold",
+			Description: "Specify a duration workspaces may be inactive prior to being moved to the dormant state. This licensed feature's default is 0h (off). Maps to \"Dormancy threshold\" in the UI.",
+			Default:     "0h",
+			Value:       clibase.DurationOf(&dormancyThreshold),
+		},
+		{
+			Flag:        "dormancy-auto-deletion",
+			Description: "Specify a duration workspaces may be in the dormant state prior to being deleted. This licensed feature's default is 0h (off). Maps to \"Dormancy Auto-Deletion\" in the UI.",
+			Default:     "0h",
+			Value:       clibase.DurationOf(&dormancyAutoDeletion),
+		},
+		{
+			Flag:        "allow-user-cancel-workspace-jobs",
+			Description: "Allow users to cancel in-progress workspace jobs.",
+			Default:     "true",
+			Value:       clibase.BoolOf(&allowUserCancelWorkspaceJobs),
+		},
+		{
+			Flag:        "allow-user-autostart",
+			Description: "Allow users to configure autostart for workspaces on this template. This can only be disabled in enterprise.",
+			Default:     "true",
+			Value:       clibase.BoolOf(&allowUserAutostart),
+		},
+		{
+			Flag:        "allow-user-autostop",
+			Description: "Allow users to customize the autostop TTL for workspaces on this template. This can only be disabled in enterprise.",
+			Default:     "true",
+			Value:       clibase.BoolOf(&allowUserAutostop),
 		},
 		cliui.SkipPromptOption(),
 	}
