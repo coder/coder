@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -46,6 +47,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 		),
 		Short: "Edit the metadata of a template by name.",
 		Handler: func(inv *clibase.Invocation) error {
+<<<<<<< HEAD
 			// This clause can be removed when workspace_actions is no longer experimental
 			if failureTTL != 0 || dormancyThreshold != 0 || dormancyAutoDeletion != 0 {
 				experiments, exErr := client.Experiments(inv.Context())
@@ -89,6 +91,8 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				}
 			}
 
+=======
+>>>>>>> 3c377e5d3 (combine edit flags)
 			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
 				return xerrors.Errorf("get current organization: %w", err)
@@ -98,71 +102,55 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				return xerrors.Errorf("get workspace template: %w", err)
 			}
 
-			// Copy the default value if the list is empty, or if the user
-			// specified the "none" value clear the list.
-			if len(autostopRequirementDaysOfWeek) == 0 {
-				autostopRequirementDaysOfWeek = template.AutostopRequirement.DaysOfWeek
-			}
-			if len(autostartRequirementDaysOfWeek) == 1 && autostartRequirementDaysOfWeek[0] == "all" {
-				// Set it to every day of the week
-				autostartRequirementDaysOfWeek = []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
-			} else if len(autostartRequirementDaysOfWeek) == 0 {
-				autostartRequirementDaysOfWeek = template.AutostartRequirement.DaysOfWeek
-			}
-			if unsetAutostopRequirementDaysOfWeek {
-				autostopRequirementDaysOfWeek = []string{}
-			}
-			if failureTTL == 0 {
-				failureTTL = time.Duration(template.FailureTTLMillis) * time.Millisecond
-			}
-			if dormancyThreshold == 0 {
-				dormancyThreshold = time.Duration(template.TimeTilDormantMillis) * time.Millisecond
-			}
-			if dormancyAutoDeletion == 0 {
-				dormancyAutoDeletion = time.Duration(template.TimeTilDormantAutoDeleteMillis) * time.Millisecond
-			}
+			unsetAutostopRequirementDaysOfWeek, err := editTemplateEntitlementsCheck(inv.Context(), editTemplateEntitlementsArgs{
+				client:   client,
+				inv:      inv,
+				template: template,
 
-			// Default values
-			if !userSetOption(inv, "description") {
-				description = template.Description
-			}
+				name:                           name,
+				displayName:                    displayName,
+				description:                    description,
+				icon:                           icon,
+				defaultTTL:                     defaultTTL,
+				maxTTL:                         maxTTL,
+				autostopRequirementDaysOfWeek:  autostopRequirementDaysOfWeek,
+				autostopRequirementWeeks:       autostopRequirementWeeks,
+				autostartRequirementDaysOfWeek: autostartRequirementDaysOfWeek,
+				failureTTL:                     failureTTL,
+				dormancyThreshold:              dormancyThreshold,
+				dormancyAutoDeletion:           dormancyAutoDeletion,
+				allowUserCancelWorkspaceJobs:   allowUserCancelWorkspaceJobs,
+				allowUserAutostart:             allowUserAutostart,
+				allowUserAutostop:              allowUserAutostop,
+				requireActiveVersion:           requireActiveVersion,
+				deprecationMessage:             deprecationMessage,
+				disableEveryone:                false, // TODO: Add new flag
+			})
 
-			if !userSetOption(inv, "icon") {
-				icon = template.Icon
-			}
+			req := updateTemplateMetaRequest(updateTemplateMetaArgs{
+				client:                             client,
+				inv:                                inv,
+				template:                           template,
+				unsetAutostopRequirementDaysOfWeek: unsetAutostopRequirementDaysOfWeek,
 
-			if !userSetOption(inv, "display-name") {
-				displayName = template.DisplayName
-			}
-
-			var deprecated *string
-			if !userSetOption(inv, "deprecated") {
-				deprecated = &deprecationMessage
-			}
-
-			req := codersdk.UpdateTemplateMeta{
-				Name:             name,
-				DisplayName:      displayName,
-				Description:      description,
-				Icon:             icon,
-				DefaultTTLMillis: defaultTTL.Milliseconds(),
-				MaxTTLMillis:     maxTTL.Milliseconds(),
-				AutostopRequirement: &codersdk.TemplateAutostopRequirement{
-					DaysOfWeek: autostopRequirementDaysOfWeek,
-					Weeks:      autostopRequirementWeeks,
-				},
-				AutostartRequirement: &codersdk.TemplateAutostartRequirement{
-					DaysOfWeek: autostartRequirementDaysOfWeek,
-				},
-				FailureTTLMillis:               failureTTL.Milliseconds(),
-				TimeTilDormantMillis:           dormancyThreshold.Milliseconds(),
-				TimeTilDormantAutoDeleteMillis: dormancyAutoDeletion.Milliseconds(),
-				AllowUserCancelWorkspaceJobs:   allowUserCancelWorkspaceJobs,
-				AllowUserAutostart:             allowUserAutostart,
-				AllowUserAutostop:              allowUserAutostop,
-				RequireActiveVersion:           requireActiveVersion,
-				DeprecationMessage:             deprecated,
-			}
+				name:                           name,
+				displayName:                    displayName,
+				description:                    description,
+				icon:                           icon,
+				defaultTTL:                     defaultTTL,
+				maxTTL:                         maxTTL,
+				autostopRequirementDaysOfWeek:  autostopRequirementDaysOfWeek,
+				autostopRequirementWeeks:       autostopRequirementWeeks,
+				autostartRequirementDaysOfWeek: autostartRequirementDaysOfWeek,
+				failureTTL:                     failureTTL,
+				dormancyThreshold:              dormancyThreshold,
+				dormancyAutoDeletion:           dormancyAutoDeletion,
+				allowUserCancelWorkspaceJobs:   allowUserCancelWorkspaceJobs,
+				allowUserAutostart:             allowUserAutostart,
+				allowUserAutostop:              allowUserAutostop,
+				requireActiveVersion:           requireActiveVersion,
+				deprecationMessage:             deprecationMessage,
+			})
 
 			_, err = client.UpdateTemplateMeta(inv.Context(), template.ID, req)
 			if err != nil {
@@ -296,4 +284,172 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 	}
 
 	return cmd
+}
+
+type editTemplateEntitlementsArgs struct {
+	client *codersdk.Client
+	inv    *clibase.Invocation
+
+	defaultTTL                     time.Duration
+	maxTTL                         time.Duration
+	autostopRequirementDaysOfWeek  []string
+	autostopRequirementWeeks       int64
+	autostartRequirementDaysOfWeek []string
+	failureTTL                     time.Duration
+	dormancyThreshold              time.Duration
+	dormancyAutoDeletion           time.Duration
+	allowUserCancelWorkspaceJobs   bool
+	allowUserAutostart             bool
+	allowUserAutostop              bool
+	requireActiveVersion           bool
+}
+
+func editTemplateEntitlementsCheck(ctx context.Context, args editTemplateEntitlementsArgs) (bool, error) {
+	// This clause can be removed when workspace_actions is no longer experimental
+	if args.failureTTL != 0 || args.dormancyThreshold != 0 || args.dormancyAutoDeletion != 0 {
+		experiments, exErr := args.client.Experiments(ctx)
+		if exErr != nil {
+			return false, xerrors.Errorf("get experiments: %w", exErr)
+		}
+
+		if !experiments.Enabled(codersdk.ExperimentWorkspaceActions) {
+			return false, xerrors.Errorf("--failure-ttl, --dormancy-threshold, and --dormancy-auto-deletion are experimental features. Use the workspace_actions CODER_EXPERIMENTS flag to set these configuration values.")
+		}
+	}
+
+	unsetAutostopRequirementDaysOfWeek := len(args.autostopRequirementDaysOfWeek) == 1 && args.autostopRequirementDaysOfWeek[0] == "none"
+	requiresScheduling := (len(args.autostopRequirementDaysOfWeek) > 0 && !unsetAutostopRequirementDaysOfWeek) ||
+		args.autostopRequirementWeeks > 0 ||
+		!args.allowUserAutostart ||
+		!args.allowUserAutostop ||
+		args.maxTTL != 0 ||
+		args.failureTTL != 0 ||
+		args.dormancyThreshold != 0 ||
+		args.dormancyAutoDeletion != 0 ||
+		len(args.autostartRequirementDaysOfWeek) > 0
+
+	requiresEntitlement := requiresScheduling || args.requireActiveVersion
+	if requiresEntitlement {
+		entitlements, err := args.client.Entitlements(ctx)
+		if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusNotFound {
+			return false, xerrors.Errorf("your deployment appears to be an AGPL deployment, so you cannot set enterprise-only flags")
+		} else if err != nil {
+			return false, xerrors.Errorf("get entitlements: %w", err)
+		}
+
+		if requiresScheduling && !entitlements.Features[codersdk.FeatureAdvancedTemplateScheduling].Enabled {
+			return false, xerrors.Errorf("your license is not entitled to use advanced template scheduling, so you cannot set --max-ttl, --failure-ttl, --inactivityTTL, --allow-user-autostart=false or --allow-user-autostop=false")
+		}
+
+		if args.requireActiveVersion {
+			if !entitlements.Features[codersdk.FeatureAccessControl].Enabled {
+				return false, xerrors.Errorf("your license is not entitled to use enterprise access control, so you cannot set --require-active-version")
+			}
+
+			experiments, exErr := args.client.Experiments(ctx)
+			if exErr != nil {
+				return false, xerrors.Errorf("get experiments: %w", exErr)
+			}
+
+			if !experiments.Enabled(codersdk.ExperimentTemplateUpdatePolicies) {
+				return false, xerrors.Errorf("--require-active-version is an experimental feature, contact an administrator to enable the 'template_update_policies' experiment on your Coder server")
+			}
+		}
+	}
+
+	return unsetAutostopRequirementDaysOfWeek, nil
+}
+
+type updateTemplateMetaArgs struct {
+	client                             *codersdk.Client
+	inv                                *clibase.Invocation
+	template                           codersdk.Template
+	unsetAutostopRequirementDaysOfWeek bool
+
+	name                           string
+	displayName                    string
+	description                    string
+	icon                           string
+	defaultTTL                     time.Duration
+	maxTTL                         time.Duration
+	autostopRequirementDaysOfWeek  []string
+	autostopRequirementWeeks       int64
+	autostartRequirementDaysOfWeek []string
+	failureTTL                     time.Duration
+	dormancyThreshold              time.Duration
+	dormancyAutoDeletion           time.Duration
+	allowUserCancelWorkspaceJobs   bool
+	allowUserAutostart             bool
+	allowUserAutostop              bool
+	requireActiveVersion           bool
+	deprecationMessage             string
+	disableEveryone                bool
+}
+
+func updateTemplateMetaRequest(args updateTemplateMetaArgs) codersdk.UpdateTemplateMeta {
+	// Copy the default value if the list is empty, or if the user
+	// specified the "none" value clear the list.
+	if len(args.autostopRequirementDaysOfWeek) == 0 {
+		args.autostopRequirementDaysOfWeek = args.template.AutostopRequirement.DaysOfWeek
+	}
+	if len(args.autostartRequirementDaysOfWeek) == 1 && args.autostartRequirementDaysOfWeek[0] == "all" {
+		// Set it to every day of the week
+		args.autostartRequirementDaysOfWeek = []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
+	} else if len(args.autostartRequirementDaysOfWeek) == 0 {
+		args.autostartRequirementDaysOfWeek = args.template.AutostartRequirement.DaysOfWeek
+	}
+	if args.unsetAutostopRequirementDaysOfWeek {
+		args.autostopRequirementDaysOfWeek = []string{}
+	}
+	if args.failureTTL == 0 {
+		args.failureTTL = time.Duration(args.template.FailureTTLMillis) * time.Millisecond
+	}
+	if args.dormancyThreshold == 0 {
+		args.dormancyThreshold = time.Duration(args.template.TimeTilDormantMillis) * time.Millisecond
+	}
+	if args.dormancyAutoDeletion == 0 {
+		args.dormancyAutoDeletion = time.Duration(args.template.TimeTilDormantAutoDeleteMillis) * time.Millisecond
+	}
+
+	// Default values
+	if !userSetOption(args.inv, "description") {
+		args.description = args.template.Description
+	}
+
+	if !userSetOption(args.inv, "icon") {
+		args.icon = args.template.Icon
+	}
+
+	if !userSetOption(args.inv, "display-name") {
+		args.displayName = args.template.DisplayName
+	}
+
+	var deprecated *string
+	if !userSetOption(args.inv, "deprecated") {
+		deprecated = &args.deprecationMessage
+	}
+
+	return codersdk.UpdateTemplateMeta{
+		Name:             args.name,
+		DisplayName:      args.displayName,
+		Description:      args.description,
+		Icon:             args.icon,
+		DefaultTTLMillis: args.defaultTTL.Milliseconds(),
+		MaxTTLMillis:     args.maxTTL.Milliseconds(),
+		AutostopRequirement: &codersdk.TemplateAutostopRequirement{
+			DaysOfWeek: args.autostopRequirementDaysOfWeek,
+			Weeks:      args.autostopRequirementWeeks,
+		},
+		AutostartRequirement: &codersdk.TemplateAutostartRequirement{
+			DaysOfWeek: args.autostartRequirementDaysOfWeek,
+		},
+		FailureTTLMillis:               args.failureTTL.Milliseconds(),
+		TimeTilDormantMillis:           args.dormancyThreshold.Milliseconds(),
+		TimeTilDormantAutoDeleteMillis: args.dormancyAutoDeletion.Milliseconds(),
+		AllowUserCancelWorkspaceJobs:   args.allowUserCancelWorkspaceJobs,
+		AllowUserAutostart:             args.allowUserAutostart,
+		AllowUserAutostop:              args.allowUserAutostop,
+		RequireActiveVersion:           args.requireActiveVersion,
+		DeprecationMessage:             deprecated,
+	}
 }
