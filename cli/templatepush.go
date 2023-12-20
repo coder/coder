@@ -161,6 +161,7 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 	var (
 		versionName          string
 		provisioner          string
+		workdir              string
 		variablesFile        string
 		commandLineVariables []string
 		alwaysPrompt         bool
@@ -185,6 +186,8 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
+			uploadFlags.setWorkdir(workdir)
+
 			err := handleEntitlements(inv.Context(), handleEntitlementsArgs{
 				client:               client,
 				requireActiveVersion: requireActiveVersion,
