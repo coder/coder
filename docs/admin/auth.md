@@ -352,15 +352,18 @@ Some common issues when enabling group/role sync.
 
 ### General guidelines
 
-If you are running into issues with group/role sync, is best to view your Coder server logs and enable [verbose mode](https://coder.com/docs/v2/v2.5.1/cli#-v---verbose). To reduce noise, you can filter for
-only logs related to group/role sync:
+If you are running into issues with group/role sync, is best to view your Coder
+server logs and enable
+[verbose mode](https://coder.com/docs/v2/v2.5.1/cli#-v---verbose). To reduce
+noise, you can filter for only logs related to group/role sync:
 
 ```sh
 CODER_VERBOSE=true
 CODER_LOG_FILTER=".*userauth.*|.*groups returned.*"
 ```
 
-Be sure to restart the server after changing these configuration values. Then, attempt to log in, preferably with a user who has the `Owner` role.
+Be sure to restart the server after changing these configuration values. Then,
+attempt to log in, preferably with a user who has the `Owner` role.
 
 The logs for a successful group sync look like this (human-readable):
 
@@ -374,7 +377,8 @@ The logs for a successful group sync look like this (human-readable):
 [debu]  coderd: groups returned in oidc claims  request_id=49e86507-6842-4b0b-94d4-f245e62e49f3  email=ben@coder.com  username=ben  len=3  groups="[c8048e91-f5c3-47e5-9693-834de84034ad 66ad2cc3-a42f-4574-a281-40d1922e5b65 70b48175-107b-4ad8-b405-4d888a1c466f]"
 ```
 
-To view the full claim, the Owner role can visit this endpoint on their Coder deployment after logging in:
+To view the full claim, the Owner role can visit this endpoint on their Coder
+deployment after logging in:
 
 ```sh
 https://[coder.example.com]/api/v2/debug/[username]/debug-link
