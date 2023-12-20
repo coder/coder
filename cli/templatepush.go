@@ -227,6 +227,9 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				allowUserAutostop:              allowUserAutostop,
 				requireActiveVersion:           requireActiveVersion,
 			})
+			if err != nil {
+				return err
+			}
 
 			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
@@ -323,53 +326,47 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				}
 			}
 
-			editTemplate := requireActiveVersion ||
-				disableEveryone ||
-				defaultTTL != 0 ||
-				failureTTL != 0 ||
-				dormancyThreshold != 0 ||
-				dormancyAutoDeletion != 0 ||
-				maxTTL != 0
-			if editTemplate {
-				template, err := client.TemplateByName(inv.Context(), organization.ID, name)
-				if err != nil {
-					return err
-				}
-				req := updateTemplateMetaRequest(updateTemplateMetaArgs{
-					client:                             client,
-					inv:                                inv,
-					template:                           template,
-					unsetAutostopRequirementDaysOfWeek: unsetAutostopRequirementDaysOfWeek,
-
-					displayName:                    displayName,
-					description:                    description,
-					icon:                           icon,
-					requireActiveVersion:           requireActiveVersion,
-					disableEveryone:                disableEveryone,
-					defaultTTL:                     defaultTTL,
-					failureTTL:                     failureTTL,
-					dormancyThreshold:              dormancyThreshold,
-					dormancyAutoDeletion:           dormancyAutoDeletion,
-					maxTTL:                         maxTTL,
-					autostopRequirementDaysOfWeek:  autostopRequirementDaysOfWeek,
-					autostopRequirementWeeks:       autostopRequirementWeeks,
-					autostartRequirementDaysOfWeek: autostartRequirementDaysOfWeek,
-					allowUserAutostart:             allowUserAutostart,
-					allowUserAutostop:              allowUserAutostop,
-					allowUserCancelWorkspaceJobs:   allowUserCancelWorkspaceJobs,
-					deprecationMessage:             deprecationMessage,
-				})
-
-				_, err = client.UpdateTemplateMeta(inv.Context(), template.ID, req)
-				if err != nil {
-					return xerrors.Errorf("update template metadata: %w", err)
-				}
-				if err != nil {
-					return err
-				}
-			}
-
 			_, _ = fmt.Fprintf(inv.Stdout, "Updated version at %s!\n", pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, time.Now().Format(time.Stamp)))
+
+			// refresh template data for edit api call
+			template, err = client.TemplateByName(inv.Context(), organization.ID, name)
+			if err != nil {
+				return err
+			}
+			req := updateTemplateMetaRequest(updateTemplateMetaArgs{
+				client:                             client,
+				inv:                                inv,
+				template:                           template,
+				unsetAutostopRequirementDaysOfWeek: unsetAutostopRequirementDaysOfWeek,
+
+				displayName:                    displayName,
+				description:                    description,
+				icon:                           icon,
+				requireActiveVersion:           requireActiveVersion,
+				disableEveryone:                disableEveryone,
+				defaultTTL:                     defaultTTL,
+				failureTTL:                     failureTTL,
+				dormancyThreshold:              dormancyThreshold,
+				dormancyAutoDeletion:           dormancyAutoDeletion,
+				maxTTL:                         maxTTL,
+				autostopRequirementDaysOfWeek:  autostopRequirementDaysOfWeek,
+				autostopRequirementWeeks:       autostopRequirementWeeks,
+				autostartRequirementDaysOfWeek: autostartRequirementDaysOfWeek,
+				allowUserAutostart:             allowUserAutostart,
+				allowUserAutostop:              allowUserAutostop,
+				allowUserCancelWorkspaceJobs:   allowUserCancelWorkspaceJobs,
+				deprecationMessage:             deprecationMessage,
+			})
+
+			_, err = client.UpdateTemplateMeta(inv.Context(), template.ID, req)
+			if err != nil {
+				return xerrors.Errorf("update template metadata: %w", err)
+			}
+			if err != nil {
+				return err
+			}
+			_, _ = fmt.Fprintf(inv.Stdout, "Updated template metadata at %s!\n", pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, time.Now().Format(time.Stamp)))
+
 			return nil
 		},
 	}
