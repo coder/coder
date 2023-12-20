@@ -1264,6 +1264,7 @@ export interface UpdateTemplateMeta {
   readonly update_workspace_dormant_at: boolean;
   readonly require_active_version: boolean;
   readonly deprecation_message?: string;
+  readonly disable_everyone_group_access: boolean;
 }
 
 // From codersdk/users.go

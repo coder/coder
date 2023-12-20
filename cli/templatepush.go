@@ -321,7 +321,7 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				}
 				req := codersdk.UpdateTemplateMeta{
 					RequireActiveVersion:           requireActiveVersion,
-					DisableEveryone:                disableEveryone,
+					DisableEveryoneGroupAccess:     disableEveryone,
 					DefaultTTLMillis:               defaultTTL.Milliseconds(),
 					FailureTTLMillis:               failureTTL.Milliseconds(),
 					TimeTilDormantMillis:           dormancyThreshold.Milliseconds(),
