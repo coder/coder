@@ -440,6 +440,9 @@ client:
 # Support links to display in the top right drop down menu.
 # (default: <unset>, type: struct[[]codersdk.LinkConfig])
 supportLinks: []
+# External Authentication providers.
+# (default: <unset>, type: struct[[]codersdk.ExternalAuthConfig])
+externalAuthProviders: []
 # Hostname of HTTPS server that runs https://github.com/coder/wgtunnel. By
 # default, this will pick the best available wgtunnel server hosted by Coder. e.g.
 # "tunnel.example.com".

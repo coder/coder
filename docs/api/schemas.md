@@ -2865,7 +2865,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ## codersdk.Experiment
 
 ```json
-"moons"
+"workspace_actions"
 ```
 
 ### Properties
@@ -2874,7 +2874,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Value                      |
 | -------------------------- |
-| `moons`                    |
 | `workspace_actions`        |
 | `tailnet_pg_coordinator`   |
 | `single_tailnet`           |

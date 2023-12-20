@@ -131,9 +131,8 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
       <TableCell>
         <AvatarData
           title={app.display_name || app.id}
-          // subtitle={template.description}
           avatar={
-            app.display_icon !== "" && (
+            app.display_icon && (
               <Avatar src={app.display_icon} variant="square" fitImage />
             )
           }
@@ -150,6 +149,7 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
           message={authenticated ? "Authenticated" : "Click to Login"}
           externalAuthPollingState={externalAuthPollingState}
           startPollingExternalAuth={startPollingExternalAuth}
+          fullWidth={false}
         />
       </TableCell>
       <TableCell>

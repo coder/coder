@@ -56,7 +56,7 @@ export const TemplatePermissionsPage: FC<
                 </Button>
               </Link>
               <Link href={docs("/admin/rbac")} target="_blank" rel="noreferrer">
-                Read the docs
+                Read the documentation
               </Link>
             </Stack>
           }

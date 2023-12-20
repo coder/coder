@@ -121,11 +121,18 @@ export const Markdown: FC<MarkdownProps> = (props) => {
   );
 };
 
-interface MarkdownInlineProps {
+interface InlineMarkdownProps {
   /**
    * The Markdown text to parse and render
    */
   children: string;
+
+  /**
+   * Additional element types to allow.
+   * Allows italic, bold, links, and inline code snippets by default.
+   * eg. `["ol", "ul", "li"]` to support lists.
+   */
+  allowedElements?: readonly string[];
 
   className?: string;
 
@@ -138,13 +145,21 @@ interface MarkdownInlineProps {
 /**
  * Supports a strict subset of Markdown that behaves well as inline/confined content.
  */
-export const InlineMarkdown: FC<MarkdownInlineProps> = (props) => {
-  const { children, className, components = {} } = props;
+export const InlineMarkdown: FC<InlineMarkdownProps> = (props) => {
+  const { children, allowedElements = [], className, components = {} } = props;
 
   return (
     <ReactMarkdown
       className={className}
-      allowedElements={["p", "em", "strong", "a", "pre", "code"]}
+      allowedElements={[
+        "p",
+        "em",
+        "strong",
+        "a",
+        "pre",
+        "code",
+        ...allowedElements,
+      ]}
       unwrapDisallowed
       components={{
         p: ({ children }) => <>{children}</>,

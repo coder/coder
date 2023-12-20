@@ -14,18 +14,17 @@
  * users like that, though, know that it will be painful
  */
 import { useTheme } from "@emotion/react";
-import { type User, type Role } from "api/typesGenerated";
-
-import { EditRolesButton } from "./EditRolesButton";
-import { Pill } from "components/Pill/Pill";
 import TableCell from "@mui/material/TableCell";
 import Stack from "@mui/material/Stack";
-
+import { type FC } from "react";
+import { type User, type Role } from "api/typesGenerated";
+import { Pill } from "components/Pill/Pill";
 import {
   Popover,
   PopoverTrigger,
   PopoverContent,
 } from "components/Popover/Popover";
+import { EditRolesButton } from "./EditRolesButton";
 
 type UserRoleCellProps = {
   canEditUsers: boolean;
@@ -36,14 +35,14 @@ type UserRoleCellProps = {
   onUserRolesUpdate: (user: User, newRoleNames: string[]) => void;
 };
 
-export function UserRoleCell({
+export const UserRoleCell: FC<UserRoleCellProps> = ({
   canEditUsers,
   allAvailableRoles,
   user,
   isLoading,
   oidcRoleSyncEnabled,
   onUserRolesUpdate,
-}: UserRoleCellProps) {
+}) => {
   const theme = useTheme();
 
   const [mainDisplayRole = fallbackRole, ...extraRoles] =
@@ -75,11 +74,11 @@ export function UserRoleCell({
           text={mainDisplayRole.display_name}
           css={{
             backgroundColor: hasOwnerRole
-              ? theme.palette.info.dark
-              : theme.palette.background.paper,
+              ? theme.experimental.roles.info.background
+              : theme.experimental.l2.background,
             borderColor: hasOwnerRole
-              ? theme.palette.info.light
-              : theme.palette.divider,
+              ? theme.experimental.roles.info.outline
+              : theme.experimental.l2.outline,
           }}
         />
 
@@ -87,13 +86,13 @@ export function UserRoleCell({
       </Stack>
     </TableCell>
   );
-}
+};
 
 type OverflowRolePillProps = {
   roles: readonly Role[];
 };
 
-function OverflowRolePill({ roles }: OverflowRolePillProps) {
+const OverflowRolePill: FC<OverflowRolePillProps> = ({ roles }) => {
   const theme = useTheme();
 
   return (
@@ -144,7 +143,7 @@ function OverflowRolePill({ roles }: OverflowRolePillProps) {
       </PopoverContent>
     </Popover>
   );
-}
+};
 
 const fallbackRole: Role = {
   name: "member",

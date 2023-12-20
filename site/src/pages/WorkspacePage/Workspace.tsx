@@ -59,12 +59,6 @@ export type WorkspaceError =
 export type WorkspaceErrors = Partial<Record<WorkspaceError, unknown>>;
 
 export interface WorkspaceProps {
-  scheduleProps: {
-    onDeadlinePlus: (hours: number) => void;
-    onDeadlineMinus: (hours: number) => void;
-    maxDeadlineIncrease: number;
-    maxDeadlineDecrease: number;
-  };
   handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
   handleStop: () => void;
   handleRestart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
@@ -103,7 +97,6 @@ export interface WorkspaceProps {
  * Workspace is the top-level component for viewing an individual workspace
  */
 export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
-  scheduleProps,
   handleStart,
   handleStop,
   handleRestart,
@@ -268,10 +261,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           workspace={workspace}
           handleUpdate={handleUpdate}
           canUpdateWorkspace={canUpdateWorkspace}
-          maxDeadlineDecrease={scheduleProps.maxDeadlineDecrease}
-          maxDeadlineIncrease={scheduleProps.maxDeadlineIncrease}
-          onDeadlineMinus={scheduleProps.onDeadlineMinus}
-          onDeadlinePlus={scheduleProps.onDeadlinePlus}
         />
 
         {canUpdateWorkspace && (

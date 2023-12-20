@@ -1,15 +1,16 @@
-import { Theme } from "@mui/material/styles";
-import dayjs from "dayjs";
-import duration from "dayjs/plugin/duration";
-import minMax from "dayjs/plugin/minMax";
-import utc from "dayjs/plugin/utc";
-import semver from "semver";
-import * as TypesGen from "api/typesGenerated";
 import CircularProgress from "@mui/material/CircularProgress";
 import ErrorIcon from "@mui/icons-material/ErrorOutline";
 import StopIcon from "@mui/icons-material/StopOutlined";
 import PlayIcon from "@mui/icons-material/PlayArrowOutlined";
 import QueuedIcon from "@mui/icons-material/HourglassEmpty";
+import dayjs from "dayjs";
+import duration from "dayjs/plugin/duration";
+import minMax from "dayjs/plugin/minMax";
+import utc from "dayjs/plugin/utc";
+import { type Theme } from "@emotion/react";
+import { type FC } from "react";
+import semver from "semver";
+import type * as TypesGen from "api/typesGenerated";
 
 dayjs.extend(duration);
 dayjs.extend(utc);
@@ -26,6 +27,15 @@ const DisplayWorkspaceBuildStatusLanguage = {
 
 const DisplayAgentVersionLanguage = {
   unknown: "Unknown",
+};
+
+const LoadingIcon: FC = () => {
+  return (
+    <CircularProgress
+      size={10}
+      css={(theme) => ({ color: theme.experimental.l1.text })}
+    />
+  );
 };
 
 export const getDisplayWorkspaceBuildStatus = (
@@ -247,10 +257,6 @@ const getPendingWorkspaceStatusText = (
     return "Pending";
   }
   return "Position in queue: " + provisionerJob.queue_position;
-};
-
-const LoadingIcon = () => {
-  return <CircularProgress size={10} style={{ color: "#FFF" }} />;
 };
 
 export const hasJobError = (workspace: TypesGen.Workspace) => {

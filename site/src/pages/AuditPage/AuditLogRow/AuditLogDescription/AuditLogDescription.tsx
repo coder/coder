@@ -1,12 +1,16 @@
-import { FC } from "react";
+import { type FC } from "react";
 import { AuditLog } from "api/typesGenerated";
 import { Link as RouterLink } from "react-router-dom";
 import Link from "@mui/material/Link";
 import { BuildAuditDescription } from "./BuildAuditDescription";
 
-export const AuditLogDescription: FC<{ auditLog: AuditLog }> = ({
+interface AuditLogDescriptionProps {
+  auditLog: AuditLog;
+}
+
+export const AuditLogDescription: FC<AuditLogDescriptionProps> = ({
   auditLog,
-}): JSX.Element => {
+}) => {
   let target = auditLog.resource_target.trim();
   const user = auditLog.user?.username.trim();
 

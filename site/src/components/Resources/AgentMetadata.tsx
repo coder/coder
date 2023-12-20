@@ -95,7 +95,7 @@ export interface AgentMetadataViewProps {
 
 export const AgentMetadataView: FC<AgentMetadataViewProps> = ({ metadata }) => {
   if (metadata.length === 0) {
-    return <></>;
+    return null;
   }
   return (
     <div css={styles.root}>
@@ -131,7 +131,7 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
       return;
     }
 
-    let timeout: NodeJS.Timeout | undefined = undefined;
+    let timeout: ReturnType<typeof setTimeout> | undefined = undefined;
 
     const connect = (): (() => void) => {
       const source = watchAgentMetadata(agent.id);
@@ -259,7 +259,9 @@ const styles = {
   },
 
   metadataValueSuccess: (theme) => ({
-    color: theme.palette.success.light,
+    // color: theme.palette.success.light,
+    color: theme.experimental.roles.success.fill,
+    // color: theme.experimental.roles.success.text,
   }),
 
   metadataValueError: (theme) => ({

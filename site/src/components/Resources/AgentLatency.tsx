@@ -1,6 +1,5 @@
+import { type Theme, useTheme } from "@emotion/react";
 import { type FC } from "react";
-import { useTheme } from "@emotion/react";
-import { Theme } from "@mui/material/styles";
 import type { WorkspaceAgent, DERPRegion } from "api/typesGenerated";
 import {
   HelpTooltipText,
@@ -31,7 +30,11 @@ const getDisplayLatency = (theme: Theme, agent: WorkspaceAgent) => {
   };
 };
 
-export const AgentLatency: FC<{ agent: WorkspaceAgent }> = ({ agent }) => {
+interface AgentLatencyProps {
+  agent: WorkspaceAgent;
+}
+
+export const AgentLatency: FC<AgentLatencyProps> = ({ agent }) => {
   const theme = useTheme();
   const latency = getDisplayLatency(theme, agent);
 

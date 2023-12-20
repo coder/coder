@@ -6331,7 +6331,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, is-dormant, last_used_after, last_used_before.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before.",
                         "name": "q",
                         "in": "query"
                     },
@@ -8826,7 +8826,6 @@ const docTemplate = `{
         "codersdk.Experiment": {
             "type": "string",
             "enum": [
-                "moons",
                 "workspace_actions",
                 "tailnet_pg_coordinator",
                 "single_tailnet",
@@ -8834,7 +8833,6 @@ const docTemplate = `{
                 "template_update_policies"
             ],
             "x-enum-varnames": [
-                "ExperimentMoons",
                 "ExperimentWorkspaceActions",
                 "ExperimentTailnetPGCoordinator",
                 "ExperimentSingleTailnet",

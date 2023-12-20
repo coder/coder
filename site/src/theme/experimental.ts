@@ -19,6 +19,7 @@ export interface NewTheme {
     info: Role; // just sharing :)
     success: InteractiveRole; // yay!! it's working!!
     active: InteractiveRole; // selected items, focused inputs, in progress
+    preview: Role; // experiments, alpha/beta features
   };
 }
 

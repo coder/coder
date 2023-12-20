@@ -1,11 +1,16 @@
 package codersdk_test
 
 import (
+	"bytes"
+	"embed"
+	"fmt"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/codersdk"
@@ -276,4 +281,79 @@ func TestDeploymentValues_DurationFormatNanoseconds(t *testing.T) {
 		t.Logf(`Annotations: clibase.Annotations{}.Mark(annotationFormatDurationNS, "true"),`)
 		t.FailNow()
 	}
+}
+
+//go:embed testdata/*
+var testData embed.FS
+
+func TestExternalAuthYAMLConfig(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		// The windows marshal function uses different line endings.
+		// Not worth the effort getting this to work on windows.
+		t.SkipNow()
+	}
+
+	file := func(t *testing.T, name string) string {
+		data, err := testData.ReadFile(fmt.Sprintf("testdata/%s", name))
+		require.NoError(t, err, "read testdata file %q", name)
+		return string(data)
+	}
+	githubCfg := codersdk.ExternalAuthConfig{
+		Type:                "github",
+		ClientID:            "client_id",
+		ClientSecret:        "client_secret",
+		ID:                  "id",
+		AuthURL:             "https://example.com/auth",
+		TokenURL:            "https://example.com/token",
+		ValidateURL:         "https://example.com/validate",
+		AppInstallURL:       "https://example.com/install",
+		AppInstallationsURL: "https://example.com/installations",
+		NoRefresh:           true,
+		Scopes:              []string{"user:email", "read:org"},
+		ExtraTokenKeys:      []string{"extra", "token"},
+		DeviceFlow:          true,
+		DeviceCodeURL:       "https://example.com/device",
+		Regex:               "^https://example.com/.*$",
+		DisplayName:         "GitHub",
+		DisplayIcon:         "/static/icons/github.svg",
+	}
+
+	// Input the github section twice for testing a slice of configs.
+	inputYAML := func() string {
+		f := file(t, "githubcfg.yaml")
+		lines := strings.SplitN(f, "\n", 2)
+		// Append github config twice
+		return f + lines[1]
+	}()
+
+	expected := []codersdk.ExternalAuthConfig{
+		githubCfg, githubCfg,
+	}
+
+	dv := codersdk.DeploymentValues{}
+	opts := dv.Options()
+	// replace any tabs with the proper space indentation
+	inputYAML = strings.ReplaceAll(inputYAML, "\t", "  ")
+
+	// This is the order things are done in the cli, so just
+	// keep it the same.
+	var n yaml.Node
+	err := yaml.Unmarshal([]byte(inputYAML), &n)
+	require.NoError(t, err)
+
+	err = n.Decode(&opts)
+	require.NoError(t, err)
+	require.ElementsMatchf(t, expected, dv.ExternalAuthConfigs.Value, "from yaml")
+
+	var out bytes.Buffer
+	enc := yaml.NewEncoder(&out)
+	enc.SetIndent(2)
+	err = enc.Encode(dv.ExternalAuthConfigs)
+	require.NoError(t, err)
+
+	// Because we only marshal the 1 section, the correct section name is not applied.
+	output := strings.Replace(out.String(), "value:", "externalAuthProviders:", 1)
+	require.Equal(t, inputYAML, output, "re-marshaled is the same as input")
 }

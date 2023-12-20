@@ -26,6 +26,16 @@ type Story = StoryObj<typeof ExternalAuthPageView>;
 
 export const NoProviders: Story = {};
 
+export const NoIcon: Story = {
+  args: {
+    ...meta.args,
+    auths: {
+      providers: [{ ...MockGithubExternalProvider, display_icon: "" }],
+      links: [MockGithubAuthLink],
+    },
+  },
+};
+
 export const Authenticated: Story = {
   args: {
     ...meta.args,
@@ -36,7 +46,7 @@ export const Authenticated: Story = {
   },
 };
 
-export const UnAuthenticated: Story = {
+export const Unauthenticated: Story = {
   args: {
     ...meta.args,
     auths: {
