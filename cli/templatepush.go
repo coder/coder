@@ -353,6 +353,14 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			Hidden: true,
 		},
 		{
+			Flag:        "test.workdir",
+			Description: "Customize the working directory.",
+			Default:     "",
+			Value:       clibase.StringOf(&workdir),
+			// This is for testing!
+			Hidden: true,
+		},
+		{
 			Flag:        "variables-file",
 			Description: "Specify a file path with values for Terraform-managed variables.",
 			Value:       clibase.StringOf(&variablesFile),
