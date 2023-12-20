@@ -42,6 +42,7 @@
     "@mui/material": "5.14.0",
     "@mui/system": "5.14.0",
     "@mui/utils": "5.14.11",
+    "@tanstack/react-query-devtools": "4.35.3",
     "@vitejs/plugin-react": "4.1.0",
     "ansi-to-html": "0.7.2",
     "axios": "1.6.0",
