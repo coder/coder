@@ -54,11 +54,11 @@ This template provisions the following resources:
 - GCP VM (persistent)
 - GCP Disk (persistent, mounted to root)
 
-Coder persists the root volume. The full filesystem is preserved when the workspace restarts. See this [community example](https://github.com/bpmct/coder-templates/tree/main/aws-linux-ephemeral) of an ephemeral AWS instance.
+Coder persists the root volume. The full filesystem is preserved when the workspace restarts.
 
 > **Note**
 > This template is designed to be a starting point! Edit the Terraform to extend the template to support your use case.
 
 ## code-server
 
-`code-server` is installed via the [`code-server`](https://registry.coder.com/modules/code-server) registry module. For a list of all modules and templates pplease check [Coder Registry](https://registry.coder.com).
+`code-server` is installed via the [`code-server`](https://registry.coder.com/modules/code-server) registry module. Please check [Coder Registry](https://registry.coder.com) for a list of all modules and templates.
