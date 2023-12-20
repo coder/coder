@@ -50,6 +50,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "components/Popover/Popover";
+import ScheduleOutlined from "@mui/icons-material/ScheduleOutlined";
+import { WorkspaceScheduleControls } from "./WorkspaceScheduleControls";
 
 export type WorkspaceError =
   | "getBuildsError"
@@ -238,6 +240,16 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               <PersonOutlineOutlined />
             </TopbarIcon>
             <span>{workspace.owner_name}</span>
+          </TopbarData>
+
+          <TopbarData>
+            <TopbarIcon>
+              <ScheduleOutlined />
+            </TopbarIcon>
+            <WorkspaceScheduleControls
+              workspace={workspace}
+              canUpdateSchedule={canUpdateWorkspace}
+            />
           </TopbarData>
         </div>
       </Topbar>

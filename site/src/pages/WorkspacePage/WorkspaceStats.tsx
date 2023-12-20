@@ -13,7 +13,6 @@ import { useQuery } from "react-query";
 import _ from "lodash";
 import {
   WorkspaceScheduleControls,
-  scheduleLabel,
   shouldDisplayScheduleControls,
 } from "./WorkspaceScheduleControls";
 
@@ -88,7 +87,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
         {shouldDisplayScheduleControls(workspace) && (
           <StatsItem
             css={styles.statsItem}
-            label={scheduleLabel(workspace)}
+            label="Schedule"
             value={
               <WorkspaceScheduleControls
                 workspace={workspace}
