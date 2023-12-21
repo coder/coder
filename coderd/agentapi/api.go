@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/tailnet"
+	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 )
 
 const AgentAPIVersionDRPC = "2.0"
@@ -42,6 +43,7 @@ type API struct {
 	*AppsAPI
 	*MetadataAPI
 	*LogsAPI
+	*tailnet.DRPCService
 
 	mu                sync.Mutex
 	cachedWorkspaceID uuid.UUID
@@ -145,6 +147,13 @@ func New(opts Options) *API {
 		PublishWorkspaceAgentLogsUpdateFn: opts.PublishWorkspaceAgentLogsUpdateFn,
 	}
 
+	api.DRPCService = &tailnet.DRPCService{
+		CoordPtr:               opts.TailnetCoordinator,
+		Logger:                 opts.Log,
+		DerpMapUpdateFrequency: opts.DerpMapUpdateFrequency,
+		DerpMapFn:              opts.DerpMapFn,
+	}
+
 	return api
 }
 
@@ -153,6 +162,11 @@ func (a *API) Server(ctx context.Context) (*drpcserver.Server, error) {
 	err := agentproto.DRPCRegisterAgent(mux, a)
 	if err != nil {
 		return nil, xerrors.Errorf("register agent API protocol in DRPC mux: %w", err)
+	}
+
+	err = tailnetproto.DRPCRegisterTailnet(mux, a)
+	if err != nil {
+		return nil, xerrors.Errorf("register tailnet API protocol in DRPC mux: %w", err)
 	}
 
 	return drpcserver.NewWithOptions(&tracing.DRPCHandler{Handler: mux},
