@@ -120,6 +120,24 @@ const ExternalAuthSettingsPage = lazy(
       "./pages/DeploySettingsPage/ExternalAuthSettingsPage/ExternalAuthSettingsPage"
     ),
 );
+const OAuth2AppsSettingsPage = lazy(
+  () =>
+    import(
+      "./pages/DeploySettingsPage/OAuth2AppsSettingsPage/OAuth2AppsSettingsPage"
+    ),
+);
+const EditOAuth2AppPage = lazy(
+  () =>
+    import(
+      "./pages/DeploySettingsPage/OAuth2AppsSettingsPage/EditOAuth2AppPage"
+    ),
+);
+const CreateOAuth2AppPage = lazy(
+  () =>
+    import(
+      "./pages/DeploySettingsPage/OAuth2AppsSettingsPage/CreateOAuth2AppPage"
+    ),
+);
 const NetworkSettingsPage = lazy(
   () =>
     import(
@@ -315,6 +333,16 @@ export const AppRouter: FC = () => {
                   path="external-auth"
                   element={<ExternalAuthSettingsPage />}
                 />
+
+                <Route path="oauth2-provider">
+                  <Route index element={<NotFoundPage />} />
+                  <Route path="apps">
+                    <Route index element={<OAuth2AppsSettingsPage />} />
+                    <Route path="add" element={<CreateOAuth2AppPage />} />
+                    <Route path=":appId" element={<EditOAuth2AppPage />} />
+                  </Route>
+                </Route>
+
                 <Route
                   path="workspace-proxies"
                   element={<WorkspaceProxyPage />}

@@ -1788,6 +1788,26 @@ type License struct {
 	UUID uuid.UUID `db:"uuid" json:"uuid"`
 }
 
+// A table used to configure apps that can use Coder as an OAuth2 provider, the reverse of what we are calling external authentication.
+type OAuth2ProviderApp struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+	Name        string    `db:"name" json:"name"`
+	Icon        string    `db:"icon" json:"icon"`
+	CallbackURL string    `db:"callback_url" json:"callback_url"`
+}
+
+type OAuth2ProviderAppSecret struct {
+	ID           uuid.UUID    `db:"id" json:"id"`
+	CreatedAt    time.Time    `db:"created_at" json:"created_at"`
+	LastUsedAt   sql.NullTime `db:"last_used_at" json:"last_used_at"`
+	HashedSecret []byte       `db:"hashed_secret" json:"hashed_secret"`
+	// The tail end of the original secret so secrets can be differentiated.
+	DisplaySecret string    `db:"display_secret" json:"display_secret"`
+	AppID         uuid.UUID `db:"app_id" json:"app_id"`
+}
+
 type Organization struct {
 	ID          uuid.UUID `db:"id" json:"id"`
 	Name        string    `db:"name" json:"name"`
