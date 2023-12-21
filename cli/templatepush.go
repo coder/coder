@@ -527,18 +527,6 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			Value:  clibase.Int64Of(&autostopRequirementWeeks),
 		},
 		{
-			Flag:        "dormancy-threshold",
-			Description: "Specify a duration workspaces may be inactive prior to being moved to the dormant state. This licensed feature's default is 0h (off). Maps to \"Dormancy threshold\" in the UI.",
-			Default:     "0h",
-			Value:       clibase.DurationOf(&dormancyThreshold),
-		},
-		{
-			Flag:        "dormancy-auto-deletion",
-			Description: "Specify a duration workspaces may be in the dormant state prior to being deleted. This licensed feature's default is 0h (off). Maps to \"Dormancy Auto-Deletion\" in the UI.",
-			Default:     "0h",
-			Value:       clibase.DurationOf(&dormancyAutoDeletion),
-		},
-		{
 			Flag:        "allow-user-cancel-workspace-jobs",
 			Description: "Allow users to cancel in-progress workspace jobs.",
 			Default:     "true",
