@@ -676,10 +676,9 @@ func TestTemplatePush(t *testing.T) {
 			args := []string{
 				"templates",
 				"push",
-				templateName,
+				"my-template",
 				"--directory", source,
 				"--test.provisioner", string(database.ProvisionerTypeEcho),
-				"--create",
 			}
 			inv, root := clitest.New(t, args...)
 			clitest.SetupConfig(t, templateAdmin, root)
