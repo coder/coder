@@ -73,6 +73,9 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 		Use:   "start",
 		Short: "Run a provisioner daemon",
 		Middleware: clibase.Chain(
+			// disable checks and warnings because this command starts a daemon; it is
+			// not meant for humans typing commands.  Furthermore, the checks are
+			// incompatible with PSK auth that this command uses
 			r.InitClientMissingTokenOK(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
