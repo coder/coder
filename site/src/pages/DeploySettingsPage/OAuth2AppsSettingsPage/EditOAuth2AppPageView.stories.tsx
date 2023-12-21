@@ -17,6 +17,12 @@ type Story = StoryObj<typeof EditOAuth2AppPageView>;
 export const LoadingApp: Story = {
   args: {
     isLoadingApp: true,
+    mutatingResource: {
+      updateApp: false,
+      deleteApp: false,
+      createSecret: false,
+      deleteSecret: false,
+    },
   },
 };
 
@@ -24,6 +30,12 @@ export const LoadingSecrets: Story = {
   args: {
     app: MockOAuth2ProviderApps[0],
     isLoadingSecrets: true,
+    mutatingResource: {
+      updateApp: false,
+      deleteApp: false,
+      createSecret: false,
+      deleteSecret: false,
+    },
   },
 };
 
@@ -31,6 +43,12 @@ export const Error: Story = {
   args: {
     app: MockOAuth2ProviderApps[0],
     secrets: MockOAuth2ProviderAppSecrets,
+    mutatingResource: {
+      updateApp: false,
+      deleteApp: false,
+      createSecret: false,
+      deleteSecret: false,
+    },
     error: mockApiError({
       message: "Validation failed",
       validations: [
@@ -55,5 +73,11 @@ export const Default: Story = {
   args: {
     app: MockOAuth2ProviderApps[0],
     secrets: MockOAuth2ProviderAppSecrets,
+    mutatingResource: {
+      updateApp: false,
+      deleteApp: false,
+      createSecret: false,
+      deleteSecret: false,
+    },
   },
 };
