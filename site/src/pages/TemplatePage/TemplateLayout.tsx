@@ -1,4 +1,10 @@
-import { createContext, type FC, type PropsWithChildren Suspense, useContext } from "react";
+import {
+  createContext,
+  type FC,
+  type PropsWithChildren,
+  Suspense,
+  useContext,
+} from "react";
 import { useQuery } from "react-query";
 import { Outlet, useNavigate, useParams } from "react-router-dom";
 import type { AuthorizationRequest } from "api/typesGenerated";
