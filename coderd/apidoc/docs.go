@@ -8829,15 +8829,13 @@ const docTemplate = `{
                 "workspace_actions",
                 "tailnet_pg_coordinator",
                 "single_tailnet",
-                "deployment_health_page",
-                "template_update_policies"
+                "deployment_health_page"
             ],
             "x-enum-varnames": [
                 "ExperimentWorkspaceActions",
                 "ExperimentTailnetPGCoordinator",
                 "ExperimentSingleTailnet",
-                "ExperimentDeploymentHealthPage",
-                "ExperimentTemplateUpdatePolicies"
+                "ExperimentDeploymentHealthPage"
             ]
         },
         "codersdk.ExternalAuth": {

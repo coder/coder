@@ -8,7 +8,6 @@ const meta: Meta<typeof TemplateSettingsPageView> = {
   args: {
     template: MockTemplate,
     accessControlEnabled: true,
-    templatePoliciesEnabled: true,
   },
 };
 
