@@ -72,7 +72,7 @@ describe(Abbr.name, () => {
       },
     ];
 
-    for (const { shortText, fullText, spelledOut: augmented } of sampleText) {
+    for (const { shortText, fullText, spelledOut } of sampleText) {
       const { unmount } = render(
         <Abbr initialism expandedText={fullText}>
           {shortText}
@@ -80,7 +80,7 @@ describe(Abbr.name, () => {
       );
 
       const visuallyHidden = screen.getByTestId("visually-hidden");
-      expect(visuallyHidden).toHaveTextContent(augmented);
+      expect(visuallyHidden).toHaveTextContent(spelledOut);
 
       const visualContent = screen.getByTestId("visual-only");
       expect(visualContent).toHaveTextContent(shortText);
