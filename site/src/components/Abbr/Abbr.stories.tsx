@@ -6,10 +6,14 @@ const meta: Meta<typeof Abbr> = {
   component: Abbr,
   decorators: [
     (Story) => (
-      // Just here to make the abbreviated text part more obvious
-      <p css={{ textDecoration: "dotted" }}>
-        <Story />
-      </p>
+      <>
+        <p>Try the following text out in a screen reader!</p>
+
+        {/* Just here to make the abbreviated text part more obvious */}
+        <p css={{ textDecoration: "underline dotted" }}>
+          <Story />
+        </p>
+      </>
     ),
   ],
 };

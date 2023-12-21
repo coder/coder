@@ -36,8 +36,15 @@ export const Abbr: FC<AbbrProps> = ({
       // still have to inject text manually. Main value of titles here is
       // letting sighted users hover over the abbreviation to see expanded text
       title={expandedText}
-      css={[{ textDecoration: "inherit" }, className]}
       data-testid="abbr"
+      css={[
+        {
+          textDecoration: "inherit",
+          // Rare case where this should be ems, not rems
+          letterSpacing: isAllUppercase(children) ? "0.05em" : "0",
+        },
+        className,
+      ]}
     >
       {initialism ? (
         // Helps make sure that screen readers read initialisms correctly
@@ -64,4 +71,8 @@ export const Abbr: FC<AbbrProps> = ({
 
 function initializeText(text: string): string {
   return text.trim().toUpperCase().replaceAll(/\B/g, ".") + ".";
+}
+
+function isAllUppercase(text: string): boolean {
+  return text === text.toUpperCase();
 }
