@@ -36,7 +36,7 @@ import { TerminalIcon } from "components/Icons/TerminalIcon";
 import { RocketIcon } from "components/Icons/RocketIcon";
 import ErrorIcon from "@mui/icons-material/ErrorOutline";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
-import colors from "theme/tailwind";
+import colors from "theme/tailwindColors";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
 import { HelpTooltipTitle } from "components/HelpTooltip/HelpTooltip";
 import { Stack } from "components/Stack/Stack";

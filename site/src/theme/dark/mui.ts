@@ -9,8 +9,7 @@ import {
   BUTTON_SM_HEIGHT,
   BUTTON_XL_HEIGHT,
 } from "../constants";
-import tw from "../tailwind";
-import colors from "./colors";
+import tw from "../tailwindColors";
 
 let muiTheme = createTheme({
   palette: {
@@ -22,46 +21,46 @@ let muiTheme = createTheme({
       dark: tw.sky[400],
     },
     secondary: {
-      main: colors.gray[11],
-      contrastText: colors.gray[4],
-      dark: colors.gray[9],
+      main: tw.zinc[500],
+      contrastText: tw.zinc[200],
+      dark: tw.zinc[400],
     },
     background: {
-      default: colors.gray[17],
-      paper: colors.gray[16],
+      default: tw.zinc[950],
+      paper: tw.zinc[900],
     },
     text: {
-      primary: colors.gray[1],
-      secondary: colors.gray[6],
-      disabled: colors.gray[9],
+      primary: tw.zinc[50],
+      secondary: tw.zinc[300],
+      disabled: tw.zinc[400],
     },
-    divider: colors.gray[13],
+    divider: tw.zinc[700],
     warning: {
-      light: colors.orange[9],
-      main: colors.orange[12],
-      dark: colors.orange[15],
+      light: tw.amber[500],
+      main: tw.amber[800],
+      dark: tw.amber[950],
     },
     success: {
-      main: colors.green[11],
-      dark: colors.green[12],
+      main: tw.green[500],
+      dark: tw.green[600],
     },
     info: {
-      light: colors.blue[7],
-      main: colors.blue[9],
-      dark: colors.blue[14],
-      contrastText: colors.gray[4],
+      light: tw.blue[400],
+      main: tw.blue[600],
+      dark: tw.blue[950],
+      contrastText: tw.zinc[200],
     },
     error: {
-      light: colors.red[6],
-      main: colors.red[8],
-      dark: colors.red[15],
-      contrastText: colors.gray[4],
+      light: tw.red[400],
+      main: tw.red[500],
+      dark: tw.red[950],
+      contrastText: tw.zinc[200],
     },
     action: {
-      hover: colors.gray[14],
+      hover: tw.zinc[800],
     },
     neutral: {
-      main: colors.gray[1],
+      main: tw.zinc[50],
     },
   },
   typography: {
@@ -118,7 +117,7 @@ muiTheme = createTheme(muiTheme, {
           },
         },
         colorDefault: {
-          backgroundColor: colors.gray[6],
+          backgroundColor: tw.zinc[300],
         },
       },
     },
@@ -170,26 +169,26 @@ muiTheme = createTheme(muiTheme, {
         },
         outlined: {
           ":hover": {
-            border: `1px solid ${colors.gray[11]}`,
+            border: `1px solid ${tw.zinc[500]}`,
           },
         },
         outlinedNeutral: {
-          borderColor: colors.gray[12],
+          borderColor: tw.zinc[600],
 
           "&.Mui-disabled": {
-            borderColor: colors.gray[13],
-            color: colors.gray[11],
+            borderColor: tw.zinc[700],
+            color: tw.zinc[500],
 
             "& > .MuiLoadingButton-loadingIndicator": {
-              color: colors.gray[11],
+              color: tw.zinc[500],
             },
           },
         },
         containedNeutral: {
-          backgroundColor: colors.gray[14],
+          backgroundColor: tw.zinc[800],
 
           "&:hover": {
-            backgroundColor: colors.gray[13],
+            backgroundColor: tw.zinc[700],
           },
         },
         iconSizeMedium: {
@@ -212,7 +211,7 @@ muiTheme = createTheme(muiTheme, {
         root: {
           ">button:hover+button": {
             // The !important is unfortunate, but necessary for the border.
-            borderLeftColor: `${colors.gray[11]} !important`,
+            borderLeftColor: `${tw.zinc[500]} !important`,
           },
         },
       },
@@ -318,7 +317,7 @@ muiTheme = createTheme(muiTheme, {
     MuiChip: {
       styleOverrides: {
         root: {
-          backgroundColor: colors.gray[12],
+          backgroundColor: tw.zinc[600],
         },
       },
     },
@@ -399,12 +398,12 @@ muiTheme = createTheme(muiTheme, {
         colorPrimary: {
           // Same as button
           "& .MuiOutlinedInput-notchedOutline": {
-            borderColor: colors.gray[12],
+            borderColor: tw.zinc[600],
           },
           // The default outlined input color is white, which seemed jarring.
           "&:hover:not(.Mui-error):not(.Mui-focused) .MuiOutlinedInput-notchedOutline":
             {
-              borderColor: colors.gray[11],
+              borderColor: tw.zinc[500],
             },
         },
       },
@@ -442,11 +441,11 @@ muiTheme = createTheme(muiTheme, {
            * customization).
            */
           "&.Mui-focusVisible": {
-            boxShadow: `0 0 0 2px ${colors.blue[7]}`,
+            boxShadow: `0 0 0 2px ${tw.blue[400]}`,
           },
 
           "&.Mui-disabled": {
-            color: colors.gray[11],
+            color: tw.zinc[500],
           },
         },
       },
@@ -458,7 +457,7 @@ muiTheme = createTheme(muiTheme, {
           ".Mui-focusVisible .MuiSwitch-thumb": {
             // Had to thicken outline to make sure that the focus color didn't
             // bleed into the thumb and was still easily-visible
-            boxShadow: `0 0 0 3px ${colors.blue[7]}`,
+            boxShadow: `0 0 0 3px ${tw.blue[400]}`,
           },
         },
       },
@@ -542,7 +541,7 @@ muiTheme = createTheme(muiTheme, {
       styleOverrides: {
         root: {
           "&.Mui-focusVisible": {
-            boxShadow: `0 0 0 2px ${colors.blue[7]}`,
+            boxShadow: `0 0 0 2px ${tw.blue[400]}`,
           },
         },
       },
