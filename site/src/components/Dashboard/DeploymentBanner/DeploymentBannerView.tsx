@@ -440,9 +440,9 @@ const styles = {
       height: 16px;
     }
   `,
-  unhealthy: (theme) => ({
+  unhealthy: {
     backgroundColor: colors.red[700],
-  }),
+  },
   group: css`
     display: flex;
     align-items: center;

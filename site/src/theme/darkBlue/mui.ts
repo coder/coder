@@ -3,7 +3,7 @@ import { BODY_FONT_FAMILY, borderRadius } from "../constants";
 import tw from "../tailwindColors";
 import { components } from "../mui";
 
-let muiTheme = createTheme({
+const muiTheme = createTheme({
   palette: {
     mode: "dark",
     primary: {
