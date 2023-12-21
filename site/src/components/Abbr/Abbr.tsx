@@ -41,7 +41,7 @@ export const Abbr: FC<AbbrProps> = ({
         {
           textDecoration: "inherit",
           // Rare case where this should be ems, not rems
-          letterSpacing: isAllUppercase(children) ? "0.05em" : "0",
+          letterSpacing: isAllUppercase(children) ? "0.02em" : "0",
         },
         className,
       ]}

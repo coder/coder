@@ -1,5 +1,11 @@
+import { type PropsWithChildren } from "react";
 import type { Meta, StoryObj } from "@storybook/react";
 import { Abbr } from "./Abbr";
+
+// Just here to make the abbreviated part more obvious in the component library
+const Underline = ({ children }: PropsWithChildren) => (
+  <span css={{ textDecoration: "underline dotted" }}>{children}</span>
+);
 
 const meta: Meta<typeof Abbr> = {
   title: "components/Abbr",
@@ -8,11 +14,7 @@ const meta: Meta<typeof Abbr> = {
     (Story) => (
       <>
         <p>Try the following text out in a screen reader!</p>
-
-        {/* Just here to make the abbreviated text part more obvious */}
-        <p css={{ textDecoration: "underline dotted" }}>
-          <Story />
-        </p>
+        <Story />
       </>
     ),
   ],
@@ -27,6 +29,13 @@ export const Abbreviation: Story = {
     children: "NASA",
     expandedText: "National Aeronautics and Space Administration",
   },
+  decorators: [
+    (Story) => (
+      <Underline>
+        <Story />
+      </Underline>
+    ),
+  ],
 };
 
 export const Initialism: Story = {
@@ -35,6 +44,13 @@ export const Initialism: Story = {
     children: "CLI",
     expandedText: "Command-Line Interface",
   },
+  decorators: [
+    (Story) => (
+      <Underline>
+        <Story />
+      </Underline>
+    ),
+  ],
 };
 
 export const InlinedAbbreviation: Story = {
@@ -45,11 +61,13 @@ export const InlinedAbbreviation: Story = {
   },
   decorators: [
     (Story) => (
-      <p>
+      <p css={{ maxWidth: "40em" }}>
         The physical pain of getting bonked on the head with a cartoon mallet
-        lasts precisely 593
-        <Story />. The emotional turmoil and complete embarrassment lasts
-        forever.
+        lasts precisely 593{" "}
+        <Underline>
+          <Story />
+        </Underline>
+        . The emotional turmoil and complete embarrassment lasts forever.
       </p>
     ),
   ],
