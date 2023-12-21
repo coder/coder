@@ -23,6 +23,8 @@ import { workspaceQuota } from "api/queries/workspaceQuota";
 import { useQuery } from "react-query";
 import MonetizationOnOutlined from "@mui/icons-material/MonetizationOnOutlined";
 import { useTheme } from "@mui/material/styles";
+import InfoOutlined from "@mui/icons-material/InfoOutlined";
+import Link from "@mui/material/Link";
 
 export type WorkspaceError =
   | "getBuildsError"
@@ -100,17 +102,36 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
           <TopbarAvatar src={workspace.template_icon} />
           <span css={{ fontWeight: 500 }}>{workspace.name}</span>
           <TopbarDivider />
-          <span>
+          <Link
+            component={RouterLink}
+            to={`/templates/${workspace.template_name}`}
+            css={{ color: "inherit" }}
+          >
             {workspace.template_display_name ?? workspace.template_name}
-          </span>
+          </Link>
 
           {workspace.outdated ? (
             <Popover mode="hover">
               <PopoverTrigger>
-                <Pill
-                  type="warning"
-                  text={workspace.latest_build.template_version_name}
-                />
+                {/* Added to give some bottom space from the popover content */}
+                <div css={{ padding: "4px 0" }}>
+                  <Pill
+                    icon={
+                      <InfoOutlined
+                        css={{
+                          width: "12px !important",
+                          height: "12px !important",
+                          color: theme.palette.warning.light,
+                        }}
+                      />
+                    }
+                    text={
+                      <span css={{ color: theme.palette.warning.light }}>
+                        {workspace.latest_build.template_version_name}
+                      </span>
+                    }
+                  />
+                </div>
               </PopoverTrigger>
               <WorkspaceOutdatedTooltipContent
                 templateName={workspace.template_name}
@@ -154,11 +175,13 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
                 <MonetizationOnOutlined aria-label="Daily usage" />
               </Tooltip>
             </TopbarIcon>
-            {workspace.latest_build.daily_cost}{" "}
-            <span css={{ color: theme.palette.text.secondary }}>
-              credits of
-            </span>{" "}
-            {quota.budget}
+            <span>
+              {workspace.latest_build.daily_cost}{" "}
+              <span css={{ color: theme.palette.text.secondary }}>
+                credits of
+              </span>{" "}
+              {quota.budget}
+            </span>
           </TopbarData>
         )}
       </div>
