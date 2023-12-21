@@ -1,15 +1,22 @@
 import Button from "@mui/material/Button";
 import LaunchOutlined from "@mui/icons-material/LaunchOutlined";
-import type { FC } from "react";
+import type { FC, ReactNode } from "react";
 import { useTheme } from "@emotion/react";
 import { Stack } from "components/Stack/Stack";
 
-export const Header: FC<{
-  title: string | JSX.Element;
-  description?: string | JSX.Element;
+interface HeaderProps {
+  title: ReactNode;
+  description?: ReactNode;
   secondary?: boolean;
   docsHref?: string;
-}> = ({ title, description, docsHref, secondary }) => {
+}
+
+export const Header: FC<HeaderProps> = ({
+  title,
+  description,
+  docsHref,
+  secondary,
+}) => {
   const theme = useTheme();
 
   return (
