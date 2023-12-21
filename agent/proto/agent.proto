@@ -256,7 +256,4 @@ service Agent {
 	rpc UpdateStartup(UpdateStartupRequest) returns (Startup);
 	rpc BatchUpdateMetadata(BatchUpdateMetadataRequest) returns (BatchUpdateMetadataResponse);
 	rpc BatchCreateLogs(BatchCreateLogsRequest) returns (BatchCreateLogsResponse);
-
-	rpc StreamDERPMaps(tailnet.v2.StreamDERPMapsRequest) returns (stream tailnet.v2.DERPMap);
-	rpc CoordinateTailnet(stream tailnet.v2.CoordinateRequest) returns (stream tailnet.v2.CoordinateResponse);
 }
