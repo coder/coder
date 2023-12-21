@@ -55,9 +55,9 @@ export default {
       text: colors.orange[950],
       disabled: {
         background: colors.orange[50],
-        outline: colors.orange[800],
+        outline: colors.orange[400],
         fill: colors.orange[800],
-        text: colors.orange[800],
+        text: colors.orange[500],
       },
       hover: {
         background: colors.orange[100],
@@ -97,9 +97,9 @@ export default {
       text: colors.green[950],
       disabled: {
         background: colors.green[50],
-        outline: colors.green[800],
+        outline: colors.green[400],
         fill: colors.green[800],
-        text: colors.green[800],
+        text: colors.green[500],
       },
       hover: {
         background: colors.green[100],
@@ -115,9 +115,9 @@ export default {
       text: colors.sky[950],
       disabled: {
         background: colors.sky[50],
-        outline: colors.sky[800],
+        outline: colors.sky[400],
         fill: colors.sky[800],
-        text: colors.sky[200],
+        text: colors.sky[500],
       },
       hover: {
         background: colors.sky[200],
