@@ -309,6 +309,7 @@ const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
         >
           <h4
             autoFocus
+            tabIndex={-1}
             css={{
               fontSize: "inherit",
               fontWeight: 600,
