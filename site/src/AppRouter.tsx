@@ -21,6 +21,8 @@ import WorkspacesPage from "./pages/WorkspacesPage/WorkspacesPage";
 import UserSettingsLayout from "./pages/UserSettingsPage/Layout";
 import { TemplateSettingsLayout } from "./pages/TemplateSettingsPage/TemplateSettingsLayout";
 import { WorkspaceSettingsLayout } from "./pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
+import { ThemeOverride } from "contexts/ThemeProvider";
+import themes from "theme";
 
 // Lazy load pages
 // - Pages that are secondary, not in the main navigation or not usually accessed
@@ -412,7 +414,11 @@ export const AppRouter: FC = () => {
             />
             <Route
               path="/:username/:workspace/terminal"
-              element={<TerminalPage />}
+              element={
+                <ThemeOverride theme={themes.dark}>
+                  <TerminalPage />
+                </ThemeOverride>
+              }
             />
             <Route path="/cli-auth" element={<CliAuthenticationPage />} />
             <Route path="/icons" element={<IconsPage />} />

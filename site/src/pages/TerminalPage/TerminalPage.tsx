@@ -108,7 +108,7 @@ const TerminalPage: FC = () => {
       fontFamily: MONOSPACE_FONT_FAMILY,
       fontSize: 16,
       theme: {
-        background: theme.colors.gray[16],
+        background: theme.palette.background.default,
       },
     });
     if (renderer === "webgl") {
