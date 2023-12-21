@@ -1,4 +1,5 @@
-// eslint-disable-next-line no-restricted-imports -- We need MUI here
+/* eslint-disable @typescript-eslint/no-explicit-any
+-- we need to hack around the MUI types a little */
 import { createTheme } from "@mui/material/styles";
 import { BODY_FONT_FAMILY, borderRadius } from "../constants";
 import { components } from "../mui";
