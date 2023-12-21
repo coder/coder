@@ -27,6 +27,8 @@ import {
 import { ExternalAuth } from "pages/CreateWorkspacePage/ExternalAuth";
 import { ExternalAuthPollingState } from "pages/CreateWorkspacePage/CreateWorkspacePage";
 
+const FALLBACK_ICON = "/icon/widgets.svg";
+
 export type ExternalAuthPageViewProps = {
   isLoading: boolean;
   getAuthsError?: unknown;
@@ -112,7 +114,7 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
   onUnlinkExternalAuth,
   onValidateExternalAuth,
 }) => {
-  const name = app.id || app.type;
+  const name = app.display_name || app.id || app.type;
   const authURL = "/external-auth/" + app.id;
 
   const {
@@ -127,14 +129,16 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
     : link?.authenticated ?? false;
 
   return (
-    <TableRow key={name}>
+    <TableRow key={app.id}>
       <TableCell>
         <AvatarData
-          title={app.display_name || app.id}
+          title={name}
           avatar={
-            app.display_icon && (
-              <Avatar src={app.display_icon} variant="square" fitImage />
-            )
+            <Avatar
+              src={app.display_icon || FALLBACK_ICON}
+              variant="square"
+              fitImage
+            />
           }
         />
       </TableCell>
