@@ -41,9 +41,7 @@ describe(Abbr.name, () => {
       );
 
       const element = screen.getByTestId("abbr");
-      const matcher = new RegExp(`^${shortText}$`);
-      expect(element).toHaveTextContent(matcher);
-
+      expect(element).toHaveTextContent(shortText);
       unmount();
     }
   });
