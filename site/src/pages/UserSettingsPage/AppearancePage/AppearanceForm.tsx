@@ -5,7 +5,7 @@ import type { UpdateUserAppearanceSettingsRequest } from "api/typesGenerated";
 import themes, { DEFAULT_THEME, type Theme } from "theme";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Stack } from "components/Stack/Stack";
-import { BetaBadge } from "components/Badges/Badges";
+import { PreviewBadge } from "components/Badges/Badges";
 import { ThemeOverride } from "contexts/ThemeProvider";
 
 export interface AppearanceFormProps {
@@ -57,7 +57,7 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
         />
         <ThemePreviewButton
           displayName="Light"
-          beta
+          preview
           active={currentTheme === "light"}
           theme={themes.light}
           onSelect={() => onChangeTheme("light")}
@@ -74,7 +74,7 @@ interface AutoThemePreviewButtonProps extends Omit<ThemePreviewProps, "theme"> {
 
 const AutoThemePreviewButton: FC<AutoThemePreviewButtonProps> = ({
   active,
-  beta,
+  preview,
   className,
   displayName,
   themes,
@@ -102,13 +102,13 @@ const AutoThemePreviewButton: FC<AutoThemePreviewButtonProps> = ({
             clipPath: "polygon(-5% -5%, 50% -5%, 50% 105%, -5% 105%)",
           }}
           active={active}
-          beta={beta}
+          preview={preview}
           displayName={displayName}
           theme={leftTheme}
         />
         <ThemePreview
           active={active}
-          beta={beta}
+          preview={preview}
           displayName={displayName}
           theme={rightTheme}
         />
@@ -123,7 +123,7 @@ interface ThemePreviewButtonProps extends ThemePreviewProps {
 
 const ThemePreviewButton: FC<ThemePreviewButtonProps> = ({
   active,
-  beta,
+  preview,
   className,
   displayName,
   theme,
@@ -143,7 +143,7 @@ const ThemePreviewButton: FC<ThemePreviewButtonProps> = ({
       <label htmlFor={displayName} className={className}>
         <ThemePreview
           active={active}
-          beta={beta}
+          preview={preview}
           displayName={displayName}
           theme={theme}
         />
@@ -154,7 +154,7 @@ const ThemePreviewButton: FC<ThemePreviewButtonProps> = ({
 
 interface ThemePreviewProps {
   active?: boolean;
-  beta?: boolean;
+  preview?: boolean;
   className?: string;
   displayName: string;
   theme: Theme;
@@ -162,7 +162,7 @@ interface ThemePreviewProps {
 
 const ThemePreview: FC<ThemePreviewProps> = ({
   active,
-  beta,
+  preview,
   className,
   displayName,
   theme,
@@ -198,7 +198,7 @@ const ThemePreview: FC<ThemePreviewProps> = ({
         </div>
         <div css={styles.label}>
           <span>{displayName}</span>
-          {beta && <BetaBadge />}
+          {preview && <PreviewBadge />}
         </div>
       </div>
     </ThemeOverride>
