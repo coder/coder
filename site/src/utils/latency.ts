@@ -1,4 +1,4 @@
-import { Theme } from "@mui/material/styles";
+import type { Theme } from "@emotion/react";
 
 export const getLatencyColor = (theme: Theme, latency?: number) => {
   if (!latency) {

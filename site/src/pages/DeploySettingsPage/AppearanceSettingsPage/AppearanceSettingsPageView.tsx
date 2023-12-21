@@ -19,6 +19,7 @@ import {
 import { Fieldset } from "components/DeploySettingsLayout/Fieldset";
 import { Stack } from "components/Stack/Stack";
 import { getFormHelpers } from "utils/formUtils";
+import colors from "theme/tailwind";
 
 export type AppearanceSettingsPageViewProps = {
   appearance: UpdateAppearanceConfig;
@@ -29,11 +30,12 @@ export type AppearanceSettingsPageViewProps = {
   ) => void;
 };
 
+const fallbackBgColor = colors.neutral[500];
+
 export const AppearanceSettingsPageView: FC<
   AppearanceSettingsPageViewProps
 > = ({ appearance, isEntitled, onSaveAppearance }) => {
   const theme = useTheme();
-  const fallbackBgColor = theme.colors.blue[7];
 
   const applicationNameForm = useFormik<{
     application_name: string;

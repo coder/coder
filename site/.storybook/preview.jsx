@@ -9,14 +9,10 @@ import { withRouter } from "storybook-addon-react-router-v6";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { HelmetProvider } from "react-helmet-async";
 import themes from "theme";
-import colors from "theme/tailwind";
 import "theme/globalFonts";
 
 DecoratorHelpers.initializeThemeState(Object.keys(themes), "dark");
 
-/**
- * @type Decorator[]
- */
 export const decorators = [
   (Story, context) => {
     const selectedTheme = DecoratorHelpers.pluckThemeFromContext(context);
@@ -78,6 +74,18 @@ export const parameters = {
     matchers: {
       color: /(background|color)$/i,
       date: /Date$/,
+    },
+  },
+  viewport: {
+    viewports: {
+      ipad: {
+        name: "iPad Mini",
+        styles: {
+          height: "1024px",
+          width: "768px",
+        },
+        type: "tablet",
+      },
     },
   },
 };

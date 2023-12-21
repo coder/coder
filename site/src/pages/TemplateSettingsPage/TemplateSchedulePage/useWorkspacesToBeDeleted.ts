@@ -44,7 +44,7 @@ export const useWorkspacesToBeDeleted = (
   const { data } = useWorkspacesData({
     page: 0,
     limit: 0,
-    query: "template:" + template.name + " is-dormant:true",
+    query: "template:" + template.name + " dormant:true",
   });
   return data?.workspaces?.filter((workspace: Workspace) => {
     if (!workspace.dormant_at || !formValues.time_til_dormant_autodelete_ms) {

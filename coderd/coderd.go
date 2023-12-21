@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"database/sql"
 	"flag"
 	"fmt"
 	"io"
@@ -15,6 +16,10 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/coder/coder/v2/coderd/prometheusmetrics"
+
+	agentproto "github.com/coder/coder/v2/agent/proto"
 
 	"github.com/andybalholm/brotli"
 	"github.com/go-chi/chi/v5"
@@ -34,24 +39,23 @@ import (
 	"tailscale.com/types/key"
 	"tailscale.com/util/singleflight"
 
-	// Used for swagger docs.
-	_ "github.com/coder/coder/v2/coderd/apidoc"
-	"github.com/coder/coder/v2/coderd/externalauth"
-	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
-	"github.com/coder/coder/v2/coderd/prometheusmetrics"
-
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clibase"
+
+	// Used for swagger docs.
+	_ "github.com/coder/coder/v2/coderd/apidoc"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/awsidentity"
 	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/healthcheck"
+	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/metricscache"
@@ -65,7 +69,6 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/wsconncache"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -171,7 +174,7 @@ type Options struct {
 
 	HTTPClient *http.Client
 
-	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []agentsdk.AgentMetric)
+	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 	StatsBatcher       *batchstats.Batcher
 
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
@@ -388,6 +391,7 @@ func New(options *Options) *API {
 		),
 		metricsCache:                metricsCache,
 		Auditor:                     atomic.Pointer[audit.Auditor]{},
+		TailnetCoordinator:          atomic.Pointer[tailnet.Coordinator]{},
 		TemplateScheduleStore:       options.TemplateScheduleStore,
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
@@ -866,6 +870,7 @@ func New(options *Options) *API {
 					DB:       options.Database,
 					Optional: false,
 				}))
+				r.Get("/rpc", api.workspaceAgentRPC)
 				r.Get("/manifest", api.workspaceAgentManifest)
 				// This route is deprecated and will be removed in a future release.
 				// New agents will use /me/manifest instead.
@@ -1175,22 +1180,32 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, name string
 		}
 	}()
 
-	tags := provisionerdserver.Tags{
-		provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+	//nolint:gocritic // in-memory provisioners are owned by system
+	daemon, err := api.Database.UpsertProvisionerDaemon(dbauthz.AsSystemRestricted(ctx), database.UpsertProvisionerDaemonParams{
+		Name:      name,
+		CreatedAt: dbtime.Now(),
+		Provisioners: []database.ProvisionerType{
+			database.ProvisionerTypeEcho, database.ProvisionerTypeTerraform,
+		},
+		Tags:       provisionersdk.MutateTags(uuid.Nil, nil),
+		LastSeenAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
+		Version:    buildinfo.Version(),
+		APIVersion: "1.0",
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("failed to create in-memory provisioner daemon: %w", err)
 	}
 
 	mux := drpcmux.New()
 	api.Logger.Info(ctx, "starting in-memory provisioner daemon", slog.F("name", name))
 	logger := api.Logger.Named(fmt.Sprintf("inmem-provisionerd-%s", name))
 	srv, err := provisionerdserver.NewServer(
-		api.ctx,
+		api.ctx, // use the same ctx as the API
 		api.AccessURL,
-		uuid.New(),
+		daemon.ID,
 		logger,
-		[]database.ProvisionerType{
-			database.ProvisionerTypeEcho, database.ProvisionerTypeTerraform,
-		},
-		tags,
+		daemon.Provisioners,
+		provisionerdserver.Tags(daemon.Tags),
 		api.Database,
 		api.Pubsub,
 		api.Acquirer,

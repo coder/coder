@@ -1,7 +1,6 @@
 import { useQuery } from "react-query";
 import { getWorkspaceProxies, getWorkspaceProxyRegions } from "api/api";
 import { Region, WorkspaceProxy } from "api/typesGenerated";
-import { useDashboard } from "components/Dashboard/DashboardProvider";
 import {
   createContext,
   FC,
@@ -85,9 +84,6 @@ export const ProxyContext = createContext<ProxyContextValue | undefined>(
  * ProxyProvider interacts with local storage to indicate the preferred workspace proxy.
  */
 export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
-  const dashboard = useDashboard();
-  const experimentEnabled = dashboard?.experiments.includes("moons");
-
   // Using a useState so the caller always has the latest user saved
   // proxy.
   const [userSavedProxy, setUserSavedProxy] = useState(loadUserSelectedProxy());
@@ -176,13 +172,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
         proxyLatencies,
         refetchProxyLatencies,
         userProxy: userSavedProxy,
-        proxy: experimentEnabled
-          ? proxy
-          : {
-              // If the experiment is disabled, then call 'getPreferredProxy' with the regions from
-              // the api call. The default behavior is to use the `primary` proxy.
-              ...getPreferredProxy(proxiesResp || []),
-            },
+        proxy: proxy,
         proxies: proxiesResp,
         isLoading: proxiesLoading,
         isFetched: proxiesFetched,

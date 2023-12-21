@@ -23,7 +23,9 @@ import * as Yup from "yup";
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import {
   HelpTooltip,
+  HelpTooltipContent,
   HelpTooltipText,
+  HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { LazyIconField } from "components/IconField/LazyIconField";
 import Link from "@mui/material/Link";
@@ -572,10 +574,13 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
                     </strong>
 
                     <HelpTooltip>
-                      <HelpTooltipText>
-                        If checked, users may be able to corrupt their
-                        workspace.
-                      </HelpTooltipText>
+                      <HelpTooltipTrigger size="small" />
+                      <HelpTooltipContent>
+                        <HelpTooltipText>
+                          If checked, users may be able to corrupt their
+                          workspace.
+                        </HelpTooltipText>
+                      </HelpTooltipContent>
                     </HelpTooltip>
                   </Stack>
                   <span css={styles.optionHelperText}>
@@ -608,16 +613,21 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
                     <strong>Allow everyone to use the template</strong>
 
                     <HelpTooltip>
-                      <HelpTooltipText>
-                        If unchecked, only users with the &apos;template
-                        admin&apos; and &apos;owner&apos; role can use this
-                        template until the permissions are updated. Navigate to{" "}
-                        <strong>
-                          Templates &gt; Select a template &gt; Settings &gt;
-                          Permissions
-                        </strong>{" "}
-                        to update permissions.
-                      </HelpTooltipText>
+                      <HelpTooltipTrigger size="small" />
+                      <HelpTooltipContent>
+                        <HelpTooltipText>
+                          If unchecked, only users with the &apos;template
+                          admin&apos; and &apos;owner&apos; role can use this
+                          template until the permissions are updated. Navigate
+                          to{" "}
+                          <strong>
+                            Templates <MenuPath /> Select a template{" "}
+                            <MenuPath /> Settings <MenuPath />
+                            Permissions
+                          </strong>{" "}
+                          to update permissions.
+                        </HelpTooltipText>
+                      </HelpTooltipContent>
                     </HelpTooltip>
                   </Stack>
                   <span css={styles.optionHelperText}>
@@ -682,6 +692,10 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
       />
     </HorizontalForm>
   );
+};
+
+const MenuPath = () => {
+  return <span aria-label="in">&gt;</span>;
 };
 
 const fillNameAndDisplayWithFilename = async (

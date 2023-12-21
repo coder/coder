@@ -69,7 +69,7 @@ export const DormantStatusBadge: FC<DormantStatusBadgeProps> = ({
   className,
 }) => {
   if (!workspace.dormant_at) {
-    return <></>;
+    return null;
   }
 
   const formatDate = (dateStr: string): string => {

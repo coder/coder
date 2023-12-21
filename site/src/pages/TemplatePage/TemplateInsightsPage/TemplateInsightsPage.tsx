@@ -46,6 +46,8 @@ import {
   HelpTooltip,
   HelpTooltipTitle,
   HelpTooltipText,
+  HelpTooltipContent,
+  HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { getLatencyColor } from "utils/latency";
@@ -281,14 +283,18 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
       <PanelHeader>
         <PanelTitle css={{ display: "flex", alignItems: "center", gap: 8 }}>
           Latency by user
-          <HelpTooltip size="small">
-            <HelpTooltipTitle>How is latency calculated?</HelpTooltipTitle>
-            <HelpTooltipText>
-              The median round trip time of user connections to workspaces.
-            </HelpTooltipText>
+          <HelpTooltip>
+            <HelpTooltipTrigger size="small" />
+            <HelpTooltipContent>
+              <HelpTooltipTitle>How is latency calculated?</HelpTooltipTitle>
+              <HelpTooltipText>
+                The median round trip time of user connections to workspaces.
+              </HelpTooltipText>
+            </HelpTooltipContent>
           </HelpTooltip>
         </PanelTitle>
       </PanelHeader>
+
       <PanelContent>
         {!data && <Loader css={{ height: "100%" }} />}
         {users && users.length === 0 && <NoDataAvailable />}
@@ -348,12 +354,15 @@ const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
       <PanelHeader>
         <PanelTitle css={{ display: "flex", alignItems: "center", gap: 8 }}>
           Activity by user
-          <HelpTooltip size="small">
-            <HelpTooltipTitle>How is activity calculated?</HelpTooltipTitle>
-            <HelpTooltipText>
-              When a connection is initiated to a user&apos;s workspace they are
-              considered an active user. e.g. apps, web terminal, SSH
-            </HelpTooltipText>
+          <HelpTooltip>
+            <HelpTooltipTrigger size="small" />
+            <HelpTooltipContent>
+              <HelpTooltipTitle>How is activity calculated?</HelpTooltipTitle>
+              <HelpTooltipText>
+                When a connection is initiated to a user&apos;s workspace they
+                are considered an active user. e.g. apps, web terminal, SSH
+              </HelpTooltipText>
+            </HelpTooltipContent>
           </HelpTooltip>
         </PanelTitle>
       </PanelHeader>

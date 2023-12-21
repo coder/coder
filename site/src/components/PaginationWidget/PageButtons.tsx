@@ -1,4 +1,4 @@
-import { PropsWithChildren } from "react";
+import { type FC, type PropsWithChildren } from "react";
 import Button from "@mui/material/Button";
 import { useTheme } from "@emotion/react";
 
@@ -11,13 +11,13 @@ type NumberedPageButtonProps = {
   disabled?: boolean;
 };
 
-export function NumberedPageButton({
+export const NumberedPageButton: FC<NumberedPageButtonProps> = ({
   pageNumber,
   totalPages,
   onClick,
   highlighted = false,
   disabled = false,
-}: NumberedPageButtonProps) {
+}) => {
   return (
     <BasePageButton
       name="Page button"
@@ -29,16 +29,16 @@ export function NumberedPageButton({
       {pageNumber}
     </BasePageButton>
   );
-}
+};
 
 type PlaceholderPageButtonProps = PropsWithChildren<{
   pagesOmitted: number;
 }>;
 
-export function PlaceholderPageButton({
+export const PlaceholderPageButton: FC<PlaceholderPageButtonProps> = ({
   pagesOmitted,
   children = <>&hellip;</>,
-}: PlaceholderPageButtonProps) {
+}) => {
   return (
     <BasePageButton
       disabled
@@ -48,7 +48,7 @@ export function PlaceholderPageButton({
       {children}
     </BasePageButton>
   );
-}
+};
 
 type BasePageButtonProps = PropsWithChildren<{
   name: string;
@@ -59,22 +59,29 @@ type BasePageButtonProps = PropsWithChildren<{
   disabled?: boolean;
 }>;
 
-function BasePageButton({
+const BasePageButton: FC<BasePageButtonProps> = ({
   children,
   onClick,
   name,
   "aria-label": ariaLabel,
   highlighted = false,
   disabled = false,
-}: BasePageButtonProps) {
+}) => {
   const theme = useTheme();
 
   return (
     <Button
       css={
         highlighted && {
-          borderColor: `${theme.palette.info.main}`,
-          backgroundColor: `${theme.palette.info.dark}`,
+          borderColor: theme.experimental.roles.active.outline,
+          backgroundColor: theme.experimental.roles.active.background,
+
+          // Override the hover state with active colors, but not hover
+          // colors because clicking won't do anything.
+          "&:hover": {
+            borderColor: theme.experimental.roles.active.outline,
+            backgroundColor: theme.experimental.roles.active.background,
+          },
         }
       }
       aria-label={ariaLabel}
@@ -85,7 +92,7 @@ function BasePageButton({
       {children}
     </Button>
   );
-}
+};
 
 function getNumberedButtonLabel(
   page: number,

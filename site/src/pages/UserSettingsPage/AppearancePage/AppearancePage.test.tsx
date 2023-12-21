@@ -6,7 +6,7 @@ import { AppearancePage } from "./AppearancePage";
 import { MockUser } from "testHelpers/entities";
 
 describe("appearance page", () => {
-  it("changes theme to dark", async () => {
+  it("does nothing when selecting current theme", async () => {
     renderWithAuth(<AppearancePage />);
 
     jest.spyOn(API, "updateAppearanceSettings").mockResolvedValueOnce({
@@ -18,10 +18,7 @@ describe("appearance page", () => {
     await userEvent.click(dark);
 
     // Check if the API was called correctly
-    expect(API.updateAppearanceSettings).toBeCalledTimes(1);
-    expect(API.updateAppearanceSettings).toHaveBeenCalledWith("me", {
-      theme_preference: "dark",
-    });
+    expect(API.updateAppearanceSettings).toBeCalledTimes(0);
   });
 
   it("changes theme to dark blue", async () => {
@@ -39,6 +36,24 @@ describe("appearance page", () => {
     expect(API.updateAppearanceSettings).toBeCalledTimes(1);
     expect(API.updateAppearanceSettings).toHaveBeenCalledWith("me", {
       theme_preference: "darkBlue",
+    });
+  });
+
+  it("changes theme to light", async () => {
+    renderWithAuth(<AppearancePage />);
+
+    jest.spyOn(API, "updateAppearanceSettings").mockResolvedValueOnce({
+      ...MockUser,
+      theme_preference: "light",
+    });
+
+    const light = await screen.findByText("Light");
+    await userEvent.click(light);
+
+    // Check if the API was called correctly
+    expect(API.updateAppearanceSettings).toBeCalledTimes(1);
+    expect(API.updateAppearanceSettings).toHaveBeenCalledWith("me", {
+      theme_preference: "light",
     });
   });
 });

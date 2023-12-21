@@ -37,11 +37,17 @@ const languageByExtension: Record<AllowedExtension, string> = {
   protobuf: "protobuf",
 };
 
-export const TemplateFiles: FC<{
+interface TemplateFilesProps {
   currentFiles: TemplateVersionFiles;
   previousFiles?: TemplateVersionFiles;
   tab: UseTabResult;
-}> = ({ currentFiles, previousFiles, tab }) => {
+}
+
+export const TemplateFiles: FC<TemplateFilesProps> = ({
+  currentFiles,
+  previousFiles,
+  tab,
+}) => {
   const filenames = Object.keys(currentFiles);
   const selectedFilename = filenames[Number(tab.value)];
   const currentFile = currentFiles[selectedFilename];

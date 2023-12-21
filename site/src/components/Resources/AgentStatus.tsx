@@ -4,12 +4,13 @@ import { WorkspaceAgent } from "api/typesGenerated";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import WarningRounded from "@mui/icons-material/WarningRounded";
 import {
-  HelpPopover,
+  HelpTooltip,
+  HelpTooltipContent,
   HelpTooltipText,
   HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
-import { useRef, useState } from "react";
 import Link from "@mui/material/Link";
+import { PopoverTrigger } from "components/Popover/Popover";
 
 // If we think in the agent status and lifecycle into a single enum/state I’d
 // say we would have: connecting, timeout, disconnected, connected:created,
@@ -43,27 +44,13 @@ const StartingLifecycle: React.FC = () => {
 const StartTimeoutLifecycle: React.FC<{
   agent: WorkspaceAgent;
 }> = ({ agent }) => {
-  const anchorRef = useRef<SVGSVGElement>(null);
-  const [isOpen, setIsOpen] = useState(false);
-  const id = isOpen ? "timeout-popover" : undefined;
-
   return (
-    <>
-      <WarningRounded
-        ref={anchorRef}
-        onMouseEnter={() => setIsOpen(true)}
-        onMouseLeave={() => setIsOpen(false)}
-        role="status"
-        aria-label="Start timeout"
-        css={styles.timeoutWarning}
-      />
-      <HelpPopover
-        id={id}
-        open={isOpen}
-        anchorEl={anchorRef.current}
-        onOpen={() => setIsOpen(true)}
-        onClose={() => setIsOpen(false)}
-      >
+    <HelpTooltip>
+      <PopoverTrigger role="status" aria-label="Agent timeout">
+        <WarningRounded css={styles.timeoutWarning} />
+      </PopoverTrigger>
+
+      <HelpTooltipContent>
         <HelpTooltipTitle>Agent is taking too long to start</HelpTooltipTitle>
         <HelpTooltipText>
           We noticed this agent is taking longer than expected to start.{" "}
@@ -76,35 +63,20 @@ const StartTimeoutLifecycle: React.FC<{
           </Link>
           .
         </HelpTooltipText>
-      </HelpPopover>
-    </>
+      </HelpTooltipContent>
+    </HelpTooltip>
   );
 };
 
 const StartErrorLifecycle: React.FC<{
   agent: WorkspaceAgent;
 }> = ({ agent }) => {
-  const anchorRef = useRef<SVGSVGElement>(null);
-  const [isOpen, setIsOpen] = useState(false);
-  const id = isOpen ? "timeout-popover" : undefined;
-
   return (
-    <>
-      <WarningRounded
-        ref={anchorRef}
-        onMouseEnter={() => setIsOpen(true)}
-        onMouseLeave={() => setIsOpen(false)}
-        role="status"
-        aria-label="Start error"
-        css={styles.errorWarning}
-      />
-      <HelpPopover
-        id={id}
-        open={isOpen}
-        anchorEl={anchorRef.current}
-        onOpen={() => setIsOpen(true)}
-        onClose={() => setIsOpen(false)}
-      >
+    <HelpTooltip>
+      <PopoverTrigger role="status" aria-label="Start error">
+        <WarningRounded css={styles.errorWarning} />
+      </PopoverTrigger>
+      <HelpTooltipContent>
         <HelpTooltipTitle>Error starting the agent</HelpTooltipTitle>
         <HelpTooltipText>
           Something went wrong during the agent startup.{" "}
@@ -117,8 +89,8 @@ const StartErrorLifecycle: React.FC<{
           </Link>
           .
         </HelpTooltipText>
-      </HelpPopover>
-    </>
+      </HelpTooltipContent>
+    </HelpTooltip>
   );
 };
 
@@ -137,27 +109,12 @@ const ShuttingDownLifecycle: React.FC = () => {
 const ShutdownTimeoutLifecycle: React.FC<{
   agent: WorkspaceAgent;
 }> = ({ agent }) => {
-  const anchorRef = useRef<SVGSVGElement>(null);
-  const [isOpen, setIsOpen] = useState(false);
-  const id = isOpen ? "timeout-popover" : undefined;
-
   return (
-    <>
-      <WarningRounded
-        ref={anchorRef}
-        onMouseEnter={() => setIsOpen(true)}
-        onMouseLeave={() => setIsOpen(false)}
-        role="status"
-        aria-label="Stop timeout"
-        css={styles.timeoutWarning}
-      />
-      <HelpPopover
-        id={id}
-        open={isOpen}
-        anchorEl={anchorRef.current}
-        onOpen={() => setIsOpen(true)}
-        onClose={() => setIsOpen(false)}
-      >
+    <HelpTooltip>
+      <PopoverTrigger role="status" aria-label="Stop timeout">
+        <WarningRounded css={styles.timeoutWarning} />
+      </PopoverTrigger>
+      <HelpTooltipContent>
         <HelpTooltipTitle>Agent is taking too long to stop</HelpTooltipTitle>
         <HelpTooltipText>
           We noticed this agent is taking longer than expected to stop.{" "}
@@ -170,35 +127,20 @@ const ShutdownTimeoutLifecycle: React.FC<{
           </Link>
           .
         </HelpTooltipText>
-      </HelpPopover>
-    </>
+      </HelpTooltipContent>
+    </HelpTooltip>
   );
 };
 
 const ShutdownErrorLifecycle: React.FC<{
   agent: WorkspaceAgent;
 }> = ({ agent }) => {
-  const anchorRef = useRef<SVGSVGElement>(null);
-  const [isOpen, setIsOpen] = useState(false);
-  const id = isOpen ? "timeout-popover" : undefined;
-
   return (
-    <>
-      <WarningRounded
-        ref={anchorRef}
-        onMouseEnter={() => setIsOpen(true)}
-        onMouseLeave={() => setIsOpen(false)}
-        role="status"
-        aria-label="Stop error"
-        css={styles.errorWarning}
-      />
-      <HelpPopover
-        id={id}
-        open={isOpen}
-        anchorEl={anchorRef.current}
-        onOpen={() => setIsOpen(true)}
-        onClose={() => setIsOpen(false)}
-      >
+    <HelpTooltip>
+      <PopoverTrigger role="status" aria-label="Stop error">
+        <WarningRounded css={styles.errorWarning} />
+      </PopoverTrigger>
+      <HelpTooltipContent>
         <HelpTooltipTitle>Error stopping the agent</HelpTooltipTitle>
         <HelpTooltipText>
           Something went wrong while trying to stop the agent.{" "}
@@ -211,8 +153,8 @@ const ShutdownErrorLifecycle: React.FC<{
           </Link>
           .
         </HelpTooltipText>
-      </HelpPopover>
-    </>
+      </HelpTooltipContent>
+    </HelpTooltip>
   );
 };
 
@@ -293,27 +235,12 @@ const ConnectingStatus: React.FC = () => {
 const TimeoutStatus: React.FC<{
   agent: WorkspaceAgent;
 }> = ({ agent }) => {
-  const anchorRef = useRef<SVGSVGElement>(null);
-  const [isOpen, setIsOpen] = useState(false);
-  const id = isOpen ? "timeout-popover" : undefined;
-
   return (
-    <>
-      <WarningRounded
-        ref={anchorRef}
-        onMouseEnter={() => setIsOpen(true)}
-        onMouseLeave={() => setIsOpen(false)}
-        role="status"
-        aria-label="Timeout"
-        css={styles.timeoutWarning}
-      />
-      <HelpPopover
-        id={id}
-        open={isOpen}
-        anchorEl={anchorRef.current}
-        onOpen={() => setIsOpen(true)}
-        onClose={() => setIsOpen(false)}
-      >
+    <HelpTooltip>
+      <PopoverTrigger role="status" aria-label="Timeout">
+        <WarningRounded css={styles.timeoutWarning} />
+      </PopoverTrigger>
+      <HelpTooltipContent>
         <HelpTooltipTitle>Agent is taking too long to connect</HelpTooltipTitle>
         <HelpTooltipText>
           We noticed this agent is taking longer than expected to connect.{" "}
@@ -326,8 +253,8 @@ const TimeoutStatus: React.FC<{
           </Link>
           .
         </HelpTooltipText>
-      </HelpPopover>
-    </>
+      </HelpTooltipContent>
+    </HelpTooltip>
   );
 };
 

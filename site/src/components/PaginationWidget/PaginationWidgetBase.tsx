@@ -1,6 +1,6 @@
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useTheme } from "@emotion/react";
-
+import { type FC } from "react";
 import { PlaceholderPageButton, NumberedPageButton } from "./PageButtons";
 import { buildPagedList } from "./utils";
 import { PaginationNavButton } from "./PaginationNavButton";
@@ -17,14 +17,14 @@ export type PaginationWidgetBaseProps = {
   hasNextPage?: boolean;
 };
 
-export const PaginationWidgetBase = ({
+export const PaginationWidgetBase: FC<PaginationWidgetBaseProps> = ({
   currentPage,
   pageSize,
   totalRecords,
   onPageChange,
   hasPreviousPage,
   hasNextPage,
-}: PaginationWidgetBaseProps) => {
+}) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const totalPages = Math.ceil(totalRecords / pageSize);
@@ -99,11 +99,11 @@ type PaginationRowProps = {
   onChange: (newPage: number) => void;
 };
 
-function PaginationRow({
+const PaginationRow: FC<PaginationRowProps> = ({
   currentPage,
   totalPages,
   onChange,
-}: PaginationRowProps) {
+}) => {
   const pageInfo = buildPagedList(totalPages, currentPage);
   const pagesOmitted = totalPages - pageInfo.length - 1;
 
@@ -131,4 +131,4 @@ function PaginationRow({
       })}
     </>
   );
-}
+};

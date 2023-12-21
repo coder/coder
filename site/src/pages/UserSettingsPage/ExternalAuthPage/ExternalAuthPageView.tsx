@@ -14,8 +14,10 @@ import type {
   ExternalAuthLink,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { FullScreenLoader } from "components/Loader/FullScreenLoader";
+import { Avatar } from "components/Avatar/Avatar";
+import { AvatarData } from "components/AvatarData/AvatarData";
 import { Stack } from "components/Stack/Stack";
+import { FullScreenLoader } from "components/Loader/FullScreenLoader";
 import {
   MoreMenu,
   MoreMenuContent,
@@ -25,7 +27,6 @@ import {
 } from "components/MoreMenu/MoreMenu";
 import { ExternalAuth } from "pages/CreateWorkspacePage/ExternalAuth";
 import { ExternalAuthPollingState } from "pages/CreateWorkspacePage/CreateWorkspacePage";
-import { ExternalIcon } from "components/ExternalIcon/ExternalIcon";
 
 const FALLBACK_ICON = "/icon/widgets.svg";
 
@@ -132,10 +133,17 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
     <TableRow key={name}>
       <TableCell>
         <Stack direction="row" alignItems="center">
-          <ExternalIcon
+          <AvatarData
             title={app.display_name || app.id}
-            // subtitle={template.description}
-            src={app.display_icon || FALLBACK_ICON}
+            avatar={
+              app.display_icon && (
+                <Avatar
+                  src={app.display_icon || FALLBACK_ICON}
+                  variant="square"
+                  fitImage
+                />
+              )
+            }
           />
           <span>{app.display_name}</span>
         </Stack>

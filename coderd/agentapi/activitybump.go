@@ -1,4 +1,4 @@
-package coderd
+package agentapi
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 )
 
-// activityBumpWorkspace automatically bumps the workspace's auto-off timer
+// ActivityBumpWorkspace automatically bumps the workspace's auto-off timer
 // if it is set to expire soon. The deadline will be bumped by 1 hour*.
 // If the bump crosses over an autostart time, the workspace will be
 // bumped by the workspace ttl instead.
@@ -36,7 +36,7 @@ import (
 // A way to avoid this is to configure the max deadline to something that will not
 // span more than 1 day. This will force the workspace to restart and reset the deadline
 // each morning when it autostarts.
-func activityBumpWorkspace(ctx context.Context, log slog.Logger, db database.Store, workspaceID uuid.UUID, nextAutostart time.Time) {
+func ActivityBumpWorkspace(ctx context.Context, log slog.Logger, db database.Store, workspaceID uuid.UUID, nextAutostart time.Time) {
 	// We set a short timeout so if the app is under load, these
 	// low priority operations fail first.
 	ctx, cancel := context.WithTimeout(ctx, time.Second*15)

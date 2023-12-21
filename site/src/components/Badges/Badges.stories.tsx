@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import {
   Badges,
   AlphaBadge,
+  BetaBadge,
   DisabledBadge,
   EnabledBadge,
   EntitledBadge,
@@ -52,6 +53,11 @@ export const Disabled: Story = {
 export const Enterprise: Story = {
   args: {
     children: <EnterpriseBadge />,
+  },
+};
+export const Beta: Story = {
+  args: {
+    children: <BetaBadge />,
   },
 };
 export const Alpha: Story = {

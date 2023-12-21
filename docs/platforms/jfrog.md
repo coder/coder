@@ -8,7 +8,7 @@ within a workspace. We'll use Docker as the underlying compute. But, these
 concepts apply to any compute platform.
 
 The full example template can be found
-[here](https://github.com/coder/coder/tree/main/examples/templates/jfrog/docker).
+[here](https://github.com/coder/coder/tree/main/examples/jfrog/docker).
 
 ## Requirements
 
@@ -249,7 +249,7 @@ for more information.
 ## More reading
 
 - See the full example template
-  [here](https://github.com/coder/coder/tree/main/examples/templates/jfrog/docker).
+  [here](https://github.com/coder/coder/tree/main/examples/jfrog/docker).
 - To serve extensions from your own VS Code Marketplace, check out
   [code-marketplace](https://github.com/coder/code-marketplace#artifactory-storage).
 - To store templates in Artifactory, check out our

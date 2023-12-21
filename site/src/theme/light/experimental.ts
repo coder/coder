@@ -5,24 +5,24 @@ export default {
   l1: {
     background: colors.gray[50],
     outline: colors.gray[300],
-    fill: colors.gray[600],
+    fill: colors.gray[700],
     text: colors.black,
   },
 
   l2: {
     background: colors.gray[100],
-    outline: colors.gray[700],
-    fill: "#f00",
-    text: colors.black,
+    outline: colors.gray[500],
+    fill: colors.gray[500],
+    text: colors.gray[950],
     disabled: {
       background: "#f00",
       outline: "#f00",
-      fill: "#f00",
+      fill: colors.gray[500],
       text: colors.gray[200],
     },
     hover: {
-      background: "#f00",
-      outline: "#f00",
+      background: colors.gray[200],
+      outline: colors.gray[700],
       fill: "#f00",
       text: colors.black,
     },
@@ -50,7 +50,7 @@ export default {
   roles: {
     danger: {
       background: colors.orange[50],
-      outline: colors.orange[500],
+      outline: colors.orange[400],
       fill: colors.orange[600],
       text: colors.orange[950],
       disabled: {
@@ -67,7 +67,7 @@ export default {
       },
     },
     error: {
-      background: colors.red[50],
+      background: colors.red[100],
       outline: colors.red[500],
       fill: colors.red[600],
       text: colors.red[950],
@@ -80,7 +80,7 @@ export default {
     },
     notice: {
       background: colors.yellow[50],
-      outline: colors.yellow[200],
+      outline: colors.yellow[600],
       fill: colors.yellow[500],
       text: colors.yellow[950],
     },
@@ -109,7 +109,7 @@ export default {
       },
     },
     active: {
-      background: colors.sky[50],
+      background: colors.sky[100],
       outline: colors.sky[500],
       fill: colors.sky[600],
       text: colors.sky[950],
@@ -120,8 +120,8 @@ export default {
         text: colors.sky[200],
       },
       hover: {
-        background: colors.sky[100],
-        outline: colors.sky[500],
+        background: colors.sky[200],
+        outline: colors.sky[400],
         fill: colors.sky[500],
         text: colors.black,
       },
