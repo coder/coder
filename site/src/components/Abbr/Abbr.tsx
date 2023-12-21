@@ -48,7 +48,8 @@ export const Abbr: FC<AbbrProps> = ({
     >
       {initialism ? (
         // Helps make sure that screen readers read initialisms correctly
-        // without it affecting the visual output for sighted users
+        // without it affecting the visual output for sighted users (e.g.,
+        // making sure "CLI" isn't read out as "klee")
         <>
           <span css={{ ...visuallyHidden }} data-testid="visually-hidden">
             {/*
