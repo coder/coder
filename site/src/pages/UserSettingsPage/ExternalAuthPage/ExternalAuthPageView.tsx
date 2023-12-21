@@ -115,7 +115,7 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
   onUnlinkExternalAuth,
   onValidateExternalAuth,
 }) => {
-  const name = app.id || app.type;
+  const name = app.display_name || app.id || app.type;
   const authURL = "/external-auth/" + app.id;
 
   const {
@@ -130,22 +130,20 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
     : link?.authenticated ?? false;
 
   return (
-    <TableRow key={name}>
+    <TableRow key={app.id}>
       <TableCell>
         <Stack direction="row" alignItems="center">
           <AvatarData
-            title={app.display_name || app.id}
+            title={name}
             avatar={
-              app.display_icon && (
-                <Avatar
-                  src={app.display_icon || FALLBACK_ICON}
-                  variant="square"
-                  fitImage
-                />
-              )
+              <Avatar
+                src={app.display_icon || FALLBACK_ICON}
+                variant="square"
+                fitImage
+              />
             }
           />
-          <span>{app.display_name}</span>
+          <span>{name}</span>
         </Stack>
       </TableCell>
       <TableCell>

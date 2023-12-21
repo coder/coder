@@ -1,31 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { ThemeProvider as MuiThemeProvider } from "@mui/material/styles";
-import {
-  ThemeProvider as EmotionThemeProvider,
-  useTheme,
-} from "@emotion/react";
-import { type FC, type ReactNode } from "react";
-import theme, { type Theme } from "theme";
+import { type FC } from "react";
+import { ThemeOverride } from "contexts/ThemeProvider";
+import theme from "theme";
 import { InteractiveThemeRole } from "./experimental";
-import { Callout } from "components/Callout/Callout";
+import { TestButton } from "./testComponents/Button/Button";
+import { Callout } from "./testComponents/Callout/Callout";
 import Button from "@mui/material/Button";
 
-interface ThemeTestingViewProps {
-  theme: Theme;
-  children?: ReactNode;
-}
-
-const ThemeTestingView: FC<ThemeTestingViewProps> = ({ theme, children }) => {
-  return (
-    <MuiThemeProvider theme={theme}>
-      <EmotionThemeProvider theme={theme}>{children}</EmotionThemeProvider>
-    </MuiThemeProvider>
-  );
-};
-
-const meta: Meta<typeof ThemeTestingView> = {
+const meta: Meta<typeof ThemeOverride> = {
   title: "design/Theme",
-  component: ThemeTestingView,
+  component: ThemeOverride,
   args: {
     theme: theme.dark,
   },
@@ -52,72 +36,13 @@ const ExperimentalExample: FC = () => {
   );
 };
 
-const baseButton = {
-  borderRadius: 8,
-  fontSize: 14,
-  padding: "6px 12px",
-};
-
 const ButtonTasteTest: FC<{ role: InteractiveThemeRole }> = ({ role }) => {
-  const theme = useTheme();
-  const themeRole = theme.experimental.roles[role];
-
   return (
     <div css={{ display: "flex", gap: 16 }}>
-      <button
-        css={{
-          marginInlineEnd: 16,
-
-          ...baseButton,
-          fontWeight: 500,
-          background: themeRole.background,
-          color: themeRole.text,
-          border: `1px solid ${themeRole.outline}`,
-
-          transition:
-            "background 200ms ease, border 200ms ease, color 200ms ease, filter 200ms ease",
-
-          "&:hover": {
-            filter: "brightness(95%)",
-            background: themeRole.hover.background,
-            color: themeRole.hover.text,
-            border: `1px solid ${themeRole.hover.outline}`,
-          },
-        }}
-      >
-        Do the thing
-      </button>
-      <button
-        css={{
-          ...baseButton,
-          background: themeRole.background,
-          color: themeRole.text,
-          border: `1px solid ${themeRole.outline}`,
-        }}
-      >
-        Do the thing
-      </button>
-      <button
-        css={{
-          ...baseButton,
-          background: themeRole.hover.background,
-          color: themeRole.hover.text,
-          border: `1px solid ${themeRole.hover.outline}`,
-        }}
-      >
-        Do the thing
-      </button>
-      <button
-        css={{
-          ...baseButton,
-          background: themeRole.disabled.background,
-          color: themeRole.disabled.text,
-          border: `1px solid ${themeRole.disabled.outline}`,
-        }}
-        disabled
-      >
-        Do the thing
-      </button>
+      <TestButton type={role} />
+      <TestButton type={role} variant="static" />
+      <TestButton type={role} variant="hover" />
+      <TestButton type={role} variant="disabled" />
     </div>
   );
 };
