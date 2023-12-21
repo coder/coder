@@ -115,24 +115,6 @@ Edit the template display name.
 
 Specify a duration workspaces may be in the dormant state prior to being deleted. This licensed feature's default is 0h (off). Maps to "Dormancy Auto-Deletion" in the UI.
 
-### --dormancy-auto-deletion
-
-|         |                       |
-| ------- | --------------------- |
-| Type    | <code>duration</code> |
-| Default | <code>0h</code>       |
-
-Specify a duration workspaces may be in the dormant state prior to being deleted. This licensed feature's default is 0h (off). Maps to "Dormancy Auto-Deletion" in the UI.
-
-### --dormancy-threshold
-
-|         |                       |
-| ------- | --------------------- |
-| Type    | <code>duration</code> |
-| Default | <code>0h</code>       |
-
-Specify a duration workspaces may be inactive prior to being moved to the dormant state. This licensed feature's default is 0h (off). Maps to "Dormancy threshold" in the UI.
-
 ### --dormancy-threshold
 
 |         |                       |
