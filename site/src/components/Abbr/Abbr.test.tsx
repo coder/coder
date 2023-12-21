@@ -1,15 +1,18 @@
 import { render, screen } from "@testing-library/react";
 import { Abbr } from "./Abbr";
 
-type AbbrEntry = {
+type Abbreviation = {
   shortText: string;
   fullText: string;
-  augmented?: string;
+};
+
+type Initialism = Abbreviation & {
+  spelledOut: string;
 };
 
 describe(Abbr.name, () => {
   it("Does not change visual output compared <abbr> if text is not initialism", () => {
-    const sampleText: AbbrEntry[] = [
+    const sampleText: Abbreviation[] = [
       {
         shortText: "NASA",
         fullText: "National Aeronautics and Space Administration",
@@ -33,7 +36,9 @@ describe(Abbr.name, () => {
     ];
 
     for (const { shortText, fullText } of sampleText) {
-      const { unmount } = render(<Abbr title={fullText}>{shortText}</Abbr>);
+      const { unmount } = render(
+        <Abbr expandedText={fullText}>{shortText}</Abbr>,
+      );
 
       const element = screen.getByTestId("abbr");
       const matcher = new RegExp(`^${shortText}$`);
@@ -44,33 +49,38 @@ describe(Abbr.name, () => {
   });
 
   it("Augments pronunciation for screen readers if text is an initialism (but does not change visual output)", () => {
-    const sampleText: AbbrEntry[] = [
+    const sampleText: Initialism[] = [
       {
         shortText: "FBI",
-        fullText: "Federal Bureau of Investigations",
-        augmented: "F.B.I.",
+        fullText: "Federal Bureau of Investigation",
+        spelledOut: "F.B.I.",
       },
       {
         shortText: "YMCA",
         fullText: "Young Men's Christian Association",
-        augmented: "Y.M.C.A.",
+        spelledOut: "Y.M.C.A.",
       },
       {
         shortText: "tbh",
         fullText: "To be honest",
-        augmented: "T.B.H.",
+        spelledOut: "T.B.H.",
+      },
+      {
+        shortText: "CLI",
+        fullText: "Command-Line Interface",
+        spelledOut: "C.L.I.",
       },
     ];
 
-    for (const { shortText, fullText, augmented } of sampleText) {
+    for (const { shortText, fullText, spelledOut: augmented } of sampleText) {
       const { unmount } = render(
-        <Abbr title={fullText} initialism>
+        <Abbr initialism expandedText={fullText}>
           {shortText}
         </Abbr>,
       );
 
       const visuallyHidden = screen.getByTestId("visually-hidden");
-      expect(visuallyHidden).toHaveTextContent(augmented ?? "");
+      expect(visuallyHidden).toHaveTextContent(augmented);
 
       const visualContent = screen.getByTestId("visual-only");
       expect(visualContent).toHaveTextContent(shortText);

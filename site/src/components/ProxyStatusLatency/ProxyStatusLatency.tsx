@@ -5,6 +5,7 @@ import { type FC } from "react";
 import { getLatencyColor } from "utils/latency";
 import CircularProgress from "@mui/material/CircularProgress";
 import { visuallyHidden } from "@mui/utils";
+import { Abbr } from "components/Abbr/Abbr";
 
 interface ProxyStatusLatencyProps {
   latency?: number;
@@ -56,9 +57,7 @@ export const ProxyStatusLatency: FC<ProxyStatusLatencyProps> = ({
     <p css={{ color, fontSize: 13, margin: "0 0 0 auto" }}>
       <span css={{ ...visuallyHidden }}>Latency: </span>
       {latency.toFixed(0)}
-      <abbr title="milliseconds" css={{ textDecoration: "none" }}>
-        ms
-      </abbr>
+      <Abbr expandedText="milliseconds">ms</Abbr>
     </p>
   );
 };
