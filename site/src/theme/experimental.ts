@@ -37,7 +37,7 @@ export interface NewTheme {
   };
 }
 
-/** A set of colors which work together to fill a desirable "communiation role"
+/** A set of colors which work together to fill a desirable "communication role"
  * ie. I wish to communicate an error, I wish to communicate that this is dangerous, etc.
  */
 export interface Role {
