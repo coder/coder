@@ -7,11 +7,13 @@ import (
 	"strconv"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
+	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/tailnet/proto"
@@ -92,10 +94,22 @@ type ClientService struct {
 
 // NewClientService returns a ClientService based on the given Coordinator pointer.  The pointer is
 // loaded on each processed connection.
-func NewClientService(logger slog.Logger, coordPtr *atomic.Pointer[Coordinator]) (*ClientService, error) {
+func NewClientService(
+	logger slog.Logger,
+	coordPtr *atomic.Pointer[Coordinator],
+	derpMapUpdateFrequency time.Duration,
+	derpMapFn func() *tailcfg.DERPMap,
+) (
+	*ClientService, error,
+) {
 	s := &ClientService{logger: logger, coordPtr: coordPtr}
 	mux := drpcmux.New()
-	drpcService := NewDRPCService(logger, coordPtr)
+	drpcService := &DRPCService{
+		CoordPtr:               coordPtr,
+		Logger:                 logger,
+		DerpMapUpdateFrequency: derpMapUpdateFrequency,
+		DerpMapFn:              derpMapFn,
+	}
 	err := proto.DRPCRegisterClient(mux, drpcService)
 	if err != nil {
 		return nil, xerrors.Errorf("register DRPC service: %w", err)
@@ -145,20 +159,37 @@ func (s *ClientService) ServeClient(ctx context.Context, version string, conn ne
 
 // DRPCService is the dRPC-based, version 2.x of the tailnet API and implements proto.DRPCClientServer
 type DRPCService struct {
-	coordPtr *atomic.Pointer[Coordinator]
-	logger   slog.Logger
+	CoordPtr               *atomic.Pointer[Coordinator]
+	Logger                 slog.Logger
+	DerpMapUpdateFrequency time.Duration
+	DerpMapFn              func() *tailcfg.DERPMap
 }
 
-func NewDRPCService(logger slog.Logger, coordPtr *atomic.Pointer[Coordinator]) *DRPCService {
-	return &DRPCService{
-		coordPtr: coordPtr,
-		logger:   logger,
+func (s *DRPCService) StreamDERPMaps(_ *proto.StreamDERPMapsRequest, stream proto.DRPCClient_StreamDERPMapsStream) error {
+	defer stream.Close()
+
+	ticker := time.NewTicker(s.DerpMapUpdateFrequency)
+	defer ticker.Stop()
+
+	var lastDERPMap *tailcfg.DERPMap
+	for {
+		derpMap := s.DerpMapFn()
+		if lastDERPMap == nil || !CompareDERPMaps(lastDERPMap, derpMap) {
+			protoDERPMap := DERPMapToProto(derpMap)
+			err := stream.Send(protoDERPMap)
+			if err != nil {
+				return xerrors.Errorf("send derp map: %w", err)
+			}
+			lastDERPMap = derpMap
+		}
+
+		ticker.Reset(s.DerpMapUpdateFrequency)
+		select {
+		case <-stream.Context().Done():
+			return nil
+		case <-ticker.C:
+		}
 	}
-}
-
-func (*DRPCService) StreamDERPMaps(*proto.StreamDERPMapsRequest, proto.DRPCClient_StreamDERPMapsStream) error {
-	// TODO integrate with Dean's PR implementation
-	return xerrors.New("unimplemented")
 }
 
 func (s *DRPCService) CoordinateTailnet(stream proto.DRPCClient_CoordinateTailnetStream) error {
@@ -168,9 +199,9 @@ func (s *DRPCService) CoordinateTailnet(stream proto.DRPCClient_CoordinateTailne
 		_ = stream.Close()
 		return xerrors.New("no Stream ID")
 	}
-	logger := s.logger.With(slog.F("peer_id", streamID), slog.F("name", streamID.Name))
+	logger := s.Logger.With(slog.F("peer_id", streamID), slog.F("name", streamID.Name))
 	logger.Debug(ctx, "starting tailnet Coordinate")
-	coord := *(s.coordPtr.Load())
+	coord := *(s.CoordPtr.Load())
 	reqs, resps := coord.Coordinate(ctx, streamID.ID, streamID.Name, streamID.Auth)
 	c := communicator{
 		logger: logger,
