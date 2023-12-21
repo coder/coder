@@ -25,7 +25,7 @@ export type PaletteIndex =
   | "action"
   | "neutral";
 
-export const components: ThemeOptions["components"] = {
+export const components = {
   MuiCssBaseline: {
     styleOverrides: (theme) => `
       html, body, #root, #storybook-root {
@@ -489,4 +489,4 @@ export const components: ThemeOptions["components"] = {
       },
     },
   },
-};
+} satisfies ThemeOptions["components"];
