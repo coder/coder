@@ -77,6 +77,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         update_workspace_dormant_at: false,
         require_active_version: template.require_active_version,
         deprecation_message: template.deprecation_message,
+        disable_everyone_group_access: false,
       },
       validationSchema,
       onSubmit,

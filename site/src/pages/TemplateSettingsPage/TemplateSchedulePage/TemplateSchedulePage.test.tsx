@@ -28,6 +28,7 @@ const validFormValues: TemplateScheduleFormValues = {
   inactivity_cleanup_enabled: false,
   dormant_autodeletion_cleanup_enabled: false,
   require_active_version: false,
+  disable_everyone_group_access: false,
   autostart_requirement_days_of_week: [
     "monday",
     "tuesday",
