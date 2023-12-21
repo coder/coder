@@ -232,6 +232,7 @@ var (
 					rbac.ResourceOrganization.Type:       {rbac.ActionCreate},
 					rbac.ResourceOrganizationMember.Type: {rbac.ActionCreate},
 					rbac.ResourceOrgRoleAssignment.Type:  {rbac.ActionCreate},
+					rbac.ResourceProvisionerDaemon.Type:  {rbac.ActionCreate, rbac.ActionUpdate},
 					rbac.ResourceUser.Type:               {rbac.ActionCreate, rbac.ActionUpdate, rbac.ActionDelete},
 					rbac.ResourceUserData.Type:           {rbac.ActionCreate, rbac.ActionUpdate},
 					rbac.ResourceWorkspace.Type:          {rbac.ActionUpdate},
@@ -2497,6 +2498,13 @@ func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemb
 	}
 
 	return q.db.UpdateMemberRoles(ctx, arg)
+}
+
+func (q *querier) UpdateProvisionerDaemonLastSeenAt(ctx context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceProvisionerDaemon); err != nil {
+		return err
+	}
+	return q.db.UpdateProvisionerDaemonLastSeenAt(ctx, arg)
 }
 
 // TODO: We need to create a ProvisionerJob resource type

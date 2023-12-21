@@ -7,15 +7,19 @@ import {
 import {
   type FC,
   type PropsWithChildren,
+  type ReactNode,
   useContext,
   useEffect,
   useMemo,
   useState,
 } from "react";
-import themes, { DEFAULT_THEME } from "theme";
+import themes, { DEFAULT_THEME, type Theme } from "theme";
 import { AuthContext } from "./AuthProvider/AuthProvider";
 
-export const ThemeProviders: FC<PropsWithChildren> = ({ children }) => {
+/**
+ *
+ */
+export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
   // We need to use the `AuthContext` directly, rather than the `useAuth` hook,
   // because Storybook and many tests depend on this component, but do not provide
   // an `AuthProvider`, and `useAuth` will throw in that case.
@@ -56,12 +60,23 @@ export const ThemeProviders: FC<PropsWithChildren> = ({ children }) => {
 
   return (
     <StyledEngineProvider injectFirst>
-      <MuiThemeProvider theme={theme}>
-        <EmotionThemeProvider theme={theme}>
-          <CssBaseline enableColorScheme />
-          {children}
-        </EmotionThemeProvider>
-      </MuiThemeProvider>
+      <ThemeOverride theme={theme}>{children}</ThemeOverride>
     </StyledEngineProvider>
+  );
+};
+
+interface ThemeOverrideProps {
+  theme: Theme;
+  children?: ReactNode;
+}
+
+export const ThemeOverride: FC<ThemeOverrideProps> = ({ theme, children }) => {
+  return (
+    <MuiThemeProvider theme={theme}>
+      <EmotionThemeProvider theme={theme}>
+        <CssBaseline enableColorScheme />
+        {children}
+      </EmotionThemeProvider>
+    </MuiThemeProvider>
   );
 };

@@ -1,4 +1,5 @@
-import colors from "./colors";
+// eslint-disable-next-line no-restricted-imports -- We need MUI here
+import { alertClasses } from "@mui/material/Alert";
 import { createTheme, type ThemeOptions } from "@mui/material/styles";
 import {
   BODY_FONT_FAMILY,
@@ -8,17 +9,17 @@ import {
   BUTTON_SM_HEIGHT,
   BUTTON_XL_HEIGHT,
 } from "../constants";
-// eslint-disable-next-line no-restricted-imports -- We need MUI here
-import { alertClasses } from "@mui/material/Alert";
+import tw from "../tailwind";
+import colors from "./colors";
 
 let muiTheme = createTheme({
   palette: {
     mode: "dark",
     primary: {
-      main: colors.blue[7],
-      contrastText: colors.blue[1],
-      light: colors.blue[6],
-      dark: colors.blue[9],
+      main: tw.sky[500],
+      contrastText: tw.sky[50],
+      light: tw.sky[300],
+      dark: tw.sky[400],
     },
     secondary: {
       main: colors.gray[11],
@@ -489,6 +490,7 @@ muiTheme = createTheme(muiTheme, {
           lineHeight: "150%",
           borderRadius: 4,
           background: muiTheme.palette.divider,
+          padding: "8px 16px",
         },
       },
     },

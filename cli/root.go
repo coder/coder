@@ -515,7 +515,11 @@ func addTelemetryHeader(client *codersdk.Client, inv *clibase.Invocation) {
 // InitClient sets client to a new client.
 // It reads from global configuration files if flags are not set.
 func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
-	return r.initClientInternal(client, false)
+	return clibase.Chain(
+		r.initClientInternal(client, false),
+		// By default, we should print warnings in addition to initializing the client
+		r.PrintWarnings(client),
+	)
 }
 
 func (r *RootCmd) InitClientMissingTokenOK(client *codersdk.Client) clibase.MiddlewareFunc {
@@ -575,7 +579,20 @@ func (r *RootCmd) initClientInternal(client *codersdk.Client, allowTokenMissing 
 				client.SetLogBodies(true)
 			}
 			client.DisableDirectConnections = r.disableDirect
+			return next(inv)
+		}
+	}
+}
 
+func (r *RootCmd) PrintWarnings(client *codersdk.Client) clibase.MiddlewareFunc {
+	if client == nil {
+		panic("client is nil")
+	}
+	if r == nil {
+		panic("root is nil")
+	}
+	return func(next clibase.HandlerFunc) clibase.HandlerFunc {
+		return func(inv *clibase.Invocation) error {
 			// We send these requests in parallel to minimize latency.
 			var (
 				versionErr = make(chan error)
@@ -591,14 +608,14 @@ func (r *RootCmd) initClientInternal(client *codersdk.Client, allowTokenMissing 
 				close(warningErr)
 			}()
 
-			if err = <-versionErr; err != nil {
+			if err := <-versionErr; err != nil {
 				// Just log the error here. We never want to fail a command
 				// due to a pre-run.
 				pretty.Fprintf(inv.Stderr, cliui.DefaultStyles.Warn, "check versions error: %s", err)
 				_, _ = fmt.Fprintln(inv.Stderr)
 			}
 
-			if err = <-warningErr; err != nil {
+			if err := <-warningErr; err != nil {
 				// Same as above
 				pretty.Fprintf(inv.Stderr, cliui.DefaultStyles.Warn, "check entitlement warnings error: %s", err)
 				_, _ = fmt.Fprintln(inv.Stderr)

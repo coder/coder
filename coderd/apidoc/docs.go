@@ -5269,6 +5269,28 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/me/rpc": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Workspace agent RPC API",
+                "operationId": "workspace-agent-rpc-api",
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/workspaceagents/me/startup": {
             "post": {
                 "security": [
@@ -6309,7 +6331,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, is-dormant, last_used_after, last_used_before.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before.",
                         "name": "q",
                         "in": "query"
                     },
@@ -8804,14 +8826,12 @@ const docTemplate = `{
         "codersdk.Experiment": {
             "type": "string",
             "enum": [
-                "moons",
                 "workspace_actions",
                 "tailnet_pg_coordinator",
                 "single_tailnet",
                 "deployment_health_page"
             ],
             "x-enum-varnames": [
-                "ExperimentMoons",
                 "ExperimentWorkspaceActions",
                 "ExperimentTailnetPGCoordinator",
                 "ExperimentSingleTailnet",

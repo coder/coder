@@ -8,7 +8,7 @@ import "google/protobuf/timestamp.proto";
 import "google/protobuf/duration.proto";
 
 message WorkspaceApp {
-	bytes uuid = 1;
+	bytes id = 1;
 	string url = 2;
 	bool external = 3;
 	string slug = 4;
@@ -26,12 +26,12 @@ message WorkspaceApp {
 	}
 	SharingLevel sharing_level = 10;
 
-	message HealthCheck {
+	message Healthcheck {
 		string url = 1;
-		int32 interval = 2;
+		google.protobuf.Duration interval = 2;
 		int32 threshold = 3;
 	}
-	HealthCheck healthcheck = 11;
+	Healthcheck healthcheck = 11;
 
 	enum Health {
 		HEALTH_UNSPECIFIED = 0;
@@ -43,11 +43,52 @@ message WorkspaceApp {
 	Health health = 12;
 }
 
+message WorkspaceAgentScript {
+	bytes log_source_id = 1;
+	string log_path = 2;
+	string script = 3;
+	string cron = 4;
+	bool run_on_start = 5;
+	bool run_on_stop = 6;
+	bool start_blocks_login = 7;
+	google.protobuf.Duration timeout = 8;
+}
+
+message WorkspaceAgentMetadata {
+	message Result {
+		google.protobuf.Timestamp collected_at = 1;
+		int64 age = 2;
+		string value = 3;
+		string error = 4;
+	}
+	Result result = 1;
+
+	message Description {
+		string display_name = 1;
+		string key = 2;
+		string script = 3;
+		google.protobuf.Duration interval = 4;
+		google.protobuf.Duration timeout = 5;
+	}
+	Description description = 2;
+}
+
 message Manifest {
-	uint32 git_auth_configs = 1;
-	string vs_code_port_proxy_uri = 2;
-	repeated WorkspaceApp apps = 3;
-	coder.tailnet.v2.DERPMap derp_map = 4;
+	bytes agent_id = 1;
+	string owner_username = 13;
+	bytes workspace_id = 14;
+	uint32 git_auth_configs = 2;
+	map<string, string> environment_variables = 3;
+	string directory = 4;
+	string vs_code_port_proxy_uri = 5;
+	string motd_path = 6;
+	bool disable_direct_connections = 7;
+	bool derp_force_websockets = 8;
+
+	coder.tailnet.v2.DERPMap derp_map = 9;
+	repeated WorkspaceAgentScript scripts = 10;
+	repeated WorkspaceApp apps = 11;
+	repeated WorkspaceAgentMetadata.Description metadata = 12;
 }
 
 message GetManifestRequest {}
@@ -100,8 +141,14 @@ message Stats {
 		Type type = 2;
 
 		double value = 3;
-		map<string, string> labels = 4;
+
+		message Label {
+			string name = 1;
+			string value = 2;
+		}
+		repeated Label labels = 4;
 	}
+	repeated Metric metrics = 12;
 }
 
 message UpdateStatsRequest{
@@ -109,14 +156,14 @@ message UpdateStatsRequest{
 }
 
 message UpdateStatsResponse {
-	google.protobuf.Duration report_interval_nanoseconds = 1;
+	google.protobuf.Duration report_interval = 1;
 }
 
 message Lifecycle {
 	enum State {
 		STATE_UNSPECIFIED = 0;
 		CREATED = 1;
-		STARTED = 2;
+		STARTING = 2;
 		START_TIMEOUT = 3;
 		START_ERROR = 4;
 		READY = 5;
@@ -126,6 +173,7 @@ message Lifecycle {
 		OFF = 9;
 	}
 	State state = 1;
+	google.protobuf.Timestamp changed_at = 2;
 }
 
 message UpdateLifecycleRequest {
@@ -142,7 +190,7 @@ enum AppHealth {
 
 message BatchUpdateAppHealthRequest {
 	message HealthUpdate {
-		bytes uuid = 1;
+		bytes id = 1;
 		AppHealth health = 2;
 	}
 	repeated HealthUpdate updates = 1;
@@ -153,7 +201,13 @@ message BatchUpdateAppHealthResponse {}
 message Startup {
 	string version = 1;
 	string expanded_directory = 2;
-	repeated string subsystems = 3;
+	enum Subsystem {
+		SUBSYSTEM_UNSPECIFIED = 0;
+		ENVBOX = 1;
+		ENVBUILDER = 2;
+		EXECTRACE = 3;
+	}
+	repeated Subsystem subsystems = 3;
 }
 
 message UpdateStartupRequest{
@@ -162,10 +216,7 @@ message UpdateStartupRequest{
 
 message Metadata {
 	string key = 1;
-	google.protobuf.Timestamp collected_at = 2;
-	int64 age = 3;
-	string value = 4;
-	string error = 5;
+	WorkspaceAgentMetadata.Result result = 2;
 }
 
 message BatchUpdateMetadataRequest {
@@ -190,7 +241,7 @@ message Log {
 }
 
 message BatchCreateLogsRequest {
-	bytes source_id = 1;
+	bytes log_source_id = 1;
 	repeated Log logs = 2;
 }
 

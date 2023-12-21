@@ -3,41 +3,41 @@ import colors from "../tailwind";
 
 export default {
   l1: {
-    background: colors.gray[950],
-    outline: colors.gray[700],
-    fill: colors.gray[600],
+    background: colors.zinc[950],
+    outline: colors.zinc[700],
+    fill: colors.zinc[600],
     text: colors.white,
   },
 
   l2: {
-    background: colors.gray[900],
-    outline: colors.gray[700],
-    fill: "#f00",
-    text: colors.white,
+    background: colors.zinc[900],
+    outline: colors.zinc[700],
+    fill: colors.zinc[500],
+    text: colors.zinc[50],
     disabled: {
       background: "#f00",
       outline: "#f00",
-      fill: "#f00",
-      text: colors.gray[200],
+      fill: colors.zinc[500],
+      text: colors.zinc[200],
     },
     hover: {
-      background: "#f00",
-      outline: "#f00",
+      background: colors.zinc[800],
+      outline: colors.zinc[600],
       fill: "#f00",
       text: colors.white,
     },
   },
 
   l3: {
-    background: colors.gray[800],
-    outline: colors.gray[700],
-    fill: colors.gray[600],
+    background: colors.zinc[800],
+    outline: colors.zinc[700],
+    fill: colors.zinc[600],
     text: colors.white,
     disabled: {
       background: "#f00",
       outline: "#f00",
       fill: "#f00",
-      text: colors.gray[200],
+      text: colors.zinc[200],
     },
     hover: {
       background: "#f00",
@@ -51,7 +51,7 @@ export default {
     danger: {
       background: colors.orange[950],
       outline: colors.orange[500],
-      fill: colors.orange[600],
+      fill: colors.orange[700],
       text: colors.orange[50],
       disabled: {
         background: colors.orange[950],
@@ -68,8 +68,8 @@ export default {
     },
     error: {
       background: colors.red[950],
-      outline: colors.red[500],
-      fill: colors.red[600],
+      outline: colors.red[600],
+      fill: colors.red[400],
       text: colors.red[50],
     },
     warning: {
@@ -125,6 +125,12 @@ export default {
         fill: colors.sky[500],
         text: colors.white,
       },
+    },
+    preview: {
+      background: colors.violet[950],
+      outline: colors.violet[500],
+      fill: colors.violet[400],
+      text: colors.violet[50],
     },
   },
 } satisfies NewTheme;

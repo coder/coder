@@ -2,6 +2,9 @@
 # It was chosen to ensure type-safety when interacting with
 # the database.
 version: "2"
+cloud:
+  # This is the static ID for the coder project.
+  project: "01HEP08N3WKWRFZT3ZZ9Q37J8X"
 # Ideally renames & overrides would go under the sql section, but there is a
 # bug in sqlc that only global renames & overrides are currently being applied.
 overrides:

@@ -155,6 +155,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				// Users cannot do create/update/delete on themselves, but they
 				// can read their own details.
 				ResourceUser.Type: {ActionRead},
+				// Users can create provisioner daemons scoped to themselves.
+				ResourceProvisionerDaemon.Type: {ActionCreate, ActionRead, ActionUpdate},
 			})...,
 		),
 	}.withCachedRegoValue()

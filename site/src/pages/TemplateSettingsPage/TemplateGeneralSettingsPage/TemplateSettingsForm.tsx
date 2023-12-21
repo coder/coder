@@ -22,7 +22,9 @@ import { Stack } from "components/Stack/Stack";
 import Checkbox from "@mui/material/Checkbox";
 import {
   HelpTooltip,
+  HelpTooltipContent,
   HelpTooltipText,
+  HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { EnterpriseBadge } from "components/Badges/Badges";
 
@@ -159,9 +161,13 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
                 >
                   Allow users to cancel in-progress workspace jobs.
                   <HelpTooltip>
-                    <HelpTooltipText>
-                      If checked, users may be able to corrupt their workspace.
-                    </HelpTooltipText>
+                    <HelpTooltipTrigger />
+                    <HelpTooltipContent>
+                      <HelpTooltipText>
+                        If checked, users may be able to corrupt their
+                        workspace.
+                      </HelpTooltipText>
+                    </HelpTooltipContent>
                   </HelpTooltip>
                 </Stack>
                 <span css={styles.optionHelperText}>
@@ -181,19 +187,27 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
                 onChange={form.handleChange}
               />
 
-              <Stack direction="column" spacing={0.5}>
-                <Stack
-                  direction="row"
-                  alignItems="center"
-                  spacing={0.5}
-                  css={styles.optionText}
-                >
-                  Require workspaces automatically update when started.
-                  <HelpTooltip>
-                    <HelpTooltipText>
-                      This setting is not enforced for template admins.
-                    </HelpTooltipText>
-                  </HelpTooltip>
+                <Stack direction="column" spacing={0.5}>
+                  <Stack
+                    direction="row"
+                    alignItems="center"
+                    spacing={0.5}
+                    css={styles.optionText}
+                  >
+                    Require workspaces automatically update when started.
+                    <HelpTooltip>
+                      <HelpTooltipTrigger />
+                      <HelpTooltipContent>
+                        <HelpTooltipText>
+                          This setting is not enforced for template admins.
+                        </HelpTooltipText>
+                      </HelpTooltipContent>
+                    </HelpTooltip>
+                  </Stack>
+                  <span css={styles.optionHelperText}>
+                    Workspaces that are manually started or auto-started will
+                    use the active template version.
+                  </span>
                 </Stack>
                 <span css={styles.optionHelperText}>
                   Workspaces that are manually started or auto-started will use

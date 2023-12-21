@@ -3057,6 +3057,26 @@ func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDa
 	return items, nil
 }
 
+const updateProvisionerDaemonLastSeenAt = `-- name: UpdateProvisionerDaemonLastSeenAt :exec
+UPDATE provisioner_daemons
+SET
+	last_seen_at = $1
+WHERE
+	id = $2
+AND
+	last_seen_at <= $1
+`
+
+type UpdateProvisionerDaemonLastSeenAtParams struct {
+	LastSeenAt sql.NullTime `db:"last_seen_at" json:"last_seen_at"`
+	ID         uuid.UUID    `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateProvisionerDaemonLastSeenAt(ctx context.Context, arg UpdateProvisionerDaemonLastSeenAtParams) error {
+	_, err := q.db.ExecContext(ctx, updateProvisionerDaemonLastSeenAt, arg.LastSeenAt, arg.ID)
+	return err
+}
+
 const upsertProvisionerDaemon = `-- name: UpsertProvisionerDaemon :one
 INSERT INTO
 	provisioner_daemons (
@@ -3078,7 +3098,7 @@ VALUES (
 	$5,
 	$6,
 	$7
-) ON CONFLICT("name", lower((tags ->> 'owner'::text))) DO UPDATE SET
+) ON CONFLICT("name", LOWER(COALESCE(tags ->> 'owner'::text, ''::text))) DO UPDATE SET
 	provisioners = $3,
 	tags = $4,
 	last_seen_at = $5,
@@ -7761,6 +7781,8 @@ SELECT
 	users.id AS owner_id,
 	users.username AS owner_name,
 	users.status AS owner_status,
+	workspaces.template_id AS template_id,
+	workspace_builds.template_version_id AS template_version_id,
 	array_cat(
 		array_append(users.rbac_roles, 'member'),
 		array_append(ARRAY[]::text[], 'organization-member:' || organization_members.organization_id::text)
@@ -7803,20 +7825,23 @@ GROUP BY
 	workspaces.id,
 	users.id,
 	organization_members.organization_id,
-	workspace_builds.build_number
+	workspace_builds.build_number,
+	workspace_builds.template_version_id
 ORDER BY
 	workspace_builds.build_number DESC
 LIMIT 1
 `
 
 type GetWorkspaceAgentAndOwnerByAuthTokenRow struct {
-	WorkspaceAgent WorkspaceAgent `db:"workspace_agent" json:"workspace_agent"`
-	WorkspaceID    uuid.UUID      `db:"workspace_id" json:"workspace_id"`
-	OwnerID        uuid.UUID      `db:"owner_id" json:"owner_id"`
-	OwnerName      string         `db:"owner_name" json:"owner_name"`
-	OwnerStatus    UserStatus     `db:"owner_status" json:"owner_status"`
-	OwnerRoles     []string       `db:"owner_roles" json:"owner_roles"`
-	OwnerGroups    []string       `db:"owner_groups" json:"owner_groups"`
+	WorkspaceAgent    WorkspaceAgent `db:"workspace_agent" json:"workspace_agent"`
+	WorkspaceID       uuid.UUID      `db:"workspace_id" json:"workspace_id"`
+	OwnerID           uuid.UUID      `db:"owner_id" json:"owner_id"`
+	OwnerName         string         `db:"owner_name" json:"owner_name"`
+	OwnerStatus       UserStatus     `db:"owner_status" json:"owner_status"`
+	TemplateID        uuid.UUID      `db:"template_id" json:"template_id"`
+	TemplateVersionID uuid.UUID      `db:"template_version_id" json:"template_version_id"`
+	OwnerRoles        []string       `db:"owner_roles" json:"owner_roles"`
+	OwnerGroups       []string       `db:"owner_groups" json:"owner_groups"`
 }
 
 func (q *sqlQuerier) GetWorkspaceAgentAndOwnerByAuthToken(ctx context.Context, authToken uuid.UUID) (GetWorkspaceAgentAndOwnerByAuthTokenRow, error) {
@@ -7857,6 +7882,8 @@ func (q *sqlQuerier) GetWorkspaceAgentAndOwnerByAuthToken(ctx context.Context, a
 		&i.OwnerID,
 		&i.OwnerName,
 		&i.OwnerStatus,
+		&i.TemplateID,
+		&i.TemplateVersionID,
 		pq.Array(&i.OwnerRoles),
 		pq.Array(&i.OwnerGroups),
 	)

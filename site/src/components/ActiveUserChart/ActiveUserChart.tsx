@@ -17,6 +17,8 @@ import {
   HelpTooltip,
   HelpTooltipTitle,
   HelpTooltipText,
+  HelpTooltipContent,
+  HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import dayjs from "dayjs";
 import { useTheme } from "@emotion/react";
@@ -94,6 +96,7 @@ export const ActiveUserChart: FC<ActiveUserChartProps> = ({
     },
     scales: {
       y: {
+        grid: { color: theme.palette.divider },
         suggestedMin: 0,
         ticks: {
           precision: 0,
@@ -101,6 +104,7 @@ export const ActiveUserChart: FC<ActiveUserChartProps> = ({
       },
 
       x: {
+        grid: { color: theme.palette.divider },
         ticks: {
           stepSize: data.length > 10 ? 2 : undefined,
         },
@@ -122,11 +126,9 @@ export const ActiveUserChart: FC<ActiveUserChartProps> = ({
           {
             label: `${interval === "day" ? "Daily" : "Weekly"} Active Users`,
             data: chartData,
-            pointBackgroundColor: theme.palette.info.light,
-            pointBorderColor: theme.palette.info.light,
-            borderColor: theme.palette.info.light,
-            backgroundColor: theme.palette.info.dark,
-            fill: "origin",
+            pointBackgroundColor: theme.experimental.roles.active.outline,
+            pointBorderColor: theme.experimental.roles.active.outline,
+            borderColor: theme.experimental.roles.active.outline,
           },
         ],
       }}
@@ -139,12 +141,15 @@ export const ActiveUsersTitle: FC = () => {
   return (
     <div css={{ display: "flex", alignItems: "center", gap: 8 }}>
       Active Users
-      <HelpTooltip size="small">
-        <HelpTooltipTitle>How do we calculate active users?</HelpTooltipTitle>
-        <HelpTooltipText>
-          When a connection is initiated to a user&apos;s workspace they are
-          considered an active user. e.g. apps, web terminal, SSH
-        </HelpTooltipText>
+      <HelpTooltip>
+        <HelpTooltipTrigger size="small" />
+        <HelpTooltipContent>
+          <HelpTooltipTitle>How do we calculate active users?</HelpTooltipTitle>
+          <HelpTooltipText>
+            When a connection is initiated to a user&apos;s workspace they are
+            considered an active user. e.g. apps, web terminal, SSH
+          </HelpTooltipText>
+        </HelpTooltipContent>
       </HelpTooltip>
     </div>
   );

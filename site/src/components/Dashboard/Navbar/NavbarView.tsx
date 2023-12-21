@@ -456,7 +456,7 @@ const styles = {
   },
   link: (theme) => css`
     align-items: center;
-    color: ${theme.colors.gray[6]};
+    color: ${theme.palette.text.secondary};
     display: flex;
     flex: 1;
     font-size: 16px;
@@ -470,7 +470,7 @@ const styles = {
     }
 
     &:hover {
-      background-color: ${theme.palette.action.hover};
+      background-color: ${theme.experimental.l2.hover.background};
     }
 
     ${theme.breakpoints.up("md")} {

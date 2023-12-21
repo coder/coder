@@ -3,12 +3,6 @@ import { useFeatureVisibility } from "hooks/useFeatureVisibility";
 import { FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate } from "react-router-dom";
-import {
-  getDeadline,
-  getMaxDeadline,
-  getMaxDeadlineChange,
-  getMinDeadline,
-} from "utils/schedule";
 import { Workspace } from "./Workspace";
 import { pageTitle } from "utils/page";
 import { hasJobError } from "utils/workspace";
@@ -29,16 +23,14 @@ import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import {
   activate,
   changeVersion,
-  decreaseDeadline,
   deleteWorkspace,
-  increaseDeadline,
   updateWorkspace,
   stopWorkspace,
   startWorkspace,
   cancelBuild,
 } from "api/queries/workspaces";
 import { getErrorMessage } from "api/errors";
-import { displaySuccess, displayError } from "components/GlobalSnackbar/utils";
+import { displayError } from "components/GlobalSnackbar/utils";
 import { deploymentConfig, deploymentSSHConfig } from "api/queries/deployment";
 import { WorkspacePermissions } from "./permissions";
 import { workspaceResolveAutostart } from "api/queries/workspaceQuota";
@@ -99,27 +91,6 @@ export const WorkspaceReadyPage = ({
     isLoading: isRestarting,
   } = useMutation({
     mutationFn: restartWorkspace,
-  });
-
-  // Schedule controls
-  const deadline = getDeadline(workspace);
-  const onDeadlineChangeSuccess = () => {
-    displaySuccess("Updated workspace shutdown time.");
-  };
-  const onDeadlineChangeFails = (error: unknown) => {
-    displayError(
-      getErrorMessage(error, "Failed to update workspace shutdown time."),
-    );
-  };
-  const decreaseMutation = useMutation({
-    ...decreaseDeadline(workspace),
-    onSuccess: onDeadlineChangeSuccess,
-    onError: onDeadlineChangeFails,
-  });
-  const increaseMutation = useMutation({
-    ...increaseDeadline(workspace),
-    onSuccess: onDeadlineChangeSuccess,
-    onError: onDeadlineChangeFails,
   });
 
   // Auto start
@@ -227,15 +198,6 @@ export const WorkspaceReadyPage = ({
       </Helmet>
 
       <Workspace
-        scheduleProps={{
-          onDeadlineMinus: decreaseMutation.mutate,
-          onDeadlinePlus: increaseMutation.mutate,
-          maxDeadlineDecrease: getMaxDeadlineChange(deadline, getMinDeadline()),
-          maxDeadlineIncrease: getMaxDeadlineChange(
-            getMaxDeadline(workspace),
-            deadline,
-          ),
-        }}
         isUpdating={updateWorkspaceMutation.isLoading}
         isRestarting={isRestarting}
         workspace={workspace}

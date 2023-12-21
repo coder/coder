@@ -9,6 +9,7 @@ import {
   useId,
   useRef,
   useState,
+  HTMLAttributes,
 } from "react";
 // This is used as base for the main Popover component
 // eslint-disable-next-line no-restricted-imports -- Read above
@@ -79,8 +80,11 @@ export const usePopover = () => {
   return context;
 };
 
-export const PopoverTrigger = (props: { children: TriggerElement }) => {
+export const PopoverTrigger = (
+  props: HTMLAttributes<HTMLElement> & { children: TriggerElement },
+) => {
   const popover = usePopover();
+  const { children, ...elementProps } = props;
 
   const clickProps = {
     onClick: () => {
@@ -98,6 +102,7 @@ export const PopoverTrigger = (props: { children: TriggerElement }) => {
   };
 
   return cloneElement(props.children, {
+    ...elementProps,
     ...(popover.mode === "click" ? clickProps : hoverProps),
     "aria-haspopup": true,
     "aria-owns": popover.isOpen ? popover.id : undefined,

@@ -18,7 +18,6 @@ type Story = StoryObj<typeof AppearanceForm>;
 
 export const Example: Story = {
   args: {
-    enableAuto: true,
     initialValues: { theme_preference: "" },
   },
 };

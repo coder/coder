@@ -10,13 +10,13 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/cryptorand"
 )
 
@@ -63,7 +63,7 @@ func TestBatchStats(t *testing.T) {
 	// Given: a single data point is added for workspace
 	t2 := t1.Add(time.Second)
 	t.Logf("inserting 1 stat")
-	require.NoError(t, b.Add(t2.Add(time.Millisecond), deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randAgentSDKStats(t)))
+	require.NoError(t, b.Add(t2.Add(time.Millisecond), deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randStats(t)))
 
 	// When: it becomes time to report stats
 	// Signal a tick and wait for a flush to complete.
@@ -87,9 +87,9 @@ func TestBatchStats(t *testing.T) {
 		t.Logf("inserting %d stats", defaultBufferSize)
 		for i := 0; i < defaultBufferSize; i++ {
 			if i%2 == 0 {
-				require.NoError(t, b.Add(t3.Add(time.Millisecond), deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randAgentSDKStats(t)))
+				require.NoError(t, b.Add(t3.Add(time.Millisecond), deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randStats(t)))
 			} else {
-				require.NoError(t, b.Add(t3.Add(time.Millisecond), deps2.Agent.ID, deps2.User.ID, deps2.Template.ID, deps2.Workspace.ID, randAgentSDKStats(t)))
+				require.NoError(t, b.Add(t3.Add(time.Millisecond), deps2.Agent.ID, deps2.User.ID, deps2.Template.ID, deps2.Workspace.ID, randStats(t)))
 			}
 		}
 	}()
@@ -129,10 +129,10 @@ func TestBatchStats(t *testing.T) {
 	require.Equal(t, defaultBufferSize, cap(b.buf.ID), "buffer grew beyond expected capacity")
 }
 
-// randAgentSDKStats returns a random agentsdk.Stats
-func randAgentSDKStats(t *testing.T, opts ...func(*agentsdk.Stats)) agentsdk.Stats {
+// randStats returns a random agentproto.Stats
+func randStats(t *testing.T, opts ...func(*agentproto.Stats)) *agentproto.Stats {
 	t.Helper()
-	s := agentsdk.Stats{
+	s := &agentproto.Stats{
 		ConnectionsByProto: map[string]int64{
 			"ssh":              mustRandInt64n(t, 9) + 1,
 			"vscode":           mustRandInt64n(t, 9) + 1,
@@ -140,19 +140,19 @@ func randAgentSDKStats(t *testing.T, opts ...func(*agentsdk.Stats)) agentsdk.Sta
 			"reconnecting_pty": mustRandInt64n(t, 9) + 1,
 		},
 		ConnectionCount:             mustRandInt64n(t, 99) + 1,
-		ConnectionMedianLatencyMS:   float64(mustRandInt64n(t, 99) + 1),
+		ConnectionMedianLatencyMs:   float64(mustRandInt64n(t, 99) + 1),
 		RxPackets:                   mustRandInt64n(t, 99) + 1,
 		RxBytes:                     mustRandInt64n(t, 99) + 1,
 		TxPackets:                   mustRandInt64n(t, 99) + 1,
 		TxBytes:                     mustRandInt64n(t, 99) + 1,
-		SessionCountVSCode:          mustRandInt64n(t, 9) + 1,
-		SessionCountJetBrains:       mustRandInt64n(t, 9) + 1,
-		SessionCountReconnectingPTY: mustRandInt64n(t, 9) + 1,
-		SessionCountSSH:             mustRandInt64n(t, 9) + 1,
-		Metrics:                     []agentsdk.AgentMetric{},
+		SessionCountVscode:          mustRandInt64n(t, 9) + 1,
+		SessionCountJetbrains:       mustRandInt64n(t, 9) + 1,
+		SessionCountReconnectingPty: mustRandInt64n(t, 9) + 1,
+		SessionCountSsh:             mustRandInt64n(t, 9) + 1,
+		Metrics:                     []*agentproto.Stats_Metric{},
 	}
 	for _, opt := range opts {
-		opt(&s)
+		opt(s)
 	}
 	return s
 }
