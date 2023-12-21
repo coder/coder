@@ -15,34 +15,15 @@ export default {
     fill: colors.zinc[500],
     text: colors.zinc[50],
     disabled: {
-      background: "#f00",
-      outline: "#f00",
+      background: colors.gray[900],
+      outline: colors.zinc[700],
       fill: colors.zinc[500],
       text: colors.zinc[200],
     },
     hover: {
       background: colors.zinc[800],
       outline: colors.zinc[600],
-      fill: "#f00",
-      text: colors.white,
-    },
-  },
-
-  l3: {
-    background: colors.zinc[800],
-    outline: colors.zinc[700],
-    fill: colors.zinc[600],
-    text: colors.white,
-    disabled: {
-      background: "#f00",
-      outline: "#f00",
-      fill: "#f00",
-      text: colors.zinc[200],
-    },
-    hover: {
-      background: "#f00",
-      outline: "#f00",
-      fill: "#f00",
+      fill: colors.zinc[400],
       text: colors.white,
     },
   },
@@ -75,7 +56,7 @@ export default {
     warning: {
       background: colors.amber[950],
       outline: colors.amber[300],
-      fill: "#f00",
+      fill: colors.amber[500],
       text: colors.amber[50],
     },
     notice: {

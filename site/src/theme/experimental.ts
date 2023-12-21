@@ -9,7 +9,6 @@ export type InteractiveThemeRole = keyof {
 export interface NewTheme {
   l1: Role; // page background, things which sit at the "root level"
   l2: InteractiveRole; // sidebars, table headers, navigation
-  l3: InteractiveRole; // buttons, inputs
 
   roles: {
     danger: InteractiveRole; // delete, immutable parameters, stuff that sucks to fix
