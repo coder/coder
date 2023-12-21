@@ -157,7 +157,7 @@ export const components: ThemeOptions["components"] = {
       }),
     },
   },
-  MuiLoadingButton: {
+  ["MuiLoadingButton" as any]: {
     defaultProps: {
       variant: "outlined",
       color: "neutral",
