@@ -15,34 +15,15 @@ export default {
     fill: colors.gray[500],
     text: colors.gray[950],
     disabled: {
-      background: "#f00",
-      outline: "#f00",
+      background: colors.gray[100],
+      outline: colors.gray[500],
       fill: colors.gray[500],
-      text: colors.gray[200],
+      text: colors.gray[800],
     },
     hover: {
       background: colors.gray[200],
       outline: colors.gray[700],
-      fill: "#f00",
-      text: colors.black,
-    },
-  },
-
-  l3: {
-    background: colors.gray[200],
-    outline: colors.gray[700],
-    fill: colors.gray[600],
-    text: colors.black,
-    disabled: {
-      background: "#f00",
-      outline: "#f00",
-      fill: "#f00",
-      text: colors.gray[200],
-    },
-    hover: {
-      background: "#f00",
-      outline: "#f00",
-      fill: "#f00",
+      fill: colors.zinc[600],
       text: colors.black,
     },
   },
@@ -75,7 +56,7 @@ export default {
     warning: {
       background: colors.amber[50],
       outline: colors.amber[300],
-      fill: "#f00",
+      fill: colors.amber[500],
       text: colors.amber[950],
     },
     notice: {
