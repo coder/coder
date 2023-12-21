@@ -47,52 +47,6 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 		),
 		Short: "Edit the metadata of a template by name.",
 		Handler: func(inv *clibase.Invocation) error {
-<<<<<<< HEAD
-			// This clause can be removed when workspace_actions is no longer experimental
-			if failureTTL != 0 || dormancyThreshold != 0 || dormancyAutoDeletion != 0 {
-				experiments, exErr := client.Experiments(inv.Context())
-				if exErr != nil {
-					return xerrors.Errorf("get experiments: %w", exErr)
-				}
-
-				if !experiments.Enabled(codersdk.ExperimentWorkspaceActions) {
-					return xerrors.Errorf("--failure-ttl, --dormancy-threshold, and --dormancy-auto-deletion are experimental features. Use the workspace_actions CODER_EXPERIMENTS flag to set these configuration values.")
-				}
-			}
-
-			unsetAutostopRequirementDaysOfWeek := len(autostopRequirementDaysOfWeek) == 1 && autostopRequirementDaysOfWeek[0] == "none"
-			requiresScheduling := (len(autostopRequirementDaysOfWeek) > 0 && !unsetAutostopRequirementDaysOfWeek) ||
-				autostopRequirementWeeks > 0 ||
-				!allowUserAutostart ||
-				!allowUserAutostop ||
-				maxTTL != 0 ||
-				failureTTL != 0 ||
-				dormancyThreshold != 0 ||
-				dormancyAutoDeletion != 0 ||
-				len(autostartRequirementDaysOfWeek) > 0
-
-			requiresEntitlement := requiresScheduling || requireActiveVersion
-			if requiresEntitlement {
-				entitlements, err := client.Entitlements(inv.Context())
-				if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusNotFound {
-					return xerrors.Errorf("your deployment appears to be an AGPL deployment, so you cannot set enterprise-only flags")
-				} else if err != nil {
-					return xerrors.Errorf("get entitlements: %w", err)
-				}
-
-				if requiresScheduling && !entitlements.Features[codersdk.FeatureAdvancedTemplateScheduling].Enabled {
-					return xerrors.Errorf("your license is not entitled to use advanced template scheduling, so you cannot set --max-ttl, --failure-ttl, --inactivityTTL, --allow-user-autostart=false or --allow-user-autostop=false")
-				}
-
-				if requireActiveVersion {
-					if !entitlements.Features[codersdk.FeatureAccessControl].Enabled {
-						return xerrors.Errorf("your license is not entitled to use enterprise access control, so you cannot set --require-active-version")
-					}
-				}
-			}
-
-=======
->>>>>>> 3c377e5d3 (combine edit flags)
 			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
 				return xerrors.Errorf("get current organization: %w", err)
@@ -340,15 +294,6 @@ func editTemplateEntitlementsCheck(ctx context.Context, args editTemplateEntitle
 		if args.requireActiveVersion {
 			if !entitlements.Features[codersdk.FeatureAccessControl].Enabled {
 				return false, xerrors.Errorf("your license is not entitled to use enterprise access control, so you cannot set --require-active-version")
-			}
-
-			experiments, exErr := args.client.Experiments(ctx)
-			if exErr != nil {
-				return false, xerrors.Errorf("get experiments: %w", exErr)
-			}
-
-			if !experiments.Enabled(codersdk.ExperimentTemplateUpdatePolicies) {
-				return false, xerrors.Errorf("--require-active-version is an experimental feature, contact an administrator to enable the 'template_update_policies' experiment on your Coder server")
 			}
 		}
 	}
