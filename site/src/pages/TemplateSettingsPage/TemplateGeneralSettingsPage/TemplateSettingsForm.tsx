@@ -187,27 +187,22 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
                 onChange={form.handleChange}
               />
 
-                <Stack direction="column" spacing={0.5}>
-                  <Stack
-                    direction="row"
-                    alignItems="center"
-                    spacing={0.5}
-                    css={styles.optionText}
-                  >
-                    Require workspaces automatically update when started.
-                    <HelpTooltip>
-                      <HelpTooltipTrigger />
-                      <HelpTooltipContent>
-                        <HelpTooltipText>
-                          This setting is not enforced for template admins.
-                        </HelpTooltipText>
-                      </HelpTooltipContent>
-                    </HelpTooltip>
-                  </Stack>
-                  <span css={styles.optionHelperText}>
-                    Workspaces that are manually started or auto-started will
-                    use the active template version.
-                  </span>
+              <Stack direction="column" spacing={0.5}>
+                <Stack
+                  direction="row"
+                  alignItems="center"
+                  spacing={0.5}
+                  css={styles.optionText}
+                >
+                  Require workspaces automatically update when started.
+                  <HelpTooltip>
+                    <HelpTooltipTrigger />
+                    <HelpTooltipContent>
+                      <HelpTooltipText>
+                        This setting is not enforced for template admins.
+                      </HelpTooltipText>
+                    </HelpTooltipContent>
+                  </HelpTooltip>
                 </Stack>
                 <span css={styles.optionHelperText}>
                   Workspaces that are manually started or auto-started will use
