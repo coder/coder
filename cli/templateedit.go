@@ -119,6 +119,9 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				allowUserAutostop:              allowUserAutostop,
 				requireActiveVersion:           requireActiveVersion,
 			})
+			if err != nil {
+				return err
+			}
 
 			req := updateTemplateMetaRequest(updateTemplateMetaArgs{
 				client:                             client,
