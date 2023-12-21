@@ -5,13 +5,20 @@ import { useCoderTheme } from "./coderTheme";
 
 loader.config({ monaco });
 
-export const SyntaxHighlighter: FC<{
+interface SyntaxHighlighterProps {
   value: string;
   language: string;
   editorProps?: ComponentProps<typeof Editor> &
     ComponentProps<typeof DiffEditor>;
   compareWith?: string;
-}> = ({ value, compareWith, language, editorProps }) => {
+}
+
+export const SyntaxHighlighter: FC<SyntaxHighlighterProps> = ({
+  value,
+  compareWith,
+  language,
+  editorProps,
+}) => {
   const hasDiff = compareWith && value !== compareWith;
   const coderTheme = useCoderTheme();
   const commonProps = {

@@ -600,6 +600,39 @@ func TestPGCoordinator_Unhealthy(t *testing.T) {
 	}
 }
 
+func TestPGCoordinator_Node_Empty(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+	defer cancel()
+	ctrl := gomock.NewController(t)
+	mStore := dbmock.NewMockStore(ctrl)
+	ps := pubsub.NewInMemory()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+
+	id := uuid.New()
+	mStore.EXPECT().GetTailnetPeers(gomock.Any(), id).Times(1).Return(nil, nil)
+
+	// extra calls we don't particularly care about for this test
+	mStore.EXPECT().UpsertTailnetCoordinator(gomock.Any(), gomock.Any()).
+		AnyTimes().
+		Return(database.TailnetCoordinator{}, nil)
+	mStore.EXPECT().CleanTailnetCoordinators(gomock.Any()).AnyTimes().Return(nil)
+	mStore.EXPECT().CleanTailnetLostPeers(gomock.Any()).AnyTimes().Return(nil)
+	mStore.EXPECT().CleanTailnetTunnels(gomock.Any()).AnyTimes().Return(nil)
+	mStore.EXPECT().DeleteCoordinator(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+
+	uut, err := tailnet.NewPGCoord(ctx, logger, ps, mStore)
+	require.NoError(t, err)
+	defer func() {
+		err := uut.Close()
+		require.NoError(t, err)
+	}()
+
+	node := uut.Node(id)
+	require.Nil(t, node)
+}
+
 // TestPGCoordinator_BidirectionalTunnels tests when peers create tunnels to each other.  We don't
 // do this now, but it's schematically possible, so we should make sure it doesn't break anything.
 func TestPGCoordinator_BidirectionalTunnels(t *testing.T) {

@@ -28,7 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
-var errMatchAny = errors.New("match any error")
+var errMatchAny = xerrors.New("match any error")
 
 var skipMethods = map[string]string{
 	"InTx":           "Not relevant",

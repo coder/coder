@@ -144,7 +144,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@v1.16.24
+        uses: crate-ci/typos@v1.16.25
         with:
           config: .github/workflows/typos.toml
 
@@ -322,7 +322,9 @@ jobs:
 
   test-go-pg:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
-    needs: changes
+    needs:
+      - changes
+      - sqlc-vet # No point in testing the DB if the queries are invalid
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     # This timeout must be greater than the timeout set by `go test` in
     # `make test-postgres` to ensure we receive a trace of running
@@ -478,7 +480,7 @@ jobs:
 
       - name: Upload Playwright Failed Tests
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: failed-test-videos
           path: ./site/test-results/**/*.webm
@@ -486,7 +488,7 @@ jobs:
 
       - name: Upload pprof dumps
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: debug-pprof-dumps
           path: ./site/test-results/**/debug-pprof-*.txt
@@ -734,7 +736,7 @@ jobs:
           prune-untagged: true
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: coder
           path: |
@@ -775,7 +777,7 @@ jobs:
         uses: fluxcd/flux2/action@main
         with:
           # Keep this up to date with the version of flux installed in dogfood cluster
-          version: "2.2.0"
+          version: "2.2.1"
 
       - name: Get Cluster Credentials
         uses: "google-github-actions/get-gke-credentials@v2"
@@ -853,7 +855,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Download build artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: coder
           path: ./build
@@ -896,7 +898,7 @@ jobs:
   sqlc-vet:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     needs: changes
-    if: needs.changes.outputs.db == 'true' || github.ref == 'refs/heads/main'
+    if: needs.changes.outputs.db == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     steps:
       - name: Checkout
         uses: actions/checkout@v4

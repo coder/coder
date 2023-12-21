@@ -1,8 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { chromatic } from "testHelpers/chromatic";
 import { LicenseBannerView } from "./LicenseBannerView";
 
 const meta: Meta<typeof LicenseBannerView> = {
   title: "components/LicenseBannerView",
+  parameters: { chromatic },
   component: LicenseBannerView,
 };
 

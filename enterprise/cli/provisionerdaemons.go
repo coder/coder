@@ -16,6 +16,7 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 	agpl "github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/database"
@@ -55,12 +56,17 @@ func validateProvisionerDaemonName(name string) error {
 
 func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 	var (
-		cacheDir     string
-		rawTags      []string
-		pollInterval time.Duration
-		pollJitter   time.Duration
-		preSharedKey string
-		name         string
+		cacheDir       string
+		logHuman       string
+		logJSON        string
+		logStackdriver string
+		logFilter      []string
+		name           string
+		rawTags        []string
+		pollInterval   time.Duration
+		pollJitter     time.Duration
+		preSharedKey   string
+		verbose        bool
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -89,9 +95,23 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 				return err
 			}
 
-			logger := slog.Make(sloghuman.Sink(inv.Stderr))
-			if ok, _ := inv.ParsedFlags().GetBool("verbose"); ok {
-				logger = logger.Leveled(slog.LevelDebug)
+			logOpts := []clilog.Option{
+				clilog.WithFilter(logFilter...),
+				clilog.WithHuman(logHuman),
+				clilog.WithJSON(logJSON),
+				clilog.WithStackdriver(logStackdriver),
+			}
+			if verbose {
+				logOpts = append(logOpts, clilog.WithVerbose())
+			}
+
+			logger, closeLogger, err := clilog.New(logOpts...).Build(inv)
+			if err != nil {
+				// Fall back to a basic logger
+				logger = slog.Make(sloghuman.Sink(inv.Stderr))
+				logger.Error(ctx, "failed to initialize logger", slog.Error(err))
+			} else {
+				defer closeLogger()
 			}
 
 			if len(tags) != 0 {
@@ -232,6 +252,41 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 			Env:         "CODER_PROVISIONER_DAEMON_NAME",
 			Description: "Name of this provisioner daemon. Defaults to the current hostname without FQDN.",
 			Value:       clibase.StringOf(&name),
+			Default:     "",
+		},
+		{
+			Flag:        "verbose",
+			Env:         "CODER_PROVISIONER_DAEMON_VERBOSE",
+			Description: "Output debug-level logs.",
+			Value:       clibase.BoolOf(&verbose),
+			Default:     "false",
+		},
+		{
+			Flag:        "log-human",
+			Env:         "CODER_PROVISIONER_DAEMON_LOGGING_HUMAN",
+			Description: "Output human-readable logs to a given file.",
+			Value:       clibase.StringOf(&logHuman),
+			Default:     "/dev/stderr",
+		},
+		{
+			Flag:        "log-json",
+			Env:         "CODER_PROVISIONER_DAEMON_LOGGING_JSON",
+			Description: "Output JSON logs to a given file.",
+			Value:       clibase.StringOf(&logJSON),
+			Default:     "",
+		},
+		{
+			Flag:        "log-stackdriver",
+			Env:         "CODER_PROVISIONER_DAEMON_LOGGING_STACKDRIVER",
+			Description: "Output Stackdriver compatible logs to a given file.",
+			Value:       clibase.StringOf(&logStackdriver),
+			Default:     "",
+		},
+		{
+			Flag:        "log-filter",
+			Env:         "CODER_PROVISIONER_DAEMON_LOG_FILTER",
+			Description: "Filter debug logs by matching against a given regex. Use .* to match all debug logs.",
+			Value:       clibase.StringArrayOf(&logFilter),
 			Default:     "",
 		},
 	}

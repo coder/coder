@@ -1593,6 +1593,13 @@ func (m metricsStore) UpdateMemberRoles(ctx context.Context, arg database.Update
 	return member, err
 }
 
+func (m metricsStore) UpdateProvisionerDaemonLastSeenAt(ctx context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateProvisionerDaemonLastSeenAt(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateProvisionerDaemonLastSeenAt").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) UpdateProvisionerJobByID(ctx context.Context, arg database.UpdateProvisionerJobByIDParams) error {
 	start := time.Now()
 	err := m.s.UpdateProvisionerJobByID(ctx, arg)

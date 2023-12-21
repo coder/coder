@@ -47,10 +47,10 @@ export const LicenseBannerView: FC<LicenseBannerViewProps> = ({
     display: flex;
     align-items: center;
     padding: 12px;
-    background-color: ${type === "error"
-      ? theme.colors.red[10]
-      : theme.colors.orange[10]};
+    background-color: ${theme.experimental.roles[type].background};
   `;
+
+  const textColor = theme.experimental.roles[type].text;
 
   if (messages.length === 1) {
     return (
@@ -59,7 +59,11 @@ export const LicenseBannerView: FC<LicenseBannerViewProps> = ({
         <div css={styles.leftContent}>
           <span>{messages[0]}</span>
           &nbsp;
-          <Link color="white" fontWeight="medium" href="mailto:sales@coder.com">
+          <Link
+            color={textColor}
+            fontWeight="medium"
+            href="mailto:sales@coder.com"
+          >
             {Language.upgrade}
           </Link>
         </div>
@@ -74,7 +78,11 @@ export const LicenseBannerView: FC<LicenseBannerViewProps> = ({
         <div>
           {Language.exceeded}
           &nbsp;
-          <Link color="white" fontWeight="medium" href="mailto:sales@coder.com">
+          <Link
+            color={textColor}
+            fontWeight="medium"
+            href="mailto:sales@coder.com"
+          >
             {Language.upgrade}
           </Link>
         </div>

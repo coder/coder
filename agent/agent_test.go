@@ -1635,9 +1635,10 @@ func TestAgent_Dial(t *testing.T) {
 			go func() {
 				defer close(done)
 				c, err := l.Accept()
-				assert.NoError(t, err, "accept connection")
-				defer c.Close()
-				testAccept(ctx, t, c)
+				if assert.NoError(t, err, "accept connection") {
+					defer c.Close()
+					testAccept(ctx, t, c)
+				}
 			}()
 
 			//nolint:dogsled

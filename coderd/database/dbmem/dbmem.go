@@ -3796,6 +3796,7 @@ func (q *FakeQuerier) GetWorkspaceAgentAndOwnerByAuthToken(_ context.Context, au
 					}
 					var row database.GetWorkspaceAgentAndOwnerByAuthTokenRow
 					row.WorkspaceID = ws.ID
+					row.TemplateID = ws.TemplateID
 					usr, err := q.getUserByIDNoLock(ws.OwnerID)
 					if err != nil {
 						return database.GetWorkspaceAgentAndOwnerByAuthTokenRow{}, sql.ErrNoRows
@@ -3805,6 +3806,7 @@ func (q *FakeQuerier) GetWorkspaceAgentAndOwnerByAuthToken(_ context.Context, au
 					// We also need to get org roles for the user
 					row.OwnerName = usr.Username
 					row.WorkspaceAgent = agt
+					row.TemplateVersionID = build.TemplateVersionID
 					for _, mem := range q.organizationMembers {
 						if mem.UserID == usr.ID {
 							row.OwnerRoles = append(row.OwnerRoles, fmt.Sprintf("organization-member:%s", mem.OrganizationID.String()))
@@ -5943,6 +5945,28 @@ func (q *FakeQuerier) UpdateMemberRoles(_ context.Context, arg database.UpdateMe
 	}
 
 	return database.OrganizationMember{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateProvisionerDaemonLastSeenAt(_ context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for idx := range q.provisionerDaemons {
+		if q.provisionerDaemons[idx].ID != arg.ID {
+			continue
+		}
+		if q.provisionerDaemons[idx].LastSeenAt.Time.After(arg.LastSeenAt.Time) {
+			continue
+		}
+		q.provisionerDaemons[idx].LastSeenAt = arg.LastSeenAt
+		return nil
+	}
+	return sql.ErrNoRows
 }
 
 func (q *FakeQuerier) UpdateProvisionerJobByID(_ context.Context, arg database.UpdateProvisionerJobByIDParams) error {

@@ -1592,6 +1592,18 @@ func (s *MethodTestSuite) TestExtraMethods() {
 		s.NoError(err, "insert provisioner daemon")
 		check.Args().Asserts(rbac.ResourceSystem, rbac.ActionDelete)
 	}))
+	s.Run("UpdateProvisionerDaemonLastSeenAt", s.Subtest(func(db database.Store, check *expects) {
+		d, err := db.UpsertProvisionerDaemon(context.Background(), database.UpsertProvisionerDaemonParams{
+			Tags: database.StringMap(map[string]string{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+			}),
+		})
+		s.NoError(err, "insert provisioner daemon")
+		check.Args(database.UpdateProvisionerDaemonLastSeenAtParams{
+			ID:         d.ID,
+			LastSeenAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
+		}).Asserts(rbac.ResourceProvisionerDaemon, rbac.ActionUpdate)
+	}))
 }
 
 // All functions in this method test suite are not implemented in dbmem, but
