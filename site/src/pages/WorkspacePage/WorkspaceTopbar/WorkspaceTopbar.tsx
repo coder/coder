@@ -92,10 +92,13 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
 
       <div
         css={{
-          paddingLeft: 16,
           display: "flex",
           alignItems: "center",
-          gap: 32,
+          columnGap: 24,
+          rowGap: 8,
+          flexWrap: "wrap",
+          // 12px - It is needed to keep vertical spacing when the content is wrapped
+          padding: "12px 0 12px 16px",
         }}
       >
         <TopbarData>

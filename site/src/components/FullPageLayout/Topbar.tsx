@@ -19,7 +19,7 @@ export const Topbar = (props: HTMLAttributes<HTMLDivElement>) => {
     <header
       {...props}
       css={{
-        height: 48,
+        minHeight: 48,
         borderBottom: `1px solid ${theme.palette.divider}`,
         display: "flex",
         alignItems: "center",
