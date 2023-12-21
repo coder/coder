@@ -4,6 +4,7 @@ import IconButton, { IconButtonProps } from "@mui/material/IconButton";
 import { useTheme } from "@mui/material/styles";
 import { Avatar, AvatarProps } from "components/Avatar/Avatar";
 import {
+  ForwardedRef,
   HTMLAttributes,
   PropsWithChildren,
   ReactElement,
@@ -103,17 +104,24 @@ export const TopbarAvatar = (props: AvatarProps) => {
   );
 };
 
-export const TopbarIcon = ({
-  children,
-  ...props
-}: PropsWithChildren<HTMLAttributes<HTMLOrSVGElement>>) => {
-  const theme = useTheme();
+type TopbarIconProps = PropsWithChildren<HTMLAttributes<HTMLOrSVGElement>>;
 
-  return cloneElement(
-    children as ReactElement<HTMLAttributes<HTMLOrSVGElement>>,
-    {
-      ...props,
-      className: css({ fontSize: 16, color: theme.palette.text.secondary }),
-    },
-  );
-};
+export const TopbarIcon = forwardRef<HTMLOrSVGElement, TopbarIconProps>(
+  (props: TopbarIconProps, ref) => {
+    const { children, ...restProps } = props;
+    const theme = useTheme();
+
+    return cloneElement(
+      children as ReactElement<
+        HTMLAttributes<HTMLOrSVGElement> & {
+          ref: ForwardedRef<HTMLOrSVGElement>;
+        }
+      >,
+      {
+        ...restProps,
+        ref,
+        className: css({ fontSize: 16, color: theme.palette.text.secondary }),
+      },
+    );
+  },
+);

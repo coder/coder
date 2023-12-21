@@ -19,6 +19,10 @@ import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceS
 import { Pill } from "components/Pill/Pill";
 import { WorkspaceScheduleControls } from "../WorkspaceScheduleControls";
 import { DormantTopbarData } from "./DormantTopbarData";
+import { workspaceQuota } from "api/queries/workspaceQuota";
+import { useQuery } from "react-query";
+import MonetizationOnOutlined from "@mui/icons-material/MonetizationOnOutlined";
+import { useTheme } from "@mui/material/styles";
 
 export type WorkspaceError =
   | "getBuildsError"
@@ -67,6 +71,14 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
     handleBuildRetry,
     handleBuildRetryDebug,
   } = props;
+  const theme = useTheme();
+
+  // Quota
+  const hasDailyCost = workspace.latest_build.daily_cost > 0;
+  const { data: quota } = useQuery({
+    ...workspaceQuota(workspace.owner_name),
+    enabled: hasDailyCost,
+  });
 
   return (
     <Topbar>
@@ -113,9 +125,11 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
         </TopbarData>
 
         <TopbarData>
-          <TopbarIcon>
-            <PersonOutlineOutlined />
-          </TopbarIcon>
+          <Tooltip title="Owner">
+            <TopbarIcon>
+              <PersonOutlineOutlined aria-label="Owner" />
+            </TopbarIcon>
+          </Tooltip>
           <span>{workspace.owner_name}</span>
         </TopbarData>
 
@@ -123,13 +137,30 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
 
         <TopbarData>
           <TopbarIcon>
-            <ScheduleOutlined />
+            <Tooltip title="Schedule">
+              <ScheduleOutlined aria-label="Schedule" />
+            </Tooltip>
           </TopbarIcon>
           <WorkspaceScheduleControls
             workspace={workspace}
             canUpdateSchedule={canUpdateWorkspace}
           />
         </TopbarData>
+
+        {quota && (
+          <TopbarData>
+            <TopbarIcon>
+              <Tooltip title="Daily usage">
+                <MonetizationOnOutlined aria-label="Daily usage" />
+              </Tooltip>
+            </TopbarIcon>
+            {workspace.latest_build.daily_cost}{" "}
+            <span css={{ color: theme.palette.text.secondary }}>
+              credits of
+            </span>{" "}
+            {quota.budget}
+          </TopbarData>
+        )}
       </div>
 
       <div
