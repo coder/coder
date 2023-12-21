@@ -84,7 +84,7 @@ resource "coder_agent" "dev" {
   arch               = "amd64"
   auth               = "token"
   os                 = "linux"
-  dir                = "/worskpaces"
+  dir                = "/workspaces/${trimsuffix(basename(data.coder_parameter.repo_url.value), ".git")}"
   connection_timeout = 0
 
   metadata {
@@ -165,7 +165,8 @@ resource "google_compute_instance" "vm" {
     fi
     # Start envbuilder
     docker run --rm \
-      -v /tmp/envbuilder:/workspaces \
+      -h ${lower(data.coder_workspace.me.name)} \
+      -v /home/${local.linux_user}/envbuilder:/workspaces \
       -e CODER_AGENT_TOKEN="${try(coder_agent.dev[0].token, "")}" \
       -e CODER_AGENT_URL="${data.coder_workspace.me.access_url}" \
       -e GIT_URL="${data.coder_parameter.repo_url.value}" \
