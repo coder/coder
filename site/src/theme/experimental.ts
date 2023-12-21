@@ -11,16 +11,13 @@ export interface NewTheme {
   l2: InteractiveRole; // sidebars, table headers, navigation
 
   roles: {
-    /** Deletion, immutable parameters, and things that have long lasting or irreversible effects */
-    danger: InteractiveRole;
-
-    /** Something went wrong; either unexpectedly, or in a meaningful way */
+    /** Something is wrong; either unexpectedly, or in a meaningful way. */
     error: Role;
 
-    /** Something isn't quite right, but without serious consequence */
+    /** Something isn't quite right, but without serious consequence. */
     warning: Role;
 
-    /** A prompt for action, to correct or look into something */
+    /** A prompt for action, to correct or look into something. */
     notice: Role;
 
     /** Notable information; just so you know! */
@@ -29,10 +26,17 @@ export interface NewTheme {
     /** Confirmation, or affirming that things are as desired. */
     success: InteractiveRole;
 
-    /** Selected, in progress, of particular relevance right now */
+    /** Selected, in progress, of particular relevance right now. */
     active: InteractiveRole;
 
-    /** This isn't quite ready for prime-time, but you're welcome to look around! preview features, experiments, unstable etc. */
+    /** Actions that have long lasting or irreversible effects.
+     * Deletion, immutable parameters, etc.
+     */
+    danger: InteractiveRole;
+
+    /** This isn't quite ready for prime-time, but you're welcome to look around!
+     * Preview features, experiments, unstable etc.
+     */
     preview: Role;
   };
 }
@@ -41,7 +45,7 @@ export interface NewTheme {
  * ie. I wish to communicate an error, I wish to communicate that this is dangerous, etc.
  */
 export interface Role {
-  /** A background color  */
+  /** A background color that works best with the corresponding `outline` and `text` colors */
   background: string;
 
   /** A border, or a color for an outlined icon */
