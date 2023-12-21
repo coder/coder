@@ -27,8 +27,6 @@ import {
 import { ExternalAuth } from "pages/CreateWorkspacePage/ExternalAuth";
 import { ExternalAuthPollingState } from "pages/CreateWorkspacePage/CreateWorkspacePage";
 
-const FALLBACK_ICON = "/icon/widgets.svg";
-
 export type ExternalAuthPageViewProps = {
   isLoading: boolean;
   getAuthsError?: unknown;
@@ -134,11 +132,9 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
         <AvatarData
           title={name}
           avatar={
-            <Avatar
-              src={app.display_icon || FALLBACK_ICON}
-              variant="square"
-              fitImage
-            />
+            app.display_icon && (
+              <Avatar src={app.display_icon} variant="square" fitImage />
+            )
           }
         />
       </TableCell>
