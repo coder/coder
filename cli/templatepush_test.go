@@ -6,8 +6,10 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -707,6 +709,152 @@ func TestTemplatePush(t *testing.T) {
 			require.Equal(t, templateName, template.Name)
 			require.NotEqual(t, uuid.Nil, template.ActiveVersionID)
 		})
+	})
+
+	t.Run("EditMetadata", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		// Test the cli command.
+		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ApplyComplete,
+		})
+
+		name := "new-template-name"
+		displayName := "New Display Name 789"
+		desc := "lorem ipsum dolor sit amet et cetera"
+		icon := "/icon/new-icon.png"
+		defaultTTL := 12 * time.Hour
+		allowUserCancelWorkspaceJobs := false
+
+		inv, root := clitest.New(t,
+			"templates",
+			"push",
+			template.Name,
+			"--directory", source,
+			"--test.provisioner", string(database.ProvisionerTypeEcho),
+			"--name", name,
+			"--display-name", displayName,
+			"--description", desc,
+			"--icon", icon,
+			"--default-ttl", defaultTTL.String(),
+			"--allow-user-cancel-workspace-jobs="+strconv.FormatBool(allowUserCancelWorkspaceJobs),
+		)
+		clitest.SetupConfig(t, templateAdmin, root)
+		pty := ptytest.New(t).Attach(inv)
+
+		execDone := make(chan error)
+		go func() {
+			execDone <- inv.Run()
+		}()
+
+		matches := []struct {
+			match string
+			write string
+		}{
+			{match: "Upload", write: "yes"},
+		}
+		for _, m := range matches {
+			pty.ExpectMatch(m.match)
+			pty.WriteLine(m.write)
+		}
+
+		require.NoError(t, <-execDone)
+
+		// Assert that the template version changed.
+		templateVersions, err := client.TemplateVersionsByTemplate(context.Background(), codersdk.TemplateVersionsByTemplateRequest{
+			TemplateID: template.ID,
+		})
+		require.NoError(t, err)
+		assert.Len(t, templateVersions, 2)
+		assert.NotEqual(t, template.ActiveVersionID, templateVersions[1].ID)
+		require.Equal(t, name, templateVersions[1].Name)
+
+		// Assert that the template metadata changed.
+		updated, err := client.Template(context.Background(), template.ID)
+		require.NoError(t, err)
+		assert.Equal(t, template.Name, updated.Name)
+		assert.Equal(t, displayName, updated.DisplayName)
+		assert.Equal(t, desc, updated.Description)
+		assert.Equal(t, icon, updated.Icon)
+		assert.Equal(t, defaultTTL.Milliseconds(), updated.DefaultTTLMillis)
+		assert.Equal(t, allowUserCancelWorkspaceJobs, updated.AllowUserCancelWorkspaceJobs)
+	})
+
+	t.Run("EditMetadataNoSideEffects", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		// Test the cli command.
+		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ApplyComplete,
+		})
+
+		desc := "lorem ipsum dolor sit amet et cetera"
+
+		inv, root := clitest.New(t,
+			"templates",
+			"push",
+			template.Name,
+			"--directory", source,
+			"--test.provisioner", string(database.ProvisionerTypeEcho),
+			"--description", desc,
+		)
+		clitest.SetupConfig(t, templateAdmin, root)
+		pty := ptytest.New(t).Attach(inv)
+
+		execDone := make(chan error)
+		go func() {
+			execDone <- inv.Run()
+		}()
+
+		matches := []struct {
+			match string
+			write string
+		}{
+			{match: "Upload", write: "yes"},
+		}
+		for _, m := range matches {
+			pty.ExpectMatch(m.match)
+			pty.WriteLine(m.write)
+		}
+
+		require.NoError(t, <-execDone)
+
+		// Assert that the template version changed.
+		templateVersions, err := client.TemplateVersionsByTemplate(context.Background(), codersdk.TemplateVersionsByTemplateRequest{
+			TemplateID: template.ID,
+		})
+		require.NoError(t, err)
+		assert.Len(t, templateVersions, 2)
+		assert.NotEqual(t, template.ActiveVersionID, templateVersions[1].ID)
+
+		// Assert that the template metadata changed.
+		updated, err := client.Template(context.Background(), template.ID)
+		require.NoError(t, err)
+		// Changed
+		assert.Equal(t, desc, updated.Description)
+
+		// Should not change
+		assert.Equal(t, template.Name, updated.Name)
+		assert.Equal(t, template.DisplayName, updated.DisplayName)
+		assert.Equal(t, template.Icon, updated.Icon)
+		assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
+		assert.Equal(t, template.AllowUserCancelWorkspaceJobs, updated.AllowUserCancelWorkspaceJobs)
 	})
 }
 
