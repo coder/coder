@@ -17,14 +17,19 @@ import { Popover, PopoverTrigger } from "components/Popover/Popover";
 import ScheduleOutlined from "@mui/icons-material/ScheduleOutlined";
 import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge";
 import { Pill } from "components/Pill/Pill";
-import { WorkspaceScheduleControls } from "../WorkspaceScheduleControls";
-import { DormantTopbarData } from "./DormantTopbarData";
+import {
+  WorkspaceScheduleControls,
+  shouldDisplayScheduleControls,
+} from "../WorkspaceScheduleControls";
 import { workspaceQuota } from "api/queries/workspaceQuota";
 import { useQuery } from "react-query";
 import MonetizationOnOutlined from "@mui/icons-material/MonetizationOnOutlined";
 import { useTheme } from "@mui/material/styles";
 import InfoOutlined from "@mui/icons-material/InfoOutlined";
 import Link from "@mui/material/Link";
+import { useDashboard } from "components/Dashboard/DashboardProvider";
+import { displayDormantDeletion } from "utils/dormant";
+import DeleteOutline from "@mui/icons-material/DeleteOutline";
 
 export type WorkspaceError =
   | "getBuildsError"
@@ -82,6 +87,19 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
     enabled: hasDailyCost,
   });
 
+  // Dormant
+  const { entitlements, experiments } = useDashboard();
+  const allowAdvancedScheduling =
+    entitlements.features["advanced_template_scheduling"].enabled;
+  // This check can be removed when https://github.com/coder/coder/milestone/19
+  // is merged up
+  const allowWorkspaceActions = experiments.includes("workspace_actions");
+  const shouldDisplayDormantData = displayDormantDeletion(
+    workspace,
+    allowAdvancedScheduling,
+    allowWorkspaceActions,
+  );
+
   return (
     <Topbar>
       <Tooltip title="Back to workspaces">
@@ -117,7 +135,7 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
             <Popover mode="hover">
               <PopoverTrigger>
                 {/* Added to give some bottom space from the popover content */}
-                <div css={{ padding: "4px 0" }}>
+                <div css={{ padding: "4px 0", margin: "-4px 0" }}>
                   <Pill
                     icon={
                       <InfoOutlined
@@ -157,19 +175,35 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
           <span>{workspace.owner_name}</span>
         </TopbarData>
 
-        <DormantTopbarData workspace={workspace} />
+        {shouldDisplayDormantData && (
+          <TopbarData>
+            <TopbarIcon>
+              <DeleteOutline />
+            </TopbarIcon>
+            <Link
+              component={RouterLink}
+              to={`/templates/${workspace.template_name}/settings/schedule`}
+              title="Schedule settings"
+              css={{ color: "inherit" }}
+            >
+              Deletion on {new Date(workspace.deleting_at!).toLocaleString()}
+            </Link>
+          </TopbarData>
+        )}
 
-        <TopbarData>
-          <TopbarIcon>
-            <Tooltip title="Schedule">
-              <ScheduleOutlined aria-label="Schedule" />
-            </Tooltip>
-          </TopbarIcon>
-          <WorkspaceScheduleControls
-            workspace={workspace}
-            canUpdateSchedule={canUpdateWorkspace}
-          />
-        </TopbarData>
+        {shouldDisplayScheduleControls(workspace) && (
+          <TopbarData>
+            <TopbarIcon>
+              <Tooltip title="Schedule">
+                <ScheduleOutlined aria-label="Schedule" />
+              </Tooltip>
+            </TopbarIcon>
+            <WorkspaceScheduleControls
+              workspace={workspace}
+              canUpdateSchedule={canUpdateWorkspace}
+            />
+          </TopbarData>
+        )}
 
         {quota && (
           <TopbarData>
