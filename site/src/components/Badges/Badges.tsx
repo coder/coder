@@ -108,7 +108,7 @@ export const EnterpriseBadge: FC = () => {
   );
 };
 
-export const BetaBadge: FC = () => {
+export const PreviewBadge: FC = () => {
   return (
     <span
       css={[
@@ -120,7 +120,7 @@ export const BetaBadge: FC = () => {
         }),
       ]}
     >
-      Beta
+      Preview
     </span>
   );
 };

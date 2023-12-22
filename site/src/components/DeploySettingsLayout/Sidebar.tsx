@@ -7,6 +7,7 @@ import Globe from "@mui/icons-material/PublicOutlined";
 import HubOutlinedIcon from "@mui/icons-material/HubOutlined";
 import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined";
 import MonitorHeartOutlined from "@mui/icons-material/MonitorHeartOutlined";
+// import Token from "@mui/icons-material/Token";
 import { type FC } from "react";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
 import { GitIcon } from "components/Icons/GitIcon";
@@ -35,6 +36,10 @@ export const Sidebar: FC = () => {
       <SidebarNavItem href="external-auth" icon={GitIcon}>
         External Authentication
       </SidebarNavItem>
+      {/* Not exposing this yet since token exchange is not finished yet.
+      <SidebarNavItem href="oauth2-provider/apps" icon={Token}>
+        OAuth2 Applications
+      </SidebarNavItem>*/}
       <SidebarNavItem href="network" icon={Globe}>
         Network
       </SidebarNavItem>

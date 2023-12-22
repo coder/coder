@@ -25,7 +25,7 @@ developers or stored in workspaces.
 </blockquote>
 
 <blockquote class="info">
-You can skip the whole page and use [JFrog module](https://registry.coder.com/modules/jfrog) for easy JFrog Artifactory integration.
+You can skip the whole page and use [JFrog module](https://registry.coder.com/modules/jfrog-token) for easy JFrog Artifactory integration.
 </blockquote>
 
 ## Provisioner Authentication
