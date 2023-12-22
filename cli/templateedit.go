@@ -342,6 +342,14 @@ func updateTemplateMetaRequest(args updateTemplateMetaArgs) codersdk.UpdateTempl
 	if args.unsetAutostopRequirementDaysOfWeek {
 		args.autostopRequirementDaysOfWeek = []string{}
 	}
+	unsetDefaultTTL, err := time.ParseDuration("24h")
+	if err != nil {
+		panic(err)
+	}
+
+	if args.defaultTTL == unsetDefaultTTL {
+		args.defaultTTL = time.Duration(args.template.DefaultTTLMillis) * time.Millisecond
+	}
 	if args.failureTTL == 0 {
 		args.failureTTL = time.Duration(args.template.FailureTTLMillis) * time.Millisecond
 	}
