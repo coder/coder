@@ -8,24 +8,22 @@
  *   how they read out initialisms.
  */
 import { visuallyHidden } from "@mui/utils";
-import { type FC } from "react";
+import { HTMLAttributes, type FC } from "react";
 
-type AbbrProps = {
-  children: string;
-
+// There isn't a dedicated HTMLAbbrElement type; have to go with base type
+type AbbrProps = Exclude<HTMLAttributes<HTMLElement>, "title" | "children"> & {
   // Not calling this "title" to make it clear that it doesn't have the same
   // issues as the native title attribute as far as screen reader support
   expandedText: string;
-
+  children: string;
   initialism?: boolean;
-  className?: string;
 };
 
 export const Abbr: FC<AbbrProps> = ({
   children,
   expandedText,
-  className,
   initialism = false,
+  ...delegatedProps
 }) => {
   return (
     // Have to use test IDs instead of roles because traditional <abbr> elements
@@ -37,14 +35,12 @@ export const Abbr: FC<AbbrProps> = ({
       // letting sighted users hover over the abbreviation to see expanded text
       title={expandedText}
       data-testid="abbr"
-      css={[
-        {
-          textDecoration: "inherit",
-          // Rare case where this should be ems, not rems
-          letterSpacing: isAllUppercase(children) ? "0.02em" : "0",
-        },
-        className,
-      ]}
+      css={{
+        textDecoration: "inherit",
+        // Rare case where this should be ems, not rems
+        letterSpacing: isAllUppercase(children) ? "0.02em" : "0",
+      }}
+      {...delegatedProps}
     >
       {initialism ? (
         // Helps make sure that screen readers read initialisms correctly

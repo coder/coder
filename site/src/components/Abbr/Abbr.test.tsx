@@ -11,7 +11,7 @@ type Initialism = Abbreviation & {
 };
 
 describe(Abbr.name, () => {
-  it("Does not change visual output compared <abbr> if text is not initialism", () => {
+  it("Does not change semantics compared <abbr> if text is not initialism", () => {
     const sampleText: Abbreviation[] = [
       {
         shortText: "NASA",
