@@ -120,7 +120,7 @@ export const TopbarIcon = forwardRef<HTMLOrSVGElement, TopbarIconProps>(
       {
         ...restProps,
         ref,
-        className: css({ fontSize: 16, color: theme.palette.text.secondary }),
+        className: css({ fontSize: 16, color: theme.palette.text.disabled }),
       },
     );
   },
