@@ -47,6 +47,11 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
+			_, _ = fmt.Fprintln(inv.Stdout, "\n"+pretty.Sprint(cliui.DefaultStyles.Wrap,
+				pretty.Sprint(
+					cliui.DefaultStyles.Warn, "DEPRECATION WARNING: The `coder templates push` command should be used instead. This command will be removed in a future release. ")+"\n"))
+			time.Sleep(1 * time.Second)
+
 			err := createEntitlementsCheck(inv.Context(), handleEntitlementsArgs{
 				client:               client,
 				requireActiveVersion: requireActiveVersion,
