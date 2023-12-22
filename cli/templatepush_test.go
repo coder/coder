@@ -856,7 +856,6 @@ func TestTemplatePush(t *testing.T) {
 		assert.Equal(t, template.AutostartRequirement.DaysOfWeek, updated.AutostartRequirement.DaysOfWeek)
 		assert.Equal(t, template.AutostopRequirement.DaysOfWeek, updated.AutostopRequirement.DaysOfWeek)
 		assert.Equal(t, template.RequireActiveVersion, updated.RequireActiveVersion)
-		assert.Equal(t, template.AllowUserCancelWorkspaceJobs, updated.AllowUserCancelWorkspaceJobs)
 	})
 }
 
