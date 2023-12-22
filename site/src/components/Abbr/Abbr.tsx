@@ -3,12 +3,12 @@
  *
  * Features:
  * - Better type-safety (requiring you to include certain properties)
- * - All default styling is stripped away by default
+ * - All built-in HTML styling is stripped away by default
  * - Better integration with screen readers, with more options for controlling
  *   how they read out initialisms.
  */
 import { visuallyHidden } from "@mui/utils";
-import { HTMLAttributes, type FC } from "react";
+import { type FC, type HTMLAttributes } from "react";
 
 // There isn't a dedicated HTMLAbbrElement type; have to go with base type
 type AbbrProps = Exclude<HTMLAttributes<HTMLElement>, "title" | "children"> & {
@@ -47,14 +47,13 @@ export const Abbr: FC<AbbrProps> = ({
         // without it affecting the visual output for sighted users (e.g.,
         // making sure "CLI" isn't read out as "klee")
         <>
+          {/*
+           * Once speakAs: "spell-out" has more browser support, that CSS
+           * property can be swapped in and clean up this code a lot
+           */}
           <span css={{ ...visuallyHidden }} data-testid="visually-hidden">
-            {/*
-             * Once speakAs: "spell-out" has more browser support, that CSS
-             * property can be swapped in and clean up this code a lot
-             */}
             {initializeText(children)}
           </span>
-
           <span aria-hidden data-testid="visual-only">
             {children}
           </span>
