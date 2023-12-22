@@ -8,7 +8,6 @@ export type WorkspaceSettingsPageViewProps = {
   workspace: Workspace;
   onCancel: () => void;
   onSubmit: ComponentProps<typeof WorkspaceSettingsForm>["onSubmit"];
-  templatePoliciesEnabled: boolean;
 };
 
 export const WorkspaceSettingsPageView: FC<WorkspaceSettingsPageViewProps> = ({
@@ -16,7 +15,6 @@ export const WorkspaceSettingsPageView: FC<WorkspaceSettingsPageViewProps> = ({
   onSubmit,
   error,
   workspace,
-  templatePoliciesEnabled,
 }) => {
   return (
     <>
@@ -33,7 +31,6 @@ export const WorkspaceSettingsPageView: FC<WorkspaceSettingsPageViewProps> = ({
         workspace={workspace}
         onCancel={onCancel}
         onSubmit={onSubmit}
-        templatePoliciesEnabled={templatePoliciesEnabled}
       />
     </>
   );

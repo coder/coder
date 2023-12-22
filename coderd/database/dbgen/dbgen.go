@@ -676,6 +676,31 @@ func WorkspaceAgentStat(t testing.TB, db database.Store, orig database.Workspace
 	return scheme
 }
 
+func OAuth2ProviderApp(t testing.TB, db database.Store, seed database.OAuth2ProviderApp) database.OAuth2ProviderApp {
+	app, err := db.InsertOAuth2ProviderApp(genCtx, database.InsertOAuth2ProviderAppParams{
+		ID:          takeFirst(seed.ID, uuid.New()),
+		Name:        takeFirst(seed.Name, namesgenerator.GetRandomName(1)),
+		CreatedAt:   takeFirst(seed.CreatedAt, dbtime.Now()),
+		UpdatedAt:   takeFirst(seed.UpdatedAt, dbtime.Now()),
+		Icon:        takeFirst(seed.Icon, ""),
+		CallbackURL: takeFirst(seed.CallbackURL, "http://localhost"),
+	})
+	require.NoError(t, err, "insert oauth2 app")
+	return app
+}
+
+func OAuth2ProviderAppSecret(t testing.TB, db database.Store, seed database.OAuth2ProviderAppSecret) database.OAuth2ProviderAppSecret {
+	app, err := db.InsertOAuth2ProviderAppSecret(genCtx, database.InsertOAuth2ProviderAppSecretParams{
+		ID:            takeFirst(seed.ID, uuid.New()),
+		CreatedAt:     takeFirst(seed.CreatedAt, dbtime.Now()),
+		HashedSecret:  takeFirstSlice(seed.HashedSecret, []byte("hashed-secret")),
+		DisplaySecret: takeFirst(seed.DisplaySecret, "secret"),
+		AppID:         takeFirst(seed.AppID, uuid.New()),
+	})
+	require.NoError(t, err, "insert oauth2 app secret")
+	return app
+}
+
 func must[V any](v V, err error) V {
 	if err != nil {
 		panic(err)

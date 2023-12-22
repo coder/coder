@@ -7,6 +7,10 @@ type PaginationHeaderProps = {
   limit: number;
   totalRecords: number | undefined;
   currentOffsetStart: number | undefined;
+
+  // Temporary escape hatch until Workspaces can be switched over to using
+  // PaginationContainer
+  className?: string;
 };
 
 export const PaginationHeader: FC<PaginationHeaderProps> = ({
@@ -14,6 +18,7 @@ export const PaginationHeader: FC<PaginationHeaderProps> = ({
   limit,
   totalRecords,
   currentOffsetStart,
+  className,
 }) => {
   const theme = useTheme();
 
@@ -32,6 +37,7 @@ export const PaginationHeader: FC<PaginationHeaderProps> = ({
           color: theme.palette.text.primary,
         },
       }}
+      className={className}
     >
       {totalRecords !== undefined ? (
         <>

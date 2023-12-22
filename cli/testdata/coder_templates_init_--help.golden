@@ -6,7 +6,7 @@ USAGE:
   Get started with a templated template.
 
 OPTIONS:
-      --id aws-linux|aws-windows|azure-linux|do-linux|docker|gcp-linux|gcp-vm-container|gcp-windows|kubernetes|nomad-docker
+      --id aws-devcontainer|aws-linux|aws-windows|azure-linux|do-linux|docker|gcp-devcontainer|gcp-linux|gcp-vm-container|gcp-windows|kubernetes|nomad-docker
           Specify a given example template by ID.
 
 ———

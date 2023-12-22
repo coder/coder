@@ -2200,3 +2200,86 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(uuid.New()).Asserts(rbac.ResourceSystem, rbac.ActionRead)
 	}))
 }
+
+func (s *MethodTestSuite) TestOAuth2ProviderApps() {
+	s.Run("GetOAuth2ProviderApps", s.Subtest(func(db database.Store, check *expects) {
+		apps := []database.OAuth2ProviderApp{
+			dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{Name: "first"}),
+			dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{Name: "last"}),
+		}
+		check.Args().Asserts(rbac.ResourceOAuth2ProviderApp, rbac.ActionRead).Returns(apps)
+	}))
+	s.Run("GetOAuth2ProviderAppByID", s.Subtest(func(db database.Store, check *expects) {
+		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
+		check.Args(app.ID).Asserts(rbac.ResourceOAuth2ProviderApp, rbac.ActionRead).Returns(app)
+	}))
+	s.Run("InsertOAuth2ProviderApp", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.InsertOAuth2ProviderAppParams{}).Asserts(rbac.ResourceOAuth2ProviderApp, rbac.ActionCreate)
+	}))
+	s.Run("UpdateOAuth2ProviderAppByID", s.Subtest(func(db database.Store, check *expects) {
+		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
+		app.Name = "my-new-name"
+		app.UpdatedAt = time.Now()
+		check.Args(database.UpdateOAuth2ProviderAppByIDParams{
+			ID:          app.ID,
+			Name:        app.Name,
+			CallbackURL: app.CallbackURL,
+			UpdatedAt:   app.UpdatedAt,
+		}).Asserts(rbac.ResourceOAuth2ProviderApp, rbac.ActionUpdate).Returns(app)
+	}))
+	s.Run("DeleteOAuth2ProviderAppByID", s.Subtest(func(db database.Store, check *expects) {
+		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
+		check.Args(app.ID).Asserts(rbac.ResourceOAuth2ProviderApp, rbac.ActionDelete)
+	}))
+}
+
+func (s *MethodTestSuite) TestOAuth2ProviderAppSecrets() {
+	s.Run("GetOAuth2ProviderAppSecretsByAppID", s.Subtest(func(db database.Store, check *expects) {
+		app1 := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
+		app2 := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
+		secrets := []database.OAuth2ProviderAppSecret{
+			dbgen.OAuth2ProviderAppSecret(s.T(), db, database.OAuth2ProviderAppSecret{
+				AppID:     app1.ID,
+				CreatedAt: time.Now().Add(-time.Hour), // For ordering.
+			}),
+			dbgen.OAuth2ProviderAppSecret(s.T(), db, database.OAuth2ProviderAppSecret{
+				AppID: app1.ID,
+			}),
+		}
+		_ = dbgen.OAuth2ProviderAppSecret(s.T(), db, database.OAuth2ProviderAppSecret{
+			AppID: app2.ID,
+		})
+		check.Args(app1.ID).Asserts(rbac.ResourceOAuth2ProviderAppSecret, rbac.ActionRead).Returns(secrets)
+	}))
+	s.Run("GetOAuth2ProviderAppSecretByID", s.Subtest(func(db database.Store, check *expects) {
+		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
+		secret := dbgen.OAuth2ProviderAppSecret(s.T(), db, database.OAuth2ProviderAppSecret{
+			AppID: app.ID,
+		})
+		check.Args(secret.ID).Asserts(rbac.ResourceOAuth2ProviderAppSecret, rbac.ActionRead).Returns(secret)
+	}))
+	s.Run("InsertOAuth2ProviderAppSecret", s.Subtest(func(db database.Store, check *expects) {
+		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
+		check.Args(database.InsertOAuth2ProviderAppSecretParams{
+			AppID: app.ID,
+		}).Asserts(rbac.ResourceOAuth2ProviderAppSecret, rbac.ActionCreate)
+	}))
+	s.Run("UpdateOAuth2ProviderAppSecretByID", s.Subtest(func(db database.Store, check *expects) {
+		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
+		secret := dbgen.OAuth2ProviderAppSecret(s.T(), db, database.OAuth2ProviderAppSecret{
+			AppID: app.ID,
+		})
+		secret.LastUsedAt = sql.NullTime{Time: time.Now(), Valid: true}
+		check.Args(database.UpdateOAuth2ProviderAppSecretByIDParams{
+			ID:         secret.ID,
+			LastUsedAt: secret.LastUsedAt,
+		}).Asserts(rbac.ResourceOAuth2ProviderAppSecret, rbac.ActionUpdate).Returns(secret)
+	}))
+	s.Run("DeleteOAuth2ProviderAppSecretByID", s.Subtest(func(db database.Store, check *expects) {
+		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
+		secret := dbgen.OAuth2ProviderAppSecret(s.T(), db, database.OAuth2ProviderAppSecret{
+			AppID: app.ID,
+		})
+		check.Args(secret.ID).Asserts(rbac.ResourceOAuth2ProviderAppSecret, rbac.ActionDelete)
+	}))
+}

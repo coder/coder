@@ -36,7 +36,7 @@ func TestProvisionerDaemon_PSK(t *testing.T) {
 	ctx, cancel := context.WithTimeout(inv.Context(), testutil.WaitLong)
 	defer cancel()
 	clitest.Start(t, inv)
-	pty.ExpectMatchContext(ctx, "starting provisioner daemon")
+	pty.ExpectNoMatchBefore(ctx, "check entitlement", "starting provisioner daemon")
 	pty.ExpectMatchContext(ctx, "matt-daemon")
 
 	var daemons []codersdk.ProvisionerDaemon

@@ -36,6 +36,7 @@ import { TerminalIcon } from "components/Icons/TerminalIcon";
 import { RocketIcon } from "components/Icons/RocketIcon";
 import ErrorIcon from "@mui/icons-material/ErrorOutline";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
+import colors from "theme/tailwindColors";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
 import { HelpTooltipTitle } from "components/HelpTooltip/HelpTooltip";
 import { Stack } from "components/Stack/Stack";
@@ -439,9 +440,9 @@ const styles = {
       height: 16px;
     }
   `,
-  unhealthy: (theme) => css`
-    background-color: ${theme.colors.red[10]};
-  `,
+  unhealthy: {
+    backgroundColor: colors.red[700],
+  },
   group: css`
     display: flex;
     align-items: center;

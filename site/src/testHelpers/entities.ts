@@ -3214,3 +3214,25 @@ export const MockGithubAuthLink: TypesGen.ExternalAuthLink = {
   authenticated: true,
   validate_error: "",
 };
+
+export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
+  {
+    id: "1",
+    name: "foo",
+    callback_url: "http://localhost:3001",
+    icon: "/icon/github.svg",
+  },
+];
+
+export const MockOAuth2ProviderAppSecrets: TypesGen.OAuth2ProviderAppSecret[] =
+  [
+    {
+      id: "1",
+      client_secret_truncated: "foo",
+    },
+    {
+      id: "1",
+      last_used_at: "2022-12-16T20:10:45.637452Z",
+      client_secret_truncated: "foo",
+    },
+  ];

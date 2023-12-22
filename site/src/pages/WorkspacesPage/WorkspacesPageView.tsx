@@ -162,6 +162,7 @@ export const WorkspacesPageView = ({
             limit={limit}
             totalRecords={count}
             currentOffsetStart={(page - 1) * limit + 1}
+            css={{ paddingBottom: "0" }}
           />
         )}
       </TableToolbar>
