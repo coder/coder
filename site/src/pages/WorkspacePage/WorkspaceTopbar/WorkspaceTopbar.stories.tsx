@@ -42,18 +42,6 @@ export const Outdated: Story = {
   },
 };
 
-export const WithDeadline: Story = {
-  args: {
-    workspace: {
-      ...MockWorkspace,
-      latest_build: {
-        ...MockWorkspace.latest_build,
-        deadline: MockWorkspace.latest_build.deadline,
-      },
-    },
-  },
-};
-
 export const Dormant: Story = {
   args: {
     workspace: {
@@ -67,7 +55,19 @@ export const Dormant: Story = {
   },
 };
 
-export const Quota: Story = {
+export const WithDeadline: Story = {
+  args: {
+    workspace: {
+      ...MockWorkspace,
+      latest_build: {
+        ...MockWorkspace.latest_build,
+        deadline: MockWorkspace.latest_build.deadline,
+      },
+    },
+  },
+};
+
+export const WithQuota: Story = {
   parameters: {
     queries: [
       {
