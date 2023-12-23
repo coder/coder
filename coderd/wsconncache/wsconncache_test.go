@@ -215,7 +215,7 @@ type client struct {
 	t           *testing.T
 	agentID     uuid.UUID
 	manifest    agentsdk.Manifest
-	coordinator tailnet.Coordinator
+	coordinator tailnet.CoordinatorV1
 }
 
 func (c *client) Manifest(_ context.Context) (agentsdk.Manifest, error) {

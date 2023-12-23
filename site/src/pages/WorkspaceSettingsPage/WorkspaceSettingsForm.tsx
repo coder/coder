@@ -18,9 +18,9 @@ import {
   AutomaticUpdateses,
   Workspace,
 } from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
 import MenuItem from "@mui/material/MenuItem";
 import upperFirst from "lodash/upperFirst";
+import { type Theme } from "@emotion/react";
 
 export type WorkspaceSettingsFormValues = {
   name: string;
@@ -30,10 +30,12 @@ export type WorkspaceSettingsFormValues = {
 export const WorkspaceSettingsForm: FC<{
   workspace: Workspace;
   error: unknown;
-  templatePoliciesEnabled: boolean;
   onCancel: () => void;
   onSubmit: (values: WorkspaceSettingsFormValues) => Promise<void>;
-}> = ({ onCancel, onSubmit, workspace, error, templatePoliciesEnabled }) => {
+}> = ({ onCancel, onSubmit, workspace, error }) => {
+  const formEnabled =
+    !workspace.template_require_active_version || workspace.allow_renames;
+
   const form = useFormik<WorkspaceSettingsFormValues>({
     onSubmit,
     initialValues: {
@@ -59,54 +61,63 @@ export const WorkspaceSettingsForm: FC<{
         <FormFields>
           <TextField
             {...getFieldHelpers("name")}
-            disabled={form.isSubmitting}
+            disabled={!workspace.allow_renames || form.isSubmitting}
             onChange={onChangeTrimmed(form)}
             autoFocus
             fullWidth
             label="Name"
+            css={workspace.allow_renames && styles.nameWarning}
+            helperText={
+              workspace.allow_renames
+                ? form.values.name !== form.initialValues.name &&
+                  "Depending on the template, renaming your workspace may be destructive"
+                : "Renaming your workspace can be destructive and has not been enabled for this deployment."
+            }
           />
-          {form.values.name !== form.initialValues.name && (
-            <Alert severity="warning">
-              Depending on the template, renaming your workspace may be
-              destructive
-            </Alert>
-          )}
         </FormFields>
       </FormSection>
-      {templatePoliciesEnabled && (
-        <FormSection
-          title="Automatic Updates"
-          description="Configure your workspace to automatically update when started."
-        >
-          <FormFields>
-            <TextField
-              {...getFieldHelpers("automatic_updates")}
-              id="automatic_updates"
-              label="Update Policy"
-              value={
-                workspace.template_require_active_version
-                  ? "always"
-                  : form.values.automatic_updates
-              }
-              select
-              disabled={
-                form.isSubmitting || workspace.template_require_active_version
-              }
-              helperText={
-                workspace.template_require_active_version &&
-                "The template for this workspace requires automatic updates."
-              }
-            >
-              {AutomaticUpdateses.map((value) => (
-                <MenuItem value={value} key={value}>
-                  {upperFirst(value)}
-                </MenuItem>
-              ))}
-            </TextField>
-          </FormFields>
-        </FormSection>
+      <FormSection
+        title="Automatic Updates"
+        description="Configure your workspace to automatically update when started."
+      >
+        <FormFields>
+          <TextField
+            {...getFieldHelpers("automatic_updates")}
+            id="automatic_updates"
+            label="Update Policy"
+            value={
+              workspace.template_require_active_version
+                ? "always"
+                : form.values.automatic_updates
+            }
+            select
+            disabled={
+              form.isSubmitting || workspace.template_require_active_version
+            }
+            helperText={
+              workspace.template_require_active_version &&
+              "The template for this workspace requires automatic updates."
+            }
+          >
+            {AutomaticUpdateses.map((value) => (
+              <MenuItem value={value} key={value}>
+                {upperFirst(value)}
+              </MenuItem>
+            ))}
+          </TextField>
+        </FormFields>
+      </FormSection>
+      {formEnabled && (
+        <FormFooter onCancel={onCancel} isLoading={form.isSubmitting} />
       )}
-      <FormFooter onCancel={onCancel} isLoading={form.isSubmitting} />
     </HorizontalForm>
   );
+};
+
+const styles = {
+  nameWarning: (theme: Theme) => ({
+    "& .MuiFormHelperText-root": {
+      color: theme.palette.warning.light,
+    },
+  }),
 };

@@ -1,15 +1,14 @@
+import Link from "@mui/material/Link";
 import {
+  css,
   type CSSObject,
   type Interpolation,
   type Theme,
   useTheme,
 } from "@emotion/react";
-import Link from "@mui/material/Link";
-import { css } from "@emotion/react";
-import { useState } from "react";
+import { type FC, useState } from "react";
 import { Expander } from "components/Expander/Expander";
 import { Pill } from "components/Pill/Pill";
-import { colors } from "theme/colors";
 
 export const Language = {
   licenseIssue: "License Issue",
@@ -32,7 +31,7 @@ export interface LicenseBannerViewProps {
   warnings: string[];
 }
 
-export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
+export const LicenseBannerView: FC<LicenseBannerViewProps> = ({
   errors,
   warnings,
 }) => {
@@ -48,8 +47,10 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
     display: flex;
     align-items: center;
     padding: 12px;
-    background-color: ${type === "error" ? colors.red[10] : colors.orange[10]};
+    background-color: ${theme.experimental.roles[type].background};
   `;
+
+  const textColor = theme.experimental.roles[type].text;
 
   if (messages.length === 1) {
     return (
@@ -58,7 +59,11 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
         <div css={styles.leftContent}>
           <span>{messages[0]}</span>
           &nbsp;
-          <Link color="white" fontWeight="medium" href="mailto:sales@coder.com">
+          <Link
+            color={textColor}
+            fontWeight="medium"
+            href="mailto:sales@coder.com"
+          >
             {Language.upgrade}
           </Link>
         </div>
@@ -73,7 +78,11 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
         <div>
           {Language.exceeded}
           &nbsp;
-          <Link color="white" fontWeight="medium" href="mailto:sales@coder.com">
+          <Link
+            color={textColor}
+            fontWeight="medium"
+            href="mailto:sales@coder.com"
+          >
             {Language.upgrade}
           </Link>
         </div>

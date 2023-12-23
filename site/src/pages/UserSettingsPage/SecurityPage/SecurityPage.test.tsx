@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import * as API from "api/api";
-import * as SecurityForm from "./SettingsSecurityForm";
+import { Language } from "./SecurityForm";
 import {
   renderWithAuth,
   waitForLoaderToBeRemoved,
@@ -33,7 +33,7 @@ const fillAndSubmitSecurityForm = () => {
   fireEvent.change(screen.getByLabelText("Confirm Password"), {
     target: { value: newSecurityFormValues.confirm_password },
   });
-  fireEvent.click(screen.getByText(SecurityForm.Language.updatePassword));
+  fireEvent.click(screen.getByText(Language.updatePassword));
 };
 
 beforeEach(() => {

@@ -27,6 +27,7 @@ func TestMutateTags(t *testing.T) {
 			tags:   nil,
 			want: map[string]string{
 				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+				provisionersdk.TagOwner: "",
 			},
 		},
 		{
@@ -35,6 +36,7 @@ func TestMutateTags(t *testing.T) {
 			tags:   map[string]string{},
 			want: map[string]string{
 				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+				provisionersdk.TagOwner: "",
 			},
 		},
 		{
@@ -52,6 +54,30 @@ func TestMutateTags(t *testing.T) {
 			userID: testUserID,
 			want: map[string]string{
 				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+				provisionersdk.TagOwner: "",
+			},
+		},
+		{
+			name: "organization scope with owner",
+			tags: map[string]string{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+				provisionersdk.TagOwner: testUserID.String(),
+			},
+			userID: uuid.Nil,
+			want: map[string]string{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+				provisionersdk.TagOwner: "",
+			},
+		},
+		{
+			name: "owner tag with no other context",
+			tags: map[string]string{
+				provisionersdk.TagOwner: testUserID.String(),
+			},
+			userID: uuid.Nil,
+			want: map[string]string{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+				provisionersdk.TagOwner: "",
 			},
 		},
 		{
@@ -60,6 +86,7 @@ func TestMutateTags(t *testing.T) {
 			userID: testUserID,
 			want: map[string]string{
 				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+				provisionersdk.TagOwner: "",
 			},
 		},
 	} {

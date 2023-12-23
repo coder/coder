@@ -21,11 +21,6 @@ func TestTemplateEdit(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{
-			string(codersdk.ExperimentTemplateUpdatePolicies),
-		}
-
 		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -33,7 +28,6 @@ func TestTemplateEdit(t *testing.T) {
 				},
 			},
 			Options: &coderdtest.Options{
-				DeploymentValues:         dv,
 				IncludeProvisionerDaemon: true,
 			},
 		})
@@ -64,17 +58,11 @@ func TestTemplateEdit(t *testing.T) {
 	t.Run("NotEntitled", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{
-			string(codersdk.ExperimentTemplateUpdatePolicies),
-		}
-
 		client, owner := coderdenttest.New(t, &coderdenttest.Options{
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{},
 			},
 			Options: &coderdtest.Options{
-				DeploymentValues:         dv,
 				IncludeProvisionerDaemon: true,
 			},
 		})

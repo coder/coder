@@ -6,7 +6,6 @@ import Picker from "@emoji-mart/react";
 import { type FC } from "react";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Stack } from "components/Stack/Stack";
-import { colors } from "theme/colors";
 import data from "@emoji-mart/data/sets/14/twitter.json";
 import icons from "theme/icons.json";
 import {
@@ -103,8 +102,8 @@ const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
                 styles={css`
                   em-emoji-picker {
                     --rgb-background: ${theme.palette.background.paper};
-                    --rgb-input: ${colors.gray[17]};
-                    --rgb-color: ${colors.gray[4]};
+                    --rgb-input: ${theme.palette.primary.main};
+                    --rgb-color: ${theme.palette.text.primary};
 
                     // Hack to prevent the right side from being cut off
                     width: 350px;

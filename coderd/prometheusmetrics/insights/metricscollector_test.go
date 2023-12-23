@@ -17,6 +17,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -24,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/prometheusmetrics/insights"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
@@ -78,8 +80,27 @@ func TestCollectInsights(t *testing.T) {
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 	// Start an agent so that we can generate stats.
-	_ = agenttest.New(t, client.URL, authToken)
+	agentClient := agentsdk.New(client.URL)
+	agentClient.SetSessionToken(authToken)
+	agentClient.SDK.SetLogger(logger.Leveled(slog.LevelDebug).Named("agent"))
+
+	_ = agenttest.New(t, client.URL, authToken, func(o *agent.Options) {
+		o.Client = agentClient
+	})
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+	// Fake app stats
+	_, err = agentClient.PostStats(context.Background(), &agentsdk.Stats{
+		// ConnectionsByProto can't be nil, otherwise stats get rejected
+		ConnectionsByProto: map[string]int64{"TCP": 1},
+		// ConnectionCount must be positive as database query ignores stats with no active connections at the time frame
+		ConnectionCount: 74,
+		// SessionCountJetBrains, SessionCountVSCode must be positive, but the exact value is ignored.
+		// Database query approximates it to 60s of usage.
+		SessionCountJetBrains: 47,
+		SessionCountVSCode:    34,
+	})
+	require.NoError(t, err, "unable to post fake stats")
 
 	// Fake app usage
 	reporter := workspaceapps.NewStatsDBReporter(db, workspaceapps.DefaultStatsDBReporterBatchSize)

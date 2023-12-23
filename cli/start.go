@@ -34,7 +34,7 @@ func (r *RootCmd) start() *clibase.Cmd {
 			build, err := startWorkspace(inv, client, workspace, parameterFlags, WorkspaceStart)
 			// It's possible for a workspace build to fail due to the template requiring starting
 			// workspaces with the active version.
-			if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusUnauthorized {
+			if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusForbidden {
 				_, _ = fmt.Fprintln(inv.Stdout, "Failed to restart with the template version from your last build. Policy may require you to restart with the current active template version.")
 				build, err = startWorkspace(inv, client, workspace, parameterFlags, WorkspaceUpdate)
 				if err != nil {

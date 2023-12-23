@@ -361,9 +361,8 @@ func either[T Auditable, R any](old, new T, fn func(T) R, auditAction database.A
 		// If the request action is a login or logout, we always want to audit it even if
 		// there is no diff. See the comment in audit.InitRequest for more detail.
 		return fn(old)
-	} else {
-		panic("both old and new are nil")
 	}
+	panic("both old and new are nil")
 }
 
 func parseIP(ipStr string) pqtype.Inet {

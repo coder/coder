@@ -2,7 +2,6 @@ import type { PropsWithChildren, FC } from "react";
 import Tooltip from "@mui/material/Tooltip";
 import { type Interpolation, type Theme } from "@emotion/react";
 import { Stack } from "components/Stack/Stack";
-import colors from "theme/tailwind";
 
 const styles = {
   badge: {
@@ -22,14 +21,17 @@ const styles = {
   enabledBadge: (theme) => ({
     border: `1px solid ${theme.experimental.roles.success.outline}`,
     backgroundColor: theme.experimental.roles.success.background,
+    color: theme.experimental.roles.success.text,
   }),
   errorBadge: (theme) => ({
     border: `1px solid ${theme.experimental.roles.error.outline}`,
     backgroundColor: theme.experimental.roles.error.background,
+    color: theme.experimental.roles.error.text,
   }),
   warnBadge: (theme) => ({
     border: `1px solid ${theme.experimental.roles.warning.outline}`,
     backgroundColor: theme.experimental.roles.warning.background,
+    color: theme.experimental.roles.warning.text,
   }),
 } satisfies Record<string, Interpolation<Theme>>;
 
@@ -42,10 +44,9 @@ export const EntitledBadge: FC = () => {
 };
 
 interface HealthyBadge {
-  derpOnly: boolean;
+  derpOnly?: boolean;
 }
-export const HealthyBadge: FC<HealthyBadge> = (props) => {
-  const { derpOnly } = props;
+export const HealthyBadge: FC<HealthyBadge> = ({ derpOnly }) => {
   return (
     <span css={[styles.badge, styles.enabledBadge]}>
       {derpOnly ? "Healthy (DERP only)" : "Healthy"}
@@ -79,8 +80,9 @@ export const DisabledBadge: FC = () => {
       css={[
         styles.badge,
         (theme) => ({
-          border: `1px solid ${theme.palette.divider}`,
-          backgroundColor: theme.palette.background.paper,
+          border: `1px solid ${theme.experimental.l1.outline}`,
+          backgroundColor: theme.experimental.l1.background,
+          color: theme.experimental.l1.text,
         }),
       ]}
     >
@@ -95,12 +97,30 @@ export const EnterpriseBadge: FC = () => {
       css={[
         styles.badge,
         (theme) => ({
-          backgroundColor: theme.palette.info.dark,
-          border: `1px solid ${theme.palette.info.light}`,
+          backgroundColor: theme.experimental.roles.info.background,
+          border: `1px solid ${theme.experimental.roles.info.outline}`,
+          color: theme.experimental.roles.info.text,
         }),
       ]}
     >
       Enterprise
+    </span>
+  );
+};
+
+export const PreviewBadge: FC = () => {
+  return (
+    <span
+      css={[
+        styles.badge,
+        (theme) => ({
+          border: `1px solid ${theme.experimental.roles.preview.outline}`,
+          backgroundColor: theme.experimental.roles.preview.background,
+          color: theme.experimental.roles.preview.text,
+        }),
+      ]}
+    >
+      Preview
     </span>
   );
 };
@@ -110,14 +130,31 @@ export const AlphaBadge: FC = () => {
     <span
       css={[
         styles.badge,
-        {
-          border: `1px solid ${colors.violet[600]}`,
-          backgroundColor: colors.violet[950],
-          color: colors.violet[50],
-        },
+        (theme) => ({
+          border: `1px solid ${theme.experimental.roles.preview.outline}`,
+          backgroundColor: theme.experimental.roles.preview.background,
+          color: theme.experimental.roles.preview.text,
+        }),
       ]}
     >
       Alpha
+    </span>
+  );
+};
+
+export const DeprecatedBadge: FC = () => {
+  return (
+    <span
+      css={[
+        styles.badge,
+        (theme) => ({
+          border: `1px solid ${theme.experimental.roles.danger.outline}`,
+          backgroundColor: theme.experimental.roles.danger.background,
+          color: theme.experimental.roles.danger.text,
+        }),
+      ]}
+    >
+      Deprecated
     </span>
   );
 };

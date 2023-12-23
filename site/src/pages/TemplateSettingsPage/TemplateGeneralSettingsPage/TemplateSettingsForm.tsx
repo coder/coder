@@ -22,7 +22,9 @@ import { Stack } from "components/Stack/Stack";
 import Checkbox from "@mui/material/Checkbox";
 import {
   HelpTooltip,
+  HelpTooltipContent,
   HelpTooltipText,
+  HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { EnterpriseBadge } from "components/Badges/Badges";
 
@@ -50,7 +52,6 @@ export interface TemplateSettingsForm {
   // Helpful to show field errors on Storybook
   initialTouched?: FormikTouched<UpdateTemplateMeta>;
   accessControlEnabled: boolean;
-  templatePoliciesEnabled: boolean;
 }
 
 export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
@@ -61,7 +62,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
   isSubmitting,
   initialTouched,
   accessControlEnabled,
-  templatePoliciesEnabled,
 }) => {
   const validationSchema = getValidationSchema();
   const form: FormikContextType<UpdateTemplateMeta> =
@@ -161,9 +161,13 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
                 >
                   Allow users to cancel in-progress workspace jobs.
                   <HelpTooltip>
-                    <HelpTooltipText>
-                      If checked, users may be able to corrupt their workspace.
-                    </HelpTooltipText>
+                    <HelpTooltipTrigger />
+                    <HelpTooltipContent>
+                      <HelpTooltipText>
+                        If checked, users may be able to corrupt their
+                        workspace.
+                      </HelpTooltipText>
+                    </HelpTooltipContent>
                   </HelpTooltip>
                 </Stack>
                 <span css={styles.optionHelperText}>
@@ -174,38 +178,39 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
               </Stack>
             </Stack>
           </label>
-          {templatePoliciesEnabled && (
-            <label htmlFor="require_active_version">
-              <Stack direction="row" spacing={1}>
-                <Checkbox
-                  id="require_active_version"
-                  name="require_active_version"
-                  checked={form.values.require_active_version}
-                  onChange={form.handleChange}
-                />
+          <label htmlFor="require_active_version">
+            <Stack direction="row" spacing={1}>
+              <Checkbox
+                id="require_active_version"
+                name="require_active_version"
+                checked={form.values.require_active_version}
+                onChange={form.handleChange}
+              />
 
-                <Stack direction="column" spacing={0.5}>
-                  <Stack
-                    direction="row"
-                    alignItems="center"
-                    spacing={0.5}
-                    css={styles.optionText}
-                  >
-                    Require workspaces automatically update when started.
-                    <HelpTooltip>
+              <Stack direction="column" spacing={0.5}>
+                <Stack
+                  direction="row"
+                  alignItems="center"
+                  spacing={0.5}
+                  css={styles.optionText}
+                >
+                  Require workspaces automatically update when started.
+                  <HelpTooltip>
+                    <HelpTooltipTrigger />
+                    <HelpTooltipContent>
                       <HelpTooltipText>
                         This setting is not enforced for template admins.
                       </HelpTooltipText>
-                    </HelpTooltip>
-                  </Stack>
-                  <span css={styles.optionHelperText}>
-                    Workspaces that are manually started or auto-started will
-                    use the active template version.
-                  </span>
+                    </HelpTooltipContent>
+                  </HelpTooltip>
                 </Stack>
+                <span css={styles.optionHelperText}>
+                  Workspaces that are manually started or auto-started will use
+                  the active template version.
+                </span>
               </Stack>
-            </label>
-          )}
+            </Stack>
+          </label>
         </Stack>
       </FormSection>
 

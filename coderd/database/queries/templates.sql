@@ -128,13 +128,14 @@ SET
 	allow_user_autostart = $3,
 	allow_user_autostop = $4,
 	default_ttl = $5,
-	max_ttl = $6,
-	autostop_requirement_days_of_week = $7,
-	autostop_requirement_weeks = $8,
-	autostart_block_days_of_week = $9,
-	failure_ttl = $10,
-	time_til_dormant = $11,
-	time_til_dormant_autodelete = $12
+	use_max_ttl = $6,
+	max_ttl = $7,
+	autostop_requirement_days_of_week = $8,
+	autostop_requirement_weeks = $9,
+	autostart_block_days_of_week = $10,
+	failure_ttl = $11,
+	time_til_dormant = $12,
+	time_til_dormant_autodelete = $13
 WHERE
 	id = $1
 ;

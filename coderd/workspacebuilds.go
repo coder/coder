@@ -379,7 +379,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	if xerrors.As(err, &buildErr) {
 		var authErr dbauthz.NotAuthorizedError
 		if xerrors.As(err, &authErr) {
-			buildErr.Status = http.StatusUnauthorized
+			buildErr.Status = http.StatusForbidden
 		}
 
 		if buildErr.Status == http.StatusInternalServerError {
@@ -908,8 +908,8 @@ func (api *API) convertWorkspaceBuild(
 			apps := appsByAgentID[agent.ID]
 			scripts := scriptsByAgentID[agent.ID]
 			logSources := logSourcesByAgentID[agent.ID]
-			apiAgent, err := convertWorkspaceAgent(
-				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, convertApps(apps, agent, ownerName, workspace), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
+			apiAgent, err := db2sdk.WorkspaceAgent(
+				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, db2sdk.Apps(apps, agent, ownerName, workspace), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
 				api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 			)
 			if err != nil {

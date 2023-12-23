@@ -16,8 +16,8 @@ type Story = StoryObj<typeof WorkspaceSettingsPageView>;
 
 export const Example: Story = {};
 
-export const AutoUpdates: Story = {
+export const RenamesDisabled: Story = {
   args: {
-    templatePoliciesEnabled: true,
+    workspace: { ...MockWorkspace, allow_renames: false },
   },
 };

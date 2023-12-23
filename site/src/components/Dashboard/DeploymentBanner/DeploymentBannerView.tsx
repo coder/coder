@@ -36,8 +36,8 @@ import { TerminalIcon } from "components/Icons/TerminalIcon";
 import { RocketIcon } from "components/Icons/RocketIcon";
 import ErrorIcon from "@mui/icons-material/ErrorOutline";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
+import colors from "theme/tailwindColors";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
-import { colors } from "theme/colors";
 import { HelpTooltipTitle } from "components/HelpTooltip/HelpTooltip";
 import { Stack } from "components/Stack/Stack";
 import { type ClassName, useClassName } from "hooks/useClassName";
@@ -373,9 +373,14 @@ const ValueSeparator: FC = () => {
 };
 
 const HealthIssue: FC<PropsWithChildren> = ({ children }) => {
+  const theme = useTheme();
+
   return (
     <Stack direction="row" spacing={1} alignItems="center">
-      <ErrorIcon css={{ width: 16, height: 16 }} htmlColor={colors.red[10]} />
+      <ErrorIcon
+        css={{ width: 16, height: 16 }}
+        htmlColor={theme.experimental.roles.error.outline}
+      />
       {children}
     </Stack>
   );
@@ -422,22 +427,22 @@ const classNames = {
 } satisfies Record<string, ClassName>;
 
 const styles = {
-  statusBadge: css`
+  statusBadge: (theme) => css`
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 0 12px;
     height: 100%;
-    color: #fff;
+    color: ${theme.experimental.l1.text};
 
     & svg {
       width: 16px;
       height: 16px;
     }
   `,
-  unhealthy: css`
-    background-color: ${colors.red[10]};
-  `,
+  unhealthy: {
+    backgroundColor: colors.red[700],
+  },
   group: css`
     display: flex;
     align-items: center;

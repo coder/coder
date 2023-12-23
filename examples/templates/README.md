@@ -6,11 +6,11 @@ List template examples in our CLI with `coder templates init`.
 
 ## Getting Started
 
-Clone this repository to create a project from any example listed here:
+Clone this repository to create a template from any example listed here:
 
 ```console
 git clone https://github.com/coder/coder
-cd examples/templates/aws-macos
+cd examples/templates/aws-linux
 coder templates create
 ```
 

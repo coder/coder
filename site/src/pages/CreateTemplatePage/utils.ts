@@ -12,30 +12,45 @@ const provisioner: ProvisionerType =
   typeof (window as any).playwright !== "undefined" ? "echo" : "terraform";
 
 export const newTemplate = (formData: CreateTemplateData) => {
-  const {
-    default_ttl_hours,
+  let {
     max_ttl_hours,
-    parameter_values_by_name,
-    allow_everyone_group_access,
-    autostart_requirement_days_of_week,
     autostop_requirement_days_of_week,
     autostop_requirement_weeks,
-    ...safeTemplateData
   } = formData;
+
+  const safeTemplateData = {
+    name: formData.name,
+    display_name: formData.display_name,
+    description: formData.description,
+    icon: formData.icon,
+    use_max_ttl: formData.use_max_ttl,
+    allow_user_autostart: formData.allow_user_autostart,
+    allow_user_autostop: formData.allow_user_autostop,
+    allow_user_cancel_workspace_jobs: formData.allow_user_cancel_workspace_jobs,
+    user_variable_values: formData.user_variable_values,
+    allow_everyone_group_access: formData.allow_everyone_group_access,
+  };
+
+  if (formData.use_max_ttl) {
+    autostop_requirement_days_of_week = "off";
+    autostop_requirement_weeks = 1;
+  } else {
+    max_ttl_hours = 0;
+  }
 
   return {
     ...safeTemplateData,
     disable_everyone_group_access: !formData.allow_everyone_group_access,
     default_ttl_ms: formData.default_ttl_hours * 60 * 60 * 1000, // Convert hours to ms
-    max_ttl_ms: formData.max_ttl_hours * 60 * 60 * 1000, // Convert hours to ms
+    max_ttl_ms: max_ttl_hours * 60 * 60 * 1000, // Convert hours to ms
     autostop_requirement: {
       days_of_week: calculateAutostopRequirementDaysValue(
-        formData.autostop_requirement_days_of_week,
+        autostop_requirement_days_of_week,
       ),
-      weeks: formData.autostop_requirement_weeks,
+      weeks: autostop_requirement_weeks,
     },
     autostart_requirement: {
-      days_of_week: autostart_requirement_days_of_week,
+      days_of_week: formData.autostart_requirement_days_of_week,
     },
     require_active_version: false,
   };
@@ -48,13 +63,10 @@ export const getFormPermissions = (entitlements: Entitlements) => {
   // means no one can access.
   const allowDisableEveryoneAccess =
     entitlements.features["template_rbac"].enabled;
-  const allowAutostopRequirement =
-    entitlements.features["template_autostop_requirement"].enabled;
 
   return {
     allowAdvancedScheduling,
     allowDisableEveryoneAccess,
-    allowAutostopRequirement,
   };
 };
 

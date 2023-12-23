@@ -477,6 +477,8 @@ const createTemplateVersionTar = async (
             env: {},
             id: randomUUID(),
             metadata: [],
+            extraEnvs: [],
+            scripts: [],
             motdFile: "",
             name: "dev",
             operatingSystem: "linux",

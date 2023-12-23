@@ -8,7 +8,7 @@ FROM ubuntu:jammy AS go
 
 RUN apt-get update && apt-get install --yes curl gcc
 # Install Go manually, so that we can control the version
-ARG GO_VERSION=1.21.4
+ARG GO_VERSION=1.21.5
 RUN mkdir --parents /usr/local/go
 
 # Boring Go is needed to build FIPS-compliant binaries.
@@ -53,7 +53,7 @@ RUN mkdir --parents "$GOPATH" && \
 	# charts and values files
 	go install github.com/norwoodj/helm-docs/cmd/helm-docs@v1.5.0 && \
 	# sqlc for Go code generation
-	go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.20.0 && \
+	(CGO_ENABLED=1 go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.24.0) && \
 	# gcr-cleaner-cli used by CI to prune unused images
 	go install github.com/sethvargo/gcr-cleaner/cmd/gcr-cleaner-cli@v0.5.1 && \
 	# ruleguard for checking custom rules, without needing to run all of
@@ -158,7 +158,6 @@ RUN apt-get update --quiet && apt-get install --yes \
 	docker-ce-cli \
 	docker-compose-plugin \
 	packer \
-	terraform \
 	fish \
 	unzip \
 	zstd \
@@ -168,6 +167,15 @@ RUN apt-get update --quiet && apt-get install --yes \
 	apt-get clean && \
 	# Configure FIPS-compliant policies
 	update-crypto-policies --set FIPS
+
+# NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.5.7
+# as it is the last version licensed under the MPL. Installing the same version
+# here for consistency.
+RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.5.7/terraform_1.5.7_linux_amd64.zip" && \
+		unzip /tmp/terraform.zip -d /usr/local/bin && \
+		rm -f /tmp/terraform.zip && \
+		chmod +x /usr/local/bin/terraform && \
+		terraform --version
 
 # Install the docker buildx component.
 RUN DOCKER_BUILDX_VERSION=$(curl -s "https://api.github.com/repos/docker/buildx/releases/latest" | grep '"tag_name":' |  sed -E 's/.*"(v[^"]+)".*/\1/') && \
@@ -224,7 +232,7 @@ RUN systemctl enable \
 ARG CLOUD_SQL_PROXY_VERSION=2.2.0 \
 	DIVE_VERSION=0.10.0 \
 	DOCKER_GCR_VERSION=2.1.8 \
-	GOLANGCI_LINT_VERSION=1.52.2 \
+	GOLANGCI_LINT_VERSION=1.55.2 \
 	GRYPE_VERSION=0.61.1 \
 	HELM_VERSION=3.12.0 \
 	KUBE_LINTER_VERSION=0.6.3 \

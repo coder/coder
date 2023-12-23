@@ -106,6 +106,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		data.builds[0],
 		data.templates[0],
 		ownerName,
+		api.Options.AllowWorkspaceRenames,
 	))
 }
 
@@ -117,7 +118,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Workspaces
-// @Param q query string false "Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, is-dormant, last_used_after, last_used_before."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before."
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
 // @Success 200 {object} codersdk.WorkspacesResponse
@@ -277,6 +278,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		data.builds[0],
 		data.templates[0],
 		ownerName,
+		api.Options.AllowWorkspaceRenames,
 	))
 }
 
@@ -431,7 +433,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}
 
 	maxTTL := templateSchedule.MaxTTL
-	if templateSchedule.UseAutostopRequirement {
+	if !templateSchedule.UseMaxTTL {
 		// If we're using autostop requirements, there isn't a max TTL.
 		maxTTL = 0
 	}
@@ -585,6 +587,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		apiBuild,
 		template,
 		member.Username,
+		api.Options.AllowWorkspaceRenames,
 	))
 }
 
@@ -628,6 +631,12 @@ func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	// patched in the future, it's enough if one changes.
 	name := workspace.Name
 	if req.Name != "" || req.Name != workspace.Name {
+		if !api.Options.AllowWorkspaceRenames {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Workspace renames are not allowed.",
+			})
+			return
+		}
 		name = req.Name
 	}
 
@@ -787,7 +796,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		maxTTL := templateSchedule.MaxTTL
-		if templateSchedule.UseAutostopRequirement {
+		if !templateSchedule.UseMaxTTL {
 			// If we're using autostop requirements, there isn't a max TTL.
 			maxTTL = 0
 		}
@@ -917,6 +926,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		data.builds[0],
 		data.templates[0],
 		ownerName,
+		api.Options.AllowWorkspaceRenames,
 	))
 }
 
@@ -1242,6 +1252,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 				data.builds[0],
 				data.templates[0],
 				ownerName,
+				api.Options.AllowWorkspaceRenames,
 			),
 		})
 	}
@@ -1293,9 +1304,10 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 }
 
 type workspaceData struct {
-	templates []database.Template
-	builds    []codersdk.WorkspaceBuild
-	users     []database.User
+	templates    []database.Template
+	builds       []codersdk.WorkspaceBuild
+	users        []database.User
+	allowRenames bool
 }
 
 // workspacesData only returns the data the caller can access. If the caller
@@ -1347,9 +1359,10 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 	}
 
 	return workspaceData{
-		templates: templates,
-		builds:    apiBuilds,
-		users:     data.users,
+		templates:    templates,
+		builds:       apiBuilds,
+		users:        data.users,
+		allowRenames: api.Options.AllowWorkspaceRenames,
 	}, nil
 }
 
@@ -1392,6 +1405,7 @@ func convertWorkspaces(workspaces []database.Workspace, data workspaceData) ([]c
 			build,
 			template,
 			owner.Username,
+			data.allowRenames,
 		))
 	}
 	return apiWorkspaces, nil
@@ -1402,6 +1416,7 @@ func convertWorkspace(
 	workspaceBuild codersdk.WorkspaceBuild,
 	template database.Template,
 	ownerName string,
+	allowRenames bool,
 ) codersdk.Workspace {
 	var autostartSchedule *string
 	if workspace.AutostartSchedule.Valid {
@@ -1456,6 +1471,7 @@ func convertWorkspace(
 			FailingAgents: failingAgents,
 		},
 		AutomaticUpdates: codersdk.AutomaticUpdates(workspace.AutomaticUpdates),
+		AllowRenames:     allowRenames,
 	}
 }
 

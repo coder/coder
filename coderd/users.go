@@ -626,15 +626,12 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	isDifferentUser := existentUser.ID != user.ID
 
 	if err == nil && isDifferentUser {
-		responseErrors := []codersdk.ValidationError{}
-		if existentUser.Username == params.Username {
-			responseErrors = append(responseErrors, codersdk.ValidationError{
-				Field:  "username",
-				Detail: "this value is already in use and should be unique",
-			})
-		}
+		responseErrors := []codersdk.ValidationError{{
+			Field:  "username",
+			Detail: "This username is already in use.",
+		}}
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-			Message:     "User already exists.",
+			Message:     "A user with this username already exists.",
 			Validations: responseErrors,
 		})
 		return
@@ -762,6 +759,52 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 
 		httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(suspendedUser, organizations))
 	}
+}
+
+// @Summary Update user appearance settings
+// @ID update-user-appearance-settings
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Param request body codersdk.UpdateUserAppearanceSettingsRequest true "New appearance settings"
+// @Success 200 {object} codersdk.User
+// @Router /users/{user}/appearance [put]
+func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx  = r.Context()
+		user = httpmw.UserParam(r)
+	)
+
+	var params codersdk.UpdateUserAppearanceSettingsRequest
+	if !httpapi.Read(ctx, rw, r, &params) {
+		return
+	}
+
+	updatedUser, err := api.Database.UpdateUserAppearanceSettings(ctx, database.UpdateUserAppearanceSettingsParams{
+		ID:              user.ID,
+		ThemePreference: params.ThemePreference,
+		UpdatedAt:       dbtime.Now(),
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating user.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	organizationIDs, err := userOrganizationIDs(ctx, api, user)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching user's organizations.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(updatedUser, organizationIDs))
 }
 
 // @Summary Update user password

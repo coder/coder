@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
@@ -16,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -49,6 +51,10 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		})
 		require.NoError(t, err)
 		srv.DRPCConn().Close()
+
+		daemons, err := client.ProvisionerDaemons(ctx) //nolint:gocritic // Test assertion.
+		require.NoError(t, err)
+		require.Len(t, daemons, 1)
 	})
 
 	t.Run("NoLicense", func(t *testing.T) {
@@ -162,6 +168,15 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, bytes.NewReader(data))
 		require.NoError(t, err)
 
+		require.Eventually(t, func() bool {
+			daemons, err := client.ProvisionerDaemons(context.Background())
+			assert.NoError(t, err, "failed to get provisioner daemons")
+			return len(daemons) > 0 &&
+				assert.Equal(t, t.Name(), daemons[0].Name) &&
+				assert.Equal(t, provisionersdk.ScopeUser, daemons[0].Tags[provisionersdk.TagScope]) &&
+				assert.Equal(t, user.UserID.String(), daemons[0].Tags[provisionersdk.TagOwner])
+		}, testutil.WaitShort, testutil.IntervalMedium)
+
 		version, err := client.CreateTemplateVersion(context.Background(), user.OrganizationID, codersdk.CreateTemplateVersionRequest{
 			Name:          "example",
 			StorageMethod: codersdk.ProvisionerStorageMethodFile,
@@ -210,6 +225,12 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		require.NoError(t, err)
 		err = srv.DRPCConn().Close()
 		require.NoError(t, err)
+
+		daemons, err := client.ProvisionerDaemons(ctx) //nolint:gocritic // Test assertion.
+		require.NoError(t, err)
+		if assert.Len(t, daemons, 1) {
+			assert.Equal(t, provisionersdk.ScopeOrganization, daemons[0].Tags[provisionersdk.TagScope])
+		}
 	})
 
 	t.Run("PSK_daily_cost", func(t *testing.T) {
@@ -228,7 +249,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		terraformClient, terraformServer := provisionersdk.MemTransportPipe()
+		terraformClient, terraformServer := drpc.MemTransportPipe()
 		go func() {
 			<-ctx.Done()
 			_ = terraformClient.Close()
@@ -345,6 +366,10 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		var apiError *codersdk.Error
 		require.ErrorAs(t, err, &apiError)
 		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
+
+		daemons, err := client.ProvisionerDaemons(ctx) //nolint:gocritic // Test assertion.
+		require.NoError(t, err)
+		require.Len(t, daemons, 0)
 	})
 
 	t.Run("NoAuth", func(t *testing.T) {
@@ -375,6 +400,10 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		var apiError *codersdk.Error
 		require.ErrorAs(t, err, &apiError)
 		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
+
+		daemons, err := client.ProvisionerDaemons(ctx) //nolint:gocritic // Test assertion.
+		require.NoError(t, err)
+		require.Len(t, daemons, 0)
 	})
 
 	t.Run("NoPSK", func(t *testing.T) {
@@ -405,5 +434,9 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		var apiError *codersdk.Error
 		require.ErrorAs(t, err, &apiError)
 		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
+
+		daemons, err := client.ProvisionerDaemons(ctx) //nolint:gocritic // Test assertion.
+		require.NoError(t, err)
+		require.Len(t, daemons, 0)
 	})
 }

@@ -428,7 +428,8 @@ lint/ts:
 
 lint/go:
 	./scripts/check_enterprise_imports.sh
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.53.2
+	linter_ver=$(shell egrep -o 'GOLANGCI_LINT_VERSION=\S+' dogfood/Dockerfile | cut -d '=' -f 2)
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v$$linter_ver
 	golangci-lint run
 .PHONY: lint/go
 
@@ -587,7 +588,7 @@ docs/cli.md: scripts/clidocgen/main.go examples/examples.gen.json $(GO_SRC_FILES
 	CI=true BASE_PATH="." go run ./scripts/clidocgen
 	pnpm run format:write:only ./docs/cli.md ./docs/cli/*.md ./docs/manifest.json
 
-docs/admin/audit-logs.md: scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go
+docs/admin/audit-logs.md: coderd/database/querier.go scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go
 	go run scripts/auditdocgen/main.go
 	pnpm run format:write:only ./docs/admin/audit-logs.md
 
@@ -706,6 +707,33 @@ site/.eslintignore site/.prettierignore: .prettierignore Makefile
 test:
 	gotestsum --format standard-quiet -- -v -short -count=1 ./...
 .PHONY: test
+
+# sqlc-cloud-is-setup will fail if no SQLc auth token is set. Use this as a
+# dependency for any sqlc-cloud related targets.
+sqlc-cloud-is-setup:
+	if [[ "$(SQLC_AUTH_TOKEN)" == "" ]]; then
+		echo "ERROR: 'SQLC_AUTH_TOKEN' must be set to auth with sqlc cloud before running verify." 1>&2
+		exit 1
+	fi
+.PHONY: sqlc-cloud-is-setup
+
+sqlc-push: sqlc-cloud-is-setup test-postgres-docker
+	echo "--- sqlc push"
+	SQLC_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/$(shell go run scripts/migrate-ci/main.go)" \
+	sqlc push -f coderd/database/sqlc.yaml && echo "Passed sqlc push"
+.PHONY: sqlc-push
+
+sqlc-verify: sqlc-cloud-is-setup test-postgres-docker
+	echo "--- sqlc verify"
+	SQLC_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/$(shell go run scripts/migrate-ci/main.go)" \
+	sqlc verify -f coderd/database/sqlc.yaml && echo "Passed sqlc verify"
+.PHONY: sqlc-verify
+
+sqlc-vet: test-postgres-docker
+	echo "--- sqlc vet"
+	SQLC_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/$(shell go run scripts/migrate-ci/main.go)" \
+	sqlc vet -f coderd/database/sqlc.yaml && echo "Passed sqlc vet"
+.PHONY: sqlc-vet
 
 # When updating -timeout for this test, keep in sync with
 # test-go-postgres (.github/workflows/coder.yaml).

@@ -28,22 +28,23 @@ import {
 } from "components/TableLoader/TableLoader";
 import {
   HelpTooltip,
+  HelpTooltipContent,
   HelpTooltipLink,
   HelpTooltipLinksGroup,
   HelpTooltipText,
   HelpTooltipTitle,
+  HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { EmptyTemplates } from "./EmptyTemplates";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import type { Template, TemplateExample } from "api/typesGenerated";
-import { colors } from "theme/colors";
 import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined";
 import { Avatar } from "components/Avatar/Avatar";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { docs } from "utils/docs";
 import Skeleton from "@mui/material/Skeleton";
 import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
-import { Pill } from "components/Pill/Pill";
+import { DeprecatedBadge } from "components/Badges/Badges";
 
 export const Language = {
   developerCount: (activeCount: number): string => {
@@ -64,13 +65,16 @@ export const Language = {
 const TemplateHelpTooltip: FC = () => {
   return (
     <HelpTooltip>
-      <HelpTooltipTitle>{Language.templateTooltipTitle}</HelpTooltipTitle>
-      <HelpTooltipText>{Language.templateTooltipText}</HelpTooltipText>
-      <HelpTooltipLinksGroup>
-        <HelpTooltipLink href={docs("/templates")}>
-          {Language.templateTooltipLink}
-        </HelpTooltipLink>
-      </HelpTooltipLinksGroup>
+      <HelpTooltipTrigger />
+      <HelpTooltipContent>
+        <HelpTooltipTitle>{Language.templateTooltipTitle}</HelpTooltipTitle>
+        <HelpTooltipText>{Language.templateTooltipText}</HelpTooltipText>
+        <HelpTooltipLinksGroup>
+          <HelpTooltipLink href={docs("/templates")}>
+            {Language.templateTooltipLink}
+          </HelpTooltipLink>
+        </HelpTooltipLinksGroup>
+      </HelpTooltipContent>
     </HelpTooltip>
   );
 };
@@ -123,7 +127,7 @@ const TemplateRow: FC<TemplateRowProps> = ({ template }) => {
 
       <TableCell css={styles.actionCell}>
         {template.deprecated ? (
-          <Pill text="Deprecated" type="warning" />
+          <DeprecatedBadge />
         ) : (
           <Button
             size="small"
@@ -274,15 +278,15 @@ const styles = {
   }),
   tableRow: (theme) => ({
     "&:hover .actionButton": {
-      color: theme.palette.text.primary,
-      borderColor: colors.gray[11],
-      "&:hover": {
-        borderColor: theme.palette.text.primary,
-      },
+      color: theme.experimental.l2.hover.text,
+      borderColor: theme.experimental.l2.hover.outline,
     },
   }),
   actionButton: (theme) => ({
-    color: theme.palette.text.secondary,
     transition: "none",
+    color: theme.palette.text.secondary,
+    "&:hover": {
+      borderColor: theme.palette.text.primary,
+    },
   }),
 } satisfies Record<string, Interpolation<Theme>>;

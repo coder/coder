@@ -8,7 +8,7 @@ import { type CSSProperties, type FC, useState } from "react";
 import { css } from "@emotion/react";
 import { FileTree } from "utils/filetree";
 import { DockerIcon } from "components/Icons/DockerIcon";
-import { colors } from "theme/colors";
+import FormatAlignLeftOutlined from "@mui/icons-material/FormatAlignLeftOutlined";
 
 const sortFileTree = (fileTree: FileTree) => (a: string, b: string) => {
   const contentA = fileTree[a];
@@ -28,22 +28,33 @@ type ContextMenu = {
   clientY: number;
 };
 
-export const FileTreeView: FC<{
+interface FileTreeViewProps {
   onSelect: (path: string) => void;
   onDelete: (path: string) => void;
   onRename: (path: string) => void;
   fileTree: FileTree;
   activePath?: string;
-}> = ({ fileTree, activePath, onDelete, onRename, onSelect }) => {
-  const [contextMenu, setContextMenu] = useState<ContextMenu | undefined>();
+}
 
+export const FileTreeView: FC<FileTreeViewProps> = ({
+  fileTree,
+  activePath,
+  onDelete,
+  onRename,
+  onSelect,
+}) => {
+  const [contextMenu, setContextMenu] = useState<ContextMenu | undefined>();
   const buildTreeItems = (
     filename: string,
     content?: FileTree | string,
     parentPath?: string,
   ): JSX.Element => {
     const currentPath = parentPath ? `${parentPath}/${filename}` : filename;
-    let icon: JSX.Element | null = null;
+    const isFolder = typeof content === "object";
+    let icon: JSX.Element | null = isFolder ? null : (
+      <FormatAlignLeftOutlined />
+    );
+
     if (filename.endsWith(".tf")) {
       icon = <FileTypeTerraform />;
     }
@@ -51,7 +62,7 @@ export const FileTreeView: FC<{
       icon = <FileTypeMarkdown />;
     }
     if (filename.endsWith("Dockerfile")) {
-      icon = <FileTypeDockerfile />;
+      icon = <DockerIcon />;
     }
 
     return (
@@ -62,25 +73,16 @@ export const FileTreeView: FC<{
         css={(theme) => css`
           overflow: hidden;
           user-select: none;
-          height: 32px;
-
-          &:focus:not(.active) > .MuiTreeItem-content {
-            background: ${theme.palette.action.hover};
-            color: ${theme.palette.text.primary};
-          }
-
-          &:not(:focus):not(.active) > .MuiTreeItem-content:hover {
-            background: ${theme.palette.action.hover};
-            color: ${theme.palette.text.primary};
-          }
 
           & > .MuiTreeItem-content {
             padding: 2px 16px;
             color: ${theme.palette.text.secondary};
+            height: 32px;
 
             & svg {
-              width: 16px;
-              height: 16px;
+              width: 12px;
+              height: 12px;
+              color: ${theme.palette.text.secondary};
             }
 
             & > .MuiTreeItem-label {
@@ -88,13 +90,14 @@ export const FileTreeView: FC<{
               font-size: 13px;
               color: inherit;
             }
-          }
 
-          &.active {
-            & > .MuiTreeItem-content {
-              color: ${theme.palette.text.primary};
-              background: ${colors.gray[14]};
-              pointer-events: none;
+            &.Mui-selected {
+              color: ${theme.experimental.roles.active.text};
+              background: ${theme.experimental.roles.active.background};
+            }
+
+            &.Mui-focused {
+              box-shadow: inset 0 0 0 1px ${theme.palette.primary.main};
             }
           }
 
@@ -107,7 +110,6 @@ export const FileTreeView: FC<{
             }
           }
         `}
-        className={currentPath === activePath ? "active" : ""}
         onClick={() => {
           onSelect(currentPath);
         }}
@@ -131,16 +133,13 @@ export const FileTreeView: FC<{
           } as CSSProperties
         }
       >
-        {typeof content === "object" ? (
+        {isFolder &&
           Object.keys(content)
             .sort(sortFileTree(content))
             .map((filename) => {
               const child = content[filename];
               return buildTreeItems(filename, child, currentPath);
-            })
-        ) : (
-          <></>
-        )}
+            })}
       </TreeItem>
     );
   };
@@ -150,6 +149,7 @@ export const FileTreeView: FC<{
       defaultCollapseIcon={<ExpandMoreIcon />}
       defaultExpandIcon={<ChevronRightIcon />}
       aria-label="Files"
+      defaultSelected={activePath}
     >
       {Object.keys(fileTree)
         .sort(sortFileTree(fileTree))
@@ -206,7 +206,7 @@ export const FileTreeView: FC<{
   );
 };
 
-const FileTypeTerraform = () => (
+const FileTypeTerraform: FC = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="#813cf3">
     <title>file_type_terraform</title>
     <polygon points="12.042 6.858 20.071 11.448 20.071 20.462 12.042 15.868 12.042 6.858 12.042 6.858" />
@@ -216,7 +216,7 @@ const FileTypeTerraform = () => (
   </svg>
 );
 
-const FileTypeMarkdown = () => (
+const FileTypeMarkdown: FC = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="#755838">
     <rect
       x="2.5"
@@ -232,5 +232,3 @@ const FileTypeMarkdown = () => (
     <polygon points="22.955 20.636 18.864 16.136 21.591 16.136 21.591 11.364 24.318 11.364 24.318 16.136 27.045 16.136 22.955 20.636" />
   </svg>
 );
-
-const FileTypeDockerfile = () => <DockerIcon />;

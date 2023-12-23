@@ -17,6 +17,7 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -24,6 +25,7 @@ import (
 )
 
 const (
+	templateNameLabel  = "template_name"
 	agentNameLabel     = "agent_name"
 	usernameLabel      = "username"
 	workspaceNameLabel = "workspace_name"
@@ -154,7 +156,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		Subsystem: "agents",
 		Name:      "up",
 		Help:      "The number of active agents per workspace.",
-	}, []string{usernameLabel, workspaceNameLabel, "template_name", "template_version"}))
+	}, []string{usernameLabel, workspaceNameLabel, templateNameLabel, "template_version"}))
 	err := registerer.Register(agentsGauge)
 	if err != nil {
 		return nil, err

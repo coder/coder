@@ -1,10 +1,12 @@
 import { FC } from "react";
 import {
   HelpTooltip,
+  HelpTooltipContent,
   HelpTooltipLink,
   HelpTooltipLinksGroup,
   HelpTooltipText,
   HelpTooltipTitle,
+  HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { docs } from "utils/docs";
 
@@ -17,13 +19,17 @@ export const Language = {
 export const AuditHelpTooltip: FC = () => {
   return (
     <HelpTooltip>
-      <HelpTooltipTitle>{Language.title}</HelpTooltipTitle>
-      <HelpTooltipText>{Language.body}</HelpTooltipText>
-      <HelpTooltipLinksGroup>
-        <HelpTooltipLink href={docs("/admin/audit-logs")}>
-          {Language.docs}
-        </HelpTooltipLink>
-      </HelpTooltipLinksGroup>
+      <HelpTooltipTrigger />
+
+      <HelpTooltipContent>
+        <HelpTooltipTitle>{Language.title}</HelpTooltipTitle>
+        <HelpTooltipText>{Language.body}</HelpTooltipText>
+        <HelpTooltipLinksGroup>
+          <HelpTooltipLink href={docs("/admin/audit-logs")}>
+            {Language.docs}
+          </HelpTooltipLink>
+        </HelpTooltipLinksGroup>
+      </HelpTooltipContent>
     </HelpTooltip>
   );
 };

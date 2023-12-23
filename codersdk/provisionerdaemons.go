@@ -15,9 +15,9 @@ import (
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 
+	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionerd/runner"
-	"github.com/coder/coder/v2/provisionersdk"
 )
 
 type LogSource string
@@ -38,7 +38,6 @@ const (
 type ProvisionerDaemon struct {
 	ID           uuid.UUID         `json:"id" format:"uuid"`
 	CreatedAt    time.Time         `json:"created_at" format:"date-time"`
-	UpdatedAt    NullTime          `json:"updated_at,omitempty" format:"date-time"`
 	LastSeenAt   NullTime          `json:"last_seen_at,omitempty" format:"date-time"`
 	Name         string            `json:"name"`
 	Version      string            `json:"version"`
@@ -253,7 +252,7 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 		_ = wsNetConn.Close()
 		return nil, xerrors.Errorf("multiplex client: %w", err)
 	}
-	return proto.NewDRPCProvisionerDaemonClient(provisionersdk.MultiplexedConn(session)), nil
+	return proto.NewDRPCProvisionerDaemonClient(drpc.MultiplexedConn(session)), nil
 }
 
 // wsNetConn wraps net.Conn created by websocket.NetConn(). Cancel func

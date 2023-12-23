@@ -2,6 +2,7 @@ package prometheusmetrics_test
 
 import (
 	"context"
+	"sort"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -12,8 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
+
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -22,7 +24,15 @@ const (
 	testWorkspaceName = "yogi-workspace"
 	testUsername      = "yogi-bear"
 	testAgentName     = "main-agent"
+	testTemplateName  = "main-template"
 )
+
+var testLabels = prometheusmetrics.AgentMetricLabels{
+	Username:      testUsername,
+	WorkspaceName: testWorkspaceName,
+	AgentName:     testAgentName,
+	TemplateName:  testTemplateName,
+}
 
 func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
 	t.Parallel()
@@ -38,44 +48,46 @@ func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
 	closeFunc := metricsAggregator.Run(ctx)
 	t.Cleanup(closeFunc)
 
-	given1 := []agentsdk.AgentMetric{
-		{Name: "a_counter_one", Type: agentsdk.AgentMetricTypeCounter, Value: 1},
-		{Name: "b_counter_two", Type: agentsdk.AgentMetricTypeCounter, Value: 2},
-		{Name: "c_gauge_three", Type: agentsdk.AgentMetricTypeGauge, Value: 3},
+	given1 := []*agentproto.Stats_Metric{
+		{Name: "a_counter_one", Type: agentproto.Stats_Metric_COUNTER, Value: 1},
+		{Name: "b_counter_two", Type: agentproto.Stats_Metric_COUNTER, Value: 2},
+		{Name: "c_gauge_three", Type: agentproto.Stats_Metric_GAUGE, Value: 3},
 	}
 
-	given2 := []agentsdk.AgentMetric{
-		{Name: "b_counter_two", Type: agentsdk.AgentMetricTypeCounter, Value: 4},
-		{Name: "c_gauge_three", Type: agentsdk.AgentMetricTypeGauge, Value: 5},
-		{Name: "c_gauge_three", Type: agentsdk.AgentMetricTypeGauge, Value: 2, Labels: []agentsdk.AgentMetricLabel{
+	given2 := []*agentproto.Stats_Metric{
+		{Name: "b_counter_two", Type: agentproto.Stats_Metric_COUNTER, Value: 4},
+		{Name: "c_gauge_three", Type: agentproto.Stats_Metric_GAUGE, Value: 5},
+		{Name: "c_gauge_three", Type: agentproto.Stats_Metric_GAUGE, Value: 2, Labels: []*agentproto.Stats_Metric_Label{
 			{Name: "foobar", Value: "Foobaz"},
 			{Name: "hello", Value: "world"},
 		}},
-		{Name: "d_gauge_four", Type: agentsdk.AgentMetricTypeGauge, Value: 6},
+		{Name: "d_gauge_four", Type: agentproto.Stats_Metric_GAUGE, Value: 6},
 	}
 
-	commonLabels := []agentsdk.AgentMetricLabel{
+	commonLabels := []*agentproto.Stats_Metric_Label{
 		{Name: "agent_name", Value: testAgentName},
 		{Name: "username", Value: testUsername},
 		{Name: "workspace_name", Value: testWorkspaceName},
+		{Name: "template_name", Value: testTemplateName},
 	}
-	expected := []agentsdk.AgentMetric{
-		{Name: "a_counter_one", Type: agentsdk.AgentMetricTypeCounter, Value: 1, Labels: commonLabels},
-		{Name: "b_counter_two", Type: agentsdk.AgentMetricTypeCounter, Value: 4, Labels: commonLabels},
-		{Name: "c_gauge_three", Type: agentsdk.AgentMetricTypeGauge, Value: 5, Labels: commonLabels},
-		{Name: "c_gauge_three", Type: agentsdk.AgentMetricTypeGauge, Value: 2, Labels: []agentsdk.AgentMetricLabel{
+	expected := []*agentproto.Stats_Metric{
+		{Name: "a_counter_one", Type: agentproto.Stats_Metric_COUNTER, Value: 1, Labels: commonLabels},
+		{Name: "b_counter_two", Type: agentproto.Stats_Metric_COUNTER, Value: 4, Labels: commonLabels},
+		{Name: "c_gauge_three", Type: agentproto.Stats_Metric_GAUGE, Value: 5, Labels: commonLabels},
+		{Name: "c_gauge_three", Type: agentproto.Stats_Metric_GAUGE, Value: 2, Labels: []*agentproto.Stats_Metric_Label{
 			{Name: "agent_name", Value: testAgentName},
 			{Name: "foobar", Value: "Foobaz"},
 			{Name: "hello", Value: "world"},
 			{Name: "username", Value: testUsername},
 			{Name: "workspace_name", Value: testWorkspaceName},
+			{Name: "template_name", Value: testTemplateName},
 		}},
-		{Name: "d_gauge_four", Type: agentsdk.AgentMetricTypeGauge, Value: 6, Labels: commonLabels},
+		{Name: "d_gauge_four", Type: agentproto.Stats_Metric_GAUGE, Value: 6, Labels: commonLabels},
 	}
 
 	// when
-	metricsAggregator.Update(ctx, testUsername, testWorkspaceName, testAgentName, given1)
-	metricsAggregator.Update(ctx, testUsername, testWorkspaceName, testAgentName, given2)
+	metricsAggregator.Update(ctx, testLabels, given1)
+	metricsAggregator.Update(ctx, testLabels, given2)
 
 	// then
 	require.Eventually(t, func() bool {
@@ -97,7 +109,7 @@ func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
 	}, testutil.WaitMedium, testutil.IntervalSlow)
 }
 
-func verifyCollectedMetrics(t *testing.T, expected []agentsdk.AgentMetric, actual []prometheus.Metric) bool {
+func verifyCollectedMetrics(t *testing.T, expected []*agentproto.Stats_Metric, actual []prometheus.Metric) bool {
 	if len(expected) != len(actual) {
 		return false
 	}
@@ -110,24 +122,28 @@ func verifyCollectedMetrics(t *testing.T, expected []agentsdk.AgentMetric, actua
 		err := actual[i].Write(&d)
 		require.NoError(t, err)
 
-		if e.Type == agentsdk.AgentMetricTypeCounter {
+		if e.Type == agentproto.Stats_Metric_COUNTER {
 			require.Equal(t, e.Value, d.Counter.GetValue())
-		} else if e.Type == agentsdk.AgentMetricTypeGauge {
+		} else if e.Type == agentproto.Stats_Metric_GAUGE {
 			require.Equal(t, e.Value, d.Gauge.GetValue())
 		} else {
 			require.Failf(t, "unsupported type: %s", string(e.Type))
 		}
 
 		dtoLabels := asMetricAgentLabels(d.GetLabel())
+		// dto labels are sorted in alphabetical order.
+		sort.Slice(e.Labels, func(i, j int) bool {
+			return e.Labels[i].Name < e.Labels[j].Name
+		})
 		require.Equal(t, e.Labels, dtoLabels, d.String())
 	}
 	return true
 }
 
-func asMetricAgentLabels(dtoLabels []*dto.LabelPair) []agentsdk.AgentMetricLabel {
-	metricLabels := make([]agentsdk.AgentMetricLabel, 0, len(dtoLabels))
+func asMetricAgentLabels(dtoLabels []*dto.LabelPair) []*agentproto.Stats_Metric_Label {
+	metricLabels := make([]*agentproto.Stats_Metric_Label, 0, len(dtoLabels))
 	for _, dtoLabel := range dtoLabels {
-		metricLabels = append(metricLabels, agentsdk.AgentMetricLabel{
+		metricLabels = append(metricLabels, &agentproto.Stats_Metric_Label{
 			Name:  dtoLabel.GetName(),
 			Value: dtoLabel.GetValue(),
 		})
@@ -149,12 +165,12 @@ func TestUpdateMetrics_MetricsExpire(t *testing.T) {
 	closeFunc := metricsAggregator.Run(ctx)
 	t.Cleanup(closeFunc)
 
-	given := []agentsdk.AgentMetric{
-		{Name: "a_counter_one", Type: agentsdk.AgentMetricTypeCounter, Value: 1},
+	given := []*agentproto.Stats_Metric{
+		{Name: "a_counter_one", Type: agentproto.Stats_Metric_COUNTER, Value: 1},
 	}
 
 	// when
-	metricsAggregator.Update(ctx, testUsername, testWorkspaceName, testAgentName, given)
+	metricsAggregator.Update(ctx, testLabels, given)
 
 	time.Sleep(time.Millisecond * 10) // Ensure that metric is expired
 
@@ -212,7 +228,7 @@ func Benchmark_MetricsAggregator_Run(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
 		b.Logf("N=%d generating %d metrics", b.N, numMetrics)
-		metrics := make([]agentsdk.AgentMetric, 0, numMetrics)
+		metrics := make([]*agentproto.Stats_Metric, 0, numMetrics)
 		for i := 0; i < numMetrics; i++ {
 			metrics = append(metrics, genAgentMetric(b))
 		}
@@ -220,7 +236,7 @@ func Benchmark_MetricsAggregator_Run(b *testing.B) {
 		b.Logf("N=%d sending %d metrics", b.N, numMetrics)
 		var nGot atomic.Int64
 		b.StartTimer()
-		metricsAggregator.Update(ctx, testUsername, testWorkspaceName, testAgentName, metrics)
+		metricsAggregator.Update(ctx, testLabels, metrics)
 		for i := 0; i < numMetrics; i++ {
 			select {
 			case <-ctx.Done():
@@ -234,14 +250,14 @@ func Benchmark_MetricsAggregator_Run(b *testing.B) {
 	}
 }
 
-func genAgentMetric(t testing.TB) agentsdk.AgentMetric {
+func genAgentMetric(t testing.TB) *agentproto.Stats_Metric {
 	t.Helper()
 
-	var metricType agentsdk.AgentMetricType
+	var metricType agentproto.Stats_Metric_Type
 	if must(cryptorand.Float64()) >= 0.5 {
-		metricType = agentsdk.AgentMetricTypeCounter
+		metricType = agentproto.Stats_Metric_COUNTER
 	} else {
-		metricType = agentsdk.AgentMetricTypeGauge
+		metricType = agentproto.Stats_Metric_GAUGE
 	}
 
 	// Ensure that metric name does not start or end with underscore, as it is not allowed by Prometheus.
@@ -249,8 +265,8 @@ func genAgentMetric(t testing.TB) agentsdk.AgentMetric {
 	// Generate random metric value between 0 and 1000.
 	metricValue := must(cryptorand.Float64()) * float64(must(cryptorand.Intn(1000)))
 
-	return agentsdk.AgentMetric{
-		Name: metricName, Type: metricType, Value: metricValue, Labels: []agentsdk.AgentMetricLabel{},
+	return &agentproto.Stats_Metric{
+		Name: metricName, Type: metricType, Value: metricValue, Labels: []*agentproto.Stats_Metric_Label{},
 	}
 }
 

@@ -458,6 +458,28 @@ CREATE SEQUENCE licenses_id_seq
 
 ALTER SEQUENCE licenses_id_seq OWNED BY licenses.id;
 
+CREATE TABLE oauth2_provider_app_secrets (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    last_used_at timestamp with time zone,
+    hashed_secret bytea NOT NULL,
+    display_secret text NOT NULL,
+    app_id uuid NOT NULL
+);
+
+COMMENT ON COLUMN oauth2_provider_app_secrets.display_secret IS 'The tail end of the original secret so secrets can be differentiated.';
+
+CREATE TABLE oauth2_provider_apps (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    name character varying(64) NOT NULL,
+    icon character varying(256) NOT NULL,
+    callback_url text NOT NULL
+);
+
+COMMENT ON TABLE oauth2_provider_apps IS 'A table used to configure apps that can use Coder as an OAuth2 provider, the reverse of what we are calling external authentication.';
+
 CREATE TABLE organization_members (
     user_id uuid NOT NULL,
     organization_id uuid NOT NULL,
@@ -509,14 +531,16 @@ CREATE TABLE parameter_values (
 CREATE TABLE provisioner_daemons (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone,
     name character varying(64) NOT NULL,
     provisioners provisioner_type[] NOT NULL,
     replica_id uuid,
     tags jsonb DEFAULT '{}'::jsonb NOT NULL,
     last_seen_at timestamp with time zone,
-    version text DEFAULT ''::text NOT NULL
+    version text DEFAULT ''::text NOT NULL,
+    api_version text DEFAULT '1.0'::text NOT NULL
 );
+
+COMMENT ON COLUMN provisioner_daemons.api_version IS 'The API version of the provisioner daemon';
 
 CREATE TABLE provisioner_job_logs (
     job_id uuid NOT NULL,
@@ -746,13 +770,16 @@ CREATE TABLE users (
     status user_status DEFAULT 'dormant'::user_status NOT NULL,
     rbac_roles text[] DEFAULT '{}'::text[] NOT NULL,
     login_type login_type DEFAULT 'password'::login_type NOT NULL,
-    avatar_url text,
+    avatar_url text DEFAULT ''::text NOT NULL,
     deleted boolean DEFAULT false NOT NULL,
     last_seen_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL,
-    quiet_hours_schedule text DEFAULT ''::text NOT NULL
+    quiet_hours_schedule text DEFAULT ''::text NOT NULL,
+    theme_preference text DEFAULT ''::text NOT NULL
 );
 
 COMMENT ON COLUMN users.quiet_hours_schedule IS 'Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user''s quiet hours. If empty, the default quiet hours on the instance is used instead.';
+
+COMMENT ON COLUMN users.theme_preference IS '"" can be interpreted as "the user does not care", falling back to the default theme';
 
 CREATE VIEW visible_users AS
  SELECT users.id,
@@ -809,7 +836,8 @@ CREATE TABLE templates (
     autostop_requirement_weeks bigint DEFAULT 0 NOT NULL,
     autostart_block_days_of_week smallint DEFAULT 0 NOT NULL,
     require_active_version boolean DEFAULT false NOT NULL,
-    deprecated text DEFAULT ''::text NOT NULL
+    deprecated text DEFAULT ''::text NOT NULL,
+    use_max_ttl boolean DEFAULT false NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -858,6 +886,7 @@ CREATE VIEW template_with_users AS
     templates.autostart_block_days_of_week,
     templates.require_active_version,
     templates.deprecated,
+    templates.use_max_ttl,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username
    FROM (public.templates
@@ -1263,6 +1292,18 @@ ALTER TABLE ONLY licenses
 ALTER TABLE ONLY licenses
     ADD CONSTRAINT licenses_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY oauth2_provider_app_secrets
+    ADD CONSTRAINT oauth2_provider_app_secrets_app_id_hashed_secret_key UNIQUE (app_id, hashed_secret);
+
+ALTER TABLE ONLY oauth2_provider_app_secrets
+    ADD CONSTRAINT oauth2_provider_app_secrets_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY oauth2_provider_apps
+    ADD CONSTRAINT oauth2_provider_apps_name_key UNIQUE (name);
+
+ALTER TABLE ONLY oauth2_provider_apps
+    ADD CONSTRAINT oauth2_provider_apps_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY organization_members
     ADD CONSTRAINT organization_members_pkey PRIMARY KEY (organization_id, user_id);
 
@@ -1280,9 +1321,6 @@ ALTER TABLE ONLY parameter_values
 
 ALTER TABLE ONLY parameter_values
     ADD CONSTRAINT parameter_values_scope_id_name_key UNIQUE (scope_id, name);
-
-ALTER TABLE ONLY provisioner_daemons
-    ADD CONSTRAINT provisioner_daemons_name_key UNIQUE (name);
 
 ALTER TABLE ONLY provisioner_daemons
     ADD CONSTRAINT provisioner_daemons_pkey PRIMARY KEY (id);
@@ -1413,6 +1451,10 @@ CREATE UNIQUE INDEX idx_organization_name ON organizations USING btree (name);
 
 CREATE UNIQUE INDEX idx_organization_name_lower ON organizations USING btree (lower(name));
 
+CREATE UNIQUE INDEX idx_provisioner_daemons_name_owner_key ON provisioner_daemons USING btree (name, lower(COALESCE((tags ->> 'owner'::text), ''::text)));
+
+COMMENT ON INDEX idx_provisioner_daemons_name_owner_key IS 'Allow unique provisioner daemon names by user';
+
 CREATE INDEX idx_tailnet_agents_coordinator ON tailnet_agents USING btree (coordinator_id);
 
 CREATE INDEX idx_tailnet_clients_coordinator ON tailnet_clients USING btree (coordinator_id);
@@ -1487,6 +1529,9 @@ ALTER TABLE ONLY group_members
 
 ALTER TABLE ONLY groups
     ADD CONSTRAINT groups_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY oauth2_provider_app_secrets
+    ADD CONSTRAINT oauth2_provider_app_secrets_app_id_fkey FOREIGN KEY (app_id) REFERENCES oauth2_provider_apps(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY organization_members
     ADD CONSTRAINT organization_members_organization_id_uuid_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;

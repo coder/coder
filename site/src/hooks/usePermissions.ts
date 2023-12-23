@@ -1,5 +1,5 @@
-import { useAuth } from "components/AuthProvider/AuthProvider";
-import { Permissions } from "components/AuthProvider/permissions";
+import { useAuth } from "contexts/AuthProvider/AuthProvider";
+import type { Permissions } from "contexts/AuthProvider/permissions";
 
 export const usePermissions = (): Permissions => {
   const { permissions } = useAuth();

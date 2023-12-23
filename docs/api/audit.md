@@ -71,6 +71,7 @@ curl -X GET http://coder-server:8080/api/v2/audit \
           }
         ],
         "status": "active",
+        "theme_preference": "string",
         "username": "string"
       },
       "user_agent": "string"

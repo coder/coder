@@ -6,7 +6,7 @@ import {
   type PropsWithChildren,
   useContext,
 } from "react";
-import { AlphaBadge } from "components/Badges/Badges";
+import { AlphaBadge, DeprecatedBadge } from "components/Badges/Badges";
 import { Stack } from "components/Stack/Stack";
 import {
   FormFooter as BaseFormFooter,
@@ -77,8 +77,16 @@ export const FormSection: FC<
       infoTitle?: string;
     };
     alpha?: boolean;
+    deprecated?: boolean;
   }
-> = ({ children, title, description, classes = {}, alpha = false }) => {
+> = ({
+  children,
+  title,
+  description,
+  classes = {},
+  alpha = false,
+  deprecated = false,
+}) => {
   const { direction } = useContext(FormContext);
   const theme = useTheme();
 
@@ -112,15 +120,10 @@ export const FormSection: FC<
         }}
         className={classes.sectionInfo}
       >
-        <h2
-          css={[
-            styles.formSectionInfoTitle,
-            alpha && styles.formSectionInfoTitleAlpha,
-          ]}
-          className={classes.infoTitle}
-        >
+        <h2 css={styles.formSectionInfoTitle} className={classes.infoTitle}>
           {title}
           {alpha && <AlphaBadge />}
+          {deprecated && <DeprecatedBadge />}
         </h2>
         <div css={styles.formSectionInfoDescription}>{description}</div>
       </div>
@@ -145,14 +148,11 @@ const styles = {
     fontWeight: 400,
     margin: 0,
     marginBottom: 8,
-  }),
-
-  formSectionInfoTitleAlpha: {
     display: "flex",
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-  },
+  }),
 
   formSectionInfoDescription: (theme) => ({
     fontSize: 14,
