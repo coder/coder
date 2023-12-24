@@ -37,6 +37,11 @@ data "coder_workspace" "me" {
 variable "jfrog_url" {
   type        = string
   description = "JFrog instance URL. For example, https://jfrog.example.com."
+  # validate the URL to ensure it starts with https:// or http://
+  validation {
+    condition     = can(regex("^https?://", var.jfrog_url))
+    error_message = "JFrog URL must start with https:// or http://"
+  }
 }
 
 variable "artifactory_admin_access_token" {
