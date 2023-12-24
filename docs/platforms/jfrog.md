@@ -53,7 +53,7 @@ terraform {
 
 variable "jfrog_url" {
   type        = string
-  description = "JFrog instance hostname. e.g. https://YYY.jfrog.io"
+  description = "JFrog instance URL. e.g. https://jfrog.example.com"
   # validate the URL to ensure it starts with https:// or http://
   validation {
     condition     = can(regex("^https?://", var.jfrog_url))

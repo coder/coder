@@ -22,7 +22,7 @@ locals {
     "go"     = "go"
   }
   workspace_user = data.coder_workspace.me.owner
-  jfrog_host = replace(var.jfrog_url, "^https://", "")
+  jfrog_host     = replace(var.jfrog_url, "^https://", "")
 }
 
 data "coder_provisioner" "me" {
