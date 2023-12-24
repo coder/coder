@@ -69,6 +69,12 @@ provider "artifactory" {
   url           = "https://${var.jfrog_host}/artifactory"
   access_token  = "${var.artifactory_access_token}"
 }
+
+resource "artifactory_scoped_token" "me" {
+  # This is hacky, but on terraform plan the data source gives empty strings,
+  # which fails validation.
+  username = length(local.artifactory_username) > 0 ? local.artifactory_username : "plan"
+}
 ```
 
 When pushing the template, you can pass in the variables using the `--var` flag:
