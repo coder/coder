@@ -41,15 +41,12 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.12.0"
     }
     docker = {
       source  = "kreuzwerker/docker"
-      version = "~> 3.0.0"
     }
     artifactory = {
       source  = "registry.terraform.io/jfrog/artifactory"
-      version = "~> 10.0.0"
     }
   }
 }
