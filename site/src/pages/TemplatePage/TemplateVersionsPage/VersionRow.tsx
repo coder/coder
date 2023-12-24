@@ -39,7 +39,6 @@ export const VersionRow: FC<VersionRowProps> = ({
     <TimelineEntry
       data-testid={`version-${version.id}`}
       {...clickableProps}
-      css={[styles.row]}
       className={clickableProps.className}
     >
       <TableCell css={styles.versionCell}>
@@ -127,16 +126,6 @@ export const VersionRow: FC<VersionRowProps> = ({
 };
 
 const styles = {
-  row: (theme) => ({
-    "&:hover $promoteButton": {
-      color: theme.palette.text.primary,
-      borderColor: theme.colors.gray[11],
-      "&:hover": {
-        borderColor: theme.palette.text.primary,
-      },
-    },
-  }),
-
   promoteButton: (theme) => ({
     color: theme.palette.text.secondary,
     transition: "none",

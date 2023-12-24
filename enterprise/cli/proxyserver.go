@@ -23,6 +23,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -121,7 +122,7 @@ func (r *RootCmd) proxyServer() *clibase.Cmd {
 			go cli.DumpHandler(ctx)
 
 			cli.PrintLogo(inv, "Coder Workspace Proxy")
-			logger, logCloser, err := cli.BuildLogger(inv, cfg)
+			logger, logCloser, err := clilog.New(clilog.FromDeploymentValues(cfg)).Build(inv)
 			if err != nil {
 				return xerrors.Errorf("make logger: %w", err)
 			}

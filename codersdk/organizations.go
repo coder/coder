@@ -164,9 +164,6 @@ func (c *Client) Organization(ctx context.Context, id uuid.UUID) (Organization, 
 }
 
 // ProvisionerDaemons returns provisioner daemons available.
-//
-// Deprecated: We no longer track provisioner daemons as they connect.  This function may return historical data
-// but new provisioner daemons will not appear.
 func (c *Client) ProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, error) {
 	res, err := c.Request(ctx, http.MethodGet,
 		// TODO: the organization path parameter is currently ignored.

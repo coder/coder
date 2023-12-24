@@ -2865,21 +2865,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ## codersdk.Experiment
 
 ```json
-"moons"
+"workspace_actions"
 ```
 
 ### Properties
 
 #### Enumerated Values
 
-| Value                      |
-| -------------------------- |
-| `moons`                    |
-| `workspace_actions`        |
-| `tailnet_pg_coordinator`   |
-| `single_tailnet`           |
-| `deployment_health_page`   |
-| `template_update_policies` |
+| Value                    |
+| ------------------------ |
+| `workspace_actions`      |
+| `tailnet_pg_coordinator` |
+| `single_tailnet`         |
+| `deployment_health_page` |
 
 ## codersdk.ExternalAuth
 
@@ -3541,6 +3539,60 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `client_secret`       | string          | false    |              |             |
 | `enterprise_base_url` | string          | false    |              |             |
 
+## codersdk.OAuth2ProviderApp
+
+```json
+{
+  "callback_url": "string",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+| -------------- | ------ | -------- | ------------ | ----------- |
+| `callback_url` | string | false    |              |             |
+| `icon`         | string | false    |              |             |
+| `id`           | string | false    |              |             |
+| `name`         | string | false    |              |             |
+
+## codersdk.OAuth2ProviderAppSecret
+
+```json
+{
+  "client_secret_truncated": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "last_used_at": "string"
+}
+```
+
+### Properties
+
+| Name                      | Type   | Required | Restrictions | Description |
+| ------------------------- | ------ | -------- | ------------ | ----------- |
+| `client_secret_truncated` | string | false    |              |             |
+| `id`                      | string | false    |              |             |
+| `last_used_at`            | string | false    |              |             |
+
+## codersdk.OAuth2ProviderAppSecretFull
+
+```json
+{
+  "client_secret_full": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+}
+```
+
+### Properties
+
+| Name                 | Type   | Required | Restrictions | Description |
+| -------------------- | ------ | -------- | ------------ | ----------- |
+| `client_secret_full` | string | false    |              |             |
+| `id`                 | string | false    |              |             |
+
 ## codersdk.OAuthConversionResponse
 
 ```json
@@ -3757,6 +3809,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `id`               | string  | true     |              |             |
 | `name`             | string  | true     |              |             |
 | `regenerate_token` | boolean | false    |              |             |
+
+## codersdk.PostOAuth2ProviderAppRequest
+
+```json
+{
+  "callback_url": "string",
+  "icon": "string",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+| -------------- | ------ | -------- | ------------ | ----------- |
+| `callback_url` | string | true     |              |             |
+| `icon`         | string | false    |              |             |
+| `name`         | string | true     |              |             |
 
 ## codersdk.PprofConfig
 
@@ -4036,6 +4106,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name       | Type   | Required | Restrictions | Description |
 | ---------- | ------ | -------- | ------------ | ----------- |
 | `deadline` | string | true     |              |             |
+
+## codersdk.PutOAuth2ProviderAppRequest
+
+```json
+{
+  "callback_url": "string",
+  "icon": "string",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+| -------------- | ------ | -------- | ------------ | ----------- |
+| `callback_url` | string | true     |              |             |
+| `icon`         | string | false    |              |             |
+| `name`         | string | true     |              |             |
 
 ## codersdk.RBACResource
 

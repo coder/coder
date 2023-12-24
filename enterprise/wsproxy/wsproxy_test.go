@@ -34,7 +34,6 @@ func TestDERPOnly(t *testing.T) {
 
 	deploymentValues := coderdtest.DeploymentValues(t)
 	deploymentValues.Experiments = []string{
-		string(codersdk.ExperimentMoons),
 		"*",
 	}
 
@@ -82,7 +81,6 @@ func TestDERP(t *testing.T) {
 
 	deploymentValues := coderdtest.DeploymentValues(t)
 	deploymentValues.Experiments = []string{
-		string(codersdk.ExperimentMoons),
 		"*",
 	}
 
@@ -315,7 +313,6 @@ func TestDERPEndToEnd(t *testing.T) {
 
 	deploymentValues := coderdtest.DeploymentValues(t)
 	deploymentValues.Experiments = []string{
-		string(codersdk.ExperimentMoons),
 		"*",
 	}
 
@@ -443,7 +440,6 @@ func TestWorkspaceProxyWorkspaceApps_Wsconncache(t *testing.T) {
 		deploymentValues.Dangerous.AllowPathAppSharing = clibase.Bool(opts.DangerousAllowPathAppSharing)
 		deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = clibase.Bool(opts.DangerousAllowPathAppSiteOwnerAccess)
 		deploymentValues.Experiments = []string{
-			string(codersdk.ExperimentMoons),
 			"*",
 		}
 
@@ -501,7 +497,6 @@ func TestWorkspaceProxyWorkspaceApps_SingleTailnet(t *testing.T) {
 		deploymentValues.Dangerous.AllowPathAppSharing = clibase.Bool(opts.DangerousAllowPathAppSharing)
 		deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = clibase.Bool(opts.DangerousAllowPathAppSiteOwnerAccess)
 		deploymentValues.Experiments = []string{
-			string(codersdk.ExperimentMoons),
 			string(codersdk.ExperimentSingleTailnet),
 			"*",
 		}

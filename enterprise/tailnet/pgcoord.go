@@ -185,6 +185,9 @@ func (c *pgCoord) Node(id uuid.UUID) *agpl.Node {
 			bestT = m.updatedAt
 		}
 	}
+	if bestN == nil {
+		return nil
+	}
 	node, err := agpl.ProtoToNode(bestN)
 	if err != nil {
 		c.logger.Critical(c.ctx, "failed to convert node", slog.F("node", bestN), slog.Error(err))
@@ -697,7 +700,7 @@ func (m *mapper) bestToUpdate(best map[uuid.UUID]mapping) *proto.CoordinateRespo
 			reason = "update"
 		}
 		resp.PeerUpdates = append(resp.PeerUpdates, &proto.CoordinateResponse_PeerUpdate{
-			Uuid:   agpl.UUIDToByteSlice(k),
+			Id:     agpl.UUIDToByteSlice(k),
 			Node:   mpng.node,
 			Kind:   mpng.kind,
 			Reason: reason,
@@ -708,7 +711,7 @@ func (m *mapper) bestToUpdate(best map[uuid.UUID]mapping) *proto.CoordinateRespo
 	for k := range m.sent {
 		if _, ok := best[k]; !ok {
 			resp.PeerUpdates = append(resp.PeerUpdates, &proto.CoordinateResponse_PeerUpdate{
-				Uuid:   agpl.UUIDToByteSlice(k),
+				Id:     agpl.UUIDToByteSlice(k),
 				Kind:   proto.CoordinateResponse_PeerUpdate_DISCONNECTED,
 				Reason: "disconnected",
 			})

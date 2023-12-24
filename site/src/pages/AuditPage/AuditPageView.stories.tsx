@@ -1,12 +1,13 @@
 import { Meta, StoryObj } from "@storybook/react";
+import { type ComponentProps } from "react";
+import { chromaticWithTablet } from "testHelpers/chromatic";
 import { MockAuditLog, MockAuditLog2, MockUser } from "testHelpers/entities";
-import { AuditPageView } from "./AuditPageView";
-import { ComponentProps } from "react";
 import {
   mockInitialRenderResult,
   mockSuccessResult,
 } from "components/PaginationWidget/PaginationContainer.mocks";
 import { type UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
+import { AuditPageView } from "./AuditPageView";
 
 import {
   MockMenu,
@@ -43,6 +44,7 @@ export default meta;
 type Story = StoryObj<typeof AuditPageView>;
 
 export const AuditPage: Story = {
+  parameters: { chromatic: chromaticWithTablet },
   args: {
     auditsQuery: mockSuccessResult,
   },
@@ -82,14 +84,5 @@ export const NotVisible: Story = {
   args: {
     isAuditLogVisible: false,
     auditsQuery: mockInitialRenderResult,
-  },
-};
-
-export const AuditPageSmallViewport: Story = {
-  args: {
-    auditsQuery: mockSuccessResult,
-  },
-  parameters: {
-    chromatic: { viewports: [600] },
   },
 };

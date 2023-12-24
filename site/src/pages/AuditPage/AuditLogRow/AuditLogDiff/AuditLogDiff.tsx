@@ -1,7 +1,7 @@
 import { type Interpolation, type Theme } from "@emotion/react";
 import { type FC } from "react";
 import type { AuditLog } from "api/typesGenerated";
-import colors from "theme/tailwind";
+import colors from "theme/tailwindColors";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 
 const getDiffValue = (value: unknown): string => {

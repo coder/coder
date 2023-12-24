@@ -94,13 +94,12 @@ describe("optionValue", () => {
       option: {
         ...defaultOption,
         name: "Experiments",
-        value: ["moons"],
+        value: [],
       },
       additionalValues: ["single_tailnet", "deployment_health_page"],
       expected: {
         single_tailnet: false,
         deployment_health_page: false,
-        moons: true,
       },
     },
     {
@@ -116,10 +115,10 @@ describe("optionValue", () => {
       option: {
         ...defaultOption,
         name: "Experiments",
-        value: ["*", "moons", "single_tailnet"],
+        value: ["*", "single_tailnet"],
       },
       additionalValues: ["single_tailnet"],
-      expected: { moons: true, single_tailnet: true },
+      expected: { single_tailnet: true },
     },
     {
       option: {

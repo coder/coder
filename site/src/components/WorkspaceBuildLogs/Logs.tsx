@@ -5,6 +5,8 @@ import { type FC, type ReactNode, useMemo } from "react";
 import AnsiToHTML from "ansi-to-html";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 
+const convert = new AnsiToHTML();
+
 export interface Line {
   time: string;
   output: string;
@@ -16,9 +18,10 @@ export interface LogsProps {
   lines: Line[];
   hideTimestamps?: boolean;
   className?: string;
+  children?: ReactNode;
 }
 
-export const Logs: FC<React.PropsWithChildren<LogsProps>> = ({
+export const Logs: FC<LogsProps> = ({
   hideTimestamps,
   lines,
   className = "",
@@ -50,16 +53,23 @@ export const Logs: FC<React.PropsWithChildren<LogsProps>> = ({
 
 export const logLineHeight = 20;
 
-const convert = new AnsiToHTML();
-
-export const LogLine: FC<{
+interface LogLineProps {
   line: Line;
   hideTimestamp?: boolean;
   number?: number;
   style?: React.CSSProperties;
   sourceIcon?: ReactNode;
   maxNumber?: number;
-}> = ({ line, hideTimestamp, number, maxNumber, sourceIcon, style }) => {
+}
+
+export const LogLine: FC<LogLineProps> = ({
+  line,
+  hideTimestamp,
+  number,
+  maxNumber,
+  sourceIcon,
+  style,
+}) => {
   const output = useMemo(() => {
     return convert.toHtml(line.output.split(/\r/g).pop() as string);
   }, [line.output]);
@@ -120,15 +130,15 @@ const styles = {
     padding: "0 32px",
 
     "&.error": {
-      backgroundColor: theme.palette.error.dark,
+      backgroundColor: theme.experimental.roles.error.background,
     },
 
     "&.debug": {
-      backgroundColor: theme.palette.background.paper,
+      backgroundColor: theme.experimental.roles.info.background,
     },
 
     "&.warn": {
-      backgroundColor: theme.palette.warning.dark,
+      backgroundColor: theme.experimental.roles.warning.background,
     },
   }),
   space: {

@@ -311,6 +311,33 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Get("/", api.userQuietHoursSchedule)
 			r.Put("/", api.putUserQuietHoursSchedule)
 		})
+		r.Route("/oauth2-provider", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.oAuth2ProviderMiddleware,
+			)
+			r.Route("/apps", func(r chi.Router) {
+				r.Get("/", api.oAuth2ProviderApps)
+				r.Post("/", api.postOAuth2ProviderApp)
+
+				r.Route("/{app}", func(r chi.Router) {
+					r.Use(httpmw.ExtractOAuth2ProviderApp(options.Database))
+					r.Get("/", api.oAuth2ProviderApp)
+					r.Put("/", api.putOAuth2ProviderApp)
+					r.Delete("/", api.deleteOAuth2ProviderApp)
+
+					r.Route("/secrets", func(r chi.Router) {
+						r.Get("/", api.oAuth2ProviderAppSecrets)
+						r.Post("/", api.postOAuth2ProviderAppSecret)
+
+						r.Route("/{secretID}", func(r chi.Router) {
+							r.Use(httpmw.ExtractOAuth2ProviderAppSecret(options.Database))
+							r.Delete("/", api.deleteOAuth2ProviderAppSecret)
+						})
+					})
+				})
+			})
+		})
 	})
 
 	if len(options.SCIMAPIKey) != 0 {
@@ -362,34 +389,33 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 	api.derpMesh = derpmesh.New(options.Logger.Named("derpmesh"), api.DERPServer, meshTLSConfig)
 
-	if api.AGPL.Experiments.Enabled(codersdk.ExperimentMoons) {
-		// Proxy health is a moon feature.
-		api.ProxyHealth, err = proxyhealth.New(&proxyhealth.Options{
-			Interval:   options.ProxyHealthInterval,
-			DB:         api.Database,
-			Logger:     options.Logger.Named("proxyhealth"),
-			Client:     api.HTTPClient,
-			Prometheus: api.PrometheusRegistry,
-		})
-		if err != nil {
-			return nil, xerrors.Errorf("initialize proxy health: %w", err)
-		}
-		go api.ProxyHealth.Run(ctx)
-		// Force the initial loading of the cache. Do this in a go routine in case
-		// the calls to the workspace proxies hang and this takes some time.
-		go api.forceWorkspaceProxyHealthUpdate(ctx)
-
-		// Use proxy health to return the healthy workspace proxy hostnames.
-		f := api.ProxyHealth.ProxyHosts
-		api.AGPL.WorkspaceProxyHostsFn.Store(&f)
-
-		// Wire this up to healthcheck.
-		var fetchUpdater healthcheck.WorkspaceProxiesFetchUpdater = &workspaceProxiesFetchUpdater{
-			fetchFunc:  api.fetchWorkspaceProxies,
-			updateFunc: api.ProxyHealth.ForceUpdate,
-		}
-		api.AGPL.WorkspaceProxiesFetchUpdater.Store(&fetchUpdater)
+	// Moon feature init. Proxyhealh is a go routine to periodically check
+	// the health of all workspace proxies.
+	api.ProxyHealth, err = proxyhealth.New(&proxyhealth.Options{
+		Interval:   options.ProxyHealthInterval,
+		DB:         api.Database,
+		Logger:     options.Logger.Named("proxyhealth"),
+		Client:     api.HTTPClient,
+		Prometheus: api.PrometheusRegistry,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("initialize proxy health: %w", err)
 	}
+	go api.ProxyHealth.Run(ctx)
+	// Force the initial loading of the cache. Do this in a go routine in case
+	// the calls to the workspace proxies hang and this takes some time.
+	go api.forceWorkspaceProxyHealthUpdate(ctx)
+
+	// Use proxy health to return the healthy workspace proxy hostnames.
+	f := api.ProxyHealth.ProxyHosts
+	api.AGPL.WorkspaceProxyHostsFn.Store(&f)
+
+	// Wire this up to healthcheck.
+	var fetchUpdater healthcheck.WorkspaceProxiesFetchUpdater = &workspaceProxiesFetchUpdater{
+		fetchFunc:  api.fetchWorkspaceProxies,
+		updateFunc: api.ProxyHealth.ForceUpdate,
+	}
+	api.AGPL.WorkspaceProxiesFetchUpdater.Store(&fetchUpdater)
 
 	err = api.PrometheusRegistry.Register(&api.licenseMetricsCollector)
 	if err != nil {
@@ -488,6 +514,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureBrowserOnly:                api.BrowserOnly,
 			codersdk.FeatureSCIM:                       len(api.SCIMAPIKey) != 0,
 			codersdk.FeatureMultipleExternalAuth:       len(api.ExternalAuthConfigs) > 1,
+			codersdk.FeatureOAuth2Provider:             true,
 			codersdk.FeatureTemplateRBAC:               api.RBAC,
 			codersdk.FeatureExternalTokenEncryption:    len(api.ExternalTokenEncryption) > 0,
 			codersdk.FeatureExternalProvisionerDaemons: true,

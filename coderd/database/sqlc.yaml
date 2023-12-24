@@ -2,6 +2,9 @@
 # It was chosen to ensure type-safety when interacting with
 # the database.
 version: "2"
+cloud:
+  # This is the static ID for the coder project.
+  project: "01HEP08N3WKWRFZT3ZZ9Q37J8X"
 sql:
   - schema: "./dump.sql"
     queries: "./queries"

@@ -23,11 +23,6 @@ func TestTemplateCreate(t *testing.T) {
 	t.Run("RequireActiveVersion", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{
-			string(codersdk.ExperimentTemplateUpdatePolicies),
-		}
-
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -35,7 +30,6 @@ func TestTemplateCreate(t *testing.T) {
 				},
 			},
 			Options: &coderdtest.Options{
-				DeploymentValues:         dv,
 				IncludeProvisionerDaemon: true,
 			},
 		})
@@ -124,17 +118,11 @@ func TestTemplateCreate(t *testing.T) {
 	t.Run("NotEntitled", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{
-			string(codersdk.ExperimentTemplateUpdatePolicies),
-		}
-
 		client, admin := coderdenttest.New(t, &coderdenttest.Options{
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{},
 			},
 			Options: &coderdtest.Options{
-				DeploymentValues:         dv,
 				IncludeProvisionerDaemon: true,
 			},
 		})

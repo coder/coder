@@ -173,18 +173,18 @@ const styles = {
   orphanContainer: (theme) => ({
     marginTop: 24,
     display: "flex",
-    backgroundColor: theme.colors.orange[15],
+    backgroundColor: theme.experimental.roles.danger.background,
     justifyContent: "space-between",
-    border: `1px solid ${theme.colors.orange[11]}`,
+    border: `1px solid ${theme.experimental.roles.danger.outline}`,
     borderRadius: 8,
     padding: 12,
     gap: 8,
     lineHeight: "18px",
 
     "& .option": {
-      color: theme.colors.orange[11],
+      color: theme.experimental.roles.danger.fill,
       "&.Mui-checked": {
-        color: theme.colors.orange[11],
+        color: theme.experimental.roles.danger.fill,
       },
     },
 

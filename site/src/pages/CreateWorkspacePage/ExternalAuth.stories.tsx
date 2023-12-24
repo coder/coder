@@ -9,11 +9,29 @@ const meta: Meta<typeof ExternalAuth> = {
 export default meta;
 type Story = StoryObj<typeof ExternalAuth>;
 
-export const GithubNotAuthenticated: Story = {
+export const Github: Story = {
   args: {
     displayIcon: "/icon/github.svg",
     displayName: "GitHub",
     authenticated: false,
+  },
+};
+
+export const GithubTimeout: Story = {
+  args: {
+    displayIcon: "/icon/github.svg",
+    displayName: "GitHub",
+    authenticated: false,
+    externalAuthPollingState: "abandoned",
+  },
+};
+
+export const GithubFailed: Story = {
+  args: {
+    displayIcon: "/icon/github.svg",
+    displayName: "GitHub",
+    authenticated: false,
+    error: "Github doesn't like you",
   },
 };
 
@@ -25,7 +43,7 @@ export const GithubAuthenticated: Story = {
   },
 };
 
-export const GitlabNotAuthenticated: Story = {
+export const Gitlab: Story = {
   args: {
     displayIcon: "/icon/gitlab.svg",
     displayName: "GitLab",
@@ -41,7 +59,7 @@ export const GitlabAuthenticated: Story = {
   },
 };
 
-export const AzureDevOpsNotAuthenticated: Story = {
+export const AzureDevOps: Story = {
   args: {
     displayIcon: "/icon/azure-devops.svg",
     displayName: "Azure DevOps",
@@ -57,7 +75,7 @@ export const AzureDevOpsAuthenticated: Story = {
   },
 };
 
-export const BitbucketNotAuthenticated: Story = {
+export const Bitbucket: Story = {
   args: {
     displayIcon: "/icon/bitbucket.svg",
     displayName: "Bitbucket",

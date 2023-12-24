@@ -394,12 +394,14 @@ func TestAgentStats(t *testing.T) {
 	require.NoError(t, err, "create stats batcher failed")
 	t.Cleanup(closeBatcher)
 
+	tLogger := slogtest.Make(t, nil)
 	// Build sample workspaces with test agents and fake agent client
 	client, _, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		Database:                 db,
 		IncludeProvisionerDaemon: true,
 		Pubsub:                   pubsub,
 		StatsBatcher:             batcher,
+		Logger:                   &tLogger,
 	})
 
 	user := coderdtest.CreateFirstUser(t, client)
