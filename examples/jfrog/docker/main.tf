@@ -69,7 +69,7 @@ resource "coder_agent" "main" {
     # Install the JFrog VS Code extension.
     # Find the latest version number at
     # https://open-vsx.org/extension/JFrog/jfrog-vscode-extension.
-    JFROG_EXT_VERSION=2.4.1
+    JFROG_EXT_VERSION=2.9.5
     curl -o /tmp/jfrog.vsix -L "https://open-vsx.org/api/JFrog/jfrog-vscode-extension/$JFROG_EXT_VERSION/file/JFrog.jfrog-vscode-extension-$JFROG_EXT_VERSION.vsix"
     /tmp/code-server/bin/code-server --install-extension /tmp/jfrog.vsix
 
