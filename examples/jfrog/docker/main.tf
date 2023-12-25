@@ -25,14 +25,11 @@ locals {
   jfrog_host     = replace(var.jfrog_url, "^https://", "")
 }
 
-data "coder_provisioner" "me" {
-}
+data "coder_provisioner" "me" {}
 
-provider "docker" {
-}
+provider "docker" {}
 
-data "coder_workspace" "me" {
-}
+data "coder_workspace" "me" {}
 
 variable "jfrog_url" {
   type        = string
