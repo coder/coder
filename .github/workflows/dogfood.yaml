@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy_image:
+  build_image:
     runs-on: buildjet-4vcpu-ubuntu-2204
     steps:
       - name: Checkout
