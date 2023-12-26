@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy_image:
+  build_image:
     runs-on: buildjet-4vcpu-ubuntu-2204
     steps:
       - name: Checkout
@@ -53,7 +53,7 @@ jobs:
           cache-to: type=inline
 
   deploy_template:
-    needs: deploy_image
+    needs: build_image
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
