@@ -199,7 +199,6 @@ RUN LAZYGIT_VERSION=$(curl -s "https://api.github.com/repos/jesseduffield/lazygi
 # Install frontend utilities
 RUN apt-get update && \
 	# Node.js (from nodesource) and Yarn (from yarnpkg)
-	curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash - &&\
 	apt-get install --yes --quiet \
 	nodejs yarn \
 	# Install browsers for e2e testing
