@@ -29,7 +29,7 @@ Example: Notify users of scheduled maintenance of the Coder deployment.
 
 ![service banner maintenance](../images/admin/service-banner-maintenance.png)
 
-Example: Adhere to goverment network classification requirements and notify
+Example: Adhere to government network classification requirements and notify
 users of which network their Coder deployment is on.
 
 ![service banner secret](../images/admin/service-banner-secret.png)
