@@ -47,12 +47,9 @@ export const createWorkspace = async (
 
   await expect(page).toHaveURL("/@admin/" + name);
 
-  await page.waitForSelector(
-    "span[data-testid='build-status'] >> text=Running",
-    {
-      state: "visible",
-    },
-  );
+  await page.waitForSelector("*[data-testid='build-status'] >> text=Running", {
+    state: "visible",
+  });
   return name;
 };
 
