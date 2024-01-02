@@ -115,7 +115,8 @@ we were creating a header component for that page, we would have needed to fetch
 the data in the page component and pass it down through the hierarchy
 (`UsersPage -> UsersPageView -> UsersHeader`). Now, with advancements such as
 `react-query`, data fetching can be performed directly in the `UsersHeader`
-component, eliminating the need for multiple places to handle the same request
+component, allowing UI elements to declare and consume their data-fetching
+dependencies directly, while preventing duplicate server requests
 ([more info](https://github.com/TanStack/query/discussions/608#discussioncomment-29735)).
 
 To simplify visual testing of scenarios where components are responsible for
