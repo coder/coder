@@ -185,7 +185,10 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
               title="Schedule settings"
               css={{ color: "inherit" }}
             >
-              Deletion on {new Date(workspace.deleting_at!).toLocaleString()}
+              Deletion on{" "}
+              <span data-chromatic="ignore">
+                {new Date(workspace.deleting_at!).toLocaleString()}
+              </span>
             </Link>
           </TopbarData>
         )}
