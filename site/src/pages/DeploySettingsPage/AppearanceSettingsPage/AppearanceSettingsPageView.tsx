@@ -19,7 +19,7 @@ import {
 import { Fieldset } from "components/DeploySettingsLayout/Fieldset";
 import { Stack } from "components/Stack/Stack";
 import { getFormHelpers } from "utils/formUtils";
-import colors from "theme/tailwind";
+import colors from "theme/tailwindColors";
 
 export type AppearanceSettingsPageViewProps = {
   appearance: UpdateAppearanceConfig;

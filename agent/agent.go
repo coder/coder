@@ -1188,6 +1188,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 // startReportingConnectionStats runs the connection stats reporting goroutine.
 func (a *agent) startReportingConnectionStats(ctx context.Context) {
 	reportStats := func(networkStats map[netlogtype.Connection]netlogtype.Counts) {
+		a.logger.Debug(ctx, "computing stats report")
 		stats := &agentsdk.Stats{
 			ConnectionCount:    int64(len(networkStats)),
 			ConnectionsByProto: map[string]int64{},
@@ -1209,6 +1210,7 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 		stats.SessionCountReconnectingPTY = a.connCountReconnectingPTY.Load()
 
 		// Compute the median connection latency!
+		a.logger.Debug(ctx, "starting peer latency measurement for stats")
 		var wg sync.WaitGroup
 		var mu sync.Mutex
 		status := a.network.Status()
@@ -1257,13 +1259,17 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 
 		metricsCtx, cancelFunc := context.WithTimeout(ctx, 5*time.Second)
 		defer cancelFunc()
+		a.logger.Debug(ctx, "collecting agent metrics for stats")
 		stats.Metrics = a.collectMetrics(metricsCtx)
 
 		a.latestStat.Store(stats)
 
+		a.logger.Debug(ctx, "about to send stats")
 		select {
 		case a.connStatsChan <- stats:
+			a.logger.Debug(ctx, "successfully sent stats")
 		case <-a.closed:
+			a.logger.Debug(ctx, "didn't send stats because we are closed")
 		}
 	}
 

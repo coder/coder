@@ -225,6 +225,23 @@ func templateVersionParameterOptions(rawOptions json.RawMessage) ([]codersdk.Tem
 	return options, nil
 }
 
+func OAuth2ProviderApp(dbApp database.OAuth2ProviderApp) codersdk.OAuth2ProviderApp {
+	return codersdk.OAuth2ProviderApp{
+		ID:          dbApp.ID,
+		Name:        dbApp.Name,
+		CallbackURL: dbApp.CallbackURL,
+		Icon:        dbApp.Icon,
+	}
+}
+
+func OAuth2ProviderApps(dbApps []database.OAuth2ProviderApp) []codersdk.OAuth2ProviderApp {
+	apps := []codersdk.OAuth2ProviderApp{}
+	for _, dbApp := range dbApps {
+		apps = append(apps, OAuth2ProviderApp(dbApp))
+	}
+	return apps
+}
+
 func convertDisplayApps(apps []database.DisplayApp) []codersdk.DisplayApp {
 	dapps := make([]codersdk.DisplayApp, 0, len(apps))
 	for _, app := range apps {

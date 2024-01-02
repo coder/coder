@@ -144,7 +144,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@v1.16.25
+        uses: crate-ci/typos@v1.16.26
         with:
           config: .github/workflows/typos.toml
 
@@ -685,7 +685,7 @@ jobs:
         uses: ./.github/actions/setup-go
 
       - name: Install nfpm
-        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.16.0
+        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.35.1
 
       - name: Install zstd
         run: sudo apt-get install -y zstd

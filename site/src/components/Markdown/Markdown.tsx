@@ -11,7 +11,7 @@ import { type FC, memo } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import gfm from "remark-gfm";
-import colors from "theme/tailwind";
+import colors from "theme/tailwindColors";
 import { dracula } from "react-syntax-highlighter/dist/cjs/styles/prism";
 
 interface MarkdownProps {

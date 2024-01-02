@@ -102,8 +102,8 @@ const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
                 styles={css`
                   em-emoji-picker {
                     --rgb-background: ${theme.palette.background.paper};
-                    --rgb-input: ${theme.colors.gray[17]};
-                    --rgb-color: ${theme.colors.gray[4]};
+                    --rgb-input: ${theme.palette.primary.main};
+                    --rgb-color: ${theme.palette.text.primary};
 
                     // Hack to prevent the right side from being cut off
                     width: 350px;

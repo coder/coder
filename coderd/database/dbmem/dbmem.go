@@ -130,6 +130,8 @@ type data struct {
 	groupMembers                  []database.GroupMember
 	groups                        []database.Group
 	licenses                      []database.License
+	oauth2ProviderApps            []database.OAuth2ProviderApp
+	oauth2ProviderAppSecrets      []database.OAuth2ProviderAppSecret
 	parameterSchemas              []database.ParameterSchema
 	provisionerDaemons            []database.ProvisionerDaemon
 	provisionerJobLogs            []database.ProvisionerJobLog
@@ -1144,6 +1146,43 @@ func (q *FakeQuerier) DeleteLicense(_ context.Context, id int32) (int32, error) 
 	return 0, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) DeleteOAuth2ProviderAppByID(_ context.Context, id uuid.UUID) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, app := range q.oauth2ProviderApps {
+		if app.ID == id {
+			q.oauth2ProviderApps[index] = q.oauth2ProviderApps[len(q.oauth2ProviderApps)-1]
+			q.oauth2ProviderApps = q.oauth2ProviderApps[:len(q.oauth2ProviderApps)-1]
+
+			secrets := []database.OAuth2ProviderAppSecret{}
+			for _, secret := range q.oauth2ProviderAppSecrets {
+				if secret.AppID != id {
+					secrets = append(secrets, secret)
+				}
+			}
+			q.oauth2ProviderAppSecrets = secrets
+
+			return nil
+		}
+	}
+	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) DeleteOAuth2ProviderAppSecretByID(_ context.Context, id uuid.UUID) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, secret := range q.oauth2ProviderAppSecrets {
+		if secret.ID == id {
+			q.oauth2ProviderAppSecrets[index] = q.oauth2ProviderAppSecrets[len(q.oauth2ProviderAppSecrets)-1]
+			q.oauth2ProviderAppSecrets = q.oauth2ProviderAppSecrets[:len(q.oauth2ProviderAppSecrets)-1]
+			return nil
+		}
+	}
+	return sql.ErrNoRows
+}
+
 func (q *FakeQuerier) DeleteOldProvisionerDaemons(_ context.Context) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -2002,6 +2041,68 @@ func (q *FakeQuerier) GetLogoURL(_ context.Context) (string, error) {
 	}
 
 	return q.logoURL, nil
+}
+
+func (q *FakeQuerier) GetOAuth2ProviderAppByID(_ context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, app := range q.oauth2ProviderApps {
+		if app.ID == id {
+			return app, nil
+		}
+	}
+	return database.OAuth2ProviderApp{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetOAuth2ProviderAppSecretByID(_ context.Context, id uuid.UUID) (database.OAuth2ProviderAppSecret, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, secret := range q.oauth2ProviderAppSecrets {
+		if secret.ID == id {
+			return secret, nil
+		}
+	}
+	return database.OAuth2ProviderAppSecret{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetOAuth2ProviderAppSecretsByAppID(_ context.Context, appID uuid.UUID) ([]database.OAuth2ProviderAppSecret, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, app := range q.oauth2ProviderApps {
+		if app.ID == appID {
+			secrets := []database.OAuth2ProviderAppSecret{}
+			for _, secret := range q.oauth2ProviderAppSecrets {
+				if secret.AppID == appID {
+					secrets = append(secrets, secret)
+				}
+			}
+
+			slices.SortFunc(secrets, func(a, b database.OAuth2ProviderAppSecret) int {
+				if a.CreatedAt.Before(b.CreatedAt) {
+					return -1
+				} else if a.CreatedAt.Equal(b.CreatedAt) {
+					return 0
+				}
+				return 1
+			})
+			return secrets, nil
+		}
+	}
+
+	return []database.OAuth2ProviderAppSecret{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetOAuth2ProviderApps(_ context.Context) ([]database.OAuth2ProviderApp, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	slices.SortFunc(q.oauth2ProviderApps, func(a, b database.OAuth2ProviderApp) int {
+		return slice.Ascending(a.Name, b.Name)
+	})
+	return q.oauth2ProviderApps, nil
 }
 
 func (q *FakeQuerier) GetOAuthSigningKey(_ context.Context) (string, error) {
@@ -4946,6 +5047,61 @@ func (q *FakeQuerier) InsertMissingGroups(_ context.Context, arg database.Insert
 	return newGroups, nil
 }
 
+func (q *FakeQuerier) InsertOAuth2ProviderApp(_ context.Context, arg database.InsertOAuth2ProviderAppParams) (database.OAuth2ProviderApp, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.OAuth2ProviderApp{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, app := range q.oauth2ProviderApps {
+		if app.Name == arg.Name {
+			return database.OAuth2ProviderApp{}, errDuplicateKey
+		}
+	}
+
+	//nolint:gosimple // Go wants database.OAuth2ProviderApp(arg), but we cannot be sure the structs will remain identical.
+	app := database.OAuth2ProviderApp{
+		ID:          arg.ID,
+		CreatedAt:   arg.CreatedAt,
+		UpdatedAt:   arg.UpdatedAt,
+		Name:        arg.Name,
+		Icon:        arg.Icon,
+		CallbackURL: arg.CallbackURL,
+	}
+	q.oauth2ProviderApps = append(q.oauth2ProviderApps, app)
+
+	return app, nil
+}
+
+func (q *FakeQuerier) InsertOAuth2ProviderAppSecret(_ context.Context, arg database.InsertOAuth2ProviderAppSecretParams) (database.OAuth2ProviderAppSecret, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.OAuth2ProviderAppSecret{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, app := range q.oauth2ProviderApps {
+		if app.ID == arg.AppID {
+			secret := database.OAuth2ProviderAppSecret{
+				ID:            arg.ID,
+				CreatedAt:     arg.CreatedAt,
+				HashedSecret:  arg.HashedSecret,
+				DisplaySecret: arg.DisplaySecret,
+				AppID:         arg.AppID,
+			}
+			q.oauth2ProviderAppSecrets = append(q.oauth2ProviderAppSecrets, secret)
+			return secret, nil
+		}
+	}
+
+	return database.OAuth2ProviderAppSecret{}, sql.ErrNoRows
+}
+
 func (q *FakeQuerier) InsertOrganization(_ context.Context, arg database.InsertOrganizationParams) (database.Organization, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.Organization{}, err
@@ -5945,6 +6101,64 @@ func (q *FakeQuerier) UpdateMemberRoles(_ context.Context, arg database.UpdateMe
 	}
 
 	return database.OrganizationMember{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateOAuth2ProviderAppByID(_ context.Context, arg database.UpdateOAuth2ProviderAppByIDParams) (database.OAuth2ProviderApp, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.OAuth2ProviderApp{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, app := range q.oauth2ProviderApps {
+		if app.Name == arg.Name && app.ID != arg.ID {
+			return database.OAuth2ProviderApp{}, errDuplicateKey
+		}
+	}
+
+	for index, app := range q.oauth2ProviderApps {
+		if app.ID == arg.ID {
+			newApp := database.OAuth2ProviderApp{
+				ID:          arg.ID,
+				CreatedAt:   app.CreatedAt,
+				UpdatedAt:   arg.UpdatedAt,
+				Name:        arg.Name,
+				Icon:        arg.Icon,
+				CallbackURL: arg.CallbackURL,
+			}
+			q.oauth2ProviderApps[index] = newApp
+			return newApp, nil
+		}
+	}
+	return database.OAuth2ProviderApp{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateOAuth2ProviderAppSecretByID(_ context.Context, arg database.UpdateOAuth2ProviderAppSecretByIDParams) (database.OAuth2ProviderAppSecret, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.OAuth2ProviderAppSecret{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, secret := range q.oauth2ProviderAppSecrets {
+		if secret.ID == arg.ID {
+			newSecret := database.OAuth2ProviderAppSecret{
+				ID:            arg.ID,
+				CreatedAt:     secret.CreatedAt,
+				HashedSecret:  secret.HashedSecret,
+				DisplaySecret: secret.DisplaySecret,
+				AppID:         secret.AppID,
+				LastUsedAt:    arg.LastUsedAt,
+			}
+			q.oauth2ProviderAppSecrets[index] = newSecret
+			return newSecret, nil
+		}
+	}
+	return database.OAuth2ProviderAppSecret{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) UpdateProvisionerDaemonLastSeenAt(_ context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {

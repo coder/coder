@@ -121,11 +121,3 @@ export const useIsWorkspaceActionsEnabled = (): boolean => {
   const allowWorkspaceActions = experiments.includes("workspace_actions");
   return allowWorkspaceActions && allowAdvancedScheduling;
 };
-
-export const useTemplatePoliciesEnabled = (): boolean => {
-  const { entitlements, experiments } = useDashboard();
-  return (
-    entitlements.features.access_control.enabled &&
-    experiments.includes("template_update_policies")
-  );
-};

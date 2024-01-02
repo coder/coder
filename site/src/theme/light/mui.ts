@@ -9,7 +9,7 @@ import {
   BUTTON_SM_HEIGHT,
   BUTTON_XL_HEIGHT,
 } from "../constants";
-import tw from "../tailwind";
+import tw from "../tailwindColors";
 
 let muiTheme = createTheme({
   palette: {

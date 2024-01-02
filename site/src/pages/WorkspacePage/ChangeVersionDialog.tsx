@@ -106,7 +106,7 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
                               )}
                             </Stack>
                             {template?.active_version_id === option.id && (
-                              <Pill text="Active" type="success" />
+                              <Pill type="success">Active</Pill>
                             )}
                           </Stack>
                         }
