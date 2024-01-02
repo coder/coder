@@ -212,8 +212,10 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 
 	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.Manifest{
 		AgentID:                  agentID,
+		AgentName:                manifest.AgentName,
 		OwnerName:                manifest.OwnerUsername,
 		WorkspaceID:              workspaceID,
+		WorkspaceName:            manifest.WorkspaceName,
 		Apps:                     apps,
 		Scripts:                  scripts,
 		DERPMap:                  tailnet.DERPMapFromProto(manifest.DerpMap),

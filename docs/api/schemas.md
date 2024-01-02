@@ -186,6 +186,7 @@
 ```json
 {
   "agent_id": "string",
+  "agent_name": "string",
   "apps": [
     {
       "command": "string",
@@ -297,7 +298,8 @@
     }
   ],
   "vscode_port_proxy_uri": "string",
-  "workspace_id": "string"
+  "workspace_id": "string",
+  "workspace_name": "string"
 }
 ```
 
@@ -306,6 +308,7 @@
 | Name                         | Type                                                                                              | Required | Restrictions | Description                                                                                                                                                                                                     |
 | ---------------------------- | ------------------------------------------------------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `agent_id`                   | string                                                                                            | false    |              |                                                                                                                                                                                                                 |
+| `agent_name`                 | string                                                                                            | false    |              |                                                                                                                                                                                                                 |
 | `apps`                       | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)                                           | false    |              |                                                                                                                                                                                                                 |
 | `derp_force_websockets`      | boolean                                                                                           | false    |              |                                                                                                                                                                                                                 |
 | `derpmap`                    | [tailcfg.DERPMap](#tailcfgderpmap)                                                                | false    |              |                                                                                                                                                                                                                 |
@@ -320,6 +323,7 @@
 | `scripts`                    | array of [codersdk.WorkspaceAgentScript](#codersdkworkspaceagentscript)                           | false    |              |                                                                                                                                                                                                                 |
 | `vscode_port_proxy_uri`      | string                                                                                            | false    |              |                                                                                                                                                                                                                 |
 | `workspace_id`               | string                                                                                            | false    |              |                                                                                                                                                                                                                 |
+| `workspace_name`             | string                                                                                            | false    |              |                                                                                                                                                                                                                 |
 
 ## agentsdk.Metadata
 
