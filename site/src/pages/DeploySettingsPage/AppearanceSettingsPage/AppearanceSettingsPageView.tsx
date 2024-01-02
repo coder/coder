@@ -110,7 +110,7 @@ export const AppearanceSettingsPageView: FC<
 
       <Fieldset
         title="Logo URL"
-        subtitle="Specify a custom URL for your logo to be displayed in the top left
+        subtitle="Specify a custom URL for your logo to be displayed on the sign in page and in the top left
           corner of the dashboard."
         validation={
           isEntitled
