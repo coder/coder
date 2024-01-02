@@ -16,7 +16,7 @@ import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceS
 import {
   WorkspaceScheduleControls,
   shouldDisplayScheduleControls,
-} from "../WorkspaceScheduleControls";
+} from "./WorkspaceScheduleControls";
 import { workspaceQuota } from "api/queries/workspaceQuota";
 import { useQuery } from "react-query";
 import MonetizationOnOutlined from "@mui/icons-material/MonetizationOnOutlined";
