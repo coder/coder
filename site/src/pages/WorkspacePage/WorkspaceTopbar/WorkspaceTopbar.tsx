@@ -11,11 +11,8 @@ import {
 } from "components/FullPageLayout/Topbar";
 import Tooltip from "@mui/material/Tooltip";
 import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
-import { WorkspaceOutdatedTooltipContent } from "components/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
-import { Popover, PopoverTrigger } from "components/Popover/Popover";
 import ScheduleOutlined from "@mui/icons-material/ScheduleOutlined";
 import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge";
-import { Pill } from "components/Pill/Pill";
 import {
   WorkspaceScheduleControls,
   shouldDisplayScheduleControls,
@@ -24,12 +21,15 @@ import { workspaceQuota } from "api/queries/workspaceQuota";
 import { useQuery } from "react-query";
 import MonetizationOnOutlined from "@mui/icons-material/MonetizationOnOutlined";
 import { useTheme } from "@mui/material/styles";
-import InfoOutlined from "@mui/icons-material/InfoOutlined";
 import Link from "@mui/material/Link";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
 import { displayDormantDeletion } from "utils/dormant";
 import DeleteOutline from "@mui/icons-material/DeleteOutline";
 import PersonOutline from "@mui/icons-material/PersonOutline";
+import { Popover, PopoverTrigger } from "components/Popover/Popover";
+import { HelpTooltipContent } from "components/HelpTooltip/HelpTooltip";
+import { AvatarData } from "components/AvatarData/AvatarData";
+import { Avatar } from "components/Avatar/Avatar";
 
 export type WorkspaceError =
   | "getBuildsError"
@@ -127,52 +127,70 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
             <span>{workspace.owner_name}</span>
           </Tooltip>
           <TopbarDivider />
-          <Tooltip
-            title={workspace.template_display_name ?? workspace.template_name}
+          <Popover
+            mode="hover"
+            // title={`${
+            //   workspace.template_display_name ?? workspace.template_name
+            // } on version ${workspace.latest_build.template_version_name}`}
           >
-            <Link
-              component={RouterLink}
-              to={`/templates/${workspace.template_name}`}
-              css={{ color: "inherit" }}
+            <PopoverTrigger>
+              <span
+                css={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  cursor: "default",
+                  padding: "4px 0",
+                }}
+              >
+                <TopbarAvatar src={workspace.template_icon} />
+                <span css={{ fontWeight: 500 }}>{workspace.name}</span>
+              </span>
+            </PopoverTrigger>
+
+            <HelpTooltipContent
+              anchorOrigin={{
+                vertical: "bottom",
+                horizontal: "center",
+              }}
+              transformOrigin={{
+                vertical: "top",
+                horizontal: "center",
+              }}
             >
-              <TopbarAvatar src={workspace.template_icon} />
-            </Link>
-          </Tooltip>
-
-          <span css={{ fontWeight: 500 }}>{workspace.name}</span>
-
-          {workspace.outdated ? (
-            <Popover mode="hover">
-              <PopoverTrigger>
-                {/* Added to give some bottom space from the popover content */}
-                <div css={{ padding: "4px 0", margin: "-4px 0" }}>
-                  <Pill
-                    icon={
-                      <InfoOutlined
-                        css={{
-                          width: "12px !important",
-                          height: "12px !important",
-                          color: theme.palette.warning.light,
-                        }}
-                      />
-                    }
+              <AvatarData
+                title={
+                  <Link
+                    component={RouterLink}
+                    to={`/templates/${workspace.template_name}`}
+                    css={{ color: "inherit" }}
                   >
-                    <span css={{ color: theme.palette.warning.light }}>
-                      {workspace.latest_build.template_version_name}
-                    </span>
-                  </Pill>
-                </div>
-              </PopoverTrigger>
-              <WorkspaceOutdatedTooltipContent
-                templateName={workspace.template_name}
-                latestVersionId={workspace.template_active_version_id}
-                onUpdateVersion={handleUpdate}
-                ariaLabel="update version"
+                    {workspace.template_display_name.length > 0
+                      ? workspace.template_display_name
+                      : workspace.template_name}
+                  </Link>
+                }
+                subtitle={
+                  <Link
+                    component={RouterLink}
+                    to={`/templates/${workspace.template_name}/versions/${workspace.latest_build.template_version_name}`}
+                    css={{ color: "inherit" }}
+                  >
+                    {workspace.latest_build.template_version_name}
+                  </Link>
+                }
+                avatar={
+                  workspace.template_icon !== "" && (
+                    <Avatar
+                      src={workspace.template_icon}
+                      variant="square"
+                      fitImage
+                    />
+                  )
+                }
               />
-            </Popover>
-          ) : (
-            <Pill>{workspace.latest_build.template_version_name}</Pill>
-          )}
+            </HelpTooltipContent>
+          </Popover>
         </TopbarData>
 
         {shouldDisplayDormantData && (
