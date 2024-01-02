@@ -113,7 +113,7 @@ in terms of excessive props drilling. To address this, we opted to fetch data in
 proximity to its usage. Taking the example of displaying users, in the past, if
 we were creating a header component for that page, we would have needed to fetch
 the data in the page component and pass it down through the hierarchy
-(`UsersPage -> UsersPageView -> UsersHeader`). Now, with advancements such as
+(`UsersPage -> UsersPageView -> UsersHeader`). Now, with libraries such as
 `react-query`, data fetching can be performed directly in the `UsersHeader`
 component, allowing UI elements to declare and consume their data-fetching
 dependencies directly, while preventing duplicate server requests
