@@ -479,7 +479,11 @@ func New(options *Options) *API {
 		}
 	}
 	api.TailnetClientService, err = tailnet.NewClientService(
-		api.Logger.Named("tailnetclient"), &api.TailnetCoordinator)
+		api.Logger.Named("tailnetclient"),
+		&api.TailnetCoordinator,
+		api.Options.DERPMapUpdateFrequency,
+		api.DERPMap,
+	)
 	if err != nil {
 		api.Logger.Fatal(api.ctx, "failed to initialize tailnet client service", slog.Error(err))
 	}
