@@ -7,7 +7,6 @@ package proto
 import (
 	context "context"
 	errors "errors"
-	proto1 "github.com/coder/coder/v2/tailnet/proto"
 	protojson "google.golang.org/protobuf/encoding/protojson"
 	proto "google.golang.org/protobuf/proto"
 	drpc "storj.io/drpc"
@@ -47,8 +46,6 @@ type DRPCAgentClient interface {
 	UpdateStartup(ctx context.Context, in *UpdateStartupRequest) (*Startup, error)
 	BatchUpdateMetadata(ctx context.Context, in *BatchUpdateMetadataRequest) (*BatchUpdateMetadataResponse, error)
 	BatchCreateLogs(ctx context.Context, in *BatchCreateLogsRequest) (*BatchCreateLogsResponse, error)
-	StreamDERPMaps(ctx context.Context, in *proto1.StreamDERPMapsRequest) (DRPCAgent_StreamDERPMapsClient, error)
-	CoordinateTailnet(ctx context.Context) (DRPCAgent_CoordinateTailnetClient, error)
 }
 
 type drpcAgentClient struct {
@@ -133,85 +130,6 @@ func (c *drpcAgentClient) BatchCreateLogs(ctx context.Context, in *BatchCreateLo
 	return out, nil
 }
 
-func (c *drpcAgentClient) StreamDERPMaps(ctx context.Context, in *proto1.StreamDERPMapsRequest) (DRPCAgent_StreamDERPMapsClient, error) {
-	stream, err := c.cc.NewStream(ctx, "/coder.agent.v2.Agent/StreamDERPMaps", drpcEncoding_File_agent_proto_agent_proto{})
-	if err != nil {
-		return nil, err
-	}
-	x := &drpcAgent_StreamDERPMapsClient{stream}
-	if err := x.MsgSend(in, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
-		return nil, err
-	}
-	if err := x.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-type DRPCAgent_StreamDERPMapsClient interface {
-	drpc.Stream
-	Recv() (*proto1.DERPMap, error)
-}
-
-type drpcAgent_StreamDERPMapsClient struct {
-	drpc.Stream
-}
-
-func (x *drpcAgent_StreamDERPMapsClient) GetStream() drpc.Stream {
-	return x.Stream
-}
-
-func (x *drpcAgent_StreamDERPMapsClient) Recv() (*proto1.DERPMap, error) {
-	m := new(proto1.DERPMap)
-	if err := x.MsgRecv(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func (x *drpcAgent_StreamDERPMapsClient) RecvMsg(m *proto1.DERPMap) error {
-	return x.MsgRecv(m, drpcEncoding_File_agent_proto_agent_proto{})
-}
-
-func (c *drpcAgentClient) CoordinateTailnet(ctx context.Context) (DRPCAgent_CoordinateTailnetClient, error) {
-	stream, err := c.cc.NewStream(ctx, "/coder.agent.v2.Agent/CoordinateTailnet", drpcEncoding_File_agent_proto_agent_proto{})
-	if err != nil {
-		return nil, err
-	}
-	x := &drpcAgent_CoordinateTailnetClient{stream}
-	return x, nil
-}
-
-type DRPCAgent_CoordinateTailnetClient interface {
-	drpc.Stream
-	Send(*proto1.CoordinateRequest) error
-	Recv() (*proto1.CoordinateResponse, error)
-}
-
-type drpcAgent_CoordinateTailnetClient struct {
-	drpc.Stream
-}
-
-func (x *drpcAgent_CoordinateTailnetClient) GetStream() drpc.Stream {
-	return x.Stream
-}
-
-func (x *drpcAgent_CoordinateTailnetClient) Send(m *proto1.CoordinateRequest) error {
-	return x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{})
-}
-
-func (x *drpcAgent_CoordinateTailnetClient) Recv() (*proto1.CoordinateResponse, error) {
-	m := new(proto1.CoordinateResponse)
-	if err := x.MsgRecv(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func (x *drpcAgent_CoordinateTailnetClient) RecvMsg(m *proto1.CoordinateResponse) error {
-	return x.MsgRecv(m, drpcEncoding_File_agent_proto_agent_proto{})
-}
-
 type DRPCAgentServer interface {
 	GetManifest(context.Context, *GetManifestRequest) (*Manifest, error)
 	GetServiceBanner(context.Context, *GetServiceBannerRequest) (*ServiceBanner, error)
@@ -221,8 +139,6 @@ type DRPCAgentServer interface {
 	UpdateStartup(context.Context, *UpdateStartupRequest) (*Startup, error)
 	BatchUpdateMetadata(context.Context, *BatchUpdateMetadataRequest) (*BatchUpdateMetadataResponse, error)
 	BatchCreateLogs(context.Context, *BatchCreateLogsRequest) (*BatchCreateLogsResponse, error)
-	StreamDERPMaps(*proto1.StreamDERPMapsRequest, DRPCAgent_StreamDERPMapsStream) error
-	CoordinateTailnet(DRPCAgent_CoordinateTailnetStream) error
 }
 
 type DRPCAgentUnimplementedServer struct{}
@@ -259,17 +175,9 @@ func (s *DRPCAgentUnimplementedServer) BatchCreateLogs(context.Context, *BatchCr
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
-func (s *DRPCAgentUnimplementedServer) StreamDERPMaps(*proto1.StreamDERPMapsRequest, DRPCAgent_StreamDERPMapsStream) error {
-	return drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
-}
-
-func (s *DRPCAgentUnimplementedServer) CoordinateTailnet(DRPCAgent_CoordinateTailnetStream) error {
-	return drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
-}
-
 type DRPCAgentDescription struct{}
 
-func (DRPCAgentDescription) NumMethods() int { return 10 }
+func (DRPCAgentDescription) NumMethods() int { return 8 }
 
 func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
@@ -345,23 +253,6 @@ func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver,
 						in1.(*BatchCreateLogsRequest),
 					)
 			}, DRPCAgentServer.BatchCreateLogs, true
-	case 8:
-		return "/coder.agent.v2.Agent/StreamDERPMaps", drpcEncoding_File_agent_proto_agent_proto{},
-			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
-				return nil, srv.(DRPCAgentServer).
-					StreamDERPMaps(
-						in1.(*proto1.StreamDERPMapsRequest),
-						&drpcAgent_StreamDERPMapsStream{in2.(drpc.Stream)},
-					)
-			}, DRPCAgentServer.StreamDERPMaps, true
-	case 9:
-		return "/coder.agent.v2.Agent/CoordinateTailnet", drpcEncoding_File_agent_proto_agent_proto{},
-			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
-				return nil, srv.(DRPCAgentServer).
-					CoordinateTailnet(
-						&drpcAgent_CoordinateTailnetStream{in1.(drpc.Stream)},
-					)
-			}, DRPCAgentServer.CoordinateTailnet, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -497,43 +388,4 @@ func (x *drpcAgent_BatchCreateLogsStream) SendAndClose(m *BatchCreateLogsRespons
 		return err
 	}
 	return x.CloseSend()
-}
-
-type DRPCAgent_StreamDERPMapsStream interface {
-	drpc.Stream
-	Send(*proto1.DERPMap) error
-}
-
-type drpcAgent_StreamDERPMapsStream struct {
-	drpc.Stream
-}
-
-func (x *drpcAgent_StreamDERPMapsStream) Send(m *proto1.DERPMap) error {
-	return x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{})
-}
-
-type DRPCAgent_CoordinateTailnetStream interface {
-	drpc.Stream
-	Send(*proto1.CoordinateResponse) error
-	Recv() (*proto1.CoordinateRequest, error)
-}
-
-type drpcAgent_CoordinateTailnetStream struct {
-	drpc.Stream
-}
-
-func (x *drpcAgent_CoordinateTailnetStream) Send(m *proto1.CoordinateResponse) error {
-	return x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{})
-}
-
-func (x *drpcAgent_CoordinateTailnetStream) Recv() (*proto1.CoordinateRequest, error) {
-	m := new(proto1.CoordinateRequest)
-	if err := x.MsgRecv(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func (x *drpcAgent_CoordinateTailnetStream) RecvMsg(m *proto1.CoordinateRequest) error {
-	return x.MsgRecv(m, drpcEncoding_File_agent_proto_agent_proto{})
 }

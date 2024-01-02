@@ -3,6 +3,7 @@ package coderd
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"net/http"
 	"runtime/pprof"
 	"sync/atomic"
@@ -22,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/tailnet"
 )
 
 // @Summary Workspace agent RPC API
@@ -127,6 +129,13 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		WorkspaceID:          build.WorkspaceID, // saves the extra lookup later
 		UpdateAgentMetricsFn: api.UpdateAgentMetrics,
 	})
+
+	streamID := tailnet.StreamID{
+		Name: fmt.Sprintf("%s-%s-%s", owner.Username, workspace.Name, workspaceAgent.Name),
+		ID:   workspaceAgent.ID,
+		Auth: tailnet.AgentTunnelAuth{},
+	}
+	ctx = tailnet.WithStreamID(ctx, streamID)
 
 	closeCtx, closeCtxCancel := context.WithCancel(ctx)
 	go func() {

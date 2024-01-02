@@ -5,7 +5,7 @@ tags: [local, docker, jfrog]
 icon: /icon/docker.png
 ---
 
-# docker
+# Docker
 
 To get started, run `coder templates init`. When prompted, select this template.
 Follow the on-screen instructions to proceed.
@@ -22,5 +22,5 @@ the dashboard UI over `localhost:13337`.
 
 # Next steps
 
-Check out our [Docker](../docker/) template for a more fully featured Docker
+Check out our [Docker](../../templates/docker/) template for a more fully featured Docker
 example.
