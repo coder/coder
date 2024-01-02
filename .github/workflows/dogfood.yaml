@@ -45,7 +45,7 @@ jobs:
       - name: Build and push
         uses: depot/build-push-action@v1
         with:
-          project: coder
+          project: b4q6ltmpzh
           token: ${{ secrets.DEPOT_TOKEN }}
           context: "{{defaultContext}}:dogfood"
           pull: true
