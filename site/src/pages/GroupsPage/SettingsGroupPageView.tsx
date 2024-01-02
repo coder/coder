@@ -28,13 +28,21 @@ const validationSchema = Yup.object({
   quota_allowance: Yup.number().required().min(0).integer(),
 });
 
-const UpdateGroupForm: FC<{
+interface UpdateGroupFormProps {
   group: Group;
   errors: unknown;
   onSubmit: (data: FormData) => void;
   onCancel: () => void;
   isLoading: boolean;
-}> = ({ group, errors, onSubmit, onCancel, isLoading }) => {
+}
+
+const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
+  group,
+  errors,
+  onSubmit,
+  onCancel,
+  isLoading,
+}) => {
   const form = useFormik<FormData>({
     initialValues: {
       name: group.name,

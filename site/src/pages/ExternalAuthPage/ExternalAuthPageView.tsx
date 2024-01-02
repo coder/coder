@@ -137,10 +137,15 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
   );
 };
 
-const GitDeviceAuth: FC<{
+interface GitDeviceAuthProps {
   externalAuthDevice?: ExternalAuthDevice;
   deviceExchangeError?: ApiErrorResponse;
-}> = ({ externalAuthDevice, deviceExchangeError }) => {
+}
+
+const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
+  externalAuthDevice,
+  deviceExchangeError,
+}) => {
   let status = (
     <p css={styles.status}>
       <CircularProgress size={16} color="secondary" data-chromatic="ignore" />
