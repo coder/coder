@@ -103,7 +103,7 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
   return (
     <Topbar>
       <Tooltip title="Back to workspaces">
-        <TopbarIconButton component={RouterLink} to="workspaces">
+        <TopbarIconButton component={RouterLink} to="/workspaces">
           <ArrowBackOutlined />
         </TopbarIconButton>
       </Tooltip>

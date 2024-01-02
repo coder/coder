@@ -7,7 +7,9 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import PersonAdd from "@mui/icons-material/PersonAdd";
+import LoadingButton from "@mui/lab/LoadingButton";
 import { type Interpolation, type Theme } from "@emotion/react";
+import { type FC, useState } from "react";
 import type {
   Group,
   TemplateACL,
@@ -15,6 +17,16 @@ import type {
   TemplateRole,
   TemplateUser,
 } from "api/typesGenerated";
+import { getGroupSubtitle } from "utils/groups";
+import { GroupAvatar } from "components/GroupAvatar/GroupAvatar";
+import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
+import {
+  MoreMenu,
+  MoreMenuContent,
+  MoreMenuItem,
+  MoreMenuTrigger,
+  ThreeDotsButton,
+} from "components/MoreMenu/MoreMenu";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
@@ -24,18 +36,6 @@ import {
   UserOrGroupAutocomplete,
   UserOrGroupAutocompleteValue,
 } from "./UserOrGroupAutocomplete";
-import { type FC, useState } from "react";
-import { GroupAvatar } from "components/GroupAvatar/GroupAvatar";
-import { getGroupSubtitle } from "utils/groups";
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
-import LoadingButton from "@mui/lab/LoadingButton";
-import {
-  MoreMenu,
-  MoreMenuContent,
-  MoreMenuItem,
-  MoreMenuTrigger,
-  ThreeDotsButton,
-} from "components/MoreMenu/MoreMenu";
 
 type AddTemplateUserOrGroupProps = {
   organizationId: string;
@@ -49,7 +49,7 @@ type AddTemplateUserOrGroupProps = {
   ) => void;
 };
 
-const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
+const AddTemplateUserOrGroup: FC<AddTemplateUserOrGroupProps> = ({
   isLoading,
   onSubmit,
   templateID,

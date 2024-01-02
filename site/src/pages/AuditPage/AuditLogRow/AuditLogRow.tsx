@@ -7,7 +7,7 @@ import { Pill, type PillType } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
-import { useState } from "react";
+import { type FC, useState } from "react";
 import userAgentParser from "ua-parser-js";
 import { AuditLogDiff } from "./AuditLogDiff/AuditLogDiff";
 import { AuditLogDescription } from "./AuditLogDescription/AuditLogDescription";
@@ -36,7 +36,7 @@ export interface AuditLogRowProps {
   defaultIsDiffOpen?: boolean;
 }
 
-export const AuditLogRow: React.FC<AuditLogRowProps> = ({
+export const AuditLogRow: FC<AuditLogRowProps> = ({
   auditLog,
   defaultIsDiffOpen = false,
 }) => {
