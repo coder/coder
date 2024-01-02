@@ -203,7 +203,7 @@ func (c *Client) HasFirstUser(ctx context.Context) (bool, error) {
 	if res.StatusCode == http.StatusNotFound {
 		// ensure we are talking to coder and not
 		// some other service that returns 404
-		v := res.Header.Get("X-Coder-Build-Version")
+		v := res.Header.Get(BuildVersionHeader)
 		if v == "" {
 			return false, xerrors.Errorf("missing build version header, not a coder instance")
 		}

@@ -78,6 +78,9 @@ const (
 
 	// ProvisionerDaemonPSK contains the authentication pre-shared key for an external provisioner daemon
 	ProvisionerDaemonPSK = "Coder-Provisioner-Daemon-PSK"
+
+	// BuildVersionHeader contains build information of Coder.
+	BuildVersionHeader = "X-Coder-Build-Version"
 )
 
 // loggableMimeTypes is a list of MIME types that are safe to log

@@ -233,6 +233,8 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		authCtx = dbauthz.AsSystemRestricted(ctx)
 	}
 
+	versionHdrVal := r.Header.Get(codersdk.BuildVersionHeader)
+
 	// Create the daemon in the database.
 	now := dbtime.Now()
 	daemon, err := api.Database.UpsertProvisionerDaemon(authCtx, database.UpsertProvisionerDaemonParams{
@@ -241,7 +243,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		Tags:         tags,
 		CreatedAt:    now,
 		LastSeenAt:   sql.NullTime{Time: now, Valid: true},
-		Version:      "", // TODO: provisionerd needs to send version
+		Version:      versionHdrVal,
 		APIVersion:   "1.0",
 	})
 	if err != nil {

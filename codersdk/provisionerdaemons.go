@@ -15,6 +15,7 @@ import (
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 
+	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionerd/runner"
@@ -212,6 +213,7 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 	}
 	headers := http.Header{}
 
+	headers.Set(BuildVersionHeader, buildinfo.Version())
 	if req.PreSharedKey == "" {
 		// use session token if we don't have a PSK.
 		jar, err := cookiejar.New(nil)
