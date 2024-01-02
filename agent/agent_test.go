@@ -174,10 +174,10 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		require.NoError(t, err)
 		err = session.Shell()
 		require.NoError(t, err)
-		var s *agentsdk.Stats
 		require.Eventuallyf(t, func() bool {
-			var ok bool
-			s, ok = <-stats
+			s, ok := <-stats
+			t.Logf("got stats: ok=%t, ConnectionCount=%d, RxBytes=%d, TxBytes=%d, SessionCountVSCode=%d, ConnectionMedianLatencyMS=%f",
+				ok, s.ConnectionCount, s.RxBytes, s.TxBytes, s.SessionCountVSCode, s.ConnectionMedianLatencyMS)
 			return ok && s.ConnectionCount > 0 && s.RxBytes > 0 && s.TxBytes > 0 &&
 				// Ensure that the connection didn't count as a "normal" SSH session.
 				// This was a special one, so it should be labeled specially in the stats!
@@ -186,7 +186,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 				// If it isn't, it's set to -1.
 				s.ConnectionMedianLatencyMS >= 0
 		}, testutil.WaitLong, testutil.IntervalFast,
-			"never saw stats: %+v", s,
+			"never saw stats",
 		)
 		// The shell will automatically exit if there is no stdin!
 		_ = stdin.Close()
@@ -240,14 +240,14 @@ func TestAgent_Stats_Magic(t *testing.T) {
 			_ = tunneledConn.Close()
 		})
 
-		var s *agentsdk.Stats
 		require.Eventuallyf(t, func() bool {
-			var ok bool
-			s, ok = <-stats
+			s, ok := <-stats
+			t.Logf("got stats with conn open: ok=%t, ConnectionCount=%d, SessionCountJetBrains=%d",
+				ok, s.ConnectionCount, s.SessionCountJetBrains)
 			return ok && s.ConnectionCount > 0 &&
 				s.SessionCountJetBrains == 1
 		}, testutil.WaitLong, testutil.IntervalFast,
-			"never saw stats with conn open: %+v", s,
+			"never saw stats with conn open",
 		)
 
 		// Kill the server and connection after checking for the echo.
@@ -256,12 +256,13 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		_ = tunneledConn.Close()
 
 		require.Eventuallyf(t, func() bool {
-			var ok bool
-			s, ok = <-stats
-			return ok && s.ConnectionCount == 0 &&
+			s, ok := <-stats
+			t.Logf("got stats after disconnect %t, %d",
+				ok, s.SessionCountJetBrains)
+			return ok &&
 				s.SessionCountJetBrains == 0
 		}, testutil.WaitLong, testutil.IntervalFast,
-			"never saw stats after conn closes: %+v", s,
+			"never saw stats after conn closes",
 		)
 	})
 }

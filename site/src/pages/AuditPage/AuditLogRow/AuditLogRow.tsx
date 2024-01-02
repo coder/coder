@@ -138,8 +138,9 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
                   <Pill
                     css={styles.httpStatusPill}
                     type={httpStatusColor(auditLog.status_code)}
-                    text={auditLog.status_code.toString()}
-                  />
+                  >
+                    {auditLog.status_code.toString()}
+                  </Pill>
                 </Stack>
               </Stack>
             </Stack>

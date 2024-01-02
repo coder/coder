@@ -35,29 +35,29 @@ func (drpcEncoding_File_tailnet_proto_tailnet_proto) JSONUnmarshal(buf []byte, m
 	return protojson.Unmarshal(buf, msg.(proto.Message))
 }
 
-type DRPCClientClient interface {
+type DRPCTailnetClient interface {
 	DRPCConn() drpc.Conn
 
-	StreamDERPMaps(ctx context.Context, in *StreamDERPMapsRequest) (DRPCClient_StreamDERPMapsClient, error)
-	CoordinateTailnet(ctx context.Context) (DRPCClient_CoordinateTailnetClient, error)
+	StreamDERPMaps(ctx context.Context, in *StreamDERPMapsRequest) (DRPCTailnet_StreamDERPMapsClient, error)
+	Coordinate(ctx context.Context) (DRPCTailnet_CoordinateClient, error)
 }
 
-type drpcClientClient struct {
+type drpcTailnetClient struct {
 	cc drpc.Conn
 }
 
-func NewDRPCClientClient(cc drpc.Conn) DRPCClientClient {
-	return &drpcClientClient{cc}
+func NewDRPCTailnetClient(cc drpc.Conn) DRPCTailnetClient {
+	return &drpcTailnetClient{cc}
 }
 
-func (c *drpcClientClient) DRPCConn() drpc.Conn { return c.cc }
+func (c *drpcTailnetClient) DRPCConn() drpc.Conn { return c.cc }
 
-func (c *drpcClientClient) StreamDERPMaps(ctx context.Context, in *StreamDERPMapsRequest) (DRPCClient_StreamDERPMapsClient, error) {
-	stream, err := c.cc.NewStream(ctx, "/coder.tailnet.v2.Client/StreamDERPMaps", drpcEncoding_File_tailnet_proto_tailnet_proto{})
+func (c *drpcTailnetClient) StreamDERPMaps(ctx context.Context, in *StreamDERPMapsRequest) (DRPCTailnet_StreamDERPMapsClient, error) {
+	stream, err := c.cc.NewStream(ctx, "/coder.tailnet.v2.Tailnet/StreamDERPMaps", drpcEncoding_File_tailnet_proto_tailnet_proto{})
 	if err != nil {
 		return nil, err
 	}
-	x := &drpcClient_StreamDERPMapsClient{stream}
+	x := &drpcTailnet_StreamDERPMapsClient{stream}
 	if err := x.MsgSend(in, drpcEncoding_File_tailnet_proto_tailnet_proto{}); err != nil {
 		return nil, err
 	}
@@ -67,20 +67,20 @@ func (c *drpcClientClient) StreamDERPMaps(ctx context.Context, in *StreamDERPMap
 	return x, nil
 }
 
-type DRPCClient_StreamDERPMapsClient interface {
+type DRPCTailnet_StreamDERPMapsClient interface {
 	drpc.Stream
 	Recv() (*DERPMap, error)
 }
 
-type drpcClient_StreamDERPMapsClient struct {
+type drpcTailnet_StreamDERPMapsClient struct {
 	drpc.Stream
 }
 
-func (x *drpcClient_StreamDERPMapsClient) GetStream() drpc.Stream {
+func (x *drpcTailnet_StreamDERPMapsClient) GetStream() drpc.Stream {
 	return x.Stream
 }
 
-func (x *drpcClient_StreamDERPMapsClient) Recv() (*DERPMap, error) {
+func (x *drpcTailnet_StreamDERPMapsClient) Recv() (*DERPMap, error) {
 	m := new(DERPMap)
 	if err := x.MsgRecv(m, drpcEncoding_File_tailnet_proto_tailnet_proto{}); err != nil {
 		return nil, err
@@ -88,38 +88,38 @@ func (x *drpcClient_StreamDERPMapsClient) Recv() (*DERPMap, error) {
 	return m, nil
 }
 
-func (x *drpcClient_StreamDERPMapsClient) RecvMsg(m *DERPMap) error {
+func (x *drpcTailnet_StreamDERPMapsClient) RecvMsg(m *DERPMap) error {
 	return x.MsgRecv(m, drpcEncoding_File_tailnet_proto_tailnet_proto{})
 }
 
-func (c *drpcClientClient) CoordinateTailnet(ctx context.Context) (DRPCClient_CoordinateTailnetClient, error) {
-	stream, err := c.cc.NewStream(ctx, "/coder.tailnet.v2.Client/CoordinateTailnet", drpcEncoding_File_tailnet_proto_tailnet_proto{})
+func (c *drpcTailnetClient) Coordinate(ctx context.Context) (DRPCTailnet_CoordinateClient, error) {
+	stream, err := c.cc.NewStream(ctx, "/coder.tailnet.v2.Tailnet/Coordinate", drpcEncoding_File_tailnet_proto_tailnet_proto{})
 	if err != nil {
 		return nil, err
 	}
-	x := &drpcClient_CoordinateTailnetClient{stream}
+	x := &drpcTailnet_CoordinateClient{stream}
 	return x, nil
 }
 
-type DRPCClient_CoordinateTailnetClient interface {
+type DRPCTailnet_CoordinateClient interface {
 	drpc.Stream
 	Send(*CoordinateRequest) error
 	Recv() (*CoordinateResponse, error)
 }
 
-type drpcClient_CoordinateTailnetClient struct {
+type drpcTailnet_CoordinateClient struct {
 	drpc.Stream
 }
 
-func (x *drpcClient_CoordinateTailnetClient) GetStream() drpc.Stream {
+func (x *drpcTailnet_CoordinateClient) GetStream() drpc.Stream {
 	return x.Stream
 }
 
-func (x *drpcClient_CoordinateTailnetClient) Send(m *CoordinateRequest) error {
+func (x *drpcTailnet_CoordinateClient) Send(m *CoordinateRequest) error {
 	return x.MsgSend(m, drpcEncoding_File_tailnet_proto_tailnet_proto{})
 }
 
-func (x *drpcClient_CoordinateTailnetClient) Recv() (*CoordinateResponse, error) {
+func (x *drpcTailnet_CoordinateClient) Recv() (*CoordinateResponse, error) {
 	m := new(CoordinateResponse)
 	if err := x.MsgRecv(m, drpcEncoding_File_tailnet_proto_tailnet_proto{}); err != nil {
 		return nil, err
@@ -127,85 +127,85 @@ func (x *drpcClient_CoordinateTailnetClient) Recv() (*CoordinateResponse, error)
 	return m, nil
 }
 
-func (x *drpcClient_CoordinateTailnetClient) RecvMsg(m *CoordinateResponse) error {
+func (x *drpcTailnet_CoordinateClient) RecvMsg(m *CoordinateResponse) error {
 	return x.MsgRecv(m, drpcEncoding_File_tailnet_proto_tailnet_proto{})
 }
 
-type DRPCClientServer interface {
-	StreamDERPMaps(*StreamDERPMapsRequest, DRPCClient_StreamDERPMapsStream) error
-	CoordinateTailnet(DRPCClient_CoordinateTailnetStream) error
+type DRPCTailnetServer interface {
+	StreamDERPMaps(*StreamDERPMapsRequest, DRPCTailnet_StreamDERPMapsStream) error
+	Coordinate(DRPCTailnet_CoordinateStream) error
 }
 
-type DRPCClientUnimplementedServer struct{}
+type DRPCTailnetUnimplementedServer struct{}
 
-func (s *DRPCClientUnimplementedServer) StreamDERPMaps(*StreamDERPMapsRequest, DRPCClient_StreamDERPMapsStream) error {
+func (s *DRPCTailnetUnimplementedServer) StreamDERPMaps(*StreamDERPMapsRequest, DRPCTailnet_StreamDERPMapsStream) error {
 	return drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
-func (s *DRPCClientUnimplementedServer) CoordinateTailnet(DRPCClient_CoordinateTailnetStream) error {
+func (s *DRPCTailnetUnimplementedServer) Coordinate(DRPCTailnet_CoordinateStream) error {
 	return drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
-type DRPCClientDescription struct{}
+type DRPCTailnetDescription struct{}
 
-func (DRPCClientDescription) NumMethods() int { return 2 }
+func (DRPCTailnetDescription) NumMethods() int { return 2 }
 
-func (DRPCClientDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
+func (DRPCTailnetDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
 	case 0:
-		return "/coder.tailnet.v2.Client/StreamDERPMaps", drpcEncoding_File_tailnet_proto_tailnet_proto{},
+		return "/coder.tailnet.v2.Tailnet/StreamDERPMaps", drpcEncoding_File_tailnet_proto_tailnet_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
-				return nil, srv.(DRPCClientServer).
+				return nil, srv.(DRPCTailnetServer).
 					StreamDERPMaps(
 						in1.(*StreamDERPMapsRequest),
-						&drpcClient_StreamDERPMapsStream{in2.(drpc.Stream)},
+						&drpcTailnet_StreamDERPMapsStream{in2.(drpc.Stream)},
 					)
-			}, DRPCClientServer.StreamDERPMaps, true
+			}, DRPCTailnetServer.StreamDERPMaps, true
 	case 1:
-		return "/coder.tailnet.v2.Client/CoordinateTailnet", drpcEncoding_File_tailnet_proto_tailnet_proto{},
+		return "/coder.tailnet.v2.Tailnet/Coordinate", drpcEncoding_File_tailnet_proto_tailnet_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
-				return nil, srv.(DRPCClientServer).
-					CoordinateTailnet(
-						&drpcClient_CoordinateTailnetStream{in1.(drpc.Stream)},
+				return nil, srv.(DRPCTailnetServer).
+					Coordinate(
+						&drpcTailnet_CoordinateStream{in1.(drpc.Stream)},
 					)
-			}, DRPCClientServer.CoordinateTailnet, true
+			}, DRPCTailnetServer.Coordinate, true
 	default:
 		return "", nil, nil, nil, false
 	}
 }
 
-func DRPCRegisterClient(mux drpc.Mux, impl DRPCClientServer) error {
-	return mux.Register(impl, DRPCClientDescription{})
+func DRPCRegisterTailnet(mux drpc.Mux, impl DRPCTailnetServer) error {
+	return mux.Register(impl, DRPCTailnetDescription{})
 }
 
-type DRPCClient_StreamDERPMapsStream interface {
+type DRPCTailnet_StreamDERPMapsStream interface {
 	drpc.Stream
 	Send(*DERPMap) error
 }
 
-type drpcClient_StreamDERPMapsStream struct {
+type drpcTailnet_StreamDERPMapsStream struct {
 	drpc.Stream
 }
 
-func (x *drpcClient_StreamDERPMapsStream) Send(m *DERPMap) error {
+func (x *drpcTailnet_StreamDERPMapsStream) Send(m *DERPMap) error {
 	return x.MsgSend(m, drpcEncoding_File_tailnet_proto_tailnet_proto{})
 }
 
-type DRPCClient_CoordinateTailnetStream interface {
+type DRPCTailnet_CoordinateStream interface {
 	drpc.Stream
 	Send(*CoordinateResponse) error
 	Recv() (*CoordinateRequest, error)
 }
 
-type drpcClient_CoordinateTailnetStream struct {
+type drpcTailnet_CoordinateStream struct {
 	drpc.Stream
 }
 
-func (x *drpcClient_CoordinateTailnetStream) Send(m *CoordinateResponse) error {
+func (x *drpcTailnet_CoordinateStream) Send(m *CoordinateResponse) error {
 	return x.MsgSend(m, drpcEncoding_File_tailnet_proto_tailnet_proto{})
 }
 
-func (x *drpcClient_CoordinateTailnetStream) Recv() (*CoordinateRequest, error) {
+func (x *drpcTailnet_CoordinateStream) Recv() (*CoordinateRequest, error) {
 	m := new(CoordinateRequest)
 	if err := x.MsgRecv(m, drpcEncoding_File_tailnet_proto_tailnet_proto{}); err != nil {
 		return nil, err
@@ -213,6 +213,6 @@ func (x *drpcClient_CoordinateTailnetStream) Recv() (*CoordinateRequest, error) 
 	return m, nil
 }
 
-func (x *drpcClient_CoordinateTailnetStream) RecvMsg(m *CoordinateRequest) error {
+func (x *drpcTailnet_CoordinateStream) RecvMsg(m *CoordinateRequest) error {
 	return x.MsgRecv(m, drpcEncoding_File_tailnet_proto_tailnet_proto{})
 }

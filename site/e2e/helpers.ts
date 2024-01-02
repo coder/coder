@@ -469,7 +469,7 @@ const createTemplateVersionTar = async (
               } as App;
             });
           }
-          return {
+          const agentResource = {
             apps: [],
             architecture: "amd64",
             connectionTimeoutSeconds: 300,
@@ -491,6 +491,23 @@ const createTemplateVersionTar = async (
             token: randomUUID(),
             ...agent,
           } as Agent;
+
+          try {
+            Agent.encode(agentResource);
+          } catch (e) {
+            let m = `Error: agentResource encode failed, missing defaults?`;
+            if (e instanceof Error) {
+              if (!e.stack?.includes(e.message)) {
+                m += `\n${e.name}: ${e.message}`;
+              }
+              m += `\n${e.stack}`;
+            } else {
+              m += `\n${e}`;
+            }
+            throw new Error(m);
+          }
+
+          return agentResource;
         },
       );
     }
