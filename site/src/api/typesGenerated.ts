@@ -1812,13 +1812,9 @@ export const Entitlements: Entitlement[] = [
 ];
 
 // From codersdk/deployment.go
-export type Experiment =
-  | "deployment_health_page"
-  | "tailnet_pg_coordinator"
-  | "workspace_actions";
+export type Experiment = "deployment_health_page" | "workspace_actions";
 export const Experiments: Experiment[] = [
   "deployment_health_page",
-  "tailnet_pg_coordinator",
   "workspace_actions",
 ];
 

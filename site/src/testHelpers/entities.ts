@@ -2048,7 +2048,7 @@ export const MockEntitlementsWithUserLimit: TypesGen.Entitlements = {
 };
 
 export const MockExperiments: TypesGen.Experiment[] = [
-  "tailnet_pg_coordinator",
+  "workspace_actions",
 ];
 
 export const MockAuditLog: TypesGen.AuditLog = {
