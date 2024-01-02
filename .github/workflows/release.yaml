@@ -103,7 +103,7 @@ jobs:
       - name: Install nfpm
         run: |
           set -euo pipefail
-          wget -O /tmp/nfpm.deb https://github.com/goreleaser/nfpm/releases/download/v2.18.1/nfpm_amd64.deb
+          wget -O /tmp/nfpm.deb https://github.com/goreleaser/nfpm/releases/download/v2.35.1/nfpm_2.35.1_amd64.deb
           sudo dpkg -i /tmp/nfpm.deb
           rm /tmp/nfpm.deb
 

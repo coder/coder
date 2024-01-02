@@ -5,85 +5,6 @@ version: "2"
 cloud:
   # This is the static ID for the coder project.
   project: "01HEP08N3WKWRFZT3ZZ9Q37J8X"
-# Ideally renames & overrides would go under the sql section, but there is a
-# bug in sqlc that only global renames & overrides are currently being applied.
-overrides:
-  go:
-    overrides:
-      - column: "provisioner_daemons.tags"
-        go_type:
-          type: "StringMap"
-      - column: "provisioner_jobs.tags"
-        go_type:
-          type: "StringMap"
-      - column: "users.rbac_roles"
-        go_type: "github.com/lib/pq.StringArray"
-      - column: "templates.user_acl"
-        go_type:
-          type: "TemplateACL"
-      - column: "templates.group_acl"
-        go_type:
-          type: "TemplateACL"
-      - column: "template_with_users.user_acl"
-        go_type:
-          type: "TemplateACL"
-      - column: "template_with_users.group_acl"
-        go_type:
-          type: "TemplateACL"
-    rename:
-      template: TemplateTable
-      template_with_user: Template
-      workspace_build: WorkspaceBuildTable
-      workspace_build_with_user: WorkspaceBuild
-      template_version: TemplateVersionTable
-      template_version_with_user: TemplateVersion
-      api_key: APIKey
-      api_key_scope: APIKeyScope
-      api_key_scope_all: APIKeyScopeAll
-      api_key_scope_application_connect: APIKeyScopeApplicationConnect
-      api_version: APIVersion
-      avatar_url: AvatarURL
-      created_by_avatar_url: CreatedByAvatarURL
-      dbcrypt_key: DBCryptKey
-      session_count_vscode: SessionCountVSCode
-      session_count_jetbrains: SessionCountJetBrains
-      session_count_reconnecting_pty: SessionCountReconnectingPTY
-      session_count_ssh: SessionCountSSH
-      connection_median_latency_ms: ConnectionMedianLatencyMS
-      login_type_oidc: LoginTypeOIDC
-      oauth_access_token: OAuthAccessToken
-      oauth_access_token_key_id: OAuthAccessTokenKeyID
-      oauth_expiry: OAuthExpiry
-      oauth_id_token: OAuthIDToken
-      oauth_refresh_token: OAuthRefreshToken
-      oauth_refresh_token_key_id: OAuthRefreshTokenKeyID
-      oauth_extra: OAuthExtra
-      parameter_type_system_hcl: ParameterTypeSystemHCL
-      userstatus: UserStatus
-      gitsshkey: GitSSHKey
-      rbac_roles: RBACRoles
-      ip_address: IPAddress
-      ip_addresses: IPAddresses
-      ids: IDs
-      jwt: JWT
-      user_acl: UserACL
-      group_acl: GroupACL
-      troubleshooting_url: TroubleshootingURL
-      default_ttl: DefaultTTL
-      max_ttl: MaxTTL
-      template_max_ttl: TemplateMaxTTL
-      motd_file: MOTDFile
-      uuid: UUID
-      failure_ttl: FailureTTL
-      time_til_dormant_autodelete: TimeTilDormantAutoDelete
-      eof: EOF
-      template_ids: TemplateIDs
-      active_user_ids: ActiveUserIDs
-      display_app_ssh_helper: DisplayAppSSHHelper
-      oauth2_provider_app: OAuth2ProviderApp
-      oauth2_provider_app_secret: OAuth2ProviderAppSecret
-      callback_url: CallbackURL
-
 sql:
   - schema: "./dump.sql"
     queries: "./queries"
@@ -105,3 +26,77 @@ sql:
         emit_db_tags: true
         emit_enum_valid_method: true
         emit_all_enum_values: true
+        overrides:
+          - column: "provisioner_daemons.tags"
+            go_type:
+              type: "StringMap"
+          - column: "provisioner_jobs.tags"
+            go_type:
+              type: "StringMap"
+          - column: "users.rbac_roles"
+            go_type: "github.com/lib/pq.StringArray"
+          - column: "templates.user_acl"
+            go_type:
+              type: "TemplateACL"
+          - column: "templates.group_acl"
+            go_type:
+              type: "TemplateACL"
+          - column: "template_with_users.user_acl"
+            go_type:
+              type: "TemplateACL"
+          - column: "template_with_users.group_acl"
+            go_type:
+              type: "TemplateACL"
+        rename:
+          template: TemplateTable
+          template_with_user: Template
+          workspace_build: WorkspaceBuildTable
+          workspace_build_with_user: WorkspaceBuild
+          template_version: TemplateVersionTable
+          template_version_with_user: TemplateVersion
+          api_key: APIKey
+          api_key_scope: APIKeyScope
+          api_key_scope_all: APIKeyScopeAll
+          api_key_scope_application_connect: APIKeyScopeApplicationConnect
+          api_version: APIVersion
+          avatar_url: AvatarURL
+          created_by_avatar_url: CreatedByAvatarURL
+          dbcrypt_key: DBCryptKey
+          session_count_vscode: SessionCountVSCode
+          session_count_jetbrains: SessionCountJetBrains
+          session_count_reconnecting_pty: SessionCountReconnectingPTY
+          session_count_ssh: SessionCountSSH
+          connection_median_latency_ms: ConnectionMedianLatencyMS
+          login_type_oidc: LoginTypeOIDC
+          oauth_access_token: OAuthAccessToken
+          oauth_access_token_key_id: OAuthAccessTokenKeyID
+          oauth_expiry: OAuthExpiry
+          oauth_id_token: OAuthIDToken
+          oauth_refresh_token: OAuthRefreshToken
+          oauth_refresh_token_key_id: OAuthRefreshTokenKeyID
+          oauth_extra: OAuthExtra
+          parameter_type_system_hcl: ParameterTypeSystemHCL
+          userstatus: UserStatus
+          gitsshkey: GitSSHKey
+          rbac_roles: RBACRoles
+          ip_address: IPAddress
+          ip_addresses: IPAddresses
+          ids: IDs
+          jwt: JWT
+          user_acl: UserACL
+          group_acl: GroupACL
+          troubleshooting_url: TroubleshootingURL
+          default_ttl: DefaultTTL
+          max_ttl: MaxTTL
+          template_max_ttl: TemplateMaxTTL
+          motd_file: MOTDFile
+          uuid: UUID
+          failure_ttl: FailureTTL
+          time_til_dormant_autodelete: TimeTilDormantAutoDelete
+          eof: EOF
+          template_ids: TemplateIDs
+          active_user_ids: ActiveUserIDs
+          display_app_ssh_helper: DisplayAppSSHHelper
+          oauth2_provider_app: OAuth2ProviderApp
+          oauth2_provider_app_secret: OAuth2ProviderAppSecret
+          callback_url: CallbackURL
