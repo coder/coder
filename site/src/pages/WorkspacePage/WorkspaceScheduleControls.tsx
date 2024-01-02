@@ -74,7 +74,7 @@ export const WorkspaceScheduleControls: FC<WorkspaceScheduleControlsProps> = ({
         <AutoStopDisplay workspace={workspace} />
       ) : (
         <ScheduleSettingsLink>
-          {autostartDisplay(workspace.autostart_schedule)}
+          Starts at {autostartDisplay(workspace.autostart_schedule)}
         </ScheduleSettingsLink>
       )}
 
@@ -251,7 +251,7 @@ const AutoStopDisplay: FC<AutoStopDisplayProps> = ({ workspace }) => {
               : undefined,
           })}
         >
-          {display.message}
+          Stop {display.message}
         </ScheduleSettingsLink>
       </Tooltip>
     );
@@ -268,6 +268,7 @@ const ScheduleSettingsLink = forwardRef<HTMLAnchorElement, LinkProps>(
         component={RouterLink}
         to="settings/schedule"
         css={{
+          color: "inherit",
           "&:first-letter": {
             textTransform: "uppercase",
           },
@@ -308,10 +309,6 @@ const isShutdownSoon = (workspace: Workspace): boolean => {
   const diff = deadlineDate.getTime() - now.getTime();
   const oneHour = 1000 * 60 * 60;
   return diff < oneHour;
-};
-
-export const scheduleLabel = (workspace: Workspace) => {
-  return isWorkspaceOn(workspace) ? "Stops" : "Starts at";
 };
 
 const classNames = {

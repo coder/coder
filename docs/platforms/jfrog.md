@@ -25,7 +25,7 @@ developers or stored in workspaces.
 </blockquote>
 
 <blockquote class="info">
-You can skip the whole page and use [JFrog module](https://registry.coder.com/modules/jfrog) for easy JFrog Artifactory integration.
+You can skip the whole page and use [JFrog module](https://registry.coder.com/modules/jfrog-token) for easy JFrog Artifactory integration.
 </blockquote>
 
 ## Provisioner Authentication
@@ -41,40 +41,48 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.11.1"
     }
     docker = {
       source  = "kreuzwerker/docker"
-      version = "~> 3.0.1"
     }
     artifactory = {
       source  = "registry.terraform.io/jfrog/artifactory"
-      version = "~> 8.4.0"
     }
   }
 }
 
-variable "jfrog_host" {
+variable "jfrog_url" {
   type        = string
-  description = "JFrog instance hostname. e.g. YYY.jfrog.io"
+  description = "JFrog instance URL. e.g. https://jfrog.example.com"
+  # validate the URL to ensure it starts with https:// or http://
+  validation {
+    condition     = can(regex("^https?://", var.jfrog_url))
+    error_message = "JFrog URL must start with https:// or http://"
+  }
 }
 
-variable "artifactory_access_token" {
+variable "artifactory_admin_access_token" {
   type        = string
-  description = "The admin-level access token to use for JFrog."
+  description = "The admin-level access token to use for JFrog with scope applied-permissions/admin"
 }
 
 # Configure the Artifactory provider
 provider "artifactory" {
-  url           = "https://${var.jfrog_host}/artifactory"
-  access_token  = "${var.artifactory_access_token}"
+  url           = "${var.jfrog_url}/artifactory"
+  access_token  = "${var.artifactory_admin_access_token}"
+}
+
+resource "artifactory_scoped_token" "me" {
+  # This is hacky, but on terraform plan the data source gives empty strings,
+  # which fails validation.
+  username = length(local.artifactory_username) > 0 ? local.artifactory_username : "plan"
 }
 ```
 
 When pushing the template, you can pass in the variables using the `--var` flag:
 
 ```shell
-coder templates push --var 'jfrog_host=YYY.jfrog.io' --var 'artifactory_access_token=XXX'
+coder templates push --var 'jfrog_url=https://YYY.jfrog.io' --var 'artifactory_admin_access_token=XXX'
 ```
 
 ## Installing JFrog CLI
@@ -112,6 +120,10 @@ locals {
     python = "pypi"
     go     = "go"
   }
+  # Make sure to use the same field as the username field in the Artifactory
+  # It can be either the username or the email address.
+  artifactory_username = data.coder_workspace.me.owner_email
+  jfrog_host = replace(var.jfrog_url, "^https://", "")
 }
 ```
 
@@ -127,7 +139,7 @@ resource "coder_agent" "main" {
     set -e
 
     # install and start code-server
-    curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.11.0
+    curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server
     /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
 
     # The jf CLI checks $CI when determining whether to use interactive
@@ -136,12 +148,12 @@ resource "coder_agent" "main" {
 
     jf c rm 0 || true
     echo ${artifactory_scoped_token.me.access_token} | \
-      jf c add --access-token-stdin --url https://${var.jfrog_host} 0
+      jf c add --access-token-stdin --url ${var.jfrog_url} 0
 
     # Configure the `npm` CLI to use the Artifactory "npm" repository.
     cat << EOF > ~/.npmrc
     email = ${data.coder_workspace.me.owner_email}
-    registry = https://${var.jfrog_host}/artifactory/api/npm/${local.artifactory_repository_keys["npm"]}
+    registry = ${var.jfrog_url}/artifactory/api/npm/${local.artifactory_repository_keys["npm"]}
     EOF
     jf rt curl /api/npm/auth >> .npmrc
 
@@ -149,13 +161,13 @@ resource "coder_agent" "main" {
     mkdir -p ~/.pip
     cat << EOF > ~/.pip/pip.conf
     [global]
-    index-url = https://${local.artifactory_username}:${artifactory_scoped_token.me.access_token}@${var.jfrog_host}/artifactory/api/pypi/${local.artifactory_repository_keys["python"]}/simple
+    index-url = https://${local.artifactory_username}:${artifactory_scoped_token.me.access_token}@${local.jfrog_host}/artifactory/api/pypi/${local.artifactory_repository_keys["python"]}/simple
     EOF
 
   EOT
   # Set GOPROXY to use the Artifactory "go" repository.
   env = {
-    GOPROXY : "https://${local.artifactory_username}:${artifactory_scoped_token.me.access_token}@${var.jfrog_host}/artifactory/api/go/${local.artifactory_repository_keys["go"]}"
+    GOPROXY : "https://${local.artifactory_username}:${artifactory_scoped_token.me.access_token}@${local..jfrog_host}/artifactory/api/go/${local.artifactory_repository_keys["go"]}"
   }
 }
 ```
@@ -186,9 +198,7 @@ following lines into your `startup_script`:
 # Install the JFrog VS Code extension.
 # Find the latest version number at
 # https://open-vsx.org/extension/JFrog/jfrog-vscode-extension.
-JFROG_EXT_VERSION=2.4.1
-curl -o /tmp/jfrog.vsix -L "https://open-vsx.org/api/JFrog/jfrog-vscode-extension/$JFROG_EXT_VERSION/file/JFrog.jfrog-vscode-extension-$JFROG_EXT_VERSION.vsix"
-/tmp/code-server/bin/code-server --install-extension /tmp/jfrog.vsix
+/tmp/code-server/bin/code-server --install-extension jfrog.jfrog-vscode-extension
 ```
 
 Note that this method will only work if your developers use code-server.
@@ -202,7 +212,7 @@ Artifactory:
     # Configure the `npm` CLI to use the Artifactory "npm" registry.
     cat << EOF > ~/.npmrc
     email = ${data.coder_workspace.me.owner_email}
-    registry = https://${var.jfrog_host}/artifactory/api/npm/npm/
+    registry = ${var.jfrog_url}/artifactory/api/npm/npm/
     EOF
     jf rt curl /api/npm/auth >> .npmrc
 ```
@@ -221,7 +231,7 @@ Artifactory:
     mkdir -p ~/.pip
     cat << EOF > ~/.pip/pip.conf
     [global]
-    index-url = https://${data.coder_workspace.me.owner}:${artifactory_scoped_token.me.access_token}@${var.jfrog_host}/artifactory/api/pypi/pypi/simple
+    index-url = https://${data.coder_workspace.me.owner}:${artifactory_scoped_token.me.access_token}@${local.jfrog_host}/artifactory/api/pypi/pypi/simple
     EOF
 ```
 
@@ -237,7 +247,7 @@ Add the following environment variable to your `coder_agent` block to configure
 
 ```hcl
   env = {
-    GOPROXY : "https://${data.coder_workspace.me.owner}:${artifactory_scoped_token.me.access_token}@${var.jfrog_host}/artifactory/api/go/go"
+    GOPROXY : "https://${data.coder_workspace.me.owner}:${artifactory_scoped_token.me.access_token}@${local.jfrog_host}/artifactory/api/go/go"
   }
 ```
 

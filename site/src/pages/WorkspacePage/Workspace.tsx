@@ -9,25 +9,17 @@ import { Alert, AlertDetail } from "components/Alert/Alert";
 import { Margins } from "components/Margins/Margins";
 import { Resources } from "components/Resources/Resources";
 import { Stack } from "components/Stack/Stack";
-import {
-  FullWidthPageHeader,
-  PageHeaderActions,
-  PageHeaderTitle,
-  PageHeaderSubtitle,
-} from "components/PageHeader/FullWidthPageHeader";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { DormantWorkspaceBanner } from "components/WorkspaceDeletion";
-import { Avatar } from "components/Avatar/Avatar";
 import { AgentRow } from "components/Resources/AgentRow";
 import { useLocalStorage } from "hooks";
-import { WorkspaceActions } from "pages/WorkspacePage/WorkspaceActions/WorkspaceActions";
 import {
   ActiveTransition,
   WorkspaceBuildProgress,
 } from "./WorkspaceBuildProgress";
 import { BuildsTable } from "./BuildsTable";
 import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
-import { WorkspaceStats } from "./WorkspaceStats";
+import { WorkspaceTopbar } from "./WorkspaceTopbar/WorkspaceTopbar";
 
 export type WorkspaceError =
   | "getBuildsError"
@@ -59,7 +51,6 @@ export interface WorkspaceProps {
   buildInfo?: TypesGen.BuildInfoResponse;
   sshPrefix?: string;
   template?: TypesGen.Template;
-  quotaBudget?: number;
   canRetryDebugMode: boolean;
   handleBuildRetry: () => void;
   handleBuildRetryDebug: () => void;
@@ -159,51 +150,25 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 
   return (
     <>
-      <FullWidthPageHeader>
-        <Stack direction="row" spacing={3} alignItems="center">
-          <Avatar
-            size="md"
-            src={workspace.template_icon}
-            variant={workspace.template_icon ? "square" : undefined}
-            fitImage={Boolean(workspace.template_icon)}
-          >
-            {workspace.name}
-          </Avatar>
-          <div>
-            <PageHeaderTitle>{workspace.name}</PageHeaderTitle>
-            <PageHeaderSubtitle>{workspace.owner_name}</PageHeaderSubtitle>
-          </div>
-        </Stack>
-
-        <WorkspaceStats
-          workspace={workspace}
-          handleUpdate={handleUpdate}
-          canUpdateWorkspace={canUpdateWorkspace}
-        />
-
-        {canUpdateWorkspace && (
-          <PageHeaderActions>
-            <WorkspaceActions
-              workspace={workspace}
-              handleStart={handleStart}
-              handleStop={handleStop}
-              handleRestart={handleRestart}
-              handleDelete={handleDelete}
-              handleUpdate={handleUpdate}
-              handleCancel={handleCancel}
-              handleSettings={handleSettings}
-              handleRetry={handleBuildRetry}
-              handleRetryDebug={handleBuildRetryDebug}
-              handleChangeVersion={handleChangeVersion}
-              handleDormantActivate={handleDormantActivate}
-              canRetryDebug={canRetryDebugMode}
-              canChangeVersions={canChangeVersions}
-              isUpdating={isUpdating}
-              isRestarting={isRestarting}
-            />
-          </PageHeaderActions>
-        )}
-      </FullWidthPageHeader>
+      <WorkspaceTopbar
+        workspace={workspace}
+        handleStart={handleStart}
+        handleStop={handleStop}
+        handleRestart={handleRestart}
+        handleDelete={handleDelete}
+        handleUpdate={handleUpdate}
+        handleCancel={handleCancel}
+        handleSettings={handleSettings}
+        handleBuildRetry={handleBuildRetry}
+        handleBuildRetryDebug={handleBuildRetryDebug}
+        handleChangeVersion={handleChangeVersion}
+        handleDormantActivate={handleDormantActivate}
+        canRetryDebugMode={canRetryDebugMode}
+        canChangeVersions={canChangeVersions}
+        isUpdating={isUpdating}
+        isRestarting={isRestarting}
+        canUpdateWorkspace={canUpdateWorkspace}
+      />
 
       <Margins css={styles.content}>
         <Stack direction="column" css={styles.firstColumnSpacer} spacing={4}>

@@ -47,13 +47,27 @@ export const WorkspaceStatusBadge: FC<WorkspaceStatusBadgeProps> = ({
           }
           placement="top"
         >
-          <div>
-            <Pill className={className} icon={icon} text={text} type={type} />
-          </div>
+          <Pill
+            role="status"
+            data-testid="build-status"
+            className={className}
+            icon={icon}
+            type={type}
+          >
+            {text}
+          </Pill>
         </FailureTooltip>
       </Cond>
       <Cond>
-        <Pill className={className} icon={icon} text={text} type={type} />
+        <Pill
+          role="status"
+          data-testid="build-status"
+          className={className}
+          icon={icon}
+          type={type}
+        >
+          {text}
+        </Pill>
       </Cond>
     </ChooseOne>
   );
@@ -95,11 +109,13 @@ export const DormantStatusBadge: FC<DormantStatusBadgeProps> = ({
       }
     >
       <Pill
+        role="status"
         className={className}
         icon={<AutoDeleteIcon />}
-        text="Deletion Pending"
         type="error"
-      />
+      >
+        Deletion Pending
+      </Pill>
     </Tooltip>
   ) : (
     <Tooltip
@@ -113,11 +129,13 @@ export const DormantStatusBadge: FC<DormantStatusBadgeProps> = ({
       }
     >
       <Pill
+        role="status"
         className={className}
         icon={<RecyclingIcon />}
-        text="Dormant"
         type="warning"
-      />
+      >
+        Dormant
+      </Pill>
     </Tooltip>
   );
 };

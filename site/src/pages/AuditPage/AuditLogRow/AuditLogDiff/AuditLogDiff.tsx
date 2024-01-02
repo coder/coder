@@ -1,6 +1,6 @@
 import { type Interpolation, type Theme } from "@emotion/react";
 import { type FC } from "react";
-import type { AuditLog } from "api/typesGenerated";
+import type { AuditDiff } from "api/typesGenerated";
 import colors from "theme/tailwindColors";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 
@@ -21,7 +21,11 @@ const getDiffValue = (value: unknown): string => {
   return String(value);
 };
 
-export const AuditLogDiff: FC<{ diff: AuditLog["diff"] }> = ({ diff }) => {
+interface AuditLogDiffProps {
+  diff: AuditDiff;
+}
+
+export const AuditLogDiff: FC<AuditLogDiffProps> = ({ diff }) => {
   const diffEntries = Object.entries(diff);
 
   return (

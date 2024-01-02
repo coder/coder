@@ -86,7 +86,9 @@ export const LicenseCard = ({
               new Date(license.claims.license_expires * 1000),
               new Date(),
             ) < 1 ? (
-              <Pill css={styles.expiredBadge} text="Expired" type="error" />
+              <Pill css={styles.expiredBadge} type="error">
+                Expired
+              </Pill>
             ) : (
               <span css={styles.secondaryMaincolor}>Valid Until</span>
             )}

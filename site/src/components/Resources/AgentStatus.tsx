@@ -1,15 +1,16 @@
 import { type Interpolation, type Theme } from "@emotion/react";
 import Tooltip from "@mui/material/Tooltip";
-import { WorkspaceAgent } from "api/typesGenerated";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import WarningRounded from "@mui/icons-material/WarningRounded";
+import Link from "@mui/material/Link";
+import { type FC } from "react";
+import type { WorkspaceAgent } from "api/typesGenerated";
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import {
   HelpTooltip,
   HelpTooltipContent,
   HelpTooltipText,
   HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
-import Link from "@mui/material/Link";
 import { PopoverTrigger } from "components/Popover/Popover";
 
 // If we think in the agent status and lifecycle into a single enum/state I’d
@@ -18,7 +19,7 @@ import { PopoverTrigger } from "components/Popover/Popover";
 // connected:ready, connected:shutting_down, connected:shutdown_timeout,
 // connected:shutdown_error, connected:off.
 
-const ReadyLifecycle = () => {
+const ReadyLifecycle: FC = () => {
   return (
     <div
       role="status"
@@ -29,7 +30,7 @@ const ReadyLifecycle = () => {
   );
 };
 
-const StartingLifecycle: React.FC = () => {
+const StartingLifecycle: FC = () => {
   return (
     <Tooltip title="Starting...">
       <div
@@ -41,9 +42,11 @@ const StartingLifecycle: React.FC = () => {
   );
 };
 
-const StartTimeoutLifecycle: React.FC<{
+interface AgentStatusProps {
   agent: WorkspaceAgent;
-}> = ({ agent }) => {
+}
+
+const StartTimeoutLifecycle: FC<AgentStatusProps> = ({ agent }) => {
   return (
     <HelpTooltip>
       <PopoverTrigger role="status" aria-label="Agent timeout">
@@ -68,9 +71,7 @@ const StartTimeoutLifecycle: React.FC<{
   );
 };
 
-const StartErrorLifecycle: React.FC<{
-  agent: WorkspaceAgent;
-}> = ({ agent }) => {
+const StartErrorLifecycle: FC<AgentStatusProps> = ({ agent }) => {
   return (
     <HelpTooltip>
       <PopoverTrigger role="status" aria-label="Start error">
@@ -94,7 +95,7 @@ const StartErrorLifecycle: React.FC<{
   );
 };
 
-const ShuttingDownLifecycle: React.FC = () => {
+const ShuttingDownLifecycle: FC = () => {
   return (
     <Tooltip title="Stopping...">
       <div
@@ -106,9 +107,7 @@ const ShuttingDownLifecycle: React.FC = () => {
   );
 };
 
-const ShutdownTimeoutLifecycle: React.FC<{
-  agent: WorkspaceAgent;
-}> = ({ agent }) => {
+const ShutdownTimeoutLifecycle: FC<AgentStatusProps> = ({ agent }) => {
   return (
     <HelpTooltip>
       <PopoverTrigger role="status" aria-label="Stop timeout">
@@ -132,9 +131,7 @@ const ShutdownTimeoutLifecycle: React.FC<{
   );
 };
 
-const ShutdownErrorLifecycle: React.FC<{
-  agent: WorkspaceAgent;
-}> = ({ agent }) => {
+const ShutdownErrorLifecycle: FC<AgentStatusProps> = ({ agent }) => {
   return (
     <HelpTooltip>
       <PopoverTrigger role="status" aria-label="Stop error">
@@ -158,7 +155,7 @@ const ShutdownErrorLifecycle: React.FC<{
   );
 };
 
-const OffLifecycle: React.FC = () => {
+const OffLifecycle: FC = () => {
   return (
     <Tooltip title="Stopped">
       <div
@@ -170,9 +167,7 @@ const OffLifecycle: React.FC = () => {
   );
 };
 
-const ConnectedStatus: React.FC<{
-  agent: WorkspaceAgent;
-}> = ({ agent }) => {
+const ConnectedStatus: FC<AgentStatusProps> = ({ agent }) => {
   // This is to support legacy agents that do not support
   // reporting the lifecycle_state field.
   if (agent.scripts.length === 0) {
@@ -208,7 +203,7 @@ const ConnectedStatus: React.FC<{
   );
 };
 
-const DisconnectedStatus: React.FC = () => {
+const DisconnectedStatus: FC = () => {
   return (
     <Tooltip title="Disconnected">
       <div
@@ -220,7 +215,7 @@ const DisconnectedStatus: React.FC = () => {
   );
 };
 
-const ConnectingStatus: React.FC = () => {
+const ConnectingStatus: FC = () => {
   return (
     <Tooltip title="Connecting...">
       <div
@@ -232,9 +227,7 @@ const ConnectingStatus: React.FC = () => {
   );
 };
 
-const TimeoutStatus: React.FC<{
-  agent: WorkspaceAgent;
-}> = ({ agent }) => {
+const TimeoutStatus: FC<AgentStatusProps> = ({ agent }) => {
   return (
     <HelpTooltip>
       <PopoverTrigger role="status" aria-label="Timeout">
@@ -258,9 +251,7 @@ const TimeoutStatus: React.FC<{
   );
 };
 
-export const AgentStatus: React.FC<{
-  agent: WorkspaceAgent;
-}> = ({ agent }) => {
+export const AgentStatus: FC<AgentStatusProps> = ({ agent }) => {
   return (
     <ChooseOne>
       <Cond condition={agent.status === "connected"}>

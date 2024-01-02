@@ -3,12 +3,19 @@ import type { WorkspaceAgent } from "api/typesGenerated";
 import { agentVersionStatus, getDisplayVersionStatus } from "utils/workspace";
 import { AgentOutdatedTooltip } from "./AgentOutdatedTooltip";
 
-export const AgentVersion: FC<{
+interface AgentVersionProps {
   agent: WorkspaceAgent;
   serverVersion: string;
   serverAPIVersion: string;
   onUpdate: () => void;
-}> = ({ agent, serverVersion, serverAPIVersion, onUpdate }) => {
+}
+
+export const AgentVersion: FC<AgentVersionProps> = ({
+  agent,
+  serverVersion,
+  serverAPIVersion,
+  onUpdate,
+}) => {
   const { status } = getDisplayVersionStatus(
     agent.version,
     serverVersion,

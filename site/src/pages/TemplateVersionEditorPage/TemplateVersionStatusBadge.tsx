@@ -5,17 +5,18 @@ import ErrorIcon from "@mui/icons-material/ErrorOutline";
 import CheckIcon from "@mui/icons-material/CheckOutlined";
 import { Pill, type PillType } from "components/Pill/Pill";
 
-export const TemplateVersionStatusBadge: FC<{
+interface TemplateVersionStatusBadgeProps {
   version: TemplateVersion;
-}> = ({ version }) => {
+}
+
+export const TemplateVersionStatusBadge: FC<
+  TemplateVersionStatusBadgeProps
+> = ({ version }) => {
   const { text, icon, type } = getStatus(version);
   return (
-    <Pill
-      icon={icon}
-      text={text}
-      type={type}
-      title={`Build status is ${text}`}
-    />
+    <Pill icon={icon} type={type} title={`Build status is ${text}`}>
+      {text}
+    </Pill>
   );
 };
 
