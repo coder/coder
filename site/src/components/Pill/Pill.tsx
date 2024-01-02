@@ -7,6 +7,9 @@ import {
 } from "react";
 import { useTheme, type Interpolation, type Theme } from "@emotion/react";
 import type { ThemeRole } from "theme/experimental";
+import CircularProgress, {
+  CircularProgressProps,
+} from "@mui/material/CircularProgress";
 
 export type PillType = ThemeRole | keyof typeof themeOverrides;
 
@@ -81,3 +84,19 @@ export const Pill: FC<PillProps> = forwardRef<HTMLDivElement, PillProps>(
     );
   },
 );
+
+export const PillSpinner = (props: CircularProgressProps) => {
+  return (
+    <CircularProgress
+      size={PILL_ICON_SIZE}
+      css={(theme) => ({
+        color: theme.experimental.l1.text,
+        // It is necessary to align it with the MUI Icons internal padding
+        "& svg": {
+          transform: "scale(.75)",
+        },
+      })}
+      {...props}
+    />
+  );
+};

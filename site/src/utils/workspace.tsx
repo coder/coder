@@ -1,4 +1,3 @@
-import CircularProgress from "@mui/material/CircularProgress";
 import ErrorIcon from "@mui/icons-material/ErrorOutline";
 import StopIcon from "@mui/icons-material/StopOutlined";
 import PlayIcon from "@mui/icons-material/PlayArrowOutlined";
@@ -8,9 +7,9 @@ import duration from "dayjs/plugin/duration";
 import minMax from "dayjs/plugin/minMax";
 import utc from "dayjs/plugin/utc";
 import { type Theme } from "@emotion/react";
-import { type FC } from "react";
 import semver from "semver";
 import type * as TypesGen from "api/typesGenerated";
+import { PillSpinner } from "components/Pill/Pill";
 
 dayjs.extend(duration);
 dayjs.extend(utc);
@@ -27,15 +26,6 @@ const DisplayWorkspaceBuildStatusLanguage = {
 
 const DisplayAgentVersionLanguage = {
   unknown: "Unknown",
-};
-
-const LoadingIcon: FC = () => {
-  return (
-    <CircularProgress
-      size={10}
-      css={(theme) => ({ color: theme.experimental.l1.text })}
-    />
-  );
 };
 
 export const getDisplayWorkspaceBuildStatus = (
@@ -185,7 +175,7 @@ export const getDisplayWorkspaceStatus = (
     case undefined:
       return {
         text: "Loading",
-        icon: <LoadingIcon />,
+        icon: <PillSpinner />,
       } as const;
     case "running":
       return {
@@ -197,13 +187,13 @@ export const getDisplayWorkspaceStatus = (
       return {
         type: "active",
         text: "Starting",
-        icon: <LoadingIcon />,
+        icon: <PillSpinner />,
       } as const;
     case "stopping":
       return {
         type: "notice",
         text: "Stopping",
-        icon: <LoadingIcon />,
+        icon: <PillSpinner />,
       } as const;
     case "stopped":
       return {
@@ -215,7 +205,7 @@ export const getDisplayWorkspaceStatus = (
       return {
         type: "danger",
         text: "Deleting",
-        icon: <LoadingIcon />,
+        icon: <PillSpinner />,
       } as const;
     case "deleted":
       return {
@@ -227,7 +217,7 @@ export const getDisplayWorkspaceStatus = (
       return {
         type: "notice",
         text: "Canceling",
-        icon: <LoadingIcon />,
+        icon: <PillSpinner />,
       } as const;
     case "canceled":
       return {
