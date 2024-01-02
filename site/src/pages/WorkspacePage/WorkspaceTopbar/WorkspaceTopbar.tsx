@@ -146,12 +146,11 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
                         }}
                       />
                     }
-                    text={
-                      <span css={{ color: theme.palette.warning.light }}>
-                        {workspace.latest_build.template_version_name}
-                      </span>
-                    }
-                  />
+                  >
+                    <span css={{ color: theme.palette.warning.light }}>
+                      {workspace.latest_build.template_version_name}
+                    </span>
+                  </Pill>
                 </div>
               </PopoverTrigger>
               <WorkspaceOutdatedTooltipContent
@@ -162,7 +161,7 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
               />
             </Popover>
           ) : (
-            <Pill text={workspace.latest_build.template_version_name} />
+            <Pill>{workspace.latest_build.template_version_name}</Pill>
           )}
         </TopbarData>
 
