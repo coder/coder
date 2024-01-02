@@ -19,7 +19,7 @@ import {
 } from "./WorkspaceBuildProgress";
 import { BuildsTable } from "./BuildsTable";
 import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
-import { WorkspaceTopbar } from "./WorkspaceTopbar/WorkspaceTopbar";
+import { WorkspaceTopbar } from "./WorkspaceTopbar";
 
 export type WorkspaceError =
   | "getBuildsError"
