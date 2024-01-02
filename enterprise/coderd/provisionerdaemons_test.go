@@ -57,9 +57,9 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		daemons, err := client.ProvisionerDaemons(ctx) //nolint:gocritic // Test assertion.
 		require.NoError(t, err)
 		if assert.Len(t, daemons, 1) {
-			assert.Equal(t, daemons[0].Name, daemonName)
-			assert.Equal(t, daemons[0].Version, buildinfo.Version())
-			assert.Equal(t, daemons[0].APIVersion, "1.0")
+			assert.Equal(t, daemonName, daemons[0].Name)
+			assert.Equal(t, buildinfo.Version(), daemons[0].Version)
+			assert.Equal(t, provisionersdk.APIVersionCurrent, daemons[0].APIVersion)
 		}
 	})
 

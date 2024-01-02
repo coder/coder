@@ -244,7 +244,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		CreatedAt:    now,
 		LastSeenAt:   sql.NullTime{Time: now, Valid: true},
 		Version:      versionHdrVal,
-		APIVersion:   "1.0",
+		APIVersion:   provisionersdk.APIVersionCurrent,
 	})
 	if err != nil {
 		if !xerrors.Is(err, context.Canceled) {
@@ -363,6 +363,7 @@ func convertProvisionerDaemon(daemon database.ProvisionerDaemon) codersdk.Provis
 		Name:       daemon.Name,
 		Tags:       daemon.Tags,
 		Version:    daemon.Version,
+		APIVersion: daemon.APIVersion,
 	}
 	for _, provisionerType := range daemon.Provisioners {
 		result.Provisioners = append(result.Provisioners, codersdk.ProvisionerType(provisionerType))

@@ -1194,7 +1194,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, name string
 		Tags:       provisionersdk.MutateTags(uuid.Nil, nil),
 		LastSeenAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
 		Version:    buildinfo.Version(),
-		APIVersion: "1.0",
+		APIVersion: provisionersdk.APIVersionCurrent,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("failed to create in-memory provisioner daemon: %w", err)

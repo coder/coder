@@ -20,6 +20,13 @@ import (
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
+const (
+	// APIVersionCurrent is the current provisionerd API version.
+	// Breaking changes to the provisionerd API **MUST** increment
+	// the major version below.
+	APIVersionCurrent = "1.0"
+)
+
 // ServeOptions are configurations to serve a provisioner.
 type ServeOptions struct {
 	// Listener serves multiple connections. Cannot be combined with Conn.

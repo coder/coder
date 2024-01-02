@@ -42,6 +42,7 @@ type ProvisionerDaemon struct {
 	LastSeenAt   NullTime          `json:"last_seen_at,omitempty" format:"date-time"`
 	Name         string            `json:"name"`
 	Version      string            `json:"version"`
+	APIVersion   string            `json:"api_version"`
 	Provisioners []ProvisionerType `json:"provisioners"`
 	Tags         map[string]string `json:"tags"`
 }
