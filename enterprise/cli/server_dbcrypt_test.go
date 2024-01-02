@@ -50,7 +50,7 @@ func TestServerDBCrypt(t *testing.T) {
 	users := genData(t, db)
 
 	// Setup an initial cipher A
-	keyA := testutil.MustString(t, 32)
+	keyA := testutil.MustRandString(t, 32)
 	cipherA, err := dbcrypt.NewCiphers([]byte(keyA))
 	require.NoError(t, err)
 
@@ -87,7 +87,7 @@ func TestServerDBCrypt(t *testing.T) {
 	}
 
 	// Re-encrypt all existing data with a new cipher.
-	keyB := testutil.MustString(t, 32)
+	keyB := testutil.MustRandString(t, 32)
 	cipherBA, err := dbcrypt.NewCiphers([]byte(keyB), []byte(keyA))
 	require.NoError(t, err)
 
@@ -160,7 +160,7 @@ func TestServerDBCrypt(t *testing.T) {
 	}
 
 	// Re-encrypt all existing data with a new cipher.
-	keyC := testutil.MustString(t, 32)
+	keyC := testutil.MustRandString(t, 32)
 	cipherC, err := dbcrypt.NewCiphers([]byte(keyC))
 	require.NoError(t, err)
 
@@ -222,7 +222,7 @@ func genData(t *testing.T, db database.Store) []database.User {
 	for _, status := range database.AllUserStatusValues() {
 		for _, loginType := range database.AllLoginTypeValues() {
 			for _, deleted := range []bool{false, true} {
-				randName := testutil.MustString(t, 32)
+				randName := testutil.MustRandString(t, 32)
 				usr := dbgen.User(t, db, database.User{
 					Username:  randName,
 					Email:     randName + "@notcoder.com",

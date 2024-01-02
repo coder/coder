@@ -41,7 +41,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		templateAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleTemplateAdmin())
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
-		daemonName := testutil.MustString(t, 63)
+		daemonName := testutil.MustRandString(t, 63)
 		srv, err := templateAdminClient.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
 			ID:           uuid.New(),
 			Name:         daemonName,
@@ -69,7 +69,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		templateAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleTemplateAdmin())
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
-		daemonName := testutil.MustString(t, 63)
+		daemonName := testutil.MustRandString(t, 63)
 		_, err := templateAdminClient.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
 			ID:           uuid.New(),
 			Name:         daemonName,
@@ -97,7 +97,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		defer cancel()
 		_, err := another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
 			ID:           uuid.New(),
-			Name:         testutil.MustString(t, 63),
+			Name:         testutil.MustRandString(t, 63),
 			Organization: user.OrganizationID,
 			Provisioners: []codersdk.ProvisionerType{
 				codersdk.ProvisionerTypeEcho,
@@ -124,7 +124,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		defer cancel()
 		_, err := another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
 			ID:           uuid.New(),
-			Name:         testutil.MustString(t, 63),
+			Name:         testutil.MustRandString(t, 63),
 			Organization: user.OrganizationID,
 			Provisioners: []codersdk.ProvisionerType{
 				codersdk.ProvisionerTypeEcho,
@@ -219,7 +219,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		another := codersdk.New(client.URL)
-		daemonName := testutil.MustString(t, 63)
+		daemonName := testutil.MustRandString(t, 63)
 		srv, err := another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
 			Name:         daemonName,
 			Organization: user.OrganizationID,
@@ -284,7 +284,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		pd := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
 			return another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
 				ID:           uuid.New(),
-				Name:         testutil.MustString(t, 63),
+				Name:         testutil.MustRandString(t, 63),
 				Organization: user.OrganizationID,
 				Provisioners: []codersdk.ProvisionerType{
 					codersdk.ProvisionerTypeEcho,
@@ -362,7 +362,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		defer cancel()
 		_, err := another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
 			ID:           uuid.New(),
-			Name:         testutil.MustString(t, 32),
+			Name:         testutil.MustRandString(t, 32),
 			Organization: user.OrganizationID,
 			Provisioners: []codersdk.ProvisionerType{
 				codersdk.ProvisionerTypeEcho,
@@ -397,7 +397,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		another := codersdk.New(client.URL)
 		_, err := another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
 			ID:           uuid.New(),
-			Name:         testutil.MustString(t, 63),
+			Name:         testutil.MustRandString(t, 63),
 			Organization: user.OrganizationID,
 			Provisioners: []codersdk.ProvisionerType{
 				codersdk.ProvisionerTypeEcho,
@@ -430,7 +430,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		another := codersdk.New(client.URL)
 		_, err := another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
 			ID:           uuid.New(),
-			Name:         testutil.MustString(t, 63),
+			Name:         testutil.MustRandString(t, 63),
 			Organization: user.OrganizationID,
 			Provisioners: []codersdk.ProvisionerType{
 				codersdk.ProvisionerTypeEcho,
