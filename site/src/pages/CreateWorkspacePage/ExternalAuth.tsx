@@ -47,7 +47,6 @@ export const ExternalAuth: FC<ExternalAuthProps> = ({
           css={!fullWidth && { display: "inline-block" }}
         >
           <LoadingButton
-            loadingPosition="start"
             loading={externalAuthPollingState === "polling"}
             href={authenticateURL}
             variant="contained"
