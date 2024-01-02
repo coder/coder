@@ -11,7 +11,6 @@ import {
 } from "components/FullPageLayout/Topbar";
 import Tooltip from "@mui/material/Tooltip";
 import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
-import PersonOutlineOutlined from "@mui/icons-material/PersonOutlineOutlined";
 import { WorkspaceOutdatedTooltipContent } from "components/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
 import { Popover, PopoverTrigger } from "components/Popover/Popover";
 import ScheduleOutlined from "@mui/icons-material/ScheduleOutlined";
@@ -30,6 +29,7 @@ import Link from "@mui/material/Link";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
 import { displayDormantDeletion } from "utils/dormant";
 import DeleteOutline from "@mui/icons-material/DeleteOutline";
+import PersonOutline from "@mui/icons-material/PersonOutline";
 
 export type WorkspaceError =
   | "getBuildsError"
@@ -120,16 +120,26 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
         }}
       >
         <TopbarData>
-          <TopbarAvatar src={workspace.template_icon} />
-          <span css={{ fontWeight: 500 }}>{workspace.name}</span>
+          <TopbarIcon>
+            <PersonOutline />
+          </TopbarIcon>
+          <Tooltip title="Owner">
+            <span>{workspace.owner_name}</span>
+          </Tooltip>
           <TopbarDivider />
-          <Link
-            component={RouterLink}
-            to={`/templates/${workspace.template_name}`}
-            css={{ color: "inherit" }}
+          <Tooltip
+            title={workspace.template_display_name ?? workspace.template_name}
           >
-            {workspace.template_display_name ?? workspace.template_name}
-          </Link>
+            <Link
+              component={RouterLink}
+              to={`/templates/${workspace.template_name}`}
+              css={{ color: "inherit" }}
+            >
+              <TopbarAvatar src={workspace.template_icon} />
+            </Link>
+          </Tooltip>
+
+          <span css={{ fontWeight: 500 }}>{workspace.name}</span>
 
           {workspace.outdated ? (
             <Popover mode="hover">
@@ -163,15 +173,6 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
           ) : (
             <Pill>{workspace.latest_build.template_version_name}</Pill>
           )}
-        </TopbarData>
-
-        <TopbarData>
-          <Tooltip title="Owner">
-            <TopbarIcon>
-              <PersonOutlineOutlined aria-label="Owner" />
-            </TopbarIcon>
-          </Tooltip>
-          <span>{workspace.owner_name}</span>
         </TopbarData>
 
         {shouldDisplayDormantData && (
