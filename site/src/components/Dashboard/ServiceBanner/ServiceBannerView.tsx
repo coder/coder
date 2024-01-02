@@ -17,7 +17,7 @@ export const ServiceBannerView: FC<ServiceBannerViewProps> = ({
 }) => {
   return (
     <div css={[styles.banner, { backgroundColor }]}>
-      {isPreview && <Pill text="Preview" type="info" />}
+      {isPreview && <Pill type="info">Preview</Pill>}
       <div
         css={[
           styles.wrapper,
