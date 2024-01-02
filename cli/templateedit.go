@@ -56,7 +56,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				return xerrors.Errorf("get workspace template: %w", err)
 			}
 
-			unsetAutostopRequirementDaysOfWeek, err := editTemplateEntitlementsCheck(inv.Context(), editTemplateEntitlementsArgs{
+			unsetAutostopRequirementDaysOfWeek, err := checkEditTemplateEntitlements(inv.Context(), checkEditTemplateEntitlementsArgs{
 				client: client,
 				inv:    inv,
 
@@ -236,7 +236,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 	return cmd
 }
 
-type editTemplateEntitlementsArgs struct {
+type checkEditTemplateEntitlementsArgs struct {
 	client *codersdk.Client
 	inv    *clibase.Invocation
 
@@ -254,7 +254,7 @@ type editTemplateEntitlementsArgs struct {
 	requireActiveVersion           bool
 }
 
-func editTemplateEntitlementsCheck(ctx context.Context, args editTemplateEntitlementsArgs) (bool, error) {
+func checkEditTemplateEntitlements(ctx context.Context, args checkEditTemplateEntitlementsArgs) (bool, error) {
 	// This clause can be removed when workspace_actions is no longer experimental
 	if args.failureTTL != 0 || args.dormancyThreshold != 0 || args.dormancyAutoDeletion != 0 {
 		experiments, exErr := args.client.Experiments(ctx)
