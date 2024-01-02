@@ -127,12 +127,7 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
             <span>{workspace.owner_name}</span>
           </Tooltip>
           <TopbarDivider />
-          <Popover
-            mode="hover"
-            // title={`${
-            //   workspace.template_display_name ?? workspace.template_name
-            // } on version ${workspace.latest_build.template_version_name}`}
-          >
+          <Popover mode="hover">
             <PopoverTrigger>
               <span
                 css={{
