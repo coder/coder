@@ -42,7 +42,6 @@ type API struct {
 	*AppsAPI
 	*MetadataAPI
 	*LogsAPI
-	*TailnetAPI
 
 	mu                sync.Mutex
 	cachedWorkspaceID uuid.UUID
@@ -144,12 +143,6 @@ func New(opts Options) *API {
 		Log:                               opts.Log,
 		PublishWorkspaceUpdateFn:          api.publishWorkspaceUpdate,
 		PublishWorkspaceAgentLogsUpdateFn: opts.PublishWorkspaceAgentLogsUpdateFn,
-	}
-
-	api.TailnetAPI = &TailnetAPI{
-		Ctx:                    opts.Ctx,
-		DerpMapFn:              opts.DerpMapFn,
-		DerpMapUpdateFrequency: opts.DerpMapUpdateFrequency,
 	}
 
 	return api

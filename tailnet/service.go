@@ -110,7 +110,7 @@ func NewClientService(
 		DerpMapUpdateFrequency: derpMapUpdateFrequency,
 		DerpMapFn:              derpMapFn,
 	}
-	err := proto.DRPCRegisterClient(mux, drpcService)
+	err := proto.DRPCRegisterTailnet(mux, drpcService)
 	if err != nil {
 		return nil, xerrors.Errorf("register DRPC service: %w", err)
 	}
@@ -165,7 +165,7 @@ type DRPCService struct {
 	DerpMapFn              func() *tailcfg.DERPMap
 }
 
-func (s *DRPCService) StreamDERPMaps(_ *proto.StreamDERPMapsRequest, stream proto.DRPCClient_StreamDERPMapsStream) error {
+func (s *DRPCService) StreamDERPMaps(_ *proto.StreamDERPMapsRequest, stream proto.DRPCTailnet_StreamDERPMapsStream) error {
 	defer stream.Close()
 
 	ticker := time.NewTicker(s.DerpMapUpdateFrequency)
@@ -192,7 +192,7 @@ func (s *DRPCService) StreamDERPMaps(_ *proto.StreamDERPMapsRequest, stream prot
 	}
 }
 
-func (s *DRPCService) CoordinateTailnet(stream proto.DRPCClient_CoordinateTailnetStream) error {
+func (s *DRPCService) Coordinate(stream proto.DRPCTailnet_CoordinateStream) error {
 	ctx := stream.Context()
 	streamID, ok := ctx.Value(streamIDContextKey{}).(StreamID)
 	if !ok {
@@ -215,7 +215,7 @@ func (s *DRPCService) CoordinateTailnet(stream proto.DRPCClient_CoordinateTailne
 
 type communicator struct {
 	logger slog.Logger
-	stream proto.DRPCClient_CoordinateTailnetStream
+	stream proto.DRPCTailnet_CoordinateStream
 	reqs   chan<- *proto.CoordinateRequest
 	resps  <-chan *proto.CoordinateResponse
 }

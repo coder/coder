@@ -120,7 +120,7 @@ func TestClientService_ServeClient_V2(t *testing.T) {
 	require.NoError(t, err)
 
 	// Coordinate
-	stream, err := client.CoordinateTailnet(ctx)
+	stream, err := client.Coordinate(ctx)
 	require.NoError(t, err)
 	defer stream.Close()
 
