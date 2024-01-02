@@ -198,7 +198,7 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 		Handler: func(inv *clibase.Invocation) error {
 			uploadFlags.setWorkdir(workdir)
 
-			err := createEntitlementsCheck(inv.Context(), handleEntitlementsArgs{
+			err := checkTemplateCreateEntitlements(inv.Context(), checkTemplateCreateEntitlementsArgs{
 				client:               client,
 				requireActiveVersion: requireActiveVersion,
 				defaultTTL:           defaultTTL,
@@ -211,7 +211,7 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				return err
 			}
 
-			unsetAutostopRequirementDaysOfWeek, err := editTemplateEntitlementsCheck(inv.Context(), editTemplateEntitlementsArgs{
+			unsetAutostopRequirementDaysOfWeek, err := checkEditTemplateEntitlements(inv.Context(), checkEditTemplateEntitlementsArgs{
 				client:                         client,
 				inv:                            inv,
 				defaultTTL:                     defaultTTL,

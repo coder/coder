@@ -52,7 +52,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 					cliui.DefaultStyles.Warn, "DEPRECATION WARNING: The `coder templates push` command should be used instead. This command will be removed in a future release. ")+"\n"))
 			time.Sleep(1 * time.Second)
 
-			err := createEntitlementsCheck(inv.Context(), handleEntitlementsArgs{
+			err := checkTemplateCreateEntitlements(inv.Context(), checkTemplateCreateEntitlementsArgs{
 				client:               client,
 				requireActiveVersion: requireActiveVersion,
 				defaultTTL:           defaultTTL,
@@ -342,7 +342,7 @@ func ParseProvisionerTags(rawTags []string) (map[string]string, error) {
 	return tags, nil
 }
 
-type handleEntitlementsArgs struct {
+type checkTemplateCreateEntitlementsArgs struct {
 	client               *codersdk.Client
 	requireActiveVersion bool
 	defaultTTL           time.Duration
@@ -352,7 +352,7 @@ type handleEntitlementsArgs struct {
 	maxTTL               time.Duration
 }
 
-func createEntitlementsCheck(ctx context.Context, args handleEntitlementsArgs) error {
+func checkTemplateCreateEntitlements(ctx context.Context, args checkTemplateCreateEntitlementsArgs) error {
 	isTemplateSchedulingOptionsSet := args.failureTTL != 0 || args.dormancyThreshold != 0 || args.dormancyAutoDeletion != 0 || args.maxTTL != 0
 
 	if isTemplateSchedulingOptionsSet || args.requireActiveVersion {
