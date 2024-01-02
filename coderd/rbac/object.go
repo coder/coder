@@ -198,6 +198,22 @@ var (
 	ResourceTemplateInsights = Object{
 		Type: "template_insights",
 	}
+
+	// ResourceOAuth2ProviderApp CRUD.
+	//	create/delete = Make or delete an OAuth2 app.
+	//	update = Update the properties of the OAuth2 app.
+	//	read = Read OAuth2 apps.
+	ResourceOAuth2ProviderApp = Object{
+		Type: "oauth2_app",
+	}
+
+	// ResourceOAuth2ProviderAppSecrets CRUD.
+	//	create/delete = Make or delete an OAuth2 app secret.
+	//	update = Update last used date.
+	//	read = Read OAuth2 app hashed or truncated secret.
+	ResourceOAuth2ProviderAppSecret = Object{
+		Type: "oauth2_app_secrets",
+	}
 )
 
 // ResourceUserObject is a helper function to create a user object for authz checks.

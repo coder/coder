@@ -1,4 +1,43 @@
-# Appearance
+# Appearance (enterprise)
+
+Customize the look of your Coder deployment to meet your enterprise
+requirements.
+
+You can access the Appearance settings by navigating to
+`Deployment > Appearance`.
+
+![application name and logo url](../images/admin/application-name-logo-url.png)
+
+## Application Name
+
+Specify a custom application name to be displayed on the login page. The default
+is Coder.
+
+## Logo URL
+
+Specify a custom URL for your enterprise's logo to be displayed in the top left
+corner of the dashboard. The default is the Coder logo.
+
+## Service Banner
+
+![service banner](../images/admin/service-banner-config.png)
+
+A Service Banner lets admins post important messages to all site users. Only
+Site Owners may set the service banner.
+
+Example: Notify users of scheduled maintenance of the Coder deployment.
+
+![service banner maintenance](../images/admin/service-banner-maintenance.png)
+
+Example: Adhere to government network classification requirements and notify
+users of which network their Coder deployment is on.
+
+![service banner secret](../images/admin/service-banner-secret.png)
+
+## OIDC Login Button Customization
+
+[Use environment variables to customize](../auth#oidc-login-customization) the
+text and icon on the OIDC button on the Sign In page.
 
 ## Support Links
 
@@ -24,19 +63,9 @@ supportLinks:
     icon: "chat"
 ```
 
-## Icons
+### Icons
 
 The link icons are optional, and limited to: `bug`, `chat`, and `docs`.
-
-## Service Banners (enterprise)
-
-Service Banners let admins post important messages to all site users. Only Site
-Owners may set the service banner.
-
-![service banners](../images/admin/service-banners.png)
-
-You can access the Service Banner settings by navigating to
-`Deployment > Service Banners`.
 
 ## Up next
 

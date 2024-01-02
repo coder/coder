@@ -323,6 +323,34 @@ func (mr *MockStoreMockRecorder) DeleteLicense(arg0, arg1 interface{}) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteLicense", reflect.TypeOf((*MockStore)(nil).DeleteLicense), arg0, arg1)
 }
 
+// DeleteOAuth2ProviderAppByID mocks base method.
+func (m *MockStore) DeleteOAuth2ProviderAppByID(arg0 context.Context, arg1 uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOAuth2ProviderAppByID", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteOAuth2ProviderAppByID indicates an expected call of DeleteOAuth2ProviderAppByID.
+func (mr *MockStoreMockRecorder) DeleteOAuth2ProviderAppByID(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOAuth2ProviderAppByID", reflect.TypeOf((*MockStore)(nil).DeleteOAuth2ProviderAppByID), arg0, arg1)
+}
+
+// DeleteOAuth2ProviderAppSecretByID mocks base method.
+func (m *MockStore) DeleteOAuth2ProviderAppSecretByID(arg0 context.Context, arg1 uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOAuth2ProviderAppSecretByID", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteOAuth2ProviderAppSecretByID indicates an expected call of DeleteOAuth2ProviderAppSecretByID.
+func (mr *MockStoreMockRecorder) DeleteOAuth2ProviderAppSecretByID(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOAuth2ProviderAppSecretByID", reflect.TypeOf((*MockStore)(nil).DeleteOAuth2ProviderAppSecretByID), arg0, arg1)
+}
+
 // DeleteOldProvisionerDaemons mocks base method.
 func (m *MockStore) DeleteOldProvisionerDaemons(arg0 context.Context) error {
 	m.ctrl.T.Helper()
@@ -1111,6 +1139,66 @@ func (m *MockStore) GetLogoURL(arg0 context.Context) (string, error) {
 func (mr *MockStoreMockRecorder) GetLogoURL(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLogoURL", reflect.TypeOf((*MockStore)(nil).GetLogoURL), arg0)
+}
+
+// GetOAuth2ProviderAppByID mocks base method.
+func (m *MockStore) GetOAuth2ProviderAppByID(arg0 context.Context, arg1 uuid.UUID) (database.OAuth2ProviderApp, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOAuth2ProviderAppByID", arg0, arg1)
+	ret0, _ := ret[0].(database.OAuth2ProviderApp)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOAuth2ProviderAppByID indicates an expected call of GetOAuth2ProviderAppByID.
+func (mr *MockStoreMockRecorder) GetOAuth2ProviderAppByID(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOAuth2ProviderAppByID", reflect.TypeOf((*MockStore)(nil).GetOAuth2ProviderAppByID), arg0, arg1)
+}
+
+// GetOAuth2ProviderAppSecretByID mocks base method.
+func (m *MockStore) GetOAuth2ProviderAppSecretByID(arg0 context.Context, arg1 uuid.UUID) (database.OAuth2ProviderAppSecret, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOAuth2ProviderAppSecretByID", arg0, arg1)
+	ret0, _ := ret[0].(database.OAuth2ProviderAppSecret)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOAuth2ProviderAppSecretByID indicates an expected call of GetOAuth2ProviderAppSecretByID.
+func (mr *MockStoreMockRecorder) GetOAuth2ProviderAppSecretByID(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOAuth2ProviderAppSecretByID", reflect.TypeOf((*MockStore)(nil).GetOAuth2ProviderAppSecretByID), arg0, arg1)
+}
+
+// GetOAuth2ProviderAppSecretsByAppID mocks base method.
+func (m *MockStore) GetOAuth2ProviderAppSecretsByAppID(arg0 context.Context, arg1 uuid.UUID) ([]database.OAuth2ProviderAppSecret, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOAuth2ProviderAppSecretsByAppID", arg0, arg1)
+	ret0, _ := ret[0].([]database.OAuth2ProviderAppSecret)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOAuth2ProviderAppSecretsByAppID indicates an expected call of GetOAuth2ProviderAppSecretsByAppID.
+func (mr *MockStoreMockRecorder) GetOAuth2ProviderAppSecretsByAppID(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOAuth2ProviderAppSecretsByAppID", reflect.TypeOf((*MockStore)(nil).GetOAuth2ProviderAppSecretsByAppID), arg0, arg1)
+}
+
+// GetOAuth2ProviderApps mocks base method.
+func (m *MockStore) GetOAuth2ProviderApps(arg0 context.Context) ([]database.OAuth2ProviderApp, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOAuth2ProviderApps", arg0)
+	ret0, _ := ret[0].([]database.OAuth2ProviderApp)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOAuth2ProviderApps indicates an expected call of GetOAuth2ProviderApps.
+func (mr *MockStoreMockRecorder) GetOAuth2ProviderApps(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOAuth2ProviderApps", reflect.TypeOf((*MockStore)(nil).GetOAuth2ProviderApps), arg0)
 }
 
 // GetOAuthSigningKey mocks base method.
@@ -2803,6 +2891,36 @@ func (mr *MockStoreMockRecorder) InsertMissingGroups(arg0, arg1 interface{}) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertMissingGroups", reflect.TypeOf((*MockStore)(nil).InsertMissingGroups), arg0, arg1)
 }
 
+// InsertOAuth2ProviderApp mocks base method.
+func (m *MockStore) InsertOAuth2ProviderApp(arg0 context.Context, arg1 database.InsertOAuth2ProviderAppParams) (database.OAuth2ProviderApp, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertOAuth2ProviderApp", arg0, arg1)
+	ret0, _ := ret[0].(database.OAuth2ProviderApp)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertOAuth2ProviderApp indicates an expected call of InsertOAuth2ProviderApp.
+func (mr *MockStoreMockRecorder) InsertOAuth2ProviderApp(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOAuth2ProviderApp", reflect.TypeOf((*MockStore)(nil).InsertOAuth2ProviderApp), arg0, arg1)
+}
+
+// InsertOAuth2ProviderAppSecret mocks base method.
+func (m *MockStore) InsertOAuth2ProviderAppSecret(arg0 context.Context, arg1 database.InsertOAuth2ProviderAppSecretParams) (database.OAuth2ProviderAppSecret, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertOAuth2ProviderAppSecret", arg0, arg1)
+	ret0, _ := ret[0].(database.OAuth2ProviderAppSecret)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertOAuth2ProviderAppSecret indicates an expected call of InsertOAuth2ProviderAppSecret.
+func (mr *MockStoreMockRecorder) InsertOAuth2ProviderAppSecret(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOAuth2ProviderAppSecret", reflect.TypeOf((*MockStore)(nil).InsertOAuth2ProviderAppSecret), arg0, arg1)
+}
+
 // InsertOrganization mocks base method.
 func (m *MockStore) InsertOrganization(arg0 context.Context, arg1 database.InsertOrganizationParams) (database.Organization, error) {
 	m.ctrl.T.Helper()
@@ -3360,6 +3478,36 @@ func (m *MockStore) UpdateMemberRoles(arg0 context.Context, arg1 database.Update
 func (mr *MockStoreMockRecorder) UpdateMemberRoles(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateMemberRoles", reflect.TypeOf((*MockStore)(nil).UpdateMemberRoles), arg0, arg1)
+}
+
+// UpdateOAuth2ProviderAppByID mocks base method.
+func (m *MockStore) UpdateOAuth2ProviderAppByID(arg0 context.Context, arg1 database.UpdateOAuth2ProviderAppByIDParams) (database.OAuth2ProviderApp, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateOAuth2ProviderAppByID", arg0, arg1)
+	ret0, _ := ret[0].(database.OAuth2ProviderApp)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateOAuth2ProviderAppByID indicates an expected call of UpdateOAuth2ProviderAppByID.
+func (mr *MockStoreMockRecorder) UpdateOAuth2ProviderAppByID(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOAuth2ProviderAppByID", reflect.TypeOf((*MockStore)(nil).UpdateOAuth2ProviderAppByID), arg0, arg1)
+}
+
+// UpdateOAuth2ProviderAppSecretByID mocks base method.
+func (m *MockStore) UpdateOAuth2ProviderAppSecretByID(arg0 context.Context, arg1 database.UpdateOAuth2ProviderAppSecretByIDParams) (database.OAuth2ProviderAppSecret, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateOAuth2ProviderAppSecretByID", arg0, arg1)
+	ret0, _ := ret[0].(database.OAuth2ProviderAppSecret)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateOAuth2ProviderAppSecretByID indicates an expected call of UpdateOAuth2ProviderAppSecretByID.
+func (mr *MockStoreMockRecorder) UpdateOAuth2ProviderAppSecretByID(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOAuth2ProviderAppSecretByID", reflect.TypeOf((*MockStore)(nil).UpdateOAuth2ProviderAppSecretByID), arg0, arg1)
 }
 
 // UpdateProvisionerDaemonLastSeenAt mocks base method.

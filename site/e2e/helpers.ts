@@ -47,12 +47,9 @@ export const createWorkspace = async (
 
   await expect(page).toHaveURL("/@admin/" + name);
 
-  await page.waitForSelector(
-    "span[data-testid='build-status'] >> text=Running",
-    {
-      state: "visible",
-    },
-  );
+  await page.waitForSelector("*[data-testid='build-status'] >> text=Running", {
+    state: "visible",
+  });
   return name;
 };
 
@@ -197,12 +194,9 @@ export const stopWorkspace = async (page: Page, workspaceName: string) => {
 
   await page.getByTestId("workspace-stop-button").click();
 
-  await page.waitForSelector(
-    "span[data-testid='build-status'] >> text=Stopped",
-    {
-      state: "visible",
-    },
-  );
+  await page.waitForSelector("*[data-testid='build-status'] >> text=Stopped", {
+    state: "visible",
+  });
 };
 
 export const buildWorkspaceWithParameters = async (
@@ -225,12 +219,9 @@ export const buildWorkspaceWithParameters = async (
     await page.getByTestId("confirm-button").click();
   }
 
-  await page.waitForSelector(
-    "span[data-testid='build-status'] >> text=Running",
-    {
-      state: "visible",
-    },
-  );
+  await page.waitForSelector("*[data-testid='build-status'] >> text=Running", {
+    state: "visible",
+  });
 };
 
 // startAgent runs the coder agent with the provided token.
@@ -469,7 +460,7 @@ const createTemplateVersionTar = async (
               } as App;
             });
           }
-          return {
+          const agentResource = {
             apps: [],
             architecture: "amd64",
             connectionTimeoutSeconds: 300,
@@ -491,6 +482,23 @@ const createTemplateVersionTar = async (
             token: randomUUID(),
             ...agent,
           } as Agent;
+
+          try {
+            Agent.encode(agentResource);
+          } catch (e) {
+            let m = `Error: agentResource encode failed, missing defaults?`;
+            if (e instanceof Error) {
+              if (!e.stack?.includes(e.message)) {
+                m += `\n${e.name}: ${e.message}`;
+              }
+              m += `\n${e.stack}`;
+            } else {
+              m += `\n${e}`;
+            }
+            throw new Error(m);
+          }
+
+          return agentResource;
         },
       );
     }
@@ -755,12 +763,9 @@ export const updateWorkspace = async (
   await fillParameters(page, richParameters, buildParameters);
   await page.getByTestId("form-submit").click();
 
-  await page.waitForSelector(
-    "span[data-testid='build-status'] >> text=Running",
-    {
-      state: "visible",
-    },
-  );
+  await page.waitForSelector("*[data-testid='build-status'] >> text=Running", {
+    state: "visible",
+  });
 };
 
 export const updateWorkspaceParameters = async (
@@ -779,10 +784,7 @@ export const updateWorkspaceParameters = async (
   await fillParameters(page, richParameters, buildParameters);
   await page.getByTestId("form-submit").click();
 
-  await page.waitForSelector(
-    "span[data-testid='build-status'] >> text=Running",
-    {
-      state: "visible",
-    },
-  );
+  await page.waitForSelector("*[data-testid='build-status'] >> text=Running", {
+    state: "visible",
+  });
 };

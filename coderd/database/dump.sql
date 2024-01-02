@@ -458,6 +458,28 @@ CREATE SEQUENCE licenses_id_seq
 
 ALTER SEQUENCE licenses_id_seq OWNED BY licenses.id;
 
+CREATE TABLE oauth2_provider_app_secrets (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    last_used_at timestamp with time zone,
+    hashed_secret bytea NOT NULL,
+    display_secret text NOT NULL,
+    app_id uuid NOT NULL
+);
+
+COMMENT ON COLUMN oauth2_provider_app_secrets.display_secret IS 'The tail end of the original secret so secrets can be differentiated.';
+
+CREATE TABLE oauth2_provider_apps (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    name character varying(64) NOT NULL,
+    icon character varying(256) NOT NULL,
+    callback_url text NOT NULL
+);
+
+COMMENT ON TABLE oauth2_provider_apps IS 'A table used to configure apps that can use Coder as an OAuth2 provider, the reverse of what we are calling external authentication.';
+
 CREATE TABLE organization_members (
     user_id uuid NOT NULL,
     organization_id uuid NOT NULL,
@@ -1270,6 +1292,18 @@ ALTER TABLE ONLY licenses
 ALTER TABLE ONLY licenses
     ADD CONSTRAINT licenses_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY oauth2_provider_app_secrets
+    ADD CONSTRAINT oauth2_provider_app_secrets_app_id_hashed_secret_key UNIQUE (app_id, hashed_secret);
+
+ALTER TABLE ONLY oauth2_provider_app_secrets
+    ADD CONSTRAINT oauth2_provider_app_secrets_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY oauth2_provider_apps
+    ADD CONSTRAINT oauth2_provider_apps_name_key UNIQUE (name);
+
+ALTER TABLE ONLY oauth2_provider_apps
+    ADD CONSTRAINT oauth2_provider_apps_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY organization_members
     ADD CONSTRAINT organization_members_pkey PRIMARY KEY (organization_id, user_id);
 
@@ -1495,6 +1529,9 @@ ALTER TABLE ONLY group_members
 
 ALTER TABLE ONLY groups
     ADD CONSTRAINT groups_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY oauth2_provider_app_secrets
+    ADD CONSTRAINT oauth2_provider_app_secrets_app_id_fkey FOREIGN KEY (app_id) REFERENCES oauth2_provider_apps(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY organization_members
     ADD CONSTRAINT organization_members_organization_id_uuid_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;

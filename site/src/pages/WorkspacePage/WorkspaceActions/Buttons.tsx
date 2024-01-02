@@ -1,6 +1,4 @@
 import Tooltip from "@mui/material/Tooltip";
-import Button from "@mui/material/Button";
-import LoadingButton from "@mui/lab/LoadingButton";
 import ButtonGroup from "@mui/material/ButtonGroup";
 import CloudQueueIcon from "@mui/icons-material/CloudQueue";
 import CropSquareIcon from "@mui/icons-material/CropSquare";
@@ -14,6 +12,7 @@ import RetryDebugIcon from "@mui/icons-material/BugReportOutlined";
 import { type FC } from "react";
 import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { BuildParametersPopover } from "./BuildParametersPopover";
+import { TopbarButton } from "components/FullPageLayout/Topbar";
 
 interface ActionButtonProps {
   loading?: boolean;
@@ -27,15 +26,14 @@ export const UpdateButton: FC<ActionButtonProps> = ({
   loading,
 }) => {
   return (
-    <LoadingButton
-      loading={loading}
-      loadingPosition="start"
+    <TopbarButton
+      disabled={loading}
       data-testid="workspace-update-button"
       startIcon={<CloudQueueIcon />}
       onClick={() => handleAction()}
     >
       {loading ? <>Updating&hellip;</> : <>Update&hellip;</>}
-    </LoadingButton>
+    </TopbarButton>
   );
 };
 
@@ -44,14 +42,13 @@ export const ActivateButton: FC<ActionButtonProps> = ({
   loading,
 }) => {
   return (
-    <LoadingButton
-      loading={loading}
-      loadingPosition="start"
+    <TopbarButton
+      disabled={loading}
       startIcon={<PowerSettingsNewIcon />}
       onClick={() => handleAction()}
     >
       {loading ? <>Activating&hellip;</> : "Activate"}
-    </LoadingButton>
+    </TopbarButton>
   );
 };
 
@@ -77,15 +74,13 @@ export const StartButton: FC<ActionButtonPropsWithWorkspace> = ({
       }}
       disabled={disabled}
     >
-      <LoadingButton
-        loading={loading}
-        loadingPosition="start"
+      <TopbarButton
         startIcon={<PlayCircleOutlineIcon />}
         onClick={() => handleAction()}
-        disabled={disabled}
+        disabled={disabled || loading}
       >
         {loading ? <>Starting&hellip;</> : "Start"}
-      </LoadingButton>
+      </TopbarButton>
       <BuildParametersPopover
         workspace={workspace}
         disabled={loading}
@@ -106,15 +101,14 @@ export const StopButton: FC<ActionButtonProps> = ({
   loading,
 }) => {
   return (
-    <LoadingButton
-      loading={loading}
-      loadingPosition="start"
+    <TopbarButton
+      disabled={loading}
       startIcon={<CropSquareIcon />}
       onClick={() => handleAction()}
       data-testid="workspace-stop-button"
     >
       {loading ? <>Stopping&hellip;</> : "Stop"}
-    </LoadingButton>
+    </TopbarButton>
   );
 };
 
@@ -136,16 +130,14 @@ export const RestartButton: FC<ActionButtonPropsWithWorkspace> = ({
       }}
       disabled={disabled}
     >
-      <LoadingButton
-        loading={loading}
-        loadingPosition="start"
+      <TopbarButton
         startIcon={<ReplayIcon />}
         onClick={() => handleAction()}
         data-testid="workspace-restart-button"
-        disabled={disabled}
+        disabled={disabled || loading}
       >
         {loading ? <>Restarting&hellip;</> : <>Restart&hellip;</>}
-      </LoadingButton>
+      </TopbarButton>
       <BuildParametersPopover
         workspace={workspace}
         disabled={loading}
@@ -163,9 +155,9 @@ export const RestartButton: FC<ActionButtonPropsWithWorkspace> = ({
 
 export const CancelButton: FC<ActionButtonProps> = ({ handleAction }) => {
   return (
-    <Button startIcon={<BlockIcon />} onClick={() => handleAction()}>
+    <TopbarButton startIcon={<BlockIcon />} onClick={() => handleAction()}>
       Cancel
-    </Button>
+    </TopbarButton>
   );
 };
 
@@ -175,21 +167,9 @@ interface DisabledButtonProps {
 
 export const DisabledButton: FC<DisabledButtonProps> = ({ label }) => {
   return (
-    <Button startIcon={<OutlinedBlockIcon />} disabled>
+    <TopbarButton startIcon={<OutlinedBlockIcon />} disabled>
       {label}
-    </Button>
-  );
-};
-
-interface LoadingProps {
-  label: string;
-}
-
-export const ActionLoadingButton: FC<LoadingProps> = ({ label }) => {
-  return (
-    <LoadingButton loading loadingPosition="start" startIcon={<ReplayIcon />}>
-      {label}
-    </LoadingButton>
+    </TopbarButton>
   );
 };
 
@@ -202,11 +182,11 @@ export const RetryButton: FC<RetryButtonProps> = ({
   debug = false,
 }) => {
   return (
-    <Button
+    <TopbarButton
       startIcon={debug ? <RetryDebugIcon /> : <RetryIcon />}
       onClick={() => handleAction()}
     >
       Retry{debug && " (Debug)"}
-    </Button>
+    </TopbarButton>
   );
 };

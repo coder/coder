@@ -1,5 +1,5 @@
 import { type NewTheme } from "../experimental";
-import colors from "../tailwind";
+import colors from "../tailwindColors";
 
 export default {
   l1: {

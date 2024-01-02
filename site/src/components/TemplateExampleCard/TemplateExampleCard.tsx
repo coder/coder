@@ -57,7 +57,6 @@ export const TemplateExampleCard = (props: TemplateExampleCardProps) => {
             return (
               <RouterLink key={tag} to={`/starter-templates?tag=${tag}`}>
                 <Pill
-                  text={tag}
                   css={(theme) => ({
                     borderColor: isActive
                       ? theme.palette.primary.main
@@ -70,7 +69,9 @@ export const TemplateExampleCard = (props: TemplateExampleCardProps) => {
                       borderColor: theme.palette.primary.main,
                     },
                   })}
-                />
+                >
+                  {tag}
+                </Pill>
               </RouterLink>
             );
           })}

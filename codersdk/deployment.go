@@ -50,6 +50,7 @@ const (
 	FeatureExternalTokenEncryption    FeatureName = "external_token_encryption"
 	FeatureWorkspaceBatchActions      FeatureName = "workspace_batch_actions"
 	FeatureAccessControl              FeatureName = "access_control"
+	FeatureOAuth2Provider             FeatureName = "oauth2_provider"
 )
 
 // FeatureNames must be kept in-sync with the Feature enum above.
@@ -69,6 +70,7 @@ var FeatureNames = []FeatureName{
 	FeatureExternalTokenEncryption,
 	FeatureWorkspaceBatchActions,
 	FeatureAccessControl,
+	FeatureOAuth2Provider,
 }
 
 // Humanize returns the feature name in a human-readable format.
@@ -78,6 +80,8 @@ func (n FeatureName) Humanize() string {
 		return "Template RBAC"
 	case FeatureSCIM:
 		return "SCIM"
+	case FeatureOAuth2Provider:
+		return "OAuth Provider"
 	default:
 		return strings.Title(strings.ReplaceAll(string(n), "_", " "))
 	}

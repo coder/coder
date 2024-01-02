@@ -14,12 +14,9 @@ export const TemplateVersionStatusBadge: FC<
 > = ({ version }) => {
   const { text, icon, type } = getStatus(version);
   return (
-    <Pill
-      icon={icon}
-      text={text}
-      type={type}
-      title={`Build status is ${text}`}
-    />
+    <Pill icon={icon} type={type} title={`Build status is ${text}`}>
+      {text}
+    </Pill>
   );
 };
 

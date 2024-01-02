@@ -420,7 +420,10 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
   const totalInSeconds =
     validUsage?.reduce((total, usage) => total + usage.seconds, 0) ?? 1;
   const usageColors = chroma
-    .scale([theme.colors.green[8], theme.colors.blue[8]])
+    .scale([
+      theme.experimental.roles.success.fill,
+      theme.experimental.roles.notice.fill,
+    ])
     .mode("lch")
     .colors(validUsage?.length ?? 0);
   // The API returns a row for each app, even if the user didn't use it.

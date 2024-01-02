@@ -17,7 +17,6 @@ export const decorators = [
   (Story, context) => {
     const selectedTheme = DecoratorHelpers.pluckThemeFromContext(context);
     const { themeOverride } = DecoratorHelpers.useThemeParameters();
-
     const selected = themeOverride || selectedTheme || "dark";
 
     return (
@@ -39,23 +38,7 @@ export const decorators = [
       </HelmetProvider>
     );
   },
-  (Story) => {
-    return (
-      <QueryClientProvider
-        client={
-          new QueryClient({
-            defaultOptions: {
-              queries: {
-                staleTime: Infinity,
-              },
-            },
-          })
-        }
-      >
-        <Story />
-      </QueryClientProvider>
-    );
-  },
+  withQuery,
 ];
 
 export const parameters = {
@@ -89,3 +72,25 @@ export const parameters = {
     },
   },
 };
+
+function withQuery(Story, { parameters }) {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: Infinity,
+      },
+    },
+  });
+
+  if (parameters.queries) {
+    parameters.queries.forEach((query) => {
+      queryClient.setQueryData(query.key, query.data);
+    });
+  }
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <Story />
+    </QueryClientProvider>
+  );
+}
