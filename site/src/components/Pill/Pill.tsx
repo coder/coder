@@ -1,16 +1,19 @@
-import { type FC, type ReactNode, useMemo, forwardRef } from "react";
-import { css, useTheme, type Interpolation, type Theme } from "@emotion/react";
+import {
+  type FC,
+  type ReactNode,
+  useMemo,
+  forwardRef,
+  HTMLAttributes,
+} from "react";
+import { useTheme, type Interpolation, type Theme } from "@emotion/react";
 import type { ThemeRole } from "theme/experimental";
 
 export type PillType = ThemeRole | keyof typeof themeOverrides;
 
-export interface PillProps {
-  className?: string;
+export type PillProps = HTMLAttributes<HTMLDivElement> & {
   icon?: ReactNode;
-  text: ReactNode;
   type?: PillType;
-  title?: string;
-}
+};
 
 const themeOverrides = {
   neutral: (theme) => ({
@@ -27,11 +30,14 @@ const themeStyles = (type: ThemeRole) => (theme: Theme) => {
   };
 };
 
+const PILL_HEIGHT = 24;
+const PILL_ICON_SIZE = 14;
+const PILL_ICON_SPACING = (PILL_HEIGHT - PILL_ICON_SIZE) / 2;
+
 export const Pill: FC<PillProps> = forwardRef<HTMLDivElement, PillProps>(
   (props, ref) => {
-    const { icon, text = null, type = "neutral", ...attrs } = props;
+    const { icon, type = "neutral", children, ...divProps } = props;
     const theme = useTheme();
-
     const typeStyles = useMemo(() => {
       if (type in themeOverrides) {
         return themeOverrides[type as keyof typeof themeOverrides];
@@ -44,47 +50,33 @@ export const Pill: FC<PillProps> = forwardRef<HTMLDivElement, PillProps>(
         ref={ref}
         css={[
           {
+            fontSize: 12,
+            color: theme.experimental.l1.text,
             cursor: "default",
             display: "inline-flex",
             alignItems: "center",
+            whiteSpace: "nowrap",
+            fontWeight: 400,
             borderWidth: 1,
             borderStyle: "solid",
             borderRadius: 99999,
-            fontSize: 12,
-            color: theme.experimental.l1.text,
-            height: 24,
-            paddingLeft: icon ? 6 : 12,
+            lineHeight: 1,
+            height: PILL_HEIGHT,
+            gap: PILL_ICON_SPACING,
             paddingRight: 12,
-            whiteSpace: "nowrap",
-            fontWeight: 400,
+            paddingLeft: icon ? PILL_ICON_SPACING : 12,
+
+            "& svg": {
+              width: PILL_ICON_SIZE,
+              height: PILL_ICON_SIZE,
+            },
           },
           typeStyles,
         ]}
-        role="status"
-        {...attrs}
+        {...divProps}
       >
-        {icon && (
-          <div
-            css={css`
-              margin-right: 4px;
-              width: 14px;
-              height: 14px;
-              line-height: 0;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-
-              & > img,
-              & > svg {
-                width: 14px;
-                height: 14px;
-              }
-            `}
-          >
-            {icon}
-          </div>
-        )}
-        {text}
+        {icon}
+        {children}
       </div>
     );
   },

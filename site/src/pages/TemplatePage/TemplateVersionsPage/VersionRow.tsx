@@ -75,19 +75,36 @@ export const VersionRow: FC<VersionRowProps> = ({
           </Stack>
 
           <Stack direction="row" alignItems="center" spacing={2}>
-            {isActive && <Pill text="Active" type="success" />}
-            {isLatest && <Pill text="Newest" type="info" />}
-
+            {isActive && (
+              <Pill role="status" type="success">
+                Active
+              </Pill>
+            )}
+            {isLatest && (
+              <Pill role="status" type="info">
+                Newest
+              </Pill>
+            )}
             {jobStatus === "pending" && (
-              <Pill text={<>Pending&hellip;</>} type="warning" />
+              <Pill role="status" type="warning">
+                Pending&hellip;
+              </Pill>
             )}
             {jobStatus === "running" && (
-              <Pill text={<>Building&hellip;</>} type="warning" />
+              <Pill role="status" type="warning">
+                Building&hellip;
+              </Pill>
             )}
             {(jobStatus === "canceling" || jobStatus === "canceled") && (
-              <Pill text="Canceled" type="neutral" />
+              <Pill role="status" type="neutral">
+                Canceled
+              </Pill>
             )}
-            {jobStatus === "failed" && <Pill text="Failed" type="error" />}
+            {jobStatus === "failed" && (
+              <Pill role="status" type="error">
+                Failed
+              </Pill>
+            )}
 
             {showActions && (
               <>

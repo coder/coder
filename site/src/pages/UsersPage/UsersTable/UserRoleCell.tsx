@@ -71,7 +71,6 @@ export const UserRoleCell: FC<UserRoleCellProps> = ({
         )}
 
         <Pill
-          text={mainDisplayRole.display_name}
           css={{
             backgroundColor: hasOwnerRole
               ? theme.experimental.roles.info.background
@@ -80,7 +79,9 @@ export const UserRoleCell: FC<UserRoleCellProps> = ({
               ? theme.experimental.roles.info.outline
               : theme.experimental.l2.outline,
           }}
-        />
+        >
+          {mainDisplayRole.display_name}
+        </Pill>
 
         {extraRoles.length > 0 && <OverflowRolePill roles={extraRoles} />}
       </Stack>
@@ -99,12 +100,13 @@ const OverflowRolePill: FC<OverflowRolePillProps> = ({ roles }) => {
     <Popover mode="hover">
       <PopoverTrigger>
         <Pill
-          text={`+${roles.length} more`}
           css={{
             backgroundColor: theme.palette.background.paper,
             borderColor: theme.palette.divider,
           }}
-        />
+        >
+          {`+${roles.length} more`}
+        </Pill>
       </PopoverTrigger>
 
       <PopoverContent
@@ -133,12 +135,13 @@ const OverflowRolePill: FC<OverflowRolePillProps> = ({ roles }) => {
         {roles.map((role) => (
           <Pill
             key={role.name}
-            text={role.display_name || role.name}
             css={{
               backgroundColor: theme.palette.background.paper,
               borderColor: theme.palette.divider,
             }}
-          />
+          >
+            {role.display_name || role.name}
+          </Pill>
         ))}
       </PopoverContent>
     </Popover>
