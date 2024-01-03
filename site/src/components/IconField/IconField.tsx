@@ -4,7 +4,6 @@ import InputAdornment from "@mui/material/InputAdornment";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
 import { visuallyHidden } from "@mui/utils";
 import { type FC, lazy, Suspense } from "react";
-import { ErrorBoundary } from "components/ErrorBoundary/ErrorBoundary";
 import { Loader } from "components/Loader/Loader";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Stack } from "components/Stack/Stack";
