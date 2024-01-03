@@ -440,6 +440,9 @@ client:
 # Support links to display in the top right drop down menu.
 # (default: <unset>, type: struct[[]codersdk.LinkConfig])
 supportLinks: []
+# External Authentication providers.
+# (default: <unset>, type: struct[[]codersdk.ExternalAuthConfig])
+externalAuthProviders: []
 # Hostname of HTTPS server that runs https://github.com/coder/wgtunnel. By
 # default, this will pick the best available wgtunnel server hosted by Coder. e.g.
 # "tunnel.example.com".
@@ -450,10 +453,19 @@ wgtunnelHost: ""
 userQuietHoursSchedule:
   # The default daily cron schedule applied to users that haven't set a custom quiet
   # hours schedule themselves. The quiet hours schedule determines when workspaces
-  # will be force stopped due to the template's max TTL, and will round the max TTL
-  # up to be within the user's quiet hours window (or default). The format is the
-  # same as the standard cron format, but the day-of-month, month and day-of-week
-  # must be *. Only one hour and minute can be specified (ranges or comma separated
-  # values are not supported).
-  # (default: <unset>, type: string)
-  defaultQuietHoursSchedule: ""
+  # will be force stopped due to the template's autostop requirement, and will round
+  # the max deadline up to be within the user's quiet hours window (or default). The
+  # format is the same as the standard cron format, but the day-of-month, month and
+  # day-of-week must be *. Only one hour and minute can be specified (ranges or
+  # comma separated values are not supported).
+  # (default: CRON_TZ=UTC 0 0 * * *, type: string)
+  defaultQuietHoursSchedule: CRON_TZ=UTC 0 0 * * *
+  # Allow users to set their own quiet hours schedule for workspaces to stop in
+  # (depending on template autostop requirement settings). If false, users can't
+  # change their quiet hours schedule and the site default is always used.
+  # (default: true, type: bool)
+  allowCustomQuietHours: true
+# DEPRECATED: Allow users to rename their workspaces. Use only for temporary
+# compatibility reasons, this will be removed in a future release.
+# (default: false, type: bool)
+allowWorkspaceRenames: false

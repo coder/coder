@@ -35,6 +35,8 @@ import (
 	"tailscale.com/types/netlogtype"
 
 	"cdr.dev/slog"
+	"github.com/coder/retry"
+
 	"github.com/coder/coder/v2/agent/agentproc"
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentssh"
@@ -45,7 +47,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/tailnet"
-	"github.com/coder/retry"
 )
 
 const (
@@ -222,8 +223,10 @@ type agent struct {
 	connCountReconnectingPTY atomic.Int64
 
 	prometheusRegistry *prometheus.Registry
-	metrics            *agentMetrics
-	syscaller          agentproc.Syscaller
+	// metrics are prometheus registered metrics that will be collected and
+	// labeled in Coder with the agent + workspace.
+	metrics   *agentMetrics
+	syscaller agentproc.Syscaller
 
 	// modifiedProcs is used for testing process priority management.
 	modifiedProcs chan []*agentproc.Process
@@ -252,6 +255,9 @@ func (a *agent) init(ctx context.Context) {
 		Filesystem: a.filesystem,
 		PatchLogs:  a.client.PatchLogs,
 	})
+	// Register runner metrics. If the prom registry is nil, the metrics
+	// will not report anywhere.
+	a.scriptRunner.RegisterMetrics(a.prometheusRegistry)
 	go a.runLoop(ctx)
 }
 
@@ -745,9 +751,12 @@ func (a *agent) run(ctx context.Context) error {
 			return xerrors.Errorf("init script runner: %w", err)
 		}
 		err = a.trackConnGoroutine(func() {
+			start := time.Now()
 			err := a.scriptRunner.Execute(ctx, func(script codersdk.WorkspaceAgentScript) bool {
 				return script.RunOnStart
 			})
+			// Measure the time immediately after the script has finished
+			dur := time.Since(start).Seconds()
 			if err != nil {
 				a.logger.Warn(ctx, "startup script(s) failed", slog.Error(err))
 				if errors.Is(err, agentscripts.ErrTimeout) {
@@ -758,6 +767,12 @@ func (a *agent) run(ctx context.Context) error {
 			} else {
 				a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleReady)
 			}
+
+			label := "false"
+			if err == nil {
+				label = "true"
+			}
+			a.metrics.startupScriptSeconds.WithLabelValues(label).Set(dur)
 			a.scriptRunner.StartCron()
 		})
 		if err != nil {
@@ -1173,6 +1188,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 // startReportingConnectionStats runs the connection stats reporting goroutine.
 func (a *agent) startReportingConnectionStats(ctx context.Context) {
 	reportStats := func(networkStats map[netlogtype.Connection]netlogtype.Counts) {
+		a.logger.Debug(ctx, "computing stats report")
 		stats := &agentsdk.Stats{
 			ConnectionCount:    int64(len(networkStats)),
 			ConnectionsByProto: map[string]int64{},
@@ -1194,6 +1210,7 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 		stats.SessionCountReconnectingPTY = a.connCountReconnectingPTY.Load()
 
 		// Compute the median connection latency!
+		a.logger.Debug(ctx, "starting peer latency measurement for stats")
 		var wg sync.WaitGroup
 		var mu sync.Mutex
 		status := a.network.Status()
@@ -1242,13 +1259,17 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 
 		metricsCtx, cancelFunc := context.WithTimeout(ctx, 5*time.Second)
 		defer cancelFunc()
+		a.logger.Debug(ctx, "collecting agent metrics for stats")
 		stats.Metrics = a.collectMetrics(metricsCtx)
 
 		a.latestStat.Store(stats)
 
+		a.logger.Debug(ctx, "about to send stats")
 		select {
 		case a.connStatsChan <- stats:
+			a.logger.Debug(ctx, "successfully sent stats")
 		case <-a.closed:
+			a.logger.Debug(ctx, "didn't send stats because we are closed")
 		}
 	}
 

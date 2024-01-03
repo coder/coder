@@ -46,9 +46,12 @@ WHERE
 
 -- name: GetWorkspaceByAgentID :one
 SELECT
-	*
+	sqlc.embed(workspaces),
+	templates.name as template_name
 FROM
 	workspaces
+INNER JOIN
+	templates ON workspaces.template_id = templates.id
 WHERE
 	workspaces.id = (
 		SELECT

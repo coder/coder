@@ -153,6 +153,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "user": {}
     },
     "agent_stat_refresh_interval": 0,
+    "allow_workspace_renames": true,
     "autobuild_poll_interval": 0,
     "browser_only": true,
     "cache_directory": "string",
@@ -394,6 +395,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     },
     "update_check": true,
     "user_quiet_hours_schedule": {
+      "allow_user_custom": true,
       "default_schedule": "string"
     },
     "verbose": true,
@@ -561,7 +563,7 @@ curl -X GET http://coder-server:8080/api/v2/experiments \
 > 200 Response
 
 ```json
-["moons"]
+["workspace_actions"]
 ```
 
 ### Responses
@@ -598,7 +600,7 @@ curl -X GET http://coder-server:8080/api/v2/experiments/available \
 > 200 Response
 
 ```json
-["moons"]
+["workspace_actions"]
 ```
 
 ### Responses

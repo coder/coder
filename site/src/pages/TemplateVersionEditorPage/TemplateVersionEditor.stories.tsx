@@ -1,3 +1,5 @@
+import type { Meta, StoryObj } from "@storybook/react";
+import { chromatic } from "testHelpers/chromatic";
 import {
   MockFailedProvisionerJob,
   MockRunningProvisionerJob,
@@ -14,18 +16,18 @@ import {
   MockWorkspaceVolumeResource,
 } from "testHelpers/entities";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof TemplateVersionEditor> = {
-  title: "pages/TemplateVersionEditorPage",
+  title: "pages/TemplateVersionEditor",
+  parameters: {
+    chromatic,
+    layout: "fullscreen",
+  },
   component: TemplateVersionEditor,
   args: {
     template: MockTemplate,
     templateVersion: MockTemplateVersion,
     defaultFileTree: MockTemplateVersionFileTree,
-  },
-  parameters: {
-    layout: "fullscreen",
   },
 };
 

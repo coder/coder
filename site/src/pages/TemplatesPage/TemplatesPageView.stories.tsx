@@ -1,3 +1,5 @@
+import type { Meta, StoryObj } from "@storybook/react";
+import { chromaticWithTablet } from "testHelpers/chromatic";
 import {
   mockApiError,
   MockTemplate,
@@ -5,10 +7,10 @@ import {
   MockTemplateExample2,
 } from "testHelpers/entities";
 import { TemplatesPageView } from "./TemplatesPageView";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof TemplatesPageView> = {
   title: "pages/TemplatesPage",
+  parameters: { chromatic: chromaticWithTablet },
   component: TemplatesPageView,
 };
 
@@ -62,15 +64,6 @@ export const WithTemplates: Story = {
       },
     ],
     examples: [],
-  },
-};
-
-export const WithTemplatesSmallViewPort: Story = {
-  args: {
-    ...WithTemplates.args,
-  },
-  parameters: {
-    chromatic: { viewports: [600] },
   },
 };
 

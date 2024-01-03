@@ -1,15 +1,17 @@
-import { WorkspaceApp } from "api/typesGenerated";
-import { FC } from "react";
 import ComputerIcon from "@mui/icons-material/Computer";
+import { type FC } from "react";
+import type { WorkspaceApp } from "api/typesGenerated";
 
-export const BaseIcon: FC<{ app: WorkspaceApp }> = ({ app }) => {
+interface BaseIconProps {
+  app: WorkspaceApp;
+}
+
+export const BaseIcon: FC<BaseIconProps> = ({ app }) => {
   return app.icon ? (
     <img
       alt={`${app.display_name} Icon`}
       src={app.icon}
-      style={{
-        pointerEvents: "none",
-      }}
+      style={{ pointerEvents: "none" }}
     />
   ) : (
     <ComputerIcon />

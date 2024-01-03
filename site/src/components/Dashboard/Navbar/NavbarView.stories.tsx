@@ -1,9 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { chromaticWithTablet } from "testHelpers/chromatic";
 import { MockUser, MockUser2 } from "testHelpers/entities";
 import { NavbarView } from "./NavbarView";
 
 const meta: Meta<typeof NavbarView> = {
   title: "components/NavbarView",
+  parameters: { chromatic: chromaticWithTablet, layout: "fullscreen" },
   component: NavbarView,
   args: {
     user: MockUser,
@@ -21,14 +23,5 @@ export const ForMember: Story = {
     canViewAuditLog: false,
     canViewDeployment: false,
     canViewAllUsers: false,
-  },
-};
-
-export const SmallViewport: Story = {
-  parameters: {
-    viewport: {
-      defaultViewport: "tablet",
-    },
-    chromatic: { viewports: [420] },
   },
 };

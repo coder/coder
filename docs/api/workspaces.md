@@ -47,6 +47,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
 
 ```json
 {
+  "allow_renames": true,
   "automatic_updates": "always",
   "autostart_schedule": "string",
   "created_at": "2019-08-24T14:15:22Z",
@@ -257,6 +258,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
 
 ```json
 {
+  "allow_renames": true,
   "automatic_updates": "always",
   "autostart_schedule": "string",
   "created_at": "2019-08-24T14:15:22Z",
@@ -455,11 +457,11 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
 
 ### Parameters
 
-| Name     | In    | Type    | Required | Description                                                                                                                                          |
-| -------- | ----- | ------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `q`      | query | string  | false    | Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, is-dormant, last_used_after, last_used_before. |
-| `limit`  | query | integer | false    | Page limit                                                                                                                                           |
-| `offset` | query | integer | false    | Page offset                                                                                                                                          |
+| Name     | In    | Type    | Required | Description                                                                                                                                       |
+| -------- | ----- | ------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `q`      | query | string  | false    | Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before. |
+| `limit`  | query | integer | false    | Page limit                                                                                                                                        |
+| `offset` | query | integer | false    | Page offset                                                                                                                                       |
 
 ### Example responses
 
@@ -470,6 +472,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
   "count": 0,
   "workspaces": [
     {
+      "allow_renames": true,
       "automatic_updates": "always",
       "autostart_schedule": "string",
       "created_at": "2019-08-24T14:15:22Z",
@@ -677,6 +680,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
 
 ```json
 {
+  "allow_renames": true,
   "automatic_updates": "always",
   "autostart_schedule": "string",
   "created_at": "2019-08-24T14:15:22Z",
@@ -1003,6 +1007,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
 
 ```json
 {
+  "allow_renames": true,
   "automatic_updates": "always",
   "autostart_schedule": "string",
   "created_at": "2019-08-24T14:15:22Z",

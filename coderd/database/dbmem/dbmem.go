@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/regosql"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisionersdk"
 )
 
 var validProxyByHostnameRegex = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
@@ -129,6 +130,8 @@ type data struct {
 	groupMembers                  []database.GroupMember
 	groups                        []database.Group
 	licenses                      []database.License
+	oauth2ProviderApps            []database.OAuth2ProviderApp
+	oauth2ProviderAppSecrets      []database.OAuth2ProviderAppSecret
 	parameterSchemas              []database.ParameterSchema
 	provisionerDaemons            []database.ProvisionerDaemon
 	provisionerJobLogs            []database.ProvisionerJobLog
@@ -579,6 +582,10 @@ func (q *FakeQuerier) getProvisionerJobByIDNoLock(_ context.Context, id uuid.UUI
 		if provisionerJob.ID != id {
 			continue
 		}
+		// clone the Tags before returning, since maps are reference types and
+		// we don't want the caller to be able to mutate the map we have inside
+		// dbmem!
+		provisionerJob.Tags = maps.Clone(provisionerJob.Tags)
 		return provisionerJob, nil
 	}
 	return database.ProvisionerJob{}, sql.ErrNoRows
@@ -778,6 +785,10 @@ func (q *FakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 		provisionerJob.WorkerID = arg.WorkerID
 		provisionerJob.JobStatus = provisonerJobStatus(provisionerJob)
 		q.provisionerJobs[index] = provisionerJob
+		// clone the Tags before returning, since maps are reference types and
+		// we don't want the caller to be able to mutate the map we have inside
+		// dbmem!
+		provisionerJob.Tags = maps.Clone(provisionerJob.Tags)
 		return provisionerJob, nil
 	}
 	return database.ProvisionerJob{}, sql.ErrNoRows
@@ -871,7 +882,7 @@ func (q *FakeQuerier) AllUserIDs(_ context.Context) ([]uuid.UUID, error) {
 	defer q.mutex.RUnlock()
 	userIDs := make([]uuid.UUID, 0, len(q.users))
 	for idx := range q.users {
-		userIDs[idx] = q.users[idx].ID
+		userIDs = append(userIDs, q.users[idx].ID)
 	}
 	return userIDs, nil
 }
@@ -1135,6 +1146,43 @@ func (q *FakeQuerier) DeleteLicense(_ context.Context, id int32) (int32, error) 
 	return 0, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) DeleteOAuth2ProviderAppByID(_ context.Context, id uuid.UUID) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, app := range q.oauth2ProviderApps {
+		if app.ID == id {
+			q.oauth2ProviderApps[index] = q.oauth2ProviderApps[len(q.oauth2ProviderApps)-1]
+			q.oauth2ProviderApps = q.oauth2ProviderApps[:len(q.oauth2ProviderApps)-1]
+
+			secrets := []database.OAuth2ProviderAppSecret{}
+			for _, secret := range q.oauth2ProviderAppSecrets {
+				if secret.AppID != id {
+					secrets = append(secrets, secret)
+				}
+			}
+			q.oauth2ProviderAppSecrets = secrets
+
+			return nil
+		}
+	}
+	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) DeleteOAuth2ProviderAppSecretByID(_ context.Context, id uuid.UUID) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, secret := range q.oauth2ProviderAppSecrets {
+		if secret.ID == id {
+			q.oauth2ProviderAppSecrets[index] = q.oauth2ProviderAppSecrets[len(q.oauth2ProviderAppSecrets)-1]
+			q.oauth2ProviderAppSecrets = q.oauth2ProviderAppSecrets[:len(q.oauth2ProviderAppSecrets)-1]
+			return nil
+		}
+	}
+	return sql.ErrNoRows
+}
+
 func (q *FakeQuerier) DeleteOldProvisionerDaemons(_ context.Context) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -1354,10 +1402,6 @@ func (q *FakeQuerier) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, 
 }
 
 func (*FakeQuerier) GetAllTailnetAgents(_ context.Context) ([]database.TailnetAgent, error) {
-	return nil, ErrUnimplemented
-}
-
-func (*FakeQuerier) GetAllTailnetClients(_ context.Context) ([]database.GetAllTailnetClientsRow, error) {
 	return nil, ErrUnimplemented
 }
 
@@ -1887,6 +1931,10 @@ func (q *FakeQuerier) GetHungProvisionerJobs(_ context.Context, hungSince time.T
 	hungJobs := []database.ProvisionerJob{}
 	for _, provisionerJob := range q.provisionerJobs {
 		if provisionerJob.StartedAt.Valid && !provisionerJob.CompletedAt.Valid && provisionerJob.UpdatedAt.Before(hungSince) {
+			// clone the Tags before appending, since maps are reference types and
+			// we don't want the caller to be able to mutate the map we have inside
+			// dbmem!
+			provisionerJob.Tags = maps.Clone(provisionerJob.Tags)
 			hungJobs = append(hungJobs, provisionerJob)
 		}
 	}
@@ -1993,6 +2041,68 @@ func (q *FakeQuerier) GetLogoURL(_ context.Context) (string, error) {
 	}
 
 	return q.logoURL, nil
+}
+
+func (q *FakeQuerier) GetOAuth2ProviderAppByID(_ context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, app := range q.oauth2ProviderApps {
+		if app.ID == id {
+			return app, nil
+		}
+	}
+	return database.OAuth2ProviderApp{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetOAuth2ProviderAppSecretByID(_ context.Context, id uuid.UUID) (database.OAuth2ProviderAppSecret, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, secret := range q.oauth2ProviderAppSecrets {
+		if secret.ID == id {
+			return secret, nil
+		}
+	}
+	return database.OAuth2ProviderAppSecret{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetOAuth2ProviderAppSecretsByAppID(_ context.Context, appID uuid.UUID) ([]database.OAuth2ProviderAppSecret, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, app := range q.oauth2ProviderApps {
+		if app.ID == appID {
+			secrets := []database.OAuth2ProviderAppSecret{}
+			for _, secret := range q.oauth2ProviderAppSecrets {
+				if secret.AppID == appID {
+					secrets = append(secrets, secret)
+				}
+			}
+
+			slices.SortFunc(secrets, func(a, b database.OAuth2ProviderAppSecret) int {
+				if a.CreatedAt.Before(b.CreatedAt) {
+					return -1
+				} else if a.CreatedAt.Equal(b.CreatedAt) {
+					return 0
+				}
+				return 1
+			})
+			return secrets, nil
+		}
+	}
+
+	return []database.OAuth2ProviderAppSecret{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetOAuth2ProviderApps(_ context.Context) ([]database.OAuth2ProviderApp, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	slices.SortFunc(q.oauth2ProviderApps, func(a, b database.OAuth2ProviderApp) int {
+		return slice.Ascending(a.Name, b.Name)
+	})
+	return q.oauth2ProviderApps, nil
 }
 
 func (q *FakeQuerier) GetOAuthSigningKey(_ context.Context) (string, error) {
@@ -2194,7 +2304,15 @@ func (q *FakeQuerier) GetProvisionerDaemons(_ context.Context) ([]database.Provi
 	if len(q.provisionerDaemons) == 0 {
 		return nil, sql.ErrNoRows
 	}
-	return q.provisionerDaemons, nil
+	// copy the data so that the caller can't manipulate any data inside dbmem
+	// after returning
+	out := make([]database.ProvisionerDaemon, len(q.provisionerDaemons))
+	copy(out, q.provisionerDaemons)
+	for i := range out {
+		// maps are reference types, so we need to clone them
+		out[i].Tags = maps.Clone(out[i].Tags)
+	}
+	return out, nil
 }
 
 func (q *FakeQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
@@ -2212,6 +2330,10 @@ func (q *FakeQuerier) GetProvisionerJobsByIDs(_ context.Context, ids []uuid.UUID
 	for _, job := range q.provisionerJobs {
 		for _, id := range ids {
 			if id == job.ID {
+				// clone the Tags before appending, since maps are reference types and
+				// we don't want the caller to be able to mutate the map we have inside
+				// dbmem!
+				job.Tags = maps.Clone(job.Tags)
 				jobs = append(jobs, job)
 				break
 			}
@@ -2233,6 +2355,10 @@ func (q *FakeQuerier) GetProvisionerJobsByIDsWithQueuePosition(_ context.Context
 	for _, job := range q.provisionerJobs {
 		for _, id := range ids {
 			if id == job.ID {
+				// clone the Tags before appending, since maps are reference types and
+				// we don't want the caller to be able to mutate the map we have inside
+				// dbmem!
+				job.Tags = maps.Clone(job.Tags)
 				job := database.GetProvisionerJobsByIDsWithQueuePositionRow{
 					ProvisionerJob: job,
 				}
@@ -2263,6 +2389,10 @@ func (q *FakeQuerier) GetProvisionerJobsCreatedAfter(_ context.Context, after ti
 	jobs := make([]database.ProvisionerJob, 0)
 	for _, job := range q.provisionerJobs {
 		if job.CreatedAt.After(after) {
+			// clone the Tags before appending, since maps are reference types and
+			// we don't want the caller to be able to mutate the map we have inside
+			// dbmem!
+			job.Tags = maps.Clone(job.Tags)
 			jobs = append(jobs, job)
 		}
 	}
@@ -3767,6 +3897,7 @@ func (q *FakeQuerier) GetWorkspaceAgentAndOwnerByAuthToken(_ context.Context, au
 					}
 					var row database.GetWorkspaceAgentAndOwnerByAuthTokenRow
 					row.WorkspaceID = ws.ID
+					row.TemplateID = ws.TemplateID
 					usr, err := q.getUserByIDNoLock(ws.OwnerID)
 					if err != nil {
 						return database.GetWorkspaceAgentAndOwnerByAuthTokenRow{}, sql.ErrNoRows
@@ -3776,6 +3907,7 @@ func (q *FakeQuerier) GetWorkspaceAgentAndOwnerByAuthToken(_ context.Context, au
 					// We also need to get org roles for the user
 					row.OwnerName = usr.Username
 					row.WorkspaceAgent = agt
+					row.TemplateVersionID = build.TemplateVersionID
 					for _, mem := range q.organizationMembers {
 						if mem.UserID == usr.ID {
 							row.OwnerRoles = append(row.OwnerRoles, fmt.Sprintf("organization-member:%s", mem.OrganizationID.String()))
@@ -4296,11 +4428,24 @@ func (q *FakeQuerier) GetWorkspaceBuildsCreatedAfter(_ context.Context, after ti
 	return workspaceBuilds, nil
 }
 
-func (q *FakeQuerier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (database.Workspace, error) {
+func (q *FakeQuerier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (database.GetWorkspaceByAgentIDRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	return q.getWorkspaceByAgentIDNoLock(ctx, agentID)
+	w, err := q.getWorkspaceByAgentIDNoLock(ctx, agentID)
+	if err != nil {
+		return database.GetWorkspaceByAgentIDRow{}, err
+	}
+
+	tpl, err := q.getTemplateByIDNoLock(ctx, w.TemplateID)
+	if err != nil {
+		return database.GetWorkspaceByAgentIDRow{}, err
+	}
+
+	return database.GetWorkspaceByAgentIDRow{
+		Workspace:    w,
+		TemplateName: tpl.Name,
+	}, nil
 }
 
 func (q *FakeQuerier) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (database.Workspace, error) {
@@ -4902,6 +5047,61 @@ func (q *FakeQuerier) InsertMissingGroups(_ context.Context, arg database.Insert
 	return newGroups, nil
 }
 
+func (q *FakeQuerier) InsertOAuth2ProviderApp(_ context.Context, arg database.InsertOAuth2ProviderAppParams) (database.OAuth2ProviderApp, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.OAuth2ProviderApp{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, app := range q.oauth2ProviderApps {
+		if app.Name == arg.Name {
+			return database.OAuth2ProviderApp{}, errDuplicateKey
+		}
+	}
+
+	//nolint:gosimple // Go wants database.OAuth2ProviderApp(arg), but we cannot be sure the structs will remain identical.
+	app := database.OAuth2ProviderApp{
+		ID:          arg.ID,
+		CreatedAt:   arg.CreatedAt,
+		UpdatedAt:   arg.UpdatedAt,
+		Name:        arg.Name,
+		Icon:        arg.Icon,
+		CallbackURL: arg.CallbackURL,
+	}
+	q.oauth2ProviderApps = append(q.oauth2ProviderApps, app)
+
+	return app, nil
+}
+
+func (q *FakeQuerier) InsertOAuth2ProviderAppSecret(_ context.Context, arg database.InsertOAuth2ProviderAppSecretParams) (database.OAuth2ProviderAppSecret, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.OAuth2ProviderAppSecret{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, app := range q.oauth2ProviderApps {
+		if app.ID == arg.AppID {
+			secret := database.OAuth2ProviderAppSecret{
+				ID:            arg.ID,
+				CreatedAt:     arg.CreatedAt,
+				HashedSecret:  arg.HashedSecret,
+				DisplaySecret: arg.DisplaySecret,
+				AppID:         arg.AppID,
+			}
+			q.oauth2ProviderAppSecrets = append(q.oauth2ProviderAppSecrets, secret)
+			return secret, nil
+		}
+	}
+
+	return database.OAuth2ProviderAppSecret{}, sql.ErrNoRows
+}
+
 func (q *FakeQuerier) InsertOrganization(_ context.Context, arg database.InsertOrganizationParams) (database.Organization, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.Organization{}, err
@@ -4940,25 +5140,6 @@ func (q *FakeQuerier) InsertOrganizationMember(_ context.Context, arg database.I
 	return organizationMember, nil
 }
 
-func (q *FakeQuerier) InsertProvisionerDaemon(_ context.Context, arg database.InsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
-	if err := validateDatabaseType(arg); err != nil {
-		return database.ProvisionerDaemon{}, err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	daemon := database.ProvisionerDaemon{
-		ID:           arg.ID,
-		Name:         arg.Name,
-		Provisioners: arg.Provisioners,
-		Tags:         arg.Tags,
-		LastSeenAt:   arg.LastSeenAt,
-	}
-	q.provisionerDaemons = append(q.provisionerDaemons, daemon)
-	return daemon, nil
-}
-
 func (q *FakeQuerier) InsertProvisionerJob(_ context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.ProvisionerJob{}, err
@@ -4978,7 +5159,7 @@ func (q *FakeQuerier) InsertProvisionerJob(_ context.Context, arg database.Inser
 		FileID:         arg.FileID,
 		Type:           arg.Type,
 		Input:          arg.Input,
-		Tags:           arg.Tags,
+		Tags:           maps.Clone(arg.Tags),
 		TraceMetadata:  arg.TraceMetadata,
 	}
 	job.JobStatus = provisonerJobStatus(job)
@@ -5922,6 +6103,86 @@ func (q *FakeQuerier) UpdateMemberRoles(_ context.Context, arg database.UpdateMe
 	return database.OrganizationMember{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) UpdateOAuth2ProviderAppByID(_ context.Context, arg database.UpdateOAuth2ProviderAppByIDParams) (database.OAuth2ProviderApp, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.OAuth2ProviderApp{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, app := range q.oauth2ProviderApps {
+		if app.Name == arg.Name && app.ID != arg.ID {
+			return database.OAuth2ProviderApp{}, errDuplicateKey
+		}
+	}
+
+	for index, app := range q.oauth2ProviderApps {
+		if app.ID == arg.ID {
+			newApp := database.OAuth2ProviderApp{
+				ID:          arg.ID,
+				CreatedAt:   app.CreatedAt,
+				UpdatedAt:   arg.UpdatedAt,
+				Name:        arg.Name,
+				Icon:        arg.Icon,
+				CallbackURL: arg.CallbackURL,
+			}
+			q.oauth2ProviderApps[index] = newApp
+			return newApp, nil
+		}
+	}
+	return database.OAuth2ProviderApp{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateOAuth2ProviderAppSecretByID(_ context.Context, arg database.UpdateOAuth2ProviderAppSecretByIDParams) (database.OAuth2ProviderAppSecret, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.OAuth2ProviderAppSecret{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, secret := range q.oauth2ProviderAppSecrets {
+		if secret.ID == arg.ID {
+			newSecret := database.OAuth2ProviderAppSecret{
+				ID:            arg.ID,
+				CreatedAt:     secret.CreatedAt,
+				HashedSecret:  secret.HashedSecret,
+				DisplaySecret: secret.DisplaySecret,
+				AppID:         secret.AppID,
+				LastUsedAt:    arg.LastUsedAt,
+			}
+			q.oauth2ProviderAppSecrets[index] = newSecret
+			return newSecret, nil
+		}
+	}
+	return database.OAuth2ProviderAppSecret{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateProvisionerDaemonLastSeenAt(_ context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for idx := range q.provisionerDaemons {
+		if q.provisionerDaemons[idx].ID != arg.ID {
+			continue
+		}
+		if q.provisionerDaemons[idx].LastSeenAt.Time.After(arg.LastSeenAt.Time) {
+			continue
+		}
+		q.provisionerDaemons[idx].LastSeenAt = arg.LastSeenAt
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
 func (q *FakeQuerier) UpdateProvisionerJobByID(_ context.Context, arg database.UpdateProvisionerJobByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
@@ -6135,6 +6396,7 @@ func (q *FakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database
 		tpl.AllowUserAutostop = arg.AllowUserAutostop
 		tpl.UpdatedAt = dbtime.Now()
 		tpl.DefaultTTL = arg.DefaultTTL
+		tpl.UseMaxTtl = arg.UseMaxTtl
 		tpl.MaxTTL = arg.MaxTTL
 		tpl.AutostopRequirementDaysOfWeek = arg.AutostopRequirementDaysOfWeek
 		tpl.AutostopRequirementWeeks = arg.AutostopRequirementWeeks
@@ -6229,6 +6491,26 @@ func (q *FakeQuerier) UpdateTemplateWorkspacesLastUsedAt(_ context.Context, arg 
 	}
 
 	return nil
+}
+
+func (q *FakeQuerier) UpdateUserAppearanceSettings(_ context.Context, arg database.UpdateUserAppearanceSettingsParams) (database.User, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.User{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, user := range q.users {
+		if user.ID != arg.ID {
+			continue
+		}
+		user.ThemePreference = arg.ThemePreference
+		q.users[index] = user
+		return user, nil
+	}
+	return database.User{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) UpdateUserDeletedByID(_ context.Context, params database.UpdateUserDeletedByIDParams) error {
@@ -6963,6 +7245,44 @@ func (q *FakeQuerier) UpsertOAuthSigningKey(_ context.Context, value string) err
 
 	q.oauthSigningKey = value
 	return nil
+}
+
+func (q *FakeQuerier) UpsertProvisionerDaemon(_ context.Context, arg database.UpsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.ProvisionerDaemon{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+	for _, d := range q.provisionerDaemons {
+		if d.Name == arg.Name {
+			if d.Tags[provisionersdk.TagScope] == provisionersdk.ScopeOrganization && arg.Tags[provisionersdk.TagOwner] != "" {
+				continue
+			}
+			if d.Tags[provisionersdk.TagScope] == provisionersdk.ScopeUser && arg.Tags[provisionersdk.TagOwner] != d.Tags[provisionersdk.TagOwner] {
+				continue
+			}
+			d.Provisioners = arg.Provisioners
+			d.Tags = maps.Clone(arg.Tags)
+			d.Version = arg.Version
+			d.LastSeenAt = arg.LastSeenAt
+			return d, nil
+		}
+	}
+	d := database.ProvisionerDaemon{
+		ID:           uuid.New(),
+		CreatedAt:    arg.CreatedAt,
+		Name:         arg.Name,
+		Provisioners: arg.Provisioners,
+		Tags:         maps.Clone(arg.Tags),
+		ReplicaID:    uuid.NullUUID{},
+		LastSeenAt:   arg.LastSeenAt,
+		Version:      arg.Version,
+		APIVersion:   arg.APIVersion,
+	}
+	q.provisionerDaemons = append(q.provisionerDaemons, d)
+	return d, nil
 }
 
 func (q *FakeQuerier) UpsertServiceBanner(_ context.Context, data string) error {

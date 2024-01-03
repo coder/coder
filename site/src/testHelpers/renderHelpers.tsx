@@ -4,19 +4,20 @@ import {
   waitFor,
   renderHook,
 } from "@testing-library/react";
-import { AppProviders, ThemeProviders } from "App";
+import { type ReactNode, useState } from "react";
+import { QueryClient } from "react-query";
+import { AppProviders } from "App";
+import { ThemeProvider } from "contexts/ThemeProvider";
 import { DashboardLayout } from "components/Dashboard/DashboardLayout";
+import { RequireAuth } from "components/RequireAuth/RequireAuth";
 import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout";
 import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 import {
-  RouterProvider,
   createMemoryRouter,
-  RouteObject,
+  RouterProvider,
+  type RouteObject,
 } from "react-router-dom";
-import { RequireAuth } from "../components/RequireAuth/RequireAuth";
 import { MockUser } from "./entities";
-import { ReactNode, useState } from "react";
-import { QueryClient } from "react-query";
 
 function createTestQueryClient() {
   // Helps create one query client for each test case, to make sure that tests
@@ -264,6 +265,6 @@ export const waitForLoaderToBeRemoved = async (): Promise<void> => {
 
 export const renderComponent = (component: React.ReactElement) => {
   return tlRender(component, {
-    wrapper: ({ children }) => <ThemeProviders>{children}</ThemeProviders>,
+    wrapper: ({ children }) => <ThemeProvider>{children}</ThemeProvider>,
   });
 };

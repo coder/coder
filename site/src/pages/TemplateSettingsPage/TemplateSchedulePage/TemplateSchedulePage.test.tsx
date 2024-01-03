@@ -15,6 +15,7 @@ import TemplateSchedulePage from "./TemplateSchedulePage";
 
 const validFormValues: TemplateScheduleFormValues = {
   default_ttl_ms: 1,
+  use_max_ttl: true,
   max_ttl_ms: 2,
   failure_ttl_ms: 7,
   time_til_dormant_ms: 180,
@@ -73,8 +74,12 @@ const fillAndSubmitForm = async ({
   }
 
   if (max_ttl_ms) {
+    const useMaxTtlCheckbox = screen.getByRole("checkbox", {
+      name: /Use a max lifetime/i,
+    });
     const maxTtlField = await screen.findByLabelText("Max lifetime (hours)");
 
+    await user.click(useMaxTtlCheckbox);
     await user.clear(maxTtlField);
     await user.type(maxTtlField, max_ttl_ms.toString());
   }

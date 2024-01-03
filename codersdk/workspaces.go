@@ -57,6 +57,7 @@ type Workspace struct {
 	// what is causing an unhealthy status.
 	Health           WorkspaceHealth  `json:"health"`
 	AutomaticUpdates AutomaticUpdates `json:"automatic_updates" enums:"always,never"`
+	AllowRenames     bool             `json:"allow_renames"`
 }
 
 func (w Workspace) FullName() string {
@@ -219,7 +220,11 @@ func (c *Client) WatchWorkspace(ctx context.Context, id uuid.UUID) (<-chan Works
 				if err != nil {
 					return
 				}
-				wc <- ws
+				select {
+				case <-ctx.Done():
+					return
+				case wc <- ws:
+				}
 			}
 		}
 	}()

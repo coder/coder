@@ -45,7 +45,7 @@ export const UserDropdown: FC<UserDropdownProps> = ({
                   />
                 </Badge>
                 <DropdownArrow
-                  color={theme.colors.gray[6]}
+                  color={theme.experimental.l2.fill}
                   close={popover.isOpen}
                 />
               </div>

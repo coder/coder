@@ -1,6 +1,6 @@
 import * as API from "api/api";
 
-const getWorkspaceQuotaQueryKey = (username: string) => [
+export const getWorkspaceQuotaQueryKey = (username: string) => [
   username,
   "workspaceQuota",
 ];

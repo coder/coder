@@ -99,11 +99,45 @@ the api/queries folder when it is possible.
 
 ### Where to fetch data
 
-Finding the right place to fetch data in React apps is the million-dollar
-question, but we decided to make it only in the page components and pass the
-props down to the views. This makes it easier to find where data is being loaded
-and easy to test using Storybook. So you will see components like `UsersPage`
-and `UsersPageView`.
+In the past, our approach involved creating separate components for page and
+view, where the page component served as a container responsible for fetching
+data and passing it down to the view.
+
+For instance, when developing a page to display users, we would have a
+`UsersPage` component with a corresponding `UsersPageView`. The `UsersPage`
+would handle API calls, while the `UsersPageView` managed the presentational
+logic.
+
+Over time, however, we encountered challenges with this approach, particularly
+in terms of excessive props drilling. To address this, we opted to fetch data in
+proximity to its usage. Taking the example of displaying users, in the past, if
+we were creating a header component for that page, we would have needed to fetch
+the data in the page component and pass it down through the hierarchy
+(`UsersPage -> UsersPageView -> UsersHeader`). Now, with libraries such as
+`react-query`, data fetching can be performed directly in the `UsersHeader`
+component, allowing UI elements to declare and consume their data-fetching
+dependencies directly, while preventing duplicate server requests
+([more info](https://github.com/TanStack/query/discussions/608#discussioncomment-29735)).
+
+To simplify visual testing of scenarios where components are responsible for
+fetching data, you can easily set the queries' value using `parameters.queries`
+within the component's story.
+
+```tsx
+export const WithQuota: Story = {
+  parameters: {
+    queries: [
+      {
+        key: getWorkspaceQuotaQueryKey(MockUser.username),
+        data: {
+          credits_consumed: 2,
+          budget: 40,
+        },
+      },
+    ],
+  },
+};
+```
 
 ### API
 
@@ -237,12 +271,15 @@ another page, you should probably consider using the **E2E** approach.
 
 ### Visual testing
 
-Test components without user interaction like testing if a page view is rendered
-correctly depending on some parameters, if the button is showing a spinner if
-the `loading` props are passing, etc. This should always be your first option
-since it is way easier to maintain. For this, we use
+We use visual tests to test components without user interaction like testing if
+a page/component is rendered correctly depending on some parameters, if a button
+is showing a spinner, if `loading` props are passed correctly, etc. This should
+always be your first option since it is way easier to maintain. For this, we use
 [Storybook](https://storybook.js.org/) and
 [Chromatic](https://www.chromatic.com/).
+
+> ℹ️ To learn more about testing components that fetch API data, refer to the
+> [**Where to fetch data**](#where-to-fetch-data) section.
 
 ### What should I test?
 

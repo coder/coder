@@ -1,5 +1,6 @@
 import TableCell from "@mui/material/TableCell";
 import { type CSSObject, type Interpolation, type Theme } from "@emotion/react";
+import { type FC } from "react";
 import { useNavigate } from "react-router-dom";
 import type { WorkspaceBuild } from "api/typesGenerated";
 import { BuildAvatar } from "components/BuildAvatar/BuildAvatar";
@@ -21,7 +22,7 @@ const transitionMessages = {
   delete: "deleted",
 };
 
-export const BuildRow: React.FC<BuildRowProps> = ({ build }) => {
+export const BuildRow: FC<BuildRowProps> = ({ build }) => {
   const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(build);
   const navigate = useNavigate();
   const clickableProps = useClickable<HTMLTableRowElement>(() =>

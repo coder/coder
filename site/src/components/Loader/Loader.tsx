@@ -16,6 +16,7 @@ export const Loader: FC<LoaderProps> = ({ size = 26, ...attrs }) => {
         justifyContent: "center",
       }}
       data-testid="loader"
+      data-chromatic="ignore"
       {...attrs}
     >
       <CircularProgress size={size} />

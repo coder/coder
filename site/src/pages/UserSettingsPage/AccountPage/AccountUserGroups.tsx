@@ -6,7 +6,7 @@ import type { Group } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { AvatarCard } from "components/AvatarCard/AvatarCard";
 import { Loader } from "components/Loader/Loader";
-import { Section } from "components/SettingsLayout/Section";
+import { Section } from "../Section";
 
 type AccountGroupsProps = {
   groups: readonly Group[] | undefined;

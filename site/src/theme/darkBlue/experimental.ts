@@ -1,5 +1,5 @@
 import { type NewTheme } from "../experimental";
-import colors from "../tailwind";
+import colors from "../tailwindColors";
 
 export default {
   l1: {
@@ -12,37 +12,18 @@ export default {
   l2: {
     background: colors.gray[900],
     outline: colors.gray[700],
-    fill: "#f00",
-    text: colors.white,
+    fill: colors.gray[500],
+    text: colors.gray[50],
     disabled: {
-      background: "#f00",
-      outline: "#f00",
-      fill: "#f00",
+      background: colors.gray[900],
+      outline: colors.zinc[700],
+      fill: colors.gray[500],
       text: colors.gray[200],
     },
     hover: {
-      background: "#f00",
-      outline: "#f00",
-      fill: "#f00",
-      text: colors.white,
-    },
-  },
-
-  l3: {
-    background: colors.gray[800],
-    outline: colors.gray[700],
-    fill: colors.gray[600],
-    text: colors.white,
-    disabled: {
-      background: "#f00",
-      outline: "#f00",
-      fill: "#f00",
-      text: colors.gray[200],
-    },
-    hover: {
-      background: "#f00",
-      outline: "#f00",
-      fill: "#f00",
+      background: colors.gray[800],
+      outline: colors.gray[600],
+      fill: colors.zinc[400],
       text: colors.white,
     },
   },
@@ -50,7 +31,7 @@ export default {
   roles: {
     danger: {
       background: colors.orange[950],
-      outline: colors.orange[500],
+      outline: colors.orange[600],
       fill: colors.orange[600],
       text: colors.orange[50],
       disabled: {
@@ -75,7 +56,7 @@ export default {
     warning: {
       background: colors.amber[950],
       outline: colors.amber[300],
-      fill: "#f00",
+      fill: colors.amber[500],
       text: colors.amber[50],
     },
     notice: {
@@ -87,7 +68,7 @@ export default {
     info: {
       background: colors.blue[950],
       outline: colors.blue[400],
-      fill: "#f00",
+      fill: colors.blue[500],
       text: colors.blue[50],
     },
     success: {
@@ -125,6 +106,12 @@ export default {
         fill: colors.sky[500],
         text: colors.white,
       },
+    },
+    preview: {
+      background: colors.violet[950],
+      outline: colors.violet[500],
+      fill: colors.violet[400],
+      text: colors.violet[50],
     },
   },
 } satisfies NewTheme;

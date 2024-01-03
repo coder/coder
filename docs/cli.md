@@ -38,6 +38,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>login</code>](./cli/login.md)                   | Authenticate with Coder deployment                                                                    |
 | [<code>logout</code>](./cli/logout.md)                 | Unauthenticate your local session                                                                     |
 | [<code>netcheck</code>](./cli/netcheck.md)             | Print network debug information for DERP and STUN                                                     |
+| [<code>open</code>](./cli/open.md)                     | Open a workspace                                                                                      |
 | [<code>ping</code>](./cli/ping.md)                     | Ping a workspace                                                                                      |
 | [<code>port-forward</code>](./cli/port-forward.md)     | Forward ports from a workspace to the local machine. For reverse port forwarding, use "coder ssh -R". |
 | [<code>provisionerd</code>](./cli/provisionerd.md)     | Manage provisioner daemons                                                                            |

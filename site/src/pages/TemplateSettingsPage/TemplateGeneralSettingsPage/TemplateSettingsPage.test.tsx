@@ -80,7 +80,9 @@ const fillAndSubmitForm = async ({
   await userEvent.clear(iconField);
   await userEvent.type(iconField, icon);
 
-  const allowCancelJobsField = screen.getByRole("checkbox");
+  const allowCancelJobsField = screen.getByRole("checkbox", {
+    name: "Allow users to cancel in-progress workspace jobs. Depending on your template, canceling builds may leave workspaces in an unhealthy state. This option isn't recommended for most use cases.",
+  });
   // checkbox is checked by default, so it must be clicked to get unchecked
   if (!allow_user_cancel_workspace_jobs) {
     await userEvent.click(allowCancelJobsField);

@@ -26,8 +26,14 @@ import (
 // Any non-listed timezone offsets will need to use the closest supported one.
 var deploymentTimezoneOffsets = []int{
 	0, // UTC - is listed first intentionally.
-	-12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1,
-	1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+	// Shortened list of 4 timezones that should encompass *most* users. Caching
+	// all 25 timezones can be too computationally expensive for large
+	// deployments. This is a stop-gap until more robust fixes can be made for
+	// the deployment DAUs query.
+	-6, 3, 6, 10,
+
+	// -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1,
+	// 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
 }
 
 // templateTimezoneOffsets are the timezones each template will use for it's DAU

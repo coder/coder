@@ -716,6 +716,16 @@
           "path": "cli/netcheck.md"
         },
         {
+          "title": "open",
+          "description": "Open a workspace",
+          "path": "cli/open.md"
+        },
+        {
+          "title": "open vscode",
+          "description": "Open a workspace in VS Code Desktop",
+          "path": "cli/open_vscode.md"
+        },
+        {
           "title": "ping",
           "description": "Ping a workspace",
           "path": "cli/ping.md"
@@ -1020,6 +1030,25 @@
           "title": "API tokens of deleted users not invalidated",
           "description": "Fixed in v0.23.0 (Apr 25, 2023)",
           "path": "./security/0001_user_apikeys_invalidation.md"
+        }
+      ]
+    },
+    {
+      "title": "FAQs",
+      "description": "Frequently asked questions",
+      "path": "./faqs.md",
+      "icon_path": "./images/icons/info.svg"
+    },
+    {
+      "title": "Guides",
+      "description": "Employee-authored tutorials",
+      "path": "./guides/index.md",
+      "icon_path": "./images/icons/notes.svg",
+      "children": [
+        {
+          "title": "Configuring Okta",
+          "description": "Custom claims/scopes with Okta for group/role sync",
+          "path": "./guides/configuring-okta.md"
         }
       ]
     }

@@ -97,12 +97,14 @@ func (c *Client) PostMetadata(ctx context.Context, req PostMetadataRequest) erro
 }
 
 type Manifest struct {
-	AgentID uuid.UUID `json:"agent_id"`
+	AgentID   uuid.UUID `json:"agent_id"`
+	AgentName string    `json:"agent_name"`
 	// OwnerName and WorkspaceID are used by an open-source user to identify the workspace.
 	// We do not provide insurance that this will not be removed in the future,
 	// but if it's easy to persist lets keep it around.
-	OwnerName   string    `json:"owner_name"`
-	WorkspaceID uuid.UUID `json:"workspace_id"`
+	OwnerName     string    `json:"owner_name"`
+	WorkspaceID   uuid.UUID `json:"workspace_id"`
+	WorkspaceName string    `json:"workspace_name"`
 	// GitAuthConfigs stores the number of Git configurations
 	// the Coder deployment has. If this number is >0, we
 	// set up special configuration in the workspace.

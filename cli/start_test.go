@@ -11,6 +11,7 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -109,6 +110,9 @@ func TestStart(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, member, owner.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		// Stop the workspace
+		workspaceBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspaceBuild.ID)
 
 		inv, root := clitest.New(t, "start", workspace.Name, "--build-options")
 		clitest.SetupConfig(t, member, root)
@@ -160,6 +164,9 @@ func TestStart(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, member, owner.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		// Stop the workspace
+		workspaceBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspaceBuild.ID)
 
 		inv, root := clitest.New(t, "start", workspace.Name,
 			"--build-option", fmt.Sprintf("%s=%s", ephemeralParameterName, ephemeralParameterValue))
@@ -373,4 +380,62 @@ func TestStartAutoUpdate(t *testing.T) {
 			require.Equal(t, version2.ID, workspace.LatestBuild.TemplateVersionID)
 		})
 	}
+}
+
+func TestStart_AlreadyRunning(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	owner := coderdtest.CreateFirstUser(t, client)
+	memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+	r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		OwnerID:        member.ID,
+		OrganizationID: owner.OrganizationID,
+	}).Do()
+
+	inv, root := clitest.New(t, "start", r.Workspace.Name)
+	clitest.SetupConfig(t, memberClient, root)
+	doneChan := make(chan struct{})
+	pty := ptytest.New(t).Attach(inv)
+	go func() {
+		defer close(doneChan)
+		err := inv.Run()
+		assert.NoError(t, err)
+	}()
+
+	pty.ExpectMatch("workspace is already running")
+	_ = testutil.RequireRecvCtx(ctx, t, doneChan)
+}
+
+func TestStart_Starting(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	owner := coderdtest.CreateFirstUser(t, client)
+	memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+	r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		OwnerID:        member.ID,
+		OrganizationID: owner.OrganizationID,
+	}).
+		Starting().
+		Do()
+
+	inv, root := clitest.New(t, "start", r.Workspace.Name)
+	clitest.SetupConfig(t, memberClient, root)
+	doneChan := make(chan struct{})
+	pty := ptytest.New(t).Attach(inv)
+	go func() {
+		defer close(doneChan)
+		err := inv.Run()
+		assert.NoError(t, err)
+	}()
+
+	pty.ExpectMatch("workspace is already starting")
+
+	_ = dbfake.JobComplete(t, db, r.Build.JobID).Do()
+	pty.ExpectMatch("workspace has been started")
+
+	_ = testutil.RequireRecvCtx(ctx, t, doneChan)
 }

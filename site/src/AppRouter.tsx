@@ -1,13 +1,3 @@
-import { FullScreenLoader } from "components/Loader/FullScreenLoader";
-import { UsersLayout } from "components/UsersLayout/UsersLayout";
-import AuditPage from "pages/AuditPage/AuditPage";
-import LoginPage from "pages/LoginPage/LoginPage";
-import { SetupPage } from "pages/SetupPage/SetupPage";
-import { TemplateLayout } from "pages/TemplatePage/TemplateLayout";
-import { HealthLayout } from "pages/HealthPage/HealthLayout";
-import TemplatesPage from "pages/TemplatesPage/TemplatesPage";
-import UsersPage from "pages/UsersPage/UsersPage";
-import WorkspacesPage from "pages/WorkspacesPage/WorkspacesPage";
 import { FC, lazy, Suspense } from "react";
 import {
   Route,
@@ -16,11 +6,23 @@ import {
   Navigate,
 } from "react-router-dom";
 import { DashboardLayout } from "./components/Dashboard/DashboardLayout";
+import { DeploySettingsLayout } from "./components/DeploySettingsLayout/DeploySettingsLayout";
+import { FullScreenLoader } from "./components/Loader/FullScreenLoader";
 import { RequireAuth } from "./components/RequireAuth/RequireAuth";
-import { SettingsLayout } from "./components/SettingsLayout/SettingsLayout";
-import { DeploySettingsLayout } from "components/DeploySettingsLayout/DeploySettingsLayout";
-import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout";
-import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
+import { UsersLayout } from "./components/UsersLayout/UsersLayout";
+import AuditPage from "./pages/AuditPage/AuditPage";
+import LoginPage from "./pages/LoginPage/LoginPage";
+import { SetupPage } from "./pages/SetupPage/SetupPage";
+import { TemplateLayout } from "./pages/TemplatePage/TemplateLayout";
+import { HealthLayout } from "./pages/HealthPage/HealthLayout";
+import TemplatesPage from "./pages/TemplatesPage/TemplatesPage";
+import UsersPage from "./pages/UsersPage/UsersPage";
+import WorkspacesPage from "./pages/WorkspacesPage/WorkspacesPage";
+import UserSettingsLayout from "./pages/UserSettingsPage/Layout";
+import { TemplateSettingsLayout } from "./pages/TemplateSettingsPage/TemplateSettingsLayout";
+import { WorkspaceSettingsLayout } from "./pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
+import { ThemeOverride } from "contexts/ThemeProvider";
+import themes from "theme";
 
 // Lazy load pages
 // - Pages that are secondary, not in the main navigation or not usually accessed
@@ -31,6 +33,9 @@ const CliAuthenticationPage = lazy(
 );
 const AccountPage = lazy(
   () => import("./pages/UserSettingsPage/AccountPage/AccountPage"),
+);
+const AppearancePage = lazy(
+  () => import("./pages/UserSettingsPage/AppearancePage/AppearancePage"),
 );
 const SchedulePage = lazy(
   () => import("./pages/UserSettingsPage/SchedulePage/SchedulePage"),
@@ -117,6 +122,24 @@ const ExternalAuthSettingsPage = lazy(
       "./pages/DeploySettingsPage/ExternalAuthSettingsPage/ExternalAuthSettingsPage"
     ),
 );
+const OAuth2AppsSettingsPage = lazy(
+  () =>
+    import(
+      "./pages/DeploySettingsPage/OAuth2AppsSettingsPage/OAuth2AppsSettingsPage"
+    ),
+);
+const EditOAuth2AppPage = lazy(
+  () =>
+    import(
+      "./pages/DeploySettingsPage/OAuth2AppsSettingsPage/EditOAuth2AppPage"
+    ),
+);
+const CreateOAuth2AppPage = lazy(
+  () =>
+    import(
+      "./pages/DeploySettingsPage/OAuth2AppsSettingsPage/CreateOAuth2AppPage"
+    ),
+);
 const NetworkSettingsPage = lazy(
   () =>
     import(
@@ -133,8 +156,7 @@ const ExternalAuthPage = lazy(
   () => import("./pages/ExternalAuthPage/ExternalAuthPage"),
 );
 const UserExternalAuthSettingsPage = lazy(
-  () =>
-    import("./pages/UserExternalAuthSettingsPage/UserExternalAuthSettingsPage"),
+  () => import("./pages/UserSettingsPage/ExternalAuthPage/ExternalAuthPage"),
 );
 const TemplateVersionPage = lazy(
   () => import("./pages/TemplateVersionPage/TemplateVersionPage"),
@@ -313,14 +335,25 @@ export const AppRouter: FC = () => {
                   path="external-auth"
                   element={<ExternalAuthSettingsPage />}
                 />
+
+                <Route path="oauth2-provider">
+                  <Route index element={<NotFoundPage />} />
+                  <Route path="apps">
+                    <Route index element={<OAuth2AppsSettingsPage />} />
+                    <Route path="add" element={<CreateOAuth2AppPage />} />
+                    <Route path=":appId" element={<EditOAuth2AppPage />} />
+                  </Route>
+                </Route>
+
                 <Route
                   path="workspace-proxies"
                   element={<WorkspaceProxyPage />}
                 />
               </Route>
 
-              <Route path="/settings" element={<SettingsLayout />}>
+              <Route path="/settings" element={<UserSettingsLayout />}>
                 <Route path="account" element={<AccountPage />} />
+                <Route path="appearance" element={<AppearancePage />} />
                 <Route path="schedule" element={<SchedulePage />} />
                 <Route path="security" element={<SecurityPage />} />
                 <Route path="ssh-keys" element={<SSHKeysPage />} />
@@ -381,7 +414,11 @@ export const AppRouter: FC = () => {
             />
             <Route
               path="/:username/:workspace/terminal"
-              element={<TerminalPage />}
+              element={
+                <ThemeOverride theme={themes.dark}>
+                  <TerminalPage />
+                </ThemeOverride>
+              }
             />
             <Route path="/cli-auth" element={<CliAuthenticationPage />} />
             <Route path="/icons" element={<IconsPage />} />

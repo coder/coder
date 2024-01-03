@@ -1,18 +1,28 @@
-import { useAuth } from "components/AuthProvider/AuthProvider";
-import { FC } from "react";
+import { type FC } from "react";
 import { Helmet } from "react-helmet-async";
-import { pageTitle } from "utils/page";
-import { SetupPageView } from "./SetupPageView";
-import { Navigate, useNavigate } from "react-router-dom";
 import { useMutation } from "react-query";
+import { Navigate, useNavigate } from "react-router-dom";
+import { pageTitle } from "utils/page";
 import { createFirstUser } from "api/queries/users";
+import { useAuth } from "contexts/AuthProvider/AuthProvider";
+import { FullScreenLoader } from "components/Loader/FullScreenLoader";
+import { SetupPageView } from "./SetupPageView";
 
 export const SetupPage: FC = () => {
-  const { signIn, isConfiguringTheFirstUser, isSignedIn, isSigningIn } =
-    useAuth();
+  const {
+    isLoading,
+    signIn,
+    isConfiguringTheFirstUser,
+    isSignedIn,
+    isSigningIn,
+  } = useAuth();
   const createFirstUserMutation = useMutation(createFirstUser());
   const setupIsComplete = !isConfiguringTheFirstUser;
   const navigate = useNavigate();
+
+  if (isLoading) {
+    return <FullScreenLoader />;
+  }
 
   // If the user is logged in, navigate to the app
   if (isSignedIn) {
@@ -30,7 +40,7 @@ export const SetupPage: FC = () => {
         <title>{pageTitle("Set up your account")}</title>
       </Helmet>
       <SetupPageView
-        isLoading={createFirstUserMutation.isLoading || isSigningIn}
+        isLoading={isSigningIn || createFirstUserMutation.isLoading}
         error={createFirstUserMutation.error}
         onSubmit={async (firstUser) => {
           await createFirstUserMutation.mutateAsync(firstUser);

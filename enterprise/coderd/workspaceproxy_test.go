@@ -36,20 +36,13 @@ func TestRegions(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{
-			string(codersdk.ExperimentMoons),
-			"*",
-		}
-
 		db, pubsub := dbtestutil.NewDB(t)
 
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				AppHostname:      appHostname,
-				Database:         db,
-				Pubsub:           pubsub,
-				DeploymentValues: dv,
+				AppHostname: appHostname,
+				Database:    db,
+				Pubsub:      pubsub,
 			},
 		})
 
@@ -79,20 +72,13 @@ func TestRegions(t *testing.T) {
 	t.Run("WithProxies", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{
-			string(codersdk.ExperimentMoons),
-			"*",
-		}
-
 		db, pubsub := dbtestutil.NewDB(t)
 
 		client, closer, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				AppHostname:      appHostname,
-				Database:         db,
-				Pubsub:           pubsub,
-				DeploymentValues: dv,
+				AppHostname: appHostname,
+				Database:    db,
+				Pubsub:      pubsub,
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -173,17 +159,10 @@ func TestRegions(t *testing.T) {
 	t.Run("RequireAuth", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{
-			string(codersdk.ExperimentMoons),
-			"*",
-		}
-
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				AppHostname:      appHostname,
-				DeploymentValues: dv,
+				AppHostname: appHostname,
 			},
 		})
 
@@ -200,15 +179,7 @@ func TestWorkspaceProxyCRUD(t *testing.T) {
 	t.Run("CreateAndUpdate", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{
-			string(codersdk.ExperimentMoons),
-			"*",
-		}
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureWorkspaceProxy: 1,
@@ -251,15 +222,7 @@ func TestWorkspaceProxyCRUD(t *testing.T) {
 	t.Run("Delete", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{
-			string(codersdk.ExperimentMoons),
-			"*",
-		}
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureWorkspaceProxy: 1,
@@ -287,16 +250,9 @@ func TestProxyRegisterDeregister(t *testing.T) {
 	t.Parallel()
 
 	setup := func(t *testing.T) (*codersdk.Client, database.Store) {
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{
-			string(codersdk.ExperimentMoons),
-			"*",
-		}
-
 		db, pubsub := dbtestutil.NewDB(t)
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				DeploymentValues:         dv,
 				Database:                 db,
 				Pubsub:                   pubsub,
 				IncludeProvisionerDaemon: true,
@@ -635,16 +591,9 @@ func TestProxyRegisterDeregister(t *testing.T) {
 func TestIssueSignedAppToken(t *testing.T) {
 	t.Parallel()
 
-	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{
-		string(codersdk.ExperimentMoons),
-		"*",
-	}
-
 	db, pubsub := dbtestutil.NewDB(t)
 	client, user := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
-			DeploymentValues:         dv,
 			Database:                 db,
 			Pubsub:                   pubsub,
 			IncludeProvisionerDaemon: true,
@@ -732,16 +681,9 @@ func TestIssueSignedAppToken(t *testing.T) {
 func TestReconnectingPTYSignedToken(t *testing.T) {
 	t.Parallel()
 
-	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{
-		string(codersdk.ExperimentMoons),
-		"*",
-	}
-
 	db, pubsub := dbtestutil.NewDB(t)
 	client, closer, api, user := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
-			DeploymentValues:         dv,
 			Database:                 db,
 			Pubsub:                   pubsub,
 			IncludeProvisionerDaemon: true,

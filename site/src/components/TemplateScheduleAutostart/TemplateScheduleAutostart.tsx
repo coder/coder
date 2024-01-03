@@ -1,4 +1,4 @@
-import { FC } from "react";
+import { type FC } from "react";
 import { TemplateAutostartRequirementDaysValue } from "utils/schedule";
 import Button from "@mui/material/Button";
 import { Stack } from "components/Stack/Stack";
@@ -11,9 +11,7 @@ export interface TemplateScheduleAutostartProps {
   onChange: (newDaysOfWeek: TemplateAutostartRequirementDaysValue[]) => void;
 }
 
-export const TemplateScheduleAutostart: FC<
-  React.PropsWithChildren<TemplateScheduleAutostartProps>
-> = ({
+export const TemplateScheduleAutostart: FC<TemplateScheduleAutostartProps> = ({
   autostart_requirement_days_of_week,
   isSubmitting,
   allow_user_autostart,
@@ -24,18 +22,14 @@ export const TemplateScheduleAutostart: FC<
       direction="column"
       width="100%"
       alignItems="center"
-      css={{
-        marginBottom: "20px",
-      }}
+      css={{ marginBottom: "20px" }}
     >
       <Stack
         direction="row"
-        css={{
-          width: "100%",
-        }}
         spacing={0}
         alignItems="baseline"
         justifyContent="center"
+        css={{ width: "100%" }}
       >
         {(
           [
@@ -53,9 +47,7 @@ export const TemplateScheduleAutostart: FC<
         ).map((day) => (
           <Button
             key={day.key}
-            css={{
-              borderRadius: "0px",
-            }}
+            css={{ borderRadius: 0 }}
             // TODO: Adding a background color would also help
             color={
               autostart_requirement_days_of_week.includes(day.value)
@@ -80,7 +72,7 @@ export const TemplateScheduleAutostart: FC<
         ))}
       </Stack>
       <FormHelperText>
-        <AutostartRequirementDaysHelperText
+        <AutostartHelperText
           allowed={allow_user_autostart}
           days={autostart_requirement_days_of_week}
         />
@@ -99,24 +91,26 @@ export const sortedDays = [
   "sunday",
 ] as TemplateAutostartRequirementDaysValue[];
 
-const AutostartRequirementDaysHelperText: FC<{
+interface AutostartHelperTextProps {
   allowed?: boolean;
   days: TemplateAutostartRequirementDaysValue[];
-}> = ({ allowed, days: unsortedDays }) => {
+}
+
+const AutostartHelperText: FC<AutostartHelperTextProps> = ({
+  allowed,
+  days: unsortedDays,
+}) => {
   if (!allowed) {
     return <span>Workspaces are not allowed to auto start.</span>;
   }
-  // Sort the days
-  const days = unsortedDays.sort(
-    (a, b) => sortedDays.indexOf(a) - sortedDays.indexOf(b),
-  );
 
-  let daymsg = `Workspaces can autostart on ${days.join(", ")}.`;
-  if (days.length === 7) {
+  const days = new Set(unsortedDays);
+
+  if (days.size === 7) {
     // If every day is allowed, no more explaining is needed.
     return <span>Workspaces are allowed to auto start on any day.</span>;
   }
-  if (days.length === 0) {
+  if (days.size === 0) {
     return (
       <span>
         Workspaces will never auto start. This is effectively the same as
@@ -124,13 +118,14 @@ const AutostartRequirementDaysHelperText: FC<{
       </span>
     );
   }
-  if (
-    days.length === 5 &&
-    !days.includes("saturday") &&
-    !days.includes("sunday")
-  ) {
-    daymsg = "Workspaces will never auto start on the weekends.";
+
+  let daymsg = "Workspaces will never auto start on the weekends.";
+  if (days.size !== 5 || days.has("saturday") || days.has("sunday")) {
+    daymsg = `Workspaces can autostart on ${sortedDays
+      .filter((day) => days.has(day))
+      .join(", ")}.`;
   }
+
   return (
     <span>{daymsg} These days are relative to the user&apos;s timezone.</span>
   );
