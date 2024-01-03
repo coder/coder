@@ -271,9 +271,7 @@ another page, you should probably consider using the **E2E** approach.
 
 ### Visual testing
 
-Test components without user interaction like testing if a page/component is
-rendered correctly depending on some parameters, if the button is showing a
-spinner, if the `loading` props are passing, etc. This should always be your
+We use visual tests to test components without user interaction like testing if a page/component is rendered correctly depending on some parameters, if a button is showing a spinner, if `loading` props are passed correctly, etc. This should always be your
 first option since it is way easier to maintain. For this, we use
 [Storybook](https://storybook.js.org/) and
 [Chromatic](https://www.chromatic.com/).
