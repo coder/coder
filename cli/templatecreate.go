@@ -1,11 +1,9 @@
 package cli
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -17,7 +15,6 @@ import (
 
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -27,14 +24,6 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 		provisionerTags      []string
 		variablesFile        string
 		commandLineVariables []string
-		disableEveryone      bool
-		requireActiveVersion bool
-
-		defaultTTL           time.Duration
-		failureTTL           time.Duration
-		dormancyThreshold    time.Duration
-		dormancyAutoDeletion time.Duration
-		maxTTL               time.Duration
 
 		uploadFlags templateUploadFlags
 	)
@@ -51,19 +40,6 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 				pretty.Sprint(
 					cliui.DefaultStyles.Warn, "DEPRECATION WARNING: The `coder templates push` command should be used instead. This command will be removed in a future release. ")+"\n"))
 			time.Sleep(1 * time.Second)
-
-			err := checkTemplateCreateEntitlements(inv.Context(), checkTemplateCreateEntitlementsArgs{
-				client:               client,
-				requireActiveVersion: requireActiveVersion,
-				defaultTTL:           defaultTTL,
-				failureTTL:           failureTTL,
-				dormancyThreshold:    dormancyThreshold,
-				dormancyAutoDeletion: dormancyAutoDeletion,
-				maxTTL:               maxTTL,
-			})
-			if err != nil {
-				return err
-			}
 
 			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
@@ -133,15 +109,8 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 			}
 
 			createReq := codersdk.CreateTemplateRequest{
-				Name:                           templateName,
-				VersionID:                      job.ID,
-				DefaultTTLMillis:               ptr.Ref(defaultTTL.Milliseconds()),
-				FailureTTLMillis:               ptr.Ref(failureTTL.Milliseconds()),
-				MaxTTLMillis:                   ptr.Ref(maxTTL.Milliseconds()),
-				TimeTilDormantMillis:           ptr.Ref(dormancyThreshold.Milliseconds()),
-				TimeTilDormantAutoDeleteMillis: ptr.Ref(dormancyAutoDeletion.Milliseconds()),
-				DisableEveryoneGroupAccess:     disableEveryone,
-				RequireActiveVersion:           requireActiveVersion,
+				Name:      templateName,
+				VersionID: job.ID,
 			}
 
 			_, err = client.CreateTemplate(inv.Context(), organization.ID, createReq)
@@ -163,12 +132,6 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 	}
 	cmd.Options = clibase.OptionSet{
 		{
-			Flag: "private",
-			Description: "Disable the default behavior of granting template access to the 'everyone' group. " +
-				"The template permissions must be updated to allow non-admin users to use this template.",
-			Value: clibase.BoolOf(&disableEveryone),
-		},
-		{
 			Flag:        "variables-file",
 			Description: "Specify a file path with values for Terraform-managed variables.",
 			Value:       clibase.StringOf(&variablesFile),
@@ -189,47 +152,11 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 			Value:       clibase.StringArrayOf(&provisionerTags),
 		},
 		{
-			Flag:        "default-ttl",
-			Description: "Specify a default TTL for workspaces created from this template. It is the default time before shutdown - workspaces created from this template default to this value. Maps to \"Default autostop\" in the UI.",
-			Default:     "24h",
-			Value:       clibase.DurationOf(&defaultTTL),
-		},
-		{
-			Flag:        "failure-ttl",
-			Description: "Specify a failure TTL for workspaces created from this template. It is the amount of time after a failed \"start\" build before coder automatically schedules a \"stop\" build to cleanup.This licensed feature's default is 0h (off). Maps to \"Failure cleanup\"in the UI.",
-			Default:     "0h",
-			Value:       clibase.DurationOf(&failureTTL),
-		},
-		{
-			Flag:        "dormancy-threshold",
-			Description: "Specify a duration workspaces may be inactive prior to being moved to the dormant state. This licensed feature's default is 0h (off). Maps to \"Dormancy threshold\" in the UI.",
-			Default:     "0h",
-			Value:       clibase.DurationOf(&dormancyThreshold),
-		},
-		{
-			Flag:        "dormancy-auto-deletion",
-			Description: "Specify a duration workspaces may be in the dormant state prior to being deleted. This licensed feature's default is 0h (off). Maps to \"Dormancy Auto-Deletion\" in the UI.",
-			Default:     "0h",
-			Value:       clibase.DurationOf(&dormancyAutoDeletion),
-		},
-
-		{
-			Flag:        "max-ttl",
-			Description: "Edit the template maximum time before shutdown - workspaces created from this template must shutdown within the given duration after starting. This is an enterprise-only feature.",
-			Value:       clibase.DurationOf(&maxTTL),
-		},
-		{
 			Flag:        "test.provisioner",
 			Description: "Customize the provisioner backend.",
 			Default:     "terraform",
 			Value:       clibase.StringOf(&provisioner),
 			Hidden:      true,
-		},
-		{
-			Flag:        "require-active-version",
-			Description: "Requires workspace builds to use the active template version. This setting does not apply to template admins. This is an enterprise-only feature.",
-			Value:       clibase.BoolOf(&requireActiveVersion),
-			Default:     "false",
 		},
 
 		cliui.SkipPromptOption(),
@@ -340,53 +267,4 @@ func ParseProvisionerTags(rawTags []string) (map[string]string, error) {
 		tags[parts[0]] = parts[1]
 	}
 	return tags, nil
-}
-
-type checkTemplateCreateEntitlementsArgs struct {
-	client               *codersdk.Client
-	requireActiveVersion bool
-	defaultTTL           time.Duration
-	failureTTL           time.Duration
-	dormancyThreshold    time.Duration
-	dormancyAutoDeletion time.Duration
-	maxTTL               time.Duration
-}
-
-func checkTemplateCreateEntitlements(ctx context.Context, args checkTemplateCreateEntitlementsArgs) error {
-	isTemplateSchedulingOptionsSet := args.failureTTL != 0 || args.dormancyThreshold != 0 || args.dormancyAutoDeletion != 0 || args.maxTTL != 0
-
-	if isTemplateSchedulingOptionsSet || args.requireActiveVersion {
-		if args.failureTTL != 0 || args.dormancyThreshold != 0 || args.dormancyAutoDeletion != 0 {
-			// This call can be removed when workspace_actions is no longer experimental
-			experiments, exErr := args.client.Experiments(ctx)
-			if exErr != nil {
-				return xerrors.Errorf("get experiments: %w", exErr)
-			}
-
-			if !experiments.Enabled(codersdk.ExperimentWorkspaceActions) {
-				return xerrors.Errorf("--failure-ttl, --dormancy-threshold, and --dormancy-auto-deletion are experimental features. Use the workspace_actions CODER_EXPERIMENTS flag to set these configuration values.")
-			}
-		}
-
-		entitlements, err := args.client.Entitlements(ctx)
-		if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusNotFound {
-			return xerrors.Errorf("your deployment appears to be an AGPL deployment, so you cannot set enterprise-only flags")
-		} else if err != nil {
-			return xerrors.Errorf("get entitlements: %w", err)
-		}
-
-		if isTemplateSchedulingOptionsSet {
-			if !entitlements.Features[codersdk.FeatureAdvancedTemplateScheduling].Enabled {
-				return xerrors.Errorf("your license is not entitled to use advanced template scheduling, so you cannot set --failure-ttl, --inactivity-ttl, or --max-ttl")
-			}
-		}
-
-		if args.requireActiveVersion {
-			if !entitlements.Features[codersdk.FeatureAccessControl].Enabled {
-				return xerrors.Errorf("your license is not entitled to use enterprise access control, so you cannot set --require-active-version")
-			}
-		}
-	}
-
-	return nil
 }
