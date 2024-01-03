@@ -296,3 +296,38 @@ func TestIsDERPPath(t *testing.T) {
 		})
 	}
 }
+
+func TestEscapePostgresURLUserInfo(t *testing.T) {
+	t.Parallel()
+
+	testcases := []struct {
+		input  string
+		output string
+		err    error
+	}{
+		{
+			input:  "postgres://coder:coder@localhost:5432/coder",
+			output: "postgres://coder:coder@localhost:5432/coder",
+			err:    nil,
+		},
+		{
+			input:  "postgres://coder:co{der@localhost:5432/coder",
+			output: "postgres://coder:co%7Bder@localhost:5432/coder",
+			err:    nil,
+		},
+		{
+			input:  "postgres://baduserinfo@localhost:5432/coder",
+			output: "",
+			err:    nil,
+		},
+	}
+	for _, tc := range testcases {
+		tc := tc
+		t.Run(tc.input, func(t *testing.T) {
+			t.Parallel()
+			o, err := escapePostgresURLUserInfo(tc.input)
+			require.Equal(t, tc.output, o)
+			require.Equal(t, tc.err.Error(), err.Error())
+		})
+	}
+}
