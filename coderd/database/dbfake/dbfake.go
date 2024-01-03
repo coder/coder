@@ -173,7 +173,7 @@ func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
 		FileID:         uuid.New(),
 		Type:           database.ProvisionerJobTypeWorkspaceBuild,
 		Input:          payload,
-		Tags:           nil,
+		Tags:           map[string]string{},
 		TraceMetadata:  pqtype.NullRawMessage{},
 	})
 	require.NoError(b.t, err, "insert job")
@@ -192,7 +192,7 @@ func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
 					Valid: true,
 				},
 				Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
-				Tags:  nil,
+				Tags:  []byte(`{"scope": "organization"}`),
 			})
 			require.NoError(b.t, err, "acquire starting job")
 			if j.ID == job.ID {
