@@ -190,70 +190,24 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				return err
 			}
 
-			if utf8.RuneCountInString(name) > 31 {
-				return xerrors.Errorf("Template name must be less than 32 characters")
-			}
-
-			var createTemplate bool
-			template, err := client.TemplateByName(inv.Context(), organization.ID, name)
-			if err != nil {
-				var apiError *codersdk.Error
-				if errors.As(err, &apiError) && apiError.StatusCode() != http.StatusNotFound {
-					return err
-				}
-				createTemplate = true
-			}
-
-			err = uploadFlags.checkForLockfile(inv)
-			if err != nil {
-				return xerrors.Errorf("check for lockfile: %w", err)
-			}
-
-			message := uploadFlags.templateMessage(inv)
-
-			resp, err := uploadFlags.upload(inv, client)
+			job, template, err := createTemplateVersion(createTemplateVersionArgs{
+				inv:                  inv,
+				client:               client,
+				name:                 name,
+				org:                  organization,
+				uploadFlags:          uploadFlags,
+				provisionerTags:      provisionerTags,
+				provisioner:          provisioner,
+				variablesFile:        variablesFile,
+				commandLineVariables: commandLineVariables,
+				versionName:          versionName,
+				alwaysPrompt:         alwaysPrompt,
+			})
 			if err != nil {
 				return err
 			}
 
-			tags, err := ParseProvisionerTags(provisionerTags)
-			if err != nil {
-				return err
-			}
-
-			userVariableValues, err := ParseUserVariableValues(
-				variablesFile,
-				commandLineVariables)
-			if err != nil {
-				return err
-			}
-
-			args := createValidTemplateVersionArgs{
-				Message:            message,
-				Client:             client,
-				Organization:       organization,
-				Provisioner:        codersdk.ProvisionerType(provisioner),
-				FileID:             resp.ID,
-				ProvisionerTags:    tags,
-				UserVariableValues: userVariableValues,
-			}
-
-			if !createTemplate {
-				args.Name = versionName
-				args.Template = &template
-				args.ReuseParameters = !alwaysPrompt
-			}
-
-			job, err := createValidTemplateVersion(inv, args)
-			if err != nil {
-				return err
-			}
-
-			if job.Job.Status != codersdk.ProvisionerJobSucceeded {
-				return xerrors.Errorf("job failed: %s", job.Job.Status)
-			}
-
-			if createTemplate {
+			if template == nil {
 				_, err = client.CreateTemplate(inv.Context(), organization.ID, codersdk.CreateTemplateRequest{
 					Name:      name,
 					VersionID: job.ID,
@@ -323,6 +277,11 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			Description: "Specify a name for the new template version. It will be automatically generated if not provided.",
 			Value:       clibase.StringOf(&versionName),
 		},
+		{
+			Flag:        "always-prompt",
+			Description: "Always prompt all parameters. Does not pull parameter values from active template version.",
+			Value:       clibase.BoolOf(&alwaysPrompt),
+		},
 		cliui.SkipPromptOption(),
 	}
 	cmd.Options = append(cmd.Options, uploadFlags.options()...)
@@ -344,4 +303,85 @@ func prettyDirectoryPath(dir string) string {
 		prettyDir = "~" + prettyDir
 	}
 	return prettyDir
+}
+
+type createTemplateVersionArgs struct {
+	inv                  *clibase.Invocation
+	client               *codersdk.Client
+	name                 string
+	org                  codersdk.Organization
+	uploadFlags          templateUploadFlags
+	provisionerTags      []string
+	provisioner          string
+	variablesFile        string
+	commandLineVariables []string
+	versionName          string
+	alwaysPrompt         bool
+}
+
+func createTemplateVersion(args createTemplateVersionArgs) (*codersdk.TemplateVersion, *codersdk.Template, error) {
+	if utf8.RuneCountInString(args.name) >= 32 {
+		return nil, nil, xerrors.Errorf("Template name must be less than 32 characters")
+	}
+
+	var createTemplate bool
+	template, err := args.client.TemplateByName(args.inv.Context(), args.org.ID, args.name)
+	if err != nil {
+		var apiError *codersdk.Error
+		if errors.As(err, &apiError) && apiError.StatusCode() != http.StatusNotFound {
+			return nil, nil, err
+		}
+		createTemplate = true
+	}
+
+	err = args.uploadFlags.checkForLockfile(args.inv)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("check for lockfile: %w", err)
+	}
+
+	message := args.uploadFlags.templateMessage(args.inv)
+
+	resp, err := args.uploadFlags.upload(args.inv, args.client)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	tags, err := ParseProvisionerTags(args.provisionerTags)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	userVariableValues, err := ParseUserVariableValues(
+		args.variablesFile,
+		args.commandLineVariables)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	versionArgs := createValidTemplateVersionArgs{
+		Message:            message,
+		Client:             args.client,
+		Organization:       args.org,
+		Provisioner:        codersdk.ProvisionerType(args.provisioner),
+		FileID:             resp.ID,
+		ProvisionerTags:    tags,
+		UserVariableValues: userVariableValues,
+	}
+
+	if !createTemplate {
+		versionArgs.Name = args.versionName
+		versionArgs.Template = &template
+		versionArgs.ReuseParameters = !args.alwaysPrompt
+	}
+
+	job, err := createValidTemplateVersion(args.inv, versionArgs)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if job.Job.Status != codersdk.ProvisionerJobSucceeded {
+		return nil, nil, xerrors.Errorf("job failed: %s", job.Job.Status)
+	}
+
+	return job, &template, nil
 }

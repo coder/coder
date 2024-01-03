@@ -6,7 +6,6 @@ import (
 	"io"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -24,6 +23,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 		provisionerTags      []string
 		variablesFile        string
 		commandLineVariables []string
+		versionName          string
 
 		uploadFlags templateUploadFlags
 	)
@@ -46,53 +46,23 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 				return err
 			}
 
-			templateName, err := uploadFlags.templateName(inv.Args)
+			name, err := uploadFlags.templateName(inv.Args)
 			if err != nil {
 				return err
 			}
 
-			if utf8.RuneCountInString(templateName) > 31 {
-				return xerrors.Errorf("Template name must be less than 32 characters")
-			}
-
-			_, err = client.TemplateByName(inv.Context(), organization.ID, templateName)
-			if err == nil {
-				return xerrors.Errorf("A template already exists named %q!", templateName)
-			}
-
-			err = uploadFlags.checkForLockfile(inv)
-			if err != nil {
-				return xerrors.Errorf("check for lockfile: %w", err)
-			}
-
-			message := uploadFlags.templateMessage(inv)
-
-			// Confirm upload of the directory.
-			resp, err := uploadFlags.upload(inv, client)
-			if err != nil {
-				return err
-			}
-
-			tags, err := ParseProvisionerTags(provisionerTags)
-			if err != nil {
-				return err
-			}
-
-			userVariableValues, err := ParseUserVariableValues(
-				variablesFile,
-				commandLineVariables)
-			if err != nil {
-				return err
-			}
-
-			job, err := createValidTemplateVersion(inv, createValidTemplateVersionArgs{
-				Message:            message,
-				Client:             client,
-				Organization:       organization,
-				Provisioner:        codersdk.ProvisionerType(provisioner),
-				FileID:             resp.ID,
-				ProvisionerTags:    tags,
-				UserVariableValues: userVariableValues,
+			job, _, err := createTemplateVersion(createTemplateVersionArgs{
+				inv:                  inv,
+				client:               client,
+				name:                 name,
+				org:                  organization,
+				uploadFlags:          uploadFlags,
+				provisionerTags:      provisionerTags,
+				provisioner:          provisioner,
+				variablesFile:        variablesFile,
+				commandLineVariables: commandLineVariables,
+				versionName:          versionName,
+				alwaysPrompt:         false,
 			})
 			if err != nil {
 				return err
@@ -109,7 +79,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 			}
 
 			createReq := codersdk.CreateTemplateRequest{
-				Name:      templateName,
+				Name:      name,
 				VersionID: job.ID,
 			}
 
@@ -120,11 +90,11 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 
 			_, _ = fmt.Fprintln(inv.Stdout, "\n"+pretty.Sprint(cliui.DefaultStyles.Wrap,
 				"The "+pretty.Sprint(
-					cliui.DefaultStyles.Keyword, templateName)+" template has been created at "+
+					cliui.DefaultStyles.Keyword, name)+" template has been created at "+
 					pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, time.Now().Format(time.Stamp))+"! "+
 					"Developers can provision a workspace with this template using:")+"\n")
 
-			_, _ = fmt.Fprintln(inv.Stdout, "  "+pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("coder create --template=%q [workspace name]", templateName)))
+			_, _ = fmt.Fprintln(inv.Stdout, "  "+pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("coder create --template=%q [workspace name]", name)))
 			_, _ = fmt.Fprintln(inv.Stdout)
 
 			return nil
@@ -157,6 +127,11 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 			Default:     "terraform",
 			Value:       clibase.StringOf(&provisioner),
 			Hidden:      true,
+		},
+		{
+			Flag:        "name",
+			Description: "Specify a name for the new template version. It will be automatically generated if not provided.",
+			Value:       clibase.StringOf(&versionName),
 		},
 
 		cliui.SkipPromptOption(),
