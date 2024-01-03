@@ -282,6 +282,12 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			Description: "Always prompt all parameters. Does not pull parameter values from active template version.",
 			Value:       clibase.BoolOf(&alwaysPrompt),
 		},
+		{
+			Flag:        "activate",
+			Description: "Whether the new template will be marked active.",
+			Default:     "true",
+			Value:       clibase.BoolOf(&activate),
+		},
 		cliui.SkipPromptOption(),
 	}
 	cmd.Options = append(cmd.Options, uploadFlags.options()...)
