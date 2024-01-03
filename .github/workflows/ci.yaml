@@ -60,7 +60,7 @@ jobs:
               - "examples/lima/**"
             db:
               - "**.sql"
-              - "coderd/database/**
+              - "coderd/database/**"
             go:
               - "**.sql"
               - "**.go"
