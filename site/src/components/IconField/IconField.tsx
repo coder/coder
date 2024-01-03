@@ -118,7 +118,9 @@ export const IconField: FC<IconFieldProps> = ({
       so we just have to sneak it into the DOM, which is kind of annoying, but means
       that users shouldn't ever spend time waiting for it to load. */}
       <div css={{ ...visuallyHidden }}>
-        <EmojiPicker onEmojiSelect={() => {}} />
+        <Suspense>
+          <EmojiPicker onEmojiSelect={() => {}} />
+        </Suspense>
       </div>
     </Stack>
   );
