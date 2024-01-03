@@ -60,10 +60,7 @@ jobs:
               - "examples/lima/**"
             db:
               - "**.sql"
-              - "coderd/database/queries/**"
-              - "coderd/database/migrations"
-              - "coderd/database/sqlc.yaml"
-              - "coderd/database/dump.sql"
+              - "coderd/database/**
             go:
               - "**.sql"
               - "**.go"
