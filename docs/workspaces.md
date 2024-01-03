@@ -86,7 +86,7 @@ can choose to use a max lifetime or an autostop requirement during the
 deprecation period, but only one can be used at a time. Coder recommends using
 autostop requirements instead as they avoid restarts during work hours.
 
-### Autostop requirement (Enterprise)
+### Autostop requirement (enterprise)
 
 Autostop requirement is a template setting that determines how often workspaces
 using the template must automatically stop. Autostop requirement ignores any
@@ -116,7 +116,7 @@ Autostop requirement is disabled when the template is using the deprecated max
 lifetime feature. Templates can choose to use a max lifetime or an autostop
 requirement during the deprecation period, but only one can be used at a time.
 
-#### User quiet hours (Enterprise)
+#### User quiet hours (enterprise)
 
 User quiet hours can be configured in the user's schedule settings page.
 Workspaces on templates with an autostop requirement will only be forcibly
