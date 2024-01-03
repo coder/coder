@@ -25,9 +25,9 @@ type Story = StoryObj<typeof Abbr>;
 
 export const Abbreviation: Story = {
   args: {
-    initialism: false,
+    pronunciation: "acronym",
     children: "NASA",
-    expandedText: "National Aeronautics and Space Administration",
+    title: "National Aeronautics and Space Administration",
   },
   decorators: [
     (Story) => (
@@ -40,9 +40,9 @@ export const Abbreviation: Story = {
 
 export const Initialism: Story = {
   args: {
-    initialism: true,
+    pronunciation: "initialism",
     children: "CLI",
-    expandedText: "Command-Line Interface",
+    title: "Command-Line Interface",
   },
   decorators: [
     (Story) => (
@@ -55,9 +55,9 @@ export const Initialism: Story = {
 
 export const InlinedAbbreviation: Story = {
   args: {
-    initialism: false,
+    pronunciation: "acronym",
     children: "ms",
-    expandedText: "milliseconds",
+    title: "milliseconds",
   },
   decorators: [
     (Story) => (

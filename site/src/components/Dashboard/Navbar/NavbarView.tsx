@@ -331,7 +331,7 @@ const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
           >
             Workspace proxies improve terminal and web app connections to
             workspaces. This does not apply to{" "}
-            <Abbr initialism expandedText="Command-Line Interface">
+            <Abbr title="Command-Line Interface" pronunciation="initialism">
               CLI
             </Abbr>{" "}
             connections. A region must be manually selected, otherwise the

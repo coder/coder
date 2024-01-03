@@ -36,9 +36,7 @@ describe(Abbr.name, () => {
     ];
 
     for (const { shortText, fullText } of sampleText) {
-      const { unmount } = render(
-        <Abbr expandedText={fullText}>{shortText}</Abbr>,
-      );
+      const { unmount } = render(<Abbr title={fullText}>{shortText}</Abbr>);
 
       const element = screen.getByTestId("abbr");
       expect(element).toHaveTextContent(shortText);
@@ -72,7 +70,7 @@ describe(Abbr.name, () => {
 
     for (const { shortText, fullText, spelledOut } of sampleText) {
       const { unmount } = render(
-        <Abbr initialism expandedText={fullText}>
+        <Abbr title={fullText} pronunciation="initialism">
           {shortText}
         </Abbr>,
       );
