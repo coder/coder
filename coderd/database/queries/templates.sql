@@ -115,8 +115,7 @@ SET
 	name = $4,
 	icon = $5,
 	display_name = $6,
-	allow_user_cancel_workspace_jobs = $7,
-	group_acl = $8
+	allow_user_cancel_workspace_jobs = $7
 WHERE
 	id = $1
 ;

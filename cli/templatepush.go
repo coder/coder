@@ -277,17 +277,6 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 
 			_, _ = fmt.Fprintf(inv.Stdout, "Updated version at %s!\n", pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, time.Now().Format(time.Stamp)))
 
-			// refresh template data for edit api call
-			template, err = client.TemplateByName(inv.Context(), organization.ID, name)
-			if err != nil {
-				return err
-			}
-
-			if err != nil {
-				return err
-			}
-			_, _ = fmt.Fprintf(inv.Stdout, "Updated template metadata at %s!\n", pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, time.Now().Format(time.Stamp)))
-
 			return nil
 		},
 	}
