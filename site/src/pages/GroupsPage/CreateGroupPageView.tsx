@@ -40,7 +40,6 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
   const getFieldHelpers = getFormHelpers<CreateGroupRequest>(form, formErrors);
   const onCancel = () => navigate("/groups");
 
-  console.log("i'll just cry then");
   return (
     <Margins>
       <FullPageForm title="Create group">
@@ -65,9 +64,7 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
               onChange={onChangeTrimmed(form)}
               fullWidth
               label="Avatar URL"
-              onPickEmoji={(value) => (
-                console.log(value), form.setFieldValue("avatar_url", value)
-              )}
+              onPickEmoji={(value) => form.setFieldValue("avatar_url", value)}
             />
           </Stack>
           <FormFooter onCancel={onCancel} isLoading={isLoading} />
