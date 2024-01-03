@@ -369,7 +369,6 @@ export const AppRouter: FC = () => {
 
               {/* In order for the 404 page to work properly the routes that start with
               top level parameter must be fully qualified. */}
-              <Route path="/:username/:workspace" element={<WorkspacePage />} />
               <Route
                 path="/:username/:workspace/builds/:buildNumber"
                 element={<WorkspaceBuildPage />}
@@ -408,6 +407,7 @@ export const AppRouter: FC = () => {
             </Route>
 
             {/* Pages that don't have the dashboard layout */}
+            <Route path="/:username/:workspace" element={<WorkspacePage />} />
             <Route
               path="/templates/:template/versions/:version/edit"
               element={<TemplateVersionEditorPage />}

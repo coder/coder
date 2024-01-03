@@ -2,7 +2,7 @@ import { type Interpolation, type Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import AlertTitle from "@mui/material/AlertTitle";
 import { type FC, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import dayjs from "dayjs";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
@@ -17,9 +17,15 @@ import {
   ActiveTransition,
   WorkspaceBuildProgress,
 } from "./WorkspaceBuildProgress";
-import { BuildsTable } from "./BuildsTable";
 import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
+import { useTheme } from "@mui/material/styles";
+import MemoryOutlined from "@mui/icons-material/MemoryOutlined";
+import { TopbarIconButton } from "components/FullPageLayout/Topbar";
+import { Sidebar } from "components/FullPageLayout/Sidebar";
+import HistoryOutlined from "@mui/icons-material/HistoryOutlined";
+import { ResourcesSidebarContent } from "./ResourcesSidebarContent";
+import { HistorySidebarContent } from "./HistorySidebarContent";
 
 export type WorkspaceError =
   | "getBuildsError"
@@ -55,10 +61,6 @@ export interface WorkspaceProps {
   handleBuildRetry: () => void;
   handleBuildRetryDebug: () => void;
   buildLogs?: React.ReactNode;
-  builds: TypesGen.WorkspaceBuild[] | undefined;
-  onLoadMoreBuilds: () => void;
-  isLoadingMoreBuilds: boolean;
-  hasMoreBuilds: boolean;
   canAutostart: boolean;
 }
 
@@ -79,7 +81,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   isUpdating,
   isRestarting,
   resources,
-  builds,
+
   canUpdateWorkspace,
   updateMessage,
   canChangeVersions,
@@ -93,13 +95,14 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   handleBuildRetry,
   handleBuildRetryDebug,
   buildLogs,
-  onLoadMoreBuilds,
-  isLoadingMoreBuilds,
-  hasMoreBuilds,
   canAutostart,
 }) => {
+  const theme = useTheme();
   const navigate = useNavigate();
   const { saveLocal, getLocal } = useLocalStorage();
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeSidebarOption = searchParams.get("sidebar");
 
   const [showAlertPendingInQueue, setShowAlertPendingInQueue] = useState(false);
 
@@ -149,7 +152,16 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
     template !== undefined ? ActiveTransition(template, workspace) : undefined;
 
   return (
-    <>
+    <div
+      css={{
+        height: "100%",
+        display: "grid",
+        gridTemplate: `
+        "topbar topbar topbar" auto
+        "leftbar sidebar content" 1fr / auto auto 1fr
+      `,
+      }}
+    >
       <WorkspaceTopbar
         workspace={workspace}
         handleStart={handleStart}
@@ -169,6 +181,46 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
         isRestarting={isRestarting}
         canUpdateWorkspace={canUpdateWorkspace}
       />
+
+      <div
+        css={{
+          height: "100%",
+          borderRight: `1px solid ${theme.palette.divider}`,
+          gridArea: "leftbar",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <TopbarIconButton
+          onClick={() => {
+            setSearchParams((prev) => {
+              prev.set("sidebar", "resources");
+              return prev;
+            });
+          }}
+        >
+          <MemoryOutlined />
+        </TopbarIconButton>
+        <TopbarIconButton
+          onClick={() => {
+            setSearchParams((prev) => {
+              prev.set("sidebar", "history");
+              return prev;
+            });
+          }}
+        >
+          <HistoryOutlined />
+        </TopbarIconButton>
+      </div>
+
+      <Sidebar css={{ gridArea: "sidebar" }}>
+        {activeSidebarOption === "resources" && (
+          <ResourcesSidebarContent workspace={workspace} />
+        )}
+        {activeSidebarOption === "history" && (
+          <HistorySidebarContent workspace={workspace} />
+        )}
+      </Sidebar>
 
       <Margins css={styles.content}>
         <Stack direction="column" css={styles.firstColumnSpacer} spacing={4}>
@@ -317,26 +369,17 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               )}
             />
           )}
-
-          {workspaceErrors.getBuildsError ? (
-            <ErrorAlert error={workspaceErrors.getBuildsError} />
-          ) : (
-            <BuildsTable
-              builds={builds}
-              onLoadMoreBuilds={onLoadMoreBuilds}
-              isLoadingMoreBuilds={isLoadingMoreBuilds}
-              hasMoreBuilds={hasMoreBuilds}
-            />
-          )}
         </Stack>
       </Margins>
-    </>
+    </div>
   );
 };
 
 const styles = {
   content: {
-    marginTop: 32,
+    padding: 32,
+    gridArea: "content",
+    overflow: "auto",
   },
 
   actions: (theme) => ({

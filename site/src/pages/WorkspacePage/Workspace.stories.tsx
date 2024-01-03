@@ -75,7 +75,7 @@ export const Running: Story = {
       Mocks.MockWorkspaceImageResource,
       Mocks.MockWorkspaceContainerResource,
     ],
-    builds: [Mocks.MockWorkspaceBuild],
+    //builds: [Mocks.MockWorkspaceBuild],
     canUpdateWorkspace: true,
     workspaceErrors: {},
     buildInfo: Mocks.MockBuildInfo,

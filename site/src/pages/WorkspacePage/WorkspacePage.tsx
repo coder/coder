@@ -49,12 +49,6 @@ export const WorkspacePage: FC = () => {
   });
   const permissions = permissionsQuery.data as WorkspacePermissions | undefined;
 
-  // Builds
-  const buildsQuery = useInfiniteQuery({
-    ...infiniteWorkspaceBuilds(workspace?.id ?? ""),
-    enabled: workspace !== undefined,
-  });
-
   // Watch workspace changes
   const updateWorkspaceData = useEffectEvent(
     async (newWorkspaceData: Workspace) => {
@@ -69,7 +63,7 @@ export const WorkspacePage: FC = () => {
         newWorkspaceData.latest_build.status !== workspace!.latest_build.status;
 
       if (hasNewBuild || lastBuildHasChanged) {
-        await buildsQuery.refetch();
+        //await buildsQuery.refetch();
       }
     },
   );
@@ -120,13 +114,13 @@ export const WorkspacePage: FC = () => {
       workspace={workspace}
       template={template}
       permissions={permissions}
-      builds={buildsQuery.data?.pages.flat()}
-      buildsError={buildsQuery.error}
-      isLoadingMoreBuilds={buildsQuery.isFetchingNextPage}
-      onLoadMoreBuilds={async () => {
-        await buildsQuery.fetchNextPage();
-      }}
-      hasMoreBuilds={Boolean(buildsQuery.hasNextPage)}
+      // builds={buildsQuery.data?.pages.flat()}
+      // buildsError={buildsQuery.error}
+      // isLoadingMoreBuilds={buildsQuery.isFetchingNextPage}
+      // onLoadMoreBuilds={async () => {
+      //   await buildsQuery.fetchNextPage();
+      // }}
+      // hasMoreBuilds={Boolean(buildsQuery.hasNextPage)}
     />
   );
 };
