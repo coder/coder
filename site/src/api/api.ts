@@ -79,6 +79,7 @@ export const provisioners: TypesGen.ProvisionerDaemon[] = [
     provisioners: [],
     tags: {},
     version: "v2.34.5",
+    api_version: "1.0",
   },
   {
     id: "cdr-basic",
@@ -87,6 +88,7 @@ export const provisioners: TypesGen.ProvisionerDaemon[] = [
     provisioners: [],
     tags: {},
     version: "v2.34.5",
+    api_version: "1.0",
   },
 ];
 

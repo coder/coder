@@ -7279,6 +7279,7 @@ func (q *FakeQuerier) UpsertProvisionerDaemon(_ context.Context, arg database.Up
 		ReplicaID:    uuid.NullUUID{},
 		LastSeenAt:   arg.LastSeenAt,
 		Version:      arg.Version,
+		APIVersion:   arg.APIVersion,
 	}
 	q.provisionerDaemons = append(q.provisionerDaemons, d)
 	return d, nil

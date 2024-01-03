@@ -12,6 +12,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -40,9 +41,10 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		templateAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleTemplateAdmin())
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
+		daemonName := testutil.MustRandString(t, 63)
 		srv, err := templateAdminClient.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
 			ID:           uuid.New(),
-			Name:         t.Name(),
+			Name:         daemonName,
 			Organization: user.OrganizationID,
 			Provisioners: []codersdk.ProvisionerType{
 				codersdk.ProvisionerTypeEcho,
@@ -54,7 +56,11 @@ func TestProvisionerDaemonServe(t *testing.T) {
 
 		daemons, err := client.ProvisionerDaemons(ctx) //nolint:gocritic // Test assertion.
 		require.NoError(t, err)
-		require.Len(t, daemons, 1)
+		if assert.Len(t, daemons, 1) {
+			assert.Equal(t, daemonName, daemons[0].Name)
+			assert.Equal(t, buildinfo.Version(), daemons[0].Version)
+			assert.Equal(t, provisionersdk.APIVersionCurrent, daemons[0].APIVersion)
+		}
 	})
 
 	t.Run("NoLicense", func(t *testing.T) {
@@ -63,9 +69,10 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		templateAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleTemplateAdmin())
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
+		daemonName := testutil.MustRandString(t, 63)
 		_, err := templateAdminClient.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
 			ID:           uuid.New(),
-			Name:         t.Name(),
+			Name:         daemonName,
 			Organization: user.OrganizationID,
 			Provisioners: []codersdk.ProvisionerType{
 				codersdk.ProvisionerTypeEcho,
@@ -90,7 +97,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		defer cancel()
 		_, err := another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
 			ID:           uuid.New(),
-			Name:         t.Name(),
+			Name:         testutil.MustRandString(t, 63),
 			Organization: user.OrganizationID,
 			Provisioners: []codersdk.ProvisionerType{
 				codersdk.ProvisionerTypeEcho,
@@ -117,7 +124,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		defer cancel()
 		_, err := another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
 			ID:           uuid.New(),
-			Name:         t.Name(),
+			Name:         testutil.MustRandString(t, 63),
 			Organization: user.OrganizationID,
 			Provisioners: []codersdk.ProvisionerType{
 				codersdk.ProvisionerTypeEcho,
@@ -212,7 +219,9 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		another := codersdk.New(client.URL)
+		daemonName := testutil.MustRandString(t, 63)
 		srv, err := another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+			Name:         daemonName,
 			Organization: user.OrganizationID,
 			Provisioners: []codersdk.ProvisionerType{
 				codersdk.ProvisionerTypeEcho,
@@ -229,6 +238,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		daemons, err := client.ProvisionerDaemons(ctx) //nolint:gocritic // Test assertion.
 		require.NoError(t, err)
 		if assert.Len(t, daemons, 1) {
+			assert.Equal(t, daemonName, daemons[0].Name)
 			assert.Equal(t, provisionersdk.ScopeOrganization, daemons[0].Tags[provisionersdk.TagScope])
 		}
 	})
@@ -274,7 +284,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		pd := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
 			return another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
 				ID:           uuid.New(),
-				Name:         t.Name(),
+				Name:         testutil.MustRandString(t, 63),
 				Organization: user.OrganizationID,
 				Provisioners: []codersdk.ProvisionerType{
 					codersdk.ProvisionerTypeEcho,
@@ -352,7 +362,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		defer cancel()
 		_, err := another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
 			ID:           uuid.New(),
-			Name:         t.Name(),
+			Name:         testutil.MustRandString(t, 32),
 			Organization: user.OrganizationID,
 			Provisioners: []codersdk.ProvisionerType{
 				codersdk.ProvisionerTypeEcho,
@@ -387,7 +397,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		another := codersdk.New(client.URL)
 		_, err := another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
 			ID:           uuid.New(),
-			Name:         t.Name(),
+			Name:         testutil.MustRandString(t, 63),
 			Organization: user.OrganizationID,
 			Provisioners: []codersdk.ProvisionerType{
 				codersdk.ProvisionerTypeEcho,
@@ -420,7 +430,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		another := codersdk.New(client.URL)
 		_, err := another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
 			ID:           uuid.New(),
-			Name:         t.Name(),
+			Name:         testutil.MustRandString(t, 63),
 			Organization: user.OrganizationID,
 			Provisioners: []codersdk.ProvisionerType{
 				codersdk.ProvisionerTypeEcho,

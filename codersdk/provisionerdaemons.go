@@ -15,6 +15,7 @@ import (
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 
+	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionerd/runner"
@@ -41,6 +42,7 @@ type ProvisionerDaemon struct {
 	LastSeenAt   NullTime          `json:"last_seen_at,omitempty" format:"date-time"`
 	Name         string            `json:"name"`
 	Version      string            `json:"version"`
+	APIVersion   string            `json:"api_version"`
 	Provisioners []ProvisionerType `json:"provisioners"`
 	Tags         map[string]string `json:"tags"`
 }
@@ -212,6 +214,7 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 	}
 	headers := http.Header{}
 
+	headers.Set(BuildVersionHeader, buildinfo.Version())
 	if req.PreSharedKey == "" {
 		// use session token if we don't have a PSK.
 		jar, err := cookiejar.New(nil)

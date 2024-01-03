@@ -564,7 +564,7 @@ func New(options *Options) *API {
 		// Build-Version is helpful for debugging.
 		func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.Header().Add("X-Coder-Build-Version", buildinfo.Version())
+				w.Header().Add(codersdk.BuildVersionHeader, buildinfo.Version())
 				next.ServeHTTP(w, r)
 			})
 		},
@@ -1194,7 +1194,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, name string
 		Tags:       provisionersdk.MutateTags(uuid.Nil, nil),
 		LastSeenAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
 		Version:    buildinfo.Version(),
-		APIVersion: "1.0",
+		APIVersion: provisionersdk.APIVersionCurrent,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("failed to create in-memory provisioner daemon: %w", err)

@@ -10052,6 +10052,9 @@ const docTemplate = `{
         "codersdk.ProvisionerDaemon": {
             "type": "object",
             "properties": {
+                "api_version": {
+                    "type": "string"
+                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"

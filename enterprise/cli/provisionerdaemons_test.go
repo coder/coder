@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -49,6 +50,8 @@ func TestProvisionerDaemon_PSK(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalSlow)
 	require.Equal(t, "matt-daemon", daemons[0].Name)
 	require.Equal(t, provisionersdk.ScopeOrganization, daemons[0].Tags[provisionersdk.TagScope])
+	require.Equal(t, buildinfo.Version(), daemons[0].Version)
+	require.Equal(t, provisionersdk.APIVersionCurrent, daemons[0].APIVersion)
 }
 
 func TestProvisionerDaemon_SessionToken(t *testing.T) {
@@ -84,6 +87,8 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 		assert.Equal(t, "my-daemon", daemons[0].Name)
 		assert.Equal(t, provisionersdk.ScopeUser, daemons[0].Tags[provisionersdk.TagScope])
 		assert.Equal(t, anotherUser.ID.String(), daemons[0].Tags[provisionersdk.TagOwner])
+		assert.Equal(t, buildinfo.Version(), daemons[0].Version)
+		assert.Equal(t, provisionersdk.APIVersionCurrent, daemons[0].APIVersion)
 	})
 
 	t.Run("ScopeAnotherUser", func(t *testing.T) {
@@ -118,6 +123,8 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 		assert.Equal(t, provisionersdk.ScopeUser, daemons[0].Tags[provisionersdk.TagScope])
 		// This should get clobbered to the user who started the daemon.
 		assert.Equal(t, anotherUser.ID.String(), daemons[0].Tags[provisionersdk.TagOwner])
+		assert.Equal(t, buildinfo.Version(), daemons[0].Version)
+		assert.Equal(t, provisionersdk.APIVersionCurrent, daemons[0].APIVersion)
 	})
 
 	t.Run("ScopeOrg", func(t *testing.T) {
@@ -150,5 +157,7 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 		}, testutil.WaitShort, testutil.IntervalSlow)
 		assert.Equal(t, "org-daemon", daemons[0].Name)
 		assert.Equal(t, provisionersdk.ScopeOrganization, daemons[0].Tags[provisionersdk.TagScope])
+		assert.Equal(t, buildinfo.Version(), daemons[0].Version)
+		assert.Equal(t, provisionersdk.APIVersionCurrent, daemons[0].APIVersion)
 	})
 }

@@ -809,6 +809,7 @@ export interface ProvisionerDaemon {
   readonly last_seen_at?: string;
   readonly name: string;
   readonly version: string;
+  readonly api_version: string;
   readonly provisioners: ProvisionerType[];
   readonly tags: Record<string, string>;
 }
