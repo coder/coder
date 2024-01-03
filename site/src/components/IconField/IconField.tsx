@@ -2,7 +2,9 @@ import { css, Global, useTheme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import InputAdornment from "@mui/material/InputAdornment";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
+import { visuallyHidden } from "@mui/utils";
 import { type FC, lazy, Suspense } from "react";
+import { ErrorBoundary } from "components/ErrorBoundary/ErrorBoundary";
 import { Loader } from "components/Loader/Loader";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Stack } from "components/Stack/Stack";
@@ -11,7 +13,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "components/Popover/Popover";
-import { visuallyHidden } from "@mui/utils";
 
 // See: https://github.com/missive/emoji-mart/issues/51#issuecomment-287353222
 const urlFromUnifiedCode = (unified: string) =>
@@ -118,9 +119,12 @@ export const IconField: FC<IconFieldProps> = ({
       so we just have to sneak it into the DOM, which is kind of annoying, but means
       that users shouldn't ever spend time waiting for it to load. */}
       <div css={{ ...visuallyHidden }}>
-        <Suspense>
-          <EmojiPicker onEmojiSelect={() => {}} />
-        </Suspense>
+        {/* `ErrorBoundary` is for tests, this component requires `IntersectionObserver` */}
+        <ErrorBoundary fallback={null}>
+          <Suspense>
+            <EmojiPicker onEmojiSelect={() => {}} />
+          </Suspense>
+        </ErrorBoundary>
       </div>
     </Stack>
   );

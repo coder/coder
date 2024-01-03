@@ -1,7 +1,10 @@
-import { Component, ReactNode, PropsWithChildren } from "react";
+import { Component, type ReactNode } from "react";
 import { RuntimeErrorState } from "./RuntimeErrorState";
 
-type ErrorBoundaryProps = PropsWithChildren<unknown>;
+interface ErrorBoundaryProps {
+  fallback?: ReactNode;
+  children: ReactNode;
+}
 
 interface ErrorBoundaryState {
   error: Error | null;
@@ -9,7 +12,7 @@ interface ErrorBoundaryState {
 
 /**
  * Our app's Error Boundary
- * Read more about React Error Boundaries: https://reactjs.org/docs/error-boundaries.html
+ * Read more about React Error Boundaries: https://react.dev/reference/react/Component#catching-rendering-errors-with-an-error-boundary
  */
 export class ErrorBoundary extends Component<
   ErrorBoundaryProps,
@@ -20,13 +23,15 @@ export class ErrorBoundary extends Component<
     this.state = { error: null };
   }
 
-  static getDerivedStateFromError(error: Error): { error: Error } {
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { error };
   }
 
   render(): ReactNode {
     if (this.state.error) {
-      return <RuntimeErrorState error={this.state.error} />;
+      return (
+        this.props.fallback ?? <RuntimeErrorState error={this.state.error} />
+      );
     }
 
     return this.props.children;
