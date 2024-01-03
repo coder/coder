@@ -27,7 +27,7 @@ import {
   HelpTooltipText,
   HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
-import { LazyIconField } from "components/IconField/LazyIconField";
+import { IconField } from "components/IconField/IconField";
 import Link from "@mui/material/Link";
 import {
   HorizontalForm,
@@ -345,12 +345,11 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
             label="Description"
           />
 
-          <LazyIconField
+          <IconField
             {...getFieldHelpers("icon")}
             disabled={isSubmitting}
             onChange={onChangeTrimmed(form)}
             fullWidth
-            label="Icon"
             onPickEmoji={(value) => form.setFieldValue("icon", value)}
           />
         </FormFields>

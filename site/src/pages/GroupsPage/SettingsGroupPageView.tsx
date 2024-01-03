@@ -3,7 +3,7 @@ import { Group } from "api/typesGenerated";
 import { FormFooter } from "components/FormFooter/FormFooter";
 import { FullPageForm } from "components/FullPageForm/FullPageForm";
 import { Loader } from "components/Loader/Loader";
-import { LazyIconField } from "components/IconField/LazyIconField";
+import { IconField } from "components/IconField/IconField";
 import { Margins } from "components/Margins/Margins";
 import { useFormik } from "formik";
 import { FC } from "react";
@@ -84,7 +84,7 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
                 label="Display Name"
                 disabled={isEveryoneGroup(group)}
               />
-              <LazyIconField
+              <IconField
                 {...getFieldHelpers("avatar_url")}
                 onChange={onChangeTrimmed(form)}
                 fullWidth
