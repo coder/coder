@@ -91,6 +91,7 @@ type CreateWorkspaceBuildRequest struct {
 	Transition        WorkspaceTransition `json:"transition" validate:"oneof=create start stop delete,required"`
 	DryRun            bool                `json:"dry_run,omitempty"`
 	ProvisionerState  []byte              `json:"state,omitempty"`
+	ProvisionerTags   map[string]string   `json:"tags,omitempty"`
 	// Orphan may be set for the Destroy transition.
 	Orphan bool `json:"orphan,omitempty"`
 	// ParameterValues are optional. It will write params to the 'workspace' scope.

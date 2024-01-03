@@ -42,6 +42,7 @@ type Builder struct {
 	trans            database.WorkspaceTransition
 	version          versionTarget
 	state            stateTarget
+	provisionerTags  map[string]string
 	logLevel         string
 	deploymentValues *codersdk.DeploymentValues
 
@@ -131,6 +132,12 @@ func (b Builder) Orphan() Builder {
 func (b Builder) LogLevel(l string) Builder {
 	// nolint: revive
 	b.logLevel = l
+	return b
+}
+
+func (b Builder) ProvisionerTags(tags map[string]string) Builder {
+	// nolint: revive
+	b.provisionerTags = tags
 	return b
 }
 
@@ -296,7 +303,11 @@ func (b *Builder) buildTx(authFunc func(action rbac.Action, object rbac.Objecter
 	if err != nil {
 		return nil, nil, BuildError{http.StatusInternalServerError, "marshal metadata", err}
 	}
-	tags := provisionersdk.MutateTags(b.workspace.OwnerID, templateVersionJob.Tags)
+	tags := b.provisionerTags
+	for k, v := range templateVersionJob.Tags {
+		tags[k] = v
+	}
+	tags = provisionersdk.MutateTags(b.workspace.OwnerID, tags)
 
 	now := dbtime.Now()
 	provisionerJob, err := b.store.InsertProvisionerJob(b.ctx, database.InsertProvisionerJobParams{

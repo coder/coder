@@ -342,7 +342,8 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		Initiator(apiKey.UserID).
 		RichParameterValues(createBuild.RichParameterValues).
 		LogLevel(string(createBuild.LogLevel)).
-		DeploymentValues(api.Options.DeploymentValues)
+		DeploymentValues(api.Options.DeploymentValues).
+		ProvisionerTags(createBuild.ProvisionerTags)
 
 	if createBuild.TemplateVersionID != uuid.Nil {
 		builder = builder.VersionID(createBuild.TemplateVersionID)
