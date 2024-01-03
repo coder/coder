@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -47,6 +48,11 @@ type WorkspaceBuildBuilder struct {
 	resources  []*sdkproto.Resource
 	params     []database.WorkspaceBuildParameter
 	agentToken string
+	dispo      workspaceBuildDisposition
+}
+
+type workspaceBuildDisposition struct {
+	starting bool
 }
 
 // WorkspaceBuild generates a workspace build for the provided workspace.
@@ -97,6 +103,12 @@ func (b WorkspaceBuildBuilder) WithAgent(mutations ...func([]*sdkproto.Agent) []
 		Type:   "aws_instance",
 		Agents: agents,
 	})
+	return b
+}
+
+func (b WorkspaceBuildBuilder) Starting() WorkspaceBuildBuilder {
+	//nolint: revive // returns modified struct
+	b.dispo.starting = true
 	return b
 }
 
@@ -166,20 +178,43 @@ func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
 	})
 	require.NoError(b.t, err, "insert job")
 
-	err = b.db.UpdateProvisionerJobWithCompleteByID(ownerCtx, database.UpdateProvisionerJobWithCompleteByIDParams{
-		ID:        job.ID,
-		UpdatedAt: dbtime.Now(),
-		Error:     sql.NullString{},
-		ErrorCode: sql.NullString{},
-		CompletedAt: sql.NullTime{
-			Time:  dbtime.Now(),
-			Valid: true,
-		},
-	})
-	require.NoError(b.t, err, "complete job")
+	if b.dispo.starting {
+		// might need to do this multiple times if we got a template version
+		// import job as well
+		for {
+			j, err := b.db.AcquireProvisionerJob(ownerCtx, database.AcquireProvisionerJobParams{
+				StartedAt: sql.NullTime{
+					Time:  dbtime.Now(),
+					Valid: true,
+				},
+				WorkerID: uuid.NullUUID{
+					UUID:  uuid.New(),
+					Valid: true,
+				},
+				Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+				Tags:  nil,
+			})
+			require.NoError(b.t, err, "acquire starting job")
+			if j.ID == job.ID {
+				break
+			}
+		}
+	} else {
+		err = b.db.UpdateProvisionerJobWithCompleteByID(ownerCtx, database.UpdateProvisionerJobWithCompleteByIDParams{
+			ID:        job.ID,
+			UpdatedAt: dbtime.Now(),
+			Error:     sql.NullString{},
+			ErrorCode: sql.NullString{},
+			CompletedAt: sql.NullTime{
+				Time:  dbtime.Now(),
+				Valid: true,
+			},
+		})
+		require.NoError(b.t, err, "complete job")
+		ProvisionerJobResources(b.t, b.db, job.ID, b.seed.Transition, b.resources...).Do()
+	}
 
 	resp.Build = dbgen.WorkspaceBuild(b.t, b.db, b.seed)
-	ProvisionerJobResources(b.t, b.db, job.ID, b.seed.Transition, b.resources...).Do()
 
 	for i := range b.params {
 		b.params[i].WorkspaceBuildID = resp.Build.ID
@@ -338,6 +373,40 @@ func (t TemplateVersionBuilder) Do() TemplateVersionResponse {
 
 	resp.TemplateVersion = version
 	return resp
+}
+
+type JobCompleteBuilder struct {
+	t     testing.TB
+	db    database.Store
+	jobID uuid.UUID
+}
+
+type JobCompleteResponse struct {
+	CompletedAt time.Time
+}
+
+func JobComplete(t testing.TB, db database.Store, jobID uuid.UUID) JobCompleteBuilder {
+	return JobCompleteBuilder{
+		t:     t,
+		db:    db,
+		jobID: jobID,
+	}
+}
+
+func (b JobCompleteBuilder) Do() JobCompleteResponse {
+	r := JobCompleteResponse{CompletedAt: dbtime.Now()}
+	err := b.db.UpdateProvisionerJobWithCompleteByID(ownerCtx, database.UpdateProvisionerJobWithCompleteByIDParams{
+		ID:        b.jobID,
+		UpdatedAt: r.CompletedAt,
+		Error:     sql.NullString{},
+		ErrorCode: sql.NullString{},
+		CompletedAt: sql.NullTime{
+			Time:  r.CompletedAt,
+			Valid: true,
+		},
+	})
+	require.NoError(b.t, err, "complete job")
+	return r
 }
 
 func must[V any](v V, err error) V {
