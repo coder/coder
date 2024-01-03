@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
@@ -316,9 +317,19 @@ func TestEscapePostgresURLUserInfo(t *testing.T) {
 			err:    nil,
 		},
 		{
-			input:  "postgres://baduserinfo@localhost:5432/coder",
-			output: "",
+			input:  "postgres://coder:co:der@localhost:5432/coder",
+			output: "postgres://coder:co:der@localhost:5432/coder",
 			err:    nil,
+		},
+		{
+			input:  "postgres://coder:co der@localhost:5432/coder",
+			output: "postgres://coder:co%20der@localhost:5432/coder",
+			err:    nil,
+		},
+		{
+			input:  "postgres://local host:5432/coder",
+			output: "",
+			err:    xerrors.New("parse postgres url: parse \"postgres://local host:5432/coder\": invalid character \" \" in host name"),
 		},
 	}
 	for _, tc := range testcases {
@@ -327,7 +338,12 @@ func TestEscapePostgresURLUserInfo(t *testing.T) {
 			t.Parallel()
 			o, err := escapePostgresURLUserInfo(tc.input)
 			require.Equal(t, tc.output, o)
-			require.Equal(t, tc.err.Error(), err.Error())
+			if tc.err != nil {
+				require.Error(t, err)
+				require.EqualValues(t, tc.err.Error(), err.Error())
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }

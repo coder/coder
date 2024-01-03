@@ -2461,7 +2461,10 @@ func escapePostgresURLUserInfo(v string) (string, error) {
 			startParts := strings.Split(start, ":")
 			password := startParts[len(startParts)-1]
 			// escape password, and replace the last item in the startParts slice
-			// we use PathEscape because it handles spaces better than QueryEscape
+			// with the escaped password.
+			//
+			// url.PathEscape is used here because url.QueryEscape
+			// will not escape spaces correctly.
 			newPassword := url.PathEscape(password)
 			startParts[len(startParts)-1] = newPassword
 			start = strings.Join(startParts, ":")
