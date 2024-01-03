@@ -537,7 +537,7 @@ CREATE TABLE provisioner_daemons (
     tags jsonb DEFAULT '{}'::jsonb NOT NULL,
     last_seen_at timestamp with time zone,
     version text DEFAULT ''::text NOT NULL,
-    api_version text DEFAULT '1.0'::text NOT NULL
+    api_version text DEFAULT 'v1.0'::text NOT NULL
 );
 
 COMMENT ON COLUMN provisioner_daemons.api_version IS 'The API version of the provisioner daemon';
