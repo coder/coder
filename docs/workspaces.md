@@ -101,9 +101,9 @@ The available options are "Days", which can be set to "Daily", "Saturday" or
 "Sunday", and "Weeks", which can be set to any number from 1 to 16.
 
 "Days" governs which days of the week workspaces must stop. If you select
-"daily", workspaces must be automatically stopped every day at the start of the user's
-defined quiet hours. When using "Saturday" or "Sunday", workspaces will be
-automatically stopped on Saturday or Sunday in the user's timezone and quiet
+"daily", workspaces must be automatically stopped every day at the start of the
+user's defined quiet hours. When using "Saturday" or "Sunday", workspaces will
+be automatically stopped on Saturday or Sunday in the user's timezone and quiet
 hours.
 
 "Weeks" determines how many weeks between required stops. It cannot be changed
@@ -134,10 +134,10 @@ to set the default quiet hours to a time when most users are not expected to be
 using Coder.
 
 Admins can force users to use the default quiet hours with the
-[CODER_ALLOW_CUSTOM_QUIET_HOURS](./cli/server.md#allow-custom-quiet-hours) environment variable. Users will still be
-able to see the page, but will be unable to set a custom time or timezone. If
-users have already set a custom quiet hours schedule, it will be ignored and the
-default will be used instead.
+[CODER_ALLOW_CUSTOM_QUIET_HOURS](./cli/server.md#allow-custom-quiet-hours)
+environment variable. Users will still be able to see the page, but will be
+unable to set a custom time or timezone. If users have already set a custom
+quiet hours schedule, it will be ignored and the default will be used instead.
 
 ### Automatic updates
 
