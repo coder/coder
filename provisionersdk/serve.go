@@ -24,7 +24,7 @@ const (
 	// APIVersionCurrent is the current provisionerd API version.
 	// Breaking changes to the provisionerd API **MUST** increment
 	// the major version below.
-	APIVersionCurrent = "1.0"
+	APIVersionCurrent = "v1.0"
 )
 
 // ServeOptions are configurations to serve a provisioner.
