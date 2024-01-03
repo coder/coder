@@ -113,19 +113,21 @@ export const IconField: FC<IconFieldProps> = ({
         )}
       </Popover>
 
-      {/* This component takes a long time to load (easily several seconds), so we
+      {/*
+      - This component takes a long time to load (easily several seconds), so we
       don't want to wait until the user actually clicks the button to start loading.
       Unfortunately, React doesn't provide an API to start warming a lazy component,
       so we just have to sneak it into the DOM, which is kind of annoying, but means
-      that users shouldn't ever spend time waiting for it to load. */}
-      <div css={{ ...visuallyHidden }}>
-        {/* `ErrorBoundary` is for tests, this component requires `IntersectionObserver` */}
-        <ErrorBoundary fallback={null}>
+      that users shouldn't ever spend time waiting for it to load.
+      - Except we don't do it when running tests, because Jest doesn't define
+      `IntersectionObserver`, and it would make them slower anyway. */}
+      {process.env.NODE_ENV !== "test" && (
+        <div css={{ ...visuallyHidden }}>
           <Suspense>
             <EmojiPicker onEmojiSelect={() => {}} />
           </Suspense>
-        </ErrorBoundary>
-      </div>
+        </div>
+      )}
     </Stack>
   );
 };
