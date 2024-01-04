@@ -6791,6 +6791,7 @@ func (q *FakeQuerier) UpdateWorkspaceAgentConnectionByID(_ context.Context, arg 
 		agent.LastConnectedAt = arg.LastConnectedAt
 		agent.DisconnectedAt = arg.DisconnectedAt
 		agent.UpdatedAt = arg.UpdatedAt
+		agent.LastConnectedReplicaID = arg.LastConnectedReplicaID
 		q.workspaceAgents[index] = agent
 		return nil
 	}
