@@ -49,7 +49,7 @@ export const SidebarCaption = (props: HTMLAttributes<HTMLSpanElement>) => {
 
 const styles = {
   sidebarItem: (theme: Theme) => ({
-    fontSize: 14,
+    fontSize: 13,
     lineHeight: 1.2,
     color: theme.palette.text.primary,
     textDecoration: "none",

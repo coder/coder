@@ -2,13 +2,13 @@ import TableCell from "@mui/material/TableCell";
 import TableRow from "@mui/material/TableRow";
 import { type FC } from "react";
 import { css, useTheme } from "@emotion/react";
-import { createDisplayDate } from "./utils";
 
 export interface TimelineDateRow {
   date: Date;
+  displayDate: string;
 }
 
-export const TimelineDateRow: FC<TimelineDateRow> = ({ date }) => {
+export const TimelineDateRow: FC<TimelineDateRow> = ({ date, displayDate }) => {
   const theme = useTheme();
 
   return (
@@ -30,7 +30,7 @@ export const TimelineDateRow: FC<TimelineDateRow> = ({ date }) => {
         }}
         title={date.toLocaleDateString()}
       >
-        {createDisplayDate(date)}
+        {displayDate}
       </TableCell>
     </TableRow>
   );

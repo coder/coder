@@ -33,7 +33,9 @@ export const WorkspaceBuildData = ({ build }: { build: WorkspaceBuild }) => {
           }}
         >
           {build.transition} by{" "}
-          <strong>{getDisplayWorkspaceBuildInitiatedBy(build)}</strong>
+          <span css={{ fontWeight: 500 }}>
+            {getDisplayWorkspaceBuildInitiatedBy(build)}
+          </span>
         </div>
         <div
           css={{
