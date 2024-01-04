@@ -247,7 +247,7 @@ const getPendingWorkspaceStatusText = (
     return "Pending";
   }
   if (provisionerJob.matching_provisioners === 0) {
-    return "No Matching Provisioners Running"
+    return "No Matching Provisioners Running";
   }
   return "Position in queue: " + provisionerJob.queue_position;
 };

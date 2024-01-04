@@ -213,12 +213,14 @@ export const getOrganizations = async (): Promise<TypesGen.Organization[]> => {
   return response.data;
 };
 
-export const getProvisionerDaemons = async (organizationID: string): Promise<TypesGen.ProvisionerDaemon[]> => {
+export const getProvisionerDaemons = async (
+  organizationID: string,
+): Promise<TypesGen.ProvisionerDaemon[]> => {
   const response = await axios.get<TypesGen.ProvisionerDaemon[]>(
     `/api/v2/organizations/${organizationID}/provisionerdaemons`,
   );
   return response.data;
-}
+};
 
 export const getTemplate = async (
   templateId: string,

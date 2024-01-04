@@ -2,45 +2,45 @@ import { css } from "@emotion/css";
 import { useTheme, type Interpolation, type Theme } from "@emotion/react";
 import TextField from "@mui/material/TextField";
 import type * as TypesGen from "api/typesGenerated";
+import { Alert } from "components/Alert/Alert";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import {
+  FormFields,
+  FormFooter,
+  FormSection,
+  HorizontalForm,
+} from "components/Form/Form";
+import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm";
+import { Stack } from "components/Stack/Stack";
+import {
+  ImmutableTemplateParametersSection,
+  MutableTemplateParametersSection,
+} from "components/TemplateParameters/TemplateParameters";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { FormikContextType, useFormik } from "formik";
-import { type FC, useEffect, useState, useMemo } from "react";
+import { useEffect, useState, type FC } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   getFormHelpers,
   nameValidator,
   onChangeTrimmed,
 } from "utils/formUtils";
-import * as Yup from "yup";
-import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm";
-import { SelectedTemplate } from "./SelectedTemplate";
-import {
-  FormFields,
-  FormSection,
-  FormFooter,
-  HorizontalForm,
-} from "components/Form/Form";
 import {
   getInitialRichParameterValues,
   useValidationSchemaForRichParameters,
 } from "utils/richParameters";
-import {
-  ImmutableTemplateParametersSection,
-  MutableTemplateParametersSection,
-} from "components/TemplateParameters/TemplateParameters";
-import { ExternalAuth } from "./ExternalAuth";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Stack } from "components/Stack/Stack";
+import * as Yup from "yup";
 import {
   CreateWorkspaceMode,
   type ExternalAuthPollingState,
 } from "./CreateWorkspacePage";
-import { useSearchParams } from "react-router-dom";
+import { ExternalAuth } from "./ExternalAuth";
+import {
+  ProvisionerGroupSelect,
+  useProvisionerDaemonGroups,
+} from "./ProvisionerDaemons";
+import { SelectedTemplate } from "./SelectedTemplate";
 import { CreateWSPermissions } from "./permissions";
-import { Alert } from "components/Alert/Alert";
-import MenuItem from "@mui/material/MenuItem";
-import Select from "@mui/material/Select";
-import Person from "@mui/icons-material/Person";
-import Public from "@mui/icons-material/Public";
 
 export const Language = {
   duplicationWarning:
@@ -95,9 +95,8 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
     useExternalAuthVerification(externalAuth);
   const [searchParams] = useSearchParams();
   const disabledParamsList = searchParams?.get("disable_params")?.split(",");
-  const localProvisionerDaemons = useMemo(() => {
-    return provisionerDaemons.filter((pd) => pd.tags["scope"] === "user");
-  }, [provisionerDaemons]);
+  const provisionerDaemonGroups =
+    useProvisionerDaemonGroups(provisionerDaemons);
 
   const form: FormikContextType<TypesGen.CreateWorkspaceRequest> =
     useFormik<TypesGen.CreateWorkspaceRequest>({
@@ -175,38 +174,6 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
               fullWidth
               label="Workspace Name"
             />
-            {localProvisionerDaemons.length > 0 && (
-              <Stack spacing={1} css={styles.hasDescription}>
-                <Select
-                  defaultValue="global"
-                  size="small"
-                  onChange={async (e) => {
-                    if (e.target.value === "global") {
-                      return form.setFieldValue("provisioner_tags", {});
-                    }
-                    return form.setFieldValue(
-                      "provisioner_tags",
-                      localProvisionerDaemons[parseInt(e.target.value)].tags,
-                    );
-                  }}
-                >
-                  <MenuItem key="global" value="global">
-                    <Public />
-                    Remote
-                  </MenuItem>
-                  {localProvisionerDaemons.map((daemon, index) => (
-                    <MenuItem key={daemon.id} value={index}>
-                      <Person />
-                      Hostname: {daemon.tags["hostname"] || daemon.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-                <span css={styles.description}>
-                  Select a Provisioner Daemon to run this workspace on. This
-                  cannot be changed after creation.
-                </span>
-              </Stack>
-            )}
           </FormFields>
         </FormSection>
 
@@ -223,6 +190,22 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                 }}
                 label="Owner"
                 size="medium"
+              />
+            </FormFields>
+          </FormSection>
+        )}
+
+        {provisionerDaemonGroups.length > 1 && (
+          <FormSection
+            title="Provision Destination"
+            description="Select a destination for your workspace to be provisioned. This cannot be changed after creation."
+          >
+            <FormFields>
+              <ProvisionerGroupSelect
+                groups={provisionerDaemonGroups}
+                onSelectGroup={async (group) => {
+                  await form.setFieldValue("provisioner_tags", group[0].tags);
+                }}
               />
             </FormFields>
           </FormSection>
