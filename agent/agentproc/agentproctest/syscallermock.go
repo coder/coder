@@ -8,7 +8,7 @@ import (
 	reflect "reflect"
 	syscall "syscall"
 
-	gomock "github.com/golang/mock/gomock"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockSyscaller is a mock of Syscaller interface.
