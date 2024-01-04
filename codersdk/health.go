@@ -12,11 +12,12 @@ type HealthSection string
 
 // If you add another const below, make sure to add it to HealthSections!
 const (
-	HealthSectionDERP           HealthSection = "DERP"
-	HealthSectionAccessURL      HealthSection = "AccessURL"
-	HealthSectionWebsocket      HealthSection = "Websocket"
-	HealthSectionDatabase       HealthSection = "Database"
-	HealthSectionWorkspaceProxy HealthSection = "WorkspaceProxy"
+	HealthSectionDERP               HealthSection = "DERP"
+	HealthSectionAccessURL          HealthSection = "AccessURL"
+	HealthSectionWebsocket          HealthSection = "Websocket"
+	HealthSectionDatabase           HealthSection = "Database"
+	HealthSectionWorkspaceProxy     HealthSection = "WorkspaceProxy"
+	HealthSectionProvisionerDaemons HealthSection = "ProvisionerDaemons"
 )
 
 var HealthSections = []HealthSection{

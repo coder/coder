@@ -440,6 +440,13 @@ func New(options *Options) *API {
 					CurrentVersion:               buildinfo.Version(),
 					WorkspaceProxiesFetchUpdater: *(options.WorkspaceProxiesFetchUpdater).Load(),
 				},
+				ProvisionerDaemons: healthcheck.ProvisionerDaemonsReportOptions{
+					CurrentVersion:       buildinfo.Version(),
+					CurrentAPIVersion:    provisionersdk.VersionCurrent,
+					ProvisionerDaemonsFn: options.Database.GetProvisionerDaemons,
+					TimeNowFn:            dbtime.Now,
+					StaleInterval:        provisionerdserver.DefaultHeartbeatInterval * 3,
+				},
 			})
 		}
 	}
