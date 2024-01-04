@@ -46,9 +46,9 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 				pretty.Sprint(
 					cliui.DefaultStyles.Warn,
 					"DEPRECATION WARNING: Use `coder templates push` command for creating and updating templates. "+
-						"Use `coder templates edit` command for editing template settings."+
-						"This command will be removed in a future release."+
-						"Waiting 1 second...")+"\n"))
+						"Use `coder templates edit` command for editing template settings. "+
+						"This command will be removed in a future release. \n"+
+						"Waiting 1 second...\n")))
 			time.Sleep(1 * time.Second)
 
 			isTemplateSchedulingOptionsSet := failureTTL != 0 || dormancyThreshold != 0 || dormancyAutoDeletion != 0 || maxTTL != 0
