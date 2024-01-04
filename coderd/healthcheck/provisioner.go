@@ -21,9 +21,9 @@ type ProvisionerDaemonsReport struct {
 	Severity  health.Severity  `json:"severity"`
 	Warnings  []health.Message `json:"warnings"`
 	Dismissed bool             `json:"dismissed"`
-	Error     *string
+	Error     *string          `json:"error"`
 
-	Provisioners []codersdk.ProvisionerDaemon
+	ProvisionerDaemons []codersdk.ProvisionerDaemon `json:"provisioner_daemons"`
 }
 
 type ProvisionerDaemonsReportOptions struct {
@@ -41,6 +41,7 @@ type ProvisionerDaemonsReportOptions struct {
 }
 
 func (r *ProvisionerDaemonsReport) Run(ctx context.Context, opts *ProvisionerDaemonsReportOptions) {
+	r.ProvisionerDaemons = make([]codersdk.ProvisionerDaemon, 0)
 	r.Severity = health.SeverityOK
 	r.Warnings = make([]health.Message, 0)
 	r.Dismissed = opts.Dismissed
@@ -75,7 +76,11 @@ func (r *ProvisionerDaemonsReport) Run(ctx context.Context, opts *ProvisionerDae
 		return
 	}
 
-	if len(daemons) == 0 {
+	for _, daemon := range daemons {
+		r.ProvisionerDaemons = append(r.ProvisionerDaemons, convertProvisionerDaemon(daemon))
+	}
+
+	if len(r.ProvisionerDaemons) == 0 {
 		r.Severity = health.SeverityError
 		r.Error = ptr.Ref("No provisioner daemons found!")
 		return
@@ -116,4 +121,21 @@ func (r *ProvisionerDaemonsReport) Run(ctx context.Context, opts *ProvisionerDae
 			r.Warnings = append(r.Warnings, health.Messagef(health.CodeProvisionerDaemonAPIVersionIncompatible, "Provisioner daemon %q reports incompatible API version: %s", daemon.Name, err.Error()))
 		}
 	}
+}
+
+// XXX: duplicated from enterprise/coderd
+func convertProvisionerDaemon(daemon database.ProvisionerDaemon) codersdk.ProvisionerDaemon {
+	result := codersdk.ProvisionerDaemon{
+		ID:         daemon.ID,
+		CreatedAt:  daemon.CreatedAt,
+		LastSeenAt: codersdk.NullTime{NullTime: daemon.LastSeenAt},
+		Name:       daemon.Name,
+		Tags:       daemon.Tags,
+		Version:    daemon.Version,
+		APIVersion: daemon.APIVersion,
+	}
+	for _, provisionerType := range daemon.Provisioners {
+		result.Provisioners = append(result.Provisioners, codersdk.ProvisionerType(provisionerType))
+	}
+	return result
 }

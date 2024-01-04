@@ -38,7 +38,7 @@ type Report struct {
 	Websocket          WebsocketReport          `json:"websocket"`
 	Database           DatabaseReport           `json:"database"`
 	WorkspaceProxy     WorkspaceProxyReport     `json:"workspace_proxy"`
-	ProvisionerDaemons ProvisionerDaemonsReport `json:"provisioner_daemon"`
+	ProvisionerDaemons ProvisionerDaemonsReport `json:"provisioner_daemons"`
 
 	// The Coder version of the server that the report was generated on.
 	CoderVersion string `json:"coder_version"`
