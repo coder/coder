@@ -248,6 +248,7 @@ func (s *ServerTailnet) getAgentConn() tailnet.MultiAgentConn {
 }
 
 func (s *ServerTailnet) reinitCoordinator() {
+	start := time.Now()
 	for retrier := retry.New(25*time.Millisecond, 5*time.Second); retrier.Wait(s.ctx); {
 		s.nodesMu.Lock()
 		agentConn, err := s.getMultiAgent(s.ctx)
@@ -265,6 +266,11 @@ func (s *ServerTailnet) reinitCoordinator() {
 				s.logger.Warn(s.ctx, "resubscribe to agent", slog.Error(err), slog.F("agent_id", agentID))
 			}
 		}
+
+		s.logger.Info(s.ctx, "successfully reinitialized multiagent",
+			slog.F("agents", len(s.agentConnectionTimes)),
+			slog.F("took", time.Since(start)),
+		)
 		s.nodesMu.Unlock()
 		return
 	}
