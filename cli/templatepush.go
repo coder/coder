@@ -10,17 +10,16 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/briandowns/spinner"
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
-
-	"github.com/coder/pretty"
 
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/pretty"
 )
 
 // templateUploadFlags is shared by `templates create` and `templates push`.
@@ -190,24 +189,67 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				return err
 			}
 
-			job, template, err := createTemplateVersion(createTemplateVersionArgs{
-				inv:                  inv,
-				client:               client,
-				name:                 name,
-				org:                  organization,
-				uploadFlags:          uploadFlags,
-				provisionerTags:      provisionerTags,
-				provisioner:          provisioner,
-				variablesFile:        variablesFile,
-				commandLineVariables: commandLineVariables,
-				versionName:          versionName,
-				alwaysPrompt:         alwaysPrompt,
-			})
+			var createTemplate bool
+			template, err := client.TemplateByName(inv.Context(), organization.ID, name)
+			if err != nil {
+				var apiError *codersdk.Error
+				if errors.As(err, &apiError) && apiError.StatusCode() != http.StatusNotFound {
+					return err
+				}
+				// Template doesn't exist, create it.
+				createTemplate = true
+			}
+
+			err = uploadFlags.checkForLockfile(inv)
+			if err != nil {
+				return xerrors.Errorf("check for lockfile: %w", err)
+			}
+
+			message := uploadFlags.templateMessage(inv)
+
+			resp, err := uploadFlags.upload(inv, client)
 			if err != nil {
 				return err
 			}
 
-			if template == nil {
+			tags, err := ParseProvisionerTags(provisionerTags)
+			if err != nil {
+				return err
+			}
+
+			userVariableValues, err := ParseUserVariableValues(
+				variablesFile,
+				commandLineVariables)
+			if err != nil {
+				return err
+			}
+
+			args := createValidTemplateVersionArgs{
+				Message:            message,
+				Client:             client,
+				Organization:       organization,
+				Provisioner:        codersdk.ProvisionerType(provisioner),
+				FileID:             resp.ID,
+				ProvisionerTags:    tags,
+				UserVariableValues: userVariableValues,
+			}
+
+			if !createTemplate {
+				args.Name = versionName
+				args.Template = &template
+				args.ReuseParameters = !alwaysPrompt
+			}
+
+			job, err := createValidTemplateVersion(inv, args)
+			if err != nil {
+				return err
+			}
+
+			if job.Job.Status != codersdk.ProvisionerJobSucceeded {
+				return xerrors.Errorf("job failed: %s", job.Job.Status)
+			}
+
+			if createTemplate {
 				_, err = client.CreateTemplate(inv.Context(), organization.ID, codersdk.CreateTemplateRequest{
 					Name:      name,
 					VersionID: job.ID,
@@ -230,7 +272,6 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			}
 
 			_, _ = fmt.Fprintf(inv.Stdout, "Updated version at %s!\n", pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, time.Now().Format(time.Stamp)))
-
 			return nil
 		},
 	}
@@ -311,83 +352,106 @@ func prettyDirectoryPath(dir string) string {
 	return prettyDir
 }
 
-type createTemplateVersionArgs struct {
-	inv                  *clibase.Invocation
-	client               *codersdk.Client
-	name                 string
-	org                  codersdk.Organization
-	uploadFlags          templateUploadFlags
-	provisionerTags      []string
-	provisioner          string
-	variablesFile        string
-	commandLineVariables []string
-	versionName          string
-	alwaysPrompt         bool
+type createValidTemplateVersionArgs struct {
+	Name         string
+	Message      string
+	Client       *codersdk.Client
+	Organization codersdk.Organization
+	Provisioner  codersdk.ProvisionerType
+	FileID       uuid.UUID
+
+	// Template is only required if updating a template's active version.
+	Template *codersdk.Template
+	// ReuseParameters will attempt to reuse params from the Template field
+	// before prompting the user. Set to false to always prompt for param
+	// values.
+	ReuseParameters    bool
+	ProvisionerTags    map[string]string
+	UserVariableValues []codersdk.VariableValue
 }
 
-func createTemplateVersion(args createTemplateVersionArgs) (*codersdk.TemplateVersion, *codersdk.Template, error) {
-	if utf8.RuneCountInString(args.name) >= 32 {
-		return nil, nil, xerrors.Errorf("Template name must be less than 32 characters")
+func createValidTemplateVersion(inv *clibase.Invocation, args createValidTemplateVersionArgs) (*codersdk.TemplateVersion, error) {
+	client := args.Client
+
+	req := codersdk.CreateTemplateVersionRequest{
+		Name:               args.Name,
+		Message:            args.Message,
+		StorageMethod:      codersdk.ProvisionerStorageMethodFile,
+		FileID:             args.FileID,
+		Provisioner:        args.Provisioner,
+		ProvisionerTags:    args.ProvisionerTags,
+		UserVariableValues: args.UserVariableValues,
+	}
+	if args.Template != nil {
+		req.TemplateID = args.Template.ID
+	}
+	version, err := client.CreateTemplateVersion(inv.Context(), args.Organization.ID, req)
+	if err != nil {
+		return nil, err
 	}
 
-	var createTemplate bool
-	template, err := args.client.TemplateByName(args.inv.Context(), args.org.ID, args.name)
+	err = cliui.ProvisionerJob(inv.Context(), inv.Stdout, cliui.ProvisionerJobOptions{
+		Fetch: func() (codersdk.ProvisionerJob, error) {
+			version, err := client.TemplateVersion(inv.Context(), version.ID)
+			return version.Job, err
+		},
+		Cancel: func() error {
+			return client.CancelTemplateVersion(inv.Context(), version.ID)
+		},
+		Logs: func() (<-chan codersdk.ProvisionerJobLog, io.Closer, error) {
+			return client.TemplateVersionLogsAfter(inv.Context(), version.ID, 0)
+		},
+	})
 	if err != nil {
-		var apiError *codersdk.Error
-		if errors.As(err, &apiError) && apiError.StatusCode() != http.StatusNotFound {
-			return nil, nil, err
+		var jobErr *cliui.ProvisionerJobError
+		if errors.As(err, &jobErr) && !codersdk.JobIsMissingParameterErrorCode(jobErr.Code) {
+			return nil, err
 		}
-		createTemplate = true
+		if err != nil {
+			return nil, err
+		}
 	}
-
-	err = args.uploadFlags.checkForLockfile(args.inv)
+	version, err = client.TemplateVersion(inv.Context(), version.ID)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("check for lockfile: %w", err)
+		return nil, err
 	}
 
-	message := args.uploadFlags.templateMessage(args.inv)
+	if version.Job.Status != codersdk.ProvisionerJobSucceeded {
+		return nil, xerrors.New(version.Job.Error)
+	}
 
-	resp, err := args.uploadFlags.upload(args.inv, args.client)
+	resources, err := client.TemplateVersionResources(inv.Context(), version.ID)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	tags, err := ParseProvisionerTags(args.provisionerTags)
+	// Only display the resources on the start transition, to avoid listing them more than once.
+	var startResources []codersdk.WorkspaceResource
+	for _, r := range resources {
+		if r.Transition == codersdk.WorkspaceTransitionStart {
+			startResources = append(startResources, r)
+		}
+	}
+	err = cliui.WorkspaceResources(inv.Stdout, startResources, cliui.WorkspaceResourcesOptions{
+		HideAgentState: true,
+		HideAccess:     true,
+		Title:          "Template Preview",
+	})
 	if err != nil {
-		return nil, nil, err
+		return nil, xerrors.Errorf("preview template resources: %w", err)
 	}
 
-	userVariableValues, err := ParseUserVariableValues(
-		args.variablesFile,
-		args.commandLineVariables)
-	if err != nil {
-		return nil, nil, err
-	}
+	return &version, nil
+}
 
-	versionArgs := createValidTemplateVersionArgs{
-		Message:            message,
-		Client:             args.client,
-		Organization:       args.org,
-		Provisioner:        codersdk.ProvisionerType(args.provisioner),
-		FileID:             resp.ID,
-		ProvisionerTags:    tags,
-		UserVariableValues: userVariableValues,
+func ParseProvisionerTags(rawTags []string) (map[string]string, error) {
+	tags := map[string]string{}
+	for _, rawTag := range rawTags {
+		parts := strings.SplitN(rawTag, "=", 2)
+		if len(parts) < 2 {
+			return nil, xerrors.Errorf("invalid tag format for %q. must be key=value", rawTag)
+		}
+		tags[parts[0]] = parts[1]
 	}
-
-	if !createTemplate {
-		versionArgs.Name = args.versionName
-		versionArgs.Template = &template
-		versionArgs.ReuseParameters = !args.alwaysPrompt
-	}
-
-	job, err := createValidTemplateVersion(args.inv, versionArgs)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if job.Job.Status != codersdk.ProvisionerJobSucceeded {
-		return nil, nil, xerrors.Errorf("job failed: %s", job.Job.Status)
-	}
-
-	return job, &template, nil
+	return tags, nil
 }
