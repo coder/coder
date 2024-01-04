@@ -235,6 +235,11 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 
 	versionHdrVal := r.Header.Get(codersdk.BuildVersionHeader)
 
+	apiVersion := "1.0"
+	if qv := r.URL.Query().Get("version"); qv != "" {
+		apiVersion = qv
+	}
+
 	// Create the daemon in the database.
 	now := dbtime.Now()
 	daemon, err := api.Database.UpsertProvisionerDaemon(authCtx, database.UpsertProvisionerDaemonParams{
@@ -244,7 +249,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		CreatedAt:    now,
 		LastSeenAt:   sql.NullTime{Time: now, Valid: true},
 		Version:      versionHdrVal,
-		APIVersion:   provisionersdk.APIVersionCurrent,
+		APIVersion:   apiVersion,
 	})
 	if err != nil {
 		if !xerrors.Is(err, context.Canceled) {

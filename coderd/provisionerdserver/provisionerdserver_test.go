@@ -1786,7 +1786,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		Tags:         database.StringMap{},
 		LastSeenAt:   sql.NullTime{},
 		Version:      buildinfo.Version(),
-		APIVersion:   provisionersdk.APIVersionCurrent,
+		APIVersion:   provisionersdk.VersionCurrent.String(),
 	})
 	require.NoError(t, err)
 
