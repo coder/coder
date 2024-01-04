@@ -1,6 +1,7 @@
 import { infiniteWorkspaceBuilds } from "api/queries/workspaceBuilds";
 import { Workspace } from "api/typesGenerated";
 import {
+  Sidebar,
   SidebarCaption,
   SidebarItem,
   SidebarLink,
@@ -11,11 +12,7 @@ import {
 } from "components/WorkspaceBuild/WorkspaceBuildData";
 import { useInfiniteQuery } from "react-query";
 
-export const HistorySidebarContent = ({
-  workspace,
-}: {
-  workspace: Workspace;
-}) => {
+export const HistorySidebar = ({ workspace }: { workspace: Workspace }) => {
   const buildsQuery = useInfiniteQuery({
     ...infiniteWorkspaceBuilds(workspace?.id ?? ""),
     enabled: workspace !== undefined,
@@ -23,7 +20,7 @@ export const HistorySidebarContent = ({
   const builds = buildsQuery.data?.pages.flat();
 
   return (
-    <>
+    <Sidebar>
       <SidebarCaption>History</SidebarCaption>
       {builds
         ? builds.map((build) => (
@@ -39,6 +36,6 @@ export const HistorySidebarContent = ({
               <WorkspaceBuildDataSkeleton />
             </SidebarItem>
           ))}
-    </>
+    </Sidebar>
   );
 };

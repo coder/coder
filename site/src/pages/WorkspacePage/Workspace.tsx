@@ -2,11 +2,10 @@ import { type Interpolation, type Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import AlertTitle from "@mui/material/AlertTitle";
 import { type FC, useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import dayjs from "dayjs";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
-import { Margins } from "components/Margins/Margins";
 import { Resources } from "components/Resources/Resources";
 import { Stack } from "components/Stack/Stack";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -19,13 +18,9 @@ import {
 } from "./WorkspaceBuildProgress";
 import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
-import { useTheme } from "@mui/material/styles";
-import MemoryOutlined from "@mui/icons-material/MemoryOutlined";
-import { TopbarIconButton } from "components/FullPageLayout/Topbar";
-import { Sidebar } from "components/FullPageLayout/Sidebar";
-import HistoryOutlined from "@mui/icons-material/HistoryOutlined";
-import { ResourcesSidebarContent } from "./ResourcesSidebarContent";
-import { HistorySidebarContent } from "./HistorySidebarContent";
+import { HistorySidebar } from "./HistorySidebar";
+import { dashboardContentBottomPadding, navHeight } from "theme/constants";
+import { bannerHeight } from "components/Dashboard/DeploymentBanner/DeploymentBannerView";
 
 export type WorkspaceError =
   | "getBuildsError"
@@ -97,12 +92,8 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   buildLogs,
   canAutostart,
 }) => {
-  const theme = useTheme();
   const navigate = useNavigate();
   const { saveLocal, getLocal } = useLocalStorage();
-
-  const [searchParams, setSearchParams] = useSearchParams();
-  const activeSidebarOption = searchParams.get("sidebar");
 
   const [showAlertPendingInQueue, setShowAlertPendingInQueue] = useState(false);
 
@@ -154,12 +145,14 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   return (
     <div
       css={{
-        height: "100%",
+        flex: 1,
         display: "grid",
         gridTemplate: `
-        "topbar topbar topbar" auto
-        "leftbar sidebar content" 1fr / auto auto 1fr
-      `,
+          "topbar topbar" auto
+          "sidebar content" 1fr / auto 1fr
+        `,
+        maxHeight: `calc(100vh - ${navHeight + bannerHeight}px)`,
+        marginBottom: `-${dashboardContentBottomPadding}px`,
       }}
     >
       <WorkspaceTopbar
@@ -182,205 +175,190 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
         canUpdateWorkspace={canUpdateWorkspace}
       />
 
-      <div
-        css={{
-          height: "100%",
-          borderRight: `1px solid ${theme.palette.divider}`,
-          gridArea: "leftbar",
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        <TopbarIconButton
-          onClick={() => {
-            setSearchParams((prev) => {
-              prev.set("sidebar", "resources");
-              return prev;
-            });
-          }}
-        >
-          <MemoryOutlined />
-        </TopbarIconButton>
-        <TopbarIconButton
-          onClick={() => {
-            setSearchParams((prev) => {
-              prev.set("sidebar", "history");
-              return prev;
-            });
-          }}
-        >
-          <HistoryOutlined />
-        </TopbarIconButton>
-      </div>
+      <div css={styles.content}>
+        <div css={styles.dotBackground}>
+          <Stack direction="column" css={styles.firstColumnSpacer} spacing={4}>
+            {workspace.outdated &&
+              (requiresManualUpdate ? (
+                <Alert severity="warning">
+                  <AlertTitle>
+                    Autostart has been disabled for your workspace.
+                  </AlertTitle>
+                  <AlertDetail>
+                    Autostart is unable to automatically update your workspace.
+                    Manually update your workspace to reenable Autostart.
+                  </AlertDetail>
+                </Alert>
+              ) : (
+                <Alert severity="info">
+                  <AlertTitle>
+                    An update is available for your workspace
+                  </AlertTitle>
+                  {updateMessage && <AlertDetail>{updateMessage}</AlertDetail>}
+                </Alert>
+              ))}
 
-      <Sidebar css={{ gridArea: "sidebar" }}>
-        {activeSidebarOption === "resources" && (
-          <ResourcesSidebarContent workspace={workspace} />
-        )}
-        {activeSidebarOption === "history" && (
-          <HistorySidebarContent workspace={workspace} />
-        )}
-      </Sidebar>
+            {Boolean(workspaceErrors.buildError) && (
+              <ErrorAlert error={workspaceErrors.buildError} dismissible />
+            )}
 
-      <Margins css={styles.content}>
-        <Stack direction="column" css={styles.firstColumnSpacer} spacing={4}>
-          {workspace.outdated &&
-            (requiresManualUpdate ? (
-              <Alert severity="warning">
-                <AlertTitle>
-                  Autostart has been disabled for your workspace.
-                </AlertTitle>
-                <AlertDetail>
-                  Autostart is unable to automatically update your workspace.
-                  Manually update your workspace to reenable Autostart.
-                </AlertDetail>
-              </Alert>
-            ) : (
+            {Boolean(workspaceErrors.cancellationError) && (
+              <ErrorAlert
+                error={workspaceErrors.cancellationError}
+                dismissible
+              />
+            )}
+
+            {workspace.latest_build.status === "running" &&
+              !workspace.health.healthy && (
+                <Alert
+                  severity="warning"
+                  actions={
+                    canUpdateWorkspace && (
+                      <Button
+                        variant="text"
+                        size="small"
+                        onClick={() => {
+                          handleRestart();
+                        }}
+                      >
+                        Restart
+                      </Button>
+                    )
+                  }
+                >
+                  <AlertTitle>Workspace is unhealthy</AlertTitle>
+                  <AlertDetail>
+                    Your workspace is running but{" "}
+                    {workspace.health.failing_agents.length > 1
+                      ? `${workspace.health.failing_agents.length} agents are unhealthy`
+                      : `1 agent is unhealthy`}
+                    .
+                  </AlertDetail>
+                </Alert>
+              )}
+
+            {workspace.latest_build.status === "deleted" && (
+              <WorkspaceDeletedBanner
+                handleClick={() => navigate(`/templates`)}
+              />
+            )}
+            {/* <DormantWorkspaceBanner/> determines its own visibility */}
+            <DormantWorkspaceBanner
+              workspace={workspace}
+              shouldRedisplayBanner={
+                getLocal("dismissedWorkspace") !== workspace.id
+              }
+              onDismiss={() => saveLocal("dismissedWorkspace", workspace.id)}
+            />
+
+            {showAlertPendingInQueue && (
               <Alert severity="info">
-                <AlertTitle>
-                  An update is available for your workspace
-                </AlertTitle>
-                {updateMessage && <AlertDetail>{updateMessage}</AlertDetail>}
-              </Alert>
-            ))}
-
-          {Boolean(workspaceErrors.buildError) && (
-            <ErrorAlert error={workspaceErrors.buildError} dismissible />
-          )}
-
-          {Boolean(workspaceErrors.cancellationError) && (
-            <ErrorAlert error={workspaceErrors.cancellationError} dismissible />
-          )}
-
-          {workspace.latest_build.status === "running" &&
-            !workspace.health.healthy && (
-              <Alert
-                severity="warning"
-                actions={
-                  canUpdateWorkspace && (
-                    <Button
-                      variant="text"
-                      size="small"
-                      onClick={() => {
-                        handleRestart();
-                      }}
-                    >
-                      Restart
-                    </Button>
-                  )
-                }
-              >
-                <AlertTitle>Workspace is unhealthy</AlertTitle>
+                <AlertTitle>Workspace build is pending</AlertTitle>
                 <AlertDetail>
-                  Your workspace is running but{" "}
-                  {workspace.health.failing_agents.length > 1
-                    ? `${workspace.health.failing_agents.length} agents are unhealthy`
-                    : `1 agent is unhealthy`}
-                  .
+                  <div css={styles.alertPendingInQueue}>
+                    This workspace build job is waiting for a provisioner to
+                    become available. If you have been waiting for an extended
+                    period of time, please contact your administrator for
+                    assistance.
+                  </div>
+                  <div>
+                    Position in queue:{" "}
+                    <strong>{workspace.latest_build.job.queue_position}</strong>
+                  </div>
                 </AlertDetail>
               </Alert>
             )}
 
-          {workspace.latest_build.status === "deleted" && (
-            <WorkspaceDeletedBanner
-              handleClick={() => navigate(`/templates`)}
-            />
-          )}
-          {/* <DormantWorkspaceBanner/> determines its own visibility */}
-          <DormantWorkspaceBanner
-            workspace={workspace}
-            shouldRedisplayBanner={
-              getLocal("dismissedWorkspace") !== workspace.id
-            }
-            onDismiss={() => saveLocal("dismissedWorkspace", workspace.id)}
-          />
+            {workspace.latest_build.job.error && (
+              <Alert
+                severity="error"
+                actions={
+                  <Button
+                    onClick={
+                      canRetryDebugMode
+                        ? handleBuildRetryDebug
+                        : handleBuildRetry
+                    }
+                    variant="text"
+                    size="small"
+                  >
+                    Retry{canRetryDebugMode && " in debug mode"}
+                  </Button>
+                }
+              >
+                <AlertTitle>Workspace build failed</AlertTitle>
+                <AlertDetail>{workspace.latest_build.job.error}</AlertDetail>
+              </Alert>
+            )}
 
-          {showAlertPendingInQueue && (
-            <Alert severity="info">
-              <AlertTitle>Workspace build is pending</AlertTitle>
-              <AlertDetail>
-                <div css={styles.alertPendingInQueue}>
-                  This workspace build job is waiting for a provisioner to
-                  become available. If you have been waiting for an extended
-                  period of time, please contact your administrator for
-                  assistance.
-                </div>
-                <div>
-                  Position in queue:{" "}
-                  <strong>{workspace.latest_build.job.queue_position}</strong>
-                </div>
-              </AlertDetail>
-            </Alert>
-          )}
+            {template?.deprecated && (
+              <Alert severity="warning">
+                <AlertTitle>Workspace using deprecated template</AlertTitle>
+                <AlertDetail>{template?.deprecation_message}</AlertDetail>
+              </Alert>
+            )}
 
-          {workspace.latest_build.job.error && (
-            <Alert
-              severity="error"
-              actions={
-                <Button
-                  onClick={
-                    canRetryDebugMode ? handleBuildRetryDebug : handleBuildRetry
-                  }
-                  variant="text"
-                  size="small"
-                >
-                  Retry{canRetryDebugMode && " in debug mode"}
-                </Button>
-              }
-            >
-              <AlertTitle>Workspace build failed</AlertTitle>
-              <AlertDetail>{workspace.latest_build.job.error}</AlertDetail>
-            </Alert>
-          )}
+            {transitionStats !== undefined && (
+              <WorkspaceBuildProgress
+                workspace={workspace}
+                transitionStats={transitionStats}
+              />
+            )}
 
-          {template?.deprecated && (
-            <Alert severity="warning">
-              <AlertTitle>Workspace using deprecated template</AlertTitle>
-              <AlertDetail>{template?.deprecation_message}</AlertDetail>
-            </Alert>
-          )}
+            {buildLogs}
 
-          {transitionStats !== undefined && (
-            <WorkspaceBuildProgress
-              workspace={workspace}
-              transitionStats={transitionStats}
-            />
-          )}
+            {typeof resources !== "undefined" && resources.length > 0 && (
+              <Resources
+                resources={resources}
+                agentRow={(agent) => (
+                  <AgentRow
+                    key={agent.id}
+                    agent={agent}
+                    workspace={workspace}
+                    sshPrefix={sshPrefix}
+                    showApps={canUpdateWorkspace}
+                    showBuiltinApps={canUpdateWorkspace}
+                    hideSSHButton={hideSSHButton}
+                    hideVSCodeDesktopButton={hideVSCodeDesktopButton}
+                    serverVersion={buildInfo?.version || ""}
+                    serverAPIVersion={buildInfo?.agent_api_version || ""}
+                    onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
+                  />
+                )}
+              />
+            )}
+          </Stack>
+        </div>
+      </div>
 
-          {buildLogs}
-
-          {typeof resources !== "undefined" && resources.length > 0 && (
-            <Resources
-              resources={resources}
-              agentRow={(agent) => (
-                <AgentRow
-                  key={agent.id}
-                  agent={agent}
-                  workspace={workspace}
-                  sshPrefix={sshPrefix}
-                  showApps={canUpdateWorkspace}
-                  showBuiltinApps={canUpdateWorkspace}
-                  hideSSHButton={hideSSHButton}
-                  hideVSCodeDesktopButton={hideVSCodeDesktopButton}
-                  serverVersion={buildInfo?.version || ""}
-                  serverAPIVersion={buildInfo?.agent_api_version || ""}
-                  onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
-                />
-              )}
-            />
-          )}
-        </Stack>
-      </Margins>
+      <HistorySidebar workspace={workspace} />
     </div>
   );
 };
 
 const styles = {
   content: {
-    padding: 32,
+    padding: 24,
     gridArea: "content",
-    overflow: "auto",
+    overflowY: "auto",
   },
+
+  dotBackground: (theme) => ({
+    padding: 24,
+    "--d": "1px",
+    background: `
+      radial-gradient(
+        circle at
+          var(--d)
+          var(--d),
+
+        ${theme.palette.text.secondary} calc(var(--d) - 1px),
+        ${theme.palette.background.default} var(--d)
+      )
+      0 0 / 24px 24px
+    `,
+  }),
 
   actions: (theme) => ({
     [theme.breakpoints.down("md")]: {
