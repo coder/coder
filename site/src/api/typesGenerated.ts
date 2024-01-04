@@ -297,6 +297,7 @@ export interface CreateWorkspaceRequest {
   readonly name: string;
   readonly autostart_schedule?: string;
   readonly ttl_ms?: number;
+  readonly provisioner_tags?: Record<string, string>;
   readonly rich_parameter_values?: WorkspaceBuildParameter[];
   readonly automatic_updates?: AutomaticUpdates;
 }
@@ -807,6 +808,7 @@ export interface ProvisionerDaemon {
   readonly id: string;
   readonly created_at: string;
   readonly last_seen_at?: string;
+  readonly disconnected_at?: string;
   readonly name: string;
   readonly version: string;
   readonly provisioners: ProvisionerType[];
@@ -828,6 +830,7 @@ export interface ProvisionerJob {
   readonly tags: Record<string, string>;
   readonly queue_position: number;
   readonly queue_size: number;
+  readonly matching_provisioners: number;
 }
 
 // From codersdk/provisionerdaemons.go

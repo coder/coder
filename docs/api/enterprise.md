@@ -1052,6 +1052,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 [
   {
     "created_at": "2019-08-24T14:15:22Z",
+    "disconnected_at": "2019-08-24T14:15:22Z",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "last_seen_at": "2019-08-24T14:15:22Z",
     "name": "string",
@@ -1079,6 +1080,7 @@ Status Code **200**
 | ------------------- | ----------------- | -------- | ------------ | ----------- |
 | `[array item]`      | array             | false    |              |             |
 | `» created_at`      | string(date-time) | false    |              |             |
+| `» disconnected_at` | string(date-time) | false    |              |             |
 | `» id`              | string(uuid)      | false    |              |             |
 | `» last_seen_at`    | string(date-time) | false    |              |             |
 | `» name`            | string            | false    |              |             |

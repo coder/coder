@@ -3295,7 +3295,7 @@ func (q *sqlQuerier) DeleteOldProvisionerDaemons(ctx context.Context) error {
 
 const getProvisionerDaemons = `-- name: GetProvisionerDaemons :many
 SELECT
-	id, created_at, name, provisioners, replica_id, tags, last_seen_at, version, api_version
+	id, created_at, name, provisioners, replica_id, tags, last_seen_at, version, api_version, disconnected_at
 FROM
 	provisioner_daemons
 `
@@ -3319,6 +3319,7 @@ func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDa
 			&i.LastSeenAt,
 			&i.Version,
 			&i.APIVersion,
+			&i.DisconnectedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -3331,6 +3332,24 @@ func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDa
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateProvisionerDaemonDisconnectedAt = `-- name: UpdateProvisionerDaemonDisconnectedAt :exec
+UPDATE provisioner_daemons
+SET
+	disconnected_at = $1
+WHERE
+	id = $2
+`
+
+type UpdateProvisionerDaemonDisconnectedAtParams struct {
+	DisconnectedAt sql.NullTime `db:"disconnected_at" json:"disconnected_at"`
+	ID             uuid.UUID    `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateProvisionerDaemonDisconnectedAt(ctx context.Context, arg UpdateProvisionerDaemonDisconnectedAtParams) error {
+	_, err := q.db.ExecContext(ctx, updateProvisionerDaemonDisconnectedAt, arg.DisconnectedAt, arg.ID)
+	return err
 }
 
 const updateProvisionerDaemonLastSeenAt = `-- name: UpdateProvisionerDaemonLastSeenAt :exec
@@ -3383,7 +3402,7 @@ VALUES (
 WHERE
 	-- Only ones with the same tags are allowed clobber
 	provisioner_daemons.tags <@ $4 :: jsonb
-RETURNING id, created_at, name, provisioners, replica_id, tags, last_seen_at, version, api_version
+RETURNING id, created_at, name, provisioners, replica_id, tags, last_seen_at, version, api_version, disconnected_at
 `
 
 type UpsertProvisionerDaemonParams struct {
@@ -3417,6 +3436,7 @@ func (q *sqlQuerier) UpsertProvisionerDaemon(ctx context.Context, arg UpsertProv
 		&i.LastSeenAt,
 		&i.Version,
 		&i.APIVersion,
+		&i.DisconnectedAt,
 	)
 	return i, err
 }
@@ -3761,15 +3781,31 @@ queue_position AS (
 ),
 queue_size AS (
 	SELECT COUNT(*) as count FROM unstarted_jobs
+),
+matching_provisioners AS (
+	SELECT
+		COUNT(*) AS count, tags FROM provisioner_daemons
+	WHERE
+		-- If disconnected is less than last seen, then the provisioner daemon
+		-- gracefully disconnected and should not count as running.
+		(disconnected_at IS NOT NULL AND disconnected_at < last_seen_at) OR
+		-- If disconnected at is null and last seen is less than 5 minutes ago,
+		-- then the provisioner daemon is still running. Either that or a graceful
+		-- disconnect never happened, and we should still check if it's recent.
+		(disconnected_at IS NULL AND last_seen_at > (NOW() - INTERVAL '5 minutes'))
+	GROUP BY tags
 )
 SELECT
 	pj.id, pj.created_at, pj.updated_at, pj.started_at, pj.canceled_at, pj.completed_at, pj.error, pj.organization_id, pj.initiator_id, pj.provisioner, pj.storage_method, pj.type, pj.input, pj.worker_id, pj.file_id, pj.tags, pj.error_code, pj.trace_metadata, pj.job_status,
     COALESCE(qp.queue_position, 0) AS queue_position,
-    COALESCE(qs.count, 0) AS queue_size
+    COALESCE(qs.count, 0) AS queue_size,
+	COALESCE(mp.count, 0) AS matching_provisioners
 FROM
 	provisioner_jobs pj
 LEFT JOIN
 	queue_position qp ON qp.id = pj.id
+LEFT JOIN
+	matching_provisioners mp ON mp.tags <@ pj.tags
 LEFT JOIN
 	queue_size qs ON TRUE
 WHERE
@@ -3777,9 +3813,10 @@ WHERE
 `
 
 type GetProvisionerJobsByIDsWithQueuePositionRow struct {
-	ProvisionerJob ProvisionerJob `db:"provisioner_job" json:"provisioner_job"`
-	QueuePosition  int64          `db:"queue_position" json:"queue_position"`
-	QueueSize      int64          `db:"queue_size" json:"queue_size"`
+	ProvisionerJob       ProvisionerJob `db:"provisioner_job" json:"provisioner_job"`
+	QueuePosition        int64          `db:"queue_position" json:"queue_position"`
+	QueueSize            int64          `db:"queue_size" json:"queue_size"`
+	MatchingProvisioners int64          `db:"matching_provisioners" json:"matching_provisioners"`
 }
 
 func (q *sqlQuerier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, ids []uuid.UUID) ([]GetProvisionerJobsByIDsWithQueuePositionRow, error) {
@@ -3813,6 +3850,7 @@ func (q *sqlQuerier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Contex
 			&i.ProvisionerJob.JobStatus,
 			&i.QueuePosition,
 			&i.QueueSize,
+			&i.MatchingProvisioners,
 		); err != nil {
 			return nil, err
 		}

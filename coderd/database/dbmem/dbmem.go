@@ -6161,6 +6161,27 @@ func (q *FakeQuerier) UpdateOAuth2ProviderAppSecretByID(_ context.Context, arg d
 	return database.OAuth2ProviderAppSecret{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) UpdateProvisionerDaemonDisconnectedAt(ctx context.Context, arg database.UpdateProvisionerDaemonDisconnectedAtParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+	for idx := range q.provisionerDaemons {
+		if q.provisionerDaemons[idx].ID != arg.ID {
+			continue
+		}
+		if q.provisionerDaemons[idx].DisconnectedAt.Time.After(arg.DisconnectedAt.Time) {
+			continue
+		}
+		q.provisionerDaemons[idx].DisconnectedAt = arg.DisconnectedAt
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
 func (q *FakeQuerier) UpdateProvisionerDaemonLastSeenAt(_ context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {

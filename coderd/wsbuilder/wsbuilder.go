@@ -303,11 +303,11 @@ func (b *Builder) buildTx(authFunc func(action rbac.Action, object rbac.Objecter
 	if err != nil {
 		return nil, nil, BuildError{http.StatusInternalServerError, "marshal metadata", err}
 	}
-	tags := b.provisionerTags
-	for k, v := range templateVersionJob.Tags {
-		tags[k] = v
+
+	tags, err := b.getProvisionerTags()
+	if err != nil {
+		return nil, nil, BuildError{http.StatusInternalServerError, "get provisioner tags", err}
 	}
-	tags = provisionersdk.MutateTags(b.workspace.OwnerID, tags)
 
 	now := dbtime.Now()
 	provisionerJob, err := b.store.InsertProvisionerJob(b.ctx, database.InsertProvisionerJobParams{
@@ -509,6 +509,37 @@ func (b *Builder) getState() ([]byte, error) {
 		return nil, xerrors.Errorf("get last build to get state: %w", err)
 	}
 	return bld.ProvisionerState, nil
+}
+
+// getProvisionerTags returns the tags to use for the provisioner job.
+func (b *Builder) getProvisionerTags() (map[string]string, error) {
+	templateVersionJob, err := b.getTemplateVersionJob()
+	if err != nil {
+		return nil, xerrors.Errorf("get template version job to get provisioner tags: %w", err)
+	}
+	// When an author is creating a template, they may scope to any user-specific provisioner.
+	// This is a broad scope, and may not be applicable for a specific user.
+	tags := map[string]string{}
+	for k, v := range templateVersionJob.Tags {
+		tags[k] = v
+	}
+	// When a user is creating a workspace, they may scope to any user-specific provisioner.
+	// e.g. "Ben's MacBook" or "Ben's ThinkPad". We want to preserve this for new builds.
+	bld, err := b.getLastBuildJob()
+	if err == nil {
+		for k, v := range bld.Tags {
+			tags[k] = v
+		}
+	}
+	// A user would target a specific set of provisioner daemons if they are
+	// creating a new workspace.
+	for k, v := range b.provisionerTags {
+		tags[k] = v
+	}
+	// We mutate tags at the end to ensure that the "scope" and "owner" tag
+	// is set correctly - these are special.
+	tags = provisionersdk.MutateTags(b.workspace.OwnerID, tags)
+	return tags, nil
 }
 
 func (b *Builder) getParameters() (names, values []string, err error) {

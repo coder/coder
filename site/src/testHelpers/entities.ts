@@ -356,6 +356,7 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
   tags: {},
   queue_position: 0,
   queue_size: 0,
+  matching_provisioners: 0,
 };
 
 export const MockFailedProvisionerJob: TypesGen.ProvisionerJob = {

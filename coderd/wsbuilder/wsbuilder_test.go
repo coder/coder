@@ -57,7 +57,7 @@ func TestBuilder_NoOptions(t *testing.T) {
 		// Inputs
 		withTemplate,
 		withInactiveVersion(nil),
-		withLastBuildFound,
+		withLastBuildFound(nil),
 		withRichParameters(nil),
 		withParameterSchemas(inactiveJobID, nil),
 
@@ -109,7 +109,7 @@ func TestBuilder_Initiator(t *testing.T) {
 		// Inputs
 		withTemplate,
 		withInactiveVersion(nil),
-		withLastBuildFound,
+		withLastBuildFound(nil),
 		withRichParameters(nil),
 		withParameterSchemas(inactiveJobID, nil),
 
@@ -151,7 +151,7 @@ func TestBuilder_Baggage(t *testing.T) {
 		// Inputs
 		withTemplate,
 		withInactiveVersion(nil),
-		withLastBuildFound,
+		withLastBuildFound(nil),
 		withRichParameters(nil),
 		withParameterSchemas(inactiveJobID, nil),
 
@@ -185,7 +185,7 @@ func TestBuilder_Reason(t *testing.T) {
 		// Inputs
 		withTemplate,
 		withInactiveVersion(nil),
-		withLastBuildFound,
+		withLastBuildFound(nil),
 		withRichParameters(nil),
 		withParameterSchemas(inactiveJobID, nil),
 
@@ -299,7 +299,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			// Inputs
 			withTemplate,
 			withInactiveVersion(richParameters),
-			withLastBuildFound,
+			withLastBuildFound(nil),
 			withRichParameters(initialBuildParameters),
 			withParameterSchemas(inactiveJobID, nil),
 
@@ -342,7 +342,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			// Inputs
 			withTemplate,
 			withInactiveVersion(richParameters),
-			withLastBuildFound,
+			withLastBuildFound(nil),
 			withRichParameters(initialBuildParameters),
 			withParameterSchemas(inactiveJobID, nil),
 
@@ -391,7 +391,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			// Inputs
 			withTemplate,
 			withInactiveVersion(richParameters),
-			withLastBuildFound,
+			withLastBuildFound(nil),
 			withRichParameters(nil),
 			withParameterSchemas(inactiveJobID, schemas),
 
@@ -426,7 +426,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			// Inputs
 			withTemplate,
 			withInactiveVersion(richParameters),
-			withLastBuildFound,
+			withLastBuildFound(nil),
 			withRichParameters(initialBuildParameters),
 			withParameterSchemas(inactiveJobID, nil),
 
@@ -479,7 +479,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			// Inputs
 			withTemplate,
 			withActiveVersion(version2params),
-			withLastBuildFound,
+			withLastBuildFound(nil),
 			withRichParameters(initialBuildParameters),
 			withParameterSchemas(activeJobID, nil),
 
@@ -539,7 +539,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			// Inputs
 			withTemplate,
 			withActiveVersion(version2params),
-			withLastBuildFound,
+			withLastBuildFound(nil),
 			withRichParameters(initialBuildParameters),
 			withParameterSchemas(activeJobID, nil),
 
@@ -597,7 +597,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			// Inputs
 			withTemplate,
 			withActiveVersion(version2params),
-			withLastBuildFound,
+			withLastBuildFound(nil),
 			withRichParameters(initialBuildParameters),
 			withParameterSchemas(activeJobID, nil),
 
@@ -620,6 +620,81 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).
 			RichParameterValues(nextBuildParameters).
 			VersionID(activeVersionID)
+		_, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+		req.NoError(err)
+	})
+}
+
+func TestWorkspaceBuildWithOverridingTags(t *testing.T) {
+	t.Parallel()
+
+	t.Run("InheritLastBuild", func(t *testing.T) {
+		req := require.New(t)
+		asrt := assert.New(t)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		mDB := expectDB(t,
+			// Inputs
+			withTemplate,
+			withActiveVersion(nil),
+			withLastBuildFound(map[string]string{
+				"key": "value",
+			}),
+			withRichParameters(nil),
+			withParameterSchemas(activeJobID, nil),
+			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
+				asrt.Equal("value", job.Tags["key"])
+			}),
+
+			withInTx,
+			expectBuild(func(bld database.InsertWorkspaceBuildParams) {
+			}),
+			withBuild,
+			expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {
+			}),
+		)
+
+		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
+		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).ActiveVersion()
+		_, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+		req.NoError(err)
+	})
+
+	t.Run("OverridesLastBuild", func(t *testing.T) {
+		t.Parallel()
+		req := require.New(t)
+		asrt := assert.New(t)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		mDB := expectDB(t,
+			// Inputs
+			withTemplate,
+			withActiveVersion(nil),
+			withLastBuildFound(map[string]string{
+				"key": "value",
+			}),
+			withRichParameters(nil),
+			withParameterSchemas(activeJobID, nil),
+			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
+				asrt.Equal("new-value", job.Tags["key"])
+			}),
+
+			withInTx,
+			expectBuild(func(bld database.InsertWorkspaceBuildParams) {
+			}),
+			withBuild,
+			expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {
+			}),
+		)
+
+		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
+		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).ActiveVersion().ProvisionerTags(map[string]string{
+			"key": "new-value",
+		})
 		_, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
 		req.NoError(err)
 	})
@@ -750,35 +825,38 @@ func withInactiveVersion(params []database.TemplateVersionParameter) func(mTx *d
 	}
 }
 
-func withLastBuildFound(mTx *dbmock.MockStore) {
-	mTx.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).
-		Times(1).
-		Return(database.WorkspaceBuild{
-			ID:                lastBuildID,
-			WorkspaceID:       workspaceID,
-			TemplateVersionID: inactiveVersionID,
-			BuildNumber:       1,
-			Transition:        database.WorkspaceTransitionStart,
-			InitiatorID:       userID,
-			JobID:             lastBuildJobID,
-			ProvisionerState:  []byte("last build state"),
-			Reason:            database.BuildReasonInitiator,
-		}, nil)
+func withLastBuildFound(tags map[string]string) func(mTx *dbmock.MockStore) {
+	return func(mTx *dbmock.MockStore) {
+		mTx.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).
+			Times(1).
+			Return(database.WorkspaceBuild{
+				ID:                lastBuildID,
+				WorkspaceID:       workspaceID,
+				TemplateVersionID: inactiveVersionID,
+				BuildNumber:       1,
+				Transition:        database.WorkspaceTransitionStart,
+				InitiatorID:       userID,
+				JobID:             lastBuildJobID,
+				ProvisionerState:  []byte("last build state"),
+				Reason:            database.BuildReasonInitiator,
+			}, nil)
 
-	mTx.EXPECT().GetProvisionerJobByID(gomock.Any(), lastBuildJobID).
-		Times(1).
-		Return(database.ProvisionerJob{
-			ID:             lastBuildJobID,
-			OrganizationID: orgID,
-			InitiatorID:    userID,
-			Provisioner:    database.ProvisionerTypeTerraform,
-			StorageMethod:  database.ProvisionerStorageMethodFile,
-			FileID:         inactiveFileID,
-			Type:           database.ProvisionerJobTypeWorkspaceBuild,
-			StartedAt:      sql.NullTime{Time: dbtime.Now(), Valid: true},
-			UpdatedAt:      time.Now(),
-			CompletedAt:    sql.NullTime{Time: dbtime.Now(), Valid: true},
-		}, nil)
+		mTx.EXPECT().GetProvisionerJobByID(gomock.Any(), lastBuildJobID).
+			Times(1).
+			Return(database.ProvisionerJob{
+				ID:             lastBuildJobID,
+				OrganizationID: orgID,
+				InitiatorID:    userID,
+				Provisioner:    database.ProvisionerTypeTerraform,
+				StorageMethod:  database.ProvisionerStorageMethodFile,
+				FileID:         inactiveFileID,
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				StartedAt:      sql.NullTime{Time: dbtime.Now(), Valid: true},
+				UpdatedAt:      time.Now(),
+				CompletedAt:    sql.NullTime{Time: dbtime.Now(), Valid: true},
+				Tags:           tags,
+			}, nil)
+	}
 }
 
 func withLastBuildNotFound(mTx *dbmock.MockStore) {

@@ -8669,6 +8669,12 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "provisioner_tags": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
                 "rich_parameter_values": {
                     "description": "RichParameterValues allows for additional parameters to be provided\nduring the initial provision.",
                     "type": "array",
@@ -10050,6 +10056,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "disconnected_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -10113,6 +10123,10 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "matching_provisioners": {
+                    "description": "MatchingProvisioners is the number of available provisioner daemons that\nsatisfy the tags for this job.",
+                    "type": "integer"
                 },
                 "queue_position": {
                     "type": "integer"

@@ -138,10 +138,11 @@ type CreateWorkspaceRequest struct {
 	// TemplateID specifies which template should be used for creating the workspace.
 	TemplateID uuid.UUID `json:"template_id,omitempty" validate:"required_without=TemplateVersionID,excluded_with=TemplateVersionID" format:"uuid"`
 	// TemplateVersionID can be used to specify a specific version of a template for creating the workspace.
-	TemplateVersionID uuid.UUID `json:"template_version_id,omitempty" validate:"required_without=TemplateID,excluded_with=TemplateID" format:"uuid"`
-	Name              string    `json:"name" validate:"workspace_name,required"`
-	AutostartSchedule *string   `json:"autostart_schedule"`
-	TTLMillis         *int64    `json:"ttl_ms,omitempty"`
+	TemplateVersionID uuid.UUID         `json:"template_version_id,omitempty" validate:"required_without=TemplateID,excluded_with=TemplateID" format:"uuid"`
+	Name              string            `json:"name" validate:"workspace_name,required"`
+	AutostartSchedule *string           `json:"autostart_schedule"`
+	TTLMillis         *int64            `json:"ttl_ms,omitempty"`
+	ProvisionerTags   map[string]string `json:"provisioner_tags,omitempty"`
 	// RichParameterValues allows for additional parameters to be provided
 	// during the initial provision.
 	RichParameterValues []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`

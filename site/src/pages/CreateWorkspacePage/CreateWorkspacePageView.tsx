@@ -4,7 +4,7 @@ import TextField from "@mui/material/TextField";
 import type * as TypesGen from "api/typesGenerated";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { FormikContextType, useFormik } from "formik";
-import { type FC, useEffect, useState } from "react";
+import { type FC, useEffect, useState, useMemo } from "react";
 import {
   getFormHelpers,
   nameValidator,
@@ -37,6 +37,10 @@ import {
 import { useSearchParams } from "react-router-dom";
 import { CreateWSPermissions } from "./permissions";
 import { Alert } from "components/Alert/Alert";
+import MenuItem from "@mui/material/MenuItem";
+import Select from "@mui/material/Select";
+import Person from "@mui/icons-material/Person";
+import Public from "@mui/icons-material/Public";
 
 export const Language = {
   duplicationWarning:
@@ -55,6 +59,7 @@ export interface CreateWorkspacePageViewProps {
   externalAuthPollingState: ExternalAuthPollingState;
   startPollingExternalAuth: () => void;
   parameters: TypesGen.TemplateVersionParameter[];
+  provisionerDaemons: TypesGen.ProvisionerDaemon[];
   defaultBuildParameters: TypesGen.WorkspaceBuildParameter[];
   permissions: CreateWSPermissions;
   creatingWorkspace: boolean;
@@ -78,6 +83,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   startPollingExternalAuth,
   parameters,
   defaultBuildParameters,
+  provisionerDaemons,
   permissions,
   creatingWorkspace,
   onSubmit,
@@ -89,6 +95,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
     useExternalAuthVerification(externalAuth);
   const [searchParams] = useSearchParams();
   const disabledParamsList = searchParams?.get("disable_params")?.split(",");
+  const localProvisionerDaemons = useMemo(() => {
+    return provisionerDaemons.filter((pd) => pd.tags["scope"] === "user");
+  }, [provisionerDaemons]);
 
   const form: FormikContextType<TypesGen.CreateWorkspaceRequest> =
     useFormik<TypesGen.CreateWorkspaceRequest>({
@@ -99,6 +108,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
           parameters,
           defaultBuildParameters,
         ),
+        provisioner_tags: {},
       },
       validationSchema: Yup.object({
         name: nameValidator("Workspace Name"),
@@ -165,6 +175,38 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
               fullWidth
               label="Workspace Name"
             />
+            {localProvisionerDaemons.length > 0 && (
+              <Stack spacing={1} css={styles.hasDescription}>
+                <Select
+                  defaultValue="global"
+                  size="small"
+                  onChange={async (e) => {
+                    if (e.target.value === "global") {
+                      return form.setFieldValue("provisioner_tags", {});
+                    }
+                    return form.setFieldValue(
+                      "provisioner_tags",
+                      localProvisionerDaemons[parseInt(e.target.value)].tags,
+                    );
+                  }}
+                >
+                  <MenuItem key="global" value="global">
+                    <Public />
+                    Remote
+                  </MenuItem>
+                  {localProvisionerDaemons.map((daemon, index) => (
+                    <MenuItem key={daemon.id} value={index}>
+                      <Person />
+                      Hostname: {daemon.tags["hostname"] || daemon.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+                <span css={styles.description}>
+                  Select a Provisioner Daemon to run this workspace on. This
+                  cannot be changed after creation.
+                </span>
+              </Stack>
+            )}
           </FormFields>
         </FormSection>
 

@@ -1856,6 +1856,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "automatic_updates": "always",
   "autostart_schedule": "string",
   "name": "string",
+  "provisioner_tags": {
+    "property1": "string",
+    "property2": "string"
+  },
   "rich_parameter_values": [
     {
       "name": "string",
@@ -1875,6 +1879,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `automatic_updates`     | [codersdk.AutomaticUpdates](#codersdkautomaticupdates)                        | false    |              |                                                                                                         |
 | `autostart_schedule`    | string                                                                        | false    |              |                                                                                                         |
 | `name`                  | string                                                                        | true     |              |                                                                                                         |
+| `provisioner_tags`      | object                                                                        | false    |              |                                                                                                         |
+| » `[any property]`      | string                                                                        | false    |              |                                                                                                         |
 | `rich_parameter_values` | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              | Rich parameter values allows for additional parameters to be provided during the initial provision.     |
 | `template_id`           | string                                                                        | false    |              | Template ID specifies which template should be used for creating the workspace.                         |
 | `template_version_id`   | string                                                                        | false    |              | Template version ID can be used to specify a specific version of a template for creating the workspace. |
@@ -3899,6 +3905,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "created_at": "2019-08-24T14:15:22Z",
+  "disconnected_at": "2019-08-24T14:15:22Z",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_seen_at": "2019-08-24T14:15:22Z",
   "name": "string",
@@ -3916,6 +3923,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name               | Type            | Required | Restrictions | Description |
 | ------------------ | --------------- | -------- | ------------ | ----------- |
 | `created_at`       | string          | false    |              |             |
+| `disconnected_at`  | string          | false    |              |             |
 | `id`               | string          | false    |              |             |
 | `last_seen_at`     | string          | false    |              |             |
 | `name`             | string          | false    |              |             |
@@ -3935,6 +3943,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "error_code": "REQUIRED_TEMPLATE_VARIABLES",
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "matching_provisioners": 0,
   "queue_position": 0,
   "queue_size": 0,
   "started_at": "2019-08-24T14:15:22Z",
@@ -3949,22 +3958,23 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name               | Type                                                           | Required | Restrictions | Description |
-| ------------------ | -------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `canceled_at`      | string                                                         | false    |              |             |
-| `completed_at`     | string                                                         | false    |              |             |
-| `created_at`       | string                                                         | false    |              |             |
-| `error`            | string                                                         | false    |              |             |
-| `error_code`       | [codersdk.JobErrorCode](#codersdkjoberrorcode)                 | false    |              |             |
-| `file_id`          | string                                                         | false    |              |             |
-| `id`               | string                                                         | false    |              |             |
-| `queue_position`   | integer                                                        | false    |              |             |
-| `queue_size`       | integer                                                        | false    |              |             |
-| `started_at`       | string                                                         | false    |              |             |
-| `status`           | [codersdk.ProvisionerJobStatus](#codersdkprovisionerjobstatus) | false    |              |             |
-| `tags`             | object                                                         | false    |              |             |
-| » `[any property]` | string                                                         | false    |              |             |
-| `worker_id`        | string                                                         | false    |              |             |
+| Name                    | Type                                                           | Required | Restrictions | Description                                                                                              |
+| ----------------------- | -------------------------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------- |
+| `canceled_at`           | string                                                         | false    |              |                                                                                                          |
+| `completed_at`          | string                                                         | false    |              |                                                                                                          |
+| `created_at`            | string                                                         | false    |              |                                                                                                          |
+| `error`                 | string                                                         | false    |              |                                                                                                          |
+| `error_code`            | [codersdk.JobErrorCode](#codersdkjoberrorcode)                 | false    |              |                                                                                                          |
+| `file_id`               | string                                                         | false    |              |                                                                                                          |
+| `id`                    | string                                                         | false    |              |                                                                                                          |
+| `matching_provisioners` | integer                                                        | false    |              | Matching provisioners is the number of available provisioner daemons that satisfy the tags for this job. |
+| `queue_position`        | integer                                                        | false    |              |                                                                                                          |
+| `queue_size`            | integer                                                        | false    |              |                                                                                                          |
+| `started_at`            | string                                                         | false    |              |                                                                                                          |
+| `status`                | [codersdk.ProvisionerJobStatus](#codersdkprovisionerjobstatus) | false    |              |                                                                                                          |
+| `tags`                  | object                                                         | false    |              |                                                                                                          |
+| » `[any property]`      | string                                                         | false    |              |                                                                                                          |
+| `worker_id`             | string                                                         | false    |              |                                                                                                          |
 
 #### Enumerated Values
 
@@ -5033,6 +5043,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "matching_provisioners": 0,
     "queue_position": 0,
     "queue_size": 0,
     "started_at": "2019-08-24T14:15:22Z",
@@ -5883,6 +5894,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "error_code": "REQUIRED_TEMPLATE_VARIABLES",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "matching_provisioners": 0,
       "queue_position": 0,
       "queue_size": 0,
       "started_at": "2019-08-24T14:15:22Z",
@@ -6576,6 +6588,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "matching_provisioners": 0,
     "queue_position": 0,
     "queue_size": 0,
     "started_at": "2019-08-24T14:15:22Z",
@@ -7146,6 +7159,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "error_code": "REQUIRED_TEMPLATE_VARIABLES",
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "matching_provisioners": 0,
           "queue_position": 0,
           "queue_size": 0,
           "started_at": "2019-08-24T14:15:22Z",

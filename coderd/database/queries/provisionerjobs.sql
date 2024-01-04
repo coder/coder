@@ -65,15 +65,31 @@ queue_position AS (
 ),
 queue_size AS (
 	SELECT COUNT(*) as count FROM unstarted_jobs
+),
+matching_provisioners AS (
+	SELECT
+		COUNT(*) AS count, tags FROM provisioner_daemons
+	WHERE
+		-- If disconnected is less than last seen, then the provisioner daemon
+		-- gracefully disconnected and should not count as running.
+		(disconnected_at IS NOT NULL AND disconnected_at < last_seen_at) OR
+		-- If disconnected at is null and last seen is less than 5 minutes ago,
+		-- then the provisioner daemon is still running. Either that or a graceful
+		-- disconnect never happened, and we should still check if it's recent.
+		(disconnected_at IS NULL AND last_seen_at > (NOW() - INTERVAL '5 minutes'))
+	GROUP BY tags
 )
 SELECT
 	sqlc.embed(pj),
     COALESCE(qp.queue_position, 0) AS queue_position,
-    COALESCE(qs.count, 0) AS queue_size
+    COALESCE(qs.count, 0) AS queue_size,
+	COALESCE(mp.count, 0) AS matching_provisioners
 FROM
 	provisioner_jobs pj
 LEFT JOIN
 	queue_position qp ON qp.id = pj.id
+LEFT JOIN
+	matching_provisioners mp ON mp.tags <@ pj.tags
 LEFT JOIN
 	queue_size qs ON TRUE
 WHERE

@@ -21,6 +21,10 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
   "automatic_updates": "always",
   "autostart_schedule": "string",
   "name": "string",
+  "provisioner_tags": {
+    "property1": "string",
+    "property2": "string"
+  },
   "rich_parameter_values": [
     {
       "name": "string",
@@ -75,6 +79,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
       "error_code": "REQUIRED_TEMPLATE_VARIABLES",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "matching_provisioners": 0,
       "queue_position": 0,
       "queue_size": 0,
       "started_at": "2019-08-24T14:15:22Z",
@@ -286,6 +291,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
       "error_code": "REQUIRED_TEMPLATE_VARIABLES",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "matching_provisioners": 0,
       "queue_position": 0,
       "queue_size": 0,
       "started_at": "2019-08-24T14:15:22Z",
@@ -500,6 +506,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
           "error_code": "REQUIRED_TEMPLATE_VARIABLES",
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "matching_provisioners": 0,
           "queue_position": 0,
           "queue_size": 0,
           "started_at": "2019-08-24T14:15:22Z",
@@ -708,6 +715,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
       "error_code": "REQUIRED_TEMPLATE_VARIABLES",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "matching_provisioners": 0,
       "queue_position": 0,
       "queue_size": 0,
       "started_at": "2019-08-24T14:15:22Z",
@@ -1035,6 +1043,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
       "error_code": "REQUIRED_TEMPLATE_VARIABLES",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "matching_provisioners": 0,
       "queue_position": 0,
       "queue_size": 0,
       "started_at": "2019-08-24T14:15:22Z",

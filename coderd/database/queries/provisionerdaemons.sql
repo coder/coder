@@ -54,3 +54,10 @@ WHERE
 	id = @id
 AND
 	last_seen_at <= @last_seen_at;
+
+-- name: UpdateProvisionerDaemonDisconnectedAt :exec
+UPDATE provisioner_daemons
+SET
+	disconnected_at = @disconnected_at
+WHERE
+	id = @id;

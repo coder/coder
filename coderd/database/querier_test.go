@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/migrations"
+	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -392,6 +393,93 @@ func TestQueuePosition(t *testing.T) {
 		require.Equal(t, job.QueuePosition, int64(index))
 		require.Equal(t, job.ProvisionerJob.ID, jobs[index].ID)
 	}
+}
+
+func TestQueuePosition_MatchingProvisioners(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		t.SkipNow()
+	}
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+
+	emptyScope := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+	})
+	userScope := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		Tags: database.StringMap{
+			provisionersdk.TagScope: provisionersdk.ScopeUser,
+		},
+	})
+	orgScope := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		Tags: database.StringMap{
+			provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+		},
+	})
+
+	emptyCount := 8
+	userCount := 5
+	orgCount := 3
+	emptyDaemonIDs := []uuid.UUID{}
+
+	for i := 0; i < emptyCount; i++ {
+		daemon := dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			LastSeenAt: sql.NullTime{
+				Time:  dbtime.Now().Add(-time.Second),
+				Valid: true,
+			},
+		})
+		emptyDaemonIDs = append(emptyDaemonIDs, daemon.ID)
+	}
+	for i := 0; i < userCount; i++ {
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Tags: database.StringMap{
+				provisionersdk.TagScope: provisionersdk.ScopeUser,
+			},
+		})
+	}
+	for i := 0; i < orgCount; i++ {
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Tags: database.StringMap{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+			},
+		})
+	}
+
+	jobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, []uuid.UUID{
+		emptyScope.ID,
+		userScope.ID,
+		orgScope.ID,
+	})
+	require.NoError(t, err)
+	require.Len(t, jobs, 3)
+	require.Equal(t, int64(emptyCount), jobs[0].MatchingProvisioners)
+	require.Equal(t, int64(userCount), jobs[1].MatchingProvisioners)
+	require.Equal(t, int64(orgCount), jobs[2].MatchingProvisioners)
+
+	for _, id := range emptyDaemonIDs {
+		err = db.UpdateProvisionerDaemonDisconnectedAt(ctx, database.UpdateProvisionerDaemonDisconnectedAtParams{
+			ID: id,
+			DisconnectedAt: sql.NullTime{
+				Time:  dbtime.Now(),
+				Valid: true,
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	jobs, err = db.GetProvisionerJobsByIDsWithQueuePosition(ctx, []uuid.UUID{emptyScope.ID})
+	require.NoError(t, err)
+	require.Len(t, jobs, 1)
+	require.Equal(t, int64(0), jobs[0].MatchingProvisioners)
 }
 
 func TestUserLastSeenFilter(t *testing.T) {

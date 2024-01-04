@@ -350,17 +350,28 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("serve: %s", err))
 		return
 	}
+	err = api.Database.UpdateProvisionerDaemonDisconnectedAt(authCtx, database.UpdateProvisionerDaemonDisconnectedAtParams{
+		ID: daemon.ID,
+		DisconnectedAt: sql.NullTime{
+			Time:  dbtime.Now(),
+			Valid: true,
+		},
+	})
+	if err != nil {
+		log.Error(ctx, "update provisioner daemon disconnected_at", slog.Error(err))
+	}
 	_ = conn.Close(websocket.StatusGoingAway, "")
 }
 
 func convertProvisionerDaemon(daemon database.ProvisionerDaemon) codersdk.ProvisionerDaemon {
 	result := codersdk.ProvisionerDaemon{
-		ID:         daemon.ID,
-		CreatedAt:  daemon.CreatedAt,
-		LastSeenAt: codersdk.NullTime{NullTime: daemon.LastSeenAt},
-		Name:       daemon.Name,
-		Tags:       daemon.Tags,
-		Version:    daemon.Version,
+		ID:             daemon.ID,
+		CreatedAt:      daemon.CreatedAt,
+		LastSeenAt:     codersdk.NullTime{NullTime: daemon.LastSeenAt},
+		DisconnectedAt: codersdk.NullTime{NullTime: daemon.DisconnectedAt},
+		Name:           daemon.Name,
+		Tags:           daemon.Tags,
+		Version:        daemon.Version,
 	}
 	for _, provisionerType := range daemon.Provisioners {
 		result.Provisioners = append(result.Provisioners, codersdk.ProvisionerType(provisionerType))

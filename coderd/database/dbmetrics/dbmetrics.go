@@ -1663,6 +1663,13 @@ func (m metricsStore) UpdateOAuth2ProviderAppSecretByID(ctx context.Context, arg
 	return r0, r1
 }
 
+func (m metricsStore) UpdateProvisionerDaemonDisconnectedAt(ctx context.Context, arg database.UpdateProvisionerDaemonDisconnectedAtParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateProvisionerDaemonDisconnectedAt(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateProvisionerDaemonDisconnectedAt").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) UpdateProvisionerDaemonLastSeenAt(ctx context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {
 	start := time.Now()
 	r0 := m.s.UpdateProvisionerDaemonLastSeenAt(ctx, arg)

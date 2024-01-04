@@ -246,6 +246,9 @@ const getPendingWorkspaceStatusText = (
   if (!provisionerJob || provisionerJob.queue_size === 0) {
     return "Pending";
   }
+  if (provisionerJob.matching_provisioners === 0) {
+    return "No Matching Provisioners Running"
+  }
   return "Position in queue: " + provisionerJob.queue_position;
 };
 

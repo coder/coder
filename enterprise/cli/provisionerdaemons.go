@@ -89,7 +89,6 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 			if err != nil {
 				return err
 			}
-
 			if name == "" {
 				name = cliutil.Hostname()
 			}

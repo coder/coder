@@ -1,34 +1,35 @@
+import { checkAuthorization } from "api/queries/authCheck";
+import { provisionerDaemons } from "api/queries/provisioners";
+import {
+  richParameters,
+  templateByName,
+  templateVersionExternalAuth,
+} from "api/queries/templates";
+import { autoCreateWorkspace, createWorkspace } from "api/queries/workspaces";
 import {
   TemplateVersionParameter,
   Workspace,
   WorkspaceBuildParameter,
 } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Loader } from "components/Loader/Loader";
+import { useEffectEvent } from "hooks/hookPolyfills";
 import { useMe } from "hooks/useMe";
 import { useOrganizationId } from "hooks/useOrganizationId";
-import { type FC, useCallback, useState, useEffect } from "react";
+import { useCallback, useEffect, useState, type FC } from "react";
 import { Helmet } from "react-helmet-async";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { pageTitle } from "utils/page";
-import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
-import { Loader } from "components/Loader/Loader";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
 import {
-  uniqueNamesGenerator,
+  NumberDictionary,
   animals,
   colors,
-  NumberDictionary,
+  uniqueNamesGenerator,
 } from "unique-names-generator";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import {
-  templateByName,
-  templateVersionExternalAuth,
-  richParameters,
-} from "api/queries/templates";
-import { autoCreateWorkspace, createWorkspace } from "api/queries/workspaces";
-import { checkAuthorization } from "api/queries/authCheck";
-import { CreateWSPermissions, createWorkspaceChecks } from "./permissions";
+import { pageTitle } from "utils/page";
 import { paramsUsedToCreateWorkspace } from "utils/workspace";
-import { useEffectEvent } from "hooks/hookPolyfills";
+import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
+import { CreateWSPermissions, createWorkspaceChecks } from "./permissions";
 
 export const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
@@ -52,6 +53,7 @@ const CreateWorkspacePage: FC = () => {
   );
   const createWorkspaceMutation = useMutation(createWorkspace(queryClient));
 
+  const provisionerDaemonsQuery = useQuery(provisionerDaemons(organizationId));
   const templateQuery = useQuery(templateByName(organizationId, templateName));
   const permissionsQuery = useQuery(
     checkAuthorization({
@@ -72,6 +74,7 @@ const CreateWorkspacePage: FC = () => {
     useExternalAuth(realizedVersionId);
 
   const isLoadingFormData =
+    provisionerDaemonsQuery.isLoading ||
     templateQuery.isLoading ||
     permissionsQuery.isLoading ||
     richParametersQuery.isLoading;
@@ -133,6 +136,7 @@ const CreateWorkspacePage: FC = () => {
           externalAuth={externalAuth ?? []}
           externalAuthPollingState={externalAuthPollingState}
           startPollingExternalAuth={startPollingExternalAuth}
+          provisionerDaemons={provisionerDaemonsQuery.data!}
           permissions={permissionsQuery.data as CreateWSPermissions}
           parameters={realizedParameters as TemplateVersionParameter[]}
           creatingWorkspace={createWorkspaceMutation.isLoading}

@@ -516,7 +516,8 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			Reason(database.BuildReasonInitiator).
 			Initiator(apiKey.UserID).
 			ActiveVersion().
-			RichParameterValues(createWorkspace.RichParameterValues)
+			RichParameterValues(createWorkspace.RichParameterValues).
+			ProvisionerTags(createWorkspace.ProvisionerTags)
 		if createWorkspace.TemplateVersionID != uuid.Nil {
 			builder = builder.VersionID(createWorkspace.TemplateVersionID)
 		}

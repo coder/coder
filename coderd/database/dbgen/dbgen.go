@@ -439,6 +439,23 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 	return job
 }
 
+func ProvisionerDaemon(t testing.TB, db database.Store, orig database.ProvisionerDaemon) database.ProvisionerDaemon {
+	daemon, err := db.UpsertProvisionerDaemon(genCtx, database.UpsertProvisionerDaemonParams{
+		Name:         takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
+		CreatedAt:    takeFirst(orig.CreatedAt, dbtime.Now()),
+		Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho},
+		Tags:         orig.Tags,
+		LastSeenAt: takeFirst(orig.LastSeenAt, sql.NullTime{
+			Time:  dbtime.Now(),
+			Valid: true,
+		}),
+		Version:    takeFirst(orig.Version, "v0.0.0"),
+		APIVersion: takeFirst(orig.APIVersion, "v0.0.0"),
+	})
+	require.NoError(t, err, "insert daemon")
+	return daemon
+}
+
 func WorkspaceApp(t testing.TB, db database.Store, orig database.WorkspaceApp) database.WorkspaceApp {
 	resource, err := db.InsertWorkspaceApp(genCtx, database.InsertWorkspaceAppParams{
 		ID:          takeFirst(orig.ID, uuid.New()),

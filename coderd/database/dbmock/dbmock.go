@@ -3510,6 +3510,20 @@ func (mr *MockStoreMockRecorder) UpdateOAuth2ProviderAppSecretByID(arg0, arg1 in
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOAuth2ProviderAppSecretByID", reflect.TypeOf((*MockStore)(nil).UpdateOAuth2ProviderAppSecretByID), arg0, arg1)
 }
 
+// UpdateProvisionerDaemonDisconnectedAt mocks base method.
+func (m *MockStore) UpdateProvisionerDaemonDisconnectedAt(arg0 context.Context, arg1 database.UpdateProvisionerDaemonDisconnectedAtParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateProvisionerDaemonDisconnectedAt", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateProvisionerDaemonDisconnectedAt indicates an expected call of UpdateProvisionerDaemonDisconnectedAt.
+func (mr *MockStoreMockRecorder) UpdateProvisionerDaemonDisconnectedAt(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateProvisionerDaemonDisconnectedAt", reflect.TypeOf((*MockStore)(nil).UpdateProvisionerDaemonDisconnectedAt), arg0, arg1)
+}
+
 // UpdateProvisionerDaemonLastSeenAt mocks base method.
 func (m *MockStore) UpdateProvisionerDaemonLastSeenAt(arg0 context.Context, arg1 database.UpdateProvisionerDaemonLastSeenAtParams) error {
 	m.ctrl.T.Helper()

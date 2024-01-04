@@ -36,13 +36,14 @@ const (
 )
 
 type ProvisionerDaemon struct {
-	ID           uuid.UUID         `json:"id" format:"uuid"`
-	CreatedAt    time.Time         `json:"created_at" format:"date-time"`
-	LastSeenAt   NullTime          `json:"last_seen_at,omitempty" format:"date-time"`
-	Name         string            `json:"name"`
-	Version      string            `json:"version"`
-	Provisioners []ProvisionerType `json:"provisioners"`
-	Tags         map[string]string `json:"tags"`
+	ID             uuid.UUID         `json:"id" format:"uuid"`
+	CreatedAt      time.Time         `json:"created_at" format:"date-time"`
+	LastSeenAt     NullTime          `json:"last_seen_at,omitempty" format:"date-time"`
+	DisconnectedAt NullTime          `json:"disconnected_at,omitempty" format:"date-time"`
+	Name           string            `json:"name"`
+	Version        string            `json:"version"`
+	Provisioners   []ProvisionerType `json:"provisioners"`
+	Tags           map[string]string `json:"tags"`
 }
 
 // ProvisionerJobStatus represents the at-time state of a job.
@@ -95,6 +96,9 @@ type ProvisionerJob struct {
 	Tags          map[string]string    `json:"tags"`
 	QueuePosition int                  `json:"queue_position"`
 	QueueSize     int                  `json:"queue_size"`
+	// MatchingProvisioners is the number of available provisioner daemons that
+	// satisfy the tags for this job.
+	MatchingProvisioners int `json:"matching_provisioners"`
 }
 
 // ProvisionerJobLog represents the provisioner log entry annotated with source and level.
