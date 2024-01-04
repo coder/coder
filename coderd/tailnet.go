@@ -224,6 +224,7 @@ func (s *ServerTailnet) watchAgentUpdates() {
 		nodes, ok := conn.NextUpdate(s.ctx)
 		if !ok {
 			if conn.IsClosed() && s.ctx.Err() == nil {
+				s.logger.Warn(s.ctx, "multiagent closed, reinitializing")
 				s.reinitCoordinator()
 				continue
 			}

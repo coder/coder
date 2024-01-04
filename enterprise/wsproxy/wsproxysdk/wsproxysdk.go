@@ -473,6 +473,11 @@ func (c *Client) DialCoordinator(ctx context.Context) (agpl.MultiAgentConn, erro
 	}).Init()
 
 	go func() {
+		<-ctx.Done()
+		ma.Close()
+	}()
+
+	go func() {
 		defer cancel()
 		dec := json.NewDecoder(nc)
 		for {
