@@ -648,7 +648,12 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				options.Database = dbmem.New()
 				options.Pubsub = pubsub.NewInMemory()
 			} else {
-				sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, vals.PostgresURL.String())
+				dbURL, err := escapePostgresURLUserInfo(vals.PostgresURL.String())
+				if err != nil {
+					return xerrors.Errorf("escaping postgres URL: %w", err)
+				}
+
+				sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, dbURL)
 				if err != nil {
 					return xerrors.Errorf("connect to postgres: %w", err)
 				}
@@ -657,7 +662,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}()
 
 				options.Database = database.New(sqlDB)
-				options.Pubsub, err = pubsub.New(ctx, sqlDB, vals.PostgresURL.String())
+				options.Pubsub, err = pubsub.New(ctx, sqlDB, dbURL)
 				if err != nil {
 					return xerrors.Errorf("create pubsub: %w", err)
 				}
@@ -2432,4 +2437,42 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 		providers[providerNum] = provider
 	}
 	return providers, nil
+}
+
+// If the user provides a postgres URL with a password that contains special
+// characters, the URL will be invalid. We need to escape the password so that
+// the URL parse doesn't fail at the DB connector level.
+func escapePostgresURLUserInfo(v string) (string, error) {
+	_, err := url.Parse(v)
+	// I wish I could use errors.Is here, but this error is not declared as a
+	// variable in net/url. :(
+	if err != nil {
+		if strings.Contains(err.Error(), "net/url: invalid userinfo") {
+			// If the URL is invalid, we assume it is because the password contains
+			// special characters that need to be escaped.
+
+			// get everything before first @
+			parts := strings.SplitN(v, "@", 2)
+			if len(parts) != 2 {
+				return "", xerrors.Errorf("invalid postgres url with userinfo: %s", v)
+			}
+			start := parts[0]
+			// get password, which is the last item in start when split by :
+			startParts := strings.Split(start, ":")
+			password := startParts[len(startParts)-1]
+			// escape password, and replace the last item in the startParts slice
+			// with the escaped password.
+			//
+			// url.PathEscape is used here because url.QueryEscape
+			// will not escape spaces correctly.
+			newPassword := url.PathEscape(password)
+			startParts[len(startParts)-1] = newPassword
+			start = strings.Join(startParts, ":")
+			return start + "@" + parts[1], nil
+		}
+
+		return "", xerrors.Errorf("parse postgres url: %w", err)
+	}
+
+	return v, nil
 }
