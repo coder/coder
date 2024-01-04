@@ -891,11 +891,6 @@
           "path": "cli/templates_archive.md"
         },
         {
-          "title": "templates create",
-          "description": "Create a template from the current directory or as specified by flag",
-          "path": "cli/templates_create.md"
-        },
-        {
           "title": "templates delete",
           "description": "Delete templates",
           "path": "cli/templates_delete.md"

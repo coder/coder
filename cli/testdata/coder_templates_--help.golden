@@ -25,8 +25,6 @@ USAGE:
 SUBCOMMANDS:
     archive     Archive unused or failed template versions from a given
                 template(s)
-    create      Create a template from the current directory or as specified by
-                flag
     delete      Delete templates
     edit        Edit the metadata of a template by name.
     init        Get started with a templated template.

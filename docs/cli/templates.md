@@ -36,7 +36,6 @@ Templates are written in standard Terraform and describe the infrastructure for 
 | Name                                             | Purpose                                                                        |
 | ------------------------------------------------ | ------------------------------------------------------------------------------ |
 | [<code>archive</code>](./templates_archive.md)   | Archive unused or failed template versions from a given template(s)            |
-| [<code>create</code>](./templates_create.md)     | Create a template from the current directory or as specified by flag           |
 | [<code>delete</code>](./templates_delete.md)     | Delete templates                                                               |
 | [<code>edit</code>](./templates_edit.md)         | Edit the metadata of a template by name.                                       |
 | [<code>init</code>](./templates_init.md)         | Get started with a templated template.                                         |
