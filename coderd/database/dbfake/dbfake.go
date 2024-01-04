@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 )
 
@@ -379,6 +380,7 @@ type JobCompleteBuilder struct {
 	t     testing.TB
 	db    database.Store
 	jobID uuid.UUID
+	ps    pubsub.Pubsub
 }
 
 type JobCompleteResponse struct {
@@ -391,6 +393,12 @@ func JobComplete(t testing.TB, db database.Store, jobID uuid.UUID) JobCompleteBu
 		db:    db,
 		jobID: jobID,
 	}
+}
+
+func (b JobCompleteBuilder) Pubsub(ps pubsub.Pubsub) JobCompleteBuilder {
+	// nolint: revive // returns modified struct
+	b.ps = ps
+	return b
 }
 
 func (b JobCompleteBuilder) Do() JobCompleteResponse {
@@ -406,6 +414,12 @@ func (b JobCompleteBuilder) Do() JobCompleteResponse {
 		},
 	})
 	require.NoError(b.t, err, "complete job")
+	if b.ps != nil {
+		data, err := json.Marshal(provisionersdk.ProvisionerJobLogsNotifyMessage{EndOfLogs: true})
+		require.NoError(b.t, err)
+		err = b.ps.Publish(provisionersdk.ProvisionerJobLogsNotifyChannel(b.jobID), data)
+		require.NoError(b.t, err)
+	}
 	return r
 }
 
