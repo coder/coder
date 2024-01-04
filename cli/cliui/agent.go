@@ -200,12 +200,12 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 
 			switch agent.LifecycleState {
 			case codersdk.WorkspaceAgentLifecycleReady:
-				sw.Complete(stage, safeDuration(agent.ReadyAt, agent.StartedAt))
+				sw.Complete(stage, safeDuration(sw, agent.ReadyAt, agent.StartedAt))
 			case codersdk.WorkspaceAgentLifecycleStartTimeout:
 				sw.Fail(stage, 0)
 				sw.Log(time.Time{}, codersdk.LogLevelWarn, "Warning: A startup script timed out and your workspace may be incomplete.")
 			case codersdk.WorkspaceAgentLifecycleStartError:
-				sw.Fail(stage, safeDuration(agent.ReadyAt, agent.StartedAt))
+				sw.Fail(stage, safeDuration(sw, agent.ReadyAt, agent.StartedAt))
 				// Use zero time (omitted) to separate these from the startup logs.
 				sw.Log(time.Time{}, codersdk.LogLevelWarn, "Warning: A startup script exited with an error and your workspace may be incomplete.")
 				sw.Log(time.Time{}, codersdk.LogLevelWarn, troubleshootingMessage(agent, "https://coder.com/docs/v2/latest/templates#startup-script-exited-with-an-error"))
@@ -221,7 +221,7 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 				case agent.LifecycleState.ShuttingDown():
 					// We no longer know if the startup script failed or not,
 					// but we need to tell the user something.
-					sw.Complete(stage, safeDuration(agent.ReadyAt, agent.StartedAt))
+					sw.Complete(stage, safeDuration(sw, agent.ReadyAt, agent.StartedAt))
 					return errAgentShuttingDown
 				}
 			}
@@ -243,7 +243,7 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 					return xerrors.Errorf("fetch: %w", err)
 				}
 			}
-			sw.Complete(stage, safeDuration(agent.LastConnectedAt, agent.DisconnectedAt))
+			sw.Complete(stage, safeDuration(sw, agent.LastConnectedAt, agent.DisconnectedAt))
 		}
 	}
 }
@@ -262,8 +262,14 @@ func troubleshootingMessage(agent codersdk.WorkspaceAgent, url string) string {
 // which are not critical, and therefor should not break things
 // when it fails.
 // A panic has been observed in a test.
-func safeDuration(a, b *time.Time) time.Duration {
+func safeDuration(sw *stageWriter, a, b *time.Time) time.Duration {
 	if a == nil || b == nil {
+		if sw != nil {
+			// Ideally the message includes which fields are <nil>, but you can
+			// use the surrounding log lines to figure that out. And passing more
+			// params makes this unwieldy.
+			sw.Log(time.Now(), codersdk.LogLevelWarn, "Warning: Failed to calculate duration from a time being <nil>.")
+		}
 		return 0
 	}
 	return a.Sub(*b)
