@@ -26,7 +26,6 @@ type ProvisionerDaemonsReport struct {
 	Provisioners []codersdk.ProvisionerDaemon
 }
 
-// @typescript-generate ProvisionerDaemonsReportOptions
 type ProvisionerDaemonsReportOptions struct {
 	CurrentVersion    string
 	CurrentAPIVersion *apiversion.APIVersion
