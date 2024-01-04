@@ -60,10 +60,7 @@ jobs:
               - "examples/lima/**"
             db:
               - "**.sql"
-              - "coderd/database/queries/**"
-              - "coderd/database/migrations"
-              - "coderd/database/sqlc.yaml"
-              - "coderd/database/dump.sql"
+              - "coderd/database/**"
             go:
               - "**.sql"
               - "**.go"
@@ -324,7 +321,6 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     needs:
       - changes
-      - sqlc-vet # No point in testing the DB if the queries are invalid
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     # This timeout must be greater than the timeout set by `go test` in
     # `make test-postgres` to ensure we receive a trace of running
