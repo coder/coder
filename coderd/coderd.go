@@ -579,7 +579,6 @@ func New(options *Options) *API {
 				next.ServeHTTP(w, r)
 			})
 		},
-		httpmw.CSRF(options.SecureAuthCookie),
 	)
 
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("OK")) })
@@ -627,6 +626,10 @@ func New(options *Options) *API {
 			// limit must be configurable by the admin.
 			apiRateLimiter,
 			httpmw.ReportCLITelemetry(api.Logger, options.Telemetry),
+			// CSRF only needs to apply to /api routes. It does not apply to GET requests
+			// anyway, which is most other routes. We want to exempt any external auth or
+			// application type routes.
+			httpmw.CSRF(options.SecureAuthCookie),
 		)
 		r.Get("/", apiRoot)
 		// All CSP errors will be logged

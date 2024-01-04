@@ -329,9 +329,10 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 				next.ServeHTTP(w, r)
 			})
 		},
-		// TODO: @emyrk we might not need this? But good to have if it does
-		// 		not break anything.
-		httpmw.CSRF(s.Options.SecureAuthCookie),
+		// CSRF middleware is intentionally excluded here. All coder requests
+		// which require CSRF protection are forwarded to the primary Coderd
+		// via a proxy function. Since the primary enforces this, the proxy does
+		// not.
 	)
 
 	// Attach workspace apps routes.
