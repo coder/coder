@@ -27,9 +27,8 @@ describe("displayDormantDeletion", () => {
     ], // today + 1
     [new Date().toISOString(), true, true], // today + 0
     [new Date().toISOString(), false, false], // Advanced Scheduling off
-    [new Date().toISOString(), true, false], // Workspace Actions off
   ])(
-    `deleting_at=%p, allowAdvancedScheduling=%p, AllowWorkspaceActions=%p, shouldDisplay=%p`,
+    `deleting_at=%p, allowAdvancedScheduling=%p, shouldDisplay=%p`,
     (deleting_at, allowAdvancedScheduling, shouldDisplay) => {
       const workspace: TypesGen.Workspace = {
         ...Mocks.MockWorkspace,
