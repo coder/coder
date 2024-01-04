@@ -18,15 +18,12 @@ coder templates
 
 ```console
 Templates are written in standard Terraform and describe the infrastructure for workspaces
-  - Create a template for developers to create workspaces:
-
-     $ coder templates create
-
   - Make changes to your template, and plan the changes:
 
      $ coder templates plan my-template
 
-  - Push an update to the template. Your developers can update their workspaces:
+  - Create or push an update to the template. Your developers can update their
+workspaces:
 
      $ coder templates push my-template
 ```

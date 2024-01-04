@@ -211,7 +211,7 @@ export CLUSTER_SERVICEACCOUNT_TOKEN=$(kubectl get secrets coder-v2 -n coder-work
 Create the template with these values:
 
 ```shell
-coder templates create \
+coder templates push \
     --variable host=$CLUSTER_ADDRESS \
     --variable cluster_ca_certificate=$CLUSTER_CA_CERTIFICATE \
     --variable token=$CLUSTER_SERVICEACCOUNT_TOKEN \
@@ -228,7 +228,7 @@ kubectl cluster-info
 # Get cluster CA and token (base64 encoded)
 kubectl get secrets coder-service-account-token -n coder-workspaces -o jsonpath="{.data}"
 
-coder templates create \
+coder templates push \
     --variable host=API_ADDRESS \
     --variable cluster_ca_certificate=CLUSTER_CA_CERTIFICATE \
     --variable token=CLUSTER_SERVICEACCOUNT_TOKEN \

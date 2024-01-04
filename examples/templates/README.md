@@ -11,7 +11,7 @@ Clone this repository to create a template from any example listed here:
 ```console
 git clone https://github.com/coder/coder
 cd examples/templates/aws-linux
-coder templates create
+coder templates push
 ```
 
 ## Community Templates
