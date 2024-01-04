@@ -206,6 +206,8 @@ require (
 	tailscale.com v1.46.1
 )
 
+require go.uber.org/mock v0.4.0
+
 require (
 	cloud.google.com/go/compute v1.23.1 // indirect
 	cloud.google.com/go/logging v1.8.1 // indirect
