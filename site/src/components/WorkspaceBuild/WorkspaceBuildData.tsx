@@ -6,7 +6,6 @@ import { createDayString } from "utils/createDayString";
 import {
   getDisplayWorkspaceBuildStatus,
   getDisplayWorkspaceBuildInitiatedBy,
-  displayWorkspaceBuildDuration,
 } from "utils/workspace";
 
 export const WorkspaceBuildData = ({ build }: { build: WorkspaceBuild }) => {
