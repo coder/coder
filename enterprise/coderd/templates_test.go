@@ -808,6 +808,38 @@ func TestTemplateACL(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, cerr.StatusCode())
 	})
 
+	t.Run("DisableEveryoneGroupAccess", func(t *testing.T) {
+		t.Parallel()
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
+		}})
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		acl, err := client.TemplateACL(ctx, template.ID)
+		require.NoError(t, err)
+		require.Equal(t, 1, len(acl.Groups))
+		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			Name:                         template.Name,
+			DisplayName:                  template.DisplayName,
+			Description:                  template.Description,
+			Icon:                         template.Icon,
+			AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
+			DisableEveryoneGroupAccess:   true,
+		})
+		require.NoError(t, err)
+
+		acl, err = client.TemplateACL(ctx, template.ID)
+		require.NoError(t, err)
+		require.Equal(t, 0, len(acl.Groups), acl.Groups)
+	})
+
 	// Test that we do not return deleted users.
 	t.Run("FilterDeletedUsers", func(t *testing.T) {
 		t.Parallel()
