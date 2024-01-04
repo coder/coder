@@ -560,10 +560,11 @@ const styles = {
   }),
 
   agentInfo: (theme) => ({
-    padding: "16px 32px",
+    padding: 32,
     display: "flex",
-    alignItems: "center",
-    gap: 48,
+    flexDirection: "column",
+    gap: 16,
+    alignItems: "flex-start",
     flexWrap: "wrap",
     backgroundColor: theme.palette.background.paper,
 

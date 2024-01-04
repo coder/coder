@@ -2,6 +2,7 @@ import { Interpolation, Theme, useTheme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
 import { WorkspaceBuild } from "api/typesGenerated";
 import { BuildIcon } from "components/BuildIcon/BuildIcon";
+import { createDayString } from "utils/createDayString";
 import {
   getDisplayWorkspaceBuildStatus,
   getDisplayWorkspaceBuildInitiatedBy,
@@ -44,7 +45,7 @@ export const WorkspaceBuildData = ({ build }: { build: WorkspaceBuild }) => {
             marginTop: 2,
           }}
         >
-          {displayWorkspaceBuildDuration(build)}
+          {createDayString(build.created_at)}
         </div>
       </div>
     </div>
