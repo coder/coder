@@ -809,7 +809,6 @@ export interface ProvisionerDaemon {
   readonly last_seen_at?: string;
   readonly name: string;
   readonly version: string;
-  readonly api_version: string;
   readonly provisioners: ProvisionerType[];
   readonly tags: Record<string, string>;
 }
@@ -1265,6 +1264,7 @@ export interface UpdateTemplateMeta {
   readonly update_workspace_dormant_at: boolean;
   readonly require_active_version: boolean;
   readonly deprecation_message?: string;
+  readonly disable_everyone_group_access: boolean;
 }
 
 // From codersdk/users.go

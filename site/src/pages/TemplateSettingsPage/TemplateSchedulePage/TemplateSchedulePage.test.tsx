@@ -37,6 +37,7 @@ const validFormValues: TemplateScheduleFormValues = {
     "saturday",
     "sunday",
   ],
+  disable_everyone_group_access: false,
 };
 
 const renderTemplateSchedulePage = async () => {

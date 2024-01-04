@@ -130,6 +130,15 @@ Edit the template maximum time before shutdown - workspaces created from this te
 
 Edit the template name.
 
+### --private
+
+|         |                    |
+| ------- | ------------------ |
+| Type    | <code>bool</code>  |
+| Default | <code>false</code> |
+
+Disable the default behavior of granting template access to the 'everyone' group. The template permissions must be updated to allow non-admin users to use this template.
+
 ### --require-active-version
 
 |         |                    |
