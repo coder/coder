@@ -239,27 +239,19 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		return nil, xerrors.Errorf("parse app security key: %w", err)
 	}
 
-	var agentProvider workspaceapps.AgentProvider
-	if opts.Experiments.Enabled(codersdk.ExperimentSingleTailnet) {
-		stn, err := coderd.NewServerTailnet(ctx,
-			s.Logger,
-			nil,
-			func() *tailcfg.DERPMap {
-				return s.latestDERPMap.Load()
-			},
-			regResp.DERPForceWebSockets,
-			s.DialCoordinator,
-			wsconncache.New(s.DialWorkspaceAgent, 0),
-			s.TracerProvider,
-		)
-		if err != nil {
-			return nil, xerrors.Errorf("create server tailnet: %w", err)
-		}
-		agentProvider = stn
-	} else {
-		agentProvider = &wsconncache.AgentProvider{
-			Cache: wsconncache.New(s.DialWorkspaceAgent, 0),
-		}
+	agentProvider, err := coderd.NewServerTailnet(ctx,
+		s.Logger,
+		nil,
+		func() *tailcfg.DERPMap {
+			return s.latestDERPMap.Load()
+		},
+		regResp.DERPForceWebSockets,
+		s.DialCoordinator,
+		wsconncache.New(s.DialWorkspaceAgent, 0),
+		s.TracerProvider,
+	)
+	if err != nil {
+		return nil, xerrors.Errorf("create server tailnet: %w", err)
 	}
 
 	workspaceAppsLogger := opts.Logger.Named("workspaceapps")

@@ -458,25 +458,19 @@ func New(options *Options) *API {
 
 	api.Auditor.Store(&options.Auditor)
 	api.TailnetCoordinator.Store(&options.TailnetCoordinator)
-	if api.Experiments.Enabled(codersdk.ExperimentSingleTailnet) {
-		api.agentProvider, err = NewServerTailnet(api.ctx,
-			options.Logger,
-			options.DERPServer,
-			api.DERPMap,
-			options.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
-			func(context.Context) (tailnet.MultiAgentConn, error) {
-				return (*api.TailnetCoordinator.Load()).ServeMultiAgent(uuid.New()), nil
-			},
-			wsconncache.New(api._dialWorkspaceAgentTailnet, 0),
-			api.TracerProvider,
-		)
-		if err != nil {
-			panic("failed to setup server tailnet: " + err.Error())
-		}
-	} else {
-		api.agentProvider = &wsconncache.AgentProvider{
-			Cache: wsconncache.New(api._dialWorkspaceAgentTailnet, 0),
-		}
+	api.agentProvider, err = NewServerTailnet(api.ctx,
+		options.Logger,
+		options.DERPServer,
+		api.DERPMap,
+		options.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
+		func(context.Context) (tailnet.MultiAgentConn, error) {
+			return (*api.TailnetCoordinator.Load()).ServeMultiAgent(uuid.New()), nil
+		},
+		wsconncache.New(api._dialWorkspaceAgentTailnet, 0),
+		api.TracerProvider,
+	)
+	if err != nil {
+		panic("failed to setup server tailnet: " + err.Error())
 	}
 	api.TailnetClientService, err = tailnet.NewClientService(
 		api.Logger.Named("tailnetclient"),
