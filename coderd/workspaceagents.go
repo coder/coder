@@ -1180,7 +1180,7 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	if qv != "" {
 		version = qv
 	}
-	if err := tailnet.ValidateVersion(version); err != nil {
+	if err := tailnet.CurrentVersion.Validate(version); err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Unknown or unsupported API version",
 			Validations: []codersdk.ValidationError{
