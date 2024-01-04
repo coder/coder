@@ -2,7 +2,7 @@ import { type Interpolation, type Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import AlertTitle from "@mui/material/AlertTitle";
 import { type FC, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import dayjs from "dayjs";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
@@ -21,6 +21,9 @@ import { WorkspaceTopbar } from "./WorkspaceTopbar";
 import { HistorySidebar } from "./HistorySidebar";
 import { dashboardContentBottomPadding, navHeight } from "theme/constants";
 import { bannerHeight } from "components/Dashboard/DeploymentBanner/DeploymentBannerView";
+import HistoryOutlined from "@mui/icons-material/HistoryOutlined";
+import { useTheme } from "@mui/material/styles";
+import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
 
 export type WorkspaceError =
   | "getBuildsError"
@@ -94,6 +97,9 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 }) => {
   const navigate = useNavigate();
   const { saveLocal, getLocal } = useLocalStorage();
+  const theme = useTheme();
+
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [showAlertPendingInQueue, setShowAlertPendingInQueue] = useState(false);
 
@@ -148,8 +154,8 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
         flex: 1,
         display: "grid",
         gridTemplate: `
-          "topbar topbar" auto
-          "sidebar content" 1fr / auto 1fr
+          "topbar topbar topbar" auto
+          "leftbar sidebar content" 1fr / auto auto 1fr
         `,
         maxHeight: `calc(100vh - ${navHeight + bannerHeight}px)`,
         marginBottom: `-${dashboardContentBottomPadding}px`,
@@ -174,6 +180,34 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
         isRestarting={isRestarting}
         canUpdateWorkspace={canUpdateWorkspace}
       />
+
+      <div
+        css={{
+          gridArea: "leftbar",
+          height: "100%",
+          overflowY: "auto",
+          borderRight: `1px solid ${theme.palette.divider}`,
+        }}
+      >
+        <SidebarIconButton
+          isActive={searchParams.get("sidebar") === "history"}
+          onClick={() => {
+            const sidebarOption = searchParams.get("sidebar");
+            if (sidebarOption === "history") {
+              searchParams.delete("sidebar");
+            } else {
+              searchParams.set("sidebar", "history");
+            }
+            setSearchParams(searchParams);
+          }}
+        >
+          <HistoryOutlined />
+        </SidebarIconButton>
+      </div>
+
+      {searchParams.get("sidebar") === "history" && (
+        <HistorySidebar workspace={workspace} />
+      )}
 
       <div css={styles.content}>
         <div css={styles.dotBackground}>
@@ -331,8 +365,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           </Stack>
         </div>
       </div>
-
-      <HistorySidebar workspace={workspace} />
     </div>
   );
 };

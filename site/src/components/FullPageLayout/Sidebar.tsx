@@ -1,6 +1,7 @@
 import { Interpolation, Theme, useTheme } from "@mui/material/styles";
-import { HTMLAttributes } from "react";
+import { ComponentProps, HTMLAttributes } from "react";
 import { Link, LinkProps } from "react-router-dom";
+import { TopbarIconButton } from "./Topbar";
 
 export const Sidebar = (props: HTMLAttributes<HTMLDivElement>) => {
   const theme = useTheme();
@@ -42,6 +43,35 @@ export const SidebarCaption = (props: HTMLAttributes<HTMLSpanElement>) => {
         fontWeight: 500,
         letterSpacing: 1,
       }}
+      {...props}
+    />
+  );
+};
+
+export const SidebarIconButton = (
+  props: { isActive: boolean } & ComponentProps<typeof TopbarIconButton>,
+) => {
+  const theme = useTheme();
+
+  return (
+    <TopbarIconButton
+      css={[
+        { opacity: 0.75, "&:hover": { opacity: 1 } },
+        props.isActive && {
+          opacity: 1,
+          position: "relative",
+          "&::before": {
+            content: '""',
+            position: "absolute",
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: 2,
+            backgroundColor: theme.palette.primary.main,
+            height: "100%",
+          },
+        },
+      ]}
       {...props}
     />
   );
