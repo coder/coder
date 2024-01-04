@@ -1,6 +1,5 @@
 import { TimelineDateRow } from "components/Timeline/TimelineDateRow";
-import { FC, Fragment } from "react";
-import { createDisplayDate } from "./utils";
+import { Fragment } from "react";
 
 type GetDateFn<TData> = (data: TData) => Date;
 
@@ -27,14 +26,12 @@ export interface TimelineProps<TData> {
   items: TData[];
   getDate: GetDateFn<TData>;
   row: (item: TData) => JSX.Element;
-  dateRow?: FC<{ date: Date; displayDate: string }>;
 }
 
 export const Timeline = <TData,>({
   items,
   getDate,
   row,
-  dateRow: DateRow = TimelineDateRow,
 }: TimelineProps<TData>): JSX.Element => {
   const itemsByDate = groupByDate(items, getDate);
 
@@ -42,12 +39,10 @@ export const Timeline = <TData,>({
     <>
       {Object.keys(itemsByDate).map((dateStr) => {
         const items = itemsByDate[dateStr];
-        const date = new Date(dateStr);
-        const displayDate = createDisplayDate(date);
 
         return (
           <Fragment key={dateStr}>
-            <DateRow date={date} displayDate={displayDate} />
+            <TimelineDateRow date={new Date(dateStr)} />
             {items.map(row)}
           </Fragment>
         );
