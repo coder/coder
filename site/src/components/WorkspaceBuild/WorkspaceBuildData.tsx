@@ -71,6 +71,7 @@ const styles = {
     display: "flex",
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 12,
+    lineHeight: "1.4",
   },
 } satisfies Record<string, Interpolation<Theme>>;
