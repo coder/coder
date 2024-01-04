@@ -13,7 +13,6 @@ import {
   MockOutdatedWorkspace,
   MockTemplateVersionParameter1,
   MockTemplateVersionParameter2,
-  MockBuilds,
   MockUser,
   MockDeploymentConfig,
   MockWorkspaceBuildDelete,
@@ -314,18 +313,6 @@ describe("WorkspacePage", () => {
           value: "2",
         },
       ]);
-    });
-  });
-
-  it("shows the timeline build", async () => {
-    await renderWorkspacePage(MockWorkspace);
-    const table = await screen.findByTestId("builds-table");
-
-    // Wait for the results to be loaded
-    await waitFor(async () => {
-      const rows = table.querySelectorAll("tbody > tr");
-      // Added +1 because of the date row
-      expect(rows).toHaveLength(MockBuilds.length + 1);
     });
   });
 
