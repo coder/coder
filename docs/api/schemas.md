@@ -3220,13 +3220,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value            |
-| ---------------- |
-| `DERP`           |
-| `AccessURL`      |
-| `Websocket`      |
-| `Database`       |
-| `WorkspaceProxy` |
+| Value                |
+| -------------------- |
+| `DERP`               |
+| `AccessURL`          |
+| `Websocket`          |
+| `Database`           |
+| `WorkspaceProxy`     |
+| `ProvisionerDaemons` |
 
 ## codersdk.HealthSettings
 
@@ -7771,6 +7772,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `EACS04`   |
 | `EDERP01`  |
 | `EDERP02`  |
+| `EPD01`    |
+| `EPD02`    |
+| `EPD03`    |
 
 ## health.Message
 
@@ -7889,6 +7893,47 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `severity` | `ok`      |
 | `severity` | `warning` |
 | `severity` | `error`   |
+
+## healthcheck.ProvisionerDaemonsReport
+
+```json
+{
+  "dismissed": true,
+  "error": "string",
+  "provisioner_daemons": [
+    {
+      "api_version": "string",
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "name": "string",
+      "provisioners": ["string"],
+      "tags": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "version": "string"
+    }
+  ],
+  "severity": "ok",
+  "warnings": [
+    {
+      "code": "EUNKNOWN",
+      "message": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name                  | Type                                                              | Required | Restrictions | Description |
+| --------------------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `dismissed`           | boolean                                                           | false    |              |             |
+| `error`               | string                                                            | false    |              |             |
+| `provisioner_daemons` | array of [codersdk.ProvisionerDaemon](#codersdkprovisionerdaemon) | false    |              |             |
+| `severity`            | [health.Severity](#healthseverity)                                | false    |              |             |
+| `warnings`            | array of [health.Message](#healthmessage)                         | false    |              |             |
 
 ## healthcheck.Report
 
@@ -8131,6 +8176,32 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   },
   "failing_sections": ["DERP"],
   "healthy": true,
+  "provisioner_daemons": {
+    "dismissed": true,
+    "error": "string",
+    "provisioner_daemons": [
+      {
+        "api_version": "string",
+        "created_at": "2019-08-24T14:15:22Z",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "last_seen_at": "2019-08-24T14:15:22Z",
+        "name": "string",
+        "provisioners": ["string"],
+        "tags": {
+          "property1": "string",
+          "property2": "string"
+        },
+        "version": "string"
+      }
+    ],
+    "severity": "ok",
+    "warnings": [
+      {
+        "code": "EUNKNOWN",
+        "message": "string"
+      }
+    ]
+  },
   "severity": "ok",
   "time": "string",
   "websocket": {
@@ -8186,18 +8257,19 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name               | Type                                                                 | Required | Restrictions | Description                                                                         |
-| ------------------ | -------------------------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------- |
-| `access_url`       | [healthcheck.AccessURLReport](#healthcheckaccessurlreport)           | false    |              |                                                                                     |
-| `coder_version`    | string                                                               | false    |              | The Coder version of the server that the report was generated on.                   |
-| `database`         | [healthcheck.DatabaseReport](#healthcheckdatabasereport)             | false    |              |                                                                                     |
-| `derp`             | [derphealth.Report](#derphealthreport)                               | false    |              |                                                                                     |
-| `failing_sections` | array of [codersdk.HealthSection](#codersdkhealthsection)            | false    |              | Failing sections is a list of sections that have failed their healthcheck.          |
-| `healthy`          | boolean                                                              | false    |              | Healthy is true if the report returns no errors. Deprecated: use `Severity` instead |
-| `severity`         | [health.Severity](#healthseverity)                                   | false    |              | Severity indicates the status of Coder health.                                      |
-| `time`             | string                                                               | false    |              | Time is the time the report was generated at.                                       |
-| `websocket`        | [healthcheck.WebsocketReport](#healthcheckwebsocketreport)           | false    |              |                                                                                     |
-| `workspace_proxy`  | [healthcheck.WorkspaceProxyReport](#healthcheckworkspaceproxyreport) | false    |              |                                                                                     |
+| Name                  | Type                                                                         | Required | Restrictions | Description                                                                         |
+| --------------------- | ---------------------------------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------- |
+| `access_url`          | [healthcheck.AccessURLReport](#healthcheckaccessurlreport)                   | false    |              |                                                                                     |
+| `coder_version`       | string                                                                       | false    |              | The Coder version of the server that the report was generated on.                   |
+| `database`            | [healthcheck.DatabaseReport](#healthcheckdatabasereport)                     | false    |              |                                                                                     |
+| `derp`                | [derphealth.Report](#derphealthreport)                                       | false    |              |                                                                                     |
+| `failing_sections`    | array of [codersdk.HealthSection](#codersdkhealthsection)                    | false    |              | Failing sections is a list of sections that have failed their healthcheck.          |
+| `healthy`             | boolean                                                                      | false    |              | Healthy is true if the report returns no errors. Deprecated: use `Severity` instead |
+| `provisioner_daemons` | [healthcheck.ProvisionerDaemonsReport](#healthcheckprovisionerdaemonsreport) | false    |              |                                                                                     |
+| `severity`            | [health.Severity](#healthseverity)                                           | false    |              | Severity indicates the status of Coder health.                                      |
+| `time`                | string                                                                       | false    |              | Time is the time the report was generated at.                                       |
+| `websocket`           | [healthcheck.WebsocketReport](#healthcheckwebsocketreport)                   | false    |              |                                                                                     |
+| `workspace_proxy`     | [healthcheck.WorkspaceProxyReport](#healthcheckworkspaceproxyreport)         | false    |              |                                                                                     |
 
 #### Enumerated Values
 
