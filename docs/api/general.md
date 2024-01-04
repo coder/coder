@@ -563,7 +563,7 @@ curl -X GET http://coder-server:8080/api/v2/experiments \
 > 200 Response
 
 ```json
-["workspace_actions"]
+["tailnet_pg_coordinator"]
 ```
 
 ### Responses
@@ -600,7 +600,7 @@ curl -X GET http://coder-server:8080/api/v2/experiments/available \
 > 200 Response
 
 ```json
-["workspace_actions"]
+["tailnet_pg_coordinator"]
 ```
 
 ### Responses

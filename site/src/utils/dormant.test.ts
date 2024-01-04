@@ -34,23 +34,14 @@ describe("displayDormantDeletion", () => {
     [new Date().toISOString(), true, false, false], // Workspace Actions off
   ])(
     `deleting_at=%p, allowAdvancedScheduling=%p, AllowWorkspaceActions=%p, shouldDisplay=%p`,
-    (
-      deleting_at,
-      allowAdvancedScheduling,
-      allowWorkspaceActions,
-      shouldDisplay,
-    ) => {
+    (deleting_at, allowAdvancedScheduling, shouldDisplay) => {
       const workspace: TypesGen.Workspace = {
         ...Mocks.MockWorkspace,
         deleting_at,
       };
-      expect(
-        displayDormantDeletion(
-          workspace,
-          allowAdvancedScheduling,
-          allowWorkspaceActions,
-        ),
-      ).toBe(shouldDisplay);
+      expect(displayDormantDeletion(workspace, allowAdvancedScheduling)).toBe(
+        shouldDisplay,
+      );
     },
   );
 });
