@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -12,110 +13,138 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
+	"github.com/coder/coder/v2/coderd/util/apiversion"
+	"github.com/coder/coder/v2/provisionersdk"
 )
 
 func TestProvisionerDaemonReport(t *testing.T) {
 	t.Parallel()
 
-	var ()
-
 	for _, tt := range []struct {
 		name                 string
 		currentVersion       string
-		currentAPIVersion    string
+		currentAPIVersion    *apiversion.APIVersion
 		provisionerDaemonsFn func(context.Context) ([]database.ProvisionerDaemon, error)
 		expectedSeverity     health.Severity
 		expectedWarningCode  health.Code
+		expectedError        string
 	}{
 		{
-			name:                "current version empty",
-			currentVersion:      "",
-			expectedSeverity:    health.SeverityError,
-			expectedWarningCode: health.CodeUnknown,
+			name:             "current version empty",
+			currentVersion:   "",
+			expectedSeverity: health.SeverityError,
+			expectedError:    "Developer error: CurrentVersion is empty",
 		},
 		{
-			name:                "current api version empty",
-			currentVersion:      "v1.2.3",
-			currentAPIVersion:   "",
-			expectedSeverity:    health.SeverityError,
-			expectedWarningCode: health.CodeUnknown,
-		},
-		{
-			name:                "provisionerdaemonsfn nil",
-			currentVersion:      "v1.2.3",
-			currentAPIVersion:   "v1.0",
-			expectedSeverity:    health.SeverityError,
-			expectedWarningCode: health.CodeUnknown,
+			name:              "provisionerdaemonsfn nil",
+			currentVersion:    "v1.2.3",
+			currentAPIVersion: provisionersdk.VersionCurrent,
+			expectedSeverity:  health.SeverityError,
+			expectedError:     "Developer error: ProvisionerDaemonsFn is nil",
 		},
 		{
 			name:                 "no daemons",
 			currentVersion:       "v1.2.3",
-			currentAPIVersion:    "v1.0",
-			expectedSeverity:     health.SeverityError,
-			expectedWarningCode:  health.CodeProvisionerDaemonsNoProvisionerDaemons,
+			currentAPIVersion:    provisionersdk.VersionCurrent,
 			provisionerDaemonsFn: fakeProvisionerDaemonsFn(),
+			expectedSeverity:     health.SeverityError,
+			expectedError:        "No provisioner daemons found!",
+		},
+		{
+			name:                 "error fetching daemons",
+			currentVersion:       "v1.2.3",
+			currentAPIVersion:    provisionersdk.VersionCurrent,
+			provisionerDaemonsFn: fakeProvisionerDaemonsFnErr(assert.AnError),
+			expectedSeverity:     health.SeverityError,
+			expectedError:        assert.AnError.Error(),
 		},
 		{
 			name:                 "one daemon up to date",
 			currentVersion:       "v1.2.3",
-			currentAPIVersion:    "v1.0",
+			currentAPIVersion:    provisionersdk.VersionCurrent,
 			expectedSeverity:     health.SeverityOK,
-			provisionerDaemonsFn: fakeProvisionerDaemonsFn(fakeProvisionerDaemon(t, "pd-ok", "v1.2.3", "v1.0")),
+			provisionerDaemonsFn: fakeProvisionerDaemonsFn(fakeProvisionerDaemon(t, "pd-ok", "v1.2.3", "1.0")),
 		},
 		{
 			name:                 "one daemon out of date",
 			currentVersion:       "v1.2.3",
-			currentAPIVersion:    "v1.0",
+			currentAPIVersion:    provisionersdk.VersionCurrent,
 			expectedSeverity:     health.SeverityWarning,
-			expectedWarningCode:  health.CodeProvisionerDaemonVersionOutOfDate,
-			provisionerDaemonsFn: fakeProvisionerDaemonsFn(fakeProvisionerDaemon(t, "pd-old", "v1.1.2", "v1.0")),
+			expectedWarningCode:  health.CodeProvisionerDaemonVersionMismatch,
+			provisionerDaemonsFn: fakeProvisionerDaemonsFn(fakeProvisionerDaemon(t, "pd-old", "v1.1.2", "1.0")),
 		},
 		{
 			name:                 "major api version not available",
 			currentVersion:       "v1.2.3",
-			currentAPIVersion:    "v1.0",
+			currentAPIVersion:    provisionersdk.VersionCurrent,
 			expectedSeverity:     health.SeverityError,
-			expectedWarningCode:  health.CodeProvisionerDaemonAPIMajorVersionNotAvailable,
-			provisionerDaemonsFn: fakeProvisionerDaemonsFn(fakeProvisionerDaemon(t, "pd-new-major", "v1.2.3", "v2.0")),
+			expectedWarningCode:  health.CodeProvisionerDaemonAPIVersionIncompatible,
+			provisionerDaemonsFn: fakeProvisionerDaemonsFn(fakeProvisionerDaemon(t, "pd-new-major", "v1.2.3", "2.0")),
 		},
 		{
 			name:                 "minor api version not available",
 			currentVersion:       "v1.2.3",
-			currentAPIVersion:    "v1.0",
-			expectedSeverity:     health.SeverityWarning,
-			expectedWarningCode:  health.CodeProvisionerDaemonAPIMinorVersionNotAvailable,
-			provisionerDaemonsFn: fakeProvisionerDaemonsFn(fakeProvisionerDaemon(t, "pd-new-minor", "v1.2.3", "v1.1")),
+			currentAPIVersion:    provisionersdk.VersionCurrent,
+			expectedSeverity:     health.SeverityError,
+			expectedWarningCode:  health.CodeProvisionerDaemonAPIVersionIncompatible,
+			provisionerDaemonsFn: fakeProvisionerDaemonsFn(fakeProvisionerDaemon(t, "pd-new-minor", "v1.2.3", "1.1")),
+		},
+		{
+			name:              "api version backward compat",
+			currentVersion:    "v2.3.4",
+			currentAPIVersion: apiversion.New([]int{2, 1}, 0),
+			expectedSeverity:  health.SeverityOK,
+			provisionerDaemonsFn: fakeProvisionerDaemonsFn(
+				fakeProvisionerDaemon(t, "pd-old-api", "v2.3.4", "1.0")),
 		},
 		{
 			name:                "one up to date, one out of date",
 			currentVersion:      "v1.2.3",
-			currentAPIVersion:   "v1.0",
+			currentAPIVersion:   provisionersdk.VersionCurrent,
 			expectedSeverity:    health.SeverityWarning,
-			expectedWarningCode: health.CodeProvisionerDaemonVersionOutOfDate,
+			expectedWarningCode: health.CodeProvisionerDaemonVersionMismatch,
 			provisionerDaemonsFn: fakeProvisionerDaemonsFn(
-				fakeProvisionerDaemon(t, "pd-ok", "v1.2.3", "v1.0"),
-				fakeProvisionerDaemon(t, "pd-old", "v1.1.2", "v1.0")),
+				fakeProvisionerDaemon(t, "pd-ok", "v1.2.3", "1.0"),
+				fakeProvisionerDaemon(t, "pd-old", "v1.1.2", "1.0")),
 		},
 		{
-			name:              "one up to date, one newer",
-			currentVersion:    "v1.2.3",
-			currentAPIVersion: "v1.0",
+			name:                "one up to date, one newer",
+			currentVersion:      "v1.2.3",
+			currentAPIVersion:   provisionersdk.VersionCurrent,
+			expectedSeverity:    health.SeverityWarning,
+			expectedWarningCode: health.CodeProvisionerDaemonVersionMismatch,
+			provisionerDaemonsFn: fakeProvisionerDaemonsFn(
+				fakeProvisionerDaemon(t, "pd-ok", "v1.2.3", "1.0"),
+				fakeProvisionerDaemon(t, "pd-new", "v2.3.4", "1.0")),
+		},
+		{
+			name:              "one up to date, one stale older",
+			currentVersion:    "v2.3.4",
+			currentAPIVersion: provisionersdk.VersionCurrent,
 			expectedSeverity:  health.SeverityOK,
 			provisionerDaemonsFn: fakeProvisionerDaemonsFn(
-				fakeProvisionerDaemon(t, "pd-ok", "v1.2.3", "v1.0"),
-				fakeProvisionerDaemon(t, "pd-new", "v2.3.4", "v1.0")),
+				fakeProvisionerDaemonStale(t, "pd-ok", "v1.2.3", "0.9", dbtime.Now().Add(-5*time.Minute)),
+				fakeProvisionerDaemon(t, "pd-new", "v2.3.4", "1.0")),
 		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var rpt healthcheck.ProvisionerDaemonReport
-			var opts healthcheck.ProvisionerDaemonReportOptions
+			var rpt healthcheck.ProvisionerDaemonsReport
+			var opts healthcheck.ProvisionerDaemonsReportOptions
 			opts.CurrentVersion = tt.currentVersion
-			opts.CurrentAPIVersion = tt.currentAPIVersion
+			if tt.currentAPIVersion == nil {
+				opts.CurrentAPIVersion = provisionersdk.VersionCurrent
+			} else {
+				opts.CurrentAPIVersion = tt.currentAPIVersion
+			}
 			if tt.provisionerDaemonsFn != nil {
 				opts.ProvisionerDaemonsFn = tt.provisionerDaemonsFn
+			}
+			now := dbtime.Now()
+			opts.TimeNowFn = func() time.Time {
+				return now
 			}
 
 			rpt.Run(context.Background(), &opts)
@@ -132,6 +161,9 @@ func TestProvisionerDaemonReport(t *testing.T) {
 				assert.True(t, found, "expected warning %s not found in %v", tt.expectedWarningCode, rpt.Warnings)
 			} else {
 				assert.Empty(t, rpt.Warnings)
+			}
+			if tt.expectedError != "" && assert.NotNil(t, rpt.Error) {
+				assert.Contains(t, *rpt.Error, tt.expectedError)
 			}
 		})
 	}
@@ -162,4 +194,12 @@ func fakeProvisionerDaemonsFnErr(err error) func(context.Context) ([]database.Pr
 	return func(context.Context) ([]database.ProvisionerDaemon, error) {
 		return nil, err
 	}
+}
+
+func fakeProvisionerDaemonStale(t *testing.T, name, version, apiVersion string, lastSeenAt time.Time) database.ProvisionerDaemon {
+	t.Helper()
+	d := fakeProvisionerDaemon(t, name, version, apiVersion)
+	d.LastSeenAt.Valid = true
+	d.LastSeenAt.Time = lastSeenAt
+	return d
 }
