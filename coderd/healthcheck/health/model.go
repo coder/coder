@@ -35,9 +35,9 @@ const (
 	CodeDERPNodeUsesWebsocket Code = `EDERP01`
 	CodeDERPOneNodeUnhealthy  Code = `EDERP02`
 
-	CodeProvisionerDaemonsNoProvisionerDaemons  Code = `EPD01`
-	CodeProvisionerDaemonVersionMismatch        Code = `EPD02`
-	CodeProvisionerDaemonAPIVersionIncompatible Code = `EPD03`
+	CodeProvisionerDaemonsNoProvisionerDaemons     Code = `EPD01`
+	CodeProvisionerDaemonVersionMismatch           Code = `EPD02`
+	CodeProvisionerDaemonAPIMajorVersionDeprecated Code = `EPD03`
 )
 
 // @typescript-generate Severity

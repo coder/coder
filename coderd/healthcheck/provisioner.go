@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/apiversion"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisionersdk"
 )
 
 // @typescript-generate ProvisionerDaemonsReport
@@ -27,8 +28,8 @@ type ProvisionerDaemonsReport struct {
 }
 
 type ProvisionerDaemonsReportOptions struct {
-	CurrentVersion    string
-	CurrentAPIVersion *apiversion.APIVersion
+	CurrentVersion         string
+	CurrentAPIMajorVersion int
 
 	// ProvisionerDaemonsFn is a function that returns ProvisionerDaemons.
 	// Satisfied by database.Store.ProvisionerDaemons
@@ -56,9 +57,9 @@ func (r *ProvisionerDaemonsReport) Run(ctx context.Context, opts *ProvisionerDae
 		return
 	}
 
-	if opts.CurrentAPIVersion == nil {
+	if opts.CurrentAPIMajorVersion == 0 {
 		r.Severity = health.SeverityError
-		r.Error = ptr.Ref("Developer error: CurrentAPIVersion is nil!")
+		r.Error = ptr.Ref("Developer error: CurrentAPIVersion must be non-zero!")
 		return
 	}
 
@@ -97,8 +98,8 @@ func (r *ProvisionerDaemonsReport) Run(ctx context.Context, opts *ProvisionerDae
 		}
 		// For release versions, just check MAJOR.MINOR and ignore patch.
 		if !semver.IsValid(daemon.Version) {
-			if r.Severity.Value() < health.SeverityWarning.Value() {
-				r.Severity = health.SeverityWarning
+			if r.Severity.Value() < health.SeverityError.Value() {
+				r.Severity = health.SeverityError
 			}
 			r.Warnings = append(r.Warnings, health.Messagef(health.CodeUnknown, "Provisioner daemon %q reports invalid version %q", opts.CurrentVersion, daemon.Version))
 		} else if !buildinfo.VersionsMatch(opts.CurrentVersion, daemon.Version) {
@@ -108,17 +109,20 @@ func (r *ProvisionerDaemonsReport) Run(ctx context.Context, opts *ProvisionerDae
 			r.Warnings = append(r.Warnings, health.Messagef(health.CodeProvisionerDaemonVersionMismatch, "Provisioner daemon %q has outdated version %q", daemon.Name, daemon.Version))
 		}
 
-		// Provisioner daemon API version follows different rules.
-		if _, _, err := apiversion.Parse(daemon.APIVersion); err != nil {
+		// Provisioner daemon API version follows different rules; we just want to check the major API version and
+		// warn about potential later deprecations.
+		// When we check API versions of connecting provisioner daemons, all active provisioner daemons
+		// will, by neccessity, have a compatible API version.
+		if maj, _, err := apiversion.Parse(daemon.APIVersion); err != nil {
 			if r.Severity.Value() < health.SeverityError.Value() {
 				r.Severity = health.SeverityError
 			}
 			r.Warnings = append(r.Warnings, health.Messagef(health.CodeUnknown, "Provisioner daemon %q reports invalid API version: %s", daemon.Name, err.Error()))
-		} else if err := opts.CurrentAPIVersion.Validate(daemon.APIVersion); err != nil {
-			if r.Severity.Value() < health.SeverityError.Value() {
-				r.Severity = health.SeverityError
+		} else if maj != opts.CurrentAPIMajorVersion {
+			if r.Severity.Value() < health.SeverityWarning.Value() {
+				r.Severity = health.SeverityWarning
 			}
-			r.Warnings = append(r.Warnings, health.Messagef(health.CodeProvisionerDaemonAPIVersionIncompatible, "Provisioner daemon %q reports incompatible API version: %s", daemon.Name, err.Error()))
+			r.Warnings = append(r.Warnings, health.Messagef(health.CodeProvisionerDaemonAPIMajorVersionDeprecated, "Provisioner daemon %q reports deprecated major API version %d. Consider upgrading!", daemon.Name, provisionersdk.CurrentMajor))
 		}
 	}
 }
