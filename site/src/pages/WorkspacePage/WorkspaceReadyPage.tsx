@@ -224,7 +224,6 @@ export const WorkspaceReadyPage = ({
             displayError(message);
           }
         }}
-        resources={workspace.latest_build.resources}
         canUpdateWorkspace={canUpdateWorkspace}
         updateMessage={latestVersion?.message}
         canChangeVersions={canChangeVersions}
