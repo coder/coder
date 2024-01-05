@@ -46,15 +46,17 @@ export const IconField: FC<IconFieldProps> = ({
         {...textFieldProps}
         InputProps={{
           endAdornment: hasIcon ? (
-            <InputAdornment position="end" component={ImageIcon} size={24}>
-              <img
-                alt=""
-                src={textFieldProps.value}
-                // This prevent browser to display the ugly error icon if the
-                // image path is wrong or user didn't finish typing the url
-                onError={(e) => (e.currentTarget.style.display = "none")}
-                onLoad={(e) => (e.currentTarget.style.display = "inline")}
-              />
+            <InputAdornment position="end">
+              <ImageIcon size={24}>
+                <img
+                  alt=""
+                  src={textFieldProps.value}
+                  // This prevent browser to display the ugly error icon if the
+                  // image path is wrong or user didn't finish typing the url
+                  onError={(e) => (e.currentTarget.style.display = "none")}
+                  onLoad={(e) => (e.currentTarget.style.display = "inline")}
+                />
+              </ImageIcon>
             </InputAdornment>
           ) : undefined,
         }}
