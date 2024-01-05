@@ -231,21 +231,21 @@ func (e *outExpecter) Peek(ctx context.Context, n int) []byte {
 	return slices.Clone(out)
 }
 
-func (e *outExpecter) ReadRune(ctx context.Context) rune {
+func (e *outExpecter) ReadRune() (rune, int, error) {
 	e.t.Helper()
 
 	var r rune
-	err := e.doMatchWithDeadline(ctx, "ReadRune", func(rd *bufio.Reader) error {
+	err := e.doMatchWithDeadline(context.Background(), "ReadRune", func(rd *bufio.Reader) error {
 		var err error
 		r, _, err = rd.ReadRune()
 		return err
 	})
 	if err != nil {
 		e.fatalf("read error", "%v (wanted rune; got %q)", err, r)
-		return 0
+		return 0, 0, err
 	}
 	e.logf("matched rune = %q", r)
-	return r
+	return r, 0, nil
 }
 
 func (e *outExpecter) ReadLine(ctx context.Context) string {
