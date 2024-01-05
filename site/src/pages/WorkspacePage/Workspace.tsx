@@ -342,7 +342,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 
             {buildLogs}
 
-            {typeof resources !== "undefined" && resources.length > 0 && (
+            {resources && resources.length > 0 && (
               <Resources
                 resources={resources}
                 agentRow={(agent) => (

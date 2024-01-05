@@ -41,7 +41,7 @@ export const SidebarCaption = (props: HTMLAttributes<HTMLSpanElement>) => {
         display: "block",
         textTransform: "uppercase",
         fontWeight: 500,
-        letterSpacing: 1,
+        letterSpacing: "0.1em",
       }}
       {...props}
     />
@@ -78,7 +78,7 @@ export const SidebarIconButton = (
 };
 
 const styles = {
-  sidebarItem: (theme: Theme) => ({
+  sidebarItem: (theme) => ({
     fontSize: 13,
     lineHeight: 1.2,
     color: theme.palette.text.primary,
