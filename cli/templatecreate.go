@@ -36,7 +36,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Use:   "create [name]",
-		Short: "Create a template from the current directory or as specified by flag",
+		Short: "DEPRECATED: Create a template from the current directory or as specified by flag",
 		Middleware: clibase.Chain(
 			clibase.RequireRangeArgs(0, 1),
 			cliui.DeprecationWarning(
