@@ -18,6 +18,7 @@ import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLat
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { usePermissions } from "hooks/usePermissions";
 import { UserDropdown } from "./UserDropdown/UserDropdown";
+import { ImageIcon } from "components/ImageIcon/ImageIcon";
 
 export const USERS_LINK = `/users?filter=${encodeURIComponent(
   "status:active",
@@ -259,17 +260,9 @@ const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
       >
         {selectedProxy ? (
           <div css={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <div css={{ width: 16, height: 16, lineHeight: 0 }}>
-              <img
-                src={selectedProxy.icon_url}
-                alt=""
-                css={{
-                  objectFit: "contain",
-                  width: "100%",
-                  height: "100%",
-                }}
-              />
-            </div>
+            <ImageIcon size={16}>
+              <img src={selectedProxy.icon_url} alt="" />
+            </ImageIcon>
             <ProxyStatusLatency
               latency={latencies?.[selectedProxy.id]?.latencyMS}
               isLoading={proxyLatencyLoading(selectedProxy)}
@@ -351,17 +344,9 @@ const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
                   width: "100%",
                 }}
               >
-                <div css={{ width: 14, height: 14, lineHeight: 0 }}>
-                  <img
-                    src={proxy.icon_url}
-                    alt=""
-                    css={{
-                      objectFit: "contain",
-                      width: "100%",
-                      height: "100%",
-                    }}
-                  />
-                </div>
+                <ImageIcon size={14}>
+                  <img src={proxy.icon_url} alt="" />
+                </ImageIcon>
                 {proxy.display_name}
                 <ProxyStatusLatency
                   latency={latencies?.[proxy.id]?.latencyMS}

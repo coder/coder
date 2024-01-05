@@ -17,6 +17,7 @@ import { Alert } from "components/Alert/Alert";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { DismissWarningButton } from "./DismissWarningButton";
+import { ImageIcon } from "components/ImageIcon/ImageIcon";
 
 export const WorkspaceProxyPage = () => {
   const healthStatus = useOutletContext<HealthcheckReport>();
@@ -69,21 +70,9 @@ export const WorkspaceProxyPage = () => {
                 }}
               >
                 <div css={{ display: "flex", alignItems: "center", gap: 24 }}>
-                  <div
-                    css={{
-                      width: 36,
-                      height: 36,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <img
-                      src={region.icon_url}
-                      css={{ objectFit: "fill", width: "100%", height: "100%" }}
-                      alt=""
-                    />
-                  </div>
+                  <ImageIcon size={36}>
+                    <img src={region.icon_url} alt="" />
+                  </ImageIcon>
                   <div css={{ lineHeight: "160%" }}>
                     <h4 css={{ fontWeight: 500, margin: 0 }}>
                       {region.display_name}

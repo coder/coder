@@ -12,6 +12,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "components/Popover/Popover";
+import { ImageIcon } from "components/ImageIcon/ImageIcon";
 
 // See: https://github.com/missive/emoji-mart/issues/51#issuecomment-287353222
 const urlFromUnifiedCode = (unified: string) =>
@@ -45,21 +46,7 @@ export const IconField: FC<IconFieldProps> = ({
         {...textFieldProps}
         InputProps={{
           endAdornment: hasIcon ? (
-            <InputAdornment
-              position="end"
-              css={{
-                width: 24,
-                height: 24,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-
-                "& img": {
-                  maxWidth: "100%",
-                  objectFit: "contain",
-                },
-              }}
-            >
+            <InputAdornment position="end" component={ImageIcon} size={24}>
               <img
                 alt=""
                 src={textFieldProps.value}

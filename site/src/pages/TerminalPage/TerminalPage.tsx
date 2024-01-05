@@ -33,6 +33,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "components/Popover/Popover";
+import { ImageIcon } from "components/ImageIcon/ImageIcon";
 
 export const Language = {
   workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
@@ -402,13 +403,9 @@ const BottomBar: FC<BottomBarProps> = ({ proxy, latency }) => {
             }}
           >
             <div css={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <div css={{ width: 12, height: 12, lineHeight: 0 }}>
-                <img
-                  src={proxy.icon_url}
-                  alt=""
-                  css={{ objectFit: "contain", width: "100%", height: "100%" }}
-                />
-              </div>
+              <ImageIcon size={12}>
+                <img src={proxy.icon_url} alt="" />
+              </ImageIcon>
               {proxy.display_name}
             </div>
             <ProxyStatusLatency latency={latency} />

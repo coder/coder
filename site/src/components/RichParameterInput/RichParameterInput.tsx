@@ -9,6 +9,7 @@ import { TemplateVersionParameter } from "api/typesGenerated";
 import { MemoizedMarkdown } from "components/Markdown/Markdown";
 import { Stack } from "components/Stack/Stack";
 import { MultiTextField } from "./MultiTextField";
+import { ImageIcon } from "components/ImageIcon/ImageIcon";
 
 const isBoolean = (parameter: TemplateVersionParameter) => {
   return parameter.type === "bool";
@@ -65,19 +66,10 @@ const styles = {
     alignItems: "center",
     gap: 8,
   },
-  labelIconWrapper: {
-    width: 20,
-    height: 20,
-    display: "block",
-
+  labelIcon: {
     ".small &": {
       display: "none",
     },
-  },
-  labelIcon: {
-    width: "100%",
-    height: "100%",
-    objectFit: "contain",
   },
   optionIcon: {
     pointerEvents: "none",
@@ -105,13 +97,9 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter }) => {
     <label htmlFor={parameter.name}>
       <Stack direction="row" alignItems="center">
         {parameter.icon && (
-          <span css={styles.labelIconWrapper}>
-            <img
-              css={styles.labelIcon}
-              alt="Parameter icon"
-              src={parameter.icon}
-            />
-          </span>
+          <ImageIcon size={20} css={styles.labelIcon}>
+            <img alt="Parameter icon" src={parameter.icon} />
+          </ImageIcon>
         )}
 
         {hasDescription ? (

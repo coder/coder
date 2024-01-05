@@ -1,6 +1,7 @@
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import type { TemplateExample } from "api/typesGenerated";
+import { ImageIcon } from "components/ImageIcon/ImageIcon";
 import { Pill } from "components/Pill/Pill";
 import { HTMLProps } from "react";
 import { Link as RouterLink } from "react-router-dom";
@@ -35,20 +36,9 @@ export const TemplateExampleCard = (props: TemplateExampleCardProps) => {
           marginBottom: 24,
         }}
       >
-        <div
-          css={{
-            flexShrink: 0,
-            paddingTop: 4,
-            width: 32,
-            height: 32,
-          }}
-        >
-          <img
-            src={example.icon}
-            alt=""
-            css={{ width: "100%", height: "100%", objectFit: "contain" }}
-          />
-        </div>
+        <ImageIcon size={32} css={{ paddingTop: 4 }}>
+          <img src={example.icon} alt="" />
+        </ImageIcon>
 
         <div css={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           {example.tags.map((tag) => {

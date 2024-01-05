@@ -63,6 +63,7 @@ import { DateRange as DailyPicker, DateRangeValue } from "./DateRange";
 import { lastWeeks } from "./utils";
 import { InsightsInterval, IntervalMenu } from "./IntervalMenu";
 import { WeekPicker, numberOfWeeksOptions } from "./WeekPicker";
+import { ImageIcon } from "components/ImageIcon/ImageIcon";
 
 const DEFAULT_NUMBER_OF_WEEKS = numberOfWeeksOptions[0];
 
@@ -457,25 +458,9 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
                     <div
                       css={{ display: "flex", alignItems: "center", gap: 8 }}
                     >
-                      <div
-                        css={{
-                          width: 20,
-                          height: 20,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        <img
-                          src={usage.icon}
-                          alt=""
-                          style={{
-                            objectFit: "contain",
-                            width: "100%",
-                            height: "100%",
-                          }}
-                        />
-                      </div>
+                      <ImageIcon size={20}>
+                        <img src={usage.icon} alt="" />
+                      </ImageIcon>
                       <div css={{ fontSize: 13, fontWeight: 500, width: 200 }}>
                         {usage.display_name}
                       </div>
@@ -663,18 +648,9 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
         }}
       >
         {icon && (
-          <div css={{ width: 16, height: 16, lineHeight: 1 }}>
-            <img
-              alt=""
-              src={icon}
-              css={{
-                objectFit: "contain",
-                width: "100%",
-                height: "100%",
-              }}
-              aria-labelledby={ariaId}
-            />
-          </div>
+          <ImageIcon size={16}>
+            <img alt="" src={icon} aria-labelledby={ariaId} />
+          </ImageIcon>
         )}
         <span id={ariaId}>{label}</span>
       </div>
