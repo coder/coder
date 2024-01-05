@@ -8,6 +8,7 @@ import (
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
@@ -78,7 +79,7 @@ func (r *ProvisionerDaemonsReport) Run(ctx context.Context, opts *ProvisionerDae
 	}
 
 	for _, daemon := range daemons {
-		r.ProvisionerDaemons = append(r.ProvisionerDaemons, convertProvisionerDaemon(daemon))
+		r.ProvisionerDaemons = append(r.ProvisionerDaemons, db2sdk.ProvisionerDaemon(daemon))
 	}
 
 	if len(r.ProvisionerDaemons) == 0 {
@@ -125,21 +126,4 @@ func (r *ProvisionerDaemonsReport) Run(ctx context.Context, opts *ProvisionerDae
 			r.Warnings = append(r.Warnings, health.Messagef(health.CodeProvisionerDaemonAPIMajorVersionDeprecated, "Provisioner daemon %q reports deprecated major API version %d. Consider upgrading!", daemon.Name, provisionersdk.CurrentMajor))
 		}
 	}
-}
-
-// XXX: duplicated from enterprise/coderd
-func convertProvisionerDaemon(daemon database.ProvisionerDaemon) codersdk.ProvisionerDaemon {
-	result := codersdk.ProvisionerDaemon{
-		ID:         daemon.ID,
-		CreatedAt:  daemon.CreatedAt,
-		LastSeenAt: codersdk.NullTime{NullTime: daemon.LastSeenAt},
-		Name:       daemon.Name,
-		Tags:       daemon.Tags,
-		Version:    daemon.Version,
-		APIVersion: daemon.APIVersion,
-	}
-	for _, provisionerType := range daemon.Provisioners {
-		result.Provisioners = append(result.Provisioners, codersdk.ProvisionerType(provisionerType))
-	}
-	return result
 }
