@@ -74,11 +74,6 @@ data "coder_parameter" "region" {
 
 provider "docker" {
   host = lookup(local.docker_host, data.coder_parameter.region.value)
-  registry_auth {
-    address  = var.jfrog_url
-    username = module.jfrog.username
-    password = module.jfrog.access_token
-  }
 }
 
 provider "coder" {}
@@ -283,16 +278,18 @@ resource "docker_volume" "home_volume" {
   }
 }
 
-resource "null_resource" "update_trigger" {
-  triggers = {
-    always_run = "${timestamp()}"
-  }
+data "docker_registry_image" "dogfood" {
+  name = "${local.registry_name}:latest"
 }
 
 resource "docker_image" "dogfood" {
-  name          = "${local.jfrog_host}/docker/${local.registry_name}:latest"
-  pull_triggers = [null_resource.update_trigger.id]
-  keep_locally  = true
+  name = "${local.registry_name}@${data.docker_registry_image.dogfood.sha256_digest}"
+  pull_triggers = [
+    data.docker_registry_image.dogfood.sha256_digest,
+    sha1(join("", [for f in fileset(path.module, "files/*") : filesha1(f)])),
+    filesha1("Dockerfile"),
+  ]
+  keep_locally = true
 }
 
 resource "docker_container" "workspace" {
