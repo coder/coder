@@ -115,7 +115,7 @@ func (r *ProvisionerDaemonsReport) Run(ctx context.Context, opts *ProvisionerDae
 		// Provisioner daemon API version follows different rules; we just want to check the major API version and
 		// warn about potential later deprecations.
 		// When we check API versions of connecting provisioner daemons, all active provisioner daemons
-		// will, by neccessity, have a compatible API version.
+		// will, by necessity, have a compatible API version.
 		if maj, _, err := apiversion.Parse(daemon.APIVersion); err != nil {
 			if r.Severity.Value() < health.SeverityError.Value() {
 				r.Severity = health.SeverityError

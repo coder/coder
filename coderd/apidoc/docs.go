@@ -12983,7 +12983,7 @@ const docTemplate = `{
                 "CodeDERPOneNodeUnhealthy",
                 "CodeProvisionerDaemonsNoProvisionerDaemons",
                 "CodeProvisionerDaemonVersionMismatch",
-                "CodeProvisionerDaemonAPIVersionIncompatible"
+                "CodeProvisionerDaemonAPIMajorVersionDeprecated"
             ]
         },
         "health.Message": {

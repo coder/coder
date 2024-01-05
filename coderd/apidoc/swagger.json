@@ -11823,7 +11823,7 @@
         "CodeDERPOneNodeUnhealthy",
         "CodeProvisionerDaemonsNoProvisionerDaemons",
         "CodeProvisionerDaemonVersionMismatch",
-        "CodeProvisionerDaemonAPIVersionIncompatible"
+        "CodeProvisionerDaemonAPIMajorVersionDeprecated"
       ]
     },
     "health.Message": {
