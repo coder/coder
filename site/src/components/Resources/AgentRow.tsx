@@ -560,11 +560,11 @@ const styles = {
   }),
 
   agentInfo: (theme) => ({
-    padding: 32,
+    padding: "24px 32px",
     display: "flex",
-    flexDirection: "column",
     gap: 16,
-    alignItems: "flex-start",
+    alignItems: "center",
+    justifyContent: "space-between",
     flexWrap: "wrap",
     backgroundColor: theme.palette.background.paper,
 
@@ -587,9 +587,7 @@ const styles = {
   agentButtons: (theme) => ({
     display: "flex",
     gap: 8,
-    justifyContent: "flex-end",
     flexWrap: "wrap",
-    flex: 1,
 
     [theme.breakpoints.down("md")]: {
       marginLeft: 0,
