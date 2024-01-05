@@ -66,7 +66,8 @@ func startPty(cmd *Cmd, opt ...StartOption) (_ PTYCmd, _ Process, retErr error) 
 		return nil, nil, err
 	}
 	// Taken from: https://github.com/microsoft/hcsshim/blob/2314362e977aa03b3ed245a4beb12d00422af0e2/internal/winapi/process.go#L6
-	err = attrs.Update(0x20016, unsafe.Pointer(winPty.console), unsafe.Sizeof(winPty.console))
+	consolePtr := unsafe.Pointer(winPty.console)
+	err = attrs.Update(0x20016, &consolePtr, unsafe.Sizeof(consolePtr))
 	if err != nil {
 		return nil, nil, err
 	}
