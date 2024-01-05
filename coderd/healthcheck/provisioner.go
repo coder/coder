@@ -32,14 +32,16 @@ type ProvisionerDaemonsReportOptions struct {
 	CurrentVersion         string
 	CurrentAPIMajorVersion int
 
-	// ProvisionerDaemonsFn is a function that returns ProvisionerDaemons.
-	// Satisfied by database.Store.ProvisionerDaemons
-	ProvisionerDaemonsFn func(context.Context) ([]database.ProvisionerDaemon, error)
+	Store ProvisionerDaemonsStore
 
 	TimeNowFn     func() time.Time
 	StaleInterval time.Duration
 
 	Dismissed bool
+}
+
+type ProvisionerDaemonsStore interface {
+	GetProvisionerDaemons(ctx context.Context) ([]database.ProvisionerDaemon, error)
 }
 
 func (r *ProvisionerDaemonsReport) Run(ctx context.Context, opts *ProvisionerDaemonsReportOptions) {
@@ -60,18 +62,18 @@ func (r *ProvisionerDaemonsReport) Run(ctx context.Context, opts *ProvisionerDae
 
 	if opts.CurrentAPIMajorVersion == 0 {
 		r.Severity = health.SeverityError
-		r.Error = ptr.Ref("Developer error: CurrentAPIVersion must be non-zero!")
+		r.Error = ptr.Ref("Developer error: CurrentAPIMajorVersion must be non-zero!")
 		return
 	}
 
-	if opts.ProvisionerDaemonsFn == nil {
+	if opts.Store == nil {
 		r.Severity = health.SeverityError
-		r.Error = ptr.Ref("Developer error: ProvisionerDaemonsFn is nil!")
+		r.Error = ptr.Ref("Developer error: Store is nil!")
 		return
 	}
 
 	// nolint: gocritic // need an actor to fetch provisioner daemons
-	daemons, err := opts.ProvisionerDaemonsFn(dbauthz.AsSystemRestricted(ctx))
+	daemons, err := opts.Store.GetProvisionerDaemons(dbauthz.AsSystemRestricted(ctx))
 	if err != nil {
 		r.Severity = health.SeverityError
 		r.Error = ptr.Ref("error fetching provisioner daemons: " + err.Error())

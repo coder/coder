@@ -441,11 +441,11 @@ func New(options *Options) *API {
 					WorkspaceProxiesFetchUpdater: *(options.WorkspaceProxiesFetchUpdater).Load(),
 				},
 				ProvisionerDaemons: healthcheck.ProvisionerDaemonsReportOptions{
-					CurrentVersion:       buildinfo.Version(),
-					CurrentAPIVersion:    provisionersdk.VersionCurrent,
-					ProvisionerDaemonsFn: options.Database.GetProvisionerDaemons,
-					TimeNowFn:            dbtime.Now,
-					StaleInterval:        provisionerdserver.DefaultHeartbeatInterval * 3,
+					CurrentVersion:         buildinfo.Version(),
+					CurrentAPIMajorVersion: provisionersdk.CurrentMajor,
+					Store:                  options.Database,
+					TimeNowFn:              dbtime.Now,
+					StaleInterval:          provisionerdserver.DefaultHeartbeatInterval * 3,
 				},
 			})
 		}
