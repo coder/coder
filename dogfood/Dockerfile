@@ -73,7 +73,7 @@ RUN mkdir --parents "$GOPATH" && \
 	# yq v3 used in v1.
 	go install github.com/mikefarah/yq/v4@v4.30.6 && \
 	mv /tmp/bin/yq /tmp/bin/yq4 && \
-	go install github.com/golang/mock/mockgen@v1.6.0
+	go install go.uber.org/mock/mockgen@v0.4.0
 
 FROM gcr.io/coder-dev-1/alpine:3.18 as proto
 WORKDIR /tmp

@@ -188,7 +188,7 @@ jobs:
           go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.33
           go install golang.org/x/tools/cmd/goimports@latest
           go install github.com/mikefarah/yq/v4@v4.30.6
-          go install github.com/golang/mock/mockgen@v1.6.0
+          go install go.uber.org/mock/mockgen@v0.4.0
 
       - name: Install Protoc
         run: |
@@ -450,7 +450,7 @@ jobs:
           go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.33
           go install golang.org/x/tools/cmd/goimports@latest
           go install github.com/mikefarah/yq/v4@v4.30.6
-          go install github.com/golang/mock/mockgen@v1.6.0
+          go install go.uber.org/mock/mockgen@v0.4.0
 
       - name: Install Protoc
         run: |
@@ -592,7 +592,7 @@ jobs:
           go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.33
           go install golang.org/x/tools/cmd/goimports@latest
           go install github.com/mikefarah/yq/v4@v4.30.6
-          go install github.com/golang/mock/mockgen@v1.6.0
+          go install go.uber.org/mock/mockgen@v0.4.0
 
       - name: Setup sqlc
         uses: ./.github/actions/setup-sqlc
