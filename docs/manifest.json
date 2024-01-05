@@ -1039,6 +1039,11 @@
           "title": "Configuring Okta",
           "description": "Custom claims/scopes with Okta for group/role sync",
           "path": "./guides/configuring-okta.md"
+        },
+        {
+          "title": "Google to AWS Federation",
+          "description": "Federating a Google Cloud service account to AWS",
+          "path": "./guides/gcp-to-aws.md"
         }
       ]
     }
