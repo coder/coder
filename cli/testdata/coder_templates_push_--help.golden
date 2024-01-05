@@ -3,7 +3,7 @@ coder v0.0.0-devel
 USAGE:
   coder templates push [flags] [template]
 
-  Push a new template version from the current directory or as specified by flag
+  Create or update a template from the current directory or as specified by flag
 
 OPTIONS:
       --activate bool (default: true)
