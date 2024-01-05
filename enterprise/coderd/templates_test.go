@@ -811,17 +811,18 @@ func TestTemplateACL(t *testing.T) {
 	t.Run("DisableEveryoneGroupAccess", func(t *testing.T) {
 		t.Parallel()
 
-		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+		client, admin := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		}})
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
+		//nolint:gocritic // non-template-admin cannot get template acl
 		acl, err := client.TemplateACL(ctx, template.ID)
 		require.NoError(t, err)
 		require.Equal(t, 1, len(acl.Groups))
