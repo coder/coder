@@ -6373,6 +6373,7 @@ func (q *FakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 		tpl.DisplayName = arg.DisplayName
 		tpl.Description = arg.Description
 		tpl.Icon = arg.Icon
+		tpl.GroupACL = arg.GroupACL
 		q.templates[idx] = tpl
 		return nil
 	}
