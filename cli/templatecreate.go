@@ -39,18 +39,13 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 		Short: "Create a template from the current directory or as specified by flag",
 		Middleware: clibase.Chain(
 			clibase.RequireRangeArgs(0, 1),
+			cliui.DeprecationWarning(
+				"Use `coder templates push` command for creating and updating templates. "+
+					"Use `coder templates edit` command for editing template settings. ",
+			),
 			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
-			_, _ = fmt.Fprintln(inv.Stdout, "\n"+pretty.Sprint(cliui.DefaultStyles.Wrap,
-				pretty.Sprint(
-					cliui.DefaultStyles.Warn,
-					"DEPRECATION WARNING: Use `coder templates push` command for creating and updating templates. "+
-						"Use `coder templates edit` command for editing template settings. "+
-						"This command will be removed in a future release. \n"+
-						"Waiting 1 second...\n")))
-			time.Sleep(1 * time.Second)
-
 			isTemplateSchedulingOptionsSet := failureTTL != 0 || dormancyThreshold != 0 || dormancyAutoDeletion != 0 || maxTTL != 0
 
 			if isTemplateSchedulingOptionsSet || requireActiveVersion {
