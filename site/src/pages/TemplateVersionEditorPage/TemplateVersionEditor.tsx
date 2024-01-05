@@ -52,6 +52,7 @@ import {
   TopbarDivider,
   TopbarIconButton,
 } from "components/FullPageLayout/Topbar";
+import { Sidebar } from "components/FullPageLayout/Sidebar";
 
 type Tab = "logs" | "resources" | undefined; // Undefined is to hide the tab
 
@@ -301,13 +302,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
             </div>
           )}
 
-          <div
-            css={{
-              width: 240,
-              borderRight: `1px solid ${theme.palette.divider}`,
-              flexShrink: 0,
-            }}
-          >
+          <Sidebar>
             <div
               css={{
                 height: 42,
@@ -409,7 +404,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               onRename={(file) => setRenameFileOpen(file)}
               activePath={activePath}
             />
-          </div>
+          </Sidebar>
 
           <div
             css={{
