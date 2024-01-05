@@ -113,8 +113,12 @@ export function parseImageParameters(
 
 export function getExternalImageStylesFromUrl(
   modes: ExternalImageModeStyles,
-  urlString: string,
+  urlString?: string,
 ) {
+  if (!urlString) {
+    return undefined;
+  }
+
   const url = new URL(urlString, location.origin);
 
   if (url.search) {

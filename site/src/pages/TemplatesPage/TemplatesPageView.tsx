@@ -39,12 +39,13 @@ import { EmptyTemplates } from "./EmptyTemplates";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import type { Template, TemplateExample } from "api/typesGenerated";
 import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined";
-import { Avatar } from "components/Avatar/Avatar";
+import { ExternalAvatar } from "components/Avatar/Avatar";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { docs } from "utils/docs";
 import Skeleton from "@mui/material/Skeleton";
 import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
 import { DeprecatedBadge } from "components/Badges/Badges";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
 
 export const Language = {
   developerCount: (activeCount: number): string => {
@@ -108,7 +109,11 @@ const TemplateRow: FC<TemplateRowProps> = ({ template }) => {
           }
           subtitle={template.description}
           avatar={
-            hasIcon && <Avatar src={template.icon} variant="square" fitImage />
+            hasIcon && (
+              <ExternalAvatar variant="square" fitImage>
+                <ExternalImage src={template.icon} css={{ maxWidth: "100%" }} />
+              </ExternalAvatar>
+            )
           }
         />
       </TableCell>

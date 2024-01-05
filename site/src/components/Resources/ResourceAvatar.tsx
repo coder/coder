@@ -1,6 +1,8 @@
-import { type FC } from "react";
+import { type FC, useId } from "react";
+import { visuallyHidden } from "@mui/utils";
 import type { WorkspaceResource } from "api/typesGenerated";
 import { Avatar, AvatarIcon } from "components/Avatar/Avatar";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
 
 const FALLBACK_ICON = "/icon/widgets.svg";
 
@@ -27,10 +29,18 @@ export type ResourceAvatarProps = { resource: WorkspaceResource };
 
 export const ResourceAvatar: FC<ResourceAvatarProps> = ({ resource }) => {
   const avatarSrc = resource.icon || getIconPathResource(resource.type);
+  const altId = useId();
 
   return (
     <Avatar background>
-      <AvatarIcon src={avatarSrc} alt={resource.name} />
+      <ExternalImage
+        src={avatarSrc}
+        css={{ maxWidth: "50%" }}
+        aria-labelledby={altId}
+      />
+      <div id={altId} css={{ ...visuallyHidden }}>
+        {resource.name}
+      </div>
     </Avatar>
   );
 };

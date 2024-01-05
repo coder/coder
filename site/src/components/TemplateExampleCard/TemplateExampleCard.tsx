@@ -1,17 +1,22 @@
+import { type Interpolation, type Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import type { TemplateExample } from "api/typesGenerated";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Pill } from "components/Pill/Pill";
-import { HTMLProps } from "react";
+import { type FC, type HTMLAttributes } from "react";
 import { Link as RouterLink } from "react-router-dom";
 
-type TemplateExampleCardProps = {
+type TemplateExampleCardProps = HTMLAttributes<HTMLDivElement> & {
   example: TemplateExample;
   activeTag?: string;
-} & HTMLProps<HTMLDivElement>;
+};
 
-export const TemplateExampleCard = (props: TemplateExampleCardProps) => {
-  const { example, activeTag, ...divProps } = props;
+export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
+  example,
+  activeTag,
+  ...divProps
+}) => {
   return (
     <div
       css={(theme) => ({
@@ -43,14 +48,20 @@ export const TemplateExampleCard = (props: TemplateExampleCardProps) => {
             height: 32,
           }}
         >
-          <img
+          <ExternalImage
             src={example.icon}
-            alt=""
             css={{ width: "100%", height: "100%", objectFit: "contain" }}
           />
         </div>
 
-        <div css={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        <div
+          css={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 8,
+            justifyContent: "end",
+          }}
+        >
           {example.tags.map((tag) => {
             const isActive = activeTag === tag;
 
@@ -122,3 +133,5 @@ export const TemplateExampleCard = (props: TemplateExampleCardProps) => {
     </div>
   );
 };
+
+const styles = {} satisfies Record<string, Interpolation<Theme>>;
