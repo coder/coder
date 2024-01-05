@@ -43,10 +43,6 @@ updates:
       - dependency-name: "*"
         update-types:
           - version-update:semver-patch
-    groups:
-      go:
-        patterns:
-          - "*"
 
   # Update our Dockerfile.
   - package-ecosystem: "docker"
