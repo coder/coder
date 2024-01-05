@@ -26,12 +26,12 @@ Specifies whether all workspaces will be listed or not.
 
 ### -c, --column
 
-|         |                                                                                          |
-| ------- | ---------------------------------------------------------------------------------------- |
-| Type    | <code>string-array</code>                                                                |
-| Default | <code>workspace,template,status,healthy,last built,outdated,starts at,stops after</code> |
+|         |                                                                                                          |
+| ------- | -------------------------------------------------------------------------------------------------------- |
+| Type    | <code>string-array</code>                                                                                |
+| Default | <code>workspace,template,status,healthy,last built,current version,outdated,starts at,stops after</code> |
 
-Columns to display in table output. Available columns: workspace, template, status, healthy, last built, outdated, starts at, starts next, stops after, stops next, daily cost.
+Columns to display in table output. Available columns: workspace, template, status, healthy, last built, current version, outdated, starts at, starts next, stops after, stops next, daily cost.
 
 ### -o, --output
 
