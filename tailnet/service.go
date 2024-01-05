@@ -25,10 +25,7 @@ const (
 	CurrentMinor = 0
 )
 
-var (
-	SupportedMajors = []int{2, 1}
-	CurrentVersion  = apiversion.New(SupportedMajors, CurrentMinor)
-)
+var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor).WithBackwardCompat(1)
 
 type streamIDContextKey struct{}
 

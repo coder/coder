@@ -1,47 +1,63 @@
 package apiversion
 
 import (
-	"slices"
 	"strconv"
 	"strings"
 
 	"golang.org/x/xerrors"
 )
 
-func New(maj []int, min int) *APIVersion {
+// New returns an *APIVersion with the given major.minor and
+// additional supported major versions.
+func New(maj, min int) *APIVersion {
 	v := &APIVersion{
-		supportedMajors: maj,
-		supportedMinor:  min,
+		supportedMajor:   maj,
+		supportedMinor:   min,
+		additionalMajors: make([]int, 0),
 	}
 	return v
 }
 
 type APIVersion struct {
-	supportedMajors []int
-	supportedMinor  int
+	supportedMajor   int
+	supportedMinor   int
+	additionalMajors []int
 }
 
+func (v *APIVersion) WithBackwardCompat(majs ...int) *APIVersion {
+	v.additionalMajors = append(v.additionalMajors, majs[:]...)
+	return v
+}
+
+// Validate validates the given version against the given constraints:
+// A given major.minor version is valid iff:
+//  1. The requested major version is contained within v.supportedMajors
+//  2. If the requested major version is the 'current major', then
+//     the requested minor version must be less than or equal to the supported
+//     minor version.
+//
+// For example, given majors {1, 2} and minor 2, then:
+// - 0.x is not supported,
+// - 1.x is supported,
+// - 2.0, 2.1, and 2.2 are supported,
+// - 2.3+ is not supported.
 func (v *APIVersion) Validate(version string) error {
-	if len(v.supportedMajors) == 0 {
-		return xerrors.Errorf("developer error: SupportedMajors is empty")
-	}
-	currentMajor := slices.Max(v.supportedMajors)
 	major, minor, err := Parse(version)
 	if err != nil {
 		return err
 	}
-	if major > currentMajor {
+	if major > v.supportedMajor {
 		return xerrors.Errorf("server is at version %d.%d, behind requested major version %s",
-			currentMajor, v.supportedMinor, version)
+			v.supportedMajor, v.supportedMinor, version)
 	}
-	if major == currentMajor {
+	if major == v.supportedMajor {
 		if minor > v.supportedMinor {
 			return xerrors.Errorf("server is at version %d.%d, behind requested minor version %s",
-				currentMajor, v.supportedMinor, version)
+				v.supportedMajor, v.supportedMinor, version)
 		}
 		return nil
 	}
-	for _, mjr := range v.supportedMajors {
+	for _, mjr := range v.additionalMajors {
 		if major == mjr {
 			return nil
 		}

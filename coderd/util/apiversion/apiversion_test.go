@@ -9,10 +9,11 @@ import (
 )
 
 func TestAPIVersionValidate(t *testing.T) {
-	// Given
-	v := apiversion.New([]int{2, 1}, 0)
-
 	t.Parallel()
+
+	// Given
+	v := apiversion.New(2, 1).WithBackwardCompat(1)
+
 	for _, tc := range []struct {
 		name          string
 		version       string
@@ -20,25 +21,25 @@ func TestAPIVersionValidate(t *testing.T) {
 	}{
 		{
 			name:    "OK",
+			version: "2.1",
+		},
+		{
+			name:    "MinorOK",
 			version: "2.0",
 		},
 		{
+			name:    "MajorOK",
+			version: "1.0",
+		},
+		{
 			name:          "TooNewMinor",
-			version:       "2.1",
+			version:       "2.2",
 			expectedError: "behind requested minor version",
 		},
 		{
 			name:          "TooNewMajor",
 			version:       "3.1",
 			expectedError: "behind requested major version",
-		},
-		{
-			name:    "1.0",
-			version: "1.0",
-		},
-		{
-			name:    "2.0",
-			version: "2.0",
 		},
 		{
 			name:          "Malformed0",
@@ -74,7 +75,11 @@ func TestAPIVersionValidate(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+
+			// When
 			err := v.Validate(tc.version)
+
+			// Then
 			if tc.expectedError == "" {
 				require.NoError(t, err)
 			} else {
