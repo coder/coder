@@ -101,7 +101,7 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
   );
 
   return (
-    <Topbar>
+    <Topbar css={{ gridArea: "topbar" }}>
       <Tooltip title="Back to workspaces">
         <TopbarIconButton component={RouterLink} to="/workspaces">
           <ArrowBackOutlined />

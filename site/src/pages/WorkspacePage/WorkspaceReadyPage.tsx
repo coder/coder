@@ -41,22 +41,12 @@ interface WorkspaceReadyPageProps {
   template: TypesGen.Template;
   workspace: TypesGen.Workspace;
   permissions: WorkspacePermissions;
-  builds: TypesGen.WorkspaceBuild[] | undefined;
-  buildsError: unknown;
-  onLoadMoreBuilds: () => void;
-  isLoadingMoreBuilds: boolean;
-  hasMoreBuilds: boolean;
 }
 
 export const WorkspaceReadyPage = ({
   workspace,
   template,
   permissions,
-  builds,
-  buildsError,
-  onLoadMoreBuilds,
-  isLoadingMoreBuilds,
-  hasMoreBuilds,
 }: WorkspaceReadyPageProps): JSX.Element => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -235,17 +225,12 @@ export const WorkspaceReadyPage = ({
           }
         }}
         resources={workspace.latest_build.resources}
-        builds={builds}
-        onLoadMoreBuilds={onLoadMoreBuilds}
-        isLoadingMoreBuilds={isLoadingMoreBuilds}
-        hasMoreBuilds={hasMoreBuilds}
         canUpdateWorkspace={canUpdateWorkspace}
         updateMessage={latestVersion?.message}
         canChangeVersions={canChangeVersions}
         hideSSHButton={featureVisibility["browser_only"]}
         hideVSCodeDesktopButton={featureVisibility["browser_only"]}
         workspaceErrors={{
-          getBuildsError: buildsError,
           buildError:
             restartBuildError ??
             startWorkspaceMutation.error ??
