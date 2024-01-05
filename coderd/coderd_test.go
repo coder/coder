@@ -358,7 +358,7 @@ func TestCSRFExempt(t *testing.T) {
 			}).
 			Do()
 
-		u := fmt.Sprintf(client.URL.JoinPath(fmt.Sprintf("/@%s/%s.%s/apps/%s", owner.Username, wrk.Workspace.Name, agentSlug, appSlug)).String())
+		u := client.URL.JoinPath(fmt.Sprintf("/@%s/%s.%s/apps/%s", owner.Username, wrk.Workspace.Name, agentSlug, appSlug)).String()
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, u, nil)
 		req.AddCookie(&http.Cookie{
 			Name:   codersdk.SessionTokenCookie,
@@ -371,6 +371,7 @@ func TestCSRFExempt(t *testing.T) {
 		resp, err := client.HTTPClient.Do(req)
 		require.NoError(t, err)
 		data, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
 
 		// A StatusBadGateway means Coderd tried to proxy to the agent and failed because the agent
 		// was not there. This means CSRF did not block the app request, which is what we want.
