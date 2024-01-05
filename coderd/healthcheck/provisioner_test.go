@@ -92,7 +92,7 @@ func TestProvisionerDaemonReport(t *testing.T) {
 		{
 			name:              "api version backward compat",
 			currentVersion:    "v2.3.4",
-			currentAPIVersion: apiversion.New([]int{2, 1}, 0),
+			currentAPIVersion: apiversion.New(2, 0).WithBackwardCompat(1),
 			expectedSeverity:  health.SeverityOK,
 			provisionerDaemonsFn: fakeProvisionerDaemonsFn(
 				fakeProvisionerDaemon(t, "pd-old-api", "v2.3.4", "1.0")),
