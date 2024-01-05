@@ -141,7 +141,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@v1.16.26
+        uses: crate-ci/typos@v1.17.0
         with:
           config: .github/workflows/typos.toml
 
@@ -221,7 +221,7 @@ jobs:
         uses: ./.github/actions/setup-node
 
       - name: Setup Go
-        uses: buildjet/setup-go@v4
+        uses: buildjet/setup-go@v5
         with:
           # This doesn't need caching. It's super fast anyways!
           cache: false
