@@ -121,23 +121,23 @@ func TestProvisionerDaemonReport(t *testing.T) {
 			t.Parallel()
 
 			var rpt healthcheck.ProvisionerDaemonsReport
-			var opts healthcheck.ProvisionerDaemonsReportOptions
-			opts.CurrentVersion = tt.currentVersion
-			opts.CurrentAPIMajorVersion = tt.currentAPIMajorVersion
+			var deps healthcheck.ProvisionerDaemonsReportDeps
+			deps.CurrentVersion = tt.currentVersion
+			deps.CurrentAPIMajorVersion = tt.currentAPIMajorVersion
 			if tt.currentAPIMajorVersion == 0 {
-				opts.CurrentAPIMajorVersion = provisionersdk.CurrentMajor
+				deps.CurrentAPIMajorVersion = provisionersdk.CurrentMajor
 			}
 			now := dbtime.Now()
-			opts.TimeNowFn = func() time.Time {
+			deps.TimeNowFn = func() time.Time {
 				return now
 			}
 
 			ctrl := gomock.NewController(t)
 			mDB := dbmock.NewMockStore(ctrl)
 			mDB.EXPECT().GetProvisionerDaemons(gomock.Any()).AnyTimes().Return(tt.provisionerDaemons, tt.provisionerDaemonsErr)
-			opts.Store = mDB
+			deps.Store = mDB
 
-			rpt.Run(context.Background(), &opts)
+			rpt.Run(context.Background(), &deps)
 
 			assert.Equal(t, tt.expectedSeverity, rpt.Severity)
 			if tt.expectedWarningCode != "" && assert.NotEmpty(t, rpt.Warnings) {

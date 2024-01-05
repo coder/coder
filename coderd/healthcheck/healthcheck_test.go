@@ -41,7 +41,7 @@ func (c *testChecker) WorkspaceProxy(context.Context, *healthcheck.WorkspaceProx
 	return c.WorkspaceProxyReport
 }
 
-func (c *testChecker) ProvisionerDaemons(context.Context, *healthcheck.ProvisionerDaemonsReportOptions) healthcheck.ProvisionerDaemonsReport {
+func (c *testChecker) ProvisionerDaemons(context.Context, *healthcheck.ProvisionerDaemonsReportDeps) healthcheck.ProvisionerDaemonsReport {
 	return c.ProvisionerDaemonsReport
 }
 

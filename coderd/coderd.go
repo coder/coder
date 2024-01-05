@@ -440,7 +440,7 @@ func New(options *Options) *API {
 					CurrentVersion:               buildinfo.Version(),
 					WorkspaceProxiesFetchUpdater: *(options.WorkspaceProxiesFetchUpdater).Load(),
 				},
-				ProvisionerDaemons: healthcheck.ProvisionerDaemonsReportOptions{
+				ProvisionerDaemons: healthcheck.ProvisionerDaemonsReportDeps{
 					CurrentVersion:         buildinfo.Version(),
 					CurrentAPIMajorVersion: provisionersdk.CurrentMajor,
 					Store:                  options.Database,

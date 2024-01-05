@@ -28,7 +28,7 @@ type ProvisionerDaemonsReport struct {
 	ProvisionerDaemons []codersdk.ProvisionerDaemon `json:"provisioner_daemons"`
 }
 
-type ProvisionerDaemonsReportOptions struct {
+type ProvisionerDaemonsReportDeps struct {
 	CurrentVersion         string
 	CurrentAPIMajorVersion int
 
@@ -44,7 +44,7 @@ type ProvisionerDaemonsStore interface {
 	GetProvisionerDaemons(ctx context.Context) ([]database.ProvisionerDaemon, error)
 }
 
-func (r *ProvisionerDaemonsReport) Run(ctx context.Context, opts *ProvisionerDaemonsReportOptions) {
+func (r *ProvisionerDaemonsReport) Run(ctx context.Context, opts *ProvisionerDaemonsReportDeps) {
 	r.ProvisionerDaemons = make([]codersdk.ProvisionerDaemon, 0)
 	r.Severity = health.SeverityOK
 	r.Warnings = make([]health.Message, 0)

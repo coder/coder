@@ -18,7 +18,7 @@ type Checker interface {
 	Websocket(ctx context.Context, opts *WebsocketReportOptions) WebsocketReport
 	Database(ctx context.Context, opts *DatabaseReportOptions) DatabaseReport
 	WorkspaceProxy(ctx context.Context, opts *WorkspaceProxyReportOptions) WorkspaceProxyReport
-	ProvisionerDaemons(ctx context.Context, opts *ProvisionerDaemonsReportOptions) ProvisionerDaemonsReport
+	ProvisionerDaemons(ctx context.Context, opts *ProvisionerDaemonsReportDeps) ProvisionerDaemonsReport
 }
 
 // @typescript-generate Report
@@ -50,7 +50,7 @@ type ReportOptions struct {
 	DerpHealth         derphealth.ReportOptions
 	Websocket          WebsocketReportOptions
 	WorkspaceProxy     WorkspaceProxyReportOptions
-	ProvisionerDaemons ProvisionerDaemonsReportOptions
+	ProvisionerDaemons ProvisionerDaemonsReportDeps
 
 	Checker Checker
 }
@@ -82,7 +82,7 @@ func (defaultChecker) WorkspaceProxy(ctx context.Context, opts *WorkspaceProxyRe
 	return report
 }
 
-func (defaultChecker) ProvisionerDaemons(ctx context.Context, opts *ProvisionerDaemonsReportOptions) (report ProvisionerDaemonsReport) {
+func (defaultChecker) ProvisionerDaemons(ctx context.Context, opts *ProvisionerDaemonsReportDeps) (report ProvisionerDaemonsReport) {
 	report.Run(ctx, opts)
 	return report
 }
