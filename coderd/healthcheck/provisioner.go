@@ -10,6 +10,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/util/apiversion"
@@ -29,13 +30,14 @@ type ProvisionerDaemonsReport struct {
 }
 
 type ProvisionerDaemonsReportDeps struct {
+	// Required
 	CurrentVersion         string
 	CurrentAPIMajorVersion int
+	Store                  ProvisionerDaemonsStore
 
-	Store ProvisionerDaemonsStore
-
-	TimeNowFn     func() time.Time
-	StaleInterval time.Duration
+	// Optional
+	TimeNowFn     func() time.Time // Defaults to dbtime.Now
+	StaleInterval time.Duration    // Defaults to 3 heartbeats
 
 	Dismissed bool
 }
@@ -49,7 +51,12 @@ func (r *ProvisionerDaemonsReport) Run(ctx context.Context, opts *ProvisionerDae
 	r.Severity = health.SeverityOK
 	r.Warnings = make([]health.Message, 0)
 	r.Dismissed = opts.Dismissed
+
+	if opts.TimeNowFn == nil {
+		opts.TimeNowFn = dbtime.Now
+	}
 	now := opts.TimeNowFn()
+
 	if opts.StaleInterval == 0 {
 		opts.StaleInterval = provisionerdserver.DefaultHeartbeatInterval * 3
 	}
@@ -79,17 +86,6 @@ func (r *ProvisionerDaemonsReport) Run(ctx context.Context, opts *ProvisionerDae
 		r.Error = ptr.Ref("error fetching provisioner daemons: " + err.Error())
 		return
 	}
-
-	for _, daemon := range daemons {
-		r.ProvisionerDaemons = append(r.ProvisionerDaemons, db2sdk.ProvisionerDaemon(daemon))
-	}
-
-	if len(r.ProvisionerDaemons) == 0 {
-		r.Severity = health.SeverityError
-		r.Error = ptr.Ref("No provisioner daemons found!")
-		return
-	}
-
 	for _, daemon := range daemons {
 		// Daemon never connected, skip.
 		if !daemon.LastSeenAt.Valid {
@@ -99,6 +95,9 @@ func (r *ProvisionerDaemonsReport) Run(ctx context.Context, opts *ProvisionerDae
 		if now.Sub(daemon.LastSeenAt.Time) > (opts.StaleInterval) {
 			continue
 		}
+
+		r.ProvisionerDaemons = append(r.ProvisionerDaemons, db2sdk.ProvisionerDaemon(daemon))
+
 		// For release versions, just check MAJOR.MINOR and ignore patch.
 		if !semver.IsValid(daemon.Version) {
 			if r.Severity.Value() < health.SeverityError.Value() {
@@ -127,5 +126,11 @@ func (r *ProvisionerDaemonsReport) Run(ctx context.Context, opts *ProvisionerDae
 			}
 			r.Warnings = append(r.Warnings, health.Messagef(health.CodeProvisionerDaemonAPIMajorVersionDeprecated, "Provisioner daemon %q reports deprecated major API version %d. Consider upgrading!", daemon.Name, provisionersdk.CurrentMajor))
 		}
+	}
+
+	if len(r.ProvisionerDaemons) == 0 {
+		r.Severity = health.SeverityError
+		r.Error = ptr.Ref("No active provisioner daemons found!")
+		return
 	}
 }
