@@ -75,7 +75,7 @@ jobs:
 
       - name: "Push template"
         run: |
-          ./coder templates push $CODER_TEMPLATE_NAME --directory $CODER_TEMPLATE_DIR --yes --name=$CODER_TEMPLATE_VERSION --message="$CODER_TEMPLATE_MESSAGE"
+          ./coder templates push $CODER_TEMPLATE_NAME --directory $CODER_TEMPLATE_DIR --yes --name=$CODER_TEMPLATE_VERSION --message="$CODER_TEMPLATE_MESSAGE" --variable jfrog_url=${{ secrets.JFROG_URL }}
         env:
           # Consumed by Coder CLI
           CODER_URL: https://dev.coder.com
