@@ -296,6 +296,9 @@ jobs:
           gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" \
             --packages="./..." -- $PARALLEL_FLAG -short -failfast $COVERAGE_FLAGS
 
+      - name: Go Vet
+        run: go vet ./...
+
       - name: Upload test stats to Datadog
         timeout-minutes: 1
         continue-on-error: true
