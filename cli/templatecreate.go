@@ -40,7 +40,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 		Middleware: clibase.Chain(
 			clibase.RequireRangeArgs(0, 1),
 			cliui.DeprecationWarning(
-				"Use `coder templates push` command for creating and updating templates. "+
+				"Use `coder templates push` command for creating and updating templates. \n"+
 					"Use `coder templates edit` command for editing template settings. ",
 			),
 			r.InitClient(client),
