@@ -122,22 +122,20 @@ require (
 	github.com/gofrs/flock v0.8.1
 	github.com/gohugoio/hugo v0.120.3
 	github.com/golang-jwt/jwt/v4 v4.5.0
-	github.com/golang-migrate/migrate/v4 v4.16.0
-	github.com/golang/mock v1.6.0
+	github.com/golang-migrate/migrate/v4 v4.17.0
 	github.com/google/go-cmp v0.6.0
 	github.com/google/go-github/v43 v43.0.1-0.20220414155304-00e42332e405
 	github.com/google/uuid v1.4.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-reap v0.0.0-20170704170343-bf58d8a43e7b
 	github.com/hashicorp/go-version v1.6.0
-	github.com/hashicorp/golang-lru/v2 v2.0.3
 	github.com/hashicorp/hc-install v0.6.0
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20211115214459-90acf1ca460f
 	github.com/hashicorp/terraform-json v0.18.0
 	github.com/hashicorp/yamux v0.1.1
 	github.com/hinshun/vt10x v0.0.0-20220301184237-5011da428d02
 	github.com/imulab/go-scim/pkg/v2 v2.2.0
-	github.com/jedib0t/go-pretty/v6 v6.4.0
+	github.com/jedib0t/go-pretty/v6 v6.5.0
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/justinas/nosurf v1.1.1
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
@@ -187,7 +185,7 @@ require (
 	golang.org/x/mod v0.14.0
 	golang.org/x/net v0.19.0
 	golang.org/x/oauth2 v0.14.0
-	golang.org/x/sync v0.5.0
+	golang.org/x/sync v0.6.0
 	golang.org/x/sys v0.15.0
 	golang.org/x/term v0.15.0
 	golang.org/x/text v0.14.0
@@ -206,10 +204,12 @@ require (
 	tailscale.com v1.46.1
 )
 
+require go.uber.org/mock v0.4.0
+
 require (
-	cloud.google.com/go/compute v1.23.1 // indirect
+	cloud.google.com/go/compute v1.23.3 // indirect
 	cloud.google.com/go/logging v1.8.1 // indirect
-	cloud.google.com/go/longrunning v0.5.2 // indirect
+	cloud.google.com/go/longrunning v0.5.4 // indirect
 	filippo.io/edwards25519 v1.0.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect
 	github.com/DataDog/appsec-internal-go v1.0.0 // indirect

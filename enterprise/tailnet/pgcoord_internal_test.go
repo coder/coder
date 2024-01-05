@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	gProto "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog"
