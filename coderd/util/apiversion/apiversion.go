@@ -65,6 +65,8 @@ func (v *APIVersion) Validate(version string) error {
 	return xerrors.Errorf("version %s is no longer supported", version)
 }
 
+// Parse parses a valid major.minor version string into (major, minor).
+// Both major and minor must be valid integers separated by a period '.'.
 func Parse(version string) (major int, minor int, err error) {
 	parts := strings.Split(version, ".")
 	if len(parts) != 2 {
