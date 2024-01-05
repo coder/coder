@@ -26,12 +26,10 @@ const (
 	CurrentMinor = 0
 )
 
-var (
-	// VersionCurrent is the current provisionerd API version.
-	// Breaking changes to the provisionerd API **MUST** increment
-	// CurrentMajor above.
-	VersionCurrent = apiversion.New(CurrentMajor, CurrentMinor)
-)
+// VersionCurrent is the current provisionerd API version.
+// Breaking changes to the provisionerd API **MUST** increment
+// CurrentMajor above.
+var VersionCurrent = apiversion.New(CurrentMajor, CurrentMinor)
 
 // ServeOptions are configurations to serve a provisioner.
 type ServeOptions struct {
