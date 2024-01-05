@@ -708,6 +708,10 @@ test:
 	gotestsum --format standard-quiet -- -v -short -count=1 ./...
 .PHONY: test
 
+vet:
+	go vet ./...
+.PHONY: vet
+
 # sqlc-cloud-is-setup will fail if no SQLc auth token is set. Use this as a
 # dependency for any sqlc-cloud related targets.
 sqlc-cloud-is-setup:
