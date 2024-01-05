@@ -57,32 +57,38 @@ type ReportOptions struct {
 
 type defaultChecker struct{}
 
-func (defaultChecker) DERP(ctx context.Context, opts *derphealth.ReportOptions) (report derphealth.Report) {
+func (defaultChecker) DERP(ctx context.Context, opts *derphealth.ReportOptions) derphealth.Report {
+	var report derphealth.Report
 	report.Run(ctx, opts)
 	return report
 }
 
-func (defaultChecker) AccessURL(ctx context.Context, opts *AccessURLReportOptions) (report AccessURLReport) {
+func (defaultChecker) AccessURL(ctx context.Context, opts *AccessURLReportOptions) AccessURLReport {
+	var report AccessURLReport
 	report.Run(ctx, opts)
 	return report
 }
 
-func (defaultChecker) Websocket(ctx context.Context, opts *WebsocketReportOptions) (report WebsocketReport) {
+func (defaultChecker) Websocket(ctx context.Context, opts *WebsocketReportOptions) WebsocketReport {
+	var report WebsocketReport
 	report.Run(ctx, opts)
 	return report
 }
 
-func (defaultChecker) Database(ctx context.Context, opts *DatabaseReportOptions) (report DatabaseReport) {
+func (defaultChecker) Database(ctx context.Context, opts *DatabaseReportOptions) DatabaseReport {
+	var report DatabaseReport
 	report.Run(ctx, opts)
 	return report
 }
 
-func (defaultChecker) WorkspaceProxy(ctx context.Context, opts *WorkspaceProxyReportOptions) (report WorkspaceProxyReport) {
+func (defaultChecker) WorkspaceProxy(ctx context.Context, opts *WorkspaceProxyReportOptions) WorkspaceProxyReport {
+	var report WorkspaceProxyReport
 	report.Run(ctx, opts)
 	return report
 }
 
-func (defaultChecker) ProvisionerDaemons(ctx context.Context, opts *ProvisionerDaemonsReportDeps) (report ProvisionerDaemonsReport) {
+func (defaultChecker) ProvisionerDaemons(ctx context.Context, opts *ProvisionerDaemonsReportDeps) ProvisionerDaemonsReport {
+	var report ProvisionerDaemonsReport
 	report.Run(ctx, opts)
 	return report
 }
