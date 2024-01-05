@@ -321,6 +321,12 @@ func TestSwagger(t *testing.T) {
 }
 
 func TestCSRFExempt(t *testing.T) {
+	t.Parallel()
+
+	// This test build a workspace with an agent and an app. The app is not
+	// a real http server, so it will fail to serve requests. We just want
+	// to make sure the failure is not a CSRF failure, as path based
+	// apps should be exempt.
 	t.Run("PathBasedApp", func(t *testing.T) {
 		t.Parallel()
 
