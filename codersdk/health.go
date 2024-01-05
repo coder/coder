@@ -26,6 +26,7 @@ var HealthSections = []HealthSection{
 	HealthSectionWebsocket,
 	HealthSectionDatabase,
 	HealthSectionWorkspaceProxy,
+	HealthSectionProvisionerDaemons,
 }
 
 type HealthSettings struct {

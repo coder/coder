@@ -234,6 +234,9 @@ const WebsocketPage = lazy(() => import("./pages/HealthPage/WebsocketPage"));
 const WorkspaceProxyHealthPage = lazy(
   () => import("./pages/HealthPage/WorkspaceProxyPage"),
 );
+const ProvisionerDaemonsHealthPage = lazy(
+  () => import("./pages/HealthPage/ProvisionerDaemonsPage"),
+);
 
 export const AppRouter: FC = () => {
   return (
@@ -399,6 +402,10 @@ export const AppRouter: FC = () => {
                 <Route
                   path="workspace-proxy"
                   element={<WorkspaceProxyHealthPage />}
+                />
+                <Route
+                  path="provisioner-daemons"
+                  element={<ProvisionerDaemonsHealthPage />}
                 />
               </Route>
               {/* Using path="*"" means "match anything", so this route
