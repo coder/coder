@@ -23,6 +23,9 @@ func CSRF(secureCookie bool) func(next http.Handler) http.Handler {
 		// All GET requests are exempt by default.
 		mw.ExemptPath("/api/v2/csp/reports")
 
+		// This should not be required?
+		mw.ExemptRegexp(regexp.MustCompile("/api/v2/users/first"))
+
 		// Agent authenticated routes
 		mw.ExemptRegexp(regexp.MustCompile("api/v2/workspaceagents/me/*"))
 		mw.ExemptRegexp(regexp.MustCompile("api/v2/workspaceagents/*"))
