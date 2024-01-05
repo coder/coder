@@ -10,19 +10,19 @@ the relevant service account assigned.
 
 ## 1. Get your Google service account OAuth Client ID
 
-> (Optional): If you do not yet have a service account,
-> [here is the Google IAM documentation on creating a service account](https://cloud.google.com/iam/docs/service-accounts-create).
-
 Navigate to the Google Cloud console, and select **IAM & Admin** > **Service
 Accounts**. View the service account you want to use, and copy the **OAuth 2
 Client ID** value shown on the right-hand side of the row.
 
-## 1. Create AWS role
+> (Optional): If you do not yet have a service account,
+> [here is the Google IAM documentation on creating a service account](https://cloud.google.com/iam/docs/service-accounts-create).
+
+## 2. Create AWS role
 
 Create an AWS role that is configured for Web Identity Federation, with Google
 as the identity provider, as shown below:
 
-![AWS Create Role](../images/guides/aws-create-role.png)
+![AWS Create Role](../images/guides/gcp-to-aws/aws-create-role.png)
 
 Once created, edit the **Trust Relationship** section to look like the
 following:
@@ -47,7 +47,7 @@ following:
 }
 ```
 
-## 1. Assign permissions to the AWS role
+## 3. Assign permissions to the AWS role
 
 In this example, Coder will need permissions to create the EC2 instance. Add the
 following policy to the role:
@@ -101,7 +101,7 @@ following policy to the role:
 }
 ```
 
-## 1. Generate the identity token for the service account
+## 4. Generate the identity token for the service account
 
 Run the following `gcloud` command to generate the service account identity
 token. This is a JWT token with a payload that includes the service account
@@ -115,7 +115,7 @@ veloper.gserviceaccount.com  --include-email
 > Note: Your `gcloud` client may needed elevated permissions to run this
 > command.
 
-## 1. Set identity token in Coder control plane
+## 5. Set identity token in Coder control plane
 
 You will need to set the token created in the previous step on a location in the
 Coder control plane. Follow the below steps for your specific deployment type:
@@ -143,17 +143,18 @@ running.
 - Mount the token file into the Coder pod using the values below:
 
 ```yaml
-volumes:
-  - name: "gcp-identity-mount"
-    secret:
-      secretName: "gcp-identity-token"
-volumeMounts:
-  - name: "gcp-identity-mount"
-    mountPath: "/home/coder/.aws/gcp-identity-token"
-    readOnly: true
+coder:
+  volumes:
+    - name: "gcp-identity-mount"
+      secret:
+        secretName: "gcp-identity-token"
+  volumeMounts:
+    - name: "gcp-identity-mount"
+      mountPath: "/home/coder/.aws/gcp-identity-token"
+      readOnly: true
 ```
 
-## 1. Configure the AWS Terraform provider
+## 6. Configure the AWS Terraform provider
 
 Navigate to your EC2 workspace template in Coder, and configure the AWS provider
 using the block below:
