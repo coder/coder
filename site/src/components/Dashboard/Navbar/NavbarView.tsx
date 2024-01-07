@@ -18,6 +18,8 @@ import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLat
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { usePermissions } from "hooks/usePermissions";
 import { UserDropdown } from "./UserDropdown/UserDropdown";
+import { visuallyHidden } from "@mui/utils";
+import { Abbr } from "components/Abbr/Abbr";
 
 export const USERS_LINK = `/users?filter=${encodeURIComponent(
   "status:active",
@@ -214,25 +216,22 @@ const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
   const isLoadingLatencies = Object.keys(latencies).length === 0;
   const isLoading = proxyContextValue.isLoading || isLoadingLatencies;
   const permissions = usePermissions();
+
   const proxyLatencyLoading = (proxy: TypesGen.Region): boolean => {
     if (!refetchDate) {
       // Only show loading if the user manually requested a refetch
       return false;
     }
 
-    const latency = latencies?.[proxy.id];
     // Only show a loading spinner if:
-    //  - A latency exists. This means the latency was fetched at some point, so the
-    //    loader *should* be resolved.
+    //  - A latency exists. This means the latency was fetched at some point, so
+    //    the loader *should* be resolved.
     //  - The proxy is healthy. If it is not, the loader might never resolve.
-    //  - The latency reported is older than the refetch date. This means the latency
-    //    is stale and we should show a loading spinner until the new latency is
-    //    fetched.
-    if (proxy.healthy && latency && latency.at < refetchDate) {
-      return true;
-    }
-
-    return false;
+    //  - The latency reported is older than the refetch date. This means the
+    //    latency is stale and we should show a loading spinner until the new
+    //    latency is fetched.
+    const latency = latencies[proxy.id];
+    return proxy.healthy && latency !== undefined && latency.at < refetchDate;
   };
 
   if (isLoading) {
@@ -257,12 +256,18 @@ const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
           "& .MuiSvgIcon-root": { fontSize: 14 },
         }}
       >
+        <span css={{ ...visuallyHidden }}>
+          Latency for {selectedProxy?.display_name ?? "your region"}
+        </span>
+
         {selectedProxy ? (
           <div css={{ display: "flex", gap: 8, alignItems: "center" }}>
             <div css={{ width: 16, height: 16, lineHeight: 0 }}>
               <img
-                src={selectedProxy.icon_url}
+                // Empty alt text used because we don't want to double up on
+                // screen reader announcements from visually-hidden span
                 alt=""
+                src={selectedProxy.icon_url}
                 css={{
                   objectFit: "contain",
                   width: "100%",
@@ -270,6 +275,7 @@ const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
                 }}
               />
             </div>
+
             <ProxyStatusLatency
               latency={latencies?.[selectedProxy.id]?.latencyMS}
               isLoading={proxyLatencyLoading(selectedProxy)}
@@ -279,12 +285,18 @@ const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
           "Select Proxy"
         )}
       </Button>
+
       <Menu
         open={isOpen}
         anchorEl={buttonRef.current}
         onClick={closeMenu}
         onClose={closeMenu}
         css={{ "& .MuiMenu-paper": { paddingTop: 8, paddingBottom: 8 } }}
+        // autoFocus here does not affect modal focus; it affects whether the
+        // first item in the list will get auto-focus when the menu opens. Have
+        // to turn this off because otherwise, screen readers will skip over all
+        // the descriptive text and will only have access to the latency options
+        autoFocus={false}
       >
         <div
           css={{
@@ -296,6 +308,8 @@ const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
           }}
         >
           <h4
+            autoFocus
+            tabIndex={-1}
             css={{
               fontSize: "inherit",
               fontWeight: 600,
@@ -306,6 +320,7 @@ const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
           >
             Select a region nearest to you
           </h4>
+
           <p
             css={{
               fontSize: 13,
@@ -315,12 +330,17 @@ const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
             }}
           >
             Workspace proxies improve terminal and web app connections to
-            workspaces. This does not apply to CLI connections. A region must be
-            manually selected, otherwise the default primary region will be
-            used.
+            workspaces. This does not apply to{" "}
+            <Abbr title="Command-Line Interface" pronunciation="initialism">
+              CLI
+            </Abbr>{" "}
+            connections. A region must be manually selected, otherwise the
+            default primary region will be used.
           </p>
         </div>
+
         <Divider css={{ borderColor: theme.palette.divider }} />
+
         {proxyContextValue.proxies
           ?.sort((a, b) => {
             const latencyA = latencies?.[a.id]?.latencyMS ?? Infinity;
@@ -329,6 +349,9 @@ const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
           })
           .map((proxy) => (
             <MenuItem
+              key={proxy.id}
+              selected={proxy.id === selectedProxy?.id}
+              css={{ fontSize: 14 }}
               onClick={() => {
                 if (!proxy.healthy) {
                   displayError("Please select a healthy workspace proxy.");
@@ -339,9 +362,6 @@ const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
                 proxyContextValue.setProxy(proxy);
                 closeMenu();
               }}
-              key={proxy.id}
-              selected={proxy.id === selectedProxy?.id}
-              css={{ fontSize: 14 }}
             >
               <div
                 css={{
@@ -362,7 +382,9 @@ const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
                     }}
                   />
                 </div>
+
                 {proxy.display_name}
+
                 <ProxyStatusLatency
                   latency={latencies?.[proxy.id]?.latencyMS}
                   isLoading={proxyLatencyLoading(proxy)}
@@ -370,7 +392,9 @@ const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
               </div>
             </MenuItem>
           ))}
+
         <Divider css={{ borderColor: theme.palette.divider }} />
+
         {Boolean(permissions.editWorkspaceProxies) && (
           <MenuItem
             css={{ fontSize: 14 }}
@@ -381,6 +405,7 @@ const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
             Proxy settings
           </MenuItem>
         )}
+
         <MenuItem
           css={{ fontSize: 14 }}
           onClick={(e) => {
