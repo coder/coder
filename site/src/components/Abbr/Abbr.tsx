@@ -28,43 +28,39 @@ export const Abbr: FC<AbbrProps> = ({
       // still have to inject text manually. Main value of titles here is
       // letting sighted users hover over the abbreviation to see the full term
       title={title}
-      data-testid="abbr"
+      data-testid="abbr-root"
       css={{
         textDecoration: "inherit",
         letterSpacing: isAllUppercase(children) ? "0.02em" : "0",
       }}
       {...delegatedProps}
     >
-      {pronunciation === "shorthand" ? (
-        <>{children}</>
-      ) : (
-        // Helps make sure that screen readers read initialisms/acronyms
-        // correctly without it affecting the visual output for sighted users
-        // (e.g., Mac VoiceOver reads "CLI" as "klee" by default)
-        <>
-          {/*Can be simplified once CSS "spell-out" has more browser support*/}
-          <span css={{ ...visuallyHidden }} data-testid="visually-hidden">
-            {pronunciation === "initialism"
-              ? initializeText(children)
-              : flattenPronunciation(children)}
-          </span>
+      {/*
+       * Helps make sure that screen readers read initialisms/acronyms (e.g.,
+       * making sure Mac VoiceOver doesn't read "CLI" as "klee")
+       *
+       * Can be simplified once CSS "spell-out" has more browser support
+       */}
+      <span css={{ ...visuallyHidden }} data-testid="abbr-screen-readers">
+        {pronunciation === "shorthand" && title}
+        {pronunciation === "acronym" && flattenPronunciation(children)}
+        {pronunciation === "initialism" && initializeText(children)}
+      </span>
 
-          <span aria-hidden data-testid="visual-only">
-            {children}
-          </span>
-        </>
-      )}
+      <span aria-hidden data-testid="abbr-visual-only">
+        {children}
+      </span>
     </abbr>
   );
 };
 
-function initializeText(text: string): string {
-  return text.trim().toUpperCase().replaceAll(/\B/g, ".") + ".";
-}
-
 function flattenPronunciation(text: string): string {
   const trimmed = text.trim();
   return (trimmed[0] ?? "").toUpperCase() + trimmed.slice(1).toLowerCase();
+}
+
+function initializeText(text: string): string {
+  return text.trim().toUpperCase().replaceAll(/\B/g, ".") + ".";
 }
 
 function isAllUppercase(text: string): boolean {
