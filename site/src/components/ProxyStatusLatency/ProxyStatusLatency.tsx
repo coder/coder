@@ -57,9 +57,7 @@ export const ProxyStatusLatency: FC<ProxyStatusLatencyProps> = ({
     <p css={{ color, fontSize: 13, margin: "0 0 0 auto" }}>
       <span css={{ ...visuallyHidden }}>Latency: </span>
       {latency.toFixed(0)}
-      <Abbr title="milliseconds" pronunciation="acronym">
-        ms
-      </Abbr>
+      <Abbr title="milliseconds">ms</Abbr>
     </p>
   );
 };

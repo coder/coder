@@ -1,13 +1,3 @@
-/**
- * @file A more sophisticated version of the native <abbr> element.
- *
- * Features:
- * - Better type-safety (requiring you to include certain properties)
- * - All built-in HTML styling is stripped away by default
- * - Better integration with screen readers (making the title prop available),
- *   with more options for influencing how they read out initialisms
- */
-import { visuallyHidden } from "@mui/utils";
 import { type FC, type HTMLAttributes } from "react";
 
 type AbbrProps = HTMLAttributes<HTMLElement> & {
@@ -16,18 +6,36 @@ type AbbrProps = HTMLAttributes<HTMLElement> & {
   pronunciation?: "shorthand" | "acronym" | "initialism";
 };
 
+/**
+ * A more sophisticated version of the native <abbr> element.
+ *
+ * Features:
+ * - Better type-safety (requiring you to include certain properties)
+ * - All built-in HTML styling is stripped away by default
+ * - Better integration with screen readers (like exposing the title prop to
+ *   them), with more options for influencing how they pronounce text
+ */
 export const Abbr: FC<AbbrProps> = ({
   children,
-  title,
+  title: visualTitle,
   pronunciation = "shorthand",
   ...delegatedProps
 }) => {
+  let screenReaderTitle: string;
+  if (pronunciation === "initialism") {
+    screenReaderTitle = `${visualTitle} (${initializeText(children)})`;
+  } else if (pronunciation === "acronym") {
+    screenReaderTitle = `${visualTitle} (${flattenPronunciation(children)})`;
+  } else {
+    screenReaderTitle = visualTitle;
+  }
+
   return (
     <abbr
       // Title attributes usually aren't natively available to screen readers;
-      // still have to inject text manually. Main value of titles here is
-      // letting sighted users hover over the abbreviation to see the full term
-      title={title}
+      // always have to supplement with aria-label
+      title={visualTitle}
+      aria-label={screenReaderTitle}
       data-testid="abbr-root"
       css={{
         textDecoration: "inherit",
@@ -35,18 +43,6 @@ export const Abbr: FC<AbbrProps> = ({
       }}
       {...delegatedProps}
     >
-      {/*
-       * Helps make sure that screen readers read initialisms/acronyms (e.g.,
-       * making sure Mac VoiceOver doesn't read "CLI" as "klee")
-       *
-       * Can be simplified once CSS "spell-out" has more browser support
-       */}
-      <span css={{ ...visuallyHidden }} data-testid="abbr-screen-readers">
-        {pronunciation === "shorthand" && title}
-        {pronunciation === "acronym" && flattenPronunciation(children)}
-        {pronunciation === "initialism" && initializeText(children)}
-      </span>
-
       <span aria-hidden data-testid="abbr-visual-only">
         {children}
       </span>
