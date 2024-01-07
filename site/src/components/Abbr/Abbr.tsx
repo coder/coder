@@ -5,7 +5,7 @@
  * - Better type-safety (requiring you to include certain properties)
  * - All built-in HTML styling is stripped away by default
  * - Better integration with screen readers (making the title prop available),
- *   with more options for controlling how they read out initialisms
+ *   with more options for influencing how they read out initialisms
  */
 import { visuallyHidden } from "@mui/utils";
 import { type FC, type HTMLAttributes } from "react";

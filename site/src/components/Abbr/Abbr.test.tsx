@@ -7,7 +7,7 @@ type Abbreviation = {
 };
 
 type Initialism = Abbreviation & {
-  spelledOut: string;
+  initializedForm: string;
 };
 
 describe(Abbr.name, () => {
@@ -38,7 +38,7 @@ describe(Abbr.name, () => {
     for (const { shortText, fullText } of sampleText) {
       const { unmount } = render(<Abbr title={fullText}>{shortText}</Abbr>);
 
-      const element = screen.getByTestId("abbr");
+      const element = screen.getByTestId("abbr-root");
       expect(element).toHaveTextContent(shortText);
       unmount();
     }
@@ -49,34 +49,34 @@ describe(Abbr.name, () => {
       {
         shortText: "FBI",
         fullText: "Federal Bureau of Investigation",
-        spelledOut: "F.B.I.",
+        initializedForm: "F.B.I.",
       },
       {
         shortText: "YMCA",
         fullText: "Young Men's Christian Association",
-        spelledOut: "Y.M.C.A.",
+        initializedForm: "Y.M.C.A.",
       },
       {
         shortText: "tbh",
         fullText: "To be honest",
-        spelledOut: "T.B.H.",
+        initializedForm: "T.B.H.",
       },
       {
         shortText: "CLI",
         fullText: "Command-Line Interface",
-        spelledOut: "C.L.I.",
+        initializedForm: "C.L.I.",
       },
     ];
 
-    for (const { shortText, fullText, spelledOut } of sampleText) {
+    for (const { shortText, fullText, initializedForm } of sampleText) {
       const { unmount } = render(
         <Abbr title={fullText} pronunciation="initialism">
           {shortText}
         </Abbr>,
       );
 
-      const visuallyHidden = screen.getByTestId("visually-hidden");
-      expect(visuallyHidden).toHaveTextContent(spelledOut);
+      const visuallyHidden = screen.getByTestId("abbr-screen-readers");
+      expect(visuallyHidden).toHaveTextContent(initializedForm);
 
       const visualContent = screen.getByTestId("visual-only");
       expect(visualContent).toHaveTextContent(shortText);
