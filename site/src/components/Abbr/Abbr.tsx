@@ -1,9 +1,11 @@
 import { type FC, type HTMLAttributes } from "react";
 
+export type Pronunciation = "shorthand" | "acronym" | "initialism";
+
 type AbbrProps = HTMLAttributes<HTMLElement> & {
   children: string;
   title: string;
-  pronunciation?: "shorthand" | "acronym" | "initialism";
+  pronunciation?: Pronunciation;
 };
 
 /**
@@ -21,13 +23,13 @@ export const Abbr: FC<AbbrProps> = ({
   pronunciation = "shorthand",
   ...delegatedProps
 }) => {
-  let screenReaderTitle: string;
+  let screenReaderLabel: string;
   if (pronunciation === "initialism") {
-    screenReaderTitle = `${visualTitle} (${initializeText(children)})`;
+    screenReaderLabel = `${initializeText(children)} (${visualTitle})`;
   } else if (pronunciation === "acronym") {
-    screenReaderTitle = `${visualTitle} (${flattenPronunciation(children)})`;
+    screenReaderLabel = `${flattenPronunciation(children)} (${visualTitle})`;
   } else {
-    screenReaderTitle = visualTitle;
+    screenReaderLabel = visualTitle;
   }
 
   return (
@@ -35,17 +37,14 @@ export const Abbr: FC<AbbrProps> = ({
       // Title attributes usually aren't natively available to screen readers;
       // always have to supplement with aria-label
       title={visualTitle}
-      aria-label={screenReaderTitle}
-      data-testid="abbr-root"
+      aria-label={screenReaderLabel}
       css={{
         textDecoration: "inherit",
         letterSpacing: isAllUppercase(children) ? "0.02em" : "0",
       }}
       {...delegatedProps}
     >
-      <span aria-hidden data-testid="abbr-visual-only">
-        {children}
-      </span>
+      <span aria-hidden>{children}</span>
     </abbr>
   );
 };

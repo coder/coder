@@ -1,87 +1,97 @@
 import { render, screen } from "@testing-library/react";
-import { Abbr } from "./Abbr";
+import { Abbr, type Pronunciation } from "./Abbr";
 
-type Abbreviation = {
-  shortText: string;
-  fullText: string;
+type AbbreviationData = {
+  abbreviation: string;
+  title: string;
+  expectedLabel: string;
 };
 
-type Initialism = Abbreviation & {
-  initializedForm: string;
+type AssertionInput = AbbreviationData & {
+  pronunciation: Pronunciation;
 };
+
+function assertAccessibleLabel({
+  abbreviation,
+  title,
+  expectedLabel,
+  pronunciation,
+}: AssertionInput) {
+  const { unmount } = render(
+    <Abbr title={title} pronunciation={pronunciation}>
+      {abbreviation}
+    </Abbr>,
+  );
+
+  screen.getByLabelText(expectedLabel, { selector: "abbr" });
+  unmount();
+}
 
 describe(Abbr.name, () => {
-  it("Does not change semantics compared <abbr> if text is not initialism", () => {
-    const sampleText: Abbreviation[] = [
+  it("Has an aria-label that equals the title if the abbreviation is shorthand", () => {
+    const sampleShorthands: AbbreviationData[] = [
       {
-        shortText: "NASA",
-        fullText: "National Aeronautics and Space Administration",
+        abbreviation: "ms",
+        title: "milliseconds",
+        expectedLabel: "milliseconds",
       },
       {
-        shortText: "POTUS",
-        fullText: "President of the United States",
-      },
-      {
-        shortText: "AWOL",
-        fullText: "Absent without Official Leave",
-      },
-      {
-        shortText: "Laser",
-        fullText: "Light Amplification by Stimulated Emission of Radiation",
-      },
-      {
-        shortText: "YOLO",
-        fullText: "You Only Live Once",
+        abbreviation: "g",
+        title: "grams",
+        expectedLabel: "grams",
       },
     ];
 
-    for (const { shortText, fullText } of sampleText) {
-      const { unmount } = render(<Abbr title={fullText}>{shortText}</Abbr>);
-
-      const element = screen.getByTestId("abbr-root");
-      expect(element).toHaveTextContent(shortText);
-      unmount();
+    for (const shorthand of sampleShorthands) {
+      assertAccessibleLabel({ ...shorthand, pronunciation: "shorthand" });
     }
   });
 
-  it("Augments pronunciation for screen readers if text is an initialism (but does not change visual output)", () => {
-    const sampleText: Initialism[] = [
+  it("Has an aria label with title and 'flattened' pronunciation if abbreviation is acronym", () => {
+    const sampleAcronyms: AbbreviationData[] = [
       {
-        shortText: "FBI",
-        fullText: "Federal Bureau of Investigation",
-        initializedForm: "F.B.I.",
+        abbreviation: "NASA",
+        title: "National Aeronautics and Space Administration",
+        expectedLabel: "Nasa (National Aeronautics and Space Administration)",
       },
       {
-        shortText: "YMCA",
-        fullText: "Young Men's Christian Association",
-        initializedForm: "Y.M.C.A.",
+        abbreviation: "AWOL",
+        title: "Absent without Official Leave",
+        expectedLabel: "Awol (Absent without Official Leave)",
       },
       {
-        shortText: "tbh",
-        fullText: "To be honest",
-        initializedForm: "T.B.H.",
-      },
-      {
-        shortText: "CLI",
-        fullText: "Command-Line Interface",
-        initializedForm: "C.L.I.",
+        abbreviation: "YOLO",
+        title: "You Only Live Once",
+        expectedLabel: "Yolo (You Only Live Once)",
       },
     ];
 
-    for (const { shortText, fullText, initializedForm } of sampleText) {
-      const { unmount } = render(
-        <Abbr title={fullText} pronunciation="initialism">
-          {shortText}
-        </Abbr>,
-      );
+    for (const acronym of sampleAcronyms) {
+      assertAccessibleLabel({ ...acronym, pronunciation: "acronym" });
+    }
+  });
 
-      const visuallyHidden = screen.getByTestId("abbr-screen-readers");
-      expect(visuallyHidden).toHaveTextContent(initializedForm);
+  it("Has an aria label with title and initialized pronunciation if abbreviation is initialism", () => {
+    const sampleInitialisms: AbbreviationData[] = [
+      {
+        abbreviation: "FBI",
+        title: "Federal Bureau of Investigation",
+        expectedLabel: "F.B.I. (Federal Bureau of Investigation)",
+      },
+      {
+        abbreviation: "YMCA",
+        title: "Young Men's Christian Association",
+        expectedLabel: "Y.M.C.A. (Young Men's Christian Association)",
+      },
+      {
+        abbreviation: "CLI",
+        title: "Command-Line Interface",
+        expectedLabel: "C.L.I. (Command-Line Interface)",
+      },
+    ];
 
-      const visualContent = screen.getByTestId("visual-only");
-      expect(visualContent).toHaveTextContent(shortText);
-
-      unmount();
+    for (const initialism of sampleInitialisms) {
+      assertAccessibleLabel({ ...initialism, pronunciation: "initialism" });
     }
   });
 });
