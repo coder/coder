@@ -19,28 +19,19 @@ type AbbrProps = HTMLAttributes<HTMLElement> & {
  */
 export const Abbr: FC<AbbrProps> = ({
   children,
-  title: visualTitle,
+  title,
   pronunciation = "shorthand",
   ...delegatedProps
 }) => {
-  let screenReaderLabel: string;
-  if (pronunciation === "initialism") {
-    screenReaderLabel = `${initializeText(children)} (${visualTitle})`;
-  } else if (pronunciation === "acronym") {
-    screenReaderLabel = `${flattenPronunciation(children)} (${visualTitle})`;
-  } else {
-    screenReaderLabel = visualTitle;
-  }
-
   return (
     <abbr
       // Title attributes usually aren't natively available to screen readers;
       // always have to supplement with aria-label
-      title={visualTitle}
-      aria-label={screenReaderLabel}
+      title={title}
+      aria-label={getAccessibleLabel(children, title, pronunciation)}
       css={{
         textDecoration: "inherit",
-        letterSpacing: isAllUppercase(children) ? "0.02em" : "0",
+        letterSpacing: children === children.toUpperCase() ? "0.02em" : "0",
       }}
       {...delegatedProps}
     >
@@ -49,15 +40,27 @@ export const Abbr: FC<AbbrProps> = ({
   );
 };
 
-function flattenPronunciation(text: string): string {
-  const trimmed = text.trim();
-  return (trimmed[0] ?? "").toUpperCase() + trimmed.slice(1).toLowerCase();
+function getAccessibleLabel(
+  abbreviation: string,
+  title: string,
+  pronunciation: Pronunciation,
+): string {
+  if (pronunciation === "initialism") {
+    return `${initializeText(abbreviation)} (${title})`;
+  }
+
+  if (pronunciation === "acronym") {
+    return `${flattenPronunciation(abbreviation)} (${title})`;
+  }
+
+  return title;
 }
 
 function initializeText(text: string): string {
   return text.trim().toUpperCase().replaceAll(/\B/g, ".") + ".";
 }
 
-function isAllUppercase(text: string): boolean {
-  return text === text.toUpperCase();
+function flattenPronunciation(text: string): string {
+  const trimmed = text.trim();
+  return (trimmed[0] ?? "").toUpperCase() + trimmed.slice(1).toLowerCase();
 }
