@@ -15,13 +15,13 @@ locally in order to log in and manage templates.
 
 Run the following command to login to your OpenShift cluster:
 
-```console
+```shell
 oc login --token=w4r...04s --server=<cluster-url>
 ```
 
 Next, you will run the below command to create a project for Coder:
 
-```console
+```shell
 oc new-project coder
 ```
 
@@ -170,7 +170,7 @@ oc apply -f route.yaml
 You can now install Coder using the values you've set from the above steps. To
 do so, run the series of `helm` commands below:
 
-```console
+```shell
 helm repo add coder-v2 https://helm.coder.com/v2
 helm repo update
 helm install coder coder-v2/coder \
@@ -245,7 +245,7 @@ Security Context Constraints (SCCs) in OpenShift.
    > For more information, please consult the
    > [OpenShift Documentation](https://docs.openshift.com/container-platform/4.12/cicd/builds/understanding-buildconfigs.html).
 
-   ```console
+   ```shell
    oc create -f - <<EOF
    kind: BuildConfig
    apiVersion: build.openshift.io/v1
@@ -290,7 +290,7 @@ Security Context Constraints (SCCs) in OpenShift.
 
 1. Create an `ImageStream` as a target for the previous step:
 
-   ```console
+   ```shell
    oc create imagestream enterprise-base
    ```
 
@@ -307,7 +307,7 @@ Security Context Constraints (SCCs) in OpenShift.
 
 Start from the default "Kubernetes" template:
 
-```console
+```shell
 echo kubernetes | coderv2 templates init ./openshift-k8s
 cd ./openshift-k8s
 ```
@@ -321,7 +321,7 @@ Edit `main.tf` and update the following fields of the Kubernetes pod resource:
 
 Finally, create the template:
 
-```console
+```shell
 coder template push kubernetes -d .
 ```
 
