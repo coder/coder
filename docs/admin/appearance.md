@@ -15,8 +15,8 @@ is Coder.
 
 ## Logo URL
 
-Specify a custom URL for your enterprise's logo to be displayed in the top left
-corner of the dashboard. The default is the Coder logo.
+Specify a custom URL for your enterprise's logo to be displayed on the sign in
+page and in the top left corner of the dashboard. The default is the Coder logo.
 
 ## Service Banner
 

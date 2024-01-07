@@ -212,8 +212,10 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 
 	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.Manifest{
 		AgentID:                  agentID,
+		AgentName:                manifest.AgentName,
 		OwnerName:                manifest.OwnerUsername,
 		WorkspaceID:              workspaceID,
+		WorkspaceName:            manifest.WorkspaceName,
 		Apps:                     apps,
 		Scripts:                  scripts,
 		DERPMap:                  tailnet.DERPMapFromProto(manifest.DerpMap),
@@ -1178,7 +1180,7 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	if qv != "" {
 		version = qv
 	}
-	if err := tailnet.ValidateVersion(version); err != nil {
+	if err := tailnet.CurrentVersion.Validate(version); err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Unknown or unsupported API version",
 			Validations: []codersdk.ValidationError{

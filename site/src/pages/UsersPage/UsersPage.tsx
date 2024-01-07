@@ -1,4 +1,4 @@
-import { type FC, type ReactNode, useState } from "react";
+import { type FC, type PropsWithChildren, useState } from "react";
 
 import { type User } from "api/typesGenerated";
 import { roles } from "api/queries/roles";
@@ -35,7 +35,7 @@ import { UsersPageView } from "./UsersPageView";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 
-export const UsersPage: FC<{ children?: ReactNode }> = () => {
+export const UsersPage: FC<PropsWithChildren> = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 

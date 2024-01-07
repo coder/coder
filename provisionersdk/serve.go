@@ -3,6 +3,7 @@ package provisionersdk
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -18,6 +19,19 @@ import (
 
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/provisionersdk/proto"
+)
+
+const (
+	CurrentMajor = 1
+	CurrentMinor = 0
+)
+
+var (
+	SupportedMajors = []int{1}
+	// APIVersionCurrent is the current provisionerd API version.
+	// Breaking changes to the provisionerd API **MUST** increment
+	// CurrentMajor above.
+	APIVersionCurrent = fmt.Sprintf("%d.%d", CurrentMajor, CurrentMinor)
 )
 
 // ServeOptions are configurations to serve a provisioner.

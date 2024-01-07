@@ -205,6 +205,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				if xerrors.Is(err, context.Canceled) {
 					return cliui.Canceled
 				}
+				return err
 			}
 
 			if r.disableDirect {
@@ -593,6 +594,19 @@ func getWorkspaceAndAgent(ctx context.Context, inv *clibase.Invocation, client *
 		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace %q is being deleted", workspace.Name)
 	}
 
+	var agentName string
+	if len(workspaceParts) >= 2 {
+		agentName = workspaceParts[1]
+	}
+	workspaceAgent, err := getWorkspaceAgent(workspace, agentName)
+	if err != nil {
+		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
+	}
+
+	return workspace, workspaceAgent, nil
+}
+
+func getWorkspaceAgent(workspace codersdk.Workspace, agentName string) (workspaceAgent codersdk.WorkspaceAgent, err error) {
 	resources := workspace.LatestBuild.Resources
 
 	agents := make([]codersdk.WorkspaceAgent, 0)
@@ -600,33 +614,31 @@ func getWorkspaceAndAgent(ctx context.Context, inv *clibase.Invocation, client *
 		agents = append(agents, resource.Agents...)
 	}
 	if len(agents) == 0 {
-		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace %q has no agents", workspace.Name)
+		return codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace %q has no agents", workspace.Name)
 	}
-	var workspaceAgent codersdk.WorkspaceAgent
-	if len(workspaceParts) >= 2 {
+	if agentName != "" {
 		for _, otherAgent := range agents {
-			if otherAgent.Name != workspaceParts[1] {
+			if otherAgent.Name != agentName {
 				continue
 			}
 			workspaceAgent = otherAgent
 			break
 		}
 		if workspaceAgent.ID == uuid.Nil {
-			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("agent not found by name %q", workspaceParts[1])
+			return codersdk.WorkspaceAgent{}, xerrors.Errorf("agent not found by name %q", agentName)
 		}
 	}
 	if workspaceAgent.ID == uuid.Nil {
 		if len(agents) > 1 {
 			workspaceAgent, err = cryptorand.Element(agents)
 			if err != nil {
-				return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
+				return codersdk.WorkspaceAgent{}, err
 			}
 		} else {
 			workspaceAgent = agents[0]
 		}
 	}
-
-	return workspace, workspaceAgent, nil
+	return workspaceAgent, nil
 }
 
 // Attempt to poll workspace autostop. We write a per-workspace lockfile to

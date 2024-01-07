@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/bramvdbogaerde/go-scp"
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/pion/udp"
 	"github.com/pkg/sftp"
@@ -37,6 +36,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
@@ -926,7 +926,7 @@ func TestAgent_EnvironmentVariableExpansion(t *testing.T) {
 func TestAgent_CoderEnvVars(t *testing.T) {
 	t.Parallel()
 
-	for _, key := range []string{"CODER"} {
+	for _, key := range []string{"CODER", "CODER_WORKSPACE_NAME", "CODER_WORKSPACE_AGENT_NAME"} {
 		key := key
 		t.Run(key, func(t *testing.T) {
 			t.Parallel()
@@ -2014,6 +2014,12 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	}
 	if metadata.AgentID == uuid.Nil {
 		metadata.AgentID = uuid.New()
+	}
+	if metadata.AgentName == "" {
+		metadata.AgentName = "test-agent"
+	}
+	if metadata.WorkspaceName == "" {
+		metadata.WorkspaceName = "test-workspace"
 	}
 	coordinator := tailnet.NewCoordinator(logger)
 	t.Cleanup(func() {

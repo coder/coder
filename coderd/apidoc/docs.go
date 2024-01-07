@@ -7276,6 +7276,9 @@ const docTemplate = `{
                 "agent_id": {
                     "type": "string"
                 },
+                "agent_name": {
+                    "type": "string"
+                },
                 "apps": {
                     "type": "array",
                     "items": {
@@ -7327,6 +7330,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "workspace_id": {
+                    "type": "string"
+                },
+                "workspace_name": {
                     "type": "string"
                 }
             }
@@ -9103,14 +9109,10 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "workspace_actions",
-                "tailnet_pg_coordinator",
-                "single_tailnet",
                 "deployment_health_page"
             ],
             "x-enum-varnames": [
                 "ExperimentWorkspaceActions",
-                "ExperimentTailnetPGCoordinator",
-                "ExperimentSingleTailnet",
                 "ExperimentDeploymentHealthPage"
             ]
         },
@@ -10046,6 +10048,9 @@ const docTemplate = `{
         "codersdk.ProvisionerDaemon": {
             "type": "object",
             "properties": {
+                "api_version": {
+                    "type": "string"
+                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"

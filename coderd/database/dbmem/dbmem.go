@@ -6373,6 +6373,7 @@ func (q *FakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 		tpl.DisplayName = arg.DisplayName
 		tpl.Description = arg.Description
 		tpl.Icon = arg.Icon
+		tpl.GroupACL = arg.GroupACL
 		q.templates[idx] = tpl
 		return nil
 	}
@@ -6791,6 +6792,7 @@ func (q *FakeQuerier) UpdateWorkspaceAgentConnectionByID(_ context.Context, arg 
 		agent.LastConnectedAt = arg.LastConnectedAt
 		agent.DisconnectedAt = arg.DisconnectedAt
 		agent.UpdatedAt = arg.UpdatedAt
+		agent.LastConnectedReplicaID = arg.LastConnectedReplicaID
 		q.workspaceAgents[index] = agent
 		return nil
 	}
@@ -7279,6 +7281,7 @@ func (q *FakeQuerier) UpsertProvisionerDaemon(_ context.Context, arg database.Up
 		ReplicaID:    uuid.NullUUID{},
 		LastSeenAt:   arg.LastSeenAt,
 		Version:      arg.Version,
+		APIVersion:   arg.APIVersion,
 	}
 	q.provisionerDaemons = append(q.provisionerDaemons, d)
 	return d, nil

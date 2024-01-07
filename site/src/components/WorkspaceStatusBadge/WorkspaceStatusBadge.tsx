@@ -47,13 +47,25 @@ export const WorkspaceStatusBadge: FC<WorkspaceStatusBadgeProps> = ({
           }
           placement="top"
         >
-          <Pill role="status" className={className} icon={icon} type={type}>
+          <Pill
+            role="status"
+            data-testid="build-status"
+            className={className}
+            icon={icon}
+            type={type}
+          >
             {text}
           </Pill>
         </FailureTooltip>
       </Cond>
       <Cond>
-        <Pill role="status" className={className} icon={icon} type={type}>
+        <Pill
+          role="status"
+          data-testid="build-status"
+          className={className}
+          icon={icon}
+          type={type}
+        >
           {text}
         </Pill>
       </Cond>

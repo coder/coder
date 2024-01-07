@@ -75,8 +75,10 @@ message WorkspaceAgentMetadata {
 
 message Manifest {
 	bytes agent_id = 1;
+	string agent_name = 15;
 	string owner_username = 13;
 	bytes workspace_id = 14;
+	string workspace_name = 16;
 	uint32 git_auth_configs = 2;
 	map<string, string> environment_variables = 3;
 	string directory = 4;

@@ -47,12 +47,9 @@ export const createWorkspace = async (
 
   await expect(page).toHaveURL("/@admin/" + name);
 
-  await page.waitForSelector(
-    "span[data-testid='build-status'] >> text=Running",
-    {
-      state: "visible",
-    },
-  );
+  await page.waitForSelector("*[data-testid='build-status'] >> text=Running", {
+    state: "visible",
+  });
   return name;
 };
 
@@ -197,12 +194,9 @@ export const stopWorkspace = async (page: Page, workspaceName: string) => {
 
   await page.getByTestId("workspace-stop-button").click();
 
-  await page.waitForSelector(
-    "span[data-testid='build-status'] >> text=Stopped",
-    {
-      state: "visible",
-    },
-  );
+  await page.waitForSelector("*[data-testid='build-status'] >> text=Stopped", {
+    state: "visible",
+  });
 };
 
 export const buildWorkspaceWithParameters = async (
@@ -225,12 +219,9 @@ export const buildWorkspaceWithParameters = async (
     await page.getByTestId("confirm-button").click();
   }
 
-  await page.waitForSelector(
-    "span[data-testid='build-status'] >> text=Running",
-    {
-      state: "visible",
-    },
-  );
+  await page.waitForSelector("*[data-testid='build-status'] >> text=Running", {
+    state: "visible",
+  });
 };
 
 // startAgent runs the coder agent with the provided token.
@@ -772,12 +763,9 @@ export const updateWorkspace = async (
   await fillParameters(page, richParameters, buildParameters);
   await page.getByTestId("form-submit").click();
 
-  await page.waitForSelector(
-    "span[data-testid='build-status'] >> text=Running",
-    {
-      state: "visible",
-    },
-  );
+  await page.waitForSelector("*[data-testid='build-status'] >> text=Running", {
+    state: "visible",
+  });
 };
 
 export const updateWorkspaceParameters = async (
@@ -796,10 +784,7 @@ export const updateWorkspaceParameters = async (
   await fillParameters(page, richParameters, buildParameters);
   await page.getByTestId("form-submit").click();
 
-  await page.waitForSelector(
-    "span[data-testid='build-status'] >> text=Running",
-    {
-      state: "visible",
-    },
-  );
+  await page.waitForSelector("*[data-testid='build-status'] >> text=Running", {
+    state: "visible",
+  });
 };

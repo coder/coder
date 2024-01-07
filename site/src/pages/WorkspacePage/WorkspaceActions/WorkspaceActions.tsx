@@ -1,12 +1,9 @@
 import { type FC, type ReactNode, Fragment } from "react";
 import { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { useWorkspaceDuplication } from "pages/CreateWorkspacePage/useWorkspaceDuplication";
-
 import { workspaceUpdatePolicy } from "utils/workspace";
 import { type ActionType, abilitiesByWorkspaceStatus } from "./constants";
-
 import {
-  ActionLoadingButton,
   CancelButton,
   DisabledButton,
   StartButton,
@@ -22,14 +19,14 @@ import DuplicateIcon from "@mui/icons-material/FileCopyOutlined";
 import SettingsIcon from "@mui/icons-material/SettingsOutlined";
 import HistoryIcon from "@mui/icons-material/HistoryOutlined";
 import DeleteIcon from "@mui/icons-material/DeleteOutlined";
-
 import {
   MoreMenu,
   MoreMenuContent,
   MoreMenuItem,
   MoreMenuTrigger,
-  ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
+import { TopbarIconButton } from "components/FullPageLayout/Topbar";
+import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined";
 
 export interface WorkspaceActionsProps {
   workspace: Workspace;
@@ -124,10 +121,10 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
         tooltipText={tooltipText}
       />
     ),
-    deleting: <ActionLoadingButton label="Deleting" />,
+    deleting: <DisabledButton label="Deleting" />,
     canceling: <DisabledButton label="Canceling..." />,
     deleted: <DisabledButton label="Deleted" />,
-    pending: <ActionLoadingButton label="Pending..." />,
+    pending: <DisabledButton label="Pending..." />,
     activate: <ActivateButton handleAction={handleDormantActivate} />,
     activating: <ActivateButton loading handleAction={handleDormantActivate} />,
     retry: <RetryButton handleAction={handleRetry} />,
@@ -136,7 +133,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 
   return (
     <div
-      css={{ display: "flex", alignItems: "center", gap: 12 }}
+      css={{ display: "flex", alignItems: "center", gap: 8 }}
       data-testid="workspace-actions"
     >
       {canBeUpdated && (
@@ -153,13 +150,14 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 
       <MoreMenu>
         <MoreMenuTrigger>
-          <ThreeDotsButton
+          <TopbarIconButton
             title="More options"
-            size="small"
             data-testid="workspace-options-button"
             aria-controls="workspace-options"
             disabled={!canAcceptJobs}
-          />
+          >
+            <MoreVertOutlined />
+          </TopbarIconButton>
         </MoreMenuTrigger>
 
         <MoreMenuContent id="workspace-options">

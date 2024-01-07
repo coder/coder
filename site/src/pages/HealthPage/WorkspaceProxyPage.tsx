@@ -107,11 +107,19 @@ export const WorkspaceProxyPage = () => {
                       <Pill icon={<TagOutlined />}>{region.version}</Pill>
                     </Tooltip>
                   )}
-                  <BooleanPill value={region.derp_enabled}>
-                    DERP Enabled
-                  </BooleanPill>
-                  <BooleanPill value={region.derp_only}>DERP Only</BooleanPill>
-                  <BooleanPill value={region.deleted}>Deleted</BooleanPill>
+                  {region.derp_enabled && (
+                    <BooleanPill value={region.derp_enabled}>
+                      DERP Enabled
+                    </BooleanPill>
+                  )}
+                  {region.derp_only && (
+                    <BooleanPill value={region.derp_only}>
+                      DERP Only
+                    </BooleanPill>
+                  )}
+                  {region.deleted && (
+                    <BooleanPill value={region.deleted}>Deleted</BooleanPill>
+                  )}
                 </div>
               </header>
 

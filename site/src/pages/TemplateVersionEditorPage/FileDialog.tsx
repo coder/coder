@@ -1,17 +1,25 @@
 import TextField from "@mui/material/TextField";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { Stack } from "components/Stack/Stack";
-import { ChangeEvent, FC, useState } from "react";
+import { type ChangeEvent, type FC, useState } from "react";
 import { allowedExtensions, isAllowedFile } from "utils/templateVersion";
-import { FileTree, isFolder, validatePath } from "utils/filetree";
+import { type FileTree, isFolder, validatePath } from "utils/filetree";
 
-export const CreateFileDialog: FC<{
+interface CreateFileDialogProps {
   onClose: () => void;
   checkExists: (path: string) => boolean;
   onConfirm: (path: string) => void;
   open: boolean;
   fileTree: FileTree;
-}> = ({ checkExists, onClose, onConfirm, open, fileTree }) => {
+}
+
+export const CreateFileDialog: FC<CreateFileDialogProps> = ({
+  checkExists,
+  onClose,
+  onConfirm,
+  open,
+  fileTree,
+}) => {
   const [pathValue, setPathValue] = useState("");
   const [error, setError] = useState<string>();
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -86,12 +94,19 @@ export const CreateFileDialog: FC<{
   );
 };
 
-export const DeleteFileDialog: FC<{
+interface DeleteFileDialogProps {
   onClose: () => void;
   onConfirm: () => void;
   open: boolean;
   filename: string;
-}> = ({ onClose, onConfirm, open, filename }) => {
+}
+
+export const DeleteFileDialog: FC<DeleteFileDialogProps> = ({
+  onClose,
+  onConfirm,
+  open,
+  filename,
+}) => {
   return (
     <ConfirmDialog
       type="delete"
@@ -109,14 +124,23 @@ export const DeleteFileDialog: FC<{
   );
 };
 
-export const RenameFileDialog: FC<{
+interface RenameFileDialogProps {
   onClose: () => void;
   onConfirm: (filename: string) => void;
   checkExists: (path: string) => boolean;
   open: boolean;
   filename: string;
   fileTree: FileTree;
-}> = ({ checkExists, onClose, onConfirm, open, filename, fileTree }) => {
+}
+
+export const RenameFileDialog: FC<RenameFileDialogProps> = ({
+  checkExists,
+  onClose,
+  onConfirm,
+  open,
+  filename,
+  fileTree,
+}) => {
   const [pathValue, setPathValue] = useState(filename);
   const [error, setError] = useState<string>();
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {

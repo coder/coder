@@ -10,9 +10,9 @@ import (
 
 	"github.com/coder/coder/v2/coderd/util/ptr"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"nhooyr.io/websocket"
 
 	"cdr.dev/slog"

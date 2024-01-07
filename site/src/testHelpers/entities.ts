@@ -336,6 +336,7 @@ export const MockProvisioner: TypesGen.ProvisionerDaemon = {
   provisioners: ["echo"],
   tags: { scope: "organization" },
   version: "v2.34.5",
+  api_version: "1.0",
 };
 
 export const MockUserProvisioner: TypesGen.ProvisionerDaemon = {
@@ -345,6 +346,7 @@ export const MockUserProvisioner: TypesGen.ProvisionerDaemon = {
   provisioners: ["echo"],
   tags: { scope: "user", owner: "12345678-abcd-1234-abcd-1234567890abcd" },
   version: "v2.34.5",
+  api_version: "1.0",
 };
 
 export const MockProvisionerJob: TypesGen.ProvisionerJob = {
@@ -2045,9 +2047,7 @@ export const MockEntitlementsWithUserLimit: TypesGen.Entitlements = {
   }),
 };
 
-export const MockExperiments: TypesGen.Experiment[] = [
-  "tailnet_pg_coordinator",
-];
+export const MockExperiments: TypesGen.Experiment[] = ["workspace_actions"];
 
 export const MockAuditLog: TypesGen.AuditLog = {
   id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",

@@ -62,6 +62,7 @@ export const ActiveUserChart: FC<ActiveUserChartProps> = ({
 
   const options: ChartOptions<"line"> = {
     responsive: true,
+    animation: false,
     plugins: {
       annotation: {
         annotations: [

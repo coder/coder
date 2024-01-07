@@ -59,7 +59,7 @@ describe("create app link", () => {
       },
     );
     expect(href).toBe(
-      "/path-base/@username/Test-Workspace.a-workspace-agent/terminal?command=ls%20-la",
+      "/@username/Test-Workspace.a-workspace-agent/terminal?command=ls%20-la",
     );
   });
 

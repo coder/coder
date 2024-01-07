@@ -95,7 +95,7 @@ The CSI Host Volume plugin is used to mount host volumes into Nomad tasks. This 
    ```shell
    coder template init nomad-docker
    cd nomad-docker
-   coder template create
+   coder template push
    ```
 
 2. Set up Nomad server address and optional authentication:

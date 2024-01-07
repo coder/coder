@@ -36,7 +36,7 @@ func (r *RootCmd) templateList() *clibase.Cmd {
 
 			if len(templates) == 0 {
 				_, _ = fmt.Fprintf(inv.Stderr, "%s No templates found in %s! Create one:\n\n", Caret, color.HiWhiteString(organization.Name))
-				_, _ = fmt.Fprintln(inv.Stderr, color.HiMagentaString("  $ coder templates create <directory>\n"))
+				_, _ = fmt.Fprintln(inv.Stderr, color.HiMagentaString("  $ coder templates push <directory>\n"))
 				return nil
 			}
 

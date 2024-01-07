@@ -2,25 +2,210 @@ package cli
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/briandowns/spinner"
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
-
-	"github.com/coder/pretty"
 
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/pretty"
 )
 
-// templateUploadFlags is shared by `templates create` and `templates push`.
+func (r *RootCmd) templatePush() *clibase.Cmd {
+	var (
+		versionName          string
+		provisioner          string
+		workdir              string
+		variablesFile        string
+		commandLineVariables []string
+		alwaysPrompt         bool
+		provisionerTags      []string
+		uploadFlags          templateUploadFlags
+		activate             bool
+	)
+	client := new(codersdk.Client)
+	cmd := &clibase.Cmd{
+		Use:   "push [template]",
+		Short: "Create or update a template from the current directory or as specified by flag",
+		Middleware: clibase.Chain(
+			clibase.RequireRangeArgs(0, 1),
+			r.InitClient(client),
+		),
+		Handler: func(inv *clibase.Invocation) error {
+			uploadFlags.setWorkdir(workdir)
+
+			organization, err := CurrentOrganization(inv, client)
+			if err != nil {
+				return err
+			}
+
+			name, err := uploadFlags.templateName(inv.Args)
+			if err != nil {
+				return err
+			}
+
+			if utf8.RuneCountInString(name) >= 32 {
+				return xerrors.Errorf("Template name must be less than 32 characters")
+			}
+
+			var createTemplate bool
+			template, err := client.TemplateByName(inv.Context(), organization.ID, name)
+			if err != nil {
+				var apiError *codersdk.Error
+				if errors.As(err, &apiError) && apiError.StatusCode() != http.StatusNotFound {
+					return err
+				}
+				// Template doesn't exist, create it.
+				createTemplate = true
+			}
+
+			err = uploadFlags.checkForLockfile(inv)
+			if err != nil {
+				return xerrors.Errorf("check for lockfile: %w", err)
+			}
+
+			message := uploadFlags.templateMessage(inv)
+
+			resp, err := uploadFlags.upload(inv, client)
+			if err != nil {
+				return err
+			}
+
+			tags, err := ParseProvisionerTags(provisionerTags)
+			if err != nil {
+				return err
+			}
+
+			userVariableValues, err := ParseUserVariableValues(
+				variablesFile,
+				commandLineVariables)
+			if err != nil {
+				return err
+			}
+
+			args := createValidTemplateVersionArgs{
+				Message:            message,
+				Client:             client,
+				Organization:       organization,
+				Provisioner:        codersdk.ProvisionerType(provisioner),
+				FileID:             resp.ID,
+				ProvisionerTags:    tags,
+				UserVariableValues: userVariableValues,
+			}
+
+			if !createTemplate {
+				args.Name = versionName
+				args.Template = &template
+				args.ReuseParameters = !alwaysPrompt
+			}
+
+			job, err := createValidTemplateVersion(inv, args)
+			if err != nil {
+				return err
+			}
+
+			if job.Job.Status != codersdk.ProvisionerJobSucceeded {
+				return xerrors.Errorf("job failed: %s", job.Job.Status)
+			}
+
+			if createTemplate {
+				_, err = client.CreateTemplate(inv.Context(), organization.ID, codersdk.CreateTemplateRequest{
+					Name:      name,
+					VersionID: job.ID,
+				})
+				if err != nil {
+					return err
+				}
+
+				_, _ = fmt.Fprintln(
+					inv.Stdout, "\n"+cliui.Wrap(
+						"The "+cliui.Keyword(name)+" template has been created at "+cliui.Timestamp(time.Now())+"! "+
+							"Developers can provision a workspace with this template using:")+"\n")
+			} else if activate {
+				err = client.UpdateActiveTemplateVersion(inv.Context(), template.ID, codersdk.UpdateActiveTemplateVersion{
+					ID: job.ID,
+				})
+				if err != nil {
+					return err
+				}
+			}
+
+			_, _ = fmt.Fprintf(inv.Stdout, "Updated version at %s!\n", pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, time.Now().Format(time.Stamp)))
+			return nil
+		},
+	}
+
+	cmd.Options = clibase.OptionSet{
+		{
+			Flag:        "test.provisioner",
+			Description: "Customize the provisioner backend.",
+			Default:     "terraform",
+			Value:       clibase.StringOf(&provisioner),
+			// This is for testing!
+			Hidden: true,
+		},
+		{
+			Flag:        "test.workdir",
+			Description: "Customize the working directory.",
+			Default:     "",
+			Value:       clibase.StringOf(&workdir),
+			// This is for testing!
+			Hidden: true,
+		},
+		{
+			Flag:        "variables-file",
+			Description: "Specify a file path with values for Terraform-managed variables.",
+			Value:       clibase.StringOf(&variablesFile),
+		},
+		{
+			Flag:        "variable",
+			Description: "Specify a set of values for Terraform-managed variables.",
+			Value:       clibase.StringArrayOf(&commandLineVariables),
+		},
+		{
+			Flag:        "var",
+			Description: "Alias of --variable.",
+			Value:       clibase.StringArrayOf(&commandLineVariables),
+		},
+		{
+			Flag:        "provisioner-tag",
+			Description: "Specify a set of tags to target provisioner daemons.",
+			Value:       clibase.StringArrayOf(&provisionerTags),
+		},
+		{
+			Flag:        "name",
+			Description: "Specify a name for the new template version. It will be automatically generated if not provided.",
+			Value:       clibase.StringOf(&versionName),
+		},
+		{
+			Flag:        "always-prompt",
+			Description: "Always prompt all parameters. Does not pull parameter values from active template version.",
+			Value:       clibase.BoolOf(&alwaysPrompt),
+		},
+		{
+			Flag:        "activate",
+			Description: "Whether the new template will be marked active.",
+			Default:     "true",
+			Value:       clibase.BoolOf(&activate),
+		},
+		cliui.SkipPromptOption(),
+	}
+	cmd.Options = append(cmd.Options, uploadFlags.options()...)
+	return cmd
+}
+
 type templateUploadFlags struct {
 	directory      string
 	ignoreLockfile bool
@@ -154,188 +339,108 @@ func (pf *templateUploadFlags) templateName(args []string) (string, error) {
 	return filepath.Base(absPath), nil
 }
 
-func (r *RootCmd) templatePush() *clibase.Cmd {
-	var (
-		versionName          string
-		provisioner          string
-		workdir              string
-		variablesFile        string
-		commandLineVariables []string
-		alwaysPrompt         bool
-		provisionerTags      []string
-		uploadFlags          templateUploadFlags
-		activate             bool
-		create               bool
-	)
-	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
-		Use:   "push [template]",
-		Short: "Push a new template version from the current directory or as specified by flag",
-		Middleware: clibase.Chain(
-			clibase.RequireRangeArgs(0, 1),
-			r.InitClient(client),
-		),
-		Handler: func(inv *clibase.Invocation) error {
-			uploadFlags.setWorkdir(workdir)
+type createValidTemplateVersionArgs struct {
+	Name         string
+	Message      string
+	Client       *codersdk.Client
+	Organization codersdk.Organization
+	Provisioner  codersdk.ProvisionerType
+	FileID       uuid.UUID
 
-			organization, err := CurrentOrganization(inv, client)
-			if err != nil {
-				return err
-			}
+	// Template is only required if updating a template's active version.
+	Template *codersdk.Template
+	// ReuseParameters will attempt to reuse params from the Template field
+	// before prompting the user. Set to false to always prompt for param
+	// values.
+	ReuseParameters    bool
+	ProvisionerTags    map[string]string
+	UserVariableValues []codersdk.VariableValue
+}
 
-			name, err := uploadFlags.templateName(inv.Args)
-			if err != nil {
-				return err
-			}
+func createValidTemplateVersion(inv *clibase.Invocation, args createValidTemplateVersionArgs) (*codersdk.TemplateVersion, error) {
+	client := args.Client
 
-			var createTemplate bool
-			template, err := client.TemplateByName(inv.Context(), organization.ID, name)
-			if err != nil {
-				if !create {
-					return err
-				}
-				createTemplate = true
-			}
-
-			err = uploadFlags.checkForLockfile(inv)
-			if err != nil {
-				return xerrors.Errorf("check for lockfile: %w", err)
-			}
-
-			message := uploadFlags.templateMessage(inv)
-
-			resp, err := uploadFlags.upload(inv, client)
-			if err != nil {
-				return err
-			}
-
-			tags, err := ParseProvisionerTags(provisionerTags)
-			if err != nil {
-				return err
-			}
-
-			userVariableValues, err := ParseUserVariableValues(
-				variablesFile,
-				commandLineVariables)
-			if err != nil {
-				return err
-			}
-
-			args := createValidTemplateVersionArgs{
-				Message:            message,
-				Client:             client,
-				Organization:       organization,
-				Provisioner:        codersdk.ProvisionerType(provisioner),
-				FileID:             resp.ID,
-				ProvisionerTags:    tags,
-				UserVariableValues: userVariableValues,
-			}
-
-			if !createTemplate {
-				args.Name = versionName
-				args.Template = &template
-				args.ReuseParameters = !alwaysPrompt
-			}
-
-			job, err := createValidTemplateVersion(inv, args)
-			if err != nil {
-				return err
-			}
-
-			if job.Job.Status != codersdk.ProvisionerJobSucceeded {
-				return xerrors.Errorf("job failed: %s", job.Job.Status)
-			}
-
-			if createTemplate {
-				_, err = client.CreateTemplate(inv.Context(), organization.ID, codersdk.CreateTemplateRequest{
-					Name:      name,
-					VersionID: job.ID,
-				})
-				if err != nil {
-					return err
-				}
-
-				_, _ = fmt.Fprintln(
-					inv.Stdout, "\n"+cliui.Wrap(
-						"The "+cliui.Keyword(name)+" template has been created at "+cliui.Timestamp(time.Now())+"! "+
-							"Developers can provision a workspace with this template using:")+"\n")
-			} else if activate {
-				err = client.UpdateActiveTemplateVersion(inv.Context(), template.ID, codersdk.UpdateActiveTemplateVersion{
-					ID: job.ID,
-				})
-				if err != nil {
-					return err
-				}
-			}
-
-			_, _ = fmt.Fprintf(inv.Stdout, "Updated version at %s!\n", pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, time.Now().Format(time.Stamp)))
-			return nil
-		},
+	req := codersdk.CreateTemplateVersionRequest{
+		Name:               args.Name,
+		Message:            args.Message,
+		StorageMethod:      codersdk.ProvisionerStorageMethodFile,
+		FileID:             args.FileID,
+		Provisioner:        args.Provisioner,
+		ProvisionerTags:    args.ProvisionerTags,
+		UserVariableValues: args.UserVariableValues,
+	}
+	if args.Template != nil {
+		req.TemplateID = args.Template.ID
+	}
+	version, err := client.CreateTemplateVersion(inv.Context(), args.Organization.ID, req)
+	if err != nil {
+		return nil, err
 	}
 
-	cmd.Options = clibase.OptionSet{
-		{
-			Flag:        "test.provisioner",
-			Description: "Customize the provisioner backend.",
-			Default:     "terraform",
-			Value:       clibase.StringOf(&provisioner),
-			// This is for testing!
-			Hidden: true,
+	err = cliui.ProvisionerJob(inv.Context(), inv.Stdout, cliui.ProvisionerJobOptions{
+		Fetch: func() (codersdk.ProvisionerJob, error) {
+			version, err := client.TemplateVersion(inv.Context(), version.ID)
+			return version.Job, err
 		},
-		{
-			Flag:        "test.workdir",
-			Description: "Customize the working directory.",
-			Default:     "",
-			Value:       clibase.StringOf(&workdir),
-			// This is for testing!
-			Hidden: true,
+		Cancel: func() error {
+			return client.CancelTemplateVersion(inv.Context(), version.ID)
 		},
-		{
-			Flag:        "variables-file",
-			Description: "Specify a file path with values for Terraform-managed variables.",
-			Value:       clibase.StringOf(&variablesFile),
+		Logs: func() (<-chan codersdk.ProvisionerJobLog, io.Closer, error) {
+			return client.TemplateVersionLogsAfter(inv.Context(), version.ID, 0)
 		},
-		{
-			Flag:        "variable",
-			Description: "Specify a set of values for Terraform-managed variables.",
-			Value:       clibase.StringArrayOf(&commandLineVariables),
-		},
-		{
-			Flag:        "var",
-			Description: "Alias of --variable.",
-			Value:       clibase.StringArrayOf(&commandLineVariables),
-		},
-		{
-			Flag:        "provisioner-tag",
-			Description: "Specify a set of tags to target provisioner daemons.",
-			Value:       clibase.StringArrayOf(&provisionerTags),
-		},
-		{
-			Flag:        "name",
-			Description: "Specify a name for the new template version. It will be automatically generated if not provided.",
-			Value:       clibase.StringOf(&versionName),
-		},
-		{
-			Flag:        "always-prompt",
-			Description: "Always prompt all parameters. Does not pull parameter values from active template version.",
-			Value:       clibase.BoolOf(&alwaysPrompt),
-		},
-		{
-			Flag:        "activate",
-			Description: "Whether the new template will be marked active.",
-			Default:     "true",
-			Value:       clibase.BoolOf(&activate),
-		},
-		{
-			Flag:        "create",
-			Description: "Create the template if it does not exist.",
-			Default:     "false",
-			Value:       clibase.BoolOf(&create),
-		},
-		cliui.SkipPromptOption(),
+	})
+	if err != nil {
+		var jobErr *cliui.ProvisionerJobError
+		if errors.As(err, &jobErr) && !codersdk.JobIsMissingParameterErrorCode(jobErr.Code) {
+			return nil, err
+		}
+		if err != nil {
+			return nil, err
+		}
 	}
-	cmd.Options = append(cmd.Options, uploadFlags.options()...)
-	return cmd
+	version, err = client.TemplateVersion(inv.Context(), version.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	if version.Job.Status != codersdk.ProvisionerJobSucceeded {
+		return nil, xerrors.New(version.Job.Error)
+	}
+
+	resources, err := client.TemplateVersionResources(inv.Context(), version.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Only display the resources on the start transition, to avoid listing them more than once.
+	var startResources []codersdk.WorkspaceResource
+	for _, r := range resources {
+		if r.Transition == codersdk.WorkspaceTransitionStart {
+			startResources = append(startResources, r)
+		}
+	}
+	err = cliui.WorkspaceResources(inv.Stdout, startResources, cliui.WorkspaceResourcesOptions{
+		HideAgentState: true,
+		HideAccess:     true,
+		Title:          "Template Preview",
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("preview template resources: %w", err)
+	}
+
+	return &version, nil
+}
+
+func ParseProvisionerTags(rawTags []string) (map[string]string, error) {
+	tags := map[string]string{}
+	for _, rawTag := range rawTags {
+		parts := strings.SplitN(rawTag, "=", 2)
+		if len(parts) < 2 {
+			return nil, xerrors.Errorf("invalid tag format for %q. must be key=value", rawTag)
+		}
+		tags[parts[0]] = parts[1]
+	}
+	return tags, nil
 }
 
 // prettyDirectoryPath returns a prettified path when inside the users

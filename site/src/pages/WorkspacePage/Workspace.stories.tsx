@@ -54,7 +54,6 @@ const meta: Meta<typeof Workspace> = {
     withReactContext({
       Context: WatchAgentMetadataContext,
       initialState: (_: string): EventSource => {
-        // Need Bruno's help here.
         return new EventSource();
       },
     }),
@@ -75,7 +74,6 @@ export const Running: Story = {
       Mocks.MockWorkspaceImageResource,
       Mocks.MockWorkspaceContainerResource,
     ],
-    builds: [Mocks.MockWorkspaceBuild],
     canUpdateWorkspace: true,
     workspaceErrors: {},
     buildInfo: Mocks.MockBuildInfo,

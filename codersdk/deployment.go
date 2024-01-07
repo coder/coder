@@ -2080,15 +2080,6 @@ const (
 	// https://github.com/coder/coder/milestone/19
 	ExperimentWorkspaceActions Experiment = "workspace_actions"
 
-	// ExperimentTailnetPGCoordinator enables the PGCoord in favor of the pubsub-
-	// only Coordinator
-	ExperimentTailnetPGCoordinator Experiment = "tailnet_pg_coordinator"
-
-	// ExperimentSingleTailnet replaces workspace connections inside coderd to
-	// all use a single tailnet, instead of the previous behavior of creating a
-	// single tailnet for each agent.
-	ExperimentSingleTailnet Experiment = "single_tailnet"
-
 	// Deployment health page
 	ExperimentDeploymentHealthPage Experiment = "deployment_health_page"
 
@@ -2102,7 +2093,6 @@ const (
 // not be included here and will be essentially hidden.
 var ExperimentsAll = Experiments{
 	ExperimentDeploymentHealthPage,
-	ExperimentSingleTailnet,
 }
 
 // Experiments is a list of experiments.

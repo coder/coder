@@ -10,6 +10,16 @@ terraform {
   }
 }
 
+variable "jfrog_url" {
+  type        = string
+  description = "Artifactory URL. e.g. https://myartifactory.example.com"
+  # ensue the URL is HTTPS or HTTP
+  validation {
+    condition     = can(regex("^(https|http)://", var.jfrog_url))
+    error_message = "jfrog_url must be a valid URL starting with either 'https://' or 'http://'"
+  }
+}
+
 locals {
   // These are cluster service addresses mapped to Tailscale nodes. Ask Dean or
   // Kyle for help.
@@ -21,7 +31,10 @@ locals {
     "sa-saopaulo"   = "tcp://oberstein-sao-cdr-dev.tailscale.svc.cluster.local:2375"
   }
 
-  repo_dir = replace(data.coder_parameter.repo_dir.value, "/^~\\//", "/home/coder/")
+  repo_dir       = replace(data.coder_parameter.repo_dir.value, "/^~\\//", "/home/coder/")
+  container_name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
+  registry_name  = "codercom/oss-dogfood"
+  jfrog_host     = replace(var.jfrog_url, "https://", "")
 }
 
 data "coder_parameter" "repo_dir" {
@@ -125,6 +138,20 @@ module "coder-login" {
   agent_id = coder_agent.dev.id
 }
 
+module "jfrog" {
+  source                = "https://registry.coder.com/modules/jfrog-oauth"
+  agent_id              = coder_agent.dev.id
+  jfrog_url             = var.jfrog_url
+  configure_code_server = true
+  username_field        = "username"
+  package_managers = {
+    "npm" : "npm",
+    "go" : "go",
+    "pypi" : "pypi",
+    "docker" : "docker"
+  }
+}
+
 resource "coder_agent" "dev" {
   arch = "amd64"
   os   = "linux"
@@ -219,8 +246,9 @@ resource "coder_agent" "dev" {
   startup_script_timeout = 60
   startup_script         = <<-EOT
     set -eux -o pipefail
+    # Start Docker service
     sudo service docker start
-  EOT
+EOT
 }
 
 resource "docker_volume" "home_volume" {
@@ -250,10 +278,6 @@ resource "docker_volume" "home_volume" {
   }
 }
 
-locals {
-  container_name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
-  registry_name  = "codercom/oss-dogfood"
-}
 data "docker_registry_image" "dogfood" {
   name = "${local.registry_name}:latest"
 }

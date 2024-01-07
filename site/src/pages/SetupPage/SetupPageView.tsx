@@ -1,19 +1,20 @@
 import Checkbox from "@mui/material/Checkbox";
+import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
-import { SignInLayout } from "components/SignInLayout/SignInLayout";
+import LoadingButton from "@mui/lab/LoadingButton";
 import { type FormikContextType, useFormik } from "formik";
+import { type FC } from "react";
+import * as Yup from "yup";
+import type * as TypesGen from "api/typesGenerated";
 import {
   getFormHelpers,
   nameValidator,
   onChangeTrimmed,
 } from "utils/formUtils";
-import * as Yup from "yup";
-import type * as TypesGen from "api/typesGenerated";
-import LoadingButton from "@mui/lab/LoadingButton";
+import { docs } from "utils/docs";
+import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { FormFields, VerticalForm } from "components/Form/Form";
 import { CoderIcon } from "components/Icons/CoderIcon";
-import Link from "@mui/material/Link";
-import { docs } from "utils/docs";
 
 export const Language = {
   emailLabel: "Email",
@@ -41,7 +42,7 @@ export interface SetupPageViewProps {
   isLoading?: boolean;
 }
 
-export const SetupPageView: React.FC<SetupPageViewProps> = ({
+export const SetupPageView: FC<SetupPageViewProps> = ({
   onSubmit,
   error,
   isLoading,

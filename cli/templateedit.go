@@ -35,6 +35,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 		allowUserAutostop              bool
 		requireActiveVersion           bool
 		deprecationMessage             string
+		disableEveryone                bool
 	)
 	client := new(codersdk.Client)
 
@@ -162,6 +163,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				AllowUserAutostop:              allowUserAutostop,
 				RequireActiveVersion:           requireActiveVersion,
 				DeprecationMessage:             deprecated,
+				DisableEveryoneGroupAccess:     disableEveryone,
 			}
 
 			_, err = client.UpdateTemplateMeta(inv.Context(), template.ID, req)
@@ -291,6 +293,13 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 			Description: "Requires workspace builds to use the active template version. This setting does not apply to template admins. This is an enterprise-only feature.",
 			Value:       clibase.BoolOf(&requireActiveVersion),
 			Default:     "false",
+		},
+		{
+			Flag: "private",
+			Description: "Disable the default behavior of granting template access to the 'everyone' group. " +
+				"The template permissions must be updated to allow non-admin users to use this template.",
+			Value:   clibase.BoolOf(&disableEveryone),
+			Default: "false",
 		},
 		cliui.SkipPromptOption(),
 	}

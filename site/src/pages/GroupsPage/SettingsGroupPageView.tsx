@@ -3,7 +3,7 @@ import { Group } from "api/typesGenerated";
 import { FormFooter } from "components/FormFooter/FormFooter";
 import { FullPageForm } from "components/FullPageForm/FullPageForm";
 import { Loader } from "components/Loader/Loader";
-import { LazyIconField } from "components/IconField/LazyIconField";
+import { IconField } from "components/IconField/IconField";
 import { Margins } from "components/Margins/Margins";
 import { useFormik } from "formik";
 import { FC } from "react";
@@ -28,13 +28,21 @@ const validationSchema = Yup.object({
   quota_allowance: Yup.number().required().min(0).integer(),
 });
 
-const UpdateGroupForm: FC<{
+interface UpdateGroupFormProps {
   group: Group;
   errors: unknown;
   onSubmit: (data: FormData) => void;
   onCancel: () => void;
   isLoading: boolean;
-}> = ({ group, errors, onSubmit, onCancel, isLoading }) => {
+}
+
+const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
+  group,
+  errors,
+  onSubmit,
+  onCancel,
+  isLoading,
+}) => {
   const form = useFormik<FormData>({
     initialValues: {
       name: group.name,
@@ -76,7 +84,7 @@ const UpdateGroupForm: FC<{
                 label="Display Name"
                 disabled={isEveryoneGroup(group)}
               />
-              <LazyIconField
+              <IconField
                 {...getFieldHelpers("avatar_url")}
                 onChange={onChangeTrimmed(form)}
                 fullWidth
