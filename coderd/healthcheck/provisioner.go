@@ -137,7 +137,7 @@ func (r *ProvisionerDaemonsReport) Run(ctx context.Context, opts *ProvisionerDae
 			if r.Severity.Value() < health.SeverityError.Value() {
 				r.Severity = health.SeverityError
 			}
-			r.Warnings = append(r.Warnings, health.Messagef(health.CodeUnknown, "Some provisioner daemons reports invalid API version information"))
+			r.Warnings = append(r.Warnings, health.Messagef(health.CodeUnknown, "Some provisioner daemons report invalid API version information."))
 			it.Warnings = append(it.Warnings, health.Messagef(health.CodeUnknown, "Invalid API version: %s", err.Error())) // contains version string
 		} else if maj != opts.CurrentAPIMajorVersion {
 			if r.Severity.Value() < health.SeverityWarning.Value() {
