@@ -5,7 +5,7 @@
     "url": "",
     "name": "AWS EC2 (Devcontainer)",
     "description": "Provision AWS EC2 VMs with a devcontainer as Coder workspaces",
-    "icon": "/icon/aws.png",
+    "icon": "/icon/aws.svg",
     "tags": [
       "vm",
       "linux",
@@ -20,7 +20,7 @@
     "url": "",
     "name": "AWS EC2 (Linux)",
     "description": "Provision AWS EC2 VMs as Coder workspaces",
-    "icon": "/icon/aws.png",
+    "icon": "/icon/aws.svg",
     "tags": [
       "vm",
       "linux",
@@ -34,7 +34,7 @@
     "url": "",
     "name": "AWS EC2 (Windows)",
     "description": "Provision AWS EC2 VMs as Coder workspaces",
-    "icon": "/icon/aws.png",
+    "icon": "/icon/aws.svg",
     "tags": [
       "vm",
       "windows",

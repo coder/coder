@@ -66,7 +66,7 @@ export interface WorkspaceProps {
 /**
  * Workspace is the top-level component for viewing an individual workspace
  */
-export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
+export const Workspace: FC<WorkspaceProps> = ({
   handleStart,
   handleStop,
   handleRestart,
