@@ -156,7 +156,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   };
 
   const selectedResourceId = useTab("resources", "");
-  const resources = workspace.latest_build.resources.sort(
+  const resources = [...workspace.latest_build.resources].sort(
     (a, b) => countAgents(b) - countAgents(a),
   );
   const selectedResource = workspace.latest_build.resources.find(
