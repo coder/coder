@@ -1,10 +1,10 @@
-import { useTheme } from "@emotion/react";
 import HelpOutline from "@mui/icons-material/HelpOutline";
 import Tooltip from "@mui/material/Tooltip";
-import { type FC } from "react";
-import { getLatencyColor } from "utils/latency";
 import CircularProgress from "@mui/material/CircularProgress";
 import { visuallyHidden } from "@mui/utils";
+import { useTheme } from "@emotion/react";
+import { type FC } from "react";
+import { getLatencyColor } from "utils/latency";
 import { Abbr } from "components/Abbr/Abbr";
 
 interface ProxyStatusLatencyProps {
@@ -17,18 +17,16 @@ export const ProxyStatusLatency: FC<ProxyStatusLatencyProps> = ({
   isLoading,
 }) => {
   const theme = useTheme();
-  const color = getLatencyColor(theme, latency);
+  // Always use the no latency color for loading.
+  const color = getLatencyColor(theme, isLoading ? undefined : latency);
 
   if (isLoading) {
     return (
       <Tooltip title="Loading latency...">
         <CircularProgress
           size={14}
-          css={{
-            // Always use the no latency color for loading.
-            color: getLatencyColor(theme, undefined),
-            marginLeft: "auto",
-          }}
+          css={{ marginLeft: "auto" }}
+          style={{ color }}
         />
       </Tooltip>
     );
@@ -45,8 +43,8 @@ export const ProxyStatusLatency: FC<ProxyStatusLatencyProps> = ({
             css={{
               marginLeft: "auto",
               fontSize: "14px !important",
-              color,
             }}
+            style={{ color }}
           />
         </>
       </Tooltip>
@@ -54,7 +52,7 @@ export const ProxyStatusLatency: FC<ProxyStatusLatencyProps> = ({
   }
 
   return (
-    <p css={{ color, fontSize: 13, margin: "0 0 0 auto" }}>
+    <p css={{ fontSize: 13, margin: "0 0 0 auto" }} style={{ color }}>
       <span css={{ ...visuallyHidden }}>Latency: </span>
       {latency.toFixed(0)}
       <Abbr title="milliseconds">ms</Abbr>

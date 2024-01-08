@@ -17,9 +17,7 @@ export const BuildAvatar: FC<BuildAvatarProps> = ({ build, size }) => {
   const theme = useTheme();
   const { status, type } = getDisplayWorkspaceBuildStatus(theme, build);
   const badgeType = useClassName(
-    (css, theme) => css`
-      background-color: ${theme.palette[type].light};
-    `,
+    (css, theme) => css({ backgroundColor: theme.palette[type].light }),
     [type],
   );
 
