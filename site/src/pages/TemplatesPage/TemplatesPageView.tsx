@@ -110,9 +110,7 @@ const TemplateRow: FC<TemplateRowProps> = ({ template }) => {
           subtitle={template.description}
           avatar={
             hasIcon && (
-              <ExternalAvatar variant="square" fitImage>
-                <ExternalImage src={template.icon} css={{ maxWidth: "100%" }} />
-              </ExternalAvatar>
+              <ExternalAvatar variant="square" fitImage src={template.icon} />
             )
           }
         />

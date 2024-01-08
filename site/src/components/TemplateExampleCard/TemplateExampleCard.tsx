@@ -74,7 +74,6 @@ const styles = {
     borderRadius: 6,
     border: `1px solid ${theme.palette.divider}`,
     textAlign: "left",
-    textDecoration: "none",
     color: "inherit",
     display: "flex",
     flexDirection: "column",
@@ -103,6 +102,7 @@ const styles = {
 
   tag: (theme) => ({
     borderColor: theme.palette.divider,
+    textDecoration: "none",
     cursor: "pointer",
     "&: hover": {
       borderColor: theme.palette.primary.main,
