@@ -42,8 +42,7 @@ export const ProvisionerDaemonsPage = () => {
         })}
 
         {daemons.items.map(({ provisioner_daemon: daemon, warnings }) => {
-          const daemonScope =
-            daemon.tags["scope"] || "organization";
+          const daemonScope = daemon.tags["scope"] || "organization";
           const iconScope =
             daemonScope === "organization" ? <Business /> : <Person />;
           const extraTags = Object.keys(daemon.tags)
@@ -87,9 +86,7 @@ export const ProvisionerDaemonsPage = () => {
                   }}
                 >
                   <div css={{ lineHeight: "160%" }}>
-                    <h4 css={{ fontWeight: 500, margin: 0 }}>
-                      {daemon.name}
-                    </h4>
+                    <h4 css={{ fontWeight: 500, margin: 0 }}>{daemon.name}</h4>
                     <span css={{ color: theme.palette.text.secondary }}>
                       <code>{daemon.version}</code>
                     </span>
@@ -109,7 +106,15 @@ export const ProvisionerDaemonsPage = () => {
                     </Pill>
                   </Tooltip>
                   <Tooltip title="Scope">
-                    <Pill icon={iconScope}>{titleCase(daemonScope)}</Pill>
+                    <Pill icon={iconScope}>
+                      <span
+                        css={{
+                          ":first-letter": { textTransform: "uppercase" },
+                        }}
+                      >
+                        {daemonScope}
+                      </span>
+                    </Pill>
                   </Tooltip>
                   {Object.keys(extraTags).map((k) => (
                     <Tooltip key={k} title={k}>
@@ -157,16 +162,5 @@ export const ProvisionerDaemonsPage = () => {
     </>
   );
 };
-
-const titleCase = (s: string) : string => {
-  switch (s.length) {
-    case 0:
-      return "";
-    case 1:
-      return s.toLocaleUpperCase();
-    default:
-      return s.charAt(0).toLocaleUpperCase() + s.slice(1);
-  }
-}
 
 export default ProvisionerDaemonsPage;
