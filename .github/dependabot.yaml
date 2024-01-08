@@ -45,7 +45,6 @@ updates:
         update-types:
           - version-update:semver-patch
 
-
   # Update our Dockerfile.
   - package-ecosystem: "docker"
     directory: "/scripts/"
