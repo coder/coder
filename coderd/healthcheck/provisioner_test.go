@@ -136,7 +136,7 @@ func TestProvisionerDaemonReport(t *testing.T) {
 				deps.CurrentAPIMajorVersion = provisionersdk.CurrentMajor
 			}
 			now := dbtime.Now()
-			deps.TimeNowFn = func() time.Time {
+			deps.TimeNow = func() time.Time {
 				return now
 			}
 

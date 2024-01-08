@@ -444,8 +444,7 @@ func New(options *Options) *API {
 					CurrentVersion:         buildinfo.Version(),
 					CurrentAPIMajorVersion: provisionersdk.CurrentMajor,
 					Store:                  options.Database,
-					TimeNowFn:              dbtime.Now,
-					StaleInterval:          provisionerdserver.DefaultHeartbeatInterval * 3,
+					// TimeNow and StaleInterval set to defaults, see healthcheck/provisioner.go
 				},
 			})
 		}

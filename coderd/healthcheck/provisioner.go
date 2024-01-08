@@ -36,7 +36,7 @@ type ProvisionerDaemonsReportDeps struct {
 	Store                  ProvisionerDaemonsStore
 
 	// Optional
-	TimeNowFn     func() time.Time // Defaults to dbtime.Now
+	TimeNow       func() time.Time // Defaults to dbtime.Now
 	StaleInterval time.Duration    // Defaults to 3 heartbeats
 
 	Dismissed bool
@@ -52,10 +52,10 @@ func (r *ProvisionerDaemonsReport) Run(ctx context.Context, opts *ProvisionerDae
 	r.Warnings = make([]health.Message, 0)
 	r.Dismissed = opts.Dismissed
 
-	if opts.TimeNowFn == nil {
-		opts.TimeNowFn = dbtime.Now
+	if opts.TimeNow == nil {
+		opts.TimeNow = dbtime.Now
 	}
-	now := opts.TimeNowFn()
+	now := opts.TimeNow()
 
 	if opts.StaleInterval == 0 {
 		opts.StaleInterval = provisionerdserver.DefaultHeartbeatInterval * 3
