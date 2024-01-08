@@ -70,25 +70,25 @@ const OptionsTable: FC<OptionsTableProps> = ({ options, additionalValues }) => {
                     }}
                   >
                     {option.flag && (
-                      <OptionConfig source={option.value_source === "flag"}>
+                      <OptionConfig isSource={option.value_source === "flag"}>
                         <OptionConfigFlag>CLI</OptionConfigFlag>
                         --{option.flag}
                       </OptionConfig>
                     )}
                     {option.flag_shorthand && (
-                      <OptionConfig source={option.value_source === "flag"}>
+                      <OptionConfig isSource={option.value_source === "flag"}>
                         <OptionConfigFlag>CLI</OptionConfigFlag>-
                         {option.flag_shorthand}
                       </OptionConfig>
                     )}
                     {option.env && (
-                      <OptionConfig source={option.value_source === "env"}>
+                      <OptionConfig isSource={option.value_source === "env"}>
                         <OptionConfigFlag>ENV</OptionConfigFlag>
                         {option.env}
                       </OptionConfig>
                     )}
                     {option.yaml && (
-                      <OptionConfig source={option.value_source === "yaml"}>
+                      <OptionConfig isSource={option.value_source === "yaml"}>
                         <OptionConfigFlag>YAML</OptionConfigFlag>
                         {option.yaml}
                       </OptionConfig>

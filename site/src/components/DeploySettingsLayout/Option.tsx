@@ -1,6 +1,6 @@
 import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import { css, useTheme } from "@emotion/react";
-import type { HTMLAttributes, PropsWithChildren, FC } from "react";
+import { type HTMLAttributes, type PropsWithChildren, type FC } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { DisabledBadge, EnabledBadge } from "../Badges/Badges";
 
@@ -104,68 +104,61 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
   return <span css={styles.option}>{JSON.stringify(value)}</span>;
 };
 
-interface OptionConfigProps extends HTMLAttributes<HTMLDivElement> {
-  source?: boolean;
-}
+type OptionConfigProps = HTMLAttributes<HTMLDivElement> & { isSource: boolean };
 
-// OptionConfig takes a source bool to indicate if the Option is the source of the configured value.
-export const OptionConfig: FC<OptionConfigProps> = ({
-  children,
-  source,
-  ...attrs
-}) => {
+// OptionConfig takes a isSource bool to indicate if the Option is the source of the configured value.
+export const OptionConfig = ({ isSource, ...attrs }: OptionConfigProps) => {
   const theme = useTheme();
-  const borderColor = source ? undefined : theme.palette.divider;
+  const borderColor = isSource
+    ? theme.experimental.roles.active.outline
+    : theme.palette.divider;
 
   return (
     <div
       {...attrs}
-      css={{
-        fontSize: 13,
-        fontFamily: MONOSPACE_FONT_FAMILY,
-        fontWeight: 600,
-        backgroundColor: source
-          ? theme.palette.primary.dark
-          : theme.palette.background.paper,
-        display: "inline-flex",
-        alignItems: "center",
-        borderRadius: 2,
-        padding: "0 8px",
-        border: `1px solid ${borderColor}`,
-      }}
-    >
-      {children}
-    </div>
+      css={[
+        {
+          fontSize: 13,
+          fontFamily: MONOSPACE_FONT_FAMILY,
+          fontWeight: 600,
+          backgroundColor: theme.palette.background.paper,
+          display: "inline-flex",
+          alignItems: "center",
+          borderRadius: 4,
+          padding: 6,
+          lineHeight: 1,
+          gap: 6,
+          border: `1px solid ${borderColor}`,
+        },
+        isSource
+          ? {
+              "& .OptionConfigFlag": {
+                background: theme.experimental.roles.active.fill,
+              },
+            }
+          : undefined,
+      ]}
+    />
   );
 };
 
-interface OptionConfigFlagProps extends HTMLAttributes<HTMLDivElement> {
-  source?: boolean;
-}
-
-export const OptionConfigFlag: FC<OptionConfigFlagProps> = ({
-  children,
-  source,
-  ...attrs
-}) => {
+export const OptionConfigFlag = (props: HTMLAttributes<HTMLDivElement>) => {
   const theme = useTheme();
 
   return (
     <div
-      {...attrs}
+      {...props}
+      className="OptionConfigFlag"
       css={{
         fontSize: 10,
         fontWeight: 600,
-        margin: "0 6px 0 -4px",
         display: "block",
-        backgroundColor: source ? "rgba(0, 0, 0, 0.7)" : theme.palette.divider,
+        backgroundColor: theme.palette.divider,
         lineHeight: 1,
         padding: "2px 4px",
-        borderRadius: 2,
+        borderRadius: 1,
       }}
-    >
-      {children}
-    </div>
+    />
   );
 };
 
