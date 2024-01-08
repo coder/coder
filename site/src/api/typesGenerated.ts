@@ -1865,12 +1865,14 @@ export type HealthSection =
   | "AccessURL"
   | "DERP"
   | "Database"
+  | "ProvisionerDaemons"
   | "Websocket"
   | "WorkspaceProxy";
 export const HealthSections: HealthSection[] = [
   "AccessURL",
   "DERP",
   "Database",
+  "ProvisionerDaemons",
   "Websocket",
   "WorkspaceProxy",
 ];
@@ -2203,6 +2205,15 @@ export interface HealthcheckDatabaseReport {
   readonly error?: string;
 }
 
+// From healthcheck/provisioner.go
+export interface HealthcheckProvisionerDaemonsReport {
+  readonly severity: HealthSeverity;
+  readonly warnings: HealthMessage[];
+  readonly dismissed: boolean;
+  readonly error?: string;
+  readonly provisioner_daemons: ProvisionerDaemon[];
+}
+
 // From healthcheck/healthcheck.go
 export interface HealthcheckReport {
   readonly time: string;
@@ -2214,6 +2225,7 @@ export interface HealthcheckReport {
   readonly websocket: HealthcheckWebsocketReport;
   readonly database: HealthcheckDatabaseReport;
   readonly workspace_proxy: HealthcheckWorkspaceProxyReport;
+  readonly provisioner_daemons: HealthcheckProvisionerDaemonsReport;
   readonly coder_version: string;
 }
 
@@ -2301,6 +2313,9 @@ export type HealthCode =
   | "EDB02"
   | "EDERP01"
   | "EDERP02"
+  | "EPD01"
+  | "EPD02"
+  | "EPD03"
   | "EUNKNOWN"
   | "EWP01"
   | "EWP02"
@@ -2318,6 +2333,9 @@ export const HealthCodes: HealthCode[] = [
   "EDB02",
   "EDERP01",
   "EDERP02",
+  "EPD01",
+  "EPD02",
+  "EPD03",
   "EUNKNOWN",
   "EWP01",
   "EWP02",

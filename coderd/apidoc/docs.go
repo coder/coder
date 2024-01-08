@@ -9408,14 +9408,16 @@ const docTemplate = `{
                 "AccessURL",
                 "Websocket",
                 "Database",
-                "WorkspaceProxy"
+                "WorkspaceProxy",
+                "ProvisionerDaemons"
             ],
             "x-enum-varnames": [
                 "HealthSectionDERP",
                 "HealthSectionAccessURL",
                 "HealthSectionWebsocket",
                 "HealthSectionDatabase",
-                "HealthSectionWorkspaceProxy"
+                "HealthSectionWorkspaceProxy",
+                "HealthSectionProvisionerDaemons"
             ]
         },
         "codersdk.HealthSettings": {
@@ -12957,7 +12959,10 @@ const docTemplate = `{
                 "EACS03",
                 "EACS04",
                 "EDERP01",
-                "EDERP02"
+                "EDERP02",
+                "EPD01",
+                "EPD02",
+                "EPD03"
             ],
             "x-enum-varnames": [
                 "CodeUnknown",
@@ -12975,7 +12980,10 @@ const docTemplate = `{
                 "CodeAccessURLFetch",
                 "CodeAccessURLNotOK",
                 "CodeDERPNodeUsesWebsocket",
-                "CodeDERPOneNodeUnhealthy"
+                "CodeDERPOneNodeUnhealthy",
+                "CodeProvisionerDaemonsNoProvisionerDaemons",
+                "CodeProvisionerDaemonVersionMismatch",
+                "CodeProvisionerDaemonAPIMajorVersionDeprecated"
             ]
         },
         "health.Message": {
@@ -13092,6 +13100,32 @@ const docTemplate = `{
                 }
             }
         },
+        "healthcheck.ProvisionerDaemonsReport": {
+            "type": "object",
+            "properties": {
+                "dismissed": {
+                    "type": "boolean"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "provisioner_daemons": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ProvisionerDaemon"
+                    }
+                },
+                "severity": {
+                    "$ref": "#/definitions/health.Severity"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/health.Message"
+                    }
+                }
+            }
+        },
         "healthcheck.Report": {
             "type": "object",
             "properties": {
@@ -13118,6 +13152,9 @@ const docTemplate = `{
                 "healthy": {
                     "description": "Healthy is true if the report returns no errors.\nDeprecated: use ` + "`" + `Severity` + "`" + ` instead",
                     "type": "boolean"
+                },
+                "provisioner_daemons": {
+                    "$ref": "#/definitions/healthcheck.ProvisionerDaemonsReport"
                 },
                 "severity": {
                     "description": "Severity indicates the status of Coder health.",

@@ -59,7 +59,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		if assert.Len(t, daemons, 1) {
 			assert.Equal(t, daemonName, daemons[0].Name)
 			assert.Equal(t, buildinfo.Version(), daemons[0].Version)
-			assert.Equal(t, provisionersdk.APIVersionCurrent, daemons[0].APIVersion)
+			assert.Equal(t, provisionersdk.VersionCurrent.String(), daemons[0].APIVersion)
 		}
 	})
 
