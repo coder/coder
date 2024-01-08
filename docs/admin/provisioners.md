@@ -64,11 +64,11 @@ the [Helm example](#example-running-an-external-provisioner-with-helm) below.
 
   # In another terminal, create/push
   # a template that requires this provisioner
-  coder templates create on-prem \
+  coder templates push on-prem \
     --provisioner-tag environment=on_prem
 
   # Or, match the provisioner exactly
-  coder templates create on-prem-chicago \
+  coder templates push on-prem-chicago \
     --provisioner-tag environment=on_prem \
     --provisioner-tag data_center=chicago
   ```
@@ -88,7 +88,7 @@ the [Helm example](#example-running-an-external-provisioner-with-helm) below.
 
   # In another terminal, create/push
   # a template that requires user provisioners
-  coder templates create on-prem \
+  coder templates push on-prem \
     --provisioner-tag scope=user
   ```
 

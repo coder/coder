@@ -241,6 +241,12 @@ type UpdateTemplateMeta struct {
 	// If passed an empty string, will remove the deprecated message, making
 	// the template usable for new workspaces again.
 	DeprecationMessage *string `json:"deprecation_message"`
+	// DisableEveryoneGroupAccess allows optionally disabling the default
+	// behavior of granting the 'everyone' group access to use the template.
+	// If this is set to true, the template will not be available to all users,
+	// and must be explicitly granted to users or groups in the permissions settings
+	// of the template.
+	DisableEveryoneGroupAccess bool `json:"disable_everyone_group_access"`
 }
 
 type TemplateExample struct {

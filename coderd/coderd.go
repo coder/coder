@@ -440,6 +440,12 @@ func New(options *Options) *API {
 					CurrentVersion:               buildinfo.Version(),
 					WorkspaceProxiesFetchUpdater: *(options.WorkspaceProxiesFetchUpdater).Load(),
 				},
+				ProvisionerDaemons: healthcheck.ProvisionerDaemonsReportDeps{
+					CurrentVersion:         buildinfo.Version(),
+					CurrentAPIMajorVersion: provisionersdk.CurrentMajor,
+					Store:                  options.Database,
+					// TimeNow and StaleInterval set to defaults, see healthcheck/provisioner.go
+				},
 			})
 		}
 	}
@@ -1188,7 +1194,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, name string
 		Tags:       provisionersdk.MutateTags(uuid.Nil, nil),
 		LastSeenAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
 		Version:    buildinfo.Version(),
-		APIVersion: provisionersdk.APIVersionCurrent,
+		APIVersion: provisionersdk.VersionCurrent.String(),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("failed to create in-memory provisioner daemon: %w", err)

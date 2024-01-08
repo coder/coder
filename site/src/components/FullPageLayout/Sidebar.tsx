@@ -27,8 +27,26 @@ export const SidebarLink = (props: LinkProps) => {
   return <Link css={styles.sidebarItem} {...props} />;
 };
 
-export const SidebarItem = (props: HTMLAttributes<HTMLButtonElement>) => {
-  return <button css={styles.sidebarItem} {...props} />;
+export const SidebarItem = (
+  props: HTMLAttributes<HTMLButtonElement> & { isActive?: boolean },
+) => {
+  const { isActive, ...buttonProps } = props;
+  const theme = useTheme();
+
+  return (
+    <button
+      css={[
+        styles.sidebarItem,
+        { opacity: "0.75", "&:hover": { opacity: 1 } },
+        isActive && {
+          background: theme.palette.action.selected,
+          opacity: 1,
+          pointerEvents: "none",
+        },
+      ]}
+      {...buttonProps}
+    />
+  );
 };
 
 export const SidebarCaption = (props: HTMLAttributes<HTMLSpanElement>) => {
@@ -88,6 +106,7 @@ const styles = {
     textAlign: "left",
     background: "none",
     border: 0,
+    cursor: "pointer",
 
     "&:hover": {
       backgroundColor: theme.palette.action.hover,

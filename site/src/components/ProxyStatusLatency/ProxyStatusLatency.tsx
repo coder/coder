@@ -4,6 +4,8 @@ import Tooltip from "@mui/material/Tooltip";
 import { type FC } from "react";
 import { getLatencyColor } from "utils/latency";
 import CircularProgress from "@mui/material/CircularProgress";
+import { visuallyHidden } from "@mui/utils";
+import { Abbr } from "components/Abbr/Abbr";
 
 interface ProxyStatusLatencyProps {
   latency?: number;
@@ -33,22 +35,29 @@ export const ProxyStatusLatency: FC<ProxyStatusLatencyProps> = ({
   }
 
   if (!latency) {
+    const notAvailableText = "Latency not available";
     return (
-      <Tooltip title="Latency not available">
-        <HelpOutline
-          css={{
-            marginLeft: "auto",
-            fontSize: "14px !important",
-            color,
-          }}
-        />
+      <Tooltip title={notAvailableText}>
+        <>
+          <span css={{ ...visuallyHidden }}>{notAvailableText}</span>
+
+          <HelpOutline
+            css={{
+              marginLeft: "auto",
+              fontSize: "14px !important",
+              color,
+            }}
+          />
+        </>
       </Tooltip>
     );
   }
 
   return (
-    <div css={{ color, fontSize: 13, marginLeft: "auto" }}>
-      {latency.toFixed(0)}ms
-    </div>
+    <p css={{ color, fontSize: 13, margin: "0 0 0 auto" }}>
+      <span css={{ ...visuallyHidden }}>Latency: </span>
+      {latency.toFixed(0)}
+      <Abbr title="milliseconds">ms</Abbr>
+    </p>
   );
 };

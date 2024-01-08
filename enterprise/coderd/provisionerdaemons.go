@@ -26,6 +26,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -89,7 +90,7 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	}
 	apiDaemons := make([]codersdk.ProvisionerDaemon, 0)
 	for _, daemon := range daemons {
-		apiDaemons = append(apiDaemons, convertProvisionerDaemon(daemon))
+		apiDaemons = append(apiDaemons, db2sdk.ProvisionerDaemon(daemon))
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, apiDaemons)
 }
@@ -235,6 +236,11 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 
 	versionHdrVal := r.Header.Get(codersdk.BuildVersionHeader)
 
+	apiVersion := "1.0"
+	if qv := r.URL.Query().Get("version"); qv != "" {
+		apiVersion = qv
+	}
+
 	// Create the daemon in the database.
 	now := dbtime.Now()
 	daemon, err := api.Database.UpsertProvisionerDaemon(authCtx, database.UpsertProvisionerDaemonParams{
@@ -244,7 +250,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		CreatedAt:    now,
 		LastSeenAt:   sql.NullTime{Time: now, Valid: true},
 		Version:      versionHdrVal,
-		APIVersion:   provisionersdk.APIVersionCurrent,
+		APIVersion:   apiVersion,
 	})
 	if err != nil {
 		if !xerrors.Is(err, context.Canceled) {
@@ -353,22 +359,6 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 	_ = conn.Close(websocket.StatusGoingAway, "")
-}
-
-func convertProvisionerDaemon(daemon database.ProvisionerDaemon) codersdk.ProvisionerDaemon {
-	result := codersdk.ProvisionerDaemon{
-		ID:         daemon.ID,
-		CreatedAt:  daemon.CreatedAt,
-		LastSeenAt: codersdk.NullTime{NullTime: daemon.LastSeenAt},
-		Name:       daemon.Name,
-		Tags:       daemon.Tags,
-		Version:    daemon.Version,
-		APIVersion: daemon.APIVersion,
-	}
-	for _, provisionerType := range daemon.Provisioners {
-		result.Provisioners = append(result.Provisioners, codersdk.ProvisionerType(provisionerType))
-	}
-	return result
 }
 
 // wsNetConn wraps net.Conn created by websocket.NetConn(). Cancel func
