@@ -7900,19 +7900,27 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 {
   "dismissed": true,
   "error": "string",
-  "provisioner_daemons": [
+  "items": [
     {
-      "api_version": "string",
-      "created_at": "2019-08-24T14:15:22Z",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "last_seen_at": "2019-08-24T14:15:22Z",
-      "name": "string",
-      "provisioners": ["string"],
-      "tags": {
-        "property1": "string",
-        "property2": "string"
+      "provisioner_daemon": {
+        "api_version": "string",
+        "created_at": "2019-08-24T14:15:22Z",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "last_seen_at": "2019-08-24T14:15:22Z",
+        "name": "string",
+        "provisioners": ["string"],
+        "tags": {
+          "property1": "string",
+          "property2": "string"
+        },
+        "version": "string"
       },
-      "version": "string"
+      "warnings": [
+        {
+          "code": "EUNKNOWN",
+          "message": "string"
+        }
+      ]
     }
   ],
   "severity": "ok",
@@ -7927,13 +7935,46 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                  | Type                                                              | Required | Restrictions | Description |
-| --------------------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `dismissed`           | boolean                                                           | false    |              |             |
-| `error`               | string                                                            | false    |              |             |
-| `provisioner_daemons` | array of [codersdk.ProvisionerDaemon](#codersdkprovisionerdaemon) | false    |              |             |
-| `severity`            | [health.Severity](#healthseverity)                                | false    |              |             |
-| `warnings`            | array of [health.Message](#healthmessage)                         | false    |              |             |
+| Name        | Type                                                                                          | Required | Restrictions | Description |
+| ----------- | --------------------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `dismissed` | boolean                                                                                       | false    |              |             |
+| `error`     | string                                                                                        | false    |              |             |
+| `items`     | array of [healthcheck.ProvisionerDaemonsReportItem](#healthcheckprovisionerdaemonsreportitem) | false    |              |             |
+| `severity`  | [health.Severity](#healthseverity)                                                            | false    |              |             |
+| `warnings`  | array of [health.Message](#healthmessage)                                                     | false    |              |             |
+
+## healthcheck.ProvisionerDaemonsReportItem
+
+```json
+{
+  "provisioner_daemon": {
+    "api_version": "string",
+    "created_at": "2019-08-24T14:15:22Z",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "last_seen_at": "2019-08-24T14:15:22Z",
+    "name": "string",
+    "provisioners": ["string"],
+    "tags": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "version": "string"
+  },
+  "warnings": [
+    {
+      "code": "EUNKNOWN",
+      "message": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name                 | Type                                                     | Required | Restrictions | Description |
+| -------------------- | -------------------------------------------------------- | -------- | ------------ | ----------- |
+| `provisioner_daemon` | [codersdk.ProvisionerDaemon](#codersdkprovisionerdaemon) | false    |              |             |
+| `warnings`           | array of [health.Message](#healthmessage)                | false    |              |             |
 
 ## healthcheck.Report
 
@@ -8179,19 +8220,27 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "provisioner_daemons": {
     "dismissed": true,
     "error": "string",
-    "provisioner_daemons": [
+    "items": [
       {
-        "api_version": "string",
-        "created_at": "2019-08-24T14:15:22Z",
-        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-        "last_seen_at": "2019-08-24T14:15:22Z",
-        "name": "string",
-        "provisioners": ["string"],
-        "tags": {
-          "property1": "string",
-          "property2": "string"
+        "provisioner_daemon": {
+          "api_version": "string",
+          "created_at": "2019-08-24T14:15:22Z",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "last_seen_at": "2019-08-24T14:15:22Z",
+          "name": "string",
+          "provisioners": ["string"],
+          "tags": {
+            "property1": "string",
+            "property2": "string"
+          },
+          "version": "string"
         },
-        "version": "string"
+        "warnings": [
+          {
+            "code": "EUNKNOWN",
+            "message": "string"
+          }
+        ]
       }
     ],
     "severity": "ok",

@@ -2,6 +2,7 @@ package healthcheck
 
 import (
 	"context"
+	"sort"
 	"time"
 
 	"golang.org/x/mod/semver"
@@ -26,7 +27,13 @@ type ProvisionerDaemonsReport struct {
 	Dismissed bool             `json:"dismissed"`
 	Error     *string          `json:"error"`
 
-	ProvisionerDaemons []codersdk.ProvisionerDaemon `json:"provisioner_daemons"`
+	Items []ProvisionerDaemonsReportItem `json:"items"`
+}
+
+// @typescript-generate ProvisionerDaemonsReportItem
+type ProvisionerDaemonsReportItem struct {
+	codersdk.ProvisionerDaemon `json:"provisioner_daemon"`
+	Warnings                   []health.Message `json:"warnings"`
 }
 
 type ProvisionerDaemonsReportDeps struct {
@@ -47,7 +54,7 @@ type ProvisionerDaemonsStore interface {
 }
 
 func (r *ProvisionerDaemonsReport) Run(ctx context.Context, opts *ProvisionerDaemonsReportDeps) {
-	r.ProvisionerDaemons = make([]codersdk.ProvisionerDaemon, 0)
+	r.Items = make([]ProvisionerDaemonsReportItem, 0)
 	r.Severity = health.SeverityOK
 	r.Warnings = make([]health.Message, 0)
 	r.Dismissed = opts.Dismissed
@@ -86,6 +93,12 @@ func (r *ProvisionerDaemonsReport) Run(ctx context.Context, opts *ProvisionerDae
 		r.Error = ptr.Ref("error fetching provisioner daemons: " + err.Error())
 		return
 	}
+
+	// Ensure stable order for display and for tests
+	sort.Slice(daemons, func(i, j int) bool {
+		return daemons[i].Name < daemons[j].Name
+	})
+
 	for _, daemon := range daemons {
 		// Daemon never connected, skip.
 		if !daemon.LastSeenAt.Valid {
@@ -96,19 +109,24 @@ func (r *ProvisionerDaemonsReport) Run(ctx context.Context, opts *ProvisionerDae
 			continue
 		}
 
-		r.ProvisionerDaemons = append(r.ProvisionerDaemons, db2sdk.ProvisionerDaemon(daemon))
+		it := ProvisionerDaemonsReportItem{
+			ProvisionerDaemon: db2sdk.ProvisionerDaemon(daemon),
+			Warnings:          make([]health.Message, 0),
+		}
 
 		// For release versions, just check MAJOR.MINOR and ignore patch.
 		if !semver.IsValid(daemon.Version) {
 			if r.Severity.Value() < health.SeverityError.Value() {
 				r.Severity = health.SeverityError
 			}
-			r.Warnings = append(r.Warnings, health.Messagef(health.CodeUnknown, "Provisioner daemon %q reports invalid version %q", opts.CurrentVersion, daemon.Version))
+			r.Warnings = append(r.Warnings, health.Messagef(health.CodeUnknown, "Some provisioner daemons report invalid version information."))
+			it.Warnings = append(it.Warnings, health.Messagef(health.CodeUnknown, "Invalid version %q", daemon.Version))
 		} else if !buildinfo.VersionsMatch(opts.CurrentVersion, daemon.Version) {
 			if r.Severity.Value() < health.SeverityWarning.Value() {
 				r.Severity = health.SeverityWarning
 			}
-			r.Warnings = append(r.Warnings, health.Messagef(health.CodeProvisionerDaemonVersionMismatch, "Provisioner daemon %q has outdated version %q", daemon.Name, daemon.Version))
+			r.Warnings = append(r.Warnings, health.Messagef(health.CodeProvisionerDaemonVersionMismatch, "Some provisioner daemons report mismatched versions."))
+			it.Warnings = append(it.Warnings, health.Messagef(health.CodeProvisionerDaemonVersionMismatch, "Mismatched version %q", daemon.Version))
 		}
 
 		// Provisioner daemon API version follows different rules; we just want to check the major API version and
@@ -119,16 +137,20 @@ func (r *ProvisionerDaemonsReport) Run(ctx context.Context, opts *ProvisionerDae
 			if r.Severity.Value() < health.SeverityError.Value() {
 				r.Severity = health.SeverityError
 			}
-			r.Warnings = append(r.Warnings, health.Messagef(health.CodeUnknown, "Provisioner daemon %q reports invalid API version: %s", daemon.Name, err.Error()))
+			r.Warnings = append(r.Warnings, health.Messagef(health.CodeUnknown, "Some provisioner daemons report invalid API version information."))
+			it.Warnings = append(it.Warnings, health.Messagef(health.CodeUnknown, "Invalid API version: %s", err.Error())) // contains version string
 		} else if maj != opts.CurrentAPIMajorVersion {
 			if r.Severity.Value() < health.SeverityWarning.Value() {
 				r.Severity = health.SeverityWarning
 			}
-			r.Warnings = append(r.Warnings, health.Messagef(health.CodeProvisionerDaemonAPIMajorVersionDeprecated, "Provisioner daemon %q reports deprecated major API version %d. Consider upgrading!", daemon.Name, provisionersdk.CurrentMajor))
+			r.Warnings = append(r.Warnings, health.Messagef(health.CodeProvisionerDaemonAPIMajorVersionDeprecated, "Some provisioner daemons report deprecated major API versions. Consider upgrading!"))
+			it.Warnings = append(it.Warnings, health.Messagef(health.CodeProvisionerDaemonAPIMajorVersionDeprecated, "Deprecated major API version %d.", provisionersdk.CurrentMajor))
 		}
+
+		r.Items = append(r.Items, it)
 	}
 
-	if len(r.ProvisionerDaemons) == 0 {
+	if len(r.Items) == 0 {
 		r.Severity = health.SeverityError
 		r.Error = ptr.Ref("No active provisioner daemons found!")
 		return

@@ -3105,19 +3105,22 @@ export const MockHealth: TypesGen.HealthcheckReport = {
     severity: "ok",
     warnings: [],
     dismissed: false,
-    provisioner_daemons: [
+    items: [
       {
-        id: "e455b582-ac04-4323-9ad6-ab71301fa006",
-        created_at: "2024-01-04T15:53:03.21563Z",
-        last_seen_at: "2024-01-04T16:05:03.967551Z",
-        name: "vvuurrkk-2",
-        version: "v2.6.0-devel+965ad5e96",
-        api_version: "1.0",
-        provisioners: ["echo", "terraform"],
-        tags: {
-          owner: "",
-          scope: "organization",
+        provisioner_daemon: {
+          id: "e455b582-ac04-4323-9ad6-ab71301fa006",
+          created_at: "2024-01-04T15:53:03.21563Z",
+          last_seen_at: "2024-01-04T16:05:03.967551Z",
+          name: "vvuurrkk-2",
+          version: "v2.6.0-devel+965ad5e96",
+          api_version: "1.0",
+          provisioners: ["echo", "terraform"],
+          tags: {
+            owner: "",
+            scope: "organization",
+          },
         },
+        warnings: [],
       },
     ],
   },
@@ -3211,10 +3214,37 @@ export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
   },
   provisioner_daemons: {
     severity: "error",
-    error: "something went wrong lol",
-    warnings: [],
+    error: "something went wrong",
+    warnings: [
+      {
+        message: "this is a message",
+        code: "EUNKNOWN",
+      },
+    ],
     dismissed: false,
-    provisioner_daemons: [],
+    items: [
+      {
+        provisioner_daemon: {
+          id: "e455b582-ac04-4323-9ad6-ab71301fa006",
+          created_at: "2024-01-04T15:53:03.21563Z",
+          last_seen_at: "2024-01-04T16:05:03.967551Z",
+          name: "vvuurrkk-2",
+          version: "v2.6.0-devel+965ad5e96",
+          api_version: "1.0",
+          provisioners: ["echo", "terraform"],
+          tags: {
+            owner: "",
+            scope: "organization",
+          },
+        },
+        warnings: [
+          {
+            message: "this is a specific message for this thing",
+            code: "EUNKNOWN",
+          },
+        ],
+      },
+    ],
   },
 };
 

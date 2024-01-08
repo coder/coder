@@ -2211,7 +2211,13 @@ export interface HealthcheckProvisionerDaemonsReport {
   readonly warnings: HealthMessage[];
   readonly dismissed: boolean;
   readonly error?: string;
-  readonly provisioner_daemons: ProvisionerDaemon[];
+  readonly items: HealthcheckProvisionerDaemonsReportItem[];
+}
+
+// From healthcheck/provisioner.go
+export interface HealthcheckProvisionerDaemonsReportItem {
+  readonly provisioner_daemon: ProvisionerDaemon;
+  readonly warnings: HealthMessage[];
 }
 
 // From healthcheck/healthcheck.go

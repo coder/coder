@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
 
 	gomock "go.uber.org/mock/gomock"
@@ -21,6 +22,8 @@ import (
 
 func TestProvisionerDaemonReport(t *testing.T) {
 	t.Parallel()
+
+	now := dbtime.Now()
 
 	for _, tt := range []struct {
 		name                   string
@@ -31,12 +34,14 @@ func TestProvisionerDaemonReport(t *testing.T) {
 		expectedSeverity       health.Severity
 		expectedWarningCode    health.Code
 		expectedError          string
+		expectedItems          []healthcheck.ProvisionerDaemonsReportItem
 	}{
 		{
 			name:             "current version empty",
 			currentVersion:   "",
 			expectedSeverity: health.SeverityError,
 			expectedError:    "Developer error: CurrentVersion is empty",
+			expectedItems:    []healthcheck.ProvisionerDaemonsReportItem{},
 		},
 		{
 			name:                   "no daemons",
@@ -44,6 +49,7 @@ func TestProvisionerDaemonReport(t *testing.T) {
 			currentAPIMajorVersion: provisionersdk.CurrentMajor,
 			expectedSeverity:       health.SeverityError,
 			expectedError:          "No active provisioner daemons found!",
+			expectedItems:          []healthcheck.ProvisionerDaemonsReportItem{},
 		},
 		{
 			name:                   "error fetching daemons",
@@ -52,13 +58,29 @@ func TestProvisionerDaemonReport(t *testing.T) {
 			provisionerDaemonsErr:  assert.AnError,
 			expectedSeverity:       health.SeverityError,
 			expectedError:          assert.AnError.Error(),
+			expectedItems:          []healthcheck.ProvisionerDaemonsReportItem{},
 		},
 		{
 			name:                   "one daemon up to date",
 			currentVersion:         "v1.2.3",
 			currentAPIMajorVersion: provisionersdk.CurrentMajor,
 			expectedSeverity:       health.SeverityOK,
-			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemon(t, "pd-ok", "v1.2.3", "1.0")},
+			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemon(t, "pd-ok", "v1.2.3", "1.0", now)},
+			expectedItems: []healthcheck.ProvisionerDaemonsReportItem{
+				{
+					ProvisionerDaemon: codersdk.ProvisionerDaemon{
+						ID:           uuid.Nil,
+						Name:         "pd-ok",
+						CreatedAt:    now,
+						LastSeenAt:   codersdk.NewNullTime(now, true),
+						Version:      "v1.2.3",
+						APIVersion:   "1.0",
+						Provisioners: []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho, codersdk.ProvisionerTypeTerraform},
+						Tags:         map[string]string{},
+					},
+					Warnings: []health.Message{},
+				},
+			},
 		},
 		{
 			name:                   "one daemon out of date",
@@ -66,7 +88,27 @@ func TestProvisionerDaemonReport(t *testing.T) {
 			currentAPIMajorVersion: provisionersdk.CurrentMajor,
 			expectedSeverity:       health.SeverityWarning,
 			expectedWarningCode:    health.CodeProvisionerDaemonVersionMismatch,
-			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemon(t, "pd-old", "v1.1.2", "1.0")},
+			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemon(t, "pd-old", "v1.1.2", "1.0", now)},
+			expectedItems: []healthcheck.ProvisionerDaemonsReportItem{
+				{
+					ProvisionerDaemon: codersdk.ProvisionerDaemon{
+						ID:           uuid.Nil,
+						Name:         "pd-old",
+						CreatedAt:    now,
+						LastSeenAt:   codersdk.NewNullTime(now, true),
+						Version:      "v1.1.2",
+						APIVersion:   "1.0",
+						Provisioners: []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho, codersdk.ProvisionerTypeTerraform},
+						Tags:         map[string]string{},
+					},
+					Warnings: []health.Message{
+						{
+							Code:    health.CodeProvisionerDaemonVersionMismatch,
+							Message: `Mismatched version "v1.1.2"`,
+						},
+					},
+				},
+			},
 		},
 		{
 			name:                   "invalid daemon version",
@@ -74,7 +116,27 @@ func TestProvisionerDaemonReport(t *testing.T) {
 			currentAPIMajorVersion: provisionersdk.CurrentMajor,
 			expectedSeverity:       health.SeverityError,
 			expectedWarningCode:    health.CodeUnknown,
-			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemon(t, "pd-invalid-version", "invalid", "1.0")},
+			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemon(t, "pd-invalid-version", "invalid", "1.0", now)},
+			expectedItems: []healthcheck.ProvisionerDaemonsReportItem{
+				{
+					ProvisionerDaemon: codersdk.ProvisionerDaemon{
+						ID:           uuid.Nil,
+						Name:         "pd-invalid-version",
+						CreatedAt:    now,
+						LastSeenAt:   codersdk.NewNullTime(now, true),
+						Version:      "invalid",
+						APIVersion:   "1.0",
+						Provisioners: []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho, codersdk.ProvisionerTypeTerraform},
+						Tags:         map[string]string{},
+					},
+					Warnings: []health.Message{
+						{
+							Code:    health.CodeUnknown,
+							Message: `Invalid version "invalid"`,
+						},
+					},
+				},
+			},
 		},
 		{
 			name:                   "invalid daemon api version",
@@ -82,7 +144,27 @@ func TestProvisionerDaemonReport(t *testing.T) {
 			currentAPIMajorVersion: provisionersdk.CurrentMajor,
 			expectedSeverity:       health.SeverityError,
 			expectedWarningCode:    health.CodeUnknown,
-			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemon(t, "pd-new-minor", "v1.2.3", "invalid")},
+			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemon(t, "pd-invalid-api", "v1.2.3", "invalid", now)},
+			expectedItems: []healthcheck.ProvisionerDaemonsReportItem{
+				{
+					ProvisionerDaemon: codersdk.ProvisionerDaemon{
+						ID:           uuid.Nil,
+						Name:         "pd-invalid-api",
+						CreatedAt:    now,
+						LastSeenAt:   codersdk.NewNullTime(now, true),
+						Version:      "v1.2.3",
+						APIVersion:   "invalid",
+						Provisioners: []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho, codersdk.ProvisionerTypeTerraform},
+						Tags:         map[string]string{},
+					},
+					Warnings: []health.Message{
+						{
+							Code:    health.CodeUnknown,
+							Message: `Invalid API version: invalid version string: invalid`,
+						},
+					},
+				},
+			},
 		},
 		{
 			name:                   "api version backward compat",
@@ -90,7 +172,27 @@ func TestProvisionerDaemonReport(t *testing.T) {
 			currentAPIMajorVersion: 2,
 			expectedSeverity:       health.SeverityWarning,
 			expectedWarningCode:    health.CodeProvisionerDaemonAPIMajorVersionDeprecated,
-			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemon(t, "pd-old-api", "v2.3.4", "1.0")},
+			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemon(t, "pd-old-api", "v2.3.4", "1.0", now)},
+			expectedItems: []healthcheck.ProvisionerDaemonsReportItem{
+				{
+					ProvisionerDaemon: codersdk.ProvisionerDaemon{
+						ID:           uuid.Nil,
+						Name:         "pd-old-api",
+						CreatedAt:    now,
+						LastSeenAt:   codersdk.NewNullTime(now, true),
+						Version:      "v2.3.4",
+						APIVersion:   "1.0",
+						Provisioners: []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho, codersdk.ProvisionerTypeTerraform},
+						Tags:         map[string]string{},
+					},
+					Warnings: []health.Message{
+						{
+							Code:    health.CodeProvisionerDaemonAPIMajorVersionDeprecated,
+							Message: "Deprecated major API version 1.",
+						},
+					},
+				},
+			},
 		},
 		{
 			name:                   "one up to date, one out of date",
@@ -98,7 +200,40 @@ func TestProvisionerDaemonReport(t *testing.T) {
 			currentAPIMajorVersion: provisionersdk.CurrentMajor,
 			expectedSeverity:       health.SeverityWarning,
 			expectedWarningCode:    health.CodeProvisionerDaemonVersionMismatch,
-			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemon(t, "pd-ok", "v1.2.3", "1.0"), fakeProvisionerDaemon(t, "pd-old", "v1.1.2", "1.0")},
+			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemon(t, "pd-ok", "v1.2.3", "1.0", now), fakeProvisionerDaemon(t, "pd-old", "v1.1.2", "1.0", now)},
+			expectedItems: []healthcheck.ProvisionerDaemonsReportItem{
+				{
+					ProvisionerDaemon: codersdk.ProvisionerDaemon{
+						ID:           uuid.Nil,
+						Name:         "pd-ok",
+						CreatedAt:    now,
+						LastSeenAt:   codersdk.NewNullTime(now, true),
+						Version:      "v1.2.3",
+						APIVersion:   "1.0",
+						Provisioners: []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho, codersdk.ProvisionerTypeTerraform},
+						Tags:         map[string]string{},
+					},
+					Warnings: []health.Message{},
+				},
+				{
+					ProvisionerDaemon: codersdk.ProvisionerDaemon{
+						ID:           uuid.Nil,
+						Name:         "pd-old",
+						CreatedAt:    now,
+						LastSeenAt:   codersdk.NewNullTime(now, true),
+						Version:      "v1.1.2",
+						APIVersion:   "1.0",
+						Provisioners: []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho, codersdk.ProvisionerTypeTerraform},
+						Tags:         map[string]string{},
+					},
+					Warnings: []health.Message{
+						{
+							Code:    health.CodeProvisionerDaemonVersionMismatch,
+							Message: `Mismatched version "v1.1.2"`,
+						},
+					},
+				},
+			},
 		},
 		{
 			name:                   "one up to date, one newer",
@@ -106,14 +241,62 @@ func TestProvisionerDaemonReport(t *testing.T) {
 			currentAPIMajorVersion: provisionersdk.CurrentMajor,
 			expectedSeverity:       health.SeverityWarning,
 			expectedWarningCode:    health.CodeProvisionerDaemonVersionMismatch,
-			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemon(t, "pd-ok", "v1.2.3", "1.0"), fakeProvisionerDaemon(t, "pd-new", "v2.3.4", "1.0")},
+			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemon(t, "pd-ok", "v1.2.3", "1.0", now), fakeProvisionerDaemon(t, "pd-new", "v2.3.4", "1.0", now)},
+			expectedItems: []healthcheck.ProvisionerDaemonsReportItem{
+				{
+					ProvisionerDaemon: codersdk.ProvisionerDaemon{
+						ID:           uuid.Nil,
+						Name:         "pd-new",
+						CreatedAt:    now,
+						LastSeenAt:   codersdk.NewNullTime(now, true),
+						Version:      "v2.3.4",
+						APIVersion:   "1.0",
+						Provisioners: []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho, codersdk.ProvisionerTypeTerraform},
+						Tags:         map[string]string{},
+					},
+					Warnings: []health.Message{
+						{
+							Code:    health.CodeProvisionerDaemonVersionMismatch,
+							Message: `Mismatched version "v2.3.4"`,
+						},
+					},
+				},
+				{
+					ProvisionerDaemon: codersdk.ProvisionerDaemon{
+						ID:           uuid.Nil,
+						Name:         "pd-ok",
+						CreatedAt:    now,
+						LastSeenAt:   codersdk.NewNullTime(now, true),
+						Version:      "v1.2.3",
+						APIVersion:   "1.0",
+						Provisioners: []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho, codersdk.ProvisionerTypeTerraform},
+						Tags:         map[string]string{},
+					},
+					Warnings: []health.Message{},
+				},
+			},
 		},
 		{
 			name:                   "one up to date, one stale older",
 			currentVersion:         "v2.3.4",
 			currentAPIMajorVersion: provisionersdk.CurrentMajor,
 			expectedSeverity:       health.SeverityOK,
-			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemonStale(t, "pd-ok", "v1.2.3", "0.9", dbtime.Now().Add(-5*time.Minute)), fakeProvisionerDaemon(t, "pd-new", "v2.3.4", "1.0")},
+			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemonStale(t, "pd-stale", "v1.2.3", "0.9", now.Add(-5*time.Minute), now), fakeProvisionerDaemon(t, "pd-ok", "v2.3.4", "1.0", now)},
+			expectedItems: []healthcheck.ProvisionerDaemonsReportItem{
+				{
+					ProvisionerDaemon: codersdk.ProvisionerDaemon{
+						ID:           uuid.Nil,
+						Name:         "pd-ok",
+						CreatedAt:    now,
+						LastSeenAt:   codersdk.NewNullTime(now, true),
+						Version:      "v2.3.4",
+						APIVersion:   "1.0",
+						Provisioners: []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho, codersdk.ProvisionerTypeTerraform},
+						Tags:         map[string]string{},
+					},
+					Warnings: []health.Message{},
+				},
+			},
 		},
 		{
 			name:                   "one stale",
@@ -121,7 +304,8 @@ func TestProvisionerDaemonReport(t *testing.T) {
 			currentAPIMajorVersion: provisionersdk.CurrentMajor,
 			expectedSeverity:       health.SeverityError,
 			expectedError:          "No active provisioner daemons found!",
-			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemonStale(t, "pd-ok", "v1.2.3", "0.9", dbtime.Now().Add(-5*time.Minute))},
+			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemonStale(t, "pd-ok", "v1.2.3", "0.9", now.Add(-5*time.Minute), now)},
+			expectedItems:          []healthcheck.ProvisionerDaemonsReportItem{},
 		},
 	} {
 		tt := tt
@@ -135,7 +319,6 @@ func TestProvisionerDaemonReport(t *testing.T) {
 			if tt.currentAPIMajorVersion == 0 {
 				deps.CurrentAPIMajorVersion = provisionersdk.CurrentMajor
 			}
-			now := dbtime.Now()
 			deps.TimeNow = func() time.Time {
 				return now
 			}
@@ -163,17 +346,20 @@ func TestProvisionerDaemonReport(t *testing.T) {
 			if tt.expectedError != "" && assert.NotNil(t, rpt.Error) {
 				assert.Contains(t, *rpt.Error, tt.expectedError)
 			}
+			if tt.expectedItems != nil {
+				assert.Equal(t, tt.expectedItems, rpt.Items)
+			}
 		})
 	}
 }
 
-func fakeProvisionerDaemon(t *testing.T, name, version, apiVersion string) database.ProvisionerDaemon {
+func fakeProvisionerDaemon(t *testing.T, name, version, apiVersion string, now time.Time) database.ProvisionerDaemon {
 	t.Helper()
 	return database.ProvisionerDaemon{
-		ID:           uuid.New(),
+		ID:           uuid.Nil,
 		Name:         name,
-		CreatedAt:    dbtime.Now(),
-		LastSeenAt:   sql.NullTime{Time: dbtime.Now(), Valid: true},
+		CreatedAt:    now,
+		LastSeenAt:   sql.NullTime{Time: now, Valid: true},
 		Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho, database.ProvisionerTypeTerraform},
 		ReplicaID:    uuid.NullUUID{},
 		Tags:         map[string]string{},
@@ -182,9 +368,9 @@ func fakeProvisionerDaemon(t *testing.T, name, version, apiVersion string) datab
 	}
 }
 
-func fakeProvisionerDaemonStale(t *testing.T, name, version, apiVersion string, lastSeenAt time.Time) database.ProvisionerDaemon {
+func fakeProvisionerDaemonStale(t *testing.T, name, version, apiVersion string, lastSeenAt, now time.Time) database.ProvisionerDaemon {
 	t.Helper()
-	d := fakeProvisionerDaemon(t, name, version, apiVersion)
+	d := fakeProvisionerDaemon(t, name, version, apiVersion, now)
 	d.LastSeenAt.Valid = true
 	d.LastSeenAt.Time = lastSeenAt
 	return d
