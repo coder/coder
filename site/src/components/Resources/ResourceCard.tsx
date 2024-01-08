@@ -15,17 +15,7 @@ const styles = {
   resourceCard: (theme) => ({
     borderRadius: 8,
     border: `1px solid ${theme.palette.divider}`,
-
-    "&:not(:first-of-type)": {
-      borderTop: 0,
-      borderTopLeftRadius: 0,
-      borderTopRightRadius: 0,
-    },
-
-    "&:not(:last-child)": {
-      borderBottomLeftRadius: 0,
-      borderBottomRightRadius: 0,
-    },
+    background: theme.palette.background.default,
   }),
 
   resourceCardProfile: {

@@ -2,16 +2,15 @@ import { type Interpolation, type Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import AlertTitle from "@mui/material/AlertTitle";
 import { type FC, useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import dayjs from "dayjs";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
-import { Resources } from "components/Resources/Resources";
 import { Stack } from "components/Stack/Stack";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { DormantWorkspaceBanner } from "components/WorkspaceDeletion";
 import { AgentRow } from "components/Resources/AgentRow";
-import { useLocalStorage } from "hooks";
+import { useLocalStorage, useTab } from "hooks";
 import {
   ActiveTransition,
   WorkspaceBuildProgress,
@@ -24,6 +23,9 @@ import { bannerHeight } from "components/Dashboard/DeploymentBanner/DeploymentBa
 import HistoryOutlined from "@mui/icons-material/HistoryOutlined";
 import { useTheme } from "@mui/material/styles";
 import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
+import HubOutlined from "@mui/icons-material/HubOutlined";
+import { ResourcesSidebar } from "./ResourcesSidebar";
+import { ResourceCard } from "components/Resources/ResourceCard";
 
 export type WorkspaceError =
   | "getBuildsError"
@@ -45,7 +47,6 @@ export interface WorkspaceProps {
   isUpdating: boolean;
   isRestarting: boolean;
   workspace: TypesGen.Workspace;
-  resources?: TypesGen.WorkspaceResource[];
   canUpdateWorkspace: boolean;
   updateMessage?: string;
   canChangeVersions: boolean;
@@ -78,8 +79,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   workspace,
   isUpdating,
   isRestarting,
-  resources,
-
   canUpdateWorkspace,
   updateMessage,
   canChangeVersions,
@@ -98,8 +97,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   const navigate = useNavigate();
   const { saveLocal, getLocal } = useLocalStorage();
   const theme = useTheme();
-
-  const [searchParams, setSearchParams] = useSearchParams();
 
   const [showAlertPendingInQueue, setShowAlertPendingInQueue] = useState(false);
 
@@ -148,6 +145,29 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   const transitionStats =
     template !== undefined ? ActiveTransition(template, workspace) : undefined;
 
+  const sidebarOption = useTab("sidebar", "");
+  const setSidebarOption = (newOption: string) => {
+    const { set, value } = sidebarOption;
+    if (value === newOption) {
+      set("");
+    } else {
+      set(newOption);
+    }
+  };
+
+  const selectedResourceId = useTab("resources", "");
+  const resources = [...workspace.latest_build.resources].sort(
+    (a, b) => countAgents(b) - countAgents(a),
+  );
+  const selectedResource = workspace.latest_build.resources.find(
+    (r) => r.id === selectedResourceId.value,
+  );
+  useEffect(() => {
+    if (resources.length > 0 && selectedResourceId.value === "") {
+      selectedResourceId.set(resources[0].id);
+    }
+  }, [resources, selectedResourceId]);
+
   return (
     <div
       css={{
@@ -187,25 +207,37 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           height: "100%",
           overflowY: "auto",
           borderRight: `1px solid ${theme.palette.divider}`,
+          display: "flex",
+          flexDirection: "column",
         }}
       >
         <SidebarIconButton
-          isActive={searchParams.get("sidebar") === "history"}
+          isActive={sidebarOption.value === "resources"}
           onClick={() => {
-            const sidebarOption = searchParams.get("sidebar");
-            if (sidebarOption === "history") {
-              searchParams.delete("sidebar");
-            } else {
-              searchParams.set("sidebar", "history");
-            }
-            setSearchParams(searchParams);
+            setSidebarOption("resources");
+          }}
+        >
+          <HubOutlined />
+        </SidebarIconButton>
+        <SidebarIconButton
+          isActive={sidebarOption.value === "history"}
+          onClick={() => {
+            setSidebarOption("history");
           }}
         >
           <HistoryOutlined />
         </SidebarIconButton>
       </div>
 
-      {searchParams.get("sidebar") === "history" && (
+      {sidebarOption.value === "resources" && (
+        <ResourcesSidebar
+          failed={workspace.latest_build.status === "failed"}
+          resources={resources}
+          selected={selectedResourceId.value}
+          onChange={selectedResourceId.set}
+        />
+      )}
+      {sidebarOption.value === "history" && (
         <HistorySidebar workspace={workspace} />
       )}
 
@@ -342,9 +374,9 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 
             {buildLogs}
 
-            {resources && resources.length > 0 && (
-              <Resources
-                resources={resources}
+            {selectedResource && (
+              <ResourceCard
+                resource={selectedResource}
                 agentRow={(agent) => (
                   <AgentRow
                     key={agent.id}
@@ -369,6 +401,10 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   );
 };
 
+const countAgents = (resource: TypesGen.WorkspaceResource) => {
+  return resource.agents ? resource.agents.length : 0;
+};
+
 const styles = {
   content: {
     padding: 24,
@@ -377,6 +413,7 @@ const styles = {
   },
 
   dotBackground: (theme) => ({
+    minHeight: "100%",
     padding: 24,
     "--d": "1px",
     background: `
