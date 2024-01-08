@@ -38,10 +38,23 @@ sudo apk del coder
 
 </div>
 
+If you installed Coder manually or used the install script on an unsupported
+operating system, you can remove the binary directly:
+
+```shell
+sudo rm /usr/local/bin/coder
+```
+
 ## macOS
 
 ```shell
 brew uninstall coder
+```
+
+If you installed Coder manually, you can remove the binary directly:
+
+```shell
+sudo rm /usr/local/bin/coder
 ```
 
 ## Windows
@@ -51,13 +64,6 @@ winget uninstall Coder.Coder
 ```
 
 </div>
-
-If you installed Coder manually or used the install script on an unsupported
-operating system, you can remove the binary directly:
-
-```shell
-sudo rm /usr/local/bin/coder
-```
 
 ## Coder as a system service configuration
 
