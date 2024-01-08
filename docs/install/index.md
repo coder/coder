@@ -9,9 +9,13 @@ There are a number of different ways to install Coder, depending on your needs.
 
    <div class="tabs">
 
-## Install Script (Linux and macOS)
+## Linux
 
-The easiest way to install Coder on Linux and macOS is to use our
+<div class="tabs">
+
+## Install Script
+
+The easiest way to install Coder on Linux is to use our
 [install script](https://github.com/coder/coder/blob/main/install.sh).
 
 ```shell
@@ -31,34 +35,16 @@ for reference:
 curl -fsSL https://coder.com/install.sh | sh -s -- --help
 ```
 
-## Homebrew (macOS and Linux)
+## Homebrew
 
-To install Coder on macOS and Linux, you can use the
-[Homebrew](https://brew.sh/) package manager.
-
-Install Coder from our official
-[Homebrew tap](https://github.com/coder/homebrew-coder)
+To install Coder on Linux, you can use the [Homebrew](https://brew.sh/) package
+manager that uses our official [Homebrew tap](github.com/coder/homebrew-coder).
 
 ```shell
 brew install coder/coder/coder
 ```
 
-## Windows
-
-To install Coder on Windows, you can use the
-[`winget`](https://learn.microsoft.com/en-us/windows/package-manager/winget/#use-winget)
-package manager
-
-```powershell
-winget install Coder.Coder
-```
-
-   <!-- TODO: Replace with direct link to windows installer after we have https://github.com/coder/coder.com/issues/382 -->
-
-Or you can use the windows installer from our
-[GitHub releases](https://github.com/coder/coder/releases/latest)
-
-## Linux
+## System Packages
 
 Coder officially maintains packages for the following Linux distributions:
 
@@ -108,7 +94,7 @@ sudo apk add ./coder.apk
 
 ## Manual
 
-Retrieve the latest release from our GitHub releases page and install it
+Get the latest `.tar.gz` package from our GitHub releases page and install it
 manually.
 
 1. Download the
@@ -119,13 +105,79 @@ manually.
    location that's on your `PATH`
 
 ```shell
-# ex. macOS and Linux
 mv coder /usr/local/bin
 ```
+
+</div>
+
+## macOS
+
+<div class="tabs">
+
+## Homebrew
+
+To install Coder on macOS, you can use the [Homebrew](https://brew.sh/) package
+manager that uses our official
+[Homebrew tap](https://github.com/coder/homebrew-coder).
+
+```shell
+brew install coder/coder/coder
+```
+
+## Install Script
+
+The easiest way to install Coder on macOS is to use our
+[install script](https://github.com/coder/coder/blob/main/install.sh).
+
+```shell
+curl -fsSL https://coder.com/install.sh | sh
+```
+
+You can preview what occurs during the install process:
+
+```shell
+curl -fsSL https://coder.com/install.sh | sh -s -- --dry-run
+```
+
+You can modify the installation process by including flags. Run the help command
+for reference:
+
+```shell
+curl -fsSL https://coder.com/install.sh | sh -s -- --help
+```
+
+</div>
+
+## Windows
+
+<div class="tabs">
+
+## Winget
+
+To install Coder on Windows, you can use the
+[`winget`](https://learn.microsoft.com/en-us/windows/package-manager/winget/#use-winget)
+package manager.
+
+```powershell
+winget install Coder.Coder
+```
+
+## Installer
+
+Download the Windows installer from our
+[GitHub releases](https://github.com/coder/coder/releases/latest) and install
+it.
+
+## Manual
+
+Get the latest `.zip` package from our GitHub releases page and extract it to a
+location that's on your `PATH` or add the extracted binary to your `PATH`.
 
 > Windows users: see
 > [this guide](https://answers.microsoft.com/en-us/windows/forum/all/adding-path-variable/97300613-20cb-4d85-8d0e-cc9d3549ba23)
 > for adding folders to `PATH`.
+
+</div>
 
 </div>
 
