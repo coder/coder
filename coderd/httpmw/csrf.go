@@ -45,6 +45,7 @@ func CSRF(secureCookie bool) func(next http.Handler) http.Handler {
 		mw.ExemptRegexp(regexp.MustCompile("/organizations/[^/]+/provisionerdaemons/*"))
 
 		mw.ExemptFunc(func(r *http.Request) bool {
+			// Only enforce CSRF on API routes.
 			if !strings.HasPrefix(r.URL.Path, "/api") {
 				return true
 			}
