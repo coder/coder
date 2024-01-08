@@ -16,7 +16,7 @@ import Sell from "@mui/icons-material/Sell";
 
 export const ProvisionerDaemonsPage = () => {
   const healthStatus = useOutletContext<HealthcheckReport>();
-  const { provisioner_daemons } = healthStatus;
+  const { provisioner_daemons: daemons } = healthStatus;
   const theme = useTheme();
   return (
     <>
@@ -26,14 +26,14 @@ export const ProvisionerDaemonsPage = () => {
 
       <Header>
         <HeaderTitle>
-          <HealthyDot severity={provisioner_daemons.severity} />
+          <HealthyDot severity={daemons.severity} />
           Provisioner Daemons
         </HeaderTitle>
         <DismissWarningButton healthcheck="ProvisionerDaemons" />
       </Header>
 
       <Main>
-        {provisioner_daemons.warnings.map((warning) => {
+        {daemons.warnings.map((warning) => {
           return (
             <Alert key={warning.code} severity="warning">
               {warning.message}
@@ -41,16 +41,16 @@ export const ProvisionerDaemonsPage = () => {
           );
         })}
 
-        {provisioner_daemons.items.map(({ provisioner_daemon, warnings }) => {
+        {daemons.items.map(({ provisioner_daemon: daemon, warnings }) => {
           const daemonScope =
-            provisioner_daemon.tags["scope"] || "organization";
+            daemon.tags["scope"] || "organization";
           const iconScope =
             daemonScope === "organization" ? <Business /> : <Person />;
-          const extraTags = Object.keys(provisioner_daemon.tags)
+          const extraTags = Object.keys(daemon.tags)
             .filter((key) => key !== "scope" && key !== "owner")
             .reduce(
               (acc, key) => {
-                acc[key] = provisioner_daemon.tags[key];
+                acc[key] = daemon.tags[key];
                 return acc;
               },
               {} as Record<string, string>,
@@ -58,7 +58,7 @@ export const ProvisionerDaemonsPage = () => {
           const isWarning = warnings.length > 0;
           return (
             <div
-              key={provisioner_daemon.name}
+              key={daemon.name}
               css={{
                 borderRadius: 8,
                 border: `1px solid ${
@@ -88,10 +88,10 @@ export const ProvisionerDaemonsPage = () => {
                 >
                   <div css={{ lineHeight: "160%" }}>
                     <h4 css={{ fontWeight: 500, margin: 0 }}>
-                      {provisioner_daemon.name}
+                      {daemon.name}
                     </h4>
                     <span css={{ color: theme.palette.text.secondary }}>
-                      <code>{provisioner_daemon.version}</code>
+                      <code>{daemon.version}</code>
                     </span>
                   </div>
                 </div>
@@ -105,7 +105,7 @@ export const ProvisionerDaemonsPage = () => {
                 >
                   <Tooltip title="API Version">
                     <Pill icon={<SwapHoriz />}>
-                      <code>{provisioner_daemon.api_version}</code>
+                      <code>{daemon.api_version}</code>
                     </Pill>
                   </Tooltip>
                   <Tooltip title="Scope">
@@ -141,12 +141,12 @@ export const ProvisionerDaemonsPage = () => {
                 ) : (
                   <span>No warnings</span>
                 )}
-                {provisioner_daemon.last_seen_at && (
+                {daemon.last_seen_at && (
                   <span
                     css={{ color: theme.palette.text.secondary }}
                     data-chromatic="ignore"
                   >
-                    Last seen {createDayString(provisioner_daemon.last_seen_at)}
+                    Last seen {createDayString(daemon.last_seen_at)}
                   </span>
                 )}
               </div>
@@ -158,8 +158,15 @@ export const ProvisionerDaemonsPage = () => {
   );
 };
 
-const titleCase = (s: string): string => {
-  return s.charAt(0).toLocaleUpperCase() + s.slice(1);
-};
+const titleCase = (s: string) : string => {
+  switch (s.length) {
+    case 0:
+      return "";
+    case 1:
+      return s.toLocaleUpperCase();
+    default:
+      return s.charAt(0).toLocaleUpperCase() + s.slice(1);
+  }
+}
 
 export default ProvisionerDaemonsPage;
