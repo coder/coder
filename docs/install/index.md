@@ -144,22 +144,11 @@ Verify that the installation was successful by opening a new terminal and
 running:
 
 ```console
-coder --help
-oder --help
-coder v2.6.0+b3e3521
+coder --version
+Coder v2.6.0+b3e3521 Thu Dec 21 22:33:13 UTC 2023
+https://github.com/coder/coder/commit/b3e352127478bfd044a1efa77baace096096d1e6
 
-USAGE:
-  coder [global-flags] <subcommand>
-
-  Coder v2.6.0+b3e3521 — A tool for provisioning self-hosted development
-  environments with Terraform.
-    - Start a Coder server:
-
-        $ coder server
-
-    - Get started by creating a template from an example:
-
-        $ coder templates init
+Full build of Coder, supports the  server  subcommand.
 ...
 ```
 
