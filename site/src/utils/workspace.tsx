@@ -289,7 +289,7 @@ export const workspaceUpdatePolicy = (
 // These resources (i.e. docker_image, kubernetes_deployment) map to Terraform
 // resource types. These are the most used ones and are based on user usage.
 // We may want to update from time-to-time.
-const BUILT_IN_ICON_PATHS: Record<string, string> = {
+const BUILT_IN_ICON_PATHS: Record<string, `/icon/${string}`> = {
   docker_volume: "/icon/database.svg",
   docker_container: "/icon/memory.svg",
   docker_image: "/icon/container.svg",

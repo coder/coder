@@ -66,6 +66,7 @@ export const ResourcesSidebar = (props: ResourcesSidebarProps) => {
               css={{ width: "100%", height: "100%", objectFit: "contain" }}
               src={getResourceIconPath(r.type)}
               alt=""
+              role="presentation"
             />
           </div>
           <div
