@@ -66,66 +66,57 @@ Coder officially maintains packages for the following Linux distributions:
 - .rpm (Fedora, CentOS, RHEL, SUSE)
 - .apk (Alpine)
 
-   <div class="tabs">
+<div class="tabs">
 
-  ## Debian, Ubuntu
+## Debian, Ubuntu
 
-  Get the latest `.deb` package from our
-  [GitHub releases](https://github.com/coder/coder/releases/latest) and install
-  it manually or use the following commands to download and install the latest
-  `.deb` package.
+Get the latest `.deb` package from our
+[GitHub releases](https://github.com/coder/coder/releases/latest) and install it
+manually or use the following commands to download and install the latest `.deb`
+package.
 
-  ```shell
-  # Download the latest .deb package from GitHub releases
-  URL=$(curl -s https://api.github.com/repos/coder/coder/releases/latest | jq -r '.assets[] | select(.name | endswith("linux_amd64.deb")) | .browser_download_url')
-  curl -fsSL $URL -o coder.deb
-  # Install the package
-  sudo apt install ./coder.deb
-  ```
+```shell
+# Install the package
+sudo apt install ./coder.deb
+```
 
-  ## Fedora, CentOS, RHEL, SUSE
+## Fedora, CentOS, RHEL, SUSE
 
-  Get the latest `.rpm` package from our
-  [GitHub releases](https://github.com/coder/coder/releases/latest) and install
-  it manually or use the following commands to download and install the latest
-  `.rpm` package.
+Get the latest `.rpm` package from our
+[GitHub releases](https://github.com/coder/coder/releases/latest) and install it
+manually or use the following commands to download and install the latest `.rpm`
+package.
 
-  ```shell
-  # Download the latest .rpm package from GitHub releases
-  URL=$(curl -s https://api.github.com/repos/coder/coder/releases/latest | jq -r '.assets[] | select(.name | endswith("linux_amd64.rpm")) | .browser_download_url')
-  curl -fsSL $URL -o coder.rpm
-  # Install the package
-  sudo yum install ./coder.rpm
-  ```
+```shell
+# Install the package
+sudo yum install ./coder.rpm
+```
 
-  ## Alpine
+## Alpine
 
-  Get the latest `.apk` package from our
-  [GitHub releases](https://github.com/coder/coder/releases/latest) and install
-  it manually or use the following commands to download and install the latest
-  `.apk` package.
+Get the latest `.apk` package from our
+[GitHub releases](https://github.com/coder/coder/releases/latest) and install it
+manually or use the following commands to download and install the latest `.apk`
+package.
 
-  ```shell
-  # Download the latest .apk package from GitHub releases
-  URL=$(curl -s https://api.github.com/repos/coder/coder/releases/latest | jq -r '.assets[] | select(.name | endswith("linux_amd64.apk")) | .browser_download_url')
-  curl -fsSL $URL -o coder.apk
-  # Install the package
-  sudo apk add ./coder.apk
-  ```
+```shell
+# Install the package
+sudo apk add ./coder.apk
+```
 
-   </div>
+</div>
 
 ## Manual
 
 Retrieve the latest release from our GitHub releases page and install it
 manually.
 
-1.  Download the
-    [release archive](https://github.com/coder/coder/releases/latest)
-    appropriate for your operating system
+1. Download the
+   [release archive](https://github.com/coder/coder/releases/latest) appropriate
+   for your operating system
 
-2.  Unzip the folder you just downloaded, and move the `coder` executable to a
-    location that's on your `PATH`
+2. Unzip the folder you just downloaded, and move the `coder` executable to a
+   location that's on your `PATH`
 
 ```shell
 # ex. macOS and Linux
