@@ -13109,14 +13109,28 @@ const docTemplate = `{
                 "error": {
                     "type": "string"
                 },
-                "provisioner_daemons": {
+                "items": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/codersdk.ProvisionerDaemon"
+                        "$ref": "#/definitions/healthcheck.ProvisionerDaemonsReportItem"
                     }
                 },
                 "severity": {
                     "$ref": "#/definitions/health.Severity"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/health.Message"
+                    }
+                }
+            }
+        },
+        "healthcheck.ProvisionerDaemonsReportItem": {
+            "type": "object",
+            "properties": {
+                "provisioner_daemon": {
+                    "$ref": "#/definitions/codersdk.ProvisionerDaemon"
                 },
                 "warnings": {
                     "type": "array",
