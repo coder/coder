@@ -1,81 +1,171 @@
-1. Install Coder
+To use Coder you will need to install the Coder server on your infrastructure.
+There are a number of different ways to install Coder, depending on your needs.
+
+<children>
+  This page is rendered on https://coder.com/docs/v2/latest/install. Refer to the other documents in the `install/` directory for per-platform instructions.
+</children>
+
+## Install Coder
 
    <div class="tabs">
 
-   ## Install Script (Linux/macOS)
+## Install Script (Linux and macOS)
 
-   The easiest way to install Coder is to use our
-   [install script](https://github.com/coder/coder/blob/main/install.sh) for
-   Linux and macOS.
+The easiest way to install Coder on Linux and macOS is to use our
+[install script](https://github.com/coder/coder/blob/main/install.sh).
 
-   ```shell
-   curl -fsSL https://coder.com/install.sh | sh
-   ```
+```shell
+curl -fsSL https://coder.com/install.sh | sh
+```
 
-   You can preview what occurs during the install process:
+You can preview what occurs during the install process:
 
-   ```shell
-   curl -fsSL https://coder.com/install.sh | sh -s -- --dry-run
-   ```
+```shell
+curl -fsSL https://coder.com/install.sh | sh -s -- --dry-run
+```
 
-   You can modify the installation process by including flags. Run the help
-   command for reference:
+You can modify the installation process by including flags. Run the help command
+for reference:
 
-   ```shell
-   curl -fsSL https://coder.com/install.sh | sh -s -- --help
-   ```
+```shell
+curl -fsSL https://coder.com/install.sh | sh -s -- --help
+```
 
-   ## Homebrew
+## Homebrew (macOS and Linux)
 
-   Install Coder from our official
-   [Homebrew tap](https://github.com/coder/homebrew-coder)
+To install Coder on macOS and Linux, you can use the
+[Homebrew](https://brew.sh/) package manager.
 
-   ```shell
-   brew install coder/coder/coder
-   ```
+Install Coder from our official
+[Homebrew tap](https://github.com/coder/homebrew-coder)
 
-   ## Windows
+```shell
+brew install coder/coder/coder
+```
 
-   Install using
-   [`winget`](https://learn.microsoft.com/en-us/windows/package-manager/winget/#use-winget)
-   package manager
+## Windows
 
-   ```powershell
-   winget install Coder.Coder
-   ```
+To install Coder on Windows, you can use the
+[`winget`](https://learn.microsoft.com/en-us/windows/package-manager/winget/#use-winget)
+package manager
 
-   ## System Packages
+```powershell
+winget install Coder.Coder
+```
 
-   Download and install one of the following system packages from
-   [GitHub releases](https://github.com/coder/coder/releases/latest) and install
-   manullay
+   <!-- TODO: Replace with direct link to windows installer after we have https://github.com/coder/coder.com/issues/382 -->
 
-   - .deb (Debian, Ubuntu)
-   - .rpm (Fedora, CentOS, RHEL, SUSE)
-   - .apk (Alpine)
-   - .exe (Windows)
+Or you can use the windows installer from our
+[GitHub releases](https://github.com/coder/coder/releases/latest)
 
-   ## Binary
+## Linux
 
-   1. Download the
-      [release archive](https://github.com/coder/coder/releases/latest)
-      appropriate for your operating system
+Coder officially maintains packages for the following Linux distributions:
 
-   2. Unzip the folder you just downloaded, and move the `coder` executable to a
-      location that's on your `PATH`
+- .deb (Debian, Ubuntu)
+- .rpm (Fedora, CentOS, RHEL, SUSE)
+- .apk (Alpine)
 
-   ```shell
-   # ex. macOS and Linux
-   mv coder /usr/local/bin
-   ```
+   <div class="tabs">
 
-   > Windows users: see
-   > [this guide](https://answers.microsoft.com/en-us/windows/forum/all/adding-path-variable/97300613-20cb-4d85-8d0e-cc9d3549ba23)
-   > for adding folders to `PATH`.
+  ## Debian, Ubuntu
+
+  Get the latest `.deb` package from our
+  [GitHub releases](https://github.com/coder/coder/releases/latest) and install
+  it manually or use the following commands to download and install the latest
+  `.deb` package.
+
+  ```shell
+  # Download the latest .deb package from GitHub releases
+  URL=$(curl -s https://api.github.com/repos/coder/coder/releases/latest | jq -r '.assets[] | select(.name | endswith("linux_amd64.deb")) | .browser_download_url')
+  curl -fsSL $URL -o coder.deb
+  # Install the package
+  sudo apt install ./coder.deb
+  ```
+
+  ## Fedora, CentOS, RHEL, SUSE
+
+  Get the latest `.rpm` package from our
+  [GitHub releases](https://github.com/coder/coder/releases/latest) and install
+  it manually or use the following commands to download and install the latest
+  `.rpm` package.
+
+  ```shell
+  # Download the latest .rpm package from GitHub releases
+  URL=$(curl -s https://api.github.com/repos/coder/coder/releases/latest | jq -r '.assets[] | select(.name | endswith("linux_amd64.rpm")) | .browser_download_url')
+  curl -fsSL $URL -o coder.rpm
+  # Install the package
+  sudo yum install ./coder.rpm
+  ```
+
+  ## Alpine
+
+  Get the latest `.apk` package from our
+  [GitHub releases](https://github.com/coder/coder/releases/latest) and install
+  it manually or use the following commands to download and install the latest
+  `.apk` package.
+
+  ```shell
+  # Download the latest .apk package from GitHub releases
+  URL=$(curl -s https://api.github.com/repos/coder/coder/releases/latest | jq -r '.assets[] | select(.name | endswith("linux_amd64.apk")) | .browser_download_url')
+  curl -fsSL $URL -o coder.apk
+  # Install the package
+  sudo apk add ./coder.apk
+  ```
 
    </div>
 
-2. After installing, start the Coder server manually via `coder server` or as a
+## Manual
+
+Retrieve the latest release from our GitHub releases page and install it
+manually.
+
+1.  Download the
+    [release archive](https://github.com/coder/coder/releases/latest)
+    appropriate for your operating system
+
+2.  Unzip the folder you just downloaded, and move the `coder` executable to a
+    location that's on your `PATH`
+
+```shell
+# ex. macOS and Linux
+mv coder /usr/local/bin
+```
+
+> Windows users: see
+> [this guide](https://answers.microsoft.com/en-us/windows/forum/all/adding-path-variable/97300613-20cb-4d85-8d0e-cc9d3549ba23)
+> for adding folders to `PATH`.
+
+</div>
+
+## Verify installation
+
+Verify that the installation was successful by opening a new terminal and
+running:
+
+```console
+coder --help
+oder --help
+coder v2.6.0+b3e3521
+
+USAGE:
+  coder [global-flags] <subcommand>
+
+  Coder v2.6.0+b3e3521 — A tool for provisioning self-hosted development
+  environments with Terraform.
+    - Start a Coder server:
+
+        $ coder server
+
+    - Get started by creating a template from an example:
+
+        $ coder templates init
+...
+```
+
+## Start Coder
+
+1. After installing, start the Coder server manually via `coder server` or as a
    system package.
 
     <div class="tabs">
@@ -114,18 +204,12 @@
    By default, the Coder server runs on `http://127.0.0.1:3000` and uses a
    [public tunnel](../admin/configure.md#tunnel) for workspace connections.
 
-3. Visit the Coder URL in the logs to set up your first account, or use the CLI
+2. Visit the Coder URL in the logs to set up your first account, or use the CLI
    to create your first user.
 
    ```shell
    coder login <access url>
    ```
-
-There are a number of other different methods to install and run Coder:
-
-<children>
-  This page is rendered on https://coder.com/docs/v2/latest/install. Refer to the other documents in the `install/` directory for per-platform instructions.
-</children>
 
 ## Next steps
 
