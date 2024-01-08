@@ -45,7 +45,6 @@ import { docs } from "utils/docs";
 import Skeleton from "@mui/material/Skeleton";
 import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
 import { DeprecatedBadge } from "components/Badges/Badges";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
 
 export const Language = {
   developerCount: (activeCount: number): string => {
