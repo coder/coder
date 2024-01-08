@@ -1,12 +1,6 @@
 import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import { css, useTheme } from "@emotion/react";
-import {
-  type HTMLAttributes,
-  type PropsWithChildren,
-  type FC,
-  createContext,
-  useContext,
-} from "react";
+import { type HTMLAttributes, type PropsWithChildren, type FC } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { DisabledBadge, EnabledBadge } from "../Badges/Badges";
 
@@ -110,16 +104,7 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
   return <span css={styles.option}>{JSON.stringify(value)}</span>;
 };
 
-type OptionConfigContextValue = {
-  isSource?: boolean;
-};
-
-const OptionConfigContext = createContext<OptionConfigContextValue>({
-  isSource: false,
-});
-
-type OptionConfigProps = HTMLAttributes<HTMLDivElement> &
-  OptionConfigContextValue;
+type OptionConfigProps = HTMLAttributes<HTMLDivElement> & { isSource: boolean };
 
 // OptionConfig takes a isSource bool to indicate if the Option is the source of the configured value.
 export const OptionConfig = ({ isSource, ...attrs }: OptionConfigProps) => {
@@ -129,10 +114,10 @@ export const OptionConfig = ({ isSource, ...attrs }: OptionConfigProps) => {
     : theme.palette.divider;
 
   return (
-    <OptionConfigContext.Provider value={{ isSource }}>
-      <div
-        {...attrs}
-        css={{
+    <div
+      {...attrs}
+      css={[
+        {
           fontSize: 13,
           fontFamily: MONOSPACE_FONT_FAMILY,
           fontWeight: 600,
@@ -144,26 +129,31 @@ export const OptionConfig = ({ isSource, ...attrs }: OptionConfigProps) => {
           lineHeight: 1,
           gap: 6,
           border: `1px solid ${borderColor}`,
-        }}
-      />
-    </OptionConfigContext.Provider>
+        },
+        isSource
+          ? {
+              "& .OptionConfigFlag": {
+                background: theme.experimental.roles.active.fill,
+              },
+            }
+          : undefined,
+      ]}
+    />
   );
 };
 
 export const OptionConfigFlag = (props: HTMLAttributes<HTMLDivElement>) => {
   const theme = useTheme();
-  const { isSource } = useContext(OptionConfigContext);
 
   return (
     <div
       {...props}
+      className="OptionConfigFlag"
       css={{
         fontSize: 10,
         fontWeight: 600,
         display: "block",
-        backgroundColor: isSource
-          ? theme.experimental.roles.active.fill
-          : theme.palette.divider,
+        backgroundColor: theme.palette.divider,
         lineHeight: 1,
         padding: "2px 4px",
         borderRadius: 1,
