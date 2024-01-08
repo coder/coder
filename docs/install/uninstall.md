@@ -12,29 +12,45 @@ rm -rf ~/.cache/coder
 
 ## The Coder server binary and CLI
 
-Debian, Ubuntu:
+<div class="tabs">
+
+## Linux
+
+<div class="tabs">
+
+## Debian, Ubuntu
 
 ```shell
 sudo apt remove coder
 ```
 
-Fedora, CentOS, RHEL, SUSE:
+## Fedora, CentOS, RHEL, SUSE
 
 ```shell
 sudo yum remove coder
 ```
 
-Alpine:
+## Alpine
 
 ```shell
 sudo apk del coder
 ```
 
-Windows:
+</div>
+
+## macOS
+
+```shell
+brew uninstall coder
+```
+
+## Windows
 
 ```powershell
 winget uninstall Coder.Coder
 ```
+
+</div>
 
 If you installed Coder manually or used the install script on an unsupported
 operating system, you can remove the binary directly:
@@ -72,7 +88,7 @@ rm -rf ~/.config/coderv2
 ## Windows
 
 ```console
-C:\Users\USER\AppData\Roaming\coderv2
+rmdir %AppData%\coderv2
 ```
 
 </div>
