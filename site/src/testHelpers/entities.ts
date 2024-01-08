@@ -3103,7 +3103,16 @@ export const MockHealth: TypesGen.HealthcheckReport = {
   },
   provisioner_daemons: {
     severity: "ok",
-    warnings: [],
+    warnings: [
+      {
+        message: "Something is wrong!",
+        code: "EUNKNOWN",
+      },
+      {
+        message: "This is also bad.",
+        code: "EPD01",
+      },
+    ],
     dismissed: false,
     items: [
       {
@@ -3111,16 +3120,42 @@ export const MockHealth: TypesGen.HealthcheckReport = {
           id: "e455b582-ac04-4323-9ad6-ab71301fa006",
           created_at: "2024-01-04T15:53:03.21563Z",
           last_seen_at: "2024-01-04T16:05:03.967551Z",
-          name: "vvuurrkk-2",
-          version: "v2.6.0-devel+965ad5e96",
+          name: "ok",
+          version: "v2.3.4-devel+abcd1234",
           api_version: "1.0",
+          provisioners: ["echo", "terraform"],
+          tags: {
+            owner: "",
+            scope: "organization",
+            custom_tag_name: "custom_tag_value",
+          },
+        },
+        warnings: [],
+      },
+      {
+        provisioner_daemon: {
+          id: "e455b582-ac04-4323-9ad6-ab71301fa006",
+          created_at: "2024-01-04T15:53:03.21563Z",
+          last_seen_at: "2024-01-04T16:05:03.967551Z",
+          name: "unhappy",
+          version: "v0.0.1",
+          api_version: "0.1",
           provisioners: ["echo", "terraform"],
           tags: {
             owner: "",
             scope: "organization",
           },
         },
-        warnings: [],
+        warnings: [
+          {
+            message: "Something specific is wrong with this daemon.",
+            code: "EUNKNOWN",
+          },
+          {
+            message: "And now for something completely different.",
+            code: "EUNKNOWN",
+          },
+        ],
       },
     ],
   },
