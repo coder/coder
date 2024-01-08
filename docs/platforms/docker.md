@@ -52,7 +52,7 @@ Coder with Docker has the following advantages:
    cd docker
    ```
 
-1. Push up the template with `coder templates create`
+1. Push up the template with `coder templates push`
 
 1. Open the dashboard in your browser to create your first workspace:
 

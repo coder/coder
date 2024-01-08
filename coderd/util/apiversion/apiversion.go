@@ -1,6 +1,7 @@
 package apiversion
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -41,6 +42,10 @@ func (v *APIVersion) WithBackwardCompat(majs ...int) *APIVersion {
 // - 1.x is supported,
 // - 2.0, 2.1, and 2.2 are supported,
 // - 2.3+ is not supported.
+func (v *APIVersion) String() string {
+	return fmt.Sprintf("%d.%d", v.supportedMajor, v.supportedMinor)
+}
+
 func (v *APIVersion) Validate(version string) error {
 	major, minor, err := Parse(version)
 	if err != nil {

@@ -892,7 +892,7 @@
         },
         {
           "title": "templates create",
-          "description": "Create a template from the current directory or as specified by flag",
+          "description": "DEPRECATED: Create a template from the current directory or as specified by flag",
           "path": "cli/templates_create.md"
         },
         {
@@ -922,7 +922,7 @@
         },
         {
           "title": "templates push",
-          "description": "Push a new template version from the current directory or as specified by flag",
+          "description": "Create or update a template from the current directory or as specified by flag",
           "path": "cli/templates_push.md"
         },
         {

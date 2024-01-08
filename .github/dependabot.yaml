@@ -38,6 +38,7 @@ updates:
     commit-message:
       prefix: "chore"
     labels: []
+    open-pull-requests-limit: 15
     ignore:
       # Ignore patch updates for all dependencies
       - dependency-name: "*"
