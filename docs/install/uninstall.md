@@ -30,6 +30,12 @@ Alpine:
 sudo apk del coder
 ```
 
+Windows:
+
+```powershell
+winget uninstall Coder.Coder
+```
+
 If you installed Coder manually or used the install script on an unsupported
 operating system, you can remove the binary directly:
 
