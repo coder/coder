@@ -16,6 +16,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -83,6 +84,9 @@ type FakeIDP struct {
 	// to test something like PKI auth vs a client_secret.
 	hookAuthenticateClient func(t testing.TB, req *http.Request) (url.Values, error)
 	serve                  bool
+	// totalCalls is the total number of http calls made to the IDP.
+	// This was added to help track down #10853
+	totalCalls atomic.Int64
 }
 
 func StatusError(code int, err error) error {
@@ -201,6 +205,9 @@ func NewFakeIDP(t testing.TB, opts ...FakeIDPOpt) *FakeIDP {
 		hookUserInfo:         func(email string) (jwt.MapClaims, error) { return jwt.MapClaims{}, nil },
 		hookValidRedirectURL: func(redirectURL string) error { return nil },
 	}
+	t.Cleanup(func() {
+		fmt.Println("------------------------- total calls to fake IDP:", idp.totalCalls.Load())
+	})
 
 	for _, opt := range opts {
 		opt(idp)
@@ -526,6 +533,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	t.Helper()
 
 	mux := chi.NewMux()
+	mux.Use(f.countTotalCalls)
 	// This endpoint is required to initialize the OIDC provider.
 	// It is used to get the OIDC configuration.
 	mux.Get("/.well-known/openid-configuration", func(rw http.ResponseWriter, r *http.Request) {
@@ -968,6 +976,13 @@ func (f *FakeIDP) OIDCConfig(t testing.TB, scopes []string, opts ...func(cfg *co
 	f.cfg = oauthCfg
 
 	return cfg
+}
+
+func (f *FakeIDP) countTotalCalls(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		f.totalCalls.Add(1)
+		next.ServeHTTP(rw, r)
+	})
 }
 
 func httpErrorCode(defaultCode int, err error) int {
