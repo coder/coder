@@ -1,6 +1,7 @@
 package httpmw_test
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -59,7 +60,7 @@ func TestCSRFExemptList(t *testing.T) {
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 
-			r, err := http.NewRequest(http.MethodPost, c.URL, nil)
+			r, err := http.NewRequestWithContext(context.Background(), http.MethodPost, c.URL, nil)
 			require.NoError(t, err)
 
 			r.AddCookie(&http.Cookie{Name: codersdk.SessionTokenCookie, Value: "test"})
