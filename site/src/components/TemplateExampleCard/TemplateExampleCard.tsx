@@ -18,74 +18,23 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
   ...divProps
 }) => {
   return (
-    <div
-      css={(theme) => ({
-        width: "320px",
-        padding: 24,
-        borderRadius: 6,
-        border: `1px solid ${theme.palette.divider}`,
-        textAlign: "left",
-        textDecoration: "none",
-        color: "inherit",
-        display: "flex",
-        flexDirection: "column",
-      })}
-      {...divProps}
-    >
-      <div
-        css={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 24,
-        }}
-      >
-        <div
-          css={{
-            flexShrink: 0,
-            paddingTop: 4,
-            width: 32,
-            height: 32,
-          }}
-        >
+    <div css={styles.card} {...divProps}>
+      <div css={styles.header}>
+        <div css={styles.icon}>
           <ExternalImage
             src={example.icon}
             css={{ width: "100%", height: "100%", objectFit: "contain" }}
           />
         </div>
 
-        <div
-          css={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 8,
-            justifyContent: "end",
-          }}
-        >
-          {example.tags.map((tag) => {
-            const isActive = activeTag === tag;
-
-            return (
-              <RouterLink key={tag} to={`/starter-templates?tag=${tag}`}>
-                <Pill
-                  css={(theme) => ({
-                    borderColor: isActive
-                      ? theme.palette.primary.main
-                      : theme.palette.divider,
-                    cursor: "pointer",
-                    backgroundColor: isActive
-                      ? theme.palette.primary.dark
-                      : undefined,
-                    "&: hover": {
-                      borderColor: theme.palette.primary.main,
-                    },
-                  })}
-                >
-                  {tag}
-                </Pill>
-              </RouterLink>
-            );
-          })}
+        <div css={styles.tags}>
+          {example.tags.map((tag) => (
+            <RouterLink key={tag} to={`/starter-templates?tag=${tag}`}>
+              <Pill css={[styles.tag, activeTag === tag && styles.activeTag]}>
+                {tag}
+              </Pill>
+            </RouterLink>
+          ))}
         </div>
       </div>
 
@@ -93,14 +42,7 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
         <h4 css={{ fontSize: 14, fontWeight: 600, margin: 0, marginBottom: 4 }}>
           {example.name}
         </h4>
-        <span
-          css={(theme) => ({
-            fontSize: 13,
-            color: theme.palette.text.secondary,
-            lineHeight: "1.6",
-            display: "block",
-          })}
-        >
+        <span css={styles.description}>
           {example.description}{" "}
           <Link
             component={RouterLink}
@@ -112,16 +54,7 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
         </span>
       </div>
 
-      <div
-        css={{
-          display: "flex",
-          gap: 12,
-          flexDirection: "column",
-          paddingTop: 24,
-          marginTop: "auto",
-          alignItems: "center",
-        }}
-      >
+      <div css={styles.useButtonContainer}>
         <Button
           component={RouterLink}
           fullWidth
@@ -134,4 +67,66 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
   );
 };
 
-const styles = {} satisfies Record<string, Interpolation<Theme>>;
+const styles = {
+  card: (theme) => ({
+    width: "320px",
+    padding: 24,
+    borderRadius: 6,
+    border: `1px solid ${theme.palette.divider}`,
+    textAlign: "left",
+    textDecoration: "none",
+    color: "inherit",
+    display: "flex",
+    flexDirection: "column",
+  }),
+
+  header: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 24,
+  },
+
+  icon: {
+    flexShrink: 0,
+    paddingTop: 4,
+    width: 32,
+    height: 32,
+  },
+
+  tags: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 8,
+    justifyContent: "end",
+  },
+
+  tag: (theme) => ({
+    borderColor: theme.palette.divider,
+    cursor: "pointer",
+    "&: hover": {
+      borderColor: theme.palette.primary.main,
+    },
+  }),
+
+  activeTag: (theme) => ({
+    borderColor: theme.experimental.roles.active.outline,
+    backgroundColor: theme.experimental.roles.active.background,
+  }),
+
+  description: (theme) => ({
+    fontSize: 13,
+    color: theme.palette.text.secondary,
+    lineHeight: "1.6",
+    display: "block",
+  }),
+
+  useButtonContainer: {
+    display: "flex",
+    gap: 12,
+    flexDirection: "column",
+    paddingTop: 24,
+    marginTop: "auto",
+    alignItems: "center",
+  },
+} satisfies Record<string, Interpolation<Theme>>;
