@@ -206,7 +206,7 @@ func NewFakeIDP(t testing.TB, opts ...FakeIDPOpt) *FakeIDP {
 		hookValidRedirectURL: func(redirectURL string) error { return nil },
 	}
 	t.Cleanup(func() {
-		fmt.Println("------------------------- total calls to fake IDP:", idp.totalCalls.Load())
+		assert.Less(t, idp.totalCalls.Load(), int64(10), "total calls to fake IDP")
 	})
 
 	for _, opt := range opts {
