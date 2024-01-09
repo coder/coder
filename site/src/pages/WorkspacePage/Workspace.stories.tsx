@@ -10,6 +10,7 @@ import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
 import { DashboardProviderContext } from "components/Dashboard/DashboardProvider";
 import { WorkspaceBuildLogsSection } from "pages/WorkspacePage/WorkspaceBuildLogsSection";
 import { getWorkspaceResolveAutostartQueryKey } from "api/queries/workspaceQuota";
+import { WorkspacePermissions } from "./permissions";
 
 const MockedAppearance = {
   config: Mocks.MockAppearanceConfig,
@@ -17,8 +18,16 @@ const MockedAppearance = {
   setPreview: () => {},
 };
 
+const permissions: WorkspacePermissions = {
+  readWorkspace: true,
+  updateWorkspace: true,
+  updateTemplate: true,
+  viewDeploymentValues: true,
+};
+
 const meta: Meta<typeof Workspace> = {
   title: "pages/WorkspacePage/Workspace",
+  args: { permissions },
   component: Workspace,
   decorators: [
     (Story) => (
@@ -69,7 +78,6 @@ export const Running: Story = {
     workspace: Mocks.MockWorkspace,
     handleStart: action("start"),
     handleStop: action("stop"),
-    canUpdateWorkspace: true,
     workspaceErrors: {},
     buildInfo: Mocks.MockBuildInfo,
     template: Mocks.MockTemplate,
@@ -79,7 +87,10 @@ export const Running: Story = {
 export const WithoutUpdateAccess: Story = {
   args: {
     ...Running.args,
-    canUpdateWorkspace: false,
+    permissions: {
+      ...permissions,
+      updateWorkspace: false,
+    },
   },
 };
 

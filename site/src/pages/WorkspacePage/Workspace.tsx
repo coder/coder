@@ -27,6 +27,7 @@ import HubOutlined from "@mui/icons-material/HubOutlined";
 import { ResourcesSidebar } from "./ResourcesSidebar";
 import { ResourceCard } from "components/Resources/ResourceCard";
 import { WorkspaceNotifications } from "./WorkspaceNotifications";
+import { WorkspacePermissions } from "./permissions";
 
 export type WorkspaceError =
   | "getBuildsError"
@@ -48,7 +49,6 @@ export interface WorkspaceProps {
   isUpdating: boolean;
   isRestarting: boolean;
   workspace: TypesGen.Workspace;
-  canUpdateWorkspace: boolean;
   canChangeVersions: boolean;
   hideSSHButton?: boolean;
   hideVSCodeDesktopButton?: boolean;
@@ -61,6 +61,7 @@ export interface WorkspaceProps {
   handleBuildRetryDebug: () => void;
   buildLogs?: React.ReactNode;
   latestVersion?: TypesGen.TemplateVersion;
+  permissions: WorkspacePermissions;
 }
 
 /**
@@ -79,7 +80,6 @@ export const Workspace: FC<WorkspaceProps> = ({
   workspace,
   isUpdating,
   isRestarting,
-  canUpdateWorkspace,
   canChangeVersions,
   workspaceErrors,
   hideSSHButton,
@@ -92,6 +92,7 @@ export const Workspace: FC<WorkspaceProps> = ({
   handleBuildRetryDebug,
   buildLogs,
   latestVersion,
+  permissions,
 }) => {
   const navigate = useNavigate();
   const { saveLocal, getLocal } = useLocalStorage();
@@ -190,7 +191,7 @@ export const Workspace: FC<WorkspaceProps> = ({
         canChangeVersions={canChangeVersions}
         isUpdating={isUpdating}
         isRestarting={isRestarting}
-        canUpdateWorkspace={canUpdateWorkspace}
+        canUpdateWorkspace={permissions.updateWorkspace}
       />
 
       <div
@@ -239,6 +240,8 @@ export const Workspace: FC<WorkspaceProps> = ({
             <WorkspaceNotifications
               workspace={workspace}
               latestVersion={latestVersion}
+              permissions={permissions}
+              onRestartWorkspace={handleRestart}
             />
 
             {Boolean(workspaceErrors.buildError) && (
@@ -252,40 +255,12 @@ export const Workspace: FC<WorkspaceProps> = ({
               />
             )}
 
-            {workspace.latest_build.status === "running" &&
-              !workspace.health.healthy && (
-                <Alert
-                  severity="warning"
-                  actions={
-                    canUpdateWorkspace && (
-                      <Button
-                        variant="text"
-                        size="small"
-                        onClick={() => {
-                          handleRestart();
-                        }}
-                      >
-                        Restart
-                      </Button>
-                    )
-                  }
-                >
-                  <AlertTitle>Workspace is unhealthy</AlertTitle>
-                  <AlertDetail>
-                    Your workspace is running but{" "}
-                    {workspace.health.failing_agents.length > 1
-                      ? `${workspace.health.failing_agents.length} agents are unhealthy`
-                      : `1 agent is unhealthy`}
-                    .
-                  </AlertDetail>
-                </Alert>
-              )}
-
             {workspace.latest_build.status === "deleted" && (
               <WorkspaceDeletedBanner
                 handleClick={() => navigate(`/templates`)}
               />
             )}
+
             {/* <DormantWorkspaceBanner/> determines its own visibility */}
             <DormantWorkspaceBanner
               workspace={workspace}
@@ -360,8 +335,8 @@ export const Workspace: FC<WorkspaceProps> = ({
                     agent={agent}
                     workspace={workspace}
                     sshPrefix={sshPrefix}
-                    showApps={canUpdateWorkspace}
-                    showBuiltinApps={canUpdateWorkspace}
+                    showApps={permissions.updateWorkspace}
+                    showBuiltinApps={permissions.updateWorkspace}
                     hideSSHButton={hideSSHButton}
                     hideVSCodeDesktopButton={hideVSCodeDesktopButton}
                     serverVersion={buildInfo?.version || ""}

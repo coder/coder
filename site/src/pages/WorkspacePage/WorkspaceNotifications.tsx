@@ -1,19 +1,23 @@
 import AlertTitle from "@mui/material/AlertTitle";
+import Button from "@mui/material/Button";
 import { workspaceResolveAutostart } from "api/queries/workspaceQuota";
 import { TemplateVersion, Workspace } from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
 import { FC } from "react";
 import { useQuery } from "react-query";
+import { WorkspacePermissions } from "./permissions";
 
 type WorkspaceNotificationsProps = {
   workspace: Workspace;
+  permissions: WorkspacePermissions;
+  onRestartWorkspace: () => void;
   latestVersion?: TemplateVersion;
 };
 
 export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = (
   props,
 ) => {
-  const { workspace, latestVersion } = props;
+  const { workspace, latestVersion, permissions, onRestartWorkspace } = props;
 
   // Outdated
   const canAutostartResponse = useQuery(
@@ -47,6 +51,33 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = (
             <AlertDetail>{latestVersion.message}</AlertDetail>
           </Alert>
         ))}
+
+      {workspace.latest_build.status === "running" &&
+        !workspace.health.healthy && (
+          <Alert
+            severity="warning"
+            actions={
+              permissions.updateWorkspace && (
+                <Button
+                  variant="text"
+                  size="small"
+                  onClick={onRestartWorkspace}
+                >
+                  Restart
+                </Button>
+              )
+            }
+          >
+            <AlertTitle>Workspace is unhealthy</AlertTitle>
+            <AlertDetail>
+              Your workspace is running but{" "}
+              {workspace.health.failing_agents.length > 1
+                ? `${workspace.health.failing_agents.length} agents are unhealthy`
+                : `1 agent is unhealthy`}
+              .
+            </AlertDetail>
+          </Alert>
+        )}
     </>
   );
 };

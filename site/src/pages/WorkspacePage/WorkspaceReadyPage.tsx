@@ -58,7 +58,7 @@ export const WorkspaceReadyPage = ({
   // Debug mode
   const { data: deploymentValues } = useQuery({
     ...deploymentConfig(),
-    enabled: permissions?.viewDeploymentValues,
+    enabled: permissions.viewDeploymentValues,
   });
 
   // Build logs
@@ -99,7 +99,7 @@ export const WorkspaceReadyPage = ({
   }, []);
 
   // Change version
-  const canChangeVersions = Boolean(permissions?.updateTemplate);
+  const canChangeVersions = Boolean(permissions.updateTemplate);
   const [changeVersionDialogOpen, setChangeVersionDialogOpen] = useState(false);
   const changeVersionMutation = useMutation(
     changeVersion(workspace, queryClient),
@@ -116,7 +116,6 @@ export const WorkspaceReadyPage = ({
   });
 
   // Update workspace
-  const canUpdateWorkspace = Boolean(permissions?.updateWorkspace);
   const [isConfirmingUpdate, setIsConfirmingUpdate] = useState(false);
   const updateWorkspaceMutation = useMutation(
     updateWorkspace(workspace, queryClient),
@@ -124,7 +123,7 @@ export const WorkspaceReadyPage = ({
 
   // If a user can update the template then they can force a delete
   // (via orphan).
-  const canUpdateTemplate = Boolean(permissions?.updateTemplate);
+  const canUpdateTemplate = Boolean(permissions.updateTemplate);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const deleteWorkspaceMutation = useMutation(
     deleteWorkspace(workspace, queryClient),
@@ -181,6 +180,7 @@ export const WorkspaceReadyPage = ({
       </Helmet>
 
       <Workspace
+        permissions={permissions}
         isUpdating={updateWorkspaceMutation.isLoading}
         isRestarting={isRestarting}
         workspace={workspace}
@@ -217,7 +217,6 @@ export const WorkspaceReadyPage = ({
             displayError(message);
           }
         }}
-        canUpdateWorkspace={canUpdateWorkspace}
         latestVersion={latestVersion}
         canChangeVersions={canChangeVersions}
         hideSSHButton={featureVisibility["browser_only"]}
