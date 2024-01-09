@@ -87,11 +87,11 @@ Specifies whether to emit SSH output over stdin/stdout.
 
 ### --wait
 
-|             |                              |
-| ----------- | ---------------------------- | --- | ------------ |
-| Type        | <code>enum[yes               | no  | auto]</code> |
-| Environment | <code>$CODER_SSH_WAIT</code> |
-| Default     | <code>auto</code>            |
+|             |                                  |
+| ----------- | -------------------------------- |
+| Type        | <code>enum[yes\|no\|auto]</code> |
+| Environment | <code>$CODER_SSH_WAIT</code>     |
+| Default     | <code>auto</code>                |
 
 Specifies whether or not to wait for the startup script to finish executing. Auto means that the agent startup script behavior configured in the workspace template is used.
 
