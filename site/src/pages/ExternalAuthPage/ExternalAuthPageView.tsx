@@ -63,7 +63,9 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 
   return (
     <SignInLayout>
-      <Welcome>You've authenticated with {externalAuth.display_name}!</Welcome>
+      <Welcome>
+        You&apos;ve authenticated with {externalAuth.display_name}!
+      </Welcome>
 
       <p css={styles.text}>
         {externalAuth.user?.login && `Hey @${externalAuth.user?.login}! 👋 `}
