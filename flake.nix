@@ -46,11 +46,11 @@
           libuuid
           mockgen
           nfpm
-          nodejs
-          nodePackages.pnpm
-          nodePackages.prettier
-          nodePackages.typescript
-          nodePackages.typescript-language-server
+          nodejs-18_x
+          nodejs-18_x.pkgs.pnpm
+          nodejs-18_x.pkgs.prettier
+          nodejs-18_x.pkgs.typescript
+          nodejs-18_x.pkgs.typescript-language-server
           openssh
           openssl
           pango
