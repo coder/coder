@@ -242,10 +242,8 @@ func (s *server) heartbeatLoop() {
 			}
 			start := s.timeNow()
 			hbCtx, hbCancel := context.WithTimeout(s.lifecycleCtx, s.heartbeatInterval)
-			if err := s.heartbeat(hbCtx); err != nil {
-				if !xerrors.Is(err, context.DeadlineExceeded) && !xerrors.Is(err, context.Canceled) {
-					s.Logger.Error(hbCtx, "heartbeat failed", slog.Error(err))
-				}
+			if err := s.heartbeat(hbCtx); err != nil && !database.IsQueryCanceledError(err) {
+				s.Logger.Error(hbCtx, "heartbeat failed", slog.Error(err))
 			}
 			hbCancel()
 			elapsed := s.timeNow().Sub(start)
