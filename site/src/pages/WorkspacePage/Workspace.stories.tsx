@@ -78,7 +78,6 @@ export const Running: Story = {
     workspace: Mocks.MockWorkspace,
     handleStart: action("start"),
     handleStop: action("stop"),
-    workspaceErrors: {},
     buildInfo: Mocks.MockBuildInfo,
     template: Mocks.MockTemplate,
   },
@@ -119,18 +118,6 @@ export const Stopping: Story = {
   args: {
     ...Running.args,
     workspace: Mocks.MockStoppingWorkspace,
-  },
-};
-
-export const Failed: Story = {
-  args: {
-    ...Running.args,
-    workspace: Mocks.MockFailedWorkspace,
-    workspaceErrors: {
-      buildError: Mocks.mockApiError({
-        message: "A workspace build is already active.",
-      }),
-    },
   },
 };
 
@@ -221,29 +208,6 @@ export const CantAutostart: Story = {
         },
       },
     ],
-  },
-};
-
-export const GetBuildsError: Story = {
-  args: {
-    ...Running.args,
-    workspaceErrors: {
-      getBuildsError: Mocks.mockApiError({
-        message: "There is a problem fetching builds.",
-      }),
-    },
-  },
-};
-
-export const CancellationError: Story = {
-  args: {
-    ...Failed.args,
-    workspaceErrors: {
-      cancellationError: Mocks.mockApiError({
-        message: "Job could not be canceled.",
-      }),
-    },
-    buildLogs: <WorkspaceBuildLogsSection logs={makeFailedBuildLogs()} />,
   },
 };
 

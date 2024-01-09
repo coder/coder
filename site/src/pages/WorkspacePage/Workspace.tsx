@@ -7,7 +7,6 @@ import dayjs from "dayjs";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
 import { Stack } from "components/Stack/Stack";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { AgentRow } from "components/Resources/AgentRow";
 import { useTab } from "hooks";
 import {
@@ -28,13 +27,6 @@ import { ResourceCard } from "components/Resources/ResourceCard";
 import { WorkspaceNotifications } from "./WorkspaceNotifications";
 import { WorkspacePermissions } from "./permissions";
 
-export type WorkspaceError =
-  | "getBuildsError"
-  | "buildError"
-  | "cancellationError";
-
-export type WorkspaceErrors = Partial<Record<WorkspaceError, unknown>>;
-
 export interface WorkspaceProps {
   handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
   handleStop: () => void;
@@ -51,7 +43,6 @@ export interface WorkspaceProps {
   canChangeVersions: boolean;
   hideSSHButton?: boolean;
   hideVSCodeDesktopButton?: boolean;
-  workspaceErrors: WorkspaceErrors;
   buildInfo?: TypesGen.BuildInfoResponse;
   sshPrefix?: string;
   template?: TypesGen.Template;
@@ -80,7 +71,6 @@ export const Workspace: FC<WorkspaceProps> = ({
   isUpdating,
   isRestarting,
   canChangeVersions,
-  workspaceErrors,
   hideSSHButton,
   hideVSCodeDesktopButton,
   buildInfo,
@@ -241,17 +231,6 @@ export const Workspace: FC<WorkspaceProps> = ({
               permissions={permissions}
               onRestartWorkspace={handleRestart}
             />
-
-            {Boolean(workspaceErrors.buildError) && (
-              <ErrorAlert error={workspaceErrors.buildError} dismissible />
-            )}
-
-            {Boolean(workspaceErrors.cancellationError) && (
-              <ErrorAlert
-                error={workspaceErrors.cancellationError}
-                dismissible
-              />
-            )}
 
             {workspace.latest_build.status === "deleted" && (
               <WorkspaceDeletedBanner

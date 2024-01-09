@@ -74,13 +74,10 @@ export const WorkspaceReadyPage = ({
     open: boolean;
     buildParameters?: TypesGen.WorkspaceBuildParameter[];
   }>({ open: false });
-  const {
-    mutate: mutateRestartWorkspace,
-    error: restartBuildError,
-    isLoading: isRestarting,
-  } = useMutation({
-    mutationFn: restartWorkspace,
-  });
+  const { mutate: mutateRestartWorkspace, isLoading: isRestarting } =
+    useMutation({
+      mutationFn: restartWorkspace,
+    });
 
   // SSH Prefix
   const sshPrefixQuery = useQuery(deploymentSSHConfig());
@@ -221,15 +218,6 @@ export const WorkspaceReadyPage = ({
         canChangeVersions={canChangeVersions}
         hideSSHButton={featureVisibility["browser_only"]}
         hideVSCodeDesktopButton={featureVisibility["browser_only"]}
-        workspaceErrors={{
-          buildError:
-            restartBuildError ??
-            startWorkspaceMutation.error ??
-            stopWorkspaceMutation.error ??
-            deleteWorkspaceMutation.error ??
-            updateWorkspaceMutation.error,
-          cancellationError: cancelBuildMutation.error,
-        }}
         buildInfo={buildInfo}
         sshPrefix={sshPrefixQuery.data?.hostname_prefix}
         template={template}
