@@ -464,8 +464,13 @@ func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAut
 			oauthConfig = &exchangeWithClientSecret{oc}
 		}
 
+		instrumented := instrument.New(entry.ID, oauthConfig)
+		if strings.EqualFold(entry.Type, string(codersdk.EnhancedExternalAuthProviderGitHub)) {
+			instrumented = instrument.NewGithub(entry.ID, oauthConfig)
+		}
+
 		cfg := &Config{
-			InstrumentedOAuth2Config: instrument.New(entry.ID, oauthConfig),
+			InstrumentedOAuth2Config: instrumented,
 			ID:                       entry.ID,
 			Regex:                    regex,
 			Type:                     entry.Type,
