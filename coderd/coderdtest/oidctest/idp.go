@@ -397,6 +397,43 @@ func (f *FakeIDP) ExternalLogin(t testing.TB, client *codersdk.Client, opts ...f
 	_ = res.Body.Close()
 }
 
+// CreateAuthCode emulates a user clicking "allow" on the IDP page. When doing
+// unit tests, it's easier to skip this step sometimes. It does make an actual
+// request to the IDP, so it should be equivalent to doing this "manually" with
+// actual requests.
+func (f *FakeIDP) CreateAuthCode(t testing.TB, state string, opts ...func(r *http.Request)) string {
+	// We need to store some claims, because this is also an OIDC provider, and
+	// it expects some claims to be present.
+	f.stateToIDTokenClaims.Store(state, jwt.MapClaims{})
+
+	u := f.cfg.AuthCodeURL(state)
+	r, err := http.NewRequestWithContext(context.Background(), http.MethodPost, u, nil)
+	require.NoError(t, err, "failed to create auth request")
+
+	for _, opt := range opts {
+		opt(r)
+	}
+
+	rw := httptest.NewRecorder()
+	f.handler.ServeHTTP(rw, r)
+	resp := rw.Result()
+
+	require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode, "expected redirect")
+	to := resp.Header.Get("Location")
+	require.NotEmpty(t, to, "expected redirect location")
+
+	toUrl, err := url.Parse(to)
+	require.NoError(t, err, "failed to parse redirect location")
+
+	code := toUrl.Query().Get("code")
+	require.NotEmpty(t, code, "expected code in redirect location")
+
+	newState := toUrl.Query().Get("state")
+	require.Equal(t, state, newState, "expected state to match")
+
+	return code
+}
+
 // OIDCCallback will emulate the IDP redirecting back to the Coder callback.
 // This is helpful if no Coderd exists because the IDP needs to redirect to
 // something.
@@ -917,13 +954,10 @@ func (f *FakeIDP) ExternalAuthConfig(t testing.TB, id string, custom *ExternalAu
 	return cfg
 }
 
-// OIDCConfig returns the OIDC config to use for Coderd.
-func (f *FakeIDP) OIDCConfig(t testing.TB, scopes []string, opts ...func(cfg *coderd.OIDCConfig)) *coderd.OIDCConfig {
-	t.Helper()
+func (f *FakeIDP) OAuthConfig(scopes ...string) *oauth2.Config {
 	if len(scopes) == 0 {
 		scopes = []string{"openid", "email", "profile"}
 	}
-
 	oauthCfg := &oauth2.Config{
 		ClientID:     f.clientID,
 		ClientSecret: f.clientSecret,
@@ -937,6 +971,15 @@ func (f *FakeIDP) OIDCConfig(t testing.TB, scopes []string, opts ...func(cfg *co
 		RedirectURL: "https://redirect.com",
 		Scopes:      scopes,
 	}
+	f.cfg = oauthCfg
+	return oauthCfg
+}
+
+// OIDCConfig returns the OIDC config to use for Coderd.
+func (f *FakeIDP) OIDCConfig(t testing.TB, scopes []string, opts ...func(cfg *coderd.OIDCConfig)) *coderd.OIDCConfig {
+	t.Helper()
+
+	oauthCfg := f.OAuthConfig(scopes...)
 
 	ctx := oidc.ClientContext(context.Background(), f.HTTPClient(nil))
 	p, err := oidc.NewProvider(ctx, f.provider.Issuer)
@@ -964,8 +1007,6 @@ func (f *FakeIDP) OIDCConfig(t testing.TB, scopes []string, opts ...func(cfg *co
 		}
 		opt(cfg)
 	}
-
-	f.cfg = oauthCfg
 
 	return cfg
 }

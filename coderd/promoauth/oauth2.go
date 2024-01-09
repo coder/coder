@@ -41,8 +41,8 @@ func NewFactory(registry prometheus.Registerer) *Factory {
 				Help:      "The total number of api calls made to external oauth2 providers. 'status_code' will be 0 if the request failed with no response.",
 			}, []string{
 				"name",
+				"source",
 				"status_code",
-				"domain",
 			}),
 		},
 	}
@@ -71,11 +71,11 @@ func (c *Config) AuthCodeURL(state string, opts ...oauth2.AuthCodeOption) string
 }
 
 func (c *Config) Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
-	return c.underlying.Exchange(c.wrapClient(ctx), code, opts...)
+	return c.underlying.Exchange(c.wrapClient(ctx, "Exchange"), code, opts...)
 }
 
 func (c *Config) TokenSource(ctx context.Context, token *oauth2.Token) oauth2.TokenSource {
-	return c.underlying.TokenSource(c.wrapClient(ctx), token)
+	return c.underlying.TokenSource(c.wrapClient(ctx, "TokenSource"), token)
 }
 
 // wrapClient is the only way we can accurately instrument the oauth2 client.
@@ -85,8 +85,8 @@ func (c *Config) TokenSource(ctx context.Context, token *oauth2.Token) oauth2.To
 // For example, the 'TokenSource' method will return a token
 // source that will make a network request when the 'Token' method is called on
 // it if the token is expired.
-func (c *Config) wrapClient(ctx context.Context) context.Context {
-	cli := http.DefaultClient
+func (c *Config) wrapClient(ctx context.Context, source string) context.Context {
+	cli := &http.Client{}
 
 	// Check if the context has an http client already.
 	if hc, ok := ctx.Value(oauth2.HTTPClient).(*http.Client); ok {
@@ -94,21 +94,30 @@ func (c *Config) wrapClient(ctx context.Context) context.Context {
 	}
 
 	// The new tripper will instrument every request made by the oauth2 client.
-	cli.Transport = newInstrumentedTripper(c, cli.Transport)
+	cli.Transport = newInstrumentedTripper(c, source, cli.Transport)
 	return context.WithValue(ctx, oauth2.HTTPClient, cli)
 }
 
 type instrumentedTripper struct {
 	c          *Config
+	source     string
 	underlying http.RoundTripper
 }
 
-func newInstrumentedTripper(c *Config, under http.RoundTripper) *instrumentedTripper {
+func newInstrumentedTripper(c *Config, source string, under http.RoundTripper) *instrumentedTripper {
 	if under == nil {
 		under = http.DefaultTransport
 	}
+
+	// If the underlying transport is the default, we need to clone it.
+	// We should also clone it if it supports cloning.
+	if tr, ok := under.(*http.Transport); ok {
+		under = tr.Clone()
+	}
+
 	return &instrumentedTripper{
 		c:          c,
+		source:     source,
 		underlying: under,
 	}
 }
@@ -121,8 +130,8 @@ func (i *instrumentedTripper) RoundTrip(r *http.Request) (*http.Response, error)
 	}
 	i.c.metrics.externalRequestCount.With(prometheus.Labels{
 		"name":        i.c.name,
+		"source":      i.source,
 		"status_code": fmt.Sprintf("%d", statusCode),
-		"domain":      r.URL.Host,
 	}).Inc()
 	return resp, err
 }
