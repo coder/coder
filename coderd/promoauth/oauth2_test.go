@@ -50,6 +50,7 @@ func TestMaintainDefault(t *testing.T) {
 	req, err := http.NewRequest(http.MethodGet,
 		must(idp.IssuerURL().Parse("/.well-known/openid-configuration")).String(), nil)
 	require.NoError(t, err)
+	req = req.WithContext(ctx)
 
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
