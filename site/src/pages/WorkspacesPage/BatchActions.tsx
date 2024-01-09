@@ -136,6 +136,7 @@ export const BatchDeleteConfirmation: FC<BatchDeleteConfirmationProps> = ({
 
   return (
     <ConfirmDialog
+      type="delete"
       open={open}
       onClose={() => {
         setStage("consequences");
@@ -146,7 +147,6 @@ export const BatchDeleteConfirmation: FC<BatchDeleteConfirmationProps> = ({
       confirmLoading={isLoading}
       confirmText={confirmText}
       onConfirm={onProceed}
-      type="delete"
       description={
         <>
           {stage === "consequences" && <Consequences />}

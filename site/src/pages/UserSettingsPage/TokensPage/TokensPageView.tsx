@@ -4,18 +4,18 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
-import { Stack } from "components/Stack/Stack";
-import { TableEmpty } from "components/TableEmpty/TableEmpty";
-import { TableLoader } from "components/TableLoader/TableLoader";
+import IconButton from "@mui/material/IconButton";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import dayjs from "dayjs";
 import { useTheme } from "@emotion/react";
 import { type FC, type ReactNode } from "react";
-import IconButton from "@mui/material/IconButton/IconButton";
 import type { APIKeyWithOwner } from "api/typesGenerated";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
+import { Stack } from "components/Stack/Stack";
+import { TableEmpty } from "components/TableEmpty/TableEmpty";
+import { TableLoader } from "components/TableLoader/TableLoader";
 
 dayjs.extend(relativeTime);
 
