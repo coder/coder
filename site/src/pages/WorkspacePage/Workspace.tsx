@@ -14,8 +14,6 @@ import {
 import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 import { HistorySidebar } from "./HistorySidebar";
-import { dashboardContentBottomPadding, navHeight } from "theme/constants";
-import { bannerHeight } from "components/Dashboard/DeploymentBanner/DeploymentBannerView";
 import HistoryOutlined from "@mui/icons-material/HistoryOutlined";
 import { useTheme } from "@mui/material/styles";
 import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
@@ -119,8 +117,6 @@ export const Workspace: FC<WorkspaceProps> = ({
           "topbar topbar topbar" auto
           "leftbar sidebar content" 1fr / auto auto 1fr
         `,
-        maxHeight: `calc(100vh - ${navHeight + bannerHeight}px)`,
-        marginBottom: `-${dashboardContentBottomPadding}px`,
       }}
     >
       <WorkspaceTopbar
