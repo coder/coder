@@ -226,6 +226,15 @@ curl -X POST http://coder-server:8080/api/v2/users/first \
   "email": "string",
   "password": "string",
   "trial": true,
+  "trial_info": {
+    "company_name": "string",
+    "country": "string",
+    "developers": "string",
+    "first_name": "string",
+    "job_title": "string",
+    "last_name": "string",
+    "phone_number": "string"
+  },
   "username": "string"
 }
 ```

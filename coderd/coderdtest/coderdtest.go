@@ -107,7 +107,7 @@ type Options struct {
 	Auditor               audit.Auditor
 	TLSCertificates       []tls.Certificate
 	ExternalAuthConfigs   []*externalauth.Config
-	TrialGenerator        func(context.Context, string) error
+	TrialGenerator        func(ctx context.Context, body codersdk.LicensorTrialRequest) error
 	TemplateScheduleStore schedule.TemplateScheduleStore
 	Coordinator           tailnet.Coordinator
 

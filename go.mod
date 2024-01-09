@@ -206,7 +206,7 @@ require (
 
 require go.uber.org/mock v0.4.0
 
-require github.com/benbjohnson/clock v1.3.5 // indirect
+require github.com/benbjohnson/clock v1.3.5
 
 require (
 	cloud.google.com/go/compute v1.23.3 // indirect

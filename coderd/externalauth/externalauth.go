@@ -325,7 +325,7 @@ func (c *DeviceAuth) AuthorizeDevice(ctx context.Context) (*codersdk.ExternalAut
 		// return a better error.
 		switch resp.StatusCode {
 		case http.StatusTooManyRequests:
-			return nil, fmt.Errorf("rate limit hit, unable to authorize device. please try again later")
+			return nil, xerrors.New("rate limit hit, unable to authorize device. please try again later")
 		default:
 			return nil, err
 		}
