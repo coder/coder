@@ -25,7 +25,7 @@ func TestMaintainDefault(t *testing.T) {
 	}
 
 	factory := promoauth.NewFactory(reg)
-	cfg := factory.New("test", idp.OAuthConfig())
+	cfg := factory.New("test", idp.OIDCConfig(t, []string{}))
 
 	// 0 Requests before we start
 	require.Equal(t, count(), 0)

@@ -2,6 +2,7 @@ package testutil
 
 import (
 	"context"
+	"net/http"
 	"net/url"
 	"time"
 
@@ -11,6 +12,10 @@ import (
 type OAuth2Config struct {
 	Token           *oauth2.Token
 	TokenSourceFunc OAuth2TokenSource
+}
+
+func (*OAuth2Config) Do(_ context.Context, _ string, req *http.Request) (*http.Response, error) {
+	return http.DefaultClient.Do(req)
 }
 
 func (*OAuth2Config) AuthCodeURL(state string, _ ...oauth2.AuthCodeOption) string {

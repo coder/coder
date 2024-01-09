@@ -24,6 +24,7 @@ import (
 	"github.com/go-jose/go-jose/v3"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
@@ -33,6 +34,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/util/syncmap"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -943,9 +945,10 @@ func (f *FakeIDP) ExternalAuthConfig(t testing.TB, id string, custom *ExternalAu
 			handle(email, rw, r)
 		}
 	}
+	instrumentF := promoauth.NewFactory(prometheus.NewRegistry())
 	cfg := &externalauth.Config{
-		OAuth2Config: f.OIDCConfig(t, nil),
-		ID:           id,
+		InstrumentedOAuth2Config: instrumentF.New(f.clientID, f.OIDCConfig(t, nil)),
+		ID:                       id,
 		// No defaults for these fields by omitting the type
 		Type:        "",
 		DisplayIcon: f.WellknownConfig().UserInfoURL,
@@ -959,7 +962,10 @@ func (f *FakeIDP) ExternalAuthConfig(t testing.TB, id string, custom *ExternalAu
 	return cfg
 }
 
-func (f *FakeIDP) OAuthConfig(scopes ...string) *oauth2.Config {
+// OIDCConfig returns the OIDC config to use for Coderd.
+func (f *FakeIDP) OIDCConfig(t testing.TB, scopes []string, opts ...func(cfg *coderd.OIDCConfig)) *coderd.OIDCConfig {
+	t.Helper()
+
 	if len(scopes) == 0 {
 		scopes = []string{"openid", "email", "profile"}
 	}
@@ -976,15 +982,6 @@ func (f *FakeIDP) OAuthConfig(scopes ...string) *oauth2.Config {
 		RedirectURL: "https://redirect.com",
 		Scopes:      scopes,
 	}
-	f.cfg = oauthCfg
-	return oauthCfg
-}
-
-// OIDCConfig returns the OIDC config to use for Coderd.
-func (f *FakeIDP) OIDCConfig(t testing.TB, scopes []string, opts ...func(cfg *coderd.OIDCConfig)) *coderd.OIDCConfig {
-	t.Helper()
-
-	oauthCfg := f.OAuthConfig(scopes...)
 
 	ctx := oidc.ClientContext(context.Background(), f.HTTPClient(nil))
 	p, err := oidc.NewProvider(ctx, f.provider.Issuer)
@@ -1013,6 +1010,7 @@ func (f *FakeIDP) OIDCConfig(t testing.TB, scopes []string, opts ...func(cfg *co
 		opt(cfg)
 	}
 
+	f.cfg = oauthCfg
 	return cfg
 }
 
