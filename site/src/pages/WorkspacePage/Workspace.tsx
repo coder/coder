@@ -8,9 +8,8 @@ import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
 import { Stack } from "components/Stack/Stack";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { DormantWorkspaceBanner } from "components/WorkspaceDeletion";
 import { AgentRow } from "components/Resources/AgentRow";
-import { useLocalStorage, useTab } from "hooks";
+import { useTab } from "hooks";
 import {
   ActiveTransition,
   WorkspaceBuildProgress,
@@ -95,7 +94,6 @@ export const Workspace: FC<WorkspaceProps> = ({
   permissions,
 }) => {
   const navigate = useNavigate();
-  const { saveLocal, getLocal } = useLocalStorage();
   const theme = useTheme();
 
   const [showAlertPendingInQueue, setShowAlertPendingInQueue] = useState(false);
@@ -260,15 +258,6 @@ export const Workspace: FC<WorkspaceProps> = ({
                 handleClick={() => navigate(`/templates`)}
               />
             )}
-
-            {/* <DormantWorkspaceBanner/> determines its own visibility */}
-            <DormantWorkspaceBanner
-              workspace={workspace}
-              shouldRedisplayBanner={
-                getLocal("dismissedWorkspace") !== workspace.id
-              }
-              onDismiss={() => saveLocal("dismissedWorkspace", workspace.id)}
-            />
 
             {showAlertPendingInQueue && (
               <Alert severity="info">

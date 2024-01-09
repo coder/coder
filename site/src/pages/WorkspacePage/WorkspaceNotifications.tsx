@@ -6,6 +6,7 @@ import { Alert, AlertDetail } from "components/Alert/Alert";
 import { FC } from "react";
 import { useQuery } from "react-query";
 import { WorkspacePermissions } from "./permissions";
+import { DormantWorkspaceBanner } from "./DormantWorkspaceBanner";
 
 type WorkspaceNotificationsProps = {
   workspace: Workspace;
@@ -78,6 +79,8 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = (
             </AlertDetail>
           </Alert>
         )}
+
+      <DormantWorkspaceBanner workspace={workspace} />
     </>
   );
 };

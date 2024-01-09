@@ -9,7 +9,7 @@ import { type FC, type ReactNode } from "react";
 import type { Workspace } from "api/typesGenerated";
 import { Pill } from "components/Pill/Pill";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
-import { DormantDeletionText } from "components/WorkspaceDeletion";
+import { DormantDeletionText } from "./DormantDeletionText";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
 import { useClassName } from "hooks/useClassName";
 import { formatDistanceToNow } from "date-fns";

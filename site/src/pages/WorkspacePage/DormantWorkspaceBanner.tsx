@@ -3,24 +3,18 @@ import { ReactNode, type FC } from "react";
 import type { Workspace } from "api/typesGenerated";
 import { useIsWorkspaceActionsEnabled } from "components/Dashboard/DashboardProvider";
 import { Alert } from "components/Alert/Alert";
-
-export enum Count {
-  Singular,
-  Multiple,
-}
+import { useLocalStorage } from "hooks";
 
 interface DormantWorkspaceBannerProps {
   workspace: Workspace;
-  onDismiss: () => void;
-  shouldRedisplayBanner: boolean;
 }
 
 export const DormantWorkspaceBanner: FC<DormantWorkspaceBannerProps> = ({
   workspace,
-  onDismiss,
-  shouldRedisplayBanner,
 }) => {
   const experimentEnabled = useIsWorkspaceActionsEnabled();
+  const { saveLocal, getLocal } = useLocalStorage();
+  const shouldRedisplayBanner = getLocal("dismissedWorkspace") !== workspace.id;
 
   if (
     // Only show this if the experiment is included.
@@ -69,7 +63,13 @@ export const DormantWorkspaceBanner: FC<DormantWorkspaceBannerProps> = ({
   };
 
   return (
-    <Alert severity="warning" onDismiss={onDismiss} dismissible>
+    <Alert
+      severity="warning"
+      onDismiss={() => {
+        saveLocal("dismissedWorkspace", workspace.id);
+      }}
+      dismissible
+    >
       {alertText()}
     </Alert>
   );
