@@ -421,18 +421,19 @@ func (f *FakeIDP) CreateAuthCode(t testing.TB, state string, opts ...func(r *htt
 	rw := httptest.NewRecorder()
 	f.handler.ServeHTTP(rw, r)
 	resp := rw.Result()
+	defer resp.Body.Close()
 
 	require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode, "expected redirect")
 	to := resp.Header.Get("Location")
 	require.NotEmpty(t, to, "expected redirect location")
 
-	toUrl, err := url.Parse(to)
+	toURL, err := url.Parse(to)
 	require.NoError(t, err, "failed to parse redirect location")
 
-	code := toUrl.Query().Get("code")
+	code := toURL.Query().Get("code")
 	require.NotEmpty(t, code, "expected code in redirect location")
 
-	newState := toUrl.Query().Get("state")
+	newState := toURL.Query().Get("state")
 	require.Equal(t, state, newState, "expected state to match")
 
 	return code

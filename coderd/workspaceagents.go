@@ -2100,7 +2100,7 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 				})
 				return
 			}
-			httpapi.Write(ctx, rw, http.StatusOK, resp)
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, resp)
 			return
 		}
 	}

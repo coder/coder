@@ -18,6 +18,24 @@ type OAuth2Config interface {
 	TokenSource(context.Context, *oauth2.Token) oauth2.TokenSource
 }
 
+type InstrumentedeOAuth2Config interface {
+	OAuth2Config
+
+	// Do is provided as a convience method to make a request with the oauth2 client.
+	// It mirrors `http.Client.Do`.
+	// We need this because Coder adds some extra functionality to
+	// oauth clients such as the `ValidateToken()` method.
+	Do(ctx context.Context, source string, req *http.Request) (*http.Response, error)
+}
+
+type HTTPDo interface {
+	// Do is provided as a convience method to make a request with the oauth2 client.
+	// It mirrors `http.Client.Do`.
+	// We need this because Coder adds some extra functionality to
+	// oauth clients such as the `ValidateToken()` method.
+	Do(ctx context.Context, source string, req *http.Request) (*http.Response, error)
+}
+
 var _ OAuth2Config = (*Config)(nil)
 
 type Factory struct {
@@ -65,6 +83,11 @@ type Config struct {
 	metrics    *metrics
 }
 
+func (c *Config) Do(ctx context.Context, source string, req *http.Request) (*http.Response, error) {
+	cli := c.oauthHTTPClient(ctx, source)
+	return cli.Do(req)
+}
+
 func (c *Config) AuthCodeURL(state string, opts ...oauth2.AuthCodeOption) string {
 	// No external requests are made when constructing the auth code url.
 	return c.underlying.AuthCodeURL(state, opts...)
@@ -86,6 +109,10 @@ func (c *Config) TokenSource(ctx context.Context, token *oauth2.Token) oauth2.To
 // source that will make a network request when the 'Token' method is called on
 // it if the token is expired.
 func (c *Config) wrapClient(ctx context.Context, source string) context.Context {
+	return context.WithValue(ctx, oauth2.HTTPClient, c.oauthHTTPClient(ctx, source))
+}
+
+func (c *Config) oauthHTTPClient(ctx context.Context, source string) *http.Client {
 	cli := &http.Client{}
 
 	// Check if the context has an http client already.
@@ -95,7 +122,7 @@ func (c *Config) wrapClient(ctx context.Context, source string) context.Context 
 
 	// The new tripper will instrument every request made by the oauth2 client.
 	cli.Transport = newInstrumentedTripper(c, source, cli.Transport)
-	return context.WithValue(ctx, oauth2.HTTPClient, cli)
+	return cli
 }
 
 type instrumentedTripper struct {
@@ -133,5 +160,14 @@ func (i *instrumentedTripper) RoundTrip(r *http.Request) (*http.Response, error)
 		"source":      i.source,
 		"status_code": fmt.Sprintf("%d", statusCode),
 	}).Inc()
+	if err == nil {
+		fmt.Println(map[string]string{
+			"limit":    resp.Header.Get("x-ratelimit-limit"),
+			"remain":   resp.Header.Get("x-ratelimit-remaining"),
+			"used":     resp.Header.Get("x-ratelimit-used"),
+			"reset":    resp.Header.Get("x-ratelimit-reset"),
+			"resource": resp.Header.Get("x-ratelimit-resource"),
+		})
+	}
 	return resp, err
 }

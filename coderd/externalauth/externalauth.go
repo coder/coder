@@ -29,7 +29,7 @@ import (
 
 // Config is used for authentication for Git operations.
 type Config struct {
-	promoauth.OAuth2Config
+	promoauth.InstrumentedeOAuth2Config
 	// ID is a unique identifier for the authenticator.
 	ID string
 	// Type is the type of provider.
@@ -187,12 +187,8 @@ func (c *Config) ValidateToken(ctx context.Context, token string) (bool, *coders
 		return false, nil, err
 	}
 
-	cli := http.DefaultClient
-	if v, ok := ctx.Value(oauth2.HTTPClient).(*http.Client); ok {
-		cli = v
-	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-	res, err := cli.Do(req)
+	res, err := c.InstrumentedeOAuth2Config.Do(ctx, "ValidateToken", req)
 	if err != nil {
 		return false, nil, err
 	}
@@ -242,7 +238,7 @@ func (c *Config) AppInstallations(ctx context.Context, token string) ([]codersdk
 		return nil, false, err
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-	res, err := http.DefaultClient.Do(req)
+	res, err := c.InstrumentedeOAuth2Config.Do(ctx, "AppInstallations", req)
 	if err != nil {
 		return nil, false, err
 	}
@@ -282,6 +278,8 @@ func (c *Config) AppInstallations(ctx context.Context, token string) ([]codersdk
 }
 
 type DeviceAuth struct {
+	// Cfg is provided for the http client method.
+	Cfg      promoauth.InstrumentedeOAuth2Config
 	ClientID string
 	TokenURL string
 	Scopes   []string
@@ -302,8 +300,8 @@ func (c *DeviceAuth) AuthorizeDevice(ctx context.Context) (*codersdk.ExternalAut
 	if err != nil {
 		return nil, err
 	}
+	resp, err := c.Cfg.Do(ctx, "AuthorizeDevice", req)
 	req.Header.Set("Accept", "application/json")
-	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -458,17 +456,17 @@ func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAut
 		}
 
 		cfg := &Config{
-			OAuth2Config:        instrument.New(entry.ID, oauthConfig),
-			ID:                  entry.ID,
-			Regex:               regex,
-			Type:                entry.Type,
-			NoRefresh:           entry.NoRefresh,
-			ValidateURL:         entry.ValidateURL,
-			AppInstallationsURL: entry.AppInstallationsURL,
-			AppInstallURL:       entry.AppInstallURL,
-			DisplayName:         entry.DisplayName,
-			DisplayIcon:         entry.DisplayIcon,
-			ExtraTokenKeys:      entry.ExtraTokenKeys,
+			InstrumentedeOAuth2Config: instrument.New(entry.ID, oauthConfig),
+			ID:                        entry.ID,
+			Regex:                     regex,
+			Type:                      entry.Type,
+			NoRefresh:                 entry.NoRefresh,
+			ValidateURL:               entry.ValidateURL,
+			AppInstallationsURL:       entry.AppInstallationsURL,
+			AppInstallURL:             entry.AppInstallURL,
+			DisplayName:               entry.DisplayName,
+			DisplayIcon:               entry.DisplayIcon,
+			ExtraTokenKeys:            entry.ExtraTokenKeys,
 		}
 
 		if entry.DeviceFlow {
@@ -476,6 +474,7 @@ func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAut
 				return nil, xerrors.Errorf("external auth provider %q: device auth url must be provided", entry.ID)
 			}
 			cfg.DeviceAuth = &DeviceAuth{
+				Cfg:      cfg,
 				ClientID: entry.ClientID,
 				TokenURL: oc.Endpoint.TokenURL,
 				Scopes:   entry.Scopes,
