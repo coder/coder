@@ -484,6 +484,93 @@ func TestConfigMaps_updatePeers_lost_and_found(t *testing.T) {
 	_ = testutil.RequireRecvCtx(ctx, t, done)
 }
 
+func TestConfigMaps_setBlockEndpoints_different(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	fEng := newFakeEngineConfigurable()
+	nodePrivateKey := key.NewNode()
+	nodeID := tailcfg.NodeID(5)
+	discoKey := key.NewDisco()
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), nil)
+	defer uut.close()
+
+	p1ID := uuid.MustParse("10000000-0000-0000-0000-000000000000")
+	p1Node := newTestNode(1)
+	p1n, err := NodeToProto(p1Node)
+	require.NoError(t, err)
+	p1tcn, err := uut.protoNodeToTailcfg(p1n)
+	p1tcn.KeepAlive = true
+	require.NoError(t, err)
+
+	// Given: peer already exists
+	uut.L.Lock()
+	uut.peers[p1ID] = &peerLifecycle{
+		peerID:        p1ID,
+		node:          p1tcn,
+		lastHandshake: time.Date(2024, 1, 7, 12, 0, 10, 0, time.UTC),
+	}
+	uut.L.Unlock()
+
+	uut.setBlockEndpoints(true)
+
+	nm := testutil.RequireRecvCtx(ctx, t, fEng.setNetworkMap)
+	r := testutil.RequireRecvCtx(ctx, t, fEng.reconfig)
+	require.Len(t, nm.Peers, 1)
+	require.Len(t, nm.Peers[0].Endpoints, 0)
+	require.Len(t, r.wg.Peers, 1)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.RequireRecvCtx(ctx, t, done)
+}
+
+func TestConfigMaps_setBlockEndpoints_same(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	fEng := newFakeEngineConfigurable()
+	nodePrivateKey := key.NewNode()
+	nodeID := tailcfg.NodeID(5)
+	discoKey := key.NewDisco()
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), nil)
+	defer uut.close()
+
+	p1ID := uuid.MustParse("10000000-0000-0000-0000-000000000000")
+	p1Node := newTestNode(1)
+	p1n, err := NodeToProto(p1Node)
+	require.NoError(t, err)
+	p1tcn, err := uut.protoNodeToTailcfg(p1n)
+	p1tcn.KeepAlive = true
+	require.NoError(t, err)
+
+	// Given: peer already exists && blockEndpoints set to true
+	uut.L.Lock()
+	uut.peers[p1ID] = &peerLifecycle{
+		peerID:        p1ID,
+		node:          p1tcn,
+		lastHandshake: time.Date(2024, 1, 7, 12, 0, 10, 0, time.UTC),
+	}
+	uut.blockEndpoints = true
+	uut.L.Unlock()
+
+	// Then: we don't configure
+	requireNeverConfigures(ctx, t, uut)
+
+	// When we set blockEndpoints to true
+	uut.setBlockEndpoints(true)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.RequireRecvCtx(ctx, t, done)
+}
+
 func expectStatusWithHandshake(
 	ctx context.Context, t testing.TB, fEng *fakeEngineConfigurable, k key.NodePublic, lastHandshake time.Time,
 ) <-chan struct{} {
