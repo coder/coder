@@ -1,5 +1,4 @@
 import AlertTitle from "@mui/material/AlertTitle";
-import Button from "@mui/material/Button";
 import { workspaceResolveAutostart } from "api/queries/workspaceQuota";
 import { Template, TemplateVersion, Workspace } from "api/typesGenerated";
 import { Alert, AlertDetail, AlertProps } from "components/Alert/Alert";
@@ -78,12 +77,14 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = (
           ? `${workspace.health.failing_agents.length} agents are unhealthy`
           : `1 agent is unhealthy`
       }.`,
-      actions: [
-        {
-          label: "Restart",
-          onClick: onRestartWorkspace,
-        },
-      ],
+      actions: permissions.updateWorkspace
+        ? [
+            {
+              label: "Restart",
+              onClick: onRestartWorkspace,
+            },
+          ]
+        : undefined,
     });
   }
 
