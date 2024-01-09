@@ -5,7 +5,6 @@ import { type FC, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
-import { Stack } from "components/Stack/Stack";
 import { AgentRow } from "components/Resources/AgentRow";
 import { useTab } from "hooks";
 import {
@@ -186,7 +185,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 
       <div css={styles.content}>
         <div css={styles.dotBackground}>
-          <Stack direction="column" css={styles.firstColumnSpacer} spacing={4}>
+          <div css={{ display: "flex", flexDirection: "column", gap: 24 }}>
             <WorkspaceNotifications
               workspace={workspace}
               template={template}
@@ -252,7 +251,7 @@ export const Workspace: FC<WorkspaceProps> = ({
                 )}
               />
             )}
-          </Stack>
+          </div>
         </div>
       </div>
     </div>
@@ -272,7 +271,7 @@ const styles = {
 
   dotBackground: (theme) => ({
     minHeight: "100%",
-    padding: 24,
+    padding: 23,
     "--d": "1px",
     background: `
       radial-gradient(
@@ -292,8 +291,4 @@ const styles = {
       flexDirection: "column",
     },
   }),
-
-  firstColumnSpacer: {
-    flex: 2,
-  },
 } satisfies Record<string, Interpolation<Theme>>;

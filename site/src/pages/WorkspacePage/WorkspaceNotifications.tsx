@@ -204,8 +204,8 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = (
         alignItems: "center",
         gap: 8,
         position: "fixed",
-        bottom: 24,
-        right: 24,
+        bottom: 48,
+        right: 48,
         zIndex: 10,
       }}
     >
