@@ -103,7 +103,7 @@ import (
 	"github.com/coder/wgtunnel/tunnelsdk"
 )
 
-func createOIDCConfig(ctx context.Context, instrument *promoauth.Factory, vals *codersdk.DeploymentValues) (*coderd.OIDCConfig, error) {
+func createOIDCConfig(ctx context.Context, vals *codersdk.DeploymentValues) (*coderd.OIDCConfig, error) {
 	if vals.OIDC.ClientID == "" {
 		return nil, xerrors.Errorf("OIDC client ID must be set!")
 	}
@@ -160,7 +160,7 @@ func createOIDCConfig(ctx context.Context, instrument *promoauth.Factory, vals *
 	}
 
 	return &coderd.OIDCConfig{
-		OAuth2Config: instrument.New("oidc-login", useCfg),
+		OAuth2Config: useCfg,
 		Provider:     oidcProvider,
 		Verifier: oidcProvider.Verifier(&oidc.Config{
 			ClientID: vals.OIDC.ClientID.String(),
@@ -642,7 +642,13 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					logger.Warn(ctx, "coder will not check email_verified for OIDC logins")
 				}
 
-				oc, err := createOIDCConfig(ctx, oauthInstrument, vals)
+				// This OIDC config is **not** being instrumented with the
+				// oauth2 instrument wrapper. If we implement the missing
+				// oidc methods, then we can instrument it.
+				// Missing:
+				//	- Userinfo
+				//	- Verify
+				oc, err := createOIDCConfig(ctx, vals)
 				if err != nil {
 					return xerrors.Errorf("create oidc config: %w", err)
 				}
