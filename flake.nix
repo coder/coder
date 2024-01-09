@@ -20,6 +20,25 @@
         # From https://nixos.wiki/wiki/Google_Cloud_SDK
         gdk = pkgs.google-cloud-sdk.withExtraComponents ([pkgs.google-cloud-sdk.components.gke-gcloud-auth-plugin]);
 
+        # Nixpkgs contains the old golang/mock library which is archived, but we
+        # use Uber's fork. An updated version exists in unstable, but hasn't
+        # made it to stable yet.
+        mockgen = pkgs.buildGoModule rec {
+          pname = "mockgen";
+          version = "0.4.0";
+
+          src = pkgs.fetchFromGitHub {
+            owner = "uber-go";
+            repo = "mock";
+            rev = "v${version}";
+            hash = "sha256-3nt70xrZisK5vgQa+STZPiY4F9ITKw8PbBWcKoBn4Vc=";
+          };
+
+          vendorHash = "sha256-mcNVud2jzvlPPQEaar/eYZkP71V2Civz+R5v10+tewA=";
+
+          subPackages = [ "mockgen" ];
+        };
+
         devShellPackages = with pkgs; [
           bat
           cairo
