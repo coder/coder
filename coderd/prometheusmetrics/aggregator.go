@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -68,7 +67,12 @@ type annotatedMetric struct {
 var _ prometheus.Collector = new(MetricsAggregator)
 
 func (am *annotatedMetric) is(req updateRequest, m *agentproto.Stats_Metric) bool {
-	return am.username == req.username && am.workspaceName == req.workspaceName && am.agentName == req.agentName && am.Name == m.Name && slices.Equal(am.Labels, m.Labels)
+	return am.username == req.username &&
+		am.workspaceName == req.workspaceName &&
+		am.agentName == req.agentName &&
+		am.templateName == req.templateName &&
+		am.Name == m.Name &&
+		agentproto.LabelsEqual(am.Labels, m.Labels)
 }
 
 func (am *annotatedMetric) asPrometheus() (prometheus.Metric, error) {
