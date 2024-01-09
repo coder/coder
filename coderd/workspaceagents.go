@@ -1297,7 +1297,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		slog.F("payload", req),
 	)
 
-	// TODO(Cian): Should we check if RxBytes / RxPackets > 0?
+	// TODO(Cian): Should we check if RxBytes / RxPackets > 0 instead?
 	if req.ConnectionCount > 0 {
 		var nextAutostart time.Time
 		if workspace.AutostartSchedule.String != "" {
@@ -1366,8 +1366,8 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		}
 		return nil
 	})
-	// NOTE: we previously checked if SessionCount() > 0; however this does not handle the case
-	// where a user is only accessing their workspace via a coder_app (e.g. code-server).
+	// NOTE(Cian): we previously checked if SessionCount() > 0; however this does not handle the
+	// case where a user is only accessing their workspace via a coder_app (e.g. code-server).
 	if req.RxBytes > 0 || req.RxPackets > 0 {
 		errGroup.Go(func() error {
 			err := api.Database.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{

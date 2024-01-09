@@ -55,6 +55,7 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 		slog.F("payload", req),
 	)
 
+	// TODO(Cian): Should we check if RxBytes / RxPackets > 0 instead?
 	if req.Stats.ConnectionCount > 0 {
 		var nextAutostart time.Time
 		if workspace.AutostartSchedule.String != "" {
@@ -86,16 +87,20 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 		}
 		return nil
 	})
-	errGroup.Go(func() error {
-		err := a.Database.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
-			ID:         workspace.ID,
-			LastUsedAt: now,
+	// NOTE(Cian): This used to be done unconditionally, but now bringing into line with implementation
+	// in coderd/workspaceagents.go
+	if req.Stats.RxBytes > 0 || req.Stats.RxPackets > 0 {
+		errGroup.Go(func() error {
+			err := a.Database.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
+				ID:         workspace.ID,
+				LastUsedAt: now,
+			})
+			if err != nil {
+				return xerrors.Errorf("can't update workspace LastUsedAt: %w", err)
+			}
+			return nil
 		})
-		if err != nil {
-			return xerrors.Errorf("can't update workspace LastUsedAt: %w", err)
-		}
-		return nil
-	})
+	}
 	if a.UpdateAgentMetricsFn != nil {
 		errGroup.Go(func() error {
 			user, err := a.Database.GetUserByID(ctx, workspace.OwnerID)
