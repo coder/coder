@@ -174,7 +174,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Applications Enterprise"
+                    "Enterprise"
                 ],
                 "summary": "Issue signed app token for reconnecting PTY",
                 "operationId": "issue-signed-app-token-for-reconnecting-pty",

@@ -809,7 +809,7 @@ func (api *API) workspaceProxyDeregister(rw http.ResponseWriter, r *http.Request
 // @Summary Issue signed app token for reconnecting PTY
 // @ID issue-signed-app-token-for-reconnecting-pty
 // @Security CoderSessionToken
-// @Tags Applications Enterprise
+// @Tags Enterprise
 // @Accept json
 // @Produce json
 // @Param request body codersdk.IssueReconnectingPTYSignedTokenRequest true "Issue reconnecting PTY signed token request"
