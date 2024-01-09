@@ -44,7 +44,7 @@ export interface WorkspaceProps {
   hideVSCodeDesktopButton?: boolean;
   buildInfo?: TypesGen.BuildInfoResponse;
   sshPrefix?: string;
-  template?: TypesGen.Template;
+  template: TypesGen.Template;
   canRetryDebugMode: boolean;
   handleBuildRetry: () => void;
   handleBuildRetryDebug: () => void;
@@ -189,6 +189,7 @@ export const Workspace: FC<WorkspaceProps> = ({
           <Stack direction="column" css={styles.firstColumnSpacer} spacing={4}>
             <WorkspaceNotifications
               workspace={workspace}
+              template={template}
               latestVersion={latestVersion}
               permissions={permissions}
               onRestartWorkspace={handleRestart}
@@ -219,13 +220,6 @@ export const Workspace: FC<WorkspaceProps> = ({
               >
                 <AlertTitle>Workspace build failed</AlertTitle>
                 <AlertDetail>{workspace.latest_build.job.error}</AlertDetail>
-              </Alert>
-            )}
-
-            {template?.deprecated && (
-              <Alert severity="warning">
-                <AlertTitle>Workspace using deprecated template</AlertTitle>
-                <AlertDetail>{template?.deprecation_message}</AlertDetail>
               </Alert>
             )}
 

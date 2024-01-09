@@ -1,7 +1,7 @@
 import AlertTitle from "@mui/material/AlertTitle";
 import Button from "@mui/material/Button";
 import { workspaceResolveAutostart } from "api/queries/workspaceQuota";
-import { TemplateVersion, Workspace } from "api/typesGenerated";
+import { Template, TemplateVersion, Workspace } from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
 import { FC, useEffect, useState } from "react";
 import { useQuery } from "react-query";
@@ -11,6 +11,7 @@ import dayjs from "dayjs";
 
 type WorkspaceNotificationsProps = {
   workspace: Workspace;
+  template: Template;
   permissions: WorkspacePermissions;
   onRestartWorkspace: () => void;
   latestVersion?: TemplateVersion;
@@ -19,7 +20,13 @@ type WorkspaceNotificationsProps = {
 export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = (
   props,
 ) => {
-  const { workspace, latestVersion, permissions, onRestartWorkspace } = props;
+  const {
+    workspace,
+    template,
+    latestVersion,
+    permissions,
+    onRestartWorkspace,
+  } = props;
 
   // Outdated
   const canAutostartResponse = useQuery(
@@ -134,6 +141,13 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = (
               <strong>{workspace.latest_build.job.queue_position}</strong>
             </div>
           </AlertDetail>
+        </Alert>
+      )}
+
+      {template.deprecated && (
+        <Alert severity="warning">
+          <AlertTitle>Workspace using deprecated template</AlertTitle>
+          <AlertDetail>{template.deprecation_message}</AlertDetail>
         </Alert>
       )}
     </>
