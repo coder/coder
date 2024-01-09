@@ -76,7 +76,12 @@ func (r *WorkspaceProxyReport) Run(ctx context.Context, opts *WorkspaceProxyRepo
 		return
 	}
 
-	r.WorkspaceProxies = proxies
+	for _, proxy := range proxies.Regions {
+		if proxy.Deleted {
+			continue
+		}
+		r.WorkspaceProxies.Regions = append(r.WorkspaceProxies.Regions, proxy)
+	}
 	if r.WorkspaceProxies.Regions == nil {
 		r.WorkspaceProxies.Regions = make([]codersdk.WorkspaceProxy, 0)
 	}
