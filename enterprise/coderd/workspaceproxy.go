@@ -930,6 +930,7 @@ func convertRegion(proxy database.WorkspaceProxy, status proxyhealth.ProxyStatus
 }
 
 func convertProxy(p database.WorkspaceProxy, status proxyhealth.ProxyStatus) codersdk.WorkspaceProxy {
+	now := dbtime.Now()
 	if p.IsPrimary() {
 		// Primary is always healthy since the primary serves the api that this
 		// is returned from.
@@ -939,8 +940,11 @@ func convertProxy(p database.WorkspaceProxy, status proxyhealth.ProxyStatus) cod
 			ProxyHost: u.Host,
 			Status:    proxyhealth.Healthy,
 			Report:    codersdk.ProxyHealthReport{},
-			CheckedAt: time.Now(),
+			CheckedAt: now,
 		}
+		// For primary, created at / updated at are always 'now'
+		p.CreatedAt = now
+		p.UpdatedAt = now
 	}
 	if status.Status == "" {
 		status.Status = proxyhealth.Unknown

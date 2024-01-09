@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -93,11 +94,16 @@ func TestRegions(t *testing.T) {
 		deploymentID, err := db.GetDeploymentID(ctx)
 		require.NoError(t, err, "get deployment ID")
 
+		// The default proxy is always called "primary".
+		primary, err := client.WorkspaceProxyByName(ctx, "primary")
+		require.NoError(t, err)
+
 		const proxyName = "hello"
 		_ = coderdenttest.NewWorkspaceProxy(t, api, client, &coderdenttest.ProxyOptions{
 			Name:        proxyName,
 			AppHostname: appHostname + ".proxy",
 		})
+		approxCreateTime := dbtime.Now()
 		proxy, err := db.GetWorkspaceProxyByName(ctx, proxyName)
 		require.NoError(t, err)
 
@@ -135,7 +141,7 @@ func TestRegions(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, regions, 2)
 
-		// Region 0 is the primary	require.Len(t, regions, 1)
+		// Region 0 is the primary
 		require.NotEqual(t, uuid.Nil, regions[0].ID)
 		require.Equal(t, regions[0].ID.String(), deploymentID)
 		require.Equal(t, "primary", regions[0].Name)
@@ -144,6 +150,11 @@ func TestRegions(t *testing.T) {
 		require.True(t, regions[0].Healthy)
 		require.Equal(t, client.URL.String(), regions[0].PathAppURL)
 		require.Equal(t, appHostname, regions[0].WildcardHostname)
+
+		// Ensure non-zero fields of the default proxy
+		require.NotZero(t, primary.Name)
+		require.NotZero(t, primary.CreatedAt)
+		require.NotZero(t, primary.UpdatedAt)
 
 		// Region 1 is the proxy.
 		require.NotEqual(t, uuid.Nil, regions[1].ID)
@@ -154,6 +165,11 @@ func TestRegions(t *testing.T) {
 		require.True(t, regions[1].Healthy)
 		require.Equal(t, proxy.Url, regions[1].PathAppURL)
 		require.Equal(t, proxy.WildcardHostname, regions[1].WildcardHostname)
+
+		// Unfortunately need to wait to assert createdAt/updatedAt
+		<-time.After(testutil.WaitShort / 10)
+		require.WithinDuration(t, approxCreateTime, proxy.CreatedAt, testutil.WaitShort/10)
+		require.WithinDuration(t, approxCreateTime, proxy.UpdatedAt, testutil.WaitShort/10)
 	})
 
 	t.Run("RequireAuth", func(t *testing.T) {
