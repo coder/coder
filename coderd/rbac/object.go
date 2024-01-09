@@ -213,12 +213,20 @@ var (
 		Type: "oauth2_app",
 	}
 
-	// ResourceOAuth2ProviderAppSecrets CRUD.
+	// ResourceOAuth2ProviderAppSecret CRUD.
 	//	create/delete = Make or delete an OAuth2 app secret.
 	//	update = Update last used date.
 	//	read = Read OAuth2 app hashed or truncated secret.
 	ResourceOAuth2ProviderAppSecret = Object{
-		Type: "oauth2_app_secrets",
+		Type: "oauth2_app_secret",
+	}
+
+	// ResourceOAuth2ProviderAppCodeToken CRUD.
+	//	create/delete = Make or delete an OAuth2 app code or token.
+	//  update = None
+	//	read = Check if OAuth2 app code or token exists.
+	ResourceOAuth2ProviderAppCodeToken = Object{
+		Type: "oauth2_app_code_token",
 	}
 )
 
