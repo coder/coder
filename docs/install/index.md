@@ -7,7 +7,7 @@ There are a number of different ways to install Coder, depending on your needs.
 
 ## Install Coder
 
-   <div class="tabs">
+<div class="tabs">
 
 ## Linux
 

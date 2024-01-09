@@ -93,7 +93,7 @@ rm -rf ~/.config/coderv2
 
 ## Windows
 
-```console
+```powershell
 rmdir %AppData%\coderv2
 ```
 
