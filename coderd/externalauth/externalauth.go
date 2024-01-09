@@ -300,7 +300,16 @@ func (c *DeviceAuth) AuthorizeDevice(ctx context.Context) (*codersdk.ExternalAut
 	if err != nil {
 		return nil, err
 	}
-	resp, err := c.Cfg.Do(ctx, "AuthorizeDevice", req)
+
+	do := http.DefaultClient.Do
+	if c.Cfg != nil {
+		// The cfg can be nil in unit tests.
+		do = func(req *http.Request) (*http.Response, error) {
+			return c.Cfg.Do(ctx, "AuthorizeDevice", req)
+		}
+	}
+
+	resp, err := do(req)
 	req.Header.Set("Accept", "application/json")
 	if err != nil {
 		return nil, err

@@ -21,18 +21,19 @@ type OAuth2Config interface {
 // InstrumentedOAuth2Config extends OAuth2Config with a `Do` method that allows
 // external oauth related calls to be instrumented. This is to support
 // "ValidateToken" which is not an oauth2 specified method.
+// These calls still count against the api rate limit, and should be instrumented.
 type InstrumentedOAuth2Config interface {
 	OAuth2Config
 
 	// Do is provided as a convenience method to make a request with the oauth2 client.
 	// It mirrors `http.Client.Do`.
-	// We need this because Coder adds some extra functionality to
-	// oauth clients such as the `ValidateToken()` method.
 	Do(ctx context.Context, source string, req *http.Request) (*http.Response, error)
 }
 
 var _ OAuth2Config = (*Config)(nil)
 
+// Factory allows us to have 1 set of metrics for all oauth2 providers.
+// Primarily to avoid any prometheus errors registering duplicate metrics.
 type Factory struct {
 	metrics *metrics
 }
@@ -107,10 +108,11 @@ func (c *Config) wrapClient(ctx context.Context, source string) context.Context 
 	return context.WithValue(ctx, oauth2.HTTPClient, c.oauthHTTPClient(ctx, source))
 }
 
+// oauthHTTPClient returns an http client that will instrument every request made.
 func (c *Config) oauthHTTPClient(ctx context.Context, source string) *http.Client {
 	cli := &http.Client{}
 
-	// Check if the context has an http client already.
+	// Check if the context has a http client already.
 	if hc, ok := ctx.Value(oauth2.HTTPClient).(*http.Client); ok {
 		cli = hc
 	}
@@ -126,6 +128,8 @@ type instrumentedTripper struct {
 	underlying http.RoundTripper
 }
 
+// newInstrumentedTripper intercepts a http request, and increments the
+// externalRequestCount metric.
 func newInstrumentedTripper(c *Config, source string, under http.RoundTripper) *instrumentedTripper {
 	if under == nil {
 		under = http.DefaultTransport
