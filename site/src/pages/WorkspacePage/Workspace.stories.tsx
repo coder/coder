@@ -68,12 +68,6 @@ export const Running: Story = {
     workspace: Mocks.MockWorkspace,
     handleStart: action("start"),
     handleStop: action("stop"),
-    resources: [
-      Mocks.MockWorkspaceResourceMultipleAgents,
-      Mocks.MockWorkspaceVolumeResource,
-      Mocks.MockWorkspaceImageResource,
-      Mocks.MockWorkspaceContainerResource,
-    ],
     canUpdateWorkspace: true,
     workspaceErrors: {},
     buildInfo: Mocks.MockBuildInfo,

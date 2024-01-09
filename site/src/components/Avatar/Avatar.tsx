@@ -4,8 +4,9 @@ import MuiAvatar, {
   type AvatarProps as MuiAvatarProps,
 } from "@mui/material/Avatar";
 import { type FC, useId } from "react";
-import { css, type Interpolation, type Theme } from "@emotion/react";
+import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import { visuallyHidden } from "@mui/utils";
+import { getExternalImageStylesFromUrl } from "theme/externalImages";
 
 export type AvatarProps = MuiAvatarProps & {
   size?: "xs" | "sm" | "md" | "xl";
@@ -64,6 +65,17 @@ export const Avatar: FC<AvatarProps> = ({
     >
       {typeof children === "string" ? firstLetter(children) : children}
     </MuiAvatar>
+  );
+};
+
+export const ExternalAvatar: FC<AvatarProps> = (props) => {
+  const theme = useTheme();
+
+  return (
+    <Avatar
+      css={getExternalImageStylesFromUrl(theme.externalImages, props.src)}
+      {...props}
+    />
   );
 };
 

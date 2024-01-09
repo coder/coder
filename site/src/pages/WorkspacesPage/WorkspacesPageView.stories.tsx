@@ -165,6 +165,25 @@ export const AllStates: Story = {
   },
 };
 
+const icons = [
+  "/icon/code.svg",
+  "/icon/aws.svg",
+  "/icon/docker-white.svg",
+  "/icon/docker.svg",
+  "",
+  "/icon/doesntexist.svg",
+];
+
+export const Icons: Story = {
+  args: {
+    workspaces: allWorkspaces.map((workspace, i) => ({
+      ...workspace,
+      template_icon: icons[i % icons.length],
+    })),
+    count: allWorkspaces.length,
+  },
+};
+
 export const OwnerHasNoWorkspaces: Story = {
   args: {
     workspaces: [],

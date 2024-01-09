@@ -21,8 +21,6 @@ import WorkspacesPage from "./pages/WorkspacesPage/WorkspacesPage";
 import UserSettingsLayout from "./pages/UserSettingsPage/Layout";
 import { TemplateSettingsLayout } from "./pages/TemplateSettingsPage/TemplateSettingsLayout";
 import { WorkspaceSettingsLayout } from "./pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
-import { ThemeOverride } from "contexts/ThemeProvider";
-import themes from "theme";
 
 // Lazy load pages
 // - Pages that are secondary, not in the main navigation or not usually accessed
@@ -234,6 +232,9 @@ const WebsocketPage = lazy(() => import("./pages/HealthPage/WebsocketPage"));
 const WorkspaceProxyHealthPage = lazy(
   () => import("./pages/HealthPage/WorkspaceProxyPage"),
 );
+const ProvisionerDaemonsHealthPage = lazy(
+  () => import("./pages/HealthPage/ProvisionerDaemonsPage"),
+);
 
 export const AppRouter: FC = () => {
   return (
@@ -400,6 +401,10 @@ export const AppRouter: FC = () => {
                   path="workspace-proxy"
                   element={<WorkspaceProxyHealthPage />}
                 />
+                <Route
+                  path="provisioner-daemons"
+                  element={<ProvisionerDaemonsHealthPage />}
+                />
               </Route>
               {/* Using path="*"" means "match anything", so this route
               acts like a catch-all for URLs that we don't have explicit
@@ -414,11 +419,7 @@ export const AppRouter: FC = () => {
             />
             <Route
               path="/:username/:workspace/terminal"
-              element={
-                <ThemeOverride theme={themes.dark}>
-                  <TerminalPage />
-                </ThemeOverride>
-              }
+              element={<TerminalPage />}
             />
             <Route path="/cli-auth" element={<CliAuthenticationPage />} />
             <Route path="/icons" element={<IconsPage />} />

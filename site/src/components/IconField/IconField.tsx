@@ -12,6 +12,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "components/Popover/Popover";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
 
 // See: https://github.com/missive/emoji-mart/issues/51#issuecomment-287353222
 const urlFromUnifiedCode = (unified: string) =>
@@ -60,7 +61,7 @@ export const IconField: FC<IconFieldProps> = ({
                 },
               }}
             >
-              <img
+              <ExternalImage
                 alt=""
                 src={textFieldProps.value}
                 // This prevent browser to display the ugly error icon if the

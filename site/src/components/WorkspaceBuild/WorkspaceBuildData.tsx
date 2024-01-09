@@ -41,7 +41,6 @@ export const WorkspaceBuildData = ({ build }: { build: WorkspaceBuild }) => {
           css={{
             fontSize: 12,
             color: theme.palette.text.secondary,
-            marginTop: 2,
           }}
         >
           {createDayString(build.created_at)}
@@ -74,6 +73,6 @@ const styles = {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    lineHeight: "1.4",
+    lineHeight: "1.5",
   },
 } satisfies Record<string, Interpolation<Theme>>;
