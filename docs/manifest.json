@@ -517,10 +517,6 @@
           "path": "./api/applications.md"
         },
         {
-          "title": "Applications Enterprise",
-          "path": "./api/applications enterprise.md"
-        },
-        {
           "title": "Audit",
           "path": "./api/audit.md"
         },

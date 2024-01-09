@@ -141,7 +141,7 @@
         ],
         "consumes": ["application/json"],
         "produces": ["application/json"],
-        "tags": ["Applications Enterprise"],
+        "tags": ["Enterprise"],
         "summary": "Issue signed app token for reconnecting PTY",
         "operationId": "issue-signed-app-token-for-reconnecting-pty",
         "parameters": [
