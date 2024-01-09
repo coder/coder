@@ -1,13 +1,15 @@
-import AlertTitle from "@mui/material/AlertTitle";
 import { workspaceResolveAutostart } from "api/queries/workspaceQuota";
 import { Template, TemplateVersion, Workspace } from "api/typesGenerated";
-import { Alert, AlertDetail, AlertProps } from "components/Alert/Alert";
+import { AlertProps } from "components/Alert/Alert";
 import { FC, ReactNode, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { WorkspacePermissions } from "./permissions";
 import dayjs from "dayjs";
 import { useIsWorkspaceActionsEnabled } from "components/Dashboard/DashboardProvider";
 import formatDistanceToNow from "date-fns/formatDistanceToNow";
+import { Pill } from "components/Pill/Pill";
+import InfoOutlined from "@mui/icons-material/InfoOutlined";
+import ErrorOutline from "@mui/icons-material/ErrorOutline";
 
 type Notification = {
   title: string;
@@ -166,31 +168,53 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = (
     };
   }, [workspace, now, showAlertPendingInQueue]);
 
-  return (
-    <>
-      {showAlertPendingInQueue && (
-        <Alert severity="info">
-          <AlertTitle>Workspace build is pending</AlertTitle>
-          <AlertDetail>
-            <div css={{ marginBottom: 12 }}>
-              This workspace build job is waiting for a provisioner to become
-              available. If you have been waiting for an extended period of
-              time, please contact your administrator for assistance.
-            </div>
-            <div>
-              Position in queue:{" "}
-              <strong>{workspace.latest_build.job.queue_position}</strong>
-            </div>
-          </AlertDetail>
-        </Alert>
-      )}
+  if (showAlertPendingInQueue) {
+    notifications.push({
+      title: "Workspace build is pending",
+      severity: "info",
+      detail: (
+        <>
+          <div css={{ marginBottom: 12 }}>
+            This workspace build job is waiting for a provisioner to become
+            available. If you have been waiting for an extended period of time,
+            please contact your administrator for assistance.
+          </div>
+          <div>
+            Position in queue:{" "}
+            <strong>{workspace.latest_build.job.queue_position}</strong>
+          </div>
+        </>
+      ),
+    });
+  }
 
-      {template.deprecated && (
-        <Alert severity="warning">
-          <AlertTitle>Workspace using deprecated template</AlertTitle>
-          <AlertDetail>{template.deprecation_message}</AlertDetail>
-        </Alert>
-      )}
-    </>
+  // Deprecated
+  if (template.deprecated) {
+    notifications.push({
+      title: "Workspace using deprecated template",
+      severity: "warning",
+      detail: template.deprecation_message,
+    });
+  }
+
+  return (
+    <div
+      css={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        position: "fixed",
+        bottom: 24,
+        right: 24,
+        zIndex: 10,
+      }}
+    >
+      <Pill type="info" icon={<InfoOutlined />}>
+        2
+      </Pill>
+      <Pill type="warning" icon={<ErrorOutline />}>
+        4
+      </Pill>
+    </div>
   );
 };
