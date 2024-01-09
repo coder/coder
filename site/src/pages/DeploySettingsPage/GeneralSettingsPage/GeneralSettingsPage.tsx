@@ -5,7 +5,7 @@ import { pageTitle } from "utils/page";
 import { deploymentDAUs } from "api/queries/deployment";
 import { entitlements } from "api/queries/entitlements";
 import { availableExperiments } from "api/queries/experiments";
-import { useDeploySettings } from "components/DeploySettingsLayout/DeploySettingsLayout";
+import { useDeploySettings } from "../DeploySettingsLayout";
 import { GeneralSettingsPageView } from "./GeneralSettingsPageView";
 
 const GeneralSettingsPage: FC = () => {

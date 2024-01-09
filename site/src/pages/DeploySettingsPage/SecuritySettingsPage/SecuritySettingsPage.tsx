@@ -1,9 +1,9 @@
-import { useDashboard } from "components/Dashboard/DashboardProvider";
-import { useDeploySettings } from "components/DeploySettingsLayout/DeploySettingsLayout";
-import { FC } from "react";
+import { type FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
+import { useDashboard } from "components/Dashboard/DashboardProvider";
 import { SecuritySettingsPageView } from "./SecuritySettingsPageView";
+import { useDeploySettings } from "../DeploySettingsLayout";
 
 const SecuritySettingsPage: FC = () => {
   const { deploymentValues: deploymentValues } = useDeploySettings();

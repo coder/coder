@@ -19,10 +19,10 @@ import {
   EnterpriseBadge,
   EntitledBadge,
 } from "components/Badges/Badges";
-import { Header } from "components/DeploySettingsLayout/Header";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import { Stack } from "components/Stack/Stack";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
+import { Header } from "../Header";
 
 type OAuth2AppsSettingsProps = {
   apps?: TypesGen.OAuth2ProviderApp[];
