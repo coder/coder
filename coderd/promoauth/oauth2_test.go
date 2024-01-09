@@ -10,11 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
+	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestMaintainDefault(t *testing.T) {
+func TestInstrument(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -25,7 +26,12 @@ func TestMaintainDefault(t *testing.T) {
 	}
 
 	factory := promoauth.NewFactory(reg)
-	cfg := factory.New("test", idp.OIDCConfig(t, []string{}))
+	const id = "test"
+	cfg := externalauth.Config{
+		InstrumentedOAuth2Config: factory.New(id, idp.OIDCConfig(t, []string{})),
+		ID:                       "test",
+		ValidateURL:              must(idp.IssuerURL().Parse("/oauth2/userinfo")).String(),
+	}
 
 	// 0 Requests before we start
 	require.Equal(t, count(), 0)
@@ -44,6 +50,12 @@ func TestMaintainDefault(t *testing.T) {
 	require.NotEqual(t, token.AccessToken, refreshed.AccessToken, "token refreshed")
 	require.Equal(t, count(), 2)
 
+	// Try a validate
+	valid, _, err := cfg.ValidateToken(ctx, refreshed.AccessToken)
+	require.NoError(t, err)
+	require.True(t, valid)
+	require.Equal(t, count(), 3)
+
 	// Verify the default client was not broken. This check is added because we
 	// extend the http.DefaultTransport. If a `.Clone()` is not done, this can be
 	// mis-used. It is cheap to run this quick check.
@@ -56,7 +68,7 @@ func TestMaintainDefault(t *testing.T) {
 	require.NoError(t, err)
 	_ = resp.Body.Close()
 
-	require.Equal(t, count(), 2)
+	require.Equal(t, count(), 3)
 }
 
 func must[V any](v V, err error) V {
