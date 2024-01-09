@@ -47,7 +47,20 @@ func TestMaintainDefault(t *testing.T) {
 	// Verify the default client was not broken. This check is added because we
 	// extend the http.DefaultTransport. If a `.Clone()` is not done, this can be
 	// mis-used. It is cheap to run this quick check.
-	_, err = http.DefaultClient.Get("https://coder.com")
+	req, err := http.NewRequest(http.MethodGet,
+		must(idp.IssuerURL().Parse("/.well-known/openid-configuration")).String(), nil)
 	require.NoError(t, err)
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+
 	require.Equal(t, count(), 2)
+}
+
+func must[V any](v V, err error) V {
+	if err != nil {
+		panic(err)
+	}
+	return v
 }

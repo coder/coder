@@ -223,6 +223,10 @@ func (f *FakeIDP) WellknownConfig() ProviderJSON {
 	return f.provider
 }
 
+func (f *FakeIDP) IssuerURL() *url.URL {
+	return f.issuerURL
+}
+
 func (f *FakeIDP) updateIssuerURL(t testing.TB, issuer string) {
 	t.Helper()
 
