@@ -2,12 +2,19 @@ import AlertTitle from "@mui/material/AlertTitle";
 import Button from "@mui/material/Button";
 import { workspaceResolveAutostart } from "api/queries/workspaceQuota";
 import { Template, TemplateVersion, Workspace } from "api/typesGenerated";
-import { Alert, AlertDetail } from "components/Alert/Alert";
+import { Alert, AlertDetail, AlertProps } from "components/Alert/Alert";
 import { FC, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { WorkspacePermissions } from "./permissions";
 import { DormantWorkspaceBanner } from "./DormantWorkspaceBanner";
 import dayjs from "dayjs";
+
+type Notification = {
+  title: string;
+  severity: AlertProps["severity"];
+  detail?: string;
+  actions?: { label: string; onClick: () => void }[];
+};
 
 type WorkspaceNotificationsProps = {
   workspace: Workspace;
@@ -27,6 +34,7 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = (
     permissions,
     onRestartWorkspace,
   } = props;
+  const notifications: Notification[] = [];
 
   // Outdated
   const canAutostartResponse = useQuery(
@@ -39,6 +47,23 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = (
     workspace.outdated;
   const autoStartFailing = workspace.autostart_schedule && !canAutostart;
   const requiresManualUpdate = updateRequired && autoStartFailing;
+
+  if (workspace.outdated && latestVersion) {
+    if (requiresManualUpdate) {
+      notifications.push({
+        title: "Autostart has been disabled for your workspace.",
+        severity: "warning",
+        detail:
+          "Autostart is unable to automatically update your workspace. Manually update your workspace to reenable Autostart.",
+      });
+    } else {
+      notifications.push({
+        title: "An update is available for your workspace",
+        severity: "info",
+        detail: latestVersion.message,
+      });
+    }
+  }
 
   // Pending in Queue
   const [showAlertPendingInQueue, setShowAlertPendingInQueue] = useState(false);
@@ -79,25 +104,6 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = (
 
   return (
     <>
-      {workspace.outdated &&
-        latestVersion &&
-        (requiresManualUpdate ? (
-          <Alert severity="warning">
-            <AlertTitle>
-              Autostart has been disabled for your workspace.
-            </AlertTitle>
-            <AlertDetail>
-              Autostart is unable to automatically update your workspace.
-              Manually update your workspace to reenable Autostart.
-            </AlertDetail>
-          </Alert>
-        ) : (
-          <Alert severity="info">
-            <AlertTitle>An update is available for your workspace</AlertTitle>
-            <AlertDetail>{latestVersion.message}</AlertDetail>
-          </Alert>
-        ))}
-
       {workspace.latest_build.status === "running" &&
         !workspace.health.healthy && (
           <Alert
