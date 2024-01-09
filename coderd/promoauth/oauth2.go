@@ -47,6 +47,8 @@ var _ OAuth2Config = (*Config)(nil)
 // Primarily to avoid any prometheus errors registering duplicate metrics.
 type Factory struct {
 	metrics *metrics
+	// optional replace now func
+	Now func() time.Time
 }
 
 // metrics is the reusable metrics for all oauth2 providers.
@@ -130,7 +132,7 @@ func NewFactory(registry prometheus.Registerer) *Factory {
 	}
 }
 
-func (f *Factory) New(name string, under OAuth2Config, opts ...func(cfg *Config)) *Config {
+func (f *Factory) New(name string, under OAuth2Config) *Config {
 	return &Config{
 		name:       name,
 		underlying: under,
@@ -140,6 +142,8 @@ func (f *Factory) New(name string, under OAuth2Config, opts ...func(cfg *Config)
 
 // NewGithub returns a new instrumented oauth2 config for github. It tracks
 // rate limits as well as just the external request counts.
+//
+//nolint:bodyclose
 func (f *Factory) NewGithub(name string, under OAuth2Config) *Config {
 	cfg := f.New(name, under)
 	cfg.interceptors = append(cfg.interceptors, func(resp *http.Response, err error) {
@@ -155,7 +159,10 @@ func (f *Factory) NewGithub(name string, under OAuth2Config) *Config {
 		resetIn := float64(-1)
 		if !limits.Reset.IsZero() {
 			now := time.Now()
-			resetIn = float64(limits.Reset.Sub(now).Seconds())
+			if f.Now != nil {
+				now = f.Now()
+			}
+			resetIn = limits.Reset.Sub(now).Seconds()
 			if resetIn < 0 {
 				// If it just reset, just make it 0.
 				resetIn = 0

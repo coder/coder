@@ -62,6 +62,8 @@ func githubRateLimits(resp *http.Response, err error) (rateLimits, bool) {
 	// the limit is hit.
 
 	if len(p.errors) > 0 {
+		// If we are missing any headers, then do not try and guess
+		// what the rate limits are.
 		return limits, false
 	}
 	return limits, true
