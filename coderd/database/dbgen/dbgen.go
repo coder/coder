@@ -704,6 +704,32 @@ func OAuth2ProviderAppSecret(t testing.TB, db database.Store, seed database.OAut
 	return app
 }
 
+func OAuth2ProviderAppCode(t testing.TB, db database.Store, seed database.OAuth2ProviderAppCode) database.OAuth2ProviderAppCode {
+	code, err := db.InsertOAuth2ProviderAppCode(genCtx, database.InsertOAuth2ProviderAppCodeParams{
+		ID:           takeFirst(seed.ID, uuid.New()),
+		CreatedAt:    takeFirst(seed.CreatedAt, dbtime.Now()),
+		ExpiresAt:    takeFirst(seed.CreatedAt, dbtime.Now()),
+		HashedSecret: takeFirstSlice(seed.HashedSecret, []byte("hashed-secret")),
+		AppID:        takeFirst(seed.AppID, uuid.New()),
+		UserID:       takeFirst(seed.UserID, uuid.New()),
+	})
+	require.NoError(t, err, "insert oauth2 app code")
+	return code
+}
+
+func OAuth2ProviderAppToken(t testing.TB, db database.Store, seed database.OAuth2ProviderAppToken) database.OAuth2ProviderAppToken {
+	token, err := db.InsertOAuth2ProviderAppToken(genCtx, database.InsertOAuth2ProviderAppTokenParams{
+		ID:           takeFirst(seed.ID, uuid.New()),
+		CreatedAt:    takeFirst(seed.CreatedAt, dbtime.Now()),
+		ExpiresAt:    takeFirst(seed.CreatedAt, dbtime.Now()),
+		HashedSecret: takeFirstSlice(seed.HashedSecret, []byte("hashed-secret")),
+		AppSecretID:  takeFirst(seed.AppSecretID, uuid.New()),
+		APIKeyID:     takeFirst(seed.APIKeyID, uuid.New().String()),
+	})
+	require.NoError(t, err, "insert oauth2 app token")
+	return token
+}
+
 func must[V any](v V, err error) V {
 	if err != nil {
 		panic(err)

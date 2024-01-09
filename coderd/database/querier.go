@@ -59,7 +59,10 @@ type sqlcQuerier interface {
 	DeleteGroupMembersByOrgAndUser(ctx context.Context, arg DeleteGroupMembersByOrgAndUserParams) error
 	DeleteLicense(ctx context.Context, id int32) (int32, error)
 	DeleteOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) error
+	DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) error
+	DeleteOAuth2ProviderAppCodesByAppAndUserID(ctx context.Context, arg DeleteOAuth2ProviderAppCodesByAppAndUserIDParams) error
 	DeleteOAuth2ProviderAppSecretByID(ctx context.Context, id uuid.UUID) error
+	DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Context, arg DeleteOAuth2ProviderAppTokensByAppAndUserIDParams) error
 	// Delete provisioner daemons that have been created at least a week ago
 	// and have not connected to coderd since a week.
 	// A provisioner daemon with "zeroed" last_seen_at column indicates possible
@@ -126,9 +129,13 @@ type sqlcQuerier interface {
 	GetLicenses(ctx context.Context) ([]License, error)
 	GetLogoURL(ctx context.Context) (string, error)
 	GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderApp, error)
+	GetOAuth2ProviderAppCodeByAppIDAndSecret(ctx context.Context, arg GetOAuth2ProviderAppCodeByAppIDAndSecretParams) (OAuth2ProviderAppCode, error)
+	GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppCode, error)
+	GetOAuth2ProviderAppSecretByAppIDAndSecret(ctx context.Context, arg GetOAuth2ProviderAppSecretByAppIDAndSecretParams) (OAuth2ProviderAppSecret, error)
 	GetOAuth2ProviderAppSecretByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppSecret, error)
 	GetOAuth2ProviderAppSecretsByAppID(ctx context.Context, appID uuid.UUID) ([]OAuth2ProviderAppSecret, error)
 	GetOAuth2ProviderApps(ctx context.Context) ([]OAuth2ProviderApp, error)
+	GetOAuth2ProviderAppsByUserID(ctx context.Context, userID uuid.UUID) ([]GetOAuth2ProviderAppsByUserIDRow, error)
 	GetOAuthSigningKey(ctx context.Context) (string, error)
 	GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organization, error)
 	GetOrganizationByName(ctx context.Context, name string) (Organization, error)
@@ -283,7 +290,9 @@ type sqlcQuerier interface {
 	// If the name conflicts, do nothing.
 	InsertMissingGroups(ctx context.Context, arg InsertMissingGroupsParams) ([]Group, error)
 	InsertOAuth2ProviderApp(ctx context.Context, arg InsertOAuth2ProviderAppParams) (OAuth2ProviderApp, error)
+	InsertOAuth2ProviderAppCode(ctx context.Context, arg InsertOAuth2ProviderAppCodeParams) (OAuth2ProviderAppCode, error)
 	InsertOAuth2ProviderAppSecret(ctx context.Context, arg InsertOAuth2ProviderAppSecretParams) (OAuth2ProviderAppSecret, error)
+	InsertOAuth2ProviderAppToken(ctx context.Context, arg InsertOAuth2ProviderAppTokenParams) (OAuth2ProviderAppToken, error)
 	InsertOrganization(ctx context.Context, arg InsertOrganizationParams) (Organization, error)
 	InsertOrganizationMember(ctx context.Context, arg InsertOrganizationMemberParams) (OrganizationMember, error)
 	InsertProvisionerJob(ctx context.Context, arg InsertProvisionerJobParams) (ProvisionerJob, error)

@@ -148,6 +148,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			ResourceRoleAssignment.Type: {ActionRead},
 			// All users can see the provisioner daemons.
 			ResourceProvisionerDaemon.Type: {ActionRead},
+			// All users can see OAuth2 provider applications.
+			ResourceOAuth2ProviderApp.Type: {ActionRead},
 		}),
 		Org: map[string][]Permission{},
 		User: append(allPermsExcept(ResourceWorkspaceDormant, ResourceUser, ResourceOrganizationMember),

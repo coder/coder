@@ -593,11 +593,12 @@ func AllLogSourceValues() []LogSource {
 type LoginType string
 
 const (
-	LoginTypePassword LoginType = "password"
-	LoginTypeGithub   LoginType = "github"
-	LoginTypeOIDC     LoginType = "oidc"
-	LoginTypeToken    LoginType = "token"
-	LoginTypeNone     LoginType = "none"
+	LoginTypePassword          LoginType = "password"
+	LoginTypeGithub            LoginType = "github"
+	LoginTypeOIDC              LoginType = "oidc"
+	LoginTypeToken             LoginType = "token"
+	LoginTypeNone              LoginType = "none"
+	LoginTypeOAuth2ProviderApp LoginType = "oauth2_provider_app"
 )
 
 func (e *LoginType) Scan(src interface{}) error {
@@ -641,7 +642,8 @@ func (e LoginType) Valid() bool {
 		LoginTypeGithub,
 		LoginTypeOIDC,
 		LoginTypeToken,
-		LoginTypeNone:
+		LoginTypeNone,
+		LoginTypeOAuth2ProviderApp:
 		return true
 	}
 	return false
@@ -654,6 +656,7 @@ func AllLoginTypeValues() []LoginType {
 		LoginTypeOIDC,
 		LoginTypeToken,
 		LoginTypeNone,
+		LoginTypeOAuth2ProviderApp,
 	}
 }
 
@@ -1798,6 +1801,16 @@ type OAuth2ProviderApp struct {
 	CallbackURL string    `db:"callback_url" json:"callback_url"`
 }
 
+// Codes are meant to be exchanged for access tokens.
+type OAuth2ProviderAppCode struct {
+	ID           uuid.UUID `db:"id" json:"id"`
+	CreatedAt    time.Time `db:"created_at" json:"created_at"`
+	ExpiresAt    time.Time `db:"expires_at" json:"expires_at"`
+	HashedSecret []byte    `db:"hashed_secret" json:"hashed_secret"`
+	UserID       uuid.UUID `db:"user_id" json:"user_id"`
+	AppID        uuid.UUID `db:"app_id" json:"app_id"`
+}
+
 type OAuth2ProviderAppSecret struct {
 	ID           uuid.UUID    `db:"id" json:"id"`
 	CreatedAt    time.Time    `db:"created_at" json:"created_at"`
@@ -1806,6 +1819,16 @@ type OAuth2ProviderAppSecret struct {
 	// The tail end of the original secret so secrets can be differentiated.
 	DisplaySecret string    `db:"display_secret" json:"display_secret"`
 	AppID         uuid.UUID `db:"app_id" json:"app_id"`
+}
+
+// Refresh tokens both provide a way to refresh an access tokens (API keys) and a way to link API keys with the OAuth2 app and secret that generated them.
+type OAuth2ProviderAppToken struct {
+	ID           uuid.UUID `db:"id" json:"id"`
+	CreatedAt    time.Time `db:"created_at" json:"created_at"`
+	ExpiresAt    time.Time `db:"expires_at" json:"expires_at"`
+	HashedSecret []byte    `db:"hashed_secret" json:"hashed_secret"`
+	AppSecretID  uuid.UUID `db:"app_secret_id" json:"app_secret_id"`
+	APIKeyID     string    `db:"api_key_id" json:"api_key_id"`
 }
 
 type Organization struct {

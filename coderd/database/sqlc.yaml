@@ -99,4 +99,8 @@ sql:
           display_app_ssh_helper: DisplayAppSSHHelper
           oauth2_provider_app: OAuth2ProviderApp
           oauth2_provider_app_secret: OAuth2ProviderAppSecret
+          oauth2_provider_app_code: OAuth2ProviderAppCode
+          oauth2_provider_app_token: OAuth2ProviderAppToken
+          api_key_id: APIKeyID
           callback_url: CallbackURL
+          login_type_oauth2_provider_app: LoginTypeOAuth2ProviderApp
