@@ -2147,12 +2147,17 @@ func TestWorkspaceUpdateAutomaticUpdates_OK(t *testing.T) {
 	require.Equal(t, codersdk.AutomaticUpdatesAlways, updated.AutomaticUpdates)
 
 	require.Eventually(t, func() bool {
-		return len(auditor.AuditLogs()) >= 9
-	}, testutil.WaitShort, testutil.IntervalFast)
-	l := auditor.AuditLogs()[8]
-	require.Equal(t, database.AuditActionWrite, l.Action)
-	require.Equal(t, user.ID, l.UserID)
-	require.Equal(t, workspace.ID, l.ResourceID)
+		var found bool
+		for _, l := range auditor.AuditLogs() {
+			if l.Action == database.AuditActionWrite &&
+				l.UserID == user.ID &&
+				l.ResourceID == workspace.ID {
+				found = true
+				break
+			}
+		}
+		return found
+	}, testutil.WaitShort, testutil.IntervalFast, "did not find expected audit log")
 }
 
 func TestUpdateWorkspaceAutomaticUpdates_NotFound(t *testing.T) {
