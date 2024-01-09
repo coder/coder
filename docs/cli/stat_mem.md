@@ -31,9 +31,9 @@ Output format. Available formats: text, json.
 
 ### --prefix
 
-|         |                 |
-| ------- | --------------- | --- | --- | ---------- |
-| Type    | <code>enum[Ki   | Mi  | Gi  | Ti]</code> |
-| Default | <code>Gi</code> |
+|         |                                   |
+| ------- | --------------------------------- |
+| Type    | <code>enum[Ki\|Mi\|Gi\|Ti]</code> |
+| Default | <code>Gi</code>                   |
 
 SI Prefix for memory measurement.
