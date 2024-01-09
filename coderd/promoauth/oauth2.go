@@ -160,14 +160,6 @@ func (i *instrumentedTripper) RoundTrip(r *http.Request) (*http.Response, error)
 		"source":      i.source,
 		"status_code": fmt.Sprintf("%d", statusCode),
 	}).Inc()
-	if err == nil {
-		fmt.Println(map[string]string{
-			"limit":    resp.Header.Get("x-ratelimit-limit"),
-			"remain":   resp.Header.Get("x-ratelimit-remaining"),
-			"used":     resp.Header.Get("x-ratelimit-used"),
-			"reset":    resp.Header.Get("x-ratelimit-reset"),
-			"resource": resp.Header.Get("x-ratelimit-resource"),
-		})
-	}
+
 	return resp, err
 }

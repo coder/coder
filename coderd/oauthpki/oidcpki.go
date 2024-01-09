@@ -180,6 +180,8 @@ func (src *jwtTokenSource) Token() (*oauth2.Token, error) {
 	}
 	cli := http.DefaultClient
 	if v, ok := src.ctx.Value(oauth2.HTTPClient).(*http.Client); ok {
+		// This client should be the instrumented client already. So no need to
+		// handle this manually.
 		cli = v
 	}
 
