@@ -33,7 +33,6 @@ import { getErrorMessage } from "api/errors";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { deploymentConfig, deploymentSSHConfig } from "api/queries/deployment";
 import { WorkspacePermissions } from "./permissions";
-import { workspaceResolveAutostart } from "api/queries/workspaceQuota";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 import dayjs from "dayjs";
 
@@ -82,12 +81,6 @@ export const WorkspaceReadyPage = ({
   } = useMutation({
     mutationFn: restartWorkspace,
   });
-
-  // Auto start
-  const canAutostartResponse = useQuery(
-    workspaceResolveAutostart(workspace.id),
-  );
-  const canAutostart = !canAutostartResponse.data?.parameter_mismatch ?? false;
 
   // SSH Prefix
   const sshPrefixQuery = useQuery(deploymentSSHConfig());
@@ -225,7 +218,7 @@ export const WorkspaceReadyPage = ({
           }
         }}
         canUpdateWorkspace={canUpdateWorkspace}
-        updateMessage={latestVersion?.message}
+        latestVersion={latestVersion}
         canChangeVersions={canChangeVersions}
         hideSSHButton={featureVisibility["browser_only"]}
         hideVSCodeDesktopButton={featureVisibility["browser_only"]}
@@ -246,7 +239,6 @@ export const WorkspaceReadyPage = ({
             <WorkspaceBuildLogsSection logs={buildLogs} />
           )
         }
-        canAutostart={canAutostart}
       />
 
       <WorkspaceDeleteDialog

@@ -26,6 +26,7 @@ import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
 import HubOutlined from "@mui/icons-material/HubOutlined";
 import { ResourcesSidebar } from "./ResourcesSidebar";
 import { ResourceCard } from "components/Resources/ResourceCard";
+import { WorkspaceNotifications } from "./WorkspaceNotifications";
 
 export type WorkspaceError =
   | "getBuildsError"
@@ -48,7 +49,6 @@ export interface WorkspaceProps {
   isRestarting: boolean;
   workspace: TypesGen.Workspace;
   canUpdateWorkspace: boolean;
-  updateMessage?: string;
   canChangeVersions: boolean;
   hideSSHButton?: boolean;
   hideVSCodeDesktopButton?: boolean;
@@ -60,7 +60,7 @@ export interface WorkspaceProps {
   handleBuildRetry: () => void;
   handleBuildRetryDebug: () => void;
   buildLogs?: React.ReactNode;
-  canAutostart: boolean;
+  latestVersion?: TypesGen.TemplateVersion;
 }
 
 /**
@@ -80,7 +80,6 @@ export const Workspace: FC<WorkspaceProps> = ({
   isUpdating,
   isRestarting,
   canUpdateWorkspace,
-  updateMessage,
   canChangeVersions,
   workspaceErrors,
   hideSSHButton,
@@ -92,7 +91,7 @@ export const Workspace: FC<WorkspaceProps> = ({
   handleBuildRetry,
   handleBuildRetryDebug,
   buildLogs,
-  canAutostart,
+  latestVersion,
 }) => {
   const navigate = useNavigate();
   const { saveLocal, getLocal } = useLocalStorage();
@@ -134,13 +133,6 @@ export const Workspace: FC<WorkspaceProps> = ({
       clearTimeout(showTimer);
     };
   }, [workspace, now, showAlertPendingInQueue]);
-
-  const updateRequired =
-    (workspace.template_require_active_version ||
-      workspace.automatic_updates === "always") &&
-    workspace.outdated;
-  const autoStartFailing = workspace.autostart_schedule && !canAutostart;
-  const requiresManualUpdate = updateRequired && autoStartFailing;
 
   const transitionStats =
     template !== undefined ? ActiveTransition(template, workspace) : undefined;
@@ -244,25 +236,10 @@ export const Workspace: FC<WorkspaceProps> = ({
       <div css={styles.content}>
         <div css={styles.dotBackground}>
           <Stack direction="column" css={styles.firstColumnSpacer} spacing={4}>
-            {workspace.outdated &&
-              (requiresManualUpdate ? (
-                <Alert severity="warning">
-                  <AlertTitle>
-                    Autostart has been disabled for your workspace.
-                  </AlertTitle>
-                  <AlertDetail>
-                    Autostart is unable to automatically update your workspace.
-                    Manually update your workspace to reenable Autostart.
-                  </AlertDetail>
-                </Alert>
-              ) : (
-                <Alert severity="info">
-                  <AlertTitle>
-                    An update is available for your workspace
-                  </AlertTitle>
-                  {updateMessage && <AlertDetail>{updateMessage}</AlertDetail>}
-                </Alert>
-              ))}
+            <WorkspaceNotifications
+              workspace={workspace}
+              latestVersion={latestVersion}
+            />
 
             {Boolean(workspaceErrors.buildError) && (
               <ErrorAlert error={workspaceErrors.buildError} dismissible />

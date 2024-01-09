@@ -12,7 +12,7 @@ export const workspaceQuota = (username: string) => {
   };
 };
 
-const getWorkspaceResolveAutostartQueryKey = (workspaceId: string) => [
+export const getWorkspaceResolveAutostartQueryKey = (workspaceId: string) => [
   workspaceId,
   "workspaceResolveAutostart",
 ];

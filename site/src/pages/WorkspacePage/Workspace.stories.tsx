@@ -9,6 +9,7 @@ import EventSource from "eventsourcemock";
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
 import { DashboardProviderContext } from "components/Dashboard/DashboardProvider";
 import { WorkspaceBuildLogsSection } from "pages/WorkspacePage/WorkspaceBuildLogsSection";
+import { getWorkspaceResolveAutostartQueryKey } from "api/queries/workspaceQuota";
 
 const MockedAppearance = {
   config: Mocks.MockAppearanceConfig,
@@ -196,8 +197,19 @@ export const Outdated: Story = {
 export const CantAutostart: Story = {
   args: {
     ...Running.args,
-    canAutostart: false,
     workspace: Mocks.MockOutdatedRunningWorkspaceRequireActiveVersion,
+  },
+  parameters: {
+    queries: [
+      {
+        key: getWorkspaceResolveAutostartQueryKey(
+          Mocks.MockOutdatedRunningWorkspaceRequireActiveVersion.id,
+        ),
+        data: {
+          parameter_mismatch: false,
+        },
+      },
+    ],
   },
 };
 
