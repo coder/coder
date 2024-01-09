@@ -525,10 +525,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			promRegistry := prometheus.NewRegistry()
-			oauthIntrument := promoauth.NewFactory(promRegistry)
+			oauthInstrument := promoauth.NewFactory(promRegistry)
 			vals.ExternalAuthConfigs.Value = append(vals.ExternalAuthConfigs.Value, extAuthEnv...)
 			externalAuthConfigs, err := externalauth.ConvertConfig(
-				oauthIntrument,
+				oauthInstrument,
 				vals.ExternalAuthConfigs.Value,
 				vals.AccessURL.Value(),
 			)
@@ -622,7 +622,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			if vals.OAuth2.Github.ClientSecret != "" {
 				options.GithubOAuth2Config, err = configureGithubOAuth2(
-					oauthIntrument,
+					oauthInstrument,
 					vals.AccessURL.Value(),
 					vals.OAuth2.Github.ClientID.String(),
 					vals.OAuth2.Github.ClientSecret.String(),
@@ -642,7 +642,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					logger.Warn(ctx, "coder will not check email_verified for OIDC logins")
 				}
 
-				oc, err := createOIDCConfig(ctx, oauthIntrument, vals)
+				oc, err := createOIDCConfig(ctx, oauthInstrument, vals)
 				if err != nil {
 					return xerrors.Errorf("create oidc config: %w", err)
 				}
