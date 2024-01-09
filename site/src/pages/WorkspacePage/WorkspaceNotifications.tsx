@@ -65,6 +65,28 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = (
     }
   }
 
+  // Unhealthy
+  if (
+    workspace.latest_build.status === "running" &&
+    !workspace.health.healthy
+  ) {
+    notifications.push({
+      title: "Workspace is unhealthy",
+      severity: "warning",
+      detail: `Your workspace is running but ${
+        workspace.health.failing_agents.length > 1
+          ? `${workspace.health.failing_agents.length} agents are unhealthy`
+          : `1 agent is unhealthy`
+      }.`,
+      actions: [
+        {
+          label: "Restart",
+          onClick: onRestartWorkspace,
+        },
+      ],
+    });
+  }
+
   // Pending in Queue
   const [showAlertPendingInQueue, setShowAlertPendingInQueue] = useState(false);
   // 2023-11-15 - MES - This effect will be called every single render because
@@ -104,33 +126,6 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = (
 
   return (
     <>
-      {workspace.latest_build.status === "running" &&
-        !workspace.health.healthy && (
-          <Alert
-            severity="warning"
-            actions={
-              permissions.updateWorkspace && (
-                <Button
-                  variant="text"
-                  size="small"
-                  onClick={onRestartWorkspace}
-                >
-                  Restart
-                </Button>
-              )
-            }
-          >
-            <AlertTitle>Workspace is unhealthy</AlertTitle>
-            <AlertDetail>
-              Your workspace is running but{" "}
-              {workspace.health.failing_agents.length > 1
-                ? `${workspace.health.failing_agents.length} agents are unhealthy`
-                : `1 agent is unhealthy`}
-              .
-            </AlertDetail>
-          </Alert>
-        )}
-
       <DormantWorkspaceBanner workspace={workspace} />
 
       {showAlertPendingInQueue && (
