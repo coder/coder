@@ -29,7 +29,7 @@ import (
 
 // Config is used for authentication for Git operations.
 type Config struct {
-	promoauth.InstrumentedeOAuth2Config
+	promoauth.InstrumentedOAuth2Config
 	// ID is a unique identifier for the authenticator.
 	ID string
 	// Type is the type of provider.
@@ -188,7 +188,7 @@ func (c *Config) ValidateToken(ctx context.Context, token string) (bool, *coders
 	}
 
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-	res, err := c.InstrumentedeOAuth2Config.Do(ctx, "ValidateToken", req)
+	res, err := c.InstrumentedOAuth2Config.Do(ctx, "ValidateToken", req)
 	if err != nil {
 		return false, nil, err
 	}
@@ -238,7 +238,7 @@ func (c *Config) AppInstallations(ctx context.Context, token string) ([]codersdk
 		return nil, false, err
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-	res, err := c.InstrumentedeOAuth2Config.Do(ctx, "AppInstallations", req)
+	res, err := c.InstrumentedOAuth2Config.Do(ctx, "AppInstallations", req)
 	if err != nil {
 		return nil, false, err
 	}
@@ -279,7 +279,7 @@ func (c *Config) AppInstallations(ctx context.Context, token string) ([]codersdk
 
 type DeviceAuth struct {
 	// Cfg is provided for the http client method.
-	Cfg      promoauth.InstrumentedeOAuth2Config
+	Cfg      promoauth.InstrumentedOAuth2Config
 	ClientID string
 	TokenURL string
 	Scopes   []string
@@ -456,17 +456,17 @@ func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAut
 		}
 
 		cfg := &Config{
-			InstrumentedeOAuth2Config: instrument.New(entry.ID, oauthConfig),
-			ID:                        entry.ID,
-			Regex:                     regex,
-			Type:                      entry.Type,
-			NoRefresh:                 entry.NoRefresh,
-			ValidateURL:               entry.ValidateURL,
-			AppInstallationsURL:       entry.AppInstallationsURL,
-			AppInstallURL:             entry.AppInstallURL,
-			DisplayName:               entry.DisplayName,
-			DisplayIcon:               entry.DisplayIcon,
-			ExtraTokenKeys:            entry.ExtraTokenKeys,
+			InstrumentedOAuth2Config: instrument.New(entry.ID, oauthConfig),
+			ID:                       entry.ID,
+			Regex:                    regex,
+			Type:                     entry.Type,
+			NoRefresh:                entry.NoRefresh,
+			ValidateURL:              entry.ValidateURL,
+			AppInstallationsURL:      entry.AppInstallationsURL,
+			AppInstallURL:            entry.AppInstallURL,
+			DisplayName:              entry.DisplayName,
+			DisplayIcon:              entry.DisplayIcon,
+			ExtraTokenKeys:           entry.ExtraTokenKeys,
 		}
 
 		if entry.DeviceFlow {

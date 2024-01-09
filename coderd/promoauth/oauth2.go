@@ -18,17 +18,12 @@ type OAuth2Config interface {
 	TokenSource(context.Context, *oauth2.Token) oauth2.TokenSource
 }
 
-type InstrumentedeOAuth2Config interface {
+// InstrumentedOAuth2Config extends OAuth2Config with a `Do` method that allows
+// external oauth related calls to be instrumented. This is to support
+// "ValidateToken" which is not an oauth2 specified method.
+type InstrumentedOAuth2Config interface {
 	OAuth2Config
 
-	// Do is provided as a convience method to make a request with the oauth2 client.
-	// It mirrors `http.Client.Do`.
-	// We need this because Coder adds some extra functionality to
-	// oauth clients such as the `ValidateToken()` method.
-	Do(ctx context.Context, source string, req *http.Request) (*http.Response, error)
-}
-
-type HTTPDo interface {
 	// Do is provided as a convience method to make a request with the oauth2 client.
 	// It mirrors `http.Client.Do`.
 	// We need this because Coder adds some extra functionality to
