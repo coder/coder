@@ -885,19 +885,17 @@ func TestWorkspaceAgentReportStats(t *testing.T) {
 		agentClient.SetSessionToken(r.AgentToken)
 
 		_, err := agentClient.PostStats(context.Background(), &agentsdk.Stats{
-			ConnectionsByProto: map[string]int64{"TCP": 1},
-			// Set connection count to 1 but all session counts to zero to
-			// assert we aren't updating last_used_at for a connections that may
-			// be spawned passively by the dashboard.
-			ConnectionCount:             1,
-			RxPackets:                   1,
-			RxBytes:                     1,
+			ConnectionsByProto: map[string]int64{"TCP": 1, "TSMP": 1},
+			ConnectionCount:    2,
+			// Set rx bytes + packets to 0 to simulate an inactive workspace.
+			RxPackets:                   0,
+			RxBytes:                     0,
 			TxPackets:                   1,
 			TxBytes:                     1,
-			SessionCountVSCode:          0,
-			SessionCountJetBrains:       0,
-			SessionCountReconnectingPTY: 0,
-			SessionCountSSH:             0,
+			SessionCountVSCode:          1,
+			SessionCountJetBrains:       1,
+			SessionCountReconnectingPTY: 1,
+			SessionCountSSH:             1,
 			ConnectionMedianLatencyMS:   10,
 		})
 		require.NoError(t, err)
@@ -907,20 +905,21 @@ func TestWorkspaceAgentReportStats(t *testing.T) {
 
 		assert.True(t,
 			newWorkspace.LastUsedAt.Equal(r.Workspace.LastUsedAt),
-			"%s and %s should not differ", newWorkspace.LastUsedAt, r.Workspace.LastUsedAt,
+			"%s and %s should not differ if no activity detected", newWorkspace.LastUsedAt, r.Workspace.LastUsedAt,
 		)
 
 		_, err = agentClient.PostStats(context.Background(), &agentsdk.Stats{
-			ConnectionsByProto:          map[string]int64{"TCP": 1},
-			ConnectionCount:             1,
+			// All fields non-zero
+			ConnectionsByProto:          map[string]int64{"TCP": 1, "TSMP": 1},
+			ConnectionCount:             2,
 			RxPackets:                   1,
 			RxBytes:                     1,
 			TxPackets:                   1,
 			TxBytes:                     1,
 			SessionCountVSCode:          1,
-			SessionCountJetBrains:       0,
-			SessionCountReconnectingPTY: 0,
-			SessionCountSSH:             0,
+			SessionCountJetBrains:       1,
+			SessionCountReconnectingPTY: 1,
+			SessionCountSSH:             1,
 			ConnectionMedianLatencyMS:   10,
 		})
 		require.NoError(t, err)
@@ -930,7 +929,7 @@ func TestWorkspaceAgentReportStats(t *testing.T) {
 
 		assert.True(t,
 			newWorkspace.LastUsedAt.After(r.Workspace.LastUsedAt),
-			"%s is not after %s", newWorkspace.LastUsedAt, r.Workspace.LastUsedAt,
+			"%s should be greater than %s if activity detected", newWorkspace.LastUsedAt, r.Workspace.LastUsedAt,
 		)
 	})
 
