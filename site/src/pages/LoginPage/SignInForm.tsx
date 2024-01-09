@@ -5,6 +5,7 @@ import { PasswordSignInForm } from "./PasswordSignInForm";
 import { OAuthSignInForm } from "./OAuthSignInForm";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { getApplicationName } from "utils/appearance";
 
 export const Language = {
   emailLabel: "Email",
@@ -80,10 +81,11 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
     authMethods?.github.enabled || authMethods?.oidc.enabled,
   );
   const passwordEnabled = authMethods?.password.enabled ?? true;
+  const applicationName = getApplicationName();
 
   return (
     <div css={styles.root}>
-      <h1 css={styles.title}>Sign in</h1>
+      <h1 css={styles.title}>{applicationName}</h1>
 
       {Boolean(error) && (
         <div css={styles.alert}>
