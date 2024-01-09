@@ -104,7 +104,7 @@ export const WorkspacePage: FC = () => {
   const isLoading = !workspace || !template || !permissions;
 
   return (
-    <div css={{ height: "100%" }}>
+    <div css={{ height: "100%", display: "flex", flexDirection: "column" }}>
       <Navbar />
       {pageError ? (
         <Margins>

@@ -9,13 +9,21 @@ import { useIsWorkspaceActionsEnabled } from "components/Dashboard/DashboardProv
 import formatDistanceToNow from "date-fns/formatDistanceToNow";
 import { Pill } from "components/Pill/Pill";
 import InfoOutlined from "@mui/icons-material/InfoOutlined";
-import ErrorOutline from "@mui/icons-material/ErrorOutline";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "components/Popover/Popover";
+import { Interpolation, Theme, useTheme } from "@emotion/react";
+import Button, { ButtonProps } from "@mui/material/Button";
+import { ThemeRole } from "theme/experimental";
+import WarningRounded from "@mui/icons-material/WarningRounded";
 
 type Notification = {
   title: string;
   severity: AlertProps["severity"];
   detail?: ReactNode;
-  actions?: { label: string; onClick: () => void }[];
+  actions?: ReactNode;
 };
 
 type WorkspaceNotificationsProps = {
@@ -23,6 +31,8 @@ type WorkspaceNotificationsProps = {
   template: Template;
   permissions: WorkspacePermissions;
   onRestartWorkspace: () => void;
+  onUpdateWorkspace: () => void;
+  onActivateWorkspace: () => void;
   latestVersion?: TemplateVersion;
 };
 
@@ -35,6 +45,8 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = (
     latestVersion,
     permissions,
     onRestartWorkspace,
+    onUpdateWorkspace,
+    onActivateWorkspace,
   } = props;
   const notifications: Notification[] = [];
 
@@ -51,18 +63,26 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = (
   const requiresManualUpdate = updateRequired && autoStartFailing;
 
   if (workspace.outdated && latestVersion) {
+    const actions = (
+      <NotificationActionButton onClick={onUpdateWorkspace}>
+        Update
+      </NotificationActionButton>
+    );
     if (requiresManualUpdate) {
       notifications.push({
         title: "Autostart has been disabled for your workspace.",
         severity: "warning",
         detail:
           "Autostart is unable to automatically update your workspace. Manually update your workspace to reenable Autostart.",
+
+        actions,
       });
     } else {
       notifications.push({
         title: "An update is available for your workspace",
         severity: "info",
         detail: latestVersion.message,
+        actions,
       });
     }
   }
@@ -84,14 +104,11 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = (
           .
         </>
       ),
-      actions: permissions.updateWorkspace
-        ? [
-            {
-              label: "Restart",
-              onClick: onRestartWorkspace,
-            },
-          ]
-        : undefined,
+      actions: permissions.updateWorkspace ? (
+        <NotificationActionButton onClick={onRestartWorkspace}>
+          Restart
+        </NotificationActionButton>
+      ) : undefined,
     });
   }
 
@@ -107,7 +124,13 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = (
         ...(timestamp ? { hour: "numeric", minute: "numeric" } : {}),
       });
     };
+    const actions = (
+      <NotificationActionButton onClick={onActivateWorkspace}>
+        Activate
+      </NotificationActionButton>
+    );
     notifications.push({
+      actions,
       title: "Workspace is dormant",
       severity: "warning",
       detail: workspace.deleting_at ? (
@@ -197,24 +220,124 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = (
     });
   }
 
+  const infoNotifications = notifications.filter((n) => n.severity === "info");
+  const warningNotifications = notifications.filter(
+    (n) => n.severity === "warning",
+  );
+
   return (
     <div
       css={{
         display: "flex",
         alignItems: "center",
-        gap: 8,
+        gap: 12,
         position: "fixed",
         bottom: 48,
         right: 48,
         zIndex: 10,
       }}
     >
-      <Pill type="info" icon={<InfoOutlined />}>
-        2
-      </Pill>
-      <Pill type="warning" icon={<ErrorOutline />}>
-        4
-      </Pill>
+      {infoNotifications.length > 0 && (
+        <NotificationPill
+          notifications={infoNotifications}
+          type="info"
+          icon={<InfoOutlined />}
+        />
+      )}
+
+      {warningNotifications.length > 0 && (
+        <NotificationPill
+          notifications={warningNotifications}
+          type="warning"
+          icon={<WarningRounded />}
+        />
+      )}
     </div>
   );
 };
+
+type NotificationPillProps = {
+  notifications: Notification[];
+  type: ThemeRole;
+  icon: ReactNode;
+};
+
+const NotificationPill: FC<NotificationPillProps> = (props) => {
+  const { notifications, type, icon } = props;
+  const theme = useTheme();
+
+  return (
+    <Popover mode="hover">
+      <PopoverTrigger>
+        <div css={[styles.pillContainer]}>
+          <Pill type={type} icon={icon}>
+            {notifications.length}
+          </Pill>
+        </div>
+      </PopoverTrigger>
+      <PopoverContent
+        transformOrigin={{
+          horizontal: "right",
+          vertical: "bottom",
+        }}
+        anchorOrigin={{ horizontal: "right", vertical: "top" }}
+        css={{
+          "& .MuiPaper-root": {
+            borderColor: theme.experimental.roles[type].outline,
+            maxWidth: 400,
+          },
+        }}
+      >
+        {notifications.map((n) => (
+          <NotificationItem notification={n} key={n.title} />
+        ))}
+      </PopoverContent>
+    </Popover>
+  );
+};
+
+const NotificationItem: FC<{ notification: Notification }> = (props) => {
+  const { notification } = props;
+  const theme = useTheme();
+
+  return (
+    <article css={{ padding: 16 }}>
+      <h4 css={{ margin: 0, fontWeight: 500 }}>{notification.title}</h4>
+      {notification.detail && (
+        <p
+          css={{
+            margin: 0,
+            color: theme.palette.text.secondary,
+            lineHeight: 1.6,
+          }}
+        >
+          {notification.detail}
+        </p>
+      )}
+      <div css={{ marginTop: 8 }}>{notification.actions}</div>
+    </article>
+  );
+};
+
+const NotificationActionButton: FC<ButtonProps> = (props) => {
+  return (
+    <Button
+      variant="text"
+      css={{
+        textDecoration: "underline",
+        padding: 0,
+        height: "auto",
+        minWidth: "auto",
+        "&:hover": { background: "none", textDecoration: "underline" },
+      }}
+      {...props}
+    />
+  );
+};
+
+const styles = {
+  // Adds some spacing from the popover content
+  pillContainer: {
+    paddingTop: 8,
+  },
+} satisfies Record<string, Interpolation<Theme>>;

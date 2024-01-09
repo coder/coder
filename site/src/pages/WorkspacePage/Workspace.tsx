@@ -188,6 +188,8 @@ export const Workspace: FC<WorkspaceProps> = ({
               latestVersion={latestVersion}
               permissions={permissions}
               onRestartWorkspace={handleRestart}
+              onUpdateWorkspace={handleUpdate}
+              onActivateWorkspace={handleDormantActivate}
             />
 
             {workspace.latest_build.status === "deleted" && (
