@@ -24,7 +24,7 @@ type OAuth2Config interface {
 type InstrumentedOAuth2Config interface {
 	OAuth2Config
 
-	// Do is provided as a convience method to make a request with the oauth2 client.
+	// Do is provided as a convenience method to make a request with the oauth2 client.
 	// It mirrors `http.Client.Do`.
 	// We need this because Coder adds some extra functionality to
 	// oauth clients such as the `ValidateToken()` method.
