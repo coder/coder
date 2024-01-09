@@ -2,16 +2,17 @@ import AlertTitle from "@mui/material/AlertTitle";
 import { workspaceResolveAutostart } from "api/queries/workspaceQuota";
 import { Template, TemplateVersion, Workspace } from "api/typesGenerated";
 import { Alert, AlertDetail, AlertProps } from "components/Alert/Alert";
-import { FC, useEffect, useState } from "react";
+import { FC, ReactNode, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { WorkspacePermissions } from "./permissions";
-import { DormantWorkspaceBanner } from "./DormantWorkspaceBanner";
 import dayjs from "dayjs";
+import { useIsWorkspaceActionsEnabled } from "components/Dashboard/DashboardProvider";
+import formatDistanceToNow from "date-fns/formatDistanceToNow";
 
 type Notification = {
   title: string;
   severity: AlertProps["severity"];
-  detail?: string;
+  detail?: ReactNode;
   actions?: { label: string; onClick: () => void }[];
 };
 
@@ -72,11 +73,15 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = (
     notifications.push({
       title: "Workspace is unhealthy",
       severity: "warning",
-      detail: `Your workspace is running but ${
-        workspace.health.failing_agents.length > 1
-          ? `${workspace.health.failing_agents.length} agents are unhealthy`
-          : `1 agent is unhealthy`
-      }.`,
+      detail: (
+        <>
+          Your workspace is running but{" "}
+          {workspace.health.failing_agents.length > 1
+            ? `${workspace.health.failing_agents.length} agents are unhealthy`
+            : `1 agent is unhealthy`}
+          .
+        </>
+      ),
       actions: permissions.updateWorkspace
         ? [
             {
@@ -85,6 +90,42 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = (
             },
           ]
         : undefined,
+    });
+  }
+
+  // Dormant
+  const areActionsEnabled = useIsWorkspaceActionsEnabled();
+  if (areActionsEnabled && workspace.dormant_at) {
+    const formatDate = (dateStr: string, timestamp: boolean): string => {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString(undefined, {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+        ...(timestamp ? { hour: "numeric", minute: "numeric" } : {}),
+      });
+    };
+    notifications.push({
+      title: "Workspace is dormant",
+      severity: "warning",
+      detail: workspace.deleting_at ? (
+        <>
+          This workspace has not been used for{" "}
+          {formatDistanceToNow(Date.parse(workspace.last_used_at))} and was
+          marked dormant on {formatDate(workspace.dormant_at, false)}. It is
+          scheduled to be deleted on {formatDate(workspace.deleting_at, true)}.
+          To keep it you must activate the workspace.
+        </>
+      ) : (
+        <>
+          This workspace has not been used for{" "}
+          {formatDistanceToNow(Date.parse(workspace.last_used_at))} and was
+          marked dormant on {formatDate(workspace.dormant_at, false)}. It is not
+          scheduled for auto-deletion but will become a candidate if
+          auto-deletion is enabled on this template. To keep it you must
+          activate the workspace.
+        </>
+      ),
     });
   }
 
@@ -127,8 +168,6 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = (
 
   return (
     <>
-      <DormantWorkspaceBanner workspace={workspace} />
-
       {showAlertPendingInQueue && (
         <Alert severity="info">
           <AlertTitle>Workspace build is pending</AlertTitle>
