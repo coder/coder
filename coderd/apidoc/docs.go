@@ -9108,11 +9108,9 @@ const docTemplate = `{
         "codersdk.Experiment": {
             "type": "string",
             "enum": [
-                "tailnet_pg_coordinator",
                 "deployment_health_page"
             ],
             "x-enum-varnames": [
-                "ExperimentTailnetPGCoordinator",
                 "ExperimentDeploymentHealthPage"
             ]
         },

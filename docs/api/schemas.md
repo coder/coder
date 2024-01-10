@@ -2869,7 +2869,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ## codersdk.Experiment
 
 ```json
-"tailnet_pg_coordinator"
+"deployment_health_page"
 ```
 
 ### Properties
@@ -2878,7 +2878,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Value                    |
 | ------------------------ |
-| `tailnet_pg_coordinator` |
 | `deployment_health_page` |
 
 ## codersdk.ExternalAuth
