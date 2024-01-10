@@ -2,6 +2,7 @@ package promoauth_test
 
 import (
 	"net/http"
+	"net/url"
 	"testing"
 	"time"
 
@@ -30,7 +31,7 @@ func TestInstrument(t *testing.T) {
 	cfg := externalauth.Config{
 		InstrumentedOAuth2Config: factory.New(id, idp.OIDCConfig(t, []string{})),
 		ID:                       "test",
-		ValidateURL:              must(idp.IssuerURL().Parse("/oauth2/userinfo")).String(),
+		ValidateURL:              must[*url.URL](t)(idp.IssuerURL().Parse("/oauth2/userinfo")).String(),
 	}
 
 	// 0 Requests before we start
@@ -60,7 +61,7 @@ func TestInstrument(t *testing.T) {
 	// extend the http.DefaultTransport. If a `.Clone()` is not done, this can be
 	// mis-used. It is cheap to run this quick check.
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		must(idp.IssuerURL().Parse("/.well-known/openid-configuration")).String(), nil)
+		must[*url.URL](t)(idp.IssuerURL().Parse("/.well-known/openid-configuration")).String(), nil)
 	require.NoError(t, err)
 
 	resp, err := http.DefaultClient.Do(req)
@@ -70,9 +71,10 @@ func TestInstrument(t *testing.T) {
 	require.Equal(t, count(), 3)
 }
 
-func must[V any](v V, err error) V {
-	if err != nil {
-		panic(err)
+func must[V any](t *testing.T) func(v V, err error) V {
+	return func(v V, err error) V {
+		t.Helper()
+		require.NoError(t, err)
+		return v
 	}
-	return v
 }
