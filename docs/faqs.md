@@ -404,9 +404,13 @@ Colima will show the path to the docker socket so I have a
 [Coder template](./docker-code-server/main.tf) that prompts the Coder admin to
 enter the docker socket as a Terraform variable.
 
-## Why am I getting this "remote host doesn't meet VS Code Server's prerequisites" error when opening up VSCode remote in a Linux environment? 
+## Why am I getting this "remote host doesn't meet VS Code Server's prerequisites" error when opening up VSCode remote in a Linux environment?
+
 ![VS Code Server prerequsite](https://github.com/coder/coder/assets/10648092/150c5996-18b1-4fae-afd0-be2b386a3239)
 
-It is because, more than likely, the supported OS of either the container image or VM/VPS doesn't have the proper C libraries to run the VS Code Server. For instance, Alpine is not supported at all. 
-If so, you need to find a container image or supported OS for the VS Code Server. For more information on OS prerequisites for Linux, please take a look at the VSCode docs.
-https://code.visualstudio.com/docs/remote/linux#_local-linux-prerequisites 
+It is because, more than likely, the supported OS of either the container image
+or VM/VPS doesn't have the proper C libraries to run the VS Code Server. For
+instance, Alpine is not supported at all. If so, you need to find a container
+image or supported OS for the VS Code Server. For more information on OS
+prerequisites for Linux, please take a look at the VSCode docs.
+https://code.visualstudio.com/docs/remote/linux#_local-linux-prerequisites
