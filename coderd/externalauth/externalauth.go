@@ -22,19 +22,14 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/retry"
 )
 
-type OAuth2Config interface {
-	AuthCodeURL(state string, opts ...oauth2.AuthCodeOption) string
-	Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error)
-	TokenSource(context.Context, *oauth2.Token) oauth2.TokenSource
-}
-
 // Config is used for authentication for Git operations.
 type Config struct {
-	OAuth2Config
+	promoauth.InstrumentedOAuth2Config
 	// ID is a unique identifier for the authenticator.
 	ID string
 	// Type is the type of provider.
@@ -192,12 +187,8 @@ func (c *Config) ValidateToken(ctx context.Context, token string) (bool, *coders
 		return false, nil, err
 	}
 
-	cli := http.DefaultClient
-	if v, ok := ctx.Value(oauth2.HTTPClient).(*http.Client); ok {
-		cli = v
-	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-	res, err := cli.Do(req)
+	res, err := c.InstrumentedOAuth2Config.Do(ctx, promoauth.SourceValidateToken, req)
 	if err != nil {
 		return false, nil, err
 	}
@@ -247,7 +238,7 @@ func (c *Config) AppInstallations(ctx context.Context, token string) ([]codersdk
 		return nil, false, err
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-	res, err := http.DefaultClient.Do(req)
+	res, err := c.InstrumentedOAuth2Config.Do(ctx, promoauth.SourceAppInstallations, req)
 	if err != nil {
 		return nil, false, err
 	}
@@ -287,6 +278,8 @@ func (c *Config) AppInstallations(ctx context.Context, token string) ([]codersdk
 }
 
 type DeviceAuth struct {
+	// Config is provided for the http client method.
+	Config   promoauth.InstrumentedOAuth2Config
 	ClientID string
 	TokenURL string
 	Scopes   []string
@@ -307,8 +300,17 @@ func (c *DeviceAuth) AuthorizeDevice(ctx context.Context) (*codersdk.ExternalAut
 	if err != nil {
 		return nil, err
 	}
+
+	do := http.DefaultClient.Do
+	if c.Config != nil {
+		// The cfg can be nil in unit tests.
+		do = func(req *http.Request) (*http.Response, error) {
+			return c.Config.Do(ctx, promoauth.SourceAuthorizeDevice, req)
+		}
+	}
+
+	resp, err := do(req)
 	req.Header.Set("Accept", "application/json")
-	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -401,7 +403,7 @@ func (c *DeviceAuth) formatDeviceCodeURL() (string, error) {
 
 // ConvertConfig converts the SDK configuration entry format
 // to the parsed and ready-to-consume in coderd provider type.
-func ConvertConfig(entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([]*Config, error) {
+func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([]*Config, error) {
 	ids := map[string]struct{}{}
 	configs := []*Config{}
 	for _, entry := range entries {
@@ -453,7 +455,7 @@ func ConvertConfig(entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([
 			Scopes:      entry.Scopes,
 		}
 
-		var oauthConfig OAuth2Config = oc
+		var oauthConfig promoauth.OAuth2Config = oc
 		// Azure DevOps uses JWT token authentication!
 		if entry.Type == string(codersdk.EnhancedExternalAuthProviderAzureDevops) {
 			oauthConfig = &jwtConfig{oc}
@@ -463,17 +465,17 @@ func ConvertConfig(entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([
 		}
 
 		cfg := &Config{
-			OAuth2Config:        oauthConfig,
-			ID:                  entry.ID,
-			Regex:               regex,
-			Type:                entry.Type,
-			NoRefresh:           entry.NoRefresh,
-			ValidateURL:         entry.ValidateURL,
-			AppInstallationsURL: entry.AppInstallationsURL,
-			AppInstallURL:       entry.AppInstallURL,
-			DisplayName:         entry.DisplayName,
-			DisplayIcon:         entry.DisplayIcon,
-			ExtraTokenKeys:      entry.ExtraTokenKeys,
+			InstrumentedOAuth2Config: instrument.New(entry.ID, oauthConfig),
+			ID:                       entry.ID,
+			Regex:                    regex,
+			Type:                     entry.Type,
+			NoRefresh:                entry.NoRefresh,
+			ValidateURL:              entry.ValidateURL,
+			AppInstallationsURL:      entry.AppInstallationsURL,
+			AppInstallURL:            entry.AppInstallURL,
+			DisplayName:              entry.DisplayName,
+			DisplayIcon:              entry.DisplayIcon,
+			ExtraTokenKeys:           entry.ExtraTokenKeys,
 		}
 
 		if entry.DeviceFlow {
@@ -481,6 +483,7 @@ func ConvertConfig(entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([
 				return nil, xerrors.Errorf("external auth provider %q: device auth url must be provided", entry.ID)
 			}
 			cfg.DeviceAuth = &DeviceAuth{
+				Config:   cfg,
 				ClientID: entry.ClientID,
 				TokenURL: oc.Endpoint.TokenURL,
 				Scopes:   entry.Scopes,

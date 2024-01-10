@@ -24,6 +24,7 @@ import (
 	"github.com/go-jose/go-jose/v3"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
@@ -33,6 +34,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/util/syncmap"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -223,6 +225,10 @@ func (f *FakeIDP) WellknownConfig() ProviderJSON {
 	return f.provider
 }
 
+func (f *FakeIDP) IssuerURL() *url.URL {
+	return f.issuerURL
+}
+
 func (f *FakeIDP) updateIssuerURL(t testing.TB, issuer string) {
 	t.Helper()
 
@@ -395,6 +401,44 @@ func (f *FakeIDP) ExternalLogin(t testing.TB, client *codersdk.Client, opts ...f
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, res.StatusCode, "client failed to login")
 	_ = res.Body.Close()
+}
+
+// CreateAuthCode emulates a user clicking "allow" on the IDP page. When doing
+// unit tests, it's easier to skip this step sometimes. It does make an actual
+// request to the IDP, so it should be equivalent to doing this "manually" with
+// actual requests.
+func (f *FakeIDP) CreateAuthCode(t testing.TB, state string, opts ...func(r *http.Request)) string {
+	// We need to store some claims, because this is also an OIDC provider, and
+	// it expects some claims to be present.
+	f.stateToIDTokenClaims.Store(state, jwt.MapClaims{})
+
+	u := f.cfg.AuthCodeURL(state)
+	r, err := http.NewRequestWithContext(context.Background(), http.MethodPost, u, nil)
+	require.NoError(t, err, "failed to create auth request")
+
+	for _, opt := range opts {
+		opt(r)
+	}
+
+	rw := httptest.NewRecorder()
+	f.handler.ServeHTTP(rw, r)
+	resp := rw.Result()
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode, "expected redirect")
+	to := resp.Header.Get("Location")
+	require.NotEmpty(t, to, "expected redirect location")
+
+	toURL, err := url.Parse(to)
+	require.NoError(t, err, "failed to parse redirect location")
+
+	code := toURL.Query().Get("code")
+	require.NotEmpty(t, code, "expected code in redirect location")
+
+	newState := toURL.Query().Get("state")
+	require.Equal(t, state, newState, "expected state to match")
+
+	return code
 }
 
 // OIDCCallback will emulate the IDP redirecting back to the Coder callback.
@@ -901,9 +945,10 @@ func (f *FakeIDP) ExternalAuthConfig(t testing.TB, id string, custom *ExternalAu
 			handle(email, rw, r)
 		}
 	}
+	instrumentF := promoauth.NewFactory(prometheus.NewRegistry())
 	cfg := &externalauth.Config{
-		OAuth2Config: f.OIDCConfig(t, nil),
-		ID:           id,
+		InstrumentedOAuth2Config: instrumentF.New(f.clientID, f.OIDCConfig(t, nil)),
+		ID:                       id,
 		// No defaults for these fields by omitting the type
 		Type:        "",
 		DisplayIcon: f.WellknownConfig().UserInfoURL,
@@ -920,10 +965,10 @@ func (f *FakeIDP) ExternalAuthConfig(t testing.TB, id string, custom *ExternalAu
 // OIDCConfig returns the OIDC config to use for Coderd.
 func (f *FakeIDP) OIDCConfig(t testing.TB, scopes []string, opts ...func(cfg *coderd.OIDCConfig)) *coderd.OIDCConfig {
 	t.Helper()
+
 	if len(scopes) == 0 {
 		scopes = []string{"openid", "email", "profile"}
 	}
-
 	oauthCfg := &oauth2.Config{
 		ClientID:     f.clientID,
 		ClientSecret: f.clientSecret,
@@ -966,7 +1011,6 @@ func (f *FakeIDP) OIDCConfig(t testing.TB, scopes []string, opts ...func(cfg *co
 	}
 
 	f.cfg = oauthCfg
-
 	return cfg
 }
 
