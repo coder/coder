@@ -2,6 +2,7 @@ package cli
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 
 	"golang.org/x/xerrors"
@@ -10,7 +11,17 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func ParseUserVariableValues(variablesFile string, commandLineVariables []string) ([]codersdk.VariableValue, error) {
+func ParseUserVariableValues(workDir string, variablesFile string, commandLineVariables []string) ([]codersdk.VariableValue, error) {
+	varsFiles, err := discoverVarsFiles(workDir)
+	if err != nil {
+		return nil, err
+	}
+
+	fromVars, err := parseTerraformVarsFromFiles(varsFiles)
+	if err != nil {
+		return nil, err
+	}
+
 	fromFile, err := parseVariableValuesFromFile(variablesFile)
 	if err != nil {
 		return nil, err
@@ -21,7 +32,56 @@ func ParseUserVariableValues(variablesFile string, commandLineVariables []string
 		return nil, err
 	}
 
-	return combineVariableValues(fromFile, fromCommandLine), nil
+	return combineVariableValues(fromVars, fromFile, fromCommandLine), nil
+}
+
+/**
+ * discoverVarsFiles function loads vars files in a predefined order:
+ * 1. terraform.tfvars
+ * 2. terraform.tfvars.json
+ * 3. *.auto.tfvars
+ * 4. *.auto.tfvars.json
+ */
+func discoverVarsFiles(workDir string) ([]string, error) {
+	var found []string
+
+	fi, err := os.Stat(filepath.Join(workDir, "terraform.tfvars"))
+	if err == nil {
+		found = append(found, fi.Name())
+	} else if !os.IsNotExist(err) {
+		return nil, err
+	}
+
+	fi, err = os.Stat(filepath.Join(workDir, "terraform.tfvars.json"))
+	if err == nil {
+		found = append(found, fi.Name())
+	} else if !os.IsNotExist(err) {
+		return nil, err
+	}
+
+	dirEntries, err := os.ReadDir(workDir)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, dirEntry := range dirEntries {
+		if strings.HasSuffix(dirEntry.Name(), ".auto.tfvars") || strings.HasSuffix(dirEntry.Name(), ".auto.tfvars.json") {
+			found = append(found, dirEntry.Name())
+		}
+	}
+	return found, nil
+}
+
+func parseTerraformVarsFromFiles(varsFiles []string) ([]codersdk.VariableValue, error) {
+	panic("not implemented yet")
+}
+
+func parseTerraformVarsFromHCL(hcl string) ([]codersdk.VariableValue, error) {
+	panic("not implemented yet")
+}
+
+func parseTerraformVarsFromJSON(json string) ([]codersdk.VariableValue, error) {
+	panic("not implemented yet")
 }
 
 func parseVariableValuesFromFile(variablesFile string) ([]codersdk.VariableValue, error) {
