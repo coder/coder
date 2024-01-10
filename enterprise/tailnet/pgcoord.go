@@ -1546,15 +1546,15 @@ func (h *heartbeats) cleanup() {
 	// the records we are attempting to clean up do no serious harm other than
 	// accumulating in the tables, so we don't bother retrying if it fails.
 	err := h.store.CleanTailnetCoordinators(h.ctx)
-	if err != nil {
+	if err != nil && !database.IsQueryCanceledError(err) {
 		h.logger.Error(h.ctx, "failed to cleanup old coordinators", slog.Error(err))
 	}
 	err = h.store.CleanTailnetLostPeers(h.ctx)
-	if err != nil {
+	if err != nil && !database.IsQueryCanceledError(err) {
 		h.logger.Error(h.ctx, "failed to cleanup lost peers", slog.Error(err))
 	}
 	err = h.store.CleanTailnetTunnels(h.ctx)
-	if err != nil {
+	if err != nil && !database.IsQueryCanceledError(err) {
 		h.logger.Error(h.ctx, "failed to cleanup abandoned tunnels", slog.Error(err))
 	}
 	h.logger.Debug(h.ctx, "completed cleanup")
