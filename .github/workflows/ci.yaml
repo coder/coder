@@ -713,7 +713,7 @@ jobs:
           set -euo pipefail
           version="$(./scripts/version.sh)"
           echo "base_tag=$(CODER_IMAGE_BASE=coder-base ./scripts/image_tag.sh --version "$version")" >> $GITHUB_OUTPUT
-      
+
       # This uses OIDC authentication, so no auth variables are required.
       - name: Build base Docker image via depot.dev
         uses: depot/build-push-action@v1
@@ -734,7 +734,7 @@ jobs:
 
           # build and push multi-arch manifest, this depends on the other images
           # being pushed so will automatically push them.
-          
+
           make -j push/build/coder_"$version"_linux.tag
           ./scripts/build_docker_multiarch.sh \
             --push \
@@ -742,7 +742,7 @@ jobs:
             $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
         env:
           CODER_BASE_IMAGE_TAG: ${{ steps.image-base-tag.outputs.base_tag }}
-      
+
       - name: Build and Push Linux amd64 Docker Image
         id: build-docker
         run: |
