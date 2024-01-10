@@ -722,38 +722,44 @@ jobs:
           project: wl5hnrrkns
           context: base-build-context
           file: scripts/Dockerfile.base
+          pull: true
+          push: true
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           tags: ${{ steps.image-base-tag.outputs.base_tag }}
 
       - name: Build Linux Docker images
+        id: build-docker
         run: |
           set -euxo pipefail
 
           # build Docker images for each architecture
           version="$(./scripts/version.sh)"
+          tag="main-$(echo "$version" | sed 's/+/-/g')"
+
           make -j build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
 
           # build and push multi-arch manifest, this depends on the other images
-          # being pushed so will automatically push them.
-
-          # only push if we are on main branch
-          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            make -j push/build/coder_"$version"_linux.tag
-          else
-            make -j build/coder_"$version"_linux.tag
-          fi
+          # being pushed so will automatically push them
 
           # only push if we are on main branch
           if [ "${{ github.ref }}" == "refs/heads/main" ]; then
             ./scripts/build_docker_multiarch.sh \
             --push \
-            --target "$(./scripts/image_tag.sh --version main)" \
+            --target "ghcr.io/coder/coder-preview:$tag" \
+            --version $version \
             $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
           else
             ./scripts/build_docker_multiarch.sh \
-            --target "$(./scripts/image_tag.sh --version main)" \
+            --target "ghcr.io/coder/coder-preview:$tag" \
+            --version $version \
             $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
           fi
+
+          # Tag as main
+          docker tag "ghcr.io/coder/coder-preview:$tag" ghcr.io/coder/coder-preview:main
+          docker push ghcr.io/coder/coder-preview:main
+
+          echo "tag=$tag" >> $GITHUB_OUTPUT
 
         env:
           CODER_BASE_IMAGE_TAG: ${{ steps.image-base-tag.outputs.base_tag }}
