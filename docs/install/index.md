@@ -56,7 +56,7 @@ Coder officially maintains packages for the following Linux distributions:
 
 ## Debian, Ubuntu
 
-Get the latest `.deb` package from our
+For Debian and Ubuntu, get the latest `.deb` package from our
 [GitHub releases](https://github.com/coder/coder/releases/latest) and install it
 manually or use the following commands to download and install the latest `.deb`
 package.
@@ -66,9 +66,9 @@ package.
 sudo apt install ./coder.deb
 ```
 
-## Fedora, CentOS, RHEL, SUSE
+## RPM Linux
 
-Get the latest `.rpm` package from our
+For Fedora, CentOS, RHEL, SUSE, get the latest `.rpm` package from our
 [GitHub releases](https://github.com/coder/coder/releases/latest) and install it
 manually or use the following commands to download and install the latest `.rpm`
 package.
