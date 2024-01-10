@@ -701,9 +701,6 @@ jobs:
             build/coder_"$version"_windows_amd64.zip \
             build/coder_"$version"_linux_amd64.{tar.gz,deb}
 
-      - name: Install depot.dev CLI
-        uses: depot/setup-action@v1
-
       - name: Build Linux Docker images
         id: build-docker
         run: |
@@ -739,9 +736,6 @@ jobs:
           fi
 
           echo "tag=$tag" >> $GITHUB_OUTPUT
-
-        env:
-          CODER_BASE_IMAGE_TAG: ${{ steps.image-base-tag.outputs.base_tag }}
 
       - name: Prune old images
         uses: vlaurin/action-ghcr-prune@v0.5.0
