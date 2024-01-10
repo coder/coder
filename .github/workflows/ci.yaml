@@ -712,6 +712,10 @@ jobs:
 
           export CODER_IMAGE_BUILD_BASE_TAG="ghcr.io/coder/coder-base:latest"
 
+          echo "ghcr.io/coder/coder-preview:$tag-amd64" > build/coder_"$version"_linux_amd64.tag
+          echo "ghcr.io/coder/coder-preview:$tag-arm64" > build/coder_"$version"_linux_arm64.tag
+          echo "ghcr.io/coder/coder-preview:$tag-armv7" > build/coder_"$version"_linux_armv7.tag
+
           make -j build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
 
           # build and push multi-arch manifest, this depends on the other images
