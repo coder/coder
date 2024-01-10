@@ -7,4 +7,4 @@ runs:
     - name: Setup sqlc
       uses: sqlc-dev/setup-sqlc@v4
       with:
-        sqlc-version: "1.24.0"
+        sqlc-version: "1.25.0"
