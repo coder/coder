@@ -68,14 +68,37 @@ func ParseUserVariableValues(varsFiles []string, variablesFile string, commandLi
 }
 
 func parseVariableValuesFromVarsFiles(varsFiles []string) ([]codersdk.VariableValue, error) {
+	var parsed []codersdk.VariableValue
+	for _, varsFile := range varsFiles {
+		content, err := os.ReadFile(varsFile)
+		if err != nil {
+			return nil, err
+		}
+
+		var t []codersdk.VariableValue
+		ext := filepath.Ext(varsFile)
+		switch ext {
+		case ".tfvars":
+			t, err = parseVariableValuesFromHCL(content)
+		case ".json":
+			t, err = parseVariableValuesFromJSON(content)
+		default:
+			return nil, xerrors.Errorf("unsupported tfvars format: %s", ext)
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		parsed = append(parsed, t...)
+	}
+	return parsed, nil
+}
+
+func parseVariableValuesFromHCL(hcl []byte) ([]codersdk.VariableValue, error) {
 	panic("not implemented yet")
 }
 
-func parseVariableValuesFromHCL(hcl string) ([]codersdk.VariableValue, error) {
-	panic("not implemented yet")
-}
-
-func parseVariableValuesFromJSON(json string) ([]codersdk.VariableValue, error) {
+func parseVariableValuesFromJSON(json []byte) ([]codersdk.VariableValue, error) {
 	panic("not implemented yet")
 }
 
