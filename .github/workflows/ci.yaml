@@ -713,7 +713,7 @@ jobs:
         run: |
           set -euo pipefail
           version="$(./scripts/version.sh)"
-          echo "base_tag=$(CODER_IMAGE_BASE=coder-base ./scripts/image_tag.sh --version "$version")" >> $GITHUB_OUTPUT
+          echo "base_tag=$(CODER_IMAGE_BASE=ghcr.io/coder/coder-base ./scripts/image_tag.sh --version "$version")" >> $GITHUB_OUTPUT
 
       # This uses OIDC authentication, so no auth variables are required.
       - name: Build base Docker image via depot.dev
@@ -723,7 +723,6 @@ jobs:
           context: base-build-context
           file: scripts/Dockerfile.base
           pull: true
-          push: true
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           tags: ${{ steps.image-base-tag.outputs.base_tag }}
 
