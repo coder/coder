@@ -39,6 +39,9 @@ export const WorkspaceProxyPage = () => {
       </Header>
 
       <Main>
+        {workspace_proxy.error ? (
+          <Alert severity="error">{workspace_proxy.error}</Alert>
+        ) : null}
         {workspace_proxy.warnings.map((warning) => {
           return (
             <Alert key={warning.code} severity="warning">
@@ -48,6 +51,7 @@ export const WorkspaceProxyPage = () => {
         })}
 
         {regions.map((region) => {
+          const errors = region.status?.report?.errors ?? [];
           const warnings = region.status?.report?.warnings ?? [];
 
           return (
@@ -138,14 +142,17 @@ export const WorkspaceProxyPage = () => {
                   color: theme.palette.text.secondary,
                 }}
               >
-                {warnings.length > 0 ? (
+                {warnings.length === 0 && errors.length === 0 ? (
+                  <span>OK</span>
+                ) : (
                   <div css={{ display: "flex", flexDirection: "column" }}>
+                    {errors.map((error, i) => (
+                      <span key={i}>{error}</span>
+                    ))}
                     {warnings.map((warning, i) => (
                       <span key={i}>{warning}</span>
                     ))}
                   </div>
-                ) : (
-                  <span>No warnings</span>
                 )}
                 <span data-chromatic="ignore">
                   {createDayString(region.updated_at)}
