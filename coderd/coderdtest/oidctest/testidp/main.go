@@ -42,7 +42,7 @@ func RunIDP() func(t *testing.T) {
 		prov := idp.WellknownConfig()
 
 		log.Println("IDP Issuer URL", idp.IssuerURL())
-		log.Println("Oauth Flags")
+		log.Println("Coderd Flags")
 		log.Printf(`--external-auth-providers='[{"type":"fake","client_id":"%s","client_secret":"%s","auth_url":"%s","token_url":"%s","validate_url":"%s","scopes":["openid","email","profile"]}]'`,
 			id, sec, prov.AuthURL, prov.TokenURL, prov.UserInfoURL,
 		)
