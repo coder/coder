@@ -48,13 +48,17 @@ const (
 	closed
 )
 
-type configMaps struct {
+type phased struct {
 	sync.Cond
+	phase phase
+}
+
+type configMaps struct {
+	phased
 	netmapDirty  bool
 	derpMapDirty bool
 	filterDirty  bool
 	closing      bool
-	phase        phase
 
 	engine         engineConfigurable
 	static         netmap.NetworkMap
@@ -71,7 +75,7 @@ type configMaps struct {
 func newConfigMaps(logger slog.Logger, engine engineConfigurable, nodeID tailcfg.NodeID, nodeKey key.NodePrivate, discoKey key.DiscoPublic, addresses []netip.Prefix) *configMaps {
 	pubKey := nodeKey.Public()
 	c := &configMaps{
-		Cond:   *(sync.NewCond(&sync.Mutex{})),
+		phased: phased{Cond: *(sync.NewCond(&sync.Mutex{}))},
 		logger: logger,
 		engine: engine,
 		static: netmap.NetworkMap{
