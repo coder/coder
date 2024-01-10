@@ -6,19 +6,28 @@ Coder with Docker has the following advantages:
 - Workspace images are easily configured
 - Workspaces share resources for burst operations
 
-> Note that the below steps are only supported on a Linux distribution. If on
-> macOS, please [run Coder via the standalone binary](../install//binary.md).
+> Note that the below steps are only supported on a Linux distribution.
 
 ## Requirements
 
 - A Linux machine
 - A running Docker daemon
 
+<blockquote class="warning">
+Before you install
+If you would like your workspaces to be able to run Docker, we recommend that you <a href="https://github.com/nestybox/sysbox#installation" target="_blank">install Sysbox</a> before proceeding.
+
+As part of the Sysbox installation you will be required to remove all existing
+Docker containers including containers used by Coder workspaces. Installing
+Sysbox ahead of time will reduce disruption to your Coder instance.
+
+</blockquote>
+
 ## Instructions
 
 1. Run Coder with Docker.
 
-   ```console
+   ```shell
    export CODER_DATA=$HOME/.config/coderv2-docker
    export DOCKER_GROUP=$(getent group docker | cut -d: -f3)
    mkdir -p $CODER_DATA
@@ -37,7 +46,7 @@ Coder with Docker has the following advantages:
 1. In new terminal, [install Coder](../install/) in order to connect to your
    deployment through the CLI.
 
-   ```console
+   ```shell
    curl -L https://coder.com/install.sh | sh
    ```
 
@@ -47,7 +56,7 @@ Coder with Docker has the following advantages:
 1. Pull the "Docker" example template using the interactive
    `coder templates init`:
 
-   ```console
+   ```shell
    coder templates init
    cd docker
    ```
