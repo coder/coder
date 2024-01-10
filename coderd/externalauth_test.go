@@ -279,6 +279,28 @@ func TestExternalAuthDevice(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, auth.Authenticated)
 	})
+	t.Run("TooManyRequests", func(t *testing.T) {
+		t.Parallel()
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusTooManyRequests)
+			// Github returns an html payload for this error.
+			_, _ = w.Write([]byte(`Please wait a few minutes before you try again`))
+		}))
+		defer srv.Close()
+		client := coderdtest.New(t, &coderdtest.Options{
+			ExternalAuthConfigs: []*externalauth.Config{{
+				ID: "test",
+				DeviceAuth: &externalauth.DeviceAuth{
+					ClientID: "test",
+					CodeURL:  srv.URL,
+					Scopes:   []string{"repo"},
+				},
+			}},
+		})
+		coderdtest.CreateFirstUser(t, client)
+		_, err := client.ExternalAuthDeviceByID(context.Background(), "test")
+		require.ErrorContains(t, err, "rate limit hit")
+	})
 }
 
 // nolint:bodyclose
