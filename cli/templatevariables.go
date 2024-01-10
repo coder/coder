@@ -11,13 +11,48 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func ParseUserVariableValues(workDir string, variablesFile string, commandLineVariables []string) ([]codersdk.VariableValue, error) {
-	varsFiles, err := discoverVarsFiles(workDir)
+/**
+ * DiscoverVarsFiles function loads vars files in a predefined order:
+ * 1. terraform.tfvars
+ * 2. terraform.tfvars.json
+ * 3. *.auto.tfvars
+ * 4. *.auto.tfvars.json
+ */
+func DiscoverVarsFiles(stdin bool, workDir string) ([]string, error) {
+	var found []string
+	if stdin {
+		return found, nil // it is not possible to define multiple files in the stdin mode
+	}
+
+	fi, err := os.Stat(filepath.Join(workDir, "terraform.tfvars"))
+	if err == nil {
+		found = append(found, filepath.Join(workDir, fi.Name()))
+	} else if !os.IsNotExist(err) {
+		return nil, err
+	}
+
+	fi, err = os.Stat(filepath.Join(workDir, "terraform.tfvars.json"))
+	if err == nil {
+		found = append(found, filepath.Join(workDir, fi.Name()))
+	} else if !os.IsNotExist(err) {
+		return nil, err
+	}
+
+	dirEntries, err := os.ReadDir(workDir)
 	if err != nil {
 		return nil, err
 	}
 
-	fromVars, err := parseTerraformVarsFromFiles(varsFiles)
+	for _, dirEntry := range dirEntries {
+		if strings.HasSuffix(dirEntry.Name(), ".auto.tfvars") || strings.HasSuffix(dirEntry.Name(), ".auto.tfvars.json") {
+			found = append(found, filepath.Join(workDir, dirEntry.Name()))
+		}
+	}
+	return found, nil
+}
+
+func ParseUserVariableValues(varsFiles []string, variablesFile string, commandLineVariables []string) ([]codersdk.VariableValue, error) {
+	fromVars, err := parseVariableValuesFromVarsFiles(varsFiles)
 	if err != nil {
 		return nil, err
 	}
@@ -35,52 +70,15 @@ func ParseUserVariableValues(workDir string, variablesFile string, commandLineVa
 	return combineVariableValues(fromVars, fromFile, fromCommandLine), nil
 }
 
-/**
- * discoverVarsFiles function loads vars files in a predefined order:
- * 1. terraform.tfvars
- * 2. terraform.tfvars.json
- * 3. *.auto.tfvars
- * 4. *.auto.tfvars.json
- */
-func discoverVarsFiles(workDir string) ([]string, error) {
-	var found []string
-
-	fi, err := os.Stat(filepath.Join(workDir, "terraform.tfvars"))
-	if err == nil {
-		found = append(found, fi.Name())
-	} else if !os.IsNotExist(err) {
-		return nil, err
-	}
-
-	fi, err = os.Stat(filepath.Join(workDir, "terraform.tfvars.json"))
-	if err == nil {
-		found = append(found, fi.Name())
-	} else if !os.IsNotExist(err) {
-		return nil, err
-	}
-
-	dirEntries, err := os.ReadDir(workDir)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, dirEntry := range dirEntries {
-		if strings.HasSuffix(dirEntry.Name(), ".auto.tfvars") || strings.HasSuffix(dirEntry.Name(), ".auto.tfvars.json") {
-			found = append(found, dirEntry.Name())
-		}
-	}
-	return found, nil
-}
-
-func parseTerraformVarsFromFiles(varsFiles []string) ([]codersdk.VariableValue, error) {
+func parseVariableValuesFromVarsFiles(varsFiles []string) ([]codersdk.VariableValue, error) {
 	panic("not implemented yet")
 }
 
-func parseTerraformVarsFromHCL(hcl string) ([]codersdk.VariableValue, error) {
+func parseVariableValuesFromHCL(hcl string) ([]codersdk.VariableValue, error) {
 	panic("not implemented yet")
 }
 
-func parseTerraformVarsFromJSON(json string) ([]codersdk.VariableValue, error) {
+func parseVariableValuesFromJSON(json string) ([]codersdk.VariableValue, error) {
 	panic("not implemented yet")
 }
 

@@ -78,6 +78,11 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 
 			message := uploadFlags.templateMessage(inv)
 
+			varsFiles, err := DiscoverVarsFiles(uploadFlags.stdin(), uploadFlags.directory)
+			if err != nil {
+				return err
+			}
+
 			resp, err := uploadFlags.upload(inv, client)
 			if err != nil {
 				return err
@@ -89,6 +94,7 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			}
 
 			userVariableValues, err := ParseUserVariableValues(
+				varsFiles,
 				variablesFile,
 				commandLineVariables)
 			if err != nil {
