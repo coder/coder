@@ -2077,10 +2077,6 @@ func (c *Client) BuildInfo(ctx context.Context) (BuildInfoResponse, error) {
 type Experiment string
 
 const (
-	// ExperimentTailnetPGCoordinator enables the PGCoord in favor of the pubsub-
-	// only Coordinator
-	ExperimentTailnetPGCoordinator Experiment = "tailnet_pg_coordinator"
-
 	// Deployment health page
 	ExperimentDeploymentHealthPage Experiment = "deployment_health_page"
 
