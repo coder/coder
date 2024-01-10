@@ -697,32 +697,31 @@ jobs:
 
           make gen/mark-fresh
           make -j \
-            build/coder_linux_amd64 \
+            build/coder_linux_{amd64,arm64,armv7} \
             build/coder_"$version"_windows_amd64.zip \
             build/coder_"$version"_linux_amd64.{tar.gz,deb}
 
       - name: Build Linux Docker images
         id: build-docker
+        env:
+          CODER_IMAGE_BASE: ghcr.io/coder/coder-preview
         run: |
           set -euxo pipefail
 
           # build Docker images for each architecture
           version="$(./scripts/version.sh)"
           tag="main-$(echo "$version" | sed 's/+/-/g')"
-
-          export CODER_IMAGE_BUILD_BASE_TAG="ghcr.io/coder/coder-base:latest"
-
-          echo "ghcr.io/coder/coder-preview:$tag-amd64" > build/coder_"$version"_linux_amd64.tag
-          echo "ghcr.io/coder/coder-preview:$tag-arm64" > build/coder_"$version"_linux_arm64.tag
-          echo "ghcr.io/coder/coder-preview:$tag-armv7" > build/coder_"$version"_linux_armv7.tag
+          echo "tag=$tag" >> $GITHUB_OUTPUT
 
           make -j build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
 
-          # build and push multi-arch manifest, this depends on the other images
-          # being pushed so will automatically push them
-
           # only push if we are on main branch
           if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            export DOCKER_CLI_EXPERIMENTAL=enabled
+            # build and push multi-arch manifest, this depends on the other images
+            # being pushed so will automatically push them
+            make -j push/build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
+
             ./scripts/build_docker_multiarch.sh \
             --push \
             --target "ghcr.io/coder/coder-preview:$tag" \
@@ -732,14 +731,7 @@ jobs:
             # Tag as main
             docker tag "ghcr.io/coder/coder-preview:$tag" ghcr.io/coder/coder-preview:main
             docker push ghcr.io/coder/coder-preview:main
-          else
-            ./scripts/build_docker_multiarch.sh \
-            --target "ghcr.io/coder/coder-preview:$tag" \
-            --version $version \
-            $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
           fi
-
-          echo "tag=$tag" >> $GITHUB_OUTPUT
 
       - name: Prune old images
         uses: vlaurin/action-ghcr-prune@v0.5.0
