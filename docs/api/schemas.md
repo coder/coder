@@ -2878,11 +2878,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Value                    |
 | ------------------------ |
-<<<<<<< HEAD
 | `tailnet_pg_coordinator` |
-=======
-| `workspace_actions`      |
->>>>>>> main
 | `deployment_health_page` |
 
 ## codersdk.ExternalAuth
