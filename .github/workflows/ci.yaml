@@ -718,8 +718,7 @@ jobs:
 
           # only push if we are on main branch
           # modify the condition to be always: true to push on all branches temporarily for testing
-          #if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-          if [ "${{ github.ref }}" == "refs/heads/main" || true ]; then
+          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
 
             # build and push multi-arch manifest, this depends on the other images
             # being pushed so will automatically push them
@@ -731,10 +730,10 @@ jobs:
               --version $version \
               $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
 
-            # also push the main tag
+            # also push the latest tag
             ./scripts/build_docker_multiarch.sh \
               --push \
-              --target "ghcr.io/coder/coder-preview:main" \
+              --target "ghcr.io/coder/coder-preview:latest" \
               --version $version \
               $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
           fi
@@ -746,8 +745,8 @@ jobs:
           organization: coder
           container: coder-preview
           keep-younger-than: 7 # days
+          keep-tags: latest
           keep-tags-regexes: ^pr
-          prune-tags-regexes: ^main-
           prune-untagged: true
 
       - name: Upload build artifacts
