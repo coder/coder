@@ -322,7 +322,7 @@ Edit `main.tf` and update the following fields of the Kubernetes pod resource:
 Finally, create the template:
 
 ```console
-coder template create kubernetes -d .
+coder template push kubernetes -d .
 ```
 
 This template should be ready to use straight away.

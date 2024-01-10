@@ -141,7 +141,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@v1.16.26
+        uses: crate-ci/typos@v1.17.0
         with:
           config: .github/workflows/typos.toml
 
@@ -188,7 +188,7 @@ jobs:
           go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.33
           go install golang.org/x/tools/cmd/goimports@latest
           go install github.com/mikefarah/yq/v4@v4.30.6
-          go install github.com/golang/mock/mockgen@v1.6.0
+          go install go.uber.org/mock/mockgen@v0.4.0
 
       - name: Install Protoc
         run: |
@@ -221,7 +221,7 @@ jobs:
         uses: ./.github/actions/setup-node
 
       - name: Setup Go
-        uses: buildjet/setup-go@v4
+        uses: buildjet/setup-go@v5
         with:
           # This doesn't need caching. It's super fast anyways!
           cache: false
@@ -450,7 +450,7 @@ jobs:
           go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.33
           go install golang.org/x/tools/cmd/goimports@latest
           go install github.com/mikefarah/yq/v4@v4.30.6
-          go install github.com/golang/mock/mockgen@v1.6.0
+          go install go.uber.org/mock/mockgen@v0.4.0
 
       - name: Install Protoc
         run: |
@@ -592,7 +592,7 @@ jobs:
           go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.33
           go install golang.org/x/tools/cmd/goimports@latest
           go install github.com/mikefarah/yq/v4@v4.30.6
-          go install github.com/golang/mock/mockgen@v1.6.0
+          go install go.uber.org/mock/mockgen@v0.4.0
 
       - name: Setup sqlc
         uses: ./.github/actions/setup-sqlc

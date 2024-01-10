@@ -10,7 +10,7 @@ import { deleteWorkspace, startWorkspace, stopWorkspace } from "api/api";
 import type { Workspace } from "api/typesGenerated";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { displayError } from "components/GlobalSnackbar/utils";
-import { getIconPathResource } from "components/Resources/ResourceAvatar";
+import { getResourceIconPath } from "utils/workspace";
 import { Stack } from "components/Stack/Stack";
 
 interface UseBatchActionsProps {
@@ -126,7 +126,7 @@ export const BatchDeleteConfirmation: FC<BatchDeleteConfirmationProps> = ({
     ...new Set(
       checkedWorkspaces.flatMap((workspace) =>
         workspace.latest_build.resources.map(
-          (resource) => resource.icon || getIconPathResource(resource.type),
+          (resource) => resource.icon || getResourceIconPath(resource.type),
         ),
       ),
     ),
@@ -136,6 +136,7 @@ export const BatchDeleteConfirmation: FC<BatchDeleteConfirmationProps> = ({
 
   return (
     <ConfirmDialog
+      type="delete"
       open={open}
       onClose={() => {
         setStage("consequences");
@@ -146,7 +147,6 @@ export const BatchDeleteConfirmation: FC<BatchDeleteConfirmationProps> = ({
       confirmLoading={isLoading}
       confirmText={confirmText}
       onConfirm={onProceed}
-      type="delete"
       description={
         <>
           {stage === "consequences" && <Consequences />}
@@ -257,7 +257,7 @@ const Resources: FC<StageProps> = ({ workspaces }) => {
       if (!resources[resource.type]) {
         resources[resource.type] = {
           count: 0,
-          icon: resource.icon || getIconPathResource(resource.type),
+          icon: resource.icon || getResourceIconPath(resource.type),
         };
       }
 

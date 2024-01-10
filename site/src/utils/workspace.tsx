@@ -1,11 +1,11 @@
-import ErrorIcon from "@mui/icons-material/ErrorOutline";
-import StopIcon from "@mui/icons-material/StopOutlined";
-import PlayIcon from "@mui/icons-material/PlayArrowOutlined";
-import QueuedIcon from "@mui/icons-material/HourglassEmpty";
 import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
 import minMax from "dayjs/plugin/minMax";
 import utc from "dayjs/plugin/utc";
+import ErrorIcon from "@mui/icons-material/ErrorOutline";
+import StopIcon from "@mui/icons-material/StopOutlined";
+import PlayIcon from "@mui/icons-material/PlayArrowOutlined";
+import QueuedIcon from "@mui/icons-material/HourglassEmpty";
 import { type Theme } from "@emotion/react";
 import semver from "semver";
 import type * as TypesGen from "api/typesGenerated";
@@ -36,19 +36,19 @@ export const getDisplayWorkspaceBuildStatus = (
     case "succeeded":
       return {
         type: "success",
-        color: theme.palette.success.light,
+        color: theme.experimental.roles.success.text,
         status: DisplayWorkspaceBuildStatusLanguage.succeeded,
       } as const;
     case "pending":
       return {
         type: "secondary",
-        color: theme.palette.text.secondary,
+        color: theme.experimental.roles.active.text,
         status: DisplayWorkspaceBuildStatusLanguage.pending,
       } as const;
     case "running":
       return {
         type: "info",
-        color: theme.palette.primary.main,
+        color: theme.experimental.roles.active.text,
         status: DisplayWorkspaceBuildStatusLanguage.running,
       } as const;
     // Just handle unknown as failed
@@ -56,19 +56,19 @@ export const getDisplayWorkspaceBuildStatus = (
     case "failed":
       return {
         type: "error",
-        color: theme.palette.text.secondary,
+        color: theme.experimental.roles.error.text,
         status: DisplayWorkspaceBuildStatusLanguage.failed,
       } as const;
     case "canceling":
       return {
         type: "warning",
-        color: theme.palette.warning.light,
+        color: theme.experimental.roles.warning.text,
         status: DisplayWorkspaceBuildStatusLanguage.canceling,
       } as const;
     case "canceled":
       return {
         type: "secondary",
-        color: theme.palette.text.secondary,
+        color: theme.experimental.roles.warning.text,
         status: DisplayWorkspaceBuildStatusLanguage.canceled,
       } as const;
   }
@@ -284,4 +284,24 @@ export const workspaceUpdatePolicy = (
     return "always";
   }
   return workspace.automatic_updates;
+};
+
+// These resources (i.e. docker_image, kubernetes_deployment) map to Terraform
+// resource types. These are the most used ones and are based on user usage.
+// We may want to update from time-to-time.
+const BUILT_IN_ICON_PATHS: Record<string, `/icon/${string}`> = {
+  docker_volume: "/icon/database.svg",
+  docker_container: "/icon/memory.svg",
+  docker_image: "/icon/container.svg",
+  kubernetes_persistent_volume_claim: "/icon/database.svg",
+  kubernetes_pod: "/icon/memory.svg",
+  google_compute_disk: "/icon/database.svg",
+  google_compute_instance: "/icon/memory.svg",
+  aws_instance: "/icon/memory.svg",
+  kubernetes_deployment: "/icon/memory.svg",
+};
+const FALLBACK_ICON = "/icon/widgets.svg";
+
+export const getResourceIconPath = (resourceType: string): string => {
+  return BUILT_IN_ICON_PATHS[resourceType] ?? FALLBACK_ICON;
 };

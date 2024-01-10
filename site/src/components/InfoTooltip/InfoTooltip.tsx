@@ -7,11 +7,11 @@ import {
   HelpTooltipTitle,
   HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
-import { Interpolation, Theme, css, useTheme } from "@emotion/react";
+import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
+import type { ThemeRole } from "theme/experimental";
 
 interface InfoTooltipProps {
-  // TODO: use a `ThemeRole` type or something
-  type?: "warning" | "notice" | "info";
+  type?: ThemeRole;
   title: ReactNode;
   message: ReactNode;
 }
@@ -22,13 +22,12 @@ export const InfoTooltip: FC<InfoTooltipProps> = ({
   type = "info",
 }) => {
   const theme = useTheme();
+  const iconColor = theme.experimental.roles[type].outline;
 
   return (
     <HelpTooltip>
       <HelpTooltipTrigger size="small" css={styles.button}>
-        <HelpTooltipIcon
-          css={{ color: theme.experimental.roles[type].outline }}
-        />
+        <HelpTooltipIcon css={{ color: iconColor }} />
       </HelpTooltipTrigger>
       <HelpTooltipContent>
         <HelpTooltipTitle>{title}</HelpTooltipTitle>

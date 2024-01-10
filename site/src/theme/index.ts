@@ -4,10 +4,12 @@ import dark from "./dark";
 import darkBlue from "./darkBlue";
 import light from "./light";
 import type { NewTheme } from "./experimental";
+import type { ExternalImageModeStyles } from "./externalImages";
 
 export interface Theme extends MuiTheme {
   experimental: NewTheme;
   monaco: monaco.editor.IStandaloneThemeData;
+  externalImages: ExternalImageModeStyles;
 }
 
 export const DEFAULT_THEME = "dark";

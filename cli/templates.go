@@ -18,15 +18,11 @@ func (r *RootCmd) templates() *clibase.Cmd {
 		Short: "Manage templates",
 		Long: "Templates are written in standard Terraform and describe the infrastructure for workspaces\n" + formatExamples(
 			example{
-				Description: "Create a template for developers to create workspaces",
-				Command:     "coder templates create",
-			},
-			example{
 				Description: "Make changes to your template, and plan the changes",
 				Command:     "coder templates plan my-template",
 			},
 			example{
-				Description: "Push an update to the template. Your developers can update their workspaces",
+				Description: "Create or push an update to the template. Your developers can update their workspaces",
 				Command:     "coder templates push my-template",
 			},
 		),

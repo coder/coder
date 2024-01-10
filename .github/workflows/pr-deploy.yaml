@@ -416,7 +416,7 @@ jobs:
 
           # Create template
           cd ./.github/pr-deployments/template
-          coder templates create -y --variable namespace=pr${{ env.PR_NUMBER }} kubernetes
+          coder templates push -y --variable namespace=pr${{ env.PR_NUMBER }} kubernetes
 
           # Create workspace
           coder create --template="kubernetes" kube --parameter cpu=2 --parameter memory=4 --parameter home_disk_size=2 -y

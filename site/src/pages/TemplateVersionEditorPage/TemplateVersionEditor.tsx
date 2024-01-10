@@ -52,6 +52,7 @@ import {
   TopbarDivider,
   TopbarIconButton,
 } from "components/FullPageLayout/Topbar";
+import { Sidebar } from "components/FullPageLayout/Sidebar";
 
 type Tab = "logs" | "resources" | undefined; // Undefined is to hide the tab
 
@@ -301,13 +302,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
             </div>
           )}
 
-          <div
-            css={{
-              width: 240,
-              borderRight: `1px solid ${theme.palette.divider}`,
-              flexShrink: 0,
-            }}
-          >
+          <Sidebar>
             <div
               css={{
                 height: 42,
@@ -409,7 +404,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               onRename={(file) => setRenameFileOpen(file)}
               activePath={activePath}
             />
-          </div>
+          </Sidebar>
 
           <div
             css={{
@@ -513,9 +508,9 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                 ref={buildLogsRef}
                 css={{
                   display: selectedTab !== "logs" ? "none" : "flex",
+                  height: selectedTab ? 280 : 0,
                   flexDirection: "column",
                   overflowY: "auto",
-                  height: selectedTab ? 280 : 0,
                 }}
               >
                 {templateVersion.job.error && (
@@ -541,33 +536,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 
                 {buildLogs && buildLogs.length > 0 && (
                   <WorkspaceBuildLogs
-                    css={{
-                      borderRadius: 0,
-                      border: 0,
-
-                      // Hack to update logs header and lines
-                      "& .logs-header": {
-                        border: 0,
-                        padding: "0 16px",
-                        fontFamily: MONOSPACE_FONT_FAMILY,
-
-                        "&:first-child": {
-                          paddingTop: 16,
-                        },
-
-                        "&:last-child": {
-                          paddingBottom: 16,
-                        },
-                      },
-
-                      "& .logs-line": {
-                        paddingLeft: 16,
-                      },
-
-                      "& .logs-container": {
-                        border: "0 !important",
-                      },
-                    }}
+                    css={styles.buildLogs}
                     hideTimestamps
                     logs={buildLogs}
                   />
@@ -575,25 +544,13 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               </div>
 
               <div
-                css={{
-                  display: selectedTab !== "resources" ? "none" : undefined,
-                  overflowY: "auto",
-                  height: selectedTab ? 280 : 0,
-
-                  // Hack to access customize resource-card from here
-                  "& .resource-card": {
-                    borderLeft: 0,
-                    borderRight: 0,
-
-                    "&:first-child": {
-                      borderTop: 0,
-                    },
-
-                    "&:last-child": {
-                      borderBottom: 0,
-                    },
+                css={[
+                  {
+                    display: selectedTab !== "resources" ? "none" : undefined,
+                    height: selectedTab ? 280 : 0,
                   },
-                }}
+                  styles.resources,
+                ]}
               >
                 {resources && (
                   <TemplateResourcesTable
@@ -675,6 +632,7 @@ const styles = {
       color: theme.palette.text.disabled,
     },
   }),
+
   tabBar: (theme) => ({
     padding: "8px 16px",
     position: "sticky",
@@ -689,4 +647,50 @@ const styles = {
       borderTop: `1px solid ${theme.palette.divider}`,
     },
   }),
+
+  buildLogs: {
+    borderRadius: 0,
+    border: 0,
+
+    // Hack to update logs header and lines
+    "& .logs-header": {
+      border: 0,
+      padding: "0 16px",
+      fontFamily: MONOSPACE_FONT_FAMILY,
+
+      "&:first-child": {
+        paddingTop: 16,
+      },
+
+      "&:last-child": {
+        paddingBottom: 16,
+      },
+    },
+
+    "& .logs-line": {
+      paddingLeft: 16,
+    },
+
+    "& .logs-container": {
+      border: "0 !important",
+    },
+  },
+
+  resources: {
+    overflowY: "auto",
+
+    // Hack to access customize resource-card from here
+    "& .resource-card": {
+      borderLeft: 0,
+      borderRight: 0,
+
+      "&:first-child": {
+        borderTop: 0,
+      },
+
+      "&:last-child": {
+        borderBottom: 0,
+      },
+    },
+  },
 } satisfies Record<string, Interpolation<Theme>>;

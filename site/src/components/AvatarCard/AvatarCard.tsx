@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { type FC, type ReactNode } from "react";
 import { Avatar } from "components/Avatar/Avatar";
 import { type CSSObject, useTheme } from "@emotion/react";
 
@@ -12,14 +12,14 @@ type AvatarCardProps = {
   maxWidth?: number | "none";
 };
 
-export function AvatarCard({
+export const AvatarCard: FC<AvatarCardProps> = ({
   header,
   imgUrl,
   altText,
   background,
   subtitle,
   maxWidth = "none",
-}: AvatarCardProps) {
+}) => {
   const theme = useTheme();
 
   return (
@@ -77,4 +77,4 @@ export function AvatarCard({
       </Avatar>
     </div>
   );
-}
+};

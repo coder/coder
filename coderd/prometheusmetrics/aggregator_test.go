@@ -51,11 +51,19 @@ func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
 	given1 := []*agentproto.Stats_Metric{
 		{Name: "a_counter_one", Type: agentproto.Stats_Metric_COUNTER, Value: 1},
 		{Name: "b_counter_two", Type: agentproto.Stats_Metric_COUNTER, Value: 2},
+		// Tests that we update labels correctly when they have extra labels
+		{Name: "b_counter_two", Type: agentproto.Stats_Metric_COUNTER, Value: 27, Labels: []*agentproto.Stats_Metric_Label{
+			{Name: "lizz", Value: "rizz"},
+		}},
 		{Name: "c_gauge_three", Type: agentproto.Stats_Metric_GAUGE, Value: 3},
 	}
 
 	given2 := []*agentproto.Stats_Metric{
 		{Name: "b_counter_two", Type: agentproto.Stats_Metric_COUNTER, Value: 4},
+		// Tests that we update labels correctly when they have extra labels
+		{Name: "b_counter_two", Type: agentproto.Stats_Metric_COUNTER, Value: -9, Labels: []*agentproto.Stats_Metric_Label{
+			{Name: "lizz", Value: "rizz"},
+		}},
 		{Name: "c_gauge_three", Type: agentproto.Stats_Metric_GAUGE, Value: 5},
 		{Name: "c_gauge_three", Type: agentproto.Stats_Metric_GAUGE, Value: 2, Labels: []*agentproto.Stats_Metric_Label{
 			{Name: "foobar", Value: "Foobaz"},
@@ -73,6 +81,13 @@ func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
 	expected := []*agentproto.Stats_Metric{
 		{Name: "a_counter_one", Type: agentproto.Stats_Metric_COUNTER, Value: 1, Labels: commonLabels},
 		{Name: "b_counter_two", Type: agentproto.Stats_Metric_COUNTER, Value: 4, Labels: commonLabels},
+		{Name: "b_counter_two", Type: agentproto.Stats_Metric_COUNTER, Value: -9, Labels: []*agentproto.Stats_Metric_Label{
+			{Name: "agent_name", Value: testAgentName},
+			{Name: "lizz", Value: "rizz"},
+			{Name: "username", Value: testUsername},
+			{Name: "workspace_name", Value: testWorkspaceName},
+			{Name: "template_name", Value: testTemplateName},
+		}},
 		{Name: "c_gauge_three", Type: agentproto.Stats_Metric_GAUGE, Value: 5, Labels: commonLabels},
 		{Name: "c_gauge_three", Type: agentproto.Stats_Metric_GAUGE, Value: 2, Labels: []*agentproto.Stats_Metric_Label{
 			{Name: "agent_name", Value: testAgentName},
@@ -111,6 +126,7 @@ func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
 
 func verifyCollectedMetrics(t *testing.T, expected []*agentproto.Stats_Metric, actual []prometheus.Metric) bool {
 	if len(expected) != len(actual) {
+		t.Logf("expected %d metrics, got %d", len(expected), len(actual))
 		return false
 	}
 

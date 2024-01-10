@@ -2,7 +2,7 @@
 
 # templates create
 
-Create a template from the current directory or as specified by flag
+DEPRECATED: Create a template from the current directory or as specified by flag
 
 ## Usage
 

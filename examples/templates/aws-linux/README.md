@@ -1,7 +1,7 @@
 ---
 display_name: AWS EC2 (Linux)
 description: Provision AWS EC2 VMs as Coder workspaces
-icon: ../../../site/static/icon/aws.png
+icon: ../../../site/static/icon/aws.svg
 maintainer_github: coder
 verified: true
 tags: [vm, linux, aws, persistent-vm]

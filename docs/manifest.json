@@ -517,10 +517,6 @@
           "path": "./api/applications.md"
         },
         {
-          "title": "Applications Enterprise",
-          "path": "./api/applications enterprise.md"
-        },
-        {
           "title": "Audit",
           "path": "./api/audit.md"
         },
@@ -892,7 +888,7 @@
         },
         {
           "title": "templates create",
-          "description": "Create a template from the current directory or as specified by flag",
+          "description": "DEPRECATED: Create a template from the current directory or as specified by flag",
           "path": "cli/templates_create.md"
         },
         {
@@ -922,7 +918,7 @@
         },
         {
           "title": "templates push",
-          "description": "Push a new template version from the current directory or as specified by flag",
+          "description": "Create or update a template from the current directory or as specified by flag",
           "path": "cli/templates_push.md"
         },
         {
@@ -1039,6 +1035,11 @@
           "title": "Configuring Okta",
           "description": "Custom claims/scopes with Okta for group/role sync",
           "path": "./guides/configuring-okta.md"
+        },
+        {
+          "title": "Google to AWS Federation",
+          "description": "Federating a Google Cloud service account to AWS",
+          "path": "./guides/gcp-to-aws.md"
         }
       ]
     }

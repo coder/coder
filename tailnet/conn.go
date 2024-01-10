@@ -282,12 +282,9 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		Logger(options.Logger.Named("net.packet-filter")),
 	))
 
-	dialContext, dialCancel := context.WithCancel(context.Background())
 	server := &Conn{
 		blockEndpoints:           options.BlockEndpoints,
 		derpForceWebSockets:      options.DERPForceWebSockets,
-		dialContext:              dialContext,
-		dialCancel:               dialCancel,
 		closed:                   make(chan struct{}),
 		logger:                   options.Logger,
 		magicConn:                magicConn,
@@ -392,8 +389,6 @@ func IPFromUUID(uid uuid.UUID) netip.Addr {
 
 // Conn is an actively listening Wireguard connection.
 type Conn struct {
-	dialContext         context.Context
-	dialCancel          context.CancelFunc
 	mutex               sync.Mutex
 	closed              chan struct{}
 	logger              slog.Logger
@@ -789,7 +784,6 @@ func (c *Conn) Close() error {
 
 	_ = c.netStack.Close()
 	c.logger.Debug(context.Background(), "closed netstack")
-	c.dialCancel()
 	_ = c.wireguardMonitor.Close()
 	_ = c.dialer.Close()
 	// Stops internals, e.g. tunDevice, magicConn and dnsManager.

@@ -32,6 +32,7 @@ export const WorkspaceBuildLogsSection: FC<WorkspaceBuildLogsSectionProps> = ({
         borderRadius: 8,
         border: `1px solid ${theme.palette.divider}`,
         overflow: "hidden",
+        background: theme.palette.background.default,
       }}
     >
       <header

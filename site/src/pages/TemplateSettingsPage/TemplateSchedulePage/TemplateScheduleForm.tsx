@@ -116,6 +116,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       update_workspace_last_used_at: false,
       update_workspace_dormant_at: false,
       require_active_version: false,
+      disable_everyone_group_access: false,
     },
     validationSchema,
     onSubmit: () => {
@@ -236,6 +237,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       update_workspace_last_used_at: form.values.update_workspace_last_used_at,
       update_workspace_dormant_at: form.values.update_workspace_dormant_at,
       require_active_version: false,
+      disable_everyone_group_access: false,
     });
   };
 

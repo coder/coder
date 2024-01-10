@@ -373,8 +373,10 @@ export const WorkspaceScheduleForm: FC<
         description={
           <>
             <div css={{ marginBottom: 16 }}>
-              Set how many hours should elapse after you log off before the
-              workspace automatically shuts down.
+              Set how many hours should elapse after the workspace started
+              before the workspace automatically shuts down. This will be
+              extended by 1 hour after last activity in the workspace was
+              detected.
             </div>
             {!enableAutoStop && (
               <Tooltip title="This option can be enabled in the template settings">

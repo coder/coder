@@ -34,6 +34,7 @@ export function HealthLayout() {
     websocket: "Websocket",
     database: "Database",
     workspace_proxy: "Workspace Proxy",
+    provisioner_daemons: "Provisioner Daemons",
   } as const;
   const visibleSections = filterVisibleSections(sections);
 

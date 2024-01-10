@@ -131,6 +131,7 @@ export const me = (): UseQueryOptions<User> & {
     queryKey: meKey,
     initialData: initialUserData,
     queryFn: API.getAuthenticatedUser,
+    refetchOnWindowFocus: true,
   };
 };
 

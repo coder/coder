@@ -29,7 +29,7 @@ import PersonOutline from "@mui/icons-material/PersonOutline";
 import { Popover, PopoverTrigger } from "components/Popover/Popover";
 import { HelpTooltipContent } from "components/HelpTooltip/HelpTooltip";
 import { AvatarData } from "components/AvatarData/AvatarData";
-import { Avatar } from "components/Avatar/Avatar";
+import { ExternalAvatar } from "components/Avatar/Avatar";
 
 export type WorkspaceError =
   | "getBuildsError"
@@ -99,7 +99,7 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
   );
 
   return (
-    <Topbar>
+    <Topbar css={{ gridArea: "topbar" }}>
       <Tooltip title="Back to workspaces">
         <TopbarIconButton component={RouterLink} to="/workspaces">
           <ArrowBackOutlined />
@@ -174,7 +174,7 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
                 }
                 avatar={
                   workspace.template_icon !== "" && (
-                    <Avatar
+                    <ExternalAvatar
                       src={workspace.template_icon}
                       variant="square"
                       fitImage
