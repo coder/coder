@@ -278,8 +278,8 @@ func (c *Config) AppInstallations(ctx context.Context, token string) ([]codersdk
 }
 
 type DeviceAuth struct {
-	// Cfg is provided for the http client method.
-	Cfg      promoauth.InstrumentedOAuth2Config
+	// Config is provided for the http client method.
+	Config   promoauth.InstrumentedOAuth2Config
 	ClientID string
 	TokenURL string
 	Scopes   []string
@@ -302,10 +302,10 @@ func (c *DeviceAuth) AuthorizeDevice(ctx context.Context) (*codersdk.ExternalAut
 	}
 
 	do := http.DefaultClient.Do
-	if c.Cfg != nil {
+	if c.Config != nil {
 		// The cfg can be nil in unit tests.
 		do = func(req *http.Request) (*http.Response, error) {
-			return c.Cfg.Do(ctx, promoauth.SourceAuthorizeDevice, req)
+			return c.Config.Do(ctx, promoauth.SourceAuthorizeDevice, req)
 		}
 	}
 
@@ -483,7 +483,7 @@ func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAut
 				return nil, xerrors.Errorf("external auth provider %q: device auth url must be provided", entry.ID)
 			}
 			cfg.DeviceAuth = &DeviceAuth{
-				Cfg:      cfg,
+				Config:   cfg,
 				ClientID: entry.ClientID,
 				TokenURL: oc.Endpoint.TokenURL,
 				Scopes:   entry.Scopes,
