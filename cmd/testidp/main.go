@@ -54,6 +54,5 @@ func RunIDP() func(t *testing.T) {
 		// Block until ctl+c
 		<-c
 		log.Println("Closing")
-
 	}
 }

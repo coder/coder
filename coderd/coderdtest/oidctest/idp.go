@@ -980,7 +980,7 @@ func (f *FakeIDP) ExternalAuthConfig(t testing.TB, id string, custom *ExternalAu
 	return cfg
 }
 
-func (f *FakeIDP) AppCredentials() (string, string) {
+func (f *FakeIDP) AppCredentials() (clientID string, clientSecret string) {
 	return f.clientID, f.clientSecret
 }
 
