@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -84,7 +85,7 @@ func TestInstrument(t *testing.T) {
 	// mis-used. It is cheap to run this quick check.
 	snapshot := registryDump(reg)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		must(idp.IssuerURL().Parse("/.well-known/openid-configuration")).String(), nil)
+		must[*url.URL](t)(idp.IssuerURL().Parse("/.well-known/openid-configuration")).String(), nil)
 	require.NoError(t, err)
 
 	resp, err := http.DefaultClient.Do(req)
