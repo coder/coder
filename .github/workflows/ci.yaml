@@ -716,22 +716,22 @@ jobs:
           make -j build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
 
           # only push if we are on main branch
-          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            export DOCKER_CLI_EXPERIMENTAL=enabled
-            # build and push multi-arch manifest, this depends on the other images
-            # being pushed so will automatically push them
-            make -j push/build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
+          # if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+          export DOCKER_CLI_EXPERIMENTAL=enabled
+          # build and push multi-arch manifest, this depends on the other images
+          # being pushed so will automatically push them
+          make -j push/build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
 
-            ./scripts/build_docker_multiarch.sh \
-            --push \
-            --target "ghcr.io/coder/coder-preview:$tag" \
-            --version $version \
-            $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
+          ./scripts/build_docker_multiarch.sh \
+          --push \
+          --target "ghcr.io/coder/coder-preview:$tag" \
+          --version $version \
+          $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
 
-            # Tag as main
-            docker tag "ghcr.io/coder/coder-preview:$tag" ghcr.io/coder/coder-preview:main
-            docker push ghcr.io/coder/coder-preview:main
-          fi
+          # Tag as main
+          docker tag "ghcr.io/coder/coder-preview:$tag" ghcr.io/coder/coder-preview:main
+          docker push ghcr.io/coder/coder-preview:main
+          # fi
 
       - name: Prune old images
         uses: vlaurin/action-ghcr-prune@v0.5.0
