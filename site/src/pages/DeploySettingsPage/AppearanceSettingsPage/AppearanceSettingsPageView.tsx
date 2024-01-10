@@ -214,10 +214,10 @@ export const AppearanceSettingsPageView: FC<
             />
             <Stack spacing={0}>
               <TextField
-                {...serviceBannerFieldHelpers(
-                  "message",
-                  "Markdown bold, italics, and links are supported.",
-                )}
+                {...serviceBannerFieldHelpers("message", {
+                  helperText:
+                    "Markdown bold, italics, and links are supported.",
+                })}
                 fullWidth
                 label="Message"
                 multiline
