@@ -60,9 +60,11 @@ type metrics struct {
 	rateLimit          *prometheus.GaugeVec
 	rateLimitRemaining *prometheus.GaugeVec
 	rateLimitUsed      *prometheus.GaugeVec
-	// rateLimitReset is the time in seconds the rate limit resets.
+	// rateLimitReset is unix time of the next interval (when the rate limit resets).
 	rateLimitReset *prometheus.GaugeVec
 	// rateLimitResetIn is the time in seconds until the rate limit resets.
+	// This is included because it is sometimes more helpful to know the limit
+	// will reset in 600seconds, rather than at 1704000000 unix time.
 	rateLimitResetIn *prometheus.GaugeVec
 }
 
@@ -114,7 +116,7 @@ func NewFactory(registry prometheus.Registerer) *Factory {
 				Namespace: "coderd",
 				Subsystem: "oauth2",
 				Name:      "external_requests_rate_limit_next_reset_unix",
-				Help:      "Unix timestamp of the next interval",
+				Help:      "Unix timestamp for when the next interval starts",
 			}, []string{
 				"name",
 				"resource",

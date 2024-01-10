@@ -28,7 +28,7 @@ func githubRateLimits(resp *http.Response, err error) (rateLimits, bool) {
 		Limit:     p.int("x-ratelimit-limit"),
 		Remaining: p.int("x-ratelimit-remaining"),
 		Used:      p.int("x-ratelimit-used"),
-		Resource:  p.header.Get("x-ratelimit-resource"),
+		Resource:  p.string("x-ratelimit-resource"),
 	}
 
 	if limits.Limit == 0 &&
@@ -74,7 +74,7 @@ type headerParser struct {
 	header http.Header
 }
 
-func (p *headerParser) int(key string) int {
+func (p *headerParser) string(key string) string {
 	if p.errors == nil {
 		p.errors = make(map[string]error)
 	}
@@ -82,6 +82,14 @@ func (p *headerParser) int(key string) int {
 	v := p.header.Get(key)
 	if v == "" {
 		p.errors[key] = fmt.Errorf("missing header %q", key)
+	}
+	return v
+}
+
+func (p *headerParser) int(key string) int {
+	v := p.string(key)
+	if v == "" {
+		return -1
 	}
 
 	i, err := strconv.Atoi(v)
