@@ -46,6 +46,7 @@ export interface WorkspaceActionsProps {
   children?: ReactNode;
   canChangeVersions: boolean;
   canRetryDebug: boolean;
+  templateUserCanCancel: boolean;
 }
 
 export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
@@ -65,6 +66,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   isRestarting,
   canChangeVersions,
   canRetryDebug,
+  templateUserCanCancel,
 }) => {
   const { duplicateWorkspace, isDuplicationReady } =
     useWorkspaceDuplication(workspace);
@@ -73,6 +75,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     workspace,
     canRetryDebug,
   );
+  const cancelEnabled = canCancel && templateUserCanCancel
 
   const mustUpdate =
     workspaceUpdatePolicy(workspace, canChangeVersions) === "always" &&
@@ -146,7 +149,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
             <Fragment key={action}>{buttonMapping[action]}</Fragment>
           ))}
 
-      {canCancel && <CancelButton handleAction={handleCancel} />}
+      {cancelEnabled && <CancelButton handleAction={handleCancel} />}
 
       <MoreMenu>
         <MoreMenuTrigger>

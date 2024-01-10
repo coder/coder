@@ -30,6 +30,7 @@ import { Popover, PopoverTrigger } from "components/Popover/Popover";
 import { HelpTooltipContent } from "components/HelpTooltip/HelpTooltip";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { ExternalAvatar } from "components/Avatar/Avatar";
+import { usePermissions } from "hooks";
 
 export type WorkspaceError =
   | "getBuildsError"
@@ -79,6 +80,7 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
     handleBuildRetryDebug,
   } = props;
   const theme = useTheme();
+  const permissions = usePermissions();
 
   // Quota
   const hasDailyCost = workspace.latest_build.daily_cost > 0;
@@ -265,6 +267,7 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
           canChangeVersions={canChangeVersions}
           isUpdating={isUpdating}
           isRestarting={isRestarting}
+          userCanCancel={permissions.updateTemplates}
         />
       </div>
     </Topbar>

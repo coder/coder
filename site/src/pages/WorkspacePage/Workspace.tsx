@@ -55,7 +55,7 @@ export interface WorkspaceProps {
   workspaceErrors: WorkspaceErrors;
   buildInfo?: TypesGen.BuildInfoResponse;
   sshPrefix?: string;
-  template?: TypesGen.Template;
+  template: TypesGen.Template;
   canRetryDebugMode: boolean;
   handleBuildRetry: () => void;
   handleBuildRetryDebug: () => void;
