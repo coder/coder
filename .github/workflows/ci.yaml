@@ -19,6 +19,7 @@ permissions:
   repository-projects: none
   security-events: none
   statuses: none
+  id-token: write # This is required for the build to authenticate to depot.dev
 
 # Cancel in-progress runs for pull requests when developers push
 # additional changes
