@@ -321,7 +321,14 @@ func (c *DeviceAuth) AuthorizeDevice(ctx context.Context) (*codersdk.ExternalAut
 	}
 	err = json.NewDecoder(resp.Body).Decode(&r)
 	if err != nil {
-		return nil, err
+		// Some status codes do not return json payloads, and we should
+		// return a better error.
+		switch resp.StatusCode {
+		case http.StatusTooManyRequests:
+			return nil, fmt.Errorf("rate limit hit, unable to authorize device. please try again later")
+		default:
+			return nil, err
+		}
 	}
 	if r.ErrorDescription != "" {
 		return nil, xerrors.New(r.ErrorDescription)
