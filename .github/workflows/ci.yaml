@@ -714,23 +714,23 @@ jobs:
           tag="main-$(echo "$version" | sed 's/+/-/g')"
           echo "tag=$tag" >> $GITHUB_OUTPUT
 
+          # build images for each architecture
           make -j build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
 
           # only push if we are on main branch
-          # modify the condition to be always: true to push on all branches temporarily for testing
           if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-
             # build and push multi-arch manifest, this depends on the other images
             # being pushed so will automatically push them
             make -j push/build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
 
+            # Create and push a multi-arch manifest
             ./scripts/build_docker_multiarch.sh \
               --push \
               --target "ghcr.io/coder/coder-preview:$tag" \
               --version $version \
               $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
 
-            # also push the latest tag
+            # Create and push a multi-arch manifest for the latest tag
             ./scripts/build_docker_multiarch.sh \
               --push \
               --target "ghcr.io/coder/coder-preview:latest" \
