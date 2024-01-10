@@ -27,6 +27,7 @@ import {
 } from "components/MoreMenu/MoreMenu";
 import { TopbarIconButton } from "components/FullPageLayout/Topbar";
 import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined";
+import { useMe } from "hooks";
 
 export interface WorkspaceActionsProps {
   workspace: Workspace;
@@ -46,7 +47,6 @@ export interface WorkspaceActionsProps {
   children?: ReactNode;
   canChangeVersions: boolean;
   canRetryDebug: boolean;
-  templateUserCanCancel: boolean;
 }
 
 export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
@@ -66,8 +66,10 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   isRestarting,
   canChangeVersions,
   canRetryDebug,
-  templateUserCanCancel,
 }) => {
+  const me = useMe();
+  const isOwner = me.roles.find((role) => role.name === "owner");
+
   const { duplicateWorkspace, isDuplicationReady } =
     useWorkspaceDuplication(workspace);
 
@@ -75,7 +77,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     workspace,
     canRetryDebug,
   );
-  const cancelEnabled = canCancel && templateUserCanCancel
+  const cancelEnabled = canCancel || isOwner
 
   const mustUpdate =
     workspaceUpdatePolicy(workspace, canChangeVersions) === "always" &&
