@@ -10,6 +10,16 @@ import (
 	"golang.org/x/oauth2"
 )
 
+type Oauth2Source string
+
+const (
+	SourceValidateToken    Oauth2Source = "ValidateToken"
+	SourceExchange         Oauth2Source = "Exchange"
+	SourceTokenSource      Oauth2Source = "TokenSource"
+	SourceAppInstallations Oauth2Source = "AppInstallations"
+	SourceAuthorizeDevice  Oauth2Source = "AuthorizeDevice"
+)
+
 // OAuth2Config exposes a subset of *oauth2.Config functions for easier testing.
 // *oauth2.Config should be used instead of implementing this in production.
 type OAuth2Config interface {
@@ -27,7 +37,7 @@ type InstrumentedOAuth2Config interface {
 
 	// Do is provided as a convenience method to make a request with the oauth2 client.
 	// It mirrors `http.Client.Do`.
-	Do(ctx context.Context, source string, req *http.Request) (*http.Response, error)
+	Do(ctx context.Context, source Oauth2Source, req *http.Request) (*http.Response, error)
 }
 
 var _ OAuth2Config = (*Config)(nil)
@@ -79,7 +89,7 @@ type Config struct {
 	metrics    *metrics
 }
 
-func (c *Config) Do(ctx context.Context, source string, req *http.Request) (*http.Response, error) {
+func (c *Config) Do(ctx context.Context, source Oauth2Source, req *http.Request) (*http.Response, error) {
 	cli := c.oauthHTTPClient(ctx, source)
 	return cli.Do(req)
 }
@@ -90,11 +100,11 @@ func (c *Config) AuthCodeURL(state string, opts ...oauth2.AuthCodeOption) string
 }
 
 func (c *Config) Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
-	return c.underlying.Exchange(c.wrapClient(ctx, "Exchange"), code, opts...)
+	return c.underlying.Exchange(c.wrapClient(ctx, SourceExchange), code, opts...)
 }
 
 func (c *Config) TokenSource(ctx context.Context, token *oauth2.Token) oauth2.TokenSource {
-	return c.underlying.TokenSource(c.wrapClient(ctx, "TokenSource"), token)
+	return c.underlying.TokenSource(c.wrapClient(ctx, SourceTokenSource), token)
 }
 
 // wrapClient is the only way we can accurately instrument the oauth2 client.
@@ -104,12 +114,12 @@ func (c *Config) TokenSource(ctx context.Context, token *oauth2.Token) oauth2.To
 // For example, the 'TokenSource' method will return a token
 // source that will make a network request when the 'Token' method is called on
 // it if the token is expired.
-func (c *Config) wrapClient(ctx context.Context, source string) context.Context {
+func (c *Config) wrapClient(ctx context.Context, source Oauth2Source) context.Context {
 	return context.WithValue(ctx, oauth2.HTTPClient, c.oauthHTTPClient(ctx, source))
 }
 
 // oauthHTTPClient returns an http client that will instrument every request made.
-func (c *Config) oauthHTTPClient(ctx context.Context, source string) *http.Client {
+func (c *Config) oauthHTTPClient(ctx context.Context, source Oauth2Source) *http.Client {
 	cli := &http.Client{}
 
 	// Check if the context has a http client already.
@@ -124,13 +134,13 @@ func (c *Config) oauthHTTPClient(ctx context.Context, source string) *http.Clien
 
 type instrumentedTripper struct {
 	c          *Config
-	source     string
+	source     Oauth2Source
 	underlying http.RoundTripper
 }
 
 // newInstrumentedTripper intercepts a http request, and increments the
 // externalRequestCount metric.
-func newInstrumentedTripper(c *Config, source string, under http.RoundTripper) *instrumentedTripper {
+func newInstrumentedTripper(c *Config, source Oauth2Source, under http.RoundTripper) *instrumentedTripper {
 	if under == nil {
 		under = http.DefaultTransport
 	}
@@ -156,7 +166,7 @@ func (i *instrumentedTripper) RoundTrip(r *http.Request) (*http.Response, error)
 	}
 	i.c.metrics.externalRequestCount.With(prometheus.Labels{
 		"name":        i.c.name,
-		"source":      i.source,
+		"source":      string(i.source),
 		"status_code": fmt.Sprintf("%d", statusCode),
 	}).Inc()
 	return resp, err

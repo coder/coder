@@ -188,7 +188,7 @@ func (c *Config) ValidateToken(ctx context.Context, token string) (bool, *coders
 	}
 
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-	res, err := c.InstrumentedOAuth2Config.Do(ctx, "ValidateToken", req)
+	res, err := c.InstrumentedOAuth2Config.Do(ctx, promoauth.SourceValidateToken, req)
 	if err != nil {
 		return false, nil, err
 	}
@@ -238,7 +238,7 @@ func (c *Config) AppInstallations(ctx context.Context, token string) ([]codersdk
 		return nil, false, err
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-	res, err := c.InstrumentedOAuth2Config.Do(ctx, "AppInstallations", req)
+	res, err := c.InstrumentedOAuth2Config.Do(ctx, promoauth.SourceAppInstallations, req)
 	if err != nil {
 		return nil, false, err
 	}
@@ -305,7 +305,7 @@ func (c *DeviceAuth) AuthorizeDevice(ctx context.Context) (*codersdk.ExternalAut
 	if c.Cfg != nil {
 		// The cfg can be nil in unit tests.
 		do = func(req *http.Request) (*http.Response, error) {
-			return c.Cfg.Do(ctx, "AuthorizeDevice", req)
+			return c.Cfg.Do(ctx, promoauth.SourceAuthorizeDevice, req)
 		}
 	}
 
