@@ -77,7 +77,9 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     workspace,
     canRetryDebug,
   );
-  const cancelEnabled = canCancel || isOwner;
+  const showCancel =
+    canCancel &&
+    (workspace.template_allow_user_cancel_workspace_jobs || isOwner);
 
   const mustUpdate =
     workspaceUpdatePolicy(workspace, canChangeVersions) === "always" &&
@@ -151,7 +153,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
             <Fragment key={action}>{buttonMapping[action]}</Fragment>
           ))}
 
-      {cancelEnabled && <CancelButton handleAction={handleCancel} />}
+      {showCancel && <CancelButton handleAction={handleCancel} />}
 
       <MoreMenu>
         <MoreMenuTrigger>
