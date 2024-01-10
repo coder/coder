@@ -1371,10 +1371,10 @@ func newProvisionerDaemon(
 		connector[string(database.ProvisionerTypeTerraform)] = sdkproto.NewDRPCProvisionerClient(terraformClient)
 	}
 
-	return provisionerd.New(func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
+	return provisionerd.New(func(dialCtx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 		// This debounces calls to listen every second. Read the comment
 		// in provisionerdserver.go to learn more!
-		return coderAPI.CreateInMemoryProvisionerDaemon(ctx, name)
+		return coderAPI.CreateInMemoryProvisionerDaemon(dialCtx, name)
 	}, &provisionerd.Options{
 		Logger:              logger.Named(fmt.Sprintf("provisionerd-%s", name)),
 		UpdateInterval:      time.Second,
