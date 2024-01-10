@@ -77,7 +77,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     workspace,
     canRetryDebug,
   );
-  const cancelEnabled = canCancel || isOwner
+  const cancelEnabled = canCancel || isOwner;
 
   const mustUpdate =
     workspaceUpdatePolicy(workspace, canChangeVersions) === "always" &&
