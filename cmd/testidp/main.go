@@ -50,9 +50,10 @@ func RunIDP() func(t *testing.T) {
 		log.Println("Press Ctrl+C to exit")
 		c := make(chan os.Signal, 1)
 		signal.Notify(c, os.Interrupt)
-		select {
-		case <-c:
-			log.Println("Closing")
-		}
+
+		// Block until ctl+c
+		<-c
+		log.Println("Closing")
+
 	}
 }
