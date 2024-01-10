@@ -655,7 +655,7 @@ jobs:
     # to main branch. We are only building this for amd64 platform. (>95% pulls
     # are for amd64)
     needs: changes
-    if: github.ref == 'refs/heads/main' && needs.changes.outputs.docs-only == 'false'
+    if: needs.changes.outputs.docs-only == 'false'
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
@@ -692,12 +692,57 @@ jobs:
           go mod download
 
           version="$(./scripts/version.sh)"
+          tag="main-$(echo "$version" | sed 's/+/-/g')"
+          echo "tag=$tag" >> $GITHUB_OUTPUT
+
           make gen/mark-fresh
           make -j \
             build/coder_linux_amd64 \
             build/coder_"$version"_windows_amd64.zip \
             build/coder_"$version"_linux_amd64.{tar.gz,deb}
 
+      - name: Install depot.dev CLI
+        uses: depot/setup-action@v1
+
+      - name: Create an empty base-build-context directory
+        run: mkdir base-build-context
+
+      - name: Determine base image tag
+        id: image-base-tag
+        run: |
+          set -euo pipefail
+          version="$(./scripts/version.sh)"
+          echo "base_tag=$(CODER_IMAGE_BASE=coder-base ./scripts/image_tag.sh --version "$version")" >> $GITHUB_OUTPUT
+      
+      # This uses OIDC authentication, so no auth variables are required.
+      - name: Build base Docker image via depot.dev
+        uses: depot/build-push-action@v1
+        with:
+          project: wl5hnrrkns
+          context: base-build-context
+          file: scripts/Dockerfile.base
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          tags: ${{ steps.image-base-tag.outputs.base_tag }}
+
+      - name: Build Linux Docker images
+        run: |
+          set -euxo pipefail
+
+          # build Docker images for each architecture
+          version="$(./scripts/version.sh)"
+          make -j build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
+
+          # build and push multi-arch manifest, this depends on the other images
+          # being pushed so will automatically push them.
+          
+          make -j push/build/coder_"$version"_linux.tag
+          ./scripts/build_docker_multiarch.sh \
+            --push \
+            --target "$(./scripts/image_tag.sh --version latest)" \
+            $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
+        env:
+          CODER_BASE_IMAGE_TAG: ${{ steps.image-base-tag.outputs.base_tag }}
+      
       - name: Build and Push Linux amd64 Docker Image
         id: build-docker
         run: |
