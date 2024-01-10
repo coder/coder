@@ -744,27 +744,27 @@ jobs:
         env:
           CODER_BASE_IMAGE_TAG: ${{ steps.image-base-tag.outputs.base_tag }}
 
-      - name: Build and Push Linux amd64 Docker Image
-        id: build-docker
-        run: |
-          set -euxo pipefail
-          version="$(./scripts/version.sh)"
-          tag="main-$(echo "$version" | sed 's/+/-/g')"
+      # - name: Build and Push Linux amd64 Docker Image
+      #   id: build-docker
+      #   run: |
+      #     set -euxo pipefail
+      #     version="$(./scripts/version.sh)"
+      #     tag="main-$(echo "$version" | sed 's/+/-/g')"
 
-          export CODER_IMAGE_BUILD_BASE_TAG="$(CODER_IMAGE_BASE=coder-base ./scripts/image_tag.sh --version "$version")"
-          ./scripts/build_docker.sh \
-            --arch amd64 \
-            --target "ghcr.io/coder/coder-preview:$tag" \
-            --version $version \
-            --push \
-            build/coder_linux_amd64
+      #     export CODER_IMAGE_BUILD_BASE_TAG="$(CODER_IMAGE_BASE=coder-base ./scripts/image_tag.sh --version "$version")"
+      #     ./scripts/build_docker.sh \
+      #       --arch amd64 \
+      #       --target "ghcr.io/coder/coder-preview:$tag" \
+      #       --version $version \
+      #       --push \
+      #       build/coder_linux_amd64
 
-          # Tag as main
-          docker tag "ghcr.io/coder/coder-preview:$tag" ghcr.io/coder/coder-preview:main
-          docker push ghcr.io/coder/coder-preview:main
+      #     # Tag as main
+      #     docker tag "ghcr.io/coder/coder-preview:$tag" ghcr.io/coder/coder-preview:main
+      #     docker push ghcr.io/coder/coder-preview:main
 
-          # Store the tag in an output variable so we can use it in other jobs
-          echo "tag=$tag" >> $GITHUB_OUTPUT
+      #     # Store the tag in an output variable so we can use it in other jobs
+      #     echo "tag=$tag" >> $GITHUB_OUTPUT
 
       - name: Prune old images
         uses: vlaurin/action-ghcr-prune@v0.5.0
