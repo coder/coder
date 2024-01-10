@@ -719,7 +719,7 @@ jobs:
       - name: Build base Docker image via depot.dev
         uses: depot/build-push-action@v1
         with:
-          project: wl5hnrrkns
+          project: d66vz2cd27
           context: base-build-context
           file: scripts/Dockerfile.base
           pull: true
