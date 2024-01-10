@@ -62,11 +62,6 @@ func TestTemplateCreate(t *testing.T) {
 	t.Run("WorkspaceCleanup", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{
-			string(codersdk.ExperimentWorkspaceActions),
-		}
-
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -74,7 +69,6 @@ func TestTemplateCreate(t *testing.T) {
 				},
 			},
 			Options: &coderdtest.Options{
-				DeploymentValues:         dv,
 				IncludeProvisionerDaemon: true,
 			},
 		})
