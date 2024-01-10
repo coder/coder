@@ -217,7 +217,7 @@ func TestGithubRateLimits(t *testing.T) {
 func registryDump(reg *prometheus.Registry) string {
 	h := promhttp.HandlerFor(reg, promhttp.HandlerOpts{})
 	rec := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 	h.ServeHTTP(rec, req)
 	resp := rec.Result()
 	data, _ := io.ReadAll(resp.Body)
