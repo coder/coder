@@ -2203,10 +2203,10 @@ type AppHostResponse struct {
 	Host string `json:"host"`
 }
 
-// AppHost returns the site-wide application wildcard hostname without the
-// leading "*.", e.g. "apps.coder.com". Apps are accessible at:
-// "<app-name>--<agent-name>--<workspace-name>--<username>.<app-host>", e.g.
-// "my-app--agent--workspace--username.apps.coder.com".
+// AppHost returns the site-wide application wildcard hostname
+// e.g. "*--apps.coder.com". Apps are accessible at:
+// "<app-name>--<agent-name>--<workspace-name>--<username><app-host>", e.g.
+// "my-app--agent--workspace--username--apps.coder.com".
 //
 // If the app host is not set, the response will contain an empty string.
 func (c *Client) AppHost(ctx context.Context) (AppHostResponse, error) {
