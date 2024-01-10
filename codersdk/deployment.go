@@ -1790,11 +1790,10 @@ Write out the current server config as YAML to stdout.`,
 			// Env handling is done in cli.ReadGitAuthFromEnvironment
 			Name:        "External Auth Providers",
 			Description: "External Authentication providers.",
-			// We need extra scrutiny to ensure this works, is documented, and
-			// tested before enabling.
-			YAML:   "externalAuthProviders",
-			Value:  &c.ExternalAuthConfigs,
-			Hidden: true,
+			YAML:        "externalAuthProviders",
+			Flag:        "external-auth-providers",
+			Value:       &c.ExternalAuthConfigs,
+			Hidden:      true,
 		},
 		{
 			Name:        "Custom wgtunnel Host",
