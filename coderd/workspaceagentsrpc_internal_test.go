@@ -227,8 +227,10 @@ func TestAgentWebsocketMonitor_SendPings(t *testing.T) {
 	}
 	go uut.sendPings(ctx)
 	fConn.requireEventuallyHasPing(t)
-	lastPing := uut.lastPing.Load()
-	require.NotNil(t, lastPing)
+	require.Eventually(t, func() bool {
+		lastPing := uut.lastPing.Load()
+		return lastPing != nil
+	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
 func TestAgentWebsocketMonitor_StartClose(t *testing.T) {
