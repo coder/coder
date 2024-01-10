@@ -748,16 +748,16 @@ jobs:
             --target "ghcr.io/coder/coder-preview:$tag" \
             --version $version \
             $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
+
+            # Tag as main
+            docker tag "ghcr.io/coder/coder-preview:$tag" ghcr.io/coder/coder-preview:main
+            docker push ghcr.io/coder/coder-preview:main
           else
             ./scripts/build_docker_multiarch.sh \
             --target "ghcr.io/coder/coder-preview:$tag" \
             --version $version \
             $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
           fi
-
-          # Tag as main
-          docker tag "ghcr.io/coder/coder-preview:$tag" ghcr.io/coder/coder-preview:main
-          docker push ghcr.io/coder/coder-preview:main
 
           echo "tag=$tag" >> $GITHUB_OUTPUT
 
