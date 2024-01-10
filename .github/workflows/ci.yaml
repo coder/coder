@@ -657,7 +657,7 @@ jobs:
     # are for amd64)
     needs: changes
     if: needs.changes.outputs.docs-only == 'false'
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: "ubuntu-latest"
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
     outputs:
