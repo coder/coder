@@ -107,9 +107,12 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 
 			message := uploadFlags.templateMessage(inv)
 
-			varsFiles, err := DiscoverVarsFiles(uploadFlags.stdin(), uploadFlags.directory)
-			if err != nil {
-				return err
+			var varsFiles []string
+			if !uploadFlags.stdin() {
+				varsFiles, err = DiscoverVarsFiles(uploadFlags.directory)
+				if err != nil {
+					return err
+				}
 			}
 
 			// Confirm upload of the directory.

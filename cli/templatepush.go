@@ -78,9 +78,12 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 
 			message := uploadFlags.templateMessage(inv)
 
-			varsFiles, err := DiscoverVarsFiles(uploadFlags.stdin(), uploadFlags.directory)
-			if err != nil {
-				return err
+			var varsFiles []string
+			if !uploadFlags.stdin() {
+				varsFiles, err = DiscoverVarsFiles(uploadFlags.directory)
+				if err != nil {
+					return err
+				}
 			}
 
 			resp, err := uploadFlags.upload(inv, client)

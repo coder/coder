@@ -18,11 +18,8 @@ import (
  * 3. *.auto.tfvars
  * 4. *.auto.tfvars.json
  */
-func DiscoverVarsFiles(stdin bool, workDir string) ([]string, error) {
+func DiscoverVarsFiles(workDir string) ([]string, error) {
 	var found []string
-	if stdin {
-		return found, nil // it is not possible to define multiple files in the stdin mode
-	}
 
 	fi, err := os.Stat(filepath.Join(workDir, "terraform.tfvars"))
 	if err == nil {
