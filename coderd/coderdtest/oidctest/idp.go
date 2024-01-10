@@ -85,6 +85,8 @@ type FakeIDP struct {
 	// to test something like PKI auth vs a client_secret.
 	hookAuthenticateClient func(t testing.TB, req *http.Request) (url.Values, error)
 	serve                  bool
+	// optional middlewares
+	middlewares chi.Middlewares
 }
 
 func StatusError(code int, err error) error {
@@ -112,6 +114,12 @@ type FakeIDPOpt func(idp *FakeIDP)
 func WithAuthorizedRedirectURL(hook func(redirectURL string) error) func(*FakeIDP) {
 	return func(f *FakeIDP) {
 		f.hookValidRedirectURL = hook
+	}
+}
+
+func WithMiddlewares(mws ...func(http.Handler) http.Handler) func(*FakeIDP) {
+	return func(f *FakeIDP) {
+		f.middlewares = append(f.middlewares, mws...)
 	}
 }
 
@@ -570,6 +578,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	t.Helper()
 
 	mux := chi.NewMux()
+	mux.Use(f.middlewares...)
 	// This endpoint is required to initialize the OIDC provider.
 	// It is used to get the OIDC configuration.
 	mux.Get("/.well-known/openid-configuration", func(rw http.ResponseWriter, r *http.Request) {

@@ -1802,7 +1802,7 @@ func configureGithubOAuth2(instrument *promoauth.Factory, accessURL *url.URL, cl
 	}
 
 	return &coderd.GithubOAuth2Config{
-		OAuth2Config: instrument.New("github-login", &oauth2.Config{
+		OAuth2Config: instrument.NewGithub("github-login", &oauth2.Config{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
 			Endpoint:     endpoint,

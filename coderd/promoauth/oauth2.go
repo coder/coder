@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -46,11 +47,25 @@ var _ OAuth2Config = (*Config)(nil)
 // Primarily to avoid any prometheus errors registering duplicate metrics.
 type Factory struct {
 	metrics *metrics
+	// optional replace now func
+	Now func() time.Time
 }
 
 // metrics is the reusable metrics for all oauth2 providers.
 type metrics struct {
 	externalRequestCount *prometheus.CounterVec
+
+	// if the oauth supports it, rate limit metrics.
+	// rateLimit is the defined limit per interval
+	rateLimit          *prometheus.GaugeVec
+	rateLimitRemaining *prometheus.GaugeVec
+	rateLimitUsed      *prometheus.GaugeVec
+	// rateLimitReset is unix time of the next interval (when the rate limit resets).
+	rateLimitReset *prometheus.GaugeVec
+	// rateLimitResetIn is the time in seconds until the rate limit resets.
+	// This is included because it is sometimes more helpful to know the limit
+	// will reset in 600seconds, rather than at 1704000000 unix time.
+	rateLimitResetIn *prometheus.GaugeVec
 }
 
 func NewFactory(registry prometheus.Registerer) *Factory {
@@ -68,6 +83,53 @@ func NewFactory(registry prometheus.Registerer) *Factory {
 				"source",
 				"status_code",
 			}),
+			rateLimit: factory.NewGaugeVec(prometheus.GaugeOpts{
+				Namespace: "coderd",
+				Subsystem: "oauth2",
+				Name:      "external_requests_rate_limit_total",
+				Help:      "The total number of allowed requests per interval.",
+			}, []string{
+				"name",
+				// Resource allows different rate limits for the same oauth2 provider.
+				// Some IDPs have different buckets for different rate limits.
+				"resource",
+			}),
+			rateLimitRemaining: factory.NewGaugeVec(prometheus.GaugeOpts{
+				Namespace: "coderd",
+				Subsystem: "oauth2",
+				Name:      "external_requests_rate_limit_remaining",
+				Help:      "The remaining number of allowed requests in this interval.",
+			}, []string{
+				"name",
+				"resource",
+			}),
+			rateLimitUsed: factory.NewGaugeVec(prometheus.GaugeOpts{
+				Namespace: "coderd",
+				Subsystem: "oauth2",
+				Name:      "external_requests_rate_limit_used",
+				Help:      "The number of requests made in this interval.",
+			}, []string{
+				"name",
+				"resource",
+			}),
+			rateLimitReset: factory.NewGaugeVec(prometheus.GaugeOpts{
+				Namespace: "coderd",
+				Subsystem: "oauth2",
+				Name:      "external_requests_rate_limit_next_reset_unix",
+				Help:      "Unix timestamp for when the next interval starts",
+			}, []string{
+				"name",
+				"resource",
+			}),
+			rateLimitResetIn: factory.NewGaugeVec(prometheus.GaugeOpts{
+				Namespace: "coderd",
+				Subsystem: "oauth2",
+				Name:      "external_requests_rate_limit_reset_in_seconds",
+				Help:      "Seconds until the next interval",
+			}, []string{
+				"name",
+				"resource",
+			}),
 		},
 	}
 }
@@ -80,6 +142,44 @@ func (f *Factory) New(name string, under OAuth2Config) *Config {
 	}
 }
 
+// NewGithub returns a new instrumented oauth2 config for github. It tracks
+// rate limits as well as just the external request counts.
+//
+//nolint:bodyclose
+func (f *Factory) NewGithub(name string, under OAuth2Config) *Config {
+	cfg := f.New(name, under)
+	cfg.interceptors = append(cfg.interceptors, func(resp *http.Response, err error) {
+		limits, ok := githubRateLimits(resp, err)
+		if !ok {
+			return
+		}
+		labels := prometheus.Labels{
+			"name":     cfg.name,
+			"resource": limits.Resource,
+		}
+		// Default to -1 for "do not know"
+		resetIn := float64(-1)
+		if !limits.Reset.IsZero() {
+			now := time.Now()
+			if f.Now != nil {
+				now = f.Now()
+			}
+			resetIn = limits.Reset.Sub(now).Seconds()
+			if resetIn < 0 {
+				// If it just reset, just make it 0.
+				resetIn = 0
+			}
+		}
+
+		f.metrics.rateLimit.With(labels).Set(float64(limits.Limit))
+		f.metrics.rateLimitRemaining.With(labels).Set(float64(limits.Remaining))
+		f.metrics.rateLimitUsed.With(labels).Set(float64(limits.Used))
+		f.metrics.rateLimitReset.With(labels).Set(float64(limits.Reset.Unix()))
+		f.metrics.rateLimitResetIn.With(labels).Set(resetIn)
+	})
+	return cfg
+}
+
 type Config struct {
 	// Name is a human friendly name to identify the oauth2 provider. This should be
 	// deterministic from restart to restart, as it is going to be used as a label in
@@ -87,6 +187,8 @@ type Config struct {
 	name       string
 	underlying OAuth2Config
 	metrics    *metrics
+	// interceptors are called after every request made by the oauth2 client.
+	interceptors []func(resp *http.Response, err error)
 }
 
 func (c *Config) Do(ctx context.Context, source Oauth2Source, req *http.Request) (*http.Response, error) {
@@ -169,5 +271,10 @@ func (i *instrumentedTripper) RoundTrip(r *http.Request) (*http.Response, error)
 		"source":      string(i.source),
 		"status_code": fmt.Sprintf("%d", statusCode),
 	}).Inc()
+
+	// Handle any extra interceptors.
+	for _, interceptor := range i.c.interceptors {
+		interceptor(resp, err)
+	}
 	return resp, err
 }
