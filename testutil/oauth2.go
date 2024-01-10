@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"golang.org/x/oauth2"
+
+	"github.com/coder/coder/v2/coderd/promoauth"
 )
 
 type OAuth2Config struct {
@@ -14,7 +16,7 @@ type OAuth2Config struct {
 	TokenSourceFunc OAuth2TokenSource
 }
 
-func (*OAuth2Config) Do(_ context.Context, _ string, req *http.Request) (*http.Response, error) {
+func (*OAuth2Config) Do(_ context.Context, _ promoauth.Oauth2Source, req *http.Request) (*http.Response, error) {
 	return http.DefaultClient.Do(req)
 }
 
