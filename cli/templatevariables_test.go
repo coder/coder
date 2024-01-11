@@ -1,10 +1,11 @@
-package cli
+package cli_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/coder/coder/v2/cli"
 	"github.com/stretchr/testify/require"
 )
 
@@ -39,12 +40,12 @@ func TestDiscoverVarsFiles(t *testing.T) {
 
 	for _, file := range testFiles {
 		filePath := filepath.Join(tempDir, file)
-		err := os.WriteFile(filePath, []byte(""), 0600)
+		err := os.WriteFile(filePath, []byte(""), 0o600)
 		require.NoError(t, err)
 	}
 
 	// When
-	found, err := DiscoverVarsFiles(tempDir)
+	found, err := cli.DiscoverVarsFiles(tempDir)
 	require.NoError(t, err)
 
 	// Then
