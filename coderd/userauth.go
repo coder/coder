@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/codersdk"
@@ -438,7 +439,7 @@ type GithubOAuth2Team struct {
 
 // GithubOAuth2Provider exposes required functions for the Github authentication flow.
 type GithubOAuth2Config struct {
-	httpmw.OAuth2Config
+	promoauth.OAuth2Config
 	AuthenticatedUser           func(ctx context.Context, client *http.Client) (*github.User, error)
 	ListEmails                  func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error)
 	ListOrganizationMemberships func(ctx context.Context, client *http.Client) ([]*github.Membership, error)
@@ -662,7 +663,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 }
 
 type OIDCConfig struct {
-	httpmw.OAuth2Config
+	promoauth.OAuth2Config
 
 	Provider *oidc.Provider
 	Verifier *oidc.IDTokenVerifier

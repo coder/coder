@@ -82,7 +82,7 @@ func (r *RootCmd) templatePull() *clibase.Cmd {
 				if versionName == "" && activeVersion.ID != latestVersion.ID {
 					cliui.Warn(inv.Stderr,
 						"A newer template version than the active version exists. Pulling the active version instead.",
-						"Use "+cliui.Code("--template latest")+" to pull the latest version.",
+						"Use "+cliui.Code("--version latest")+" to pull the latest version.",
 					)
 				}
 				templateVersion = activeVersion
