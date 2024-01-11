@@ -1,26 +1,22 @@
 import { type TemplateVersion } from "api/typesGenerated";
 import { type FC, type ReactNode } from "react";
-import CircularProgress from "@mui/material/CircularProgress";
 import ErrorIcon from "@mui/icons-material/ErrorOutline";
 import CheckIcon from "@mui/icons-material/CheckOutlined";
-import { Pill, type PillType } from "components/Pill/Pill";
+import { Pill, PillSpinner, type PillType } from "components/Pill/Pill";
 
-export const TemplateVersionStatusBadge: FC<{
+interface TemplateVersionStatusBadgeProps {
   version: TemplateVersion;
-}> = ({ version }) => {
+}
+
+export const TemplateVersionStatusBadge: FC<
+  TemplateVersionStatusBadgeProps
+> = ({ version }) => {
   const { text, icon, type } = getStatus(version);
   return (
-    <Pill
-      icon={icon}
-      text={text}
-      type={type}
-      title={`Build status is ${text}`}
-    />
+    <Pill icon={icon} type={type} title={`Build status is ${text}`}>
+      {text}
+    </Pill>
   );
-};
-
-const LoadingIcon: FC = () => {
-  return <CircularProgress size={10} style={{ color: "#FFF" }} />;
 };
 
 export const getStatus = (
@@ -35,19 +31,19 @@ export const getStatus = (
       return {
         type: "info",
         text: "Running",
-        icon: <LoadingIcon />,
+        icon: <PillSpinner />,
       };
     case "pending":
       return {
         type: "info",
         text: "Pending",
-        icon: <LoadingIcon />,
+        icon: <PillSpinner />,
       };
     case "canceling":
       return {
         type: "warning",
         text: "Canceling",
-        icon: <LoadingIcon />,
+        icon: <PillSpinner />,
       };
     case "canceled":
       return {

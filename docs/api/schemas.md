@@ -186,6 +186,7 @@
 ```json
 {
   "agent_id": "string",
+  "agent_name": "string",
   "apps": [
     {
       "command": "string",
@@ -297,7 +298,8 @@
     }
   ],
   "vscode_port_proxy_uri": "string",
-  "workspace_id": "string"
+  "workspace_id": "string",
+  "workspace_name": "string"
 }
 ```
 
@@ -306,6 +308,7 @@
 | Name                         | Type                                                                                              | Required | Restrictions | Description                                                                                                                                                                                                     |
 | ---------------------------- | ------------------------------------------------------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `agent_id`                   | string                                                                                            | false    |              |                                                                                                                                                                                                                 |
+| `agent_name`                 | string                                                                                            | false    |              |                                                                                                                                                                                                                 |
 | `apps`                       | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)                                           | false    |              |                                                                                                                                                                                                                 |
 | `derp_force_websockets`      | boolean                                                                                           | false    |              |                                                                                                                                                                                                                 |
 | `derpmap`                    | [tailcfg.DERPMap](#tailcfgderpmap)                                                                | false    |              |                                                                                                                                                                                                                 |
@@ -320,6 +323,7 @@
 | `scripts`                    | array of [codersdk.WorkspaceAgentScript](#codersdkworkspaceagentscript)                           | false    |              |                                                                                                                                                                                                                 |
 | `vscode_port_proxy_uri`      | string                                                                                            | false    |              |                                                                                                                                                                                                                 |
 | `workspace_id`               | string                                                                                            | false    |              |                                                                                                                                                                                                                 |
+| `workspace_name`             | string                                                                                            | false    |              |                                                                                                                                                                                                                 |
 
 ## agentsdk.Metadata
 
@@ -2876,7 +2880,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ------------------------ |
 | `workspace_actions`      |
 | `tailnet_pg_coordinator` |
-| `single_tailnet`         |
 | `deployment_health_page` |
 
 ## codersdk.ExternalAuth
@@ -3898,6 +3901,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "api_version": "string",
   "created_at": "2019-08-24T14:15:22Z",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_seen_at": "2019-08-24T14:15:22Z",
@@ -3915,6 +3919,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name               | Type            | Required | Restrictions | Description |
 | ------------------ | --------------- | -------- | ------------ | ----------- |
+| `api_version`      | string          | false    |              |             |
 | `created_at`       | string          | false    |              |             |
 | `id`               | string          | false    |              |             |
 | `last_seen_at`     | string          | false    |              |             |

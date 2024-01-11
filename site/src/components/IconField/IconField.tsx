@@ -2,12 +2,11 @@ import { css, Global, useTheme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import InputAdornment from "@mui/material/InputAdornment";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
-import Picker from "@emoji-mart/react";
-import { type FC } from "react";
+import { visuallyHidden } from "@mui/utils";
+import { type FC, lazy, Suspense } from "react";
+import { Loader } from "components/Loader/Loader";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Stack } from "components/Stack/Stack";
-import data from "@emoji-mart/data/sets/14/twitter.json";
-import icons from "theme/icons.json";
 import {
   Popover,
   PopoverContent,
@@ -22,24 +21,12 @@ type IconFieldProps = TextFieldProps & {
   onPickEmoji: (value: string) => void;
 };
 
-const custom = [
-  {
-    id: "icons",
-    name: "Icons",
-    emojis: icons.map((icon) => {
-      const id = icon.split(".")[0];
+const EmojiPicker = lazy(() => import("./EmojiPicker"));
 
-      return {
-        id,
-        name: id,
-        keywords: id.split("-"),
-        skins: [{ src: `/icon/${icon}` }],
-      };
-    }),
-  },
-];
-
-const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
+export const IconField: FC<IconFieldProps> = ({
+  onPickEmoji,
+  ...textFieldProps
+}) => {
   if (
     typeof textFieldProps.value !== "string" &&
     typeof textFieldProps.value !== "undefined"
@@ -53,9 +40,9 @@ const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
   return (
     <Stack spacing={1}>
       <TextField
-        {...textFieldProps}
         fullWidth
         label="Icon"
+        {...textFieldProps}
         InputProps={{
           endAdornment: hasIcon ? (
             <InputAdornment
@@ -86,6 +73,18 @@ const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
         }}
       />
 
+      <Global
+        styles={css`
+          em-emoji-picker {
+            --rgb-background: ${theme.palette.background.paper};
+            --rgb-input: ${theme.palette.primary.main};
+            --rgb-color: ${theme.palette.text.primary};
+
+            // Hack to prevent the right side from being cut off
+            width: 350px;
+          }
+        `}
+      />
       <Popover>
         {(popover) => (
           <>
@@ -98,35 +97,36 @@ const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
               id="emoji"
               css={{ marginTop: 0, ".MuiPaper-root": { width: "auto" } }}
             >
-              <Global
-                styles={css`
-                  em-emoji-picker {
-                    --rgb-background: ${theme.palette.background.paper};
-                    --rgb-input: ${theme.palette.primary.main};
-                    --rgb-color: ${theme.palette.text.primary};
-
-                    // Hack to prevent the right side from being cut off
-                    width: 350px;
-                  }
-                `}
-              />
-              <Picker
-                set="twitter"
-                theme="dark"
-                data={data}
-                custom={custom}
-                onEmojiSelect={(emoji) => {
-                  const value = emoji.src ?? urlFromUnifiedCode(emoji.unified);
-                  onPickEmoji(value);
-                  popover.setIsOpen(false);
-                }}
-              />
+              <Suspense fallback={<Loader />}>
+                <EmojiPicker
+                  onEmojiSelect={(emoji) => {
+                    const value =
+                      emoji.src ?? urlFromUnifiedCode(emoji.unified);
+                    onPickEmoji(value);
+                    popover.setIsOpen(false);
+                  }}
+                />
+              </Suspense>
             </PopoverContent>
           </>
         )}
       </Popover>
+
+      {/*
+      - This component takes a long time to load (easily several seconds), so we
+      don't want to wait until the user actually clicks the button to start loading.
+      Unfortunately, React doesn't provide an API to start warming a lazy component,
+      so we just have to sneak it into the DOM, which is kind of annoying, but means
+      that users shouldn't ever spend time waiting for it to load.
+      - Except we don't do it when running tests, because Jest doesn't define
+      `IntersectionObserver`, and it would make them slower anyway. */}
+      {process.env.NODE_ENV !== "test" && (
+        <div css={{ ...visuallyHidden }}>
+          <Suspense>
+            <EmojiPicker onEmojiSelect={() => {}} />
+          </Suspense>
+        </div>
+      )}
     </Stack>
   );
 };
-
-export default IconField;

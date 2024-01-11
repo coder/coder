@@ -26,6 +26,7 @@ SUBCOMMANDS:
     login             Authenticate with Coder deployment
     logout            Unauthenticate your local session
     netcheck          Print network debug information for DERP and STUN
+    open              Open a workspace
     ping              Ping a workspace
     port-forward      Forward ports from a workspace to the local machine. For
                       reverse port forwarding, use "coder ssh -R".

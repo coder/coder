@@ -2,6 +2,7 @@ import TextField from "@mui/material/TextField";
 import { CreateGroupRequest } from "api/typesGenerated";
 import { FormFooter } from "components/FormFooter/FormFooter";
 import { FullPageForm } from "components/FullPageForm/FullPageForm";
+import { IconField } from "components/IconField/IconField";
 import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
 import { useFormik } from "formik";
@@ -58,12 +59,12 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
               fullWidth
               label="Display Name"
             />
-            <TextField
+            <IconField
               {...getFieldHelpers("avatar_url")}
               onChange={onChangeTrimmed(form)}
-              autoComplete="avatar url"
               fullWidth
               label="Avatar URL"
+              onPickEmoji={(value) => form.setFieldValue("avatar_url", value)}
             />
           </Stack>
           <FormFooter onCancel={onCancel} isLoading={isLoading} />

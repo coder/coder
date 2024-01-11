@@ -1,24 +1,21 @@
+import { type FC } from "react";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
 import { ServiceBannerView } from "./ServiceBannerView";
 
-export const ServiceBanner: React.FC = () => {
+export const ServiceBanner: FC = () => {
   const { appearance } = useDashboard();
   const { message, background_color, enabled } =
     appearance.config.service_banner;
 
-  if (!enabled) {
+  if (!enabled || message === undefined || background_color === undefined) {
     return null;
   }
 
-  if (message !== undefined && background_color !== undefined) {
-    return (
-      <ServiceBannerView
-        message={message}
-        backgroundColor={background_color}
-        isPreview={appearance.isPreview}
-      />
-    );
-  } else {
-    return null;
-  }
+  return (
+    <ServiceBannerView
+      message={message}
+      backgroundColor={background_color}
+      isPreview={appearance.isPreview}
+    />
+  );
 };

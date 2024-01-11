@@ -458,28 +458,26 @@ func New(options *Options) *API {
 
 	api.Auditor.Store(&options.Auditor)
 	api.TailnetCoordinator.Store(&options.TailnetCoordinator)
-	if api.Experiments.Enabled(codersdk.ExperimentSingleTailnet) {
-		api.agentProvider, err = NewServerTailnet(api.ctx,
-			options.Logger,
-			options.DERPServer,
-			api.DERPMap,
-			options.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
-			func(context.Context) (tailnet.MultiAgentConn, error) {
-				return (*api.TailnetCoordinator.Load()).ServeMultiAgent(uuid.New()), nil
-			},
-			wsconncache.New(api._dialWorkspaceAgentTailnet, 0),
-			api.TracerProvider,
-		)
-		if err != nil {
-			panic("failed to setup server tailnet: " + err.Error())
-		}
-	} else {
-		api.agentProvider = &wsconncache.AgentProvider{
-			Cache: wsconncache.New(api._dialWorkspaceAgentTailnet, 0),
-		}
+	api.agentProvider, err = NewServerTailnet(api.ctx,
+		options.Logger,
+		options.DERPServer,
+		api.DERPMap,
+		options.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
+		func(context.Context) (tailnet.MultiAgentConn, error) {
+			return (*api.TailnetCoordinator.Load()).ServeMultiAgent(uuid.New()), nil
+		},
+		wsconncache.New(api._dialWorkspaceAgentTailnet, 0),
+		api.TracerProvider,
+	)
+	if err != nil {
+		panic("failed to setup server tailnet: " + err.Error())
 	}
 	api.TailnetClientService, err = tailnet.NewClientService(
-		api.Logger.Named("tailnetclient"), &api.TailnetCoordinator)
+		api.Logger.Named("tailnetclient"),
+		&api.TailnetCoordinator,
+		api.Options.DERPMapUpdateFrequency,
+		api.DERPMap,
+	)
 	if err != nil {
 		api.Logger.Fatal(api.ctx, "failed to initialize tailnet client service", slog.Error(err))
 	}
@@ -560,7 +558,7 @@ func New(options *Options) *API {
 		// Build-Version is helpful for debugging.
 		func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.Header().Add("X-Coder-Build-Version", buildinfo.Version())
+				w.Header().Add(codersdk.BuildVersionHeader, buildinfo.Version())
 				next.ServeHTTP(w, r)
 			})
 		},
@@ -1190,7 +1188,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, name string
 		Tags:       provisionersdk.MutateTags(uuid.Nil, nil),
 		LastSeenAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
 		Version:    buildinfo.Version(),
-		APIVersion: "1.0",
+		APIVersion: provisionersdk.APIVersionCurrent,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("failed to create in-memory provisioner daemon: %w", err)

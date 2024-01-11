@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any
 -- we need to hack around the MUI types a little */
 import { type ThemeOptions } from "@mui/material/styles";
-// eslint-disable-next-line no-restricted-imports -- We need MUI here
+// eslint-disable-next-line no-restricted-imports -- we use the classes for customization
 import { alertClasses } from "@mui/material/Alert";
 import {
   BODY_FONT_FAMILY,
@@ -25,28 +25,28 @@ export type PaletteIndex =
   | "action"
   | "neutral";
 
-export const components: ThemeOptions["components"] = {
+export const components = {
   MuiCssBaseline: {
     styleOverrides: (theme) => `
-          html, body, #root, #storybook-root {
-            height: 100%;
-          }
+      html, body, #root, #storybook-root {
+        height: 100%;
+      }
 
-          button, input {
-            font-family: ${BODY_FONT_FAMILY};
-          }
+      button, input {
+        font-family: ${BODY_FONT_FAMILY};
+      }
 
-          input:-webkit-autofill,
-          input:-webkit-autofill:hover,
-          input:-webkit-autofill:focus,
-          input:-webkit-autofill:active  {
-            -webkit-box-shadow: 0 0 0 100px ${theme.palette.background.default} inset !important;
-          }
+      input:-webkit-autofill,
+      input:-webkit-autofill:hover,
+      input:-webkit-autofill:focus,
+      input:-webkit-autofill:active  {
+        -webkit-box-shadow: 0 0 0 100px ${theme.palette.background.default} inset !important;
+      }
 
-          ::placeholder {
-            color: ${theme.palette.text.disabled};
-          }
-        `,
+      ::placeholder {
+        color: ${theme.palette.text.disabled};
+      }
+    `,
   },
   MuiAvatar: {
     styleOverrides: {
@@ -489,4 +489,4 @@ export const components: ThemeOptions["components"] = {
       },
     },
   },
-};
+} satisfies ThemeOptions["components"];

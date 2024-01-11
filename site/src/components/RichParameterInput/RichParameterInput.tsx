@@ -160,7 +160,7 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
   );
 };
 
-const RichParameterField: React.FC<RichParameterInputProps> = ({
+const RichParameterField: FC<RichParameterInputProps> = ({
   disabled,
   onChange,
   parameter,

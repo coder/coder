@@ -15,7 +15,7 @@ on:
 
 jobs:
   build_image:
-    runs-on: buildjet-4vcpu-ubuntu-2204
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,8 +32,8 @@ jobs:
           tag=${tag//\//--}
           echo "tag=${tag}" >> $GITHUB_OUTPUT
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Set up Depot CLI
+        uses: depot/setup-action@v1
 
       - name: Login to DockerHub
         if: github.ref == 'refs/heads/main'
@@ -43,14 +43,14 @@ jobs:
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
       - name: Build and push
-        uses: docker/build-push-action@v5
+        uses: depot/build-push-action@v1
         with:
+          project: b4q6ltmpzh
+          token: ${{ secrets.DEPOT_TOKEN }}
           context: "{{defaultContext}}:dogfood"
           pull: true
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: "codercom/oss-dogfood:${{ steps.docker-tag-name.outputs.tag }},codercom/oss-dogfood:latest"
-          cache-from: type=registry,ref=codercom/oss-dogfood:latest
-          cache-to: type=inline
 
   deploy_template:
     needs: build_image

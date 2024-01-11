@@ -27,12 +27,19 @@ export type WorkspaceSettingsFormValues = {
   automatic_updates: AutomaticUpdates;
 };
 
-export const WorkspaceSettingsForm: FC<{
+interface WorkspaceSettingsFormProps {
   workspace: Workspace;
   error: unknown;
   onCancel: () => void;
   onSubmit: (values: WorkspaceSettingsFormValues) => Promise<void>;
-}> = ({ onCancel, onSubmit, workspace, error }) => {
+}
+
+export const WorkspaceSettingsForm: FC<WorkspaceSettingsFormProps> = ({
+  onCancel,
+  onSubmit,
+  workspace,
+  error,
+}) => {
   const formEnabled =
     !workspace.template_require_active_version || workspace.allow_renames;
 

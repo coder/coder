@@ -24,6 +24,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -1784,8 +1785,8 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho},
 		Tags:         database.StringMap{},
 		LastSeenAt:   sql.NullTime{},
-		Version:      "",
-		APIVersion:   "1.0",
+		Version:      buildinfo.Version(),
+		APIVersion:   provisionersdk.APIVersionCurrent,
 	})
 	require.NoError(t, err)
 

@@ -1,17 +1,11 @@
-// eslint-disable-next-line no-restricted-imports -- We need MUI here
-import { alertClasses } from "@mui/material/Alert";
-import { createTheme, type ThemeOptions } from "@mui/material/styles";
-import {
-  BODY_FONT_FAMILY,
-  borderRadius,
-  BUTTON_LG_HEIGHT,
-  BUTTON_MD_HEIGHT,
-  BUTTON_SM_HEIGHT,
-  BUTTON_XL_HEIGHT,
-} from "../constants";
+/* eslint-disable @typescript-eslint/no-explicit-any
+-- we need to hack around the MUI types a little */
+import { createTheme } from "@mui/material/styles";
+import { BODY_FONT_FAMILY, borderRadius } from "../constants";
+import { components } from "../mui";
 import tw from "../tailwindColors";
 
-let muiTheme = createTheme({
+const muiTheme = createTheme({
   palette: {
     mode: "light",
     primary: {
@@ -79,12 +73,10 @@ let muiTheme = createTheme({
   shape: {
     borderRadius,
   },
-});
-
-muiTheme = createTheme(muiTheme, {
   components: {
+    ...components,
     MuiCssBaseline: {
-      styleOverrides: `
+      styleOverrides: (theme) => `
         html, body, #root, #storybook-root {
           height: 100%;
         }
@@ -97,87 +89,37 @@ muiTheme = createTheme(muiTheme, {
         input:-webkit-autofill:hover,
         input:-webkit-autofill:focus,
         input:-webkit-autofill:active  {
-          -webkit-box-shadow: 0 0 0 100px ${muiTheme.palette.background.default} inset !important;
+          -webkit-box-shadow: 0 0 0 100px ${theme.palette.background.default} inset !important;
         }
 
         ::placeholder {
-          color: ${muiTheme.palette.text.disabled};
+          color: ${theme.palette.text.disabled};
         }
       `,
     },
     MuiAvatar: {
       styleOverrides: {
-        root: {
-          width: 36,
-          height: 36,
-          fontSize: 18,
-
-          "& .MuiSvgIcon-root": {
-            width: "50%",
-          },
-        },
+        root: components.MuiAvatar.styleOverrides.root,
         colorDefault: {
           backgroundColor: tw.zinc[700],
         },
       },
     },
-    // Button styles are based on
-    // https://tailwindui.com/components/application-ui/elements/buttons
-    MuiButtonBase: {
-      defaultProps: {
-        disableRipple: true,
-      },
-    },
     MuiButton: {
-      defaultProps: {
-        variant: "outlined",
-        color: "neutral",
-      },
+      ...components.MuiButton,
       styleOverrides: {
-        root: {
-          textTransform: "none",
-          letterSpacing: "normal",
-          fontWeight: 500,
-          height: BUTTON_MD_HEIGHT,
-          padding: "8px 16px",
-          borderRadius: "6px",
-          fontSize: 14,
-
-          whiteSpace: "nowrap",
-          ":focus-visible": {
-            outline: `2px solid ${muiTheme.palette.primary.main}`,
-          },
-
-          "& .MuiLoadingButton-loadingIndicator": {
-            width: 14,
-            height: 14,
-          },
-
-          "& .MuiLoadingButton-loadingIndicator .MuiCircularProgress-root": {
-            width: "inherit !important",
-            height: "inherit !important",
-          },
-        },
-        sizeSmall: {
-          height: BUTTON_SM_HEIGHT,
-        },
-        sizeLarge: {
-          height: BUTTON_LG_HEIGHT,
-        },
-        sizeXlarge: {
-          height: BUTTON_XL_HEIGHT,
-        },
-        outlined: {
+        ...components.MuiButton.styleOverrides,
+        outlined: ({ theme }) => ({
           boxShadow: "0 1px 4px #0001",
           ":hover": {
             boxShadow: "0 1px 4px #0001",
-            border: `1px solid ${tw.zinc[500]}`,
+            border: `1px solid ${theme.palette.secondary.main}`,
           },
           "&.Mui-disabled": {
             boxShadow: "none !important",
           },
-        },
-        outlinedNeutral: {
+        }),
+        ["outlinedNeutral" as any]: {
           borderColor: tw.zinc[300],
 
           "&.Mui-disabled": {
@@ -198,7 +140,7 @@ muiTheme = createTheme(muiTheme, {
             boxShadow: "0 1px 4px #0001",
           },
         },
-        containedNeutral: {
+        ["containedNeutral" as any]: {
           backgroundColor: tw.zinc[100],
           border: `1px solid ${tw.zinc[200]}`,
 
@@ -212,19 +154,6 @@ muiTheme = createTheme(muiTheme, {
             border: `1px solid ${tw.zinc[300]}`,
           },
         },
-        iconSizeMedium: {
-          "& > .MuiSvgIcon-root": {
-            fontSize: 14,
-          },
-        },
-        iconSizeSmall: {
-          "& > .MuiSvgIcon-root": {
-            fontSize: 13,
-          },
-        },
-        startIcon: {
-          marginLeft: "-2px",
-        },
       },
     },
     MuiButtonGroup: {
@@ -237,104 +166,6 @@ muiTheme = createTheme(muiTheme, {
         },
       },
     },
-    MuiLoadingButton: {
-      defaultProps: {
-        variant: "outlined",
-        color: "neutral",
-      },
-    },
-    MuiTableContainer: {
-      styleOverrides: {
-        root: {
-          borderRadius,
-          border: `1px solid ${muiTheme.palette.divider}`,
-        },
-      },
-    },
-    MuiTable: {
-      styleOverrides: {
-        root: ({ theme }) => ({
-          borderCollapse: "unset",
-          border: "none",
-          boxShadow: `0 0 0 1px ${muiTheme.palette.background.default} inset`,
-          overflow: "hidden",
-
-          "& td": {
-            paddingTop: 16,
-            paddingBottom: 16,
-            background: "transparent",
-          },
-
-          [theme.breakpoints.down("md")]: {
-            minWidth: 1000,
-          },
-        }),
-      },
-    },
-    MuiTableCell: {
-      styleOverrides: {
-        head: {
-          fontSize: 14,
-          color: muiTheme.palette.text.secondary,
-          fontWeight: 600,
-          background: muiTheme.palette.background.paper,
-        },
-        root: {
-          fontSize: 16,
-          background: muiTheme.palette.background.paper,
-          borderBottom: `1px solid ${muiTheme.palette.divider}`,
-          padding: "12px 8px",
-          // This targets the first+last td elements, and also the first+last elements
-          // of a TableCellLink.
-          "&:not(:only-child):first-of-type, &:not(:only-child):first-of-type > a":
-            {
-              paddingLeft: 32,
-            },
-          "&:not(:only-child):last-child, &:not(:only-child):last-child > a": {
-            paddingRight: 32,
-          },
-        },
-      },
-    },
-    MuiTableRow: {
-      styleOverrides: {
-        root: {
-          "&:last-child .MuiTableCell-body": {
-            borderBottom: 0,
-          },
-        },
-      },
-    },
-    MuiLink: {
-      defaultProps: {
-        underline: "hover",
-      },
-    },
-    MuiPaper: {
-      defaultProps: {
-        elevation: 0,
-      },
-      styleOverrides: {
-        root: {
-          border: `1px solid ${muiTheme.palette.divider}`,
-          backgroundImage: "none",
-        },
-      },
-    },
-    MuiSkeleton: {
-      styleOverrides: {
-        root: {
-          backgroundColor: muiTheme.palette.divider,
-        },
-      },
-    },
-    MuiLinearProgress: {
-      styleOverrides: {
-        root: {
-          borderRadius: 999,
-        },
-      },
-    },
     MuiChip: {
       styleOverrides: {
         root: {
@@ -342,81 +173,11 @@ muiTheme = createTheme(muiTheme, {
         },
       },
     },
-    MuiMenu: {
-      defaultProps: {
-        anchorOrigin: {
-          vertical: "bottom",
-          horizontal: "right",
-        },
-        transformOrigin: {
-          vertical: "top",
-          horizontal: "right",
-        },
-      },
-      styleOverrides: {
-        paper: {
-          marginTop: 8,
-          borderRadius: 4,
-          padding: "4px 0",
-          minWidth: 160,
-        },
-        root: {
-          // It should be the same as the menu padding
-          "& .MuiDivider-root": {
-            marginTop: `4px !important`,
-            marginBottom: `4px !important`,
-          },
-        },
-      },
-    },
-    MuiMenuItem: {
-      styleOverrides: {
-        root: {
-          gap: 12,
-
-          "& .MuiSvgIcon-root": {
-            fontSize: 20,
-          },
-        },
-      },
-    },
-    MuiSnackbar: {
-      styleOverrides: {
-        anchorOriginBottomRight: {
-          bottom: `${24 + 36}px !important`, // 36 is the bottom bar height
-        },
-      },
-    },
-    MuiSnackbarContent: {
-      styleOverrides: {
-        root: {
-          borderRadius: "4px !important",
-        },
-      },
-    },
-    MuiTextField: {
-      defaultProps: {
-        InputLabelProps: {
-          shrink: true,
-        },
-      },
-    },
     MuiInputBase: {
-      defaultProps: {
-        color: "primary",
-      },
+      ...components.MuiInputBase,
       styleOverrides: {
-        root: {
-          height: BUTTON_LG_HEIGHT,
-        },
-        sizeSmall: {
-          height: BUTTON_MD_HEIGHT,
-          fontSize: 14,
-        },
-        multiline: {
-          height: "auto",
-        },
-        colorPrimary: {
+        ...components.MuiInputBase.styleOverrides,
+        ["colorPrimary" as any]: {
           // Same as button
           "& .MuiOutlinedInput-notchedOutline": {
             borderColor: tw.zinc[300],
@@ -427,19 +188,6 @@ muiTheme = createTheme(muiTheme, {
               borderColor: tw.zinc[500],
             },
         },
-      },
-    },
-    MuiFormHelperText: {
-      defaultProps: {
-        sx: {
-          marginLeft: 0,
-          marginTop: 1,
-        },
-      },
-    },
-    MuiRadio: {
-      defaultProps: {
-        disableRipple: true,
       },
     },
     MuiCheckbox: {
@@ -472,7 +220,7 @@ muiTheme = createTheme(muiTheme, {
       },
     },
     MuiSwitch: {
-      defaultProps: { color: "primary" },
+      ...components.MuiSwitch,
       styleOverrides: {
         root: {
           ".Mui-focusVisible .MuiSwitch-thumb": {
@@ -483,84 +231,19 @@ muiTheme = createTheme(muiTheme, {
         },
       },
     },
-    MuiAutocomplete: {
-      styleOverrides: {
-        root: {
-          // Not sure why but since the input has padding we don't need it here
-          "& .MuiInputBase-root": {
-            padding: 0,
-          },
-        },
-      },
-    },
-    MuiList: {
-      defaultProps: {
-        disablePadding: true,
-      },
-    },
-    MuiTabs: {
-      defaultProps: {
-        textColor: "primary",
-        indicatorColor: "primary",
-      },
-    },
     MuiTooltip: {
       styleOverrides: {
-        tooltip: {
+        tooltip: ({ theme }) => ({
           lineHeight: "150%",
           borderRadius: 4,
-          background: muiTheme.palette.background.paper,
-          color: muiTheme.palette.secondary.contrastText,
-          border: `1px solid ${muiTheme.palette.divider}`,
+          background: theme.palette.background.paper,
+          color: theme.palette.secondary.contrastText,
+          border: `1px solid ${theme.palette.divider}`,
           padding: "8px 16px",
           boxShadow: "0 1px 4px #0001",
-        },
-      },
-    },
-    MuiAlert: {
-      defaultProps: {
-        variant: "outlined",
-      },
-      styleOverrides: {
-        root: ({ theme }) => ({
-          background: theme.palette.background.paper,
         }),
-        action: {
-          paddingTop: 2, // Idk why it is not aligned as expected
-        },
-        icon: {
-          fontSize: 16,
-          marginTop: "4px", // The size of text is 24 so (24 - 16)/2 = 4
-        },
-        message: ({ theme }) => ({
-          color: theme.palette.text.primary,
-        }),
-        outlinedWarning: {
-          [`& .${alertClasses.icon}`]: {
-            color: muiTheme.palette.warning.light,
-          },
-        },
-        outlinedInfo: {
-          [`& .${alertClasses.icon}`]: {
-            color: muiTheme.palette.primary.light,
-          },
-        },
-        outlinedError: {
-          [`& .${alertClasses.icon}`]: {
-            color: muiTheme.palette.error.light,
-          },
-        },
       },
     },
-    MuiAlertTitle: {
-      styleOverrides: {
-        root: {
-          fontSize: "inherit",
-          marginBottom: 0,
-        },
-      },
-    },
-
     MuiIconButton: {
       styleOverrides: {
         root: {
@@ -571,6 +254,6 @@ muiTheme = createTheme(muiTheme, {
       },
     },
   },
-} as ThemeOptions);
+});
 
 export default muiTheme;

@@ -1,0 +1,12 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder open
+
+  Open a workspace
+
+SUBCOMMANDS:
+    vscode    Open a workspace in VS Code Desktop
+
+———
+Run `coder --help` for a list of global options.

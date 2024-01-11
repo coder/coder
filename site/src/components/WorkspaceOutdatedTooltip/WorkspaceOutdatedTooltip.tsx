@@ -42,12 +42,12 @@ export const WorkspaceOutdatedTooltip: FC<TooltipProps> = (props) => {
         <InfoIcon css={styles.icon} />
       </HelpTooltipTrigger>
 
-      <OutdatedTooltipContent {...props} />
+      <WorkspaceOutdatedTooltipContent {...props} />
     </HelpTooltip>
   );
 };
 
-const OutdatedTooltipContent = (props: TooltipProps) => {
+export const WorkspaceOutdatedTooltipContent = (props: TooltipProps) => {
   const popover = usePopover();
   const { onUpdateVersion, ariaLabel, latestVersionId, templateName } = props;
   const { data: activeVersion } = useQuery({
@@ -62,7 +62,7 @@ const OutdatedTooltipContent = (props: TooltipProps) => {
       <HelpTooltipText>{Language.versionTooltipText}</HelpTooltipText>
 
       <div css={styles.container}>
-        <div>
+        <div css={{ lineHeight: "1.6" }}>
           <div css={styles.bold}>New version</div>
           <div>
             {activeVersion ? (
@@ -79,7 +79,7 @@ const OutdatedTooltipContent = (props: TooltipProps) => {
           </div>
         </div>
 
-        <div>
+        <div css={{ lineHeight: "1.6" }}>
           <div css={styles.bold}>Message</div>
           <div>
             {activeVersion ? (

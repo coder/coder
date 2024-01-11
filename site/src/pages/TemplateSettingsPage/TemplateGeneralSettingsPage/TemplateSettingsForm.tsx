@@ -11,7 +11,7 @@ import {
   iconValidator,
 } from "utils/formUtils";
 import * as Yup from "yup";
-import { LazyIconField } from "components/IconField/LazyIconField";
+import { IconField } from "components/IconField/IconField";
 import {
   FormFields,
   FormSection,
@@ -126,7 +126,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
             rows={2}
           />
 
-          <LazyIconField
+          <IconField
             {...getFieldHelpers("icon")}
             disabled={isSubmitting}
             onChange={onChangeTrimmed(form)}

@@ -706,6 +706,16 @@
           "path": "cli/netcheck.md"
         },
         {
+          "title": "open",
+          "description": "Open a workspace",
+          "path": "cli/open.md"
+        },
+        {
+          "title": "open vscode",
+          "description": "Open a workspace in VS Code Desktop",
+          "path": "cli/open_vscode.md"
+        },
+        {
           "title": "ping",
           "description": "Ping a workspace",
           "path": "cli/ping.md"

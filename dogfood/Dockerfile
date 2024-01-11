@@ -68,7 +68,7 @@ RUN mkdir --parents "$GOPATH" && \
 	go install github.com/goreleaser/goreleaser@v1.6.1 && \
 	go install mvdan.cc/sh/v3/cmd/shfmt@latest && \
 	# nfpm is used with `make build` to make release packages
-	go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.16.0 && \
+	go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.35.1 && \
 	# yq v4 is used to process yaml files in coder v2. Conflicts with
 	# yq v3 used in v1.
 	go install github.com/mikefarah/yq/v4@v4.30.6 && \

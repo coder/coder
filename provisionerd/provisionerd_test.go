@@ -1137,12 +1137,13 @@ func createProvisionerClient(t *testing.T, done <-chan struct{}, server provisio
 	})
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	closed := make(chan struct{})
+	tempDir := t.TempDir()
 	go func() {
 		defer close(closed)
 		_ = provisionersdk.Serve(ctx, &server, &provisionersdk.ServeOptions{
 			Listener:      serverPipe,
 			Logger:        slogtest.Make(t, nil).Leveled(slog.LevelDebug).Named("test-provisioner"),
-			WorkDirectory: t.TempDir(),
+			WorkDirectory: tempDir,
 		})
 	}()
 	t.Cleanup(func() {
