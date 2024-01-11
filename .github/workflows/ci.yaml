@@ -747,7 +747,9 @@ jobs:
           keep-younger-than: 7 # days
           keep-tags: latest
           keep-tags-regexes: ^pr
-          prune-tags-regexes: ^main-
+          prune-tags-regexes: |
+            ^main-
+            ^v
           prune-untagged: true
 
       - name: Upload build artifacts
