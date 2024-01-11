@@ -2,6 +2,7 @@ import { useOutletContext } from "react-router-dom";
 import {
   Header,
   HeaderTitle,
+  HealthMessageDocsLink,
   Main,
   GridData,
   GridDataLabel,
@@ -35,7 +36,11 @@ export const AccessURLPage = () => {
       <Main>
         {accessUrl.warnings.map((warning) => {
           return (
-            <Alert key={warning.code} severity="warning">
+            <Alert
+              actions={HealthMessageDocsLink(warning)}
+              key={warning.code}
+              severity="warning"
+            >
               {warning.message}
             </Alert>
           );
