@@ -4,9 +4,8 @@ Frequently asked questions on Coder OSS and Enterprise deployments. These FAQs
 come from our community and enterprise customers, feel free to
 [contribute to this page](https://github.com/coder/coder/edit/main/docs/faqs.md).
 
-<details>
-  <summary>How do I add an enterprise license?</summary>
-
+<details style="margin-bottom: 28px;">
+  <summary style="font-size: larger; font-weight: bold;">How do I add an enterprise license?</summary>
 
   Visit https://coder.com/trial or contact
   [sales@coder.com](mailto:sales@coder.com?subject=License) to get a v2 enterprise
@@ -32,10 +31,11 @@ come from our community and enterprise customers, feel free to
   ```sh
   coder licenses add -f <path/filename>
   ```
+
 </details>
 
-<details>
-  <summary>I'm experiencing networking issues, so want to disable Tailscale, STUN, Direct connections and force use of websockets</summary>
+<details style="margin-bottom: 28px;">
+  <summary style="font-size: larger; font-weight: bold;">I'm experiencing networking issues, so want to disable Tailscale, STUN, Direct connections and force use of websockets</summary>
 
   The primary developer use case is a local IDE connecting over SSH to a Coder
   workspace.
@@ -64,16 +64,16 @@ come from our community and enterprise customers, feel free to
 
 </details>
 
-<details>
-  <summary>How do I configure NGINX as the reverse proxy in front of Coder?</summary>
+<details style="margin-bottom: 28px;">
+  <summary style="font-size: larger; font-weight: bold;">How do I configure NGINX as the reverse proxy in front of Coder?</summary>
 
   [This doc](https://github.com/coder/coder/tree/main/examples/web-server/nginx#configure-nginx)
   in our repo explains in detail how to configure NGINX with Coder so that our
   Tailscale Wireguard networking functions properly.
 </details>
 
-<details>
-  <summary>How do I hide some of the default icons in a workspace like VS Code Desktop, Terminal, SSH, Ports?</summary>
+<details style="margin-bottom: 28px;">
+  <summary style="font-size: larger; font-weight: bold;">How do I hide some of the default icons in a workspace like VS Code Desktop, Terminal, SSH, Ports?</summary>
 
   The visibility of Coder apps is configurable in the template. To change the
   default (shows all), add this block inside the
@@ -93,8 +93,8 @@ come from our community and enterprise customers, feel free to
   This example will hide all built-in coder_app icons except the web terminal.
 </details>
 
-<details>
-  <summary>I want to allow code-server to be accessible by other users in my deployment.</summary>
+<details style="margin-bottom: 28px;">
+  <summary style="font-size: larger; font-weight: bold;">I want to allow code-server to be accessible by other users in my deployment.</summary>
 
   > It is **not** recommended to share a web IDE, but if required, the following
   > deployment environment variable settings are required.
@@ -125,8 +125,8 @@ come from our community and enterprise customers, feel free to
   ```
 </details>
 
-<details>
-  <summary>I installed Coder and created a workspace but the icons do not load.</summary>
+<details style="margin-bottom: 28px;">
+  <summary style="font-size: larger; font-weight: bold;">I installed Coder and created a workspace but the icons do not load.</summary>
 
   An important concept to understand is that Coder creates workspaces which have
   an agent that must be able to reach the `coder server`.
@@ -151,8 +151,8 @@ come from our community and enterprise customers, feel free to
   > http://localhost to access Coder from a browser.
 </details>
 
-<details>
-  <summary>I updated a template, and an existing workspace based on that template fails to start.</summary>
+<details style="margin-bottom: 28px;">
+  <summary style="font-size: larger; font-weight: bold;">I updated a template, and an existing workspace based on that template fails to start.</summary>
 
   When updating a template, be aware of potential issues with input variables. For
   example, if a template prompts users to choose options like a
@@ -173,8 +173,8 @@ come from our community and enterprise customers, feel free to
   ```
 </details>
 
-<details>
-  <summary>I'm running coder on a VM with systemd but latest release installed isn't showing up.</summary>
+<details style="margin-bottom: 28px;">
+  <summary style="font-size: larger; font-weight: bold;">I'm running coder on a VM with systemd but latest release installed isn't showing up.</summary>
 
   Take, for example, a Coder deployment on a VM with a 2 shared vCPU systemd
   service. In this scenario, it's necessary to reload the daemon and then restart
@@ -190,8 +190,8 @@ come from our community and enterprise customers, feel free to
   ```
 </details>
 
-<details>
-  <summary>I'm using the built-in Postgres database and forgot admin email I set up.</summary>
+<details style="margin-bottom: 28px;">
+  <summary style="font-size: larger; font-weight: bold;">I'm using the built-in Postgres database and forgot admin email I set up.</summary>
 
   1. Run the `coder server` command below to retrieve the `psql` connection URL
     which includes the database user and password.
@@ -205,8 +205,8 @@ come from our community and enterprise customers, feel free to
   ```
 </details>
 
-<details>
-  <summary>How to find out Coder's latest Terraform provider version?</summary>
+<details style="margin-bottom: 28px;">
+  <summary style="font-size: larger; font-weight: bold;">How to find out Coder's latest Terraform provider version?</summary>
 
   [Coder is on the HashiCorp's Terraform registry](https://registry.terraform.io/providers/coder/coder/latest).
   Check this frequently to make sure you are on the latest version.
@@ -216,8 +216,8 @@ come from our community and enterprise customers, feel free to
   creating and pushing templates.
 </details>
 
-<details>
-  <summary>How can I set up TLS for my deployment and not create a signed certificate?</summary>
+<details style="margin-bottom: 28px;">
+  <summary style="font-size: larger; font-weight: bold;">How can I set up TLS for my deployment and not create a signed certificate?</summary>
 
   Caddy is an easy-to-configure reverse proxy that also automatically creates
   certificates from Let's Encrypt.
@@ -243,8 +243,8 @@ come from our community and enterprise customers, feel free to
   ```
 </details>
 
-<details>
-  <summary>I'm using Caddy as my reverse proxy in front of Coder. How do I set up a wildcard domain for port forwarding?</summary>
+<details style="margin-bottom: 28px;">
+  <summary style="font-size: larger; font-weight: bold;">I'm using Caddy as my reverse proxy in front of Coder. How do I set up a wildcard domain for port forwarding?</summary>
 
   Caddy requires your DNS provider's credentials to create wildcard certificates.
   This involves building the Caddy binary
@@ -275,8 +275,8 @@ come from our community and enterprise customers, feel free to
   ```
 </details>
 
-<details>
-  <summary>Can I use local or remote Terraform Modules in Coder templates?</summary>
+<details style="margin-bottom: 28px;">
+  <summary style="font-size: larger; font-weight: bold;">Can I use local or remote Terraform Modules in Coder templates?</summary>
 
   One way is to reference a Terraform module from a GitHub repo to avoid
   duplication and then just extend it or pass template-specific
@@ -320,8 +320,8 @@ come from our community and enterprise customers, feel free to
   - [Coder docs: Templates/Change Management](https://coder.com/docs/v2/latest/templates/change-management)
 </details>
 
-<details>
-  <summary>Can I run Coder in an air-gapped or offline mode? (no Internet)?</summary>
+<details style="margin-bottom: 28px;">
+  <summary style="font-size: larger; font-weight: bold;">Can I run Coder in an air-gapped or offline mode? (no Internet)?</summary>
 
   Yes, Coder can be deployed in air-gapped or offline mode.
   https://coder.com/docs/v2/latest/install/offline
@@ -336,8 +336,8 @@ come from our community and enterprise customers, feel free to
   proxy.
 </details>
 
-<details>
-  <summary>Create a randomized computer_name for an Azure VM</summary>
+<details style="margin-bottom: 28px;">
+  <summary style="font-size: larger; font-weight: bold;">Create a randomized computer_name for an Azure VM</summary>
 
   Azure VMs have a 15 character limit for the `computer_name` which can lead to
   duplicate name errors.
@@ -353,8 +353,8 @@ come from our community and enterprise customers, feel free to
   ```
 </details>
 
-<details>
-  <summary>Do you have example JetBrains Gateway templates?</summary>
+<details style="margin-bottom: 28px;">
+  <summary style="font-size: larger; font-weight: bold;">Do you have example JetBrains Gateway templates?</summary>
 
   In August 2023, JetBrains certified the Coder plugin signifying enhanced
   stability and reliability.
@@ -377,8 +377,8 @@ come from our community and enterprise customers, feel free to
   - [IntelliJ IDEA with Icon](https://github.com/sharkymark/v2-templates/tree/main/pod-idea-icon)
 </details>
 
-<details>
-  <summary>What options do I have for adding VS Code extensions into code-server, VS Code Desktop or Microsoft's Code Server?</summary>
+<details style="margin-bottom: 28px;">
+  <summary style="font-size: larger; font-weight: bold;">What options do I have for adding VS Code extensions into code-server, VS Code Desktop or Microsoft's Code Server?</summary>
 
   Coder has an open-source project called
   [`code-marketplace`](https://github.com/coder/code-marketplace) which is a
@@ -405,8 +405,8 @@ come from our community and enterprise customers, feel free to
   > for long-term support.
 </details>
 
-<details>
-  <summary>I want to run Docker for my workspaces but not install Docker Desktop.</summary>
+<details style="margin-bottom: 28px;">
+  <summary style="font-size: larger; font-weight: bold;">I want to run Docker for my workspaces but not install Docker Desktop.</summary>
 
   [Colima](https://github.com/abiosoft/colima) is a Docker Desktop alternative.
 
@@ -442,8 +442,8 @@ come from our community and enterprise customers, feel free to
   enter the docker socket as a Terraform variable.
 </details>
 
-<details>
-  <summary>How to make a `coder_app` optional?</summary>
+<details style="margin-bottom: 28px;">
+  <summary style="font-size: larger; font-weight: bold;">How to make a `coder_app` optional?</summary>
 
   An example use case is the user should decide if they want a browser-based IDE
   like code-server when creating the workspace.
@@ -502,8 +502,8 @@ come from our community and enterprise customers, feel free to
   ```
 </details>
 
-<details>
-  <summary>Why am I getting this "remote host doesn't meet VS Code Server's prerequisites" error when opening up VSCode remote in a Linux environment?</summary>
+<details style="margin-bottom: 28px;">
+  <summary style="font-size: larger; font-weight: bold;">Why am I getting this "remote host doesn't meet VS Code Server's prerequisites" error when opening up VSCode remote in a Linux environment?</summary>
 
 ![VS Code Server prerequisite](https://github.com/coder/coder/assets/10648092/150c5996-18b1-4fae-afd0-be2b386a3239)
 
