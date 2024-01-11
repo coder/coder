@@ -133,5 +133,3 @@ export const CancelHiddenForUser: Story = {
     isOwner: false,
   },
 };
-
-
