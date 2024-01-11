@@ -728,8 +728,8 @@ const DefaultTTLHelperText = (props: { ttl?: number }) => {
 
   return (
     <span>
-      Workspaces will default to stopping after {ttl} {hours(ttl)} without
-      activity.
+      Workspaces will default to stopping after {ttl} {hours(ttl)}. This will be
+      extended by 1 hour after last activity in the workspace was detected.
     </span>
   );
 };
