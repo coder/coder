@@ -187,6 +187,7 @@ type DeploymentValues struct {
 	WebTerminalRenderer             clibase.String                       `json:"web_terminal_renderer,omitempty" typescript:",notnull"`
 	AllowWorkspaceRenames           clibase.Bool                         `json:"allow_workspace_renames,omitempty" typescript:",notnull"`
 	Healthcheck                     HealthcheckConfig                    `json:"healthcheck,omitempty" typescript:",notnull"`
+	CLIUpgradeMessage               clibase.String                       `json:"cli_upgrade_message,omitempty" typescript:",notnull"`
 
 	Config      clibase.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig clibase.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -1768,6 +1769,16 @@ when required by your organization's security policy.`,
 			Hidden: false,
 		},
 		{
+			Name:        "CLI Upgrade Message",
+			Description: "The upgrade message to display to users when a client/server mismatch is detected. By default it instructs users to update using 'curl -L https://coder.com/install.sh | sh'.",
+			Flag:        "cli-upgrade-messsage",
+			Env:         "CODER_CLI_UPGRADE_MESSAGE",
+			YAML:        "cliUpgradeMessage",
+			Group:       &deploymentGroupClient,
+			Value:       &c.CLIUpgradeMessage,
+			Hidden:      false,
+		},
+		{
 			Name: "Write Config",
 			Description: `
 Write out the current server config as YAML to stdout.`,
@@ -2071,6 +2082,28 @@ func (c *Client) BuildInfo(ctx context.Context) (BuildInfoResponse, error) {
 
 	var buildInfo BuildInfoResponse
 	return buildInfo, json.NewDecoder(res.Body).Decode(&buildInfo)
+}
+
+type UnprivilegedDeploymentConfig struct {
+	SSHConfig         SSHConfigResponse `json:"ssh_config"`
+	CLIUpgradeMessage string            `json:"cli_upgrade_message"`
+}
+
+// UnprivilegedDeploymentConfig returns unsensitive config values
+// accessible by an ordinary, unprivileged user.
+func (c *Client) UnprivilegedDeploymentConfig(ctx context.Context) (UnprivilegedDeploymentConfig, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/deployment/unprivileged", nil)
+	if err != nil {
+		return UnprivilegedDeploymentConfig{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return UnprivilegedDeploymentConfig{}, ReadBodyAsError(res)
+	}
+
+	var config UnprivilegedDeploymentConfig
+	return config, json.NewDecoder(res.Body).Decode(&config)
 }
 
 type Experiment string

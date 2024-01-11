@@ -175,7 +175,7 @@ func (r *RootCmd) login() *clibase.Cmd {
 			// Try to check the version of the server prior to logging in.
 			// It may be useful to warn the user if they are trying to login
 			// on a very old client.
-			err = r.checkVersions(inv, client)
+			err = r.checkVersions(inv, client, false)
 			if err != nil {
 				// Checking versions isn't a fatal error so we print a warning
 				// and proceed.

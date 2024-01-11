@@ -105,6 +105,31 @@ func TestRoot(t *testing.T) {
 		require.ErrorContains(t, err, "unexpected status code 410")
 		require.EqualValues(t, 1, atomic.LoadInt64(&called), "called exactly once")
 	})
+
+	t.Run("VersionMismatchWarning", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			expectedUpgradeMessage = "My custom upgrade message"
+			dv                     = coderdtest.DeploymentValues(t)
+		)
+		dv.CLIUpgradeMessage = clibase.String(expectedUpgradeMessage)
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			DeploymentValues: dv,
+		})
+
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		inv, root := clitest.New(t, "ls")
+		clitest.SetupConfig(t, client, root)
+
+		var buf bytes.Buffer
+		inv.Stderr = &buf
+		err := inv.Run()
+		require.NoError(t, err)
+		fmt.Println("output: ", buf.String())
+	})
 }
 
 // TestDERPHeaders ensures that the client sends the global `--header`s and

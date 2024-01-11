@@ -600,7 +600,7 @@ func (r *RootCmd) PrintWarnings(client *codersdk.Client) clibase.MiddlewareFunc 
 				warningErr = make(chan error)
 			)
 			go func() {
-				versionErr <- r.checkVersions(inv, client)
+				versionErr <- r.checkVersions(inv, client, false)
 				close(versionErr)
 			}()
 
@@ -810,7 +810,12 @@ func formatExamples(examples ...example) string {
 	return sb.String()
 }
 
-func (r *RootCmd) checkVersions(i *clibase.Invocation, client *codersdk.Client) error {
+// checkVersions checks to see if there's a version mismatch between the client
+// and server and prints a message nudging the user to upgrade if a mismatch
+// is detected. forceCheck is a test flag and should always be false in production.
+//
+//nolint:revive
+func (r *RootCmd) checkVersions(i *clibase.Invocation, client *codersdk.Client, forceCheck bool) error {
 	if r.noVersionCheck {
 		return nil
 	}
@@ -824,9 +829,13 @@ func (r *RootCmd) checkVersions(i *clibase.Invocation, client *codersdk.Client) 
 	if isConnectionError(err) {
 		return nil
 	}
-
 	if err != nil {
 		return xerrors.Errorf("build info: %w", err)
+	}
+
+	dconfig, err := client.UnprivilegedDeploymentConfig(ctx)
+	if err != nil {
+		return xerrors.Errorf("deployment config: %w", err)
 	}
 
 	fmtWarningText := `version mismatch: client %s, server %s
@@ -838,10 +847,17 @@ func (r *RootCmd) checkVersions(i *clibase.Invocation, client *codersdk.Client) 
 	} else {
 		fmtWarningText += `download the server version with: 'curl -L https://coder.com/install.sh | sh -s -- --version %s'`
 	}
+	warn := cliui.DefaultStyles.Warn
+	warning := fmt.Sprintf(pretty.Sprint(warn, fmtWarningText), clientVersion, info.Version, strings.TrimPrefix(info.CanonicalVersion(), "v"))
 
-	if !buildinfo.VersionsMatch(clientVersion, info.Version) {
-		warn := cliui.DefaultStyles.Warn
-		_, _ = fmt.Fprintf(i.Stderr, pretty.Sprint(warn, fmtWarningText), clientVersion, info.Version, strings.TrimPrefix(info.CanonicalVersion(), "v"))
+	// If a custom upgrade message has been set, override the default that we
+	// display.
+	if msg := dconfig.CLIUpgradeMessage; msg != "" {
+		warning = fmt.Sprint(pretty.Sprint(warn, msg))
+	}
+
+	if !buildinfo.VersionsMatch(clientVersion, info.Version) || forceCheck {
+		_, _ = fmt.Fprint(i.Stderr, warning)
 		_, _ = fmt.Fprintln(i.Stderr)
 	}
 

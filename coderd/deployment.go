@@ -90,3 +90,10 @@ func buildInfo(accessURL *url.URL) http.HandlerFunc {
 func (api *API) sshConfig(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), rw, http.StatusOK, api.SSHConfig)
 }
+
+func (api *API) unprivilegedConfig(rw http.ResponseWriter, r *http.Request) {
+	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.UnprivilegedDeploymentConfig{
+		SSHConfig:         api.SSHConfig,
+		CLIUpgradeMessage: api.DeploymentValues.CLIUpgradeMessage.String(),
+	})
+}

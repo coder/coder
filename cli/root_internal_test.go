@@ -1,12 +1,19 @@
 package cli
 
 import (
+	"bytes"
+	"fmt"
 	"os"
 	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/pretty"
 )
 
 func Test_formatExamples(t *testing.T) {
@@ -83,4 +90,42 @@ func TestMain(m *testing.M) {
 		// The pq library appears to leave around a goroutine after Close().
 		goleak.IgnoreTopFunction("github.com/lib/pq.NewDialListener"),
 	)
+}
+
+func Test_checkVersions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("CustomInstallMessage", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			expectedUpgradeMessage = "My custom upgrade message"
+			dv                     = coderdtest.DeploymentValues(t)
+		)
+		dv.CLIUpgradeMessage = clibase.String(expectedUpgradeMessage)
+
+		ownerClient := coderdtest.New(t, &coderdtest.Options{
+			DeploymentValues: dv,
+		})
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+
+		// Create an unprivileged user to ensure the message can be printed
+		// to any Coder user.
+		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+		r := &RootCmd{}
+
+		cmd, err := r.Command(nil)
+		require.NoError(t, err)
+
+		var buf bytes.Buffer
+		inv := cmd.Invoke()
+		inv.Stderr = &buf
+
+		err = r.checkVersions(inv, memberClient, true)
+		require.NoError(t, err)
+
+		expectedOutput := fmt.Sprintln(pretty.Sprint(cliui.DefaultStyles.Warn, expectedUpgradeMessage))
+		require.Equal(t, expectedOutput, buf.String())
+	})
 }
