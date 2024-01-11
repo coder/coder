@@ -70,10 +70,10 @@ func (RootCmd) errorExample() *clibase.Cmd {
 			{
 				Use: "multi-error",
 				Handler: func(inv *clibase.Invocation) error {
-					return xerrors.Errorf("wrapped %w", errors.Join(
+					return xerrors.Errorf("wrapped: %w", errors.Join(
 						xerrors.Errorf("first error: %w", errorWithStackTrace()),
 						xerrors.Errorf("second error: %w", errorWithStackTrace()),
-						apiErrorNoHelper,
+						xerrors.Errorf("wrapped api error: %w", apiErrorNoHelper),
 					))
 				},
 			},

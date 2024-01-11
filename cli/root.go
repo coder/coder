@@ -1016,7 +1016,7 @@ type prettyErrorFormatter struct {
 // format formats the error to the console. This error should be human
 // readable.
 func (p *prettyErrorFormatter) format(err error) {
-	output, _ := cliHumanFormatError(err, &formatOpts{
+	output, _ := cliHumanFormatError("", err, &formatOpts{
 		Verbose: p.verbose,
 	})
 	// always trail with a newline
@@ -1041,7 +1041,7 @@ const indent = "    "
 //	       go run main.go exp example-error cmd
 //	       go run main.go exp example-error multi-error
 //	       go run main.go exp example-error validation
-func cliHumanFormatError(err error, opts *formatOpts) (string, bool) {
+func cliHumanFormatError(from string, err error, opts *formatOpts) (string, bool) {
 	if opts == nil {
 		opts = &formatOpts{}
 	}
@@ -1053,28 +1053,26 @@ func cliHumanFormatError(err error, opts *formatOpts) (string, bool) {
 		multiErrors := multi.Unwrap()
 		if len(multiErrors) == 1 {
 			// Format as a single error
-			return cliHumanFormatError(multiErrors[0], opts)
+			return cliHumanFormatError(from, multiErrors[0], opts)
 		}
-		return formatMultiError(multiErrors, opts), true
+		return formatMultiError(from, multiErrors, opts), true
 	}
 
 	// First check for sentinel errors that we want to handle specially.
 	// Order does matter! We want to check for the most specific errors first.
-	//var sdkError *codersdk.Error
-	//if errors.As(err, &sdkError) {
 	if sdkError, ok := err.(*codersdk.Error); ok {
-		return formatCoderSDKError(sdkError, opts), true
+		return formatCoderSDKError(from, sdkError, opts), true
 	}
 
-	//var cmdErr *clibase.RunCommandError
-	//if errors.As(err, &cmdErr) {
 	if cmdErr, ok := err.(*clibase.RunCommandError); ok {
+		// no need to pass the "from" context to this since it is always
+		// top level. We care about what is below this.
 		return formatRunCommandError(cmdErr, opts), true
 	}
 
 	uw, ok := err.(interface{ Unwrap() error })
 	if ok {
-		msg, special := cliHumanFormatError(uw.Unwrap(), opts)
+		msg, special := cliHumanFormatError(from+traceError(err), uw.Unwrap(), opts)
 		if special {
 			return msg, special
 		}
@@ -1100,16 +1098,20 @@ func cliHumanFormatError(err error, opts *formatOpts) (string, bool) {
 //		   <verbose error message>
 //		2. <heading error message>
 //		   <verbose error message>
-func formatMultiError(multi []error, opts *formatOpts) string {
+func formatMultiError(from string, multi []error, opts *formatOpts) string {
 	var errorStrings []string
 	for _, err := range multi {
-		msg, _ := cliHumanFormatError(err, opts)
+		msg, _ := cliHumanFormatError("", err, opts)
 		errorStrings = append(errorStrings, msg)
 	}
 
 	// Write errors out
 	var str strings.Builder
-	_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("%d errors encountered:", len(multi))))
+	var traceMsg string
+	if opts.Verbose {
+		traceMsg = fmt.Sprintf("Trace=[%s])", from)
+	}
+	_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("%d errors encountered: %s", len(multi), traceMsg)))
 	for i, errStr := range errorStrings {
 		// Indent each error
 		errStr = strings.ReplaceAll(errStr, "\n", "\n"+indent)
@@ -1138,7 +1140,7 @@ func formatRunCommandError(err *clibase.RunCommandError, opts *formatOpts) strin
 	var str strings.Builder
 	_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("Encountered an error running %q", err.Cmd.FullName())))
 
-	msgString, special := cliHumanFormatError(err.Err, opts)
+	msgString, special := cliHumanFormatError("", err.Err, opts)
 	_, _ = str.WriteString("\n")
 	if special {
 		_, _ = str.WriteString(msgString)
@@ -1151,11 +1153,15 @@ func formatRunCommandError(err *clibase.RunCommandError, opts *formatOpts) strin
 
 // formatCoderSDKError come from API requests. In verbose mode, add the
 // request debug information.
-func formatCoderSDKError(err *codersdk.Error, opts *formatOpts) string {
+func formatCoderSDKError(from string, err *codersdk.Error, opts *formatOpts) string {
 	var str strings.Builder
 	if opts.Verbose {
 		_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("API request error to \"%s:%s\". Status code %d", err.Method(), err.URL(), err.StatusCode())))
 		_, _ = str.WriteString("\n")
+		if from != "" {
+			_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("Trace=[%s]", from)))
+			_, _ = str.WriteString("\n")
+		}
 	}
 
 	_, _ = str.WriteString(pretty.Sprint(headLineStyle(), err.Message))
@@ -1169,6 +1175,19 @@ func formatCoderSDKError(err *codersdk.Error, opts *formatOpts) string {
 		_, _ = str.WriteString(pretty.Sprint(tailLineStyle(), err.Detail))
 	}
 	return str.String()
+}
+
+// traceError is a helper function that aides developers debugging failed cli
+// commands. When we pretty print errors, we lose the context in which they came.
+// This function adds the context back. Unfortunately there is no easy way to get
+// the prefix to: "error string: %w", so we do a bit of string manipulation.
+func traceError(err error) string {
+	if uw, ok := err.(interface{ Unwrap() error }); ok {
+		a, b := err.Error(), uw.Unwrap().Error()
+		c := strings.TrimSuffix(a, b)
+		return c
+	}
+	return err.Error()
 }
 
 // These styles are arbitrary.
