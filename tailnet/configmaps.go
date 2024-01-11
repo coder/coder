@@ -137,6 +137,7 @@ func (c *configMaps) configLoop() {
 			c.Wait()
 		}
 		if c.closing {
+			c.logger.Debug(context.Background(), "closing configMaps configLoop")
 			return
 		}
 		// queue up the reconfiguration actions we will take while we have
@@ -146,12 +147,14 @@ func (c *configMaps) configLoop() {
 		if c.derpMapDirty {
 			derpMap := c.derpMapLocked()
 			actions = append(actions, func() {
+				c.logger.Debug(context.Background(), "updating engine DERP map", slog.F("derp_map", derpMap))
 				c.engine.SetDERPMap(derpMap)
 			})
 		}
 		if c.netmapDirty {
 			nm := c.netMapLocked()
 			actions = append(actions, func() {
+				c.logger.Debug(context.Background(), "updating engine network map", slog.F("network_map", nm))
 				c.engine.SetNetworkMap(nm)
 				c.reconfig(nm)
 			})
@@ -159,6 +162,7 @@ func (c *configMaps) configLoop() {
 		if c.filterDirty {
 			f := c.filterLocked()
 			actions = append(actions, func() {
+				c.logger.Debug(context.Background(), "updating engine filter", slog.F("filter", f))
 				c.engine.SetFilter(f)
 			})
 		}
