@@ -1,7 +1,15 @@
 package tailnet
 
 import (
+	"net/netip"
 	"testing"
+	"time"
+
+	"golang.org/x/xerrors"
+
+	"golang.org/x/exp/slices"
+
+	"tailscale.com/wgengine"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
@@ -175,6 +183,176 @@ func TestNodeUpdater_setDERPForcedWebsocket_same(t *testing.T) {
 
 	// When: we set region 1 to "test
 	uut.setDERPForcedWebsocket(1, "test")
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.RequireRecvCtx(ctx, t, done)
+}
+
+func TestNodeUpdater_setStatus_different(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	id := tailcfg.NodeID(1)
+	nodeKey := key.NewNode().Public()
+	discoKey := key.NewDisco().Public()
+	nodeCh := make(chan *Node)
+	uut := newNodeUpdater(
+		logger,
+		func(n *Node) {
+			nodeCh <- n
+		},
+		id, nodeKey, discoKey,
+	)
+	defer uut.close()
+
+	// Given: preferred DERP is 1, so we'll send an update
+	uut.L.Lock()
+	uut.preferredDERP = 1
+	uut.L.Unlock()
+
+	// When: we set a new status
+	asof := time.Date(2024, 1, 10, 8, 0o0, 1, 1, time.UTC)
+	uut.setStatus(&wgengine.Status{
+		LocalAddrs: []tailcfg.Endpoint{
+			{Addr: netip.MustParseAddrPort("[fe80::1]:5678")},
+		},
+		AsOf: asof,
+	}, nil)
+
+	// Then: we receive an update with the endpoint
+	node := testutil.RequireRecvCtx(ctx, t, nodeCh)
+	require.Equal(t, nodeKey, node.Key)
+	require.Equal(t, discoKey, node.DiscoKey)
+	require.True(t, slices.Equal([]string{"[fe80::1]:5678"}, node.Endpoints))
+
+	// Then: we store the AsOf time as lastStatus
+	uut.L.Lock()
+	require.Equal(t, uut.lastStatus, asof)
+	uut.L.Unlock()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.RequireRecvCtx(ctx, t, done)
+}
+
+func TestNodeUpdater_setStatus_same(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	id := tailcfg.NodeID(1)
+	nodeKey := key.NewNode().Public()
+	discoKey := key.NewDisco().Public()
+	nodeCh := make(chan *Node)
+	uut := newNodeUpdater(
+		logger,
+		func(n *Node) {
+			nodeCh <- n
+		},
+		id, nodeKey, discoKey,
+	)
+	defer uut.close()
+
+	// Then: we don't configure
+	requireNeverConfigures(ctx, t, &uut.phased)
+
+	// Given: preferred DERP is 1, so we would send an update on change &&
+	//        endpoints set to {"[fe80::1]:5678"}
+	uut.L.Lock()
+	uut.preferredDERP = 1
+	uut.endpoints = []string{"[fe80::1]:5678"}
+	uut.L.Unlock()
+
+	// When: we set a status with endpoints {[fe80::1]:5678}
+	uut.setStatus(&wgengine.Status{LocalAddrs: []tailcfg.Endpoint{
+		{Addr: netip.MustParseAddrPort("[fe80::1]:5678")},
+	}}, nil)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.RequireRecvCtx(ctx, t, done)
+}
+
+func TestNodeUpdater_setStatus_error(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	id := tailcfg.NodeID(1)
+	nodeKey := key.NewNode().Public()
+	discoKey := key.NewDisco().Public()
+	nodeCh := make(chan *Node)
+	uut := newNodeUpdater(
+		logger,
+		func(n *Node) {
+			nodeCh <- n
+		},
+		id, nodeKey, discoKey,
+	)
+	defer uut.close()
+
+	// Then: we don't configure
+	requireNeverConfigures(ctx, t, &uut.phased)
+
+	// Given: preferred DERP is 1, so we would send an update on change && empty endpoints
+	uut.L.Lock()
+	uut.preferredDERP = 1
+	uut.L.Unlock()
+
+	// When: we set a status with endpoints {[fe80::1]:5678}, with an error
+	uut.setStatus(&wgengine.Status{LocalAddrs: []tailcfg.Endpoint{
+		{Addr: netip.MustParseAddrPort("[fe80::1]:5678")},
+	}}, xerrors.New("test"))
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.RequireRecvCtx(ctx, t, done)
+}
+
+func TestNodeUpdater_setStatus_outdated(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	id := tailcfg.NodeID(1)
+	nodeKey := key.NewNode().Public()
+	discoKey := key.NewDisco().Public()
+	nodeCh := make(chan *Node)
+	uut := newNodeUpdater(
+		logger,
+		func(n *Node) {
+			nodeCh <- n
+		},
+		id, nodeKey, discoKey,
+	)
+	defer uut.close()
+
+	// Then: we don't configure
+	requireNeverConfigures(ctx, t, &uut.phased)
+
+	// Given: preferred DERP is 1, so we would send an update on change && lastStatus set ahead
+	ahead := time.Date(2024, 1, 10, 8, 0o0, 1, 0, time.UTC)
+	behind := time.Date(2024, 1, 10, 8, 0o0, 0, 0, time.UTC)
+	uut.L.Lock()
+	uut.preferredDERP = 1
+	uut.lastStatus = ahead
+	uut.L.Unlock()
+
+	// When: we set a status with endpoints {[fe80::1]:5678}, with AsOf set behind
+	uut.setStatus(&wgengine.Status{
+		LocalAddrs: []tailcfg.Endpoint{{Addr: netip.MustParseAddrPort("[fe80::1]:5678")}},
+		AsOf:       behind,
+	}, xerrors.New("test"))
 
 	done := make(chan struct{})
 	go func() {
