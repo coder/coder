@@ -94,10 +94,6 @@ export const components = {
         "& .MuiLoadingButton-loadingIndicator": {
           width: 14,
           height: 14,
-          // Idk why but I found the loading indicator in the loading buttons
-          // does not align with the start icon from the regular button so this
-          // is a visual adjustment.
-          left: -6,
         },
 
         "& .MuiLoadingButton-loadingIndicator .MuiCircularProgress-root": {
