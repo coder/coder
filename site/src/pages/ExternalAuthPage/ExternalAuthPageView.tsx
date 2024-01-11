@@ -68,7 +68,7 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
       </Welcome>
 
       <p css={styles.text}>
-        {externalAuth.user?.login && `Hey @${externalAuth.user?.login}! 👋 `}
+        {externalAuth.user?.login && `Hey @${externalAuth.user?.login}! 👋`}
         {(!externalAuth.app_installable ||
           externalAuth.installations.length > 0) &&
           "You are now authenticated. Feel free to close this window!"}
