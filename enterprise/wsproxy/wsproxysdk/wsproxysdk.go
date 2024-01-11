@@ -431,6 +431,7 @@ type CoordinateNodes struct {
 
 func (c *Client) DialCoordinator(ctx context.Context) (agpl.MultiAgentConn, error) {
 	ctx, cancel := context.WithCancel(ctx)
+	logger := c.SDKClient.Logger().Named("multiagent")
 
 	coordinateURL, err := c.SDKClient.URL.Parse("/api/v2/workspaceproxies/me/coordinate")
 	if err != nil {
@@ -454,7 +455,7 @@ func (c *Client) DialCoordinator(ctx context.Context) (agpl.MultiAgentConn, erro
 		return nil, xerrors.Errorf("dial coordinate websocket: %w", err)
 	}
 
-	go httpapi.HeartbeatClose(ctx, cancel, conn)
+	go httpapi.HeartbeatClose(ctx, logger, cancel, conn)
 
 	nc := websocket.NetConn(ctx, conn, websocket.MessageText)
 	rma := remoteMultiAgentHandler{
@@ -486,17 +487,17 @@ func (c *Client) DialCoordinator(ctx context.Context) (agpl.MultiAgentConn, erro
 			err := dec.Decode(&msg)
 			if err != nil {
 				if xerrors.Is(err, io.EOF) {
-					c.SDKClient.Logger().Info(ctx, "multiagent connection severed", slog.Error(err))
+					logger.Info(ctx, "websocket connection severed", slog.Error(err))
 					return
 				}
 
-				c.SDKClient.Logger().Error(ctx, "failed to decode coordinator nodes", slog.Error(err))
+				logger.Error(ctx, "decode coordinator nodes", slog.Error(err))
 				return
 			}
 
 			err = ma.Enqueue(msg.Nodes)
 			if err != nil {
-				c.SDKClient.Logger().Error(ctx, "enqueue nodes from coordinator", slog.Error(err))
+				logger.Error(ctx, "enqueue nodes from coordinator", slog.Error(err))
 				continue
 			}
 		}
@@ -584,7 +585,7 @@ func (a *remoteMultiAgentHandler) AgentIsLegacy(agentID uuid.UUID) bool {
 		return a.sdk.AgentIsLegacy(ctx, agentID)
 	})
 	if err != nil {
-		a.sdk.SDKClient.Logger().Error(ctx, "failed to check agent legacy status", slog.Error(err))
+		a.sdk.SDKClient.Logger().Error(ctx, "failed to check agent legacy status", slog.F("agent_id", agentID), slog.Error(err))
 
 		// Assume that the agent is legacy since this failed, while less
 		// efficient it will always work.
