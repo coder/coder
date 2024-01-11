@@ -47,7 +47,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 		),
 		Short: "Edit the metadata of a template by name.",
 		Handler: func(inv *clibase.Invocation) error {
-			unsetAutostopRequirementDaysOfWeek := userSetOption(inv, "autostop-requirement-weekdays")
+			unsetAutostopRequirementDaysOfWeek := len(autostopRequirementDaysOfWeek) == 1 && autostopRequirementDaysOfWeek[0] == "none"
 			requiresScheduling := (len(autostopRequirementDaysOfWeek) > 0 && !unsetAutostopRequirementDaysOfWeek) ||
 				autostopRequirementWeeks > 0 ||
 				!allowUserAutostart ||
@@ -140,7 +140,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				autostopRequirementDaysOfWeek = template.AutostopRequirement.DaysOfWeek
 			}
 
-			if len(autostopRequirementDaysOfWeek) == 1 && autostopRequirementDaysOfWeek[0] == "none" {
+			if unsetAutostopRequirementDaysOfWeek {
 				autostopRequirementDaysOfWeek = []string{}
 			}
 
@@ -162,9 +162,9 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				deprecated = &deprecationMessage
 			}
 
-			var disableEveryoneGroup *bool
+			var disableEveryoneGroup bool
 			if userSetOption(inv, "private") {
-				disableEveryoneGroup = &disableEveryone
+				disableEveryoneGroup = disableEveryone
 			}
 
 			req := codersdk.UpdateTemplateMeta{

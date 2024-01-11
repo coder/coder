@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/smithy-go/ptr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -232,8 +232,8 @@ func TestTemplateEdit(t *testing.T) {
 			TimeTilDormantMillis:           expectedDormancyMillis,
 			TimeTilDormantAutoDeleteMillis: expectedAutoDeleteMillis,
 			RequireActiveVersion:           expectedRequireActiveVersion,
-			DeprecationMessage:             ptr.String(deprecationMessage),
-			DisableEveryoneGroupAccess:     ptr.Bool(expectedDisableEveryone),
+			DeprecationMessage:             ptr.Ref(deprecationMessage),
+			DisableEveryoneGroupAccess:     expectedDisableEveryone,
 			AllowUserCancelWorkspaceJobs:   expectedAllowCancelJobs,
 			AutostartRequirement: &codersdk.TemplateAutostartRequirement{
 				DaysOfWeek: expectedAutostartDaysOfWeek,
@@ -281,8 +281,8 @@ func TestTemplateEdit(t *testing.T) {
 			TimeTilDormantMillis:           expectedDormancyMillis,
 			TimeTilDormantAutoDeleteMillis: expectedAutoDeleteMillis,
 			RequireActiveVersion:           expectedRequireActiveVersion,
-			DeprecationMessage:             ptr.String(deprecationMessage),
-			DisableEveryoneGroupAccess:     ptr.Bool(expectedDisableEveryone),
+			DeprecationMessage:             ptr.Ref(deprecationMessage),
+			DisableEveryoneGroupAccess:     expectedDisableEveryone,
 			AllowUserCancelWorkspaceJobs:   expectedAllowCancelJobs,
 			AutostartRequirement: &codersdk.TemplateAutostartRequirement{
 				DaysOfWeek: expectedAutostartDaysOfWeek,

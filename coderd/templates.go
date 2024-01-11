@@ -668,7 +668,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		groupACL := template.GroupACL
-		if req.DisableEveryoneGroupAccess != nil && *req.DisableEveryoneGroupAccess == true {
+		if req.DisableEveryoneGroupAccess {
 			delete(groupACL, template.OrganizationID.String())
 		}
 
