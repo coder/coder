@@ -142,12 +142,21 @@ export const WorkspaceProxyPage = () => {
                   color: theme.palette.text.secondary,
                 }}
               >
-                {warnings.length === 0 && errors.length === 0 ? (
+                {region.status?.status === "unregistered" ? (
+                  <span>Has not connected yet</span>
+                ) : warnings.length === 0 && errors.length === 0 ? (
                   <span>OK</span>
                 ) : (
                   <div css={{ display: "flex", flexDirection: "column" }}>
                     {[...errors, ...warnings].map((msg, i) => (
-                      <span key={i}>{msg}</span>
+                      <span
+                        css={{
+                          ":first-letter": { textTransform: "uppercase" },
+                        }}
+                        key={i}
+                      >
+                        {msg}
+                      </span>
                     ))}
                   </div>
                 )}
