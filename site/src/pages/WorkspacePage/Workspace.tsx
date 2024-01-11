@@ -26,6 +26,7 @@ import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
 import HubOutlined from "@mui/icons-material/HubOutlined";
 import { ResourcesSidebar } from "./ResourcesSidebar";
 import { ResourceCard } from "components/Resources/ResourceCard";
+import { useResourcesNav } from "./useResourcesNav";
 
 export type WorkspaceError =
   | "getBuildsError"
@@ -155,18 +156,10 @@ export const Workspace: FC<WorkspaceProps> = ({
     }
   };
 
-  const selectedResourceId = useTab("resources", "");
   const resources = [...workspace.latest_build.resources].sort(
     (a, b) => countAgents(b) - countAgents(a),
   );
-  const selectedResource = workspace.latest_build.resources.find(
-    (r) => r.id === selectedResourceId.value,
-  );
-  useEffect(() => {
-    if (resources.length > 0 && selectedResourceId.value === "") {
-      selectedResourceId.set(resources[0].id);
-    }
-  }, [resources, selectedResourceId]);
+  const resourcesNav = useResourcesNav(resources);
 
   return (
     <div
@@ -233,8 +226,8 @@ export const Workspace: FC<WorkspaceProps> = ({
         <ResourcesSidebar
           failed={workspace.latest_build.status === "failed"}
           resources={resources}
-          selected={selectedResourceId.value}
-          onChange={selectedResourceId.set}
+          isSelected={resourcesNav.isSelected}
+          onChange={resourcesNav.select}
         />
       )}
       {sidebarOption.value === "history" && (
@@ -374,9 +367,9 @@ export const Workspace: FC<WorkspaceProps> = ({
 
             {buildLogs}
 
-            {selectedResource && (
+            {resourcesNav.selected && (
               <ResourceCard
-                resource={selectedResource}
+                resource={resourcesNav.selected}
                 agentRow={(agent) => (
                   <AgentRow
                     key={agent.id}
