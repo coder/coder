@@ -89,7 +89,8 @@ type FakeIDP struct {
 	hookAuthenticateClient func(t testing.TB, req *http.Request) (url.Values, error)
 	serve                  bool
 	// optional middlewares
-	middlewares chi.Middlewares
+	middlewares   chi.Middlewares
+	defaultExpire time.Duration
 }
 
 func StatusError(code int, err error) error {
@@ -131,6 +132,23 @@ func WithMiddlewares(mws ...func(http.Handler) http.Handler) func(*FakeIDP) {
 func WithRefresh(hook func(email string) error) func(*FakeIDP) {
 	return func(f *FakeIDP) {
 		f.hookOnRefresh = hook
+	}
+}
+
+func WithDefaultExpire(d time.Duration) func(*FakeIDP) {
+	return func(f *FakeIDP) {
+		f.defaultExpire = d
+	}
+}
+
+func WithStaticCredentials(id, secret string) func(*FakeIDP) {
+	return func(f *FakeIDP) {
+		if id != "" {
+			f.clientID = id
+		}
+		if secret != "" {
+			f.clientSecret = secret
+		}
 	}
 }
 
@@ -219,6 +237,7 @@ func NewFakeIDP(t testing.TB, opts ...FakeIDPOpt) *FakeIDP {
 		hookOnRefresh:        func(_ string) error { return nil },
 		hookUserInfo:         func(email string) (jwt.MapClaims, error) { return jwt.MapClaims{}, nil },
 		hookValidRedirectURL: func(redirectURL string) error { return nil },
+		defaultExpire:        time.Minute * 5,
 	}
 
 	for _, opt := range opts {
@@ -272,8 +291,23 @@ func (f *FakeIDP) updateIssuerURL(t testing.TB, issuer string) {
 func (f *FakeIDP) realServer(t testing.TB) *httptest.Server {
 	t.Helper()
 
+	srvURL := "localhost:0"
+	issURL, err := url.Parse(f.issuer)
+	if err == nil {
+		if issURL.Hostname() == "localhost" || issURL.Hostname() == "127.0.0.1" {
+			srvURL = issURL.Host
+		}
+	}
+
+	l, err := net.Listen("tcp", srvURL)
+	require.NoError(t, err, "failed to create listener")
+
 	ctx, cancel := context.WithCancel(context.Background())
-	srv := httptest.NewUnstartedServer(f.handler)
+	srv := &httptest.Server{
+		Listener: l,
+		Config:   &http.Server{Handler: f.handler},
+	}
+
 	srv.Config.BaseContext = func(_ net.Listener) context.Context {
 		return ctx
 	}
@@ -731,7 +765,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 			return
 		}
 
-		exp := time.Now().Add(time.Minute * 5)
+		exp := time.Now().Add(f.defaultExpire)
 		claims["exp"] = exp.UnixMilli()
 		email := getEmail(claims)
 		refreshToken := f.newRefreshTokens(email)
@@ -739,7 +773,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 			"access_token":  f.newToken(email),
 			"refresh_token": refreshToken,
 			"token_type":    "Bearer",
-			"expires_in":    int64((time.Minute * 5).Seconds()),
+			"expires_in":    int64((f.defaultExpire).Seconds()),
 			"id_token":      f.encodeClaims(t, claims),
 		}
 		if f.hookMutateToken != nil {
