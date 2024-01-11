@@ -5,15 +5,16 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/coder/coder/v2/cli"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/cli"
 )
 
 func TestDiscoverVarsFiles(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	tempDir, err := os.MkdirTemp(os.TempDir(), "test-discover-vars-files")
+	tempDir, err := os.MkdirTemp(os.TempDir(), "test-discover-vars-files-*")
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
