@@ -61,6 +61,7 @@ export interface WorkspaceProps {
   handleBuildRetryDebug: () => void;
   buildLogs?: React.ReactNode;
   canAutostart: boolean;
+  isOwner: boolean;
 }
 
 /**
@@ -93,6 +94,7 @@ export const Workspace: FC<WorkspaceProps> = ({
   handleBuildRetryDebug,
   buildLogs,
   canAutostart,
+  isOwner,
 }) => {
   const navigate = useNavigate();
   const { saveLocal, getLocal } = useLocalStorage();
@@ -199,6 +201,7 @@ export const Workspace: FC<WorkspaceProps> = ({
         isUpdating={isUpdating}
         isRestarting={isRestarting}
         canUpdateWorkspace={canUpdateWorkspace}
+        isOwner={isOwner}
       />
 
       <div
