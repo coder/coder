@@ -56,6 +56,7 @@ export interface WorkspaceProps {
   canRetryDebugMode: boolean;
   handleBuildRetry: () => void;
   handleBuildRetryDebug: () => void;
+  isOwner: boolean;
 }
 
 export const WorkspaceTopbar = (props: WorkspaceProps) => {
@@ -77,6 +78,7 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
     canRetryDebugMode,
     handleBuildRetry,
     handleBuildRetryDebug,
+    isOwner,
   } = props;
   const theme = useTheme();
 
@@ -263,6 +265,7 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
           canChangeVersions={canChangeVersions}
           isUpdating={isUpdating}
           isRestarting={isRestarting}
+          isOwner={isOwner}
         />
       </div>
     </Topbar>
