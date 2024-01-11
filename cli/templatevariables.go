@@ -86,13 +86,16 @@ func parseVariableValuesFromVarsFiles(varsFiles []string) ([]codersdk.VariableVa
 		switch ext {
 		case ".tfvars":
 			t, err = parseVariableValuesFromHCL(content)
+			if err != nil {
+				return nil, xerrors.Errorf("unable to parse HCL content: %w", err)
+			}
 		case ".json":
 			t, err = parseVariableValuesFromJSON(content)
+			if err != nil {
+				return nil, xerrors.Errorf("unable to parse JSON content: %w", err)
+			}
 		default:
-			return nil, xerrors.Errorf("unsupported tfvars format: %s", ext)
-		}
-		if err != nil {
-			return nil, err
+			return nil, xerrors.Errorf("unexpected tfvars format: %s", ext)
 		}
 
 		parsed = append(parsed, t...)
@@ -146,7 +149,7 @@ func parseVariableValuesFromHCL(content []byte) ([]codersdk.VariableValue, error
 			}
 			stringData[attribute.Name] = string(m)
 		} else {
-			return nil, xerrors.Errorf("unknown value type (name: %s): %s", attribute.Name, ctyType.GoString())
+			return nil, xerrors.Errorf("unsupported value type (name: %s): %s", attribute.Name, ctyType.GoString())
 		}
 	}
 
