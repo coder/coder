@@ -3129,7 +3129,30 @@ export const MockHealth: TypesGen.HealthcheckReport = {
           tags: {
             owner: "",
             scope: "organization",
-            custom_tag_name: "custom_tag_value",
+            tag_value: "value",
+            tag_true: "true",
+            tag_1: "1",
+            tag_yes: "yes",
+          },
+        },
+        warnings: [],
+      },
+      {
+        provisioner_daemon: {
+          id: "00000000-0000-0000-000000000000",
+          created_at: "2024-01-04T15:53:03.21563Z",
+          last_seen_at: "2024-01-04T16:05:03.967551Z",
+          name: "user-scoped",
+          version: "v2.34-devel+abcd1234",
+          api_version: "1.0",
+          provisioners: ["echo", "terraform"],
+          tags: {
+            owner: "12345678-1234-1234-1234-12345678abcd",
+            scope: "user",
+            tag_VALUE: "VALUE",
+            tag_TRUE: "TRUE",
+            tag_1: "1",
+            tag_YES: "YES",
           },
         },
         warnings: [],
@@ -3146,6 +3169,10 @@ export const MockHealth: TypesGen.HealthcheckReport = {
           tags: {
             owner: "",
             scope: "organization",
+            tag_string: "value",
+            tag_false: "false",
+            tag_0: "0",
+            tag_no: "no",
           },
         },
         warnings: [
