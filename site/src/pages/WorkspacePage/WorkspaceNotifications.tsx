@@ -36,18 +36,15 @@ type WorkspaceNotificationsProps = {
   latestVersion?: TemplateVersion;
 };
 
-export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = (
-  props,
-) => {
-  const {
-    workspace,
-    template,
-    latestVersion,
-    permissions,
-    onRestartWorkspace,
-    onUpdateWorkspace,
-    onActivateWorkspace,
-  } = props;
+export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
+  workspace,
+  template,
+  latestVersion,
+  permissions,
+  onRestartWorkspace,
+  onUpdateWorkspace,
+  onActivateWorkspace,
+}) => {
   const notifications: Notification[] = [];
 
   // Outdated
@@ -250,8 +247,11 @@ type NotificationPillProps = {
   icon: ReactNode;
 };
 
-const NotificationPill: FC<NotificationPillProps> = (props) => {
-  const { notifications, type, icon } = props;
+const NotificationPill: FC<NotificationPillProps> = ({
+  notifications,
+  type,
+  icon,
+}) => {
   const theme = useTheme();
 
   return (
