@@ -8153,8 +8153,11 @@
     },
     "codersdk.Experiment": {
       "type": "string",
-      "enum": ["deployment_health_page"],
-      "x-enum-varnames": ["ExperimentDeploymentHealthPage"]
+      "enum": ["example"],
+      "x-enum-comments": {
+        "ExperimentExample": "This isn't used for anything."
+      },
+      "x-enum-varnames": ["ExperimentExample"]
     },
     "codersdk.ExternalAuth": {
       "type": "object",
