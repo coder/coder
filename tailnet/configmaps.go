@@ -207,7 +207,11 @@ func (c *configMaps) netMapLocked() *netmap.NetworkMap {
 func (c *configMaps) peerConfigLocked() []*tailcfg.Node {
 	out := make([]*tailcfg.Node, 0, len(c.peers))
 	for _, p := range c.peers {
-		out = append(out, p.node.Clone())
+		n := p.node.Clone()
+		if c.blockEndpoints {
+			n.Endpoints = nil
+		}
+		out = append(out, n)
 	}
 	return out
 }
@@ -225,6 +229,19 @@ func (c *configMaps) setAddresses(ips []netip.Prefix) {
 	copy(c.addresses, ips)
 	c.netmapDirty = true
 	c.filterDirty = true
+	c.Broadcast()
+}
+
+// setBlockEndpoints sets whether we should block configuring endpoints we learn
+// from peers.  It triggers a configuration of the engine if the value changes.
+// nolint: revive
+func (c *configMaps) setBlockEndpoints(blockEndpoints bool) {
+	c.L.Lock()
+	defer c.L.Unlock()
+	if c.blockEndpoints != blockEndpoints {
+		c.netmapDirty = true
+	}
+	c.blockEndpoints = blockEndpoints
 	c.Broadcast()
 }
 
@@ -342,9 +359,6 @@ func (c *configMaps) updatePeerLocked(update *proto.CoordinateResponse_PeerUpdat
 		// to avoid random hangs while we set up the connection again after
 		// inactivity.
 		node.KeepAlive = ok && peerStatus.Active
-		if c.blockEndpoints {
-			node.Endpoints = nil
-		}
 	}
 	switch {
 	case !ok && update.Kind == proto.CoordinateResponse_PeerUpdate_NODE:
