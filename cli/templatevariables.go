@@ -112,7 +112,7 @@ func parseVariableValuesFromHCL(content []byte) ([]codersdk.VariableValue, error
 		return nil, diags
 	}
 
-	var stringData map[string]string
+	stringData := map[string]string{}
 	for _, attribute := range attrs {
 		ctyValue, diags := attribute.Expr.Value(nil)
 		if diags.HasErrors() {
@@ -142,7 +142,7 @@ func parseVariableValuesFromJSON(content []byte) ([]codersdk.VariableValue, erro
 		return nil, err
 	}
 
-	stringData := make(map[string]string)
+	stringData := map[string]string{}
 	for key, value := range data {
 		switch value.(type) {
 		case string, int, bool:
