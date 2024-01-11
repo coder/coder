@@ -184,18 +184,11 @@ const parseBool = (s: string): { valid: boolean; value: boolean } => {
 
 const renderTag = (k: string, v: string) => {
   const { valid, value: boolValue } = parseBool(v);
+  const kv = `${k}: ${v}`;
   if (valid) {
-    return (
-      <BooleanPill value={boolValue}>
-        {k}: {v}
-      </BooleanPill>
-    );
+    return <BooleanPill value={boolValue}>{kv}</BooleanPill>;
   }
-  return (
-    <Pill icon={<Sell />}>
-      {k}: {v}
-    </Pill>
-  );
+  return <Pill icon={<Sell />}>{kv}</Pill>;
 };
 
 export default ProvisionerDaemonsPage;
