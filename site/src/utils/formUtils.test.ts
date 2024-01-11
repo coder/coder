@@ -168,7 +168,7 @@ describe("form util functions", () => {
     });
 
     it("allows a 32-letter name", () => {
-      const input = "a".repeat(33);
+      const input = "a".repeat(32);
       const validate = () => nameSchema.validateSync(input);
       expect(validate).not.toThrow();
     });

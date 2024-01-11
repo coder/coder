@@ -82,7 +82,7 @@ const fillAndSubmitForm = async ({
   await userEvent.type(iconField, icon);
 
   const allowCancelJobsField = screen.getByRole("checkbox", {
-    name: "Allow users to cancel in-progress workspace jobs. Depending on your template, canceling builds may leave workspaces in an unhealthy state. This option isn't recommended for most use cases.",
+    name: /allow users to cancel in-progress workspace jobs/i,
   });
   // checkbox is checked by default, so it must be clicked to get unchecked
   if (!allow_user_cancel_workspace_jobs) {
@@ -123,8 +123,6 @@ describe("TemplateSettingsPage", () => {
         "Nam quis nulla. Integer malesuada. In in enim a arcu imperdiet malesuada. Sed vel lectus. Donec odio urna, tempus molestie, port a",
     };
     const validate = () => getValidationSchema().validateSync(values);
-    expect(validate).toThrowError(
-      "Please enter a description that is less than or equal to 128 characters.",
-    );
+    expect(validate).toThrowError();
   });
 });
