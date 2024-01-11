@@ -1055,7 +1055,7 @@ func cliHumanFormatError(err error, opts *formatOpts) (string, bool) {
 			// Format as a single error
 			return cliHumanFormatError(multiErrors[0], opts)
 		}
-		return formatMultiError(multiErrors, opts), false
+		return formatMultiError(multiErrors, opts), true
 	}
 
 	// First check for sentinel errors that we want to handle specially.
@@ -1063,13 +1063,13 @@ func cliHumanFormatError(err error, opts *formatOpts) (string, bool) {
 	//var sdkError *codersdk.Error
 	//if errors.As(err, &sdkError) {
 	if sdkError, ok := err.(*codersdk.Error); ok {
-		return formatCoderSDKError(sdkError, opts), false
+		return formatCoderSDKError(sdkError, opts), true
 	}
 
 	//var cmdErr *clibase.RunCommandError
 	//if errors.As(err, &cmdErr) {
 	if cmdErr, ok := err.(*clibase.RunCommandError); ok {
-		return formatRunCommandError(cmdErr, opts), false
+		return formatRunCommandError(cmdErr, opts), true
 	}
 
 	uw, ok := err.(interface{ Unwrap() error })
@@ -1138,9 +1138,14 @@ func formatRunCommandError(err *clibase.RunCommandError, opts *formatOpts) strin
 	var str strings.Builder
 	_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("Encountered an error running %q", err.Cmd.FullName())))
 
-	msgString, _ := cliHumanFormatError(err.Err, opts)
+	msgString, special := cliHumanFormatError(err.Err, opts)
 	_, _ = str.WriteString("\n")
-	_, _ = str.WriteString(pretty.Sprint(tailLineStyle(), msgString))
+	if special {
+		_, _ = str.WriteString(msgString)
+	} else {
+		_, _ = str.WriteString(pretty.Sprint(tailLineStyle(), msgString))
+	}
+
 	return str.String()
 }
 
