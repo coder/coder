@@ -124,8 +124,29 @@ func parseVariableValuesFromHCL(content []byte) ([]codersdk.VariableValue, error
 			stringData[attribute.Name] = ctyValue.AsString()
 		} else if ctyType.Equals(cty.Number) {
 			stringData[attribute.Name] = ctyValue.AsBigFloat().String()
-		} else if ctyType.IsListType() {
-			stringData[attribute.Name] = "TODO list(string)"
+		} else if ctyType.IsTupleType() {
+			// In case of tuples, Coder only supports the list(string) type.
+			var items []string
+			var err error
+			_ = ctyValue.ForEachElement(func(key, val cty.Value) (stop bool) {
+				if !val.Type().Equals(cty.String) {
+					err = xerrors.Errorf("unsupported tuple item type: %s ", val.GoString())
+					return true
+				}
+				items = append(items, val.AsString())
+				return false
+			})
+			if err != nil {
+				return nil, err
+			}
+
+			m, err := json.Marshal(items)
+			if err != nil {
+				return nil, err
+			}
+			stringData[attribute.Name] = string(m)
+		} else {
+			return nil, xerrors.Errorf("unknown value type (name: %s): %s", attribute.Name, ctyType.GoString())
 		}
 	}
 
