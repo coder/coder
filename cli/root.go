@@ -1041,6 +1041,8 @@ const indent = "    "
 //	       go run main.go exp example-error cmd
 //	       go run main.go exp example-error multi-error
 //	       go run main.go exp example-error validation
+//
+//nolint:errorlint
 func cliHumanFormatError(from string, err error, opts *formatOpts) (string, bool) {
 	if opts == nil {
 		opts = &formatOpts{}

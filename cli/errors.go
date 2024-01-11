@@ -44,6 +44,7 @@ func (RootCmd) errorExample() *clibase.Cmd {
 	//nolint:errorlint,forcetypeassert
 	apiError.(*codersdk.Error).Helper = "Have you tried turning it off and on again?"
 
+	//nolint:errorlint,forcetypeassert
 	apiErrorNoHelper := apiError.(*codersdk.Error)
 	apiErrorNoHelper.Helper = ""
 
