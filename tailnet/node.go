@@ -180,3 +180,15 @@ func (u *nodeUpdater) setStatus(s *wgengine.Status, err error) {
 	u.dirty = true
 	u.Broadcast()
 }
+
+func (u *nodeUpdater) setAddresses(ips []netip.Prefix) {
+	u.L.Lock()
+	defer u.L.Unlock()
+	if d := prefixesDifferent(u.addresses, ips); !d {
+		return
+	}
+	u.addresses = make([]netip.Prefix, len(ips))
+	copy(u.addresses, ips)
+	u.dirty = true
+	u.Broadcast()
+}

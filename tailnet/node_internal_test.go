@@ -227,7 +227,7 @@ func TestNodeUpdater_setStatus_different(t *testing.T) {
 	node := testutil.RequireRecvCtx(ctx, t, nodeCh)
 	require.Equal(t, nodeKey, node.Key)
 	require.Equal(t, discoKey, node.DiscoKey)
-	require.True(t, slices.Equal([]string{"[fe80::1]:5678"}, node.Endpoints))
+	require.Equal(t, []string{"[fe80::1]:5678"}, node.Endpoints)
 
 	// Then: we store the AsOf time as lastStatus
 	uut.L.Lock()
@@ -353,6 +353,86 @@ func TestNodeUpdater_setStatus_outdated(t *testing.T) {
 		LocalAddrs: []tailcfg.Endpoint{{Addr: netip.MustParseAddrPort("[fe80::1]:5678")}},
 		AsOf:       behind,
 	}, xerrors.New("test"))
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.RequireRecvCtx(ctx, t, done)
+}
+
+func TestNodeUpdater_setAddresses_different(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	id := tailcfg.NodeID(1)
+	nodeKey := key.NewNode().Public()
+	discoKey := key.NewDisco().Public()
+	nodeCh := make(chan *Node)
+	uut := newNodeUpdater(
+		logger,
+		func(n *Node) {
+			nodeCh <- n
+		},
+		id, nodeKey, discoKey,
+	)
+	defer uut.close()
+
+	// Given: preferred DERP is 1, so we'll send an update
+	uut.L.Lock()
+	uut.preferredDERP = 1
+	uut.L.Unlock()
+
+	// When: we set addresses
+	addrs := []netip.Prefix{netip.MustParsePrefix("192.168.0.200/32")}
+	uut.setAddresses(addrs)
+
+	// Then: we receive an update with the addresses
+	node := testutil.RequireRecvCtx(ctx, t, nodeCh)
+	require.Equal(t, nodeKey, node.Key)
+	require.Equal(t, discoKey, node.DiscoKey)
+	require.Equal(t, addrs, node.Addresses)
+	require.Equal(t, addrs, node.AllowedIPs)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.RequireRecvCtx(ctx, t, done)
+}
+
+func TestNodeUpdater_setAddresses_same(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	id := tailcfg.NodeID(1)
+	nodeKey := key.NewNode().Public()
+	discoKey := key.NewDisco().Public()
+	nodeCh := make(chan *Node)
+	uut := newNodeUpdater(
+		logger,
+		func(n *Node) {
+			nodeCh <- n
+		},
+		id, nodeKey, discoKey,
+	)
+	defer uut.close()
+
+	// Then: we don't configure
+	requireNeverConfigures(ctx, t, &uut.phased)
+
+	// Given: preferred DERP is 1, so we would send an update on change &&
+	//        addrs already set
+	addrs := []netip.Prefix{netip.MustParsePrefix("192.168.0.200/32")}
+	uut.L.Lock()
+	uut.preferredDERP = 1
+	uut.addresses = slices.Clone(addrs)
+	uut.L.Unlock()
+
+	// When: we set addrs
+	uut.setAddresses(addrs)
 
 	done := make(chan struct{})
 	go func() {
