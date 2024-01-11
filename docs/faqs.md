@@ -404,6 +404,64 @@ Colima will show the path to the docker socket so I have a
 [Coder template](./docker-code-server/main.tf) that prompts the Coder admin to
 enter the docker socket as a Terraform variable.
 
+## How to make a `coder_app` optional?
+
+An example use case is the user should decide if they want a browser-based IDE
+like code-server when creating the workspace.
+
+1. Add a `coder_parameter` with type `bool` to ask the user if they want the
+   code-server IDE
+
+```hcl
+data "coder_parameter" "code_server" {
+  name        = "Do you want code-server in your workspace?"
+  description = "Use VS Code in a browser."
+  type        = "bool"
+  default     = false
+  mutable     = true
+  icon        = "/icon/code.svg"
+  order       = 6
+}
+```
+
+2. Add conditional logic to the `startup_script` to install and start
+   code-server depending on the value of the added `coder_parameter`
+
+```sh
+# install and start code-server, VS Code in a browser
+
+if [ ${data.coder_parameter.code_server.value} = true ]; then
+  echo "🧑🏼‍💻 Downloading and installing the latest code-server IDE..."
+  curl -fsSL https://code-server.dev/install.sh | sh
+  code-server --auth none --port 13337 >/dev/null 2>&1 &
+fi
+```
+
+3. Add a Terraform meta-argument
+   [`count`](https://developer.hashicorp.com/terraform/language/meta-arguments/count)
+   in the `coder_app` resource so it will only create the resource if the
+   `coder_parameter` is `true`
+
+```hcl
+# code-server
+resource "coder_app" "code-server" {
+  count         = data.coder_parameter.code_server.value ? 1 : 0
+  agent_id      = coder_agent.coder.id
+  slug          = "code-server"
+  display_name  = "code-server"
+  icon          = "/icon/code.svg"
+  url           = "http://localhost:13337?folder=/home/coder"
+  subdomain = false
+  share     = "owner"
+
+  healthcheck {
+    url       = "http://localhost:13337/healthz"
+    interval  = 3
+    threshold = 10
+  }
+}
+```
+
 ## Why am I getting this "remote host doesn't meet VS Code Server's prerequisites" error when opening up VSCode remote in a Linux environment?
 
 ![VS Code Server prerequisite](https://github.com/coder/coder/assets/10648092/150c5996-18b1-4fae-afd0-be2b386a3239)
