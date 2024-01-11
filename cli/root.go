@@ -1035,8 +1035,10 @@ func cliHumanFormatError(err error, opts *formatOpts) string {
 	if opts == nil {
 		opts = &formatOpts{}
 	}
+	if err == nil {
+		return "<nil>"
+	}
 
-	//nolint:errorlint
 	if multi, ok := err.(interface{ Unwrap() []error }); ok {
 		multiErrors := multi.Unwrap()
 		if len(multiErrors) == 1 {
@@ -1048,15 +1050,27 @@ func cliHumanFormatError(err error, opts *formatOpts) string {
 
 	// First check for sentinel errors that we want to handle specially.
 	// Order does matter! We want to check for the most specific errors first.
-	var sdkError *codersdk.Error
-	if errors.As(err, &sdkError) {
+	//var sdkError *codersdk.Error
+	//if errors.As(err, &sdkError) {
+	if sdkError, ok := err.(*codersdk.Error); ok {
 		return formatCoderSDKError(sdkError, opts)
 	}
 
-	var cmdErr *clibase.RunCommandError
-	if errors.As(err, &cmdErr) {
+	//var cmdErr *clibase.RunCommandError
+	//if errors.As(err, &cmdErr) {
+	if cmdErr, ok := err.(*clibase.RunCommandError); ok {
 		return formatRunCommandError(cmdErr, opts)
 	}
+
+	uw, ok := err.(interface{ Unwrap() error })
+	if ok {
+		msg := cliHumanFormatError(uw.Unwrap(), opts)
+		if msg != "" {
+			return msg
+		}
+	}
+	// If we got here, that means the error is not anything special. Just format
+	// it as is.
 
 	// Default just printing the error. Use +v for verbose to handle stack
 	// traces of xerrors.
@@ -1112,11 +1126,7 @@ func formatRunCommandError(err *clibase.RunCommandError, opts *formatOpts) strin
 	var str strings.Builder
 	_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("Encountered an error running %q", err.Cmd.FullName())))
 
-	msgString := fmt.Sprintf("%v", err.Err)
-	if opts.Verbose {
-		// '%+v' includes stack traces
-		msgString = fmt.Sprintf("%+v", err.Err)
-	}
+	msgString := cliHumanFormatError(err.Err, opts)
 	_, _ = str.WriteString("\n")
 	_, _ = str.WriteString(pretty.Sprint(tailLineStyle(), msgString))
 	return str.String()
