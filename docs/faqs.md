@@ -409,13 +409,13 @@ enter the docker socket as a Terraform variable.
 An example use case is the user should decide if they want a browser-based IDE
 like code-server when creating the workspace.
 
-1. Create a `coder_parameter` as a `bool` to ask the user if they want the
+1. Add a `coder_parameter` with type `bool` to ask the user if they want the
    code-server IDE
 
 ```hcl
 data "coder_parameter" "code_server" {
-  name        = "code-server (optional)"
-  description = "Use VS Code in a browser"
+  name        = "Do you want code-server in your workspace?"
+  description = "Use VS Code in a browser."
   type        = "bool"
   default     = false
   mutable     = true
@@ -425,10 +425,10 @@ data "coder_parameter" "code_server" {
 ```
 
 2. Add conditional logic to the `startup_script` to install and start
-   code-server if the `bool` is true
+   code-server depending on the value of the added `coder_parameter`
 
 ```sh
-# install and code-server, VS Code in a browser
+# install and start code-server, VS Code in a browser
 
 if [ ${data.coder_parameter.code_server.value} = true ]; then
   echo "🧑🏼‍💻 Downloading and installing the latest code-server IDE..."
@@ -437,13 +437,15 @@ if [ ${data.coder_parameter.code_server.value} = true ]; then
 fi
 ```
 
-3. Add a Terraform meta-argument `count` in the `coder_app` resource so it will
-   only create the resource if the `coder_parameter` is true
+3. Add a Terraform meta-argument
+   [`count`](https://developer.hashicorp.com/terraform/language/meta-arguments/count)
+   in the `coder_app` resource so it will only create the resource if the
+   `coder_parameter` is `true`
 
 ```hcl
 # code-server
 resource "coder_app" "code-server" {
-  count        = data.coder_parameter.code_server.value ? 1 : 0
+  count         = data.coder_parameter.code_server.value ? 1 : 0
   agent_id      = coder_agent.coder.id
   slug          = "code-server"
   display_name  = "code-server"
