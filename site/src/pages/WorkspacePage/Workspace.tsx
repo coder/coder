@@ -26,6 +26,7 @@ import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
 import HubOutlined from "@mui/icons-material/HubOutlined";
 import { ResourcesSidebar } from "./ResourcesSidebar";
 import { ResourceCard } from "components/Resources/ResourceCard";
+import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 
 export type WorkspaceError =
   | "getBuildsError"
@@ -363,8 +364,14 @@ export const Workspace: FC<WorkspaceProps> = ({
 
             {template?.deprecated && (
               <Alert severity="warning">
-                <AlertTitle>Workspace using deprecated template</AlertTitle>
-                <AlertDetail>{template?.deprecation_message}</AlertDetail>
+                <AlertTitle>
+                  This workspace uses a deprecated template
+                </AlertTitle>
+                <AlertDetail>
+                  <MemoizedInlineMarkdown>
+                    {template?.deprecation_message}
+                  </MemoizedInlineMarkdown>
+                </AlertDetail>
               </Alert>
             )}
 
