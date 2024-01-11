@@ -3149,10 +3149,10 @@ export const MockHealth: TypesGen.HealthcheckReport = {
           tags: {
             owner: "12345678-1234-1234-1234-12345678abcd",
             scope: "user",
-            tag_value: "value",
-            tag_true: "true",
+            tag_VALUE: "VALUE",
+            tag_TRUE: "TRUE",
             tag_1: "1",
-            tag_yes: "yes",
+            tag_YES: "YES",
           },
         },
         warnings: [],
