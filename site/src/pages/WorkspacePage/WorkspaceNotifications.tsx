@@ -197,15 +197,13 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = (
       severity: "info",
       detail: (
         <>
-          <div css={{ marginBottom: 12 }}>
-            This workspace build job is waiting for a provisioner to become
-            available. If you have been waiting for an extended period of time,
-            please contact your administrator for assistance.
-          </div>
-          <div>
+          This workspace build job is waiting for a provisioner to become
+          available. If you have been waiting for an extended period of time,
+          please contact your administrator for assistance.
+          <span css={{ display: "block", marginTop: 12 }}>
             Position in queue:{" "}
             <strong>{workspace.latest_build.job.queue_position}</strong>
-          </div>
+          </span>
         </>
       ),
     });
@@ -334,5 +332,6 @@ const styles = {
     margin: 0,
     color: theme.palette.text.secondary,
     lineHeight: 1.6,
+    display: "block",
   }),
 } satisfies Record<string, Interpolation<Theme>>;
