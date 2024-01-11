@@ -5,8 +5,8 @@ import { WorkspaceReadyPage } from "./WorkspaceReadyPage";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { useOrganizationId } from "hooks";
 import { Margins } from "components/Margins/Margins";
-import { useInfiniteQuery, useQuery, useQueryClient } from "react-query";
-import { infiniteWorkspaceBuilds } from "api/queries/workspaceBuilds";
+import { useQuery, useQueryClient } from "react-query";
+import { workspaceBuildsKey } from "api/queries/workspaceBuilds";
 import { templateByName } from "api/queries/templates";
 import { workspaceByOwnerAndName } from "api/queries/workspaces";
 import { checkAuthorization } from "api/queries/authCheck";
@@ -49,27 +49,29 @@ export const WorkspacePage: FC = () => {
   });
   const permissions = permissionsQuery.data as WorkspacePermissions | undefined;
 
-  // Builds
-  const buildsQuery = useInfiniteQuery({
-    ...infiniteWorkspaceBuilds(workspace?.id ?? ""),
-    enabled: workspace !== undefined,
-  });
-
   // Watch workspace changes
   const updateWorkspaceData = useEffectEvent(
     async (newWorkspaceData: Workspace) => {
+      if (!workspace) {
+        throw new Error(
+          "Applying an update for a workspace that is undefined.",
+        );
+      }
+
       queryClient.setQueryData(
         workspaceQueryOptions.queryKey,
         newWorkspaceData,
       );
 
       const hasNewBuild =
-        newWorkspaceData.latest_build.id !== workspace!.latest_build.id;
+        newWorkspaceData.latest_build.id !== workspace.latest_build.id;
       const lastBuildHasChanged =
-        newWorkspaceData.latest_build.status !== workspace!.latest_build.status;
+        newWorkspaceData.latest_build.status !== workspace.latest_build.status;
 
       if (hasNewBuild || lastBuildHasChanged) {
-        await buildsQuery.refetch();
+        await queryClient.invalidateQueries(
+          workspaceBuildsKey(newWorkspaceData.id),
+        );
       }
     },
   );
@@ -120,13 +122,6 @@ export const WorkspacePage: FC = () => {
       workspace={workspace}
       template={template}
       permissions={permissions}
-      builds={buildsQuery.data?.pages.flat()}
-      buildsError={buildsQuery.error}
-      isLoadingMoreBuilds={buildsQuery.isFetchingNextPage}
-      onLoadMoreBuilds={async () => {
-        await buildsQuery.fetchNextPage();
-      }}
-      hasMoreBuilds={Boolean(buildsQuery.hasNextPage)}
     />
   );
 };

@@ -11,11 +11,11 @@ import (
 
 	agpltest "github.com/coder/coder/v2/tailnet/test"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 	gProto "google.golang.org/protobuf/proto"

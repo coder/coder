@@ -35,6 +35,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 		allowUserAutostop              bool
 		requireActiveVersion           bool
 		deprecationMessage             string
+		disableEveryone                bool
 	)
 	client := new(codersdk.Client)
 
@@ -46,18 +47,6 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 		),
 		Short: "Edit the metadata of a template by name.",
 		Handler: func(inv *clibase.Invocation) error {
-			// This clause can be removed when workspace_actions is no longer experimental
-			if failureTTL != 0 || dormancyThreshold != 0 || dormancyAutoDeletion != 0 {
-				experiments, exErr := client.Experiments(inv.Context())
-				if exErr != nil {
-					return xerrors.Errorf("get experiments: %w", exErr)
-				}
-
-				if !experiments.Enabled(codersdk.ExperimentWorkspaceActions) {
-					return xerrors.Errorf("--failure-ttl, --dormancy-threshold, and --dormancy-auto-deletion are experimental features. Use the workspace_actions CODER_EXPERIMENTS flag to set these configuration values.")
-				}
-			}
-
 			unsetAutostopRequirementDaysOfWeek := len(autostopRequirementDaysOfWeek) == 1 && autostopRequirementDaysOfWeek[0] == "none"
 			requiresScheduling := (len(autostopRequirementDaysOfWeek) > 0 && !unsetAutostopRequirementDaysOfWeek) ||
 				autostopRequirementWeeks > 0 ||
@@ -162,6 +151,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				AllowUserAutostop:              allowUserAutostop,
 				RequireActiveVersion:           requireActiveVersion,
 				DeprecationMessage:             deprecated,
+				DisableEveryoneGroupAccess:     disableEveryone,
 			}
 
 			_, err = client.UpdateTemplateMeta(inv.Context(), template.ID, req)
@@ -291,6 +281,13 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 			Description: "Requires workspace builds to use the active template version. This setting does not apply to template admins. This is an enterprise-only feature.",
 			Value:       clibase.BoolOf(&requireActiveVersion),
 			Default:     "false",
+		},
+		{
+			Flag: "private",
+			Description: "Disable the default behavior of granting template access to the 'everyone' group. " +
+				"The template permissions must be updated to allow non-admin users to use this template.",
+			Value:   clibase.BoolOf(&disableEveryone),
+			Default: "false",
 		},
 		cliui.SkipPromptOption(),
 	}

@@ -174,7 +174,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Applications Enterprise"
+                    "Enterprise"
                 ],
                 "summary": "Issue signed app token for reconnecting PTY",
                 "operationId": "issue-signed-app-token-for-reconnecting-pty",
@@ -9108,13 +9108,9 @@ const docTemplate = `{
         "codersdk.Experiment": {
             "type": "string",
             "enum": [
-                "workspace_actions",
-                "tailnet_pg_coordinator",
                 "deployment_health_page"
             ],
             "x-enum-varnames": [
-                "ExperimentWorkspaceActions",
-                "ExperimentTailnetPGCoordinator",
                 "ExperimentDeploymentHealthPage"
             ]
         },
@@ -9410,14 +9406,16 @@ const docTemplate = `{
                 "AccessURL",
                 "Websocket",
                 "Database",
-                "WorkspaceProxy"
+                "WorkspaceProxy",
+                "ProvisionerDaemons"
             ],
             "x-enum-varnames": [
                 "HealthSectionDERP",
                 "HealthSectionAccessURL",
                 "HealthSectionWebsocket",
                 "HealthSectionDatabase",
-                "HealthSectionWorkspaceProxy"
+                "HealthSectionWorkspaceProxy",
+                "HealthSectionProvisionerDaemons"
             ]
         },
         "codersdk.HealthSettings": {
@@ -12959,7 +12957,10 @@ const docTemplate = `{
                 "EACS03",
                 "EACS04",
                 "EDERP01",
-                "EDERP02"
+                "EDERP02",
+                "EPD01",
+                "EPD02",
+                "EPD03"
             ],
             "x-enum-varnames": [
                 "CodeUnknown",
@@ -12977,7 +12978,10 @@ const docTemplate = `{
                 "CodeAccessURLFetch",
                 "CodeAccessURLNotOK",
                 "CodeDERPNodeUsesWebsocket",
-                "CodeDERPOneNodeUnhealthy"
+                "CodeDERPOneNodeUnhealthy",
+                "CodeProvisionerDaemonsNoProvisionerDaemons",
+                "CodeProvisionerDaemonVersionMismatch",
+                "CodeProvisionerDaemonAPIMajorVersionDeprecated"
             ]
         },
         "health.Message": {
@@ -13094,6 +13098,46 @@ const docTemplate = `{
                 }
             }
         },
+        "healthcheck.ProvisionerDaemonsReport": {
+            "type": "object",
+            "properties": {
+                "dismissed": {
+                    "type": "boolean"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/healthcheck.ProvisionerDaemonsReportItem"
+                    }
+                },
+                "severity": {
+                    "$ref": "#/definitions/health.Severity"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/health.Message"
+                    }
+                }
+            }
+        },
+        "healthcheck.ProvisionerDaemonsReportItem": {
+            "type": "object",
+            "properties": {
+                "provisioner_daemon": {
+                    "$ref": "#/definitions/codersdk.ProvisionerDaemon"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/health.Message"
+                    }
+                }
+            }
+        },
         "healthcheck.Report": {
             "type": "object",
             "properties": {
@@ -13120,6 +13164,9 @@ const docTemplate = `{
                 "healthy": {
                     "description": "Healthy is true if the report returns no errors.\nDeprecated: use ` + "`" + `Severity` + "`" + ` instead",
                     "type": "boolean"
+                },
+                "provisioner_daemons": {
+                    "$ref": "#/definitions/healthcheck.ProvisionerDaemonsReport"
                 },
                 "severity": {
                     "description": "Severity indicates the status of Coder health.",

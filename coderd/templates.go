@@ -667,6 +667,11 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			name = template.Name
 		}
 
+		groupACL := template.GroupACL
+		if req.DisableEveryoneGroupAccess {
+			groupACL = database.TemplateACL{}
+		}
+
 		var err error
 		err = tx.UpdateTemplateMetaByID(ctx, database.UpdateTemplateMetaByIDParams{
 			ID:                           template.ID,
@@ -676,6 +681,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			Description:                  req.Description,
 			Icon:                         req.Icon,
 			AllowUserCancelWorkspaceJobs: req.AllowUserCancelWorkspaceJobs,
+			GroupACL:                     groupACL,
 		})
 		if err != nil {
 			return xerrors.Errorf("update template metadata: %w", err)

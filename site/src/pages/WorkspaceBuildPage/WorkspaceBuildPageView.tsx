@@ -12,16 +12,14 @@ import {
 } from "components/PageHeader/FullWidthPageHeader";
 import { Link } from "react-router-dom";
 import { Stats, StatsItem } from "components/Stats/Stats";
-import {
-  displayWorkspaceBuildDuration,
-  getDisplayWorkspaceBuildInitiatedBy,
-  getDisplayWorkspaceBuildStatus,
-} from "utils/workspace";
+import { displayWorkspaceBuildDuration } from "utils/workspace";
 import { Sidebar, SidebarCaption, SidebarItem } from "./Sidebar";
-import { BuildIcon } from "components/BuildIcon/BuildIcon";
-import Skeleton from "@mui/material/Skeleton";
 import { Alert } from "components/Alert/Alert";
 import { DashboardFullPage } from "components/Dashboard/DashboardLayout";
+import {
+  WorkspaceBuildData,
+  WorkspaceBuildDataSkeleton,
+} from "components/WorkspaceBuild/WorkspaceBuildData";
 
 const sortLogsByCreatedAt = (logs: ProvisionerJobLog[]) => {
   return [...logs].sort(
@@ -112,15 +110,20 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
           <SidebarCaption>Builds</SidebarCaption>
           {!builds &&
             Array.from({ length: 15 }, (_, i) => (
-              <BuildSidebarItemSkeleton key={i} />
+              <SidebarItem key={i}>
+                <WorkspaceBuildDataSkeleton />
+              </SidebarItem>
             ))}
 
           {builds?.map((build) => (
-            <BuildSidebarItem
+            <Link
               key={build.id}
-              build={build}
-              active={build.build_number === activeBuildNumber}
-            />
+              to={`/@${build.workspace_owner_name}/${build.workspace_name}/builds/${build.build_number}`}
+            >
+              <SidebarItem active={build.build_number === activeBuildNumber}>
+                <WorkspaceBuildData build={build} />
+              </SidebarItem>
+            </Link>
           ))}
         </Sidebar>
 
@@ -164,78 +167,6 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
         </div>
       </div>
     </DashboardFullPage>
-  );
-};
-
-interface BuildSidebarItemProps {
-  build: WorkspaceBuild;
-  active: boolean;
-}
-
-const BuildSidebarItem: FC<BuildSidebarItemProps> = ({ build, active }) => {
-  const theme = useTheme();
-  const statusType = getDisplayWorkspaceBuildStatus(theme, build).type;
-
-  return (
-    <Link
-      key={build.id}
-      to={`/@${build.workspace_owner_name}/${build.workspace_name}/builds/${build.build_number}`}
-    >
-      <SidebarItem active={active}>
-        <div css={{ display: "flex", alignItems: "start", gap: 8 }}>
-          <BuildIcon
-            transition={build.transition}
-            css={{
-              width: 16,
-              height: 16,
-              color: theme.palette[statusType].light,
-            }}
-          />
-          <div css={{ overflow: "hidden" }}>
-            <div
-              css={{
-                textTransform: "capitalize",
-                color: theme.palette.text.primary,
-                textOverflow: "ellipsis",
-                overflow: "hidden",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {build.transition} by{" "}
-              <strong>{getDisplayWorkspaceBuildInitiatedBy(build)}</strong>
-            </div>
-            <div
-              css={{
-                fontSize: 12,
-                color: theme.palette.text.secondary,
-                marginTop: 2,
-              }}
-            >
-              {displayWorkspaceBuildDuration(build)}
-            </div>
-          </div>
-        </div>
-      </SidebarItem>
-    </Link>
-  );
-};
-
-const BuildSidebarItemSkeleton: FC = () => {
-  return (
-    <SidebarItem>
-      <div css={{ display: "flex", alignItems: "start", gap: 8 }}>
-        <Skeleton variant="circular" width={16} height={16} />
-        <div>
-          <Skeleton variant="text" width={94} height={16} />
-          <Skeleton
-            variant="text"
-            width={60}
-            height={14}
-            css={{ marginTop: 2 }}
-          />
-        </div>
-      </div>
-    </SidebarItem>
   );
 };
 

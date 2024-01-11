@@ -39,6 +39,9 @@ export const WorkspaceProxyPage = () => {
       </Header>
 
       <Main>
+        {workspace_proxy.error && (
+          <Alert severity="error">{workspace_proxy.error}</Alert>
+        )}
         {workspace_proxy.warnings.map((warning) => {
           return (
             <Alert key={warning.code} severity="warning">
@@ -48,6 +51,7 @@ export const WorkspaceProxyPage = () => {
         })}
 
         {regions.map((region) => {
+          const errors = region.status?.report?.errors ?? [];
           const warnings = region.status?.report?.warnings ?? [];
 
           return (
@@ -55,7 +59,11 @@ export const WorkspaceProxyPage = () => {
               key={region.id}
               css={{
                 borderRadius: 8,
-                border: `1px solid ${theme.palette.divider}`,
+                border: `1px solid ${
+                  region.healthy
+                    ? theme.palette.divider
+                    : theme.palette.warning.light
+                }`,
                 fontSize: 14,
               }}
             >
@@ -107,11 +115,19 @@ export const WorkspaceProxyPage = () => {
                       <Pill icon={<TagOutlined />}>{region.version}</Pill>
                     </Tooltip>
                   )}
-                  <BooleanPill value={region.derp_enabled}>
-                    DERP Enabled
-                  </BooleanPill>
-                  <BooleanPill value={region.derp_only}>DERP Only</BooleanPill>
-                  <BooleanPill value={region.deleted}>Deleted</BooleanPill>
+                  {region.derp_enabled && (
+                    <BooleanPill value={region.derp_enabled}>
+                      DERP Enabled
+                    </BooleanPill>
+                  )}
+                  {region.derp_only && (
+                    <BooleanPill value={region.derp_only}>
+                      DERP Only
+                    </BooleanPill>
+                  )}
+                  {region.deleted && (
+                    <BooleanPill value={region.deleted}>Deleted</BooleanPill>
+                  )}
                 </div>
               </header>
 
@@ -126,14 +142,23 @@ export const WorkspaceProxyPage = () => {
                   color: theme.palette.text.secondary,
                 }}
               >
-                {warnings.length > 0 ? (
+                {region.status?.status === "unregistered" ? (
+                  <span>Has not connected yet</span>
+                ) : warnings.length === 0 && errors.length === 0 ? (
+                  <span>OK</span>
+                ) : (
                   <div css={{ display: "flex", flexDirection: "column" }}>
-                    {warnings.map((warning, i) => (
-                      <span key={i}>{warning}</span>
+                    {[...errors, ...warnings].map((msg, i) => (
+                      <span
+                        css={{
+                          ":first-letter": { textTransform: "uppercase" },
+                        }}
+                        key={i}
+                      >
+                        {msg}
+                      </span>
                     ))}
                   </div>
-                ) : (
-                  <span>No warnings</span>
                 )}
                 <span data-chromatic="ignore">
                   {createDayString(region.updated_at)}

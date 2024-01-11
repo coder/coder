@@ -22,29 +22,9 @@
       "icon_path": "./images/icons/download.svg",
       "children": [
         {
-          "title": "Install script",
-          "description": "One-line install script for macOS and Linux",
-          "path": "./install/install.sh.md"
-        },
-        {
-          "title": "System packages",
-          "description": "System packages for Debian, Ubuntu, Fedora, CentOS, RHEL, SUSE, and Alpine",
-          "path": "./install/packages.md"
-        },
-        {
-          "title": "macOS",
-          "description": "Install Coder using our Homebrew tap",
-          "path": "./install/macos.md"
-        },
-        {
           "title": "Kubernetes",
           "description": "Install Coder with Kubernetes via Helm",
           "path": "./install/kubernetes.md"
-        },
-        {
-          "title": "OpenShift",
-          "description": "Install Coder on OpenShift",
-          "path": "./install/openshift.md"
         },
         {
           "title": "Docker",
@@ -52,14 +32,9 @@
           "path": "./install/docker.md"
         },
         {
-          "title": "Windows",
-          "description": "Install Coder on Windows",
-          "path": "./install/windows.md"
-        },
-        {
-          "title": "Standalone binaries",
-          "description": "Download binaries for macOS, Windows, and Linux",
-          "path": "./install/binary.md"
+          "title": "OpenShift",
+          "description": "Install Coder on OpenShift",
+          "path": "./install/openshift.md"
         },
         {
           "title": "Offline deployments",
@@ -75,6 +50,11 @@
           "title": "Uninstall",
           "description": "Learn how to uninstall Coder",
           "path": "./install/uninstall.md"
+        },
+        {
+          "title": "1-click install",
+          "description": "Install Coder on a cloud provider with a single click",
+          "path": "./install/1-click.md"
         }
       ]
     },
@@ -517,10 +497,6 @@
           "path": "./api/applications.md"
         },
         {
-          "title": "Applications Enterprise",
-          "path": "./api/applications enterprise.md"
-        },
-        {
           "title": "Audit",
           "path": "./api/audit.md"
         },
@@ -892,7 +868,7 @@
         },
         {
           "title": "templates create",
-          "description": "Create a template from the current directory or as specified by flag",
+          "description": "DEPRECATED: Create a template from the current directory or as specified by flag",
           "path": "cli/templates_create.md"
         },
         {
@@ -922,7 +898,7 @@
         },
         {
           "title": "templates push",
-          "description": "Push a new template version from the current directory or as specified by flag",
+          "description": "Create or update a template from the current directory or as specified by flag",
           "path": "cli/templates_push.md"
         },
         {
@@ -1039,6 +1015,11 @@
           "title": "Configuring Okta",
           "description": "Custom claims/scopes with Okta for group/role sync",
           "path": "./guides/configuring-okta.md"
+        },
+        {
+          "title": "Google to AWS Federation",
+          "description": "Federating a Google Cloud service account to AWS",
+          "path": "./guides/gcp-to-aws.md"
         }
       ]
     }

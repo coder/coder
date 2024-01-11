@@ -24,7 +24,6 @@ const meta: Meta<typeof WorkspaceTopbar> = {
   parameters: {
     layout: "fullscreen",
     features: ["advanced_template_scheduling"],
-    experiments: ["workspace_actions"],
   },
 };
 

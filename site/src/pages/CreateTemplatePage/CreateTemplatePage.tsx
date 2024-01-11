@@ -1,8 +1,8 @@
-import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm";
-import { FC } from "react";
+import { type FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
+import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm";
 import { DuplicateTemplateView } from "./DuplicateTemplateView";
 import { ImportStarterTemplateView } from "./ImportStarterTemplateView";
 import { UploadTemplateView } from "./UploadTemplateView";

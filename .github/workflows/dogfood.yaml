@@ -35,6 +35,9 @@ jobs:
       - name: Set up Depot CLI
         uses: depot/setup-action@v1
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Login to DockerHub
         if: github.ref == 'refs/heads/main'
         uses: docker/login-action@v3
@@ -47,6 +50,7 @@ jobs:
         with:
           project: b4q6ltmpzh
           token: ${{ secrets.DEPOT_TOKEN }}
+          buildx-fallback: true
           context: "{{defaultContext}}:dogfood"
           pull: true
           push: ${{ github.ref == 'refs/heads/main' }}
@@ -75,7 +79,7 @@ jobs:
 
       - name: "Push template"
         run: |
-          ./coder templates push $CODER_TEMPLATE_NAME --directory $CODER_TEMPLATE_DIR --yes --name=$CODER_TEMPLATE_VERSION --message="$CODER_TEMPLATE_MESSAGE"
+          ./coder templates push $CODER_TEMPLATE_NAME --directory $CODER_TEMPLATE_DIR --yes --name=$CODER_TEMPLATE_VERSION --message="$CODER_TEMPLATE_MESSAGE" --variable jfrog_url=${{ secrets.JFROG_URL }}
         env:
           # Consumed by Coder CLI
           CODER_URL: https://dev.coder.com

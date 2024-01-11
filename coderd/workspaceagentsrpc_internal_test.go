@@ -10,9 +10,9 @@ import (
 
 	"github.com/coder/coder/v2/coderd/util/ptr"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"nhooyr.io/websocket"
 
 	"cdr.dev/slog"
@@ -219,14 +219,21 @@ func TestAgentWebsocketMonitor_BuildOutdated(t *testing.T) {
 
 func TestAgentWebsocketMonitor_SendPings(t *testing.T) {
 	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitShort)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	t.Cleanup(cancel)
 	fConn := &fakePingerCloser{}
 	uut := &agentWebsocketMonitor{
 		pingPeriod: testutil.IntervalFast,
 		conn:       fConn,
 	}
-	go uut.sendPings(ctx)
+	done := make(chan struct{})
+	go func() {
+		uut.sendPings(ctx)
+		close(done)
+	}()
 	fConn.requireEventuallyHasPing(t)
+	cancel()
+	<-done
 	lastPing := uut.lastPing.Load()
 	require.NotNil(t, lastPing)
 }

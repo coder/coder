@@ -69,7 +69,8 @@ const ExternalAuthPage: FC = () => {
       // show an error there?
       return (
         <SignInLayout>
-          <Welcome message="Failed to validate oauth access token" />
+          <Welcome>Failed to validate oauth access token</Welcome>
+
           <p css={{ textAlign: "center" }}>
             Attempted to validate the user&apos;s oauth access token from the
             authentication flow. This situation may occur as a result of an

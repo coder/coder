@@ -3,7 +3,8 @@ coder v0.0.0-devel
 USAGE:
   coder templates create [flags] [name]
 
-  Create a template from the current directory or as specified by flag
+  DEPRECATED: Create a template from the current directory or as specified by
+  flag
 
 OPTIONS:
       --default-ttl duration (default: 24h)

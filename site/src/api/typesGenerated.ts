@@ -1265,6 +1265,7 @@ export interface UpdateTemplateMeta {
   readonly update_workspace_dormant_at: boolean;
   readonly require_active_version: boolean;
   readonly deprecation_message?: string;
+  readonly disable_everyone_group_access: boolean;
 }
 
 // From codersdk/users.go
@@ -1812,15 +1813,8 @@ export const Entitlements: Entitlement[] = [
 ];
 
 // From codersdk/deployment.go
-export type Experiment =
-  | "deployment_health_page"
-  | "tailnet_pg_coordinator"
-  | "workspace_actions";
-export const Experiments: Experiment[] = [
-  "deployment_health_page",
-  "tailnet_pg_coordinator",
-  "workspace_actions",
-];
+export type Experiment = "deployment_health_page";
+export const Experiments: Experiment[] = ["deployment_health_page"];
 
 // From codersdk/deployment.go
 export type FeatureName =
@@ -1868,12 +1862,14 @@ export type HealthSection =
   | "AccessURL"
   | "DERP"
   | "Database"
+  | "ProvisionerDaemons"
   | "Websocket"
   | "WorkspaceProxy";
 export const HealthSections: HealthSection[] = [
   "AccessURL",
   "DERP",
   "Database",
+  "ProvisionerDaemons",
   "Websocket",
   "WorkspaceProxy",
 ];
@@ -2206,6 +2202,21 @@ export interface HealthcheckDatabaseReport {
   readonly error?: string;
 }
 
+// From healthcheck/provisioner.go
+export interface HealthcheckProvisionerDaemonsReport {
+  readonly severity: HealthSeverity;
+  readonly warnings: HealthMessage[];
+  readonly dismissed: boolean;
+  readonly error?: string;
+  readonly items: HealthcheckProvisionerDaemonsReportItem[];
+}
+
+// From healthcheck/provisioner.go
+export interface HealthcheckProvisionerDaemonsReportItem {
+  readonly provisioner_daemon: ProvisionerDaemon;
+  readonly warnings: HealthMessage[];
+}
+
 // From healthcheck/healthcheck.go
 export interface HealthcheckReport {
   readonly time: string;
@@ -2217,6 +2228,7 @@ export interface HealthcheckReport {
   readonly websocket: HealthcheckWebsocketReport;
   readonly database: HealthcheckDatabaseReport;
   readonly workspace_proxy: HealthcheckWorkspaceProxyReport;
+  readonly provisioner_daemons: HealthcheckProvisionerDaemonsReport;
   readonly coder_version: string;
 }
 
@@ -2304,6 +2316,9 @@ export type HealthCode =
   | "EDB02"
   | "EDERP01"
   | "EDERP02"
+  | "EPD01"
+  | "EPD02"
+  | "EPD03"
   | "EUNKNOWN"
   | "EWP01"
   | "EWP02"
@@ -2321,6 +2336,9 @@ export const HealthCodes: HealthCode[] = [
   "EDB02",
   "EDERP01",
   "EDERP02",
+  "EPD01",
+  "EPD02",
+  "EPD03",
   "EUNKNOWN",
   "EWP01",
   "EWP02",

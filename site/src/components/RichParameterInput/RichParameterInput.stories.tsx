@@ -96,7 +96,7 @@ export const Options: Story = {
           name: "Third option",
           value: "third_option",
           description: "",
-          icon: "/icon/aws.png",
+          icon: "/icon/aws.svg",
         },
       ],
     }),
@@ -138,7 +138,7 @@ Very big.
 
 > Wow, that description is straight up large. –Some guy, probably
 `,
-          icon: "/icon/aws.png",
+          icon: "/icon/aws.svg",
         },
       ],
     }),

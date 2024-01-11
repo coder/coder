@@ -4,8 +4,6 @@ import (
 	"context"
 	"io"
 	"net"
-	"strconv"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -16,6 +14,7 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/util/apiversion"
 	"github.com/coder/coder/v2/tailnet/proto"
 
 	"golang.org/x/xerrors"
@@ -26,47 +25,7 @@ const (
 	CurrentMinor = 0
 )
 
-var SupportedMajors = []int{2, 1}
-
-func ValidateVersion(version string) error {
-	major, minor, err := parseVersion(version)
-	if err != nil {
-		return err
-	}
-	if major > CurrentMajor {
-		return xerrors.Errorf("server is at version %d.%d, behind requested version %s",
-			CurrentMajor, CurrentMinor, version)
-	}
-	if major == CurrentMajor {
-		if minor > CurrentMinor {
-			return xerrors.Errorf("server is at version %d.%d, behind requested version %s",
-				CurrentMajor, CurrentMinor, version)
-		}
-		return nil
-	}
-	for _, mjr := range SupportedMajors {
-		if major == mjr {
-			return nil
-		}
-	}
-	return xerrors.Errorf("version %s is no longer supported", version)
-}
-
-func parseVersion(version string) (major int, minor int, err error) {
-	parts := strings.Split(version, ".")
-	if len(parts) != 2 {
-		return 0, 0, xerrors.Errorf("invalid version string: %s", version)
-	}
-	major, err = strconv.Atoi(parts[0])
-	if err != nil {
-		return 0, 0, xerrors.Errorf("invalid major version: %s", version)
-	}
-	minor, err = strconv.Atoi(parts[1])
-	if err != nil {
-		return 0, 0, xerrors.Errorf("invalid minor version: %s", version)
-	}
-	return major, minor, nil
-}
+var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor).WithBackwardCompat(1)
 
 type streamIDContextKey struct{}
 
@@ -127,7 +86,7 @@ func NewClientService(
 }
 
 func (s *ClientService) ServeClient(ctx context.Context, version string, conn net.Conn, id uuid.UUID, agent uuid.UUID) error {
-	major, _, err := parseVersion(version)
+	major, _, err := apiversion.Parse(version)
 	if err != nil {
 		s.logger.Warn(ctx, "serve client called with unparsable version", slog.Error(err))
 		return err

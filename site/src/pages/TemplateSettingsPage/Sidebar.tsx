@@ -10,6 +10,7 @@ import {
   SidebarHeader,
   SidebarNavItem,
 } from "components/Sidebar/Sidebar";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
 
 interface SidebarProps {
   template: Template;
@@ -19,7 +20,11 @@ export const Sidebar: FC<SidebarProps> = ({ template }) => {
   return (
     <BaseSidebar>
       <SidebarHeader
-        avatar={<Avatar src={template.icon} variant="square" fitImage />}
+        avatar={
+          <Avatar variant="square" fitImage>
+            <ExternalImage src={template.icon} css={{ width: "100%" }} />
+          </Avatar>
+        }
         title={template.display_name || template.name}
         linkTo={`/templates/${template.name}`}
         subtitle={template.name}

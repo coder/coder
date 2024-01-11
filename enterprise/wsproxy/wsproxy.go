@@ -329,8 +329,8 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 				next.ServeHTTP(w, r)
 			})
 		},
-		// TODO: @emyrk we might not need this? But good to have if it does
-		// 		not break anything.
+		// CSRF is required here because we need to set the CSRF cookies on
+		// responses.
 		httpmw.CSRF(s.Options.SecureAuthCookie),
 	)
 

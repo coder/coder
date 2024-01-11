@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/bramvdbogaerde/go-scp"
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/pion/udp"
 	"github.com/pkg/sftp"
@@ -37,6 +36,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"

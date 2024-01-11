@@ -33,6 +33,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "components/Popover/Popover";
+import { ThemeOverride } from "contexts/ThemeProvider";
+import themes from "theme";
 
 export const Language = {
   workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
@@ -293,7 +295,7 @@ const TerminalPage: FC = () => {
   ]);
 
   return (
-    <>
+    <ThemeOverride theme={themes.dark}>
       <Helmet>
         <title>
           {workspace.data
@@ -314,7 +316,7 @@ const TerminalPage: FC = () => {
           <BottomBar proxy={selectedProxy} latency={latency.latencyMS} />
         )}
       </div>
-    </>
+    </ThemeOverride>
   );
 };
 

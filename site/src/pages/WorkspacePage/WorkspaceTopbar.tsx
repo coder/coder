@@ -29,7 +29,7 @@ import PersonOutline from "@mui/icons-material/PersonOutline";
 import { Popover, PopoverTrigger } from "components/Popover/Popover";
 import { HelpTooltipContent } from "components/HelpTooltip/HelpTooltip";
 import { AvatarData } from "components/AvatarData/AvatarData";
-import { Avatar } from "components/Avatar/Avatar";
+import { ExternalAvatar } from "components/Avatar/Avatar";
 
 export type WorkspaceError =
   | "getBuildsError"
@@ -88,20 +88,18 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
   });
 
   // Dormant
-  const { entitlements, experiments } = useDashboard();
+  const { entitlements } = useDashboard();
   const allowAdvancedScheduling =
     entitlements.features["advanced_template_scheduling"].enabled;
   // This check can be removed when https://github.com/coder/coder/milestone/19
   // is merged up
-  const allowWorkspaceActions = experiments.includes("workspace_actions");
   const shouldDisplayDormantData = displayDormantDeletion(
     workspace,
     allowAdvancedScheduling,
-    allowWorkspaceActions,
   );
 
   return (
-    <Topbar>
+    <Topbar css={{ gridArea: "topbar" }}>
       <Tooltip title="Back to workspaces">
         <TopbarIconButton component={RouterLink} to="/workspaces">
           <ArrowBackOutlined />
@@ -176,7 +174,7 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
                 }
                 avatar={
                   workspace.template_icon !== "" && (
-                    <Avatar
+                    <ExternalAvatar
                       src={workspace.template_icon}
                       variant="square"
                       fitImage

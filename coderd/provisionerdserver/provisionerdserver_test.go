@@ -187,8 +187,8 @@ func TestAcquireJob(t *testing.T) {
 			srv, db, ps, _ := setup(t, false, &overrides{
 				deploymentValues: dv,
 				externalAuthConfigs: []*externalauth.Config{{
-					ID:           gitAuthProvider,
-					OAuth2Config: &testutil.OAuth2Config{},
+					ID:                       gitAuthProvider,
+					InstrumentedOAuth2Config: &testutil.OAuth2Config{},
 				}},
 			})
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -1786,7 +1786,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		Tags:         database.StringMap{},
 		LastSeenAt:   sql.NullTime{},
 		Version:      buildinfo.Version(),
-		APIVersion:   provisionersdk.APIVersionCurrent,
+		APIVersion:   provisionersdk.VersionCurrent.String(),
 	})
 	require.NoError(t, err)
 

@@ -36,18 +36,7 @@ export const CopyButton: FC<CopyButtonProps> = ({
     <Tooltip title={tooltipTitle} placement="top">
       <div css={[{ display: "flex" }, wrapperStyles]}>
         <IconButton
-          css={[
-            (theme) => css`
-              border-radius: 8px;
-              padding: 8px;
-              min-width: 32px;
-
-              &:hover {
-                background: ${theme.palette.background.paper};
-              }
-            `,
-            buttonStyles,
-          ]}
+          css={[styles.button, buttonStyles]}
           onClick={copyToClipboard}
           size="small"
           aria-label={Language.ariaLabel}
@@ -66,6 +55,15 @@ export const CopyButton: FC<CopyButtonProps> = ({
 };
 
 const styles = {
+  button: (theme) => css`
+    border-radius: 8px;
+    padding: 8px;
+    min-width: 32px;
+
+    &:hover {
+      background: ${theme.palette.background.paper};
+    }
+  `,
   copyIcon: css`
     width: 20px;
     height: 20px;

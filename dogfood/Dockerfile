@@ -53,7 +53,7 @@ RUN mkdir --parents "$GOPATH" && \
 	# charts and values files
 	go install github.com/norwoodj/helm-docs/cmd/helm-docs@v1.5.0 && \
 	# sqlc for Go code generation
-	(CGO_ENABLED=1 go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.24.0) && \
+	(CGO_ENABLED=1 go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.25.0) && \
 	# gcr-cleaner-cli used by CI to prune unused images
 	go install github.com/sethvargo/gcr-cleaner/cmd/gcr-cleaner-cli@v0.5.1 && \
 	# ruleguard for checking custom rules, without needing to run all of
@@ -73,7 +73,7 @@ RUN mkdir --parents "$GOPATH" && \
 	# yq v3 used in v1.
 	go install github.com/mikefarah/yq/v4@v4.30.6 && \
 	mv /tmp/bin/yq /tmp/bin/yq4 && \
-	go install github.com/golang/mock/mockgen@v1.6.0
+	go install go.uber.org/mock/mockgen@v0.4.0
 
 FROM gcr.io/coder-dev-1/alpine:3.18 as proto
 WORKDIR /tmp
@@ -205,7 +205,7 @@ RUN apt-get update && \
 	google-chrome-stable microsoft-edge-beta && \
 	# Pre-install system dependencies that Playwright needs. npx doesn't work here
 	# for some reason. See https://github.com/microsoft/playwright-cli/issues/136
-	npm i -g playwright@1.36.2 pnpm@^8 && playwright install-deps && \
+	npm i -g playwright@1.36.2 pnpm@^8 corepack && playwright install-deps && \
 	npm cache clean --force
 
 # Ensure PostgreSQL binaries are in the users $PATH.

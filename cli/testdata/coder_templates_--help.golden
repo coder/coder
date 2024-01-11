@@ -9,15 +9,11 @@ USAGE:
 
   Templates are written in standard Terraform and describe the infrastructure
   for workspaces
-    - Create a template for developers to create workspaces:
-  
-       $ coder templates create
-  
     - Make changes to your template, and plan the changes:
   
        $ coder templates plan my-template
   
-    - Push an update to the template. Your developers can update their
+    - Create or push an update to the template. Your developers can update their
   workspaces:
   
        $ coder templates push my-template
@@ -25,15 +21,15 @@ USAGE:
 SUBCOMMANDS:
     archive     Archive unused or failed template versions from a given
                 template(s)
-    create      Create a template from the current directory or as specified by
-                flag
+    create      DEPRECATED: Create a template from the current directory or as
+                specified by flag
     delete      Delete templates
     edit        Edit the metadata of a template by name.
     init        Get started with a templated template.
     list        List all the templates available for the organization
     pull        Download the active, latest, or specified version of a template
                 to a path.
-    push        Push a new template version from the current directory or as
+    push        Create or update a template from the current directory or as
                 specified by flag
     versions    Manage different versions of the specified template
 

@@ -2,17 +2,17 @@ import { css } from "@emotion/css";
 import Button, { ButtonProps } from "@mui/material/Button";
 import IconButton, { IconButtonProps } from "@mui/material/IconButton";
 import { useTheme } from "@mui/material/styles";
-import { Avatar, AvatarProps } from "components/Avatar/Avatar";
+import { AvatarProps, ExternalAvatar } from "components/Avatar/Avatar";
 import {
-  ForwardedRef,
-  HTMLAttributes,
-  PropsWithChildren,
-  ReactElement,
+  type FC,
+  type ForwardedRef,
+  type HTMLAttributes,
+  type ReactElement,
   cloneElement,
   forwardRef,
 } from "react";
 
-export const Topbar = (props: HTMLAttributes<HTMLDivElement>) => {
+export const Topbar: FC<HTMLAttributes<HTMLElement>> = (props) => {
   const theme = useTheme();
 
   return (
@@ -70,7 +70,7 @@ export const TopbarButton = forwardRef<HTMLButtonElement, ButtonProps>(
   },
 );
 
-export const TopbarData = (props: HTMLAttributes<HTMLDivElement>) => {
+export const TopbarData: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
   return (
     <div
       {...props}
@@ -84,7 +84,7 @@ export const TopbarData = (props: HTMLAttributes<HTMLDivElement>) => {
   );
 };
 
-export const TopbarDivider = (props: HTMLAttributes<HTMLSpanElement>) => {
+export const TopbarDivider: FC<HTMLAttributes<HTMLSpanElement>> = (props) => {
   const theme = useTheme();
   return (
     <span {...props} css={{ color: theme.palette.divider }}>
@@ -93,9 +93,9 @@ export const TopbarDivider = (props: HTMLAttributes<HTMLSpanElement>) => {
   );
 };
 
-export const TopbarAvatar = (props: AvatarProps) => {
+export const TopbarAvatar: FC<AvatarProps> = (props) => {
   return (
-    <Avatar
+    <ExternalAvatar
       {...props}
       variant="square"
       fitImage
@@ -104,7 +104,7 @@ export const TopbarAvatar = (props: AvatarProps) => {
   );
 };
 
-type TopbarIconProps = PropsWithChildren<HTMLAttributes<HTMLOrSVGElement>>;
+type TopbarIconProps = HTMLAttributes<HTMLOrSVGElement>;
 
 export const TopbarIcon = forwardRef<HTMLOrSVGElement, TopbarIconProps>(
   (props: TopbarIconProps, ref) => {
