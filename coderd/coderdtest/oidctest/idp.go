@@ -24,6 +24,7 @@ import (
 	"github.com/go-jose/go-jose/v3"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
@@ -33,6 +34,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/util/syncmap"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -76,13 +78,18 @@ type FakeIDP struct {
 	// "Authorized Redirect URLs". This can be used to emulate that.
 	hookValidRedirectURL func(redirectURL string) error
 	hookUserInfo         func(email string) (jwt.MapClaims, error)
-	hookMutateToken      func(token map[string]interface{})
-	fakeCoderd           func(req *http.Request) (*http.Response, error)
-	hookOnRefresh        func(email string) error
+	// defaultIDClaims is if a new client connects and we didn't preset
+	// some claims.
+	defaultIDClaims jwt.MapClaims
+	hookMutateToken func(token map[string]interface{})
+	fakeCoderd      func(req *http.Request) (*http.Response, error)
+	hookOnRefresh   func(email string) error
 	// Custom authentication for the client. This is useful if you want
 	// to test something like PKI auth vs a client_secret.
 	hookAuthenticateClient func(t testing.TB, req *http.Request) (url.Values, error)
 	serve                  bool
+	// optional middlewares
+	middlewares chi.Middlewares
 }
 
 func StatusError(code int, err error) error {
@@ -110,6 +117,12 @@ type FakeIDPOpt func(idp *FakeIDP)
 func WithAuthorizedRedirectURL(hook func(redirectURL string) error) func(*FakeIDP) {
 	return func(f *FakeIDP) {
 		f.hookValidRedirectURL = hook
+	}
+}
+
+func WithMiddlewares(mws ...func(http.Handler) http.Handler) func(*FakeIDP) {
+	return func(f *FakeIDP) {
+		f.middlewares = append(f.middlewares, mws...)
 	}
 }
 
@@ -149,6 +162,12 @@ func WithStaticUserInfo(info jwt.MapClaims) func(*FakeIDP) {
 		f.hookUserInfo = func(_ string) (jwt.MapClaims, error) {
 			return info, nil
 		}
+	}
+}
+
+func WithDefaultIDClaims(claims jwt.MapClaims) func(*FakeIDP) {
+	return func(f *FakeIDP) {
+		f.defaultIDClaims = claims
 	}
 }
 
@@ -221,6 +240,10 @@ func NewFakeIDP(t testing.TB, opts ...FakeIDPOpt) *FakeIDP {
 
 func (f *FakeIDP) WellknownConfig() ProviderJSON {
 	return f.provider
+}
+
+func (f *FakeIDP) IssuerURL() *url.URL {
+	return f.issuerURL
 }
 
 func (f *FakeIDP) updateIssuerURL(t testing.TB, issuer string) {
@@ -397,6 +420,44 @@ func (f *FakeIDP) ExternalLogin(t testing.TB, client *codersdk.Client, opts ...f
 	_ = res.Body.Close()
 }
 
+// CreateAuthCode emulates a user clicking "allow" on the IDP page. When doing
+// unit tests, it's easier to skip this step sometimes. It does make an actual
+// request to the IDP, so it should be equivalent to doing this "manually" with
+// actual requests.
+func (f *FakeIDP) CreateAuthCode(t testing.TB, state string, opts ...func(r *http.Request)) string {
+	// We need to store some claims, because this is also an OIDC provider, and
+	// it expects some claims to be present.
+	f.stateToIDTokenClaims.Store(state, jwt.MapClaims{})
+
+	u := f.cfg.AuthCodeURL(state)
+	r, err := http.NewRequestWithContext(context.Background(), http.MethodPost, u, nil)
+	require.NoError(t, err, "failed to create auth request")
+
+	for _, opt := range opts {
+		opt(r)
+	}
+
+	rw := httptest.NewRecorder()
+	f.handler.ServeHTTP(rw, r)
+	resp := rw.Result()
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode, "expected redirect")
+	to := resp.Header.Get("Location")
+	require.NotEmpty(t, to, "expected redirect location")
+
+	toURL, err := url.Parse(to)
+	require.NoError(t, err, "failed to parse redirect location")
+
+	code := toURL.Query().Get("code")
+	require.NotEmpty(t, code, "expected code in redirect location")
+
+	newState := toURL.Query().Get("state")
+	require.Equal(t, state, newState, "expected state to match")
+
+	return code
+}
+
 // OIDCCallback will emulate the IDP redirecting back to the Coder callback.
 // This is helpful if no Coderd exists because the IDP needs to redirect to
 // something.
@@ -526,6 +587,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	t.Helper()
 
 	mux := chi.NewMux()
+	mux.Use(f.middlewares...)
 	// This endpoint is required to initialize the OIDC provider.
 	// It is used to get the OIDC configuration.
 	mux.Get("/.well-known/openid-configuration", func(rw http.ResponseWriter, r *http.Request) {
@@ -626,7 +688,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 			// Always invalidate the code after it is used.
 			f.codeToStateMap.Delete(code)
 
-			idTokenClaims, ok := f.stateToIDTokenClaims.Load(stateStr)
+			idTokenClaims, ok := f.getClaims(f.stateToIDTokenClaims, stateStr)
 			if !ok {
 				t.Errorf("missing id token claims")
 				http.Error(rw, "missing id token claims", http.StatusBadRequest)
@@ -646,7 +708,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 				return
 			}
 
-			idTokenClaims, ok := f.refreshIDTokenClaims.Load(refreshToken)
+			idTokenClaims, ok := f.getClaims(f.refreshIDTokenClaims, refreshToken)
 			if !ok {
 				t.Errorf("missing id token claims in refresh")
 				http.Error(rw, "missing id token claims in refresh", http.StatusBadRequest)
@@ -901,9 +963,10 @@ func (f *FakeIDP) ExternalAuthConfig(t testing.TB, id string, custom *ExternalAu
 			handle(email, rw, r)
 		}
 	}
+	instrumentF := promoauth.NewFactory(prometheus.NewRegistry())
 	cfg := &externalauth.Config{
-		OAuth2Config: f.OIDCConfig(t, nil),
-		ID:           id,
+		InstrumentedOAuth2Config: instrumentF.New(f.clientID, f.OIDCConfig(t, nil)),
+		ID:                       id,
 		// No defaults for these fields by omitting the type
 		Type:        "",
 		DisplayIcon: f.WellknownConfig().UserInfoURL,
@@ -917,13 +980,17 @@ func (f *FakeIDP) ExternalAuthConfig(t testing.TB, id string, custom *ExternalAu
 	return cfg
 }
 
+func (f *FakeIDP) AppCredentials() (clientID string, clientSecret string) {
+	return f.clientID, f.clientSecret
+}
+
 // OIDCConfig returns the OIDC config to use for Coderd.
 func (f *FakeIDP) OIDCConfig(t testing.TB, scopes []string, opts ...func(cfg *coderd.OIDCConfig)) *coderd.OIDCConfig {
 	t.Helper()
+
 	if len(scopes) == 0 {
 		scopes = []string{"openid", "email", "profile"}
 	}
-
 	oauthCfg := &oauth2.Config{
 		ClientID:     f.clientID,
 		ClientSecret: f.clientSecret,
@@ -966,8 +1033,18 @@ func (f *FakeIDP) OIDCConfig(t testing.TB, scopes []string, opts ...func(cfg *co
 	}
 
 	f.cfg = oauthCfg
-
 	return cfg
+}
+
+func (f *FakeIDP) getClaims(m *syncmap.Map[string, jwt.MapClaims], key string) (jwt.MapClaims, bool) {
+	v, ok := m.Load(key)
+	if !ok {
+		if f.defaultIDClaims != nil {
+			return f.defaultIDClaims, true
+		}
+		return nil, false
+	}
+	return v, true
 }
 
 func httpErrorCode(defaultCode int, err error) int {

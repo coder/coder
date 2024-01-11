@@ -127,7 +127,7 @@ export const TemplateVersionEditorPage: FC = () => {
             const newVersion = await createTemplateVersionMutation.mutateAsync({
               provisioner: "terraform",
               storage_method: "file",
-              tags: {},
+              tags: templateVersionQuery.data.job.tags,
               template_id: templateQuery.data.id,
               file_id: serverFile.hash,
             });

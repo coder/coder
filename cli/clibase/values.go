@@ -484,7 +484,7 @@ func (e *Enum) Set(v string) error {
 }
 
 func (e *Enum) Type() string {
-	return fmt.Sprintf("enum[%v]", strings.Join(e.Choices, "|"))
+	return fmt.Sprintf("enum[%v]", strings.Join(e.Choices, "\\|"))
 }
 
 func (e *Enum) String() string {
