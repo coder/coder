@@ -9,17 +9,17 @@ import { type FC, useState } from "react";
 import { BlockPicker } from "react-color";
 import { useFormik } from "formik";
 import type { UpdateAppearanceConfig } from "api/typesGenerated";
-import { Header } from "components/DeploySettingsLayout/Header";
 import {
   Badges,
   DisabledBadge,
   EnterpriseBadge,
   EntitledBadge,
 } from "components/Badges/Badges";
-import { Fieldset } from "components/DeploySettingsLayout/Fieldset";
 import { Stack } from "components/Stack/Stack";
 import { getFormHelpers } from "utils/formUtils";
 import colors from "theme/tailwindColors";
+import { Header } from "../Header";
+import { Fieldset } from "../Fieldset";
 
 export type AppearanceSettingsPageViewProps = {
   appearance: UpdateAppearanceConfig;
