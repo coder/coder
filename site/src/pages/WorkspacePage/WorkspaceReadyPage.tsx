@@ -96,7 +96,7 @@ export const WorkspaceReadyPage = ({
   }, []);
 
   // Change version
-  const canChangeVersions = Boolean(permissions.updateTemplate);
+  const canChangeVersions = permissions.updateTemplate;
   const [changeVersionDialogOpen, setChangeVersionDialogOpen] = useState(false);
   const changeVersionMutation = useMutation(
     changeVersion(workspace, queryClient),
