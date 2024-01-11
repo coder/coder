@@ -86,12 +86,13 @@ func newNodeUpdater(
 	id tailcfg.NodeID, np key.NodePublic, dp key.DiscoPublic,
 ) *nodeUpdater {
 	u := &nodeUpdater{
-		phased:   phased{Cond: *(sync.NewCond(&sync.Mutex{}))},
-		logger:   logger,
-		id:       id,
-		key:      np,
-		discoKey: dp,
-		callback: callback,
+		phased:               phased{Cond: *(sync.NewCond(&sync.Mutex{}))},
+		logger:               logger,
+		id:                   id,
+		key:                  np,
+		discoKey:             dp,
+		derpForcedWebsockets: make(map[int]string),
+		callback:             callback,
 	}
 	go u.updateLoop()
 	return u
@@ -127,6 +128,19 @@ func (u *nodeUpdater) setNetInfo(ni *tailcfg.NetInfo) {
 		dirty = true
 		u.derpLatency = ni.DERPLatency
 	}
+	if dirty {
+		u.dirty = true
+		u.Broadcast()
+	}
+}
+
+// setDERPForcedWebsocket handles callbacks from the magicConn about DERP regions that are forced to
+// use websockets (instead of Upgrade: derp).  This information is for debugging only.
+func (u *nodeUpdater) setDERPForcedWebsocket(region int, reason string) {
+	u.L.Lock()
+	defer u.L.Unlock()
+	dirty := u.derpForcedWebsockets[region] != reason
+	u.derpForcedWebsockets[region] = reason
 	if dirty {
 		u.dirty = true
 		u.Broadcast()
