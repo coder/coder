@@ -96,7 +96,7 @@ func TestConfigMaps_setAddresses_same(t *testing.T) {
 	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), addrs)
 	defer uut.close()
 
-	requireNeverConfigures(ctx, t, uut)
+	requireNeverConfigures(ctx, t, &uut.phased)
 
 	uut.setAddresses(addrs)
 
@@ -190,7 +190,7 @@ func TestConfigMaps_updatePeers_same(t *testing.T) {
 	defer uut.close()
 
 	// Then: we don't configure
-	requireNeverConfigures(ctx, t, uut)
+	requireNeverConfigures(ctx, t, &uut.phased)
 
 	p1ID := uuid.UUID{1}
 	p1Node := newTestNode(1)
@@ -558,7 +558,7 @@ func TestConfigMaps_setBlockEndpoints_same(t *testing.T) {
 	uut.L.Unlock()
 
 	// Then: we don't configure
-	requireNeverConfigures(ctx, t, uut)
+	requireNeverConfigures(ctx, t, &uut.phased)
 
 	// When we set blockEndpoints to true
 	uut.setBlockEndpoints(true)
@@ -619,7 +619,7 @@ func TestConfigMaps_updatePeers_nonexist(t *testing.T) {
 			defer uut.close()
 
 			// Then: we don't configure
-			requireNeverConfigures(ctx, t, uut)
+			requireNeverConfigures(ctx, t, &uut.phased)
 
 			// Given: no known peers
 			go func() {
@@ -669,7 +669,7 @@ func getNodeWithID(t testing.TB, peers []*tailcfg.Node, id tailcfg.NodeID) *tail
 	return nil
 }
 
-func requireNeverConfigures(ctx context.Context, t *testing.T, uut *configMaps) {
+func requireNeverConfigures(ctx context.Context, t *testing.T, uut *phased) {
 	t.Helper()
 	waiting := make(chan struct{})
 	go func() {
