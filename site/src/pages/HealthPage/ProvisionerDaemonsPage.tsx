@@ -185,7 +185,11 @@ const parseBool = (s: string): { valid: boolean; value: boolean } => {
 const renderTag = (k: string, v: string) => {
   const { valid, value: boolValue } = parseBool(v);
   if (valid) {
-    return <BooleanPill value={boolValue}>{k}</BooleanPill>;
+    return (
+      <BooleanPill value={boolValue}>
+        {k}: {v}
+      </BooleanPill>
+    );
   }
   return (
     <Pill icon={<Sell />}>
