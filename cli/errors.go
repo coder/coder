@@ -44,6 +44,9 @@ func (RootCmd) errorExample() *clibase.Cmd {
 	//nolint:errorlint,forcetypeassert
 	apiError.(*codersdk.Error).Helper = "Have you tried turning it off and on again?"
 
+	apiErrorNoHelper := apiError.(*codersdk.Error)
+	apiErrorNoHelper.Helper = ""
+
 	// Some flags
 	var magicWord clibase.String
 
@@ -70,6 +73,7 @@ func (RootCmd) errorExample() *clibase.Cmd {
 					return errors.Join(
 						xerrors.Errorf("first error: %w", errorWithStackTrace()),
 						xerrors.Errorf("second error: %w", errorWithStackTrace()),
+						apiErrorNoHelper,
 					)
 
 				},
