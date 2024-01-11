@@ -51,10 +51,10 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = (
   const notifications: Notification[] = [];
 
   // Outdated
-  const canAutostartResponse = useQuery(
-    workspaceResolveAutostart(workspace.id),
-  );
-  const canAutostart = !canAutostartResponse.data?.parameter_mismatch ?? false;
+  const canAutostartQuery = useQuery(workspaceResolveAutostart(workspace.id));
+  const isParameterMismatch =
+    canAutostartQuery.data?.parameter_mismatch ?? false;
+  const canAutostart = !isParameterMismatch;
   const updateRequired =
     (workspace.template_require_active_version ||
       workspace.automatic_updates === "always") &&
