@@ -1,12 +1,18 @@
 package cli
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v3"
+
+	"github.com/hashicorp/hcl/v2/hclparse"
+	"github.com/zclconf/go-cty/cty"
 
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -94,12 +100,77 @@ func parseVariableValuesFromVarsFiles(varsFiles []string) ([]codersdk.VariableVa
 	return parsed, nil
 }
 
-func parseVariableValuesFromHCL(hcl []byte) ([]codersdk.VariableValue, error) {
-	panic("not implemented yet")
+func parseVariableValuesFromHCL(content []byte) ([]codersdk.VariableValue, error) {
+	parser := hclparse.NewParser()
+	hclFile, diags := parser.ParseHCL(content, "file.hcl")
+	if diags.HasErrors() {
+		return nil, diags
+	}
+
+	attrs, diags := hclFile.Body.JustAttributes()
+	if diags.HasErrors() {
+		return nil, diags
+	}
+
+	var stringData map[string]string
+	for _, attribute := range attrs {
+		ctyValue, diags := attribute.Expr.Value(nil)
+		if diags.HasErrors() {
+			return nil, diags
+		}
+
+		ctyType := ctyValue.Type()
+		if ctyType.Equals(cty.String) {
+			stringData[attribute.Name] = ctyValue.AsString()
+		} else if ctyType.Equals(cty.Number) {
+			stringData[attribute.Name] = ctyValue.AsBigFloat().String()
+		} else if ctyType.IsListType() {
+			stringData[attribute.Name] = "TODO list(string)"
+		}
+	}
+
+	return convertMapIntoVariableValues(stringData), nil
 }
 
-func parseVariableValuesFromJSON(json []byte) ([]codersdk.VariableValue, error) {
-	panic("not implemented yet")
+// parseVariableValuesFromJSON converts the .tfvars.json content into template variables.
+// The function visits only root-level properties as template variables do not support nested
+// structures.
+func parseVariableValuesFromJSON(content []byte) ([]codersdk.VariableValue, error) {
+	var data map[string]interface{}
+	err := json.Unmarshal(content, &data)
+	if err != nil {
+		return nil, err
+	}
+
+	stringData := make(map[string]string)
+	for key, value := range data {
+		switch value.(type) {
+		case string, int, bool:
+			stringData[key] = fmt.Sprintf("%v", value)
+		default:
+			m, err := json.Marshal(value)
+			if err != nil {
+				return nil, err
+			}
+			stringData[key] = string(m)
+		}
+	}
+
+	return convertMapIntoVariableValues(stringData), nil
+}
+
+func convertMapIntoVariableValues(m map[string]string) []codersdk.VariableValue {
+	var parsed []codersdk.VariableValue
+	for key, value := range m {
+		parsed = append(parsed, codersdk.VariableValue{
+			Name:  key,
+			Value: value,
+		})
+	}
+	sort.Slice(parsed, func(i, j int) bool {
+		return parsed[i].Name < parsed[j].Name
+	})
+	return parsed
 }
 
 func parseVariableValuesFromFile(variablesFile string) ([]codersdk.VariableValue, error) {
