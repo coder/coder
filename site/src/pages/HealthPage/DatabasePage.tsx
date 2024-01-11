@@ -2,6 +2,7 @@ import { useOutletContext } from "react-router-dom";
 import {
   Header,
   HeaderTitle,
+  HealthMessageDocsLink,
   Main,
   GridData,
   GridDataLabel,
@@ -36,7 +37,7 @@ export const DatabasePage = () => {
         {database.warnings.map((warning) => {
           return (
             <Alert key={warning.code} severity="warning">
-              {warning.message}
+              {HealthMessageDocsLink(warning)}: {warning.message}
             </Alert>
           );
         })}

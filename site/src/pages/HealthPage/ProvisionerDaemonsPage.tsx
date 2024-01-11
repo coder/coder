@@ -3,6 +3,7 @@ import {
   Header,
   HeaderTitle,
   HealthyDot,
+  HealthMessageDocsLink,
   Main,
   Pill,
 } from "./Content";
@@ -43,7 +44,7 @@ export const ProvisionerDaemonsPage = () => {
         {daemons.warnings.map((warning) => {
           return (
             <Alert key={warning.code} severity="warning">
-              {warning.message}
+              {HealthMessageDocsLink(warning)}: {warning.message}
             </Alert>
           );
         })}

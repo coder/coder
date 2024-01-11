@@ -2,6 +2,7 @@ import { Link, useOutletContext } from "react-router-dom";
 import {
   Header,
   HeaderTitle,
+  HealthMessageDocsLink,
   Main,
   SectionLabel,
   BooleanPill,
@@ -60,7 +61,7 @@ export const DERPPage = () => {
         {derp.warnings.map((warning: HealthMessage) => {
           return (
             <Alert key={warning.code} severity="warning">
-              {warning.message}
+              {HealthMessageDocsLink(warning)}: {warning.message}
             </Alert>
           );
         })}

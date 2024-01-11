@@ -17,6 +17,7 @@ import { pageTitle } from "utils/page";
 import {
   Header,
   HeaderTitle,
+  HealthMessageDocsLink,
   Main,
   BooleanPill,
   Pill,
@@ -76,7 +77,7 @@ export const DERPRegionPage: FC = () => {
         {warnings.map((warning: HealthMessage) => {
           return (
             <Alert key={warning.code} severity="warning">
-              {warning.message}
+              {HealthMessageDocsLink(warning)}: {warning.message}
             </Alert>
           );
         })}

@@ -3,6 +3,7 @@ import {
   BooleanPill,
   Header,
   HeaderTitle,
+  HealthMessageDocsLink,
   HealthyDot,
   Main,
   Pill,
@@ -45,7 +46,7 @@ export const WorkspaceProxyPage = () => {
         {workspace_proxy.warnings.map((warning) => {
           return (
             <Alert key={warning.code} severity="warning">
-              {warning.message}
+              {HealthMessageDocsLink(warning)}: {warning.message}
             </Alert>
           );
         })}
