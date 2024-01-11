@@ -39,9 +39,9 @@ export const WorkspaceProxyPage = () => {
       </Header>
 
       <Main>
-        {workspace_proxy.error ? (
+        {workspace_proxy.error && (
           <Alert severity="error">{workspace_proxy.error}</Alert>
-        ) : null}
+        )}
         {workspace_proxy.warnings.map((warning) => {
           return (
             <Alert key={warning.code} severity="warning">
@@ -146,11 +146,8 @@ export const WorkspaceProxyPage = () => {
                   <span>OK</span>
                 ) : (
                   <div css={{ display: "flex", flexDirection: "column" }}>
-                    {errors.map((error, i) => (
-                      <span key={i}>{error}</span>
-                    ))}
-                    {warnings.map((warning, i) => (
-                      <span key={i}>{warning}</span>
+                    {[...errors, ...warnings].map((msg, i) => (
+                      <span key={i}>{msg}</span>
                     ))}
                   </div>
                 )}
