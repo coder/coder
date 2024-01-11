@@ -226,17 +226,7 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = (
   );
 
   return (
-    <div
-      css={{
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        position: "fixed",
-        bottom: 48,
-        right: 48,
-        zIndex: 10,
-      }}
-    >
+    <div css={styles.notifications}>
       {infoNotifications.length > 0 && (
         <NotificationPill
           notifications={infoNotifications}
@@ -269,7 +259,7 @@ const NotificationPill: FC<NotificationPillProps> = (props) => {
   return (
     <Popover mode="hover">
       <PopoverTrigger>
-        <div css={[styles.pillContainer]}>
+        <div css={styles.pillContainer}>
           <Pill type={type} icon={icon}>
             {notifications.length}
           </Pill>
@@ -336,6 +326,15 @@ const NotificationActionButton: FC<ButtonProps> = (props) => {
 };
 
 const styles = {
+  notifications: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    position: "fixed",
+    bottom: 48,
+    right: 48,
+    zIndex: 10,
+  },
   // Adds some spacing from the popover content
   pillContainer: {
     paddingTop: 8,
