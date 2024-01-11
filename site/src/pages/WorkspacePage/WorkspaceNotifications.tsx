@@ -288,21 +288,12 @@ const NotificationPill: FC<NotificationPillProps> = (props) => {
 
 const NotificationItem: FC<{ notification: Notification }> = (props) => {
   const { notification } = props;
-  const theme = useTheme();
 
   return (
     <article css={{ padding: 16 }}>
       <h4 css={{ margin: 0, fontWeight: 500 }}>{notification.title}</h4>
       {notification.detail && (
-        <p
-          css={{
-            margin: 0,
-            color: theme.palette.text.secondary,
-            lineHeight: 1.6,
-          }}
-        >
-          {notification.detail}
-        </p>
+        <p css={styles.notificationDetail}>{notification.detail}</p>
       )}
       <div css={{ marginTop: 8 }}>{notification.actions}</div>
     </article>
@@ -339,4 +330,9 @@ const styles = {
   pillContainer: {
     paddingTop: 8,
   },
+  notificationDetail: (theme) => ({
+    margin: 0,
+    color: theme.palette.text.secondary,
+    lineHeight: 1.6,
+  }),
 } satisfies Record<string, Interpolation<Theme>>;
