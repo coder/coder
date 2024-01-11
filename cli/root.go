@@ -1109,7 +1109,10 @@ func formatMultiError(from string, multi []error, opts *formatOpts) string {
 
 	// Write errors out
 	var str strings.Builder
-	traceMsg := fmt.Sprintf("Trace=[%s])", from)
+	var traceMsg string
+	if from != "" {
+		traceMsg = fmt.Sprintf("Trace=[%s])", from)
+	}
 	_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("%d errors encountered: %s", len(multi), traceMsg)))
 	for i, errStr := range errorStrings {
 		// Indent each error
@@ -1159,8 +1162,10 @@ func formatCoderSDKError(from string, err *codersdk.Error, opts *formatOpts) str
 		_, _ = str.WriteString("\n")
 	}
 	// Always include this trace. Users can ignore this.
-	_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("Trace=[%s]", from)))
-	_, _ = str.WriteString("\n")
+	if from != "" {
+		_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("Trace=[%s]", from)))
+		_, _ = str.WriteString("\n")
+	}
 
 	_, _ = str.WriteString(pretty.Sprint(headLineStyle(), err.Message))
 	if err.Helper != "" {
