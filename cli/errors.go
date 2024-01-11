@@ -92,7 +92,6 @@ func (RootCmd) errorExample() *clibase.Cmd {
 						xerrors.Errorf("first error: %w", errorWithStackTrace()),
 						xerrors.Errorf("second error: %w", errorWithStackTrace()),
 					)
-
 				},
 			},
 

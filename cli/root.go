@@ -1183,6 +1183,8 @@ func formatCoderSDKError(from string, err *codersdk.Error, opts *formatOpts) str
 // commands. When we pretty print errors, we lose the context in which they came.
 // This function adds the context back. Unfortunately there is no easy way to get
 // the prefix to: "error string: %w", so we do a bit of string manipulation.
+//
+//nolint:errorlint
 func traceError(err error) string {
 	if uw, ok := err.(interface{ Unwrap() error }); ok {
 		a, b := err.Error(), uw.Unwrap().Error()
