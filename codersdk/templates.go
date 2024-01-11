@@ -246,7 +246,7 @@ type UpdateTemplateMeta struct {
 	// If this is set to true, the template will not be available to all users,
 	// and must be explicitly granted to users or groups in the permissions settings
 	// of the template.
-	DisableEveryoneGroupAccess bool `json:"disable_everyone_group_access"`
+	DisableEveryoneGroupAccess *bool `json:"disable_everyone_group_access"`
 }
 
 type TemplateExample struct {
