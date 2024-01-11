@@ -1016,7 +1016,7 @@ type prettyErrorFormatter struct {
 // format formats the error to the console. This error should be human
 // readable.
 func (p *prettyErrorFormatter) format(err error) {
-	output := cliHumanFormatError(err, &formatOpts{
+	output, _ := cliHumanFormatError(err, &formatOpts{
 		Verbose: p.verbose,
 	})
 	// always trail with a newline
@@ -1030,13 +1030,23 @@ type formatOpts struct {
 const indent = "    "
 
 // cliHumanFormatError formats an error for the CLI. Newlines and styling are
-// included.
-func cliHumanFormatError(err error, opts *formatOpts) string {
+// included. The second return value is true if the error is special and the error
+// chain has custom formatting applied.
+//
+// If you change this code, you can use the cli "example-errors" tool to
+// verify all errors still look ok.
+//
+//	go run main.go exp example-error <type>
+//	       go run main.go exp example-error api
+//	       go run main.go exp example-error cmd
+//	       go run main.go exp example-error multi-error
+//	       go run main.go exp example-error validation
+func cliHumanFormatError(err error, opts *formatOpts) (string, bool) {
 	if opts == nil {
 		opts = &formatOpts{}
 	}
 	if err == nil {
-		return "<nil>"
+		return "<nil>", true
 	}
 
 	if multi, ok := err.(interface{ Unwrap() []error }); ok {
@@ -1045,7 +1055,7 @@ func cliHumanFormatError(err error, opts *formatOpts) string {
 			// Format as a single error
 			return cliHumanFormatError(multiErrors[0], opts)
 		}
-		return formatMultiError(multiErrors, opts)
+		return formatMultiError(multiErrors, opts), false
 	}
 
 	// First check for sentinel errors that we want to handle specially.
@@ -1053,32 +1063,33 @@ func cliHumanFormatError(err error, opts *formatOpts) string {
 	//var sdkError *codersdk.Error
 	//if errors.As(err, &sdkError) {
 	if sdkError, ok := err.(*codersdk.Error); ok {
-		return formatCoderSDKError(sdkError, opts)
+		return formatCoderSDKError(sdkError, opts), false
 	}
 
 	//var cmdErr *clibase.RunCommandError
 	//if errors.As(err, &cmdErr) {
 	if cmdErr, ok := err.(*clibase.RunCommandError); ok {
-		return formatRunCommandError(cmdErr, opts)
+		return formatRunCommandError(cmdErr, opts), false
 	}
 
 	uw, ok := err.(interface{ Unwrap() error })
 	if ok {
-		msg := cliHumanFormatError(uw.Unwrap(), opts)
-		if msg != "" {
-			return msg
+		msg, special := cliHumanFormatError(uw.Unwrap(), opts)
+		if special {
+			return msg, special
 		}
 	}
-	// If we got here, that means the error is not anything special. Just format
-	// it as is.
+	// If we got here, that means that the wrapped error chain does not have
+	// any special formatting below it. So we want to return the topmost non-special
+	// error (which is 'err')
 
 	// Default just printing the error. Use +v for verbose to handle stack
 	// traces of xerrors.
 	if opts.Verbose {
-		return pretty.Sprint(headLineStyle(), fmt.Sprintf("%+v", err))
+		return pretty.Sprint(headLineStyle(), fmt.Sprintf("%+v", err)), false
 	}
 
-	return pretty.Sprint(headLineStyle(), fmt.Sprintf("%v", err))
+	return pretty.Sprint(headLineStyle(), fmt.Sprintf("%v", err)), false
 }
 
 // formatMultiError formats a multi-error. It formats it as a list of errors.
@@ -1092,7 +1103,8 @@ func cliHumanFormatError(err error, opts *formatOpts) string {
 func formatMultiError(multi []error, opts *formatOpts) string {
 	var errorStrings []string
 	for _, err := range multi {
-		errorStrings = append(errorStrings, cliHumanFormatError(err, opts))
+		msg, _ := cliHumanFormatError(err, opts)
+		errorStrings = append(errorStrings, msg)
 	}
 
 	// Write errors out
@@ -1126,7 +1138,7 @@ func formatRunCommandError(err *clibase.RunCommandError, opts *formatOpts) strin
 	var str strings.Builder
 	_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("Encountered an error running %q", err.Cmd.FullName())))
 
-	msgString := cliHumanFormatError(err.Err, opts)
+	msgString, _ := cliHumanFormatError(err.Err, opts)
 	_, _ = str.WriteString("\n")
 	_, _ = str.WriteString(pretty.Sprint(tailLineStyle(), msgString))
 	return str.String()
