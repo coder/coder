@@ -460,6 +460,7 @@ func (c *Client) DialCoordinator(ctx context.Context) (agpl.MultiAgentConn, erro
 	rma := remoteMultiAgentHandler{
 		sdk:              c,
 		nc:               nc,
+		cancel:           cancel,
 		legacyAgentCache: map[uuid.UUID]bool{},
 	}
 
@@ -485,6 +486,7 @@ func (c *Client) DialCoordinator(ctx context.Context) (agpl.MultiAgentConn, erro
 			err := dec.Decode(&msg)
 			if err != nil {
 				if xerrors.Is(err, io.EOF) {
+					c.SDKClient.Logger().Info(ctx, "multiagent connection severed", slog.Error(err))
 					return
 				}
 
@@ -504,8 +506,9 @@ func (c *Client) DialCoordinator(ctx context.Context) (agpl.MultiAgentConn, erro
 }
 
 type remoteMultiAgentHandler struct {
-	sdk *Client
-	nc  net.Conn
+	sdk    *Client
+	nc     net.Conn
+	cancel func()
 
 	legacyMu           sync.RWMutex
 	legacyAgentCache   map[uuid.UUID]bool
@@ -522,10 +525,12 @@ func (a *remoteMultiAgentHandler) writeJSON(v interface{}) error {
 	// Node updates are tiny, so even the dinkiest connection can handle them if it's not hung.
 	err = a.nc.SetWriteDeadline(time.Now().Add(agpl.WriteTimeout))
 	if err != nil {
+		a.cancel()
 		return xerrors.Errorf("set write deadline: %w", err)
 	}
 	_, err = a.nc.Write(data)
 	if err != nil {
+		a.cancel()
 		return xerrors.Errorf("write message: %w", err)
 	}
 
@@ -536,6 +541,7 @@ func (a *remoteMultiAgentHandler) writeJSON(v interface{}) error {
 	// our successful write, it is important that we reset the deadline before it fires.
 	err = a.nc.SetWriteDeadline(time.Time{})
 	if err != nil {
+		a.cancel()
 		return xerrors.Errorf("clear write deadline: %w", err)
 	}
 
