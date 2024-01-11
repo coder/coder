@@ -2065,7 +2065,7 @@ func (c *Client) BuildInfo(ctx context.Context) (BuildInfoResponse, error) {
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode != http.StatusOK {
+	if res.StatusCode != http.StatusOK || ExpectJSONMime(res) != nil {
 		return BuildInfoResponse{}, ReadBodyAsError(res)
 	}
 
