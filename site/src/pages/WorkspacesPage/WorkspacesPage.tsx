@@ -99,6 +99,7 @@ const WorkspacesPage: FC = () => {
         onDeleteAll={() => {
           setIsConfirmingDeleteAll(true);
         }}
+        onUpdateAll={() => batchActions.updateAll(checkedWorkspaces)}
         onStartAll={() => batchActions.startAll(checkedWorkspaces)}
         onStopAll={() => batchActions.stopAll(checkedWorkspaces)}
       />

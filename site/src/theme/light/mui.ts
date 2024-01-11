@@ -10,7 +10,7 @@ const muiTheme = createTheme({
     mode: "light",
     primary: {
       main: tw.sky[600],
-      contrastText: tw.sky[50],
+      contrastText: tw.sky[950],
       light: tw.sky[400],
       dark: tw.sky[500],
     },

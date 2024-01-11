@@ -6,7 +6,12 @@ import "dayjs/plugin/relativeTime";
 import { type Interpolation, type Theme } from "@emotion/react";
 import { type FC, type ReactNode, useState } from "react";
 import { useMutation } from "react-query";
-import { deleteWorkspace, startWorkspace, stopWorkspace } from "api/api";
+import {
+  deleteWorkspace,
+  startWorkspace,
+  stopWorkspace,
+  updateWorkspace,
+} from "api/api";
 import type { Workspace } from "api/typesGenerated";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { displayError } from "components/GlobalSnackbar/utils";
@@ -50,7 +55,17 @@ export function useBatchActions(options: UseBatchActionsProps) {
     },
     onSuccess,
     onError: () => {
-      displayError("Failed to delete workspaces");
+      displayError("Failed to delete some workspaces");
+    },
+  });
+
+  const updateAllMutation = useMutation({
+    mutationFn: async (workspaces: Workspace[]) => {
+      return Promise.all(workspaces.map((w) => updateWorkspace(w)));
+    },
+    onSuccess,
+    onError: () => {
+      displayError("Failed to update some workspaces");
     },
   });
 
@@ -58,6 +73,7 @@ export function useBatchActions(options: UseBatchActionsProps) {
     startAll: startAllMutation.mutateAsync,
     stopAll: stopAllMutation.mutateAsync,
     deleteAll: deleteAllMutation.mutateAsync,
+    updateAll: updateAllMutation.mutateAsync,
     isLoading:
       startAllMutation.isLoading ||
       stopAllMutation.isLoading ||
