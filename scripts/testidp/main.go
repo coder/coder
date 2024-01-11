@@ -6,10 +6,18 @@ import (
 	"os"
 	"os/signal"
 	"testing"
+	"time"
 
 	"github.com/golang-jwt/jwt/v4"
 
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
+)
+
+// Flags
+var (
+	expiry       = flag.Duration("expiry", time.Minute*5, "Token expiry")
+	clientID     = flag.String("client-id", "static-client-id", "Client ID, set empty to be random")
+	clientSecret = flag.String("client-sec", "static-client-secret", "Client Secret, set empty to be random")
 )
 
 func main() {
@@ -37,6 +45,9 @@ func RunIDP() func(t *testing.T) {
 			oidctest.WithServing(),
 			oidctest.WithStaticUserInfo(jwt.MapClaims{}),
 			oidctest.WithDefaultIDClaims(jwt.MapClaims{}),
+			oidctest.WithDefaultExpire(*expiry),
+			oidctest.WithStaticCredentials(*clientID, *clientSecret),
+			oidctest.WithIssuer("http://localhost:4500"),
 		)
 		id, sec := idp.AppCredentials()
 		prov := idp.WellknownConfig()
