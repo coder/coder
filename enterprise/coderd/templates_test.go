@@ -832,7 +832,7 @@ func TestTemplateACL(t *testing.T) {
 			Description:                  template.Description,
 			Icon:                         template.Icon,
 			AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
-			DisableEveryoneGroupAccess:   ptr.Ref(true),
+			DisableEveryoneGroupAccess:   true,
 		})
 		require.NoError(t, err)
 
