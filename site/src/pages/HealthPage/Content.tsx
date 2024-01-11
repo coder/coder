@@ -252,7 +252,7 @@ export const HealthMessageDocsLink = (msg: HealthMessage) => {
       target="_blank"
       rel="noreferrer"
     >
-      {msg.code}
+      Docs for {msg.code}
     </Link>
   );
 };

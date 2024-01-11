@@ -36,8 +36,12 @@ export const DatabasePage = () => {
       <Main>
         {database.warnings.map((warning) => {
           return (
-            <Alert key={warning.code} severity="warning">
-              {HealthMessageDocsLink(warning)}: {warning.message}
+            <Alert
+              actions={HealthMessageDocsLink(warning)}
+              key={warning.code}
+              severity="warning"
+            >
+              {warning.message}
             </Alert>
           );
         })}
