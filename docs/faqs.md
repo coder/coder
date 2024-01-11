@@ -404,7 +404,6 @@ Colima will show the path to the docker socket so I have a
 [Coder template](./docker-code-server/main.tf) that prompts the Coder admin to
 enter the docker socket as a Terraform variable.
 
-
 ## How to make a `coder_app` optional?
 
 An example use case is the user should decide if they want a browser-based IDE
@@ -473,4 +472,3 @@ instance, Alpine is not supported at all. If so, you need to find a container
 image or supported OS for the VS Code Server. For more information on OS
 prerequisites for Linux, please look at the VSCode docs.
 https://code.visualstudio.com/docs/remote/linux#_local-linux-prerequisites
-
