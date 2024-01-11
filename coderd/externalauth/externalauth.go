@@ -531,6 +531,9 @@ func applyDefaultsToConfig(config *codersdk.ExternalAuthConfig) {
 	case codersdk.EnhancedExternalAuthProviderBitBucketServer:
 		copyDefaultSettings(config, bitbucketServerDefaults(config))
 		return
+	case codersdk.EnhancedExternalAuthProviderJFrog:
+		copyDefaultSettings(config, jfrogArtifactoryDefaults(config))
+		return
 	default:
 		// No defaults for this type. We still want to run this apply with
 		// an empty set of defaults.
@@ -619,6 +622,44 @@ func bitbucketServerDefaults(config *codersdk.ExternalAuthConfig) codersdk.Exter
 	// user's inbox. Which will work perfectly for our use case.
 	validate := auth.ResolveReference(&url.URL{Path: "/rest/api/latest/inbox/pull-requests/count"})
 	defaults.ValidateURL = validate.String()
+
+	return defaults
+}
+
+func jfrogArtifactoryDefaults(config *codersdk.ExternalAuthConfig) codersdk.ExternalAuthConfig {
+	defaults := codersdk.ExternalAuthConfig{
+		DisplayName: "JFrog Artifactory",
+		Scopes:      []string{"applied-permissions/user"},
+		DisplayIcon: "/icon/jfrog.svg",
+	}
+	// Artifactory servers will have some base url, e.g. https://jfrog.coder.com.
+	// We will grab this from the Auth URL. This choice is not arbitrary. It is a
+	// static string for all integrations on the same artifactory.
+	if config.AuthURL == "" {
+		// No auth url, means we cannot guess the urls.
+		return defaults
+	}
+
+	auth, err := url.Parse(config.AuthURL)
+	if err != nil {
+		// We need a valid URL to continue with.
+		return defaults
+	}
+
+	if config.ClientID == "" {
+		return defaults
+	}
+
+	tokenURL := auth.ResolveReference(&url.URL{Path: fmt.Sprintf("/access/api/v1/integrations/%s/token", config.ClientID)})
+	defaults.TokenURL = tokenURL.String()
+
+	// validate needs to return a 200 when logged in and a 401 when unauthenticated.
+	validate := auth.ResolveReference(&url.URL{Path: "/access/api/v1/system/ping"})
+	defaults.ValidateURL = validate.String()
+
+	// Some options omitted:
+	// - Regex: Artifactory can span pretty much all domains (git, docker, etc).
+	//          I do not think we can intelligently guess this as a default.
 
 	return defaults
 }
