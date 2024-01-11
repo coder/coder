@@ -399,7 +399,10 @@ export const WorkspaceScheduleForm: FC<
             label={Language.stopSwitch}
           />
           <TextField
-            {...formHelpers("ttl", ttlShutdownAt(form.values.ttl), "ttl_ms")}
+            {...formHelpers("ttl", {
+              helperText: ttlShutdownAt(form.values.ttl),
+              backendFieldName: "ttl_ms",
+            })}
             disabled={isLoading || !form.values.autostopEnabled}
             inputProps={{ min: 0, step: "any" }}
             label={Language.ttlLabel}
