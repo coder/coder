@@ -3,11 +3,14 @@ import { ProvisionerJobLog } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { useState, useEffect } from "react";
 
-// buildId is optional because sometimes the build is not loaded yet
-export const useWorkspaceBuildLogs = (buildId?: string) => {
+export const useWorkspaceBuildLogs = (
+  // buildId is optional because sometimes the build is not loaded yet
+  buildId: string | undefined,
+  enabled: boolean = true,
+) => {
   const [logs, setLogs] = useState<ProvisionerJobLog[]>();
   useEffect(() => {
-    if (!buildId) {
+    if (!buildId || !enabled) {
       return;
     }
 
