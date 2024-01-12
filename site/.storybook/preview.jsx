@@ -78,6 +78,7 @@ function withQuery(Story, { parameters }) {
     defaultOptions: {
       queries: {
         staleTime: Infinity,
+        retry: false,
       },
     },
   });

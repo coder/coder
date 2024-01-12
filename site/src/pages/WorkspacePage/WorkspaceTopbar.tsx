@@ -30,6 +30,8 @@ import { Popover, PopoverTrigger } from "components/Popover/Popover";
 import { HelpTooltipContent } from "components/HelpTooltip/HelpTooltip";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { ExternalAvatar } from "components/Avatar/Avatar";
+import { WorkspaceNotifications } from "./WorkspaceNotifications/WorkspaceNotifications";
+import { WorkspacePermissions } from "./permissions";
 
 export type WorkspaceError =
   | "getBuildsError"
@@ -57,6 +59,9 @@ export interface WorkspaceProps {
   handleBuildRetry: () => void;
   handleBuildRetryDebug: () => void;
   isOwner: boolean;
+  template: TypesGen.Template;
+  permissions: WorkspacePermissions;
+  latestVersion?: TypesGen.TemplateVersion;
 }
 
 export const WorkspaceTopbar = (props: WorkspaceProps) => {
@@ -79,6 +84,9 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
     handleBuildRetry,
     handleBuildRetryDebug,
     isOwner,
+    template,
+    latestVersion,
+    permissions,
   } = props;
   const theme = useTheme();
 
@@ -247,6 +255,15 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
           gap: 12,
         }}
       >
+        <WorkspaceNotifications
+          workspace={workspace}
+          template={template}
+          latestVersion={latestVersion}
+          permissions={permissions}
+          onRestartWorkspace={handleRestart}
+          onUpdateWorkspace={handleUpdate}
+          onActivateWorkspace={handleDormantActivate}
+        />
         <WorkspaceStatusBadge workspace={workspace} />
         <WorkspaceActions
           workspace={workspace}

@@ -14,6 +14,7 @@ import { WorkspacePermissions, workspaceChecks } from "./permissions";
 import { watchWorkspace } from "api/api";
 import { Workspace } from "api/typesGenerated";
 import { useEffectEvent } from "hooks/hookPolyfills";
+import { Navbar } from "components/Dashboard/Navbar/Navbar";
 
 export const WorkspacePage: FC = () => {
   const queryClient = useQueryClient();
@@ -102,27 +103,26 @@ export const WorkspacePage: FC = () => {
     workspaceQuery.error ?? templateQuery.error ?? permissionsQuery.error;
   const isLoading = !workspace || !template || !permissions;
 
-  if (pageError) {
-    return (
-      <Margins>
-        <ErrorAlert
-          error={pageError}
-          css={{ marginTop: 16, marginBottom: 16 }}
-        />
-      </Margins>
-    );
-  }
-
-  if (isLoading) {
-    return <Loader />;
-  }
-
   return (
-    <WorkspaceReadyPage
-      workspace={workspace}
-      template={template}
-      permissions={permissions}
-    />
+    <div css={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      <Navbar />
+      {pageError ? (
+        <Margins>
+          <ErrorAlert
+            error={pageError}
+            css={{ marginTop: 16, marginBottom: 16 }}
+          />
+        </Margins>
+      ) : isLoading ? (
+        <Loader />
+      ) : (
+        <WorkspaceReadyPage
+          workspace={workspace}
+          template={template}
+          permissions={permissions}
+        />
+      )}
+    </div>
   );
 };
 
