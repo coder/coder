@@ -182,7 +182,15 @@ export const Workspace: FC<WorkspaceProps> = ({
 
       <div css={styles.content}>
         <div css={styles.dotBackground}>
-          <div css={{ display: "flex", flexDirection: "column", gap: 24 }}>
+          <div
+            css={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 24,
+              maxWidth: 24 * 50,
+              margin: "auto",
+            }}
+          >
             {workspace.latest_build.status === "deleted" && (
               <WorkspaceDeletedBanner
                 handleClick={() => navigate(`/templates`)}
