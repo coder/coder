@@ -117,6 +117,20 @@ func (mr *MockStoreMockRecorder) ArchiveUnusedTemplateVersions(arg0, arg1 any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ArchiveUnusedTemplateVersions", reflect.TypeOf((*MockStore)(nil).ArchiveUnusedTemplateVersions), arg0, arg1)
 }
 
+// BatchUpdateWorkspaceLastUsedAt mocks base method.
+func (m *MockStore) BatchUpdateWorkspaceLastUsedAt(arg0 context.Context, arg1 database.BatchUpdateWorkspaceLastUsedAtParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BatchUpdateWorkspaceLastUsedAt", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// BatchUpdateWorkspaceLastUsedAt indicates an expected call of BatchUpdateWorkspaceLastUsedAt.
+func (mr *MockStoreMockRecorder) BatchUpdateWorkspaceLastUsedAt(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchUpdateWorkspaceLastUsedAt", reflect.TypeOf((*MockStore)(nil).BatchUpdateWorkspaceLastUsedAt), arg0, arg1)
+}
+
 // CleanTailnetCoordinators mocks base method.
 func (m *MockStore) CleanTailnetCoordinators(arg0 context.Context) error {
 	m.ctrl.T.Helper()

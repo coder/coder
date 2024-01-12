@@ -64,6 +64,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			// reconnecting-pty proxy server we want to test is mounted.
 			client := appDetails.AppClient(t)
 			testReconnectingPTY(ctx, t, client, appDetails.Agent.ID, "")
+			assertWorkspaceLastUsedAtUpdated(t, client, appDetails)
 		})
 
 		t.Run("SignedTokenQueryParameter", func(t *testing.T) {
@@ -92,6 +93,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			// Make an unauthenticated client.
 			unauthedAppClient := codersdk.New(appDetails.AppClient(t).URL)
 			testReconnectingPTY(ctx, t, unauthedAppClient, appDetails.Agent.ID, issueRes.SignedToken)
+			assertWorkspaceLastUsedAtUpdated(t, appDetails.AppClient(t), appDetails)
 		})
 	})
 
@@ -117,6 +119,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 			require.Contains(t, string(body), "Path-based applications are disabled")
+			assertWorkspaceLastUsedAtUpdated(t, appDetails.AppClient(t), appDetails)
 		})
 
 		t.Run("LoginWithoutAuthOnPrimary", func(t *testing.T) {
@@ -142,6 +145,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.NoError(t, err)
 			require.True(t, loc.Query().Has("message"))
 			require.True(t, loc.Query().Has("redirect"))
+			assertWorkspaceLastUsedAtUpdated(t, appDetails.AppClient(t), appDetails)
 		})
 
 		t.Run("LoginWithoutAuthOnProxy", func(t *testing.T) {
@@ -179,6 +183,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			// request is getting stripped.
 			require.Equal(t, u.Path, redirectURI.Path+"/")
 			require.Equal(t, u.RawQuery, redirectURI.RawQuery)
+			assertWorkspaceLastUsedAtUpdated(t, appDetails.AppClient(t), appDetails)
 		})
 
 		t.Run("NoAccessShould404", func(t *testing.T) {
@@ -195,6 +200,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusNotFound, resp.StatusCode)
+			assertWorkspaceLastUsedAtNotUpdated(t, appDetails.AppClient(t), appDetails)
 		})
 
 		t.Run("RedirectsWithSlash", func(t *testing.T) {
@@ -209,6 +215,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+			assertWorkspaceLastUsedAtUpdated(t, appDetails.AppClient(t), appDetails)
 		})
 
 		t.Run("RedirectsWithQuery", func(t *testing.T) {
@@ -226,6 +233,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			loc, err := resp.Location()
 			require.NoError(t, err)
 			require.Equal(t, proxyTestAppQuery, loc.RawQuery)
+			assertWorkspaceLastUsedAtUpdated(t, appDetails.AppClient(t), appDetails)
 		})
 
 		t.Run("Proxies", func(t *testing.T) {
@@ -267,6 +275,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.NoError(t, err)
 			require.Equal(t, proxyTestAppBody, string(body))
 			require.Equal(t, http.StatusOK, resp.StatusCode)
+			assertWorkspaceLastUsedAtUpdated(t, appDetails.AppClient(t), appDetails)
 		})
 
 		t.Run("ProxiesHTTPS", func(t *testing.T) {
@@ -312,6 +321,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.NoError(t, err)
 			require.Equal(t, proxyTestAppBody, string(body))
 			require.Equal(t, http.StatusOK, resp.StatusCode)
+			assertWorkspaceLastUsedAtUpdated(t, appDetails.AppClient(t), appDetails)
 		})
 
 		t.Run("BlocksMe", func(t *testing.T) {
@@ -331,6 +341,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 			require.Contains(t, string(body), "must be accessed with the full username, not @me")
+			assertWorkspaceLastUsedAtNotUpdated(t, appDetails.AppClient(t), appDetails)
 		})
 
 		t.Run("ForwardsIP", func(t *testing.T) {
@@ -349,6 +360,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.Equal(t, proxyTestAppBody, string(body))
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 			require.Equal(t, "1.1.1.1,127.0.0.1", resp.Header.Get("X-Forwarded-For"))
+			assertWorkspaceLastUsedAtUpdated(t, appDetails.AppClient(t), appDetails)
 		})
 
 		t.Run("ProxyError", func(t *testing.T) {
@@ -361,6 +373,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusBadGateway, resp.StatusCode)
+			assertWorkspaceLastUsedAtNotUpdated(t, appDetails.AppClient(t), appDetails)
 		})
 
 		t.Run("NoProxyPort", func(t *testing.T) {
@@ -375,6 +388,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			// TODO(@deansheather): This should be 400. There's a todo in the
 			// resolve request code to fix this.
 			require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+			assertWorkspaceLastUsedAtNotUpdated(t, appDetails.AppClient(t), appDetails)
 		})
 	})
 
@@ -548,6 +562,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 					require.NoError(t, err)
 					resp.Body.Close()
 					require.Equal(t, http.StatusOK, resp.StatusCode)
+					assertWorkspaceLastUsedAtUpdated(t, appClient, appDetails)
 				})
 			}
 		})
@@ -1548,4 +1563,24 @@ func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Cli
 
 	// Ensure the connection closes.
 	require.ErrorIs(t, tr.ReadUntil(ctx, nil), io.EOF)
+}
+
+// Accessing an app should update the workspace's LastUsedAt.
+func assertWorkspaceLastUsedAtUpdated(t testing.TB, client *codersdk.Client, details *Details) {
+	t.Helper()
+
+	details.FlushStats()
+	ws, err := client.Workspace(context.Background(), details.Workspace.ID)
+	require.NoError(t, err)
+	require.Greater(t, ws.UpdatedAt, details.Workspace.UpdatedAt, "workspace last used at not updated when it should have been")
+}
+
+// Except when it sometimes shouldn't (e.g. no access)
+func assertWorkspaceLastUsedAtNotUpdated(t testing.TB, client *codersdk.Client, details *Details) {
+	t.Helper()
+
+	details.FlushStats()
+	ws, err := client.Workspace(context.Background(), details.Workspace.ID)
+	require.NoError(t, err)
+	require.Equal(t, ws.UpdatedAt, details.Workspace.UpdatedAt, "workspace last used at updated when it shouldn't have been")
 }

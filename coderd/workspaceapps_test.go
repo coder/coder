@@ -262,6 +262,13 @@ func TestWorkspaceApps(t *testing.T) {
 			opts.AppHost = ""
 		}
 
+		statsFlushCh := make(chan chan<- struct{}, 1)
+		opts.StatsCollectorOptions.Flush = statsFlushCh
+		flushStats := func() {
+			flushDone := make(chan struct{})
+			statsFlushCh <- flushDone
+			<-flushDone
+		}
 		client := coderdtest.New(t, &coderdtest.Options{
 			DeploymentValues:         deploymentValues,
 			AppHostname:              opts.AppHost,
@@ -285,6 +292,7 @@ func TestWorkspaceApps(t *testing.T) {
 			SDKClient:      client,
 			FirstUser:      user,
 			PathAppBaseURL: client.URL,
+			FlushStats:     flushStats,
 		}
 	})
 }
