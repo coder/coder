@@ -26,7 +26,7 @@ export const CreateGroupPage: FC = () => {
           });
           navigate(`/groups/${newGroup.id}`);
         }}
-        formErrors={createGroupMutation.error}
+        error={createGroupMutation.error}
         isLoading={createGroupMutation.isLoading}
       />
     </>

@@ -1946,7 +1946,7 @@ type MockAPIOutput = {
 };
 
 export const mockApiError = ({
-  message,
+  message = "Something went wrong.",
   detail,
   validations,
 }: MockAPIInput): MockAPIOutput => ({
@@ -1954,9 +1954,9 @@ export const mockApiError = ({
   isAxiosError: true,
   response: {
     data: {
-      message: message ?? "Something went wrong.",
-      detail: detail ?? undefined,
-      validations: validations ?? undefined,
+      message,
+      detail,
+      validations,
     },
   },
 });
