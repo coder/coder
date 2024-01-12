@@ -3,6 +3,7 @@ package proxyhealth
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -275,8 +276,33 @@ func (p *ProxyHealth) runOnce(ctx context.Context, now time.Time) (map[uuid.UUID
 			case err == nil && resp.StatusCode == http.StatusOK:
 				err := json.NewDecoder(resp.Body).Decode(&status.Report)
 				if err != nil {
+					isCoderErr := fmt.Errorf("proxy url %q is not a coder proxy instance, verify the url is correct", reqURL)
+					if resp.Header.Get(codersdk.BuildVersionHeader) != "" {
+						isCoderErr = fmt.Errorf("proxy url %q is a coder instance, but unable to decode the response payload. Could this be a primary coderd and not a proxy?", reqURL)
+					}
+
+					// If the response is not json, then the user likely input a bad url that returns status code 200.
+					// This is very common, since most webpages do return a 200. So let's improve the error message.
+					if notJSONErr := codersdk.ExpectJSONMime(resp); notJSONErr != nil {
+						err = errors.Join(
+							isCoderErr,
+							fmt.Errorf("attempted to query health at %q but got back the incorrect content type: %w", reqURL, notJSONErr),
+						)
+
+						status.Report.Errors = []string{
+							err.Error(),
+						}
+						status.Status = Unhealthy
+						break
+					}
+
 					// If we cannot read the report, mark the proxy as unhealthy.
-					status.Report.Errors = []string{fmt.Sprintf("failed to decode health report: %s", err.Error())}
+					status.Report.Errors = []string{
+						errors.Join(
+							isCoderErr,
+							fmt.Errorf("received a status code 200, but failed to decode health report body: %w", err),
+						).Error(),
+					}
 					status.Status = Unhealthy
 					break
 				}
