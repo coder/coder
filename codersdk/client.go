@@ -323,6 +323,17 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 	return resp, err
 }
 
+// ExpectJSONMime is a helper function that will assert the content type
+// of the response is application/json.
+func ExpectJSONMime(res *http.Response) error {
+	contentType := res.Header.Get("Content-Type")
+	mimeType := parseMimeType(contentType)
+	if mimeType != "application/json" {
+		return xerrors.Errorf("unexpected non-JSON response %q", contentType)
+	}
+	return nil
+}
+
 // ReadBodyAsError reads the response as a codersdk.Response, and
 // wraps it in a codersdk.Error type for easy marshaling.
 func ReadBodyAsError(res *http.Response) error {
@@ -330,7 +341,6 @@ func ReadBodyAsError(res *http.Response) error {
 		return xerrors.Errorf("no body returned")
 	}
 	defer res.Body.Close()
-	contentType := res.Header.Get("Content-Type")
 
 	var requestMethod, requestURL string
 	if res.Request != nil {
@@ -352,8 +362,7 @@ func ReadBodyAsError(res *http.Response) error {
 		return xerrors.Errorf("read body: %w", err)
 	}
 
-	mimeType := parseMimeType(contentType)
-	if mimeType != "application/json" {
+	if mimeErr := ExpectJSONMime(res); mimeErr != nil {
 		if len(resp) > 2048 {
 			resp = append(resp[:2048], []byte("...")...)
 		}
@@ -365,7 +374,7 @@ func ReadBodyAsError(res *http.Response) error {
 			method:     requestMethod,
 			url:        requestURL,
 			Response: Response{
-				Message: fmt.Sprintf("unexpected non-JSON response %q", contentType),
+				Message: mimeErr.Error(),
 				Detail:  string(resp),
 			},
 			Helper: helpMessage,

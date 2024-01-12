@@ -1,10 +1,11 @@
 package promoauth
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 	"time"
+
+	"golang.org/x/xerrors"
 )
 
 type rateLimits struct {
@@ -81,7 +82,7 @@ func (p *headerParser) string(key string) string {
 
 	v := p.header.Get(key)
 	if v == "" {
-		p.errors[key] = fmt.Errorf("missing header %q", key)
+		p.errors[key] = xerrors.Errorf("missing header %q", key)
 	}
 	return v
 }

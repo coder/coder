@@ -1016,7 +1016,7 @@ type prettyErrorFormatter struct {
 // format formats the error to the console. This error should be human
 // readable.
 func (p *prettyErrorFormatter) format(err error) {
-	output := cliHumanFormatError(err, &formatOpts{
+	output, _ := cliHumanFormatError("", err, &formatOpts{
 		Verbose: p.verbose,
 	})
 	// always trail with a newline
@@ -1030,41 +1030,66 @@ type formatOpts struct {
 const indent = "    "
 
 // cliHumanFormatError formats an error for the CLI. Newlines and styling are
-// included.
-func cliHumanFormatError(err error, opts *formatOpts) string {
+// included. The second return value is true if the error is special and the error
+// chain has custom formatting applied.
+//
+// If you change this code, you can use the cli "example-errors" tool to
+// verify all errors still look ok.
+//
+//	go run main.go exp example-error <type>
+//	       go run main.go exp example-error api
+//	       go run main.go exp example-error cmd
+//	       go run main.go exp example-error multi-error
+//	       go run main.go exp example-error validation
+//
+//nolint:errorlint
+func cliHumanFormatError(from string, err error, opts *formatOpts) (string, bool) {
 	if opts == nil {
 		opts = &formatOpts{}
 	}
+	if err == nil {
+		return "<nil>", true
+	}
 
-	//nolint:errorlint
 	if multi, ok := err.(interface{ Unwrap() []error }); ok {
 		multiErrors := multi.Unwrap()
 		if len(multiErrors) == 1 {
 			// Format as a single error
-			return cliHumanFormatError(multiErrors[0], opts)
+			return cliHumanFormatError(from, multiErrors[0], opts)
 		}
-		return formatMultiError(multiErrors, opts)
+		return formatMultiError(from, multiErrors, opts), true
 	}
 
 	// First check for sentinel errors that we want to handle specially.
 	// Order does matter! We want to check for the most specific errors first.
-	var sdkError *codersdk.Error
-	if errors.As(err, &sdkError) {
-		return formatCoderSDKError(sdkError, opts)
+	if sdkError, ok := err.(*codersdk.Error); ok {
+		return formatCoderSDKError(from, sdkError, opts), true
 	}
 
-	var cmdErr *clibase.RunCommandError
-	if errors.As(err, &cmdErr) {
-		return formatRunCommandError(cmdErr, opts)
+	if cmdErr, ok := err.(*clibase.RunCommandError); ok {
+		// no need to pass the "from" context to this since it is always
+		// top level. We care about what is below this.
+		return formatRunCommandError(cmdErr, opts), true
 	}
+
+	uw, ok := err.(interface{ Unwrap() error })
+	if ok {
+		msg, special := cliHumanFormatError(from+traceError(err), uw.Unwrap(), opts)
+		if special {
+			return msg, special
+		}
+	}
+	// If we got here, that means that the wrapped error chain does not have
+	// any special formatting below it. So we want to return the topmost non-special
+	// error (which is 'err')
 
 	// Default just printing the error. Use +v for verbose to handle stack
 	// traces of xerrors.
 	if opts.Verbose {
-		return pretty.Sprint(headLineStyle(), fmt.Sprintf("%+v", err))
+		return pretty.Sprint(headLineStyle(), fmt.Sprintf("%+v", err)), false
 	}
 
-	return pretty.Sprint(headLineStyle(), fmt.Sprintf("%v", err))
+	return pretty.Sprint(headLineStyle(), fmt.Sprintf("%v", err)), false
 }
 
 // formatMultiError formats a multi-error. It formats it as a list of errors.
@@ -1075,15 +1100,20 @@ func cliHumanFormatError(err error, opts *formatOpts) string {
 //		   <verbose error message>
 //		2. <heading error message>
 //		   <verbose error message>
-func formatMultiError(multi []error, opts *formatOpts) string {
+func formatMultiError(from string, multi []error, opts *formatOpts) string {
 	var errorStrings []string
 	for _, err := range multi {
-		errorStrings = append(errorStrings, cliHumanFormatError(err, opts))
+		msg, _ := cliHumanFormatError("", err, opts)
+		errorStrings = append(errorStrings, msg)
 	}
 
 	// Write errors out
 	var str strings.Builder
-	_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("%d errors encountered:", len(multi))))
+	var traceMsg string
+	if from != "" {
+		traceMsg = fmt.Sprintf("Trace=[%s])", from)
+	}
+	_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("%d errors encountered: %s", len(multi), traceMsg)))
 	for i, errStr := range errorStrings {
 		// Indent each error
 		errStr = strings.ReplaceAll(errStr, "\n", "\n"+indent)
@@ -1112,22 +1142,28 @@ func formatRunCommandError(err *clibase.RunCommandError, opts *formatOpts) strin
 	var str strings.Builder
 	_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("Encountered an error running %q", err.Cmd.FullName())))
 
-	msgString := fmt.Sprintf("%v", err.Err)
-	if opts.Verbose {
-		// '%+v' includes stack traces
-		msgString = fmt.Sprintf("%+v", err.Err)
-	}
+	msgString, special := cliHumanFormatError("", err.Err, opts)
 	_, _ = str.WriteString("\n")
-	_, _ = str.WriteString(pretty.Sprint(tailLineStyle(), msgString))
+	if special {
+		_, _ = str.WriteString(msgString)
+	} else {
+		_, _ = str.WriteString(pretty.Sprint(tailLineStyle(), msgString))
+	}
+
 	return str.String()
 }
 
 // formatCoderSDKError come from API requests. In verbose mode, add the
 // request debug information.
-func formatCoderSDKError(err *codersdk.Error, opts *formatOpts) string {
+func formatCoderSDKError(from string, err *codersdk.Error, opts *formatOpts) string {
 	var str strings.Builder
 	if opts.Verbose {
 		_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("API request error to \"%s:%s\". Status code %d", err.Method(), err.URL(), err.StatusCode())))
+		_, _ = str.WriteString("\n")
+	}
+	// Always include this trace. Users can ignore this.
+	if from != "" {
+		_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("Trace=[%s]", from)))
 		_, _ = str.WriteString("\n")
 	}
 
@@ -1142,6 +1178,21 @@ func formatCoderSDKError(err *codersdk.Error, opts *formatOpts) string {
 		_, _ = str.WriteString(pretty.Sprint(tailLineStyle(), err.Detail))
 	}
 	return str.String()
+}
+
+// traceError is a helper function that aides developers debugging failed cli
+// commands. When we pretty print errors, we lose the context in which they came.
+// This function adds the context back. Unfortunately there is no easy way to get
+// the prefix to: "error string: %w", so we do a bit of string manipulation.
+//
+//nolint:errorlint
+func traceError(err error) string {
+	if uw, ok := err.(interface{ Unwrap() error }); ok {
+		a, b := err.Error(), uw.Unwrap().Error()
+		c := strings.TrimSuffix(a, b)
+		return c
+	}
+	return err.Error()
 }
 
 // These styles are arbitrary.

@@ -18,11 +18,7 @@ export const Navbar: FC = () => {
   const canViewDeployment = Boolean(permissions.viewDeploymentValues);
   const canViewAllUsers = Boolean(permissions.readAllUsers);
   const proxyContextValue = useProxy();
-  const dashboard = useDashboard();
-  const canViewHealth =
-    canViewDeployment &&
-    dashboard.experiments.includes("deployment_health_page");
-
+  const canViewHealth = canViewDeployment;
   return (
     <NavbarView
       user={me}

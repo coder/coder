@@ -9,7 +9,6 @@ import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined";
 import MonitorHeartOutlined from "@mui/icons-material/MonitorHeartOutlined";
 // import Token from "@mui/icons-material/Token";
 import { type FC } from "react";
-import { useDashboard } from "components/Dashboard/DashboardProvider";
 import { GitIcon } from "components/Icons/GitIcon";
 import {
   Sidebar as BaseSidebar,
@@ -17,8 +16,6 @@ import {
 } from "components/Sidebar/Sidebar";
 
 export const Sidebar: FC = () => {
-  const dashboard = useDashboard();
-
   return (
     <BaseSidebar>
       <SidebarNavItem href="general" icon={LaunchOutlined}>
@@ -52,11 +49,9 @@ export const Sidebar: FC = () => {
       <SidebarNavItem href="observability" icon={InsertChartIcon}>
         Observability
       </SidebarNavItem>
-      {dashboard.experiments.includes("deployment_health_page") && (
-        <SidebarNavItem href="/health" icon={MonitorHeartOutlined}>
-          Health
-        </SidebarNavItem>
-      )}
+      <SidebarNavItem href="/health" icon={MonitorHeartOutlined}>
+        Health
+      </SidebarNavItem>
     </BaseSidebar>
   );
 };
