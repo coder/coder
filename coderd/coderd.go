@@ -184,6 +184,9 @@ type Options struct {
 	// under the enterprise license, and can't be imported into AGPL.
 	ParseLicenseClaims    func(rawJWT string) (email string, trial bool, err error)
 	AllowWorkspaceRenames bool
+
+	// NewTicker is used for unit tests to replace "time.NewTicker".
+	NewTicker func(duration time.Duration) (tick <-chan time.Time, done func())
 }
 
 // @title Coder API
@@ -207,6 +210,12 @@ type Options struct {
 func New(options *Options) *API {
 	if options == nil {
 		options = &Options{}
+	}
+	if options.NewTicker == nil {
+		options.NewTicker = func(duration time.Duration) (tick <-chan time.Time, done func()) {
+			ticker := time.NewTicker(duration)
+			return ticker.C, ticker.Stop
+		}
 	}
 
 	// Safety check: if we're not running a unit test, we *must* have a Prometheus registry.
