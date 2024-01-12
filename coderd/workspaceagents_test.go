@@ -1546,7 +1546,7 @@ func TestWorkspaceAgentExternalAuthListen(t *testing.T) {
 	// ValidateURLSpam acts as a workspace calling GIT_ASK_PASS which
 	// will wait until the external auth token is valid. The issue is we spam
 	// the validate endpoint with requests until the token is valid. We do this
-	// even if the token has not changed, so we are calling validate with the
+	// even if the token has not changed. We are calling validate with the
 	// same inputs expecting a different result (insanity?). To reduce our
 	// api rate limit usage, we should do nothing if the inputs have not
 	// changed.
