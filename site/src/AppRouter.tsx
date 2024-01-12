@@ -1,4 +1,4 @@
-import { FC, lazy, Suspense } from "react";
+import { type FC, lazy, Suspense } from "react";
 import {
   Route,
   Routes,
@@ -6,10 +6,10 @@ import {
   Navigate,
 } from "react-router-dom";
 import { DashboardLayout } from "./components/Dashboard/DashboardLayout";
-import { DeploySettingsLayout } from "./components/DeploySettingsLayout/DeploySettingsLayout";
+import { DeploySettingsLayout } from "./pages/DeploySettingsPage/DeploySettingsLayout";
 import { FullScreenLoader } from "./components/Loader/FullScreenLoader";
 import { RequireAuth } from "./components/RequireAuth/RequireAuth";
-import { UsersLayout } from "./components/UsersLayout/UsersLayout";
+import { UsersLayout } from "./pages/UsersPage/UsersLayout";
 import AuditPage from "./pages/AuditPage/AuditPage";
 import LoginPage from "./pages/LoginPage/LoginPage";
 import { SetupPage } from "./pages/SetupPage/SetupPage";
@@ -370,7 +370,6 @@ export const AppRouter: FC = () => {
 
               {/* In order for the 404 page to work properly the routes that start with
               top level parameter must be fully qualified. */}
-              <Route path="/:username/:workspace" element={<WorkspacePage />} />
               <Route
                 path="/:username/:workspace/builds/:buildNumber"
                 element={<WorkspaceBuildPage />}
@@ -413,6 +412,7 @@ export const AppRouter: FC = () => {
             </Route>
 
             {/* Pages that don't have the dashboard layout */}
+            <Route path="/:username/:workspace" element={<WorkspacePage />} />
             <Route
               path="/templates/:template/versions/:version/edit"
               element={<TemplateVersionEditorPage />}

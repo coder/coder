@@ -5,7 +5,6 @@ import { Helmet } from "react-helmet-async";
 import { useNavigate } from "react-router-dom";
 import { Workspace } from "./Workspace";
 import { pageTitle } from "utils/page";
-import { hasJobError } from "utils/workspace";
 import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
 import { ChangeVersionDialog } from "./ChangeVersionDialog";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -33,9 +32,9 @@ import { getErrorMessage } from "api/errors";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { deploymentConfig, deploymentSSHConfig } from "api/queries/deployment";
 import { WorkspacePermissions } from "./permissions";
-import { workspaceResolveAutostart } from "api/queries/workspaceQuota";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 import dayjs from "dayjs";
+import { useMe } from "hooks";
 
 interface WorkspaceReadyPageProps {
   template: TypesGen.Template;
@@ -56,38 +55,32 @@ export const WorkspaceReadyPage = ({
     throw Error("Workspace is undefined");
   }
 
+  // Owner
+  const me = useMe();
+  const isOwner = me.roles.find((role) => role.name === "owner") !== undefined;
+
   // Debug mode
   const { data: deploymentValues } = useQuery({
     ...deploymentConfig(),
-    enabled: permissions?.viewDeploymentValues,
+    enabled: permissions.viewDeploymentValues,
   });
 
   // Build logs
-  const buildLogs = useWorkspaceBuildLogs(workspace.latest_build.id);
-  const shouldDisplayBuildLogs =
-    hasJobError(workspace) ||
-    ["canceling", "deleting", "pending", "starting", "stopping"].includes(
-      workspace.latest_build.status,
-    );
+  const shouldDisplayBuildLogs = workspace.latest_build.status !== "running";
+  const buildLogs = useWorkspaceBuildLogs(
+    workspace.latest_build.id,
+    shouldDisplayBuildLogs,
+  );
 
   // Restart
   const [confirmingRestart, setConfirmingRestart] = useState<{
     open: boolean;
     buildParameters?: TypesGen.WorkspaceBuildParameter[];
   }>({ open: false });
-  const {
-    mutate: mutateRestartWorkspace,
-    error: restartBuildError,
-    isLoading: isRestarting,
-  } = useMutation({
-    mutationFn: restartWorkspace,
-  });
-
-  // Auto start
-  const canAutostartResponse = useQuery(
-    workspaceResolveAutostart(workspace.id),
-  );
-  const canAutostart = !canAutostartResponse.data?.parameter_mismatch ?? false;
+  const { mutate: mutateRestartWorkspace, isLoading: isRestarting } =
+    useMutation({
+      mutationFn: restartWorkspace,
+    });
 
   // SSH Prefix
   const sshPrefixQuery = useQuery(deploymentSSHConfig());
@@ -106,7 +99,7 @@ export const WorkspaceReadyPage = ({
   }, []);
 
   // Change version
-  const canChangeVersions = Boolean(permissions?.updateTemplate);
+  const canChangeVersions = permissions.updateTemplate;
   const [changeVersionDialogOpen, setChangeVersionDialogOpen] = useState(false);
   const changeVersionMutation = useMutation(
     changeVersion(workspace, queryClient),
@@ -123,7 +116,6 @@ export const WorkspaceReadyPage = ({
   });
 
   // Update workspace
-  const canUpdateWorkspace = Boolean(permissions?.updateWorkspace);
   const [isConfirmingUpdate, setIsConfirmingUpdate] = useState(false);
   const updateWorkspaceMutation = useMutation(
     updateWorkspace(workspace, queryClient),
@@ -131,7 +123,7 @@ export const WorkspaceReadyPage = ({
 
   // If a user can update the template then they can force a delete
   // (via orphan).
-  const canUpdateTemplate = Boolean(permissions?.updateTemplate);
+  const canUpdateTemplate = Boolean(permissions.updateTemplate);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const deleteWorkspaceMutation = useMutation(
     deleteWorkspace(workspace, queryClient),
@@ -188,6 +180,7 @@ export const WorkspaceReadyPage = ({
       </Helmet>
 
       <Workspace
+        permissions={permissions}
         isUpdating={updateWorkspaceMutation.isLoading}
         isRestarting={isRestarting}
         workspace={workspace}
@@ -224,20 +217,10 @@ export const WorkspaceReadyPage = ({
             displayError(message);
           }
         }}
-        canUpdateWorkspace={canUpdateWorkspace}
-        updateMessage={latestVersion?.message}
+        latestVersion={latestVersion}
         canChangeVersions={canChangeVersions}
         hideSSHButton={featureVisibility["browser_only"]}
         hideVSCodeDesktopButton={featureVisibility["browser_only"]}
-        workspaceErrors={{
-          buildError:
-            restartBuildError ??
-            startWorkspaceMutation.error ??
-            stopWorkspaceMutation.error ??
-            deleteWorkspaceMutation.error ??
-            updateWorkspaceMutation.error,
-          cancellationError: cancelBuildMutation.error,
-        }}
         buildInfo={buildInfo}
         sshPrefix={sshPrefixQuery.data?.hostname_prefix}
         template={template}
@@ -246,7 +229,7 @@ export const WorkspaceReadyPage = ({
             <WorkspaceBuildLogsSection logs={buildLogs} />
           )
         }
-        canAutostart={canAutostart}
+        isOwner={isOwner}
       />
 
       <WorkspaceDeleteDialog

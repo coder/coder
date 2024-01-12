@@ -1,8 +1,8 @@
-import { useDashboard } from "components/Dashboard/DashboardProvider";
-import { useDeploySettings } from "components/DeploySettingsLayout/DeploySettingsLayout";
-import { FC } from "react";
+import { type FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
+import { useDashboard } from "components/Dashboard/DashboardProvider";
+import { useDeploySettings } from "../DeploySettingsLayout";
 import { ObservabilitySettingsPageView } from "./ObservabilitySettingsPageView";
 
 const ObservabilitySettingsPage: FC = () => {

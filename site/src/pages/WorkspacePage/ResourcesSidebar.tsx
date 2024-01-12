@@ -12,13 +12,13 @@ import { getResourceIconPath } from "utils/workspace";
 type ResourcesSidebarProps = {
   failed: boolean;
   resources: WorkspaceResource[];
-  onChange: (resourceId: string) => void;
-  selected: string;
+  onChange: (resource: WorkspaceResource) => void;
+  isSelected: (resource: WorkspaceResource) => boolean;
 };
 
 export const ResourcesSidebar = (props: ResourcesSidebarProps) => {
   const theme = useTheme();
-  const { failed, onChange, selected, resources } = props;
+  const { failed, onChange, isSelected, resources } = props;
 
   return (
     <Sidebar>
@@ -46,8 +46,8 @@ export const ResourcesSidebar = (props: ResourcesSidebarProps) => {
         ))}
       {resources.map((r) => (
         <SidebarItem
-          onClick={() => onChange(r.id)}
-          isActive={r.id === selected}
+          onClick={() => onChange(r)}
+          isActive={isSelected(r)}
           key={r.id}
           css={styles.root}
         >

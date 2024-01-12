@@ -59,10 +59,9 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
               label="Name"
             />
             <TextField
-              {...getFieldHelpers(
-                "display_name",
-                "Optional: keep empty to default to the name.",
-              )}
+              {...getFieldHelpers("display_name", {
+                helperText: "Optional: keep empty to default to the name.",
+              })}
               fullWidth
               label="Display Name"
             />

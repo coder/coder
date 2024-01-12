@@ -49,18 +49,6 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 			isTemplateSchedulingOptionsSet := failureTTL != 0 || dormancyThreshold != 0 || dormancyAutoDeletion != 0 || maxTTL != 0
 
 			if isTemplateSchedulingOptionsSet || requireActiveVersion {
-				if failureTTL != 0 || dormancyThreshold != 0 || dormancyAutoDeletion != 0 {
-					// This call can be removed when workspace_actions is no longer experimental
-					experiments, exErr := client.Experiments(inv.Context())
-					if exErr != nil {
-						return xerrors.Errorf("get experiments: %w", exErr)
-					}
-
-					if !experiments.Enabled(codersdk.ExperimentWorkspaceActions) {
-						return xerrors.Errorf("--failure-ttl, --dormancy-threshold, and --dormancy-auto-deletion are experimental features. Use the workspace_actions CODER_EXPERIMENTS flag to set these configuration values.")
-					}
-				}
-
 				entitlements, err := client.Entitlements(inv.Context())
 				if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusNotFound {
 					return xerrors.Errorf("your deployment appears to be an AGPL deployment, so you cannot set enterprise-only flags")
@@ -107,6 +95,18 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 
 			message := uploadFlags.templateMessage(inv)
 
+			var varsFiles []string
+			if !uploadFlags.stdin() {
+				varsFiles, err = DiscoverVarsFiles(uploadFlags.directory)
+				if err != nil {
+					return err
+				}
+
+				if len(varsFiles) > 0 {
+					_, _ = fmt.Fprintln(inv.Stdout, "Auto-discovered Terraform tfvars files. Make sure to review and clean up any unused files.")
+				}
+			}
+
 			// Confirm upload of the directory.
 			resp, err := uploadFlags.upload(inv, client)
 			if err != nil {
@@ -119,6 +119,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 			}
 
 			userVariableValues, err := ParseUserVariableValues(
+				varsFiles,
 				variablesFile,
 				commandLineVariables)
 			if err != nil {

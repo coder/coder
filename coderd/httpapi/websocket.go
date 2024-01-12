@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"cdr.dev/slog"
 	"nhooyr.io/websocket"
 )
 
@@ -26,10 +27,10 @@ func Heartbeat(ctx context.Context, conn *websocket.Conn) {
 	}
 }
 
-// Heartbeat loops to ping a WebSocket to keep it alive. It kills the connection
-// on ping failure.
-func HeartbeatClose(ctx context.Context, exit func(), conn *websocket.Conn) {
-	ticker := time.NewTicker(30 * time.Second)
+// Heartbeat loops to ping a WebSocket to keep it alive. It calls `exit` on ping
+// failure.
+func HeartbeatClose(ctx context.Context, logger slog.Logger, exit func(), conn *websocket.Conn) {
+	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
 
 	for {
@@ -41,6 +42,7 @@ func HeartbeatClose(ctx context.Context, exit func(), conn *websocket.Conn) {
 		err := conn.Ping(ctx)
 		if err != nil {
 			_ = conn.Close(websocket.StatusGoingAway, "Ping failed")
+			logger.Info(ctx, "failed to heartbeat ping", slog.Error(err))
 			exit()
 			return
 		}

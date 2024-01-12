@@ -30,6 +30,8 @@ import { Popover, PopoverTrigger } from "components/Popover/Popover";
 import { HelpTooltipContent } from "components/HelpTooltip/HelpTooltip";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { ExternalAvatar } from "components/Avatar/Avatar";
+import { WorkspaceNotifications } from "./WorkspaceNotifications/WorkspaceNotifications";
+import { WorkspacePermissions } from "./permissions";
 
 export type WorkspaceError =
   | "getBuildsError"
@@ -56,6 +58,10 @@ export interface WorkspaceProps {
   canRetryDebugMode: boolean;
   handleBuildRetry: () => void;
   handleBuildRetryDebug: () => void;
+  isOwner: boolean;
+  template: TypesGen.Template;
+  permissions: WorkspacePermissions;
+  latestVersion?: TypesGen.TemplateVersion;
 }
 
 export const WorkspaceTopbar = (props: WorkspaceProps) => {
@@ -77,6 +83,10 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
     canRetryDebugMode,
     handleBuildRetry,
     handleBuildRetryDebug,
+    isOwner,
+    template,
+    latestVersion,
+    permissions,
   } = props;
   const theme = useTheme();
 
@@ -88,16 +98,14 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
   });
 
   // Dormant
-  const { entitlements, experiments } = useDashboard();
+  const { entitlements } = useDashboard();
   const allowAdvancedScheduling =
     entitlements.features["advanced_template_scheduling"].enabled;
   // This check can be removed when https://github.com/coder/coder/milestone/19
   // is merged up
-  const allowWorkspaceActions = experiments.includes("workspace_actions");
   const shouldDisplayDormantData = displayDormantDeletion(
     workspace,
     allowAdvancedScheduling,
-    allowWorkspaceActions,
   );
 
   return (
@@ -247,6 +255,15 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
           gap: 12,
         }}
       >
+        <WorkspaceNotifications
+          workspace={workspace}
+          template={template}
+          latestVersion={latestVersion}
+          permissions={permissions}
+          onRestartWorkspace={handleRestart}
+          onUpdateWorkspace={handleUpdate}
+          onActivateWorkspace={handleDormantActivate}
+        />
         <WorkspaceStatusBadge workspace={workspace} />
         <WorkspaceActions
           workspace={workspace}
@@ -265,6 +282,7 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
           canChangeVersions={canChangeVersions}
           isUpdating={isUpdating}
           isRestarting={isRestarting}
+          isOwner={isOwner}
         />
       </div>
     </Topbar>

@@ -2051,13 +2051,14 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 	if listen {
 		// Since we're ticking frequently and this sign-in operation is rare,
 		// we are OK with polling to avoid the complexity of pubsub.
-		ticker := time.NewTicker(time.Second)
-		defer ticker.Stop()
+		ticker, done := api.NewTicker(time.Second)
+		defer done()
+		var previousToken database.ExternalAuthLink
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-ticker.C:
+			case <-ticker:
 			}
 			externalAuthLink, err := api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
 				ProviderID: externalAuthConfig.ID,
@@ -2081,6 +2082,15 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 			if externalAuthLink.OAuthExpiry.Before(dbtime.Now()) && !externalAuthLink.OAuthExpiry.IsZero() {
 				continue
 			}
+
+			// Only attempt to revalidate an oauth token if it has actually changed.
+			// No point in trying to validate the same token over and over again.
+			if previousToken.OAuthAccessToken == externalAuthLink.OAuthAccessToken &&
+				previousToken.OAuthRefreshToken == externalAuthLink.OAuthRefreshToken &&
+				previousToken.OAuthExpiry == externalAuthLink.OAuthExpiry {
+				continue
+			}
+
 			valid, _, err := externalAuthConfig.ValidateToken(ctx, externalAuthLink.OAuthAccessToken)
 			if err != nil {
 				api.Logger.Warn(ctx, "failed to validate external auth token",
@@ -2089,6 +2099,7 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 					slog.Error(err),
 				)
 			}
+			previousToken = externalAuthLink
 			if !valid {
 				continue
 			}

@@ -1,21 +1,22 @@
+import { type FC } from "react";
 import type { ClibaseOption } from "api/typesGenerated";
 import { Badges, EnabledBadge, DisabledBadge } from "components/Badges/Badges";
-import { Header } from "components/DeploySettingsLayout/Header";
-import OptionsTable from "components/DeploySettingsLayout/OptionsTable";
 import { Stack } from "components/Stack/Stack";
 import {
   deploymentGroupHasParent,
   useDeploymentOptions,
 } from "utils/deployOptions";
 import { docs } from "utils/docs";
+import { Header } from "../Header";
+import OptionsTable from "../OptionsTable";
 
 export type NetworkSettingsPageViewProps = {
   options: ClibaseOption[];
 };
 
-export const NetworkSettingsPageView = ({
+export const NetworkSettingsPageView: FC<NetworkSettingsPageViewProps> = ({
   options: options,
-}: NetworkSettingsPageViewProps): JSX.Element => (
+}) => (
   <Stack direction="column" spacing={6}>
     <div>
       <Header

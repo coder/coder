@@ -9108,12 +9108,13 @@ const docTemplate = `{
         "codersdk.Experiment": {
             "type": "string",
             "enum": [
-                "workspace_actions",
-                "deployment_health_page"
+                "example"
             ],
+            "x-enum-comments": {
+                "ExperimentExample": "This isn't used for anything."
+            },
             "x-enum-varnames": [
-                "ExperimentWorkspaceActions",
-                "ExperimentDeploymentHealthPage"
+                "ExperimentExample"
             ]
         },
         "codersdk.ExternalAuth": {

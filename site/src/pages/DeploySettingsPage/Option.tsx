@@ -2,7 +2,7 @@ import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import { css, useTheme } from "@emotion/react";
 import { type HTMLAttributes, type PropsWithChildren, type FC } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
-import { DisabledBadge, EnabledBadge } from "../Badges/Badges";
+import { DisabledBadge, EnabledBadge } from "components/Badges/Badges";
 
 export const OptionName: FC<PropsWithChildren> = ({ children }) => {
   return <span css={{ display: "block" }}>{children}</span>;

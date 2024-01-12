@@ -78,9 +78,12 @@ type FakeIDP struct {
 	// "Authorized Redirect URLs". This can be used to emulate that.
 	hookValidRedirectURL func(redirectURL string) error
 	hookUserInfo         func(email string) (jwt.MapClaims, error)
-	hookMutateToken      func(token map[string]interface{})
-	fakeCoderd           func(req *http.Request) (*http.Response, error)
-	hookOnRefresh        func(email string) error
+	// defaultIDClaims is if a new client connects and we didn't preset
+	// some claims.
+	defaultIDClaims jwt.MapClaims
+	hookMutateToken func(token map[string]interface{})
+	fakeCoderd      func(req *http.Request) (*http.Response, error)
+	hookOnRefresh   func(email string) error
 	// Custom authentication for the client. This is useful if you want
 	// to test something like PKI auth vs a client_secret.
 	hookAuthenticateClient func(t testing.TB, req *http.Request) (url.Values, error)
@@ -159,6 +162,12 @@ func WithStaticUserInfo(info jwt.MapClaims) func(*FakeIDP) {
 		f.hookUserInfo = func(_ string) (jwt.MapClaims, error) {
 			return info, nil
 		}
+	}
+}
+
+func WithDefaultIDClaims(claims jwt.MapClaims) func(*FakeIDP) {
+	return func(f *FakeIDP) {
+		f.defaultIDClaims = claims
 	}
 }
 
@@ -679,7 +688,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 			// Always invalidate the code after it is used.
 			f.codeToStateMap.Delete(code)
 
-			idTokenClaims, ok := f.stateToIDTokenClaims.Load(stateStr)
+			idTokenClaims, ok := f.getClaims(f.stateToIDTokenClaims, stateStr)
 			if !ok {
 				t.Errorf("missing id token claims")
 				http.Error(rw, "missing id token claims", http.StatusBadRequest)
@@ -699,7 +708,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 				return
 			}
 
-			idTokenClaims, ok := f.refreshIDTokenClaims.Load(refreshToken)
+			idTokenClaims, ok := f.getClaims(f.refreshIDTokenClaims, refreshToken)
 			if !ok {
 				t.Errorf("missing id token claims in refresh")
 				http.Error(rw, "missing id token claims in refresh", http.StatusBadRequest)
@@ -971,6 +980,10 @@ func (f *FakeIDP) ExternalAuthConfig(t testing.TB, id string, custom *ExternalAu
 	return cfg
 }
 
+func (f *FakeIDP) AppCredentials() (clientID string, clientSecret string) {
+	return f.clientID, f.clientSecret
+}
+
 // OIDCConfig returns the OIDC config to use for Coderd.
 func (f *FakeIDP) OIDCConfig(t testing.TB, scopes []string, opts ...func(cfg *coderd.OIDCConfig)) *coderd.OIDCConfig {
 	t.Helper()
@@ -1021,6 +1034,17 @@ func (f *FakeIDP) OIDCConfig(t testing.TB, scopes []string, opts ...func(cfg *co
 
 	f.cfg = oauthCfg
 	return cfg
+}
+
+func (f *FakeIDP) getClaims(m *syncmap.Map[string, jwt.MapClaims], key string) (jwt.MapClaims, bool) {
+	v, ok := m.Load(key)
+	if !ok {
+		if f.defaultIDClaims != nil {
+			return f.defaultIDClaims, true
+		}
+		return nil, false
+	}
+	return v, true
 }
 
 func httpErrorCode(defaultCode int, err error) int {

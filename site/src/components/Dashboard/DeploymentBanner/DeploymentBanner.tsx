@@ -3,18 +3,14 @@ import { useQuery } from "react-query";
 import { deploymentStats } from "api/queries/deployment";
 import { usePermissions } from "hooks/usePermissions";
 import { DeploymentBannerView } from "./DeploymentBannerView";
-import { useDashboard } from "../DashboardProvider";
 import { health } from "api/queries/debug";
 
 export const DeploymentBanner: FC = () => {
-  const dashboard = useDashboard();
   const permissions = usePermissions();
   const deploymentStatsQuery = useQuery(deploymentStats());
   const healthQuery = useQuery({
     ...health(),
-    enabled:
-      dashboard.experiments.includes("deployment_health_page") &&
-      permissions.viewDeploymentValues,
+    enabled: permissions.viewDeploymentValues,
   });
 
   if (!permissions.viewDeploymentValues || !deploymentStatsQuery.data) {

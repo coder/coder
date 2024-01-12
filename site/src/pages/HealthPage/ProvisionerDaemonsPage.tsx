@@ -1,4 +1,12 @@
-import { Header, HeaderTitle, HealthyDot, Main, Pill } from "./Content";
+import {
+  BooleanPill,
+  Header,
+  HeaderTitle,
+  HealthyDot,
+  HealthMessageDocsLink,
+  Main,
+  Pill,
+} from "./Content";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { useTheme } from "@mui/material/styles";
@@ -33,9 +41,14 @@ export const ProvisionerDaemonsPage = () => {
       </Header>
 
       <Main>
+        {daemons.error && <Alert severity="error">{daemons.error}</Alert>}
         {daemons.warnings.map((warning) => {
           return (
-            <Alert key={warning.code} severity="warning">
+            <Alert
+              actions={HealthMessageDocsLink(warning)}
+              key={warning.code}
+              severity="warning"
+            >
               {warning.message}
             </Alert>
           );
@@ -116,13 +129,9 @@ export const ProvisionerDaemonsPage = () => {
                       </span>
                     </Pill>
                   </Tooltip>
-                  {Object.keys(extraTags).map((k) => (
-                    <Tooltip key={k} title={k}>
-                      <Pill key={k} icon={<Sell />}>
-                        {extraTags[k]}
-                      </Pill>
-                    </Tooltip>
-                  ))}
+                  {Object.keys(extraTags).map((k) =>
+                    renderTag(k, extraTags[k]),
+                  )}
                 </div>
               </header>
 
@@ -161,6 +170,31 @@ export const ProvisionerDaemonsPage = () => {
       </Main>
     </>
   );
+};
+
+const parseBool = (s: string): { valid: boolean; value: boolean } => {
+  switch (s.toLowerCase()) {
+    case "true":
+    case "yes":
+    case "1":
+      return { valid: true, value: true };
+    case "false":
+    case "no":
+    case "0":
+    case "":
+      return { valid: true, value: false };
+    default:
+      return { valid: false, value: false };
+  }
+};
+
+const renderTag = (k: string, v: string) => {
+  const { valid, value: boolValue } = parseBool(v);
+  const kv = `${k}: ${v}`;
+  if (valid) {
+    return <BooleanPill value={boolValue}>{kv}</BooleanPill>;
+  }
+  return <Pill icon={<Sell />}>{kv}</Pill>;
 };
 
 export default ProvisionerDaemonsPage;

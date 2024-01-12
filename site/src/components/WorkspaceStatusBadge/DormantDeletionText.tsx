@@ -10,20 +10,13 @@ interface DormantDeletionTextProps {
 export const DormantDeletionText: FC<DormantDeletionTextProps> = ({
   workspace,
 }) => {
-  const { entitlements, experiments } = useDashboard();
+  const { entitlements } = useDashboard();
   const allowAdvancedScheduling =
     entitlements.features["advanced_template_scheduling"].enabled;
   // This check can be removed when https://github.com/coder/coder/milestone/19
   // is merged up
-  const allowWorkspaceActions = experiments.includes("workspace_actions");
 
-  if (
-    !displayDormantDeletion(
-      workspace,
-      allowAdvancedScheduling,
-      allowWorkspaceActions,
-    )
-  ) {
+  if (!displayDormantDeletion(workspace, allowAdvancedScheduling)) {
     return null;
   }
 
