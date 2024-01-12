@@ -72,7 +72,7 @@ type configMaps struct {
 	clock clock.Clock
 }
 
-func newConfigMaps(logger slog.Logger, engine engineConfigurable, nodeID tailcfg.NodeID, nodeKey key.NodePrivate, discoKey key.DiscoPublic, addresses []netip.Prefix) *configMaps {
+func newConfigMaps(logger slog.Logger, engine engineConfigurable, nodeID tailcfg.NodeID, nodeKey key.NodePrivate, discoKey key.DiscoPublic) *configMaps {
 	pubKey := nodeKey.Public()
 	c := &configMaps{
 		phased: phased{Cond: *(sync.NewCond(&sync.Mutex{}))},
@@ -114,9 +114,8 @@ func newConfigMaps(logger slog.Logger, engine engineConfigurable, nodeID tailcfg
 				Caps: []filter.CapMatch{},
 			}},
 		},
-		peers:     make(map[uuid.UUID]*peerLifecycle),
-		addresses: addresses,
-		clock:     clock.New(),
+		peers: make(map[uuid.UUID]*peerLifecycle),
+		clock: clock.New(),
 	}
 	go c.configLoop()
 	return c
