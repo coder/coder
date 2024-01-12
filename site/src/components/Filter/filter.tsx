@@ -588,7 +588,7 @@ function SearchMenu<TOption extends BaseOption>({
       css={{
         "& .MuiPaper-root": {
           width: 320,
-          paddingY: 0,
+          padding: 0,
         },
       }}
       // Disabled this so when we clear the filter and do some sorting in the
