@@ -5,7 +5,6 @@ import { Helmet } from "react-helmet-async";
 import { useNavigate } from "react-router-dom";
 import { Workspace } from "./Workspace";
 import { pageTitle } from "utils/page";
-import { hasJobError } from "utils/workspace";
 import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
 import { ChangeVersionDialog } from "./ChangeVersionDialog";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -67,12 +66,11 @@ export const WorkspaceReadyPage = ({
   });
 
   // Build logs
-  const buildLogs = useWorkspaceBuildLogs(workspace.latest_build.id);
-  const shouldDisplayBuildLogs =
-    hasJobError(workspace) ||
-    ["canceling", "deleting", "pending", "starting", "stopping"].includes(
-      workspace.latest_build.status,
-    );
+  const shouldDisplayBuildLogs = workspace.latest_build.status !== "running";
+  const buildLogs = useWorkspaceBuildLogs(
+    workspace.latest_build.id,
+    shouldDisplayBuildLogs,
+  );
 
   // Restart
   const [confirmingRestart, setConfirmingRestart] = useState<{
