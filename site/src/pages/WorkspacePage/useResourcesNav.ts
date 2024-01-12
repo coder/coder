@@ -3,7 +3,7 @@ import { useTab } from "hooks";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { useCallback, useEffect } from "react";
 
-export const resourceOptionId = (resource: WorkspaceResource) => {
+export const resourceOptionValue = (resource: WorkspaceResource) => {
   return `${resource.type}_${resource.name}`;
 };
 
@@ -18,30 +18,29 @@ export const useResourcesNav = (resources: WorkspaceResource[]) => {
 
   const isSelected = useCallback(
     (resource: WorkspaceResource) => {
-      return resourceOptionId(resource) === resourcesNav.value;
+      return resourceOptionValue(resource) === resourcesNav.value;
     },
     [resourcesNav.value],
   );
 
-  const selectedResource = resources.find(isSelected);
-  const onSelectedResourceChange = useEffectEvent(
-    (previousResource?: WorkspaceResource) => {
+  const onResourceChanges = useEffectEvent(
+    (resources?: WorkspaceResource[]) => {
+      const hasSelectedResource = resourcesNav.value !== "";
+      const hasResources = resources && resources.length > 0;
       const hasResourcesWithAgents =
-        resources.length > 0 &&
-        resources[0].agents &&
-        resources[0].agents.length > 0;
-      if (!previousResource && hasResourcesWithAgents) {
-        resourcesNav.set(resourceOptionId(resources[0]));
+        hasResources && resources[0].agents && resources[0].agents.length > 0;
+      if (!hasSelectedResource && hasResourcesWithAgents) {
+        resourcesNav.set(resourceOptionValue(resources[0]));
       }
     },
   );
   useEffect(() => {
-    onSelectedResourceChange(selectedResource);
-  }, [onSelectedResourceChange, selectedResource]);
+    onResourceChanges(resources);
+  }, [onResourceChanges, resources]);
 
   const select = useCallback(
     (resource: WorkspaceResource) => {
-      resourcesNav.set(resourceOptionId(resource));
+      resourcesNav.set(resourceOptionValue(resource));
     },
     [resourcesNav],
   );
@@ -49,7 +48,6 @@ export const useResourcesNav = (resources: WorkspaceResource[]) => {
   return {
     isSelected,
     select,
-    selected: selectedResource,
-    selectedValue: resourcesNav.value,
+    value: resourcesNav.value,
   };
 };

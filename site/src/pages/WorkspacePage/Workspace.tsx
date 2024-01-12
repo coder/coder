@@ -21,7 +21,7 @@ import HubOutlined from "@mui/icons-material/HubOutlined";
 import { ResourcesSidebar } from "./ResourcesSidebar";
 import { ResourceCard } from "components/Resources/ResourceCard";
 import { WorkspacePermissions } from "./permissions";
-import { useResourcesNav } from "./useResourcesNav";
+import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
 
 export interface WorkspaceProps {
   handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
@@ -101,6 +101,9 @@ export const Workspace: FC<WorkspaceProps> = ({
     (a, b) => countAgents(b) - countAgents(a),
   );
   const resourcesNav = useResourcesNav(resources);
+  const selectedResource = resources.find(
+    (r) => resourceOptionValue(r) === resourcesNav.value,
+  );
 
   return (
     <div
@@ -217,9 +220,9 @@ export const Workspace: FC<WorkspaceProps> = ({
 
             {buildLogs}
 
-            {resourcesNav.selected && (
+            {selectedResource && (
               <ResourceCard
-                resource={resourcesNav.selected}
+                resource={selectedResource}
                 agentRow={(agent) => (
                   <AgentRow
                     key={agent.id}
