@@ -318,7 +318,7 @@ func (f *FakeIDP) realServer(t testing.TB) *httptest.Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	srv := &httptest.Server{
 		Listener: l,
-		Config:   &http.Server{Handler: f.handler},
+		Config:   &http.Server{Handler: f.handler, ReadHeaderTimeout: time.Second * 5},
 	}
 
 	srv.Config.BaseContext = func(_ net.Listener) context.Context {
