@@ -284,7 +284,6 @@ func (p *ProxyHealth) runOnce(ctx context.Context, now time.Time) (map[uuid.UUID
 					// If the response is not json, then the user likely input a bad url that returns status code 200.
 					// This is very common, since most webpages do return a 200. So let's improve the error message.
 					if notJsonErr := codersdk.ExpectJSONMime(resp); notJsonErr != nil {
-
 						err = errors.Join(
 							isCoderErr,
 							fmt.Errorf("attempted to query health at %q but got back the incorrect content type: %w", reqURL, notJsonErr),
