@@ -1554,6 +1554,8 @@ func TestWorkspaceAgentExternalAuthListen(t *testing.T) {
 	// Note that an expired oauth token is already skipped, so this really
 	// only covers the case of a revoked token.
 	t.Run("ValidateURLSpam", func(t *testing.T) {
+		t.Parallel()
+
 		const providerID = "fake-idp"
 
 		// Count all the times we call validate
