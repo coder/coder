@@ -115,3 +115,64 @@ go_image = ["1.19","1.20","1.21"]`
 	}
 	require.Equal(t, expected, actual)
 }
+
+func TestParseVariableValuesFromVarsFiles_InvalidJSON(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	const (
+		jsonFilename = "file.tfvars.json"
+		jsonContent  = `{"cat": "foobar", cores: 3}` // invalid content: no quotes around "cores"
+	)
+
+	// Prepare the .tfvars files
+	tempDir, err := os.MkdirTemp(os.TempDir(), "test-parse-variable-values-from-vars-files-invalid-json-*")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = os.RemoveAll(tempDir)
+	})
+
+	err = os.WriteFile(filepath.Join(tempDir, jsonFilename), []byte(jsonContent), 0o600)
+	require.NoError(t, err)
+
+	// When
+	actual, err := cli.ParseUserVariableValues([]string{
+		filepath.Join(tempDir, jsonFilename),
+	}, "", nil)
+
+	// Then
+	require.Nil(t, actual)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "unable to parse JSON content")
+}
+
+func TestParseVariableValuesFromVarsFiles_InvalidHCL(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	const (
+		hclFilename = "file.tfvars"
+		hclContent  = `region = "us-east-1"
+cores: 2`
+	)
+
+	// Prepare the .tfvars files
+	tempDir, err := os.MkdirTemp(os.TempDir(), "test-parse-variable-values-from-vars-files-invalid-hcl-*")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = os.RemoveAll(tempDir)
+	})
+
+	err = os.WriteFile(filepath.Join(tempDir, hclFilename), []byte(hclContent), 0o600)
+	require.NoError(t, err)
+
+	// When
+	actual, err := cli.ParseUserVariableValues([]string{
+		filepath.Join(tempDir, hclFilename),
+	}, "", nil)
+
+	// Then
+	require.Nil(t, actual)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `use the equals sign "=" to introduce the argument value`)
+}
