@@ -55,14 +55,20 @@ func (u *nodeUpdater) updateLoop() {
 			u.logger.Debug(context.Background(), "closing nodeUpdater updateLoop")
 			return
 		}
-		node := u.nodeLocked()
 		u.dirty = false
 		u.phase = configuring
 		u.Broadcast()
 
+		callback := u.callback
+		if callback == nil {
+			u.logger.Debug(context.Background(), "skipped sending node; no node callback")
+			continue
+		}
+
 		// We cannot reach nodes without DERP for discovery. Therefore, there is no point in sending
 		// the node without this, and we can save ourselves from churn in the tailscale/wireguard
 		// layer.
+		node := u.nodeLocked()
 		if node.PreferredDERP == 0 {
 			u.logger.Debug(context.Background(), "skipped sending node; no PreferredDERP", slog.F("node", node))
 			continue
@@ -70,7 +76,7 @@ func (u *nodeUpdater) updateLoop() {
 
 		u.L.Unlock()
 		u.logger.Debug(context.Background(), "calling nodeUpdater callback", slog.F("node", node))
-		u.callback(node)
+		callback(node)
 		u.L.Lock()
 	}
 }
@@ -155,7 +161,7 @@ func (u *nodeUpdater) setDERPForcedWebsocket(region int, reason string) {
 }
 
 // setStatus handles the status callback from the wireguard engine to learn about new endpoints
-// (e.g. discovered by STUN)
+// (e.g. discovered by STUN).  u.L MUST NOT be held
 func (u *nodeUpdater) setStatus(s *wgengine.Status, err error) {
 	u.logger.Debug(context.Background(), "wireguard status", slog.F("status", s), slog.Error(err))
 	if err != nil {
@@ -181,6 +187,7 @@ func (u *nodeUpdater) setStatus(s *wgengine.Status, err error) {
 	u.Broadcast()
 }
 
+// setAddresses sets the local addresses for the node. u.L MUST NOT be held.
 func (u *nodeUpdater) setAddresses(ips []netip.Prefix) {
 	u.L.Lock()
 	defer u.L.Unlock()
@@ -189,6 +196,16 @@ func (u *nodeUpdater) setAddresses(ips []netip.Prefix) {
 	}
 	u.addresses = make([]netip.Prefix, len(ips))
 	copy(u.addresses, ips)
+	u.dirty = true
+	u.Broadcast()
+}
+
+// setCallback sets the callback for node changes. It also triggers a call
+// for the current node immediately. u.L MUST NOT be held.
+func (u *nodeUpdater) setCallback(callback func(node *Node)) {
+	u.L.Lock()
+	defer u.L.Unlock()
+	u.callback = callback
 	u.dirty = true
 	u.Broadcast()
 }

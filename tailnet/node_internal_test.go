@@ -441,3 +441,44 @@ func TestNodeUpdater_setAddresses_same(t *testing.T) {
 	}()
 	_ = testutil.RequireRecvCtx(ctx, t, done)
 }
+
+func TestNodeUpdater_setCallback(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	id := tailcfg.NodeID(1)
+	nodeKey := key.NewNode().Public()
+	discoKey := key.NewDisco().Public()
+	uut := newNodeUpdater(
+		logger,
+		nil,
+		id, nodeKey, discoKey,
+	)
+	defer uut.close()
+
+	// Given: preferred DERP is 1
+	addrs := []netip.Prefix{netip.MustParsePrefix("192.168.0.200/32")}
+	uut.L.Lock()
+	uut.preferredDERP = 1
+	uut.addresses = slices.Clone(addrs)
+	uut.L.Unlock()
+
+	// When: we set callback
+	nodeCh := make(chan *Node)
+	uut.setCallback(func(n *Node) {
+		nodeCh <- n
+	})
+
+	// Then: we get a node update
+	node := testutil.RequireRecvCtx(ctx, t, nodeCh)
+	require.Equal(t, nodeKey, node.Key)
+	require.Equal(t, discoKey, node.DiscoKey)
+	require.Equal(t, 1, node.PreferredDERP)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.RequireRecvCtx(ctx, t, done)
+}
