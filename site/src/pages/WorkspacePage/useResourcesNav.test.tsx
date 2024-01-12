@@ -106,7 +106,12 @@ describe("useResourcesNav", () => {
     );
     expect(result.current.selected?.id).toBe(startedResources[0].id);
 
-    //  When a workspace is stopped, there is no resource with agents
+    // When a workspace is stopped, there are no resources with agents, so we
+    // need to retain the currently selected resource. This ensures consistency
+    // when handling workspace updates that involve a sequence of stopping and
+    // starting. By preserving the resource selection, we maintain the desired
+    // configuration and prevent unintended changes during the stop-and-start
+    // process.
     const stoppedResources: WorkspaceResource[] = [
       {
         ...MockWorkspaceResource,
@@ -116,7 +121,9 @@ describe("useResourcesNav", () => {
       },
     ];
     rerender({ resources: stoppedResources });
-    expect(result.current.selected).toBe(undefined);
+    expect(result.current.selectedValue).toBe(
+      resourceOptionId(startedResources[0]),
+    );
 
     // When a workspace is started again a resource is selected
     rerender({ resources: startedResources });

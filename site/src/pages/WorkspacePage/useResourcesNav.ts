@@ -1,21 +1,20 @@
 import { WorkspaceResource } from "api/typesGenerated";
 import { useTab } from "hooks";
 import { useEffectEvent } from "hooks/hookPolyfills";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect } from "react";
 
 export const resourceOptionId = (resource: WorkspaceResource) => {
   return `${resource.type}_${resource.name}`;
 };
 
+// TODO: This currently serves as a temporary workaround for synchronizing the
+// resources tab during workspace transitions. The optimal resolution involves
+// eliminating the sync and updating the URL within the workspace data update
+// event in the WebSocket "onData" event. However, this requires substantial
+// refactoring. Consider revisiting this solution in the future for a more
+// robust implementation.
 export const useResourcesNav = (resources: WorkspaceResource[]) => {
-  const firstResource = useMemo(
-    () => (resources.length > 0 ? resources[0] : undefined),
-    [resources],
-  );
-  const resourcesNav = useTab(
-    "resources",
-    firstResource ? resourceOptionId(firstResource) : "",
-  );
+  const resourcesNav = useTab("resources", "");
 
   const isSelected = useCallback(
     (resource: WorkspaceResource) => {
@@ -28,11 +27,11 @@ export const useResourcesNav = (resources: WorkspaceResource[]) => {
   const onSelectedResourceChange = useEffectEvent(
     (previousResource?: WorkspaceResource) => {
       const hasResourcesWithAgents =
-        firstResource &&
-        firstResource.agents &&
-        firstResource.agents.length > 0;
+        resources.length > 0 &&
+        resources[0].agents &&
+        resources[0].agents.length > 0;
       if (!previousResource && hasResourcesWithAgents) {
-        resourcesNav.set(resourceOptionId(firstResource));
+        resourcesNav.set(resourceOptionId(resources[0]));
       }
     },
   );
@@ -51,5 +50,6 @@ export const useResourcesNav = (resources: WorkspaceResource[]) => {
     isSelected,
     select,
     selected: selectedResource,
+    selectedValue: resourcesNav.value,
   };
 };
