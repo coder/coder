@@ -11,6 +11,7 @@ import { IconField } from "components/IconField/IconField";
 import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
 import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
+import { isApiValidationError } from "api/errors";
 
 const validationSchema = Yup.object({
   name: Yup.string().required().label("Name"),
@@ -50,7 +51,9 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
       <FullPageForm title="Create group">
         <form onSubmit={form.handleSubmit}>
           <Stack spacing={2.5}>
-            {Boolean(error) && <ErrorAlert error={error} />}
+            {Boolean(error) && !isApiValidationError(error) && (
+              <ErrorAlert error={error} />
+            )}
 
             <TextField
               {...getFieldHelpers("name")}
