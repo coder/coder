@@ -20,7 +20,6 @@ import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
 import HubOutlined from "@mui/icons-material/HubOutlined";
 import { ResourcesSidebar } from "./ResourcesSidebar";
 import { ResourceCard } from "components/Resources/ResourceCard";
-import { WorkspaceNotifications } from "./WorkspaceNotifications";
 import { WorkspacePermissions } from "./permissions";
 import { useResourcesNav } from "./useResourcesNav";
 
@@ -133,6 +132,9 @@ export const Workspace: FC<WorkspaceProps> = ({
         isRestarting={isRestarting}
         canUpdateWorkspace={permissions.updateWorkspace}
         isOwner={isOwner}
+        template={template}
+        permissions={permissions}
+        latestVersion={latestVersion}
       />
 
       <div
@@ -178,16 +180,6 @@ export const Workspace: FC<WorkspaceProps> = ({
       <div css={styles.content}>
         <div css={styles.dotBackground}>
           <div css={{ display: "flex", flexDirection: "column", gap: 24 }}>
-            <WorkspaceNotifications
-              workspace={workspace}
-              template={template}
-              latestVersion={latestVersion}
-              permissions={permissions}
-              onRestartWorkspace={handleRestart}
-              onUpdateWorkspace={handleUpdate}
-              onActivateWorkspace={handleDormantActivate}
-            />
-
             {workspace.latest_build.status === "deleted" && (
               <WorkspaceDeletedBanner
                 handleClick={() => navigate(`/templates`)}

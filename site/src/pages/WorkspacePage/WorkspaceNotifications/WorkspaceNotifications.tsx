@@ -1,31 +1,20 @@
 import { workspaceResolveAutostart } from "api/queries/workspaceQuota";
 import { Template, TemplateVersion, Workspace } from "api/typesGenerated";
-import { AlertProps } from "components/Alert/Alert";
-import { FC, ReactNode, useEffect, useState } from "react";
+import { FC, useEffect, useState } from "react";
 import { useQuery } from "react-query";
-import { WorkspacePermissions } from "./permissions";
+import { WorkspacePermissions } from "../permissions";
 import dayjs from "dayjs";
 import { useIsWorkspaceActionsEnabled } from "components/Dashboard/DashboardProvider";
 import formatDistanceToNow from "date-fns/formatDistanceToNow";
-import { Pill } from "components/Pill/Pill";
 import InfoOutlined from "@mui/icons-material/InfoOutlined";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "components/Popover/Popover";
-import { Interpolation, Theme, useTheme } from "@emotion/react";
-import Button, { ButtonProps } from "@mui/material/Button";
-import { ThemeRole } from "theme/experimental";
 import WarningRounded from "@mui/icons-material/WarningRounded";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
-
-type Notification = {
-  title: string;
-  severity: AlertProps["severity"];
-  detail?: ReactNode;
-  actions?: ReactNode;
-};
+import {
+  NotificationActionButton,
+  NotificationItem,
+  Notifications,
+} from "./Notifications";
+import { Interpolation, Theme } from "@emotion/react";
 
 type WorkspaceNotificationsProps = {
   workspace: Workspace;
@@ -35,6 +24,8 @@ type WorkspaceNotificationsProps = {
   onUpdateWorkspace: () => void;
   onActivateWorkspace: () => void;
   latestVersion?: TemplateVersion;
+  // Used for storybook
+  defaultOpen?: "info" | "warning";
 };
 
 export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
@@ -42,11 +33,12 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
   template,
   latestVersion,
   permissions,
+  defaultOpen,
   onRestartWorkspace,
   onUpdateWorkspace,
   onActivateWorkspace,
 }) => {
-  const notifications: Notification[] = [];
+  const notifications: NotificationItem[] = [];
 
   // Outdated
   const canAutostartQuery = useQuery(workspaceResolveAutostart(workspace.id));
@@ -226,19 +218,21 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
   );
 
   return (
-    <div css={styles.notifications}>
+    <div css={styles.notificationsGroup}>
       {infoNotifications.length > 0 && (
-        <NotificationPill
-          notifications={infoNotifications}
-          type="info"
+        <Notifications
+          isDefaultOpen={defaultOpen === "info"}
+          items={infoNotifications}
+          severity="info"
           icon={<InfoOutlined />}
         />
       )}
 
       {warningNotifications.length > 0 && (
-        <NotificationPill
-          notifications={warningNotifications}
-          type="warning"
+        <Notifications
+          isDefaultOpen={defaultOpen === "warning"}
+          items={warningNotifications}
+          severity="warning"
           icon={<WarningRounded />}
         />
       )}
@@ -246,97 +240,10 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
   );
 };
 
-type NotificationPillProps = {
-  notifications: Notification[];
-  type: ThemeRole;
-  icon: ReactNode;
-};
-
-const NotificationPill: FC<NotificationPillProps> = ({
-  notifications,
-  type,
-  icon,
-}) => {
-  const theme = useTheme();
-
-  return (
-    <Popover mode="hover">
-      <PopoverTrigger>
-        <div css={styles.pillContainer}>
-          <Pill type={type} icon={icon}>
-            {notifications.length}
-          </Pill>
-        </div>
-      </PopoverTrigger>
-      <PopoverContent
-        transformOrigin={{
-          horizontal: "right",
-          vertical: "bottom",
-        }}
-        anchorOrigin={{ horizontal: "right", vertical: "top" }}
-        css={{
-          "& .MuiPaper-root": {
-            borderColor: theme.experimental.roles[type].outline,
-            maxWidth: 400,
-          },
-        }}
-      >
-        {notifications.map((n) => (
-          <NotificationItem notification={n} key={n.title} />
-        ))}
-      </PopoverContent>
-    </Popover>
-  );
-};
-
-const NotificationItem: FC<{ notification: Notification }> = (props) => {
-  const { notification } = props;
-
-  return (
-    <article css={{ padding: 16 }}>
-      <h4 css={{ margin: 0, fontWeight: 500 }}>{notification.title}</h4>
-      {notification.detail && (
-        <p css={styles.notificationDetail}>{notification.detail}</p>
-      )}
-      <div css={{ marginTop: 8 }}>{notification.actions}</div>
-    </article>
-  );
-};
-
-const NotificationActionButton: FC<ButtonProps> = (props) => {
-  return (
-    <Button
-      variant="text"
-      css={{
-        textDecoration: "underline",
-        padding: 0,
-        height: "auto",
-        minWidth: "auto",
-        "&:hover": { background: "none", textDecoration: "underline" },
-      }}
-      {...props}
-    />
-  );
-};
-
 const styles = {
-  notifications: {
+  notificationsGroup: {
     display: "flex",
     alignItems: "center",
     gap: 12,
-    position: "fixed",
-    bottom: 48,
-    right: 48,
-    zIndex: 10,
   },
-  // Adds some spacing from the popover content
-  pillContainer: {
-    paddingTop: 8,
-  },
-  notificationDetail: (theme) => ({
-    margin: 0,
-    color: theme.palette.text.secondary,
-    lineHeight: 1.6,
-    display: "block",
-  }),
 } satisfies Record<string, Interpolation<Theme>>;

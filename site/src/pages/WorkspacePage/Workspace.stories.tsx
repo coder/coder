@@ -9,7 +9,6 @@ import EventSource from "eventsourcemock";
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
 import { DashboardProviderContext } from "components/Dashboard/DashboardProvider";
 import { WorkspaceBuildLogsSection } from "pages/WorkspacePage/WorkspaceBuildLogsSection";
-import { getWorkspaceResolveAutostartQueryKey } from "api/queries/workspaceQuota";
 import { WorkspacePermissions } from "./permissions";
 
 const MockedAppearance = {
@@ -182,58 +181,6 @@ export const Canceled: Story = {
   args: {
     ...Running.args,
     workspace: Mocks.MockCanceledWorkspace,
-  },
-};
-
-export const Outdated: Story = {
-  args: {
-    ...Running.args,
-    workspace: Mocks.MockOutdatedWorkspace,
-  },
-};
-
-export const CantAutostart: Story = {
-  args: {
-    ...Running.args,
-    workspace: Mocks.MockOutdatedRunningWorkspaceRequireActiveVersion,
-  },
-  parameters: {
-    queries: [
-      {
-        key: getWorkspaceResolveAutostartQueryKey(
-          Mocks.MockOutdatedRunningWorkspaceRequireActiveVersion.id,
-        ),
-        data: {
-          parameter_mismatch: false,
-        },
-      },
-    ],
-  },
-};
-
-export const Deprecated: Story = {
-  args: {
-    ...Running.args,
-    template: {
-      ...Mocks.MockTemplate,
-      deprecated: true,
-      deprecation_message:
-        "Template deprecated due to reasons. [Learn more](#)",
-    },
-  },
-};
-
-export const Unhealthy: Story = {
-  args: {
-    ...Running.args,
-    workspace: {
-      ...Mocks.MockWorkspace,
-      latest_build: { ...Mocks.MockWorkspace.latest_build, status: "running" },
-      health: {
-        healthy: false,
-        failing_agents: [],
-      },
-    },
   },
 };
 
