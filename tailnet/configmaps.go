@@ -253,6 +253,24 @@ func (c *configMaps) setBlockEndpoints(blockEndpoints bool) {
 	c.Broadcast()
 }
 
+// setDERPMap sets the DERP map, triggering a configuration of the engine if it has changed.
+// c.L MUST NOT be held.
+func (c *configMaps) setDERPMap(derpMap *proto.DERPMap) {
+	c.L.Lock()
+	defer c.L.Unlock()
+	eq, err := c.derpMap.Equal(derpMap)
+	if err != nil {
+		c.logger.Critical(context.Background(), "failed to compare DERP maps", slog.Error(err))
+		return
+	}
+	if eq {
+		return
+	}
+	c.derpMap = derpMap
+	c.derpMapDirty = true
+	c.Broadcast()
+}
+
 // derMapLocked returns the current DERPMap.  c.L must be held
 func (c *configMaps) derpMapLocked() *tailcfg.DERPMap {
 	m := DERPMapFromProto(c.derpMap)
