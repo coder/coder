@@ -113,6 +113,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 				if err != nil {
 					return err
 				}
+				_, _ = fmt.Fprintln(inv.Stdout, "Auto-discovered Terraform tfvars files. Make sure to review and clean up any unused files.")
 			}
 
 			// Confirm upload of the directory.
