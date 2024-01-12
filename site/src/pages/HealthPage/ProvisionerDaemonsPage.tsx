@@ -41,6 +41,7 @@ export const ProvisionerDaemonsPage = () => {
       </Header>
 
       <Main>
+        {daemons.error && <Alert severity="error">{daemons.error}</Alert>}
         {daemons.warnings.map((warning) => {
           return (
             <Alert
