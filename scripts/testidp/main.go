@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"log"
 	"os"
@@ -9,8 +10,12 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
+	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // Flags
@@ -18,6 +23,8 @@ var (
 	expiry       = flag.Duration("expiry", time.Minute*5, "Token expiry")
 	clientID     = flag.String("client-id", "static-client-id", "Client ID, set empty to be random")
 	clientSecret = flag.String("client-sec", "static-client-secret", "Client Secret, set empty to be random")
+	// By default, no regex means it will never match anything. So at least default to matching something.
+	extRegex = flag.String("ext-regex", `^(https?://)?example\.com(/.*)?$`, "External auth regex")
 )
 
 func main() {
@@ -37,6 +44,12 @@ func main() {
 	}, nil, nil)
 }
 
+type withClientSecret struct {
+	// We never unmarshal this in prod, but we need this field for testing.
+	ClientSecret string `json:"client_secret"`
+	codersdk.ExternalAuthConfig
+}
+
 // RunIDP needs the testing.T because our oidctest package requires the
 // testing.T.
 func RunIDP() func(t *testing.T) {
@@ -48,15 +61,44 @@ func RunIDP() func(t *testing.T) {
 			oidctest.WithDefaultExpire(*expiry),
 			oidctest.WithStaticCredentials(*clientID, *clientSecret),
 			oidctest.WithIssuer("http://localhost:4500"),
+			oidctest.WithLogger(slog.Make(sloghuman.Sink(os.Stderr))),
 		)
 		id, sec := idp.AppCredentials()
 		prov := idp.WellknownConfig()
+		const appID = "fake"
+		coderCfg := idp.ExternalAuthConfig(t, appID, nil)
 
 		log.Println("IDP Issuer URL", idp.IssuerURL())
 		log.Println("Coderd Flags")
-		log.Printf(`--external-auth-providers='[{"type":"fake","client_id":"%s","client_secret":"%s","auth_url":"%s","token_url":"%s","validate_url":"%s","scopes":["openid","email","profile"]}]'`,
-			id, sec, prov.AuthURL, prov.TokenURL, prov.UserInfoURL,
-		)
+		deviceCodeURL := ""
+		if coderCfg.DeviceAuth != nil {
+			deviceCodeURL = coderCfg.DeviceAuth.CodeURL
+		}
+		cfg := withClientSecret{
+			ClientSecret: sec,
+			ExternalAuthConfig: codersdk.ExternalAuthConfig{
+				Type:                appID,
+				ClientID:            id,
+				ClientSecret:        sec,
+				ID:                  appID,
+				AuthURL:             prov.AuthURL,
+				TokenURL:            prov.TokenURL,
+				ValidateURL:         prov.ExternalAuthURL,
+				AppInstallURL:       coderCfg.AppInstallURL,
+				AppInstallationsURL: coderCfg.AppInstallationsURL,
+				NoRefresh:           false,
+				Scopes:              []string{"openid", "email", "profile"},
+				ExtraTokenKeys:      coderCfg.ExtraTokenKeys,
+				DeviceFlow:          coderCfg.DeviceAuth != nil,
+				DeviceCodeURL:       deviceCodeURL,
+				Regex:               *extRegex,
+				DisplayName:         coderCfg.DisplayName,
+				DisplayIcon:         coderCfg.DisplayIcon,
+			},
+		}
+		data, err := json.Marshal([]withClientSecret{cfg})
+		require.NoError(t, err)
+		log.Printf(`--external-auth-providers='%s'`, string(data))
 
 		log.Println("Press Ctrl+C to exit")
 		c := make(chan os.Signal, 1)

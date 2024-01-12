@@ -284,6 +284,7 @@ func (f *FakeIDP) updateIssuerURL(t testing.TB, issuer string) {
 		Algorithms: []string{
 			"RS256",
 		},
+		ExternalAuthURL: u.ResolveReference(&url.URL{Path: fmt.Sprintf("/external-auth-validate/%s", f.externalProviderID)}).String(),
 	}
 }
 
@@ -529,6 +530,8 @@ type ProviderJSON struct {
 	JWKSURL     string   `json:"jwks_uri"`
 	UserInfoURL string   `json:"userinfo_endpoint"`
 	Algorithms  []string `json:"id_token_signing_alg_values_supported"`
+	// This is custom
+	ExternalAuthURL string `json:"exteral_auth_url"`
 }
 
 // newCode enforces the code exchanged is actually a valid code
@@ -999,6 +1002,7 @@ func (f *FakeIDP) ExternalAuthConfig(t testing.TB, id string, custom *ExternalAu
 	}
 	instrumentF := promoauth.NewFactory(prometheus.NewRegistry())
 	cfg := &externalauth.Config{
+		DisplayName:              id,
 		InstrumentedOAuth2Config: instrumentF.New(f.clientID, f.OIDCConfig(t, nil)),
 		ID:                       id,
 		// No defaults for these fields by omitting the type
@@ -1011,6 +1015,7 @@ func (f *FakeIDP) ExternalAuthConfig(t testing.TB, id string, custom *ExternalAu
 	for _, opt := range opts {
 		opt(cfg)
 	}
+	f.updateIssuerURL(t, f.issuer)
 	return cfg
 }
 
