@@ -159,7 +159,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 			PhoneNumber: createUser.TrialInfo.PhoneNumber,
 			JobTitle:    createUser.TrialInfo.JobTitle,
 			CompanyName: createUser.TrialInfo.CompanyName,
-			Country:     createUser.TrialInfo.CompanyName,
+			Country:     createUser.TrialInfo.Country,
 			Developers:  createUser.TrialInfo.Developers,
 		})
 		if err != nil {
