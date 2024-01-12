@@ -111,6 +111,7 @@ go_image = ["1.19","1.20","1.21"]`
 		{Name: "cores", Value: "3"},
 		{Name: "dog", Value: "4"},
 		{Name: "go_image", Value: "[\"1.19\",\"1.20\"]"},
-		{Name: "region", Value: "us-west-2"}}
+		{Name: "region", Value: "us-west-2"},
+	}
 	require.Equal(t, expected, actual)
 }
