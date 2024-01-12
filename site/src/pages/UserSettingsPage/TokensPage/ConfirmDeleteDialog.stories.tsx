@@ -32,8 +32,6 @@ export const DeleteDialog: Story = {
   args: {
     queryKey: ["tokens"],
     token: MockToken,
-    setToken: () => {
-      return null;
-    },
+    setToken: () => null,
   },
 };

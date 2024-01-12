@@ -14,7 +14,9 @@ import { useUserFilterMenu } from "components/Filter/UserFilter";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { useQuery } from "react-query";
 import { templates } from "api/queries/templates";
-import { BatchDeleteConfirmation, useBatchActions } from "./BatchActions";
+import { useBatchActions } from "./batchActions";
+import { BatchDeleteConfirmation } from "./BatchDeleteConfirmation";
+import { BatchUpdateConfirmation } from "./BatchUpdateConfirmation";
 
 function useSafeSearchParams() {
   // Have to wrap setSearchParams because React Router doesn't make sure that
@@ -54,6 +56,7 @@ const WorkspacesPage: FC = () => {
   const updateWorkspace = useWorkspaceUpdate(queryKey);
   const [checkedWorkspaces, setCheckedWorkspaces] = useState<Workspace[]>([]);
   const [isConfirmingDeleteAll, setIsConfirmingDeleteAll] = useState(false);
+  const [isConfirmingUpdateAll, setIsConfirmingUpdateAll] = useState(false);
   const [urlSearchParams] = searchParamsResult;
   const { entitlements } = useDashboard();
   const canCheckWorkspaces =
@@ -96,10 +99,8 @@ const WorkspacesPage: FC = () => {
           updateWorkspace.mutate(workspace);
         }}
         isRunningBatchAction={batchActions.isLoading}
-        onDeleteAll={() => {
-          setIsConfirmingDeleteAll(true);
-        }}
-        onUpdateAll={() => batchActions.updateAll(checkedWorkspaces)}
+        onDeleteAll={() => setIsConfirmingDeleteAll(true)}
+        onUpdateAll={() => setIsConfirmingUpdateAll(true)}
         onStartAll={() => batchActions.startAll(checkedWorkspaces)}
         onStopAll={() => batchActions.stopAll(checkedWorkspaces)}
       />
@@ -114,6 +115,19 @@ const WorkspacesPage: FC = () => {
         }}
         onClose={() => {
           setIsConfirmingDeleteAll(false);
+        }}
+      />
+
+      <BatchUpdateConfirmation
+        isLoading={batchActions.isLoading}
+        checkedWorkspaces={checkedWorkspaces}
+        open={isConfirmingUpdateAll}
+        onConfirm={async () => {
+          await batchActions.updateAll(checkedWorkspaces);
+          setIsConfirmingUpdateAll(false);
+        }}
+        onClose={() => {
+          setIsConfirmingUpdateAll(false);
         }}
       />
     </>

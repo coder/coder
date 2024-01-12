@@ -32,7 +32,7 @@ export default {
     danger: {
       background: colors.orange[50],
       outline: colors.orange[400],
-      fill: colors.orange[600],
+      fill: colors.orange[500],
       text: colors.orange[950],
       disabled: {
         background: colors.orange[50],
@@ -43,7 +43,7 @@ export default {
       hover: {
         background: colors.orange[100],
         outline: colors.orange[500],
-        fill: colors.orange[500],
+        fill: colors.orange[400],
         text: colors.black,
       },
     },
