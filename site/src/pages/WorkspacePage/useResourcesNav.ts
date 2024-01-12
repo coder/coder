@@ -1,5 +1,6 @@
 import { WorkspaceResource } from "api/typesGenerated";
 import { useTab } from "hooks";
+import { useEffectEvent } from "hooks/hookPolyfills";
 import { useCallback, useEffect, useMemo } from "react";
 
 export const resourceOptionId = (resource: WorkspaceResource) => {
@@ -24,14 +25,20 @@ export const useResourcesNav = (resources: WorkspaceResource[]) => {
   );
 
   const selectedResource = resources.find(isSelected);
-
+  const onSelectedResourceChange = useEffectEvent(
+    (previousResource?: WorkspaceResource) => {
+      const hasResourcesWithAgents =
+        firstResource &&
+        firstResource.agents &&
+        firstResource.agents.length > 0;
+      if (!previousResource && hasResourcesWithAgents) {
+        resourcesNav.set(resourceOptionId(firstResource));
+      }
+    },
+  );
   useEffect(() => {
-    const hasResourcesWithAgents =
-      firstResource && firstResource.agents && firstResource.agents.length > 0;
-    if (!selectedResource && hasResourcesWithAgents) {
-      resourcesNav.set(resourceOptionId(firstResource));
-    }
-  }, [firstResource, resourcesNav, selectedResource]);
+    onSelectedResourceChange(selectedResource);
+  }, [onSelectedResourceChange, selectedResource]);
 
   const select = useCallback(
     (resource: WorkspaceResource) => {
