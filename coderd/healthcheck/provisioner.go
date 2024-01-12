@@ -152,7 +152,7 @@ func (r *ProvisionerDaemonsReport) Run(ctx context.Context, opts *ProvisionerDae
 
 	if len(r.Items) == 0 {
 		r.Severity = health.SeverityError
-		r.Error = ptr.Ref("No active provisioner daemons found!")
+		r.Warnings = append(r.Warnings, health.Messagef(health.CodeProvisionerDaemonsNoProvisionerDaemons, "No active provisioner daemons found!"))
 		return
 	}
 }

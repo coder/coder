@@ -9,9 +9,11 @@ import {
 import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import ErrorOutline from "@mui/icons-material/ErrorOutline";
 import { healthyColor } from "./healthyColor";
+import { docs } from "utils/docs";
 import { css } from "@emotion/css";
 import DoNotDisturbOnOutlined from "@mui/icons-material/DoNotDisturbOnOutlined";
-import { HealthSeverity } from "api/typesGenerated";
+import { HealthMessage, HealthSeverity } from "api/typesGenerated";
+import Link from "@mui/material/Link";
 import { useTheme } from "@mui/material/styles";
 
 const CONTENT_PADDING = 36;
@@ -240,5 +242,17 @@ export const Logs = (props: LogsProps) => {
         </span>
       )}
     </div>
+  );
+};
+
+export const HealthMessageDocsLink = (msg: HealthMessage) => {
+  return (
+    <Link
+      href={docs(`/admin/healthcheck#${msg.code.toLocaleLowerCase()}`)}
+      target="_blank"
+      rel="noreferrer"
+    >
+      Docs for {msg.code}
+    </Link>
   );
 };

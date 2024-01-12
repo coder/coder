@@ -35,6 +35,7 @@ import { deploymentConfig, deploymentSSHConfig } from "api/queries/deployment";
 import { WorkspacePermissions } from "./permissions";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 import dayjs from "dayjs";
+import { useMe } from "hooks";
 
 interface WorkspaceReadyPageProps {
   template: TypesGen.Template;
@@ -54,6 +55,10 @@ export const WorkspaceReadyPage = ({
   if (workspace === undefined) {
     throw Error("Workspace is undefined");
   }
+
+  // Owner
+  const me = useMe();
+  const isOwner = me.roles.find((role) => role.name === "owner") !== undefined;
 
   // Debug mode
   const { data: deploymentValues } = useQuery({
@@ -226,6 +231,7 @@ export const WorkspaceReadyPage = ({
             <WorkspaceBuildLogsSection logs={buildLogs} />
           )
         }
+        isOwner={isOwner}
       />
 
       <WorkspaceDeleteDialog

@@ -56,13 +56,7 @@ export const TemplateSettingsLayout: FC = () => {
       </Helmet>
 
       <Margins>
-        <Stack
-          css={{
-            padding: "48px 0",
-          }}
-          direction="row"
-          spacing={10}
-        >
+        <Stack css={{ padding: "48px 0" }} direction="row" spacing={10}>
           {templateQuery.isError || permissionsQuery.isError ? (
             <ErrorAlert error={templateQuery.error} />
           ) : (
@@ -74,11 +68,7 @@ export const TemplateSettingsLayout: FC = () => {
             >
               <Sidebar template={templateQuery.data} />
               <Suspense fallback={<Loader />}>
-                <main
-                  css={{
-                    width: "100%",
-                  }}
-                >
+                <main css={{ width: "100%" }}>
                   <Outlet />
                 </main>
               </Suspense>

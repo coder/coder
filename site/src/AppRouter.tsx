@@ -1,4 +1,4 @@
-import { FC, lazy, Suspense } from "react";
+import { type FC, lazy, Suspense } from "react";
 import {
   Route,
   Routes,
@@ -6,10 +6,10 @@ import {
   Navigate,
 } from "react-router-dom";
 import { DashboardLayout } from "./components/Dashboard/DashboardLayout";
-import { DeploySettingsLayout } from "./components/DeploySettingsLayout/DeploySettingsLayout";
+import { DeploySettingsLayout } from "./pages/DeploySettingsPage/DeploySettingsLayout";
 import { FullScreenLoader } from "./components/Loader/FullScreenLoader";
 import { RequireAuth } from "./components/RequireAuth/RequireAuth";
-import { UsersLayout } from "./components/UsersLayout/UsersLayout";
+import { UsersLayout } from "./pages/UsersPage/UsersLayout";
 import AuditPage from "./pages/AuditPage/AuditPage";
 import LoginPage from "./pages/LoginPage/LoginPage";
 import { SetupPage } from "./pages/SetupPage/SetupPage";

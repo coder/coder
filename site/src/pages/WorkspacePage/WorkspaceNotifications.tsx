@@ -18,6 +18,7 @@ import { Interpolation, Theme, useTheme } from "@emotion/react";
 import Button, { ButtonProps } from "@mui/material/Button";
 import { ThemeRole } from "theme/experimental";
 import WarningRounded from "@mui/icons-material/WarningRounded";
+import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 
 type Notification = {
   title: string;
@@ -209,9 +210,13 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
   // Deprecated
   if (template.deprecated) {
     notifications.push({
-      title: "Workspace using deprecated template",
+      title: "This workspace uses a deprecated template",
       severity: "warning",
-      detail: template.deprecation_message,
+      detail: (
+        <MemoizedInlineMarkdown>
+          {template.deprecation_message}
+        </MemoizedInlineMarkdown>
+      ),
     });
   }
 

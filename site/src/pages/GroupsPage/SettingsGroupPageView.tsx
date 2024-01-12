@@ -73,10 +73,9 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
           ) : (
             <>
               <TextField
-                {...getFieldHelpers(
-                  "display_name",
-                  "Optional: keep empty to default to the name.",
-                )}
+                {...getFieldHelpers("display_name", {
+                  helperText: "Optional: keep empty to default to the name.",
+                })}
                 onChange={onChangeTrimmed(form)}
                 autoComplete="display_name"
                 autoFocus
@@ -94,11 +93,10 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
             </>
           )}
           <TextField
-            {...getFieldHelpers(
-              "quota_allowance",
-              `This group gives ${form.values.quota_allowance} quota credits to each
+            {...getFieldHelpers("quota_allowance", {
+              helperText: `This group gives ${form.values.quota_allowance} quota credits to each
             of its members.`,
-            )}
+            })}
             onChange={onChangeTrimmed(form)}
             autoFocus
             fullWidth

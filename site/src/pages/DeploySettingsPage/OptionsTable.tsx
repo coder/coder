@@ -13,7 +13,7 @@ import {
   OptionDescription,
   OptionName,
   OptionValue,
-} from "components/DeploySettingsLayout/Option";
+} from "./Option";
 import { optionValue } from "./optionValue";
 
 interface OptionsTableProps {

@@ -1,7 +1,7 @@
 import { type Interpolation, type Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import AlertTitle from "@mui/material/AlertTitle";
-import { type FC, useEffect } from "react";
+import { type FC } from "react";
 import { useNavigate } from "react-router-dom";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
@@ -22,6 +22,7 @@ import { ResourcesSidebar } from "./ResourcesSidebar";
 import { ResourceCard } from "components/Resources/ResourceCard";
 import { WorkspaceNotifications } from "./WorkspaceNotifications";
 import { WorkspacePermissions } from "./permissions";
+import { useResourcesNav } from "./useResourcesNav";
 
 export interface WorkspaceProps {
   handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
@@ -48,6 +49,7 @@ export interface WorkspaceProps {
   buildLogs?: React.ReactNode;
   latestVersion?: TypesGen.TemplateVersion;
   permissions: WorkspacePermissions;
+  isOwner: boolean;
 }
 
 /**
@@ -78,6 +80,7 @@ export const Workspace: FC<WorkspaceProps> = ({
   buildLogs,
   latestVersion,
   permissions,
+  isOwner,
 }) => {
   const navigate = useNavigate();
   const theme = useTheme();
@@ -95,18 +98,10 @@ export const Workspace: FC<WorkspaceProps> = ({
     }
   };
 
-  const selectedResourceId = useTab("resources", "");
   const resources = [...workspace.latest_build.resources].sort(
     (a, b) => countAgents(b) - countAgents(a),
   );
-  const selectedResource = workspace.latest_build.resources.find(
-    (r) => r.id === selectedResourceId.value,
-  );
-  useEffect(() => {
-    if (resources.length > 0 && selectedResourceId.value === "") {
-      selectedResourceId.set(resources[0].id);
-    }
-  }, [resources, selectedResourceId]);
+  const resourcesNav = useResourcesNav(resources);
 
   return (
     <div
@@ -137,6 +132,7 @@ export const Workspace: FC<WorkspaceProps> = ({
         isUpdating={isUpdating}
         isRestarting={isRestarting}
         canUpdateWorkspace={permissions.updateWorkspace}
+        isOwner={isOwner}
       />
 
       <div
@@ -171,8 +167,8 @@ export const Workspace: FC<WorkspaceProps> = ({
         <ResourcesSidebar
           failed={workspace.latest_build.status === "failed"}
           resources={resources}
-          selected={selectedResourceId.value}
-          onChange={selectedResourceId.set}
+          isSelected={resourcesNav.isSelected}
+          onChange={resourcesNav.select}
         />
       )}
       {sidebarOption.value === "history" && (
@@ -229,9 +225,9 @@ export const Workspace: FC<WorkspaceProps> = ({
 
             {buildLogs}
 
-            {selectedResource && (
+            {resourcesNav.selected && (
               <ResourceCard
-                resource={selectedResource}
+                resource={resourcesNav.selected}
                 agentRow={(agent) => (
                   <AgentRow
                     key={agent.id}

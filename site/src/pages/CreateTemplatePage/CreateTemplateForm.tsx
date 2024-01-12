@@ -337,7 +337,9 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
           />
 
           <TextField
-            {...getFieldHelpers("description")}
+            {...getFieldHelpers("description", {
+              maxLength: MAX_DESCRIPTION_CHAR_LIMIT,
+            })}
             disabled={isSubmitting}
             rows={5}
             multiline
@@ -363,10 +365,11 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
         <FormFields>
           <Stack direction="row" css={styles.ttlFields}>
             <TextField
-              {...getFieldHelpers(
-                "default_ttl_hours",
-                <DefaultTTLHelperText ttl={form.values.default_ttl_hours} />,
-              )}
+              {...getFieldHelpers("default_ttl_hours", {
+                helperText: (
+                  <DefaultTTLHelperText ttl={form.values.default_ttl_hours} />
+                ),
+              })}
               disabled={isSubmitting}
               onChange={onChangeTrimmed(form)}
               fullWidth
@@ -377,12 +380,13 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 
           <Stack direction="row" css={styles.ttlFields}>
             <TextField
-              {...getFieldHelpers(
-                "autostop_requirement_days_of_week",
-                <AutostopRequirementDaysHelperText
-                  days={form.values.autostop_requirement_days_of_week}
-                />,
-              )}
+              {...getFieldHelpers("autostop_requirement_days_of_week", {
+                helperText: (
+                  <AutostopRequirementDaysHelperText
+                    days={form.values.autostop_requirement_days_of_week}
+                  />
+                ),
+              })}
               disabled={
                 isSubmitting ||
                 form.values.use_max_ttl ||
@@ -408,13 +412,14 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
             </TextField>
 
             <TextField
-              {...getFieldHelpers(
-                "autostop_requirement_weeks",
-                <AutostopRequirementWeeksHelperText
-                  days={form.values.autostop_requirement_days_of_week}
-                  weeks={form.values.autostop_requirement_weeks}
-                />,
-              )}
+              {...getFieldHelpers("autostop_requirement_weeks", {
+                helperText: (
+                  <AutostopRequirementWeeksHelperText
+                    days={form.values.autostop_requirement_days_of_week}
+                    weeks={form.values.autostop_requirement_weeks}
+                  />
+                ),
+              })}
               disabled={
                 isSubmitting ||
                 form.values.use_max_ttl ||
@@ -453,9 +458,8 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
             </Stack>
 
             <TextField
-              {...getFieldHelpers(
-                "max_ttl_hours",
-                allowAdvancedScheduling ? (
+              {...getFieldHelpers("max_ttl_hours", {
+                helperText: allowAdvancedScheduling ? (
                   <MaxTTLHelperText ttl={form.values.max_ttl_hours} />
                 ) : (
                   <>
@@ -463,7 +467,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
                     <Link href={docs("/enterprise")}>Learn more</Link>.
                   </>
                 ),
-              )}
+              })}
               disabled={
                 isSubmitting ||
                 !form.values.use_max_ttl ||

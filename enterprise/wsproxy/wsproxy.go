@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -157,7 +158,10 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	// TODO: Probably do some version checking here
 	info, err := client.SDKClient.BuildInfo(ctx)
 	if err != nil {
-		return nil, xerrors.Errorf("failed to fetch build info from %q: %w", opts.DashboardURL, err)
+		return nil, fmt.Errorf("buildinfo: %w", errors.Join(
+			fmt.Errorf("unable to fetch build info from primary coderd. Are you sure %q is a coderd instance?", opts.DashboardURL),
+			err,
+		))
 	}
 	if info.WorkspaceProxy {
 		return nil, xerrors.Errorf("%q is a workspace proxy, not a primary coderd instance", opts.DashboardURL)

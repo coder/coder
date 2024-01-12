@@ -2869,16 +2869,16 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ## codersdk.Experiment
 
 ```json
-"deployment_health_page"
+"example"
 ```
 
 ### Properties
 
 #### Enumerated Values
 
-| Value                    |
-| ------------------------ |
-| `deployment_health_page` |
+| Value     |
+| --------- |
+| `example` |
 
 ## codersdk.ExternalAuth
 
