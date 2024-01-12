@@ -834,7 +834,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	}
 	mux.Handle(userInfoPath, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		email, ok := validateMW(rw, r)
-		f.logger.Info(r.Context(), "http userinfo",
+		f.logger.Info(r.Context(), "http userinfo endpoint",
 			slog.F("valid", ok),
 			slog.F("email", email),
 		)
