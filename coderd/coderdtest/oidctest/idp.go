@@ -543,7 +543,7 @@ type ProviderJSON struct {
 	UserInfoURL string   `json:"userinfo_endpoint"`
 	Algorithms  []string `json:"id_token_signing_alg_values_supported"`
 	// This is custom
-	ExternalAuthURL string `json:"exteral_auth_url"`
+	ExternalAuthURL string `json:"external_auth_url"`
 }
 
 // newCode enforces the code exchanged is actually a valid code
