@@ -5,6 +5,7 @@ import AccountIcon from "@mui/icons-material/Person";
 import AppearanceIcon from "@mui/icons-material/Brush";
 import ScheduleIcon from "@mui/icons-material/EditCalendarOutlined";
 import SecurityIcon from "@mui/icons-material/LockOutlined";
+import Token from "@mui/icons-material/Token";
 import type { User } from "api/typesGenerated";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import {
@@ -23,6 +24,7 @@ export const Sidebar: FC<SidebarProps> = ({ user }) => {
   const { entitlements } = useDashboard();
   const showSchedulePage =
     entitlements.features.advanced_template_scheduling.enabled;
+  const showOAuth2Page = entitlements.features.oauth2_provider.enabled;
 
   return (
     <BaseSidebar>
@@ -42,6 +44,11 @@ export const Sidebar: FC<SidebarProps> = ({ user }) => {
       <SidebarNavItem href="external-auth" icon={GitIcon}>
         External Authentication
       </SidebarNavItem>
+      {showOAuth2Page && (
+        <SidebarNavItem href="oauth2-provider" icon={Token}>
+          OAuth2 Applications
+        </SidebarNavItem>
+      )}
       {showSchedulePage && (
         <SidebarNavItem href="schedule" icon={ScheduleIcon}>
           Schedule
