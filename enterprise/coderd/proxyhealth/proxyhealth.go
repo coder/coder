@@ -301,7 +301,7 @@ func (p *ProxyHealth) runOnce(ctx context.Context, now time.Time) (map[uuid.UUID
 					status.Report.Errors = []string{
 						errors.Join(
 							isCoderErr,
-							fmt.Errorf("received a status code 200, but failed to decode health report body: %w", err.Error()),
+							fmt.Errorf("received a status code 200, but failed to decode health report body: %w", err),
 						).Error(),
 					}
 					status.Status = Unhealthy
