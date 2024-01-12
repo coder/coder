@@ -1042,7 +1042,7 @@ func (f *FakeIDP) ExternalAuthConfig(t testing.TB, id string, custom *ExternalAu
 		DisplayIcon: f.WellknownConfig().UserInfoURL,
 		// Omit the /user for the validate so we can easily append to it when modifying
 		// the cfg for advanced tests.
-		ValidateURL: f.issuerURL.ResolveReference(&url.URL{Path: "/external-auth-validate/user"}).String(),
+		ValidateURL: f.issuerURL.ResolveReference(&url.URL{Path: "/external-auth-validate/"}).String(),
 	}
 	for _, opt := range opts {
 		opt(cfg)
