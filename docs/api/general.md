@@ -157,6 +157,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "autobuild_poll_interval": 0,
     "browser_only": true,
     "cache_directory": "string",
+    "cli_upgrade_message": "string",
     "config": "string",
     "config_ssh": {
       "deploymentName": "string",
@@ -542,6 +543,44 @@ curl -X GET http://coder-server:8080/api/v2/deployment/stats \
 | Status | Meaning                                                 | Description | Schema                                                         |
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.DeploymentStats](schemas.md#codersdkdeploymentstats) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Unprivileged deployment config.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/deployment/unprivileged \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /deployment/unprivileged`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "cli_upgrade_message": "string",
+  "ssh_config": {
+    "hostname_prefix": "string",
+    "ssh_config_options": {
+      "property1": "string",
+      "property2": "string"
+    }
+  }
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                   |
+| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UnprivilegedDeploymentConfig](schemas.md#codersdkunprivilegeddeploymentconfig) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

@@ -648,6 +648,31 @@ const docTemplate = `{
                 }
             }
         },
+        "/deployment/unprivileged": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Unprivileged deployment config.",
+                "operationId": "unprivileged-deployment-config",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UnprivilegedDeploymentConfig"
+                        }
+                    }
+                }
+            }
+        },
         "/derp-map": {
             "get": {
                 "security": [
@@ -8874,6 +8899,9 @@ const docTemplate = `{
                 "cache_directory": {
                     "type": "string"
                 },
+                "cli_upgrade_message": {
+                    "type": "string"
+                },
                 "config": {
                     "type": "string"
                 },
@@ -11351,6 +11379,17 @@ const docTemplate = `{
                 "p95": {
                     "type": "integer",
                     "example": 146
+                }
+            }
+        },
+        "codersdk.UnprivilegedDeploymentConfig": {
+            "type": "object",
+            "properties": {
+                "cli_upgrade_message": {
+                    "type": "string"
+                },
+                "ssh_config": {
+                    "$ref": "#/definitions/codersdk.SSHConfigResponse"
                 }
             }
         },

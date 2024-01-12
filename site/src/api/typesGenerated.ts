@@ -426,6 +426,7 @@ export interface DeploymentValues {
   readonly web_terminal_renderer?: string;
   readonly allow_workspace_renames?: boolean;
   readonly healthcheck?: HealthcheckConfig;
+  readonly cli_upgrade_message?: string;
   readonly config?: string;
   readonly write_config?: boolean;
   readonly address?: string;
@@ -1208,6 +1209,12 @@ export interface TraceConfig {
 export interface TransitionStats {
   readonly P50?: number;
   readonly P95?: number;
+}
+
+// From codersdk/deployment.go
+export interface UnprivilegedDeploymentConfig {
+  readonly ssh_config: SSHConfigResponse;
+  readonly cli_upgrade_message: string;
 }
 
 // From codersdk/templates.go

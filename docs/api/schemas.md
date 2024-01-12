@@ -2091,6 +2091,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "autobuild_poll_interval": 0,
     "browser_only": true,
     "cache_directory": "string",
+    "cli_upgrade_message": "string",
     "config": "string",
     "config_ssh": {
       "deploymentName": "string",
@@ -2469,6 +2470,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "autobuild_poll_interval": 0,
   "browser_only": true,
   "cache_directory": "string",
+  "cli_upgrade_message": "string",
   "config": "string",
   "config_ssh": {
     "deploymentName": "string",
@@ -2742,6 +2744,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `autobuild_poll_interval`            | integer                                                                                              | false    |              |                                                                    |
 | `browser_only`                       | boolean                                                                                              | false    |              |                                                                    |
 | `cache_directory`                    | string                                                                                               | false    |              |                                                                    |
+| `cli_upgrade_message`                | string                                                                                               | false    |              |                                                                    |
 | `config`                             | string                                                                                               | false    |              |                                                                    |
 | `config_ssh`                         | [codersdk.SSHConfig](#codersdksshconfig)                                                             | false    |              |                                                                    |
 | `dangerous`                          | [codersdk.DangerousConfig](#codersdkdangerousconfig)                                                 | false    |              |                                                                    |
@@ -5277,6 +5280,28 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ----- | ------- | -------- | ------------ | ----------- |
 | `p50` | integer | false    |              |             |
 | `p95` | integer | false    |              |             |
+
+## codersdk.UnprivilegedDeploymentConfig
+
+```json
+{
+  "cli_upgrade_message": "string",
+  "ssh_config": {
+    "hostname_prefix": "string",
+    "ssh_config_options": {
+      "property1": "string",
+      "property2": "string"
+    }
+  }
+}
+```
+
+### Properties
+
+| Name                  | Type                                                     | Required | Restrictions | Description |
+| --------------------- | -------------------------------------------------------- | -------- | ------------ | ----------- |
+| `cli_upgrade_message` | string                                                   | false    |              |             |
+| `ssh_config`          | [codersdk.SSHConfigResponse](#codersdksshconfigresponse) | false    |              |             |
 
 ## codersdk.UpdateActiveTemplateVersion
 
