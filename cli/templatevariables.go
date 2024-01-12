@@ -267,5 +267,8 @@ func combineVariableValues(valuesSets ...[]codersdk.VariableValue) []codersdk.Va
 		result = append(result, codersdk.VariableValue{Name: name, Value: value})
 	}
 
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Name < result[j].Name
+	})
 	return result
 }
