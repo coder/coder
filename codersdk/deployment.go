@@ -1790,11 +1790,10 @@ Write out the current server config as YAML to stdout.`,
 			// Env handling is done in cli.ReadGitAuthFromEnvironment
 			Name:        "External Auth Providers",
 			Description: "External Authentication providers.",
-			// We need extra scrutiny to ensure this works, is documented, and
-			// tested before enabling.
-			YAML:   "externalAuthProviders",
-			Value:  &c.ExternalAuthConfigs,
-			Hidden: true,
+			YAML:        "externalAuthProviders",
+			Flag:        "external-auth-providers",
+			Value:       &c.ExternalAuthConfigs,
+			Hidden:      true,
 		},
 		{
 			Name:        "Custom wgtunnel Host",
@@ -2066,7 +2065,7 @@ func (c *Client) BuildInfo(ctx context.Context) (BuildInfoResponse, error) {
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode != http.StatusOK {
+	if res.StatusCode != http.StatusOK || ExpectJSONMime(res) != nil {
 		return BuildInfoResponse{}, ReadBodyAsError(res)
 	}
 
@@ -2077,20 +2076,15 @@ func (c *Client) BuildInfo(ctx context.Context) (BuildInfoResponse, error) {
 type Experiment string
 
 const (
-	// Deployment health page
-	ExperimentDeploymentHealthPage Experiment = "deployment_health_page"
-
 	// Add new experiments here!
-	// ExperimentExample Experiment = "example"
+	ExperimentExample Experiment = "example" // This isn't used for anything.
 )
 
 // ExperimentsAll should include all experiments that are safe for
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsAll = Experiments{
-	ExperimentDeploymentHealthPage,
-}
+var ExperimentsAll = Experiments{}
 
 // Experiments is a list of experiments.
 // Multiple experiments may be enabled at the same time.

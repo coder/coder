@@ -431,6 +431,7 @@ type CoordinateNodes struct {
 
 func (c *Client) DialCoordinator(ctx context.Context) (agpl.MultiAgentConn, error) {
 	ctx, cancel := context.WithCancel(ctx)
+	logger := c.SDKClient.Logger().Named("multiagent")
 
 	coordinateURL, err := c.SDKClient.URL.Parse("/api/v2/workspaceproxies/me/coordinate")
 	if err != nil {
@@ -454,12 +455,13 @@ func (c *Client) DialCoordinator(ctx context.Context) (agpl.MultiAgentConn, erro
 		return nil, xerrors.Errorf("dial coordinate websocket: %w", err)
 	}
 
-	go httpapi.HeartbeatClose(ctx, cancel, conn)
+	go httpapi.HeartbeatClose(ctx, logger, cancel, conn)
 
 	nc := websocket.NetConn(ctx, conn, websocket.MessageText)
 	rma := remoteMultiAgentHandler{
 		sdk:              c,
 		nc:               nc,
+		cancel:           cancel,
 		legacyAgentCache: map[uuid.UUID]bool{},
 	}
 
@@ -473,6 +475,11 @@ func (c *Client) DialCoordinator(ctx context.Context) (agpl.MultiAgentConn, erro
 	}).Init()
 
 	go func() {
+		<-ctx.Done()
+		ma.Close()
+	}()
+
+	go func() {
 		defer cancel()
 		dec := json.NewDecoder(nc)
 		for {
@@ -480,16 +487,17 @@ func (c *Client) DialCoordinator(ctx context.Context) (agpl.MultiAgentConn, erro
 			err := dec.Decode(&msg)
 			if err != nil {
 				if xerrors.Is(err, io.EOF) {
+					logger.Info(ctx, "websocket connection severed", slog.Error(err))
 					return
 				}
 
-				c.SDKClient.Logger().Error(ctx, "failed to decode coordinator nodes", slog.Error(err))
+				logger.Error(ctx, "decode coordinator nodes", slog.Error(err))
 				return
 			}
 
 			err = ma.Enqueue(msg.Nodes)
 			if err != nil {
-				c.SDKClient.Logger().Error(ctx, "enqueue nodes from coordinator", slog.Error(err))
+				logger.Error(ctx, "enqueue nodes from coordinator", slog.Error(err))
 				continue
 			}
 		}
@@ -499,8 +507,9 @@ func (c *Client) DialCoordinator(ctx context.Context) (agpl.MultiAgentConn, erro
 }
 
 type remoteMultiAgentHandler struct {
-	sdk *Client
-	nc  net.Conn
+	sdk    *Client
+	nc     net.Conn
+	cancel func()
 
 	legacyMu           sync.RWMutex
 	legacyAgentCache   map[uuid.UUID]bool
@@ -517,10 +526,12 @@ func (a *remoteMultiAgentHandler) writeJSON(v interface{}) error {
 	// Node updates are tiny, so even the dinkiest connection can handle them if it's not hung.
 	err = a.nc.SetWriteDeadline(time.Now().Add(agpl.WriteTimeout))
 	if err != nil {
+		a.cancel()
 		return xerrors.Errorf("set write deadline: %w", err)
 	}
 	_, err = a.nc.Write(data)
 	if err != nil {
+		a.cancel()
 		return xerrors.Errorf("write message: %w", err)
 	}
 
@@ -531,6 +542,7 @@ func (a *remoteMultiAgentHandler) writeJSON(v interface{}) error {
 	// our successful write, it is important that we reset the deadline before it fires.
 	err = a.nc.SetWriteDeadline(time.Time{})
 	if err != nil {
+		a.cancel()
 		return xerrors.Errorf("clear write deadline: %w", err)
 	}
 
@@ -573,7 +585,7 @@ func (a *remoteMultiAgentHandler) AgentIsLegacy(agentID uuid.UUID) bool {
 		return a.sdk.AgentIsLegacy(ctx, agentID)
 	})
 	if err != nil {
-		a.sdk.SDKClient.Logger().Error(ctx, "failed to check agent legacy status", slog.Error(err))
+		a.sdk.SDKClient.Logger().Error(ctx, "failed to check agent legacy status", slog.F("agent_id", agentID), slog.Error(err))
 
 		// Assume that the agent is legacy since this failed, while less
 		// efficient it will always work.

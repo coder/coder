@@ -230,7 +230,8 @@ export const Deprecated: Story = {
     template: {
       ...Mocks.MockTemplate,
       deprecated: true,
-      deprecation_message: "Template deprecated due to reasons",
+      deprecation_message:
+        "Template deprecated due to reasons. [Learn more](#)",
     },
   },
 };

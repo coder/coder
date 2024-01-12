@@ -1,24 +1,25 @@
+import { type FC } from "react";
 import type { ClibaseOption } from "api/typesGenerated";
+import { deploymentGroupHasParent } from "utils/deployOptions";
+import { docs } from "utils/docs";
 import {
   Badges,
   DisabledBadge,
   EnabledBadge,
   EnterpriseBadge,
 } from "components/Badges/Badges";
-import { Header } from "components/DeploySettingsLayout/Header";
-import OptionsTable from "components/DeploySettingsLayout/OptionsTable";
 import { Stack } from "components/Stack/Stack";
-import { deploymentGroupHasParent } from "utils/deployOptions";
-import { docs } from "utils/docs";
+import { Header } from "../Header";
+import OptionsTable from "../OptionsTable";
 
 export type ObservabilitySettingsPageViewProps = {
   options: ClibaseOption[];
   featureAuditLogEnabled: boolean;
 };
-export const ObservabilitySettingsPageView = ({
-  options: options,
-  featureAuditLogEnabled,
-}: ObservabilitySettingsPageViewProps): JSX.Element => {
+
+export const ObservabilitySettingsPageView: FC<
+  ObservabilitySettingsPageViewProps
+> = ({ options: options, featureAuditLogEnabled }) => {
   return (
     <>
       <Stack direction="column" spacing={6}>

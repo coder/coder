@@ -27,6 +27,7 @@ import HubOutlined from "@mui/icons-material/HubOutlined";
 import { ResourcesSidebar } from "./ResourcesSidebar";
 import { ResourceCard } from "components/Resources/ResourceCard";
 import { useResourcesNav } from "./useResourcesNav";
+import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 
 export type WorkspaceError =
   | "getBuildsError"
@@ -56,12 +57,13 @@ export interface WorkspaceProps {
   workspaceErrors: WorkspaceErrors;
   buildInfo?: TypesGen.BuildInfoResponse;
   sshPrefix?: string;
-  template?: TypesGen.Template;
+  template: TypesGen.Template;
   canRetryDebugMode: boolean;
   handleBuildRetry: () => void;
   handleBuildRetryDebug: () => void;
   buildLogs?: React.ReactNode;
   canAutostart: boolean;
+  isOwner: boolean;
 }
 
 /**
@@ -94,6 +96,7 @@ export const Workspace: FC<WorkspaceProps> = ({
   handleBuildRetryDebug,
   buildLogs,
   canAutostart,
+  isOwner,
 }) => {
   const navigate = useNavigate();
   const { saveLocal, getLocal } = useLocalStorage();
@@ -192,6 +195,7 @@ export const Workspace: FC<WorkspaceProps> = ({
         isUpdating={isUpdating}
         isRestarting={isRestarting}
         canUpdateWorkspace={canUpdateWorkspace}
+        isOwner={isOwner}
       />
 
       <div
@@ -353,8 +357,14 @@ export const Workspace: FC<WorkspaceProps> = ({
 
             {template?.deprecated && (
               <Alert severity="warning">
-                <AlertTitle>Workspace using deprecated template</AlertTitle>
-                <AlertDetail>{template?.deprecation_message}</AlertDetail>
+                <AlertTitle>
+                  This workspace uses a deprecated template
+                </AlertTitle>
+                <AlertDetail>
+                  <MemoizedInlineMarkdown>
+                    {template?.deprecation_message}
+                  </MemoizedInlineMarkdown>
+                </AlertDetail>
               </Alert>
             )}
 

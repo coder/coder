@@ -3,17 +3,17 @@ import Button from "@mui/material/Button";
 import Skeleton from "@mui/material/Skeleton";
 import AddIcon from "@mui/icons-material/AddOutlined";
 import RefreshIcon from "@mui/icons-material/Refresh";
-import type { GetLicensesResponse } from "api/api";
-import { Header } from "components/DeploySettingsLayout/Header";
-import { LicenseCard } from "./LicenseCard";
-import { Stack } from "components/Stack/Stack";
+import MuiLink from "@mui/material/Link";
+import Tooltip from "@mui/material/Tooltip";
+import LoadingButton from "@mui/lab/LoadingButton";
 import { type FC } from "react";
 import Confetti from "react-confetti";
 import { Link } from "react-router-dom";
 import useWindowSize from "react-use/lib/useWindowSize";
-import MuiLink from "@mui/material/Link";
-import Tooltip from "@mui/material/Tooltip";
-import LoadingButton from "@mui/lab/LoadingButton";
+import type { GetLicensesResponse } from "api/api";
+import { Stack } from "components/Stack/Stack";
+import { LicenseCard } from "./LicenseCard";
+import { Header } from "../Header";
 
 type Props = {
   showConfetti: boolean;
