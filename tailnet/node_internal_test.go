@@ -482,3 +482,90 @@ func TestNodeUpdater_setCallback(t *testing.T) {
 	}()
 	_ = testutil.RequireRecvCtx(ctx, t, done)
 }
+
+func TestNodeUpdater_setBlockEndpoints_different(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	id := tailcfg.NodeID(1)
+	nodeKey := key.NewNode().Public()
+	discoKey := key.NewDisco().Public()
+	nodeCh := make(chan *Node)
+	uut := newNodeUpdater(
+		logger,
+		func(n *Node) {
+			nodeCh <- n
+		},
+		id, nodeKey, discoKey,
+	)
+	defer uut.close()
+
+	// Given: preferred DERP is 1, so we'll send an update && some endpoints
+	uut.L.Lock()
+	uut.preferredDERP = 1
+	uut.endpoints = []string{"10.11.12.13:7890"}
+	uut.L.Unlock()
+
+	// When: we setBlockEndpoints
+	uut.setBlockEndpoints(true)
+
+	// Then: we receive an update without endpoints
+	node := testutil.RequireRecvCtx(ctx, t, nodeCh)
+	require.Equal(t, nodeKey, node.Key)
+	require.Equal(t, discoKey, node.DiscoKey)
+	require.Len(t, node.Endpoints, 0)
+
+	// When: we unset BlockEndpoints
+	uut.setBlockEndpoints(false)
+
+	// Then: we receive an update with endpoints
+	node = testutil.RequireRecvCtx(ctx, t, nodeCh)
+	require.Equal(t, nodeKey, node.Key)
+	require.Equal(t, discoKey, node.DiscoKey)
+	require.Len(t, node.Endpoints, 1)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.RequireRecvCtx(ctx, t, done)
+}
+
+func TestNodeUpdater_setBlockEndpoints_same(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	id := tailcfg.NodeID(1)
+	nodeKey := key.NewNode().Public()
+	discoKey := key.NewDisco().Public()
+	nodeCh := make(chan *Node)
+	uut := newNodeUpdater(
+		logger,
+		func(n *Node) {
+			nodeCh <- n
+		},
+		id, nodeKey, discoKey,
+	)
+	defer uut.close()
+
+	// Then: we don't configure
+	requireNeverConfigures(ctx, t, &uut.phased)
+
+	// Given: preferred DERP is 1, so we would send an update on change &&
+	//        blockEndpoints already set
+	uut.L.Lock()
+	uut.preferredDERP = 1
+	uut.blockEndpoints = true
+	uut.L.Unlock()
+
+	// When: we set block endpoints
+	uut.setBlockEndpoints(true)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.RequireRecvCtx(ctx, t, done)
+}

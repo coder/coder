@@ -35,6 +35,7 @@ type nodeUpdater struct {
 	endpoints            []string
 	addresses            []netip.Prefix
 	lastStatus           time.Time
+	blockEndpoints       bool
 }
 
 // updateLoop waits until the config is dirty and then calls the callback with the newest node.
@@ -111,6 +112,10 @@ func newNodeUpdater(
 
 // nodeLocked returns the current best node information.  u.L must be held.
 func (u *nodeUpdater) nodeLocked() *Node {
+	var endpoints []string
+	if !u.blockEndpoints {
+		endpoints = slices.Clone(u.endpoints)
+	}
 	return &Node{
 		ID:                  u.id,
 		AsOf:                dbtime.Now(),
@@ -118,7 +123,7 @@ func (u *nodeUpdater) nodeLocked() *Node {
 		Addresses:           slices.Clone(u.addresses),
 		AllowedIPs:          slices.Clone(u.addresses),
 		DiscoKey:            u.discoKey,
-		Endpoints:           slices.Clone(u.endpoints),
+		Endpoints:           endpoints,
 		PreferredDERP:       u.preferredDERP,
 		DERPLatency:         maps.Clone(u.derpLatency),
 		DERPForcedWebsocket: maps.Clone(u.derpForcedWebsockets),
@@ -207,5 +212,19 @@ func (u *nodeUpdater) setCallback(callback func(node *Node)) {
 	defer u.L.Unlock()
 	u.callback = callback
 	u.dirty = true
+	u.Broadcast()
+}
+
+// setBlockEndpoints sets whether we block reporting Node endpoints. u.L MUST NOT
+// be held.
+// nolint: revive
+func (u *nodeUpdater) setBlockEndpoints(blockEndpoints bool) {
+	u.L.Lock()
+	defer u.L.Unlock()
+	if u.blockEndpoints == blockEndpoints {
+		return
+	}
+	u.dirty = true
+	u.blockEndpoints = blockEndpoints
 	u.Broadcast()
 }
