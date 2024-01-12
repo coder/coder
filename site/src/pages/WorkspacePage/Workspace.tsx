@@ -26,7 +26,7 @@ import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
 import HubOutlined from "@mui/icons-material/HubOutlined";
 import { ResourcesSidebar } from "./ResourcesSidebar";
 import { ResourceCard } from "components/Resources/ResourceCard";
-import { useResourcesNav } from "./useResourcesNav";
+import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 
 export type WorkspaceError =
@@ -163,6 +163,9 @@ export const Workspace: FC<WorkspaceProps> = ({
     (a, b) => countAgents(b) - countAgents(a),
   );
   const resourcesNav = useResourcesNav(resources);
+  const selectedResource = resources.find(
+    (r) => resourceOptionValue(r) === resourcesNav.value,
+  );
 
   return (
     <div
@@ -377,9 +380,9 @@ export const Workspace: FC<WorkspaceProps> = ({
 
             {buildLogs}
 
-            {resourcesNav.selected && (
+            {selectedResource && (
               <ResourceCard
-                resource={resourcesNav.selected}
+                resource={selectedResource}
                 agentRow={(agent) => (
                   <AgentRow
                     key={agent.id}
