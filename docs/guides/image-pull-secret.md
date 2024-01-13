@@ -10,10 +10,10 @@ January 12, 2024
 
 ---
 
-Coder workspaces are commonly run as Kubernetes pods. When run inside of an enterprise,
-the pod image is typically pulled from a private image registry. This guide walks
-through creating an ImagePullSecret to use for authenticating to your registry,
-and defining it in your workspace template.
+Coder workspaces are commonly run as Kubernetes pods. When run inside of an
+enterprise, the pod image is typically pulled from a private image registry.
+This guide walks through creating an ImagePullSecret to use for authenticating
+to your registry, and defining it in your workspace template.
 
 ## 1. Create Docker Config JSON File
 
@@ -34,8 +34,8 @@ actual Docker registry URL, username, and password.
 
 ## 2. Create Kubernetes Secret
 
-Run the below `kubectl` command in the K8s cluster where you intend to run your Coder
-workspaces:
+Run the below `kubectl` command in the K8s cluster where you intend to run your
+Coder workspaces:
 
 ```console
 kubectl create secret generic regcred \
@@ -53,7 +53,15 @@ kubectl get secret -n <workspaces-namespace> regcred --output="jsonpath={.data.\
 The output should look similar to this:
 
 ```json
-{"auths":{"your.private.registry.com":{"username":"ericpaulsen","password":"xxxx","auth":"c3R...zE2"}}}
+{
+  "auths": {
+    "your.private.registry.com": {
+      "username": "ericpaulsen",
+      "password": "xxxx",
+      "auth": "c3R...zE2"
+    }
+  }
+}
 ```
 
 ## 3. Define ImagePullSecret in Terraform template
