@@ -1,5 +1,15 @@
 # Federating a Google Cloud service account to AWS
 
+<div>
+  <a href="https://github.com/ericpaulsen" style="text-decoration: none; color: inherit;">
+    <span style="vertical-align:middle;">Your Name</span>
+    <img src="https://github.com/ericpaulsen.png" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
+  </a>
+</div>
+January 4, 2024
+
+---
+
 This guide will walkthrough how to use a Google Cloud service account to
 authenticate the Coder control plane to AWS and create an EC2 workspace. The
 below steps assume your Coder control plane is running in Google Cloud and has
