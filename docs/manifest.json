@@ -1020,6 +1020,11 @@
           "title": "Google to AWS Federation",
           "description": "Federating a Google Cloud service account to AWS",
           "path": "./guides/gcp-to-aws.md"
+        },
+        {
+          "title": "Template ImagePullSecrets",
+          "description": "Creating ImagePullSecrets for private registries",
+          "path": "./guides/image-pull-secret.md"
         }
       ]
     }

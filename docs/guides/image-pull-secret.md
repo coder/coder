@@ -12,7 +12,8 @@ January 12, 2024
 
 Coder workspaces are commonly run as Kubernetes pods. When run inside of an enterprise,
 the pod image is typically pulled from a private image registry. This guide walks
-through creating an ImagePullSecret to use for authenticating to your registry.
+through creating an ImagePullSecret to use for authenticating to your registry,
+and defining it in your workspace template.
 
 ## 1. Create Docker Config JSON File
 
@@ -75,4 +76,3 @@ resource "kubernetes_pod" "dev" {
   }
 }
 ```
-
