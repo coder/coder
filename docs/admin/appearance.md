@@ -69,12 +69,13 @@ The link icons are optional, and limited to: `bug`, `chat`, and `docs`.
 
 ### Kubernetes configuration
 
-To pass in the `supportLinks` YAML file above into your Coder Kubernetes deployment,
-follow the steps below.
+To pass in the `supportLinks` YAML file above into your Coder Kubernetes
+deployment, follow the steps below.
 
 #### 1. Create Kubernetes Secret From File
 
-Run the below commmand to create the YAML file as a Kubernetes secret in your cluster:
+Run the below commmand to create the YAML file as a Kubernetes secret in your
+cluster:
 
 ```console
 kubectl create secret generic coder-support-links -n <coder-namespace> --from-file=config.yaml
@@ -87,15 +88,15 @@ Next, update your Helm chart values as follows:
 ```yaml
 coder:
   env:
-  - name: CODER_CONFIG_PATH
-    value: /etc/coder/config.yaml
+    - name: CODER_CONFIG_PATH
+      value: /etc/coder/config.yaml
   volumes:
-  - name: coder-config
-    secret:
-      secretName: coder-support-links
+    - name: coder-config
+      secret:
+        secretName: coder-support-links
   volumeMounts:
-  - name: coder-config
-    mountPath: /etc/coder/
+    - name: coder-config
+      mountPath: /etc/coder/
 ```
 
 #### 3. Upgrade Coder
