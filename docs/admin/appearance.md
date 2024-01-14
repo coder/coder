@@ -74,7 +74,7 @@ deployment, follow the steps below.
 
 #### 1. Create Kubernetes Secret From File
 
-Run the below commmand to create the YAML file as a Kubernetes secret in your
+Run the below command to create the YAML file as a Kubernetes secret in your
 cluster:
 
 ```console
