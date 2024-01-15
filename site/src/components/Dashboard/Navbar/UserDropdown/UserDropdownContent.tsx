@@ -108,7 +108,12 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
       case "docs":
         return <DocsIcon css={styles.menuItemIcon} />;
       default:
-        return <ExternalImage src={icon} css={{ maxWidth: "20px", maxHeight: "20px" }} />;
+        return (
+          <ExternalImage
+            src={icon}
+            css={{ maxWidth: "20px", maxHeight: "20px" }}
+          />
+        );
     }
   };
 
