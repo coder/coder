@@ -717,7 +717,7 @@ _None_
 {
   "value": [
     {
-      "icon": "string",
+      "icon": "bug",
       "name": "string",
       "target": "string"
     }
@@ -1024,7 +1024,7 @@ _None_
   },
   "support_links": [
     {
-      "icon": "string",
+      "icon": "bug",
       "name": "string",
       "target": "string"
     }
@@ -2277,7 +2277,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "links": {
         "value": [
           {
-            "icon": "string",
+            "icon": "bug",
             "name": "string",
             "target": "string"
           }
@@ -2655,7 +2655,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "links": {
       "value": [
         {
-          "icon": "string",
+          "icon": "bug",
           "name": "string",
           "target": "string"
         }
@@ -3359,7 +3359,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "icon": "string",
+  "icon": "bug",
   "name": "string",
   "target": "string"
 }
@@ -3372,6 +3372,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `icon`   | string | false    |              |             |
 | `name`   | string | false    |              |             |
 | `target` | string | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value  |
+| -------- | ------ |
+| `icon`   | `bug`  |
+| `icon`   | `chat` |
+| `icon`   | `docs` |
 
 ## codersdk.LogLevel
 
@@ -4455,7 +4463,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "links": {
     "value": [
       {
-        "icon": "string",
+        "icon": "bug",
         "name": "string",
         "target": "string"
       }
