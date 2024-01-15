@@ -2,7 +2,7 @@
 
 <div>
   <a href="https://github.com/ericpaulsen" style="text-decoration: none; color: inherit;">
-    <span style="vertical-align:middle;">Your Name</span>
+    <span style="vertical-align:middle;">Eric Paulsen</span>
     <img src="https://github.com/ericpaulsen.png" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
   </a>
 </div>
@@ -66,6 +66,11 @@ The output should look similar to this:
 
 ## 3. Define ImagePullSecret in Terraform template
 
+With the ImagePullSecret now created, we can add the secret into the workspace
+template. In the example below, we define the secret via the
+`image_pull_secrets` argument. Note that this argument is nested at the same
+level as the `container` argument:
+
 ```hcl
 resource "kubernetes_pod" "dev" {
   metadata {
@@ -83,4 +88,13 @@ resource "kubernetes_pod" "dev" {
     }
   }
 }
+```
+
+## 4. Push New Template Version
+
+Update your template by running the following commands:
+
+```console
+coder login <access-url>
+coder templates push <template-name>
 ```

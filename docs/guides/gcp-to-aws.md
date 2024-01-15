@@ -2,7 +2,7 @@
 
 <div>
   <a href="https://github.com/ericpaulsen" style="text-decoration: none; color: inherit;">
-    <span style="vertical-align:middle;">Your Name</span>
+    <span style="vertical-align:middle;">Eric Paulsen</span>
     <img src="https://github.com/ericpaulsen.png" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
   </a>
 </div>
