@@ -1566,12 +1566,14 @@ func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Cli
 }
 
 // Accessing an app should update the workspace's LastUsedAt.
+// Despite our efforts with the flush channel, this is inherently racy.
+// Retry a few times to ensure that the stats collection pipeline has flushed.
 func assertWorkspaceLastUsedAtUpdated(t testing.TB, details *Details) {
 	t.Helper()
 
+	<-time.After(testutil.IntervalMedium)
 	details.FlushStats()
-	// Despite our efforts with the flush channel, this is inherently racy.
-	// Retry a few times to ensure that the stats collection pipeline has flushed.
+	<-time.After(testutil.IntervalMedium)
 	require.Eventually(t, func() bool {
 		ws, err := details.SDKClient.Workspace(context.Background(), details.Workspace.ID)
 		assert.NoError(t, err)
@@ -1580,13 +1582,14 @@ func assertWorkspaceLastUsedAtUpdated(t testing.TB, details *Details) {
 }
 
 // Except when it sometimes shouldn't (e.g. no access)
+// Despite our efforts with the flush channel, this is inherently racy.
+// Wait for a short time to ensure that the stats collection pipeline has flushed.
 func assertWorkspaceLastUsedAtNotUpdated(t testing.TB, details *Details) {
 	t.Helper()
 
+	<-time.After(testutil.IntervalMedium) // wait for connections to close
 	details.FlushStats()
-	// Despite our efforts with the flush channel, this is inherently racy.
-	// Wait for a short time to ensure that the stats collection pipeline has flushed.
-	<-time.After(testutil.IntervalSlow)
+	<-time.After(testutil.IntervalMedium)
 	ws, err := details.SDKClient.Workspace(context.Background(), details.Workspace.ID)
 	require.NoError(t, err)
 	require.Equal(t, ws.LastUsedAt, details.Workspace.LastUsedAt, "workspace LastUsedAt updated when it should not have been")
