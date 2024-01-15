@@ -442,9 +442,9 @@ func TestWorkspaceProxyWorkspaceApps(t *testing.T) {
 			"*",
 		}
 
-		proxyFlushCh := make(chan chan<- struct{}, 1)
+		proxyFlushCh := make(chan chan<- struct{})
 		flushStats := func() {
-			proxyFlushDone := make(chan struct{}, 1)
+			proxyFlushDone := make(chan struct{})
 			proxyFlushCh <- proxyFlushDone
 			<-proxyFlushDone
 		}

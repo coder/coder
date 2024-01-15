@@ -147,7 +147,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.NoError(t, err)
 			require.True(t, loc.Query().Has("message"))
 			require.True(t, loc.Query().Has("redirect"))
-			assertWorkspaceLastUsedAtUpdated(t, appDetails)
+			assertWorkspaceLastUsedAtNotUpdated(t, appDetails)
 		})
 
 		t.Run("LoginWithoutAuthOnProxy", func(t *testing.T) {
@@ -185,7 +185,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			// request is getting stripped.
 			require.Equal(t, u.Path, redirectURI.Path+"/")
 			require.Equal(t, u.RawQuery, redirectURI.RawQuery)
-			assertWorkspaceLastUsedAtUpdated(t, appDetails)
+			assertWorkspaceLastUsedAtNotUpdated(t, appDetails)
 		})
 
 		t.Run("NoAccessShould404", func(t *testing.T) {

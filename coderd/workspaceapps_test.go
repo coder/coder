@@ -262,7 +262,7 @@ func TestWorkspaceApps(t *testing.T) {
 			opts.AppHost = ""
 		}
 
-		statsFlushCh := make(chan chan<- struct{}, 1)
+		statsFlushCh := make(chan chan<- struct{})
 		opts.StatsCollectorOptions.Flush = statsFlushCh
 		flushStats := func() {
 			flushDone := make(chan struct{})
