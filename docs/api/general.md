@@ -343,7 +343,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "links": {
         "value": [
           {
-            "icon": "string",
+            "icon": "bug",
             "name": "string",
             "target": "string"
           }

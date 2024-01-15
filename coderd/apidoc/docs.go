@@ -9530,7 +9530,12 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "icon": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "bug",
+                        "chat",
+                        "docs"
+                    ]
                 },
                 "name": {
                     "type": "string"
