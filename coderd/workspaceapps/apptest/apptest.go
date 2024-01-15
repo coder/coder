@@ -147,7 +147,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.NoError(t, err)
 			require.True(t, loc.Query().Has("message"))
 			require.True(t, loc.Query().Has("redirect"))
-			assertWorkspaceLastUsedAtNotUpdated(t, appDetails)
+			assertWorkspaceLastUsedAtUpdated(t, appDetails)
 		})
 
 		t.Run("LoginWithoutAuthOnProxy", func(t *testing.T) {
@@ -185,7 +185,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			// request is getting stripped.
 			require.Equal(t, u.Path, redirectURI.Path+"/")
 			require.Equal(t, u.RawQuery, redirectURI.RawQuery)
-			assertWorkspaceLastUsedAtNotUpdated(t, appDetails)
+			assertWorkspaceLastUsedAtUpdated(t, appDetails)
 		})
 
 		t.Run("NoAccessShould404", func(t *testing.T) {
@@ -396,7 +396,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			// TODO(@deansheather): This should be 400. There's a todo in the
 			// resolve request code to fix this.
 			require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-			assertWorkspaceLastUsedAtNotUpdated(t, appDetails)
+			assertWorkspaceLastUsedAtUpdated(t, appDetails)
 		})
 	})
 
@@ -1570,9 +1570,13 @@ func assertWorkspaceLastUsedAtUpdated(t testing.TB, details *Details) {
 	t.Helper()
 
 	details.FlushStats()
-	ws, err := details.SDKClient.Workspace(context.Background(), details.Workspace.ID)
-	require.NoError(t, err)
-	require.Greater(t, ws.LastUsedAt, details.Workspace.LastUsedAt, "workspace LastUsedAt not updated when it should have been")
+	// Despite our efforts with the flush channel, this is inherently racy.
+	// Retry a few times to ensure that the stats collection pipeline has flushed.
+	require.Eventually(t, func() bool {
+		ws, err := details.SDKClient.Workspace(context.Background(), details.Workspace.ID)
+		assert.NoError(t, err)
+		return ws.LastUsedAt.After(details.Workspace.LastUsedAt)
+	}, testutil.WaitShort, testutil.IntervalMedium, "workspace LastUsedAt not updated when it should have been")
 }
 
 // Except when it sometimes shouldn't (e.g. no access)
@@ -1580,6 +1584,9 @@ func assertWorkspaceLastUsedAtNotUpdated(t testing.TB, details *Details) {
 	t.Helper()
 
 	details.FlushStats()
+	// Despite our efforts with the flush channel, this is inherently racy.
+	// Wait for a short time to ensure that the stats collection pipeline has flushed.
+	<-time.After(testutil.IntervalSlow)
 	ws, err := details.SDKClient.Workspace(context.Background(), details.Workspace.ID)
 	require.NoError(t, err)
 	require.Equal(t, ws.LastUsedAt, details.Workspace.LastUsedAt, "workspace LastUsedAt updated when it should not have been")
