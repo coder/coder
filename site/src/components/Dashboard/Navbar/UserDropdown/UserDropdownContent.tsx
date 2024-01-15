@@ -17,6 +17,7 @@ import {
   type Theme,
 } from "@emotion/react";
 import { usePopover } from "components/Popover/Popover";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
 
 export const Language = {
   accountLabel: "Account",
@@ -98,6 +99,24 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
     popover.setIsOpen(false);
   };
 
+  const renderMenuIcon = (icon: string): JSX.Element => {
+    switch (icon) {
+      case "bug":
+        return <BugIcon css={styles.menuItemIcon} />;
+      case "chat":
+        return <ChatIcon css={styles.menuItemIcon} />;
+      case "docs":
+        return <DocsIcon css={styles.menuItemIcon} />;
+      default:
+        return (
+          <ExternalImage
+            src={icon}
+            css={{ maxWidth: "20px", maxHeight: "20px" }}
+          />
+        );
+    }
+  };
+
   return (
     <div>
       <Stack css={styles.info} spacing={0}>
@@ -131,9 +150,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
               css={styles.link}
             >
               <MenuItem css={styles.menuItem} onClick={onPopoverClose}>
-                {link.icon === "bug" && <BugIcon css={styles.menuItemIcon} />}
-                {link.icon === "chat" && <ChatIcon css={styles.menuItemIcon} />}
-                {link.icon === "docs" && <DocsIcon css={styles.menuItemIcon} />}
+                {renderMenuIcon(link.icon)}
                 <span css={styles.menuItemText}>{link.name}</span>
               </MenuItem>
             </a>
