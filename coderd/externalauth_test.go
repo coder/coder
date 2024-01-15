@@ -126,7 +126,7 @@ func TestExternalAuthByID(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{
 			ExternalAuthConfigs: []*externalauth.Config{
 				fake.ExternalAuthConfig(t, providerID, routes, func(cfg *externalauth.Config) {
-					cfg.AppInstallationsURL = cfg.ValidateURL + "/installs"
+					cfg.AppInstallationsURL = strings.TrimSuffix(cfg.ValidateURL, "/") + "/installs"
 					cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
 				}),
 			},
