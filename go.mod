@@ -1,6 +1,6 @@
 module github.com/coder/coder/v2
 
-go 1.20
+go 1.21
 
 // Required until https://github.com/hashicorp/terraform-config-inspect/pull/74 is merged.
 replace github.com/hashicorp/terraform-config-inspect => github.com/kylecarbs/terraform-config-inspect v0.0.0-20211215004401-bbc517866b88
