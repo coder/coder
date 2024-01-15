@@ -963,7 +963,7 @@ func (q *FakeQuerier) ArchiveUnusedTemplateVersions(_ context.Context, arg datab
 	return archived, nil
 }
 
-func (q *FakeQuerier) BatchUpdateWorkspaceLastUsedAt(ctx context.Context, arg database.BatchUpdateWorkspaceLastUsedAtParams) error {
+func (q *FakeQuerier) BatchUpdateWorkspaceLastUsedAt(_ context.Context, arg database.BatchUpdateWorkspaceLastUsedAtParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return err
