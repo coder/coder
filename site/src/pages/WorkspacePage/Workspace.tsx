@@ -253,6 +253,25 @@ export const Workspace: FC<WorkspaceProps> = ({
                     onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
                   />
                 ))}
+
+                {(!selectedResource.agents ||
+                  selectedResource.agents?.length === 0) && (
+                  <div
+                    css={{
+                      display: "flex",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      width: "100%",
+                      height: "100%",
+                    }}
+                  >
+                    <div>
+                      <h4 css={{ fontSize: 16, fontWeight: 500 }}>
+                        No agents are currently assigned to this resource.
+                      </h4>
+                    </div>
+                  </div>
+                )}
               </section>
             )}
           </div>
