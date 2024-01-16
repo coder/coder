@@ -110,6 +110,7 @@ export const Workspace: FC<WorkspaceProps> = ({
   return (
     <div
       css={{
+        overflow: "hidden",
         flex: 1,
         display: "grid",
         gridTemplate: `
