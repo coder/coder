@@ -479,55 +479,85 @@ func TestAdminViewAllWorkspaces(t *testing.T) {
 func TestWorkspacesSortOrder(t *testing.T) {
 	t.Parallel()
 
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	client, db := coderdtest.NewWithDatabase(t, nil)
 	firstUser := coderdtest.CreateFirstUser(t, client)
-	version := coderdtest.CreateTemplateVersion(t, client, firstUser.OrganizationID, nil)
-	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-	template := coderdtest.CreateTemplate(t, client, firstUser.OrganizationID, version.ID)
+	secondUserClient, secondUser := coderdtest.CreateAnotherUserMutators(t, client, firstUser.OrganizationID, []string{"owner"}, func(r *codersdk.CreateUserRequest) {
+		r.Username = "zzz"
+	})
 
 	// c-workspace should be running
-	workspace1 := coderdtest.CreateWorkspace(t, client, firstUser.OrganizationID, template.ID, func(ctr *codersdk.CreateWorkspaceRequest) {
-		ctr.Name = "c-workspace"
-	})
-	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace1.LatestBuild.ID)
+	wsbC := dbfake.WorkspaceBuild(t, db, database.Workspace{Name: "c-workspace", OwnerID: firstUser.UserID, OrganizationID: firstUser.OrganizationID}).Do()
 
 	// b-workspace should be stopped
-	workspace2 := coderdtest.CreateWorkspace(t, client, firstUser.OrganizationID, template.ID, func(ctr *codersdk.CreateWorkspaceRequest) {
-		ctr.Name = "b-workspace"
-	})
-	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace2.LatestBuild.ID)
-
-	build2 := coderdtest.CreateWorkspaceBuild(t, client, workspace2, database.WorkspaceTransitionStop)
-	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build2.ID)
+	wsbB := dbfake.WorkspaceBuild(t, db, database.Workspace{Name: "b-workspace", OwnerID: firstUser.UserID, OrganizationID: firstUser.OrganizationID}).Seed(database.WorkspaceBuild{Transition: database.WorkspaceTransitionStop}).Do()
 
 	// a-workspace should be running
-	workspace3 := coderdtest.CreateWorkspace(t, client, firstUser.OrganizationID, template.ID, func(ctr *codersdk.CreateWorkspaceRequest) {
-		ctr.Name = "a-workspace"
-	})
-	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace3.LatestBuild.ID)
+	wsbA := dbfake.WorkspaceBuild(t, db, database.Workspace{Name: "a-workspace", OwnerID: firstUser.UserID, OrganizationID: firstUser.OrganizationID}).Do()
+
+	// d-workspace should be stopped
+	wsbD := dbfake.WorkspaceBuild(t, db, database.Workspace{Name: "d-workspace", OwnerID: secondUser.ID, OrganizationID: firstUser.OrganizationID}).Seed(database.WorkspaceBuild{Transition: database.WorkspaceTransitionStop}).Do()
+
+	// e-workspace should also be stopped
+	wsbE := dbfake.WorkspaceBuild(t, db, database.Workspace{Name: "e-workspace", OwnerID: secondUser.ID, OrganizationID: firstUser.OrganizationID}).Seed(database.WorkspaceBuild{Transition: database.WorkspaceTransitionStop}).Do()
+
+	// f-workspace is also stopped, but is marked as favorite
+	wsbF := dbfake.WorkspaceBuild(t, db, database.Workspace{Name: "f-workspace", OwnerID: firstUser.UserID, OrganizationID: firstUser.OrganizationID}).Seed(database.WorkspaceBuild{Transition: database.WorkspaceTransitionStop}).Do()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
+	require.NoError(t, client.FavoriteWorkspace(ctx, wsbF.Workspace.ID)) // need to do this via API call for now
+
 	workspacesResponse, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err, "(first) fetch workspaces")
 	workspaces := workspacesResponse.Workspaces
 
-	expected := []string{
-		workspace3.Name,
-		workspace1.Name,
-		workspace2.Name,
+	expectedNames := []string{
+		wsbF.Workspace.Name, // favorite
+		wsbA.Workspace.Name, // running
+		wsbC.Workspace.Name, // running
+		wsbB.Workspace.Name, // stopped, testuser < zzz
+		wsbD.Workspace.Name, // stopped, zzz > testuser
+		wsbE.Workspace.Name, // stopped, zzz > testuser
 	}
 
-	var actual []string
+	actualNames := make([]string, 0, len(expectedNames))
 	for _, w := range workspaces {
-		actual = append(actual, w.Name)
+		actualNames = append(actualNames, w.Name)
 	}
 
 	// the correct sorting order is:
-	// 1. Running workspaces
-	// 2. Sort by usernames
-	// 3. Sort by workspace names
-	require.Equal(t, expected, actual)
+	// 1. Favorite workspaces (we have one, workspace-f)
+	// 2. Running workspaces
+	// 3. Sort by usernames
+	// 4. Sort by workspace names
+	assert.Equal(t, expectedNames, actualNames)
+
+	// Once again but this time as a different user. This time we do not expect to see another
+	// user's favorites first.
+	workspacesResponse, err = secondUserClient.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err, "(second) fetch workspaces")
+	workspaces = workspacesResponse.Workspaces
+
+	expectedNames = []string{
+		wsbA.Workspace.Name, // running
+		wsbC.Workspace.Name, // running
+		wsbB.Workspace.Name, // stopped, testuser < zzz
+		wsbF.Workspace.Name, // stopped, testuser < zzz
+		wsbD.Workspace.Name, // stopped, zzz > testuser
+		wsbE.Workspace.Name, // stopped, zzz > testuser
+	}
+
+	actualNames = make([]string, 0, len(expectedNames))
+	for _, w := range workspaces {
+		actualNames = append(actualNames, w.Name)
+	}
+
+	// the correct sorting order is:
+	// 1. Favorite workspaces (we have none this time)
+	// 2. Running workspaces
+	// 3. Sort by usernames
+	// 4. Sort by workspace names
+	assert.Equal(t, expectedNames, actualNames)
 }
 
 func TestPostWorkspacesByOrganization(t *testing.T) {
@@ -2977,4 +3007,86 @@ func TestWorkspaceDormant(t *testing.T) {
 		require.NoError(t, err)
 		coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStop, database.WorkspaceTransitionStart)
 	})
+}
+
+func TestWorkspaceFavoriteUnfavorite(t *testing.T) {
+	t.Parallel()
+	// Given:
+	var (
+		auditRecorder = audit.NewMock()
+		client, db    = coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			Auditor: auditRecorder,
+		})
+		owner                = coderdtest.CreateFirstUser(t, client)
+		memberClient, member = coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		// This will be our 'favorite' workspace
+		wsb1 = dbfake.WorkspaceBuild(t, db, database.Workspace{OwnerID: member.ID, OrganizationID: owner.OrganizationID}).Do()
+		wsb2 = dbfake.WorkspaceBuild(t, db, database.Workspace{OwnerID: owner.UserID, OrganizationID: owner.OrganizationID}).Do()
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	// Initially, workspace should not be favored for member.
+	ws, err := memberClient.Workspace(ctx, wsb1.Workspace.ID)
+	require.NoError(t, err)
+	require.False(t, ws.Favorite)
+
+	// When user favorites workspace
+	err = memberClient.FavoriteWorkspace(ctx, wsb1.Workspace.ID)
+	require.NoError(t, err)
+
+	// Then it should be favored for them.
+	ws, err = memberClient.Workspace(ctx, wsb1.Workspace.ID)
+	require.NoError(t, err)
+	require.True(t, ws.Favorite)
+
+	// And it should be audited.
+	require.True(t, auditRecorder.Contains(t, database.AuditLog{
+		Action:         database.AuditActionWrite,
+		ResourceType:   database.ResourceTypeWorkspace,
+		ResourceTarget: wsb1.Workspace.Name,
+		UserID:         member.ID,
+	}))
+	auditRecorder.ResetLogs()
+
+	// This should not show for the owner.
+	ws, err = client.Workspace(ctx, wsb1.Workspace.ID)
+	require.NoError(t, err)
+	require.False(t, ws.Favorite)
+
+	// When member unfavorites workspace
+	err = memberClient.UnfavoriteWorkspace(ctx, wsb1.Workspace.ID)
+	require.NoError(t, err)
+
+	// Then it should no longer be favored
+	ws, err = memberClient.Workspace(ctx, wsb1.Workspace.ID)
+	require.NoError(t, err)
+	require.False(t, ws.Favorite, "no longer favorite")
+
+	// And it should show in the audit logs.
+	require.True(t, auditRecorder.Contains(t, database.AuditLog{
+		Action:         database.AuditActionWrite,
+		ResourceType:   database.ResourceTypeWorkspace,
+		ResourceTarget: wsb1.Workspace.Name,
+		UserID:         member.ID,
+	}))
+
+	// Users without write access to the workspace should not be able to perform the above.
+	err = memberClient.FavoriteWorkspace(ctx, wsb2.Workspace.ID)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	err = memberClient.UnfavoriteWorkspace(ctx, wsb2.Workspace.ID)
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+
+	// You should not be able to favorite any workspace you do not own, even if you are the owner.
+	err = client.FavoriteWorkspace(ctx, wsb1.Workspace.ID)
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+
+	err = client.UnfavoriteWorkspace(ctx, wsb1.Workspace.ID)
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
 }

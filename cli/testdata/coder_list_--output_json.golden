@@ -61,6 +61,7 @@
       "failing_agents": []
     },
     "automatic_updates": "never",
-    "allow_renames": false
+    "allow_renames": false,
+    "favorite": false
   }
 ]

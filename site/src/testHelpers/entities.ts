@@ -1020,6 +1020,7 @@ export const MockWorkspace: TypesGen.Workspace = {
   },
   automatic_updates: "never",
   allow_renames: true,
+  favorite: true,
 };
 
 export const MockStoppedWorkspace: TypesGen.Workspace = {

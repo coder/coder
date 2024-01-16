@@ -267,6 +267,7 @@ WHERE
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ORDER BY
+	CASE WHEN workspaces.owner_id = @order_by_favorite AND workspaces.favorite THEN 0 ELSE 1 END ASC,
 	(latest_build.completed_at IS NOT NULL AND
 		latest_build.canceled_at IS NULL AND
 		latest_build.error IS NULL AND
@@ -552,3 +553,9 @@ SET
 	automatic_updates = $2
 WHERE
 		id = $1;
+
+-- name: FavoriteWorkspace :exec
+UPDATE workspaces SET favorite = true WHERE id = @id;
+
+-- name: UnfavoriteWorkspace :exec
+UPDATE workspaces SET favorite = false WHERE id = @id;
