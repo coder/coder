@@ -1,7 +1,7 @@
 import { type Interpolation, type Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import AlertTitle from "@mui/material/AlertTitle";
-import { type FC } from "react";
+import { PropsWithChildren, type FC, Children } from "react";
 import { useNavigate } from "react-router-dom";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
@@ -19,9 +19,11 @@ import { useTheme } from "@mui/material/styles";
 import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
 import HubOutlined from "@mui/icons-material/HubOutlined";
 import { ResourcesSidebar } from "./ResourcesSidebar";
-import { ResourceCard } from "components/Resources/ResourceCard";
 import { WorkspacePermissions } from "./permissions";
 import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
+import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
+import { SensitiveValue } from "components/Resources/SensitiveValue";
+import { CopyableValue } from "components/CopyableValue/CopyableValue";
 
 export interface WorkspaceProps {
   handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
@@ -182,6 +184,9 @@ export const Workspace: FC<WorkspaceProps> = ({
 
       <div css={styles.content}>
         <div css={styles.dotBackground}>
+          {selectedResource && (
+            <WorkspaceResourceData resource={selectedResource} />
+          )}
           <div
             css={{
               display: "flex",
@@ -229,9 +234,10 @@ export const Workspace: FC<WorkspaceProps> = ({
             {buildLogs}
 
             {selectedResource && (
-              <ResourceCard
-                resource={selectedResource}
-                agentRow={(agent) => (
+              <section
+                css={{ display: "flex", flexDirection: "column", gap: 24 }}
+              >
+                {selectedResource.agents?.map((agent) => (
                   <AgentRow
                     key={agent.id}
                     agent={agent}
@@ -245,14 +251,61 @@ export const Workspace: FC<WorkspaceProps> = ({
                     serverAPIVersion={buildInfo?.agent_api_version || ""}
                     onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
                   />
-                )}
-              />
+                ))}
+              </section>
             )}
           </div>
         </div>
       </div>
     </div>
   );
+};
+
+const WorkspaceResourceData: FC<{ resource: TypesGen.WorkspaceResource }> = ({
+  resource,
+}) => {
+  const metadata = resource.metadata ?? [];
+
+  if (resource.daily_cost > 0) {
+    metadata.push({
+      key: "Daily cost",
+      value: resource.daily_cost.toString(),
+      sensitive: false,
+    });
+  }
+
+  if (metadata.length === 0) {
+    return null;
+  }
+
+  return (
+    <header css={styles.resourceData}>
+      {resource.metadata?.map((meta) => {
+        return (
+          <div css={styles.resourceDataItem} key={meta.key}>
+            <div css={styles.resourceDataItemValue}>
+              {meta.sensitive ? (
+                <SensitiveValue value={meta.value} />
+              ) : (
+                <MemoizedInlineMarkdown components={{ p }}>
+                  {meta.value}
+                </MemoizedInlineMarkdown>
+              )}
+            </div>
+            <div css={styles.resourceDataItemLabel}>{meta.key}</div>
+          </div>
+        );
+      })}
+    </header>
+  );
+};
+
+const p = ({ children }: PropsWithChildren) => {
+  const childrens = Children.toArray(children);
+  if (childrens.every((child) => typeof child === "string")) {
+    return <CopyableValue value={childrens.join("")}>{children}</CopyableValue>;
+  }
+  return <>{children}</>;
 };
 
 const countAgents = (resource: TypesGen.WorkspaceResource) => {
@@ -264,6 +317,7 @@ const styles = {
     padding: 24,
     gridArea: "content",
     overflowY: "auto",
+    position: "relative",
   },
 
   dotBackground: (theme) => ({
@@ -287,5 +341,33 @@ const styles = {
     [theme.breakpoints.down("md")]: {
       flexDirection: "column",
     },
+  }),
+
+  resourceData: (theme) => ({
+    padding: 24,
+    margin: "-48px 0 0 -48px",
+    display: "flex",
+    gap: 48,
+    marginBottom: 24,
+    fontSize: 14,
+    background: `linear-gradient(180deg, ${theme.palette.background.default} 0%, rgba(0, 0, 0, 0) 100%)`,
+  }),
+
+  resourceDataItem: () => ({
+    lineHeight: "1.5",
+  }),
+
+  resourceDataItemLabel: (theme) => ({
+    fontSize: 13,
+    color: theme.palette.text.secondary,
+    textOverflow: "ellipsis",
+    overflow: "hidden",
+    whiteSpace: "nowrap",
+  }),
+
+  resourceDataItemValue: () => ({
+    textOverflow: "ellipsis",
+    overflow: "hidden",
+    whiteSpace: "nowrap",
   }),
 } satisfies Record<string, Interpolation<Theme>>;

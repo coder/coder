@@ -163,7 +163,7 @@ export const AgentRow: FC<AgentRowProps> = ({
         styles[`agentRow-lifecycle-${agent.lifecycle_state}`],
       ]}
     >
-      <div css={styles.agentInfo}>
+      <header css={styles.agentInfo}>
         <div css={styles.agentNameAndStatus}>
           <div css={styles.agentNameAndInfo}>
             <AgentStatus agent={agent} />
@@ -270,7 +270,7 @@ export const AgentRow: FC<AgentRowProps> = ({
             />
           </div>
         )}
-      </div>
+      </header>
 
       <AgentMetadata storybookMetadata={storybookAgentMetadata} agent={agent} />
 
@@ -506,61 +506,59 @@ const useAgentLogs = (
 const styles = {
   agentRow: (theme) => ({
     fontSize: 16,
-    borderLeft: `2px solid ${theme.palette.text.secondary}`,
-
-    "&:not(:first-of-type)": {
-      borderTop: `2px solid ${theme.palette.divider}`,
-    },
+    border: `1px solid ${theme.palette.text.secondary}`,
+    backgroundColor: theme.palette.background.default,
+    borderRadius: 8,
   }),
 
   "agentRow-connected": (theme) => ({
-    borderLeftColor: theme.palette.success.light,
+    borderColor: theme.palette.success.light,
   }),
 
   "agentRow-disconnected": (theme) => ({
-    borderLeftColor: theme.palette.text.secondary,
+    borderColor: theme.palette.text.secondary,
   }),
 
   "agentRow-connecting": (theme) => ({
-    borderLeftColor: theme.palette.info.light,
+    borderColor: theme.palette.info.light,
   }),
 
   "agentRow-timeout": (theme) => ({
-    borderLeftColor: theme.palette.warning.light,
+    borderColor: theme.palette.warning.light,
   }),
 
   "agentRow-lifecycle-created": {},
 
   "agentRow-lifecycle-starting": (theme) => ({
-    borderLeftColor: theme.palette.info.light,
+    borderColor: theme.palette.info.light,
   }),
 
   "agentRow-lifecycle-ready": (theme) => ({
-    borderLeftColor: theme.palette.success.light,
+    borderColor: theme.palette.success.light,
   }),
 
   "agentRow-lifecycle-start_timeout": (theme) => ({
-    borderLeftColor: theme.palette.warning.light,
+    borderColor: theme.palette.warning.light,
   }),
 
   "agentRow-lifecycle-start_error": (theme) => ({
-    borderLeftColor: theme.palette.error.light,
+    borderColor: theme.palette.error.light,
   }),
 
   "agentRow-lifecycle-shutting_down": (theme) => ({
-    borderLeftColor: theme.palette.info.light,
+    borderColor: theme.palette.info.light,
   }),
 
   "agentRow-lifecycle-shutdown_timeout": (theme) => ({
-    borderLeftColor: theme.palette.warning.light,
+    borderColor: theme.palette.warning.light,
   }),
 
   "agentRow-lifecycle-shutdown_error": (theme) => ({
-    borderLeftColor: theme.palette.error.light,
+    borderColor: theme.palette.error.light,
   }),
 
   "agentRow-lifecycle-off": (theme) => ({
-    borderLeftColor: theme.palette.text.secondary,
+    borderColor: theme.palette.text.secondary,
   }),
 
   agentInfo: (theme) => ({
@@ -570,7 +568,6 @@ const styles = {
     alignItems: "center",
     justifyContent: "space-between",
     flexWrap: "wrap",
-    backgroundColor: theme.palette.background.paper,
 
     [theme.breakpoints.down("md")]: {
       gap: 16,
@@ -675,6 +672,8 @@ const styles = {
     gap: 8,
     whiteSpace: "nowrap",
     width: "100%",
+    borderBottomLeftRadius: 8,
+    borderBottomRightRadius: 8,
 
     "&:hover": {
       color: theme.palette.text.primary,
