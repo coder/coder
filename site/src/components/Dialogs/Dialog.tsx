@@ -96,14 +96,14 @@ const styles = {
   }),
   successButton: (theme) => ({
     "&.MuiButton-contained": {
-      backgroundColor: theme.palette.success.dark,
+      backgroundColor: theme.experimental.roles.active.fill,
 
       "&:not(.MuiLoadingButton-loading)": {
-        color: theme.palette.primary.contrastText,
+        color: theme.experimental.roles.active.text,
       },
 
       "&:hover": {
-        backgroundColor: theme.palette.success.main,
+        backgroundColor: theme.experimental.roles.active.hover.fill,
 
         "@media (hover: none)": {
           backgroundColor: "transparent",

@@ -54,6 +54,7 @@ export function useBatchActions(options: UseBatchActionsProps) {
       return Promise.all(
         workspaces
           .filter((w) => w.outdated)
+          .filter((w) => (console.log(w.dormant_at), true))
           .map((w) => {
             updateWorkspace(w);
           }),

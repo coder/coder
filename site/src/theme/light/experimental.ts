@@ -92,7 +92,7 @@ export default {
     active: {
       background: colors.sky[100],
       outline: colors.sky[500],
-      fill: colors.sky[600],
+      fill: colors.sky[500],
       text: colors.sky[950],
       disabled: {
         background: colors.sky[50],
