@@ -554,7 +554,7 @@ const styles = {
   }),
 
   header: (theme) => ({
-    padding: "16px 24px",
+    padding: "12px 24px",
     display: "flex",
     gap: 24,
     alignItems: "center",
