@@ -14,8 +14,8 @@ import { BaseIcon } from "./BaseIcon";
 import { ShareIcon } from "./ShareIcon";
 
 export const DisplayAppNameMap: Record<TypesGen.DisplayApp, string> = {
-  port_forwarding_helper: "Ports",
-  ssh_helper: "SSH",
+  port_forwarding_helper: "Open ports",
+  ssh_helper: "Connect SSH",
   vscode: "VS Code Desktop",
   vscode_insiders: "VS Code Insiders",
   web_terminal: "Terminal",

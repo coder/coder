@@ -183,6 +183,28 @@ export const AgentRow: FC<AgentRowProps> = ({
             </>
           )}
         </div>
+
+        {showBuiltinApps && (
+          <div css={{ display: "flex" }}>
+            {!hideSSHButton && agent.display_apps.includes("ssh_helper") && (
+              <SSHButton
+                workspaceName={workspace.name}
+                agentName={agent.name}
+                sshPrefix={sshPrefix}
+              />
+            )}
+            {proxy.preferredWildcardHostname &&
+              proxy.preferredWildcardHostname !== "" &&
+              agent.display_apps.includes("port_forwarding_helper") && (
+                <PortForwardButton
+                  host={proxy.preferredWildcardHostname}
+                  workspaceName={workspace.name}
+                  agent={agent}
+                  username={workspace.owner_name}
+                />
+              )}
+          </div>
+        )}
       </header>
 
       {agent.status === "connected" && (
@@ -220,23 +242,6 @@ export const AgentRow: FC<AgentRowProps> = ({
                   userName={workspace.owner_name}
                 />
               )}
-              {!hideSSHButton && agent.display_apps.includes("ssh_helper") && (
-                <SSHButton
-                  workspaceName={workspace.name}
-                  agentName={agent.name}
-                  sshPrefix={sshPrefix}
-                />
-              )}
-              {proxy.preferredWildcardHostname &&
-                proxy.preferredWildcardHostname !== "" &&
-                agent.display_apps.includes("port_forwarding_helper") && (
-                  <PortForwardButton
-                    host={proxy.preferredWildcardHostname}
-                    workspaceName={workspace.name}
-                    agent={agent}
-                    username={workspace.owner_name}
-                  />
-                )}
             </>
           )}
         </section>
@@ -262,7 +267,9 @@ export const AgentRow: FC<AgentRowProps> = ({
       <AgentMetadata storybookMetadata={storybookAgentMetadata} agent={agent} />
 
       {hasStartupFeatures && (
-        <section>
+        <section
+          css={(theme) => ({ borderTop: `1px solid ${theme.palette.divider}` })}
+        >
           <Collapse in={showLogs}>
             <AutoSizer disableHeight>
               {({ width }) => (
@@ -600,7 +607,6 @@ const styles = {
   startupLogs: (theme) => ({
     maxHeight: 256,
     borderBottom: `1px solid ${theme.palette.divider}`,
-    borderTop: `1px solid ${theme.palette.divider}`,
     backgroundColor: theme.palette.background.paper,
     paddingTop: 16,
 
@@ -658,7 +664,7 @@ const styles = {
     background: "transparent",
     border: 0,
     fontFamily: "inherit",
-    padding: "16px 24px",
+    padding: "12px 24px",
     color: theme.palette.text.secondary,
     cursor: "pointer",
     display: "flex",
