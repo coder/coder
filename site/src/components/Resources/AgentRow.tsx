@@ -36,6 +36,7 @@ import { AppLink } from "./AppLink/AppLink";
 import { PortForwardButton } from "./PortForwardButton";
 import { SSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
+import { AgentStatus } from "./AgentStatus";
 
 // Logs are stored as the Line interface to make rendering
 // much more efficient. Instead of mapping objects each time, we're
@@ -164,7 +165,10 @@ export const AgentRow: FC<AgentRowProps> = ({
     >
       <header css={styles.header}>
         <div css={styles.agentInfo}>
-          <div css={styles.agentName}>{agent.name}</div>
+          <div css={styles.agentNameAndStatus}>
+            <AgentStatus agent={agent} />
+            <span css={styles.agentName}>{agent.name}</span>
+          </div>
           {agent.status === "connected" && (
             <>
               <AgentVersion
@@ -615,7 +619,7 @@ const styles = {
   agentNameAndStatus: (theme) => ({
     display: "flex",
     alignItems: "center",
-    gap: 32,
+    gap: 12,
 
     [theme.breakpoints.down("md")]: {
       width: "100%",
