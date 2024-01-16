@@ -963,6 +963,31 @@ func (q *FakeQuerier) ArchiveUnusedTemplateVersions(_ context.Context, arg datab
 	return archived, nil
 }
 
+func (q *FakeQuerier) BatchUpdateWorkspaceLastUsedAt(_ context.Context, arg database.BatchUpdateWorkspaceLastUsedAtParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	// temporary map to avoid O(q.workspaces*arg.workspaceIds)
+	m := make(map[uuid.UUID]struct{})
+	for _, id := range arg.IDs {
+		m[id] = struct{}{}
+	}
+	n := 0
+	for i := 0; i < len(q.workspaces); i++ {
+		if _, found := m[q.workspaces[i].ID]; !found {
+			continue
+		}
+		q.workspaces[i].LastUsedAt = arg.LastUsedAt
+		n++
+	}
+	return nil
+}
+
 func (*FakeQuerier) CleanTailnetCoordinators(_ context.Context) error {
 	return ErrUnimplemented
 }

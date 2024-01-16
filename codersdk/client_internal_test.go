@@ -283,6 +283,17 @@ func Test_readBodyAsError(t *testing.T) {
 				assert.Equal(t, unexpectedJSON, sdkErr.Response.Detail)
 			},
 		},
+		{
+			// Even status code 200 should be considered an error if this function
+			// is called. There are parts of the code that require this function
+			// to always return an error.
+			name: "OKResp",
+			req:  nil,
+			res:  newResponse(http.StatusOK, jsonCT, marshal(map[string]any{})),
+			assert: func(t *testing.T, err error) {
+				require.Error(t, err)
+			},
+		},
 	}
 
 	for _, c := range tests {

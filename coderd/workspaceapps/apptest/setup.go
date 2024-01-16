@@ -71,6 +71,7 @@ type Deployment struct {
 	SDKClient      *codersdk.Client
 	FirstUser      codersdk.CreateFirstUserResponse
 	PathAppBaseURL *url.URL
+	FlushStats     func()
 }
 
 // DeploymentFactory generates a deployment with an API client, a path base URL,

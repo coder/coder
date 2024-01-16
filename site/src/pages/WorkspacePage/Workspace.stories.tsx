@@ -9,6 +9,7 @@ import EventSource from "eventsourcemock";
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
 import { DashboardProviderContext } from "components/Dashboard/DashboardProvider";
 import { WorkspaceBuildLogsSection } from "pages/WorkspacePage/WorkspaceBuildLogsSection";
+import { WorkspacePermissions } from "./permissions";
 
 const MockedAppearance = {
   config: Mocks.MockAppearanceConfig,
@@ -16,8 +17,16 @@ const MockedAppearance = {
   setPreview: () => {},
 };
 
+const permissions: WorkspacePermissions = {
+  readWorkspace: true,
+  updateWorkspace: true,
+  updateTemplate: true,
+  viewDeploymentValues: true,
+};
+
 const meta: Meta<typeof Workspace> = {
   title: "pages/WorkspacePage/Workspace",
+  args: { permissions },
   component: Workspace,
   decorators: [
     (Story) => (
@@ -68,8 +77,6 @@ export const Running: Story = {
     workspace: Mocks.MockWorkspace,
     handleStart: action("start"),
     handleStop: action("stop"),
-    canUpdateWorkspace: true,
-    workspaceErrors: {},
     buildInfo: Mocks.MockBuildInfo,
     template: Mocks.MockTemplate,
   },
@@ -78,7 +85,10 @@ export const Running: Story = {
 export const WithoutUpdateAccess: Story = {
   args: {
     ...Running.args,
-    canUpdateWorkspace: false,
+    permissions: {
+      ...permissions,
+      updateWorkspace: false,
+    },
   },
 };
 
@@ -107,18 +117,6 @@ export const Stopping: Story = {
   args: {
     ...Running.args,
     workspace: Mocks.MockStoppingWorkspace,
-  },
-};
-
-export const Failed: Story = {
-  args: {
-    ...Running.args,
-    workspace: Mocks.MockFailedWorkspace,
-    workspaceErrors: {
-      buildError: Mocks.mockApiError({
-        message: "A workspace build is already active.",
-      }),
-    },
   },
 };
 
@@ -183,70 +181,6 @@ export const Canceled: Story = {
   args: {
     ...Running.args,
     workspace: Mocks.MockCanceledWorkspace,
-  },
-};
-
-export const Outdated: Story = {
-  args: {
-    ...Running.args,
-    workspace: Mocks.MockOutdatedWorkspace,
-  },
-};
-
-export const CantAutostart: Story = {
-  args: {
-    ...Running.args,
-    canAutostart: false,
-    workspace: Mocks.MockOutdatedRunningWorkspaceRequireActiveVersion,
-  },
-};
-
-export const GetBuildsError: Story = {
-  args: {
-    ...Running.args,
-    workspaceErrors: {
-      getBuildsError: Mocks.mockApiError({
-        message: "There is a problem fetching builds.",
-      }),
-    },
-  },
-};
-
-export const CancellationError: Story = {
-  args: {
-    ...Failed.args,
-    workspaceErrors: {
-      cancellationError: Mocks.mockApiError({
-        message: "Job could not be canceled.",
-      }),
-    },
-    buildLogs: <WorkspaceBuildLogsSection logs={makeFailedBuildLogs()} />,
-  },
-};
-
-export const Deprecated: Story = {
-  args: {
-    ...Running.args,
-    template: {
-      ...Mocks.MockTemplate,
-      deprecated: true,
-      deprecation_message:
-        "Template deprecated due to reasons. [Learn more](#)",
-    },
-  },
-};
-
-export const Unhealthy: Story = {
-  args: {
-    ...Running.args,
-    workspace: {
-      ...Mocks.MockWorkspace,
-      latest_build: { ...Mocks.MockWorkspace.latest_build, status: "running" },
-      health: {
-        healthy: false,
-        failing_agents: [],
-      },
-    },
   },
 };
 

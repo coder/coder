@@ -48,7 +48,8 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 
 	if req.Name == database.EveryoneGroup {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("%q is a reserved keyword and cannot be used for a group name.", database.EveryoneGroup),
+			Message:     "Invalid group name.",
+			Validations: []codersdk.ValidationError{{Field: "name", Detail: fmt.Sprintf("%q is a reserved group name", req.Name)}},
 		})
 		return
 	}
@@ -63,7 +64,8 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 	})
 	if database.IsUniqueViolation(err) {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-			Message: fmt.Sprintf("Group with name %q already exists.", req.Name),
+			Message:     fmt.Sprintf("A group named %q already exists.", req.Name),
+			Validations: []codersdk.ValidationError{{Field: "name", Detail: "Group names must be unique"}},
 		})
 		return
 	}

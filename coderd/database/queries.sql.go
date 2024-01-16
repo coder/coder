@@ -10813,6 +10813,25 @@ func (q *sqlQuerier) InsertWorkspaceResourceMetadata(ctx context.Context, arg In
 	return items, nil
 }
 
+const batchUpdateWorkspaceLastUsedAt = `-- name: BatchUpdateWorkspaceLastUsedAt :exec
+UPDATE
+	workspaces
+SET
+	last_used_at = $1
+WHERE
+	id = ANY($2 :: uuid[])
+`
+
+type BatchUpdateWorkspaceLastUsedAtParams struct {
+	LastUsedAt time.Time   `db:"last_used_at" json:"last_used_at"`
+	IDs        []uuid.UUID `db:"ids" json:"ids"`
+}
+
+func (q *sqlQuerier) BatchUpdateWorkspaceLastUsedAt(ctx context.Context, arg BatchUpdateWorkspaceLastUsedAtParams) error {
+	_, err := q.db.ExecContext(ctx, batchUpdateWorkspaceLastUsedAt, arg.LastUsedAt, pq.Array(arg.IDs))
+	return err
+}
+
 const getDeploymentWorkspaceStats = `-- name: GetDeploymentWorkspaceStats :one
 WITH workspaces_with_jobs AS (
 	SELECT
