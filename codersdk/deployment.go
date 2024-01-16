@@ -619,6 +619,9 @@ when required by your organization's security policy.`,
 			// We have a validation function to ensure the wildcard url is correct,
 			// so use that instead.
 			Value: clibase.Validate(&c.WildcardAccessURL, func(value *clibase.String) error {
+				if value.Value() == "" {
+					return nil
+				}
 				_, err := appurl.CompileHostnamePattern(value.Value())
 				return err
 			}),
