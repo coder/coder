@@ -59,24 +59,24 @@ func (i *Validator[T]) Type() string {
 	return i.Value.Type()
 }
 
-func (u *Validator[T]) MarshalYAML() (interface{}, error) {
-	m, ok := any(u.Value).(yaml.Marshaler)
+func (i *Validator[T]) MarshalYAML() (interface{}, error) {
+	m, ok := any(i.Value).(yaml.Marshaler)
 	if !ok {
-		return u.Value, nil
+		return i.Value, nil
 	}
 	return m.MarshalYAML()
 }
 
-func (u *Validator[T]) UnmarshalYAML(n *yaml.Node) error {
-	return n.Decode(u.Value)
+func (i *Validator[T]) UnmarshalYAML(n *yaml.Node) error {
+	return n.Decode(i.Value)
 }
 
-func (u *Validator[T]) MarshalJSON() ([]byte, error) {
-	return json.Marshal(u.Value)
+func (i *Validator[T]) MarshalJSON() ([]byte, error) {
+	return json.Marshal(i.Value)
 }
 
-func (u *Validator[T]) UnmarshalJSON(b []byte) error {
-	return json.Unmarshal(b, u.Value)
+func (i *Validator[T]) UnmarshalJSON(b []byte) error {
+	return json.Unmarshal(b, i.Value)
 }
 
 func (*Validator[T]) IsValidator() {}
