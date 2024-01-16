@@ -59,12 +59,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "components/Popover/Popover";
-import { HelpTooltipTitle, HelpTooltipText, HelpTooltipLinksGroup, HelpTooltipLink } from "components/HelpTooltip/HelpTooltip";
-import { docs } from "utils/docs";
+import { HelpTooltipTitle, HelpTooltipText,  } from "components/HelpTooltip/HelpTooltip";
 import ExpandMoreOutlined from "@mui/icons-material/ExpandMoreOutlined";
 import { ProvisionerTag } from "pages/HealthPage/ProvisionerDaemonsPage";
 import { Stack } from "components/Stack/Stack";
 import { additionalTags } from "utils/provisionertags";
+import TextField from "@mui/material/TextField";
+import AddIcon from '@mui/icons-material/Add';
 
 type Tab = "logs" | "resources" | undefined; // Undefined is to hide the tab
 
@@ -194,8 +195,10 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   }, [buildLogs]);
 
   const disabled = false;
-  const extraTags = additionalTags(templateVersion.job.tags);
-  // const extraTags = {
+  const [extraTags, setExtraTags] = useState(additionalTags(templateVersion.job.tags));
+  const [keyInput, setKeyInput] = useState("");
+  const [valueInput, setValueInput] = useState("");
+  // extraTags = {
   //   "key1": "value1",
   //   "1": "2",
   //   "3": "true",
@@ -306,16 +309,57 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                   >
                     <HelpTooltipTitle>Provisioner Tags</HelpTooltipTitle>
                     <HelpTooltipText>
-                      {Object.keys(extraTags).length > 0 ? (
-                      <Stack direction="row" spacing={1} wrap="wrap">
-                        {Object.keys(extraTags).map((k) =>
-                          <ProvisionerTag key={k} k={k} v={extraTags[k]} />
-                        )}
-                      </Stack>
-                      ) : (
-                        "No tags"
-                      )}
+                      <Stack>
+                        {Object.keys(extraTags).length > 0 ? (
+                          <Stack direction="row" spacing={1} wrap="wrap">
+                            {Object.keys(extraTags).map((k) =>
+                              <ProvisionerTag key={k} k={k} v={extraTags[k]} onDelete={() => {
+                                return
+                              }}/>
+                            )}
+                          </Stack>
+                        ) : ("No tags")}
 
+                          <Stack direction="row">
+                            <TextField
+                            size="small"
+                            name="key-input"
+                            autoComplete="off"
+                            id="key-input"
+                            value={keyInput}
+                            onChange={(event) => {
+                              setKeyInput(event.target.value);
+                            }}
+                            label="Key"
+                          />
+                          <TextField
+                            size="small"
+                            name="value-input"
+                            autoComplete="off"
+                            id="value-input"
+                            value={valueInput}
+                            onChange={(event) => {
+                              setValueInput(event.target.value);
+                            }}
+                            label="Value"
+                          />
+                          <Button
+                            onClick={() => {
+                              if (keyInput && valueInput) {
+                                const newTags = {...extraTags};
+                                newTags[keyInput] = valueInput;
+                                setExtraTags(newTags);
+                                setKeyInput("");
+                                setValueInput("");
+                              }
+                            }}
+                            variant="contained"
+                            color="secondary"
+                          >
+                            <AddIcon/>
+                          </Button>
+                        </Stack>
+                      </Stack>
                     </HelpTooltipText>
                   </div>
                 </PopoverContent>
