@@ -216,6 +216,7 @@ message Metadata {
     string workspace_owner_oidc_access_token = 10;
     string workspace_owner_session_token = 11;
     string template_id = 12;
+    string workspace_owner_name = 13;
 }
 
 // Config represents execution configuration shared by all subsequent requests in the Session
