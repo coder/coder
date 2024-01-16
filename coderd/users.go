@@ -671,7 +671,7 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.UserProfile(updatedUserProfile, organizationIDs))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(updatedUserProfile, organizationIDs))
 }
 
 // @Summary Suspend user account

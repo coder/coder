@@ -117,12 +117,6 @@ func TemplateVersionParameter(param database.TemplateVersionParameter) (codersdk
 }
 
 func User(user database.User, organizationIDs []uuid.UUID) codersdk.User {
-	u := UserProfile(user, organizationIDs)
-	u.Name = "" // Name property is accessible only via User Profile API.
-	return u
-}
-
-func UserProfile(user database.User, organizationIDs []uuid.UUID) codersdk.User {
 	convertedUser := codersdk.User{
 		ID:              user.ID,
 		Email:           user.Email,
