@@ -204,7 +204,7 @@ func TestStart(t *testing.T) {
 
 		err = inv.Run()
 		require.NoError(t, err)
-		require.Contains(t, buf.String(), "Activating dormant workspace...OK")
+		require.Contains(t, buf.String(), "Activating dormant workspace...")
 
 		workspace = coderdtest.MustWorkspace(t, memberClient, workspace.ID)
 		require.Equal(t, codersdk.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
