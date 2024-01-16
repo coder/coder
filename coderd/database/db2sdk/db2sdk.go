@@ -116,17 +116,17 @@ func TemplateVersionParameter(param database.TemplateVersionParameter) (codersdk
 	}, nil
 }
 
-func UserProfile(user database.User, organizationIDs []uuid.UUID) codersdk.User {
-	u := User(user, organizationIDs)
-	u.Name = "TODO"
+func User(user database.User, organizationIDs []uuid.UUID) codersdk.User {
+	u := UserProfile(user, organizationIDs)
+	u.Name = "" // Name property is accessible only via User Profile API.
 	return u
 }
 
-func User(user database.User, organizationIDs []uuid.UUID) codersdk.User {
+func UserProfile(user database.User, organizationIDs []uuid.UUID) codersdk.User {
 	convertedUser := codersdk.User{
-		ID:    user.ID,
-		Email: user.Email,
-		// Name property is visible only for the account owner.
+		ID:              user.ID,
+		Email:           user.Email,
+		Name:            user.Name,
 		CreatedAt:       user.CreatedAt,
 		LastSeenAt:      user.LastSeenAt,
 		Username:        user.Username,
