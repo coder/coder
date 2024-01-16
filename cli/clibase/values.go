@@ -79,7 +79,7 @@ func (i *Validator[T]) UnmarshalJSON(b []byte) error {
 	return json.Unmarshal(b, i.Value)
 }
 
-func (*Validator[T]) IsValidator() {}
+func (i *Validator[T]) Underlying() pflag.Value { return i.Value }
 
 // values.go contains a standard set of value types that can be used as
 // Option Values.

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/mitchellh/go-wordwrap"
+	"github.com/spf13/pflag"
 	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v3"
 )
@@ -75,7 +76,7 @@ func (optSet *OptionSet) MarshalYAML() (any, error) {
 			HeadComment: comment,
 		}
 
-		_, isValidator := opt.Value.(interface{ IsValidator() })
+		_, isValidator := opt.Value.(interface{ Underlying() pflag.Value })
 		var valueNode yaml.Node
 		if opt.Value == nil {
 			valueNode = yaml.Node{
