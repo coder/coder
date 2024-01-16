@@ -862,12 +862,12 @@ func TestSSH(t *testing.T) {
 				// Redo ping / pong to ensure that the socket
 				// connections still work.
 				_, err := fd.Write([]byte("hello world"))
-				require.NoError(t, err, id)
+				assert.NoError(t, err, id)
 
 				buf := make([]byte, 11)
 				_, err = fd.Read(buf)
-				require.NoError(t, err, id)
-				require.Equal(t, "hello world", string(buf), id)
+				assert.NoError(t, err, id)
+				assert.Equal(t, "hello world", string(buf), id)
 
 				pty.WriteLine("exit")
 				<-cmdDone
