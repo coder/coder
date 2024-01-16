@@ -73,7 +73,7 @@ Block peer-to-peer (aka. direct) workspace connections. All workspace connection
 
 Whether Coder only allows connections to workspaces via the browser.
 
-### --cli-upgrade-messsage
+### --cli-upgrade-message
 
 |             |                                         |
 | ----------- | --------------------------------------- |
