@@ -168,7 +168,7 @@ NETWORKING OPTIONS:
       --secure-auth-cookie bool, $CODER_SECURE_AUTH_COOKIE
           Controls if the 'Secure' property is set on browser session cookies.
 
-      --wildcard-access-url url, $CODER_WILDCARD_ACCESS_URL
+      --wildcard-access-url string, $CODER_WILDCARD_ACCESS_URL
           Specifies the wildcard hostname to use for workspace applications in
           the form "*.example.com".
 

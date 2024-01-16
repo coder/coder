@@ -74,13 +74,17 @@ func (optSet *OptionSet) MarshalYAML() (any, error) {
 			Value:       opt.YAML,
 			HeadComment: comment,
 		}
+
+		_, isValidator := opt.Value.(interface{ IsValidator() })
+
 		var valueNode yaml.Node
 		if opt.Value == nil {
 			valueNode = yaml.Node{
 				Kind:  yaml.ScalarNode,
 				Value: "null",
 			}
-		} else if m, ok := opt.Value.(yaml.Marshaler); ok {
+		} else if m, ok := opt.Value.(yaml.Marshaler); ok && !isValidator {
+			// Validators do a wrap, and should be handled by the else statement.
 			v, err := m.MarshalYAML()
 			if err != nil {
 				return nil, xerrors.Errorf(

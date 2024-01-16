@@ -59,6 +59,28 @@ func (i *Validator[T]) Type() string {
 	return i.Value.Type()
 }
 
+func (u *Validator[T]) MarshalYAML() (interface{}, error) {
+	m, ok := any(u.Value).(yaml.Marshaler)
+	if !ok {
+		return u.Value, nil
+	}
+	return m.MarshalYAML()
+}
+
+func (u *Validator[T]) UnmarshalYAML(n *yaml.Node) error {
+	return n.Decode(u.Value)
+}
+
+func (u *Validator[T]) MarshalJSON() ([]byte, error) {
+	return json.Marshal(u.Value)
+}
+
+func (u *Validator[T]) UnmarshalJSON(b []byte) error {
+	return json.Unmarshal(b, u.Value)
+}
+
+func (*Validator[T]) IsValidator() {}
+
 // values.go contains a standard set of value types that can be used as
 // Option Values.
 
