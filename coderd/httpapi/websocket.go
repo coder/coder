@@ -4,8 +4,9 @@ import (
 	"context"
 	"time"
 
-	"cdr.dev/slog"
 	"nhooyr.io/websocket"
+
+	"cdr.dev/slog"
 )
 
 // Heartbeat loops to ping a WebSocket to keep it alive.

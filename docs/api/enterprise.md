@@ -188,6 +188,7 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group} \
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
+      "name": "string",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -251,6 +252,7 @@ curl -X DELETE http://coder-server:8080/api/v2/groups/{group} \
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
+      "name": "string",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -329,6 +331,7 @@ curl -X PATCH http://coder-server:8080/api/v2/groups/{group} \
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
+      "name": "string",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -813,6 +816,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups 
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "last_seen_at": "2019-08-24T14:15:22Z",
         "login_type": "",
+        "name": "string",
         "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
         "roles": [
           {
@@ -856,6 +860,7 @@ Status Code **200**
 | `»» id`               | string(uuid)                                           | true     |              |             |
 | `»» last_seen_at`     | string(date-time)                                      | false    |              |             |
 | `»» login_type`       | [codersdk.LoginType](schemas.md#codersdklogintype)     | false    |              |             |
+| `»» name`             | string                                                 | false    |              |             |
 | `»» organization_ids` | array                                                  | false    |              |             |
 | `»» roles`            | array                                                  | false    |              |             |
 | `»»» display_name`    | string                                                 | false    |              |             |
@@ -934,6 +939,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/groups
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
+      "name": "string",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -998,6 +1004,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
+      "name": "string",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -1361,6 +1368,7 @@ curl -X PATCH http://coder-server:8080/api/v2/scim/v2/Users/{id} \
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
+  "name": "string",
   "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
   "roles": [
     {
@@ -1414,6 +1422,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl \
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "last_seen_at": "2019-08-24T14:15:22Z",
     "login_type": "",
+    "name": "string",
     "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "role": "admin",
     "roles": [
@@ -1448,6 +1457,7 @@ Status Code **200**
 | `» id`               | string(uuid)                                             | true     |              |             |
 | `» last_seen_at`     | string(date-time)                                        | false    |              |             |
 | `» login_type`       | [codersdk.LoginType](schemas.md#codersdklogintype)       | false    |              |             |
+| `» name`             | string                                                   | false    |              |             |
 | `» organization_ids` | array                                                    | false    |              |             |
 | `» role`             | [codersdk.TemplateRole](schemas.md#codersdktemplaterole) | false    |              |             |
 | `» roles`            | array                                                    | false    |              |             |
@@ -1574,6 +1584,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "last_seen_at": "2019-08-24T14:15:22Z",
             "login_type": "",
+            "name": "string",
             "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
             "roles": [
               {
@@ -1600,6 +1611,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "last_seen_at": "2019-08-24T14:15:22Z",
         "login_type": "",
+        "name": "string",
         "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
         "roles": [
           {
@@ -1640,6 +1652,7 @@ Status Code **200**
 | `»»» id`               | string(uuid)                                           | true     |              |             |
 | `»»» last_seen_at`     | string(date-time)                                      | false    |              |             |
 | `»»» login_type`       | [codersdk.LoginType](schemas.md#codersdklogintype)     | false    |              |             |
+| `»»» name`             | string                                                 | false    |              |             |
 | `»»» organization_ids` | array                                                  | false    |              |             |
 | `»»» roles`            | array                                                  | false    |              |             |
 | `»»»» display_name`    | string                                                 | false    |              |             |
