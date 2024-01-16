@@ -101,8 +101,10 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 			return false, nil
 		}
 
-		// Remove existing socket if it exists. It's possible we will overwrite
-		// a regular file here, but this matches the behavior of OpenSSH.
+		// Remove existing socket if it exists. We do not use os.Remove() here
+		// so that directories are kept. Note that it's possible that we will
+		// overwrite a regular file here. Both of these behaviors match OpenSSH,
+		// however, which is why we unlink.
 		err = unlink(addr)
 		if err != nil && !errors.Is(err, fs.ErrNotExist) {
 			log.Warn(ctx, "remove existing socket for SSH unix forward request", slog.Error(err))
