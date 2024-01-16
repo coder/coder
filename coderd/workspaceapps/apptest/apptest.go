@@ -1570,10 +1570,9 @@ func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Cli
 func assertWorkspaceLastUsedAtUpdated(t testing.TB, details *Details) {
 	t.Helper()
 
-	<-time.After(testutil.IntervalMedium) // Wait for Bicopy to finish.
-	details.FlushStats()
 	// Wait for stats to fully flush.
 	require.Eventually(t, func() bool {
+		details.FlushStats()
 		ws, err := details.SDKClient.Workspace(context.Background(), details.Workspace.ID)
 		assert.NoError(t, err)
 		return ws.LastUsedAt.After(details.Workspace.LastUsedAt)
@@ -1585,9 +1584,7 @@ func assertWorkspaceLastUsedAtUpdated(t testing.TB, details *Details) {
 func assertWorkspaceLastUsedAtNotUpdated(t testing.TB, details *Details) {
 	t.Helper()
 
-	<-time.After(testutil.IntervalMedium) // Wait for Bicopy to finish.
 	details.FlushStats()
-	<-time.After(testutil.IntervalMedium) // Wait for stats to fully flush.
 	ws, err := details.SDKClient.Workspace(context.Background(), details.Workspace.ID)
 	require.NoError(t, err)
 	require.Equal(t, ws.LastUsedAt, details.Workspace.LastUsedAt, "workspace LastUsedAt updated when it should not have been")

@@ -442,11 +442,11 @@ func TestWorkspaceProxyWorkspaceApps(t *testing.T) {
 			"*",
 		}
 
-		proxyFlushCh := make(chan chan<- struct{})
+		proxyStatsCollectorFlushCh := make(chan chan<- struct{}, 1)
 		flushStats := func() {
-			proxyFlushDone := make(chan struct{})
-			proxyFlushCh <- proxyFlushDone
-			<-proxyFlushDone
+			proxyStatsCollectorFlushDone := make(chan struct{}, 1)
+			proxyStatsCollectorFlushCh <- proxyStatsCollectorFlushDone
+			<-proxyStatsCollectorFlushDone
 		}
 
 		client, closer, api, user := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
@@ -483,7 +483,7 @@ func TestWorkspaceProxyWorkspaceApps(t *testing.T) {
 			Name:            "best-proxy",
 			AppHostname:     opts.AppHost,
 			DisablePathApps: opts.DisablePathApps,
-			Flush:           proxyFlushCh,
+			FlushStats:      proxyStatsCollectorFlushCh,
 		})
 
 		return &apptest.Deployment{

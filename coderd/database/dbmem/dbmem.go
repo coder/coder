@@ -985,9 +985,6 @@ func (q *FakeQuerier) BatchUpdateWorkspaceLastUsedAt(_ context.Context, arg data
 		q.workspaces[i].LastUsedAt = arg.LastUsedAt
 		n++
 	}
-	if n == 0 {
-		return sql.ErrNoRows
-	}
 	return nil
 }
 

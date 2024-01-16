@@ -38,8 +38,8 @@ type ProxyOptions struct {
 	// ProxyURL is optional
 	ProxyURL *url.URL
 
-	// Flush is optional
-	Flush chan chan<- struct{}
+	// FlushStats is optional
+	FlushStats chan chan<- struct{}
 }
 
 // NewWorkspaceProxy will configure a wsproxy.Server with the given options.
@@ -116,8 +116,8 @@ func NewWorkspaceProxy(t *testing.T, coderdAPI *coderd.API, owner *codersdk.Clie
 	// Inherit collector options from coderd, but keep the wsproxy reporter.
 	statsCollectorOptions := coderdAPI.Options.WorkspaceAppsStatsCollectorOptions
 	statsCollectorOptions.Reporter = nil
-	if options.Flush != nil {
-		statsCollectorOptions.Flush = options.Flush
+	if options.FlushStats != nil {
+		statsCollectorOptions.Flush = options.FlushStats
 	}
 
 	wssrv, err := wsproxy.New(ctx, &wsproxy.Options{

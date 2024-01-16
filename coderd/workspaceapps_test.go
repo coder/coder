@@ -262,12 +262,12 @@ func TestWorkspaceApps(t *testing.T) {
 			opts.AppHost = ""
 		}
 
-		statsFlushCh := make(chan chan<- struct{})
-		opts.StatsCollectorOptions.Flush = statsFlushCh
+		flushStatsCollectorCh := make(chan chan<- struct{}, 1)
+		opts.StatsCollectorOptions.Flush = flushStatsCollectorCh
 		flushStats := func() {
-			flushDone := make(chan struct{})
-			statsFlushCh <- flushDone
-			<-flushDone
+			flushStatsCollectorDone := make(chan struct{}, 1)
+			flushStatsCollectorCh <- flushStatsCollectorDone
+			<-flushStatsCollectorDone
 		}
 		client := coderdtest.New(t, &coderdtest.Options{
 			DeploymentValues:         deploymentValues,
