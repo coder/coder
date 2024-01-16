@@ -21,6 +21,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -859,6 +860,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 		tickInterval time.Duration
 		bytesPerTick int64
 		ssh          bool
+		app          string
 		template     string
 
 		client          = &codersdk.Client{}
@@ -911,6 +913,11 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 				}
 			}
 
+			appHost, err := client.AppHost(ctx)
+			if err != nil {
+				return xerrors.Errorf("get app host: %w", err)
+			}
+
 			workspaces, err := getScaletestWorkspaces(inv.Context(), client, template)
 			if err != nil {
 				return err
@@ -949,6 +956,8 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 					agentName string
 					name      = "workspace-traffic"
 					id        = strconv.Itoa(idx)
+					apps      []codersdk.WorkspaceApp
+					appConfig workspacetraffic.AppConfig
 				)
 
 				for _, res := range ws.LatestBuild.Resources {
@@ -957,11 +966,32 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 					}
 					agentID = res.Agents[0].ID
 					agentName = res.Agents[0].Name
+					apps = res.Agents[0].Apps
 				}
 
 				if agentID == uuid.Nil {
 					_, _ = fmt.Fprintf(inv.Stderr, "WARN: skipping workspace %s: no agent\n", ws.Name)
 					continue
+				}
+
+				if app != "" {
+					i := slices.IndexFunc(apps, func(a codersdk.WorkspaceApp) bool { return a.Slug == app })
+					if i == -1 {
+						return xerrors.Errorf("app %q not found in workspace %q", app, ws.Name)
+					}
+
+					appConfig = workspacetraffic.AppConfig{
+						Name: apps[i].Slug,
+					}
+					if apps[i].Subdomain {
+						if appHost.Host == "" {
+							return xerrors.Errorf("app %q is a subdomain app but no app host is configured", app)
+						}
+
+						appConfig.URL = fmt.Sprintf("%s://%s", client.URL.Scheme, strings.Replace(appHost.Host, "*", apps[i].SubdomainName, 1))
+					} else {
+						appConfig.URL = fmt.Sprintf("%s/@%s/%s.%s/apps/%s", client.URL.String(), ws.OwnerName, ws.Name, agentName, apps[i].Slug)
+					}
 				}
 
 				// Setup our workspace agent connection.
@@ -974,6 +1004,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 					WriteMetrics: metrics.WriteMetrics(ws.OwnerName, ws.Name, agentName),
 					SSH:          ssh,
 					Echo:         ssh,
+					App:          appConfig,
 				}
 
 				if err := config.Validate(); err != nil {
@@ -1046,8 +1077,15 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 			Flag:        "ssh",
 			Env:         "CODER_SCALETEST_WORKSPACE_TRAFFIC_SSH",
 			Default:     "",
-			Description: "Send traffic over SSH.",
+			Description: "Send traffic over SSH, cannot be used with --app.",
 			Value:       clibase.BoolOf(&ssh),
+		},
+		{
+			Flag:        "app",
+			Env:         "CODER_SCALETEST_WORKSPACE_TRAFFIC_APP",
+			Default:     "",
+			Description: "Send WebSocket traffic to a workspace app (proxied via coderd), cannot be used with --ssh.",
+			Value:       clibase.StringOf(&app),
 		},
 	}
 
