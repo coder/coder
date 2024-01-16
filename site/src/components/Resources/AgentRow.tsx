@@ -243,7 +243,7 @@ export const AgentRow: FC<AgentRowProps> = ({
       )}
 
       {agent.status === "connecting" && (
-        <div css={styles.apps}>
+        <section css={styles.apps}>
           <Skeleton
             width={80}
             height={32}
@@ -256,13 +256,13 @@ export const AgentRow: FC<AgentRowProps> = ({
             variant="rectangular"
             css={styles.buttonSkeleton}
           />
-        </div>
+        </section>
       )}
 
       <AgentMetadata storybookMetadata={storybookAgentMetadata} agent={agent} />
 
       {hasStartupFeatures && (
-        <div css={styles.logsPanel}>
+        <section>
           <Collapse in={showLogs}>
             <AutoSizer disableHeight>
               {({ width }) => (
@@ -417,16 +417,14 @@ export const AgentRow: FC<AgentRowProps> = ({
             </AutoSizer>
           </Collapse>
 
-          <div css={{ display: "flex" }}>
-            <button
-              css={styles.logsPanelButton}
-              onClick={() => setShowLogs((v) => !v)}
-            >
-              <DropdownArrow close={showLogs} />
-              {showLogs ? "Hide" : "Show"} logs
-            </button>
-          </div>
-        </div>
+          <button
+            css={styles.logsPanelButton}
+            onClick={() => setShowLogs((v) => !v)}
+          >
+            <DropdownArrow close={showLogs} margin={false} />
+            {showLogs ? "Hide" : "Show"} logs
+          </button>
+        </section>
       )}
     </Stack>
   );
@@ -583,7 +581,7 @@ const styles = {
   }),
 
   apps: (theme) => ({
-    padding: 24,
+    padding: "32px 24px",
     display: "flex",
     gap: 16,
     flexWrap: "wrap",
@@ -602,6 +600,7 @@ const styles = {
   startupLogs: (theme) => ({
     maxHeight: 256,
     borderBottom: `1px solid ${theme.palette.divider}`,
+    borderTop: `1px solid ${theme.palette.divider}`,
     backgroundColor: theme.palette.background.paper,
     paddingTop: 16,
 
@@ -654,16 +653,12 @@ const styles = {
     },
   }),
 
-  logsPanel: (theme) => ({
-    borderTop: `1px solid ${theme.palette.divider}`,
-  }),
-
   logsPanelButton: (theme) => ({
     textAlign: "left",
     background: "transparent",
     border: 0,
     fontFamily: "inherit",
-    padding: "12px 32px",
+    padding: "16px 24px",
     color: theme.palette.text.secondary,
     cursor: "pointer",
     display: "flex",

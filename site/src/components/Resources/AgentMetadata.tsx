@@ -98,16 +98,14 @@ export const AgentMetadataView: FC<AgentMetadataViewProps> = ({ metadata }) => {
     return null;
   }
   return (
-    <div css={styles.root}>
-      <Stack alignItems="baseline" direction="row" spacing={6}>
-        {metadata.map((m) => {
-          if (m.description === undefined) {
-            throw new Error("Metadata item description is undefined");
-          }
-          return <MetadataItem key={m.description.key} item={m} />;
-        })}
-      </Stack>
-    </div>
+    <section css={styles.root}>
+      {metadata.map((m) => {
+        if (m.description === undefined) {
+          throw new Error("Metadata item description is undefined");
+        }
+        return <MetadataItem key={m.description.key} item={m} />;
+      })}
+    </section>
   );
 };
 
@@ -162,13 +160,19 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 
   if (metadata === undefined) {
     return (
-      <div css={styles.root}>
+      <section css={styles.root}>
         <AgentMetadataSkeleton />
-      </div>
+      </section>
     );
   }
 
-  return <AgentMetadataView metadata={metadata} />;
+  return (
+    <AgentMetadataView
+      metadata={[...metadata].sort((a, b) =>
+        a.description.display_name.localeCompare(b.description.display_name),
+      )}
+    />
+  );
 };
 
 export const AgentMetadataSkeleton: FC = () => {
@@ -221,25 +225,21 @@ const StaticWidth: FC<HTMLAttributes<HTMLDivElement>> = ({
 // These are more or less copied from
 // site/src/components/Resources/ResourceCard.tsx
 const styles = {
-  root: (theme) => ({
-    padding: "20px 32px",
-    borderTop: `1px solid ${theme.palette.divider}`,
-    overflowX: "auto",
-    scrollPadding: "0 32px",
-  }),
+  root: {
+    padding: "0 24px 32px",
+    display: "flex",
+    alignItems: "baseline",
+    flexWrap: "wrap",
+    gap: 32,
+    rowGap: 16,
+  },
 
   metadata: {
-    fontSize: 12,
-    lineHeight: "normal",
+    lineHeight: "1.6",
     display: "flex",
     flexDirection: "column",
-    gap: 4,
     overflow: "visible",
-
-    // Because of scrolling
-    "&:last-child": {
-      paddingRight: 32,
-    },
+    flexShrink: 0,
   },
 
   metadataLabel: (theme) => ({
@@ -247,7 +247,7 @@ const styles = {
     textOverflow: "ellipsis",
     overflow: "hidden",
     whiteSpace: "nowrap",
-    fontWeight: 500,
+    fontSize: 13,
   }),
 
   metadataValue: {
@@ -259,9 +259,7 @@ const styles = {
   },
 
   metadataValueSuccess: (theme) => ({
-    // color: theme.palette.success.light,
-    color: theme.experimental.roles.success.fill,
-    // color: theme.experimental.roles.success.text,
+    color: theme.experimental.roles.success.outline,
   }),
 
   metadataValueError: (theme) => ({
