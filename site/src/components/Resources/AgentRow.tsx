@@ -233,16 +233,12 @@ export const AgentRow: FC<AgentRowProps> = ({
             </>
           )}
 
-          {showBuiltinApps && (
-            <>
-              {agent.display_apps.includes("web_terminal") && (
-                <TerminalLink
-                  workspaceName={workspace.name}
-                  agentName={agent.name}
-                  userName={workspace.owner_name}
-                />
-              )}
-            </>
+          {showBuiltinApps && agent.display_apps.includes("web_terminal") && (
+            <TerminalLink
+              workspaceName={workspace.name}
+              agentName={agent.name}
+              userName={workspace.owner_name}
+            />
           )}
         </section>
       )}
