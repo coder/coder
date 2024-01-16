@@ -321,19 +321,17 @@ func (p *ProxyHealth) runOnce(ctx context.Context, now time.Time) (map[uuid.UUID
 				// readable.
 				builder.WriteString(fmt.Sprintf("unexpected status code %d. ", resp.StatusCode))
 				builder.WriteString(fmt.Sprintf("\nEncountered error, send a request to %q from the Coderd environment to debug this issue.", reqURL))
+				// err will always be non-nil
 				err := codersdk.ReadBodyAsError(resp)
-				if err != nil {
-					var apiErr *codersdk.Error
-					if xerrors.As(err, &apiErr) {
-						builder.WriteString(fmt.Sprintf("\nError Message: %s\nError Detail: %s", apiErr.Message, apiErr.Detail))
-						for _, v := range apiErr.Validations {
-							// Pretty sure this is not possible from the called endpoint, but just in case.
-							builder.WriteString(fmt.Sprintf("\n\tValidation: %s=%s", v.Field, v.Detail))
-						}
-					} else {
-						builder.WriteString(fmt.Sprintf("\nError: %s", err.Error()))
+				var apiErr *codersdk.Error
+				if xerrors.As(err, &apiErr) {
+					builder.WriteString(fmt.Sprintf("\nError Message: %s\nError Detail: %s", apiErr.Message, apiErr.Detail))
+					for _, v := range apiErr.Validations {
+						// Pretty sure this is not possible from the called endpoint, but just in case.
+						builder.WriteString(fmt.Sprintf("\n\tValidation: %s=%s", v.Field, v.Detail))
 					}
 				}
+				builder.WriteString(fmt.Sprintf("\nError: %s", err.Error()))
 
 				status.Report.Errors = []string{builder.String()}
 			case err != nil:
