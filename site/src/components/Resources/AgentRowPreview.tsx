@@ -107,6 +107,14 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
                   {DisplayAppNameMap["web_terminal"]}
                 </AppPreview>
               )}
+              {agent.display_apps.includes("ssh_helper") && (
+                <AppPreview>{DisplayAppNameMap["ssh_helper"]}</AppPreview>
+              )}
+              {agent.display_apps.includes("port_forwarding_helper") && (
+                <AppPreview>
+                  {DisplayAppNameMap["port_forwarding_helper"]}
+                </AppPreview>
+              )}
               {/* VSCode display apps (vscode, vscode_insiders) get special presentation */}
               {agent.display_apps.includes("vscode") ? (
                 <AppPreview>

@@ -14,7 +14,6 @@ import {
   PopoverTrigger,
 } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
-import { DisplayAppNameMap } from "../AppLink/AppLink";
 import Button from "@mui/material/Button";
 import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
 
@@ -42,7 +41,7 @@ export const SSHButton: FC<PropsWithChildren<SSHButtonProps>> = ({
           endIcon={<KeyboardArrowDown />}
           css={{ fontSize: 13, padding: "8px 12px" }}
         >
-          {DisplayAppNameMap["ssh_helper"]}
+          Connect to SSH
         </Button>
       </PopoverTrigger>
 

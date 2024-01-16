@@ -25,7 +25,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "components/Popover/Popover";
-import { DisplayAppNameMap } from "./AppLink/AppLink";
 import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
 
 export interface PortForwardButtonProps {
@@ -75,7 +74,7 @@ export const PortForwardButton: FC<PortForwardButtonProps> = (props) => {
             )
           }
         >
-          {DisplayAppNameMap["port_forwarding_helper"]}
+          Open ports
         </Button>
       </PopoverTrigger>
       <PopoverContent horizontal="right" classes={{ paper }}>
