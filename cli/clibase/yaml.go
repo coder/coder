@@ -76,7 +76,6 @@ func (optSet *OptionSet) MarshalYAML() (any, error) {
 		}
 
 		_, isValidator := opt.Value.(interface{ IsValidator() })
-
 		var valueNode yaml.Node
 		if opt.Value == nil {
 			valueNode = yaml.Node{

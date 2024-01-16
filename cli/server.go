@@ -53,9 +53,6 @@ import (
 	"gopkg.in/yaml.v3"
 	"tailscale.com/tailcfg"
 
-	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
-	"github.com/coder/pretty"
-
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/buildinfo"
@@ -89,6 +86,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/cryptorand"
@@ -99,6 +97,7 @@ import (
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/pretty"
 	"github.com/coder/retry"
 	"github.com/coder/wgtunnel/tunnelsdk"
 )
@@ -434,11 +433,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 				if vals.WildcardAccessURL.String() == "" {
 					// Suffixed wildcard access URL.
-					//u, err := url.Parse(fmt.Sprintf("*--%s", tunnel.URL.Hostname()))
-					//if err != nil {
-					//	return xerrors.Errorf("parse wildcard url: %w", err)
-					//}
-					vals.WildcardAccessURL.Set(fmt.Sprintf("*--%s", tunnel.URL.Hostname()))
+					wu := fmt.Sprintf("*--%s", tunnel.URL.Hostname())
+					err = vals.WildcardAccessURL.Set(wu)
+					if err != nil {
+						return xerrors.Errorf("set wildcard access url %q: %w", wu, err)
+					}
 				}
 			}
 
