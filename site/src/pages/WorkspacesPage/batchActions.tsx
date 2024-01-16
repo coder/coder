@@ -16,7 +16,7 @@ export function useBatchActions(options: UseBatchActionsProps) {
   const { onSuccess } = options;
 
   const startAllMutation = useMutation({
-    mutationFn: async (workspaces: Workspace[]) => {
+    mutationFn: (workspaces: Workspace[]) => {
       return Promise.all(
         workspaces.map((w) =>
           startWorkspace(w.id, w.latest_build.template_version_id),
@@ -30,7 +30,7 @@ export function useBatchActions(options: UseBatchActionsProps) {
   });
 
   const stopAllMutation = useMutation({
-    mutationFn: async (workspaces: Workspace[]) => {
+    mutationFn: (workspaces: Workspace[]) => {
       return Promise.all(workspaces.map((w) => stopWorkspace(w.id)));
     },
     onSuccess,
@@ -40,7 +40,7 @@ export function useBatchActions(options: UseBatchActionsProps) {
   });
 
   const deleteAllMutation = useMutation({
-    mutationFn: async (workspaces: Workspace[]) => {
+    mutationFn: (workspaces: Workspace[]) => {
       return Promise.all(workspaces.map((w) => deleteWorkspace(w.id)));
     },
     onSuccess,
@@ -50,14 +50,11 @@ export function useBatchActions(options: UseBatchActionsProps) {
   });
 
   const updateAllMutation = useMutation({
-    mutationFn: async (workspaces: Workspace[]) => {
+    mutationFn: (workspaces: Workspace[]) => {
       return Promise.all(
         workspaces
-          .filter((w) => w.outdated)
-          .filter((w) => (console.log(w.dormant_at), true))
-          .map((w) => {
-            updateWorkspace(w);
-          }),
+          .filter((w) => w.outdated && !w.dormant_at)
+          .map((w) => updateWorkspace(w)),
       );
     },
     onSuccess,
