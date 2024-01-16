@@ -401,19 +401,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "verbose": true,
     "web_terminal_renderer": "string",
     "wgtunnel_host": "string",
-    "wildcard_access_url": {
-      "forceQuery": true,
-      "fragment": "string",
-      "host": "string",
-      "omitHost": true,
-      "opaque": "string",
-      "path": "string",
-      "rawFragment": "string",
-      "rawPath": "string",
-      "rawQuery": "string",
-      "scheme": "string",
-      "user": {}
-    },
+    "wildcard_access_url": "string",
     "write_config": true
   },
   "options": [
